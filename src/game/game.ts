@@ -242,6 +242,7 @@ import {
     GARRISON_STEP_COST,
     STRONGHOLD,
     UNIT_TYPES,
+    formationHeadcount,
     isPlayerBuyable,
     techDescription,
     techIcon,
@@ -8215,8 +8216,11 @@ export class Game {
     }
 
     /**
-     * Materializes one spawn-spell stamp as battle-only packs, scattered in
-     * the stamp's circle. Seeded per stamp id — identical on both peers.
+     * Materializes one spawn-spell stamp as battle-only packs. Members are
+     * scattered uniformly in the stamp's circle (not a drilled formation) —
+     * the pack footprint is larger than the mark, so grid placement used to
+     * park both packs in orderly Chebyshev rings and look nothing like a
+     * random burst. Seeded per stamp id — identical on both peers.
      */
     private spawnSummons(
         stamp: SpellStamp,
@@ -8227,28 +8231,31 @@ export class Game {
         const tactic = TACTICS[stamp.tacticId]!;
         const scatter = tactic.radius ?? 4 * CELL;
         const rng = mulberry32(seedFrom(this.seed, `spell:${stamp.id}`));
+        const perPack = formationHeadcount(type);
+        const points: { x: number; z: number }[] = [];
+        for (let n = 0; n < spawn.count * perPack; n++) {
+            points.push(this.randomPointInDisk(stamp.x, stamp.z, scatter, rng));
+        }
         for (let i = 0; i < spawn.count; i++) {
-            // rejection sampling instead of cos/sin — these positions become
-            // sim state, and transcendental results differ between engines
-            let ox = 0;
-            let oz = 0;
-            for (let tries = 0; tries < 16; tries++) {
-                const cx = (rng() * 2 - 1) * scatter;
-                const cz = (rng() * 2 - 1) * scatter;
-                if (cx * cx + cz * cz <= scatter * scatter) {
-                    ox = cx;
-                    oz = cz;
-                    break;
-                }
+            const slice = points.slice(i * perPack, (i + 1) * perPack);
+            if (slice.length === 0) continue;
+            let cx = 0;
+            let cz = 0;
+            for (const p of slice) {
+                cx += p.x;
+                cz += p.z;
             }
-            const anchor = this.placement.findSpotNearWorld(
-                type,
-                stamp.x + ox,
-                stamp.z + oz,
-            );
-            if (!anchor) continue;
-            const unit = this.placement.spawn(type, anchor, stamp.team, false, true, stamp.seat);
-            if (!unit) continue;
+            cx /= slice.length;
+            cz /= slice.length;
+            // gridless — same path as on-kill summons; avoids footprint/ring snap
+            const unit = this.placement.spawnAtWorld(type, cx, cz, stamp.team, stamp.seat);
+            for (let m = 0; m < unit.members.length; m++) {
+                const p = slice[m];
+                if (!p) break;
+                const member = unit.members[m]!;
+                member.home.set(p.x - cx, 0, p.z - cz);
+                member.mesh.position.set(member.home.x, 0, member.home.z);
+            }
             unit.summoned = true;
             unit.summonDelay = tactic.spell?.delaySeconds ?? 0;
             unit.deployedRound = this.round;
@@ -8257,7 +8264,29 @@ export class Game {
             // their lift toward the ground and Unit.update() re-seats member
             // meshes at the pack origin every frame, fighting the sim's Y
             unit.setDeployment(false);
+            unit.seatMembers();
         }
+    }
+
+    /** Rejection sample in a disk — no trig, bit-identical across peers. */
+    private randomPointInDisk(
+        cx: number,
+        cz: number,
+        radius: number,
+        rng: () => number,
+    ): { x: number; z: number } {
+        let ox = 0;
+        let oz = 0;
+        for (let tries = 0; tries < 32; tries++) {
+            const tx = (rng() * 2 - 1) * radius;
+            const tz = (rng() * 2 - 1) * radius;
+            if (tx * tx + tz * tz <= radius * radius) {
+                ox = tx;
+                oz = tz;
+                break;
+            }
+        }
+        return { x: cx + ox, z: cz + oz };
     }
 
     /**
