@@ -297,7 +297,7 @@ function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
     const recipe = isBase ? [] : runeRecipeIcons(item.id);
     const costHtml = isBase
         ? `<div class="mh-tactic-cost" title="Bought in the shop, or drafted from a round card" aria-label="Shop price">${DEFAULT_SETTINGS.deploy.baseRuneCost}</div>`
-        : `<div class="mh-tactic-cost mh-cost-forge" title="Forged at the Stronghold" aria-label="Forge price">${recipe
+        : `<div class="mh-tactic-cost" title="Forged at the Stronghold" aria-label="Forge price">${recipe
               .map((ico) => iconHtml(ico, 'mh-cost-rune'))
               .join('')}<span class="mh-cost-plus">+</span>${DEFAULT_SETTINGS.deploy.forgeCost}</div>`;
     return `

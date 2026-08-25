@@ -1077,8 +1077,8 @@ html, body {
     left: 0;
     right: 0;
     bottom: 0;
-    padding: 5px 0 6px;
-    font-size: 13px;
+    padding: 8px 0 9px;
+    font-size: 15px;
     font-weight: 700;
     text-align: center;
     font-variant-numeric: tabular-nums;
@@ -1089,13 +1089,6 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-}
-/* the forge band runs taller than a plain number's — the ingredient runes have
-   to be readable, and at the number's line height they were specks */
-.mh-tactic-cost.mh-cost-forge {
-    padding: 8px 0 9px;
-    font-size: 15px;
     gap: 7px;
 }
 .mh-cost-rune {
@@ -1111,9 +1104,6 @@ html, body {
 }
 /* room for the band, the same way the game pads a tile that carries one */
 .mh-tactic:has(.mh-tactic-cost) .mh-tactic-body {
-    padding-bottom: 40px;
-}
-.mh-tactic:has(.mh-cost-forge) .mh-tactic-body {
     padding-bottom: 58px;
 }
 .mh-tactic-stats {
