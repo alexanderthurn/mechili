@@ -810,6 +810,14 @@ export class Hud {
             });
         });
         this.panel.addEventListener('click', (e) => {
+            // leftover / tap-to-dismiss: the info frame itself (not Buy)
+            const infoFrame = (e.target as HTMLElement).closest('.action-info');
+            if (infoFrame && this.panel.contains(infoFrame)) {
+                if (!(e.target as HTMLElement).closest('.ai-buy')) {
+                    this.hideActionInfo();
+                }
+                return;
+            }
             // touch has no hover: first tap peeks at the info, second tap acts
             if (inputMode() === 'touch') {
                 const peek = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
@@ -882,6 +890,24 @@ export class Hud {
         });
         this.panel.addEventListener('pointerout', (e) => {
             if ((e as PointerEvent).pointerType === 'touch') return;
+            const relatedNode = e.relatedTarget as Node | null;
+            // moving onto the info frame must not dismiss it (it's now hittable
+            // so leftovers can be clicked closed)
+            if (
+                relatedNode instanceof Element &&
+                relatedNode.closest('.action-info') &&
+                this.panel.contains(relatedNode.closest('.action-info'))
+            ) {
+                return;
+            }
+            const infoFrom = (e.target as HTMLElement).closest('.action-info');
+            if (infoFrom && this.panel.contains(infoFrom)) {
+                if (relatedNode && infoFrom.contains(relatedNode)) return;
+                const toTile = (relatedNode as HTMLElement | null)?.closest?.(infoSel);
+                if (toTile) return;
+                this.hideActionInfo();
+                return;
+            }
             const from = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             const to = (e.relatedTarget as HTMLElement | null)?.closest?.(infoSel);
             if (from && from !== to) {
@@ -1771,12 +1797,15 @@ export class Hud {
     /** click-open cookbook — stays until click outside, even if the pointer leaves */
     private forgeRecipesPinned = false;
 
-    /** click outside dismisses sticky recipe peeks; clicks inside the cookbook stay */
+    /** click outside dismisses sticky recipe peeks; clicks inside the cookbook
+     *  stay (tiles open a nested spell tip). Nested tip clicks must not count
+     *  as "outside" or the cookbook would close under the leftover. */
     private readonly onForgeRecipesPointerDown = (e: PointerEvent) => {
         const el = this.forgeSlotPreviewEl;
         if (!el || el.hidden || !el.classList.contains('recipes')) return;
-        const t = e.target as Node | null;
-        if (!t) return;
+        const t = e.target;
+        if (!(t instanceof Node)) return;
+        if (t instanceof Element && t.closest('.mechili-card-spell-tip')) return;
         if (this.forgeSlotPreviewAnchor?.contains(t)) return;
         if (el.contains(t)) return;
         this.dismissForgeRecipesPreview();

@@ -178,6 +178,9 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
      *  whichever element is currently showing its tip. */
     let tipArmed: HTMLElement | null = null;
     let lastPointerTouch = false;
+    tips.onHide = () => {
+        tipArmed = null;
+    };
 
     function disarmTip(): void {
         tipArmed = null;
