@@ -346,7 +346,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     },
     forgeSpell: {
         // runes alone would be 50 / 100 / 150 (deploy.baseRuneCost each)
-        costByRunes: [125, 225, 350],
+        costByRunes: [100, 200, 300],
     },
     deploy: {
         unitsPerRound: 2,
