@@ -10160,6 +10160,10 @@ export class Game {
             rallyOwned: this.rallyRouteOwned.slice(),
             movePackOwned: this.movePackOwned.slice(),
             forgeSpellOwned: this.forgeSpellOwned.map((list) => list.slice()),
+            garrison: {
+                player: this.garrisonCount('player'),
+                enemy: this.garrisonCount('enemy'),
+            },
             forge: {
                 player: this.forgeSlots.player.map((s) => s?.itemId ?? null),
                 enemy: this.forgeSlots.enemy.map((s) => s?.itemId ?? null),
@@ -10223,10 +10227,14 @@ export class Game {
             };
         }
 
-        // Battlement archers. Shown on either keep — how many a side has posted
-        // is plain to see on the walls anyway — but priced and buyable for
-        // your own only.
-        const manned = this.garrisonCount(u.team === 'horde' ? 'player' : u.team);
+        // Battlement archers, priced and buyable for your own keep only. The
+        // count follows the same fog window the forge and the spells do: an
+        // archer the enemy posted THIS round is not on their wall yet as far
+        // as you know, and the panel must not be the one place that says so.
+        const manned =
+            fogged && this.buildingIntelSnapshot
+                ? (this.buildingIntelSnapshot.garrison[team] ?? 0)
+                : this.garrisonCount(team);
         const nextCost = GARRISON_STEP_COST * (manned + 1);
         out.garrison = {
             cost: nextCost,
@@ -10368,6 +10376,8 @@ interface BuildingIntelSnapshot {
     movePackOwned: boolean[];
     /** Stronghold commander spells bought (per seat) at phase start — fogged view */
     forgeSpellOwned: string[][];
+    /** archers posted on each side's battlements at phase start — fogged view */
+    garrison: Record<Team, number>;
     /** Stronghold oven contents (item ids) at phase start — fogged view */
     forge: Record<Team, (string | null)[]>;
     /** whether each oven was paid for at phase start — fogged view, and the
