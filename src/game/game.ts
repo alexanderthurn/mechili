@@ -105,6 +105,7 @@ import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
+import { AcidFx } from './acidFx';
 import { FireFx, fireUsesTongues } from './fireFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
 import { StrongholdFlags } from './strongholdFlags';
@@ -346,6 +347,7 @@ export class Game {
     private readonly stoneChips: StoneChipRenderer;
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
+    private readonly acidFx: AcidFx;
     private readonly forgeFx = new ForgeFx();
     private readonly strongholdFlags = new StrongholdFlags();
     private readonly hordeMarkers: HordeMarkers;
@@ -1298,6 +1300,8 @@ export class Game {
         this.stoneChips = new StoneChipRenderer(this.scene);
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles, this.scene);
+        this.acidFx = new AcidFx(this.scene);
+        this.acidFx.setQuality(prefs().fireVfx);
         this.map.setFireCharcoalGround(fireUsesTongues(prefs().fireVfx));
         this.towerDebuffFx = new TowerDebuffFx(this.scene, this.particles, this.map.halfW, this.map.halfH);
         this.hammerFx = new HammerFx(this.scene);
@@ -2185,6 +2189,7 @@ export class Game {
      */
     private warmGpuPrograms(): void {
         this.fireFx.primeForCompile();
+        this.acidFx.primeForCompile();
         this.projectileRenderer.primeForCompile();
         this.particles.burst(0, 2, 0, { count: 4, color: 0xff6a18, speed: 1, life: 0.2, up: 2 });
         this.particles.burst(0, 2, 0, {
@@ -2207,12 +2212,16 @@ export class Game {
         // restore live combat VFX — clear would blank an in-progress battle frame
         this.fireFx.clear();
         this.fireFx.setQuality(prefs().fireVfx);
+        this.acidFx.clear();
+        this.acidFx.setQuality(prefs().fireVfx);
         this.map.setFireCharcoalGround(fireUsesTongues(prefs().fireVfx));
         if (this.sim && this.phase === 'battle') {
             this.fireFx.update(0, this.sim.hazards, this.sim.elapsed);
+            this.acidFx.update(0, this.sim.hazards);
             this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
         } else {
             this.projectileRenderer.clear();
+            this.acidFx.update(0, this.oilField);
         }
         // snap weather back to the real atmosphere (prime left rain/stars visible)
         if (this.weather) {
@@ -2261,6 +2270,7 @@ export class Game {
         if (fireVfx !== this.appliedFireVfx) {
             this.appliedFireVfx = fireVfx;
             this.fireFx.setQuality(fireVfx);
+            this.acidFx.setQuality(fireVfx);
             this.map.setFireCharcoalGround(fireUsesTongues(fireVfx));
         }
     }
@@ -2544,6 +2554,7 @@ export class Game {
         this.dragonFx.dispose();
         this.conversionFx.dispose();
         this.oilDripFx.dispose();
+        this.acidFx.dispose();
         this.hordeMarkers.dispose();
         this.strongholdFlags.dispose();
         this.towerDebuffFx.dispose();
@@ -8959,6 +8970,10 @@ export class Game {
         if (profile) cpu.begin();
         this.particles.update(gameDt);
         this.stoneChips.update(gameDt);
+        this.acidFx.update(
+            gameDt,
+            this.phase === 'battle' && this.sim ? this.sim.hazards : this.oilField,
+        );
         this.updateForgeFx(gameDt);
         this.updateStrongholdFlags();
         this.updateHordeMarkers();

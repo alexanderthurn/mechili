@@ -40,6 +40,7 @@ import {
     registerOuterHeight,
     summerDryUniform,
     hazardTimeShared,
+    fireCharcoalGroundUniform,
     type BattleMap,
 } from './map';
 import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
@@ -2527,6 +2528,7 @@ function attachHazardTint(
         shader.uniforms.uFlowerHazardMask = { value: hazardMask };
         shader.uniforms.uFlowerBoardHalf = { value: boardHalf };
         shader.uniforms.uHazardTime = hazardTimeShared;
+        shader.uniforms.uFireCharcoalGround = fireCharcoalGroundUniform;
         shader.vertexShader = shader.vertexShader.replace(
             '#include <common>',
             `#include <common>
@@ -2550,6 +2552,7 @@ varying vec2 vFlowerHazUv;`,
             `#include <common>
 uniform sampler2D uFlowerHazardMask;
 uniform float uHazardTime;
+uniform float uFireCharcoalGround;
 varying vec2 vFlowerHazUv;`,
         );
         shader.fragmentShader = shader.fragmentShader.replace(
@@ -2563,9 +2566,9 @@ varying vec2 vFlowerHazUv;`,
   float acidM = fireB * (1.0 - fireG * 0.85);
   float orangeM = fireG * (1.0 - fireB * 0.85);
   vec3 oilTint = ${oilTint};
-  vec3 acidTint = ${acidTint};
+  vec3 acidTint = mix(${acidTint}, vec3(0.04, 0.055, 0.02), uFireCharcoalGround);
   diffuseColor.rgb = mix(diffuseColor.rgb, oilTint, oilM * ${oilMix});
-  diffuseColor.rgb = mix(diffuseColor.rgb, acidTint, acidM * ${acidMix});
+  diffuseColor.rgb = mix(diffuseColor.rgb, acidTint, acidM * mix(${acidMix}, 0.28, uFireCharcoalGround));
   // Live ground fire (oil blaze or direct fire) — clears when haz.g dies
   float flicker = 0.55 + 0.45 * sin(uHazardTime * 9.0 + vFlowerHazUv.x * 40.0 + vFlowerHazUv.y * 28.0);
   vec3 fireCol = mix(vec3(0.18, 0.03, 0.0), vec3(1.0, 0.38, 0.05), flicker);
@@ -2574,6 +2577,6 @@ varying vec2 vFlowerHazUv;`,
         );
     };
     material.customProgramCacheKey = () =>
-        `${prevKey()}|hazard-tint-v8-${tree ? 'tree' : 'flower'}${fadeAlpha ? '-fade' : ''}`;
+        `${prevKey()}|hazard-tint-v9-${tree ? 'tree' : 'flower'}${fadeAlpha ? '-fade' : ''}`;
     material.needsUpdate = true;
 }

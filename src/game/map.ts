@@ -1245,8 +1245,11 @@ export class BattleMap {
                 '\tazureCol = mix( azureCol, azureTongue, uFireCharcoalGround * 0.85 );\n' +
                 '\tdiffuseColor.rgb = mix(diffuseColor.rgb, azureCol, azureM * mix( 0.7, 0.9, uFireCharcoalGround ));\n' +
                 '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
-                '\tvec3 acidCol = mix(vec3(0.09, 0.13, 0.015), vec3(0.55, 0.78, 0.10), bubble);\n' +
-                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n';
+                '\tvec3 acidBright = mix(vec3(0.09, 0.13, 0.015), vec3(0.55, 0.78, 0.10), bubble);\n' +
+                // Fume-tier (same flag as flame tongues): hide the lime puddle — billboards carry the read.
+                '\tvec3 acidWet = mix(vec3(0.03, 0.04, 0.012), vec3(0.07, 0.09, 0.025), bubble * 0.3);\n' +
+                '\tvec3 acidCol = mix(acidBright, acidWet, uFireCharcoalGround);\n' +
+                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * mix(0.88, 0.42, uFireCharcoalGround));\n';
             let frag =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 extraUniforms +
@@ -1278,7 +1281,7 @@ export class BattleMap {
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v50${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
+            `ground-hazard-v51${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg`;
     }
