@@ -1914,6 +1914,12 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         flowers.instanceMatrix.needsUpdate = true;
         if (flowers.instanceColor) flowers.instanceColor.needsUpdate = true;
         this.group.add(flowers);
+        // High+: tint petals sitting in oil/acid (medium skips — one less sample).
+        if (this.quality === 'high' || this.quality === 'ultra') {
+            for (const m of this.flowerMaterials) {
+                attachFlowerHazardTint(m, map);
+            }
+        }
 
         if (trunks && cones && blobs && bushes) {
             void this.applyForestTextures(
@@ -2474,4 +2480,65 @@ function makeFlowerTexture(): CanvasTexture {
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
     return texture;
+}
+
+/**
+ * High/ultra only: sample the board hazard mask at each flower's world XZ and
+ * brown/olive-tint petals over oil/acid so they read as soaked, not floating
+ * clean above the slick. Outside the board UV clamps to black (no tint).
+ */
+function attachFlowerHazardTint(material: MeshStandardMaterial, map: BattleMap): void {
+    const hazardMask = map.getHazardMask();
+    const boardHalf = new Vector2(map.halfW, map.halfH);
+    const prevCompile = material.onBeforeCompile;
+    const prevKey = material.customProgramCacheKey.bind(material);
+    material.onBeforeCompile = (shader, renderer) => {
+        prevCompile?.call(material, shader, renderer);
+        shader.uniforms.uFlowerHazardMask = { value: hazardMask };
+        shader.uniforms.uFlowerBoardHalf = { value: boardHalf };
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <common>',
+            `#include <common>
+uniform vec2 uFlowerBoardHalf;
+varying vec2 vFlowerHazUv;`,
+        );
+        // instance origin → board UV (matches ground macro / CanvasTexture flipY)
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+{
+  vec3 flowerBase = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  vFlowerHazUv = vec2(
+    (flowerBase.x + uFlowerBoardHalf.x) / max(2.0 * uFlowerBoardHalf.x, 1e-3),
+    (uFlowerBoardHalf.y - flowerBase.z) / max(2.0 * uFlowerBoardHalf.y, 1e-3)
+  );
+}`,
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <common>',
+            `#include <common>
+uniform sampler2D uFlowerHazardMask;
+varying vec2 vFlowerHazUv;`,
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <color_fragment>',
+            `#include <color_fragment>
+{
+  vec3 haz = texture2D(uFlowerHazardMask, vFlowerHazUv).rgb;
+  float oilM = smoothstep(0.04, 0.28, haz.r);
+  float fireG = smoothstep(0.14, 0.5, haz.g);
+  float fireB = smoothstep(0.12, 0.48, haz.b);
+  float acidM = fireB * (1.0 - fireG * 0.85);
+  // Near-oil brown / olive — faint soaked hints, not floating petals
+  vec3 oilTint = vec3(0.06, 0.035, 0.018);
+  vec3 acidTint = vec3(0.1, 0.14, 0.03);
+  diffuseColor.rgb = mix(diffuseColor.rgb, oilTint, oilM * 0.97);
+  diffuseColor.rgb = mix(diffuseColor.rgb, acidTint, acidM * 0.94);
+  // Dim alpha so they sit in the slick instead of on top of it
+  diffuseColor.a *= 1.0 - oilM * 0.72 - acidM * 0.65;
+}`,
+        );
+    };
+    material.customProgramCacheKey = () => `${prevKey()}|flower-hazard-tint-v2`;
+    material.needsUpdate = true;
 }

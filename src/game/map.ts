@@ -975,6 +975,15 @@ export class BattleMap {
         this.hazardFlushAt = now;
     }
 
+    /**
+     * Shared oil/acid/fire mask (board UV). Used by the ground shader and
+     * high+ scenery flower tint. Creating it is cheap; the canvas is filled
+     * on first oil/acid stamp.
+     */
+    getHazardMask(): CanvasTexture {
+        return this.ensureHazardMask();
+    }
+
     /** Drive fire flicker in the ground shader (visual only). */
     setHazardTime(t: number): void {
         if (this.hazardTimeUniform) this.hazardTimeUniform.value = t;
