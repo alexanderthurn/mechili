@@ -14,6 +14,7 @@ import {
 import { getAvatarDataUrl } from '../game/avatar';
 import type { GameSettings } from '../game/settings';
 import type { StarRole } from '../game/net';
+import { withDialogFade } from './dialogFade';
 
 export type IntroRosterEntry = {
     team: 'player' | 'enemy';
@@ -101,8 +102,8 @@ export function mountIntroRoster(
     unmountIntroRoster(cover);
     const player = SIDE_COLORS[side === 'a' ? 0 : 1]!.css;
     const enemy = SIDE_COLORS[side === 'a' ? 1 : 0]!.css;
-    const el = document.createElement('div');
-    el.className = 'mechili-match-roster';
+    const el = withDialogFade(document.createElement('div'));
+    el.classList.add('mechili-match-roster');
     el.style.setProperty('--mr-player', player);
     el.style.setProperty('--mr-enemy', enemy);
     el.style.setProperty('--mr-local', player);

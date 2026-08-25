@@ -16,6 +16,7 @@ import type { SettingGroup } from '../game/settings';
 import { TACTICS } from '../game/tactics';
 import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
+import { removeWithDialogFade, withDialogFade } from './dialogFade';
 import { ChatBar } from './chatBar';
 import { ChatFloat } from './chatFloat';
 import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
@@ -2989,9 +2990,9 @@ export class Hud {
 
     /** post-battle damage report; replaces the previous one, dismissible */
     showBattleReport(round: number, rows: { name: string; team: string; damage: number }[]): void {
-        this.hideBattleReport();
-        const el = document.createElement('div');
-        el.className = 'mechili-report';
+        this.hideBattleReport(true);
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-report');
         el.innerHTML =
             `<div class="r-title"><span>Round ${round} — damage</span><button class="r-close">✕</button></div>` +
             rows
@@ -3001,16 +3002,18 @@ export class Hud {
                 )
                 .join('');
         el.querySelector('.r-close')!.addEventListener('click', () => {
-            this.unmount(el);
             if (this.report === el) this.report = null;
+            this.detachOverlay(el);
         });
         this.report = el;
         this.mount(el);
     }
 
-    hideBattleReport(): void {
-        if (this.report) this.unmount(this.report);
+    hideBattleReport(immediate = false): void {
+        if (!this.report) return;
+        const el = this.report;
         this.report = null;
+        this.detachOverlay(el, immediate);
     }
 
     isPauseMenuOpen(): boolean {
@@ -3043,24 +3046,36 @@ export class Hud {
         this.fightBar.classList.toggle('overlay-open', open);
     }
 
-    hidePauseMenu(): void {
-        if (this.pauseMenu) this.unmount(this.pauseMenu);
+    hidePauseMenu(immediate = false): void {
+        if (!this.pauseMenu) return;
+        const el = this.pauseMenu;
         this.pauseMenu = null;
         this.syncOverlayOpen();
+        this.detachOverlay(el, immediate);
     }
 
     /** dismisses the round-card / unlock / specialist-pick overlay if still open */
-    hideCardOverlay(): void {
+    hideCardOverlay(immediate = false): void {
         if (!this.cardOverlay) return;
         this.hideCardSpellTip();
-        this.removeCardOverlayElement(this.cardOverlay);
+        const el = this.cardOverlay;
         this.cardOverlay = null;
         this.cardIntroFading = false;
         this.syncOverlayOpen();
+        this.detachOverlay(el, immediate);
     }
 
     private removeCardOverlayElement(el: HTMLElement): void {
         this.unmount(el);
+    }
+
+    /** Fade out (or instantly remove) a mounted overlay, then drop from roots. */
+    private detachOverlay(el: HTMLElement, immediate = false): void {
+        if (immediate) {
+            this.unmount(el);
+            return;
+        }
+        removeWithDialogFade(el, () => this.unmount(el));
     }
 
     /** specialist pick — collapse to own card, wobble, fly to commander frame */
@@ -3215,26 +3230,28 @@ export class Hud {
      * panels alone (callers that need those gone remove them separately).
      */
     private clearBlockingOverlays(): void {
-        this.hidePauseMenu();
-        this.hideCardOverlay();
-        this.hideNotice();
-        this.hideReconnectWait();
-        this.hideBattleReport();
-        this.hideSpecialistDetail();
-        this.hideSettingsDetail();
+        this.hidePauseMenu(true);
+        this.hideCardOverlay(true);
+        this.hideNotice(true);
+        this.hideReconnectWait(true);
+        this.hideBattleReport(true);
+        this.hideSpecialistDetail(true);
+        this.hideSettingsDetail(true);
         this.hideForgeSlotHoverPreview();
         document.querySelector('.mechili-touchtip')?.remove();
         document.querySelector('.mechili-controls-help')?.remove();
         document.querySelector('.mechili-suggest')?.remove();
-        closeSettings();
+        closeSettings(true);
     }
 
     private showCardOverlay(overlay: HTMLDivElement): void {
-        this.hideCardOverlay();
+        this.hideCardOverlay(true);
         // phone: an open sheet (e.g. the shop behind the unlock picker) would
         // show through the overlay's dim layer — close it first
         this.setPhoneTab(null);
         this.bindCardSpellTips(overlay);
+        // intro drive owns opacity — don't fight it with the dialog enter anim
+        if (!this.introChromeHidden) withDialogFade(overlay);
         this.cardOverlay = overlay;
         this.syncOverlayOpen();
         this.mount(overlay);
@@ -3265,9 +3282,9 @@ export class Hud {
     }
 
     private showPauseMenu(): void {
-        this.hidePauseMenu();
-        const el = document.createElement('div');
-        el.className = 'mechili-pause';
+        this.hidePauseMenu(true);
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-pause');
         el.innerHTML =
             `<div class="pause-box">` +
             `<div class="pause-title">Menu</div>` +
@@ -3278,7 +3295,7 @@ export class Hud {
         el.querySelector('.pause-resume')!.addEventListener('click', () => this.hidePauseMenu());
         el.querySelector('.pause-settings')!.addEventListener('click', () => openSettings(this.overlayParent));
         el.querySelector('.pause-quit')!.addEventListener('click', () => {
-            this.hidePauseMenu();
+            this.hidePauseMenu(true);
             this.onQuitToMenu?.();
         });
         this.pauseMenu = el;
@@ -3445,10 +3462,13 @@ export class Hud {
         this.lastSpecDetailKey = contentKey;
 
         // avoid stacking duplicate overlays
+        const fresh = !this.specDetailOverlay;
         if (this.specDetailOverlay) this.unmount(this.specDetailOverlay);
 
         const overlay = document.createElement('div');
         overlay.className = `mechili-cards detail${viaHover ? ' peek' : ''}`;
+        // click-open fades; hover peek stays instant so HP-bar peeks stay snappy
+        if (fresh && !viaHover) withDialogFade(overlay);
 
         const colsHtml = teamChips
             .map((chip) => {
@@ -3613,16 +3633,22 @@ export class Hud {
     }
 
     /** dismiss the specialist detail popup (hover-out or click) */
-    private hideSpecialistDetail(): void {
-        if (this.specDetailOverlay) {
-            this.unmount(this.specDetailOverlay);
-            this.specDetailOverlay = null;
+    private hideSpecialistDetail(immediate = false): void {
+        if (!this.specDetailOverlay) {
+            this.specDetailSeat = null;
+            this.specDetailViaHover = false;
+            this.lastSpecDetailKey = '';
+            return;
         }
+        const el = this.specDetailOverlay;
+        const viaHover = this.specDetailViaHover;
+        this.specDetailOverlay = null;
         this.specDetailSeat = null;
         this.specDetailViaHover = false;
         this.lastSpecDetailKey = '';
         this.hideCardSpellTip();
         this.enemyInventoryEl.classList.remove('reveal');
+        this.detachOverlay(el, immediate || viaHover);
     }
 
     /** mouse hover details for forge spells on specialist cards / recipe tiles */
@@ -3644,8 +3670,8 @@ export class Hud {
     /** a dismissible popup listing this match's settings (click the supply counter) */
     private showSettingsDetail(): void {
         if (this.settingsDetailOverlay) this.unmount(this.settingsDetailOverlay);
-        const overlay = document.createElement('div');
-        overlay.className = 'mechili-cards detail settings-detail';
+        const overlay = withDialogFade(document.createElement('div'));
+        overlay.classList.add('mechili-cards', 'detail', 'settings-detail');
         overlay.innerHTML =
             `<div class="settings-panel">` +
             `<button type="button" class="settings-close" aria-label="Close">&times;</button>` +
@@ -3678,12 +3704,15 @@ export class Hud {
     }
 
     /** dismiss the match-settings popup */
-    private hideSettingsDetail(): void {
-        if (this.settingsDetailOverlay) {
-            this.unmount(this.settingsDetailOverlay);
-            this.settingsDetailOverlay = null;
+    private hideSettingsDetail(immediate = false): void {
+        if (!this.settingsDetailOverlay) {
+            this.syncOverlayOpen();
+            return;
         }
+        const el = this.settingsDetailOverlay;
+        this.settingsDetailOverlay = null;
         this.syncOverlayOpen();
+        this.detachOverlay(el, immediate);
     }
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
@@ -3737,9 +3766,9 @@ export class Hud {
 
     /** full-screen blocking notice (reconnect wait, resync); replaces any previous one */
     showNotice(text: string, buttonLabel?: string, onButton?: () => void): void {
-        this.hideNotice();
-        const el = document.createElement('div');
-        el.className = 'mechili-cards'; // reuses the dimmed overlay styling
+        this.hideNotice(true);
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-cards'); // reuses the dimmed overlay styling
         el.innerHTML =
             `<div class="cards-title" style="font-size:20px; letter-spacing:2px;">${text}</div>` +
             (buttonLabel ? `<button class="cards-skip">${buttonLabel}</button>` : '');
@@ -3750,19 +3779,21 @@ export class Hud {
         this.mount(el);
     }
 
-    hideNotice(): void {
-        if (this.notice) this.unmount(this.notice);
+    hideNotice(immediate = false): void {
+        if (!this.notice) return;
+        const el = this.notice;
         this.notice = null;
+        this.detachOverlay(el, immediate);
     }
 
     private reconnectWait: HTMLDivElement | null = null;
 
     /** connection lost: blocking notice with a live countdown to forfeit */
     showReconnectWait(onGiveUp: () => void): void {
-        this.hideNotice();
-        this.hideReconnectWait();
-        const el = document.createElement('div');
-        el.className = 'mechili-cards';
+        this.hideNotice(true);
+        this.hideReconnectWait(true);
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-cards');
         el.innerHTML =
             `<div class="cards-title" style="font-size:20px; letter-spacing:2px;">Connection lost — reconnecting…</div>` +
             `<div class="cards-title reconnect-timer"></div>` +
@@ -3781,9 +3812,11 @@ export class Hud {
         el.classList.toggle('urgent', s <= 5);
     }
 
-    hideReconnectWait(): void {
-        if (this.reconnectWait) this.unmount(this.reconnectWait);
+    hideReconnectWait(immediate = false): void {
+        if (!this.reconnectWait) return;
+        const el = this.reconnectWait;
         this.reconnectWait = null;
+        this.detachOverlay(el, immediate);
     }
 
     private gameOverTeamHtml(team: 'player' | 'enemy', members: GameOverMember[]): string {
@@ -3814,20 +3847,20 @@ export class Hud {
     /** the grace window elapsed with no reconnect — we win by forfeit */
     showForfeitWin(details?: GameOverDetails): void {
         this.prepareMatchEndUi();
-        const el = document.createElement('div');
-        el.className = 'mechili-gameover victory';
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-gameover', 'victory');
         el.innerHTML = this.gameOverInnerHtml('VICTORY', details);
-        el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
+        el.querySelector('.go-restart')!.addEventListener('click', () => this.leaveGameOver(el));
         this.mount(el);
     }
 
     /** the peer connection died — nothing to do but return to the menu */
     showDisconnect(): void {
         this.prepareMatchEndUi();
-        const el = document.createElement('div');
-        el.className = 'mechili-gameover draw';
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-gameover', 'draw');
         el.innerHTML = `<div class="go-title">DISCONNECTED</div><button class="go-restart">Back to main menu</button>`;
-        el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
+        el.querySelector('.go-restart')!.addEventListener('click', () => this.leaveGameOver(el));
         this.mount(el);
     }
 
@@ -3841,15 +3874,23 @@ export class Hud {
         },
     ): void {
         this.prepareMatchEndUi();
-        const el = document.createElement('div');
-        el.className = `mechili-gameover ${result}`;
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-gameover', result);
         const title = options?.title ?? (result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW');
         el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note);
         const backLabel = options?.backLabel ?? 'Back to main menu';
         const btn = el.querySelector('.go-restart')!;
         btn.textContent = backLabel;
-        btn.addEventListener('click', () => this.onQuitToMenu?.());
+        btn.addEventListener('click', () => this.leaveGameOver(el));
         this.mount(el);
+    }
+
+    /** Fade the result panel out, then return to the menu. */
+    private leaveGameOver(el: HTMLElement): void {
+        removeWithDialogFade(el, () => {
+            this.unmount(el);
+            this.onQuitToMenu?.();
+        });
     }
 
     /** Clear overlays that can sit above / steal clicks from the result panel. */

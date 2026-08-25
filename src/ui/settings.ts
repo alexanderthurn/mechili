@@ -12,6 +12,7 @@ import { isElectron, win } from 'steam-electron-build/native';
 import { availableTransports } from '../game/multiplayerTransport';
 
 import { applyUiFont, UI_FONTS, type UiFontId } from '../theme';
+import { removeWithDialogFade, withDialogFade } from './dialogFade';
 
 /**
  * The settings dialog — one shared overlay, opened from the main menu and
@@ -19,8 +20,11 @@ import { applyUiFont, UI_FONTS, type UiFontId } from '../theme';
  * Desktop: two columns (general | graphics). Narrow: single stacked column.
  */
 /** dismiss the shared settings overlay if open (menu or in-match). */
-export function closeSettings(): void {
-    document.querySelector('.mechili-settings')?.remove();
+export function closeSettings(immediate = false): void {
+    const el = document.querySelector<HTMLElement>('.mechili-settings');
+    if (!el) return;
+    if (immediate) el.remove();
+    else removeWithDialogFade(el, () => el.remove());
 }
 
 export function openSettings(parent: HTMLElement): void {
@@ -33,8 +37,8 @@ export function openSettings(parent: HTMLElement): void {
         })
         .join('');
 
-    const overlay = document.createElement('div');
-    overlay.className = 'mechili-settings';
+    const overlay = withDialogFade(document.createElement('div'));
+    overlay.classList.add('mechili-settings');
     // #match-ui-root is pointer-events:none — without this, in-match Settings
     // (opened from pause) looks fine but nothing inside is clickable.
     overlay.style.pointerEvents = 'auto';
@@ -369,14 +373,16 @@ export function openSettings(parent: HTMLElement): void {
             syncFromPrefs();
             return;
         }
-        if (target === overlay || target.closest('[data-act="close"]')) overlay.remove();
+        if (target === overlay || target.closest('[data-act="close"]')) {
+            removeWithDialogFade(overlay, () => overlay.remove());
+        }
     });
     window.addEventListener(
         'keydown',
         function onKey(e: KeyboardEvent) {
             if (e.key !== 'Escape') return;
             if (document.querySelector('.mechili-controls-help')) return;
-            overlay.remove();
+            removeWithDialogFade(overlay, () => overlay.remove());
             window.removeEventListener('keydown', onKey);
         },
     );
@@ -403,8 +409,8 @@ function section(title: string, body: string): string {
 export function openControlsHelp(parent: HTMLElement): void {
     if (document.querySelector('.mechili-controls-help')) return;
 
-    const overlay = document.createElement('div');
-    overlay.className = 'mechili-controls-help';
+    const overlay = withDialogFade(document.createElement('div'));
+    overlay.classList.add('mechili-controls-help');
     overlay.style.pointerEvents = 'auto';
     overlay.innerHTML =
         `<div class="ch-box m-frame">` +
@@ -474,7 +480,7 @@ export function openControlsHelp(parent: HTMLElement): void {
         `</div>`;
 
     const close = (): void => {
-        overlay.remove();
+        removeWithDialogFade(overlay, () => overlay.remove());
         window.removeEventListener('keydown', onKey, true);
     };
     const onKey = (e: KeyboardEvent): void => {

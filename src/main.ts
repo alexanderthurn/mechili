@@ -4682,11 +4682,13 @@ await bootGameAssets((p) => setBootProgress(p.fraction, p.label));
 // The warmed WebGLRenderer is handed to the first Game (programs are per-context).
 await prewarmGpu(threeCanvas, (label) => setBootProgress(1, label));
 bootReady = true;
+// Prewarm leaves a probe cube + blob shadow on the canvas — hide it before
+// dropping the loader, or that stand-in scene can flash for a frame.
+setGameLayerVisible(false);
 loadingEl.remove();
 feuerwareEl.remove();
 
 // reload mid-match: multiplayer reconnects via peer, single-player from local save
-setGameLayerVisible(false);
 const watchParams = new URLSearchParams(location.search);
 const watchId = watchParams.get('watch');
 const watchSide = watchParams.get('side');

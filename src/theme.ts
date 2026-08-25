@@ -658,6 +658,37 @@ button, input, select, textarea { font-family: inherit; }
  *  the tip mounted as an unstyled, unpositioned div at the end of <body>,
  *  i.e. invisible, until a match had injected hudStyles() once. Same trap
  *  iconBaseStyles() below documents. */
+
+/**
+ * Shared modal enter/exit. Keep duration in sync with `DIALOG_FADE_MS` in
+ * `ui/dialogFade.ts`. Used by pause, game-over, settings, notices, etc.
+ */
+function dialogFadeStyles(): string {
+    return `
+@keyframes mechili-dialog-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes mechili-dialog-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+.mechili-dialog-fade {
+    animation: mechili-dialog-in 0.2s ease-out;
+}
+.mechili-dialog-fade.mechili-dialog-out {
+    animation: mechili-dialog-out 0.2s ease-in forwards;
+    pointer-events: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-dialog-fade,
+    .mechili-dialog-fade.mechili-dialog-out {
+        animation: none !important;
+    }
+}
+`;
+}
+
 function cardSpellTipStyles(): string {
     const u = THEME.ui;
     return `
@@ -920,6 +951,7 @@ export function menuStyles(bars?: BarAssets): string {
 ${fontFaceCss()}
 ${materialStyles(u)}
 ${iconBaseStyles()}
+${dialogFadeStyles()}
 ${cardSpellTipStyles()}
 ${chatBarStyles(u)}
 ${chatFloatStyles(u, pc, ec)}
@@ -2402,6 +2434,10 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     /* dissolve as soon as the menu zoom starts — not tied to the 3D handoff */
     animation: mechili-intro-logo-fade 0.55s ease-out forwards;
 }
+.mechili-intro-cover.dive .mechili-match-roster {
+    /* same beat as the logo — roster shouldn't linger through the dive */
+    animation: mechili-intro-logo-fade 0.55s ease-out forwards;
+}
 @keyframes mechili-outro-rise {
     from { transform: translate3d(0, 0, 0) scale3d(3.5, 3.5, 1); }
     to { transform: translate3d(0, 0, 0) scale3d(1, 1, 1); }
@@ -3227,6 +3263,7 @@ export function hudStyles(bars?: BarAssets): string {
 ${fontFaceCss()}
 ${materialStyles(u)}
 ${iconBaseStyles()}
+${dialogFadeStyles()}
 ${cardSpellTipStyles()}
 ${chatBarStyles(u)}
 ${chatFloatStyles(u, pc, ec)}
@@ -3271,9 +3308,39 @@ ${chatFloatStyles(u, pc, ec)}
     gap: 6px;
     user-select: none;
     pointer-events: none;
+    transition: opacity 0.28s ease, transform 0.28s ease, visibility 0.28s;
 }
-.mechili-shop-col.disabled { display: none; }
-.mechili-shop-col.battle { display: none; }
+/* build chrome fades out for battle / lock-in (absolute — no layout gap) */
+.mechili-shop-col.disabled,
+.mechili-shop-col.battle {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(10px);
+}
+/* children opt into pointer-events:auto — kill those while faded out */
+.mechili-shop-col.disabled *,
+.mechili-shop-col.battle * {
+    pointer-events: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-shop-col,
+    .mechili-sidebar,
+    .mechili-phone-status .mechili-supply {
+        transition: none !important;
+    }
+    .mechili-shop-col.disabled,
+    .mechili-shop-col.battle {
+        transform: none !important;
+    }
+    .mechili-sidebar.left.battle,
+    .mechili-sidebar.left.waiting {
+        transform: translateY(-50%) !important;
+    }
+    .mechili-sidebar.right.battle {
+        transform: translateY(-50%) !important;
+    }
+}
 .mechili-supply {
     display: flex;
     align-items: center;
@@ -4130,6 +4197,7 @@ ${chatFloatStyles(u, pc, ec)}
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     user-select: none;
+    transition: opacity 0.28s ease, transform 0.28s ease, visibility 0.28s;
 }
 .mechili-sidebar.left {
     left: env(safe-area-inset-left);
@@ -4148,8 +4216,23 @@ ${chatFloatStyles(u, pc, ec)}
     /* above the detail overlay's dim layer */
     z-index: 60;
 }
-.mechili-sidebar.battle { display: none; }
-.mechili-sidebar.left.waiting { display: none; }
+.mechili-sidebar.battle,
+.mechili-sidebar.left.waiting {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+.mechili-sidebar.battle *,
+.mechili-sidebar.left.waiting * {
+    pointer-events: none !important;
+}
+.mechili-sidebar.left.battle,
+.mechili-sidebar.left.waiting {
+    transform: translate(-12px, -50%);
+}
+.mechili-sidebar.right.battle {
+    transform: translate(12px, -50%);
+}
 /* the hover peek must not sit under the cursor — it would steal the hover
    from the commander card and flicker */
 .mechili-cards.detail.peek { pointer-events: none; }
@@ -6337,9 +6420,16 @@ ${gamepadCursorStyles(u)}
     /* money joins the strip on phone (the shop toolbar lives in a sheet);
        dock below the enemy HP + name (portraits hidden, but name remains) */
     .mechili-phone-status { top: calc(72px + env(safe-area-inset-top)); }
-    .mechili-phone-status .mechili-supply { display: flex; }
+    .mechili-phone-status .mechili-supply {
+        display: flex;
+        transition: opacity 0.28s ease, visibility 0.28s;
+    }
     /* no spending during battle — money returns with the next deployment */
-    .mechili-phone-status.battle .mechili-supply { display: none; }
+    .mechili-phone-status.battle .mechili-supply {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
     .mechili-shop-col .mechili-supply { display: none !important; }
     /* menu button moves to the left edge; End Deployment stays centered alone */
     /* spectating a battle with nothing selected: no empty strip */
