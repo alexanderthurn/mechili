@@ -1012,6 +1012,7 @@ html, body {
     gap: 14px;
 }
 .mh-tactic {
+    position: relative;
     display: flex;
     flex-direction: column;
     border-radius: 14px;
@@ -1086,29 +1087,26 @@ html, body {
     box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
 }
 
-/* same chip the round cards use for their price (.mechili-cards .c-cost),
-   recoloured for the dark tactic card */
+/* the in-game price tag (.mechili-panel .action-tile .at-cost): a red band
+   across the bottom edge, white and centred. The card's own overflow:hidden
+   rounds the band's corners to match. */
 .mh-tactic-cost {
-    margin-top: auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 4px 12px;
-    border-radius: 3px;
-    font-size: 15px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 5px 0 6px;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
     font-variant-numeric: tabular-nums;
-    color: ${u.brassLight};
-    background: rgba(201, 162, 39, 0.12);
-    border: 1px solid rgba(201, 162, 39, 0.38);
-    box-shadow: inset 0 1px 0 rgba(255, 240, 210, 0.12);
+    color: #fff;
+    background: rgba(180, 32, 24, 0.92);
+    pointer-events: none;
 }
-.mh-tactic-cost .money-ico.m-icon {
-    width: 16px;
-    height: 16px;
-    margin: 0;
+/* room for the band, the same way the game pads a tile that carries one */
+.mh-tactic:has(.mh-tactic-cost) .mh-tactic-body {
+    padding-bottom: 40px;
 }
 .mh-tactic-stats {
     list-style: none;

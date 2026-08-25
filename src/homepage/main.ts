@@ -300,7 +300,7 @@ function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
               .join('')}</div>`
         : '';
     const costHtml = isBase
-        ? `<div class="mh-tactic-cost" title="Bought in the shop, or drafted from a round card" aria-label="Shop price">${moneyHtml(DEFAULT_SETTINGS.deploy.baseRuneCost)}</div>`
+        ? `<div class="mh-tactic-cost" title="Bought in the shop, or drafted from a round card" aria-label="Shop price">${DEFAULT_SETTINGS.deploy.baseRuneCost}</div>`
         : '';
     return `
 <article class="mh-tactic mh-rune${isFirst ? ' mh-active' : ''}" data-key="${esc(item.id)}">
@@ -327,7 +327,7 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     // wants to see is the supply, not a recipe.
     const price = tacticPrice(t);
     const costHtml = price
-        ? `<div class="mh-tactic-cost" title="Bought at the ${esc(price.where)}" aria-label="${esc(price.where)} price">${moneyHtml(price.cost)}</div>`
+        ? `<div class="mh-tactic-cost" title="Bought at the ${esc(price.where)}" aria-label="${esc(price.where)} price">${price.cost}</div>`
         : '';
     return `
 <article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(t.id)}">
