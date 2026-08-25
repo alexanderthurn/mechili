@@ -2,6 +2,8 @@ import { buildingAbilities } from '../game/buildingAbilities';
 import { START_CARDS, ROUND_RUNE_CARDS, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import { DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
+import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS, ITEMS, itemSlotLimit, type ItemDef } from '../game/items';
+import { FORGE_RECIPES } from '../game/forgeRecipes';
 import {
     MOVE_UNIT_ID,
     RALLY_ROUTE_ID,
@@ -278,6 +280,62 @@ function tacticPrice(t: (typeof TACTICS)[string]): { cost: number; where: string
     return vanguard === undefined ? null : { cost: vanguard, where: 'Vanguard' };
 }
 
+/** Base runes the forge turns into this one, in recipe order. */
+function runeRecipeIcons(runeId: string): string[] {
+    const recipe = FORGE_RECIPES.find(
+        (r) => r.product.kind === 'item' && r.product.id === runeId,
+    );
+    if (!recipe) return [];
+    return recipe.ingredients
+        .map((id) => ITEMS[id]?.icon)
+        .filter((ico): ico is string => !!ico);
+}
+
+/** Human-readable stat lines from a rune's multipliers and flags. */
+function runeStats(item: ItemDef): string[] {
+    const out: string[] = [];
+    const pct = (v: number) => `${v >= 1 ? '+' : ''}${Math.round((v - 1) * 100)}%`;
+    if (item.mods.damage != null) out.push(`${pct(item.mods.damage)} attack`);
+    if (item.mods.hp != null) out.push(`${pct(item.mods.hp)} HP`);
+    if (item.mods.range != null) out.push(`${pct(item.mods.range)} range`);
+    if (item.mods.speed != null) out.push(`${pct(item.mods.speed)} speed`);
+    if (item.mods.attackInterval != null) out.push(`${pct(item.mods.attackInterval)} attack interval`);
+    if (item.debuffImmune) out.push('Debuff immune');
+    if (item.grantsShieldHp) out.push('Second health pool');
+    return out;
+}
+
+function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
+    const stats = runeStats(item);
+    const statsHtml = stats.length
+        ? `<ul class="mh-tactic-stats">${stats.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`
+        : '';
+    const recipe = isBase ? [] : runeRecipeIcons(item.id);
+    // The recipe IS the price for an advanced rune — it is never sold, only forged.
+    const recipeHtml = recipe.length
+        ? `<div class="mh-rune-recipe" aria-label="Forged from">${recipe
+              .map((ico) => iconHtml(ico, 'mh-rune-ingredient'))
+              .join('')}</div>`
+        : '';
+    const costHtml = isBase
+        ? `<div class="mh-tactic-cost" title="Bought in the shop, or drafted from a round card" aria-label="Shop price">${moneyHtml(DEFAULT_SETTINGS.deploy.baseRuneCost)}</div>`
+        : '';
+    return `
+<article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(item.id)}">
+  <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(item.icon, 'mh-tactic-tile')}</div>
+  <div class="mh-tactic-body">
+    <div class="mh-tactic-head">
+      <h3>${esc(item.name)}</h3>
+    </div>
+    <p class="mh-tactic-meta">${isBase ? 'Base rune' : 'Advanced rune'}</p>
+    <p class="mh-tactic-desc">${esc(item.description)}</p>
+    ${recipeHtml}
+    ${statsHtml}
+    ${costHtml}
+  </div>
+</article>`;
+}
+
 function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     const kindLabel = t.kind === 'placement' ? 'Placement' : 'One-shot';
     const stats = formatTacticStats(t);
@@ -331,6 +389,12 @@ function settingsGroupHtml(g: SettingGroup): string {
   </table>
 </div>`;
 }
+
+/** Base runes first, then the forged ones — the order a player meets them. */
+const ALL_RUNES: { item: ItemDef; isBase: boolean }[] = [
+    ...BASE_RUNE_IDS.map((id) => ({ item: ITEMS[id]!, isBase: true })),
+    ...ADVANCED_RUNE_IDS.map((id) => ({ item: ITEMS[id]!, isBase: false })),
+].filter((e) => !!e.item);
 
 const ALL_TACTICS = Object.values(TACTICS);
 
@@ -465,6 +529,17 @@ app.innerHTML = `
                 `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
         ).join('')}
       </div>
+    </div>
+  </section>
+
+  <section class="mh-section" id="runes">
+    <h2>${DISPLAY.items}</h2>
+    <p class="mh-sub">Fused onto a pack for good, lifting every mech in it <span class="mh-sep">⬢</span> most packs hold ${itemSlotLimit('dwarf')}, the ballista ${itemSlotLimit('ballista')}. The four base runes are drafted from round cards or bought in the shop; the stronger ones are forged from them at the Stronghold, and never sold.</p>
+    <select class="mh-card-select" id="mh-runes-select" aria-label="Choose a ${DISPLAY.item.toLowerCase()}">
+      ${ALL_RUNES.map(({ item }) => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('')}
+    </select>
+    <div class="mh-tactics" id="mh-runes-grid">
+      ${ALL_RUNES.map(({ item, isBase }, i) => runeCard(item, isBase, i === 0)).join('')}
     </div>
   </section>
 
@@ -990,6 +1065,7 @@ function wireCardSelect(selectId: string, cardSelector: string): void {
 }
 wireCardSelect('mh-specialists-select', '#mh-specialists-row > .card');
 wireCardSelect('mh-round-cards-select', '#mh-round-cards-row > .card');
+wireCardSelect('mh-runes-select', '#mh-runes-grid > .mh-tactic');
 wireCardSelect('mh-tactics-select', '#mh-tactics-grid > .mh-tactic');
 
 const commanderSpellTips = new CardSpellTips();

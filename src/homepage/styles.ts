@@ -1061,6 +1061,23 @@ html, body {
     line-height: 1.5;
     color: ${u.phase};
 }
+/* forge ingredients for an advanced rune — its recipe stands in for a price,
+   since a forged rune is never sold */
+.mh-rune-recipe {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    align-items: center;
+}
+.mh-rune-ingredient {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
+}
+
 /* same chip the round cards use for their price (.mechili-cards .c-cost),
    recoloured for the dark tactic card */
 .mh-tactic-cost {
