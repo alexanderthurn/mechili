@@ -41,6 +41,9 @@ export const summerDryUniform = { value: 0 };
  */
 export const fireCharcoalGroundUniform = { value: 0 };
 
+/** Shared battle time for fire flicker — ground + high/ultra vegetation hazard tint. */
+export const hazardTimeShared = { value: 0 };
+
 /** world units per grid tile */
 export const CELL = 4;
 
@@ -987,6 +990,7 @@ export class BattleMap {
     /** Drive fire flicker in the ground shader (visual only). */
     setHazardTime(t: number): void {
         if (this.hazardTimeUniform) this.hazardTimeUniform.value = t;
+        hazardTimeShared.value = t;
     }
 
     /**
