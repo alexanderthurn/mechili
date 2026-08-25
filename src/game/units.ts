@@ -1310,10 +1310,18 @@ export class Unit {
                 this.members.push({ mesh, phase: Math.random() * Math.PI * 2, home: new Vector3(ox, 0, oz) });
             }
         }
-        // default facing until a target is known: straight at the opposing
+        // Default facing until a target is known: straight at the opposing
         // edge — structures too (a castle's gate looks at the enemy), they
-        // just never turn again afterwards
-        this.facing = team === 'enemy' ? Math.PI : 0;
+        // just never turn again afterwards.
+        //
+        // Keyed on the BOARD, never on `team`. 'player'/'enemy' are per-client
+        // labels — every client calls its own side 'player' — so keying on
+        // them gave one unit opposite yaws on two clients. Facing is in the
+        // state hash, and structures never turn, so that mirrored value rode
+        // into every battle-start comparison for the whole match: a desync a
+        // resync could not repair, because both peers just rebuilt it. It also
+        // drew the far side's castles facing backwards. Yaw 0 looks down −z.
+        this.facing = world.z >= 0 ? 0 : Math.PI;
         for (const m of this.members) m.mesh.rotation.y = this.facing;
         this.view.position.copy(this.world);
         this.seatMembers();

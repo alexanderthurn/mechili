@@ -1113,7 +1113,11 @@ export class PlacementController {
     /** Re-runs the facing rule for every unit (used after the board resets between rounds). */
     refaceAll(): void {
         for (const u of this.units) {
-            if (u.type.structure) continue;
+            // the hovering rocket is a structure that DOES aim (see
+            // faceClosestOf's own guard) — skipping it here left the one
+            // turnable building seeded from whatever fogged view deployment
+            // last gave it
+            if (u.type.structure && !u.type.rocket) continue;
             u.faceClosestOf(this.opponentMechPositions(u.team, u));
         }
     }

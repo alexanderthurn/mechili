@@ -7662,6 +7662,16 @@ export class Game {
         this.techIntelSnapshot = null;
         this.buildingIntelSnapshot = null;
         this.placement.revealAll();
+        // Re-seat every mobile pack's facing now that the board is whole. The
+        // sim seeds actor facing from mesh.rotation.y, and until this point
+        // that came from whatever faceClosestOf last computed during
+        // deployment — against a target set filtered by intel fog, which is
+        // NOT symmetric: a client that has locked in already revealed
+        // everything while its opponent is still deploying blind. Same log,
+        // different targets, different yaw, different hash. Here both peers
+        // face the identical fully-revealed board, so they agree by
+        // construction.
+        this.placement.refaceAll();
         // oil/acid pour later as drips — baseline only for now (wards carve carry-over)
         const hazardPours = prepareHazardPours(
             {
