@@ -1028,12 +1028,12 @@ html, body {
 }
 .mh-tactic-body {
     padding: 14px 14px 16px;
-    /* column so the price chip can sit on the bottom edge (margin-top: auto),
-       lining the chips up across a row of cards with uneven stat lists */
     flex: 1;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    /* everything centres under the icon, which is centred itself */
+    text-align: center;
+    align-items: center;
 }
 .mh-tactic-head {
     margin-bottom: 4px;
@@ -1087,13 +1087,6 @@ html, body {
     box-shadow: 0 1px 6px rgba(212, 184, 120, 0.35);
 }
 
-/* Rune cards run centred; the tactic cards they share their markup with stay
-   left-aligned, where the longer stat lists read better. */
-.mh-rune .mh-tactic-body {
-    text-align: center;
-    align-items: center;
-}
-
 /* the in-game price tag (.mechili-panel .action-tile .at-cost): a red band
    across the bottom edge, white and centred. The card's own overflow:hidden
    rounds the band's corners to match. */
@@ -1137,6 +1130,7 @@ html, body {
     padding: 0;
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: 6px;
 }
 .mh-tactic-stats li {
