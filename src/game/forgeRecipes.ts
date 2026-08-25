@@ -474,6 +474,18 @@ function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
 }
 
 /** Rune atlas icons required to bake a spell (empty if no recipe). */
+/**
+ * Runes a spell's recipe needs (0 when it has none). Specialists carry one
+ * 1-rune, one 2-rune and one 3-rune spell, so this doubles as the spell's
+ * tier — which is what the Stronghold prices its buy-once buttons on.
+ */
+export function forgeRuneCount(tacticId: string): number {
+    const recipe = FORGE_RECIPES.find(
+        (r) => r.product.kind === 'tactic' && r.product.id === tacticId,
+    );
+    return recipe ? recipe.ingredients.length : 0;
+}
+
 export function forgeIngredientIcons(tacticId: string): string[] {
     const recipe = FORGE_RECIPES.find(
         (r) => r.product.kind === 'tactic' && r.product.id === tacticId,

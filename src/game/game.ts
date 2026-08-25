@@ -39,6 +39,7 @@ import {
     resolveForge,
     unionForgeSpellPools,
     type ForgeSlot,
+    forgeRuneCount,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
 import {
@@ -638,6 +639,8 @@ export class Game {
     private readonly sellState: { owned: boolean[]; used: number[] };
     /** per-SEAT: one-time rally-route purchase (permanent flag) */
     private readonly rallyRouteOwned: boolean[];
+    /** per seat: which of its commander's spells it has bought at the Stronghold */
+    private readonly forgeSpellOwned: string[][];
     private readonly movePackOwned: boolean[];
     /** per-SEAT buy limits: `limit` + `runesBought` are permanent; rest resets per round */
     private readonly deployState: {
@@ -1406,6 +1409,7 @@ export class Game {
         };
         this.sellState = { owned: this.seats.map(() => false), used: this.seats.map(() => 0) };
         this.rallyRouteOwned = this.seats.map(() => false);
+        this.forgeSpellOwned = this.seats.map(() => []);
         this.movePackOwned = this.seats.map(() => false);
         this.boostState = { attack: this.seats.map(() => 0), hp: this.seats.map(() => 0) };
         this.roundBoosts = { range: this.seats.map(() => false), speed: this.seats.map(() => false) };
@@ -1423,12 +1427,15 @@ export class Game {
             towers: settings.towers,
             sellSettings: settings.sell,
             rallyRouteSettings: settings.rallyRoute,
+            forgeSpellSettings: settings.forgeSpell,
             movePackSettings: settings.movePack,
             deploySettings: settings.deploy,
             boostSettings: settings.boosts,
             recruitLevel: this.recruitLevel,
             sellState: this.sellState,
             rallyRouteOwned: this.rallyRouteOwned,
+            forgeSpellOwned: this.forgeSpellOwned,
+            forgeSpellsOf: (seat: SeatId) => this.starterCardOfSeat(seat)?.forgeSpells,
             movePackOwned: this.movePackOwned,
             deployState: this.deployState,
             boostState: this.boostState,
@@ -1861,6 +1868,12 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyCredit', team: 'player' });
+        };
+        this.hud.onBuyForgeSpell = (tacticId) => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (!this.playerCanAct) return;
+            this.dispatchPlayer({ kind: 'buyForgeSpell', team: 'player', tacticId });
         };
         this.hud.onSendSupply = (amount) => {
             const unit = this.placement.selectedUnit;
@@ -9803,9 +9816,11 @@ export class Game {
      * battle, own or enemy). Buyable only for your side while you can act.
      * Duo-only actions omit themselves in 1v1; add future abilities here.
      */
-    private strongholdSelection(u: Unit): Pick<SelectionInfo, 'sendSupply' | 'forge'> {
+    private strongholdSelection(
+        u: Unit,
+    ): Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells'> {
         if (u.type !== STRONGHOLD) return {};
-        const out: Pick<SelectionInfo, 'sendSupply' | 'forge'> = {};
+        const out: Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells'> = {};
         const team: Team = u.team === 'horde' ? 'player' : u.team;
         const teamSeats = seatIdsOf(this.seats, team);
         const canBuy = u.team === 'player' && this.playerCanAct;
@@ -9817,6 +9832,35 @@ export class Game {
                 amount,
                 affordable: canBuy && this.economy.balance(this.humanSeat) >= amount,
             };
+        }
+
+        // Your commander's own three spells, buyable once each. Own side only:
+        // these are YOUR picks, and an enemy Stronghold has no business
+        // advertising them (nor would the buttons do anything there).
+        if (u.team === 'player') {
+            const seat = this.humanSeat;
+            const bought = this.forgeSpellOwned[seat] ?? [];
+            const bal = this.economy.balance(seat);
+            const costs = this.settings.forgeSpell.costByRunes;
+            out.forgeSpells = (this.starterCardOfSeat(seat)?.forgeSpells ?? [])
+                .map((tacticId) => {
+                    const t = TACTICS[tacticId];
+                    if (!t) return null;
+                    const runes = forgeRuneCount(tacticId);
+                    const cost = costs[Math.max(0, runes - 1)] ?? costs[costs.length - 1] ?? 0;
+                    const owned = bought.includes(tacticId);
+                    return {
+                        tacticId,
+                        icon: t.icon,
+                        name: t.name,
+                        desc: t.description,
+                        runes,
+                        cost,
+                        owned,
+                        affordable: canBuy && !owned && bal >= cost,
+                    };
+                })
+                .filter((e): e is NonNullable<typeof e> => e !== null);
         }
 
         const fogged = this.placement.isIntelFogged(u);

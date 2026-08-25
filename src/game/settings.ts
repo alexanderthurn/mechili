@@ -54,6 +54,7 @@ export interface GameSettings {
     sell: SellSettings;
     rallyRoute: RallyRouteSettings;
     movePack: MovePackSettings;
+    forgeSpell: ForgeSpellSettings;
     deploy: DeploySettings;
     boosts: BoostSettings;
     /**
@@ -217,6 +218,20 @@ export interface MovePackSettings {
     abilityCost: number;
 }
 
+/**
+ * Stronghold: buy one of your commander's own spells outright, once each.
+ *
+ * Priced by how many runes the forge would have wanted, because that is what
+ * you are skipping: a rune is `deploy.baseRuneCost` AND one of the round's buy
+ * slots, and the 2- and 3-rune spells also cost you the rounds spent
+ * collecting them. The premium over the raw rune supply is what the slots and
+ * the waiting are worth.
+ */
+export interface ForgeSpellSettings {
+    /** cost by recipe size — index 0 = a 1-rune spell, 1 = 2-rune, 2 = 3-rune */
+    costByRunes: readonly number[];
+}
+
 export interface EconomySettings {
     /** income granted in round 1 */
     startingSupply: number;
@@ -329,6 +344,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
     movePack: {
         abilityCost: 200,
     },
+    forgeSpell: {
+        // runes alone would be 50 / 100 / 150 (deploy.baseRuneCost each)
+        costByRunes: [125, 225, 350],
+    },
     deploy: {
         unitsPerRound: 2,
         baseRuneCost: 50,
@@ -414,6 +433,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         sell: { ...DEFAULT_SETTINGS.sell, ...settings.sell },
         rallyRoute: { ...DEFAULT_SETTINGS.rallyRoute, ...settings.rallyRoute },
         movePack: { ...DEFAULT_SETTINGS.movePack, ...settings.movePack },
+        forgeSpell: { ...DEFAULT_SETTINGS.forgeSpell, ...settings.forgeSpell },
         deploy: { ...DEFAULT_SETTINGS.deploy, ...settings.deploy },
         boosts: { ...DEFAULT_SETTINGS.boosts, ...settings.boosts },
         leveling: { ...DEFAULT_SETTINGS.leveling, ...settings.leveling },
@@ -703,6 +723,14 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     note: `Vanguard — grants one move-pack ${DISPLAY.tactic.toLowerCase()} charge`,
                 },
             ],
+        },
+        {
+            title: 'Commander Spells',
+            rows: settings.forgeSpell.costByRunes.map((cost, i) => ({
+                label: `${i + 1}-rune spell`,
+                value: `${cost} supply, one-time`,
+                note: `Stronghold — buy one of your own commander's spells outright, once each`,
+            })),
         },
         {
             title: 'Boosts',

@@ -15,6 +15,7 @@ import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
 import {
     FORGE_SLOTS_PER_PLAYER,
     forgeSeatCanInsert,
+    forgeRuneCount,
     forgeSeatFilledCount,
     type ForgeSlot,
 } from './forgeRecipes';
@@ -40,6 +41,7 @@ import type {
     BoostSettings,
     DeploySettings,
     Economy,
+    ForgeSpellSettings,
     LevelingSettings,
     MovePackSettings,
     RallyRouteSettings,
@@ -137,6 +139,13 @@ export interface BuyRallyRouteAbilityAction {
 export interface BuyMovePackAbilityAction {
     kind: 'buyMovePackAbility';
     team: Team;
+}
+/** buys one charge of a spell your own commander knows (Stronghold, once each) */
+export interface BuyForgeSpellAction {
+    kind: 'buyForgeSpell';
+    team: Team;
+    /** must be one of THIS seat's commander's own forge spells */
+    tacticId: string;
 }
 /** sells a pack for its refund — spends an ability charge (per-round) or a
  *  card-granted sell tactic (one-shot) */
@@ -337,6 +346,7 @@ type ActionVariant =
     | BuySellAbilityAction
     | BuyRallyRouteAbilityAction
     | BuyMovePackAbilityAction
+    | BuyForgeSpellAction
     | SellUnitAction
     | MobilizeUnitAction
     | TutorUnitAction
@@ -423,6 +433,7 @@ export interface ActionContext {
     sellSettings: SellSettings;
     rallyRouteSettings: RallyRouteSettings;
     movePackSettings: MovePackSettings;
+    forgeSpellSettings: ForgeSpellSettings;
     deploySettings: DeploySettings;
     boostSettings: BoostSettings;
     /** the match roster — actions resolve their acting seat against it */
@@ -435,6 +446,10 @@ export interface ActionContext {
     rallyRouteOwned: boolean[];
     /** per-SEAT Vanguard: one-time move-pack purchase (permanent flag) */
     movePackOwned: boolean[];
+    /** per seat: which of its commander's spells it has already bought */
+    forgeSpellOwned: string[][];
+    /** this seat's own commander's forge spells (undefined = no card yet) */
+    forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
     /**
      * per-team buy limits: `limit` is the permanent baseline (specials may
      * raise it for good), `extra` and `used` reset every round
@@ -871,6 +886,25 @@ export class ActionDispatcher {
                 this.ctx.movePackOwned[seat] = true;
                 this.ctx.tactics[seat]!.push(MOVE_UNIT_ID);
                 entry.grantedTactics = [MOVE_UNIT_ID];
+                return true;
+            }
+            case 'buyForgeSpell': {
+                const owned = this.ctx.forgeSpellOwned[seat];
+                if (!owned || owned.includes(action.tacticId)) return false; // once each
+                // Gate on the seat's OWN commander, not the team pool: an ally's
+                // signature spell stays theirs to bring, and the gate is what
+                // keeps a modified client from buying anything in the catalog.
+                const pool = this.ctx.forgeSpellsOf(seat);
+                if (!pool?.includes(action.tacticId)) return false;
+                if (!TACTICS[action.tacticId]) return false;
+                const runes = forgeRuneCount(action.tacticId);
+                const costs = this.ctx.forgeSpellSettings.costByRunes;
+                const cost = costs[Math.max(0, runes - 1)] ?? costs[costs.length - 1] ?? 0;
+                if (!economy.spend(seat, cost)) return false;
+                entry.paid = cost;
+                owned.push(action.tacticId);
+                this.ctx.tactics[seat]!.push(action.tacticId);
+                entry.grantedTactics = [action.tacticId];
                 return true;
             }
             case 'sellUnit': {
@@ -1489,6 +1523,17 @@ export class ActionDispatcher {
                 // ability counter needs rolling back by hand
                 if (e.usedTactic === undefined) this.ctx.sellState.used[seat]!--;
                 break;
+            case 'buyForgeSpell': {
+                const owned = this.ctx.forgeSpellOwned[seat];
+                for (const id of e.grantedTactics ?? []) {
+                    const t = this.ctx.tactics[seat]!.lastIndexOf(id);
+                    if (t >= 0) this.ctx.tactics[seat]!.splice(t, 1);
+                    const o = owned ? owned.lastIndexOf(id) : -1;
+                    if (owned && o >= 0) owned.splice(o, 1);
+                }
+                economy.credit(seat, e.paid!);
+                break;
+            }
             case 'buyMovePackAbility': {
                 this.ctx.movePackOwned[seat] = false;
                 for (const id of e.grantedTactics ?? []) {

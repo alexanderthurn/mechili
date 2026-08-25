@@ -247,6 +247,18 @@ export interface SelectionInfo {
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** one-time rally-route charge purchase (Research Center only) */
     rallyRouteAbility?: { cost: number; owned: boolean; affordable: boolean };
+    /** Stronghold: your own commander's spells, buyable once each */
+    forgeSpells?: {
+        tacticId: string;
+        icon: string;
+        name: string;
+        desc: string;
+        /** recipe size — drives the price and reads as the spell's tier */
+        runes: number;
+        cost: number;
+        owned: boolean;
+        affordable: boolean;
+    }[];
     movePackAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
@@ -274,6 +286,7 @@ export class Hud {
     onUpgradeTower: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
     onBuyRallyRouteAbility: (() => void) | null = null;
+    onBuyForgeSpell: ((tacticId: string) => void) | null = null;
     onBuyMovePackAbility: (() => void) | null = null;
     /**
      * Shop unlock fee as THIS seat pays it (Countess Chonk discounts giants).
@@ -859,6 +872,7 @@ export class Hud {
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
+            else if (button.dataset.forgespell) this.onBuyForgeSpell?.(button.dataset.forgespell);
             else if (button.dataset.movepack) this.onBuyMovePackAbility?.();
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
             else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
@@ -2571,6 +2585,16 @@ export class Hud {
                     : info.movePackAbility.affordable
                       ? 'buy'
                       : 'locked',
+            });
+        }
+        for (const spell of info.forgeSpells ?? []) {
+            tiles.push({
+                data: `data-forgespell="${escapeHtml(spell.tacticId)}"`,
+                icon: spell.icon,
+                title: spell.name,
+                desc: `${spell.desc} Adds one charge to your ${DISPLAY.tactics.toLowerCase()} — once per match.`,
+                cost: spell.cost,
+                state: spell.owned ? 'owned' : spell.affordable ? 'buy' : 'locked',
             });
         }
         // unit techs render in their own slotted row (see techSlotsHtml below)
