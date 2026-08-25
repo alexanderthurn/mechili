@@ -379,8 +379,8 @@ export function forgeHintText(
     }
     if (!resolveForge(slots, pool).product) {
         return when === 'this'
-            ? 'No matching recipe — all runes returned to their owners this deploy.'
-            : 'No matching recipe — all runes return to their owners next deploy.';
+            ? 'No matching recipe — all runes returned to their owners this deploy'
+            : 'No matching recipe — all runes return to their owners next deploy';
     }
     // A matched recipe promises nothing until the burn is bought — the buy
     // button carries that message, and a line beside it claiming otherwise
@@ -390,7 +390,7 @@ export function forgeHintText(
     // oven and the product is on the square next to them. All that is left to
     // say is when. (No leftovers to mention either — resolveForge only returns
     // a product on an exact match, so `refunds` is empty whenever one exists.)
-    return when === 'this' ? 'Ready this deploy.' : 'Ready next deploy.';
+    return when === 'this' ? 'Ready this deploy' : 'Ready next deploy';
 }
 
 
