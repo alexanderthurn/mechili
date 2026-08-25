@@ -2357,7 +2357,10 @@ export class BattleSim {
             }
             for (const a of this.actors) {
                 if (!a.alive || a.unit.type.structure) continue;
-                if (actorTeam(a) !== f.team) continue;
+                // its own side, and the horde with it: this is a keep's worth of
+                // masonry going outward, and the besiegers are standing in it.
+                // An enemy army keeps its own Stronghold's fate to itself.
+                if (actorTeam(a) !== f.team && actorTeam(a) !== 'horde') continue;
                 const dx = a.x - f.x;
                 const dz = a.z - f.z;
                 if (hypot(dx, dz) > radius) continue; // the front has not arrived
