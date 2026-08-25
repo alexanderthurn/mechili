@@ -42,7 +42,6 @@ import {
     type HostHub,
     type NetMessage,
     type PeerServerConfig,
-    type Session,
     type SinglePlayerSave,
     type SpectatorLink,
     type StarGuestSession,
@@ -2499,7 +2498,6 @@ function wireGameMenuReturn(game: Game): void {
  */
 function constructGame(
     settings: GameSettings,
-    net: Session | null,
     side: 'a' | 'b',
     names: { local: string; opponent: string },
     resume: MatchResume | null,
@@ -2525,7 +2523,6 @@ function constructGame(
         threeCanvas,
         matchUiRoot,
         settings,
-        net,
         side,
         names,
         resume,
@@ -2566,8 +2563,7 @@ function constructGame(
         }
     };
     wireGameMenuReturn(game);
-    if (net) wireReconnect(game, net);
-    else if (!star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    if (!star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
     if (replayControlsPanel) {
         game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
     }
@@ -2576,11 +2572,10 @@ function constructGame(
 
 function startGame(
     settings: GameSettings,
-    net: Session | null = null,
     side: 'a' | 'b' = 'a',
     names: { local: string; opponent: string } = {
         local: getPlayerName(),
-        opponent: net ? 'Opponent' : 'AI',
+        opponent: 'AI',
     },
     resume: MatchResume | null = null,
     /** 2v2+ star-topology connection — mutually exclusive with `net` */
@@ -2628,13 +2623,7 @@ function startGame(
     // on the last menu frame and the cinematic never covers the hitch.
     menuChromeEl.remove();
 
-    if (net) {
-        // Steam is the only live user of `net` now (classic PeerJS 1v1 runs
-        // over star — see initial1v1Roster). Steam sessions have no cold-
-        // reload-resume feature yet (net-steam.ts), so there's no marker to
-        // save here, just the single-player save to clear.
-        clearSinglePlayer();
-    } else if (star?.role === 'guest' && !resume?.local) {
+    if (star?.role === 'guest' && !resume?.local) {
         // Only a GUEST ever saves one — if the HOST's own tab reloads, its
         // StarHub (and the whole match) is gone with it, nothing to resume
         // into. joinStarRoom always dials the room code fresh, so all that
@@ -2679,7 +2668,7 @@ function startGame(
     }
 
     const bootGame = (): Game =>
-        constructGame(settings, net, side, names, resume, star, replay, spectate, useIntro);
+        constructGame(settings, side, names, resume, star, replay, spectate, useIntro);
 
     if (!useIntro) {
         setGameLayerVisible(true);
@@ -2786,66 +2775,11 @@ function wireSinglePlayerPersist(game: Game): () => void {
     };
 }
 
-/** how long the still-connected player waits before winning by forfeit */
-const RECONNECT_GRACE_SECONDS = 30;
-
-/**
- * Survivor side of a dropped connection: pause behind a live countdown, wait
- * for the peer to come back, answer their resume request with the full
- * match state, then continue. If the peer hasn't returned within the grace
- * window, we win by forfeit.
- *
- * Transport-agnostic on purpose — `session` is the `Session` interface,
- * and every step here (`attemptRecovery`, `once`, `send`) is a `Session`-
- * level capability. This function never checks which transport it's
- * talking to; a transport with nothing to retry (see `attemptRecovery`'s
- * own doc comment — Steam's P2P self-heals a brief drop before its
- * watchdog-driven `onClose` ever fires, so there's nothing left worth
- * attempting by the time we're here) just omits the method, handled once,
- * uniformly, right below. The only live caller today is Steam 1v1 —
- * classic PeerJS 1v1 now runs over the star transport (initial1v1Roster),
- * which has its own, separate reconnect path.
- */
-function wireReconnect(game: Game, initial: Session): void {
-    let session = initial;
-    game.onConnectionLost = () => {
-        if (!session.attemptRecovery) {
-            // Nothing to wait for — treat the grace window as already
-            // elapsed and let the existing, already-correct grace-timeout
-            // path (tick()'s own internal handling) take it from here.
-            game.beginReconnectGrace(0);
-            return;
-        }
-        const ac = new AbortController();
-        game.onReconnectTimeout = () => ac.abort();
-        game.beginReconnectGrace(RECONNECT_GRACE_SECONDS);
-        void (async () => {
-            try {
-                const next = await session.attemptRecovery!(ac.signal);
-                if (activeGame !== game) return;
-                const first = await next.once();
-                if (activeGame !== game) return;
-                if (first.type === 'resume') {
-                    next.send({ type: 'state', version: GAME_VERSION, ...game.exportResume() });
-                }
-                session = next;
-                game.resumeWith(next);
-            } catch (e) {
-                if (activeGame !== game) return;
-                // grace window already elapsed — forfeitWin() has the result,
-                // nothing more to show here
-                if (e instanceof DOMException && e.name === 'AbortError') return;
-                game.suspend('The opponent did not come back.');
-            }
-        })();
-    };
-}
-
 function resumeSinglePlayer(save: SinglePlayerSave): void {
     primeIntroCover();
     const settings = save.settings;
     settings.seed = save.seed;
-    startGame(settings, null, 'a', { local: save.localName, opponent: 'AI' }, {
+    startGame(settings, 'a', { local: save.localName, opponent: 'AI' }, {
         actions: save.actions,
         battleElapsed: save.battleElapsed,
         phaseRemaining: save.phaseRemaining,
@@ -2877,7 +2811,6 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
     settings.seed = record.replay.seed;
     startGame(
         settings,
-        null,
         record.side,
         { local: record.names.local, opponent: record.names.opponent },
         null,
@@ -2913,7 +2846,6 @@ async function rebuildReplayAt(target: number | 'end'): Promise<void> {
     settings.seed = currentReplayRecord.replay.seed;
     startGame(
         settings,
-        null,
         currentReplayRecord.side,
         { local: currentReplayRecord.names.local, opponent: currentReplayRecord.names.opponent },
         null,
@@ -2980,8 +2912,7 @@ function rebuildStarGuestGame(
         const myName = msg.roster[mySeat]?.name ?? getPlayerName();
         constructGame(
             settings,
-            null,
-            yourSide,
+                        yourSide,
             { local: myName, opponent: opponentDisplayName(msg.roster, mySeat) },
             {
                 actions: msg.actions,
@@ -3028,7 +2959,6 @@ async function verifyReplayAndReturn(id: string, side: 'a' | 'b'): Promise<void>
     settings.seed = record.replay.seed;
     startGame(
         settings,
-        null,
         record.side,
         { local: record.names.local, opponent: record.names.opponent },
         null,
@@ -3103,7 +3033,6 @@ async function runBulkVerify(queue: { id: string; side: 'a' | 'b' }[]): Promise<
         settings.seed = record.replay.seed;
         startGame(
             settings,
-            null,
             record.side,
             { local: record.names.local, opponent: record.names.opponent },
             null,
@@ -3629,7 +3558,6 @@ function startHostedMatch(): void {
     const hostSettings = { ...settings, seats: localizeRoster(finalRoster, 'a') };
     startGame(
         hostSettings,
-        null,
         'a',
         { local: getPlayerName(), opponent: opponentDisplayName(finalRoster, 0) },
         null,
@@ -3851,7 +3779,6 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             clearLobbySettings();
             startGame(
                 settings,
-                null,
                 yourSide,
                 { local: myName, opponent: opponentDisplayName(msg.roster, mySeat) },
                 {
@@ -3884,7 +3811,6 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
         clearLobbySettings();
         startGame(
             settings,
-            null,
             msg.yourSide,
             { local: myName, opponent: opponentDisplayName(msg.roster, msg.yourSeat) },
             null,
@@ -4397,7 +4323,7 @@ function startSpectateGame(
             };
             const settings = result.settings;
             settings.seed = result.seed;
-            startGame(settings, null, 'a', names, null, null, null, {
+            startGame(settings, 'a', names, null, null, null, {
                 session: result.session,
                 watcherName: getPlayerName(),
                 initial: {

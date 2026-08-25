@@ -11,6 +11,7 @@ import {
     Vector3,
 } from 'three';
 
+import { hypot } from './detMath';
 import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
@@ -381,7 +382,7 @@ export class BattleMap {
         const edge = Math.min(this.halfW - Math.abs(x), this.halfH - Math.abs(z));
         let fade = smooth01((edge - rimW) / 14);
         for (const a of this.baseAnchors()) {
-            const d = Math.hypot(x - a.x, z - a.z);
+            const d = hypot(x - a.x, z - a.z);
             fade = Math.min(fade, smooth01((d - a.r) / 10));
         }
         return THEME.terrain.reliefDepth * hill * fade;

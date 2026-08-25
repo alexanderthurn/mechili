@@ -14,6 +14,7 @@ import {
     Vector3,
 } from 'three';
 import { THEME } from '../theme';
+import { detAtan2 } from './detMath';
 
 /**
  * The ward dome's skin: a faint violet film with a band of golden runes
@@ -76,7 +77,7 @@ import {
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import { beginBuildingCollapse, clearBuildingCollapse } from './buildingCollapse';
-import { clearDeathFall, clearDeathTip } from './deathFall';
+import { clearCorpsePose, clearDeathFall, clearDeathTip } from './deathFall';
 import { preserveBuildingSnow } from './buildingSnow';
 
 export type Team = 'player' | 'enemy';
@@ -1486,6 +1487,7 @@ export class Unit {
             m.mesh.userData.dead = false;
             clearDeathFall(m.mesh);
             clearDeathTip(m.mesh);
+            clearCorpsePose(m.mesh);
             clearBuildingCollapse(m.mesh);
             if ((this.type.modelId ?? this.type.id) === CROW_RIDER_MODEL_ID) {
                 setCrowWingRateOnProxy(m.mesh, 0);
@@ -1527,13 +1529,13 @@ export class Unit {
                     best = t;
                 }
             }
-            m.mesh.rotation.y = Math.atan2(-(best.x - mx), -(best.z - mz));
+            m.mesh.rotation.y = detAtan2(-(best.x - mx), -(best.z - mz));
             if (bestD < squadBestD) {
                 squadBestD = bestD;
                 squadBest = best;
             }
         }
-        this.facing = Math.atan2(-(squadBest.x - this.world.x), -(squadBest.z - this.world.z));
+        this.facing = detAtan2(-(squadBest.x - this.world.x), -(squadBest.z - this.world.z));
     }
 
     update(timeSeconds: number): void {

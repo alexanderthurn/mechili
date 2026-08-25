@@ -11,22 +11,13 @@
  * - Igniting any oil cell flood-fills the whole connected oil component.
  */
 
+import { hypot } from './detMath';
 import { CELL, STANDARD_MAP, type MapSize } from './map';
 import type { SeatId } from './seats';
 import { techsForUnit, type Loadout } from './techCatalog';
 
 /** world units per hazard cell — finer than board tiles for splat connectivity */
 export const HAZARD_CELL = 2;
-
-/**
- * Deterministic replacement for Math.hypot, matching sim.ts: sqrt is correctly
- * rounded per IEEE-754 in every engine, Math.hypot is not. It normalizes the
- * splash direction below, so a last-ulp difference would move the wedge edge
- * and hand two peers different oil cells.
- */
-function hypot(x: number, z: number): number {
-    return Math.sqrt(x * x + z * z);
-}
 
 /** default Oil Spill tactic stamp */
 export const OIL_SPILL_RADIUS = 4 * CELL;
