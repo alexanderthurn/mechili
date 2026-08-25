@@ -1662,8 +1662,8 @@ export class Game {
             if (this.armedTactic) return;
             this.placement.rotateSelected();
         };
-        this.placement.rangeOf = (unit) => this.resolvedStats(unit).range;
-        this.placement.minRangeOf = (unit) => this.resolvedStats(unit).minRange;
+        this.placement.rangeOf = (unit) => this.resolvedStatsView(unit).range;
+        this.placement.minRangeOf = (unit) => this.resolvedStatsView(unit).minRange;
         this.placement.auraRangeOf = (unit) => this.auraRadiusOf(unit);
         this.controls.onRightClick = () => {
             if (this.cancelTacticPlacement()) return;
@@ -6247,6 +6247,56 @@ export class Game {
 
     /** tech-resolved stats plus army boosts, card speciality, and the pack's items */
     private resolvedStats(unit: Unit) {
+        return this.resolveUnitStats(unit, {
+            ownedTechs:
+                unit.team === 'horde'
+                    ? TechTree.EMPTY
+                    : this.techTree.ownedFor(unit.seat, unit.type.id),
+            items: unit.items,
+            attackTiers: this.boostState.attack[unit.seat] ?? 0,
+            hpTiers: this.boostState.hp[unit.seat] ?? 0,
+            rangeBoost: this.roundBoosts.range[unit.seat] ?? false,
+            speedBoost: this.roundBoosts.speed[unit.seat] ?? false,
+            hasTech: (s, t, id) => this.techTree.has(s, t, id),
+        });
+    }
+
+    /**
+     * Stats as the local viewer may know them — phase-start techs / items /
+     * range boosts while deploy intel fog applies (so enemy mid-deploy range
+     * upgrades do not enlarge the selection ring).
+     */
+    private resolvedStatsView(unit: Unit) {
+        if (!this.placement.isIntelFogged(unit)) return this.resolvedStats(unit);
+        const intel = this.placement.intelOf(unit);
+        const building = this.intelBuildingSeat(unit);
+        const owned = this.intelTechOwned(unit);
+        return this.resolveUnitStats(unit, {
+            ownedTechs: owned,
+            items: intel?.items ?? [],
+            attackTiers: building.boostAttack,
+            hpTiers: building.boostHp,
+            rangeBoost: building.rangeBoost,
+            speedBoost: building.speedBoost,
+            hasTech: (_s, typeId, techId) =>
+                typeId === unit.type.id
+                    ? owned.has(techId)
+                    : this.techTree.has(_s, typeId, techId),
+        });
+    }
+
+    private resolveUnitStats(
+        unit: Unit,
+        opts: {
+            ownedTechs: ReadonlySet<string>;
+            items: readonly string[];
+            attackTiers: number;
+            hpTiers: number;
+            rangeBoost: boolean;
+            speedBoost: boolean;
+            hasTech: (seat: SeatId, typeId: string, techId: string) => boolean;
+        },
+    ) {
         const { team, type } = unit;
         // the horde owns no techs/boosts/speciality/items — plain base stats
         if (team === 'horde') {
@@ -6260,14 +6310,12 @@ export class Game {
                 splashRadius: type.splashRadius ?? 0,
             };
         }
-        const stats = this.techTree.statsFor(unit.seat, type);
+        const stats = TechTree.statsWithOwned(type, opts.ownedTechs);
         const b = this.settings.boosts;
-        const attackTier = this.boostState.attack[unit.seat]!;
-        const hpTier = this.boostState.hp[unit.seat]!;
-        if (attackTier > 0) stats.damage *= 1 + b.attackTiers[attackTier - 1]!;
-        if (hpTier > 0) stats.hp *= 1 + b.hpTiers[hpTier - 1]!;
+        if (opts.attackTiers > 0) stats.damage *= 1 + b.attackTiers[opts.attackTiers - 1]!;
+        if (opts.hpTiers > 0) stats.hp *= 1 + b.hpTiers[opts.hpTiers - 1]!;
         const spec = this.speciality[unit.seat];
-        if (spec === 'air' && effectiveFlying(type, unit.seat, (s, t, id) => this.techTree.has(s, t, id)) > 0) {
+        if (spec === 'air' && effectiveFlying(type, unit.seat, opts.hasTech) > 0) {
             stats.damage *= 1 + AIR_BONUS;
             stats.hp *= 1 + AIR_BONUS;
         }
@@ -6275,7 +6323,7 @@ export class Game {
             stats.damage *= 1 - COST_CONTROL_PENALTY;
             stats.hp *= 1 - COST_CONTROL_PENALTY;
         }
-        for (const id of unit.items) {
+        for (const id of opts.items) {
             const mods = ITEMS[id]?.mods;
             if (!mods) continue;
             stats.hp *= mods.hp ?? 1;
@@ -6290,8 +6338,8 @@ export class Game {
         // the unit's own speed, not the commander's gift (same rule as the
         // one-round Vanguard boost below)
         if (spec === 'speed' && !type.structure) stats.speed += SPEED_COMMANDER_BONUS;
-        if (this.roundBoosts.speed[unit.seat]) stats.speed += rb.speedBoost;
-        if (this.roundBoosts.range[unit.seat] && type.projectileSpeed) stats.range += rb.rangeBoost;
+        if (opts.speedBoost) stats.speed += rb.speedBoost;
+        if (opts.rangeBoost && type.projectileSpeed) stats.range += rb.rangeBoost;
         return stats;
     }
 
@@ -9737,7 +9785,7 @@ export class Game {
     }
 
     private unitInfo(u: Unit): SelectionInfo {
-        const rs = this.resolvedStats(u);
+        const rs = this.resolvedStatsView(u);
         const lv = this.levelInfo(u);
         const fogItems = this.placement.intelOf(u)?.items;
         const ownInteractive = u.team === 'player' && this.playerCanAct;

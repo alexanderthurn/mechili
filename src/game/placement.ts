@@ -341,7 +341,7 @@ export class PlacementController {
         this.selectMesh = makeMarker(SELECT_COLOR, 0.22);
         this.selectMesh.position.y = 0.03;
 
-        // attack range ring for the selected own pack (unit radius, scaled per unit)
+        // attack / min-range / aura rings for the selected pack (any owner)
         this.rangeMesh = createRangeRing(scene);
         // inner dead-zone ring (min range)
         this.minRangeMesh = createRangeRing(scene);
@@ -2315,18 +2315,17 @@ export class PlacementController {
             markerCenter = center;
         }
 
-        // attack range ring for own packs (follows the carried position)
-        if (sel.team === 'player' && !sel.type.structure && this.rangeOf) {
+        // attack / min-range rings for any selected pack (own or enemy)
+        if (!sel.type.structure && this.rangeOf) {
             const radius = this.rangeOf(sel) + sel.type.collisionRadius;
             placeRangeRing(this.rangeMesh, markerCenter.x, markerCenter.z, radius);
-            // inner dead-zone ring for units with a min range
             const minRange = this.minRangeOf?.(sel) ?? 0;
             if (minRange > 0) {
                 placeRangeRing(this.minRangeMesh, markerCenter.x, markerCenter.z, minRange + sel.type.collisionRadius);
             }
         }
         // gold aura ring for packs with a special-ability radius (Golden Aura)
-        if (sel.team === 'player' && this.auraRangeOf) {
+        if (this.auraRangeOf) {
             const auraRadius = this.auraRangeOf(sel);
             if (auraRadius) {
                 placeRangeRing(this.auraMesh, markerCenter.x, markerCenter.z, auraRadius);
