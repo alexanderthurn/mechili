@@ -5471,8 +5471,28 @@ export class Game {
 
     /** canonical state fingerprint, exchanged at battle start to catch desyncs */
     private stateHash(): number {
+        return this.stateHashParts().total;
+    }
+
+    /**
+     * The same walk {@link stateHash} does, but snapshotting the running
+     * accumulator after each section. Every value is a hash of EVERYTHING UP
+     * TO AND INCLUDING that section, so on a two-console diff the first mark
+     * that disagrees names the section the divergence entered in — a single
+     * opaque integer cannot. Diagnostics only: `total` is bit-identical to
+     * what stateHash always produced, so this changes no comparison.
+     */
+    private stateHashParts(): {
+        total: number;
+        models: number;
+        hp: number;
+        economy: number;
+        actors: number;
+        stats: number;
+    } {
         const buffer = new DataView(new ArrayBuffer(8));
         let h = 0x811c9dc5;
+        const marks = { models: 0, hp: 0, economy: 0, actors: 0, stats: 0 };
         const mix = (v: number) => {
             buffer.setFloat64(0, v);
             h = Math.imul(h ^ buffer.getUint32(0), 0x9e3779b1);
@@ -5488,10 +5508,13 @@ export class Game {
         // per-client reordering needed (that's what the old hostFirst/
         // teamOrder tricks existed for), and this iterates however many
         // sides the roster actually has, not just today's pair.
+        marks.models = h >>> 0;
         for (const v of this.hp) mix(v);
+        marks.hp = h >>> 0;
         for (let s = 0; s < sideCount(this.seats); s++) {
             for (const seat of sideIdsOf(this.seats, s)) mix(this.economy.balance(seat));
         }
+        marks.economy = h >>> 0;
         for (const a of this.sim?.actors ?? []) {
             // canonicalize: the seat's own counter (client-independent —
             // both clients apply the same buy-action stream in the same
@@ -5518,6 +5541,7 @@ export class Game {
         // per pack rather than per (type, seat) so differing items on two packs
         // of the same type are covered too. Canonical actor order, deduped, so
         // both peers walk the same sequence.
+        marks.actors = h >>> 0;
         const statsSeen = new Set<Unit>();
         for (const a of this.sim?.actors ?? []) {
             if (statsSeen.has(a.unit)) continue;
@@ -5534,6 +5558,7 @@ export class Game {
             mix(st.attackInterval);
             mix(st.splashRadius);
         }
+        marks.stats = h >>> 0;
         // Shared hazard layers — must match on both peers before battle. Acid
         // is oil's twin in fire.ts (same expiry model, same carry-over through
         // cloneForBattle/adoptOilFrom) and it deals percent-max-HP damage plus
@@ -5555,7 +5580,7 @@ export class Game {
                 }
             }
         }
-        return h >>> 0;
+        return { total: h >>> 0, ...marks };
     }
 
 
@@ -7950,11 +7975,21 @@ export class Game {
             loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
             strongholdLifeline: this.settings.strongholdMode === 'lifeline',
         });
+        const hashParts = this.stateHashParts();
         this.debugLog.log('sim.battleStart', {
             watching: this.watching,
             hydrating: this.hydrating,
             round: this.round,
-            hash: this.stateHash(),
+            hash: hashParts.total,
+            // running marks, one per section of the hash walk: on a two-client
+            // diff the FIRST mark that disagrees names where it went wrong
+            marks: {
+                models: hashParts.models,
+                hp: hashParts.hp,
+                economy: hashParts.economy,
+                actors: hashParts.actors,
+                stats: hashParts.stats,
+            },
             unitCount: this.sim.actors.length,
             actors: this.sim.actors
                 .map((a) => ({
@@ -7965,6 +8000,11 @@ export class Game {
                     hp: a.hp,
                     x: Math.round(a.x * 100) / 100,
                     z: Math.round(a.z * 100) / 100,
+                    // hashed, and until now never dumped — facing is seeded
+                    // from mesh.rotation.y, which fog and lock-in timing can
+                    // move independently on each client
+                    facing: Math.round(a.facing * 1e6) / 1e6,
+                    shieldHp: a.shieldHp,
                 }))
                 .sort((a, b) => a.id - b.id),
         });
