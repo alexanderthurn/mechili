@@ -9873,7 +9873,7 @@ export class Game {
         // the window shrinks as the building levels, so read it off THIS one
         const dur = this.settings.towers.debuffDuration;
         const seconds = Math.max(1, dur.baseSeconds - (u.level - 1) * dur.stepSeconds);
-        return `Debuff ${seconds}s`;
+        return `${seconds} second debuff`;
     }
 
     /**
