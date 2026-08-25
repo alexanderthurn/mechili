@@ -6757,8 +6757,16 @@ export class Game {
 
     /** this round's spell markers: own always; enemy only after we lock in */
     private visibleSpellStamps(): readonly SpellStamp[] {
-        const revealEnemy =
-            this.phase === 'battle' || this.deployReady.player;
+        // Deployment markers belong to deployment. The battle has its own three
+        // layers (charge fills, active zone rings, safe-zone disks), all in
+        // groups clearDeployMarkers() leaves alone, and battle start throws
+        // these away on purpose. Without this gate that discard does not stick:
+        // the round only ticks over in startBuildPhase, so every stamp still
+        // matches `placedRound` through the whole post-battle beat, and any
+        // stray sync — a right-click, Escape, gamepad B, all of which reach
+        // cancelTacticPlacement — paints them straight back onto the board.
+        if (this.phase !== 'build') return [];
+        const revealEnemy = this.deployReady.player;
         return this.spellStamps.filter(
             (s) => s.placedRound === this.round && (s.team === 'player' || revealEnemy),
         );
@@ -6793,7 +6801,8 @@ export class Game {
         this.tacticDraftStart = null;
         this.tacticDraftMid = null;
         this.placement.inputLocked = false;
-        this.syncTacticVisuals();
+        // a cancel that cancelled nothing has nothing to repaint
+        if (had) this.syncTacticVisuals();
         return had;
     }
 
