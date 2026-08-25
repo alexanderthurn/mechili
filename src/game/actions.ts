@@ -15,7 +15,6 @@ import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
 import {
     FORGE_SLOTS_PER_PLAYER,
     forgeSeatCanInsert,
-    forgeRuneCount,
     forgeSeatFilledCount,
     type ForgeSlot,
 } from './forgeRecipes';
@@ -41,7 +40,6 @@ import type {
     BoostSettings,
     DeploySettings,
     Economy,
-    ForgeSpellSettings,
     LevelingSettings,
     MovePackSettings,
     RallyRouteSettings,
@@ -433,7 +431,6 @@ export interface ActionContext {
     sellSettings: SellSettings;
     rallyRouteSettings: RallyRouteSettings;
     movePackSettings: MovePackSettings;
-    forgeSpellSettings: ForgeSpellSettings;
     deploySettings: DeploySettings;
     boostSettings: BoostSettings;
     /** the match roster — actions resolve their acting seat against it */
@@ -896,10 +893,9 @@ export class ActionDispatcher {
                 // keeps a modified client from buying anything in the catalog.
                 const pool = this.ctx.forgeSpellsOf(seat);
                 if (!pool?.includes(action.tacticId)) return false;
-                if (!TACTICS[action.tacticId]) return false;
-                const runes = forgeRuneCount(action.tacticId);
-                const costs = this.ctx.forgeSpellSettings.costByRunes;
-                const cost = costs[Math.max(0, runes - 1)] ?? costs[costs.length - 1] ?? 0;
+                // price rides on the spell; no price means it is not sold here
+                const cost = TACTICS[action.tacticId]?.strongholdCost;
+                if (cost === undefined) return false;
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 owned.push(action.tacticId);

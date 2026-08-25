@@ -39,7 +39,6 @@ import {
     resolveForge,
     unionForgeSpellPools,
     type ForgeSlot,
-    forgeRuneCount,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
 import {
@@ -1427,7 +1426,6 @@ export class Game {
             towers: settings.towers,
             sellSettings: settings.sell,
             rallyRouteSettings: settings.rallyRoute,
-            forgeSpellSettings: settings.forgeSpell,
             movePackSettings: settings.movePack,
             deploySettings: settings.deploy,
             boostSettings: settings.boosts,
@@ -9841,20 +9839,18 @@ export class Game {
             const seat = this.humanSeat;
             const bought = this.forgeSpellOwned[seat] ?? [];
             const bal = this.economy.balance(seat);
-            const costs = this.settings.forgeSpell.costByRunes;
             out.forgeSpells = (this.starterCardOfSeat(seat)?.forgeSpells ?? [])
                 .map((tacticId) => {
                     const t = TACTICS[tacticId];
-                    if (!t) return null;
-                    const runes = forgeRuneCount(tacticId);
-                    const cost = costs[Math.max(0, runes - 1)] ?? costs[costs.length - 1] ?? 0;
+                    // no strongholdCost = this spell isn't sold here
+                    if (!t || t.strongholdCost === undefined) return null;
+                    const cost = t.strongholdCost;
                     const owned = bought.includes(tacticId);
                     return {
                         tacticId,
                         icon: t.icon,
                         name: t.name,
                         desc: t.description,
-                        runes,
                         cost,
                         owned,
                         affordable: canBuy && !owned && bal >= cost,

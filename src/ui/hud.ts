@@ -253,8 +253,6 @@ export interface SelectionInfo {
         icon: string;
         name: string;
         desc: string;
-        /** recipe size — drives the price and reads as the spell's tier */
-        runes: number;
         cost: number;
         owned: boolean;
         affordable: boolean;

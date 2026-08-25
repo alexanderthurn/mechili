@@ -161,6 +161,12 @@ export const TACTICS: Record<
          */
         acidCapsule?: { durationRounds: number; dpsPercent: number };
         fireCapsule?: { burnSeconds: number; intensity: number };
+        /**
+         * Price to buy one charge outright at the Stronghold. Per spell, not
+         * per tier — a commander is free to carry three expensive ones. Absent
+         * = not sold there at all, so a new spell has to opt in on purpose.
+         */
+        strongholdCost?: number;
         /** oil spill only */
         oilRadius?: number;
         oilDurationRounds?: number;
@@ -179,6 +185,7 @@ export const TACTICS: Record<
     },
     [OIL_SPILL_ID]: {
         id: OIL_SPILL_ID,
+        strongholdCost: 100,
         name: 'Oil Spill',
         icon: 'tactic-oil',
         kind: 'placement',
@@ -223,6 +230,7 @@ export const TACTICS: Record<
     },
     [SPAWN_DWARVES_ID]: {
         id: SPAWN_DWARVES_ID,
+        strongholdCost: 100,
         name: 'Summon Dwarves',
         icon: 'tactic-summon-dwarves',
         kind: 'placement',
@@ -237,6 +245,7 @@ export const TACTICS: Record<
     },
     [BIG_METEOR_ID]: {
         id: BIG_METEOR_ID,
+        strongholdCost: 200,
         name: 'Meteor',
         icon: 'tactic-meteor',
         kind: 'placement',
@@ -249,6 +258,7 @@ export const TACTICS: Record<
     },
     [SPAWN_CROWS_ID]: {
         id: SPAWN_CROWS_ID,
+        strongholdCost: 200,
         name: 'Summon Crow Riders',
         icon: 'tactic-summon-crows',
         kind: 'placement',
@@ -263,6 +273,7 @@ export const TACTICS: Record<
     },
     [HAMMER_ID]: {
         id: HAMMER_ID,
+        strongholdCost: 300,
         name: 'Hammer of the Gods',
         icon: 'tactic-hammer',
         kind: 'placement',
@@ -276,6 +287,7 @@ export const TACTICS: Record<
     },
     [STORM_ID]: {
         id: STORM_ID,
+        strongholdCost: 200,
         name: 'Storm Call',
         icon: 'tactic-storm',
         kind: 'placement',
@@ -291,6 +303,7 @@ export const TACTICS: Record<
     },
     [METEOR_SHOWER_ID]: {
         id: METEOR_SHOWER_ID,
+        strongholdCost: 300,
         name: 'Meteor Shower',
         icon: 'tactic-shower',
         kind: 'placement',
@@ -314,6 +327,7 @@ export const TACTICS: Record<
     },
     [ACID_ID]: {
         id: ACID_ID,
+        strongholdCost: 200,
         name: 'Acid Spill',
         icon: 'tactic-acid',
         kind: 'placement',
@@ -327,6 +341,7 @@ export const TACTICS: Record<
     },
     [FIRE_SPILL_ID]: {
         id: FIRE_SPILL_ID,
+        strongholdCost: 100,
         name: 'Fire Spill',
         icon: 'tactic-fire',
         kind: 'placement',
@@ -339,6 +354,7 @@ export const TACTICS: Record<
     },
     [DRAGON_ID]: {
         id: DRAGON_ID,
+        strongholdCost: 300,
         name: 'Dragon Attack',
         icon: 'tactic-dragon',
         kind: 'placement',
@@ -355,6 +371,7 @@ export const TACTICS: Record<
     },
     [POISON_CLOUD_ID]: {
         id: POISON_CLOUD_ID,
+        strongholdCost: 200,
         name: 'Poison Cloud',
         icon: 'tactic-poison',
         kind: 'placement',
