@@ -4876,8 +4876,7 @@ ${chatFloatStyles(u, pc, ec)}
      * cards, specialist reveal, unlock dialog, and now the settings panel)
      * still lost that stacking fight and rendered BEHIND the topbar's own
      * stacking context, regardless of DOM order. Comfortably above the
-     * topbar, below .mechili-pause's 55 (pause should still win if both
-     * were ever open at once). */
+     * topbar, below .mechili-pause's 55 and .mechili-gameover's 56. */
     z-index: 50;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -5498,6 +5497,9 @@ ${chatFloatStyles(u, pc, ec)}
     max-height: min(88vh, 760px);
     overflow-x: hidden;
     overflow-y: auto;
+    /* Above .mechili-cards (50) and .mechili-pause (55) — match end must
+     * remain clickable even if a commander/round overlay is still mounted. */
+    z-index: 56;
     /* chrome filled by materialStyles ornate frame */
     background: transparent;
     border: 1px solid ${u.frameLo};

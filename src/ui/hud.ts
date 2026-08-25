@@ -3802,7 +3802,7 @@ export class Hud {
 
     /** the grace window elapsed with no reconnect — we win by forfeit */
     showForfeitWin(details?: GameOverDetails): void {
-        this.hideReconnectWait();
+        this.prepareMatchEndUi();
         const el = document.createElement('div');
         el.className = 'mechili-gameover victory';
         el.innerHTML = this.gameOverInnerHtml('VICTORY', details);
@@ -3812,6 +3812,7 @@ export class Hud {
 
     /** the peer connection died — nothing to do but return to the menu */
     showDisconnect(): void {
+        this.prepareMatchEndUi();
         const el = document.createElement('div');
         el.className = 'mechili-gameover draw';
         el.innerHTML = `<div class="go-title">DISCONNECTED</div><button class="go-restart">Back to main menu</button>`;
@@ -3828,6 +3829,7 @@ export class Hud {
             details?: GameOverDetails;
         },
     ): void {
+        this.prepareMatchEndUi();
         const el = document.createElement('div');
         el.className = `mechili-gameover ${result}`;
         const title = options?.title ?? (result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW');
@@ -3837,6 +3839,14 @@ export class Hud {
         btn.textContent = backLabel;
         btn.addEventListener('click', () => this.onQuitToMenu?.());
         this.mount(el);
+    }
+
+    /** Clear overlays that sit above the board so the result panel can be clicked. */
+    private prepareMatchEndUi(): void {
+        this.hidePauseMenu();
+        this.hideCardOverlay();
+        this.hideNotice();
+        this.hideReconnectWait();
     }
 
     private gameOverInnerHtml(
