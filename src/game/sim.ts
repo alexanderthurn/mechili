@@ -78,6 +78,8 @@ import {
 import {
     beginHammerCrush,
     clearBuildingCollapse,
+    groundTipAt,
+    hammerCrushSpin,
     HAMMER_CRUSH_SEAT_Y,
     tickBuildingCollapse,
     type BuildingCollapseState,
@@ -2946,7 +2948,13 @@ export class BattleSim {
             clearDeathFall(target.mesh);
             clearDeathTip(target.mesh);
             clearCorpsePose(target.mesh);
-            beginHammerCrush(target.mesh, { groundY });
+            const tip = groundTipAt(target.x, target.z);
+            beginHammerCrush(target.mesh, {
+                groundY,
+                spin: hammerCrushSpin(target.index + 17),
+                endTipX: tip.tipX,
+                endTipZ: tip.tipZ,
+            });
             target.mesh.userData.dead = true;
             clearBattleTint(target.mesh);
             if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
