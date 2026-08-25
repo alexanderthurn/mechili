@@ -310,14 +310,14 @@ export const TACTICS: Record<
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 2,
-        radius: 10.5 * CELL,
+        radius: 15.75 * CELL,
         spell: {
             delaySeconds: 3,
             zone: {
                 mode: 'meteorShower',
-                // 3× duration; interval scaled so total meteor count stays ~same
                 duration: 24,
-                interval: 1.8,
+                // half interval → ~2× meteors over the same window
+                interval: 0.9,
                 damage: 140,
                 impactRadius: 1.5 * CELL,
                 igniteRadius: 1 * CELL,
