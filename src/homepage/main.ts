@@ -292,16 +292,14 @@ function runeRecipeIcons(runeId: string): string[] {
 }
 
 function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
+    // One price tag either way — a base rune is bought, a forged one is paid for
+    // in ingredients plus the forge fee, so the band shows whichever applies.
     const recipe = isBase ? [] : runeRecipeIcons(item.id);
-    // The recipe IS the price for an advanced rune — it is never sold, only forged.
-    const recipeHtml = recipe.length
-        ? `<div class="mh-rune-recipe" aria-label="Forged from">${recipe
-              .map((ico) => iconHtml(ico, 'mh-rune-ingredient'))
-              .join('')}</div>`
-        : '';
     const costHtml = isBase
         ? `<div class="mh-tactic-cost" title="Bought in the shop, or drafted from a round card" aria-label="Shop price">${DEFAULT_SETTINGS.deploy.baseRuneCost}</div>`
-        : '';
+        : `<div class="mh-tactic-cost" title="Forged at the Stronghold" aria-label="Forge price">${recipe
+              .map((ico) => iconHtml(ico, 'mh-cost-rune'))
+              .join('')}<span class="mh-cost-plus">+</span>${DEFAULT_SETTINGS.deploy.forgeCost}</div>`;
     return `
 <article class="mh-tactic mh-rune${isFirst ? ' mh-active' : ''}" data-key="${esc(item.id)}">
   <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(item.icon, 'mh-tactic-tile')}</div>
@@ -311,7 +309,6 @@ function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
     </div>
     <p class="mh-tactic-meta">${isBase ? 'Base rune' : 'Advanced rune'}</p>
     <p class="mh-tactic-desc">${esc(item.description)}</p>
-    ${recipeHtml}
     ${costHtml}
   </div>
 </article>`;

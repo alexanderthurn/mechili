@@ -1069,24 +1069,6 @@ html, body {
     align-items: center;
 }
 
-/* forge ingredients for an advanced rune — its recipe stands in for a price,
-   since a forged rune is never sold */
-.mh-rune-recipe {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 10px;
-    align-items: center;
-    justify-content: center;
-}
-.mh-rune-ingredient {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    overflow: hidden;
-    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
-}
-
 /* the in-game price tag (.mechili-panel .action-tile .at-cost): a red band
    across the bottom edge, white and centred. The card's own overflow:hidden
    rounds the band's corners to match. */
@@ -1103,6 +1085,22 @@ html, body {
     color: #fff;
     background: rgba(180, 32, 24, 0.92);
     pointer-events: none;
+    /* a forged rune pays in ingredients + fee, so the band holds icons too */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+.mh-cost-rune {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+.mh-cost-plus {
+    opacity: 0.75;
+    font-weight: 600;
 }
 /* room for the band, the same way the game pads a tile that carries one */
 .mh-tactic:has(.mh-tactic-cost) .mh-tactic-body {
