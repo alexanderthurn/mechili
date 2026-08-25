@@ -296,6 +296,14 @@ export interface UnitType {
      */
     extra?: boolean;
     /**
+     * Never CHOSEN as a target — an enemy walks past looking for something
+     * else. Unlike {@link extra} this is only about acquisition: the unit is
+     * still in the target hash, so a shot crossing it connects, and splash,
+     * blasts and fire all reach it. A garrison archer on a keep: you besiege
+     * the keep, and he takes what lands near him.
+     */
+    notAcquired?: boolean;
+    /**
      * When `false`, players and the AI cannot buy or unlock this type from
      * the shop. Omit or `true` = eligible (still subject to unlock / extras).
      * Horde / Der Komtur units set this false.
@@ -734,13 +742,13 @@ export const GARRISON_ARCHER: UnitType = {
     targets: { ground: true, air: true },
     collisionRadius: 1.0,
     /**
-     * `extra` is what makes him unshootable — the sim's own "not a target"
-     * flag, the same one the Ward Stone uses, honoured by every targeting,
-     * splash, blast and burn path. His colliders stay REAL: the mouse picker
-     * builds its pick spheres from this list too, and an empty one made him
-     * impossible to click as well as impossible to shoot.
+     * Nobody AIMS at him — an army besieging a keep shoots the keep — but he
+     * is otherwise as real as anything else on the board: arrows that cross
+     * his collider on the way past hit him, and splash, blast and dragonfire
+     * all reach him. `extra` would have made him immune to all of it, and it
+     * also keeps a unit out of the target hash the projectile sweep reads.
      */
-    extra: true,
+    notAcquired: true,
     colliders: [{ y: 1.1, r: 0.75 }],
     projectileSpeed: 100,
     projectileStyle: 'arrow',

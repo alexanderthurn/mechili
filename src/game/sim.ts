@@ -4376,6 +4376,7 @@ export class BattleSim {
                 target.alive &&
                 actorTeam(target) !== team &&
                 !target.unit.type.extra &&
+                !target.unit.type.notAcquired &&
                 // structures are valid ray victims (damage, not convert)
                 (target.unit.type.structure ||
                     (target.altitude > 0 ? targets.air : targets.ground)) &&
@@ -4487,6 +4488,7 @@ export class BattleSim {
             if (!a.alive || actorTeam(a) === team) continue;
             // board extras (wards) are hit via beam blocking, not as ray targets
             if (a.unit.type.extra) continue;
+            if (a.unit.type.notAcquired) continue; // nobody aims a beam at him either
             if (a.unit.type.structure) {
                 // buildings: always ground ray victims (damage, not convert)
             } else if (a.altitude > 0 ? !targets.air : !targets.ground) {
@@ -4583,6 +4585,7 @@ export class BattleSim {
             cached.alive &&
             actorTeam(cached) !== actorTeam(from) &&
             !cached.unit.type.extra &&
+            !cached.unit.type.notAcquired &&
             this.inFieldOfFire(from, cached) &&
             (cached.altitude > 0 ? wantAir : wantGround);
 
@@ -4633,6 +4636,8 @@ export class BattleSim {
 
         const consider = (a: Actor): void => {
             if (!a.alive || actorTeam(a) === team) return;
+            // in the hash so shots can cross him, but never picked to shoot at
+            if (a.unit.type.notAcquired) return;
             if (a.altitude > 0 ? !wantAir : !wantGround) return;
             if (!this.inFieldOfFire(from, a)) return;
             const ddx = a.x - from.x;
