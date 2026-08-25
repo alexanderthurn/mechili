@@ -90,6 +90,8 @@ export const GOLDEN_AURA_RADIUS = 40;
 export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
 /** battle clock time when ballista Golden Aura is applied once (after other pre-battle effects) */
 export const GOLDEN_AURA_APPLY_AT = 0.1;
+/** storm bolt: personal tower-like debuff duration (refreshed on each hit) */
+export const STORM_DEBUFF_SEC = 5;
 /** units stand still for this long at battle start before moving or firing */
 export const BATTLE_START_FREEZE = 1.0;
 
@@ -137,7 +139,7 @@ export interface SimConfig {
      * takes environmental damage.
      */
     spellStrikes?: readonly SpellStrike[];
-    /** ticking spell zones (storm bolts, meteor shower, poison gas) */
+    /** ticking spell zones (storm bolts, meteor shower, acid rain) */
     spellZones?: readonly SpellZone[];
     /** one-shot capsule ignitions (dragon breath along its flight path) */
     spellIgnites?: readonly SpellIgnite[];
@@ -185,11 +187,15 @@ export interface SpellZone {
     delaySeconds: number;
     duration: number;
     interval: number;
-    /** flat damage per tick */
+    /** flat damage per tick (storm / meteor); unused for acidRain */
     damage: number;
-    mode: 'storm' | 'meteorShower' | 'poison';
+    mode: 'storm' | 'meteorShower' | 'acidRain';
     impactRadius?: number;
     igniteRadius?: number;
+    /** acidRain: drips spawned each tick */
+    dropsPerTick?: number;
+    /** acidRain: inclusive round expiry for stamped puddles */
+    acidExpiresRound?: number;
     seed: number;
 }
 
@@ -314,6 +320,11 @@ export interface Actor {
     rocketTarget: Actor | null;
     /** sim time until which this mech ignores tower-destruction debuffs (ballista aura) */
     goldenUntil: number;
+    /**
+     * Storm-bolt tower-like debuff on this actor (same multipliers as seat tower
+     * loss). Golden aura / debuff-immune items ignore it via {@link isGolden}.
+     */
+    stormDebuffUntil: number;
     /** battle time when flank spawn finishes (0 = already spawned) */
     spawnUntil: number;
     /** took damage during flank spawn — hp no longer auto-ramps */
@@ -581,9 +592,18 @@ export type SimEvent =
     /** meteor-shower shard cue — visual falls until `at`, then sim resolves hit */
     | { kind: 'spellMeteor'; x: number; z: number; at: number }
     /** oil/acid drip cue — blob falls until `at`, then that disc stamps on the ground */
-    | { kind: 'hazardDrip'; hazard: 'oil' | 'acid' | 'fire'; x: number; z: number; at: number }
-    /** storm lightning bolt cue (render-only) */
-    | { kind: 'spellLightning'; x: number; z: number }
+    | {
+          kind: 'hazardDrip';
+          hazard: 'oil' | 'acid' | 'fire';
+          x: number;
+          z: number;
+          at: number;
+          /** visual-only: smaller/straighter drops (acid rain) */
+          dripScale?: number;
+          dripLean?: number;
+      }
+    /** storm lightning bolt cue (render-only) — `y` is hit height when known */
+    | { kind: 'spellLightning'; x: number; z: number; y?: number }
     /** wizard convert finished — flash + mesh recolor hook */
     | { kind: 'convert'; index: number; x: number; y: number; z: number; team: BattleTeam }
     /** command tower / research center destroyed — seat debuff starts/extends */
@@ -812,6 +832,9 @@ export class BattleSim {
         announced: boolean;
         stamped: boolean;
         silent: boolean;
+        /** visual-only drip size (acid rain) */
+        dripScale?: number;
+        dripLean?: number;
     }[] = [];
 
     constructor(
@@ -859,6 +882,7 @@ export class BattleSim {
                     footY: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
                     rocketTarget: null,
                     goldenUntil: 0,
+                    stormDebuffUntil: 0,
                     spawnUntil: 0,
                     spawnDamaged: false,
                     pathDestX: null,
@@ -1371,6 +1395,15 @@ export class BattleSim {
         this.hazards.igniteOilTouchingFire(this.elapsed);
         for (const a of this.actors) {
             if (!a.alive) continue;
+
+            // acid: toxic column at xz — ground and air both corrode (unlike fire/burn).
+            // Ground hazard like oil: ward domes do not block it.
+            if (!a.unit.type.structure && this.hazards.hasAcidAt(a.x, a.z)) {
+                const dealt = ((a.maxHp * ACID_DPS_PERCENT) / 100) * dt * this.damageTakenMult(a);
+                this.applyBurnDamage(a, dealt);
+                a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
+            }
+
             if (a.altitude > 0) {
                 // air: clear any burn that somehow stuck (e.g. landed then took off)
                 continue;
@@ -1395,18 +1428,6 @@ export class BattleSim {
             } else {
                 a.burnUntil = 0;
                 a.burnDps = 0;
-            }
-
-            // acid: continuous percent-of-max-HP damage while standing in the
-            // cell — same technical mechanism as oil's speed-slow (a per-step
-            // field read, gone the instant the unit steps off), no lingering
-            // DoT of its own. The corroded debuff (extra damage taken from
-            // EVERYTHING) is what lingers, via CORRODE_LINGER_SECONDS below.
-            // Ground hazard like oil/fire: ward domes do not block it.
-            if (!a.unit.type.structure && this.hazards.hasAcidAt(a.x, a.z)) {
-                const dealt = ((a.maxHp * ACID_DPS_PERCENT) / 100) * dt * this.damageTakenMult(a);
-                this.applyBurnDamage(a, dealt);
-                a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
             }
         }
     }
@@ -1775,6 +1796,7 @@ export class BattleSim {
                 footY: alt,
                 rocketTarget: null,
                 goldenUntil: 0,
+                stormDebuffUntil: 0,
                 spawnUntil: 0,
                 spawnDamaged: false,
                 pathDestX: null,
@@ -2039,6 +2061,8 @@ export class BattleSim {
                         x: d.x,
                         z: d.z,
                         at: d.landAt,
+                        dripScale: d.dripScale,
+                        dripLean: d.dripLean,
                     });
                 }
             }
@@ -2106,11 +2130,10 @@ export class BattleSim {
         this.hazards.igniteOilTouchingFire(this.elapsed);
     }
 
-    /** one tick of a storm / meteor shower / poison zone (all point-targeted) */
+    /** one tick of a storm / meteor shower / acid-rain zone (all point-targeted) */
     private tickSpellZone(z: (typeof this.zones)[number], tickAt: number): void {
         if (z.mode === 'storm') {
-            // one lightning bolt at a random unit inside — canonical actor
-            // order + the zone's own rng keep the pick deterministic
+            // aim at a random unit inside; splash debuffs a disc around the strike
             const candidates = this.actors.filter(
                 (a) =>
                     a.alive &&
@@ -2126,21 +2149,30 @@ export class BattleSim {
                     hypot(target.x - d.x, target.z - d.z) <= d.unit.type.shield.radius,
             );
             if (dome) {
-                dome.hp -= z.damage;
-                dome.hurtTimer = HURT_BAR_SECONDS;
-                if (dome.hp <= 0) this.breakShield(dome);
+                // wards block the strike — no unit debuff
                 this.events.push({ kind: 'impact', x: dome.x, y: 3, z: dome.z });
-                this.events.push({ kind: 'spellLightning', x: dome.x, z: dome.z });
+                this.events.push({ kind: 'spellLightning', x: dome.x, y: 3, z: dome.z });
             } else {
-                this.applyBurnDamage(target, z.damage);
+                const splash = z.impactRadius ?? 0;
+                for (const a of this.actors) {
+                    if (!a.alive || a.unit.type.extra || a.unit.type.structure) continue;
+                    if (hypot(a.x - target.x, a.z - target.z) > splash + a.radius) continue;
+                    // units under a ward at the splash edge are still protected
+                    const underWard = this.actors.some(
+                        (d) =>
+                            d.alive &&
+                            d.unit.type.shield &&
+                            hypot(a.x - d.x, a.z - d.z) <= d.unit.type.shield.radius,
+                    );
+                    if (underWard) continue;
+                    this.applyStormDebuff(a);
+                }
                 this.events.push({
-                    kind: 'explosion',
+                    kind: 'spellLightning',
                     x: target.x,
                     y: target.footY + 0.8,
                     z: target.z,
-                    radius: 2.5,
                 });
-                this.events.push({ kind: 'spellLightning', x: target.x, z: target.z });
             }
             return;
         }
@@ -2175,12 +2207,46 @@ export class BattleSim {
             });
             return;
         }
-        // poison: gas gnaws at EVERY unit inside — seeps under ward domes;
-        // only poison-proof unit types ignore it
-        for (const a of this.actors) {
-            if (!a.alive || a.unit.type.extra || a.unit.type.poisonImmune) continue;
-            if (hypot(a.x - z.x, a.z - z.z) > z.radius + a.radius) continue;
-            this.applyBurnDamage(a, z.damage);
+        if (z.mode === 'acidRain') {
+            // Several small acid drips per tick — sparse puddles over a huge circle.
+            const drops = Math.max(1, z.dropsPerTick ?? 1);
+            const puddleR = z.impactRadius ?? 2;
+            const expires =
+                z.acidExpiresRound ?? this.config.oilExpiresRound ?? 9999;
+            const fallSec = HAZARD_DRIP_FALL_SEC;
+            for (let d = 0; d < drops; d++) {
+                let ox = 0;
+                let oz = 0;
+                for (let tries = 0; tries < 16; tries++) {
+                    const cx = (z.rng() * 2 - 1) * z.radius;
+                    const cz = (z.rng() * 2 - 1) * z.radius;
+                    if (cx * cx + cz * cz <= z.radius * z.radius) {
+                        ox = cx;
+                        oz = cz;
+                        break;
+                    }
+                }
+                const landAt = tickAt + fallSec;
+                this.drips.push({
+                    kind: 'acid',
+                    x: z.x + ox,
+                    z: z.z + oz,
+                    radius: puddleR,
+                    expiresRound: expires,
+                    burnSeconds: 0,
+                    intensity: 0,
+                    damage: 0,
+                    tint: FIRE_TINT_NORMAL,
+                    fallStart: tickAt,
+                    landAt,
+                    announced: false,
+                    stamped: false,
+                    silent: false,
+                    dripScale: 0.48,
+                    dripLean: 0.8,
+                });
+            }
+            return;
         }
     }
 
@@ -2486,12 +2552,20 @@ export class BattleSim {
         this.debuffUntil.set(seat, Math.max(this.debuffUntil.get(seat) ?? 0, this.elapsed) + add);
     }
 
-    /** tower-destruction debuff is active for this mech's OWN seat right now
-     *  (not its side/team — a teammate's building loss never debuffs it) */
+    /** tower-destruction or storm-bolt debuff is active for this mech right now.
+     *  Seat tower loss affects the whole seat; storm bolts are personal.
+     *  Golden aura / debuff-immune items shrug both off. */
     private isDebuffed(actor: Actor): boolean {
         if (this.isGolden(actor)) return false;
+        if (actor.stormDebuffUntil > this.elapsed + 1e-9) return true;
         const until = this.debuffUntil.get(actor.unit.seat) ?? 0;
         return this.elapsed < until - 1e-9;
+    }
+
+    /** refresh personal storm debuff (same multipliers as tower loss) */
+    private applyStormDebuff(actor: Actor): void {
+        if (this.isGolden(actor) || actor.unit.type.structure || actor.unit.type.extra) return;
+        actor.stormDebuffUntil = Math.max(actor.stormDebuffUntil, this.elapsed + STORM_DEBUFF_SEC);
     }
 
     /** flat tower-destruction multiplier — only while the debuff timer runs.

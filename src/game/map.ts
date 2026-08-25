@@ -41,6 +41,9 @@ export const summerDryUniform = { value: 0 };
  */
 export const fireCharcoalGroundUniform = { value: 0 };
 
+/** Shared battle time for fire flicker — ground + high/ultra vegetation hazard tint. */
+export const hazardTimeShared = { value: 0 };
+
 /** world units per grid tile */
 export const CELL = 4;
 
@@ -180,6 +183,131 @@ export function makeValueNoise(seed: number): (x: number, y: number) => number {
         return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
     };
 }
+
+/** Cheap hash/fbm for high/ultra ground hazards (declared once at shader top). */
+const HAZARD_NOISE_GLSL =
+    'float hazHash( vec2 p ) {\n' +
+    '\treturn fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
+    '}\n' +
+    'float hazNoise( vec2 p ) {\n' +
+    '\tvec2 i = floor( p );\n' +
+    '\tvec2 f = fract( p );\n' +
+    '\tf = f * f * ( 3.0 - 2.0 * f );\n' +
+    '\treturn mix(\n' +
+    '\t\tmix( hazHash( i ), hazHash( i + vec2( 1.0, 0.0 ) ), f.x ),\n' +
+    '\t\tmix( hazHash( i + vec2( 0.0, 1.0 ) ), hazHash( i + vec2( 1.0, 1.0 ) ), f.x ),\n' +
+    '\t\tf.y );\n' +
+    '}\n' +
+    'float hazFbm( vec2 p ) {\n' +
+    '\treturn hazNoise( p ) * 0.55 + hazNoise( p * 2.17 ) * 0.3 + hazNoise( p * 4.31 ) * 0.15;\n' +
+    '}\n';
+
+/**
+ * Oil / fire / acid albedo. High/ultra: sluggish tar, active embers, bubbling acid.
+ * Lower tiers keep a readable flat puddle.
+ */
+function groundHazardColorGlsl(rich: boolean): string {
+    const masks =
+        '\tvec3 haz = texture2D(uHazardMask, vMacroUv).rgb;\n' +
+        (rich
+            ? '\tfloat oilM = 0.0;\n'
+            : '\tfloat oilM = smoothstep(0.04, 0.28, haz.r);\n') +
+        '\tfloat fireG = smoothstep(0.14, 0.5, haz.g);\n' +
+        '\tfloat fireB = smoothstep(0.12, 0.48, haz.b);\n' +
+        '\tfloat orangeM = fireG * (1.0 - fireB * 0.85);\n' +
+        '\tfloat azureM = min(fireG, fireB);\n' +
+        '\tfloat acidM = fireB * (1.0 - fireG * 0.85);\n';
+    if (!rich) {
+        return (
+            masks +
+            '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.002, 0.002, 0.002), oilM * 0.995);\n' +
+            '\tfloat flicker = 0.55 + 0.45 * sin(uHazardTime * 9.0 + vMacroUv.x * 40.0 + vMacroUv.y * 28.0);\n' +
+            '\tvec3 orangeCol = mix(vec3(0.18, 0.03, 0.0), vec3(1.0, 0.32, 0.04), flicker);\n' +
+            '\tvec3 tongueGround = mix(vec3(0.75, 0.12, 0.02), vec3(1.0, 0.5, 0.07), flicker);\n' +
+            '\tvec3 liveFireCol = mix( orangeCol, tongueGround, uFireCharcoalGround );\n' +
+            '\tfloat liveFireAmt = orangeM * mix( 0.72, 0.94, uFireCharcoalGround );\n' +
+            '\tliveFireAmt *= mix( orangeM, 1.0, uFireCharcoalGround );\n' +
+            '\tdiffuseColor.rgb = mix( diffuseColor.rgb, liveFireCol, liveFireAmt );\n' +
+            '\tvec3 azureCol = mix(vec3(0.12, 0.02, 0.02), vec3(1.0, 0.32, 0.05), flicker);\n' +
+            '\tazureCol = mix(azureCol, vec3(0.12, 0.14, 0.55), 0.22);\n' +
+            '\tvec3 azureTongue = mix(vec3(0.12, 0.1, 0.45), vec3(1.0, 0.48, 0.1), flicker);\n' +
+            '\tazureCol = mix( azureCol, azureTongue, uFireCharcoalGround * 0.85 );\n' +
+            '\tdiffuseColor.rgb = mix(diffuseColor.rgb, azureCol, azureM * mix( 0.7, 0.9, uFireCharcoalGround ));\n' +
+            '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
+            '\tvec3 acidCol = mix(vec3(0.04, 0.14, 0.02), vec3(0.38, 0.92, 0.12), bubble);\n' +
+            '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n'
+        );
+    }
+    return (
+        masks +
+        // Oil: photo-like black tar — solid core, frayed rim, mild center fretting.
+        '\tfloat oilBase = smoothstep( 0.04, 0.28, haz.r );\n' +
+        '\tfloat oilEdge = smoothstep( 0.02, 0.18, oilBase ) * ( 1.0 - smoothstep( 0.28, 0.62, oilBase ) );\n' +
+        '\tfloat oilChew = hazFbm( vBoardXZ * 1.55 + vec2( 3.1, 7.7 ) );\n' +
+        '\tfloat oilChew2 = hazNoise( vBoardXZ * 3.2 + 11.0 );\n' +
+        '\tfloat oilFray = oilChew * 0.55 + oilChew2 * 0.45;\n' +
+        '\toilM = oilBase * ( 1.0 - oilEdge * ( 1.0 - smoothstep( 0.32, 0.78, oilFray ) ) * 0.9 );\n' +
+        // Sparse thin spots inside the puddle — larger than before, milder cut.
+        '\tfloat oilCenter = smoothstep( 0.3, 0.6, oilBase );\n' +
+        '\tfloat oilFret = hazNoise( vBoardXZ * 0.67 + 4.2 );\n' +
+        '\tfloat oilFret2 = hazNoise( vBoardXZ * 1.2 + 13.0 );\n' +
+        '\tfloat oilFretMask = smoothstep( 0.74, 0.93, oilFret ) * smoothstep( 0.5, 0.82, oilFret2 );\n' +
+        '\toilM *= 1.0 - oilCenter * oilFretMask * 0.11;\n' +
+        '\tfloat oilFlow = hazFbm( vBoardXZ * 0.14 + vec2( uHazardTime * 0.032, uHazardTime * 0.019 ) );\n' +
+        // Sparse cool grey specular film (like wet pool reflection), rest stays black.
+        '\tfloat oilFilmN = hazNoise( vBoardXZ * 0.42 + vec2( uHazardTime * 0.02, -uHazardTime * 0.015 ) );\n' +
+        '\tfloat oilFilm = smoothstep( 0.7, 0.92, oilFlow ) * smoothstep( 0.62, 0.88, oilFilmN );\n' +
+        '\tvec3 oilCol = mix( vec3( 0.0012, 0.0012, 0.0012 ), vec3( 0.28, 0.29, 0.3 ), oilFilm * 0.35 );\n' +
+        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, oilCol, oilM * 0.995 );\n' +
+        // Fire: upward ember flow + hot sparks (more active than a sine puddle).
+        '\tfloat fireFlow = hazFbm( vBoardXZ * 0.48 + vec2( uHazardTime * 0.22, -uHazardTime * 1.35 ) );\n' +
+        '\tfloat firePop = hazNoise( vBoardXZ * 1.55 + vec2( -uHazardTime * 1.1, uHazardTime * 2.4 ) );\n' +
+        '\tfloat embers = pow( clamp( fireFlow, 0.0, 1.0 ), 1.75 );\n' +
+        '\tfloat sparks = smoothstep( 0.78, 0.94, firePop );\n' +
+        '\tfloat flicker = 0.38 + 0.62 * embers;\n' +
+        '\tvec3 orangeCol = mix( vec3( 0.12, 0.02, 0.0 ), vec3( 1.0, 0.38, 0.05 ), flicker );\n' +
+        '\torangeCol = mix( orangeCol, vec3( 1.0, 0.84, 0.3 ), sparks * 0.7 );\n' +
+        '\tvec3 tongueGround = mix( vec3( 0.48, 0.07, 0.012 ), vec3( 1.0, 0.52, 0.08 ), embers );\n' +
+        '\ttongueGround = mix( tongueGround, vec3( 1.0, 0.9, 0.42 ), sparks * 0.55 );\n' +
+        '\tvec3 liveFireCol = mix( orangeCol, tongueGround, uFireCharcoalGround );\n' +
+        '\tfloat liveFireAmt = orangeM * mix( 0.72, 0.94, uFireCharcoalGround );\n' +
+        '\tliveFireAmt *= mix( orangeM, 1.0, uFireCharcoalGround );\n' +
+        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, liveFireCol, liveFireAmt );\n' +
+        '\tvec3 azureCol = mix( vec3( 0.1, 0.02, 0.02 ), vec3( 1.0, 0.36, 0.06 ), flicker );\n' +
+        '\tazureCol = mix( azureCol, vec3( 0.14, 0.16, 0.58 ), 0.28 * ( 1.0 - embers ) );\n' +
+        '\tvec3 azureTongue = mix( vec3( 0.1, 0.08, 0.42 ), vec3( 1.0, 0.5, 0.12 ), embers );\n' +
+        '\tazureCol = mix( azureCol, azureTongue, uFireCharcoalGround * 0.85 );\n' +
+        '\tazureCol = mix( azureCol, vec3( 0.85, 0.9, 1.0 ), sparks * 0.35 );\n' +
+        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, azureCol, azureM * mix( 0.7, 0.9, uFireCharcoalGround ) );\n' +
+        // Acid: pulsing cells + lime rings (not oil-slow, not fire-flicker).
+        '\tvec2 acidCell = floor( vBoardXZ * 0.52 );\n' +
+        '\tvec2 acidF = fract( vBoardXZ * 0.52 );\n' +
+        '\tfloat acidBest = 8.0;\n' +
+        '\tfor ( int j = -1; j <= 1; j ++ ) {\n' +
+        '\t\tfor ( int i = -1; i <= 1; i ++ ) {\n' +
+        '\t\t\tvec2 g = vec2( float( i ), float( j ) );\n' +
+        '\t\t\tfloat id = hazHash( acidCell + g );\n' +
+        '\t\t\tvec2 o = vec2( id, hazHash( acidCell + g + 17.3 ) );\n' +
+        '\t\t\tfloat pulse = 0.55 + 0.45 * sin( uHazardTime * 1.7 + id * 31.0 );\n' +
+        '\t\t\tacidBest = min( acidBest, length( g + o - acidF ) / pulse );\n' +
+        '\t\t}\n' +
+        '\t}\n' +
+        '\tfloat acidCaustic = hazFbm( vBoardXZ * 0.62 + vec2( uHazardTime * 0.19, -uHazardTime * 0.14 ) );\n' +
+        '\tfloat acidRing = smoothstep( 0.48, 0.32, acidBest ) * smoothstep( 0.14, 0.26, acidBest );\n' +
+        '\tfloat acidCore = smoothstep( 0.30, 0.06, acidBest );\n' +
+        '\tvec3 acidCol = mix( vec3( 0.03, 0.12, 0.02 ), vec3( 0.2, 0.82, 0.1 ), acidCaustic );\n' +
+        '\tacidCol = mix( acidCol, vec3( 0.48, 0.98, 0.18 ), acidCore * 0.75 );\n' +
+        '\tacidCol = mix( acidCol, vec3( 0.85, 1.0, 0.38 ), acidRing * 0.85 );\n' +
+        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, acidCol, acidM * 0.88 );\n'
+    );
+}
+
+const HAZARD_ROUGHNESS_GLSL =
+    // Wet only where the grey film sits; edges stay a touch duller (coated grass).
+    '\troughnessFactor = mix( roughnessFactor, 0.1, oilM * 0.55 );\n' +
+    '\troughnessFactor = mix( roughnessFactor, 0.08, oilM * oilFilm * 0.4 );\n' +
+    '\troughnessFactor = mix( roughnessFactor, 0.76, ( orangeM + azureM ) * 0.4 );\n' +
+    '\troughnessFactor = mix( roughnessFactor, 0.22, acidM * 0.75 );\n';
 
 /**
  * A battlefield built from a {@link MapSize}. Owns the grid math
@@ -975,9 +1103,19 @@ export class BattleMap {
         this.hazardFlushAt = now;
     }
 
+    /**
+     * Shared oil/acid/fire mask (board UV). Used by the ground shader and
+     * high+ scenery flower tint. Creating it is cheap; the canvas is filled
+     * on first oil/acid stamp.
+     */
+    getHazardMask(): CanvasTexture {
+        return this.ensureHazardMask();
+    }
+
     /** Drive fire flicker in the ground shader (visual only). */
     setHazardTime(t: number): void {
         if (this.hazardTimeUniform) this.hazardTimeUniform.value = t;
+        hazardTimeShared.value = t;
     }
 
     /**
@@ -1026,6 +1164,7 @@ export class BattleMap {
         const useDetail = detail && profile.detailStrength > 0;
         const bomb = useDetail && profile.textureBomb;
         const useCloseTile = detail && profile.closeRepeat > 1.01;
+        const richHazards = profile.tier === 'high' || profile.tier === 'ultra';
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uMacro = { value: macro };
             shader.uniforms.uMacroBase = { value: new Color(THEME.terrain.base) };
@@ -1053,6 +1192,7 @@ export class BattleMap {
             let extraUniforms =
                 'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uFireCharcoalGround;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n' +
                 closeTileUniformDecls(profile);
+            if (richHazards) extraUniforms += HAZARD_NOISE_GLSL;
             // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
@@ -1204,36 +1344,8 @@ export class BattleMap {
                     `\tfloat sandShow = sandM * mix( ${WEAR_BLEND.grassStampShow.toFixed(2)}, 1.0, snowMask );\n` +
                     '\tdiffuseColor.rgb = mix(diffuseColor.rgb, trailCol, sandShow);\n';
             }
-            // oil / fire / acid — always, gameplay-readable on every quality setting
-            inject +=
-                '\tvec3 haz = texture2D(uHazardMask, vMacroUv).rgb;\n' +
-                // Soft edges, but a dense core like blood (tight smoothstep).
-                '\tfloat oilM = smoothstep(0.04, 0.28, haz.r);\n' +
-                '\tfloat fireG = smoothstep(0.14, 0.5, haz.g);\n' +
-                '\tfloat fireB = smoothstep(0.12, 0.48, haz.b);\n' +
-                // orange fire = G without B; azure dragon = G+B; acid = B without G
-                '\tfloat orangeM = fireG * (1.0 - fireB * 0.85);\n' +
-                '\tfloat azureM = min(fireG, fireB);\n' +
-                '\tfloat acidM = fireB * (1.0 - fireG * 0.85);\n' +
-                // Pitch-black slick — must not read as charcoal scorch.
-                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.004, 0.003, 0.002), oilM * 0.99);\n' +
-                '\tfloat flicker = 0.55 + 0.45 * sin(uHazardTime * 9.0 + vMacroUv.x * 40.0 + vMacroUv.y * 28.0);\n' +
-                // Low fire VFX: orange puddle. Tongues tier: ember body from flame billboards.
-                '\tvec3 orangeCol = mix(vec3(0.18, 0.03, 0.0), vec3(1.0, 0.32, 0.04), flicker);\n' +
-                // Same orange as FLAME_FRAG_ADDITIVE tongue body.
-                '\tvec3 tongueGround = mix(vec3(0.75, 0.12, 0.02), vec3(1.0, 0.5, 0.07), flicker);\n' +
-                '\tvec3 liveFireCol = mix( orangeCol, tongueGround, uFireCharcoalGround );\n' +
-                '\tfloat liveFireAmt = orangeM * mix( 0.72, 0.94, uFireCharcoalGround );\n' +
-                '\tliveFireAmt *= mix( orangeM, 1.0, uFireCharcoalGround );\n' +
-                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, liveFireCol, liveFireAmt );\n' +
-                '\tvec3 azureCol = mix(vec3(0.12, 0.02, 0.02), vec3(1.0, 0.32, 0.05), flicker);\n' +
-                '\tazureCol = mix(azureCol, vec3(0.12, 0.14, 0.55), 0.22);\n' +
-                '\tvec3 azureTongue = mix(vec3(0.12, 0.1, 0.45), vec3(1.0, 0.48, 0.1), flicker);\n' +
-                '\tazureCol = mix( azureCol, azureTongue, uFireCharcoalGround * 0.85 );\n' +
-                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, azureCol, azureM * mix( 0.7, 0.9, uFireCharcoalGround ));\n' +
-                '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
-                '\tvec3 acidCol = mix(vec3(0.09, 0.13, 0.015), vec3(0.55, 0.78, 0.10), bubble);\n' +
-                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n';
+            // oil / fire / acid — always readable; high/ultra add motion
+            inject += groundHazardColorGlsl(richHazards);
             let frag =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 extraUniforms +
@@ -1259,13 +1371,19 @@ export class BattleMap {
                     `#include <roughnessmap_fragment>
 \tfloat grassLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
 \t// darker soil pockets slightly rougher; bright blades a touch less flat-matte
-\troughnessFactor = clamp( roughnessFactor + ( 0.42 - grassLum ) * 0.22, 0.62, 0.98 );`,
+\troughnessFactor = clamp( roughnessFactor + ( 0.42 - grassLum ) * 0.22, 0.62, 0.98 );
+${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
+                );
+            } else if (richHazards) {
+                frag = frag.replace(
+                    '#include <roughnessmap_fragment>',
+                    `#include <roughnessmap_fragment>\n${HAZARD_ROUGHNESS_GLSL}`,
                 );
             }
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v50${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
+            `ground-hazard-v62${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg`;
     }

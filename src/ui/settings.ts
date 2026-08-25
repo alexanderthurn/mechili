@@ -123,7 +123,7 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="medium">Medium</option>` +
         `<option value="low">Low</option>` +
         `<option value="off">Off</option>` +
-        `</select> <span class="s-hint">flames &amp; smoke</span></label>` +
+        `</select> <span class="s-hint">flames, smoke &amp; acid fumes</span></label>` +
         `<label class="s-row">Blood <select class="s-blood">` +
         `<option value="ultra">Ultra</option>` +
         `<option value="high">High</option>` +

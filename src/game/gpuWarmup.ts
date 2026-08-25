@@ -21,6 +21,7 @@ import {
 } from 'three';
 import { BlobShadows } from './blobShadows';
 import { Particles, ProjectileRenderer } from './effects';
+import { AcidFx } from './acidFx';
 import { FlameRenderer } from './flameRenderer';
 import { touchFirstDevice } from './inputCapabilities';
 import { effectiveDpr, prefs } from './prefs';
@@ -114,6 +115,10 @@ export async function prewarmGpu(
     flames.setQuality(fireQ === 'off' || fireQ === 'low' ? 'medium' : fireQ);
     flames.primeForCompile();
 
+    const acid = new AcidFx(scene);
+    acid.setQuality(fireQ === 'off' || fireQ === 'low' ? 'medium' : fireQ);
+    acid.primeForCompile();
+
     const projectiles = new ProjectileRenderer(scene);
     projectiles.primeForCompile();
 
@@ -129,6 +134,7 @@ export async function prewarmGpu(
     renderer.render(scene, camera);
 
     flames.dispose();
+    acid.dispose();
     blobs.dispose();
     projectiles.dispose();
     // Particles has no dispose — drop with the scene graph

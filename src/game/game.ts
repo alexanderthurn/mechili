@@ -106,12 +106,13 @@ import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
+import { AcidFx } from './acidFx';
 import { FireFx, fireUsesTongues } from './fireFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
 import { StrongholdFlags } from './strongholdFlags';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
-import { CloudFx } from './cloudFx';
+import { CloudFx, type CloudCue } from './cloudFx';
 import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
@@ -354,6 +355,7 @@ export class Game {
     private readonly stoneChips: StoneChipRenderer;
     private readonly particles: Particles;
     private readonly fireFx: FireFx;
+    private readonly acidFx: AcidFx;
     private readonly forgeFx = new ForgeFx();
     private readonly strongholdFlags = new StrongholdFlags();
     private readonly hordeMarkers: HordeMarkers;
@@ -1317,6 +1319,8 @@ export class Game {
         this.stoneChips = new StoneChipRenderer(this.scene);
         this.particles = new Particles(this.scene);
         this.fireFx = new FireFx(this.particles, this.scene);
+        this.acidFx = new AcidFx(this.scene);
+        this.acidFx.setQuality(prefs().fireVfx);
         this.map.setFireCharcoalGround(fireUsesTongues(prefs().fireVfx));
         this.towerDebuffFx = new TowerDebuffFx(this.scene, this.particles, this.map.halfW, this.map.halfH);
         this.collapseFx = new StrongholdCollapseFx(this.scene, this.particles);
@@ -2219,6 +2223,7 @@ export class Game {
      */
     private warmGpuPrograms(): void {
         this.fireFx.primeForCompile();
+        this.acidFx.primeForCompile();
         this.projectileRenderer.primeForCompile();
         this.particles.burst(0, 2, 0, { count: 4, color: 0xff6a18, speed: 1, life: 0.2, up: 2 });
         this.particles.burst(0, 2, 0, {
@@ -2241,12 +2246,16 @@ export class Game {
         // restore live combat VFX — clear would blank an in-progress battle frame
         this.fireFx.clear();
         this.fireFx.setQuality(prefs().fireVfx);
+        this.acidFx.clear();
+        this.acidFx.setQuality(prefs().fireVfx);
         this.map.setFireCharcoalGround(fireUsesTongues(prefs().fireVfx));
         if (this.sim && this.phase === 'battle') {
             this.fireFx.update(0, this.sim.hazards, this.sim.elapsed);
+            this.acidFx.update(0, this.sim.hazards);
             this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
         } else {
             this.projectileRenderer.clear();
+            this.acidFx.update(0, this.oilField);
         }
         // snap weather back to the real atmosphere (prime left rain/stars visible)
         if (this.weather) {
@@ -2295,6 +2304,7 @@ export class Game {
         if (fireVfx !== this.appliedFireVfx) {
             this.appliedFireVfx = fireVfx;
             this.fireFx.setQuality(fireVfx);
+            this.acidFx.setQuality(fireVfx);
             this.map.setFireCharcoalGround(fireUsesTongues(fireVfx));
         }
     }
@@ -2578,6 +2588,7 @@ export class Game {
         this.dragonFx.dispose();
         this.conversionFx.dispose();
         this.oilDripFx.dispose();
+        this.acidFx.dispose();
         this.hordeMarkers.dispose();
         this.strongholdFlags.dispose();
         this.towerDebuffFx.dispose();
@@ -7683,21 +7694,47 @@ export class Game {
         );
         // Storm / poison hovering clouds for the zone lifetime
         this.cloudFx.schedule(
-            pendingSpells.flatMap((s) => {
+            pendingSpells.flatMap((s): CloudCue[] => {
                 const spell = TACTICS[s.tacticId]?.spell;
                 const zone = spell?.zone;
-                if (!zone || (zone.mode !== 'storm' && zone.mode !== 'poison')) return [];
+                if (!zone) return [];
                 const startAt = BATTLE_START_FREEZE + spell.delaySeconds;
-                return [
-                    {
-                        kind: zone.mode,
-                        x: s.x,
-                        z: s.z,
-                        radius: TACTICS[s.tacticId]?.radius ?? 28,
-                        startAt,
-                        endAt: startAt + zone.duration,
-                    },
-                ];
+                const endAt = startAt + zone.duration;
+                const zoneR = TACTICS[s.tacticId]?.radius ?? 28;
+                if (zone.mode === 'storm') {
+                    // storm clouds spawn per lightning flash (see CloudFx.spawnLightning)
+                    return [];
+                }
+                if (zone.mode === 'acidRain') {
+                    // Many small toxic puffs scattered over the meteor-sized circle
+                    const rng = mulberry32(seedFrom(this.seed, `acid-clouds:${s.id}`));
+                    const count = 7;
+                    const cues: CloudCue[] = [];
+                    for (let i = 0; i < count; i++) {
+                        let ox = 0;
+                        let oz = 0;
+                        for (let tries = 0; tries < 16; tries++) {
+                            const cx = (rng() * 2 - 1) * zoneR * 0.85;
+                            const cz = (rng() * 2 - 1) * zoneR * 0.85;
+                            if (cx * cx + cz * cz <= zoneR * zoneR) {
+                                ox = cx;
+                                oz = cz;
+                                break;
+                            }
+                        }
+                        cues.push({
+                            kind: 'poison',
+                            x: s.x + ox,
+                            z: s.z + oz,
+                            radius: zoneR,
+                            startAt: startAt + i * 0.12,
+                            endAt,
+                            meshScale: 5.5 + rng() * 2.2,
+                        });
+                    }
+                    return cues;
+                }
+                return [];
             }),
         );
         // Dragon flyover: breath starts at delay; pour paints start→end with the strafe
@@ -7851,6 +7888,11 @@ export class Game {
                           mode: zone.mode,
                           impactRadius: zone.impactRadius,
                           igniteRadius: zone.igniteRadius,
+                          dropsPerTick: zone.dropsPerTick,
+                          acidExpiresRound:
+                              zone.mode === 'acidRain'
+                                  ? this.round + OIL_SPILL_DURATION_ROUNDS - 1
+                                  : undefined,
                           seed: seedFrom(this.seed, `spell:${s.id}`),
                       },
                   ]
@@ -8969,9 +9011,13 @@ export class Game {
                     if (ev.kind === 'spellMeteor') {
                         this.meteorFx.spawnShardImpact(ev.x, ev.z, ev.at);
                     } else if (ev.kind === 'spellLightning') {
-                        this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed);
+                        // cloud gathers first; bolt drops from it a moment later
+                        this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed, ev.y);
                     } else if (ev.kind === 'hazardDrip') {
-                        this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at);
+                        this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at, {
+                            scale: ev.dripScale,
+                            lean: ev.dripLean,
+                        });
                     } else if (ev.kind === 'convert') {
                         // flash + move instanced mesh into the new team's pool
                         this.particles.burst(ev.x, ev.y, ev.z, {
@@ -8986,7 +9032,6 @@ export class Game {
                     }
                 }
                 this.oilVisuals.sync(this.sim.hazards, this.sim.elapsed, [], false);
-                this.map.setHazardTime(this.time);
                 this.map.flushHazardMask();
                 if (profile) cpu.begin();
                 this.sim.syncMeshes(); // per-frame interpolated positions
@@ -9054,6 +9099,10 @@ export class Game {
         this.collapseFx.update(gameDt);
         this.particles.update(gameDt);
         this.stoneChips.update(gameDt);
+        this.acidFx.update(
+            gameDt,
+            this.phase === 'battle' && this.sim ? this.sim.hazards : this.oilField,
+        );
         this.updateForgeFx(gameDt);
         this.updateStrongholdFlags();
         this.updateHordeMarkers();
@@ -9076,6 +9125,7 @@ export class Game {
             }
         }
         this.map.setSnowCover(this.scenery.groundSnowCover);
+        this.map.setHazardTime(this.time);
         updateAnimatedUnits(gameDt); // rigged walk/fire — scales with battle speed
         // Hide “you can move me” hints + disable visual repositioning once
         // End Deployment has locked this seat in.
