@@ -9870,10 +9870,11 @@ export class Game {
             return this.settings.strongholdMode === 'lifeline' ? 'Instant loss' : 'No effect';
         }
         if (u.type !== COMMAND_TOWER && u.type !== RESEARCH_CENTER) return undefined;
-        // the window shrinks as the building levels, so read it off THIS one
+        // the window shrinks as the building levels, so read it off THIS one —
+        // and a fully upgraded tower reaches 0, where the sim applies nothing
         const dur = this.settings.towers.debuffDuration;
-        const seconds = Math.max(1, dur.baseSeconds - (u.level - 1) * dur.stepSeconds);
-        return `${seconds} second debuff`;
+        const seconds = Math.max(0, dur.baseSeconds - (u.level - 1) * dur.stepSeconds);
+        return seconds > 0 ? `${seconds} second debuff` : 'No effect';
     }
 
     /**

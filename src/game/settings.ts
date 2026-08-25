@@ -143,7 +143,8 @@ export interface TowerSettings {
     };
     /**
      * How long a tower loss debuffs its seat. Level 1 lasts baseSeconds; each
-     * level above 1 subtracts stepSeconds (level 2 → 8s, level 3 → 6s, …). If
+     * level above 1 subtracts stepSeconds (level 2 → 6s, level 3 → 4s, …) down
+     * to 0 at level 5, where losing it is free. If
      * another building falls (from the SAME seat) during an active debuff,
      * its own full duration is added on top — unchanged regardless of team
      * size, since the debuff is scoped per seat now, not per side.
@@ -349,7 +350,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
             damageTakenMult: 2.0,
         },
         debuffDuration: {
-            baseSeconds: 10,
+            // 8 with a 2s step lands level 5 on exactly 0 — a fully upgraded
+            // tower costs its seat nothing when it falls
+            baseSeconds: 8,
             stepSeconds: 2,
         },
         upgrade: {
