@@ -191,6 +191,8 @@ export class TowerDebuffFx {
             if (this.flashes[0]) this.retireFlash(this.flashes[0]);
         }
 
+        // a Stronghold's lifeline collapse sends the same display up louder
+        const power = Math.max(1, e.power ?? 1);
         const teamHex = colorForBattleTeam(e.team).hex;
         // same hue, lower value — easier to read on bright terrain
         const teamColor = new Color(teamHex).multiplyScalar(0.55);
@@ -304,7 +306,8 @@ export class TowerDebuffFx {
             mesh: wave,
             mat: waveMat,
             age: 0,
-            duration: WAVE_DURATION,
+            // a bigger blast rolls out for longer rather than merely faster
+            duration: WAVE_DURATION * (1 + (power - 1) * 0.35),
             maxRadius: this.boardCoverRadius(e.x, e.z),
             seat: e.seat,
             originX: e.x,
@@ -314,40 +317,44 @@ export class TowerDebuffFx {
             stretch: SIDEWAYS_STRETCH,
         });
 
-        // particles: upward spike first, then outward skirt
+        // particles: upward spike first, then outward skirt. Counts take the
+        // full multiplier; speed and reach take its root, so a louder blast
+        // reads as denser rather than as the same debris flung twice as far.
+        const n = (base: number) => Math.round(base * power);
+        const v = (base: number) => base * Math.sqrt(power);
         this.particles.burst(e.x, gy + 1, e.z, {
-            count: 50,
+            count: n(50),
             color: darkHex,
-            speed: 8,
+            speed: v(8),
             life: 0.7,
-            up: 22,
+            up: v(22),
         });
         this.particles.burst(e.x, e.y, e.z, {
-            count: 70,
+            count: n(70),
             color: 0x2a1828,
-            speed: 22,
+            speed: v(22),
             life: 1.0,
-            up: 5,
+            up: v(5),
             blood: true,
         });
         this.particles.burst(e.x, e.y, e.z, {
-            count: 60,
+            count: n(60),
             color: darkHex,
-            speed: 20,
+            speed: v(20),
             life: 0.9,
-            up: 7,
+            up: v(7),
         });
         this.particles.burst(e.x, e.y + 1.5, e.z, {
-            count: 30,
+            count: n(30),
             color: 0xffffff,
-            speed: 10,
+            speed: v(10),
             life: 0.5,
-            up: 12,
+            up: v(12),
         });
 
         screenShake({
-            intensity: 1.4 + e.level * 0.15,
-            duration: 0.7,
+            intensity: (1.4 + e.level * 0.15) * power,
+            duration: 0.7 * (1 + (power - 1) * 0.4),
             frequency: 32,
         });
     }

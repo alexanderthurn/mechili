@@ -564,7 +564,13 @@ export type SimEvent =
     | { kind: 'spellLightning'; x: number; z: number }
     /** wizard convert finished — flash + mesh recolor hook */
     | { kind: 'convert'; index: number; x: number; y: number; z: number; team: BattleTeam }
-    /** command tower / research center destroyed — seat debuff starts/extends */
+    /**
+     * A building's fall knocks the board about: rings, particles, screen shake.
+     * Named for its usual cause — a command tower or research center going down
+     * and starting that seat's debuff — but a Stronghold falling in `lifeline`
+     * borrows it too, since the picture is the same event, only larger. Purely
+     * visual either way: the debuff itself is applied in extendSeatDebuff.
+     */
     | {
           kind: 'towerDebuff';
           seat: SeatId;
@@ -573,10 +579,15 @@ export type SimEvent =
           y: number;
           z: number;
           level: number;
+          /** multiplies the whole display (omit = 1) */
+          power?: number;
       };
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
+/** how much louder a Stronghold's lifeline collapse is than a tower's fall */
+const STRONGHOLD_FALL_POWER = 2.6;
+
 /** ballista / catapult lob — strong enough to read as an arc at long range */
 const BALLISTIC_GRAVITY = 28;
 
@@ -2854,6 +2865,18 @@ export class BattleSim {
         // round then ends on its own, with nothing mobile left on that side.
         if (this.config.strongholdLifeline && target.unit.type === STRONGHOLD) {
             const side = actorTeam(target);
+            // the same shockwave a tower's fall throws, scaled to the occasion
+            const towerTop = Math.max(1, ...t.colliders.map((c) => c.y)) * t.meshScale;
+            this.events.push({
+                kind: 'towerDebuff',
+                seat: target.unit.seat,
+                team: target.unit.team,
+                x: target.x,
+                y: target.altitude + towerTop * 0.5,
+                z: target.z,
+                level: target.unit.level,
+                power: STRONGHOLD_FALL_POWER,
+            });
             for (const a of this.actors) {
                 if (!a.alive || a === target) continue;
                 if (a.unit.type.structure) continue; // the buildings stay standing
