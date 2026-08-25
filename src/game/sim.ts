@@ -40,6 +40,7 @@ import {
     COMMAND_TOWER,
     DEPLOY_AIR_Y,
     RESEARCH_CENTER,
+    STRONGHOLD,
     bloodColorOf,
     resolveDeathWear,
     projectileAimY,
@@ -120,6 +121,8 @@ export interface SimConfig {
     /** a seat's talent picks — only fire profiles need the SELECTION itself
      *  (everything else filters through hasTech, which already reflects it) */
     loadoutOf: (seat: SeatId) => Loadout | undefined;
+    /** `lifeline` mode: a side's packs drop the moment its Stronghold does */
+    strongholdLifeline: boolean;
     /** base flank spawn duration in seconds (before per-seat multiplier) */
     flankSpawnSeconds: number;
     /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
@@ -567,10 +570,32 @@ export type SimEvent =
           /** normalized killing-blow direction (from knockback), so gore jets along it */
           dx?: number;
           dz?: number;
+          /**
+           * Throws the gore down `dx`/`dz` instead of letting it fountain: the
+           * omni cloud gets the direction too, faster, flatter and longer-lived.
+           * Omit / 1 = the ordinary spurt.
+           */
+          fling?: number;
           /** Ash death scorch override (from UnitType.deathAshScorch). */
           ashScorch?: { radius: number; strength: number };
           /** Hammer pancake — multiply ground + particle gore (e.g. 1.25). */
           bloodScale?: number;
+      }
+    /**
+     * A Stronghold has come down in `lifeline` and its collapse is rolling
+     * outward. The renderer expands its dust front at this same `speed`, so
+     * what the player watches reach a pack IS what kills it.
+     */
+    | {
+          kind: 'strongholdCollapse';
+          team: BattleTeam;
+          x: number;
+          y: number;
+          z: number;
+          /** world units per second the front travels */
+          speed: number;
+          /** where it stops mattering — the far corner of the board */
+          maxRadius: number;
       }
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
@@ -615,6 +640,18 @@ export type SimEvent =
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
+/** overkill fed to a lifeline death, as a multiple of the victim's own max hp —
+ *  drives the tip-over flop and, for flyers, how far the wreck is thrown */
+const COLLAPSE_OVERKILL = 4;
+/** outward shove on each corpse, decayed per frame like any blast impulse */
+const COLLAPSE_SHOVE = 0.55;
+/** how hard a lifeline death throws its gore along the blast line */
+const COLLAPSE_GORE_FLING = 2.8;
+/** how hard a razed building's own stone is thrown down the front's path */
+const COLLAPSE_DEBRIS_FLING = 2.4;
+/** world units per second the collapse front travels outward */
+const COLLAPSE_SPEED = 78;
+
 /** ballista / catapult lob — strong enough to read as an arc at long range */
 const BALLISTIC_GRAVITY = 28;
 
@@ -766,6 +803,18 @@ export class BattleSim {
     private onKillSpawnSeq = 0;
     /** pack → cleave disk radius; 0 / missing = single-target melee */
     private readonly cleaveRadiusByUnit = new Map<Unit, number>();
+    /**
+     * Collapse fronts rolling outward from a fallen Stronghold. Each kills the
+     * packs of its own side as it reaches them, so the army goes down from the
+     * keep outward instead of all at once.
+     */
+    private readonly collapseFronts: {
+        team: BattleTeam;
+        x: number;
+        z: number;
+        startedAt: number;
+        maxRadius: number;
+    }[] = [];
     /** scheduled spell strikes; each fires exactly once at its `at` time */
     private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
     /** ticking spell zones with their private rng streams and tick clocks */
@@ -818,7 +867,8 @@ export class BattleSim {
         this.hazards = config.oilField?.cloneForBattle() ?? new HazardField();
         for (const unit of units) {
             if (unit.destroyed) {
-                if (this.isDebuffBuilding(unit)) {
+                // a razed tower owes nothing here either — see Unit.razed
+                if (this.isDebuffBuilding(unit) && !unit.razed) {
                     this.extendSeatDebuff(unit.seat, unit.level);
                 }
                 continue; // rubble is not a target
@@ -2390,6 +2440,82 @@ export class BattleSim {
         }
     }
 
+    /**
+     * Debug/cheat: kill every living actor a predicate picks, through the same
+     * `kill` a real blow uses — so a Stronghold dropped this way still runs the
+     * lifeline wipe, the collapse shockwave and every death that follows.
+     *
+     * Not an action and not logged: single-player only, and calling it in a
+     * networked match would desync the moment the peer replayed without it.
+     */
+    cheatDestroy(pick: (unit: Unit) => boolean): void {
+        for (const a of this.actors) {
+            if (!a.alive || !pick(a.unit)) continue;
+            this.kill(a, null, a.maxHp);
+        }
+    }
+
+    /** far corner of the board from here — where a front stops mattering */
+    private collapseReach(x: number, z: number): number {
+        const hw = this.config.boardHalfW ?? 200;
+        const hh = this.config.boardHalfZ ?? 200;
+        return (
+            Math.max(
+                hypot(x + hw, z + hh),
+                hypot(x - hw, z + hh),
+                hypot(x + hw, z - hh),
+                hypot(x - hw, z - hh),
+            ) * 1.05
+        );
+    }
+
+    /**
+     * Advance every collapse front and kill what it has reached. Radius is read
+     * off the sim clock, not accumulated per step, so a client that ran its
+     * steps in a different rhythm still kills the same packs at the same tick.
+     */
+    private stepCollapseFronts(): void {
+        for (let i = this.collapseFronts.length - 1; i >= 0; i--) {
+            const f = this.collapseFronts[i]!;
+            const radius = (this.elapsed - f.startedAt) * COLLAPSE_SPEED;
+            if (radius >= f.maxRadius) {
+                this.collapseFronts.splice(i, 1);
+                continue;
+            }
+            for (const a of this.actors) {
+                if (!a.alive) continue;
+                // its own side, and the horde with it: this is a keep's worth of
+                // masonry going outward, and the besiegers are standing in it.
+                // An enemy army keeps its own Stronghold's fate to itself.
+                if (actorTeam(a) !== f.team && actorTeam(a) !== 'horde') continue;
+                const dx = a.x - f.x;
+                const dz = a.z - f.z;
+                if (hypot(dx, dz) > radius) continue; // the front has not arrived
+                const len = hypot(dx, dz) || 1;
+                const away = { x: dx / len, z: dz / len };
+                if (a.unit.type.shield) {
+                    // A Ward Stone has no colliders — nothing can shoot it, and
+                    // its only end is its pool running out. Take that path
+                    // rather than kill(), or the dome is left hanging over a
+                    // pylon that has already fallen.
+                    this.breakShield(a);
+                    continue;
+                }
+                if (a.unit.type.structure) {
+                    // the base goes down with the keep. Towers topple away from
+                    // it, but a razed tower is not one an enemy brought down:
+                    // razed, so it leaves its side no parting debuff.
+                    this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, false, true);
+                    continue;
+                }
+                this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, true);
+                // and keeps sliding — the same corpse impulse a blast applies
+                a.impulseX = away.x * COLLAPSE_SHOVE;
+                a.impulseZ = away.z * COLLAPSE_SHOVE;
+            }
+        }
+    }
+
     /** hands the accumulated visual events to the renderer and forgets them */
     consumeEvents(): SimEvent[] {
         const drained = this.events;
@@ -2875,6 +3001,14 @@ export class BattleSim {
         killer: Unit | null,
         dealt = 0,
         knockDir?: { x: number; z: number },
+        /** force the heavy gore burst a large pack gets — see the `big` event field */
+        violent = false,
+        /**
+         * Flattened by its own keep coming down, rather than destroyed by an
+         * enemy. The building still falls, but none of the bookkeeping a real
+         * kill carries applies — nobody earned this.
+         */
+        razed = false,
     ): void {
         if (killer) killer.kills++;
         // no XP for executing a still-spawning pack — it never fully arrived
@@ -2911,7 +3045,8 @@ export class BattleSim {
             // erupt from the torso (footY tracks ground + altitude), not the feet
             y: target.footY + t.meshScale * 1.3,
             z: target.z,
-            big: target.radius >= 2 || !!t.structure,
+            big: violent || target.radius >= 2 || !!t.structure,
+            fling: violent ? COLLAPSE_GORE_FLING : razed ? COLLAPSE_DEBRIS_FLING : undefined,
             wear,
             structure: !!t.structure,
             structureHeight,
@@ -2923,10 +3058,11 @@ export class BattleSim {
             bloodScale: this.crushingHammer && wear === 'blood' ? 1.25 : undefined,
         });
         if (t.structure) {
+            if (razed) target.unit.razed = true;
             target.unit.markDestroyed(knockDir ?? undefined, {
                 crush: this.crushingHammer,
             });
-            if (this.isDebuffBuilding(target.unit)) {
+            if (this.isDebuffBuilding(target.unit) && !razed) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
                 // half tower height — tallest collider × meshScale / 2
                 const towerTop =
@@ -3017,6 +3153,30 @@ export class BattleSim {
             clearBattleTint(target.mesh);
             if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
             getUnitInstanceRenderer()?.setDead(target.mesh);
+        }
+        // Lifeline: a side's army stands only while its Stronghold does. Killed
+        // with no killer, so this grants no XP and triggers no on-kill spawns —
+        // the Stronghold's slayer earns the siege, not a dozen extra kills. The
+        // round then ends on its own, with nothing mobile left on that side.
+        if (this.config.strongholdLifeline && target.unit.type === STRONGHOLD) {
+            const towerTop = Math.max(1, ...t.colliders.map((c) => c.y)) * t.meshScale;
+            const maxRadius = this.collapseReach(target.x, target.z);
+            this.collapseFronts.push({
+                team: actorTeam(target),
+                x: target.x,
+                z: target.z,
+                startedAt: this.elapsed,
+                maxRadius,
+            });
+            this.events.push({
+                kind: 'strongholdCollapse',
+                team: target.unit.team,
+                x: target.x,
+                y: target.altitude + towerTop * 0.5,
+                z: target.z,
+                speed: COLLAPSE_SPEED,
+                maxRadius,
+            });
         }
     }
 
@@ -3236,6 +3396,9 @@ export class BattleSim {
         this.stepHazards(dt);
         add('projectiles');
         this.flushOnKillSpawns();
+        // after the kills, so a Stronghold felled this step starts its front on
+        // the next one rather than reaching halfway across the board instantly
+        this.stepCollapseFronts();
         this.prevStepDt = dt;
     }
 

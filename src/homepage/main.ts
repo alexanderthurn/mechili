@@ -299,7 +299,7 @@ function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
         ? `<div class="mh-tactic-cost" title="Bought in the shop, or drafted from a round card" aria-label="Shop price">${DEFAULT_SETTINGS.deploy.baseRuneCost}</div>`
         : `<div class="mh-tactic-cost" title="Forged at the Stronghold" aria-label="Forge price">${recipe
               .map((ico) => iconHtml(ico, 'mh-cost-rune'))
-              .join('')}<span class="mh-cost-plus">+</span>${DEFAULT_SETTINGS.deploy.forgeCost}</div>`;
+              .join('')}<span class="mh-cost-plus">+</span>${item.forgeCost ?? 0}</div>`;
     return `
 <article class="mh-tactic mh-rune${isFirst ? ' mh-active' : ''}" data-key="${esc(item.id)}">
   <span class="mh-rune-tag${isBase ? '' : ' forged'}">${isBase ? 'Base' : 'Advanced'}</span>

@@ -776,6 +776,21 @@ function cardSpellTipStyles(): string {
     flex: 0 0 18px;
     font-size: 0;
 }
+.mechili-card-spell-tip .ai-cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+}
+.mechili-card-spell-tip .ai-cost .money-ico.m-icon {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+}
 .mechili-card-spell-tip .ai-forge-ings {
     display: flex;
     flex-direction: row;
@@ -784,6 +799,13 @@ function cardSpellTipStyles(): string {
     margin: 0 0 0 auto;
     align-items: center;
     flex-shrink: 0;
+}
+.mechili-card-spell-tip .ai-forge-fee {
+    margin-left: 2px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+    white-space: nowrap;
 }
 .mechili-card-spell-tip .ai-forge-ing {
     width: 22px;
@@ -4205,6 +4227,13 @@ ${chatFloatStyles(u, pc, ec)}
     align-items: center;
     flex-shrink: 0;
 }
+.mechili-panel .action-info .ai-forge-fee {
+    margin-left: 2px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+    white-space: nowrap;
+}
 .mechili-panel .action-info .ai-forge-ing {
     width: 22px;
     height: 22px;
@@ -4696,6 +4725,28 @@ ${chatFloatStyles(u, pc, ec)}
     box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 12px rgba(0, 255, 102, 0.45);
     animation: forge-bake-pulse 1.25s ease-in-out infinite;
 }
+.mechili-panel .item-sq.forge-bake.cancelable {
+    cursor: pointer;
+    padding: 0;
+}
+.mechili-panel .item-sq.forge-bake.cancelable:hover {
+    box-shadow: 0 0 0 2px rgba(220, 70, 55, 0.95), 0 0 12px rgba(220, 70, 55, 0.5);
+    animation: none;
+}
+/* the unpaid oven's buy button: an action tile sized to sit in the rune row,
+   with the product on it and the price in the red band the shop tiles use */
+.mechili-panel .forge-row .action-tile.forge-buy {
+    width: 44px;
+    height: 44px;
+    padding: 0 0 12px;
+    flex: 0 0 auto;
+    position: relative;
+    border-radius: 6px;
+}
+.mechili-panel .forge-row .action-tile.forge-buy .at-icon {
+    width: 30px;
+    height: 30px;
+}
 @keyframes forge-panel-ready {
     0%, 100% { box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.4); }
     50% { box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.85), 0 0 14px rgba(0, 255, 102, 0.2); }
@@ -4906,6 +4957,15 @@ ${chatFloatStyles(u, pc, ec)}
 .forge-tile-ings .forge-ing.in-forge {
     border: 2.5px solid rgb(255, 168, 40);
     box-shadow: none;
+}
+.forge-tile-ings .forge-tile-fee {
+    /* the fee reads as part of what you hand over: runes + this */
+    margin-left: 2px;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+    white-space: nowrap;
 }
 .forge-tile-name {
     grid-column: 1 / -1;

@@ -607,6 +607,22 @@ export class PlacementController {
         return { level: snap.level, xp: snap.xp, items: snap.items };
     }
 
+    /**
+     * Re-open a unit's panel without a click — used after an undo, which has to
+     * deselect first (it may be removing the very unit that was selected) but
+     * should not close a panel the undo left standing.
+     */
+    selectUnit(unit: Unit): void {
+        if (this.selectedUnit === unit) return;
+        const previous = this.selectedUnit;
+        this.restoreSelectedView();
+        this.selectedUnit = unit;
+        this.selectedGroup = [];
+        this.rectFormation = false;
+        this.carryingSelected = false;
+        this.onSelect?.(unit, previous);
+    }
+
     deselect(): void {
         this.cancelPlacing();
         this.restoreSelectedView();
@@ -1097,7 +1113,11 @@ export class PlacementController {
     /** Re-runs the facing rule for every unit (used after the board resets between rounds). */
     refaceAll(): void {
         for (const u of this.units) {
-            if (u.type.structure) continue;
+            // the hovering rocket is a structure that DOES aim (see
+            // faceClosestOf's own guard) — skipping it here left the one
+            // turnable building seeded from whatever fogged view deployment
+            // last gave it
+            if (u.type.structure && !u.type.rocket) continue;
             u.faceClosestOf(this.opponentMechPositions(u.team, u));
         }
     }

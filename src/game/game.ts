@@ -39,6 +39,7 @@ import {
     resolveForge,
     unionForgeSpellPools,
     type ForgeSlot,
+    forgeProductCost,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
 import {
@@ -116,6 +117,7 @@ import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
+import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
 import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
@@ -272,6 +274,12 @@ const PLAY_START_ZOOM = 110;
 const HP_DRAW_MAX_SECONDS = 8;
 /** Let the last death tip / air crash finish before souls launch. */
 const HP_DRAW_BATTLE_SETTLE = 0.52;
+/**
+ * Beat after a lifeline collapse ended the round. Shorter than it used to be:
+ * the front does its work DURING the battle now, so by the time the round ends
+ * the last pack has already gone down — this only covers the dust settling.
+ */
+const HP_DRAW_COLLAPSE_SETTLE = 1.2;
 
 // --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
 /** ring starts this far past the board edge (world units) — well into the
@@ -352,6 +360,7 @@ export class Game {
     private readonly strongholdFlags = new StrongholdFlags();
     private readonly hordeMarkers: HordeMarkers;
     private readonly towerDebuffFx: TowerDebuffFx;
+    private readonly collapseFx: StrongholdCollapseFx;
     private readonly hammerFx: HammerFx;
     private readonly meteorFx: MeteorFx;
     private readonly cloudFx: CloudFx;
@@ -669,6 +678,10 @@ export class Game {
     /** per-SEAT tactical order charges (rally routes, etc.) — separate from pack items, never shared */
     private readonly tacticInventory: string[][];
     /** shared Stronghold forge oven per side (3 slots; burn at next deploy start) */
+    /** who paid to fire each oven — null = unlit, cleared when it resolves */
+    /** a lifeline collapse played this battle — hold the round-end beat for it */
+    private collapseEndedRound = false;
+    private readonly forgeLitBy: Record<Team, SeatId | null> = { player: null, enemy: null };
     private readonly forgeSlots: Record<Team, (ForgeSlot | null)[]> = {
         player: emptyForgeSlots(),
         enemy: emptyForgeSlots(),
@@ -852,6 +865,12 @@ export class Game {
         if (e.code === 'KeyI' && e.shiftKey && !this.star) {
             // Shift+I = SP skip to next round (lock deploy → resolve battle)
             this.cheatSkipRound();
+            return;
+        }
+        if (e.code === 'KeyK' && e.shiftKey && !this.star) {
+            // Shift+K = SP: drop the enemy Stronghold where it stands, for
+            // eyeballing the lifeline collapse without besieging it first
+            this.cheatKillEnemyStronghold();
             return;
         }
         if (e.code === 'KeyT' && e.shiftKey) {
@@ -1321,6 +1340,7 @@ export class Game {
         this.acidFx.setQuality(prefs().fireVfx);
         this.map.setFireCharcoalGround(fireUsesTongues(prefs().fireVfx));
         this.towerDebuffFx = new TowerDebuffFx(this.scene, this.particles, this.map.halfW, this.map.halfH);
+        this.collapseFx = new StrongholdCollapseFx(this.scene, this.particles);
         this.hammerFx = new HammerFx(this.scene);
         this.meteorFx = new MeteorFx(this.scene);
         this.cloudFx = new CloudFx(this.scene);
@@ -1466,6 +1486,8 @@ export class Game {
             items: this.itemInventory,
             tactics: this.tacticInventory,
             forgeSlots: this.forgeSlots,
+            forgeLitBy: this.forgeLitBy,
+            forgePoolOf: (team: Team) => this.teamForgePool(team),
             rallyRoutes: this.rallyRoutes,
             rallyRouteIds: this.rallyRouteIds,
             oilField: this.oilField,
@@ -1887,6 +1909,18 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyCredit', team: 'player' });
+        };
+        this.hud.onForgeLight = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (!this.playerCanAct) return;
+            this.dispatchPlayer({ kind: 'forgeLight', team: 'player' });
+        };
+        this.hud.onForgeUnlight = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (!this.playerCanAct) return;
+            this.dispatchPlayer({ kind: 'forgeUnlight', team: 'player' });
         };
         this.hud.onBuyForgeSpell = (tacticId) => {
             const unit = this.placement.selectedUnit;
@@ -2575,6 +2609,7 @@ export class Game {
         this.hordeMarkers.dispose();
         this.strongholdFlags.dispose();
         this.towerDebuffFx.dispose();
+        this.collapseFx.dispose();
         this.stoneChips.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
@@ -2630,20 +2665,22 @@ export class Game {
             this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
         };
 
-        spawnBuilding(
-            BASE_ANCHORS.stronghold.xFrac,
-            BASE_ANCHORS.stronghold.rowFrac,
-            STRONGHOLD,
-            'player',
-            primarySeatOf(this.seats, 'player'),
-        );
-        spawnBuilding(
-            BASE_ANCHORS.stronghold.xFrac,
-            BASE_ANCHORS.stronghold.rowFrac,
-            STRONGHOLD,
-            'enemy',
-            primarySeatOf(this.seats, 'enemy'),
-        );
+        if (this.settings.strongholdMode !== 'none') {
+            spawnBuilding(
+                BASE_ANCHORS.stronghold.xFrac,
+                BASE_ANCHORS.stronghold.rowFrac,
+                STRONGHOLD,
+                'player',
+                primarySeatOf(this.seats, 'player'),
+            );
+            spawnBuilding(
+                BASE_ANCHORS.stronghold.xFrac,
+                BASE_ANCHORS.stronghold.rowFrac,
+                STRONGHOLD,
+                'enemy',
+                primarySeatOf(this.seats, 'enemy'),
+            );
+        }
 
         for (const team of ['player', 'enemy'] as const) {
             for (const seat of seatIdsOf(this.seats, team)) {
@@ -3093,6 +3130,22 @@ export class Game {
      * Restores both sides to peak (starting) HP so the skip never chips the
      * bar. Solo only (no net / star / watch).
      */
+    /**
+     * Single-player only: kill the enemy Stronghold outright.
+     *
+     * Battle phase only — the Stronghold is only an Actor while a sim exists,
+     * and it is the sim's own `kill` that runs the lifeline wipe, the collapse
+     * shockwave and every death that follows. Reaching in through damage rather
+     * than a bespoke path is the point: the cheat sees exactly what a siege
+     * would produce.
+     */
+    private cheatKillEnemyStronghold(): void {
+        if (!this.sim || this.phase !== 'battle' || this.matchOver) return;
+        this.sim.cheatDestroy(
+            (u) => u.type === STRONGHOLD && u.team === 'enemy',
+        );
+    }
+
     private cheatSkipRound(): void {
         if (this.star || this.watching || this.matchOver || this.hydrating) return;
         if (this.introActive || this.outroActive) return;
@@ -5436,8 +5489,28 @@ export class Game {
 
     /** canonical state fingerprint, exchanged at battle start to catch desyncs */
     private stateHash(): number {
+        return this.stateHashParts().total;
+    }
+
+    /**
+     * The same walk {@link stateHash} does, but snapshotting the running
+     * accumulator after each section. Every value is a hash of EVERYTHING UP
+     * TO AND INCLUDING that section, so on a two-console diff the first mark
+     * that disagrees names the section the divergence entered in — a single
+     * opaque integer cannot. Diagnostics only: `total` is bit-identical to
+     * what stateHash always produced, so this changes no comparison.
+     */
+    private stateHashParts(): {
+        total: number;
+        models: number;
+        hp: number;
+        economy: number;
+        actors: number;
+        stats: number;
+    } {
         const buffer = new DataView(new ArrayBuffer(8));
         let h = 0x811c9dc5;
+        const marks = { models: 0, hp: 0, economy: 0, actors: 0, stats: 0 };
         const mix = (v: number) => {
             buffer.setFloat64(0, v);
             h = Math.imul(h ^ buffer.getUint32(0), 0x9e3779b1);
@@ -5453,10 +5526,13 @@ export class Game {
         // per-client reordering needed (that's what the old hostFirst/
         // teamOrder tricks existed for), and this iterates however many
         // sides the roster actually has, not just today's pair.
+        marks.models = h >>> 0;
         for (const v of this.hp) mix(v);
+        marks.hp = h >>> 0;
         for (let s = 0; s < sideCount(this.seats); s++) {
             for (const seat of sideIdsOf(this.seats, s)) mix(this.economy.balance(seat));
         }
+        marks.economy = h >>> 0;
         for (const a of this.sim?.actors ?? []) {
             // canonicalize: the seat's own counter (client-independent —
             // both clients apply the same buy-action stream in the same
@@ -5483,6 +5559,7 @@ export class Game {
         // per pack rather than per (type, seat) so differing items on two packs
         // of the same type are covered too. Canonical actor order, deduped, so
         // both peers walk the same sequence.
+        marks.actors = h >>> 0;
         const statsSeen = new Set<Unit>();
         for (const a of this.sim?.actors ?? []) {
             if (statsSeen.has(a.unit)) continue;
@@ -5499,6 +5576,7 @@ export class Game {
             mix(st.attackInterval);
             mix(st.splashRadius);
         }
+        marks.stats = h >>> 0;
         // Shared hazard layers — must match on both peers before battle. Acid
         // is oil's twin in fire.ts (same expiry model, same carry-over through
         // cloneForBattle/adoptOilFrom) and it deals percent-max-HP damage plus
@@ -5520,7 +5598,7 @@ export class Game {
                 }
             }
         }
-        return h >>> 0;
+        return { total: h >>> 0, ...marks };
     }
 
 
@@ -6722,8 +6800,16 @@ export class Game {
 
     /** this round's spell markers: own always; enemy only after we lock in */
     private visibleSpellStamps(): readonly SpellStamp[] {
-        const revealEnemy =
-            this.phase === 'battle' || this.deployReady.player;
+        // Deployment markers belong to deployment. The battle has its own three
+        // layers (charge fills, active zone rings, safe-zone disks), all in
+        // groups clearDeployMarkers() leaves alone, and battle start throws
+        // these away on purpose. Without this gate that discard does not stick:
+        // the round only ticks over in startBuildPhase, so every stamp still
+        // matches `placedRound` through the whole post-battle beat, and any
+        // stray sync — a right-click, Escape, gamepad B, all of which reach
+        // cancelTacticPlacement — paints them straight back onto the board.
+        if (this.phase !== 'build') return [];
+        const revealEnemy = this.deployReady.player;
         return this.spellStamps.filter(
             (s) => s.placedRound === this.round && (s.team === 'player' || revealEnemy),
         );
@@ -6758,7 +6844,8 @@ export class Game {
         this.tacticDraftStart = null;
         this.tacticDraftMid = null;
         this.placement.inputLocked = false;
-        this.syncTacticVisuals();
+        // a cancel that cancelled nothing has nothing to repaint
+        if (had) this.syncTacticVisuals();
         return had;
     }
 
@@ -7124,20 +7211,29 @@ export class Game {
         for (const team of ['player', 'enemy'] as const) {
             const oven = this.forgeSlots[team]!;
             const pool = this.teamForgePool(team);
-            const result = resolveForge(oven, pool);
-            if (result.product?.kind === 'tactic') {
-                for (const seat of seatIdsOf(this.seats, team)) {
-                    this.tacticInventory[seat]!.push(result.product.id);
+            if (this.forgeLitBy[team] === null) {
+                // Nobody paid to fire it, so nothing was forged — every rune
+                // goes back to whoever put it in, matched recipe or not.
+                for (const slot of oven) {
+                    if (slot) this.itemInventory[slot.seat]!.push(slot.itemId);
                 }
-            } else if (result.product?.kind === 'item') {
-                // same as spells: every seat on the side receives one copy
-                for (const seat of seatIdsOf(this.seats, team)) {
-                    this.itemInventory[seat]!.push(result.product.id);
+            } else {
+                const result = resolveForge(oven, pool);
+                if (result.product?.kind === 'tactic') {
+                    for (const seat of seatIdsOf(this.seats, team)) {
+                        this.tacticInventory[seat]!.push(result.product.id);
+                    }
+                } else if (result.product?.kind === 'item') {
+                    // same as spells: every seat on the side receives one copy
+                    for (const seat of seatIdsOf(this.seats, team)) {
+                        this.itemInventory[seat]!.push(result.product.id);
+                    }
+                }
+                for (const { itemId, seat } of result.refunds) {
+                    this.itemInventory[seat]!.push(itemId);
                 }
             }
-            for (const { itemId, seat } of result.refunds) {
-                this.itemInventory[seat]!.push(itemId);
-            }
+            this.forgeLitBy[team] = null;
             this.forgeSlots[team] = emptyForgeSlots(
                 forgeTeamCapacity(seatIdsOf(this.seats, team).length),
             );
@@ -7209,7 +7305,11 @@ export class Game {
                 : this.forgeSlots[team]!;
             targets.push({
                 unit,
-                mode: forgeGlowMode(oven, this.teamForgePool(team)),
+                mode: forgeGlowMode(
+                    snapIds && this.buildingIntelSnapshot
+                        ? (this.buildingIntelSnapshot.forgeLit[team] ?? false)
+                        : this.forgeLitBy[team] !== null,
+                ),
             });
         }
         this.forgeFx.update(dt, this.time, targets, this.scene);
@@ -7477,6 +7577,12 @@ export class Game {
      */
     private undoLast(): void {
         if (!this.canUndo()) return;
+        // Deselect FIRST: the undo may be removing the very unit that is open,
+        // and a stale selection would keep a panel pointed at a dead pack. But
+        // most undos leave it standing (a forge burn, a tech, a boost), and
+        // closing the Stronghold every time you take one step back is its own
+        // small hostility — so remember it and put it back if it survived.
+        const reopen = this.placement.selectedUnit;
         this.placement.deselect();
         if (this.dispatcher.undoLast(this.round, this.humanSeat)) {
             this.sendPlayerBuildMessage({
@@ -7485,6 +7591,9 @@ export class Game {
                 seat: this.humanSeat,
                 seq: this.nextSeatSeq(this.humanSeat),
             });
+        }
+        if (reopen && !reopen.destroyed && this.placement.allUnits().includes(reopen)) {
+            this.placement.selectUnit(reopen);
         }
         this.hud.refreshCosts(); // the undone action may have been the recruit switch
         this.refreshShopHud();
@@ -7553,6 +7662,11 @@ export class Game {
 
     /** Everything is revealed and the sim takes over; the player can only watch. */
     private startBattlePhase(): void {
+        // last round's collapse rings are done being watched; a stale wave would
+        // also gate this battle's debuff tint (see waveRevealsDebuffTint)
+        this.towerDebuffFx.clear();
+        this.collapseFx.clear();
+        this.collapseEndedRound = false;
         this.placement.beginBattle();
         this.phase = 'battle';
         this.phaseRemaining = this.battleSeconds();
@@ -7566,6 +7680,16 @@ export class Game {
         this.techIntelSnapshot = null;
         this.buildingIntelSnapshot = null;
         this.placement.revealAll();
+        // Re-seat every mobile pack's facing now that the board is whole. The
+        // sim seeds actor facing from mesh.rotation.y, and until this point
+        // that came from whatever faceClosestOf last computed during
+        // deployment — against a target set filtered by intel fog, which is
+        // NOT symmetric: a client that has locked in already revealed
+        // everything while its opponent is still deploying blind. Same log,
+        // different targets, different yaw, different hash. Here both peers
+        // face the identical fully-revealed board, so they agree by
+        // construction.
+        this.placement.refaceAll();
         // oil/acid pour later as drips — baseline only for now (wards carve carry-over)
         const hazardPours = prepareHazardPours(
             {
@@ -7877,12 +8001,23 @@ export class Game {
             boardHalfW: this.map.halfW,
             boardHalfZ: this.map.halfH,
             loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
+            strongholdLifeline: this.settings.strongholdMode === 'lifeline',
         });
+        const hashParts = this.stateHashParts();
         this.debugLog.log('sim.battleStart', {
             watching: this.watching,
             hydrating: this.hydrating,
             round: this.round,
-            hash: this.stateHash(),
+            hash: hashParts.total,
+            // running marks, one per section of the hash walk: on a two-client
+            // diff the FIRST mark that disagrees names where it went wrong
+            marks: {
+                models: hashParts.models,
+                hp: hashParts.hp,
+                economy: hashParts.economy,
+                actors: hashParts.actors,
+                stats: hashParts.stats,
+            },
             unitCount: this.sim.actors.length,
             actors: this.sim.actors
                 .map((a) => ({
@@ -7893,6 +8028,11 @@ export class Game {
                     hp: a.hp,
                     x: Math.round(a.x * 100) / 100,
                     z: Math.round(a.z * 100) / 100,
+                    // hashed, and until now never dumped — facing is seeded
+                    // from mesh.rotation.y, which fog and lock-in timing can
+                    // move independently on each client
+                    facing: Math.round(a.facing * 1e6) / 1e6,
+                    shieldHp: a.shieldHp,
                 }))
                 .sort((a, b) => a.id - b.id),
         });
@@ -8237,7 +8377,10 @@ export class Game {
         // high collapse rubble persists into build; timed chips do not
         this.stoneChips.clearTimed();
         this.fireFx.clear(); // instanced flame tongues are battle-only
-        this.towerDebuffFx.clear();
+        // NOT cleared here: a Stronghold's lifeline collapse ends the round in
+        // the same frame it spawns, so tearing its rings down with the sim meant
+        // the round-deciding moment never drew. They finish on their own and are
+        // cleared at the next battle start instead.
         this.hammerFx.clear();
         this.meteorFx.clear();
         this.cloudFx.clear();
@@ -8298,7 +8441,9 @@ export class Game {
         }
         this.hpDrawAfterMatchOver = this.playerHp <= 0 || this.enemyHp <= 0;
         if (this.pendingHpDrawPlan && this.pendingHpDrawPlan.sources.length > 0) {
-            this.hpDrawSettleRemaining = HP_DRAW_BATTLE_SETTLE;
+            this.hpDrawSettleRemaining = this.collapseEndedRound
+                ? HP_DRAW_COLLAPSE_SETTLE
+                : HP_DRAW_BATTLE_SETTLE;
             // Show the pre-battle HP during the settle beat so the bar doesn't
             // flash down-then-up when beginHpDrawPhase sets its display values.
             const pre = this.pendingHpDrawPreHp!;
@@ -8936,6 +9081,10 @@ export class Game {
                 this.stoneChips.spawnFromEvents(battleEvents, (x, z) => groundHeightAt(x, z));
                 this.fireFx.spawnFromEvents(battleEvents);
                 this.towerDebuffFx.spawnFromEvents(battleEvents);
+                this.collapseFx.spawnFromEvents(battleEvents);
+                if (battleEvents.some((e) => e.kind === 'strongholdCollapse')) {
+                    this.collapseEndedRound = true;
+                }
                 this.stampWearFromEvents(battleEvents);
                 const sceneryShields = livingShieldDisks(this.placement.allUnits());
                 for (const ev of battleEvents) {
@@ -9032,6 +9181,11 @@ export class Game {
             }
         }
         if (profile) cpu.begin();
+        // in battle this already ran before the tint gate; out of battle nothing
+        // else advances it, and a collapse outlives the round that caused it
+        if (!this.sim) this.towerDebuffFx.update(gameDt);
+        // the collapse front outlives its battle, and its own clock drives it
+        this.collapseFx.update(gameDt);
         this.particles.update(gameDt);
         this.stoneChips.update(gameDt);
         this.acidFx.update(
@@ -9129,9 +9283,11 @@ export class Game {
         );
         {
             const oven = this.forgeSlots.player ?? [];
+            const pool = this.teamForgePool('player');
             this.hud.setForgeRecipeContext(
-                this.teamForgePool('player'),
+                pool,
                 oven.filter((s): s is ForgeSlot => !!s).map((s) => s.itemId),
+                resolveForge(oven, pool).product !== null,
             );
         }
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
@@ -9559,6 +9715,7 @@ export class Game {
             attackInterval: rs.attackInterval,
             splash: rs.splashRadius || undefined,
             structure: !!u.type.structure,
+            onDestroyed: this.destructionNote(u),
             unitId: u.id,
             items: this.selectionItems(u, false),
             itemSlotCount:
@@ -9607,6 +9764,7 @@ export class Game {
             xp: lv.xp,
             xpNext: lv.xpNext,
             structure: !!u.type.structure,
+            onDestroyed: this.destructionNote(u),
             unitId: u.id,
             items: this.selectionItems(u, ownInteractive && !fogItems, fogItems),
             itemSlotCount:
@@ -9905,7 +10063,29 @@ export class Game {
                 player: this.forgeSlots.player.map((s) => s?.itemId ?? null),
                 enemy: this.forgeSlots.enemy.map((s) => s?.itemId ?? null),
             },
+            forgeLit: {
+                player: this.forgeLitBy.player !== null,
+                enemy: this.forgeLitBy.enemy !== null,
+            },
         };
+    }
+
+    /**
+     * What a building's fall costs its owner, in the width of a stat value —
+     * it replaces the combat rows a structure has no use for. Reads live match
+     * settings: the Stronghold's answer depends on `strongholdMode`.
+     */
+    private destructionNote(u: Unit): string | undefined {
+        if (!u.type.structure) return undefined;
+        if (u.type === STRONGHOLD) {
+            return this.settings.strongholdMode === 'lifeline' ? 'Instant loss' : 'No effect';
+        }
+        if (u.type !== COMMAND_TOWER && u.type !== RESEARCH_CENTER) return undefined;
+        // the window shrinks as the building levels, so read it off THIS one —
+        // and a fully upgraded tower reaches 0, where the sim applies nothing
+        const dur = this.settings.towers.debuffDuration;
+        const seconds = Math.max(0, dur.baseSeconds - (u.level - 1) * dur.stepSeconds);
+        return seconds > 0 ? `${seconds} second debuff` : 'No effect';
     }
 
     /**
@@ -9988,10 +10168,18 @@ export class Game {
         const bakeInfo = bakeResult.product
             ? forgeProductInfo(bakeResult.product)
             : null;
+        const lit =
+            fogged && this.buildingIntelSnapshot
+                ? (this.buildingIntelSnapshot.forgeLit[team] ?? false)
+                : this.forgeLitBy[team] !== null;
+        const bakeCost = bakeResult.product ? forgeProductCost(bakeResult.product) : 0;
         out.forge = {
             slotCount,
-            dropReady: !fogged && this.canDropForgeOn(u),
-            hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool),
+            lit,
+            canUnlight: canBuy && this.forgeLitBy[team] === this.humanSeat,
+            bakeAffordable: canBuy && !lit && this.economy.balance(this.humanSeat) >= bakeCost,
+            dropReady: !fogged && !lit && this.canDropForgeOn(u),
+            hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool, lit),
             suggestions,
             spellPool: pool,
             bake: bakeInfo
@@ -9999,6 +10187,9 @@ export class Game {
                       icon: bakeInfo.icon,
                       name: bakeInfo.name,
                       desc: bakeInfo.desc,
+                      forgeCost: bakeResult.product
+                          ? forgeProductCost(bakeResult.product)
+                          : 0,
                       ingredientIcons:
                           bakeResult.product?.kind === 'tactic'
                               ? forgeIngredientIcons(bakeResult.product.id)
@@ -10048,6 +10239,9 @@ interface BuildingIntelSnapshot {
     movePackOwned: boolean[];
     /** Stronghold oven contents (item ids) at phase start — fogged view */
     forge: Record<Team, (string | null)[]>;
+    /** whether each oven was paid for at phase start — fogged view, and the
+     *  reason the chimney and the panel cannot leak a live burn */
+    forgeLit: Record<Team, boolean>;
 }
 
 interface BuildingIntelSeat {

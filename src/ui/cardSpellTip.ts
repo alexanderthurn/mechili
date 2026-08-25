@@ -4,7 +4,7 @@
  */
 import { startCardForgeIcons, type StartCard } from '../game/cards';
 import { THEME } from '../theme';
-import { iconHtml } from './iconAtlas';
+import { iconHtml, moneyHtml } from './iconAtlas';
 
 function escapeAttr(s: string): string {
     return s
@@ -24,6 +24,11 @@ export function spellInfoFrameHtml(opts: {
     desc?: string;
     icon?: string;
     ingredientIcons?: readonly string[];
+    /** forge fee, printed as "+ N" right after the ingredients it is added to */
+    ingredientFee?: number;
+    /** a flat price with a place — "Stronghold 300" */
+    cost?: number;
+    costLabel?: string;
     levelIcon?: boolean;
     /** vertical icon+label(+cost, +desc) list — a unit's talent loadout */
     rows?: readonly { icon: string; label: string; cost?: number; desc?: string }[];
@@ -32,7 +37,11 @@ export function spellInfoFrameHtml(opts: {
         opts.ingredientIcons && opts.ingredientIcons.length > 0
             ? `<div class="ai-forge-ings">${opts.ingredientIcons
                   .map((ico) => iconHtml(ico, 'ai-forge-ing'))
-                  .join('')}</div>`
+                  .join('')}${
+                  opts.ingredientFee === undefined
+                      ? ''
+                      : `<span class="ai-forge-fee">+ ${opts.ingredientFee}</span>`
+              }</div>`
             : '';
     const descHtml = escapeHtml(opts.desc ?? '').replace(/\n/g, '<br>');
     const rowsHtml =
@@ -57,6 +66,11 @@ export function spellInfoFrameHtml(opts: {
         ings +
         `</div>` +
         (descHtml ? `<div class="ai-desc">${descHtml}</div>` : '') +
+        (opts.cost === undefined
+            ? ''
+            : `<div class="ai-cost">${
+                  opts.costLabel ? `${escapeHtml(opts.costLabel)} ` : ''
+              }${moneyHtml(opts.cost)}</div>`) +
         rowsHtml
     );
 }
@@ -113,6 +127,9 @@ export function startCardForgeSpellsHtml(c: StartCard): string {
                 `data-ttitle="${escapeAttr(f.name)}" ` +
                 `data-tdesc="${escapeAttr(f.desc)}" ` +
                 `data-ticon="${escapeAttr(f.icon)}" ` +
+                (f.cost === undefined
+                    ? ''
+                    : `data-tcost="${f.cost}" data-tcostlabel="Stronghold" `) +
                 `data-forge-ings="${escapeAttr(f.ingredientIcons.join(','))}">` +
                 `${iconHtml(f.icon, 'c-forge-spell-ico')}</span>`,
         )
@@ -221,6 +238,9 @@ export class CardSpellTips {
             desc,
             icon,
             ingredientIcons: (el.dataset.forgeIngs ?? '').split(',').filter(Boolean),
+            ingredientFee: el.dataset.tfee === undefined ? undefined : Number(el.dataset.tfee),
+            cost: el.dataset.tcost === undefined ? undefined : Number(el.dataset.tcost),
+            costLabel: el.dataset.tcostlabel,
             rows: decodeTipRows(el.dataset.trows ?? ''),
         });
         const rect = el.getBoundingClientRect();

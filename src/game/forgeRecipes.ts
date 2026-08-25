@@ -371,40 +371,32 @@ export function forgeHintText(
     slots: readonly (ForgeSlot | null)[],
     when: 'next' | 'this' = 'next',
     pool: ForgeSpellPool = 'all',
+    lit = true,
 ): string {
     const filled = slots.filter((s): s is ForgeSlot => !!s);
-    const whenLabel = when === 'this' ? 'This deploy' : 'Next deploy';
     if (filled.length === 0) {
         return '';
     }
-    const result = resolveForge(slots, pool);
-    const info = result.product ? forgeProductInfo(result.product) : null;
-    if (!info) {
+    if (!resolveForge(slots, pool).product) {
         return when === 'this'
-            ? 'No matching recipe — all runes returned to their owners this deploy.'
-            : 'No matching recipe — all runes return to their owners next deploy.';
+            ? 'No matching recipe — all runes returned to their owners this deploy'
+            : 'No matching recipe — all runes return to their owners next deploy';
     }
-    const kindLabel =
-        result.product!.kind === 'item' ? DISPLAY.item : DISPLAY.tactic;
-    const parts = result.consumed.map((c) => ITEMS[c.itemId]?.name ?? c.itemId);
-    const recipeLabel = summarizeMultiset(parts);
-    let text = `${whenLabel}: ${info.name} ${kindLabel.toLowerCase()} (${recipeLabel}).`;
-    if (result.refunds.length > 0) {
-        const back = summarizeMultiset(result.refunds.map((r) => ITEMS[r.itemId]?.name ?? r.itemId));
-        text +=
-            when === 'this'
-                ? ` Leftover ${back} returned to bag.`
-                : ` Leftover ${back} return to bag.`;
-    }
-    return text;
+    // A matched recipe promises nothing until the burn is bought — the buy
+    // button carries that message, and a line beside it claiming otherwise
+    // would be a promise the oven is not making yet.
+    if (!lit) return '';
+    // Once it IS burning, the recipe is old news: the runes are sitting in the
+    // oven and the product is on the square next to them. All that is left to
+    // say is when. (No leftovers to mention either — resolveForge only returns
+    // a product on an exact match, so `refunds` is empty whenever one exists.)
+    return when === 'this' ? 'Ready this deploy' : 'Ready next deploy';
 }
 
-function summarizeMultiset(names: string[]): string {
-    const counts = new Map<string, number>();
-    for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
-    return [...counts.entries()]
-        .map(([n, c]) => (c > 1 ? `${c}× ${n}` : n))
-        .join(' + ');
+
+/** Supply the oven charges to produce this — per product, 0 when it is free. */
+export function forgeProductCost(product: ForgeProduct): number {
+    return product.kind === 'item' ? (ITEMS[product.id]?.forgeCost ?? 0) : 0;
 }
 
 export interface ForgeHelpRow {
@@ -416,6 +408,8 @@ export interface ForgeHelpRow {
     spellDesc: string;
     /** 'item' = advanced rune; 'tactic' = spell */
     productKind: ForgeProduct['kind'];
+    /** supply to fire the oven for this one, on top of the ingredients */
+    forgeCost: number;
 }
 
 function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
@@ -431,6 +425,7 @@ function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
         spellName: info.name,
         spellDesc: info.desc,
         productKind: recipe.product.kind,
+        forgeCost: forgeProductCost(recipe.product),
     };
 }
 
@@ -523,6 +518,8 @@ export interface RuneCardForgeRow {
     /** every ingredient owned once this card is taken */
     ready: boolean;
     ingredients: { itemId: string; icon: string; owned: boolean }[];
+    /** supply to fire the oven for this one, on top of the ingredients */
+    forgeCost: number;
 }
 
 /**
@@ -557,6 +554,7 @@ export function forgeRecipesForRuneCard(
             spellDesc: info.desc,
             ready: ingredients.every((ing) => ing.owned),
             ingredients,
+            forgeCost: forgeProductCost(recipe.product),
         });
     }
     rows.sort((a, b) => a.ingredients.length - b.ingredients.length);

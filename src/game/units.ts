@@ -703,7 +703,7 @@ function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 80
 export const COMMAND_TOWER = makeTower('command-tower', 'Vanguard', 3.0, 3);
 export const RESEARCH_CENTER = makeTower('research-center', 'Garrison');
 /** each side's main castle at the back of its territory — bigger and sturdier */
-export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 1600);
+export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 3000);
 
 /** shield dome coverage, world units — the top stays below the air layer (18) */
 export const SHIELD_RADIUS = 20;
@@ -1178,6 +1178,11 @@ export class Unit {
     revealed = true;
     /** towers: down for the rest of the CURRENT battle — no longer a target, debuffs its owner's side */
     destroyed = false;
+    /**
+     * Flattened by its own keep's collapse rather than destroyed by an enemy.
+     * Down all the same, but it owes its side no debuff on any path.
+     */
+    razed = false;
     /** board extras: used up this battle (shield broken, rocket fired) — removed at the round reset */
     consumed = false;
     /** the pack's equipped items (up to that type's itemSlotLimit) — permanent once its deployment ended */
@@ -1305,10 +1310,18 @@ export class Unit {
                 this.members.push({ mesh, phase: Math.random() * Math.PI * 2, home: new Vector3(ox, 0, oz) });
             }
         }
-        // default facing until a target is known: straight at the opposing
+        // Default facing until a target is known: straight at the opposing
         // edge — structures too (a castle's gate looks at the enemy), they
-        // just never turn again afterwards
-        this.facing = team === 'enemy' ? Math.PI : 0;
+        // just never turn again afterwards.
+        //
+        // Keyed on the BOARD, never on `team`. 'player'/'enemy' are per-client
+        // labels — every client calls its own side 'player' — so keying on
+        // them gave one unit opposite yaws on two clients. Facing is in the
+        // state hash, and structures never turn, so that mirrored value rode
+        // into every battle-start comparison for the whole match: a desync a
+        // resync could not repair, because both peers just rebuilt it. It also
+        // drew the far side's castles facing backwards. Yaw 0 looks down −z.
+        this.facing = world.z >= 0 ? 0 : Math.PI;
         for (const m of this.members) m.mesh.rotation.y = this.facing;
         this.view.position.copy(this.world);
         this.seatMembers();
@@ -1472,19 +1485,23 @@ export class Unit {
         return base * (1 + steps * 0.05);
     }
 
-    /** Mesh tint by level; base buildings also scale up. */
+    /** Mesh tint by level (packs only); base buildings scale up instead. */
     applyLevelLook(level = this.level): void {
         const scale = this.visualMeshScale(level);
         for (const m of this.members) {
             if (!m.mesh.userData.dead) m.mesh.scale.setScalar(scale);
         }
-        if (level === this.lookDisplayLevel) return;
-        this.lookDisplayLevel = level;
+        // A building says its level by growing, and by the badge over it. The
+        // veterancy hue is a pack's alone: dyeing masonry blue or gold buries
+        // the model's own material under a flat wash.
+        const tintLevel = this.type.structure ? 1 : level;
+        if (tintLevel === this.lookDisplayLevel) return;
+        this.lookDisplayLevel = tintLevel;
         for (const m of this.members) {
             if (m.mesh.userData.instanced) {
-                getUnitInstanceRenderer()?.setLevelTint(m.mesh, level);
+                getUnitInstanceRenderer()?.setLevelTint(m.mesh, tintLevel);
             } else {
-                applyMeshLevelTint(m.mesh, level);
+                applyMeshLevelTint(m.mesh, tintLevel);
             }
         }
     }
@@ -1517,6 +1534,7 @@ export class Unit {
         }
         this.seatMembers();
         this.destroyed = false;
+        this.razed = false;
         this.applyLevelLook(this.level);
     }
 

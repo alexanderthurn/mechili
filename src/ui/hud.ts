@@ -180,9 +180,17 @@ export interface SelectionInfo {
             name: string;
             desc: string;
             ingredientIcons?: string[];
+            /** supply to fire the oven for it */
+            forgeCost?: number;
         };
         /** tactic ids this side's specialists unlock */
         spellPool?: string[];
+        /** the oven has been paid for — it bakes at the next deployment */
+        lit?: boolean;
+        /** this seat paid for the burn, so it may also take it back */
+        canUnlight?: boolean;
+        /** affordable only matters while unlit; the tile is the buy button */
+        bakeAffordable?: boolean;
         /** parallel to slotCount; null = empty */
         slots: ({
             icon: string;
@@ -192,6 +200,9 @@ export interface SelectionInfo {
             removable?: boolean;
         } | null)[];
     };
+    /** what this building's fall costs its owner — shown instead of the
+     *  combat stats a structure that cannot shoot has no use for */
+    onDestroyed?: string;
     /** lifetime combat record (absent for structures/extras) */
     record?: { damageDealt: number; kills: number };
     /** veterancy of the pack; xpNext < 0 means max level */
@@ -286,6 +297,8 @@ export class Hud {
     onBuySellAbility: (() => void) | null = null;
     onBuyRallyRouteAbility: (() => void) | null = null;
     onBuyForgeSpell: ((tacticId: string) => void) | null = null;
+    onForgeLight: (() => void) | null = null;
+    onForgeUnlight: (() => void) | null = null;
     onBuyMovePackAbility: (() => void) | null = null;
     /**
      * Shop unlock fee as THIS seat pays it (Countess Chonk discounts giants).
@@ -404,6 +417,8 @@ export class Hud {
     private readonly cardSpellTips = new CardSpellTips();
     /** item ids currently in the selected Stronghold forge (for slot hover preview) */
     private lastForgeOvenIds: string[] = [];
+    /** the oven holds a complete recipe — see syncForgeSlotHoverPreview */
+    private forgeHasBake = false;
     private lastForgeSpellPool: string[] = [];
     /** bag rune/item ids (human) — with oven, drives owned-ingredient marks */
     private lastBagItemIds: string[] = [];
@@ -862,6 +877,11 @@ export class Hud {
                     '.item-sq.empty.drop-target',
                 );
                 if (emptySlot) this.onApplyArmedItem?.();
+                const cancel = (e.target as HTMLElement).closest<HTMLElement>('[data-forge-unlight]');
+                if (cancel) {
+                    this.onForgeUnlight?.();
+                    return;
+                }
                 const fill = (e.target as HTMLElement).closest<HTMLElement>('.forge-suggest');
                 if (fill?.dataset.forgeFill) {
                     const itemIds = fill.dataset.forgeFill.split(',').filter(Boolean);
@@ -889,6 +909,7 @@ export class Hud {
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
             else if (button.dataset.forgespell) this.onBuyForgeSpell?.(button.dataset.forgespell);
+            else if (button.dataset.forgeLight) this.onForgeLight?.();
             else if (button.dataset.movepack) this.onBuyMovePackAbility?.();
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
             else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
@@ -1743,7 +1764,10 @@ export class Hud {
                           def
                               ? ` data-spell-tip="1" data-ttitle="${escapeAttr(def.name)}" ` +
                                 `data-tdesc="${escapeAttr(t.hint ?? `${def.description}\n${usage}`)}" ` +
-                                `data-ticon="${escapeAttr(t.icon)}"`
+                                `data-ticon="${escapeAttr(t.icon)}"` +
+                                (def.strongholdCost === undefined
+                                    ? ''
+                                    : ` data-tcost="${def.strongholdCost}" data-tcostlabel="Stronghold"`)
                               : ` title="${escapeAttr(
                                     t.hint ??
                                         (t.placed
@@ -1853,6 +1877,14 @@ export class Hud {
         }
 
         if (anchor.classList.contains('empty') || anchor.dataset.itemId) {
+            // Once the oven holds a complete recipe the cookbook stops being
+            // help and starts being in the way — it covers the very buttons you
+            // came to press. Clicking an empty slot still pins it open
+            // (pinForgeRecipes); only the hover backs off.
+            if (this.forgeHasBake && !this.forgeRecipesPinned) {
+                this.hideForgeSlotHoverPreview();
+                return;
+            }
             this.showForgeRecipesHover(anchor);
             return;
         }
@@ -2424,9 +2456,14 @@ export class Hud {
      * Unlocked forge spells + current oven contents — keeps shop-rune / empty-slot
      * recipe hover correct even when Stronghold is not selected.
      */
-    setForgeRecipeContext(pool: readonly string[], ovenItemIds: readonly string[]): void {
+    setForgeRecipeContext(
+        pool: readonly string[],
+        ovenItemIds: readonly string[],
+        hasBake = false,
+    ): void {
         this.lastForgeSpellPool = [...pool];
         this.lastForgeOvenIds = [...ovenItemIds];
+        this.forgeHasBake = hasBake;
         const ovenKey = ovenItemIds.join('\0');
         if (ovenKey !== this.lastForgeOvenKey) {
             this.lastForgeOvenKey = ovenKey;
@@ -2675,8 +2712,8 @@ export class Hud {
         const forge = info.forge;
         const forgeSquares = !forge
             ? ''
-            : `<div class="forge-block${forge.bake ? ' ready' : ''}">` +
-              `<div class="forge-label">Forge${forge.bake ? ' · ready' : ''}</div>` +
+            : `<div class="forge-block${forge.lit ? ' ready' : ''}">` +
+              `<div class="forge-label">Forge${forge.lit ? ' · firing' : forge.bake ? ' · ready' : ''}</div>` +
               `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
                   const item = forge.slots[i];
                   if (!item) {
@@ -2722,12 +2759,38 @@ export class Hud {
               }).join('')}` +
               (forge.bake
                   ? `<span class="forge-bake-arrow" aria-hidden="true">→</span>` +
-                    `<span class="item-sq m-icon forge-bake" style="${iconCss(forge.bake.icon)}" ` +
-                    `data-spell-tip="1" ` +
-                    `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
-                    `data-tdesc="${escapeAttr(`${forge.bake.desc}\nBurns into this ${DISPLAY.tactic.toLowerCase()} next deploy.`)}" ` +
-                    `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
-                    `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}"></span>`
+                    (forge.lit
+                        ? // paid for: this is what comes out next deployment.
+                          // Whoever paid can click it again to take it back.
+                          `<${forge.canUnlight ? 'button type="button"' : 'span'} ` +
+                          `class="item-sq m-icon forge-bake${forge.canUnlight ? ' cancelable' : ''}" ` +
+                          `style="${iconCss(forge.bake.icon)}" ` +
+                          (forge.canUnlight ? `data-forge-unlight="1" ` : '') +
+                          `data-spell-tip="1" ` +
+                          `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
+                          `data-tdesc="${escapeAttr(
+                              `${forge.bake.desc}\nFiring — ready next deployment.${
+                                  forge.canUnlight ? '\nClick to cancel and get the supply back.' : ''
+                              }`,
+                          )}" ` +
+                          `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
+                          `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}">` +
+                          `</${forge.canUnlight ? 'button' : 'span'}>`
+                        : // not paid for yet: the same square becomes the buy button
+                          `<button type="button" class="action-tile forge-buy ${
+                              forge.bakeAffordable ? 'buy' : 'locked'
+                          }" data-forge-light="1" ` +
+                          `data-spell-tip="1" ` +
+                          `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
+                          `data-tdesc="${escapeAttr(`${forge.bake.desc}\nFire the forge to start it — ready next deployment.`)}" ` +
+                          `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
+                          (forge.bake.forgeCost === undefined
+                              ? ''
+                              : `data-tfee="${forge.bake.forgeCost}" `) +
+                          `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}">` +
+                          `<span class="at-icon m-icon" style="${iconCss(forge.bake.icon)}"></span>` +
+                          `<span class="at-cost">${forge.bake.forgeCost ?? 0}</span>` +
+                          `</button>`)
                   : '') +
               `</div>` +
               (forge.hint
@@ -2742,11 +2805,9 @@ export class Hud {
             : info.xpNext < 0
               ? 100
               : Math.max(0, Math.min(100, (info.xp / info.xpNext) * 100));
-        const levelLabel = info.structure
-            ? `${info.level}${info.towerUpgrade ? ` / ${info.towerUpgrade.maxLevel}` : ''}`
-            : info.xpNext < 0
-              ? 'max'
-              : `${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`;
+        // structures that shoot (the rocket pad) keep their combat rows; the
+        // towers report 0 damage / 0 range / 0 speed and only clutter with them
+        const combatless = info.structure && info.damage <= 0 && info.range <= 0;
         this.panel.innerHTML =
             `<div class="panel-head">` +
             `<div class="lvl-big"><span class="lvl-cap">LVL</span><span class="lvl-num">${info.level}</span></div>` +
@@ -2758,15 +2819,23 @@ export class Hud {
             `</div>` +
             itemSquares +
             forgeSquares +
-            row('Hits', info.hits) +
             liveRow('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`, 'hp') +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
-            row('Level', levelLabel) +
-            row('Damage', String(Math.round(info.damage))) +
-            row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
-            (info.splash ? row('Splash', String(info.splash)) : '') +
-            row('Range', info.minRange ? `${info.minRange} - ${info.range}` : String(info.range)) +
-            row('Speed', String(info.speed)) +
+            // A building that cannot shoot has no damage, reload, range or
+            // speed worth four rows of zeroes — what its owner actually needs
+            // to know is what breaking it costs them.
+            (combatless
+                ? info.onDestroyed
+                    ? row('If destroyed', escapeHtml(info.onDestroyed))
+                    : ''
+                : row('Damage', String(Math.round(info.damage))) +
+                  row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
+                  (info.splash ? row('Splash', String(info.splash)) : '') +
+                  row(
+                      'Range',
+                      info.minRange ? `${info.minRange} - ${info.range}` : String(info.range),
+                  ) +
+                  row('Speed', String(info.speed))) +
             (info.record
                 ? liveRow('Total dmg', String(Math.round(info.record.damageDealt)), 'dmg') +
                   liveRow('Kills', String(info.record.kills), 'kills')
@@ -3587,6 +3656,7 @@ export class Hud {
      */
     private forgeRecipesMemoKey = '';
     private forgeRecipesMemoHtml = '';
+
     private forgeRecipesBlockHtml(
         pool: readonly string[],
         bagIds: readonly string[],
@@ -3658,8 +3728,9 @@ export class Hud {
                 `data-ttitle="${escapeAttr(r.spellName)}" ` +
                 `data-tdesc="${escapeAttr(r.spellDesc)}" ` +
                 `data-ticon="${escapeAttr(r.spellIcon)}" ` +
+                `data-tfee="${r.forgeCost}" ` +
                 `data-forge-ings="${escapeAttr(r.ingredientIcons.join(','))}">` +
-                `<div class="forge-tile-ings">${ings}</div>` +
+                `<div class="forge-tile-ings">${ings}<span class="forge-tile-fee">+ ${r.forgeCost}</span></div>` +
                 `<span class="forge-arrow">→</span>` +
                 `${iconHtml(r.spellIcon, 'forge-spell')}` +
                 `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +

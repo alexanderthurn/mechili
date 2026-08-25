@@ -471,6 +471,10 @@ export function openControlsHelp(parent: HTMLElement): void {
                 row('Ctrl+Shift+U', 'Same as Shift+U, plus horde units, pack-level scramble, and up to 3 techs per press') +
                 row('Shift+H', 'Single-player, deploy phase: extra horde packs (repeat to pile on)') +
                 row('Shift+I', 'Single-player: skip the rest of this round') +
+                row(
+                    'Shift+K',
+                    'Single-player, battle phase: destroy the enemy Stronghold where it stands',
+                ) +
                 row('Shift+C', 'Cinema — hide HUD for screenshots. Escape restores it.') +
                 row('Shift+T', 'Cycle material debug: clay → wireframe → normals → off') +
                 row('Shift+1 … 7', 'Toggle visual layers: clouds, distance fog, height mist, forest fog, rain, snow, stars') +
