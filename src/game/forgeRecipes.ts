@@ -374,43 +374,25 @@ export function forgeHintText(
     lit = true,
 ): string {
     const filled = slots.filter((s): s is ForgeSlot => !!s);
-    const whenLabel = when === 'this' ? 'This deploy' : 'Next deploy';
     if (filled.length === 0) {
         return '';
     }
-    const result = resolveForge(slots, pool);
-    const info = result.product ? forgeProductInfo(result.product) : null;
-    if (!info) {
+    if (!resolveForge(slots, pool).product) {
         return when === 'this'
             ? 'No matching recipe — all runes returned to their owners this deploy.'
             : 'No matching recipe — all runes return to their owners next deploy.';
     }
     // A matched recipe promises nothing until the burn is bought — the buy
-    // button carries that message, and "Next deploy: …" beside it would be a
-    // claim the oven is not making yet.
+    // button carries that message, and a line beside it claiming otherwise
+    // would be a promise the oven is not making yet.
     if (!lit) return '';
-    const kindLabel =
-        result.product!.kind === 'item' ? DISPLAY.item : DISPLAY.tactic;
-    const parts = result.consumed.map((c) => ITEMS[c.itemId]?.name ?? c.itemId);
-    const recipeLabel = summarizeMultiset(parts);
-    let text = `${whenLabel}: ${info.name} ${kindLabel.toLowerCase()} (${recipeLabel}).`;
-    if (result.refunds.length > 0) {
-        const back = summarizeMultiset(result.refunds.map((r) => ITEMS[r.itemId]?.name ?? r.itemId));
-        text +=
-            when === 'this'
-                ? ` Leftover ${back} returned to bag.`
-                : ` Leftover ${back} return to bag.`;
-    }
-    return text;
+    // Once it IS burning, the recipe is old news: the runes are sitting in the
+    // oven and the product is on the square next to them. All that is left to
+    // say is when. (No leftovers to mention either — resolveForge only returns
+    // a product on an exact match, so `refunds` is empty whenever one exists.)
+    return when === 'this' ? 'Ready this deploy.' : 'Ready next deploy.';
 }
 
-function summarizeMultiset(names: string[]): string {
-    const counts = new Map<string, number>();
-    for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
-    return [...counts.entries()]
-        .map(([n, c]) => (c > 1 ? `${c}× ${n}` : n))
-        .join(' + ');
-}
 
 /** Supply the oven charges to produce this — per product, 0 when it is free. */
 export function forgeProductCost(product: ForgeProduct): number {
