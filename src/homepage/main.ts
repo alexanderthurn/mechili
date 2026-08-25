@@ -302,12 +302,12 @@ function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
               .join('')}<span class="mh-cost-plus">+</span>${DEFAULT_SETTINGS.deploy.forgeCost}</div>`;
     return `
 <article class="mh-tactic mh-rune${isFirst ? ' mh-active' : ''}" data-key="${esc(item.id)}">
+  <span class="mh-rune-tag${isBase ? '' : ' forged'}">${isBase ? 'Base' : 'Advanced'}</span>
   <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(item.icon, 'mh-tactic-tile')}</div>
   <div class="mh-tactic-body">
     <div class="mh-tactic-head">
       <h3>${esc(item.name)}</h3>
     </div>
-    <p class="mh-tactic-meta">${isBase ? 'Base rune' : 'Advanced rune'}</p>
     <p class="mh-tactic-desc">${esc(item.description)}</p>
     ${costHtml}
   </div>

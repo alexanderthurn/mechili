@@ -1062,6 +1062,31 @@ html, body {
     line-height: 1.5;
     color: ${u.phase};
 }
+/* Base vs advanced reads as a corner tag rather than a line of subtitle: an
+   outline for the raw runes you buy, filled brass for the ones that came out of
+   a forge — the same "upgraded" jump the runes themselves make. */
+.mh-rune-tag {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: ${u.textMuted};
+    background: rgba(12, 9, 6, 0.55);
+    border: 1px solid ${u.border};
+}
+.mh-rune-tag.forged {
+    color: ${u.parchmentInk};
+    background: ${u.brassLight};
+    border-color: ${u.brassLight};
+    box-shadow: 0 1px 6px rgba(212, 184, 120, 0.35);
+}
+
 /* Rune cards run centred; the tactic cards they share their markup with stay
    left-aligned, where the longer stat lists read better. */
 .mh-rune .mh-tactic-body {
