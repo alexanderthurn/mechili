@@ -1285,6 +1285,13 @@ export class Unit {
      * his own keep, and he does not fire arrows through it.
      */
     fovYaw: number | null = null;
+    /**
+     * Which authored `UnitN` spot on its side's keep this pack occupies. The
+     * anchor is re-derived from that keep every frame rather than kept: a keep
+     * GROWS 10% per level, so a position baked when the archer was bought
+     * leaves him buried in the masonry the moment the keep is upgraded.
+     */
+    garrisonSlot: number | null = null;
     /** towers: down for the rest of the CURRENT battle — no longer a target, debuffs its owner's side */
     destroyed = false;
     /**

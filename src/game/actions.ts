@@ -885,6 +885,7 @@ export class ActionDispatcher {
                     action.team,
                     seat,
                 );
+                archer.garrisonSlot = GARRISON_SLOTS[taken]!;
                 archer.pinnedY = spot.y;
                 // outward from the keep's middle — the wedge behind him is the
                 // keep itself, and he does not shoot through his own walls
