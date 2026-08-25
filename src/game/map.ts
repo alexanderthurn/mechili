@@ -825,6 +825,92 @@ export class BattleMap {
     }
 
     /**
+     * Oriented soft rectangle wear (Hammer of the Gods footprint).
+     * Matches HAMMER_ZONE + placement yaw — not a circumscribed disc.
+     */
+    stampWearOrientedRect(
+        x: number,
+        z: number,
+        halfWidth: number,
+        halfDepth: number,
+        yaw: number,
+        opts?: { sand?: number; scorch?: number },
+    ): void {
+        if (!this.wearEnabled()) return;
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        const med = this.groundEffects === 'medium' ? 0.65 : 1;
+        const sandA = (opts?.sand ?? 0.22) * med * WEAR_BLEND.stampStrength;
+        const scorchA = (opts?.scorch ?? 0.5) * med * WEAR_BLEND.stampStrength;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const sx = this.sandW / this.width;
+        const sy = this.sandH / this.height;
+        const hx = Math.max(1, halfWidth * sx);
+        const hy = Math.max(1, halfDepth * sy);
+        if (sandA > 0.01) this.drawWearOrientedRect(ctx, cx, cy, hx, hy, yaw, sandA, 'r');
+        if (scorchA > 0.01) {
+            this.drawWearOrientedRect(ctx, cx, cy, hx * 0.96, hy * 0.96, yaw, scorchA, 'b');
+            this.drawWearOrientedRect(ctx, cx, cy, hx * 1.04, hy * 1.04, yaw, scorchA * 0.22, 'b');
+        }
+        this.sandDirty = true;
+    }
+
+    /** Soft axis-aligned fill after rotate(yaw) — short feather, clear rectangle. */
+    private drawWearOrientedRect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        halfW: number,
+        halfH: number,
+        yaw: number,
+        alpha: number,
+        channel: 'r' | 'g' | 'b',
+    ): void {
+        const a = Math.min(1, Math.max(0.02, alpha));
+        const rgb =
+            channel === 'r' ? `255,0,0` : channel === 'g' ? `0,255,0` : `0,0,255`;
+        const corner = Math.min(halfW, halfH) * 0.06;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(yaw);
+        const shells = 4;
+        for (let i = 0; i < shells; i++) {
+            const t = i / (shells - 1);
+            const grow = 1 + (1 - t) * 0.08;
+            const layerA = a * (0.35 + t * 0.65);
+            const w = halfW * grow;
+            const h = halfH * grow;
+            ctx.fillStyle = `rgba(${rgb},${layerA})`;
+            this.fillRoundedRect(ctx, -w, -h, w * 2, h * 2, corner * grow);
+        }
+        ctx.restore();
+    }
+
+    private fillRoundedRect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        r: number,
+    ): void {
+        const rr = Math.min(r, w * 0.5, h * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.lineTo(x + w - rr, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+        ctx.lineTo(x + w, y + h - rr);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+        ctx.lineTo(x + rr, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+        ctx.lineTo(x, y + rr);
+        ctx.quadraticCurveTo(x, y, x + rr, y);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    /**
      * Irregular tower-ruin scorch — blotchy organic shape (not a clean disc).
      * `seed` keeps the silhouette stable for a given world position.
      */

@@ -617,6 +617,54 @@ export class Particles {
         this.blood = new ParticlePool(scene, NormalBlending, 1.2);
     }
 
+    /**
+     * Hammer impact dust: kicks up from points across the oriented rectangle
+     * so the cloud follows the footprint instead of a circle.
+     */
+    private spawnRectExplosionDust(
+        x: number,
+        y: number,
+        z: number,
+        rect: { halfWidth: number; halfDepth: number; yaw: number },
+        heavy: boolean,
+    ): void {
+        const c = Math.cos(rect.yaw);
+        const sn = Math.sin(rect.yaw);
+        const hw = rect.halfWidth;
+        const hd = rect.halfDepth;
+        const samples = heavy ? 36 : 22;
+        for (let i = 0; i < samples; i++) {
+            const lx = (Math.random() * 2 - 1) * hw * 0.95;
+            const lz = (Math.random() * 2 - 1) * hd * 0.95;
+            const px = x + lx * c - lz * sn;
+            const pz = z + lx * sn + lz * c;
+            const ox = (lx / Math.max(hw, 1e-3)) * c - (lz / Math.max(hd, 1e-3)) * sn;
+            const oz = (lx / Math.max(hw, 1e-3)) * sn + (lz / Math.max(hd, 1e-3)) * c;
+            const olen = Math.hypot(ox, oz) || 1;
+            this.burst(px, y, pz, {
+                count: heavy ? 3 : 2,
+                color: i % 3 === 0 ? 0xb8a888 : 0x6e6558,
+                speed: heavy ? 5.5 : 4,
+                life: 0.55 + Math.random() * 0.25,
+                up: heavy ? 4.5 : 3.2,
+                dir: { x: ox / olen, y: 0.35, z: oz / olen },
+            });
+        }
+        for (let i = 0; i < 10; i++) {
+            const lx = (Math.random() * 2 - 1) * hw * 0.35;
+            const lz = (Math.random() * 2 - 1) * hd * 0.9;
+            const px = x + lx * c - lz * sn;
+            const pz = z + lx * sn + lz * c;
+            this.burst(px, y + 0.15, pz, {
+                count: 2,
+                color: 0x4a4338,
+                speed: 3,
+                life: 0.7,
+                up: 5,
+            });
+        }
+    }
+
     burst(
         x: number,
         y: number,
@@ -751,6 +799,18 @@ export class Particles {
                     break;
                 }
                 case 'explosion': {
+                    if (e.rect) {
+                        // Hammer: dust from the oriented footprint (not a radial disc)
+                        this.spawnRectExplosionDust(e.x, e.y, e.z, e.rect, !!e.heavy);
+                        if (e.shake) {
+                            screenShake({
+                                intensity: 0.5 * e.shake,
+                                duration: 0.5,
+                                frequency: 46,
+                            });
+                        }
+                        break;
+                    }
                     // dusty debris / scorched soil — not fire-yellow
                     const s = e.radius / 3;
                     const heavy = e.heavy ? 1.6 : 1;

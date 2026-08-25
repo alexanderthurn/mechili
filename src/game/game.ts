@@ -9247,10 +9247,22 @@ export class Game {
                     this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65, e.blood);
                 }
             } else if (e.kind === 'explosion') {
-                const scorchR = Math.max(e.radius * (e.heavy ? 1.15 : 0.9), 2);
-                this.map.stampScorch(e.x, e.z, scorchR, e.heavy ? 0.55 : 0.16);
-                if (e.heavy) {
-                    this.map.stampScorch(e.x, e.z, scorchR * 1.35, 0.28);
+                if (e.rect) {
+                    // Hammer: rectangular scar matching HAMMER_ZONE + yaw
+                    this.map.stampWearOrientedRect(
+                        e.x,
+                        e.z,
+                        e.rect.halfWidth,
+                        e.rect.halfDepth,
+                        e.rect.yaw,
+                        { sand: e.heavy ? 0.28 : 0.14, scorch: e.heavy ? 0.55 : 0.2 },
+                    );
+                } else {
+                    const scorchR = Math.max(e.radius * (e.heavy ? 1.15 : 0.9), 2);
+                    this.map.stampScorch(e.x, e.z, scorchR, e.heavy ? 0.55 : 0.16);
+                    if (e.heavy) {
+                        this.map.stampScorch(e.x, e.z, scorchR * 1.35, 0.28);
+                    }
                 }
             } else if (e.kind === 'groundFire') {
                 // Orange-tier only: permanent scar seed. Tongues tier uses live charcoal

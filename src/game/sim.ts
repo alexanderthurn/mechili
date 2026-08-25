@@ -531,6 +531,11 @@ export type SimEvent =
           fire?: boolean;
           /** camera kick strength; omitted/0 = no shake (most explosions) */
           shake?: number;
+          /**
+           * Oriented rectangle ground scar (Hammer of the Gods). When set,
+           * wear stamps this footprint instead of a circle of `radius`.
+           */
+          rect?: { halfWidth: number; halfDepth: number; yaw: number };
       }
     | {
           kind: 'death';
@@ -2262,7 +2267,7 @@ export class BattleSim {
         const y = simGroundHeightAt(s.x, s.z);
         const hammer = s.tacticId === HAMMER_ID;
         const meteor = s.tacticId === BIG_METEOR_ID;
-        // particles/scorch: cover the hammer footprint (approx half-diagonal)
+        // particles: cover the hammer footprint (approx half-diagonal)
         const visualRadius = hammer
             ? Math.sqrt(HAMMER_ZONE.halfWidth * HAMMER_ZONE.halfWidth + HAMMER_ZONE.halfDepth * HAMMER_ZONE.halfDepth)
             : s.radius;
@@ -2276,6 +2281,14 @@ export class BattleSim {
             heavy: hammer || meteor,
             fire: meteor,
             shake: meteor ? 1 : 0,
+            rect: hammer
+                ? {
+                      // ground scar / dust — slightly inside the damage footprint
+                      halfWidth: HAMMER_ZONE.halfWidth * 0.9,
+                      halfDepth: HAMMER_ZONE.halfDepth * 0.9,
+                      yaw: s.yaw ?? 0,
+                  }
+                : undefined,
         });
         this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
         this.applyBlastImpulse(
