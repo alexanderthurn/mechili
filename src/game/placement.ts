@@ -105,21 +105,42 @@ export function createRangeRing(scene: Scene): Mesh {
 const FOV_SEGMENTS = 64;
 /** matches RingGeometry(0.985, 1) — the same hairline the range ring uses */
 const FOV_INNER = 0.985;
+/** world width of the two spokes closing the arc back to the archer */
+const FOV_SPOKE_W = 0.6;
+/**
+ * Samples along each spoke. A spoke is as long as the range is wide, so two
+ * end points would span it as one flat chord straight through whatever relief
+ * lies between — the same reason the arc is not two points either.
+ */
+const FOV_SPOKE_SEGMENTS = 24;
+const FOV_ARC_VERTS = (FOV_SEGMENTS + 1) * 2;
+const FOV_SPOKE_VERTS = (FOV_SPOKE_SEGMENTS + 1) * 2;
 
 /**
  * The covered sector for a pack that can only shoot through part of the circle
  * — a garrison archer, whose own keep fills the rest. Deliberately the SAME
- * hairline band the range ring is: it is the same piece of information, and it
- * should not look like a different feature. The gap is where he cannot shoot.
+ * hairline the range ring is: it is the same piece of information and should
+ * not look like a different feature. Two spokes run from the arc's ends back
+ * to him, so the shape closes and the dead wedge is a wedge rather than a gap
+ * someone forgot to draw.
  */
 export function createFovWedge(scene: Scene): Mesh {
     const geo = new BufferGeometry();
-    const rim = FOV_SEGMENTS + 1;
-    geo.setAttribute('position', new BufferAttribute(new Float32Array(rim * 2 * 3), 3));
+    geo.setAttribute(
+        'position',
+        new BufferAttribute(new Float32Array((FOV_ARC_VERTS + FOV_SPOKE_VERTS * 2) * 3), 3),
+    );
     const idx: number[] = [];
     for (let i = 0; i < FOV_SEGMENTS; i++) {
         const a = i * 2;
         idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+    for (let spoke = 0; spoke < 2; spoke++) {
+        const base = FOV_ARC_VERTS + spoke * FOV_SPOKE_VERTS;
+        for (let i = 0; i < FOV_SPOKE_SEGMENTS; i++) {
+            const b = base + i * 2;
+            idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+        }
     }
     geo.setIndex(idx);
     const mesh = new Mesh(
@@ -142,6 +163,11 @@ export function createFovWedge(scene: Scene): Mesh {
  * Rebuild the band over `yaw` ± `half`. Unit-radius vertices scaled like the
  * ring, with Y draped in world units (scale.y stays 1), so it hugs the relief
  * exactly the way {@link placeRangeRing} does.
+ *
+ * Heights come from worldHeightAt, not the board-only groundHeightAt the ring
+ * uses: a garrison archer stands at the board's edge and most of his arc falls
+ * on the OUTER terrain, where the board-only sample reports flat and the band
+ * would cut through the hills it is drawn over.
  */
 export function placeFovWedge(
     mesh: Mesh,
@@ -151,20 +177,40 @@ export function placeFovWedge(
     yaw: number,
     half: number,
 ): void {
-    const anchorY = groundHeightAt(x, z);
+    const anchorY = worldHeightAt(x, z);
     const pos = mesh.geometry.attributes.position as BufferAttribute;
+    const put = (i: number, ux: number, uz: number): void => {
+        const wx = x + ux * radius;
+        const wz = z + uz * radius;
+        pos.setXYZ(i, ux, worldHeightAt(wx, wz) - anchorY, uz);
+    };
+
     for (let i = 0; i <= FOV_SEGMENTS; i++) {
         // matches fovYaw's own convention, detAtan2(dx, dz)
         const a = yaw - half + (i / FOV_SEGMENTS) * half * 2;
         const sx = Math.sin(a);
         const sz = Math.cos(a);
-        for (let k = 0; k < 2; k++) {
-            const r = k === 0 ? FOV_INNER : 1;
-            const wx = x + sx * r * radius;
-            const wz = z + sz * r * radius;
-            pos.setXYZ(i * 2 + k, sx * r, groundHeightAt(wx, wz) - anchorY, sz * r);
+        put(i * 2, sx * FOV_INNER, sz * FOV_INNER);
+        put(i * 2 + 1, sx, sz);
+    }
+
+    // the two spokes home to the archer, so the sector reads as a sector —
+    // walked in steps like the arc so they follow the ground on the way out
+    const hw = FOV_SPOKE_W / (2 * Math.max(radius, 1e-3));
+    for (let spoke = 0; spoke < 2; spoke++) {
+        const a = spoke === 0 ? yaw - half : yaw + half;
+        const sx = Math.sin(a);
+        const sz = Math.cos(a);
+        const px = Math.cos(a) * hw;
+        const pz = -Math.sin(a) * hw;
+        const base = FOV_ARC_VERTS + spoke * FOV_SPOKE_VERTS;
+        for (let i = 0; i <= FOV_SPOKE_SEGMENTS; i++) {
+            const r = i / FOV_SPOKE_SEGMENTS;
+            put(base + i * 2, sx * r - px, sz * r - pz);
+            put(base + i * 2 + 1, sx * r + px, sz * r + pz);
         }
     }
+
     pos.needsUpdate = true;
     mesh.position.set(x, 0.12 + anchorY, z);
     mesh.scale.set(radius, 1, radius);
