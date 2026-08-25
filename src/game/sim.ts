@@ -40,6 +40,7 @@ import {
     COMMAND_TOWER,
     DEPLOY_AIR_Y,
     RESEARCH_CENTER,
+    STRONGHOLD,
     bloodColorOf,
     resolveDeathWear,
     projectileAimY,
@@ -113,6 +114,8 @@ export interface SimConfig {
     /** a seat's talent picks — only fire profiles need the SELECTION itself
      *  (everything else filters through hasTech, which already reflects it) */
     loadoutOf: (seat: SeatId) => Loadout | undefined;
+    /** `lifeline` mode: a side's packs drop the moment its Stronghold does */
+    strongholdLifeline: boolean;
     /** base flank spawn duration in seconds (before per-seat multiplier) */
     flankSpawnSeconds: number;
     /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
@@ -2844,6 +2847,19 @@ export class BattleSim {
             clearBattleTint(target.mesh);
             if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
             getUnitInstanceRenderer()?.setDead(target.mesh);
+        }
+        // Lifeline: a side's army stands only while its Stronghold does. Killed
+        // with no killer, so this grants no XP and triggers no on-kill spawns —
+        // the Stronghold's slayer earns the siege, not a dozen extra kills. The
+        // round then ends on its own, with nothing mobile left on that side.
+        if (this.config.strongholdLifeline && target.unit.type === STRONGHOLD) {
+            const side = actorTeam(target);
+            for (const a of this.actors) {
+                if (!a.alive || a === target) continue;
+                if (a.unit.type.structure) continue; // the buildings stay standing
+                if (actorTeam(a) !== side) continue;
+                this.kill(a, null);
+            }
         }
     }
 

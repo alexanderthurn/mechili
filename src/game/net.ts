@@ -9,7 +9,7 @@ import { getAvatarDataUrl } from './avatar';
 import { activeLoadout } from './loadouts';
 import type { Loadout } from './techCatalog';
 import type { CanonicalSeatDef, SeatId } from './seats';
-import type { GameSettings } from './settings';
+import type { GameSettings, StrongholdMode } from './settings';
 import type { Team } from './units';
 
 /** PeerJS signaling target — null means the public PeerJS cloud. */
@@ -269,6 +269,8 @@ export interface CustomGameConfig {
     roundCardPreset: string;
     /** multiplies each commander card’s starting HP (both teams); see GameSettings.commanderHpFactor */
     commanderHpFactor: number;
+    /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
+    strongholdMode: StrongholdMode;
 }
 
 /**

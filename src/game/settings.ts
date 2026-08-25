@@ -49,6 +49,8 @@ export interface GameSettings {
      * Team HP itself comes only from those card grants (summed in 2v2).
      */
     commanderHpFactor: number;
+    /** what the Stronghold is worth this match (see {@link StrongholdMode}) */
+    strongholdMode: StrongholdMode;
     economy: EconomySettings;
     towers: TowerSettings;
     leveling: LevelingSettings;
@@ -258,6 +260,41 @@ export function formatCustomGamePaceOption(p: CustomGamePacePreset): string {
     return `${p.label} — Deploy ${p.buildSeconds}s · Battle ${p.battleSeconds}s · ${DISPLAY.commander} ${p.specialistSeconds}s · Cards ${p.cardSeconds}s`;
 }
 
+/**
+ * What the Stronghold is worth in a match.
+ *
+ * - `standard`  — a building like any other; losing it costs you the forge.
+ * - `lifeline`  — the side's army lives only while it stands. Break one and
+ *                 every pack on that side drops, which ends the round on the
+ *                 spot: a siege win instead of a grind.
+ * - `none`      — no Stronghold on the board at all, so no forge either.
+ */
+export type StrongholdMode = 'standard' | 'lifeline' | 'none';
+
+export interface StrongholdModeOption {
+    mode: StrongholdMode;
+    label: string;
+}
+
+export const STRONGHOLD_MODE_OPTIONS: readonly StrongholdModeOption[] = [
+    { mode: 'standard', label: 'Standard' },
+    { mode: 'lifeline', label: 'Army falls with it' },
+    { mode: 'none', label: 'None on the board' },
+];
+
+export const DEFAULT_STRONGHOLD_MODE: StrongholdMode = 'standard';
+
+/** Snap anything off the wire, a save or a URL onto a known mode. */
+export function strongholdModeOption(raw: unknown): StrongholdMode {
+    return STRONGHOLD_MODE_OPTIONS.some((o) => o.mode === raw)
+        ? (raw as StrongholdMode)
+        : DEFAULT_STRONGHOLD_MODE;
+}
+
+export function formatStrongholdModeOption(o: StrongholdModeOption): string {
+    return `Stronghold: ${o.label}`;
+}
+
 /** Custom Game commander-HP multiplier options — both teams share one factor. */
 export interface CommanderHpFactorOption {
     factor: number;
@@ -299,6 +336,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     specialistTimeSeconds: 15,
     cardTimeSeconds: 15,
     commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+    strongholdMode: DEFAULT_STRONGHOLD_MODE,
     economy: {
         startingSupply: 200,
         supplyGrowthPerRound: 200,
@@ -422,6 +460,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         roundCardPreset: resolveRoundCardPreset(legacy),
         hordePreset: resolveHordePreset(legacy),
         commanderHpFactor: resolveCommanderHpFactor(settings.commanderHpFactor),
+        strongholdMode: strongholdModeOption(settings.strongholdMode),
     };
 }
 
@@ -563,6 +602,21 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     label: `${DISPLAY.commander} HP factor`,
                     value: `×${settings.commanderHpFactor}`,
                     note: 'scales each commander card’s starting HP for both teams',
+                },
+                {
+                    label: 'Stronghold',
+                    value:
+                        settings.strongholdMode === 'lifeline'
+                            ? 'Army falls with it'
+                            : settings.strongholdMode === 'none'
+                              ? 'None on the board'
+                              : 'Standard',
+                    note:
+                        settings.strongholdMode === 'lifeline'
+                            ? 'break one and every pack on that side drops — the round ends there'
+                            : settings.strongholdMode === 'none'
+                              ? 'no Stronghold, so no forge either'
+                              : 'a building like any other; losing it costs you the forge',
                 },
             ],
         },

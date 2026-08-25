@@ -2619,20 +2619,22 @@ export class Game {
             this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
         };
 
-        spawnBuilding(
-            BASE_ANCHORS.stronghold.xFrac,
-            BASE_ANCHORS.stronghold.rowFrac,
-            STRONGHOLD,
-            'player',
-            primarySeatOf(this.seats, 'player'),
-        );
-        spawnBuilding(
-            BASE_ANCHORS.stronghold.xFrac,
-            BASE_ANCHORS.stronghold.rowFrac,
-            STRONGHOLD,
-            'enemy',
-            primarySeatOf(this.seats, 'enemy'),
-        );
+        if (this.settings.strongholdMode !== 'none') {
+            spawnBuilding(
+                BASE_ANCHORS.stronghold.xFrac,
+                BASE_ANCHORS.stronghold.rowFrac,
+                STRONGHOLD,
+                'player',
+                primarySeatOf(this.seats, 'player'),
+            );
+            spawnBuilding(
+                BASE_ANCHORS.stronghold.xFrac,
+                BASE_ANCHORS.stronghold.rowFrac,
+                STRONGHOLD,
+                'enemy',
+                primarySeatOf(this.seats, 'enemy'),
+            );
+        }
 
         for (const team of ['player', 'enemy'] as const) {
             for (const seat of seatIdsOf(this.seats, team)) {
@@ -7856,6 +7858,7 @@ export class Game {
             boardHalfW: this.map.halfW,
             boardHalfZ: this.map.halfH,
             loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
+            strongholdLifeline: this.settings.strongholdMode === 'lifeline',
         });
         this.debugLog.log('sim.battleStart', {
             watching: this.watching,

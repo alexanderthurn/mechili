@@ -85,6 +85,10 @@ import { openSuggest } from './suggest';
 import { cssUrl, iconHtml } from './ui/iconAtlas';
 import {
     COMMANDER_HP_FACTOR_OPTIONS,
+    STRONGHOLD_MODE_OPTIONS,
+    DEFAULT_STRONGHOLD_MODE,
+    formatStrongholdModeOption,
+    strongholdModeOption,
     CUSTOM_GAME_PACE_PRESETS,
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
@@ -168,6 +172,7 @@ const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     hordePreset: DEFAULT_HORDE_PRESET_ID,
     roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
     commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+    strongholdMode: DEFAULT_STRONGHOLD_MODE,
 };
 
 const CUSTOM_GAME_KEY = 'mechili-custom-game';
@@ -217,6 +222,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             hordePreset: hordeAlgorithmById(hordePreset).id,
             roundCardPreset: roundCardAlgorithmById(roundCardPreset).id,
             commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor),
+            strongholdMode: strongholdModeOption(parsed.strongholdMode),
         };
     } catch {
         return { ...DEFAULT_CUSTOM_GAME };
@@ -240,6 +246,7 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.roundCardPreset = roundCardAlgorithmById(cfg.roundCardPreset).id;
     settings.hordePreset = hordeAlgorithmById(cfg.hordePreset).id;
     settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
+    settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
 }
 
 // dev override: tweak match settings from the URL, e.g. ?build=20&nocards
@@ -1023,6 +1030,9 @@ menu.innerHTML = `
                 <label class="m-field">HP
                     <select class="cg-commander-hp"></select>
                 </label>
+                <label class="m-field">Stronghold
+                    <select class="cg-stronghold"></select>
+                </label>
                 <button type="button" class="m-lobby-settings-reset" hidden>Reset to defaults</button>
             </div>
         </div>
@@ -1171,6 +1181,7 @@ const cgPaceEl = menu.querySelector<HTMLSelectElement>('.cg-pace')!;
 const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
 const cgRoundCardsEl = menu.querySelector<HTMLSelectElement>('.cg-roundcards')!;
 const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp')!;
+const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
 const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-toggle')!;
@@ -1349,15 +1360,24 @@ for (const optHp of COMMANDER_HP_FACTOR_OPTIONS) {
 }
 wireSelectShortLabels(cgCommanderHpEl);
 
+for (const optSh of STRONGHOLD_MODE_OPTIONS) {
+    const opt = document.createElement('option');
+    opt.value = optSh.mode;
+    fillSelectOption(opt, optSh.label, formatStrongholdModeOption(optSh));
+    cgStrongholdEl.appendChild(opt);
+}
+wireSelectShortLabels(cgStrongholdEl);
+
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'strongholdMode'
 > {
     return {
         pace: DEFAULT_CUSTOM_GAME_PACE_ID,
         hordePreset: DEFAULT_HORDE_PRESET_ID,
         roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
         commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+        strongholdMode: DEFAULT_STRONGHOLD_MODE,
     };
 }
 
@@ -1380,6 +1400,7 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgHordeEl.value = hordeAlgorithmById(cfg.hordePreset).id;
     cgRoundCardsEl.value = roundCardAlgorithmById(cfg.roundCardPreset).id;
     cgCommanderHpEl.value = String(commanderHpFactorOption(cfg.commanderHpFactor));
+    cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
     // Always short in the closed box — hosts open the list for details;
     // guests get a hover/tap tip (see wireLobbySettingTips).
     for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl]) {
@@ -1483,13 +1504,14 @@ wireLobbySettingTips();
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'strongholdMode'
 > {
     return {
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
         commanderHpFactor: commanderHpFactorOption(Number(cgCommanderHpEl.value)),
+        strongholdMode: strongholdModeOption(cgStrongholdEl.value),
     };
 }
 
