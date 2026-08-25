@@ -9504,6 +9504,7 @@ export class Game {
             attackInterval: rs.attackInterval,
             splash: rs.splashRadius || undefined,
             structure: !!u.type.structure,
+            onDestroyed: this.destructionNote(u),
             unitId: u.id,
             items: this.selectionItems(u, false),
             itemSlotCount:
@@ -9552,6 +9553,7 @@ export class Game {
             xp: lv.xp,
             xpNext: lv.xpNext,
             structure: !!u.type.structure,
+            onDestroyed: this.destructionNote(u),
             unitId: u.id,
             items: this.selectionItems(u, ownInteractive && !fogItems, fogItems),
             itemSlotCount:
@@ -9855,6 +9857,31 @@ export class Game {
                 enemy: this.forgeLitBy.enemy !== null,
             },
         };
+    }
+
+    /**
+     * What a building's fall costs its owner — the line that replaces the
+     * combat stats a structure has no use for.
+     *
+     * Reads live match settings on purpose: the Stronghold's answer depends on
+     * `strongholdMode`, and a tower's debuff window shrinks as it levels.
+     */
+    private destructionNote(u: Unit): string | undefined {
+        if (!u.type.structure) return undefined;
+        if (u.type === STRONGHOLD) {
+            return this.settings.strongholdMode === 'lifeline'
+                ? 'Every pack on this side falls with it — the round ends there.'
+                : 'No debuff. The forge and its runes are lost.';
+        }
+        if (u.type !== COMMAND_TOWER && u.type !== RESEARCH_CENTER) return undefined;
+        const d = this.settings.towers.debuffPerLostTower;
+        const dur = this.settings.towers.debuffDuration;
+        const seconds = Math.max(1, dur.baseSeconds - (u.level - 1) * dur.stepSeconds);
+        return (
+            `This seat's packs for ${seconds}s: ` +
+            `×${d.speedMult} speed, ×${d.attackMult} attack, ` +
+            `×${d.damageTakenMult} damage taken.`
+        );
     }
 
     /**

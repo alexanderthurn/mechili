@@ -200,6 +200,9 @@ export interface SelectionInfo {
             removable?: boolean;
         } | null)[];
     };
+    /** what this building's fall costs its owner — shown instead of the
+     *  combat stats a structure that cannot shoot has no use for */
+    onDestroyed?: string;
     /** lifetime combat record (absent for structures/extras) */
     record?: { damageDealt: number; kills: number };
     /** veterancy of the pack; xpNext < 0 means max level */
@@ -2807,6 +2810,9 @@ export class Hud {
             : info.xpNext < 0
               ? 'max'
               : `${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`;
+        // structures that shoot (the rocket pad) keep their combat rows; the
+        // towers report 0 damage / 0 range / 0 speed and only clutter with them
+        const combatless = info.structure && info.damage <= 0 && info.range <= 0;
         this.panel.innerHTML =
             `<div class="panel-head">` +
             `<div class="lvl-big"><span class="lvl-cap">LVL</span><span class="lvl-num">${info.level}</span></div>` +
@@ -2822,11 +2828,22 @@ export class Hud {
             liveRow('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`, 'hp') +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
             row('Level', levelLabel) +
-            row('Damage', String(Math.round(info.damage))) +
-            row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
-            (info.splash ? row('Splash', String(info.splash)) : '') +
-            row('Range', info.minRange ? `${info.minRange} - ${info.range}` : String(info.range)) +
-            row('Speed', String(info.speed)) +
+            // A building that cannot shoot has no damage, reload, range or
+            // speed worth four rows of zeroes — what its owner actually needs
+            // to know is what breaking it costs them.
+            (combatless
+                ? info.onDestroyed
+                    ? `<div class="destroyed"><span class="k">If destroyed</span>` +
+                      `<span class="v">${escapeHtml(info.onDestroyed)}</span></div>`
+                    : ''
+                : row('Damage', String(Math.round(info.damage))) +
+                  row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
+                  (info.splash ? row('Splash', String(info.splash)) : '') +
+                  row(
+                      'Range',
+                      info.minRange ? `${info.minRange} - ${info.range}` : String(info.range),
+                  ) +
+                  row('Speed', String(info.speed))) +
             (info.record
                 ? liveRow('Total dmg', String(Math.round(info.record.damageDealt)), 'dmg') +
                   liveRow('Kills', String(info.record.kills), 'kills')

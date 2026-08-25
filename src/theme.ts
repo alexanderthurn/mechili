@@ -3985,6 +3985,29 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-panel .team.enemy { color: ${ec}; }
 .mechili-panel .team.horde { color: ${HORDE_COLOR.css}; }
 .mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
+/* a building's fall is a sentence, not a number — it gets the panel's full
+   width instead of being squeezed into a .row's value column */
+.mechili-panel .destroyed {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 6px 0 2px;
+    padding: 6px 8px;
+    border-left: 2px solid ${u.brass};
+    background: rgba(0, 0, 0, 0.22);
+    font-size: 12px;
+}
+.mechili-panel .destroyed .k {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: ${u.textMuted};
+}
+.mechili-panel .destroyed .v {
+    color: ${u.brass};
+    line-height: 1.4;
+}
 .mechili-panel .row .v { color: ${u.brass}; font-variant-numeric: tabular-nums; }
 .mechili-panel .xpbar { height: 5px; margin: 0 0 5px; background: rgba(255, 255, 255, 0.38); border-radius: 3px; overflow: hidden; }
 .mechili-panel .xpbar.player div { height: 100%; background: ${pc}; }
