@@ -2435,6 +2435,14 @@ export class BattleSim {
                 if (hypot(dx, dz) > radius) continue; // the front has not arrived
                 const len = hypot(dx, dz) || 1;
                 const away = { x: dx / len, z: dz / len };
+                if (a.unit.type.shield) {
+                    // A Ward Stone has no colliders — nothing can shoot it, and
+                    // its only end is its pool running out. Take that path
+                    // rather than kill(), or the dome is left hanging over a
+                    // pylon that has already fallen.
+                    this.breakShield(a);
+                    continue;
+                }
                 if (a.unit.type.structure) {
                     // the base goes down with the keep. Towers topple away from
                     // it, but a razed tower is not one an enemy brought down:
