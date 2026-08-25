@@ -14,9 +14,12 @@ import {
 import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
 import {
     FORGE_SLOTS_PER_PLAYER,
+    forgeProductCost,
     forgeSeatCanInsert,
     forgeSeatFilledCount,
+    resolveForge,
     type ForgeSlot,
+    type ForgeSpellPool,
 } from './forgeRecipes';
 import { isTechSelectedForUnit, techById } from './techCatalog';
 import {
@@ -136,6 +139,14 @@ export interface BuyRallyRouteAbilityAction {
 /** grants one move-pack charge (Vanguard, once per match) */
 export interface BuyMovePackAbilityAction {
     kind: 'buyMovePackAbility';
+    team: Team;
+}
+/**
+ * Pays to fire the Stronghold's oven on what it currently holds. Until this
+ * runs the runes just sit there; the product arrives next deployment.
+ */
+export interface ForgeLightAction {
+    kind: 'forgeLight';
     team: Team;
 }
 /** buys one charge of a spell your own commander knows (Stronghold, once each) */
@@ -345,6 +356,7 @@ type ActionVariant =
     | BuyRallyRouteAbilityAction
     | BuyMovePackAbilityAction
     | BuyForgeSpellAction
+    | ForgeLightAction
     | SellUnitAction
     | MobilizeUnitAction
     | TutorUnitAction
@@ -487,6 +499,10 @@ export interface ActionContext {
      * are logged; burn+grant happens in Game.startBuildPhase (not an action).
      */
     forgeSlots: Record<Team, (ForgeSlot | null)[]>;
+    /** paid-for ovens: set by `forgeLight`, cleared when the oven resolves */
+    forgeLit: Record<Team, boolean>;
+    /** which spells this side's commanders unlock — gates the recipe match */
+    forgePoolOf: (team: Team) => ForgeSpellPool;
     /** rally routes placed this deployment round (cleared each round) */
     rallyRoutes: RallyRoute[];
     /** monotonic id source for rally routes */
@@ -1102,8 +1118,22 @@ export class ActionDispatcher {
                 entry.itemAppliedRound = appliedRound;
                 return true;
             }
+            case 'forgeLight': {
+                if (this.ctx.forgeLit[action.team]) return false; // already paid
+                const oven = this.ctx.forgeSlots[action.team]!;
+                const product = resolveForge(oven, this.ctx.forgePoolOf(action.team)).product;
+                if (!product) return false; // nothing complete to pay for
+                const cost = forgeProductCost(product);
+                if (!economy.spend(seat, cost)) return false;
+                entry.paid = cost;
+                this.ctx.forgeLit[action.team] = true;
+                return true;
+            }
             case 'forgeInsert': {
                 if (!ITEMS[action.itemId]) return false;
+                // a lit oven is paid for: changing its runes would change what
+                // was bought, so it is sealed until it resolves
+                if (this.ctx.forgeLit[action.team]) return false;
                 const oven = this.ctx.forgeSlots[action.team]!;
                 if (!forgeSeatCanInsert(oven, seat)) return false;
                 let slot = action.slot;
@@ -1120,6 +1150,7 @@ export class ActionDispatcher {
                 return true;
             }
             case 'forgeFill': {
+                if (this.ctx.forgeLit[action.team]) return false; // sealed, see forgeInsert
                 const ids = action.itemIds;
                 if (ids.length === 0 || ids.length > FORGE_SLOTS_PER_PLAYER) return false;
                 for (const id of ids) {
@@ -1153,6 +1184,7 @@ export class ActionDispatcher {
                 return true;
             }
             case 'forgeRemove': {
+                if (this.ctx.forgeLit[action.team]) return false; // sealed, see forgeInsert
                 const oven = this.ctx.forgeSlots[action.team]!;
                 const { slot, itemId } = action;
                 if (slot < 0 || slot >= oven.length) return false;
@@ -1598,6 +1630,10 @@ export class ActionDispatcher {
                 if (i >= 0) bag.splice(i, 1);
                 break;
             }
+            case 'forgeLight':
+                this.ctx.forgeLit[action.team] = false;
+                economy.credit(seat, e.paid!);
+                break;
             case 'forgeInsert': {
                 const oven = this.ctx.forgeSlots[action.team]!;
                 const slot = e.itemSlot ?? action.slot ?? 0;

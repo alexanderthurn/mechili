@@ -39,6 +39,7 @@ import {
     resolveForge,
     unionForgeSpellPools,
     type ForgeSlot,
+    forgeProductCost,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
 import {
@@ -667,6 +668,8 @@ export class Game {
     /** per-SEAT tactical order charges (rally routes, etc.) — separate from pack items, never shared */
     private readonly tacticInventory: string[][];
     /** shared Stronghold forge oven per side (3 slots; burn at next deploy start) */
+    /** paid-for ovens — set by `forgeLight`, cleared when the oven resolves */
+    private readonly forgeLit: Record<Team, boolean> = { player: false, enemy: false };
     private readonly forgeSlots: Record<Team, (ForgeSlot | null)[]> = {
         player: emptyForgeSlots(),
         enemy: emptyForgeSlots(),
@@ -1445,6 +1448,8 @@ export class Game {
             items: this.itemInventory,
             tactics: this.tacticInventory,
             forgeSlots: this.forgeSlots,
+            forgeLit: this.forgeLit,
+            forgePoolOf: (team: Team) => this.teamForgePool(team),
             rallyRoutes: this.rallyRoutes,
             rallyRouteIds: this.rallyRouteIds,
             oilField: this.oilField,
@@ -1663,7 +1668,6 @@ export class Game {
         // Game instance's lifetime, so this is a one-time hide, not a toggle
         if (this.watching) this.hud.setSpeedButtonVisible(false);
         this.hud.setSpeedSteps(this.speedSteps);
-        this.hud.setForgeFee(settings.deploy.forgeCost);
         this.hud.onMenuToggle = () => this.togglePauseMenu();
         // touch stand-in for middle-click (rotate)
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
@@ -1867,6 +1871,12 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyCredit', team: 'player' });
+        };
+        this.hud.onForgeLight = () => {
+            const unit = this.placement.selectedUnit;
+            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (!this.playerCanAct) return;
+            this.dispatchPlayer({ kind: 'forgeLight', team: 'player' });
         };
         this.hud.onBuyForgeSpell = (tacticId) => {
             const unit = this.placement.selectedUnit;
@@ -7096,20 +7106,29 @@ export class Game {
         for (const team of ['player', 'enemy'] as const) {
             const oven = this.forgeSlots[team]!;
             const pool = this.teamForgePool(team);
-            const result = resolveForge(oven, pool);
-            if (result.product?.kind === 'tactic') {
-                for (const seat of seatIdsOf(this.seats, team)) {
-                    this.tacticInventory[seat]!.push(result.product.id);
+            if (!this.forgeLit[team]) {
+                // Nobody paid to fire it, so nothing was forged — every rune
+                // goes back to whoever put it in, matched recipe or not.
+                for (const slot of oven) {
+                    if (slot) this.itemInventory[slot.seat]!.push(slot.itemId);
                 }
-            } else if (result.product?.kind === 'item') {
-                // same as spells: every seat on the side receives one copy
-                for (const seat of seatIdsOf(this.seats, team)) {
-                    this.itemInventory[seat]!.push(result.product.id);
+            } else {
+                const result = resolveForge(oven, pool);
+                if (result.product?.kind === 'tactic') {
+                    for (const seat of seatIdsOf(this.seats, team)) {
+                        this.tacticInventory[seat]!.push(result.product.id);
+                    }
+                } else if (result.product?.kind === 'item') {
+                    // same as spells: every seat on the side receives one copy
+                    for (const seat of seatIdsOf(this.seats, team)) {
+                        this.itemInventory[seat]!.push(result.product.id);
+                    }
+                }
+                for (const { itemId, seat } of result.refunds) {
+                    this.itemInventory[seat]!.push(itemId);
                 }
             }
-            for (const { itemId, seat } of result.refunds) {
-                this.itemInventory[seat]!.push(itemId);
-            }
+            this.forgeLit[team] = false;
             this.forgeSlots[team] = emptyForgeSlots(
                 forgeTeamCapacity(seatIdsOf(this.seats, team).length),
             );
@@ -7181,7 +7200,7 @@ export class Game {
                 : this.forgeSlots[team]!;
             targets.push({
                 unit,
-                mode: forgeGlowMode(oven, this.teamForgePool(team)),
+                mode: forgeGlowMode(oven, this.teamForgePool(team), this.forgeLit[team] ?? false),
             });
         }
         this.forgeFx.update(dt, this.time, targets, this.scene);
@@ -9890,9 +9909,13 @@ export class Game {
         const bakeInfo = bakeResult.product
             ? forgeProductInfo(bakeResult.product)
             : null;
+        const lit = this.forgeLit[team] ?? false;
+        const bakeCost = bakeResult.product ? forgeProductCost(bakeResult.product) : 0;
         out.forge = {
             slotCount,
-            dropReady: !fogged && this.canDropForgeOn(u),
+            lit,
+            bakeAffordable: canBuy && !lit && this.economy.balance(this.humanSeat) >= bakeCost,
+            dropReady: !fogged && !lit && this.canDropForgeOn(u),
             hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool),
             suggestions,
             spellPool: pool,
@@ -9901,6 +9924,9 @@ export class Game {
                       icon: bakeInfo.icon,
                       name: bakeInfo.name,
                       desc: bakeInfo.desc,
+                      forgeCost: bakeResult.product
+                          ? forgeProductCost(bakeResult.product)
+                          : 0,
                       ingredientIcons:
                           bakeResult.product?.kind === 'tactic'
                               ? forgeIngredientIcons(bakeResult.product.id)

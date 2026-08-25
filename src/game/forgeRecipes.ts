@@ -407,6 +407,11 @@ function summarizeMultiset(names: string[]): string {
         .join(' + ');
 }
 
+/** Supply the oven charges to produce this — per product, 0 when it is free. */
+export function forgeProductCost(product: ForgeProduct): number {
+    return product.kind === 'item' ? (ITEMS[product.id]?.forgeCost ?? 0) : 0;
+}
+
 export interface ForgeHelpRow {
     /** rune item ids (for matching against the oven) */
     ingredients: string[];
@@ -416,6 +421,8 @@ export interface ForgeHelpRow {
     spellDesc: string;
     /** 'item' = advanced rune; 'tactic' = spell */
     productKind: ForgeProduct['kind'];
+    /** supply to fire the oven for this one, on top of the ingredients */
+    forgeCost: number;
 }
 
 function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
@@ -431,6 +438,7 @@ function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
         spellName: info.name,
         spellDesc: info.desc,
         productKind: recipe.product.kind,
+        forgeCost: forgeProductCost(recipe.product),
     };
 }
 
@@ -523,6 +531,8 @@ export interface RuneCardForgeRow {
     /** every ingredient owned once this card is taken */
     ready: boolean;
     ingredients: { itemId: string; icon: string; owned: boolean }[];
+    /** supply to fire the oven for this one, on top of the ingredients */
+    forgeCost: number;
 }
 
 /**
@@ -557,6 +567,7 @@ export function forgeRecipesForRuneCard(
             spellDesc: info.desc,
             ready: ingredients.every((ing) => ing.owned),
             ingredients,
+            forgeCost: forgeProductCost(recipe.product),
         });
     }
     rows.sort((a, b) => a.ingredients.length - b.ingredients.length);

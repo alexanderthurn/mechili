@@ -4,7 +4,7 @@
  */
 import { AdditiveBlending, NormalBlending, type Scene } from 'three';
 import { SoftParticlePool } from './effects';
-import { resolveForge, type ForgeSlot, type ForgeSpellPool } from './forgeRecipes';
+import { type ForgeSlot, type ForgeSpellPool } from './forgeRecipes';
 import { strongholdFlagAnchorWorld } from './strongholdFlags';
 import { STRONGHOLD, type Unit } from './units';
 
@@ -16,7 +16,8 @@ const SPAWN_JITTER = 0.28;
 /** Derive spark intensity from oven contents + unlocked spell pool. */
 export function forgeGlowMode(
     oven: readonly (ForgeSlot | null)[],
-    pool: ForgeSpellPool,
+    _pool: ForgeSpellPool,
+    lit = false,
 ): ForgeGlowMode {
     let filled = false;
     for (const s of oven) {
@@ -26,7 +27,10 @@ export function forgeGlowMode(
         }
     }
     if (!filled) return 'off';
-    return resolveForge(oven, pool).product ? 'ready' : 'cooking';
+    // A complete recipe is no longer enough — the oven only fires once someone
+    // has paid for it, so that is what the chimney advertises. Runes sitting in
+    // an unpaid oven just smoulder.
+    return lit ? 'ready' : 'cooking';
 }
 
 type ChimneyPreset = {

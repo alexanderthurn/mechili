@@ -182,13 +182,6 @@ export interface DeploySettings {
     baseRuneCost: number;
     /** each shop rune purchase raises the next one's price by this much (per seat, match-long) */
     runeCostStep: number;
-    /**
-     * Supply charged on top of the ingredients when the Stronghold forges an
-     * advanced rune. 0 today and NOT YET CHARGED — the forge takes only the
-     * runes. It exists so the price has one home the moment it becomes real;
-     * the homepage already prints it beside the ingredients.
-     */
-    forgeCost: number;
     /** Command Tower: price of +1 buy for the running round only */
     extraSlotCost: number;
     /** Command Tower: +rangeBoost range for all ranged units this round only */
@@ -342,7 +335,6 @@ export const DEFAULT_SETTINGS: GameSettings = {
         unitsPerRound: 2,
         baseRuneCost: 50,
         runeCostStep: 0,
-        forgeCost: 0,
         extraSlotCost: 50,
         rangedRangeBoostCost: 100,
         rangeBoost: 5,

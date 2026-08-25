@@ -180,9 +180,15 @@ export interface SelectionInfo {
             name: string;
             desc: string;
             ingredientIcons?: string[];
+            /** supply to fire the oven for it */
+            forgeCost?: number;
         };
         /** tactic ids this side's specialists unlock */
         spellPool?: string[];
+        /** the oven has been paid for — it bakes at the next deployment */
+        lit?: boolean;
+        /** affordable only matters while unlit; the tile is the buy button */
+        bakeAffordable?: boolean;
         /** parallel to slotCount; null = empty */
         slots: ({
             icon: string;
@@ -286,6 +292,7 @@ export class Hud {
     onBuySellAbility: (() => void) | null = null;
     onBuyRallyRouteAbility: (() => void) | null = null;
     onBuyForgeSpell: ((tacticId: string) => void) | null = null;
+    onForgeLight: (() => void) | null = null;
     onBuyMovePackAbility: (() => void) | null = null;
     /**
      * Shop unlock fee as THIS seat pays it (Countess Chonk discounts giants).
@@ -889,6 +896,7 @@ export class Hud {
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
             else if (button.dataset.forgespell) this.onBuyForgeSpell?.(button.dataset.forgespell);
+            else if (button.dataset.forgeLight) this.onForgeLight?.();
             else if (button.dataset.movepack) this.onBuyMovePackAbility?.();
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
             else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
@@ -2679,7 +2687,7 @@ export class Hud {
         const forgeSquares = !forge
             ? ''
             : `<div class="forge-block${forge.bake ? ' ready' : ''}">` +
-              `<div class="forge-label">Forge${forge.bake ? ' · ready' : ''}</div>` +
+              `<div class="forge-label">Forge${forge.lit ? ' · firing' : forge.bake ? ' · ready' : ''}</div>` +
               `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
                   const item = forge.slots[i];
                   if (!item) {
@@ -2725,13 +2733,29 @@ export class Hud {
               }).join('')}` +
               (forge.bake
                   ? `<span class="forge-bake-arrow" aria-hidden="true">→</span>` +
-                    `<span class="item-sq m-icon forge-bake" style="${iconCss(forge.bake.icon)}" ` +
-                    `data-spell-tip="1" ` +
-                    `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
-                    `data-tdesc="${escapeAttr(`${forge.bake.desc}\nBurns into this ${DISPLAY.tactic.toLowerCase()} next deploy.`)}" ` +
-                    `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
-                    `data-tfee="${this.forgeFee}" ` +
-                    `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}"></span>`
+                    (forge.lit
+                        ? // paid for: this is what comes out next deployment
+                          `<span class="item-sq m-icon forge-bake" style="${iconCss(forge.bake.icon)}" ` +
+                          `data-spell-tip="1" ` +
+                          `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
+                          `data-tdesc="${escapeAttr(`${forge.bake.desc}\nFiring — ready next deployment.`)}" ` +
+                          `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
+                          `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}"></span>`
+                        : // not paid for yet: the same square becomes the buy button
+                          `<button type="button" class="action-tile forge-buy ${
+                              forge.bakeAffordable ? 'buy' : 'locked'
+                          }" data-forge-light="1" ` +
+                          `data-spell-tip="1" ` +
+                          `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
+                          `data-tdesc="${escapeAttr(`${forge.bake.desc}\nFire the forge to start it — ready next deployment.`)}" ` +
+                          `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
+                          (forge.bake.forgeCost === undefined
+                              ? ''
+                              : `data-tfee="${forge.bake.forgeCost}" `) +
+                          `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}">` +
+                          `<span class="at-icon m-icon" style="${iconCss(forge.bake.icon)}"></span>` +
+                          `<span class="at-cost">${forge.bake.forgeCost ?? 0}</span>` +
+                          `</button>`)
                   : '') +
               `</div>` +
               (forge.hint
@@ -2984,14 +3008,6 @@ export class Hud {
     }
 
     /** Game's live speed steps — drives the button tooltip's key hint. */
-    /** Game's forge fee — shown on the cookbook tiles and their hovers. */
-    setForgeFee(fee: number): void {
-        if (fee === this.forgeFee) return;
-        this.forgeFee = fee;
-        this.forgeRecipesMemoKey = ''; // rebuilt tiles carry the new number
-        this.forgeRecipesShownHtml = null;
-    }
-
     setSpeedSteps(steps: readonly number[]): void {
         const pause = steps[0] === 0 ? ' (1 = Pause)' : '';
         this.speedEl.title =
@@ -3599,11 +3615,7 @@ export class Hud {
      */
     private forgeRecipesMemoKey = '';
     private forgeRecipesMemoHtml = '';
-    /**
-     * Supply the Stronghold charges to forge, on top of the ingredients
-     * (`settings.deploy.forgeCost`). Game pushes it in; 0 until it does.
-     */
-    private forgeFee = 0;
+
     private forgeRecipesBlockHtml(
         pool: readonly string[],
         bagIds: readonly string[],
@@ -3628,7 +3640,6 @@ export class Hud {
     ): string {
         const rows = forgeHelpRows(pool);
         if (rows.length === 0) return '';
-        const forgeFee = this.forgeFee;
         const bagCounts = this.countIds(bagIds);
         const forgeCounts = this.countIds(forgeIds);
         // green wobble = every ingredient in bag + forge
@@ -3676,9 +3687,9 @@ export class Hud {
                 `data-ttitle="${escapeAttr(r.spellName)}" ` +
                 `data-tdesc="${escapeAttr(r.spellDesc)}" ` +
                 `data-ticon="${escapeAttr(r.spellIcon)}" ` +
-                `data-tfee="${forgeFee}" ` +
+                `data-tfee="${r.forgeCost}" ` +
                 `data-forge-ings="${escapeAttr(r.ingredientIcons.join(','))}">` +
-                `<div class="forge-tile-ings">${ings}<span class="forge-tile-fee">+ ${forgeFee}</span></div>` +
+                `<div class="forge-tile-ings">${ings}<span class="forge-tile-fee">+ ${r.forgeCost}</span></div>` +
                 `<span class="forge-arrow">→</span>` +
                 `${iconHtml(r.spellIcon, 'forge-spell')}` +
                 `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +
@@ -3811,7 +3822,6 @@ export class Hud {
         const faceOpts = {
             ownedItemIds: opts?.ownedItemIds,
             forgePool: opts?.forgePool,
-            forgeFee: this.forgeFee,
         };
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';

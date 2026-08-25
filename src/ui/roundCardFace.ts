@@ -36,8 +36,6 @@ export type RoundCardFaceOpts = {
      * In-match offers use `unitsLabel` only when present.
      */
     catalog?: boolean;
-    /** supply the Stronghold charges to forge, shown on the recipe hovers */
-    forgeFee?: number;
 };
 
 function catalogExtras(c: RoundCard): string[] {
@@ -53,11 +51,7 @@ function catalogExtras(c: RoundCard): string[] {
     return extras;
 }
 
-function forgeRowsHtml(
-    rows: readonly RuneCardForgeRow[],
-    cardRuneId: string | null,
-    forgeFee: number | undefined,
-): string {
+function forgeRowsHtml(rows: readonly RuneCardForgeRow[], cardRuneId: string | null): string {
     if (rows.length === 0) return '';
     return `<div class="c-forge">${rows
         .map((row) => {
@@ -88,9 +82,7 @@ function forgeRowsHtml(
                 `data-ttitle="${escapeAttr(row.spellName)}" ` +
                 `data-tdesc="${escapeAttr(row.spellDesc)}" ` +
                 `data-ticon="${escapeAttr(row.spellIcon)}" ` +
-                (forgeFee === undefined
-                    ? ''
-                    : `data-tfee="${forgeFee}" `) +
+                `data-tfee="${row.forgeCost}" ` +
                 `data-forge-ings="${escapeAttr(ingIcons)}">` +
                 `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +
                 under +
@@ -120,7 +112,7 @@ export function roundCardFaceHtml(c: RoundCard, opts: RoundCardFaceOpts = {}): s
         `<div class="c-title">${escapeHtml(c.title)}</div>` +
         (subtitle.length ? `<div class="c-units">${escapeHtml(subtitle.join(' · '))}</div>` : '') +
         `<div class="c-desc">${escapeHtml(c.description)}</div>` +
-        forgeRowsHtml(forgeRows, runeId, opts.forgeFee) +
+        forgeRowsHtml(forgeRows, runeId) +
         `<div class="c-cost${c.cost > 0 ? '' : ' free'}">${c.cost > 0 ? moneyHtml(c.cost) : 'Free'}</div>`
     );
 }
