@@ -3049,7 +3049,7 @@ export class Hud {
         this.syncOverlayOpen();
     }
 
-    /** dismisses the specialist or round-card picker if it is still open */
+    /** dismisses the round-card / unlock / specialist-pick overlay if still open */
     hideCardOverlay(): void {
         if (!this.cardOverlay) return;
         this.hideCardSpellTip();
@@ -3200,6 +3200,21 @@ export class Hud {
 
     /** dismiss game-over, pause, notices, reconnect, and card pickers before the menu outro */
     hideMatchOverlays(): void {
+        this.clearBlockingOverlays();
+        for (let i = this.mountedRoots.length - 1; i >= 0; i--) {
+            const el = this.mountedRoots[i]!;
+            if (!el.classList.contains('mechili-gameover')) continue;
+            this.unmount(el);
+        }
+        this.syncOverlayOpen();
+    }
+
+    /**
+     * Tear down every full-screen / high-z overlay that can sit above the
+     * board — shared by match-end UI and menu outro. Leaves game-over
+     * panels alone (callers that need those gone remove them separately).
+     */
+    private clearBlockingOverlays(): void {
         this.hidePauseMenu();
         this.hideCardOverlay();
         this.hideNotice();
@@ -3209,13 +3224,9 @@ export class Hud {
         this.hideSettingsDetail();
         this.hideForgeSlotHoverPreview();
         document.querySelector('.mechili-touchtip')?.remove();
+        document.querySelector('.mechili-controls-help')?.remove();
+        document.querySelector('.mechili-suggest')?.remove();
         closeSettings();
-        for (let i = this.mountedRoots.length - 1; i >= 0; i--) {
-            const el = this.mountedRoots[i]!;
-            if (!el.classList.contains('mechili-gameover')) continue;
-            this.unmount(el);
-        }
-        this.syncOverlayOpen();
     }
 
     private showCardOverlay(overlay: HTMLDivElement): void {
@@ -3841,12 +3852,10 @@ export class Hud {
         this.mount(el);
     }
 
-    /** Clear overlays that sit above the board so the result panel can be clicked. */
+    /** Clear overlays that can sit above / steal clicks from the result panel. */
     private prepareMatchEndUi(): void {
-        this.hidePauseMenu();
-        this.hideCardOverlay();
-        this.hideNotice();
-        this.hideReconnectWait();
+        this.clearBlockingOverlays();
+        this.syncOverlayOpen();
     }
 
     private gameOverInnerHtml(
