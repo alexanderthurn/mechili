@@ -1,7 +1,6 @@
 import { buildingAbilities } from '../game/buildingAbilities';
 import { START_CARDS, ROUND_RUNE_CARDS, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
-import { forgeIngredientIcons } from '../game/forgeRecipes';
 import { DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
 import { TACTICS, formatTacticStats } from '../game/tactics';
 import { techsForUnit } from '../game/techCatalog';
@@ -257,12 +256,12 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     const statsHtml = stats.length
         ? `<ul class="mh-tactic-stats">${stats.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>`
         : '';
-    const forgeIcons = forgeIngredientIcons(t.id);
-    const forgeHtml = forgeIcons.length
-        ? `<div class="mh-tactic-forge" aria-label="Required runes">${forgeIcons
-              .map((ico) => iconHtml(ico, 'mh-tactic-rune'))
-              .join('')}</div>`
-        : '';
+    // Price replaces the old rune row: spells are bought at the Stronghold now,
+    // so what a player wants to see is the supply, not a recipe.
+    const costHtml =
+        t.strongholdCost !== undefined
+            ? `<div class="mh-tactic-cost" aria-label="Stronghold price">${moneyHtml(t.strongholdCost)}</div>`
+            : '';
     return `
 <article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(t.id)}">
   <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(t.icon, 'mh-tactic-tile')}</div>
@@ -272,7 +271,7 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     </div>
     <p class="mh-tactic-meta">${kindLabel} · ${esc(t.targeting)}</p>
     <p class="mh-tactic-desc">${esc(t.description)}</p>
-    ${forgeHtml}
+    ${costHtml}
     ${statsHtml}
   </div>
 </article>`;
@@ -427,7 +426,7 @@ app.innerHTML = `
 
   <section class="mh-section" id="round-cards">
     <h2>Round cards</h2>
-    <p class="mh-sub">From round two onward, draft one of several offered ${DISPLAY.items.toLowerCase()} cards drawn from the match pool. Forgeable battle spells come from the Stronghold, not cards.</p>
+    <p class="mh-sub">From round two onward, draft one of several offered ${DISPLAY.items.toLowerCase()} cards drawn from the match pool. Battle spells are bought at the Stronghold, not drafted from cards.</p>
     <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
       ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
     </select>
@@ -443,7 +442,7 @@ app.innerHTML = `
 
   <section class="mh-section" id="tactics">
     <h2>${DISPLAY.tactics}</h2>
-    <p class="mh-sub">These are the skills on your ${DISPLAY.tactics.toLowerCase()} strip <span class="mh-sep">⬢</span> rallies, spills, summons, and battle casts like the dragon’s fire breath. Most battle spells are forged at the Stronghold. Icons match what you see in-game.</p>
+    <p class="mh-sub">These are the skills on your ${DISPLAY.tactics.toLowerCase()} strip <span class="mh-sep">⬢</span> rallies, spills, summons, and battle casts like the dragon’s fire breath. Battle spells are bought at your Stronghold, once each, and only the three your commander knows. Icons match what you see in-game.</p>
     <select class="mh-card-select" id="mh-tactics-select" aria-label="Choose a ${DISPLAY.tactic.toLowerCase()}">
       ${ALL_TACTICS.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
     </select>

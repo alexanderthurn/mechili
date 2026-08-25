@@ -1055,19 +1055,29 @@ html, body {
     line-height: 1.5;
     color: ${u.phase};
 }
-.mh-tactic-forge {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 10px;
+/* same chip the round cards use for their price (.mechili-cards .c-cost),
+   recoloured for the dark tactic card */
+.mh-tactic-cost {
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 10px;
+    padding: 4px 12px;
+    border-radius: 3px;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brassLight};
+    background: rgba(201, 162, 39, 0.12);
+    border: 1px solid rgba(201, 162, 39, 0.38);
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, 0.12);
 }
-.mh-tactic-rune {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    overflow: hidden;
-    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
+.mh-tactic-cost .money-ico.m-icon {
+    width: 16px;
+    height: 16px;
+    margin: 0;
 }
 .mh-tactic-stats {
     list-style: none;
