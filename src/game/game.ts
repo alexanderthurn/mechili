@@ -7622,16 +7622,8 @@ export class Game {
                 const endAt = startAt + zone.duration;
                 const zoneR = TACTICS[s.tacticId]?.radius ?? 28;
                 if (zone.mode === 'storm') {
-                    return [
-                        {
-                            kind: 'storm',
-                            x: s.x,
-                            z: s.z,
-                            radius: zoneR,
-                            startAt,
-                            endAt,
-                        },
-                    ];
+                    // storm clouds spawn per lightning flash (see CloudFx.spawnLightning)
+                    return [];
                 }
                 if (zone.mode === 'acidRain') {
                     // Many small toxic puffs scattered over the meteor-sized circle
@@ -8929,7 +8921,8 @@ export class Game {
                     if (ev.kind === 'spellMeteor') {
                         this.meteorFx.spawnShardImpact(ev.x, ev.z, ev.at);
                     } else if (ev.kind === 'spellLightning') {
-                        this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed);
+                        // cloud gathers first; bolt drops from it a moment later
+                        this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed, ev.y);
                     } else if (ev.kind === 'hazardDrip') {
                         this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at, {
                             scale: ev.dripScale,

@@ -294,13 +294,21 @@ export const TACTICS: Record<
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 2,
-        radius: 7 * CELL,
+        radius: 11.025 * CELL,
         spell: {
             delaySeconds: 3,
-            zone: { mode: 'storm', duration: 10, interval: 0.7, damage: 150 },
+            zone: {
+                mode: 'storm',
+                // 70% area + 70% bolt count vs prior; same flash cadence
+                duration: 7,
+                interval: 0.7,
+                damage: 0,
+                /** splash around each bolt — debuffs nearby units */
+                impactRadius: 1.75 * CELL,
+            },
         },
         description:
-            'Mark a wide circle anywhere. A storm gathers there and hurls lightning at random units for a while — ward domes absorb the bolts (and suffer).',
+            'Mark a wide circle anywhere. Small storm clouds gather high above and hurl lightning at random spots — bolts deal no damage but shock units in a wide splash with a tower-like debuff unless they have golden aura. Ward domes still block the strikes.',
     },
     [METEOR_SHOWER_ID]: {
         id: METEOR_SHOWER_ID,
@@ -452,7 +460,8 @@ export function formatTacticStats(t: (typeof TACTICS)[string]): string[] {
         if (spell.zone) {
             const z = spell.zone;
             if (z.mode === 'storm') {
-                lines.push(`Lightning ${z.damage} every ${z.interval}s`);
+                lines.push(`Lightning every ${z.interval}s (debuff only)`);
+                if (z.impactRadius != null) lines.push(`Splash ${cellsLabel(z.impactRadius)}`);
             } else if (z.mode === 'acidRain') {
                 const n = z.dropsPerTick ?? 1;
                 lines.push(`Acid rain ×${n} every ${z.interval}s`);

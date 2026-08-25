@@ -89,6 +89,8 @@ export const GOLDEN_AURA_RADIUS = 40;
 export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
 /** battle clock time when ballista Golden Aura is applied once (after other pre-battle effects) */
 export const GOLDEN_AURA_APPLY_AT = 0.1;
+/** storm bolt: personal tower-like debuff duration (refreshed on each hit) */
+export const STORM_DEBUFF_SEC = 5;
 /** units stand still for this long at battle start before moving or firing */
 export const BATTLE_START_FREEZE = 1.0;
 
@@ -315,6 +317,11 @@ export interface Actor {
     rocketTarget: Actor | null;
     /** sim time until which this mech ignores tower-destruction debuffs (ballista aura) */
     goldenUntil: number;
+    /**
+     * Storm-bolt tower-like debuff on this actor (same multipliers as seat tower
+     * loss). Golden aura / debuff-immune items ignore it via {@link isGolden}.
+     */
+    stormDebuffUntil: number;
     /** battle time when flank spawn finishes (0 = already spawned) */
     spawnUntil: number;
     /** took damage during flank spawn — hp no longer auto-ramps */
@@ -570,8 +577,8 @@ export type SimEvent =
           dripScale?: number;
           dripLean?: number;
       }
-    /** storm lightning bolt cue (render-only) */
-    | { kind: 'spellLightning'; x: number; z: number }
+    /** storm lightning bolt cue (render-only) — `y` is hit height when known */
+    | { kind: 'spellLightning'; x: number; z: number; y?: number }
     /** wizard convert finished — flash + mesh recolor hook */
     | { kind: 'convert'; index: number; x: number; y: number; z: number; team: BattleTeam }
     /** command tower / research center destroyed — seat debuff starts/extends */
@@ -825,6 +832,7 @@ export class BattleSim {
                     footY: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
                     rocketTarget: null,
                     goldenUntil: 0,
+                    stormDebuffUntil: 0,
                     spawnUntil: 0,
                     spawnDamaged: false,
                     pathDestX: null,
@@ -1738,6 +1746,7 @@ export class BattleSim {
                 footY: alt,
                 rocketTarget: null,
                 goldenUntil: 0,
+                stormDebuffUntil: 0,
                 spawnUntil: 0,
                 spawnDamaged: false,
                 pathDestX: null,
@@ -2074,8 +2083,7 @@ export class BattleSim {
     /** one tick of a storm / meteor shower / acid-rain zone (all point-targeted) */
     private tickSpellZone(z: (typeof this.zones)[number], tickAt: number): void {
         if (z.mode === 'storm') {
-            // one lightning bolt at a random unit inside — canonical actor
-            // order + the zone's own rng keep the pick deterministic
+            // aim at a random unit inside; splash debuffs a disc around the strike
             const candidates = this.actors.filter(
                 (a) =>
                     a.alive &&
@@ -2091,21 +2099,30 @@ export class BattleSim {
                     hypot(target.x - d.x, target.z - d.z) <= d.unit.type.shield.radius,
             );
             if (dome) {
-                dome.hp -= z.damage;
-                dome.hurtTimer = HURT_BAR_SECONDS;
-                if (dome.hp <= 0) this.breakShield(dome);
+                // wards block the strike — no unit debuff
                 this.events.push({ kind: 'impact', x: dome.x, y: 3, z: dome.z });
-                this.events.push({ kind: 'spellLightning', x: dome.x, z: dome.z });
+                this.events.push({ kind: 'spellLightning', x: dome.x, y: 3, z: dome.z });
             } else {
-                this.applyBurnDamage(target, z.damage);
+                const splash = z.impactRadius ?? 0;
+                for (const a of this.actors) {
+                    if (!a.alive || a.unit.type.extra || a.unit.type.structure) continue;
+                    if (hypot(a.x - target.x, a.z - target.z) > splash + a.radius) continue;
+                    // units under a ward at the splash edge are still protected
+                    const underWard = this.actors.some(
+                        (d) =>
+                            d.alive &&
+                            d.unit.type.shield &&
+                            hypot(a.x - d.x, a.z - d.z) <= d.unit.type.shield.radius,
+                    );
+                    if (underWard) continue;
+                    this.applyStormDebuff(a);
+                }
                 this.events.push({
-                    kind: 'explosion',
+                    kind: 'spellLightning',
                     x: target.x,
                     y: target.footY + 0.8,
                     z: target.z,
-                    radius: 2.5,
                 });
-                this.events.push({ kind: 'spellLightning', x: target.x, z: target.z });
             }
             return;
         }
@@ -2417,12 +2434,20 @@ export class BattleSim {
         this.debuffUntil.set(seat, Math.max(this.debuffUntil.get(seat) ?? 0, this.elapsed) + add);
     }
 
-    /** tower-destruction debuff is active for this mech's OWN seat right now
-     *  (not its side/team — a teammate's building loss never debuffs it) */
+    /** tower-destruction or storm-bolt debuff is active for this mech right now.
+     *  Seat tower loss affects the whole seat; storm bolts are personal.
+     *  Golden aura / debuff-immune items shrug both off. */
     private isDebuffed(actor: Actor): boolean {
         if (this.isGolden(actor)) return false;
+        if (actor.stormDebuffUntil > this.elapsed + 1e-9) return true;
         const until = this.debuffUntil.get(actor.unit.seat) ?? 0;
         return this.elapsed < until - 1e-9;
+    }
+
+    /** refresh personal storm debuff (same multipliers as tower loss) */
+    private applyStormDebuff(actor: Actor): void {
+        if (this.isGolden(actor) || actor.unit.type.structure || actor.unit.type.extra) return;
+        actor.stormDebuffUntil = Math.max(actor.stormDebuffUntil, this.elapsed + STORM_DEBUFF_SEC);
     }
 
     /** flat tower-destruction multiplier — only while the debuff timer runs.
