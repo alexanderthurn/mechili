@@ -3,33 +3,19 @@
  * {@link FORGE_SLOTS_PER_PLAYER} (duo → up to 6). Exact multiset recipes → one
  * product next deploy; if nothing matches, every rune is refunded.
  *
- * Products are either a spell (specialist-gated) or an advanced rune
- * (available to everyone). Ingredient multisets must be unique across the
- * whole table — never the same oven → two different products.
+ * Currently only advanced-rune recipes are active. Ingredient multisets must
+ * be unique across the whole table — never the same oven → two different
+ * products.
  *
  * Fuel is the four base runes (earth / fire / water / wind).
- * Same-element stacks craft advanced runes (anyone). Mixed recipes craft
- * specialist-gated spells. The pack-utility spells are open to everyone:
- * Rally Route (one Wind), Field Lesson (Fire + Wind), Move Pack (Earth + two
- * Wind) and Buyback (Water + two Wind).
+ * Same-element stacks craft advanced runes (anyone).
  */
 import type { SeatId } from './seats';
 import {
-    ACID_ID,
-    BIG_METEOR_ID,
-    DRAGON_ID,
-    FIRE_SPILL_ID,
-    HAMMER_ID,
-    METEOR_SHOWER_ID,
     MOVE_UNIT_ID,
     SELL_UNIT_ID,
     TUTOR_ID,
-    OIL_SPILL_ID,
-    POISON_CLOUD_ID,
     RALLY_ROUTE_ID,
-    SPAWN_CROWS_ID,
-    SPAWN_DWARVES_ID,
-    STORM_ID,
     TACTICS,
 } from './tactics';
 import { ITEMS } from './items';
@@ -92,17 +78,13 @@ export function emptyForgeSlots(capacity = FORGE_SLOTS_PER_PLAYER): (ForgeSlot |
     return Array.from({ length: capacity }, () => null);
 }
 
-function tactic(id: string): ForgeProduct {
-    return { kind: 'tactic', id };
-}
 function item(id: string): ForgeProduct {
     return { kind: 'item', id };
 }
 
 /**
- * Spell / rune recipe table — unique ingredient multisets only.
- * Rune products and the pack-utility spells (Rally Route, Field Lesson, Move
- * Pack, Buyback) are always available; other spells are specialist-gated.
+ * Rune recipe table — unique ingredient multisets only.
+ * Spell recipes removed for now; only advanced runes remain.
  */
 export const FORGE_RECIPES: ForgeRecipe[] = [
     // --- advanced runes (anyone) ---
@@ -112,28 +94,7 @@ export const FORGE_RECIPES: ForgeRecipe[] = [
     { ingredients: ['wind', 'wind'], product: item('golden'), priority: 1 }, // Sunstone
     { ingredients: ['earth', 'earth', 'earth'], product: item('colossus'), priority: 1 }, // Mithril
     { ingredients: ['fire', 'fire', 'fire'], product: item('wrath'), priority: 1 }, // Berserk
-
-    // --- 1 rune ---
-    { ingredients: ['earth'], product: tactic(SPAWN_DWARVES_ID), priority: 1 },
-    { ingredients: ['fire'], product: tactic(FIRE_SPILL_ID), priority: 1 },
-    { ingredients: ['water'], product: tactic(OIL_SPILL_ID), priority: 1 },
-    { ingredients: ['wind'], product: tactic(RALLY_ROUTE_ID), priority: 1 },
-
-    // --- 2 runes ---
-    { ingredients: ['earth', 'fire'], product: tactic(BIG_METEOR_ID), priority: 1 },
-    { ingredients: ['earth', 'water'], product: tactic(POISON_CLOUD_ID), priority: 1 },
-    { ingredients: ['fire', 'water'], product: tactic(ACID_ID), priority: 1 },
-    { ingredients: ['earth', 'wind'], product: tactic(STORM_ID), priority: 1 },
-    { ingredients: ['water', 'wind'], product: tactic(SPAWN_CROWS_ID), priority: 1 },
-
-    { ingredients: ['fire', 'wind'], product: tactic(TUTOR_ID), priority: 1 },
-
-    // --- 3 runes ---
-    { ingredients: ['earth', 'fire', 'water'], product: tactic(HAMMER_ID), priority: 1 },
-    { ingredients: ['earth', 'fire', 'wind'], product: tactic(METEOR_SHOWER_ID), priority: 1 },
-    { ingredients: ['fire', 'fire', 'wind'], product: tactic(DRAGON_ID), priority: 1 },
-    { ingredients: ['earth', 'wind', 'wind'], product: tactic(MOVE_UNIT_ID), priority: 1 },
-    { ingredients: ['water', 'wind', 'wind'], product: tactic(SELL_UNIT_ID), priority: 1 },
+    { ingredients: ['water', 'water', 'water'], product: item('bulwark'), priority: 1 }, // Bulwark
 ];
 
 function ingredientKey(ingredients: readonly string[]): string {
