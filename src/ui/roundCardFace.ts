@@ -90,7 +90,7 @@ function forgeRowsHtml(
                 `data-ticon="${escapeAttr(row.spellIcon)}" ` +
                 (forgeFee === undefined
                     ? ''
-                    : `data-tcost="${forgeFee}" data-tcostlabel="Forge" `) +
+                    : `data-tfee="${forgeFee}" `) +
                 `data-forge-ings="${escapeAttr(ingIcons)}">` +
                 `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +
                 under +

@@ -2730,7 +2730,7 @@ export class Hud {
                     `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
                     `data-tdesc="${escapeAttr(`${forge.bake.desc}\nBurns into this ${DISPLAY.tactic.toLowerCase()} next deploy.`)}" ` +
                     `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
-                    `data-tcost="${this.forgeFee}" data-tcostlabel="Forge" ` +
+                    `data-tfee="${this.forgeFee}" ` +
                     `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}"></span>`
                   : '') +
               `</div>` +
@@ -3676,13 +3676,12 @@ export class Hud {
                 `data-ttitle="${escapeAttr(r.spellName)}" ` +
                 `data-tdesc="${escapeAttr(r.spellDesc)}" ` +
                 `data-ticon="${escapeAttr(r.spellIcon)}" ` +
-                `data-tcost="${forgeFee}" data-tcostlabel="Forge" ` +
+                `data-tfee="${forgeFee}" ` +
                 `data-forge-ings="${escapeAttr(r.ingredientIcons.join(','))}">` +
-                `<div class="forge-tile-ings">${ings}</div>` +
+                `<div class="forge-tile-ings">${ings}<span class="forge-tile-fee">+ ${forgeFee}</span></div>` +
                 `<span class="forge-arrow">→</span>` +
                 `${iconHtml(r.spellIcon, 'forge-spell')}` +
                 `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +
-                `<div class="forge-tile-fee">${forgeFee}</div>` +
                 `</div>`
             );
         };

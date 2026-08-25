@@ -783,6 +783,13 @@ function cardSpellTipStyles(): string {
     align-items: center;
     flex-shrink: 0;
 }
+.mechili-card-spell-tip .ai-forge-fee {
+    margin-left: 2px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+    white-space: nowrap;
+}
 .mechili-card-spell-tip .ai-forge-ing {
     width: 22px;
     height: 22px;
@@ -4149,6 +4156,13 @@ ${chatFloatStyles(u, pc, ec)}
     align-items: center;
     flex-shrink: 0;
 }
+.mechili-panel .action-info .ai-forge-fee {
+    margin-left: 2px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+    white-space: nowrap;
+}
 .mechili-panel .action-info .ai-forge-ing {
     width: 22px;
     height: 22px;
@@ -4851,18 +4865,17 @@ ${chatFloatStyles(u, pc, ec)}
     border: 2.5px solid rgb(255, 168, 40);
     box-shadow: none;
 }
-.forge-tile-fee {
-    /* row 2, under the product: what the forge charges on top of the runes */
-    grid-column: 3;
-    grid-row: 2;
-    justify-self: end;
-    font-size: 11px;
+.forge-tile-ings .forge-tile-fee {
+    /* the fee reads as part of what you hand over: runes + this */
+    margin-left: 2px;
+    font-size: 12px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: ${u.brass};
+    white-space: nowrap;
 }
 .forge-tile-name {
-    grid-column: 1 / 3;
+    grid-column: 1 / -1;
     grid-row: 2;
     font-size: 12px;
     font-weight: 700;

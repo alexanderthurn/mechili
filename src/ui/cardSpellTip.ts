@@ -24,7 +24,9 @@ export function spellInfoFrameHtml(opts: {
     desc?: string;
     icon?: string;
     ingredientIcons?: readonly string[];
-    /** what acquiring this costs, and where — "Stronghold 300", "Forge 0" */
+    /** forge fee, printed as "+ N" right after the ingredients it is added to */
+    ingredientFee?: number;
+    /** a flat price with a place — "Stronghold 300" */
     cost?: number;
     costLabel?: string;
     levelIcon?: boolean;
@@ -35,7 +37,11 @@ export function spellInfoFrameHtml(opts: {
         opts.ingredientIcons && opts.ingredientIcons.length > 0
             ? `<div class="ai-forge-ings">${opts.ingredientIcons
                   .map((ico) => iconHtml(ico, 'ai-forge-ing'))
-                  .join('')}</div>`
+                  .join('')}${
+                  opts.ingredientFee === undefined
+                      ? ''
+                      : `<span class="ai-forge-fee">+ ${opts.ingredientFee}</span>`
+              }</div>`
             : '';
     const descHtml = escapeHtml(opts.desc ?? '').replace(/\n/g, '<br>');
     const rowsHtml =
@@ -230,6 +236,7 @@ export class CardSpellTips {
             desc,
             icon,
             ingredientIcons: (el.dataset.forgeIngs ?? '').split(',').filter(Boolean),
+            ingredientFee: el.dataset.tfee === undefined ? undefined : Number(el.dataset.tfee),
             cost: el.dataset.tcost === undefined ? undefined : Number(el.dataset.tcost),
             costLabel: el.dataset.tcostlabel,
             rows: decodeTipRows(el.dataset.trows ?? ''),
