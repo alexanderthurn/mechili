@@ -414,6 +414,8 @@ export class Hud {
     private readonly cardSpellTips = new CardSpellTips();
     /** item ids currently in the selected Stronghold forge (for slot hover preview) */
     private lastForgeOvenIds: string[] = [];
+    /** the oven holds a complete recipe — see syncForgeSlotHoverPreview */
+    private forgeHasBake = false;
     private lastForgeSpellPool: string[] = [];
     /** bag rune/item ids (human) — with oven, drives owned-ingredient marks */
     private lastBagItemIds: string[] = [];
@@ -1872,6 +1874,14 @@ export class Hud {
         }
 
         if (anchor.classList.contains('empty') || anchor.dataset.itemId) {
+            // Once the oven holds a complete recipe the cookbook stops being
+            // help and starts being in the way — it covers the very buttons you
+            // came to press. Clicking an empty slot still pins it open
+            // (pinForgeRecipes); only the hover backs off.
+            if (this.forgeHasBake && !this.forgeRecipesPinned) {
+                this.hideForgeSlotHoverPreview();
+                return;
+            }
             this.showForgeRecipesHover(anchor);
             return;
         }
@@ -2443,9 +2453,14 @@ export class Hud {
      * Unlocked forge spells + current oven contents — keeps shop-rune / empty-slot
      * recipe hover correct even when Stronghold is not selected.
      */
-    setForgeRecipeContext(pool: readonly string[], ovenItemIds: readonly string[]): void {
+    setForgeRecipeContext(
+        pool: readonly string[],
+        ovenItemIds: readonly string[],
+        hasBake = false,
+    ): void {
         this.lastForgeSpellPool = [...pool];
         this.lastForgeOvenIds = [...ovenItemIds];
+        this.forgeHasBake = hasBake;
         const ovenKey = ovenItemIds.join('\0');
         if (ovenKey !== this.lastForgeOvenKey) {
             this.lastForgeOvenKey = ovenKey;

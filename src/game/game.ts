@@ -9088,9 +9088,11 @@ export class Game {
         );
         {
             const oven = this.forgeSlots.player ?? [];
+            const pool = this.teamForgePool('player');
             this.hud.setForgeRecipeContext(
-                this.teamForgePool('player'),
+                pool,
                 oven.filter((s): s is ForgeSlot => !!s).map((s) => s.itemId),
+                resolveForge(oven, pool).product !== null,
             );
         }
         this.hud.setInventory(this.inventoryView(), this.tacticsView());

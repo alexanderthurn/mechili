@@ -7,7 +7,7 @@ import { SoftParticlePool } from './effects';
 import { strongholdFlagAnchorWorld } from './strongholdFlags';
 import { STRONGHOLD, type Unit } from './units';
 
-export type ForgeGlowMode = 'off' | 'cooking' | 'ready';
+export type ForgeGlowMode = 'off' | 'ready';
 
 const CHIMNEY_LIFT = 0.5;
 const SPAWN_JITTER = 0.28;
@@ -16,9 +16,6 @@ const SPAWN_JITTER = 0.28;
 /**
  * Runes sitting in an oven nobody paid for are just storage — the chimney only
  * has something to say once the burn is bought.
- *
- * `'cooking'` is unreachable now. Kept, with its preset, because a distinct
- * smoulder for a loaded-but-unpaid oven is one line from here if it is wanted.
  */
 export function forgeGlowMode(lit: boolean): ForgeGlowMode {
     return lit ? 'ready' : 'off';
@@ -30,14 +27,6 @@ type ChimneyPreset = {
     emberCount: number;
     waitMin: number;
     waitMax: number;
-};
-
-const COOKING: ChimneyPreset = {
-    up: 2.1,
-    heatCount: 2,
-    emberCount: 2,
-    waitMin: 0.48,
-    waitMax: 0.72,
 };
 
 const READY: ChimneyPreset = {
@@ -102,8 +91,8 @@ class ForgeChimney {
         });
     }
 
-    puff(x: number, y: number, z: number, ready: boolean): void {
-        const p = ready ? READY : COOKING;
+    puff(x: number, y: number, z: number): void {
+        const p = READY;
         const up = p.up;
 
         // white / cream heat column — tight, short-lived
@@ -124,29 +113,27 @@ class ForgeChimney {
             spread: 0.12,
         });
 
-        // yellow-orange embers — a little faster & brighter when recipe is ready
+        // yellow-orange embers, with a brighter second burst on top
         this.embers.burst(x, y, z, {
             count: p.emberCount,
-            color: ready ? 0xffd040 : 0xffb020,
-            speed: ready ? 0.55 : 0.42,
-            life: ready ? 2.4 : 2.8,
+            color: 0xffd040,
+            speed: 0.55,
+            life: 2.4,
             up: up * 1.15,
             spread: 0.38,
         });
-        if (ready) {
-            this.embers.burst(x, y, z, {
-                count: 2,
-                color: 0xffee88,
-                speed: 0.35,
-                life: 1.8,
-                up: up * 1.25,
-                spread: 0.28,
-            });
-        }
+        this.embers.burst(x, y, z, {
+            count: 2,
+            color: 0xffee88,
+            speed: 0.35,
+            life: 1.8,
+            up: up * 1.25,
+            spread: 0.28,
+        });
 
         // smoke — pinhole at mouth → full column → wide gray billow → dissolve aloft
         this.smoke.burst(x, y, z, {
-            count: ready ? 5 : 3,
+            count: 5,
             color: 0x080604,
             colorEnd: 0xd4d0c8,
             speed: 0.14,
@@ -154,17 +141,15 @@ class ForgeChimney {
             up,
             spread: 0.04,
         });
-        if (ready) {
-            this.smoke.burst(x, y, z, {
-                count: 2,
-                color: 0x141210,
-                colorEnd: 0xe8e4dc,
-                speed: 0.1,
-                life: 7.0,
-                up: up * 0.92,
-                spread: 0.03,
-            });
-        }
+        this.smoke.burst(x, y, z, {
+            count: 2,
+            color: 0x141210,
+            colorEnd: 0xe8e4dc,
+            speed: 0.1,
+            life: 7.0,
+            up: up * 0.92,
+            spread: 0.03,
+        });
     }
 
     update(dt: number): void {
@@ -201,7 +186,7 @@ export class ForgeFx {
                 continue;
             }
 
-            const preset = mode === 'ready' ? READY : COOKING;
+            const preset = READY;
             let wait = this.puffWait.get(unit.id) ?? 0;
             wait -= dt;
             if (wait <= 0) {
@@ -210,7 +195,6 @@ export class ForgeFx {
                     anchor.x + (Math.random() - 0.5) * SPAWN_JITTER,
                     anchor.y + CHIMNEY_LIFT,
                     anchor.z + (Math.random() - 0.5) * SPAWN_JITTER,
-                    mode === 'ready',
                 );
                 wait = preset.waitMin + Math.random() * (preset.waitMax - preset.waitMin);
             }
