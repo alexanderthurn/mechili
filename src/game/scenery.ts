@@ -1796,6 +1796,12 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             m.instanceMatrix.needsUpdate = true;
             if (m.instanceColor) m.instanceColor.needsUpdate = true;
             this.group.add(m);
+            if (
+                (this.quality === 'high' || this.quality === 'ultra') &&
+                m.material instanceof MeshStandardMaterial
+            ) {
+                attachHazardTint(m.material, map, { strength: 'tree' });
+            }
         }
 
         if (farPlants.length > 0) {
@@ -2499,25 +2505,44 @@ function makeFlowerTexture(): CanvasTexture {
  * High/ultra: sample the board hazard mask at each instance's world XZ and
  * tint over oil/acid/fire. Trees & floor props use ground-matching slick +
  * live fire glow (clears when the blaze dies). Flowers keep a softer soak.
- * Outside the board UV clamps to black (no tint). Shared materials attach once.
+ * Outside the board UV clamps to black (no tint). Shared materials attach once
+ * but always rebind to the live map mask (asset cache outlives scenery rebuilds).
  */
 function attachHazardTint(
     material: MeshStandardMaterial,
     map: BattleMap,
     opts: { fadeAlpha?: boolean; strength?: 'flower' | 'tree' } = {},
 ): void {
-    if (material.userData.hazardTintAttached) return;
-    material.userData.hazardTintAttached = true;
     const fadeAlpha = opts.fadeAlpha === true;
     const tree = opts.strength === 'tree';
     const hazardMask = map.getHazardMask();
     const boardHalf = new Vector2(map.halfW, map.halfH);
+
+    // Shared materials live in the Tripo/billboard cache across map rebuilds —
+    // always point uniforms at the current mask even if already attached.
+    let maskRef = material.userData.hazardMaskRef as { value: CanvasTexture } | undefined;
+    let halfRef = material.userData.hazardBoardHalfRef as { value: Vector2 } | undefined;
+    if (!maskRef) {
+        maskRef = { value: hazardMask };
+        material.userData.hazardMaskRef = maskRef;
+    } else {
+        maskRef.value = hazardMask;
+    }
+    if (!halfRef) {
+        halfRef = { value: boardHalf };
+        material.userData.hazardBoardHalfRef = halfRef;
+    } else {
+        halfRef.value.copy(boardHalf);
+    }
+
+    if (material.userData.hazardTintAttached) return;
+    material.userData.hazardTintAttached = true;
     const prevCompile = material.onBeforeCompile;
     const prevKey = material.customProgramCacheKey.bind(material);
-    // Flowers: warm readable brown. Trees: match ground oil/acid slick.
-    const oilTint = tree ? 'vec3(0.004, 0.003, 0.002)' : 'vec3(0.22, 0.12, 0.05)';
+    // Trees: photo-black oil (match ground). Flowers: softer readable brown.
+    const oilTint = tree ? 'vec3(0.0012, 0.0012, 0.0012)' : 'vec3(0.22, 0.12, 0.05)';
     const acidTint = tree ? 'vec3(0.06, 0.20, 0.03)' : 'vec3(0.14, 0.34, 0.06)';
-    const oilMix = tree ? '0.99' : '0.92';
+    const oilMix = tree ? '0.995' : '0.92';
     const acidMix = tree ? '0.94' : '0.88';
     const fireMix = tree ? '0.96' : '0.55';
     const alphaLine = fadeAlpha
@@ -2525,8 +2550,8 @@ function attachHazardTint(
         : '';
     material.onBeforeCompile = (shader, renderer) => {
         prevCompile?.call(material, shader, renderer);
-        shader.uniforms.uFlowerHazardMask = { value: hazardMask };
-        shader.uniforms.uFlowerBoardHalf = { value: boardHalf };
+        shader.uniforms.uFlowerHazardMask = maskRef!;
+        shader.uniforms.uFlowerBoardHalf = halfRef!;
         shader.uniforms.uHazardTime = hazardTimeShared;
         shader.uniforms.uFireCharcoalGround = fireCharcoalGroundUniform;
         shader.vertexShader = shader.vertexShader.replace(
@@ -2577,6 +2602,6 @@ varying vec2 vFlowerHazUv;`,
         );
     };
     material.customProgramCacheKey = () =>
-        `${prevKey()}|hazard-tint-v10-${tree ? 'tree' : 'flower'}${fadeAlpha ? '-fade' : ''}`;
+        `${prevKey()}|hazard-tint-v11-${tree ? 'tree' : 'flower'}${fadeAlpha ? '-fade' : ''}`;
     material.needsUpdate = true;
 }

@@ -240,13 +240,19 @@ function groundHazardColorGlsl(rich: boolean): string {
     }
     return (
         masks +
-        // Oil: photo-like black tar — solid core, frayed rim only (no holes inside).
+        // Oil: photo-like black tar — solid core, frayed rim, mild center fretting.
         '\tfloat oilBase = smoothstep( 0.04, 0.28, haz.r );\n' +
         '\tfloat oilEdge = smoothstep( 0.02, 0.18, oilBase ) * ( 1.0 - smoothstep( 0.28, 0.62, oilBase ) );\n' +
         '\tfloat oilChew = hazFbm( vBoardXZ * 1.55 + vec2( 3.1, 7.7 ) );\n' +
         '\tfloat oilChew2 = hazNoise( vBoardXZ * 3.2 + 11.0 );\n' +
         '\tfloat oilFray = oilChew * 0.55 + oilChew2 * 0.45;\n' +
         '\toilM = oilBase * ( 1.0 - oilEdge * ( 1.0 - smoothstep( 0.32, 0.78, oilFray ) ) * 0.9 );\n' +
+        // Sparse thin spots inside the puddle — larger than before, milder cut.
+        '\tfloat oilCenter = smoothstep( 0.3, 0.6, oilBase );\n' +
+        '\tfloat oilFret = hazNoise( vBoardXZ * 0.67 + 4.2 );\n' +
+        '\tfloat oilFret2 = hazNoise( vBoardXZ * 1.2 + 13.0 );\n' +
+        '\tfloat oilFretMask = smoothstep( 0.74, 0.93, oilFret ) * smoothstep( 0.5, 0.82, oilFret2 );\n' +
+        '\toilM *= 1.0 - oilCenter * oilFretMask * 0.11;\n' +
         '\tfloat oilFlow = hazFbm( vBoardXZ * 0.14 + vec2( uHazardTime * 0.032, uHazardTime * 0.019 ) );\n' +
         // Sparse cool grey specular film (like wet pool reflection), rest stays black.
         '\tfloat oilFilmN = hazNoise( vBoardXZ * 0.42 + vec2( uHazardTime * 0.02, -uHazardTime * 0.015 ) );\n' +
@@ -1377,7 +1383,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v60${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
+            `ground-hazard-v62${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg`;
     }
