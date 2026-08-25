@@ -111,7 +111,7 @@ import { ForgeFx, forgeGlowMode } from './forgeFx';
 import { StrongholdFlags } from './strongholdFlags';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
-import { CloudFx } from './cloudFx';
+import { CloudFx, type CloudCue } from './cloudFx';
 import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
@@ -7614,21 +7614,55 @@ export class Game {
         );
         // Storm / poison hovering clouds for the zone lifetime
         this.cloudFx.schedule(
-            pendingSpells.flatMap((s) => {
+            pendingSpells.flatMap((s): CloudCue[] => {
                 const spell = TACTICS[s.tacticId]?.spell;
                 const zone = spell?.zone;
-                if (!zone || (zone.mode !== 'storm' && zone.mode !== 'poison')) return [];
+                if (!zone) return [];
                 const startAt = BATTLE_START_FREEZE + spell.delaySeconds;
-                return [
-                    {
-                        kind: zone.mode,
-                        x: s.x,
-                        z: s.z,
-                        radius: TACTICS[s.tacticId]?.radius ?? 28,
-                        startAt,
-                        endAt: startAt + zone.duration,
-                    },
-                ];
+                const endAt = startAt + zone.duration;
+                const zoneR = TACTICS[s.tacticId]?.radius ?? 28;
+                if (zone.mode === 'storm') {
+                    return [
+                        {
+                            kind: 'storm',
+                            x: s.x,
+                            z: s.z,
+                            radius: zoneR,
+                            startAt,
+                            endAt,
+                        },
+                    ];
+                }
+                if (zone.mode === 'acidRain') {
+                    // Many small toxic puffs scattered over the meteor-sized circle
+                    const rng = mulberry32(seedFrom(this.seed, `acid-clouds:${s.id}`));
+                    const count = 7;
+                    const cues: CloudCue[] = [];
+                    for (let i = 0; i < count; i++) {
+                        let ox = 0;
+                        let oz = 0;
+                        for (let tries = 0; tries < 16; tries++) {
+                            const cx = (rng() * 2 - 1) * zoneR * 0.85;
+                            const cz = (rng() * 2 - 1) * zoneR * 0.85;
+                            if (cx * cx + cz * cz <= zoneR * zoneR) {
+                                ox = cx;
+                                oz = cz;
+                                break;
+                            }
+                        }
+                        cues.push({
+                            kind: 'poison',
+                            x: s.x + ox,
+                            z: s.z + oz,
+                            radius: zoneR,
+                            startAt: startAt + i * 0.12,
+                            endAt,
+                            meshScale: 5.5 + rng() * 2.2,
+                        });
+                    }
+                    return cues;
+                }
+                return [];
             }),
         );
         // Dragon flyover: breath starts at delay; pour paints start→end with the strafe
@@ -7782,6 +7816,11 @@ export class Game {
                           mode: zone.mode,
                           impactRadius: zone.impactRadius,
                           igniteRadius: zone.igniteRadius,
+                          dropsPerTick: zone.dropsPerTick,
+                          acidExpiresRound:
+                              zone.mode === 'acidRain'
+                                  ? this.round + OIL_SPILL_DURATION_ROUNDS - 1
+                                  : undefined,
                           seed: seedFrom(this.seed, `spell:${s.id}`),
                       },
                   ]
@@ -8892,7 +8931,10 @@ export class Game {
                     } else if (ev.kind === 'spellLightning') {
                         this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed);
                     } else if (ev.kind === 'hazardDrip') {
-                        this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at);
+                        this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at, {
+                            scale: ev.dripScale,
+                            lean: ev.dripLean,
+                        });
                     } else if (ev.kind === 'convert') {
                         // flash + move instanced mesh into the new team's pool
                         this.particles.burst(ev.x, ev.y, ev.z, {

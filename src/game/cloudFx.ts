@@ -31,6 +31,11 @@ export type CloudCue = {
     startAt: number;
     /** sim.elapsed when the zone ends */
     endAt: number;
+    /**
+     * Absolute mesh scale. When set, skips the radius-based storm/poison sizing
+     * (used for many small acid-rain puffs over a huge zone).
+     */
+    meshScale?: number;
 };
 
 type ActiveCloud = {
@@ -132,11 +137,15 @@ export class CloudFx {
             c.root.position.y = c.baseY + bob;
             c.root.rotation.y = spin;
             const breathe = 1 + 0.04 * Math.sin(simElapsed * 2.1);
-            const scale =
-                (cue.kind === 'storm' ? STORM_SCALE : POISON_SCALE) *
-                (cue.radius / 28) *
-                breathe;
-            c.root.scale.setScalar(Math.max(scale, cue.kind === 'storm' ? 18 : 14));
+            if (cue.meshScale != null) {
+                c.root.scale.setScalar(cue.meshScale * breathe);
+            } else {
+                const scale =
+                    (cue.kind === 'storm' ? STORM_SCALE : POISON_SCALE) *
+                    (cue.radius / 28) *
+                    breathe;
+                c.root.scale.setScalar(Math.max(scale, cue.kind === 'storm' ? 18 : 14));
+            }
         }
 
         for (let i = this.bolts.length - 1; i >= 0; i--) {
@@ -175,7 +184,9 @@ export class CloudFx {
         const gy = groundHeightAt(cue.x, cue.z);
         const baseY = gy + CLOUD_HEIGHT;
         root.position.set(cue.x, baseY, cue.z);
-        root.scale.setScalar(cue.kind === 'storm' ? STORM_SCALE : POISON_SCALE);
+        root.scale.setScalar(
+            cue.meshScale ?? (cue.kind === 'storm' ? STORM_SCALE : POISON_SCALE),
+        );
         root.visible = false;
         this.group.add(root);
         this.clouds.push({ cue, root, materials, baseY });

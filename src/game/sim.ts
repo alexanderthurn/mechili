@@ -134,7 +134,7 @@ export interface SimConfig {
      * takes environmental damage.
      */
     spellStrikes?: readonly SpellStrike[];
-    /** ticking spell zones (storm bolts, meteor shower, poison gas) */
+    /** ticking spell zones (storm bolts, meteor shower, acid rain) */
     spellZones?: readonly SpellZone[];
     /** one-shot capsule ignitions (dragon breath along its flight path) */
     spellIgnites?: readonly SpellIgnite[];
@@ -182,11 +182,15 @@ export interface SpellZone {
     delaySeconds: number;
     duration: number;
     interval: number;
-    /** flat damage per tick */
+    /** flat damage per tick (storm / meteor); unused for acidRain */
     damage: number;
-    mode: 'storm' | 'meteorShower' | 'poison';
+    mode: 'storm' | 'meteorShower' | 'acidRain';
     impactRadius?: number;
     igniteRadius?: number;
+    /** acidRain: drips spawned each tick */
+    dropsPerTick?: number;
+    /** acidRain: inclusive round expiry for stamped puddles */
+    acidExpiresRound?: number;
     seed: number;
 }
 
@@ -556,7 +560,16 @@ export type SimEvent =
     /** meteor-shower shard cue — visual falls until `at`, then sim resolves hit */
     | { kind: 'spellMeteor'; x: number; z: number; at: number }
     /** oil/acid drip cue — blob falls until `at`, then that disc stamps on the ground */
-    | { kind: 'hazardDrip'; hazard: 'oil' | 'acid' | 'fire'; x: number; z: number; at: number }
+    | {
+          kind: 'hazardDrip';
+          hazard: 'oil' | 'acid' | 'fire';
+          x: number;
+          z: number;
+          at: number;
+          /** visual-only: smaller/straighter drops (acid rain) */
+          dripScale?: number;
+          dripLean?: number;
+      }
     /** storm lightning bolt cue (render-only) */
     | { kind: 'spellLightning'; x: number; z: number }
     /** wizard convert finished — flash + mesh recolor hook */
@@ -763,6 +776,9 @@ export class BattleSim {
         announced: boolean;
         stamped: boolean;
         silent: boolean;
+        /** visual-only drip size (acid rain) */
+        dripScale?: number;
+        dripLean?: number;
     }[] = [];
 
     constructor(
@@ -1986,6 +2002,8 @@ export class BattleSim {
                         x: d.x,
                         z: d.z,
                         at: d.landAt,
+                        dripScale: d.dripScale,
+                        dripLean: d.dripLean,
                     });
                 }
             }
@@ -2053,7 +2071,7 @@ export class BattleSim {
         this.hazards.igniteOilTouchingFire(this.elapsed);
     }
 
-    /** one tick of a storm / meteor shower / poison zone (all point-targeted) */
+    /** one tick of a storm / meteor shower / acid-rain zone (all point-targeted) */
     private tickSpellZone(z: (typeof this.zones)[number], tickAt: number): void {
         if (z.mode === 'storm') {
             // one lightning bolt at a random unit inside — canonical actor
@@ -2122,12 +2140,46 @@ export class BattleSim {
             });
             return;
         }
-        // poison: gas gnaws at EVERY unit inside — seeps under ward domes;
-        // only poison-proof unit types ignore it
-        for (const a of this.actors) {
-            if (!a.alive || a.unit.type.extra || a.unit.type.poisonImmune) continue;
-            if (hypot(a.x - z.x, a.z - z.z) > z.radius + a.radius) continue;
-            this.applyBurnDamage(a, z.damage);
+        if (z.mode === 'acidRain') {
+            // Several small acid drips per tick — sparse puddles over a huge circle.
+            const drops = Math.max(1, z.dropsPerTick ?? 1);
+            const puddleR = z.impactRadius ?? 2;
+            const expires =
+                z.acidExpiresRound ?? this.config.oilExpiresRound ?? 9999;
+            const fallSec = HAZARD_DRIP_FALL_SEC;
+            for (let d = 0; d < drops; d++) {
+                let ox = 0;
+                let oz = 0;
+                for (let tries = 0; tries < 16; tries++) {
+                    const cx = (z.rng() * 2 - 1) * z.radius;
+                    const cz = (z.rng() * 2 - 1) * z.radius;
+                    if (cx * cx + cz * cz <= z.radius * z.radius) {
+                        ox = cx;
+                        oz = cz;
+                        break;
+                    }
+                }
+                const landAt = tickAt + fallSec;
+                this.drips.push({
+                    kind: 'acid',
+                    x: z.x + ox,
+                    z: z.z + oz,
+                    radius: puddleR,
+                    expiresRound: expires,
+                    burnSeconds: 0,
+                    intensity: 0,
+                    damage: 0,
+                    tint: FIRE_TINT_NORMAL,
+                    fallStart: tickAt,
+                    landAt,
+                    announced: false,
+                    stamped: false,
+                    silent: false,
+                    dripScale: 0.48,
+                    dripLean: 0.8,
+                });
+            }
+            return;
         }
     }
 

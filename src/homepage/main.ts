@@ -129,7 +129,7 @@ const SHOWCASE_SPELLS: { id: SpellAssetId; name: string; blurb: string }[] = [
     {
         id: 'poison',
         name: 'Poison Cloud',
-        blurb: 'Toxic cloud over a marked area.',
+        blurb: 'Toxic sky clouds that rain sparse acid over a huge circle.',
     },
 ];
 

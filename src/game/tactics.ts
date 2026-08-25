@@ -134,20 +134,21 @@ export const TACTICS: Record<
              * Ticking area effect running `duration` seconds after the delay,
              * point-targeted only: 'storm' zaps one random unit per tick
              * (wards absorb per bolt); 'meteorShower' drops a small strike on
-             * a random spot per tick (+ ignites fire); 'poison' damages every
-             * unit inside per tick — gas ignores wards, unit types with
-             * `poisonImmune` shrug it off.
+             * a random spot per tick (+ ignites fire); 'acidRain' rains small
+             * acid drips that stamp sparse ground acid (same rules as Acid Spill).
              */
             zone?: {
-                mode: 'storm' | 'meteorShower' | 'poison';
+                mode: 'storm' | 'meteorShower' | 'acidRain';
                 duration: number;
                 interval: number;
-                /** flat damage per tick */
+                /** flat damage per tick (storm / meteor); unused for acidRain */
                 damage: number;
-                /** meteorShower: splash radius per impact */
+                /** meteorShower / acidRain: splash or puddle radius per impact */
                 impactRadius?: number;
                 /** meteorShower: ground-fire radius per impact */
                 igniteRadius?: number;
+                /** acidRain: how many drips spawn each tick */
+                dropsPerTick?: number;
             };
             /** two-point: progressive fire pour along the capsule (dragon breath) —
              *  stamped left→right over {@link DRAGON_POUR_DURATION_SEC}, not a one-shot.
@@ -371,19 +372,27 @@ export const TACTICS: Record<
     },
     [POISON_CLOUD_ID]: {
         id: POISON_CLOUD_ID,
-        strongholdCost: 200,
+        strongholdCost: 300,
         name: 'Poison Cloud',
         icon: 'tactic-poison',
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 2,
-        radius: 5 * CELL,
+        // Same footprint as Meteor Shower — sparse acid rain fills it gradually.
+        radius: 10.5 * CELL,
         spell: {
             delaySeconds: 2,
-            zone: { mode: 'poison', duration: 12, interval: 0.5, damage: 12 },
+            zone: {
+                mode: 'acidRain',
+                duration: 14,
+                interval: 0.28,
+                damage: 0,
+                impactRadius: 0.55 * CELL,
+                dropsPerTick: 3,
+            },
         },
         description:
-            'Mark a circle anywhere. A toxic cloud settles there and gnaws at every unit inside — gas seeps under ward domes; only poison-proof creatures ignore it.',
+            'Mark a huge circle. Toxic clouds gather overhead and rain small acid drops across the area — sparse puddles that corrode ground and air units like Acid Spill, but over a much wider field.',
     },
 };
 
@@ -444,8 +453,10 @@ export function formatTacticStats(t: (typeof TACTICS)[string]): string[] {
             const z = spell.zone;
             if (z.mode === 'storm') {
                 lines.push(`Lightning ${z.damage} every ${z.interval}s`);
-            } else if (z.mode === 'poison') {
-                lines.push(`Poison ${z.damage} every ${z.interval}s`);
+            } else if (z.mode === 'acidRain') {
+                const n = z.dropsPerTick ?? 1;
+                lines.push(`Acid rain ×${n} every ${z.interval}s`);
+                if (z.impactRadius != null) lines.push(`Drop ${cellsLabel(z.impactRadius)}`);
             } else if (z.mode === 'meteorShower') {
                 lines.push(`Meteor ${z.damage} every ${z.interval}s`);
                 if (z.impactRadius != null) lines.push(`Impact ${cellsLabel(z.impactRadius)}`);
