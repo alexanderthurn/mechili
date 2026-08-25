@@ -60,7 +60,6 @@ import {
     garrisonSlotWorld,
     levelBasisOf,
     unitTypeById,
-    unitUnlockCost,
     isPlayerBuyable,
     type Team,
     type Unit,

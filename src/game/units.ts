@@ -784,8 +784,8 @@ export const GARRISON_SLOTS = [1, 2, 3, 4] as const;
  * covers 270° and the 90° wedge pointing back into the keep is dead.
  */
 export const GARRISON_FOV_HALF = (Math.PI * 3) / 4;
-/** first archer 1, second 2, third 3, fourth 4 — TEST PRICING, raise to 100 */
-export const GARRISON_STEP_COST = 1;
+/** first archer 100, second 200, third 300, fourth 400 */
+export const GARRISON_STEP_COST = 100;
 
 /** shield dome coverage, world units — the top stays below the air layer (18) */
 export const SHIELD_RADIUS = 20;

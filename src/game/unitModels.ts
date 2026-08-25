@@ -20,7 +20,7 @@ import {
     BUILDING_SNOW_IDS,
 } from './buildingSnow';
 import { CROW_RIDER_MODEL_ID, markCrowWingFlapMaterial } from './crowWingFlap';
-import type { BattleTeam, Team } from './units';
+import type { BattleTeam } from './units';
 
 /**
  * Units backed by a generated GLB model instead of procedural primitives.
@@ -164,10 +164,6 @@ export function getUnitSlotLocal(
     return slotNodes.get(id)?.[slot - 1] ?? null;
 }
 
-/** How many `UnitN` spots this model authored. */
-export function unitSlotCount(id: string): number {
-    return slotNodes.get(id)?.length ?? 0;
-}
 
 /**
  * Fingerprint of the model-derived geometry the SIM reads — {@link

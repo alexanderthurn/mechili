@@ -10,7 +10,6 @@ import {
     OIL_DIRECTED_FWD,
     OIL_DIRECTED_LENGTH_MUL,
     OIL_DIRECTED_TAIL_FRAC,
-    OIL_DIRECTED_TIP,
     OIL_SPEED_MULT,
     insideAnyShield,
     livingShieldDisks,

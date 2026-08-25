@@ -36,7 +36,7 @@ const _size = new Vector3();
  * falls back to the baked local offset transformed by the unit's own pose,
  * which is what instanced keeps have.
  */
-export function strongholdSlotWorld(
+function strongholdSlotWorld(
     unit: Unit,
     slot: number,
 ): { x: number; y: number; z: number } | null {

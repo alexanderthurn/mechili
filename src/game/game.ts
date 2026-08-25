@@ -101,7 +101,7 @@ import {
 } from './cards';
 import { iconCursorCss } from '../ui/iconAtlas';
 import { roundCardAlgorithmById } from './roundCardAlgorithms';
-import { assignTeamColors, colorForBattleTeam, teamColors } from './colors';
+import { assignTeamColors, colorForBattleTeam } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
 import { HazardField, HAZARD_POUR_DELAY_SEC, livingShieldDisks, OIL_SPILL_DURATION_ROUNDS, OIL_SPILL_RADIUS } from './fire';
 import { OilDripFx } from './oilDripFx';
@@ -121,7 +121,7 @@ import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
 import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
-import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
+import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
 import {
@@ -129,7 +129,6 @@ import {
     prefs,
     debugEnabled,
     effectiveDpr,
-    sceneryDetailed,
     sceneryCameraFar,
     sceneryHeightFog,
     sceneryWeatherFx,
@@ -252,7 +251,7 @@ import {
     type UnitType,
 } from './units';
 import { DebugOverlay, DebugDumpButton, CpuSampler } from '../ui/debug';
-import { DebugLog, type DebugEvent } from './debugLog';
+import { DebugLog } from './debugLog';
 import {
     canonicalClassicSeats,
     localizeRoster,

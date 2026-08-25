@@ -4,13 +4,12 @@ import { formatMmrDelta } from '../game/mmr';
 import { DISPLAY } from '../game/displayNames';
 import {
     forgeHelpRows,
-    forgeIngredientIcons,
     forgeRecipeMatch,
     type ForgeSpellPool,
 } from '../game/forgeRecipes';
 import { buildingAbilities } from '../game/buildingAbilities';
 import { BASE_RUNE_IDS, ITEMS } from '../game/items';
-import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
+import { emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
@@ -25,7 +24,7 @@ import { CardSpellTips, encodeTipRows, spellInfoFrameHtml, startCardFaceHtml } f
 import { registerHoverTipClearer } from './hoverTips';
 import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
-import { THEME, hudStyles } from '../theme';
+import { hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle' | 'hpDraw';
 
