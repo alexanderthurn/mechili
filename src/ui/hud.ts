@@ -3920,7 +3920,14 @@ export class Hud {
         this.prepareMatchEndUi();
         const el = withDialogFade(document.createElement('div'));
         el.classList.add('mechili-gameover', 'draw');
-        el.innerHTML = `<div class="go-title">DISCONNECTED</div><button class="go-restart">Back to main menu</button>`;
+        el.innerHTML =
+            `<div class="go-bg" aria-hidden="true">` +
+            `<span class="go-bg-glow go-bg-glow-player"></span>` +
+            `<span class="go-bg-glow go-bg-glow-enemy"></span>` +
+            `<span class="go-bg-core"></span>` +
+            `</div>` +
+            `<div class="go-title">DISCONNECTED</div>` +
+            `<button class="go-restart">Back to main menu</button>`;
         el.querySelector('.go-restart')!.addEventListener('click', () => this.leaveGameOver(el));
         this.mount(el);
     }
@@ -3974,6 +3981,11 @@ export class Hud {
             : '';
         const noteEl = note ? `<div class="go-note">${escapeHtml(note)}</div>` : '';
         return (
+            `<div class="go-bg" aria-hidden="true">` +
+            `<span class="go-bg-glow go-bg-glow-player"></span>` +
+            `<span class="go-bg-glow go-bg-glow-enemy"></span>` +
+            `<span class="go-bg-core"></span>` +
+            `</div>` +
             `<div class="go-title">${escapeHtml(title)}</div>${teams}${noteEl}` +
             `<button class="go-restart">Back to main menu</button>`
         );
@@ -4012,7 +4024,9 @@ export class Hud {
         // match-ui-root uses pointer-events:none so an empty root never blocks the menu
         el.style.pointerEvents = 'auto';
         this.mountedRoots.push(el);
-        if (this.uiHidden) el.classList.add('mechili-cinema-hide');
+        if (this.uiHidden && !el.classList.contains('mechili-gameover')) {
+            el.classList.add('mechili-cinema-hide');
+        }
         if (this.introChromeHidden) el.classList.add('mechili-intro-hide');
         this.overlayParent.appendChild(el);
     }
@@ -4060,16 +4074,21 @@ export class Hud {
 
     /**
      * Hide every HUD chrome element (shop, topbar, panels, overlays) for
-     * clean screenshots / atmosphere viewing. Leaves a tiny keyboard hint.
+     * clean screenshots / atmosphere viewing. Leaves a tiny keyboard hint
+     * unless `hint: false` (match-end cinema under the fullscreen dialog).
+     * Game-over panels stay visible so the end roster can sit on cinema.
      */
-    setUiHidden(hidden: boolean): void {
-        if (this.uiHidden === hidden) return;
-        this.uiHidden = hidden;
-        for (const el of this.mountedRoots) {
-            el.classList.toggle('mechili-cinema-hide', hidden);
+    setUiHidden(hidden: boolean, opts?: { hint?: boolean }): void {
+        const showHint = hidden && opts?.hint !== false;
+        if (this.uiHidden !== hidden) {
+            this.uiHidden = hidden;
+            for (const el of this.mountedRoots) {
+                if (el.classList.contains('mechili-gameover')) continue;
+                el.classList.toggle('mechili-cinema-hide', hidden);
+            }
+            if (this.itemGhost) this.itemGhost.classList.toggle('mechili-cinema-hide', hidden);
         }
-        if (this.itemGhost) this.itemGhost.classList.toggle('mechili-cinema-hide', hidden);
-        if (hidden) {
+        if (hidden && showHint) {
             if (!this.cinemaHint) {
                 const hint = document.createElement('div');
                 hint.className = 'mechili-cinema-hint';

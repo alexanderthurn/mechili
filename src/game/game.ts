@@ -876,6 +876,7 @@ export class Game {
             }
         }
         if (e.code === 'KeyC' && e.shiftKey) {
+            if (this.matchOver) return;
             this.toggleUiHidden();
             return;
         }
@@ -906,6 +907,9 @@ export class Game {
         if (e.code !== 'Escape') return;
         if (this.introActive || this.outroActive) return;
         if (this.hud.isUiHidden) {
+            // Keep cinema under the fullscreen end dialog — Escape must not
+            // flash the HUD back on behind VICTORY / DEFEAT.
+            if (this.matchOver) return;
             this.toggleUiHidden();
             return;
         }
@@ -1003,6 +1007,19 @@ export class Game {
     /** Keep cinema world look after phase code that re-enables the grid / placement. */
     private enforceCinemaWorld(): void {
         if (this.hud.isUiHidden) this.applyCinemaWorld(true);
+    }
+
+    /**
+     * Fullscreen end dialogs sit over a clean battle view — same as Shift+C
+     * cinema, without the keyboard hint (Escape must not restore the HUD).
+     */
+    private enterMatchEndCinema(): void {
+        this.hud.setUiHidden(true, { hint: false });
+        this.hpBars.view.visible = false;
+        this.hordeMarkers.edgeView.visible = false;
+        this.debug.el.style.visibility = 'hidden';
+        this.syncDebugDumpButton();
+        this.applyCinemaWorld(true);
     }
 
     /** Escape / the topbar ☰ button: open or close the pause menu */
@@ -4704,6 +4721,7 @@ export class Game {
         session.onClose = () => {
             if (this.matchOver) return;
             this.matchOver = true;
+            this.enterMatchEndCinema();
             this.hud.showDisconnect();
         };
     }
@@ -8538,6 +8556,7 @@ export class Game {
         this.placement.deselect();
         this.gridOverlay.visible = false;
         this.hpBars.clear();
+        this.enterMatchEndCinema();
         // resuming a finished save replays to defeat/victory — go to menu, not game over
         if (this.hydrating) {
             queueMicrotask(() => this.quitToMenu());

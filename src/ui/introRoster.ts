@@ -108,7 +108,12 @@ export function mountIntroRoster(
     el.style.setProperty('--mr-enemy', enemy);
     el.style.setProperty('--mr-local', player);
     el.innerHTML =
-        `<div class="mr-frame m-frame">` +
+        `<div class="mr-frame">` +
+        `<div class="mr-bg" aria-hidden="true">` +
+        `<span class="mr-bg-glow mr-bg-glow-player"></span>` +
+        `<span class="mr-bg-glow mr-bg-glow-enemy"></span>` +
+        `<span class="mr-bg-core"></span>` +
+        `</div>` +
         `<div class="mr-cols">` +
         teamHtml('player', entries.filter((e) => e.team === 'player')) +
         `<div class="mr-vs">VS</div>` +
