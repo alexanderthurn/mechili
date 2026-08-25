@@ -2529,16 +2529,15 @@ varying vec2 vFlowerHazUv;`,
   float fireG = smoothstep(0.14, 0.5, haz.g);
   float fireB = smoothstep(0.12, 0.48, haz.b);
   float acidM = fireB * (1.0 - fireG * 0.85);
-  // Near-oil brown / olive — faint soaked hints, not floating petals
-  vec3 oilTint = vec3(0.06, 0.035, 0.018);
-  vec3 acidTint = vec3(0.1, 0.14, 0.03);
-  diffuseColor.rgb = mix(diffuseColor.rgb, oilTint, oilM * 0.97);
-  diffuseColor.rgb = mix(diffuseColor.rgb, acidTint, acidM * 0.94);
-  // Dim alpha so they sit in the slick instead of on top of it
-  diffuseColor.a *= 1.0 - oilM * 0.72 - acidM * 0.65;
+  // Warm mud-brown oil / olive acid
+  vec3 oilTint = vec3(0.22, 0.12, 0.05);
+  vec3 acidTint = vec3(0.16, 0.22, 0.05);
+  diffuseColor.rgb = mix(diffuseColor.rgb, oilTint, oilM * 0.92);
+  diffuseColor.rgb = mix(diffuseColor.rgb, acidTint, acidM * 0.88);
+  diffuseColor.a *= 1.0 - oilM * 0.5 - acidM * 0.45;
 }`,
         );
     };
-    material.customProgramCacheKey = () => `${prevKey()}|flower-hazard-tint-v2`;
+    material.customProgramCacheKey = () => `${prevKey()}|flower-hazard-tint-v5`;
     material.needsUpdate = true;
 }
