@@ -3401,6 +3401,9 @@ export class Game {
         tactics: string[][];
         rng: () => number;
         loadoutOf: (seat: SeatId) => Loadout | undefined;
+        deploySettings: (typeof this.settings)['deploy'];
+        forgeSpellOwned: string[][];
+        forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
     } {
         return {
             dispatch: (action: Action) => {
@@ -3430,6 +3433,9 @@ export class Game {
             tactics: this.tacticInventory,
             rng,
             loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
+            deploySettings: this.settings.deploy,
+            forgeSpellOwned: this.forgeSpellOwned,
+            forgeSpellsOf: (seat: SeatId) => this.starterCardOfSeat(seat)?.forgeSpells,
         };
     }
 
