@@ -104,8 +104,17 @@ export const FIRE_TINT_NORMAL = 0;
  */
 export const FIRE_TINT_DRAGON = 1;
 
-/** ground units on oil cells move at this fraction of normal speed */
-export const OIL_SPEED_MULT = 0.55;
+/**
+ * How much an unlit oil slick slows what walks through it: ground units on an
+ * oil cell move at this fraction of their normal speed. 0.5 = half speed.
+ *
+ * "Unlit" needs no check of its own — igniting a slick CONSUMES it
+ * (`consumeOilUnderFire` zeroes the cell as `igniteConnectedOil` turns it to
+ * fire), so a burning cell is fire, never oil, and this can only ever apply to
+ * a slick nobody has lit. Flyers are exempt at the call site, which is the one
+ * place this is read: `steerToward`'s speed term.
+ */
+export const OIL_SPEED_MULT = 0.5;
 
 /** ground circle of an active ward stone (blocks oil stamps into its disc) */
 export type ShieldDisk = { x: number; z: number; radius: number };
