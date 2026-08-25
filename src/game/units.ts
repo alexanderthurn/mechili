@@ -788,10 +788,13 @@ export function garrisonSlotWorld(keep: Unit, slot: number): { x: number; y: num
 /** How many archers a keep's battlements hold — `Unit5` is the commander's. */
 export const GARRISON_SLOTS = [1, 2, 3, 4] as const;
 /**
- * Half of a garrison archer's field of fire: 135° each side of outward, so he
- * covers 270° and the 90° wedge pointing back into the keep is dead.
+ * A garrison archer's field of fire, in degrees. He covers this much centred on
+ * outward, and the rest — pointing back into his own keep — is dead. Written in
+ * degrees because that is how it gets tuned; the half-angle below is what the
+ * sim and the marker actually use.
  */
-export const GARRISON_FOV_HALF = (Math.PI * 3) / 4;
+export const GARRISON_FOV_DEGREES = 240;
+export const GARRISON_FOV_HALF = (GARRISON_FOV_DEGREES * Math.PI) / 360;
 /** first archer 100, second 200, third 300, fourth 400 */
 export const GARRISON_STEP_COST = 100;
 
