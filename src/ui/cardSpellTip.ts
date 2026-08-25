@@ -5,6 +5,7 @@
 import { startCardForgeIcons, type StartCard } from '../game/cards';
 import { THEME } from '../theme';
 import { iconHtml, moneyHtml } from './iconAtlas';
+import { registerHoverTipClearer } from './hoverTips';
 
 function escapeAttr(s: string): string {
     return s
@@ -160,12 +161,14 @@ export class CardSpellTips {
     private skipEl: HTMLElement | null = null;
     /** e.g. loadout first-tap arm — cleared whenever the tip hides */
     onHide: (() => void) | null = null;
+    private unregisterClear: (() => void) | null = null;
 
     bind(_root?: HTMLElement): void {
         if (this.listening) return;
         this.listening = true;
         document.addEventListener('pointerover', this.onOver, true);
         document.addEventListener('pointerout', this.onOut, true);
+        this.unregisterClear = registerHoverTipClearer(() => this.hide());
     }
 
     private onOver = (e: PointerEvent): void => {
@@ -302,6 +305,8 @@ export class CardSpellTips {
     }
 
     destroy(): void {
+        this.unregisterClear?.();
+        this.unregisterClear = null;
         if (this.listening) {
             document.removeEventListener('pointerover', this.onOver, true);
             document.removeEventListener('pointerout', this.onOut, true);

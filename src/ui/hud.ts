@@ -22,6 +22,7 @@ import { ChatBar } from './chatBar';
 import { ChatFloat } from './chatFloat';
 import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
 import { CardSpellTips, encodeTipRows, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
+import { registerHoverTipClearer } from './hoverTips';
 import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
 import { THEME, hudStyles } from '../theme';
@@ -415,6 +416,7 @@ export class Hud {
     private settingsDetailOverlay: HTMLDivElement | null = null;
     /** hover tip for forge spells on specialist / round cards */
     private readonly cardSpellTips = new CardSpellTips();
+    private unregisterHoverClear: (() => void) | null = null;
     /** item ids currently in the selected Stronghold forge (for slot hover preview) */
     private lastForgeOvenIds: string[] = [];
     /** the oven holds a complete recipe — see syncForgeSlotHoverPreview */
@@ -1201,6 +1203,15 @@ export class Hud {
         this.mount(this.phoneBar);
         this.mount(this.phoneStatusEl);
         this.buildChatBar();
+        this.unregisterHoverClear = registerHoverTipClearer(() => this.clearHoverTips());
+    }
+
+    /** Shop action-info, forge cookbook peek, touch tip, specialist hover peek. */
+    private clearHoverTips(): void {
+        this.hideActionInfo();
+        this.hideForgeSlotHoverPreview();
+        document.querySelector('.mechili-touchtip')?.remove();
+        if (this.specDetailViaHover) this.hideSpecialistDetail(true);
     }
 
     /**
@@ -4195,6 +4206,8 @@ export class Hud {
 
     /** removes every HUD element from the page */
     destroy(): void {
+        this.unregisterHoverClear?.();
+        this.unregisterHoverClear = null;
         this.hideMatchOverlays();
         this.clearInvDragListeners();
         this.invDrag = null;
