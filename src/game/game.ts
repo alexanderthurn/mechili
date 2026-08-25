@@ -863,6 +863,12 @@ export class Game {
             this.cheatSkipRound();
             return;
         }
+        if (e.code === 'KeyK' && e.shiftKey && !this.star) {
+            // Shift+K = SP: drop the enemy Stronghold where it stands, for
+            // eyeballing the lifeline collapse without besieging it first
+            this.cheatKillEnemyStronghold();
+            return;
+        }
         if (e.code === 'KeyT' && e.shiftKey) {
             // Shift+T cycles material debug: clay → wireframe → normals → off
             this.cycleMaterialDebug();
@@ -3092,6 +3098,22 @@ export class Game {
      * Restores both sides to peak (starting) HP so the skip never chips the
      * bar. Solo only (no net / star / watch).
      */
+    /**
+     * Single-player only: kill the enemy Stronghold outright.
+     *
+     * Battle phase only — the Stronghold is only an Actor while a sim exists,
+     * and it is the sim's own `kill` that runs the lifeline wipe, the collapse
+     * shockwave and every death that follows. Reaching in through damage rather
+     * than a bespoke path is the point: the cheat sees exactly what a siege
+     * would produce.
+     */
+    private cheatKillEnemyStronghold(): void {
+        if (!this.sim || this.phase !== 'battle' || this.matchOver) return;
+        this.sim.cheatDestroy(
+            (u) => u.type === STRONGHOLD && u.team === 'enemy',
+        );
+    }
+
     private cheatSkipRound(): void {
         if (this.star || this.watching || this.matchOver || this.hydrating) return;
         if (this.introActive || this.outroActive) return;

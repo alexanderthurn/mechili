@@ -2293,6 +2293,21 @@ export class BattleSim {
         }
     }
 
+    /**
+     * Debug/cheat: kill every living actor a predicate picks, through the same
+     * `kill` a real blow uses — so a Stronghold dropped this way still runs the
+     * lifeline wipe, the collapse shockwave and every death that follows.
+     *
+     * Not an action and not logged: single-player only, and calling it in a
+     * networked match would desync the moment the peer replayed without it.
+     */
+    cheatDestroy(pick: (unit: Unit) => boolean): void {
+        for (const a of this.actors) {
+            if (!a.alive || !pick(a.unit)) continue;
+            this.kill(a, null, a.maxHp);
+        }
+    }
+
     /** hands the accumulated visual events to the renderer and forgets them */
     consumeEvents(): SimEvent[] {
         const drained = this.events;
