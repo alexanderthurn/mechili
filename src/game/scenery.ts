@@ -1917,7 +1917,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         // High+: tint petals sitting in oil/acid (medium skips — one less sample).
         if (this.quality === 'high' || this.quality === 'ultra') {
             for (const m of this.flowerMaterials) {
-                attachFlowerHazardTint(m, map);
+                attachHazardTint(m, map, { fadeAlpha: true });
             }
         }
 
@@ -2034,7 +2034,12 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         }
 
         const meshes = buildFloorPieceMeshes(placements);
-        for (const mesh of meshes) this.group.add(mesh);
+        for (const mesh of meshes) {
+            this.group.add(mesh);
+            if (mesh.material instanceof MeshStandardMaterial) {
+                attachHazardTint(mesh.material, map, { strength: 'tree' });
+            }
+        }
         console.info(
             `[scenery] floor pieces: ${placements.length} (board + ${FOREST} forest + specials)`,
         );
@@ -2116,6 +2121,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
             mesh.instanceMatrix.needsUpdate = true;
             this.group.add(mesh);
+            if (mesh.material instanceof MeshStandardMaterial) {
+                attachHazardTint(mesh.material, this.map, { strength: 'tree' });
+            }
             total += mesh.count;
         }
         console.info(`[scenery] field Tripo: ${total}`);
@@ -2227,6 +2235,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                     }
                     mesh.instanceMatrix.needsUpdate = true;
                     this.group.add(mesh);
+                    if (mesh.material instanceof MeshStandardMaterial) {
+                        attachHazardTint(mesh.material, map, { strength: 'tree' });
+                    }
                     nearN += mesh.count;
                 }
             }
@@ -2483,15 +2494,32 @@ function makeFlowerTexture(): CanvasTexture {
 }
 
 /**
- * High/ultra only: sample the board hazard mask at each flower's world XZ and
- * brown/olive-tint petals over oil/acid so they read as soaked, not floating
- * clean above the slick. Outside the board UV clamps to black (no tint).
+ * High/ultra: sample the board hazard mask at each instance's world XZ and
+ * brown/olive-tint over oil/acid. Used by flowers (with alpha fade) and on-board
+ * Tripo trees. Outside the board UV clamps to black (no tint). Shared materials
+ * attach once.
  */
-function attachFlowerHazardTint(material: MeshStandardMaterial, map: BattleMap): void {
+function attachHazardTint(
+    material: MeshStandardMaterial,
+    map: BattleMap,
+    opts: { fadeAlpha?: boolean; strength?: 'flower' | 'tree' } = {},
+): void {
+    if (material.userData.hazardTintAttached) return;
+    material.userData.hazardTintAttached = true;
+    const fadeAlpha = opts.fadeAlpha === true;
+    const tree = opts.strength === 'tree';
     const hazardMask = map.getHazardMask();
     const boardHalf = new Vector2(map.halfW, map.halfH);
     const prevCompile = material.onBeforeCompile;
     const prevKey = material.customProgramCacheKey.bind(material);
+    // Flowers: warm readable brown. Trees: match ground oil/acid slick.
+    const oilTint = tree ? 'vec3(0.004, 0.003, 0.002)' : 'vec3(0.22, 0.12, 0.05)';
+    const acidTint = tree ? 'vec3(0.12, 0.18, 0.025)' : 'vec3(0.16, 0.22, 0.05)';
+    const oilMix = tree ? '0.99' : '0.92';
+    const acidMix = tree ? '0.94' : '0.88';
+    const alphaLine = fadeAlpha
+        ? `\n  diffuseColor.a *= 1.0 - oilM * 0.5 - acidM * 0.45;`
+        : '';
     material.onBeforeCompile = (shader, renderer) => {
         prevCompile?.call(material, shader, renderer);
         shader.uniforms.uFlowerHazardMask = { value: hazardMask };
@@ -2529,15 +2557,14 @@ varying vec2 vFlowerHazUv;`,
   float fireG = smoothstep(0.14, 0.5, haz.g);
   float fireB = smoothstep(0.12, 0.48, haz.b);
   float acidM = fireB * (1.0 - fireG * 0.85);
-  // Warm mud-brown oil / olive acid
-  vec3 oilTint = vec3(0.22, 0.12, 0.05);
-  vec3 acidTint = vec3(0.16, 0.22, 0.05);
-  diffuseColor.rgb = mix(diffuseColor.rgb, oilTint, oilM * 0.92);
-  diffuseColor.rgb = mix(diffuseColor.rgb, acidTint, acidM * 0.88);
-  diffuseColor.a *= 1.0 - oilM * 0.5 - acidM * 0.45;
+  vec3 oilTint = ${oilTint};
+  vec3 acidTint = ${acidTint};
+  diffuseColor.rgb = mix(diffuseColor.rgb, oilTint, oilM * ${oilMix});
+  diffuseColor.rgb = mix(diffuseColor.rgb, acidTint, acidM * ${acidMix});${alphaLine}
 }`,
         );
     };
-    material.customProgramCacheKey = () => `${prevKey()}|flower-hazard-tint-v5`;
+    material.customProgramCacheKey = () =>
+        `${prevKey()}|hazard-tint-v7-${tree ? 'tree' : 'flower'}${fadeAlpha ? '-fade' : ''}`;
     material.needsUpdate = true;
 }
