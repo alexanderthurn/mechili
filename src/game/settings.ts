@@ -264,11 +264,14 @@ export function formatCustomGamePaceOption(p: CustomGamePacePreset): string {
 /**
  * What the Stronghold is worth in a match.
  *
- * - `standard`  — a building like any other; losing it costs you the forge.
- * - `lifeline`  — the side's army lives only while it stands. Break one and
- *                 every pack on that side drops, which ends the round on the
- *                 spot: a siege win instead of a grind.
+ * - `lifeline`  — the default. The side's army lives only while it stands:
+ *                 break one and every pack on that side drops, ending the round
+ *                 on the spot. A siege win instead of a grind.
+ * - `standard`  — a building like any other; losing it only costs you the forge.
  * - `none`      — no Stronghold on the board at all, so no forge either.
+ *
+ * The id `standard` predates the default moving to `lifeline`; it is kept so
+ * saved Custom Game configs and anything already on the wire still resolve.
  */
 export type StrongholdMode = 'standard' | 'lifeline' | 'none';
 
@@ -278,12 +281,12 @@ export interface StrongholdModeOption {
 }
 
 export const STRONGHOLD_MODE_OPTIONS: readonly StrongholdModeOption[] = [
-    { mode: 'standard', label: 'Standard' },
     { mode: 'lifeline', label: 'Army falls with it' },
+    { mode: 'standard', label: 'Just a building' },
     { mode: 'none', label: 'None on the board' },
 ];
 
-export const DEFAULT_STRONGHOLD_MODE: StrongholdMode = 'standard';
+export const DEFAULT_STRONGHOLD_MODE: StrongholdMode = 'lifeline';
 
 /** Snap anything off the wire, a save or a URL onto a known mode. */
 export function strongholdModeOption(raw: unknown): StrongholdMode {
@@ -613,13 +616,13 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                             ? 'Army falls with it'
                             : settings.strongholdMode === 'none'
                               ? 'None on the board'
-                              : 'Standard',
+                              : 'Just a building',
                     note:
                         settings.strongholdMode === 'lifeline'
                             ? 'break one and every pack on that side drops — the round ends there'
                             : settings.strongholdMode === 'none'
                               ? 'no Stronghold, so no forge either'
-                              : 'a building like any other; losing it costs you the forge',
+                              : 'losing it only costs you the forge',
                 },
             ],
         },
