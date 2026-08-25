@@ -995,7 +995,14 @@ export class PlacementController {
     /** true when any tile under the pack sits in the flank strips (mechs only) */
     isOnFlank(unit: Unit): boolean {
         const team = unit.team;
-        if (team === 'horde' || unit.type.structure || unit.type.extra) return false;
+        // `gridless` first: this reads unit.cell, and a pack spawned into the
+        // world carries a {0,0} placeholder there. Cell (0,0) is a flank tile
+        // once the flanks unlock in round 2, so a garrison archer was being
+        // told to march in from the edge of the board — pinned at battlement
+        // height the whole way, which is a man walking through the air.
+        if (unit.gridless || team === 'horde' || unit.type.structure || unit.type.extra) {
+            return false;
+        }
         const cells = this.coveredCells(this.footprintOf(unit.type, unit.rotated), unit.cell);
         if (!cells) return false;
         return cells.some((c) => this.map.isFlankDeployCell(c, team));
