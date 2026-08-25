@@ -192,6 +192,7 @@ import {
     normalizeGameSettings,
     secondsForRound,
     shouldOfferRoundCards,
+    type DeploySettings,
     type GameSettings,
 } from './settings';
 import { detCos, detSin } from './detMath';
@@ -909,6 +910,7 @@ export class Game {
             }
         }
         if (e.code === 'KeyC' && e.shiftKey) {
+            if (this.matchOver) return;
             this.toggleUiHidden();
             return;
         }
@@ -939,6 +941,9 @@ export class Game {
         if (e.code !== 'Escape') return;
         if (this.introActive || this.outroActive) return;
         if (this.hud.isUiHidden) {
+            // Keep cinema under the fullscreen end dialog — Escape must not
+            // flash the HUD back on behind VICTORY / DEFEAT.
+            if (this.matchOver) return;
             this.toggleUiHidden();
             return;
         }
@@ -1036,6 +1041,19 @@ export class Game {
     /** Keep cinema world look after phase code that re-enables the grid / placement. */
     private enforceCinemaWorld(): void {
         if (this.hud.isUiHidden) this.applyCinemaWorld(true);
+    }
+
+    /**
+     * Fullscreen end dialogs sit over a clean battle view — same as Shift+C
+     * cinema, without the keyboard hint (Escape must not restore the HUD).
+     */
+    private enterMatchEndCinema(): void {
+        this.hud.setUiHidden(true, { hint: false });
+        this.hpBars.view.visible = false;
+        this.hordeMarkers.edgeView.visible = false;
+        this.debug.el.style.visibility = 'hidden';
+        this.syncDebugDumpButton();
+        this.applyCinemaWorld(true);
     }
 
     /** Escape / the topbar ☰ button: open or close the pause menu */
@@ -1661,8 +1679,8 @@ export class Game {
             if (this.armedTactic) return;
             this.placement.rotateSelected();
         };
-        this.placement.rangeOf = (unit) => this.resolvedStats(unit).range;
-        this.placement.minRangeOf = (unit) => this.resolvedStats(unit).minRange;
+        this.placement.rangeOf = (unit) => this.resolvedStatsView(unit).range;
+        this.placement.minRangeOf = (unit) => this.resolvedStatsView(unit).minRange;
         this.placement.auraRangeOf = (unit) => this.auraRadiusOf(unit);
         this.controls.onRightClick = () => {
             if (this.cancelTacticPlacement()) return;
@@ -3407,6 +3425,12 @@ export class Game {
         tactics: string[][];
         rng: () => number;
         loadoutOf: (seat: SeatId) => Loadout | undefined;
+        // `(typeof this.settings)['deploy']` does not typecheck here — `this`
+        // has no type in a method's own return annotation. The named type is
+        // what it was reaching for anyway.
+        deploySettings: DeploySettings;
+        forgeSpellOwned: string[][];
+        forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
     } {
         return {
             dispatch: (action: Action) => {
@@ -3436,6 +3460,9 @@ export class Game {
             tactics: this.tacticInventory,
             rng,
             loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
+            deploySettings: this.settings.deploy,
+            forgeSpellOwned: this.forgeSpellOwned,
+            forgeSpellsOf: (seat: SeatId) => this.starterCardOfSeat(seat)?.forgeSpells,
         };
     }
 
@@ -4780,6 +4807,7 @@ export class Game {
         session.onClose = () => {
             if (this.matchOver) return;
             this.matchOver = true;
+            this.enterMatchEndCinema();
             this.hud.showDisconnect();
         };
     }
@@ -6252,6 +6280,56 @@ export class Game {
 
     /** tech-resolved stats plus army boosts, card speciality, and the pack's items */
     private resolvedStats(unit: Unit) {
+        return this.resolveUnitStats(unit, {
+            ownedTechs:
+                unit.team === 'horde'
+                    ? TechTree.EMPTY
+                    : this.techTree.ownedFor(unit.seat, unit.type.id),
+            items: unit.items,
+            attackTiers: this.boostState.attack[unit.seat] ?? 0,
+            hpTiers: this.boostState.hp[unit.seat] ?? 0,
+            rangeBoost: this.roundBoosts.range[unit.seat] ?? false,
+            speedBoost: this.roundBoosts.speed[unit.seat] ?? false,
+            hasTech: (s, t, id) => this.techTree.has(s, t, id),
+        });
+    }
+
+    /**
+     * Stats as the local viewer may know them — phase-start techs / items /
+     * range boosts while deploy intel fog applies (so enemy mid-deploy range
+     * upgrades do not enlarge the selection ring).
+     */
+    private resolvedStatsView(unit: Unit) {
+        if (!this.placement.isIntelFogged(unit)) return this.resolvedStats(unit);
+        const intel = this.placement.intelOf(unit);
+        const building = this.intelBuildingSeat(unit);
+        const owned = this.intelTechOwned(unit);
+        return this.resolveUnitStats(unit, {
+            ownedTechs: owned,
+            items: intel?.items ?? [],
+            attackTiers: building.boostAttack,
+            hpTiers: building.boostHp,
+            rangeBoost: building.rangeBoost,
+            speedBoost: building.speedBoost,
+            hasTech: (_s, typeId, techId) =>
+                typeId === unit.type.id
+                    ? owned.has(techId)
+                    : this.techTree.has(_s, typeId, techId),
+        });
+    }
+
+    private resolveUnitStats(
+        unit: Unit,
+        opts: {
+            ownedTechs: ReadonlySet<string>;
+            items: readonly string[];
+            attackTiers: number;
+            hpTiers: number;
+            rangeBoost: boolean;
+            speedBoost: boolean;
+            hasTech: (seat: SeatId, typeId: string, techId: string) => boolean;
+        },
+    ) {
         const { team, type } = unit;
         // the horde owns no techs/boosts/speciality/items — plain base stats
         if (team === 'horde') {
@@ -6265,14 +6343,12 @@ export class Game {
                 splashRadius: type.splashRadius ?? 0,
             };
         }
-        const stats = this.techTree.statsFor(unit.seat, type);
+        const stats = TechTree.statsWithOwned(type, opts.ownedTechs);
         const b = this.settings.boosts;
-        const attackTier = this.boostState.attack[unit.seat]!;
-        const hpTier = this.boostState.hp[unit.seat]!;
-        if (attackTier > 0) stats.damage *= 1 + b.attackTiers[attackTier - 1]!;
-        if (hpTier > 0) stats.hp *= 1 + b.hpTiers[hpTier - 1]!;
+        if (opts.attackTiers > 0) stats.damage *= 1 + b.attackTiers[opts.attackTiers - 1]!;
+        if (opts.hpTiers > 0) stats.hp *= 1 + b.hpTiers[opts.hpTiers - 1]!;
         const spec = this.speciality[unit.seat];
-        if (spec === 'air' && effectiveFlying(type, unit.seat, (s, t, id) => this.techTree.has(s, t, id)) > 0) {
+        if (spec === 'air' && effectiveFlying(type, unit.seat, opts.hasTech) > 0) {
             stats.damage *= 1 + AIR_BONUS;
             stats.hp *= 1 + AIR_BONUS;
         }
@@ -6280,7 +6356,7 @@ export class Game {
             stats.damage *= 1 - COST_CONTROL_PENALTY;
             stats.hp *= 1 - COST_CONTROL_PENALTY;
         }
-        for (const id of unit.items) {
+        for (const id of opts.items) {
             const mods = ITEMS[id]?.mods;
             if (!mods) continue;
             stats.hp *= mods.hp ?? 1;
@@ -6295,8 +6371,8 @@ export class Game {
         // the unit's own speed, not the commander's gift (same rule as the
         // one-round Vanguard boost below)
         if (spec === 'speed' && !type.structure) stats.speed += SPEED_COMMANDER_BONUS;
-        if (this.roundBoosts.speed[unit.seat]) stats.speed += rb.speedBoost;
-        if (this.roundBoosts.range[unit.seat] && type.projectileSpeed) stats.range += rb.rangeBoost;
+        if (opts.speedBoost) stats.speed += rb.speedBoost;
+        if (opts.rangeBoost && type.projectileSpeed) stats.range += rb.rangeBoost;
         return stats;
     }
 
@@ -8403,6 +8479,7 @@ export class Game {
         this.dragonFx.clear();
         this.conversionFx.clear();
         this.oilDripFx.clear();
+        this.scenery.clearHammerCrush();
         this.spellChargeMarkers = [];
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
@@ -8716,6 +8793,7 @@ export class Game {
         this.placement.deselect();
         this.gridOverlay.visible = false;
         this.hpBars.clear();
+        this.enterMatchEndCinema();
         // resuming a finished save replays to defeat/victory — go to menu, not game over
         if (this.hydrating) {
             queueMicrotask(() => this.quitToMenu());
@@ -9100,12 +9178,22 @@ export class Game {
                     this.collapseEndedRound = true;
                 }
                 this.stampWearFromEvents(battleEvents);
+                const sceneryShields = livingShieldDisks(this.placement.allUnits());
                 for (const ev of battleEvents) {
                     if (ev.kind === 'spellMeteor') {
                         this.meteorFx.spawnShardImpact(ev.x, ev.z, ev.at);
                     } else if (ev.kind === 'spellLightning') {
                         // cloud gathers first; bolt drops from it a moment later
                         this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed, ev.y);
+                    } else if (ev.kind === 'hammerCrush') {
+                        this.scenery.crushInRect(
+                            ev.x,
+                            ev.z,
+                            ev.halfWidth,
+                            ev.halfDepth,
+                            ev.yaw,
+                            sceneryShields,
+                        );
                     } else if (ev.kind === 'hazardDrip') {
                         this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at, {
                             scale: ev.dripScale,
@@ -9434,13 +9522,32 @@ export class Game {
                     const s = e.ashScorch?.strength ?? (e.big ? 0.7 : 0.55);
                     this.map.stampScorch(e.x, e.z, r, s);
                 } else if (e.wear === 'blood') {
-                    this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65, e.blood);
+                    const mul = e.bloodScale ?? 1;
+                    this.map.stampBlood(
+                        e.x,
+                        e.z,
+                        (e.big ? 2.4 : 1.35) * mul,
+                        Math.min(1, (e.big ? 0.75 : 0.65) * Math.min(mul, 1.5)),
+                        e.blood,
+                    );
                 }
             } else if (e.kind === 'explosion') {
-                const scorchR = Math.max(e.radius * (e.heavy ? 1.15 : 0.9), 2);
-                this.map.stampScorch(e.x, e.z, scorchR, e.heavy ? 0.55 : 0.16);
-                if (e.heavy) {
-                    this.map.stampScorch(e.x, e.z, scorchR * 1.35, 0.28);
+                if (e.rect) {
+                    // Hammer: rectangular scar = hit zone (HAMMER_ZONE + yaw)
+                    this.map.stampWearOrientedRect(
+                        e.x,
+                        e.z,
+                        e.rect.halfWidth,
+                        e.rect.halfDepth,
+                        e.rect.yaw,
+                        { sand: e.heavy ? 0.28 : 0.14, scorch: e.heavy ? 0.55 : 0.2 },
+                    );
+                } else {
+                    const scorchR = Math.max(e.radius * (e.heavy ? 1.15 : 0.9), 2);
+                    this.map.stampScorch(e.x, e.z, scorchR, e.heavy ? 0.55 : 0.16);
+                    if (e.heavy) {
+                        this.map.stampScorch(e.x, e.z, scorchR * 1.35, 0.28);
+                    }
                 }
             } else if (e.kind === 'groundFire') {
                 // Orange-tier only: permanent scar seed. Tongues tier uses live charcoal
@@ -9731,7 +9838,7 @@ export class Game {
     }
 
     private unitInfo(u: Unit): SelectionInfo {
-        const rs = this.resolvedStats(u);
+        const rs = this.resolvedStatsView(u);
         const lv = this.levelInfo(u);
         const fogItems = this.placement.intelOf(u)?.items;
         const ownInteractive = u.team === 'player' && this.playerCanAct;
@@ -10053,6 +10160,7 @@ export class Game {
             sellOwned: this.sellState.owned.slice(),
             rallyOwned: this.rallyRouteOwned.slice(),
             movePackOwned: this.movePackOwned.slice(),
+            forgeSpellOwned: this.forgeSpellOwned.map((list) => list.slice()),
             forge: {
                 player: this.forgeSlots.player.map((s) => s?.itemId ?? null),
                 enemy: this.forgeSlots.enemy.map((s) => s?.itemId ?? null),
@@ -10085,7 +10193,8 @@ export class Game {
     /**
      * Stronghold tiles — always listed when that building is selected (deploy +
      * battle, own or enemy). Buyable only for your side while you can act.
-     * Duo-only actions omit themselves in 1v1; add future abilities here.
+     * Enemy forge-spell ownership uses deploy intel while fogged (same as
+     * Research Center / Command Tower purchase flags).
      */
     /** archers this side has posted on its keep — the wall is shared per side */
     private garrisonCount(team: Team): number {
@@ -10104,6 +10213,7 @@ export class Game {
         const team: Team = u.team === 'horde' ? 'player' : u.team;
         const teamSeats = seatIdsOf(this.seats, team);
         const canBuy = u.team === 'player' && this.playerCanAct;
+        const fogged = this.placement.isIntelFogged(u);
 
         // Ally supply gift — only when this side has two seats
         if (teamSeats.length >= 2) {
@@ -10129,14 +10239,17 @@ export class Game {
                 this.economy.balance(this.humanSeat) >= nextCost,
         };
 
-        // Your commander's own three spells, buyable once each. Own side only:
-        // these are YOUR picks, and an enemy Stronghold has no business
-        // advertising them (nor would the buttons do anything there).
-        if (u.team === 'player') {
-            const seat = this.humanSeat;
-            const bought = this.forgeSpellOwned[seat] ?? [];
+        // Commander forge spells: own seat can buy; enemy seats show owned /
+        // last-round intel (same fog window as Research Center / Command Tower).
+        const spellSeats = u.team === 'player' ? [this.humanSeat] : teamSeats;
+        out.forgeSpells = spellSeats.flatMap((seat) => {
+            const bought =
+                fogged && this.buildingIntelSnapshot
+                    ? (this.buildingIntelSnapshot.forgeSpellOwned[seat] ?? [])
+                    : (this.forgeSpellOwned[seat] ?? []);
             const bal = this.economy.balance(seat);
-            out.forgeSpells = (this.starterCardOfSeat(seat)?.forgeSpells ?? [])
+            const seatCanBuy = canBuy && seat === this.humanSeat;
+            return (this.starterCardOfSeat(seat)?.forgeSpells ?? [])
                 .map((tacticId) => {
                     const t = TACTICS[tacticId];
                     // no strongholdCost = this spell isn't sold here
@@ -10150,13 +10263,12 @@ export class Game {
                         desc: t.description,
                         cost,
                         owned,
-                        affordable: canBuy && !owned && bal >= cost,
+                        affordable: seatCanBuy && !owned && bal >= cost,
                     };
                 })
                 .filter((e): e is NonNullable<typeof e> => e !== null);
-        }
+        });
 
-        const fogged = this.placement.isIntelFogged(u);
         const snapIds =
             fogged && this.buildingIntelSnapshot
                 ? this.buildingIntelSnapshot.forge[team]
@@ -10243,7 +10355,7 @@ export class Game {
     }
 }
 
-/** deploy-intel capture of Research Center / Command Tower seat state */
+/** deploy-intel capture of Research Center / Command Tower / Stronghold seat state */
 interface BuildingIntelSnapshot {
     recruitLevel: number[];
     deployExtra: number[];
@@ -10255,6 +10367,8 @@ interface BuildingIntelSnapshot {
     sellOwned: boolean[];
     rallyOwned: boolean[];
     movePackOwned: boolean[];
+    /** Stronghold commander spells bought (per seat) at phase start — fogged view */
+    forgeSpellOwned: string[][];
     /** Stronghold oven contents (item ids) at phase start — fogged view */
     forge: Record<Team, (string | null)[]>;
     /** whether each oven was paid for at phase start — fogged view, and the

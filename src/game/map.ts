@@ -205,6 +205,8 @@ const HAZARD_NOISE_GLSL =
 /**
  * Oil / fire / acid albedo. High/ultra: sluggish tar, active embers, bubbling acid.
  * Lower tiers keep a readable flat puddle.
+ * Expects `footWear` (0..1 footstep / sand-wear strength) already in scope —
+ * used to disturb oil and acid so trails stay readable under puddles.
  */
 function groundHazardColorGlsl(rich: boolean): string {
     const masks =
@@ -216,11 +218,26 @@ function groundHazardColorGlsl(rich: boolean): string {
         '\tfloat fireB = smoothstep(0.12, 0.48, haz.b);\n' +
         '\tfloat orangeM = fireG * (1.0 - fireB * 0.85);\n' +
         '\tfloat azureM = min(fireG, fireB);\n' +
-        '\tfloat acidM = fireB * (1.0 - fireG * 0.85);\n';
+        '\tfloat acidM = fireB * (1.0 - fireG * 0.85);\n' +
+        '\tfloat footPrint = smoothstep( 0.06, 0.36, footWear );\n';
+    const oilFoot =
+        // Footsteps thin the oil film and leave darker stirred-tar tracks.
+        '\tfloat oilPrint = oilM * footPrint;\n' +
+        '\toilM *= 1.0 - footPrint * 0.155;\n';
+    const oilFootAfter =
+        '\tvec3 oilTrack = vec3( 0.05, 0.035, 0.02 );\n' +
+        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, oilTrack, oilPrint * 0.205 );\n';
+    const acidFoot =
+        // Corroded tracks: darker pressed acid + a lime edge where the film breaks.
+        '\tfloat acidPrint = acidM * footPrint;\n' +
+        '\tacidCol = mix( acidCol, vec3( 0.02, 0.07, 0.015 ), acidPrint * 0.175 );\n' +
+        '\tacidCol = mix( acidCol, vec3( 0.55, 0.95, 0.22 ), acidPrint * footPrint * 0.0875 );\n';
     if (!rich) {
         return (
             masks +
+            oilFoot +
             '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.002, 0.002, 0.002), oilM * 0.995);\n' +
+            oilFootAfter +
             '\tfloat flicker = 0.55 + 0.45 * sin(uHazardTime * 9.0 + vMacroUv.x * 40.0 + vMacroUv.y * 28.0);\n' +
             '\tvec3 orangeCol = mix(vec3(0.18, 0.03, 0.0), vec3(1.0, 0.32, 0.04), flicker);\n' +
             '\tvec3 tongueGround = mix(vec3(0.75, 0.12, 0.02), vec3(1.0, 0.5, 0.07), flicker);\n' +
@@ -235,6 +252,7 @@ function groundHazardColorGlsl(rich: boolean): string {
             '\tdiffuseColor.rgb = mix(diffuseColor.rgb, azureCol, azureM * mix( 0.7, 0.9, uFireCharcoalGround ));\n' +
             '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
             '\tvec3 acidCol = mix(vec3(0.04, 0.14, 0.02), vec3(0.38, 0.92, 0.12), bubble);\n' +
+            acidFoot +
             '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n'
         );
     }
@@ -253,12 +271,14 @@ function groundHazardColorGlsl(rich: boolean): string {
         '\tfloat oilFret2 = hazNoise( vBoardXZ * 1.2 + 13.0 );\n' +
         '\tfloat oilFretMask = smoothstep( 0.74, 0.93, oilFret ) * smoothstep( 0.5, 0.82, oilFret2 );\n' +
         '\toilM *= 1.0 - oilCenter * oilFretMask * 0.11;\n' +
+        oilFoot +
         '\tfloat oilFlow = hazFbm( vBoardXZ * 0.14 + vec2( uHazardTime * 0.032, uHazardTime * 0.019 ) );\n' +
         // Sparse cool grey specular film (like wet pool reflection), rest stays black.
         '\tfloat oilFilmN = hazNoise( vBoardXZ * 0.42 + vec2( uHazardTime * 0.02, -uHazardTime * 0.015 ) );\n' +
         '\tfloat oilFilm = smoothstep( 0.7, 0.92, oilFlow ) * smoothstep( 0.62, 0.88, oilFilmN );\n' +
         '\tvec3 oilCol = mix( vec3( 0.0012, 0.0012, 0.0012 ), vec3( 0.28, 0.29, 0.3 ), oilFilm * 0.35 );\n' +
         '\tdiffuseColor.rgb = mix( diffuseColor.rgb, oilCol, oilM * 0.995 );\n' +
+        oilFootAfter +
         // Fire: upward ember flow + hot sparks (more active than a sine puddle).
         '\tfloat fireFlow = hazFbm( vBoardXZ * 0.48 + vec2( uHazardTime * 0.22, -uHazardTime * 1.35 ) );\n' +
         '\tfloat firePop = hazNoise( vBoardXZ * 1.55 + vec2( -uHazardTime * 1.1, uHazardTime * 2.4 ) );\n' +
@@ -298,6 +318,7 @@ function groundHazardColorGlsl(rich: boolean): string {
         '\tvec3 acidCol = mix( vec3( 0.03, 0.12, 0.02 ), vec3( 0.2, 0.82, 0.1 ), acidCaustic );\n' +
         '\tacidCol = mix( acidCol, vec3( 0.48, 0.98, 0.18 ), acidCore * 0.75 );\n' +
         '\tacidCol = mix( acidCol, vec3( 0.85, 1.0, 0.38 ), acidRing * 0.85 );\n' +
+        acidFoot +
         '\tdiffuseColor.rgb = mix( diffuseColor.rgb, acidCol, acidM * 0.88 );\n'
     );
 }
@@ -825,6 +846,163 @@ export class BattleMap {
     }
 
     /**
+     * Oriented soft rectangle wear (Hammer of the Gods footprint).
+     * Matches HAMMER_ZONE + placement yaw — not a circumscribed disc.
+     */
+    stampWearOrientedRect(
+        x: number,
+        z: number,
+        halfWidth: number,
+        halfDepth: number,
+        yaw: number,
+        opts?: { sand?: number; scorch?: number },
+    ): void {
+        if (!this.wearEnabled()) return;
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        const med = this.groundEffects === 'medium' ? 0.65 : 1;
+        const sandA = (opts?.sand ?? 0.22) * med * WEAR_BLEND.stampStrength;
+        const scorchA = (opts?.scorch ?? 0.5) * med * WEAR_BLEND.stampStrength;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const sx = this.sandW / this.width;
+        const sy = this.sandH / this.height;
+        const hx = Math.max(1, halfWidth * sx);
+        const hy = Math.max(1, halfDepth * sy);
+        if (sandA > 0.01) this.drawWearOrientedRect(ctx, cx, cy, hx, hy, yaw, sandA, 'r');
+        if (scorchA > 0.01) {
+            this.drawWearOrientedRect(ctx, cx, cy, hx * 0.96, hy * 0.96, yaw, scorchA, 'b');
+            this.drawWearOrientedRect(ctx, cx, cy, hx * 1.04, hy * 1.04, yaw, scorchA * 0.22, 'b');
+        }
+        // Divine graffiti — smiley pressed into the scar (same yaw as the hammer)
+        const faceA = Math.max(sandA, scorchA) * 1.15;
+        if (faceA > 0.01) {
+            this.drawWearSmiley(ctx, cx, cy, hx, hy, yaw, faceA * 0.85, 'r');
+            this.drawWearSmiley(ctx, cx, cy, hx, hy, yaw, faceA, 'b');
+        }
+        this.sandDirty = true;
+    }
+
+    /**
+     * Two eyes + a smile in local hammer space (X = width, Y = depth after yaw).
+     * Drawn as soft discs / thick arc so it reads on the wear mask.
+     */
+    private drawWearSmiley(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        halfW: number,
+        halfH: number,
+        yaw: number,
+        alpha: number,
+        channel: 'r' | 'g' | 'b',
+    ): void {
+        const a = Math.min(1, Math.max(0.02, alpha));
+        const rgb =
+            channel === 'r' ? `255,0,0` : channel === 'g' ? `0,255,0` : `0,0,255`;
+        // Fit the face inside the footprint; prefer the shorter axis so it stays on-scar
+        const faceR = Math.min(halfW, halfH) * 0.72 * 1.5;
+        const eyeR = faceR * 0.16;
+        const eyeX = faceR * 0.34;
+        const eyeY = -faceR * 0.28;
+        const smileR = faceR * 0.48;
+        const smileY = faceR * 0.08;
+        const smileW = Math.max(2.5, faceR * 0.14);
+
+        ctx.save();
+        ctx.translate(x, y);
+        // +90° vs hammer yaw so the face reads across the footprint
+        ctx.rotate(yaw + Math.PI * 0.5);
+
+        const fillDisc = (lx: number, ly: number, r: number, strength: number) => {
+            const grad = ctx.createRadialGradient(lx, ly, 0, lx, ly, r);
+            grad.addColorStop(0, `rgba(${rgb},${strength})`);
+            grad.addColorStop(1, `rgba(${rgb},0)`);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(lx, ly, r, 0, Math.PI * 2);
+            ctx.fill();
+        };
+
+        // Eyes
+        fillDisc(-eyeX, eyeY, eyeR, a);
+        fillDisc(eyeX, eyeY, eyeR, a);
+        fillDisc(-eyeX, eyeY, eyeR * 0.55, Math.min(1, a * 1.2));
+        fillDisc(eyeX, eyeY, eyeR * 0.55, Math.min(1, a * 1.2));
+
+        // Smile — thick stroked arc (mouth opens toward +depth)
+        ctx.strokeStyle = `rgba(${rgb},${a})`;
+        ctx.lineWidth = smileW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(0, smileY, smileR, 0.18 * Math.PI, 0.82 * Math.PI, false);
+        ctx.stroke();
+        // softer outer pass
+        ctx.strokeStyle = `rgba(${rgb},${a * 0.45})`;
+        ctx.lineWidth = smileW * 1.65;
+        ctx.beginPath();
+        ctx.arc(0, smileY, smileR, 0.18 * Math.PI, 0.82 * Math.PI, false);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    /** Soft axis-aligned fill after rotate(yaw) — short feather, clear rectangle. */
+    private drawWearOrientedRect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        halfW: number,
+        halfH: number,
+        yaw: number,
+        alpha: number,
+        channel: 'r' | 'g' | 'b',
+    ): void {
+        const a = Math.min(1, Math.max(0.02, alpha));
+        const rgb =
+            channel === 'r' ? `255,0,0` : channel === 'g' ? `0,255,0` : `0,0,255`;
+        // Soft hammer head — not a sharp box (corners ~¼ of the short side)
+        const corner = Math.min(halfW, halfH) * 0.28;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(yaw);
+        const shells = 5;
+        for (let i = 0; i < shells; i++) {
+            const t = i / (shells - 1);
+            const grow = 1 + (1 - t) * 0.1;
+            const layerA = a * (0.28 + t * 0.72);
+            const w = halfW * grow;
+            const h = halfH * grow;
+            ctx.fillStyle = `rgba(${rgb},${layerA})`;
+            this.fillRoundedRect(ctx, -w, -h, w * 2, h * 2, corner * grow);
+        }
+        ctx.restore();
+    }
+
+    private fillRoundedRect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        r: number,
+    ): void {
+        const rr = Math.min(r, w * 0.5, h * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.lineTo(x + w - rr, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+        ctx.lineTo(x + w, y + h - rr);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+        ctx.lineTo(x + rr, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+        ctx.lineTo(x, y + rr);
+        ctx.quadraticCurveTo(x, y, x + rr, y);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    /**
      * Irregular tower-ruin scorch — blotchy organic shape (not a clean disc).
      * `seed` keeps the silhouette stable for a given world position.
      */
@@ -1193,6 +1371,8 @@ export class BattleMap {
                 'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uFireCharcoalGround;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n' +
                 closeTileUniformDecls(profile);
             if (richHazards) extraUniforms += HAZARD_NOISE_GLSL;
+            // Footstep strength for oil/acid disturbance (set when wear mask is present).
+            inject += '\tfloat footWear = 0.0;\n';
             // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
@@ -1342,7 +1522,9 @@ export class BattleMap {
                     '\tvec3 packedSnow = diffuseColor.rgb * vec3( 0.52, 0.58, 0.68 );\n' +
                     '\tvec3 trailCol = mix( sandTexel, mix( packedSnow, sandTexel, 0.22 ), snowMask );\n' +
                     `\tfloat sandShow = sandM * mix( ${WEAR_BLEND.grassStampShow.toFixed(2)}, 1.0, snowMask );\n` +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, trailCol, sandShow);\n';
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, trailCol, sandShow);\n' +
+                    // Feed hazard pass so oil/acid keep readable footstep tracks.
+                    '\tfootWear = sandM;\n';
             }
             // oil / fire / acid — always readable; high/ultra add motion
             inject += groundHazardColorGlsl(richHazards);

@@ -43,14 +43,14 @@ export const DRAGON_APPROACH_SEC = 0.38;
 export const DRAGON_POUR_DURATION_SEC = 1.55;
 
 /**
- * Hammer of the Gods ground footprint (world units), centered on the stamp.
- * Shared by aim marker, mesh facing, and strike damage.
- *  halfWidth → X (across the head) · halfDepth → Z (thickness)
- *  Player yaw is chosen at placement (point-yaw); this default is unused in play.
+ * Hammer of the Gods footprint (world units), centered on the stamp.
+ * Shared by aim marker, ground scar, scenery crush, and strike damage
+ * (ground + air). halfWidth → X (across the head) · halfDepth → Z (thickness).
+ * Sized to the wear scar (formerly 17×34 aim box × 0.855).
  */
 export const HAMMER_ZONE = {
-    halfWidth: 17,
-    halfDepth: 34,
+    halfWidth: 14.535,
+    halfDepth: 29.07,
 };
 
 /**

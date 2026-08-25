@@ -84,7 +84,7 @@ import {
 } from './crowWingFlap';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
-import { beginBuildingCollapse, clearBuildingCollapse } from './buildingCollapse';
+import { beginBuildingCollapse, beginHammerCrush, clearHammerCrush, groundTipAt, hammerCrushSpin, HAMMER_CRUSH_SEAT_Y } from './buildingCollapse';
 import { clearCorpsePose, clearDeathFall, clearDeathTip } from './deathFall';
 import { preserveBuildingSnow } from './buildingSnow';
 
@@ -1532,10 +1532,30 @@ export class Unit {
     /**
      * Collapses the meshes into rubble until the next round reset.
      * `knock` leans the settle along the killing blow (render-only).
+     * `crush` = Hammer of the Gods pancake (super-flat).
      */
-    markDestroyed(knock?: { x: number; z: number }): void {
+    markDestroyed(knock?: { x: number; z: number }, opts?: { crush?: boolean }): void {
         this.destroyed = true;
         const instances = getUnitInstanceRenderer();
+        if (opts?.crush) {
+            for (let i = 0; i < this.members.length; i++) {
+                const m = this.members[i]!;
+                m.mesh.userData.dead = true;
+                setCrowWingRateOnProxy(m.mesh, 0);
+                const wx = this.world.x + m.mesh.position.x;
+                const wz = this.world.z + m.mesh.position.z;
+                const tip = groundTipAt(wx, wz);
+                beginHammerCrush(m.mesh, {
+                    groundY: worldHeightAt(wx, wz) + HAMMER_CRUSH_SEAT_Y,
+                    spin: hammerCrushSpin(this.id * 131 + i + 17),
+                    endTipX: tip.tipX,
+                    endTipZ: tip.tipZ,
+                });
+                instances?.setDead(m.mesh);
+                m.mesh.visible = true;
+            }
+            return;
+        }
         const klen = knock ? Math.hypot(knock.x, knock.z) : 0;
         // Wide bases (Stronghold) tip very little — a big lean lifts one side into the air
         const wide = this.type.collisionRadius >= 4 || this.type.id === 'stronghold';
@@ -1612,7 +1632,7 @@ export class Unit {
             clearDeathFall(m.mesh);
             clearDeathTip(m.mesh);
             clearCorpsePose(m.mesh);
-            clearBuildingCollapse(m.mesh);
+            clearHammerCrush(m.mesh);
             if ((this.type.modelId ?? this.type.id) === CROW_RIDER_MODEL_ID) {
                 setCrowWingRateOnProxy(m.mesh, 0);
                 setCrowWingRestOnProxy(m.mesh, 0);
@@ -1782,10 +1802,12 @@ function applyMeshLevelTint(root: Group, level: number): void {
     });
 }
 
-/** tints a mech during battle — golden > debuff > spawning > normal */
+/** tints a mech during battle — golden > debuff > acid > burn > spawning > normal */
+export type BattleTint = 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning';
+
 export function syncBattleTint(
     mesh: Group,
-    tint: 'normal' | 'golden' | 'debuff' | 'spawning',
+    tint: BattleTint,
     timeSeconds: number,
     debuffStacks = 1,
     spawnProgress = 0,
@@ -1799,6 +1821,8 @@ export function syncBattleTint(
     const grey = TINT_GREY;
     const goldPulse = 1.15 + Math.sin(timeSeconds * 4.5) * 0.4;
     const debuffT = timeSeconds * 7;
+    const acidT = timeSeconds * 5.5;
+    const burnT = timeSeconds * 6.2;
     const spawnGlow = tintScratch;
 
     mesh.traverse((child) => {
@@ -1848,6 +1872,45 @@ export function syncBattleTint(
             return;
         }
 
+        if (tint === 'acid') {
+            let tinted = child.userData.acidMat as MeshStandardMaterial | undefined;
+            const base = child.userData.battleOrigMat as MeshStandardMaterial;
+            if (!tinted) {
+                tinted = base.clone();
+                preserveBuildingSnow(base, tinted);
+                child.userData.acidMat = tinted;
+            }
+            const pulse = 0.5 + 0.5 * Math.sin(acidT);
+            const g = 0.55 + 0.35 * Math.sin(acidT + 1.2);
+            const y = 0.35 + 0.25 * pulse;
+            const slime = new Color(0.25 + y * 0.35, 0.75 + g * 0.2, 0.12 + pulse * 0.1);
+            tinted.color.lerpColors(base.color, slime, 0.55 + pulse * 0.2);
+            tinted.emissive.setRGB(0.15 + pulse * 0.2, 0.65 + g * 0.25, 0.08);
+            tinted.emissiveIntensity = 0.35 + pulse * 0.45;
+            child.material = tinted;
+            return;
+        }
+
+        if (tint === 'burn') {
+            let tinted = child.userData.burnMat as MeshStandardMaterial | undefined;
+            const base = child.userData.battleOrigMat as MeshStandardMaterial;
+            if (!tinted) {
+                tinted = base.clone();
+                preserveBuildingSnow(base, tinted);
+                child.userData.burnMat = tinted;
+            }
+            const pulse = 0.5 + 0.5 * Math.sin(burnT);
+            const flicker = 0.5 + 0.5 * Math.sin(burnT * 2.1 + 0.7);
+            const ember = new Color(0.85 + pulse * 0.15, 0.22 + flicker * 0.2, 0.04);
+            const char = new Color(0.18, 0.1, 0.06);
+            tinted.color.lerpColors(base.color, char, 0.45);
+            tinted.color.lerp(ember, 0.35 + pulse * 0.25);
+            tinted.emissive.setRGB(0.95, 0.28 + flicker * 0.35, 0.02);
+            tinted.emissiveIntensity = 0.45 + pulse * 0.55 + flicker * 0.2;
+            child.material = tinted;
+            return;
+        }
+
         if (tint === 'spawning') {
             let tinted = child.userData.spawnMat as MeshStandardMaterial | undefined;
             const base = child.userData.battleOrigMat as MeshStandardMaterial;
@@ -1884,13 +1947,19 @@ export function clearBattleTint(mesh: Group): void {
         if (orig) child.material = orig;
         const golden = child.userData.goldenMat as MeshStandardMaterial | undefined;
         const debuff = child.userData.debuffMat as MeshStandardMaterial | undefined;
+        const acid = child.userData.acidMat as MeshStandardMaterial | undefined;
+        const burn = child.userData.burnMat as MeshStandardMaterial | undefined;
         const spawn = child.userData.spawnMat as MeshStandardMaterial | undefined;
         golden?.dispose();
         debuff?.dispose();
+        acid?.dispose();
+        burn?.dispose();
         spawn?.dispose();
         delete child.userData.battleOrigMat;
         delete child.userData.goldenMat;
         delete child.userData.debuffMat;
+        delete child.userData.acidMat;
+        delete child.userData.burnMat;
         delete child.userData.spawnMat;
     });
 }

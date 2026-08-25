@@ -22,6 +22,7 @@ import { ChatBar } from './chatBar';
 import { ChatFloat } from './chatFloat';
 import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
 import { CardSpellTips, encodeTipRows, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
+import { registerHoverTipClearer } from './hoverTips';
 import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
 import { THEME, hudStyles } from '../theme';
@@ -418,6 +419,7 @@ export class Hud {
     private settingsDetailOverlay: HTMLDivElement | null = null;
     /** hover tip for forge spells on specialist / round cards */
     private readonly cardSpellTips = new CardSpellTips();
+    private unregisterHoverClear: (() => void) | null = null;
     /** item ids currently in the selected Stronghold forge (for slot hover preview) */
     private lastForgeOvenIds: string[] = [];
     /** the oven holds a complete recipe — see syncForgeSlotHoverPreview */
@@ -1205,6 +1207,15 @@ export class Hud {
         this.mount(this.phoneBar);
         this.mount(this.phoneStatusEl);
         this.buildChatBar();
+        this.unregisterHoverClear = registerHoverTipClearer(() => this.clearHoverTips());
+    }
+
+    /** Shop action-info, forge cookbook peek, touch tip, specialist hover peek. */
+    private clearHoverTips(): void {
+        this.hideActionInfo();
+        this.hideForgeSlotHoverPreview();
+        document.querySelector('.mechili-touchtip')?.remove();
+        if (this.specDetailViaHover) this.hideSpecialistDetail(true);
     }
 
     /**
@@ -4009,7 +4020,14 @@ export class Hud {
         this.prepareMatchEndUi();
         const el = withDialogFade(document.createElement('div'));
         el.classList.add('mechili-gameover', 'draw');
-        el.innerHTML = `<div class="go-title">DISCONNECTED</div><button class="go-restart">Back to main menu</button>`;
+        el.innerHTML =
+            `<div class="go-bg" aria-hidden="true">` +
+            `<span class="go-bg-glow go-bg-glow-player"></span>` +
+            `<span class="go-bg-glow go-bg-glow-enemy"></span>` +
+            `<span class="go-bg-core"></span>` +
+            `</div>` +
+            `<div class="go-title">DISCONNECTED</div>` +
+            `<button class="go-restart">Back to main menu</button>`;
         el.querySelector('.go-restart')!.addEventListener('click', () => this.leaveGameOver(el));
         this.mount(el);
     }
@@ -4063,6 +4081,11 @@ export class Hud {
             : '';
         const noteEl = note ? `<div class="go-note">${escapeHtml(note)}</div>` : '';
         return (
+            `<div class="go-bg" aria-hidden="true">` +
+            `<span class="go-bg-glow go-bg-glow-player"></span>` +
+            `<span class="go-bg-glow go-bg-glow-enemy"></span>` +
+            `<span class="go-bg-core"></span>` +
+            `</div>` +
             `<div class="go-title">${escapeHtml(title)}</div>${teams}${noteEl}` +
             `<button class="go-restart">Back to main menu</button>`
         );
@@ -4101,7 +4124,9 @@ export class Hud {
         // match-ui-root uses pointer-events:none so an empty root never blocks the menu
         el.style.pointerEvents = 'auto';
         this.mountedRoots.push(el);
-        if (this.uiHidden) el.classList.add('mechili-cinema-hide');
+        if (this.uiHidden && !el.classList.contains('mechili-gameover')) {
+            el.classList.add('mechili-cinema-hide');
+        }
         if (this.introChromeHidden) el.classList.add('mechili-intro-hide');
         this.overlayParent.appendChild(el);
     }
@@ -4149,16 +4174,21 @@ export class Hud {
 
     /**
      * Hide every HUD chrome element (shop, topbar, panels, overlays) for
-     * clean screenshots / atmosphere viewing. Leaves a tiny keyboard hint.
+     * clean screenshots / atmosphere viewing. Leaves a tiny keyboard hint
+     * unless `hint: false` (match-end cinema under the fullscreen dialog).
+     * Game-over panels stay visible so the end roster can sit on cinema.
      */
-    setUiHidden(hidden: boolean): void {
-        if (this.uiHidden === hidden) return;
-        this.uiHidden = hidden;
-        for (const el of this.mountedRoots) {
-            el.classList.toggle('mechili-cinema-hide', hidden);
+    setUiHidden(hidden: boolean, opts?: { hint?: boolean }): void {
+        const showHint = hidden && opts?.hint !== false;
+        if (this.uiHidden !== hidden) {
+            this.uiHidden = hidden;
+            for (const el of this.mountedRoots) {
+                if (el.classList.contains('mechili-gameover')) continue;
+                el.classList.toggle('mechili-cinema-hide', hidden);
+            }
+            if (this.itemGhost) this.itemGhost.classList.toggle('mechili-cinema-hide', hidden);
         }
-        if (this.itemGhost) this.itemGhost.classList.toggle('mechili-cinema-hide', hidden);
-        if (hidden) {
+        if (hidden && showHint) {
             if (!this.cinemaHint) {
                 const hint = document.createElement('div');
                 hint.className = 'mechili-cinema-hint';
@@ -4194,6 +4224,8 @@ export class Hud {
 
     /** removes every HUD element from the page */
     destroy(): void {
+        this.unregisterHoverClear?.();
+        this.unregisterHoverClear = null;
         this.hideMatchOverlays();
         this.clearInvDragListeners();
         this.invDrag = null;

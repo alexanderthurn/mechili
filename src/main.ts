@@ -9,6 +9,7 @@ import {
     mountIntroRoster,
     prefetchIntroRosterMmrs,
 } from './ui/introRoster';
+import { registerHoverTipClearer } from './ui/hoverTips';
 import { Game } from './game/game';
 import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
@@ -1501,6 +1502,7 @@ function wireLobbySettingTips(): void {
     });
 }
 wireLobbySettingTips();
+registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,

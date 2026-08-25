@@ -617,6 +617,54 @@ export class Particles {
         this.blood = new ParticlePool(scene, NormalBlending, 1.2);
     }
 
+    /**
+     * Hammer impact dust: kicks up from points across the oriented rectangle
+     * so the cloud follows the footprint instead of a circle.
+     */
+    private spawnRectExplosionDust(
+        x: number,
+        y: number,
+        z: number,
+        rect: { halfWidth: number; halfDepth: number; yaw: number },
+        heavy: boolean,
+    ): void {
+        const c = Math.cos(rect.yaw);
+        const sn = Math.sin(rect.yaw);
+        const hw = rect.halfWidth;
+        const hd = rect.halfDepth;
+        const samples = heavy ? 36 : 22;
+        for (let i = 0; i < samples; i++) {
+            const lx = (Math.random() * 2 - 1) * hw * 0.95;
+            const lz = (Math.random() * 2 - 1) * hd * 0.95;
+            const px = x + lx * c - lz * sn;
+            const pz = z + lx * sn + lz * c;
+            const ox = (lx / Math.max(hw, 1e-3)) * c - (lz / Math.max(hd, 1e-3)) * sn;
+            const oz = (lx / Math.max(hw, 1e-3)) * sn + (lz / Math.max(hd, 1e-3)) * c;
+            const olen = Math.hypot(ox, oz) || 1;
+            this.burst(px, y, pz, {
+                count: heavy ? 3 : 2,
+                color: i % 3 === 0 ? 0xb8a888 : 0x6e6558,
+                speed: heavy ? 5.5 : 4,
+                life: 0.55 + Math.random() * 0.25,
+                up: heavy ? 4.5 : 3.2,
+                dir: { x: ox / olen, y: 0.35, z: oz / olen },
+            });
+        }
+        for (let i = 0; i < 10; i++) {
+            const lx = (Math.random() * 2 - 1) * hw * 0.35;
+            const lz = (Math.random() * 2 - 1) * hd * 0.9;
+            const px = x + lx * c - lz * sn;
+            const pz = z + lx * sn + lz * c;
+            this.burst(px, y + 0.15, pz, {
+                count: 2,
+                color: 0x4a4338,
+                speed: 3,
+                life: 0.7,
+                up: 5,
+            });
+        }
+    }
+
     burst(
         x: number,
         y: number,
@@ -751,6 +799,18 @@ export class Particles {
                     break;
                 }
                 case 'explosion': {
+                    if (e.rect) {
+                        // Hammer: dust from the oriented footprint (not a radial disc)
+                        this.spawnRectExplosionDust(e.x, e.y, e.z, e.rect, !!e.heavy);
+                        if (e.shake) {
+                            screenShake({
+                                intensity: 0.5 * e.shake,
+                                duration: 0.5,
+                                frequency: 46,
+                            });
+                        }
+                        break;
+                    }
                     // dusty debris / scorched soil — not fire-yellow
                     const s = e.radius / 3;
                     const heavy = e.heavy ? 1.6 : 1;
@@ -892,6 +952,7 @@ export class Particles {
                     } else {
                         // gore jets along the killing-blow direction (from knockback)
                         const kill = e.dx !== undefined ? { x: e.dx, y: 0.15, z: e.dz ?? 0 } : undefined;
+                        const gore = e.bloodScale ?? 1;
                         // A flung death (a keep's collapse) throws the omni cloud
                         // down the blow as well, so nothing fountains straight up:
                         // faster, flatter and living longer, so it travels.
@@ -904,7 +965,7 @@ export class Particles {
                         if (e.big) {
                             // massive gib burst — an omni cloud + a jet down the blow
                             this.burst(e.x, e.y, e.z, {
-                                count: 56,
+                                count: Math.round(56 * gore),
                                 color: e.blood ?? THEME.death,
                                 speed: far(22),
                                 life: linger(1.2),
@@ -913,7 +974,7 @@ export class Particles {
                                 dir: omniDir,
                             });
                             this.burst(e.x, e.y + 1, e.z, {
-                                count: 40,
+                                count: Math.round(40 * gore),
                                 color: e.blood != null ? lightenBlood(e.blood) : THEME.deathSecondary,
                                 speed: far(16),
                                 life: linger(0.95),
@@ -924,7 +985,7 @@ export class Particles {
                         } else {
                             // omni spurt + a directional gout down the blow
                             this.burst(e.x, e.y, e.z, {
-                                count: 18,
+                                count: Math.round(18 * gore),
                                 color: e.blood ?? THEME.deathSmall,
                                 speed: far(15),
                                 life: linger(0.75),
@@ -933,7 +994,7 @@ export class Particles {
                                 dir: omniDir,
                             });
                             this.burst(e.x, e.y + 0.4, e.z, {
-                                count: 14,
+                                count: Math.round(14 * gore),
                                 color: e.blood ?? THEME.deathSmall,
                                 speed: far(14),
                                 life: linger(0.85),

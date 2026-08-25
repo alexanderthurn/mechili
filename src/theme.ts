@@ -373,8 +373,7 @@ html .mechili-menu,
 html .mechili-name-edit .box,
 html .mechili-suggest .box,
 html .mechili-pause .pause-box,
-html .mechili-resume .resume-box,
-html .mechili-gameover {
+html .mechili-resume .resume-box {
     position: relative;
     color: ${u.cream};
     background: ${leatherFill};
@@ -384,25 +383,28 @@ html .mechili-gameover {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
-/* Gameover must stay absolute-centered — materialStyles' relative chrome
-   otherwise stretches it full-width (worst on 4K). Keep this scoped so menu /
-   pause / suggest keep their own layout widths.
-   Fixed width (not auto): victory/defeat/draw share one size — auto used to
-   shrink with short titles like DEFEAT and ellipsize names to a few chars. */
+/* Soft clash plaque — match the pre-match intro roster (no leather card / gems). */
 html .mechili-gameover {
     position: absolute;
-    left: 50%;
-    top: 40%;
-    transform: translate(-50%, -50%);
+    inset: 0;
+    left: 0;
+    top: 0;
+    transform: none;
     box-sizing: border-box;
-    width: min(92vw, 720px);
-    max-width: min(92vw, 720px);
+    width: auto;
+    max-width: none;
+    color: ${u.cream};
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 html .mechili-name-edit .box::before,
 html .mechili-suggest .box::before,
 html .mechili-pause .pause-box::before,
-html .mechili-resume .resume-box::before,
-html .mechili-gameover::before {
+html .mechili-resume .resume-box::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -2501,28 +2503,83 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     content: '';
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.48);
+    background:
+        radial-gradient(ellipse 70% 55% at 50% 48%, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.38) 48%, rgba(0, 0, 0, 0.55) 100%);
     pointer-events: none;
 }
 .mechili-match-roster .mr-frame {
     position: relative;
     z-index: 1;
-    width: min(92vw, 720px);
-    padding: clamp(14px, 2vh, 20px) clamp(14px, 3vw, 24px);
+    width: min(94vw, 760px);
+    padding: clamp(28px, 5vh, 48px) clamp(22px, 5vw, 44px);
     box-sizing: border-box;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+}
+.mechili-match-roster .mr-bg {
+    position: absolute;
+    inset: -18% -10%;
+    z-index: 0;
+    pointer-events: none;
+    -webkit-mask-image: radial-gradient(ellipse 68% 54% at 50% 50%, #000 12%, rgba(0, 0, 0, 0.85) 42%, transparent 72%);
+    mask-image: radial-gradient(ellipse 68% 54% at 50% 50%, #000 12%, rgba(0, 0, 0, 0.85) 42%, transparent 72%);
+}
+.mechili-match-roster .mr-bg-core,
+.mechili-match-roster .mr-bg-glow {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+.mechili-match-roster .mr-bg-core {
+    background:
+        radial-gradient(ellipse 48% 42% at 50% 48%, rgba(62, 44, 28, 0.88) 0%, transparent 68%),
+        radial-gradient(ellipse 72% 58% at 50% 50%, rgba(18, 12, 8, 0.82) 0%, transparent 74%),
+        radial-gradient(ellipse 90% 70% at 50% 52%, rgba(6, 4, 3, 0.55) 0%, transparent 78%);
+    filter: blur(0.5px);
+}
+.mechili-match-roster .mr-bg-glow {
+    filter: blur(28px);
+    opacity: 0.72;
+    animation: mechili-roster-aura 4.8s ease-in-out infinite;
+}
+.mechili-match-roster .mr-bg-glow-player {
+    background:
+        radial-gradient(ellipse 42% 55% at 22% 48%,
+            color-mix(in srgb, var(--mr-player, ${pc}) 55%, transparent) 0%,
+            transparent 70%);
+}
+.mechili-match-roster .mr-bg-glow-enemy {
+    background:
+        radial-gradient(ellipse 42% 55% at 78% 52%,
+            color-mix(in srgb, var(--mr-enemy, ${ec}) 55%, transparent) 0%,
+            transparent 70%);
+    animation-delay: -2.4s;
+}
+@keyframes mechili-roster-aura {
+    0%, 100% { opacity: 0.58; transform: scale(1); }
+    50% { opacity: 0.86; transform: scale(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-match-roster .mr-bg-glow { animation: none; }
 }
 .mechili-match-roster .mr-cols {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: clamp(16px, 4vw, 36px);
+    gap: clamp(18px, 4.5vw, 40px);
 }
 .mechili-match-roster .mr-vs {
-    font-size: clamp(20px, 3vw, 28px);
+    font-size: clamp(22px, 3.2vw, 32px);
     font-weight: 900;
-    letter-spacing: 4px;
+    letter-spacing: 5px;
     color: ${u.brassLight};
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    text-shadow:
+        0 0 18px color-mix(in srgb, ${u.brassLight} 35%, transparent),
+        0 1px 3px rgba(0, 0, 0, 0.85);
     flex-shrink: 0;
 }
 .mechili-match-roster .mr-team {
@@ -2532,22 +2589,18 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     flex-direction: column;
     gap: 10px;
 }
+.mechili-match-roster .mr-team-player { text-align: right; align-items: flex-end; }
+.mechili-match-roster .mr-team-enemy { text-align: left; align-items: flex-start; }
 .mechili-match-roster .mr-player {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 12px;
-    border: 1px solid ${u.frameLo};
-    border-radius: 6px;
-    background: linear-gradient(180deg, rgba(12, 10, 8, 0.55) 0%, rgba(6, 5, 4, 0.72) 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 230, 180, 0.06);
+    padding: 8px 4px;
 }
-.mechili-match-roster .mr-player.mr-local {
-    border: 2px solid var(--mr-local, ${pc});
-    box-shadow:
-        0 0 14px rgba(0, 0, 0, 0.35),
-        0 0 10px color-mix(in srgb, var(--mr-local, ${pc}) 45%, transparent),
-        inset 0 1px 0 rgba(255, 230, 180, 0.12);
+.mechili-match-roster .mr-team-player .mr-player { justify-content: flex-end; }
+.mechili-match-roster .mr-team-enemy .mr-player {
+    justify-content: flex-start;
+    flex-direction: row-reverse; /* name/mmr then portrait on the right */
 }
 .mechili-match-roster .mr-portrait {
     width: 52px;
@@ -2574,10 +2627,10 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-match-roster .mr-info { min-width: 0; }
 .mechili-match-roster .mr-name {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
     color: ${u.cream};
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2591,13 +2644,13 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     text-transform: uppercase;
 }
 .mechili-match-roster .mr-mmr {
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 700;
     color: ${u.brassLight};
     font-variant-numeric: tabular-nums;
     margin-top: 3px;
     letter-spacing: 0.5px;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
 }
 .mechili-match-roster .mr-mmr.loading {
     opacity: 0.45;
@@ -2614,8 +2667,11 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
         padding: 16px 12px;
     }
     .mechili-match-roster .mr-frame {
-        width: min(92vw, 560px);
-        padding: 10px 12px;
+        width: min(96vw, 560px);
+        padding: 22px 16px;
+    }
+    .mechili-match-roster .mr-bg {
+        inset: -14% -6%;
     }
     .mechili-match-roster .mr-cols {
         gap: 12px;
@@ -2628,12 +2684,12 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
         gap: 8px;
     }
     .mechili-match-roster .mr-player {
-        gap: 10px;
-        padding: 8px 10px;
+        gap: 8px;
+        padding: 6px 2px;
     }
     .mechili-match-roster .mr-portrait {
-        width: 0px;
-        height: 0px;
+        width: 40px;
+        height: 40px;
     }
     .mechili-match-roster .mr-name {
         font-size: 13px;
@@ -5624,32 +5680,93 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-pause .pause-quit:hover { background: ${u.undoHover}; }
 
-/* One panel for victory / defeat / draw / disconnect — modifiers only recolor
- * the title. Width comes from html .mechili-gameover above so all outcomes
- * share the same footprint regardless of title length. */
+/* One panel for victory / defeat / draw / disconnect — fullscreen soft
+ * clash plaque matching the pre-match intro roster. */
 .mechili-gameover {
     position: absolute;
-    left: 50%;
-    top: 40%;
-    transform: translate(-50%, -50%);
+    inset: 0;
     display: flex;
     flex-direction: column;
-    align-items: stretch;
+    align-items: center;
+    justify-content: center;
     gap: 18px;
     box-sizing: border-box;
-    padding: clamp(20px, 3.5vh, 36px) clamp(18px, 4vw, 48px);
-    max-height: min(88vh, 760px);
-    overflow-x: hidden;
-    overflow-y: auto;
-    /* Above .mechili-cards (50) and .mechili-pause (55) — match end must
-     * remain clickable even if a commander/round overlay is still mounted. */
+    padding: clamp(24px, 6vh, 64px) 16px;
+    overflow: hidden;
     z-index: 56;
-    /* chrome filled by materialStyles ornate frame */
     background: transparent;
-    border: 1px solid ${u.frameLo};
-    border-radius: 4px;
+    border: none;
     box-shadow: none;
     user-select: none;
+}
+.mechili-gameover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse 70% 55% at 50% 48%, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.38) 48%, rgba(0, 0, 0, 0.55) 100%);
+    pointer-events: none;
+}
+.mechili-gameover .go-bg {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(110vw, 920px);
+    height: min(70vh, 520px);
+    transform: translate(-50%, -50%);
+    z-index: 0;
+    pointer-events: none;
+    -webkit-mask-image: radial-gradient(ellipse 68% 54% at 50% 50%, #000 12%, rgba(0, 0, 0, 0.85) 42%, transparent 72%);
+    mask-image: radial-gradient(ellipse 68% 54% at 50% 50%, #000 12%, rgba(0, 0, 0, 0.85) 42%, transparent 72%);
+}
+.mechili-gameover .go-bg-core,
+.mechili-gameover .go-bg-glow {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+.mechili-gameover .go-bg-core {
+    background:
+        radial-gradient(ellipse 48% 42% at 50% 48%, rgba(62, 44, 28, 0.88) 0%, transparent 68%),
+        radial-gradient(ellipse 72% 58% at 50% 50%, rgba(18, 12, 8, 0.82) 0%, transparent 74%),
+        radial-gradient(ellipse 90% 70% at 50% 52%, rgba(6, 4, 3, 0.55) 0%, transparent 78%);
+    filter: blur(0.5px);
+}
+.mechili-gameover .go-bg-glow {
+    filter: blur(28px);
+    opacity: 0.72;
+    animation: mechili-go-aura 4.8s ease-in-out infinite;
+}
+.mechili-gameover .go-bg-glow-player {
+    background:
+        radial-gradient(ellipse 42% 55% at 22% 48%,
+            color-mix(in srgb, ${pc} 55%, transparent) 0%,
+            transparent 70%);
+}
+.mechili-gameover .go-bg-glow-enemy {
+    background:
+        radial-gradient(ellipse 42% 55% at 78% 52%,
+            color-mix(in srgb, ${ec} 55%, transparent) 0%,
+            transparent 70%);
+    animation-delay: -2.4s;
+}
+@keyframes mechili-go-aura {
+    0%, 100% { opacity: 0.58; transform: scale(1); }
+    50% { opacity: 0.86; transform: scale(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-gameover .go-bg-glow { animation: none; }
+}
+.mechili-gameover .go-title,
+.mechili-gameover .go-teams,
+.mechili-gameover .go-note,
+.mechili-gameover .go-rated-note,
+.mechili-gameover .go-sub,
+.mechili-gameover .go-stats,
+.mechili-gameover .go-restart {
+    position: relative;
+    z-index: 1;
 }
 .mechili-gameover .go-title {
     font-size: clamp(28px, 5vw, 44px);
@@ -5657,6 +5774,7 @@ ${chatFloatStyles(u, pc, ec)}
     letter-spacing: clamp(4px, 0.8vw, 10px);
     text-align: center;
     line-height: 1.15;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
 }
 .mechili-gameover.victory .go-title { color: ${pc}; }
 .mechili-gameover.defeat .go-title { color: ${ec}; }
@@ -5664,27 +5782,32 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-sub { font-size: 14px; letter-spacing: 0.5px; color: ${u.text}; opacity: 0.85; margin-top: -10px; text-align: center; max-width: 28em; line-height: 1.45; }
 .mechili-gameover .go-stats { font-size: 13px; color: ${u.textMuted}; letter-spacing: 0.5px; margin-top: -6px; }
 .mechili-gameover .go-teams {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: start;
-    gap: clamp(10px, 2.5vw, 20px);
-    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(18px, 4.5vw, 40px);
+    width: min(94vw, 760px);
     margin-top: 4px;
 }
 .mechili-gameover .go-vs {
     align-self: center;
-    font-size: clamp(14px, 2.2vw, 18px);
+    font-size: clamp(22px, 3.2vw, 32px);
     font-weight: 900;
-    letter-spacing: 3px;
-    color: ${u.textMuted};
-    opacity: 0.7;
-    padding-top: 0.4em;
+    letter-spacing: 5px;
+    color: ${u.brassLight};
+    text-shadow:
+        0 0 18px color-mix(in srgb, ${u.brassLight} 35%, transparent),
+        0 1px 3px rgba(0, 0, 0, 0.85);
+    flex-shrink: 0;
+    padding-top: 0;
+    opacity: 1;
 }
 .mechili-gameover .go-team {
+    flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 .mechili-gameover .go-team-label {
     font-size: 11px;
@@ -5699,41 +5822,50 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-player {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border: 1px solid ${u.frameLo};
-    border-radius: 6px;
-    background: rgba(0, 0, 0, 0.22);
+    gap: 12px;
+    padding: 8px 4px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
     min-width: 0;
 }
+/* Portrait on the outer edge; name/mmr flush against it toward VS. */
+.mechili-gameover .go-team-player .go-player { justify-content: flex-start; }
+.mechili-gameover .go-team-enemy .go-player {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+}
+.mechili-gameover .go-team-player .go-player-info { text-align: left; }
+.mechili-gameover .go-team-enemy .go-player-info { text-align: right; }
 .mechili-gameover .go-portrait {
-    width: 44px;
-    height: 44px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     overflow: hidden;
     flex-shrink: 0;
-    border: 2px solid ${u.frameLo};
+    border: 2px solid ${u.frameMid};
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.45);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 .mechili-gameover .go-portrait.player { border-color: ${pc}; }
 .mechili-gameover .go-portrait.enemy { border-color: ${ec}; }
 .mechili-gameover .go-portrait-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .mechili-gameover .go-portrait-ph {
-    width: 60%;
-    height: 60%;
+    width: 58%;
+    height: 58%;
     border-radius: 50%;
     background: ${u.textMuted};
     opacity: 0.35;
 }
-.mechili-gameover .go-player-info { min-width: 0; flex: 1 1 auto; }
+.mechili-gameover .go-player-info { min-width: 0; flex: 0 1 auto; }
 .mechili-gameover .go-player-name {
-    font-size: clamp(13px, 1.6vw, 15px);
+    font-size: 16px;
     font-weight: 700;
-    color: ${u.text};
-    /* Prefer wrapping over ellipsis — names are short (≤16) and must stay readable. */
+    color: ${u.cream};
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
     overflow-wrap: anywhere;
     word-break: break-word;
     line-height: 1.25;
@@ -5749,43 +5881,59 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-gameover .go-spec { font-size: 11px; color: ${u.textMuted}; margin-top: 1px; }
 .mechili-gameover .go-mmr {
-    font-size: 12px;
+    font-size: 18px;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
-    margin-top: 2px;
-    opacity: 0.9;
+    margin-top: 3px;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+    opacity: 1;
 }
 .mechili-gameover .go-mmr.up { color: #7fd88a; }
 .mechili-gameover .go-mmr.down { color: #ff8a7a; }
-.mechili-gameover .go-mmr.flat { color: ${u.textMuted}; }
+.mechili-gameover .go-mmr.flat { color: ${u.brassLight}; }
 
 .mechili-gameover .go-mmr-delta {
     display: block;
     margin-top: 1px;
+    font-size: 12px;
+    font-weight: 600;
     opacity: 0.95;
 }
 
-/* Compact / phone: hide portraits, keep the same two-column grid so both
- * sides stay visible; names wrap instead of truncating. */
 @media (max-width: 599px), (max-height: 540px) {
     .mechili-gameover {
-        top: 45%;
-        padding: 18px 14px;
+        padding: 16px 12px;
         gap: 12px;
-        max-height: min(90vh, 640px);
+    }
+    .mechili-gameover .go-bg {
+        width: min(120vw, 640px);
+        height: min(62vh, 420px);
     }
     .mechili-gameover .go-teams {
-        gap: 8px;
+        gap: 12px;
+        width: min(96vw, 560px);
+    }
+    .mechili-gameover .go-vs {
+        font-size: 18px;
+        letter-spacing: 3px;
     }
     .mechili-gameover .go-player {
-        gap: 0;
-        padding: 7px 8px;
+        gap: 8px;
+        padding: 6px 2px;
     }
     .mechili-gameover .go-portrait {
-        display: none;
+        width: 40px;
+        height: 40px;
+        display: flex;
+    }
+    .mechili-gameover .go-player-name {
+        font-size: 13px;
     }
     .mechili-gameover .go-mmr {
-        font-size: 12px;
+        font-size: 14px;
         margin-top: 1px;
+        letter-spacing: 0.35px;
     }
 }
 .mechili-gameover .go-rated-note {
