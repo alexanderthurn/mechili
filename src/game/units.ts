@@ -76,7 +76,7 @@ import {
 } from './crowWingFlap';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
-import { beginBuildingCollapse, beginHammerCrush, clearBuildingCollapse } from './buildingCollapse';
+import { beginBuildingCollapse, beginHammerCrush, clearHammerCrush, HAMMER_CRUSH_SEAT_Y } from './buildingCollapse';
 import { clearCorpsePose, clearDeathFall, clearDeathTip } from './deathFall';
 import { preserveBuildingSnow } from './buildingSnow';
 
@@ -1421,8 +1421,13 @@ export class Unit {
             for (const m of this.members) {
                 m.mesh.userData.dead = true;
                 setCrowWingRateOnProxy(m.mesh, 0);
+                const wx = this.world.x + m.mesh.position.x;
+                const wz = this.world.z + m.mesh.position.z;
+                beginHammerCrush(m.mesh, {
+                    groundY: worldHeightAt(wx, wz) + HAMMER_CRUSH_SEAT_Y,
+                });
                 instances?.setDead(m.mesh);
-                beginHammerCrush(m.mesh);
+                m.mesh.visible = true;
             }
             return;
         }
@@ -1498,7 +1503,7 @@ export class Unit {
             clearDeathFall(m.mesh);
             clearDeathTip(m.mesh);
             clearCorpsePose(m.mesh);
-            clearBuildingCollapse(m.mesh);
+            clearHammerCrush(m.mesh);
             if ((this.type.modelId ?? this.type.id) === CROW_RIDER_MODEL_ID) {
                 setCrowWingRateOnProxy(m.mesh, 0);
                 setCrowWingRestOnProxy(m.mesh, 0);

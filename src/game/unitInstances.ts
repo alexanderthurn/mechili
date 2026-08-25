@@ -100,7 +100,8 @@ export class UnitInstanceRenderer {
         if (!meta || meta.life === 'dead') return;
         this.removeFromPool(proxy, meta);
         this.moveTo(proxy, meta.typeId, meta.team, 'dead', meta.level);
-        proxy.visible = prefs().renderDeadUnits;
+        // Hammer pancakes stay drawn even when the "render dead units" pref is off
+        proxy.visible = prefs().renderDeadUnits || !!proxy.userData.hammerCrushed;
         const next = this.ownerPool.get(proxy);
         if (next) this.writeMatrix(proxy, this.pools.get(next.key)!, next.index);
     }
@@ -204,11 +205,16 @@ export class UnitInstanceRenderer {
         const showDead = prefs().renderDeadUnits;
         for (const [key, pool] of this.pools) {
             if (key.endsWith(':dead') && !showDead) {
+                // Pref hides normal wrecks; hammer pancakes stay visible via proxy.visible.
+                for (let i = 0; i < pool.owners.length; i++) {
+                    const proxy = pool.owners[i]!;
+                    const meta = this.ownerPool.get(proxy);
+                    this.writeMatrix(proxy, pool, i, meta?.typeId);
+                }
                 for (const mesh of pool.parts) {
-                    if (mesh.count !== 0) {
-                        mesh.count = 0;
-                        mesh.instanceMatrix.needsUpdate = true;
-                    }
+                    mesh.count = pool.owners.length;
+                    mesh.instanceMatrix.needsUpdate = true;
+                    if (this.needsColor && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
                 }
                 continue;
             }
@@ -268,10 +274,19 @@ export class UnitInstanceRenderer {
     applyDeadPref(show: boolean = prefs().renderDeadUnits): void {
         for (const [key, pool] of this.pools) {
             if (!key.endsWith(':dead')) continue;
-            for (const owner of pool.owners) owner.visible = show;
+            for (const owner of pool.owners) {
+                owner.visible = show || !!owner.userData.hammerCrushed;
+            }
             for (const mesh of pool.parts) {
-                mesh.count = show ? pool.owners.length : 0;
+                // Always keep pool capacity; writeMatrix HIDEs non-visible wrecks.
+                // Zeroing count here used to wipe hammer pancakes entirely.
+                mesh.count = pool.owners.length;
                 mesh.instanceMatrix.needsUpdate = true;
+            }
+            for (let i = 0; i < pool.owners.length; i++) {
+                const proxy = pool.owners[i]!;
+                const meta = this.ownerPool.get(proxy);
+                this.writeMatrix(proxy, pool, i, meta?.typeId);
             }
         }
     }

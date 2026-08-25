@@ -8918,6 +8918,7 @@ export class Game {
                 this.fireFx.spawnFromEvents(battleEvents);
                 this.towerDebuffFx.spawnFromEvents(battleEvents);
                 this.stampWearFromEvents(battleEvents);
+                const sceneryShields = livingShieldDisks(this.placement.allUnits());
                 for (const ev of battleEvents) {
                     if (ev.kind === 'spellMeteor') {
                         this.meteorFx.spawnShardImpact(ev.x, ev.z, ev.at);
@@ -8931,6 +8932,7 @@ export class Game {
                             ev.halfWidth,
                             ev.halfDepth,
                             ev.yaw,
+                            sceneryShields,
                         );
                     } else if (ev.kind === 'hazardDrip') {
                         this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at, {
@@ -9257,7 +9259,7 @@ export class Game {
                 }
             } else if (e.kind === 'explosion') {
                 if (e.rect) {
-                    // Hammer: rectangular scar matching HAMMER_ZONE + yaw
+                    // Hammer: rectangular scar = hit zone (HAMMER_ZONE + yaw)
                     this.map.stampWearOrientedRect(
                         e.x,
                         e.z,

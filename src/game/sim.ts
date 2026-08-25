@@ -78,6 +78,7 @@ import {
 import {
     beginHammerCrush,
     clearBuildingCollapse,
+    HAMMER_CRUSH_SEAT_Y,
     tickBuildingCollapse,
     type BuildingCollapseState,
 } from './buildingCollapse';
@@ -1197,6 +1198,7 @@ export class BattleSim {
         }
         if (profile.ground) {
             const g = profile.ground;
+            const shields = livingShieldDisks(this.actors.map((a) => a.unit));
             const oilCells = this.hazards.stampFire(
                 x,
                 z,
@@ -1204,6 +1206,7 @@ export class BattleSim {
                 this.elapsed,
                 g.duration,
                 g.intensity,
+                shields,
             );
             const y = simGroundHeightAt(x, z);
             this.events.push({
@@ -1361,12 +1364,15 @@ export class BattleSim {
         // burning cells never leave oil behind when the flames go out
         this.hazards.consumeOilUnderFire(this.elapsed);
         this.hazards.igniteOilTouchingFire(this.elapsed);
+        const shields = livingShieldDisks(this.actors.map((u) => u.unit));
         for (const a of this.actors) {
             if (!a.alive) continue;
 
+            const underWard = insideAnyShield(a.x, a.z, shields);
+
             // acid: toxic column at xz — ground and air both corrode (unlike fire/burn).
-            // Ground hazard like oil: ward domes do not block it.
-            if (!a.unit.type.structure && this.hazards.hasAcidAt(a.x, a.z)) {
+            // Living wards protect units standing under them (spell / hazard carve).
+            if (!underWard && !a.unit.type.structure && this.hazards.hasAcidAt(a.x, a.z)) {
                 const dealt = ((a.maxHp * ACID_DPS_PERCENT) / 100) * dt * this.damageTakenMult(a);
                 this.applyBurnDamage(a, dealt);
                 a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
@@ -1377,6 +1383,12 @@ export class BattleSim {
                 continue;
             }
             if (a.unit.type.extra) continue;
+            if (underWard) {
+                // wards quench standing fire / burn DoT while covered
+                a.burnUntil = 0;
+                a.burnDps = 0;
+                continue;
+            }
 
             // standing in fire refreshes burn from cell intensity
             const cellDps = this.hazards.fireDpsAt(a.x, a.z, this.elapsed);
@@ -1426,8 +1438,10 @@ export class BattleSim {
     ): void {
         if (strength <= 0 || radius <= 0) return;
         const r = Math.max(0.5, radius);
+        const shields = livingShieldDisks(this.actors.map((a) => a.unit));
         for (const a of this.actors) {
             if (a.unit.type.structure || a.unit.type.extra) continue;
+            if (insideAnyShield(a.x, a.z, shields)) continue;
             const dist = hypot(a.x - x, a.z - z);
             const reach = r + a.radius;
             if (dist > reach) continue;
@@ -2073,6 +2087,7 @@ export class BattleSim {
         const dz = f.z2 - f.z;
         const len = hypot(dx, dz);
         const steps = Math.max(1, Math.ceil(len / (f.radius * 0.7)));
+        const shields = livingShieldDisks(this.actors.map((a) => a.unit));
         for (let i = 0; i <= steps; i++) {
             const t = i / steps;
             const px = f.x + dx * t;
@@ -2084,6 +2099,7 @@ export class BattleSim {
                 this.elapsed,
                 f.burnSeconds,
                 f.intensity,
+                shields,
             );
             // one visual burst per stamp keeps the sweep readable
             this.events.push({
@@ -2260,7 +2276,8 @@ export class BattleSim {
      * One area strike: everything in the blast takes environmental damage
      * (both teams, air included) — except targets under a living ward dome.
      * Each dome involved eats the strike damage ONCE and can break.
-     * Hammer uses the HAMMER_ZONE rectangle; other strikes use a circle.
+     * Hammer uses the HAMMER_ZONE rectangle (same as ground scar) for both
+     * ground and air; other strikes use a circle.
      * Strikes whose impact point lies inside a ward disc are absorbed at the
      * roof (meteors / hammers do not pass through).
      */
@@ -2296,9 +2313,9 @@ export class BattleSim {
             shake: meteor ? 1 : 0,
             rect: hammer
                 ? {
-                      // ground scar / dust — slightly inside the damage footprint
-                      halfWidth: HAMMER_ZONE.halfWidth * 0.855,
-                      halfDepth: HAMMER_ZONE.halfDepth * 0.855,
+                      // scar = hit zone (HAMMER_ZONE) — ground + air damage use the same rect
+                      halfWidth: HAMMER_ZONE.halfWidth,
+                      halfDepth: HAMMER_ZONE.halfDepth,
                       yaw: s.yaw ?? 0,
                   }
                 : undefined,
@@ -2587,6 +2604,14 @@ export class BattleSim {
                     settleCorpsePose(a.mesh);
                     clearDeathTip(a.mesh);
                 }
+            } else if (a.mesh.userData.hammerCrushed) {
+                // Keep the 4% pancake on the lawn (not sunk like standing feet)
+                const wx = a.unit.world.x + a.mesh.position.x;
+                const wz = a.unit.world.z + a.mesh.position.z;
+                const gy = worldHeightAt(wx, wz) + HAMMER_CRUSH_SEAT_Y;
+                a.mesh.position.y = gy;
+                const crush = a.mesh.userData.buildingCollapse as BuildingCollapseState | undefined;
+                if (crush) crush.startY = gy;
             } else {
                 // Settled wreck: hug terrain height + slope
                 const wx = a.unit.world.x + a.mesh.position.x;
@@ -2619,6 +2644,14 @@ export class BattleSim {
         for (const a of this.actors) {
             if (a.alive) continue;
             const collapse = a.mesh.userData.buildingCollapse as BuildingCollapseState | undefined;
+            if (a.mesh.userData.hammerCrushed) {
+                // structures skip the dead-mech loop above — seat pancakes here too
+                const wx = a.unit.world.x + a.mesh.position.x;
+                const wz = a.unit.world.z + a.mesh.position.z;
+                const gy = worldHeightAt(wx, wz) + HAMMER_CRUSH_SEAT_Y;
+                if (collapse) collapse.startY = gy;
+                else a.mesh.position.y = gy;
+            }
             if (!collapse) continue;
             if (!a.unit.type.structure && !a.mesh.userData.hammerCrushed) continue;
             if (!tickBuildingCollapse(a.mesh, collapse, timeSeconds)) {
@@ -2908,7 +2941,8 @@ export class BattleSim {
             }
         } else if (this.crushingHammer) {
             // Hammer: pancake flat — no tip / crash tumble
-            const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
+            // Seat ON the lawn (HAMMER_CRUSH_SEAT_Y), not GROUND_UNIT_Y — 4% flats vanish if sunk
+            const groundY = worldHeightAt(target.x, target.z) + HAMMER_CRUSH_SEAT_Y;
             clearDeathFall(target.mesh);
             clearDeathTip(target.mesh);
             clearCorpsePose(target.mesh);
@@ -2916,7 +2950,9 @@ export class BattleSim {
             target.mesh.userData.dead = true;
             clearBattleTint(target.mesh);
             if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
+            // setDead after crush flag so pancakes stay visible even if wrecks are hidden
             getUnitInstanceRenderer()?.setDead(target.mesh);
+            target.mesh.visible = true;
         } else {
             // tip over along the killing blow (fallback: slight random lean)
             const amount = dealt > 0 ? deathTipAmount(dealt, target.maxHp) : Math.PI * 0.5;

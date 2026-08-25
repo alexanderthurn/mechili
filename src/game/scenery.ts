@@ -592,6 +592,7 @@ export class Scenery {
     /**
      * Hammer of the Gods: squash trees/bushes/floor props inside the oriented
      * rect into the dirt. Restored by {@link clearHammerCrush} when battle ends.
+     * Instances whose XZ sits under a living ward disc are skipped.
      */
     crushInRect(
         x: number,
@@ -599,6 +600,7 @@ export class Scenery {
         halfWidth: number,
         halfDepth: number,
         yaw: number,
+        shields: readonly { x: number; z: number; radius: number }[] = [],
     ): void {
         const c = Math.cos(yaw);
         const sn = Math.sin(yaw);
@@ -615,6 +617,14 @@ export class Scenery {
             const lz = -dx * sn + dz * c;
             return Math.abs(lx) <= halfWidth && Math.abs(lz) <= halfDepth;
         };
+        const underWard = (px: number, pz: number): boolean => {
+            for (const s of shields) {
+                const dx = px - s.x;
+                const dz = pz - s.z;
+                if (dx * dx + dz * dz <= s.radius * s.radius) return true;
+            }
+            return false;
+        };
 
         this.group.traverse((o) => {
             const mesh = o as InstancedMesh;
@@ -624,10 +634,11 @@ export class Scenery {
                 mesh.getMatrixAt(i, mat);
                 mat.decompose(pos, quat, scl);
                 if (!inside(pos.x, pos.z)) continue;
+                if (underWard(pos.x, pos.z)) continue;
                 if (this.crushRestore.some((r) => r.mesh === mesh && r.index === i)) continue;
                 this.crushRestore.push({ mesh, index: i, matrix: mat.clone() });
-                scl.x *= 1.55;
-                scl.z *= 1.55;
+                scl.x *= 1.2;
+                scl.z *= 1.2;
                 scl.y *= 0.04;
                 pos.y -= Math.max(0.05, Math.abs(scl.y) * 0.35);
                 mat.compose(pos, quat, scl);

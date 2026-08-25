@@ -25,10 +25,17 @@ const COLLAPSE_DUR = 0.72;
 const RUBBLE_Y = 0.28;
 /** Slight footprint shrink so the wreck reads smaller, not ballooned. */
 const RUBBLE_XZ = 0.92;
-/** Hammer of the Gods — pancaked into the dirt. */
-const HAMMER_CRUSH_Y = 0.045;
-const HAMMER_CRUSH_XZ = 1.45;
+/** Hammer of the Gods — pancaked into the dirt (same 4% height as scenery crush). */
+const HAMMER_CRUSH_Y = 0.04;
+/** Mild footprint widen — was 1.55, read as ballooned. */
+const HAMMER_CRUSH_XZ = 1.2;
 const HAMMER_CRUSH_DUR = 0.28;
+/**
+ * Mesh Y offset for pancakes. Must NOT use {@link GROUND_UNIT_Y} (−0.08): that
+ * sinks standing feet into the lawn, which buries a 4%-tall squash completely
+ * (blood still pops at torso height — the “invisible on hills” look).
+ */
+export const HAMMER_CRUSH_SEAT_Y = 0.03;
 
 /**
  * Animate a structure into the rubble pose (squash + lean).
@@ -81,7 +88,7 @@ export function beginHammerCrush(
         startScaleY: sy,
         startScaleZ: sz,
         endScaleX: sx * HAMMER_CRUSH_XZ,
-        endScaleY: Math.max(0.02, sy * HAMMER_CRUSH_Y),
+        endScaleY: sy * HAMMER_CRUSH_Y,
         endScaleZ: sz * HAMMER_CRUSH_XZ,
         startRotX: mesh.rotation.x,
         startRotZ: mesh.rotation.z,
@@ -126,6 +133,12 @@ export function tickBuildingCollapse(
 }
 
 export function clearBuildingCollapse(mesh: Group): void {
+    delete mesh.userData.buildingCollapse;
+    // Keep hammerCrushed so pancakes stay visible after the squash anim ends
+}
+
+/** Round reset / revive — drop the permanent pancake flag too. */
+export function clearHammerCrush(mesh: Group): void {
     delete mesh.userData.buildingCollapse;
     delete mesh.userData.hammerCrushed;
 }
