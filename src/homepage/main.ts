@@ -494,22 +494,6 @@ app.innerHTML = `
     </div>
   </section>
 
-  <section class="mh-section" id="round-cards">
-    <h2>Round cards</h2>
-    <p class="mh-sub">From round two onward, draft one of several offered ${DISPLAY.items.toLowerCase()} cards drawn from the match pool. Battle spells are bought at the Stronghold, not drafted from cards.</p>
-    <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
-      ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
-    </select>
-    <div class="mechili-cards">
-      <div class="cards-row" id="mh-round-cards-row">
-        ${ROUND_RUNE_CARDS.map(
-            (c, i) =>
-                `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
-        ).join('')}
-      </div>
-    </div>
-  </section>
-
   <section class="mh-section" id="runes">
     <h2>${DISPLAY.items}</h2>
     <p class="mh-sub">Fused onto a pack for good, lifting every mech in it <span class="mh-sep">⬢</span> most packs hold ${itemSlotLimit('dwarf')}, the ballista ${itemSlotLimit('ballista')}. The four base runes are drafted from round cards or bought in the shop; the stronger ones are forged from them at the Stronghold, and never sold.</p>
@@ -529,6 +513,22 @@ app.innerHTML = `
     </select>
     <div class="mh-tactics" id="mh-tactics-grid">
       ${ALL_TACTICS.map((t, i) => tacticCard(t, i === 0)).join('')}
+    </div>
+  </section>
+
+  <section class="mh-section" id="round-cards">
+    <h2>Round cards</h2>
+    <p class="mh-sub">From round two onward, draft one of several offered ${DISPLAY.items.toLowerCase()} cards drawn from the match pool. Battle spells are bought at the Stronghold, not drafted from cards.</p>
+    <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
+      ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
+    </select>
+    <div class="mechili-cards">
+      <div class="cards-row" id="mh-round-cards-row">
+        ${ROUND_RUNE_CARDS.map(
+            (c, i) =>
+                `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
+        ).join('')}
+      </div>
     </div>
   </section>
 
