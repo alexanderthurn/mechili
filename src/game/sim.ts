@@ -540,6 +540,12 @@ export type SimEvent =
           /** normalized killing-blow direction (from knockback), so gore jets along it */
           dx?: number;
           dz?: number;
+          /**
+           * Throws the gore down `dx`/`dz` instead of letting it fountain: the
+           * omni cloud gets the direction too, faster, flatter and longer-lived.
+           * Omit / 1 = the ordinary spurt.
+           */
+          fling?: number;
           /** Ash death scorch override (from UnitType.deathAshScorch). */
           ashScorch?: { radius: number; strength: number };
       }
@@ -592,6 +598,8 @@ const STRONGHOLD_FALL_POWER = 3.2;
 const COLLAPSE_OVERKILL = 4;
 /** outward shove on each corpse, decayed per frame like any blast impulse */
 const COLLAPSE_SHOVE = 0.55;
+/** how hard a lifeline death throws its gore along the blast line */
+const COLLAPSE_GORE_FLING = 2.8;
 
 /** ballista / catapult lob — strong enough to read as an arc at long range */
 const BALLISTIC_GRAVITY = 28;
@@ -2783,6 +2791,7 @@ export class BattleSim {
             y: target.footY + t.meshScale * 1.3,
             z: target.z,
             big: violent || target.radius >= 2 || !!t.structure,
+            fling: violent ? COLLAPSE_GORE_FLING : undefined,
             wear,
             structure: !!t.structure,
             structureHeight,

@@ -882,22 +882,32 @@ export class Particles {
                     } else {
                         // gore jets along the killing-blow direction (from knockback)
                         const kill = e.dx !== undefined ? { x: e.dx, y: 0.15, z: e.dz ?? 0 } : undefined;
+                        // A flung death (a keep's collapse) throws the omni cloud
+                        // down the blow as well, so nothing fountains straight up:
+                        // faster, flatter and living longer, so it travels.
+                        const fling = e.fling ?? 1;
+                        const thrown = fling > 1;
+                        const omniDir = thrown ? kill : undefined;
+                        const rise = (base: number) => (thrown ? base * 0.35 : base);
+                        const far = (base: number) => (thrown ? base * fling : base);
+                        const linger = (base: number) => (thrown ? base * 1.7 : base);
                         if (e.big) {
                             // massive gib burst — an omni cloud + a jet down the blow
                             this.burst(e.x, e.y, e.z, {
                                 count: 56,
                                 color: e.blood ?? THEME.death,
-                                speed: 22,
-                                life: 1.2,
-                                up: 5,
+                                speed: far(22),
+                                life: linger(1.2),
+                                up: rise(5),
                                 blood: true,
+                                dir: omniDir,
                             });
                             this.burst(e.x, e.y + 1, e.z, {
                                 count: 40,
                                 color: e.blood != null ? lightenBlood(e.blood) : THEME.deathSecondary,
-                                speed: 16,
-                                life: 0.95,
-                                up: 5,
+                                speed: far(16),
+                                life: linger(0.95),
+                                up: rise(5),
                                 blood: true,
                                 dir: kill,
                             });
@@ -906,17 +916,18 @@ export class Particles {
                             this.burst(e.x, e.y, e.z, {
                                 count: 18,
                                 color: e.blood ?? THEME.deathSmall,
-                                speed: 15,
-                                life: 0.75,
-                                up: 3,
+                                speed: far(15),
+                                life: linger(0.75),
+                                up: rise(3),
                                 blood: true,
+                                dir: omniDir,
                             });
                             this.burst(e.x, e.y + 0.4, e.z, {
                                 count: 14,
                                 color: e.blood ?? THEME.deathSmall,
-                                speed: 14,
-                                life: 0.85,
-                                up: 3,
+                                speed: far(14),
+                                life: linger(0.85),
+                                up: rise(3),
                                 blood: true,
                                 dir: kill,
                             });
