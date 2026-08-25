@@ -371,6 +371,7 @@ export function forgeHintText(
     slots: readonly (ForgeSlot | null)[],
     when: 'next' | 'this' = 'next',
     pool: ForgeSpellPool = 'all',
+    lit = true,
 ): string {
     const filled = slots.filter((s): s is ForgeSlot => !!s);
     const whenLabel = when === 'this' ? 'This deploy' : 'Next deploy';
@@ -384,6 +385,10 @@ export function forgeHintText(
             ? 'No matching recipe — all runes returned to their owners this deploy.'
             : 'No matching recipe — all runes return to their owners next deploy.';
     }
+    // A matched recipe promises nothing until the burn is bought — the buy
+    // button carries that message, and "Next deploy: …" beside it would be a
+    // claim the oven is not making yet.
+    if (!lit) return '';
     const kindLabel =
         result.product!.kind === 'item' ? DISPLAY.item : DISPLAY.tactic;
     const parts = result.consumed.map((c) => ITEMS[c.itemId]?.name ?? c.itemId);

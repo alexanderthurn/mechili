@@ -7206,7 +7206,11 @@ export class Game {
                 : this.forgeSlots[team]!;
             targets.push({
                 unit,
-                mode: forgeGlowMode(oven, this.teamForgePool(team), this.forgeLitBy[team] !== null),
+                mode: forgeGlowMode(
+                    snapIds && this.buildingIntelSnapshot
+                        ? (this.buildingIntelSnapshot.forgeLit[team] ?? false)
+                        : this.forgeLitBy[team] !== null,
+                ),
             });
         }
         this.forgeFx.update(dt, this.time, targets, this.scene);
@@ -9841,6 +9845,10 @@ export class Game {
                 player: this.forgeSlots.player.map((s) => s?.itemId ?? null),
                 enemy: this.forgeSlots.enemy.map((s) => s?.itemId ?? null),
             },
+            forgeLit: {
+                player: this.forgeLitBy.player !== null,
+                enemy: this.forgeLitBy.enemy !== null,
+            },
         };
     }
 
@@ -9924,7 +9932,10 @@ export class Game {
         const bakeInfo = bakeResult.product
             ? forgeProductInfo(bakeResult.product)
             : null;
-        const lit = this.forgeLitBy[team] !== null;
+        const lit =
+            fogged && this.buildingIntelSnapshot
+                ? (this.buildingIntelSnapshot.forgeLit[team] ?? false)
+                : this.forgeLitBy[team] !== null;
         const bakeCost = bakeResult.product ? forgeProductCost(bakeResult.product) : 0;
         out.forge = {
             slotCount,
@@ -9932,7 +9943,7 @@ export class Game {
             canUnlight: canBuy && this.forgeLitBy[team] === this.humanSeat,
             bakeAffordable: canBuy && !lit && this.economy.balance(this.humanSeat) >= bakeCost,
             dropReady: !fogged && !lit && this.canDropForgeOn(u),
-            hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool),
+            hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool, lit),
             suggestions,
             spellPool: pool,
             bake: bakeInfo
@@ -9992,6 +10003,9 @@ interface BuildingIntelSnapshot {
     movePackOwned: boolean[];
     /** Stronghold oven contents (item ids) at phase start — fogged view */
     forge: Record<Team, (string | null)[]>;
+    /** whether each oven was paid for at phase start — fogged view, and the
+     *  reason the chimney and the panel cannot leak a live burn */
+    forgeLit: Record<Team, boolean>;
 }
 
 interface BuildingIntelSeat {

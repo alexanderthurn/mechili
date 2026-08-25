@@ -2694,7 +2694,7 @@ export class Hud {
         const forge = info.forge;
         const forgeSquares = !forge
             ? ''
-            : `<div class="forge-block${forge.bake ? ' ready' : ''}">` +
+            : `<div class="forge-block${forge.lit ? ' ready' : ''}">` +
               `<div class="forge-label">Forge${forge.lit ? ' · firing' : forge.bake ? ' · ready' : ''}</div>` +
               `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
                   const item = forge.slots[i];
