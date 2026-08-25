@@ -774,6 +774,21 @@ function cardSpellTipStyles(): string {
     flex: 0 0 18px;
     font-size: 0;
 }
+.mechili-card-spell-tip .ai-cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+}
+.mechili-card-spell-tip .ai-cost .money-ico.m-icon {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+}
 .mechili-card-spell-tip .ai-forge-ings {
     display: flex;
     flex-direction: row;

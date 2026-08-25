@@ -4,7 +4,7 @@
  */
 import { startCardForgeIcons, type StartCard } from '../game/cards';
 import { THEME } from '../theme';
-import { iconHtml } from './iconAtlas';
+import { iconHtml, moneyHtml } from './iconAtlas';
 
 function escapeAttr(s: string): string {
     return s
@@ -68,7 +68,9 @@ export function spellInfoFrameHtml(opts: {
         (descHtml ? `<div class="ai-desc">${descHtml}</div>` : '') +
         (opts.cost === undefined
             ? ''
-            : `<div class="ai-cost">${opts.costLabel ? `${escapeHtml(opts.costLabel)} ` : ''}${opts.cost}</div>`) +
+            : `<div class="ai-cost">${
+                  opts.costLabel ? `${escapeHtml(opts.costLabel)} ` : ''
+              }${moneyHtml(opts.cost)}</div>`) +
         rowsHtml
     );
 }
