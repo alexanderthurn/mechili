@@ -9255,7 +9255,14 @@ export class Game {
                     const s = e.ashScorch?.strength ?? (e.big ? 0.7 : 0.55);
                     this.map.stampScorch(e.x, e.z, r, s);
                 } else if (e.wear === 'blood') {
-                    this.map.stampBlood(e.x, e.z, e.big ? 2.4 : 1.35, e.big ? 0.75 : 0.65, e.blood);
+                    const mul = e.bloodScale ?? 1;
+                    this.map.stampBlood(
+                        e.x,
+                        e.z,
+                        (e.big ? 2.4 : 1.35) * mul,
+                        Math.min(1, (e.big ? 0.75 : 0.65) * Math.min(mul, 1.5)),
+                        e.blood,
+                    );
                 }
             } else if (e.kind === 'explosion') {
                 if (e.rect) {

@@ -942,10 +942,11 @@ export class Particles {
                     } else {
                         // gore jets along the killing-blow direction (from knockback)
                         const kill = e.dx !== undefined ? { x: e.dx, y: 0.15, z: e.dz ?? 0 } : undefined;
+                        const gore = e.bloodScale ?? 1;
                         if (e.big) {
                             // massive gib burst — an omni cloud + a jet down the blow
                             this.burst(e.x, e.y, e.z, {
-                                count: 56,
+                                count: Math.round(56 * gore),
                                 color: e.blood ?? THEME.death,
                                 speed: 22,
                                 life: 1.2,
@@ -953,7 +954,7 @@ export class Particles {
                                 blood: true,
                             });
                             this.burst(e.x, e.y + 1, e.z, {
-                                count: 40,
+                                count: Math.round(40 * gore),
                                 color: e.blood != null ? lightenBlood(e.blood) : THEME.deathSecondary,
                                 speed: 16,
                                 life: 0.95,
@@ -964,7 +965,7 @@ export class Particles {
                         } else {
                             // omni spurt + a directional gout down the blow
                             this.burst(e.x, e.y, e.z, {
-                                count: 18,
+                                count: Math.round(18 * gore),
                                 color: e.blood ?? THEME.deathSmall,
                                 speed: 15,
                                 life: 0.75,
@@ -972,7 +973,7 @@ export class Particles {
                                 blood: true,
                             });
                             this.burst(e.x, e.y + 0.4, e.z, {
-                                count: 14,
+                                count: Math.round(14 * gore),
                                 color: e.blood ?? THEME.deathSmall,
                                 speed: 14,
                                 life: 0.85,

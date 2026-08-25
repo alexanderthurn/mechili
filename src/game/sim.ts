@@ -567,6 +567,8 @@ export type SimEvent =
           dz?: number;
           /** Ash death scorch override (from UnitType.deathAshScorch). */
           ashScorch?: { radius: number; strength: number };
+          /** Hammer pancake — multiply ground + particle gore (e.g. 1.25). */
+          bloodScale?: number;
       }
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
@@ -621,7 +623,9 @@ function detHash01(n: number): number {
     return ((x >>> 0) % 1_000_000) / 1_000_000;
 }
 
-/** circle (default) or hammer rectangle footprint — includes actor radius as padding */
+/** circle (default) or hammer rectangle footprint.
+ *  Hammer: center must lie in HAMMER_ZONE (no radius pad) so damage matches the scar.
+ *  Circles: include actor radius as padding. */
 function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean {
     if (s.tacticId === HAMMER_ID) {
         const yaw = s.yaw ?? 0;
@@ -631,10 +635,8 @@ function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean 
         const dz = z - s.z;
         const lx = dx * c + dz * sn;
         const lz = -dx * sn + dz * c;
-        return (
-            Math.abs(lx) <= HAMMER_ZONE.halfWidth + pad &&
-            Math.abs(lz) <= HAMMER_ZONE.halfDepth + pad
-        );
+        // pad ignored — scar ↔ kill must match what you see on the ground
+        return Math.abs(lx) <= HAMMER_ZONE.halfWidth && Math.abs(lz) <= HAMMER_ZONE.halfDepth;
     }
     return hypot(x - s.x, z - s.z) <= s.radius + pad;
 }
@@ -2332,15 +2334,12 @@ export class BattleSim {
                 halfDepth: HAMMER_ZONE.halfDepth,
                 yaw: s.yaw ?? 0,
             });
+            // No blast shove — impulse was sliding pancakes (and their meshes)
+            // outside the scar while blood stayed at the kill seat.
         } else {
             this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
+            this.applyBlastImpulse(s.x, s.z, visualRadius, meteor ? 2.6 : 1.5);
         }
-        this.applyBlastImpulse(
-            s.x,
-            s.z,
-            visualRadius,
-            meteor ? 2.6 : hammer ? 2.2 : 1.5,
-        );
     }
 
     /**
@@ -2618,8 +2617,8 @@ export class BattleSim {
                 const wz = a.unit.world.z + a.mesh.position.z;
                 alignSettledCorpse(a.mesh, wx, wz, worldHeightAt(wx, wz) + GROUND_UNIT_Y);
             }
-            // Settled / tipping wrecks still slide from later blasts
-            if (!fall) {
+            // Settled / tipping wrecks still slide from later blasts — not hammer pancakes
+            if (!fall && !a.mesh.userData.hammerCrushed) {
                 const ix = a.impulseX ?? 0;
                 const iz = a.impulseZ ?? 0;
                 if (Math.hypot(ix, iz) > 0.008) {
@@ -2919,6 +2918,7 @@ export class BattleSim {
             ashScorch: wear === 'ash' ? t.deathAshScorch : undefined,
             dx: klen > 1e-6 ? knockDir!.x / klen : undefined,
             dz: klen > 1e-6 ? knockDir!.z / klen : undefined,
+            bloodScale: this.crushingHammer && wear === 'blood' ? 1.25 : undefined,
         });
         if (t.structure) {
             target.unit.markDestroyed(knockDir ?? undefined, {
