@@ -587,6 +587,11 @@ const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
 /** how much louder a Stronghold's lifeline collapse is than a tower's fall */
 const STRONGHOLD_FALL_POWER = 2.6;
+/** overkill fed to a lifeline death, as a multiple of the victim's own max hp —
+ *  drives the tip-over flop and, for flyers, how far the wreck is thrown */
+const COLLAPSE_OVERKILL = 4;
+/** outward shove on each corpse, decayed per frame like any blast impulse */
+const COLLAPSE_SHOVE = 0.55;
 
 /** ballista / catapult lob — strong enough to read as an arc at long range */
 const BALLISTIC_GRAVITY = 28;
@@ -2739,6 +2744,8 @@ export class BattleSim {
         killer: Unit | null,
         dealt = 0,
         knockDir?: { x: number; z: number },
+        /** force the heavy gore burst a large pack gets — see the `big` event field */
+        violent = false,
     ): void {
         if (killer) killer.kills++;
         // no XP for executing a still-spawning pack — it never fully arrived
@@ -2775,7 +2782,7 @@ export class BattleSim {
             // erupt from the torso (footY tracks ground + altitude), not the feet
             y: target.footY + t.meshScale * 1.3,
             z: target.z,
-            big: target.radius >= 2 || !!t.structure,
+            big: violent || target.radius >= 2 || !!t.structure,
             wear,
             structure: !!t.structure,
             structureHeight,
@@ -2881,7 +2888,16 @@ export class BattleSim {
                 if (!a.alive || a === target) continue;
                 if (a.unit.type.structure) continue; // the buildings stay standing
                 if (actorTeam(a) !== side) continue;
-                this.kill(a, null);
+                // thrown outward from the keep: the blow came from there, so the
+                // corpse tips, jets and (for flyers) falls along that line
+                const dx = a.x - target.x;
+                const dz = a.z - target.z;
+                const len = hypot(dx, dz) || 1;
+                const away = { x: dx / len, z: dz / len };
+                this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, true);
+                // and keeps sliding — the same corpse impulse a blast applies
+                a.impulseX = away.x * COLLAPSE_SHOVE;
+                a.impulseZ = away.z * COLLAPSE_SHOVE;
             }
         }
     }
