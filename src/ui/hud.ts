@@ -8,6 +8,7 @@ import {
     forgeRecipeMatch,
     type ForgeSpellPool,
 } from '../game/forgeRecipes';
+import { buildingAbilities } from '../game/buildingAbilities';
 import { BASE_RUNE_IDS, ITEMS } from '../game/items';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
@@ -672,8 +673,17 @@ export class Hud {
             // just the unit name plus that talent list (rows arrive via
             // setUnitTalents); the tile itself already shows the cost, and
             // stats belong in the unit details panel, not on every hover.
+            // Board extras have no talents — fill the tip from their ability
+            // copy so Fire Bolt / Ward Stone aren't title-only.
             button.dataset.spellTip = '1';
             button.dataset.ttitle = type.name;
+            if (type.extra) {
+                const abs = buildingAbilities(type);
+                if (abs.length > 0) {
+                    button.dataset.tdesc = abs.map((a) => a.description).join('\n\n');
+                    button.dataset.ticon = abs[0]!.icon;
+                }
+            }
             button.addEventListener('click', () => {
                 // hoverable while unaffordable (see the .unaffordable CSS), so
                 // the refusal has to happen here rather than via pointer-events
