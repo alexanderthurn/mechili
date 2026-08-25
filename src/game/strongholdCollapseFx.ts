@@ -1,10 +1,11 @@
 import {
-    CircleGeometry,
     Color,
     DoubleSide,
     Mesh,
     NormalBlending,
+    RingGeometry,
     ShaderMaterial,
+    type BufferAttribute,
     type Scene,
 } from 'three';
 import type { Particles } from './effects';
@@ -37,10 +38,22 @@ const DEBRIS_EVERY = 7;
 /** seconds between the rolling ground kicks while a front travels */
 const SHAKE_EVERY = 0.38;
 const MAX_ACTIVE = 4;
+/**
+ * The front is a mesh laid over the terrain, not a flat disc: a plane large
+ * enough to cross the board cuts straight through every hill it meets. These
+ * are the rings and segments its skirt is built from — enough to follow the
+ * relief without making the per-frame resample expensive.
+ */
+const RADIAL_RINGS = 6;
+const SEGMENTS = 72;
+/** how far the dust floats above the lawn it is following */
+const GROUND_LIFT = 1.4;
 
 type Front = {
     mesh: Mesh;
     mat: ShaderMaterial;
+    /** cloned per front — each writes its own terrain-following vertex heights */
+    geo: RingGeometry;
     x: number;
     z: number;
     y: number;
@@ -54,7 +67,11 @@ type Front = {
 
 export class StrongholdCollapseFx {
     private readonly fronts: Front[] = [];
-    private readonly geo = new CircleGeometry(1, 128);
+    /** unit disc lying in XZ (rotated once here, so vertex Y is world up and
+     *  free to carry terrain height) — cloned per front */
+    private readonly baseGeo = new RingGeometry(0, 1, SEGMENTS, RADIAL_RINGS).rotateX(
+        -Math.PI / 2,
+    ) as RingGeometry;
     private readonly tmp = new Color();
 
     constructor(
@@ -86,7 +103,7 @@ export class StrongholdCollapseFx {
             vertexShader: /* glsl */ `
                 varying vec2 vLocal;
                 void main() {
-                    vLocal = position.xy;
+                    vLocal = position.xz;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
@@ -117,10 +134,12 @@ export class StrongholdCollapseFx {
             `,
         });
 
-        const mesh = new Mesh(this.geo, mat);
-        mesh.rotation.x = -Math.PI / 2; // CircleGeometry is XY; lay it on the lawn
-        mesh.position.set(e.x, groundHeightAt(e.x, e.z) + 0.25, e.z);
-        mesh.scale.setScalar(0.01);
+        const geo = this.baseGeo.clone() as RingGeometry;
+        const mesh = new Mesh(geo, mat);
+        // origin at world zero height: the vertices carry absolute terrain Y,
+        // and only X/Z are scaled so that height is never stretched with radius
+        mesh.position.set(e.x, 0, e.z);
+        mesh.scale.set(0.01, 1, 0.01);
         mesh.frustumCulled = false;
         mesh.renderOrder = 4;
         this.scene.add(mesh);
@@ -128,6 +147,7 @@ export class StrongholdCollapseFx {
         this.fronts.push({
             mesh,
             mat,
+            geo,
             x: e.x,
             z: e.z,
             y: e.y,
@@ -165,7 +185,8 @@ export class StrongholdCollapseFx {
                 this.retire(f);
                 continue;
             }
-            f.mesh.scale.setScalar(Math.max(0.01, radius));
+            f.mesh.scale.set(Math.max(0.01, radius), 1, Math.max(0.01, radius));
+            this.drapeOverTerrain(f, radius);
             const t = radius / f.maxRadius;
             f.mat.uniforms.uFade!.value =
                 t < FADE_FROM ? 1 : 1 - (t - FADE_FROM) / (1 - FADE_FROM);
@@ -180,7 +201,7 @@ export class StrongholdCollapseFx {
                     const ang = (k / spokes) * Math.PI * 2 + f.emittedTo * 0.31;
                     const px = f.x + Math.cos(ang) * f.emittedTo;
                     const pz = f.z + Math.sin(ang) * f.emittedTo;
-                    this.particles.burst(px, groundHeightAt(px, pz) + 0.4, pz, {
+                    this.particles.burst(px, groundHeightAt(px, pz) + GROUND_LIFT, pz, {
                         count: 7,
                         color: k % 2 === 0 ? DUST_COLOR : DARK_DUST,
                         speed: 9,
@@ -199,10 +220,28 @@ export class StrongholdCollapseFx {
         }
     }
 
+    /**
+     * Re-seat every vertex on the lawn beneath it. X/Z stay put (the mesh scale
+     * spreads them); only Y moves, so the skirt follows the relief instead of
+     * slicing through it. Cheap enough to run per frame — a few hundred samples,
+     * and only while a keep is actually coming down.
+     */
+    private drapeOverTerrain(f: Front, radius: number): void {
+        const pos = f.geo.attributes.position as BufferAttribute;
+        const arr = pos.array as Float32Array;
+        for (let i = 0; i < arr.length; i += 3) {
+            const wx = f.x + arr[i]! * radius;
+            const wz = f.z + arr[i + 2]! * radius;
+            arr[i + 1] = groundHeightAt(wx, wz) + GROUND_LIFT;
+        }
+        pos.needsUpdate = true;
+    }
+
     private retire(f: Front): void {
         const i = this.fronts.indexOf(f);
         if (i >= 0) this.fronts.splice(i, 1);
         this.scene.remove(f.mesh);
+        f.geo.dispose();
         f.mat.dispose();
     }
 
@@ -212,6 +251,6 @@ export class StrongholdCollapseFx {
 
     dispose(): void {
         this.clear();
-        this.geo.dispose();
+        this.baseGeo.dispose();
     }
 }

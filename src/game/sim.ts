@@ -607,7 +607,7 @@ const COLLAPSE_SHOVE = 0.55;
 /** how hard a lifeline death throws its gore along the blast line */
 const COLLAPSE_GORE_FLING = 2.8;
 /** world units per second the collapse front travels outward */
-const COLLAPSE_SPEED = 78;
+const COLLAPSE_SPEED = 39;
 
 /** ballista / catapult lob — strong enough to read as an arc at long range */
 const BALLISTIC_GRAVITY = 28;
