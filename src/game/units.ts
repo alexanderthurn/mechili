@@ -1457,19 +1457,23 @@ export class Unit {
         return base * (1 + steps * 0.05);
     }
 
-    /** Mesh tint by level; base buildings also scale up. */
+    /** Mesh tint by level (packs only); base buildings scale up instead. */
     applyLevelLook(level = this.level): void {
         const scale = this.visualMeshScale(level);
         for (const m of this.members) {
             if (!m.mesh.userData.dead) m.mesh.scale.setScalar(scale);
         }
-        if (level === this.lookDisplayLevel) return;
-        this.lookDisplayLevel = level;
+        // A building says its level by growing, and by the badge over it. The
+        // veterancy hue is a pack's alone: dyeing masonry blue or gold buries
+        // the model's own material under a flat wash.
+        const tintLevel = this.type.structure ? 1 : level;
+        if (tintLevel === this.lookDisplayLevel) return;
+        this.lookDisplayLevel = tintLevel;
         for (const m of this.members) {
             if (m.mesh.userData.instanced) {
-                getUnitInstanceRenderer()?.setLevelTint(m.mesh, level);
+                getUnitInstanceRenderer()?.setLevelTint(m.mesh, tintLevel);
             } else {
-                applyMeshLevelTint(m.mesh, level);
+                applyMeshLevelTint(m.mesh, tintLevel);
             }
         }
     }
