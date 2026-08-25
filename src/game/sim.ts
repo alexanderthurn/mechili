@@ -3454,6 +3454,9 @@ export class BattleSim {
         stopMargin = 0,
         opts?: { aimYaw?: number; locomotion?: 'track' | 'pivot' | 'cruise' },
     ): void {
+        // A pinned pack is standing on something. Whatever the stats say, and
+        // whatever route or rally or bonus points elsewhere, it does not walk.
+        if (a.unit.pinnedY != null) return;
         let steerX = seekX;
         let steerZ = seekZ;
 

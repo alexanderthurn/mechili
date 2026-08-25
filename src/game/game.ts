@@ -194,7 +194,7 @@ import {
     type DeploySettings,
     type GameSettings,
 } from './settings';
-import { detCos, detSin } from './detMath';
+import { detAtan2, detCos, detSin } from './detMath';
 import { hordeWavePlan } from './hordeRoster';
 import {
     BattleSim,
@@ -237,6 +237,7 @@ import {
     RESEARCH_CENTER,
     GARRISON_ARCHER,
     GARRISON_FOV_HALF,
+    garrisonSlotWorld,
     GARRISON_SLOTS,
     GARRISON_STEP_COST,
     STRONGHOLD,
@@ -6369,8 +6370,16 @@ export class Game {
         // flat, and after the item loop on purpose — a speed rune multiplies
         // the unit's own speed, not the commander's gift (same rule as the
         // one-round Vanguard boost below)
-        if (spec === 'speed' && !type.structure) stats.speed += SPEED_COMMANDER_BONUS;
-        if (opts.speedBoost) stats.speed += rb.speedBoost;
+        // Flat speed only reaches things that already move. A type with
+        // speed 0 is immobile BY DESIGN — a garrison archer bolted to his
+        // battlement — and handing it +3 does not make it faster, it makes it
+        // leave: he walks off the wall toward the enemy, still pinned at
+        // battlement height, which is a man strolling through the air.
+        const mobile = type.speed > 0;
+        if (spec === 'speed' && !type.structure && mobile) {
+            stats.speed += SPEED_COMMANDER_BONUS;
+        }
+        if (opts.speedBoost && mobile) stats.speed += rb.speedBoost;
         if (opts.rangeBoost && type.projectileSpeed) stats.range += rb.rangeBoost;
         return stats;
     }
@@ -7771,6 +7780,8 @@ export class Game {
         this.techIntelSnapshot = null;
         this.buildingIntelSnapshot = null;
         this.placement.revealAll();
+        // before the sim reads their altitude and field of fire
+        this.reseatGarrison();
         // Re-seat every mobile pack's facing now that the board is whole. The
         // sim seeds actor facing from mesh.rotation.y, and until this point
         // that came from whatever faceClosestOf last computed during
@@ -9284,6 +9295,7 @@ export class Game {
             this.phase === 'battle' && this.sim ? this.sim.hazards : this.oilField,
         );
         this.updateForgeFx(gameDt);
+        this.reseatGarrison();
         this.updateStrongholdFlags();
         this.updateHordeMarkers();
 
@@ -10199,6 +10211,32 @@ export class Game {
      * Enemy forge-spell ownership uses deploy intel while fogged (same as
      * Research Center / Command Tower purchase flags).
      */
+    /**
+     * Re-seat every garrison archer on his keep's CURRENT geometry.
+     *
+     * A keep grows 10% per level, so the slot he was bought against moves — up
+     * and outward — the moment it is upgraded, and an anchor baked at purchase
+     * leaves him sunk into the new masonry. Everything read here is log-derived
+     * (the keep's level, world and facing), so every peer lands on the same
+     * numbers; `fovYaw` feeds the sim and this is what keeps it agreeing.
+     */
+    private reseatGarrison(): void {
+        for (const u of this.placement.allUnits()) {
+            if (u.type !== GARRISON_ARCHER || u.garrisonSlot === null) continue;
+            const keep = this.placement
+                .allUnits()
+                .find((k) => k.type === STRONGHOLD && k.team === u.team);
+            if (!keep) continue;
+            const spot = garrisonSlotWorld(keep, u.garrisonSlot);
+            if (!spot) continue;
+            u.world.set(spot.x, 0, spot.z);
+            u.view.position.copy(u.world);
+            u.pinnedY = spot.y;
+            u.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
+            u.seatMembers();
+        }
+    }
+
     /** archers this side has posted on its keep — the wall is shared per side */
     private garrisonCount(team: Team): number {
         let n = 0;
