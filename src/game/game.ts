@@ -10113,6 +10113,7 @@ export class Game {
             sellOwned: this.sellState.owned.slice(),
             rallyOwned: this.rallyRouteOwned.slice(),
             movePackOwned: this.movePackOwned.slice(),
+            forgeSpellOwned: this.forgeSpellOwned.map((list) => list.slice()),
             forge: {
                 player: this.forgeSlots.player.map((s) => s?.itemId ?? null),
                 enemy: this.forgeSlots.enemy.map((s) => s?.itemId ?? null),
@@ -10145,7 +10146,8 @@ export class Game {
     /**
      * Stronghold tiles — always listed when that building is selected (deploy +
      * battle, own or enemy). Buyable only for your side while you can act.
-     * Duo-only actions omit themselves in 1v1; add future abilities here.
+     * Enemy forge-spell ownership uses deploy intel while fogged (same as
+     * Research Center / Command Tower purchase flags).
      */
     private strongholdSelection(
         u: Unit,
@@ -10155,6 +10157,7 @@ export class Game {
         const team: Team = u.team === 'horde' ? 'player' : u.team;
         const teamSeats = seatIdsOf(this.seats, team);
         const canBuy = u.team === 'player' && this.playerCanAct;
+        const fogged = this.placement.isIntelFogged(u);
 
         // Ally supply gift — only when this side has two seats
         if (teamSeats.length >= 2) {
@@ -10165,14 +10168,17 @@ export class Game {
             };
         }
 
-        // Your commander's own three spells, buyable once each. Own side only:
-        // these are YOUR picks, and an enemy Stronghold has no business
-        // advertising them (nor would the buttons do anything there).
-        if (u.team === 'player') {
-            const seat = this.humanSeat;
-            const bought = this.forgeSpellOwned[seat] ?? [];
+        // Commander forge spells: own seat can buy; enemy seats show owned /
+        // last-round intel (same fog window as Research Center / Command Tower).
+        const spellSeats = u.team === 'player' ? [this.humanSeat] : teamSeats;
+        out.forgeSpells = spellSeats.flatMap((seat) => {
+            const bought =
+                fogged && this.buildingIntelSnapshot
+                    ? (this.buildingIntelSnapshot.forgeSpellOwned[seat] ?? [])
+                    : (this.forgeSpellOwned[seat] ?? []);
             const bal = this.economy.balance(seat);
-            out.forgeSpells = (this.starterCardOfSeat(seat)?.forgeSpells ?? [])
+            const seatCanBuy = canBuy && seat === this.humanSeat;
+            return (this.starterCardOfSeat(seat)?.forgeSpells ?? [])
                 .map((tacticId) => {
                     const t = TACTICS[tacticId];
                     // no strongholdCost = this spell isn't sold here
@@ -10186,13 +10192,12 @@ export class Game {
                         desc: t.description,
                         cost,
                         owned,
-                        affordable: canBuy && !owned && bal >= cost,
+                        affordable: seatCanBuy && !owned && bal >= cost,
                     };
                 })
                 .filter((e): e is NonNullable<typeof e> => e !== null);
-        }
+        });
 
-        const fogged = this.placement.isIntelFogged(u);
         const snapIds =
             fogged && this.buildingIntelSnapshot
                 ? this.buildingIntelSnapshot.forge[team]
@@ -10279,7 +10284,7 @@ export class Game {
     }
 }
 
-/** deploy-intel capture of Research Center / Command Tower seat state */
+/** deploy-intel capture of Research Center / Command Tower / Stronghold seat state */
 interface BuildingIntelSnapshot {
     recruitLevel: number[];
     deployExtra: number[];
@@ -10291,6 +10296,8 @@ interface BuildingIntelSnapshot {
     sellOwned: boolean[];
     rallyOwned: boolean[];
     movePackOwned: boolean[];
+    /** Stronghold commander spells bought (per seat) at phase start — fogged view */
+    forgeSpellOwned: string[][];
     /** Stronghold oven contents (item ids) at phase start — fogged view */
     forge: Record<Team, (string | null)[]>;
     /** whether each oven was paid for at phase start — fogged view, and the
