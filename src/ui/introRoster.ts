@@ -4,6 +4,7 @@
  */
 
 import { fetchPlayerPublic, getCachedProfile } from '../game/account';
+import { SIDE_COLORS } from '../game/colors';
 import { DEFAULT_MMR } from '../game/mmr';
 import {
     canonicalClassicSeats,
@@ -89,11 +90,22 @@ function teamHtml(team: 'player' | 'enemy', entries: IntroRosterEntry[]): string
     return `<div class="mr-team mr-team-${team}">${rows}</div>`;
 }
 
-/** Append the roster panel to an active intro cover. */
-export function mountIntroRoster(cover: HTMLElement, entries: readonly IntroRosterEntry[]): void {
+/** Append the roster panel to an active intro cover.
+ *  `side` sets local team CSS colors — menu styles bake defaults at boot
+ *  (host blue), so guests must override via variables here. */
+export function mountIntroRoster(
+    cover: HTMLElement,
+    entries: readonly IntroRosterEntry[],
+    side: 'a' | 'b' = 'a',
+): void {
     unmountIntroRoster(cover);
+    const player = SIDE_COLORS[side === 'a' ? 0 : 1]!.css;
+    const enemy = SIDE_COLORS[side === 'a' ? 1 : 0]!.css;
     const el = document.createElement('div');
     el.className = 'mechili-match-roster';
+    el.style.setProperty('--mr-player', player);
+    el.style.setProperty('--mr-enemy', enemy);
+    el.style.setProperty('--mr-local', player);
     el.innerHTML =
         `<div class="mr-frame m-frame">` +
         `<div class="mr-cols">` +

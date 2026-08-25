@@ -386,13 +386,17 @@ html .mechili-gameover {
 }
 /* Gameover must stay absolute-centered — materialStyles' relative chrome
    otherwise stretches it full-width (worst on 4K). Keep this scoped so menu /
-   pause / suggest keep their own layout widths. */
+   pause / suggest keep their own layout widths.
+   Fixed width (not auto): victory/defeat/draw share one size — auto used to
+   shrink with short titles like DEFEAT and ellipsize names to a few chars. */
 html .mechili-gameover {
     position: absolute;
     left: 50%;
     top: 40%;
     transform: translate(-50%, -50%);
-    width: auto;
+    box-sizing: border-box;
+    width: min(92vw, 720px);
+    max-width: min(92vw, 720px);
 }
 html .mechili-name-edit .box::before,
 html .mechili-suggest .box::before,
@@ -2480,10 +2484,10 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     box-shadow: inset 0 1px 0 rgba(255, 230, 180, 0.06);
 }
 .mechili-match-roster .mr-player.mr-local {
-    border: 2px solid ${pc};
+    border: 2px solid var(--mr-local, ${pc});
     box-shadow:
         0 0 14px rgba(0, 0, 0, 0.35),
-        0 0 10px color-mix(in srgb, ${pc} 45%, transparent),
+        0 0 10px color-mix(in srgb, var(--mr-local, ${pc}) 45%, transparent),
         inset 0 1px 0 rgba(255, 230, 180, 0.12);
 }
 .mechili-match-roster .mr-portrait {
@@ -2499,8 +2503,8 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     background: rgba(0, 0, 0, 0.45);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
-.mechili-match-roster .mr-portrait.player { border-color: ${pc}; }
-.mechili-match-roster .mr-portrait.enemy { border-color: ${ec}; }
+.mechili-match-roster .mr-portrait.player { border-color: var(--mr-player, ${pc}); }
+.mechili-match-roster .mr-portrait.enemy { border-color: var(--mr-enemy, ${ec}); }
 .mechili-match-roster .mr-portrait-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .mechili-match-roster .mr-portrait-ph {
     width: 58%;
@@ -5477,6 +5481,9 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-pause .pause-quit:hover { background: ${u.undoHover}; }
 
+/* One panel for victory / defeat / draw / disconnect — modifiers only recolor
+ * the title. Width comes from html .mechili-gameover above so all outcomes
+ * share the same footprint regardless of title length. */
 .mechili-gameover {
     position: absolute;
     left: 50%;
@@ -5484,11 +5491,12 @@ ${chatFloatStyles(u, pc, ec)}
     transform: translate(-50%, -50%);
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     gap: 18px;
-    padding: 36px 64px;
-    max-width: min(96vw, 720px);
-    max-height: min(88vh, 720px);
+    box-sizing: border-box;
+    padding: clamp(20px, 3.5vh, 36px) clamp(18px, 4vw, 48px);
+    max-height: min(88vh, 760px);
+    overflow-x: hidden;
     overflow-y: auto;
     /* chrome filled by materialStyles ornate frame */
     background: transparent;
@@ -5497,29 +5505,41 @@ ${chatFloatStyles(u, pc, ec)}
     box-shadow: none;
     user-select: none;
 }
-.mechili-gameover .go-title { font-size: 44px; font-weight: 900; letter-spacing: 10px; }
+.mechili-gameover .go-title {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 900;
+    letter-spacing: clamp(4px, 0.8vw, 10px);
+    text-align: center;
+    line-height: 1.15;
+}
 .mechili-gameover.victory .go-title { color: ${pc}; }
 .mechili-gameover.defeat .go-title { color: ${ec}; }
 .mechili-gameover.draw .go-title { color: ${u.brassLight}; }
 .mechili-gameover .go-sub { font-size: 14px; letter-spacing: 0.5px; color: ${u.text}; opacity: 0.85; margin-top: -10px; text-align: center; max-width: 28em; line-height: 1.45; }
 .mechili-gameover .go-stats { font-size: 13px; color: ${u.textMuted}; letter-spacing: 0.5px; margin-top: -6px; }
 .mechili-gameover .go-teams {
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 20px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: start;
+    gap: clamp(10px, 2.5vw, 20px);
     width: 100%;
     margin-top: 4px;
 }
 .mechili-gameover .go-vs {
     align-self: center;
-    font-size: 18px;
+    font-size: clamp(14px, 2.2vw, 18px);
     font-weight: 900;
     letter-spacing: 3px;
     color: ${u.textMuted};
     opacity: 0.7;
+    padding-top: 0.4em;
 }
-.mechili-gameover .go-team { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.mechili-gameover .go-team {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
 .mechili-gameover .go-team-label {
     font-size: 11px;
     font-weight: 700;
@@ -5538,6 +5558,7 @@ ${chatFloatStyles(u, pc, ec)}
     border: 1px solid ${u.frameLo};
     border-radius: 6px;
     background: rgba(0, 0, 0, 0.22);
+    min-width: 0;
 }
 .mechili-gameover .go-portrait {
     width: 44px;
@@ -5561,14 +5582,15 @@ ${chatFloatStyles(u, pc, ec)}
     background: ${u.textMuted};
     opacity: 0.35;
 }
-.mechili-gameover .go-player-info { min-width: 0; flex: 1; }
+.mechili-gameover .go-player-info { min-width: 0; flex: 1 1 auto; }
 .mechili-gameover .go-player-name {
-    font-size: 14px;
+    font-size: clamp(13px, 1.6vw, 15px);
     font-weight: 700;
     color: ${u.text};
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* Prefer wrapping over ellipsis — names are short (≤16) and must stay readable. */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.25;
 }
 .mechili-gameover .go-ai, .mechili-gameover .go-unrated {
     font-size: 10px;
@@ -5577,6 +5599,7 @@ ${chatFloatStyles(u, pc, ec)}
     margin-left: 6px;
     opacity: 0.65;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 .mechili-gameover .go-spec { font-size: 11px; color: ${u.textMuted}; margin-top: 1px; }
 .mechili-gameover .go-mmr {
@@ -5595,22 +5618,24 @@ ${chatFloatStyles(u, pc, ec)}
     opacity: 0.95;
 }
 
-/* Mobile: portraits are too wide for small roster rows — hide them and
- * tighten spacing so name + MMR always fit. */
+/* Compact / phone: hide portraits, keep the same two-column grid so both
+ * sides stay visible; names wrap instead of truncating. */
 @media (max-width: 599px), (max-height: 540px) {
     .mechili-gameover {
-        padding: 22px 18px;
-        gap: 14px;
+        top: 45%;
+        padding: 18px 14px;
+        gap: 12px;
+        max-height: min(90vh, 640px);
+    }
+    .mechili-gameover .go-teams {
+        gap: 8px;
     }
     .mechili-gameover .go-player {
-        gap: 8px;
+        gap: 0;
         padding: 7px 8px;
     }
     .mechili-gameover .go-portrait {
         display: none;
-    }
-    .mechili-gameover .go-player-name {
-        font-size: 13px;
     }
     .mechili-gameover .go-mmr {
         font-size: 12px;
@@ -5628,6 +5653,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-cards .reconnect-timer { font-size: 32px; font-variant-numeric: tabular-nums; }
 .mechili-cards .reconnect-timer.urgent { animation: mechili-timer-pulse 0.7s ease-in-out infinite; }
 .mechili-gameover .go-restart {
+    align-self: center;
     padding: 10px 26px;
     background: ${u.alliedBtnBg};
     border: 1.5px solid ${pc};

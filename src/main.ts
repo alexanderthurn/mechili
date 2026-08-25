@@ -2741,7 +2741,7 @@ function startGame(
 
     if (showCoverRoster && introCoverEl) {
         const entries = introRosterEntries(settings, side, names, star);
-        mountIntroRoster(introCoverEl, entries);
+        mountIntroRoster(introCoverEl, entries, side);
         void prefetchIntroRosterMmrs(introCoverEl, entries).then(async (mmrMap) => {
             if (gen !== introGen || !started) return;
             pendingIntroRosterMmr = mmrMap;
