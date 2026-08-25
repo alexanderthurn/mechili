@@ -77,7 +77,7 @@ import {
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import { beginBuildingCollapse, clearBuildingCollapse } from './buildingCollapse';
-import { clearDeathFall, clearDeathTip } from './deathFall';
+import { clearCorpsePose, clearDeathFall, clearDeathTip } from './deathFall';
 import { preserveBuildingSnow } from './buildingSnow';
 
 export type Team = 'player' | 'enemy';
@@ -1487,6 +1487,7 @@ export class Unit {
             m.mesh.userData.dead = false;
             clearDeathFall(m.mesh);
             clearDeathTip(m.mesh);
+            clearCorpsePose(m.mesh);
             clearBuildingCollapse(m.mesh);
             if ((this.type.modelId ?? this.type.id) === CROW_RIDER_MODEL_ID) {
                 setCrowWingRateOnProxy(m.mesh, 0);

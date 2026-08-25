@@ -218,6 +218,19 @@ export function settleCorpsePose(mesh: Group): void {
 }
 
 /**
+ * Forget a baked pose, so the next death bakes its own.
+ *
+ * `corpseSettled` lives on the mesh, and meshes outlive the round that killed
+ * them — without this a unit's SECOND death would be overwritten by the angles
+ * its FIRST one settled at, which reads as the corpse suddenly sitting back up.
+ */
+export function clearCorpsePose(mesh: Group): void {
+    delete mesh.userData.corpseSettled;
+    delete mesh.userData.corpseTipX;
+    delete mesh.userData.corpseTipZ;
+}
+
+/**
  * Keep a settled wreck flat on the lawn and tilted with the local slope
  * (same central-difference normal idea as blob shadows).
  */

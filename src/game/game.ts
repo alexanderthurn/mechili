@@ -150,6 +150,7 @@ import { HpDrawFx } from './hpDrawFx';
 import {
     clearDeathFall,
     clearDeathTip,
+    settleCorpsePose,
     tickDeathFall,
     tickDeathTip,
     type DeathFallState,
@@ -8263,9 +8264,15 @@ export class Game {
                             worldHeightAt(wx, wz) + GROUND_UNIT_Y,
                         )
                     ) {
+                        // bake here too: this ticker runs BEFORE the sim's own
+                        // dead loop each frame, so it is usually the one that
+                        // finishes the animation, and alignSettledCorpse reads
+                        // whatever pose was baked
+                        settleCorpsePose(mesh);
                         clearDeathFall(mesh);
                     }
                 } else if (tip && !tickDeathTip(mesh, tip, this.time)) {
+                    settleCorpsePose(mesh);
                     clearDeathTip(mesh);
                 } else if (collapse && !tickBuildingCollapse(mesh, collapse, this.time)) {
                     clearBuildingCollapse(mesh);
