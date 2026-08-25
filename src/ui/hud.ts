@@ -2805,11 +2805,6 @@ export class Hud {
             : info.xpNext < 0
               ? 100
               : Math.max(0, Math.min(100, (info.xp / info.xpNext) * 100));
-        const levelLabel = info.structure
-            ? `${info.level}${info.towerUpgrade ? ` / ${info.towerUpgrade.maxLevel}` : ''}`
-            : info.xpNext < 0
-              ? 'max'
-              : `${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`;
         // structures that shoot (the rocket pad) keep their combat rows; the
         // towers report 0 damage / 0 range / 0 speed and only clutter with them
         const combatless = info.structure && info.damage <= 0 && info.range <= 0;
@@ -2824,17 +2819,14 @@ export class Hud {
             `</div>` +
             itemSquares +
             forgeSquares +
-            row('Hits', info.hits) +
             liveRow('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`, 'hp') +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
-            row('Level', levelLabel) +
             // A building that cannot shoot has no damage, reload, range or
             // speed worth four rows of zeroes — what its owner actually needs
             // to know is what breaking it costs them.
             (combatless
                 ? info.onDestroyed
-                    ? `<div class="destroyed"><span class="k">If destroyed</span>` +
-                      `<span class="v">${escapeHtml(info.onDestroyed)}</span></div>`
+                    ? row('If destroyed', escapeHtml(info.onDestroyed))
                     : ''
                 : row('Damage', String(Math.round(info.damage))) +
                   row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
