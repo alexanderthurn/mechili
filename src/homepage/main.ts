@@ -2,7 +2,14 @@ import { buildingAbilities } from '../game/buildingAbilities';
 import { START_CARDS, ROUND_RUNE_CARDS, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import { DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
-import { TACTICS, formatTacticStats } from '../game/tactics';
+import {
+    MOVE_UNIT_ID,
+    RALLY_ROUTE_ID,
+    SELL_UNIT_ID,
+    TACTICS,
+    TUTOR_ID,
+    formatTacticStats,
+} from '../game/tactics';
 import { techsForUnit } from '../game/techCatalog';
 import {
     COMMAND_TOWER,
@@ -250,18 +257,39 @@ function shotCard(shot: { src: string; label: string; index: number }): string {
 </button>`;
 }
 
+/**
+ * Where a tactic's price lives depends on which building sells it. The eleven
+ * commander spells carry their own `strongholdCost`; the Vanguard's one-time
+ * buys are match settings, so read them from there rather than copying the
+ * numbers and letting them drift.
+ */
+const VANGUARD_TACTIC_COST: Record<string, number> = {
+    [RALLY_ROUTE_ID]: DEFAULT_SETTINGS.rallyRoute.abilityCost,
+    [MOVE_UNIT_ID]: DEFAULT_SETTINGS.movePack.abilityCost,
+    [SELL_UNIT_ID]: DEFAULT_SETTINGS.sell.abilityCost,
+    // NOTE: Field Lesson has no purchase action yet — it only arrives on a
+    // commander card. Listed at its intended price so the catalog is complete.
+    [TUTOR_ID]: 100,
+};
+
+function tacticPrice(t: (typeof TACTICS)[string]): { cost: number; where: string } | null {
+    if (t.strongholdCost !== undefined) return { cost: t.strongholdCost, where: 'Stronghold' };
+    const vanguard = VANGUARD_TACTIC_COST[t.id];
+    return vanguard === undefined ? null : { cost: vanguard, where: 'Vanguard' };
+}
+
 function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     const kindLabel = t.kind === 'placement' ? 'Placement' : 'One-shot';
     const stats = formatTacticStats(t);
     const statsHtml = stats.length
         ? `<ul class="mh-tactic-stats">${stats.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>`
         : '';
-    // Price replaces the old rune row: spells are bought at the Stronghold now,
-    // so what a player wants to see is the supply, not a recipe.
-    const costHtml =
-        t.strongholdCost !== undefined
-            ? `<div class="mh-tactic-cost" aria-label="Stronghold price">${moneyHtml(t.strongholdCost)}</div>`
-            : '';
+    // Price replaces the old rune row: tactics are bought now, so what a player
+    // wants to see is the supply, not a recipe.
+    const price = tacticPrice(t);
+    const costHtml = price
+        ? `<div class="mh-tactic-cost" title="Bought at the ${esc(price.where)}" aria-label="${esc(price.where)} price">${moneyHtml(price.cost)}</div>`
+        : '';
     return `
 <article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(t.id)}">
   <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(t.icon, 'mh-tactic-tile')}</div>
@@ -271,8 +299,8 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     </div>
     <p class="mh-tactic-meta">${kindLabel} · ${esc(t.targeting)}</p>
     <p class="mh-tactic-desc">${esc(t.description)}</p>
-    ${costHtml}
     ${statsHtml}
+    ${costHtml}
   </div>
 </article>`;
 }

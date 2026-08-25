@@ -414,9 +414,12 @@ function roundsLabel(n: number): string {
 export function formatTacticStats(t: (typeof TACTICS)[string]): string[] {
     const lines: string[] = [];
 
-    if (t.cooldownRounds > 0) {
-        lines.push(`Cooldown ${roundsLabel(t.cooldownRounds)}`);
-    }
+    // +1, and never hidden: `cooldownRounds` counts rounds to WAIT, so 0 means
+    // "back next round" rather than "no cooldown" (see the type's own note, and
+    // the in-game badge, which reads cooldownRounds + 1 for exactly this reason).
+    // Printing the raw field left every 0 blank and made a once-per-round spell
+    // look like it had no limit at all.
+    lines.push(`Cooldown ${roundsLabel(t.cooldownRounds + 1)}`);
 
     if (t.radius != null && (t.spell || t.acidCapsule || t.fireCapsule || t.oilRadius)) {
         lines.push(`Aim ${cellsLabel(t.radius)}`);

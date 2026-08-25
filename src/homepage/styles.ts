@@ -1027,6 +1027,12 @@ html, body {
 }
 .mh-tactic-body {
     padding: 14px 14px 16px;
+    /* column so the price chip can sit on the bottom edge (margin-top: auto),
+       lining the chips up across a row of cards with uneven stat lists */
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
 }
 .mh-tactic-head {
     margin-bottom: 4px;
@@ -1058,11 +1064,11 @@ html, body {
 /* same chip the round cards use for their price (.mechili-cards .c-cost),
    recoloured for the dark tactic card */
 .mh-tactic-cost {
+    margin-top: auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 5px;
-    margin-top: 10px;
     padding: 4px 12px;
     border-radius: 3px;
     font-size: 15px;
