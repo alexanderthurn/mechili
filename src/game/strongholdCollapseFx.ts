@@ -55,7 +55,7 @@ const FADE_FROM = 0.82;
  * Both are clamped: a board-wide rim would otherwise bury the particle pools.
  */
 const PUFFS_PER_RIM_UNIT = 0.55;
-const PUFFS_PER_SEC = { min: 24, max: 110 };
+const PUFFS_PER_SEC = { min: 40, max: 190 };
 /** the edge is a band, not a hairline — emissions scatter back over this much */
 const RIM_BAND = 0.13;
 /** seconds between the rolling ground kicks while a front travels */

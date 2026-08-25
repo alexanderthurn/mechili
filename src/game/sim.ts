@@ -606,8 +606,10 @@ const COLLAPSE_OVERKILL = 4;
 const COLLAPSE_SHOVE = 0.55;
 /** how hard a lifeline death throws its gore along the blast line */
 const COLLAPSE_GORE_FLING = 2.8;
+/** how hard a razed building's own stone is thrown down the front's path */
+const COLLAPSE_DEBRIS_FLING = 2.4;
 /** world units per second the collapse front travels outward */
-const COLLAPSE_SPEED = 39;
+const COLLAPSE_SPEED = 78;
 
 /** ballista / catapult lob — strong enough to read as an arc at long range */
 const BALLISTIC_GRAVITY = 28;
@@ -819,7 +821,8 @@ export class BattleSim {
         this.hazards = config.oilField?.cloneForBattle() ?? new HazardField();
         for (const unit of units) {
             if (unit.destroyed) {
-                if (this.isDebuffBuilding(unit)) {
+                // a razed tower owes nothing here either — see Unit.razed
+                if (this.isDebuffBuilding(unit) && !unit.razed) {
                     this.extendSeatDebuff(unit.seat, unit.level);
                 }
                 continue; // rubble is not a target
@@ -2356,7 +2359,7 @@ export class BattleSim {
                 continue;
             }
             for (const a of this.actors) {
-                if (!a.alive || a.unit.type.structure) continue;
+                if (!a.alive) continue;
                 // its own side, and the horde with it: this is a keep's worth of
                 // masonry going outward, and the besiegers are standing in it.
                 // An enemy army keeps its own Stronghold's fate to itself.
@@ -2366,6 +2369,13 @@ export class BattleSim {
                 if (hypot(dx, dz) > radius) continue; // the front has not arrived
                 const len = hypot(dx, dz) || 1;
                 const away = { x: dx / len, z: dz / len };
+                if (a.unit.type.structure) {
+                    // the base goes down with the keep. Towers topple away from
+                    // it, but a razed tower is not one an enemy brought down:
+                    // razed, so it leaves its side no parting debuff.
+                    this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, false, true);
+                    continue;
+                }
                 this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, true);
                 // and keeps sliding — the same corpse impulse a blast applies
                 a.impulseX = away.x * COLLAPSE_SHOVE;
@@ -2835,6 +2845,12 @@ export class BattleSim {
         knockDir?: { x: number; z: number },
         /** force the heavy gore burst a large pack gets — see the `big` event field */
         violent = false,
+        /**
+         * Flattened by its own keep coming down, rather than destroyed by an
+         * enemy. The building still falls, but none of the bookkeeping a real
+         * kill carries applies — nobody earned this.
+         */
+        razed = false,
     ): void {
         if (killer) killer.kills++;
         // no XP for executing a still-spawning pack — it never fully arrived
@@ -2872,7 +2888,7 @@ export class BattleSim {
             y: target.footY + t.meshScale * 1.3,
             z: target.z,
             big: violent || target.radius >= 2 || !!t.structure,
-            fling: violent ? COLLAPSE_GORE_FLING : undefined,
+            fling: violent ? COLLAPSE_GORE_FLING : razed ? COLLAPSE_DEBRIS_FLING : undefined,
             wear,
             structure: !!t.structure,
             structureHeight,
@@ -2883,8 +2899,9 @@ export class BattleSim {
             dz: klen > 1e-6 ? knockDir!.z / klen : undefined,
         });
         if (t.structure) {
+            if (razed) target.unit.razed = true;
             target.unit.markDestroyed(knockDir ?? undefined);
-            if (this.isDebuffBuilding(target.unit)) {
+            if (this.isDebuffBuilding(target.unit) && !razed) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
                 // half tower height — tallest collider × meshScale / 2
                 const towerTop =

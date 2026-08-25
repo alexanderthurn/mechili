@@ -836,22 +836,32 @@ export class Particles {
                 case 'death':
                     if (e.wear === 'ash') {
                         if (e.structure) {
+                            // A razed building does not crumble in place: the
+                            // front that flattened it carries its stone with it,
+                            // so the dust goes flat and far down the same line.
+                            const push = e.fling ?? 1;
+                            const swept = push > 1 && e.dx !== undefined;
+                            const along = swept
+                                ? { x: e.dx!, y: 0.2, z: e.dz ?? 0 }
+                                : undefined;
                             // tower-stone dust — solid masonry rain is StoneChipRenderer
                             this.burst(e.x, e.y, e.z, {
-                                count: 40,
+                                count: swept ? 60 : 40,
                                 color: THEME.scenery.masonry,
-                                speed: 12,
-                                life: 1.1,
-                                up: 6,
+                                speed: swept ? 12 * push : 12,
+                                life: swept ? 1.8 : 1.1,
+                                up: swept ? 2 : 6,
                                 blood: true,
+                                dir: along,
                             });
                             this.burst(e.x, e.y + 1.0, e.z, {
-                                count: 28,
+                                count: swept ? 40 : 28,
                                 color: 0x6a705c,
-                                speed: 7,
-                                life: 1.3,
-                                up: 8,
+                                speed: swept ? 7 * push : 7,
+                                life: swept ? 2.0 : 1.3,
+                                up: swept ? 3 : 8,
                                 blood: true,
+                                dir: along,
                             });
                             screenShake({
                                 intensity: 0.85,
@@ -1572,6 +1582,7 @@ export class StoneChipRenderer {
     private readonly scale = new Vector3();
     private readonly euler = new Euler();
     private readonly chips: StoneChip[] = [];
+    private groundAt: ((x: number, z: number) => number) | null = null;
     private readonly tmpColor = new Color();
     private readonly roundBaseColor: number;
 
@@ -1620,6 +1631,9 @@ export class StoneChipRenderer {
         events: readonly SimEvent[],
         groundHeightAt: (x: number, z: number) => number,
     ): void {
+        // kept for the airborne resample in update() — a chip thrown clear of
+        // its own footprint must land on the lawn it actually reaches
+        this.groundAt = groundHeightAt;
         for (const e of events) {
             if (e.kind !== 'impact' && !(e.kind === 'death' && e.structure)) continue;
             if (e.kind === 'impact' && e.masonry) this.spawnHitChips(e, groundHeightAt);
@@ -1714,7 +1728,13 @@ export class StoneChipRenderer {
         const terrain0 = groundHeightAt(e.x, e.z);
         const height = Math.max(3, e.structureHeight ?? e.y - terrain0 + 1.5);
         const radius = Math.max(1.4, e.structureRadius ?? 2.2);
-        const n = 52 + Math.min(28, Math.round(height * 2.5));
+        // Razed by a collapse front: every stone leaves along the front's own
+        // path instead of dropping around the footprint.
+        const push = e.fling ?? 1;
+        const swept = push > 1 && e.dx !== undefined;
+        const sweepX = swept ? e.dx! : 0;
+        const sweepZ = swept ? (e.dz ?? 0) : 0;
+        const n = (swept ? 74 : 52) + Math.min(28, Math.round(height * 2.5));
         for (let i = 0; i < n; i++) {
             const ang = Math.random() * Math.PI * 2;
             const r = Math.sqrt(Math.random()) * radius * 0.95;
@@ -1723,15 +1743,16 @@ export class StoneChipRenderer {
             const terrain = groundHeightAt(px, pz);
             const py = terrain + height * (0.2 + Math.random() * 0.85);
             const out = 1.5 + Math.random() * 5.5;
+            const carry = swept ? out * push * (0.7 + Math.random() * 1.1) : 0;
             const s = 0.7 + Math.random() * 1.1;
             this.pushChip({
                 shape: 'brick',
                 x: px,
                 y: py,
                 z: pz,
-                vx: Math.cos(ang) * out * (0.35 + Math.random()),
-                vy: -1 + Math.random() * 3.5,
-                vz: Math.sin(ang) * out * (0.35 + Math.random()),
+                vx: Math.cos(ang) * out * (0.35 + Math.random()) + sweepX * carry,
+                vy: -1 + Math.random() * 3.5 + (swept ? 2 + Math.random() * 5 : 0),
+                vz: Math.sin(ang) * out * (0.35 + Math.random()) + sweepZ * carry,
                 sx: s * (0.95 + Math.random() * 0.55),
                 sy: s * (0.65 + Math.random() * 0.45),
                 sz: s * (0.8 + Math.random() * 0.5),
@@ -1803,6 +1824,7 @@ export class StoneChipRenderer {
                 c.rx += c.spinX * dt;
                 c.ry += c.spinY * dt;
                 c.rz += c.spinZ * dt;
+                if (this.groundAt) c.groundY = this.groundAt(c.x, c.z);
                 const rest = chipRestY(c.groundY, c.sy, c.shape);
                 if (c.y < rest) {
                     c.y = rest;

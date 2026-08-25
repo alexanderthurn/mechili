@@ -1178,6 +1178,11 @@ export class Unit {
     revealed = true;
     /** towers: down for the rest of the CURRENT battle — no longer a target, debuffs its owner's side */
     destroyed = false;
+    /**
+     * Flattened by its own keep's collapse rather than destroyed by an enemy.
+     * Down all the same, but it owes its side no debuff on any path.
+     */
+    razed = false;
     /** board extras: used up this battle (shield broken, rocket fired) — removed at the round reset */
     consumed = false;
     /** the pack's equipped items (up to that type's itemSlotLimit) — permanent once its deployment ended */
@@ -1497,6 +1502,7 @@ export class Unit {
         }
         this.seatMembers();
         this.destroyed = false;
+        this.razed = false;
         this.applyLevelLook(this.level);
     }
 
