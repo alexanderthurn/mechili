@@ -2297,8 +2297,8 @@ export class BattleSim {
             rect: hammer
                 ? {
                       // ground scar / dust — slightly inside the damage footprint
-                      halfWidth: HAMMER_ZONE.halfWidth * 0.9,
-                      halfDepth: HAMMER_ZONE.halfDepth * 0.9,
+                      halfWidth: HAMMER_ZONE.halfWidth * 0.855,
+                      halfDepth: HAMMER_ZONE.halfDepth * 0.855,
                       yaw: s.yaw ?? 0,
                   }
                 : undefined,

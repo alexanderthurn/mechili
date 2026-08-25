@@ -853,7 +853,77 @@ export class BattleMap {
             this.drawWearOrientedRect(ctx, cx, cy, hx * 0.96, hy * 0.96, yaw, scorchA, 'b');
             this.drawWearOrientedRect(ctx, cx, cy, hx * 1.04, hy * 1.04, yaw, scorchA * 0.22, 'b');
         }
+        // Divine graffiti — smiley pressed into the scar (same yaw as the hammer)
+        const faceA = Math.max(sandA, scorchA) * 1.15;
+        if (faceA > 0.01) {
+            this.drawWearSmiley(ctx, cx, cy, hx, hy, yaw, faceA * 0.85, 'r');
+            this.drawWearSmiley(ctx, cx, cy, hx, hy, yaw, faceA, 'b');
+        }
         this.sandDirty = true;
+    }
+
+    /**
+     * Two eyes + a smile in local hammer space (X = width, Y = depth after yaw).
+     * Drawn as soft discs / thick arc so it reads on the wear mask.
+     */
+    private drawWearSmiley(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        halfW: number,
+        halfH: number,
+        yaw: number,
+        alpha: number,
+        channel: 'r' | 'g' | 'b',
+    ): void {
+        const a = Math.min(1, Math.max(0.02, alpha));
+        const rgb =
+            channel === 'r' ? `255,0,0` : channel === 'g' ? `0,255,0` : `0,0,255`;
+        // Fit the face inside the footprint; prefer the shorter axis so it stays on-scar
+        const faceR = Math.min(halfW, halfH) * 0.72 * 1.5;
+        const eyeR = faceR * 0.16;
+        const eyeX = faceR * 0.34;
+        const eyeY = -faceR * 0.28;
+        const smileR = faceR * 0.48;
+        const smileY = faceR * 0.08;
+        const smileW = Math.max(2.5, faceR * 0.14);
+
+        ctx.save();
+        ctx.translate(x, y);
+        // +90° vs hammer yaw so the face reads across the footprint
+        ctx.rotate(yaw + Math.PI * 0.5);
+
+        const fillDisc = (lx: number, ly: number, r: number, strength: number) => {
+            const grad = ctx.createRadialGradient(lx, ly, 0, lx, ly, r);
+            grad.addColorStop(0, `rgba(${rgb},${strength})`);
+            grad.addColorStop(1, `rgba(${rgb},0)`);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(lx, ly, r, 0, Math.PI * 2);
+            ctx.fill();
+        };
+
+        // Eyes
+        fillDisc(-eyeX, eyeY, eyeR, a);
+        fillDisc(eyeX, eyeY, eyeR, a);
+        fillDisc(-eyeX, eyeY, eyeR * 0.55, Math.min(1, a * 1.2));
+        fillDisc(eyeX, eyeY, eyeR * 0.55, Math.min(1, a * 1.2));
+
+        // Smile — thick stroked arc (mouth opens toward +depth)
+        ctx.strokeStyle = `rgba(${rgb},${a})`;
+        ctx.lineWidth = smileW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(0, smileY, smileR, 0.18 * Math.PI, 0.82 * Math.PI, false);
+        ctx.stroke();
+        // softer outer pass
+        ctx.strokeStyle = `rgba(${rgb},${a * 0.45})`;
+        ctx.lineWidth = smileW * 1.65;
+        ctx.beginPath();
+        ctx.arc(0, smileY, smileR, 0.18 * Math.PI, 0.82 * Math.PI, false);
+        ctx.stroke();
+
+        ctx.restore();
     }
 
     /** Soft axis-aligned fill after rotate(yaw) — short feather, clear rectangle. */
@@ -870,15 +940,16 @@ export class BattleMap {
         const a = Math.min(1, Math.max(0.02, alpha));
         const rgb =
             channel === 'r' ? `255,0,0` : channel === 'g' ? `0,255,0` : `0,0,255`;
-        const corner = Math.min(halfW, halfH) * 0.06;
+        // Soft hammer head — not a sharp box (corners ~¼ of the short side)
+        const corner = Math.min(halfW, halfH) * 0.28;
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(yaw);
-        const shells = 4;
+        const shells = 5;
         for (let i = 0; i < shells; i++) {
             const t = i / (shells - 1);
-            const grow = 1 + (1 - t) * 0.08;
-            const layerA = a * (0.35 + t * 0.65);
+            const grow = 1 + (1 - t) * 0.1;
+            const layerA = a * (0.28 + t * 0.72);
             const w = halfW * grow;
             const h = halfH * grow;
             ctx.fillStyle = `rgba(${rgb},${layerA})`;
