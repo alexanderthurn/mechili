@@ -142,11 +142,11 @@ export class UnitInstanceRenderer {
 
     /**
      * Battle tint via per-instance color (multiplies the level-tinted material).
-     * Golden / debuff / spawning override; `normal` restores white multiply.
+     * Golden / debuff / acid / burn / spawning override; `normal` restores white multiply.
      */
     setTint(
         proxy: Group,
-        tint: 'normal' | 'golden' | 'debuff' | 'spawning',
+        tint: 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning',
         timeSeconds: number,
         debuffStacks = 1,
         spawnProgress = 0,
@@ -171,6 +171,16 @@ export class UnitInstanceRenderer {
                 (0.15 + 0.25 * Math.sin(t + 2.4)) * amp,
                 (0.45 + 0.4 * Math.sin(t + 4.8)) * amp,
             );
+        } else if (tint === 'acid') {
+            const t = timeSeconds * 5.5;
+            const pulse = 0.5 + 0.5 * Math.sin(t);
+            const g = 0.55 + 0.35 * Math.sin(t + 1.2);
+            _color.setRGB(0.35 + pulse * 0.25, 1.1 + g * 0.5, 0.2 + pulse * 0.15);
+        } else if (tint === 'burn') {
+            const t = timeSeconds * 6.2;
+            const pulse = 0.5 + 0.5 * Math.sin(t);
+            const flicker = 0.5 + 0.5 * Math.sin(t * 2.1 + 0.7);
+            _color.setRGB(1.6 + pulse * 0.6, 0.35 + flicker * 0.45, 0.05);
         } else if (tint === 'spawning') {
             const pulse = 0.5 + 0.5 * Math.sin(timeSeconds * 6.5);
             const g = 0.45 + spawnProgress * 0.35 + pulse * 0.1;

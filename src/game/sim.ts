@@ -2700,13 +2700,16 @@ export class BattleSim {
     ): CrashLand[] {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
-            // debuff severity is flat now (see debuff/isDebuffed) — no
-            // count to reflect, just whether it's active or not
-            let tint: 'normal' | 'golden' | 'debuff' | 'spawning' = 'normal';
+            // golden > tower debuff > acid (corroded) > burn DoT > spawning
+            let tint: 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning' = 'normal';
             let spawnProgress = 0;
             if (this.isGolden(a)) tint = 'golden';
             else if (this.isDebuffed(a) && (debuffTintAt?.(a.unit.seat, a.x, a.z) ?? true)) {
                 tint = 'debuff';
+            } else if (a.corrodedUntil > this.elapsed) {
+                tint = 'acid';
+            } else if (a.burnUntil > this.elapsed && a.burnDps > 0) {
+                tint = 'burn';
             } else if (this.isSpawning(a)) {
                 tint = 'spawning';
                 spawnProgress = this.spawnProgress(a);
