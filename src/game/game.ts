@@ -1663,6 +1663,7 @@ export class Game {
         // Game instance's lifetime, so this is a one-time hide, not a toggle
         if (this.watching) this.hud.setSpeedButtonVisible(false);
         this.hud.setSpeedSteps(this.speedSteps);
+        this.hud.setForgeFee(settings.deploy.forgeCost);
         this.hud.onMenuToggle = () => this.togglePauseMenu();
         // touch stand-in for middle-click (rotate)
         this.hud.onTouchRotate = () => this.placement.rotateSelected();

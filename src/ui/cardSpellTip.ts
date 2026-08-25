@@ -24,6 +24,9 @@ export function spellInfoFrameHtml(opts: {
     desc?: string;
     icon?: string;
     ingredientIcons?: readonly string[];
+    /** what acquiring this costs, and where — "Stronghold 300", "Forge 0" */
+    cost?: number;
+    costLabel?: string;
     levelIcon?: boolean;
     /** vertical icon+label(+cost, +desc) list — a unit's talent loadout */
     rows?: readonly { icon: string; label: string; cost?: number; desc?: string }[];
@@ -57,6 +60,9 @@ export function spellInfoFrameHtml(opts: {
         ings +
         `</div>` +
         (descHtml ? `<div class="ai-desc">${descHtml}</div>` : '') +
+        (opts.cost === undefined
+            ? ''
+            : `<div class="ai-cost">${opts.costLabel ? `${escapeHtml(opts.costLabel)} ` : ''}${opts.cost}</div>`) +
         rowsHtml
     );
 }
@@ -113,6 +119,9 @@ export function startCardForgeSpellsHtml(c: StartCard): string {
                 `data-ttitle="${escapeAttr(f.name)}" ` +
                 `data-tdesc="${escapeAttr(f.desc)}" ` +
                 `data-ticon="${escapeAttr(f.icon)}" ` +
+                (f.cost === undefined
+                    ? ''
+                    : `data-tcost="${f.cost}" data-tcostlabel="Stronghold" `) +
                 `data-forge-ings="${escapeAttr(f.ingredientIcons.join(','))}">` +
                 `${iconHtml(f.icon, 'c-forge-spell-ico')}</span>`,
         )
@@ -221,6 +230,8 @@ export class CardSpellTips {
             desc,
             icon,
             ingredientIcons: (el.dataset.forgeIngs ?? '').split(',').filter(Boolean),
+            cost: el.dataset.tcost === undefined ? undefined : Number(el.dataset.tcost),
+            costLabel: el.dataset.tcostlabel,
             rows: decodeTipRows(el.dataset.trows ?? ''),
         });
         const rect = el.getBoundingClientRect();

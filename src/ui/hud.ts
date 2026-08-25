@@ -1743,7 +1743,10 @@ export class Hud {
                           def
                               ? ` data-spell-tip="1" data-ttitle="${escapeAttr(def.name)}" ` +
                                 `data-tdesc="${escapeAttr(t.hint ?? `${def.description}\n${usage}`)}" ` +
-                                `data-ticon="${escapeAttr(t.icon)}"`
+                                `data-ticon="${escapeAttr(t.icon)}"` +
+                                (def.strongholdCost === undefined
+                                    ? ''
+                                    : ` data-tcost="${def.strongholdCost}" data-tcostlabel="Stronghold"`)
                               : ` title="${escapeAttr(
                                     t.hint ??
                                         (t.placed
@@ -2727,6 +2730,7 @@ export class Hud {
                     `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
                     `data-tdesc="${escapeAttr(`${forge.bake.desc}\nBurns into this ${DISPLAY.tactic.toLowerCase()} next deploy.`)}" ` +
                     `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
+                    `data-tcost="${this.forgeFee}" data-tcostlabel="Forge" ` +
                     `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}"></span>`
                   : '') +
               `</div>` +
@@ -2980,6 +2984,14 @@ export class Hud {
     }
 
     /** Game's live speed steps — drives the button tooltip's key hint. */
+    /** Game's forge fee — shown on the cookbook tiles and their hovers. */
+    setForgeFee(fee: number): void {
+        if (fee === this.forgeFee) return;
+        this.forgeFee = fee;
+        this.forgeRecipesMemoKey = ''; // rebuilt tiles carry the new number
+        this.forgeRecipesShownHtml = null;
+    }
+
     setSpeedSteps(steps: readonly number[]): void {
         const pause = steps[0] === 0 ? ' (1 = Pause)' : '';
         this.speedEl.title =
@@ -3587,6 +3599,11 @@ export class Hud {
      */
     private forgeRecipesMemoKey = '';
     private forgeRecipesMemoHtml = '';
+    /**
+     * Supply the Stronghold charges to forge, on top of the ingredients
+     * (`settings.deploy.forgeCost`). Game pushes it in; 0 until it does.
+     */
+    private forgeFee = 0;
     private forgeRecipesBlockHtml(
         pool: readonly string[],
         bagIds: readonly string[],
@@ -3611,6 +3628,7 @@ export class Hud {
     ): string {
         const rows = forgeHelpRows(pool);
         if (rows.length === 0) return '';
+        const forgeFee = this.forgeFee;
         const bagCounts = this.countIds(bagIds);
         const forgeCounts = this.countIds(forgeIds);
         // green wobble = every ingredient in bag + forge
@@ -3658,11 +3676,13 @@ export class Hud {
                 `data-ttitle="${escapeAttr(r.spellName)}" ` +
                 `data-tdesc="${escapeAttr(r.spellDesc)}" ` +
                 `data-ticon="${escapeAttr(r.spellIcon)}" ` +
+                `data-tcost="${forgeFee}" data-tcostlabel="Forge" ` +
                 `data-forge-ings="${escapeAttr(r.ingredientIcons.join(','))}">` +
                 `<div class="forge-tile-ings">${ings}</div>` +
                 `<span class="forge-arrow">→</span>` +
                 `${iconHtml(r.spellIcon, 'forge-spell')}` +
                 `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +
+                `<div class="forge-tile-fee">${forgeFee}</div>` +
                 `</div>`
             );
         };
@@ -3792,6 +3812,7 @@ export class Hud {
         const faceOpts = {
             ownedItemIds: opts?.ownedItemIds,
             forgePool: opts?.forgePool,
+            forgeFee: this.forgeFee,
         };
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';

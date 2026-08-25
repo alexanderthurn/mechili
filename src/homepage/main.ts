@@ -181,7 +181,7 @@ function startCardFace(c: StartCard): string {
 }
 
 function roundCardFace(c: RoundCard): string {
-    return roundCardFaceHtml(c, { catalog: true });
+    return roundCardFaceHtml(c, { catalog: true, forgeFee: DEFAULT_SETTINGS.deploy.forgeCost });
 }
 
 function unitFlags(t: UnitType): string[] {

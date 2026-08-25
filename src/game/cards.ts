@@ -366,8 +366,14 @@ export interface StartCard {
 /** atlas icons for a specialist's forge spell row */
 export function startCardForgeIcons(
     card: StartCard,
-): { icon: string; name: string; desc: string; ingredientIcons: string[] }[] {
-    const out: { icon: string; name: string; desc: string; ingredientIcons: string[] }[] = [];
+): { icon: string; name: string; desc: string; cost?: number; ingredientIcons: string[] }[] {
+    const out: {
+        icon: string;
+        name: string;
+        desc: string;
+        cost?: number;
+        ingredientIcons: string[];
+    }[] = [];
     for (const id of card.forgeSpells) {
         const t = TACTICS[id];
         if (t) {
@@ -375,6 +381,8 @@ export function startCardForgeIcons(
                 icon: t.icon,
                 name: t.name,
                 desc: t.description,
+                // what this commander's own Stronghold charges for it
+                cost: t.strongholdCost,
                 ingredientIcons: forgeIngredientIcons(id),
             });
         }

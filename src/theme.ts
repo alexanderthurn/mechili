@@ -4851,8 +4851,18 @@ ${chatFloatStyles(u, pc, ec)}
     border: 2.5px solid rgb(255, 168, 40);
     box-shadow: none;
 }
+.forge-tile-fee {
+    /* row 2, under the product: what the forge charges on top of the runes */
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+}
 .forge-tile-name {
-    grid-column: 1 / -1;
+    grid-column: 1 / 3;
     grid-row: 2;
     font-size: 12px;
     font-weight: 700;
