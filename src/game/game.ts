@@ -8907,7 +8907,6 @@ export class Game {
                     }
                 }
                 this.oilVisuals.sync(this.sim.hazards, this.sim.elapsed, [], false);
-                this.map.setHazardTime(this.time);
                 this.map.flushHazardMask();
                 if (profile) cpu.begin();
                 this.sim.syncMeshes(); // per-frame interpolated positions
@@ -8996,6 +8995,7 @@ export class Game {
             }
         }
         this.map.setSnowCover(this.scenery.groundSnowCover);
+        this.map.setHazardTime(this.time);
         updateAnimatedUnits(gameDt); // rigged walk/fire — scales with battle speed
         // Hide “you can move me” hints + disable visual repositioning once
         // End Deployment has locked this seat in.

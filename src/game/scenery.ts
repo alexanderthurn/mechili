@@ -2516,7 +2516,7 @@ function attachHazardTint(
     const prevKey = material.customProgramCacheKey.bind(material);
     // Flowers: warm readable brown. Trees: match ground oil/acid slick.
     const oilTint = tree ? 'vec3(0.004, 0.003, 0.002)' : 'vec3(0.22, 0.12, 0.05)';
-    const acidTint = tree ? 'vec3(0.12, 0.18, 0.025)' : 'vec3(0.16, 0.22, 0.05)';
+    const acidTint = tree ? 'vec3(0.06, 0.20, 0.03)' : 'vec3(0.14, 0.34, 0.06)';
     const oilMix = tree ? '0.99' : '0.92';
     const acidMix = tree ? '0.94' : '0.88';
     const fireMix = tree ? '0.96' : '0.55';
@@ -2566,9 +2566,9 @@ varying vec2 vFlowerHazUv;`,
   float acidM = fireB * (1.0 - fireG * 0.85);
   float orangeM = fireG * (1.0 - fireB * 0.85);
   vec3 oilTint = ${oilTint};
-  vec3 acidTint = mix(${acidTint}, vec3(0.04, 0.055, 0.02), uFireCharcoalGround);
+  vec3 acidTint = ${acidTint};
   diffuseColor.rgb = mix(diffuseColor.rgb, oilTint, oilM * ${oilMix});
-  diffuseColor.rgb = mix(diffuseColor.rgb, acidTint, acidM * mix(${acidMix}, 0.28, uFireCharcoalGround));
+  diffuseColor.rgb = mix(diffuseColor.rgb, acidTint, acidM * ${acidMix});
   // Live ground fire (oil blaze or direct fire) — clears when haz.g dies
   float flicker = 0.55 + 0.45 * sin(uHazardTime * 9.0 + vFlowerHazUv.x * 40.0 + vFlowerHazUv.y * 28.0);
   vec3 fireCol = mix(vec3(0.18, 0.03, 0.0), vec3(1.0, 0.38, 0.05), flicker);
@@ -2577,6 +2577,6 @@ varying vec2 vFlowerHazUv;`,
         );
     };
     material.customProgramCacheKey = () =>
-        `${prevKey()}|hazard-tint-v9-${tree ? 'tree' : 'flower'}${fadeAlpha ? '-fade' : ''}`;
+        `${prevKey()}|hazard-tint-v10-${tree ? 'tree' : 'flower'}${fadeAlpha ? '-fade' : ''}`;
     material.needsUpdate = true;
 }

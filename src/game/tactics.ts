@@ -337,7 +337,7 @@ export const TACTICS: Record<
         // pours left→right shortly after battle start (same drip timing as oil)
         acidCapsule: { durationRounds: ACID_SPILL_DURATION_ROUNDS, dpsPercent: ACID_DPS_PERCENT },
         description:
-            'Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Units standing in it sizzle and turn corroded — taking extra damage from everything.',
+            'Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Ground and air units over the puddle sizzle and turn corroded — taking extra damage from everything.',
     },
     [FIRE_SPILL_ID]: {
         id: FIRE_SPILL_ID,

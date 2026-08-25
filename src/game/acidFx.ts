@@ -30,16 +30,16 @@ type VaporTier = {
 
 const TIER: Record<'high' | 'medium', VaporTier> = {
     medium: {
-        maxPuffs: 1024,
-        rimPerCell: 5,
-        interiorPerCell: 2,
-        sizeScale: 1.95,
+        maxPuffs: 512,
+        rimPerCell: 3,
+        interiorPerCell: 1,
+        sizeScale: 1.0,
     },
     high: {
-        maxPuffs: 2048,
-        rimPerCell: 6,
-        interiorPerCell: 2,
-        sizeScale: 2.25,
+        maxPuffs: 1024,
+        rimPerCell: 3,
+        interiorPerCell: 1,
+        sizeScale: 1.15,
     },
 };
 
@@ -318,9 +318,9 @@ export class AcidFx {
     ): number {
         const h =
             Math.abs(Math.sin(x * 12.9898 + z * 78.233 + t * 19.19) * 43758.5453) % 1;
-        const boost = rim ? 1.55 : 0.82;
-        const width = (1.45 + h * 0.75) * sizeScale * boost;
-        const height = (3.15 + h * 1.45) * sizeScale * boost;
+        const boost = rim ? 1.22 : 0.78;
+        const width = (1.2 + h * 0.55) * sizeScale * boost;
+        const height = (2.45 + h * 1.05) * sizeScale * boost;
         const out = rim ? cellSize * (0.62 + (t % 3) * 0.28) : (h - 0.5) * 0.55;
         const side = ((h * 2 - 1) * (rim ? 0.7 : 0.45)) * cellSize;
         this.dummy.position.set(

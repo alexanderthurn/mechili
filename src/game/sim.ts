@@ -1321,6 +1321,15 @@ export class BattleSim {
         this.hazards.igniteOilTouchingFire(this.elapsed);
         for (const a of this.actors) {
             if (!a.alive) continue;
+
+            // acid: toxic column at xz — ground and air both corrode (unlike fire/burn).
+            // Ground hazard like oil: ward domes do not block it.
+            if (!a.unit.type.structure && this.hazards.hasAcidAt(a.x, a.z)) {
+                const dealt = ((a.maxHp * ACID_DPS_PERCENT) / 100) * dt * this.damageTakenMult(a);
+                this.applyBurnDamage(a, dealt);
+                a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
+            }
+
             if (a.altitude > 0) {
                 // air: clear any burn that somehow stuck (e.g. landed then took off)
                 continue;
@@ -1345,18 +1354,6 @@ export class BattleSim {
             } else {
                 a.burnUntil = 0;
                 a.burnDps = 0;
-            }
-
-            // acid: continuous percent-of-max-HP damage while standing in the
-            // cell — same technical mechanism as oil's speed-slow (a per-step
-            // field read, gone the instant the unit steps off), no lingering
-            // DoT of its own. The corroded debuff (extra damage taken from
-            // EVERYTHING) is what lingers, via CORRODE_LINGER_SECONDS below.
-            // Ground hazard like oil/fire: ward domes do not block it.
-            if (!a.unit.type.structure && this.hazards.hasAcidAt(a.x, a.z)) {
-                const dealt = ((a.maxHp * ACID_DPS_PERCENT) / 100) * dt * this.damageTakenMult(a);
-                this.applyBurnDamage(a, dealt);
-                a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
             }
         }
     }
