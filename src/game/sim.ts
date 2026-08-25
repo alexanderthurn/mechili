@@ -549,6 +549,22 @@ export type SimEvent =
           /** Ash death scorch override (from UnitType.deathAshScorch). */
           ashScorch?: { radius: number; strength: number };
       }
+    /**
+     * A Stronghold has come down in `lifeline` and its collapse is rolling
+     * outward. The renderer expands its dust front at this same `speed`, so
+     * what the player watches reach a pack IS what kills it.
+     */
+    | {
+          kind: 'strongholdCollapse';
+          team: BattleTeam;
+          x: number;
+          y: number;
+          z: number;
+          /** world units per second the front travels */
+          speed: number;
+          /** where it stops mattering — the far corner of the board */
+          maxRadius: number;
+      }
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
     | {
@@ -570,13 +586,7 @@ export type SimEvent =
     | { kind: 'spellLightning'; x: number; z: number }
     /** wizard convert finished — flash + mesh recolor hook */
     | { kind: 'convert'; index: number; x: number; y: number; z: number; team: BattleTeam }
-    /**
-     * A building's fall knocks the board about: rings, particles, screen shake.
-     * Named for its usual cause — a command tower or research center going down
-     * and starting that seat's debuff — but a Stronghold falling in `lifeline`
-     * borrows it too, since the picture is the same event, only larger. Purely
-     * visual either way: the debuff itself is applied in extendSeatDebuff.
-     */
+    /** command tower / research center destroyed — seat debuff starts/extends */
     | {
           kind: 'towerDebuff';
           seat: SeatId;
@@ -585,14 +595,10 @@ export type SimEvent =
           y: number;
           z: number;
           level: number;
-          /** multiplies the whole display (omit = 1) */
-          power?: number;
       };
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
-/** how much louder a Stronghold's lifeline collapse is than a tower's fall */
-const STRONGHOLD_FALL_POWER = 3.2;
 /** overkill fed to a lifeline death, as a multiple of the victim's own max hp —
  *  drives the tip-over flop and, for flyers, how far the wreck is thrown */
 const COLLAPSE_OVERKILL = 4;
@@ -600,6 +606,8 @@ const COLLAPSE_OVERKILL = 4;
 const COLLAPSE_SHOVE = 0.55;
 /** how hard a lifeline death throws its gore along the blast line */
 const COLLAPSE_GORE_FLING = 2.8;
+/** world units per second the collapse front travels outward */
+const COLLAPSE_SPEED = 78;
 
 /** ballista / catapult lob — strong enough to read as an arc at long range */
 const BALLISTIC_GRAVITY = 28;
@@ -752,6 +760,18 @@ export class BattleSim {
     private onKillSpawnSeq = 0;
     /** pack → cleave disk radius; 0 / missing = single-target melee */
     private readonly cleaveRadiusByUnit = new Map<Unit, number>();
+    /**
+     * Collapse fronts rolling outward from a fallen Stronghold. Each kills the
+     * packs of its own side as it reaches them, so the army goes down from the
+     * keep outward instead of all at once.
+     */
+    private readonly collapseFronts: {
+        team: BattleTeam;
+        x: number;
+        z: number;
+        startedAt: number;
+        maxRadius: number;
+    }[] = [];
     /** scheduled spell strikes; each fires exactly once at its `at` time */
     private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
     /** ticking spell zones with their private rng streams and tick clocks */
@@ -2308,6 +2328,49 @@ export class BattleSim {
         }
     }
 
+    /** far corner of the board from here — where a front stops mattering */
+    private collapseReach(x: number, z: number): number {
+        const hw = this.config.boardHalfW ?? 200;
+        const hh = this.config.boardHalfZ ?? 200;
+        return (
+            Math.max(
+                hypot(x + hw, z + hh),
+                hypot(x - hw, z + hh),
+                hypot(x + hw, z - hh),
+                hypot(x - hw, z - hh),
+            ) * 1.05
+        );
+    }
+
+    /**
+     * Advance every collapse front and kill what it has reached. Radius is read
+     * off the sim clock, not accumulated per step, so a client that ran its
+     * steps in a different rhythm still kills the same packs at the same tick.
+     */
+    private stepCollapseFronts(): void {
+        for (let i = this.collapseFronts.length - 1; i >= 0; i--) {
+            const f = this.collapseFronts[i]!;
+            const radius = (this.elapsed - f.startedAt) * COLLAPSE_SPEED;
+            if (radius >= f.maxRadius) {
+                this.collapseFronts.splice(i, 1);
+                continue;
+            }
+            for (const a of this.actors) {
+                if (!a.alive || a.unit.type.structure) continue;
+                if (actorTeam(a) !== f.team) continue;
+                const dx = a.x - f.x;
+                const dz = a.z - f.z;
+                if (hypot(dx, dz) > radius) continue; // the front has not arrived
+                const len = hypot(dx, dz) || 1;
+                const away = { x: dx / len, z: dz / len };
+                this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, true);
+                // and keeps sliding — the same corpse impulse a blast applies
+                a.impulseX = away.x * COLLAPSE_SHOVE;
+                a.impulseZ = away.z * COLLAPSE_SHOVE;
+            }
+        }
+    }
+
     /** hands the accumulated visual events to the renderer and forgets them */
     consumeEvents(): SimEvent[] {
         const drained = this.events;
@@ -2895,34 +2958,24 @@ export class BattleSim {
         // the Stronghold's slayer earns the siege, not a dozen extra kills. The
         // round then ends on its own, with nothing mobile left on that side.
         if (this.config.strongholdLifeline && target.unit.type === STRONGHOLD) {
-            const side = actorTeam(target);
-            // the same shockwave a tower's fall throws, scaled to the occasion
             const towerTop = Math.max(1, ...t.colliders.map((c) => c.y)) * t.meshScale;
+            const maxRadius = this.collapseReach(target.x, target.z);
+            this.collapseFronts.push({
+                team: actorTeam(target),
+                x: target.x,
+                z: target.z,
+                startedAt: this.elapsed,
+                maxRadius,
+            });
             this.events.push({
-                kind: 'towerDebuff',
-                seat: target.unit.seat,
+                kind: 'strongholdCollapse',
                 team: target.unit.team,
                 x: target.x,
                 y: target.altitude + towerTop * 0.5,
                 z: target.z,
-                level: target.unit.level,
-                power: STRONGHOLD_FALL_POWER,
+                speed: COLLAPSE_SPEED,
+                maxRadius,
             });
-            for (const a of this.actors) {
-                if (!a.alive || a === target) continue;
-                if (a.unit.type.structure) continue; // the buildings stay standing
-                if (actorTeam(a) !== side) continue;
-                // thrown outward from the keep: the blow came from there, so the
-                // corpse tips, jets and (for flyers) falls along that line
-                const dx = a.x - target.x;
-                const dz = a.z - target.z;
-                const len = hypot(dx, dz) || 1;
-                const away = { x: dx / len, z: dz / len };
-                this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, true);
-                // and keeps sliding — the same corpse impulse a blast applies
-                a.impulseX = away.x * COLLAPSE_SHOVE;
-                a.impulseZ = away.z * COLLAPSE_SHOVE;
-            }
         }
     }
 
@@ -3142,6 +3195,9 @@ export class BattleSim {
         this.stepHazards(dt);
         add('projectiles');
         this.flushOnKillSpawns();
+        // after the kills, so a Stronghold felled this step starts its front on
+        // the next one rather than reaching halfway across the board instantly
+        this.stepCollapseFronts();
         this.prevStepDt = dt;
     }
 

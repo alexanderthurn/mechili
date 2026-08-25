@@ -116,6 +116,7 @@ import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
 import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
+import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
 import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt, type Cell } from './map';
@@ -273,11 +274,11 @@ const HP_DRAW_MAX_SECONDS = 8;
 /** Let the last death tip / air crash finish before souls launch. */
 const HP_DRAW_BATTLE_SETTLE = 0.52;
 /**
- * Longer beat when a Stronghold's lifeline collapse ended the round. The normal
- * settle is shorter than the collapse ring itself, so the moment that decided
- * the round would be half-drawn when the HP draw took the screen.
+ * Beat after a lifeline collapse ended the round. Shorter than it used to be:
+ * the front does its work DURING the battle now, so by the time the round ends
+ * the last pack has already gone down — this only covers the dust settling.
  */
-const HP_DRAW_COLLAPSE_SETTLE = 2.6;
+const HP_DRAW_COLLAPSE_SETTLE = 1.2;
 
 // --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
 /** ring starts this far past the board edge (world units) — well into the
@@ -357,6 +358,7 @@ export class Game {
     private readonly strongholdFlags = new StrongholdFlags();
     private readonly hordeMarkers: HordeMarkers;
     private readonly towerDebuffFx: TowerDebuffFx;
+    private readonly collapseFx: StrongholdCollapseFx;
     private readonly hammerFx: HammerFx;
     private readonly meteorFx: MeteorFx;
     private readonly cloudFx: CloudFx;
@@ -1317,6 +1319,7 @@ export class Game {
         this.fireFx = new FireFx(this.particles, this.scene);
         this.map.setFireCharcoalGround(fireUsesTongues(prefs().fireVfx));
         this.towerDebuffFx = new TowerDebuffFx(this.scene, this.particles, this.map.halfW, this.map.halfH);
+        this.collapseFx = new StrongholdCollapseFx(this.scene, this.particles);
         this.hammerFx = new HammerFx(this.scene);
         this.meteorFx = new MeteorFx(this.scene);
         this.cloudFx = new CloudFx(this.scene);
@@ -2578,6 +2581,7 @@ export class Game {
         this.hordeMarkers.dispose();
         this.strongholdFlags.dispose();
         this.towerDebuffFx.dispose();
+        this.collapseFx.dispose();
         this.stoneChips.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
@@ -7598,6 +7602,7 @@ export class Game {
         // last round's collapse rings are done being watched; a stale wave would
         // also gate this battle's debuff tint (see waveRevealsDebuffTint)
         this.towerDebuffFx.clear();
+        this.collapseFx.clear();
         this.collapseEndedRound = false;
         this.placement.beginBattle();
         this.phase = 'battle';
@@ -8955,7 +8960,8 @@ export class Game {
                 this.stoneChips.spawnFromEvents(battleEvents, (x, z) => groundHeightAt(x, z));
                 this.fireFx.spawnFromEvents(battleEvents);
                 this.towerDebuffFx.spawnFromEvents(battleEvents);
-                if (battleEvents.some((e) => e.kind === 'towerDebuff' && (e.power ?? 1) > 1)) {
+                this.collapseFx.spawnFromEvents(battleEvents);
+                if (battleEvents.some((e) => e.kind === 'strongholdCollapse')) {
                     this.collapseEndedRound = true;
                 }
                 this.stampWearFromEvents(battleEvents);
@@ -9044,6 +9050,8 @@ export class Game {
         // in battle this already ran before the tint gate; out of battle nothing
         // else advances it, and a collapse outlives the round that caused it
         if (!this.sim) this.towerDebuffFx.update(gameDt);
+        // the collapse front outlives its battle, and its own clock drives it
+        this.collapseFx.update(gameDt);
         this.particles.update(gameDt);
         this.stoneChips.update(gameDt);
         this.updateForgeFx(gameDt);
