@@ -25,6 +25,10 @@ const COLLAPSE_DUR = 0.72;
 const RUBBLE_Y = 0.28;
 /** Slight footprint shrink so the wreck reads smaller, not ballooned. */
 const RUBBLE_XZ = 0.92;
+/** Hammer of the Gods — pancaked into the dirt. */
+const HAMMER_CRUSH_Y = 0.045;
+const HAMMER_CRUSH_XZ = 1.45;
+const HAMMER_CRUSH_DUR = 0.28;
 
 /**
  * Animate a structure into the rubble pose (squash + lean).
@@ -59,6 +63,39 @@ export function beginBuildingCollapse(
     return state;
 }
 
+/**
+ * Hammer of the Gods: slam the mesh paper-thin onto the ground (units + buildings).
+ * Uses the same ticker as {@link beginBuildingCollapse}.
+ */
+export function beginHammerCrush(
+    mesh: Group,
+    opts?: { groundY?: number; startAt?: number },
+): BuildingCollapseState {
+    const sx = mesh.scale.x;
+    const sy = mesh.scale.y;
+    const sz = mesh.scale.z;
+    const state: BuildingCollapseState = {
+        startAt: opts?.startAt ?? -1,
+        dur: HAMMER_CRUSH_DUR,
+        startScaleX: sx,
+        startScaleY: sy,
+        startScaleZ: sz,
+        endScaleX: sx * HAMMER_CRUSH_XZ,
+        endScaleY: Math.max(0.02, sy * HAMMER_CRUSH_Y),
+        endScaleZ: sz * HAMMER_CRUSH_XZ,
+        startRotX: mesh.rotation.x,
+        startRotZ: mesh.rotation.z,
+        endRotX: 0,
+        endRotZ: 0,
+        startY: opts?.groundY ?? mesh.position.y,
+        sink: 0,
+    };
+    mesh.position.y = state.startY;
+    mesh.userData.buildingCollapse = state;
+    mesh.userData.hammerCrushed = true;
+    return state;
+}
+
 /** Apply collapse pose. Returns false when finished. */
 export function tickBuildingCollapse(
     mesh: Group,
@@ -90,4 +127,5 @@ export function tickBuildingCollapse(
 
 export function clearBuildingCollapse(mesh: Group): void {
     delete mesh.userData.buildingCollapse;
+    delete mesh.userData.hammerCrushed;
 }

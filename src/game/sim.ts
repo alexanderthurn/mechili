@@ -61,6 +61,7 @@ import {
     beginDeathTip,
     clearDeathFall,
     clearDeathTip,
+    clearCorpsePose,
     crashDriftFromKnock,
     crashLandFromFall,
     deathTipAmount,
@@ -75,6 +76,7 @@ import {
     type DeathTipState,
 } from './deathFall';
 import {
+    beginHammerCrush,
     clearBuildingCollapse,
     tickBuildingCollapse,
     type BuildingCollapseState,
@@ -537,6 +539,15 @@ export type SimEvent =
            */
           rect?: { halfWidth: number; halfDepth: number; yaw: number };
       }
+    /** Hammer smash: flatten scenery in the footprint (battle-phase only). */
+    | {
+          kind: 'hammerCrush';
+          x: number;
+          z: number;
+          halfWidth: number;
+          halfDepth: number;
+          yaw: number;
+      }
     | {
           kind: 'death';
           x: number;
@@ -770,6 +781,8 @@ export class BattleSim {
         igniteRadius?: number;
         fired: boolean;
     }[] = [];
+    /** when true, kills from applyBurnDamage use hammer pancake death */
+    private crushingHammer = false;
     /** oil/acid/fire drips along capsule paths — announce fall, then stamp on land */
     private readonly drips: {
         kind: 'oil' | 'acid' | 'fire';
@@ -2290,7 +2303,21 @@ export class BattleSim {
                   }
                 : undefined,
         });
-        this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
+        if (hammer) {
+            this.crushingHammer = true;
+            this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
+            this.crushingHammer = false;
+            this.events.push({
+                kind: 'hammerCrush',
+                x: s.x,
+                z: s.z,
+                halfWidth: HAMMER_ZONE.halfWidth,
+                halfDepth: HAMMER_ZONE.halfDepth,
+                yaw: s.yaw ?? 0,
+            });
+        } else {
+            this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
+        }
         this.applyBlastImpulse(
             s.x,
             s.z,
@@ -2588,11 +2615,13 @@ export class BattleSim {
             }
             if (fall || tip) continue;
         }
-        // Destroyed structures settle into rubble (render-only; sim death is instant)
+        // Destroyed structures settle into rubble; hammer-crushed units pancake
         for (const a of this.actors) {
-            if (a.alive || !a.unit.type.structure) continue;
+            if (a.alive) continue;
             const collapse = a.mesh.userData.buildingCollapse as BuildingCollapseState | undefined;
-            if (collapse && !tickBuildingCollapse(a.mesh, collapse, timeSeconds)) {
+            if (!collapse) continue;
+            if (!a.unit.type.structure && !a.mesh.userData.hammerCrushed) continue;
+            if (!tickBuildingCollapse(a.mesh, collapse, timeSeconds)) {
                 clearBuildingCollapse(a.mesh);
             }
         }
@@ -2859,7 +2888,9 @@ export class BattleSim {
             dz: klen > 1e-6 ? knockDir!.z / klen : undefined,
         });
         if (t.structure) {
-            target.unit.markDestroyed(knockDir ?? undefined);
+            target.unit.markDestroyed(knockDir ?? undefined, {
+                crush: this.crushingHammer,
+            });
             if (this.isDebuffBuilding(target.unit)) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
                 // half tower height — tallest collider × meshScale / 2
@@ -2875,6 +2906,17 @@ export class BattleSim {
                     level: target.unit.level,
                 });
             }
+        } else if (this.crushingHammer) {
+            // Hammer: pancake flat — no tip / crash tumble
+            const groundY = worldHeightAt(target.x, target.z) + GROUND_UNIT_Y;
+            clearDeathFall(target.mesh);
+            clearDeathTip(target.mesh);
+            clearCorpsePose(target.mesh);
+            beginHammerCrush(target.mesh, { groundY });
+            target.mesh.userData.dead = true;
+            clearBattleTint(target.mesh);
+            if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
+            getUnitInstanceRenderer()?.setDead(target.mesh);
         } else {
             // tip over along the killing blow (fallback: slight random lean)
             const amount = dealt > 0 ? deathTipAmount(dealt, target.maxHp) : Math.PI * 0.5;

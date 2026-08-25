@@ -8226,6 +8226,7 @@ export class Game {
         this.dragonFx.clear();
         this.conversionFx.clear();
         this.oilDripFx.clear();
+        this.scenery.clearHammerCrush();
         this.spellChargeMarkers = [];
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
@@ -8923,6 +8924,14 @@ export class Game {
                     } else if (ev.kind === 'spellLightning') {
                         // cloud gathers first; bolt drops from it a moment later
                         this.cloudFx.spawnLightning(ev.x, ev.z, this.sim.elapsed, ev.y);
+                    } else if (ev.kind === 'hammerCrush') {
+                        this.scenery.crushInRect(
+                            ev.x,
+                            ev.z,
+                            ev.halfWidth,
+                            ev.halfDepth,
+                            ev.yaw,
+                        );
                     } else if (ev.kind === 'hazardDrip') {
                         this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at, {
                             scale: ev.dripScale,

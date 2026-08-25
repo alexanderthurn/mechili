@@ -10,11 +10,13 @@ import {
     Group,
     IcosahedronGeometry,
     InstancedMesh,
+    Matrix4,
     Mesh,
     MeshBasicMaterial,
     MeshStandardMaterial,
     Object3D,
     PlaneGeometry,
+    Quaternion,
     RepeatWrapping,
     SphereGeometry,
     Sprite,
@@ -257,6 +259,16 @@ export class Scenery {
     /** fallen-leaf litter on the meadow — built once, opacity eased in autumn */
     private leafLitter: InstancedMesh | null = null;
     private litterOpacityTarget = 0;
+
+    /**
+     * Hammer crush: original instance matrices so trees/bushes can stand back
+     * up when the battle phase ends.
+     */
+    private readonly crushRestore: {
+        mesh: InstancedMesh;
+        index: number;
+        matrix: Matrix4;
+    }[] = [];
 
     // weather hooks, wired up by the create* builders below
     private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
@@ -575,6 +587,66 @@ export class Scenery {
     /** Drive billboard ground blobs when weather is off (createWeather also sets this). */
     attachSun(sun: DirectionalLight): void {
         this.sunLight = sun;
+    }
+
+    /**
+     * Hammer of the Gods: squash trees/bushes/floor props inside the oriented
+     * rect into the dirt. Restored by {@link clearHammerCrush} when battle ends.
+     */
+    crushInRect(
+        x: number,
+        z: number,
+        halfWidth: number,
+        halfDepth: number,
+        yaw: number,
+    ): void {
+        const c = Math.cos(yaw);
+        const sn = Math.sin(yaw);
+        const mat = new Matrix4();
+        const pos = new Vector3();
+        const quat = new Quaternion();
+        const scl = new Vector3();
+        const touched = new Set<InstancedMesh>();
+
+        const inside = (px: number, pz: number): boolean => {
+            const dx = px - x;
+            const dz = pz - z;
+            const lx = dx * c + dz * sn;
+            const lz = -dx * sn + dz * c;
+            return Math.abs(lx) <= halfWidth && Math.abs(lz) <= halfDepth;
+        };
+
+        this.group.traverse((o) => {
+            const mesh = o as InstancedMesh;
+            if (!mesh.isInstancedMesh || mesh.count <= 0) return;
+            if (mesh.parent === this.skyGroup) return;
+            for (let i = 0; i < mesh.count; i++) {
+                mesh.getMatrixAt(i, mat);
+                mat.decompose(pos, quat, scl);
+                if (!inside(pos.x, pos.z)) continue;
+                if (this.crushRestore.some((r) => r.mesh === mesh && r.index === i)) continue;
+                this.crushRestore.push({ mesh, index: i, matrix: mat.clone() });
+                scl.x *= 1.55;
+                scl.z *= 1.55;
+                scl.y *= 0.04;
+                pos.y -= Math.max(0.05, Math.abs(scl.y) * 0.35);
+                mat.compose(pos, quat, scl);
+                mesh.setMatrixAt(i, mat);
+                touched.add(mesh);
+            }
+        });
+        for (const mesh of touched) mesh.instanceMatrix.needsUpdate = true;
+    }
+
+    /** Undo hammer scenery crush (call when leaving battle phase). */
+    clearHammerCrush(): void {
+        const touched = new Set<InstancedMesh>();
+        for (const r of this.crushRestore) {
+            r.mesh.setMatrixAt(r.index, r.matrix);
+            touched.add(r.mesh);
+        }
+        for (const mesh of touched) mesh.instanceMatrix.needsUpdate = true;
+        this.crushRestore.length = 0;
     }
 
     /** 0..1 how much snow currently lies on the ground (drives the board's own snow blend too) */

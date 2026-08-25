@@ -76,7 +76,7 @@ import {
 } from './crowWingFlap';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
-import { beginBuildingCollapse, clearBuildingCollapse } from './buildingCollapse';
+import { beginBuildingCollapse, beginHammerCrush, clearBuildingCollapse } from './buildingCollapse';
 import { clearCorpsePose, clearDeathFall, clearDeathTip } from './deathFall';
 import { preserveBuildingSnow } from './buildingSnow';
 
@@ -1412,10 +1412,20 @@ export class Unit {
     /**
      * Collapses the meshes into rubble until the next round reset.
      * `knock` leans the settle along the killing blow (render-only).
+     * `crush` = Hammer of the Gods pancake (super-flat).
      */
-    markDestroyed(knock?: { x: number; z: number }): void {
+    markDestroyed(knock?: { x: number; z: number }, opts?: { crush?: boolean }): void {
         this.destroyed = true;
         const instances = getUnitInstanceRenderer();
+        if (opts?.crush) {
+            for (const m of this.members) {
+                m.mesh.userData.dead = true;
+                setCrowWingRateOnProxy(m.mesh, 0);
+                instances?.setDead(m.mesh);
+                beginHammerCrush(m.mesh);
+            }
+            return;
+        }
         const klen = knock ? Math.hypot(knock.x, knock.z) : 0;
         // Wide bases (Stronghold) tip very little — a big lean lifts one side into the air
         const wide = this.type.collisionRadius >= 4 || this.type.id === 'stronghold';
