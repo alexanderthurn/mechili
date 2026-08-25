@@ -132,11 +132,17 @@ export function startCardFaceHtml(c: StartCard): string {
 }
 
 /** Floating tip for `[data-spell-tip]` hits. One document listener — HUD
- *  `stopPropagation` on pointerdown/move must not eat hover. */
+ *  `stopPropagation` on pointerdown/move must not eat hover.
+ *  Click / tap the tip to dismiss leftovers; recipe tiles inside the forge
+ *  cookbook keep their own click handlers. */
 export class CardSpellTips {
     private tip: HTMLDivElement | null = null;
     private hoverEl: HTMLElement | null = null;
     private listening = false;
+    /** after a click-dismiss, don't immediately reshow this same source */
+    private skipEl: HTMLElement | null = null;
+    /** e.g. loadout first-tap arm — cleared whenever the tip hides */
+    onHide: (() => void) | null = null;
 
     bind(_root?: HTMLElement): void {
         if (this.listening) return;
@@ -149,8 +155,9 @@ export class CardSpellTips {
         if (e.pointerType === 'touch') return;
         const t = e.target;
         if (!(t instanceof Element)) return;
+        if (t.closest('.mechili-card-spell-tip')) return;
         const hit = t.closest<HTMLElement>('[data-spell-tip]');
-        if (!hit) return;
+        if (!hit || hit === this.skipEl) return;
         this.show(hit);
     };
 
@@ -165,10 +172,32 @@ export class CardSpellTips {
         // Ignore those — a real leave has a Node we moved onto.
         if (!(related instanceof Element)) return;
         if (from.contains(related) || this.tip?.contains(related)) return;
+        if (from === this.skipEl) this.skipEl = null;
         const next = related.closest<HTMLElement>('[data-spell-tip]');
         if (next) {
             this.show(next);
             return;
+        }
+        this.hide();
+    };
+
+    private onTipPointerDown = (e: PointerEvent): void => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.skipEl = this.hoverEl;
+        this.hide();
+    };
+
+    private onTipLeave = (e: PointerEvent): void => {
+        if (e.pointerType === 'touch') return;
+        const related = e.relatedTarget;
+        if (related instanceof Element) {
+            if (this.hoverEl?.contains(related)) return;
+            const next = related.closest<HTMLElement>('[data-spell-tip]');
+            if (next) {
+                this.show(next);
+                return;
+            }
         }
         this.hide();
     };
@@ -179,10 +208,12 @@ export class CardSpellTips {
         const icon = el.dataset.ticon ?? '';
         if (!title && !desc && !el.dataset.trows) return;
         this.hoverEl = el;
+        if (el !== this.skipEl) this.skipEl = null;
         if (!this.tip) {
             this.tip = document.createElement('div');
             this.tip.className = 'mechili-card-spell-tip';
-            this.tip.style.pointerEvents = 'none';
+            this.tip.addEventListener('pointerdown', this.onTipPointerDown, true);
+            this.tip.addEventListener('pointerleave', this.onTipLeave);
             document.body.appendChild(this.tip);
         }
         this.tip.innerHTML = spellInfoFrameHtml({
@@ -244,9 +275,10 @@ export class CardSpellTips {
     }
 
     hide(): void {
+        const shown = !!this.tip && this.tip.style.display !== 'none';
         this.hoverEl = null;
-        if (!this.tip) return;
-        this.tip.style.display = 'none';
+        if (this.tip) this.tip.style.display = 'none';
+        if (shown) this.onHide?.();
     }
 
     destroy(): void {
@@ -256,6 +288,12 @@ export class CardSpellTips {
             this.listening = false;
         }
         this.hoverEl = null;
+        this.skipEl = null;
+        this.onHide = null;
+        if (this.tip) {
+            this.tip.removeEventListener('pointerdown', this.onTipPointerDown, true);
+            this.tip.removeEventListener('pointerleave', this.onTipLeave);
+        }
         this.tip?.remove();
         this.tip = null;
     }

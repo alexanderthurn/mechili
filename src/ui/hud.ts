@@ -8,6 +8,7 @@ import {
     forgeRecipeMatch,
     type ForgeSpellPool,
 } from '../game/forgeRecipes';
+import { buildingAbilities } from '../game/buildingAbilities';
 import { BASE_RUNE_IDS, ITEMS } from '../game/items';
 import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
@@ -683,8 +684,17 @@ export class Hud {
             // just the unit name plus that talent list (rows arrive via
             // setUnitTalents); the tile itself already shows the cost, and
             // stats belong in the unit details panel, not on every hover.
+            // Board extras have no talents — fill the tip from their ability
+            // copy so Fire Bolt / Ward Stone aren't title-only.
             button.dataset.spellTip = '1';
             button.dataset.ttitle = type.name;
+            if (type.extra) {
+                const abs = buildingAbilities(type);
+                if (abs.length > 0) {
+                    button.dataset.tdesc = abs.map((a) => a.description).join('\n\n');
+                    button.dataset.ticon = abs[0]!.icon;
+                }
+            }
             button.addEventListener('click', () => {
                 // hoverable while unaffordable (see the .unaffordable CSS), so
                 // the refusal has to happen here rather than via pointer-events
@@ -821,6 +831,14 @@ export class Hud {
             });
         });
         this.panel.addEventListener('click', (e) => {
+            // leftover / tap-to-dismiss: the info frame itself (not Buy)
+            const infoFrame = (e.target as HTMLElement).closest('.action-info');
+            if (infoFrame && this.panel.contains(infoFrame)) {
+                if (!(e.target as HTMLElement).closest('.ai-buy')) {
+                    this.hideActionInfo();
+                }
+                return;
+            }
             // touch has no hover: first tap peeks at the info, second tap acts
             if (inputMode() === 'touch') {
                 const peek = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
@@ -894,6 +912,24 @@ export class Hud {
         });
         this.panel.addEventListener('pointerout', (e) => {
             if ((e as PointerEvent).pointerType === 'touch') return;
+            const relatedNode = e.relatedTarget as Node | null;
+            // moving onto the info frame must not dismiss it (it's now hittable
+            // so leftovers can be clicked closed)
+            if (
+                relatedNode instanceof Element &&
+                relatedNode.closest('.action-info') &&
+                this.panel.contains(relatedNode.closest('.action-info'))
+            ) {
+                return;
+            }
+            const infoFrom = (e.target as HTMLElement).closest('.action-info');
+            if (infoFrom && this.panel.contains(infoFrom)) {
+                if (relatedNode && infoFrom.contains(relatedNode)) return;
+                const toTile = (relatedNode as HTMLElement | null)?.closest?.(infoSel);
+                if (toTile) return;
+                this.hideActionInfo();
+                return;
+            }
             const from = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             const to = (e.relatedTarget as HTMLElement | null)?.closest?.(infoSel);
             if (from && from !== to) {
@@ -1783,12 +1819,15 @@ export class Hud {
     /** click-open cookbook — stays until click outside, even if the pointer leaves */
     private forgeRecipesPinned = false;
 
-    /** click outside dismisses sticky recipe peeks; clicks inside the cookbook stay */
+    /** click outside dismisses sticky recipe peeks; clicks inside the cookbook
+     *  stay (tiles open a nested spell tip). Nested tip clicks must not count
+     *  as "outside" or the cookbook would close under the leftover. */
     private readonly onForgeRecipesPointerDown = (e: PointerEvent) => {
         const el = this.forgeSlotPreviewEl;
         if (!el || el.hidden || !el.classList.contains('recipes')) return;
-        const t = e.target as Node | null;
-        if (!t) return;
+        const t = e.target;
+        if (!(t instanceof Node)) return;
+        if (t instanceof Element && t.closest('.mechili-card-spell-tip')) return;
         if (this.forgeSlotPreviewAnchor?.contains(t)) return;
         if (el.contains(t)) return;
         this.dismissForgeRecipesPreview();

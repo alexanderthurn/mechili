@@ -701,7 +701,8 @@ function cardSpellTipStyles(): string {
     border: 1.5px solid ${u.border};
     background: ${u.panelBgDark};
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: default;
     color: ${u.text};
 }
 .mechili-card-spell-tip .ai-head {
@@ -4126,7 +4127,7 @@ ${chatFloatStyles(u, pc, ec)}
     border-radius: 4px;
     color: ${u.text};
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-    pointer-events: none;
+    pointer-events: auto;
     z-index: 6;
 }
 .mechili-panel .action-info .ai-head { display: flex; align-items: center; gap: 10px; }
@@ -6379,7 +6380,7 @@ ${gamepadCursorStyles(u)}
     line-height: 1.5;
     white-space: pre-line;
     user-select: none;
-    pointer-events: none;
+    pointer-events: auto;
 }
 
 @media (max-width: 599px), (max-height: 540px) {
