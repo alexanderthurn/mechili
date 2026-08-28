@@ -3,7 +3,7 @@ import { SHOP_UNIT_IDS } from './cards';
 import { unlockCostForSpeciality } from './cards';
 import type { RoundCard, SpecialityId, StartCard } from './cards';
 import type { PlacementController } from './placement';
-import type { Economy } from './settings';
+import type { DeploySettings, Economy } from './settings';
 import {
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
@@ -14,10 +14,13 @@ import {
     usesSpellPlacement,
 } from './tactics';
 import type { TechTree } from './tech';
-import { techsForUnit } from './techCatalog';
-import { UNIT_TYPES, isPlayerBuyable, unitTypeById, unitUnlockCost, type Team } from './units';
+import { techsForUnit, type Loadout } from './techCatalog';
+import { UNIT_TYPES, isPlayerBuyable, unitTypeById, type Team, type UnitType } from './units';
 import type { SeatId } from './seats';
-import { itemSlotLimit } from './items';
+import { BASE_RUNE_IDS, itemSlotLimit } from './items';
+
+/** army packs cheaper than this are preferred for the AI's first buy each round */
+const CHEAP_UNIT_COST = 200;
 
 /**
  * A side's decision maker. The built-in AI implements it; a future network
@@ -61,6 +64,15 @@ export class AiOpponent implements Opponent {
             speciality: (SpecialityId | null)[];
             /** the AI's own seeded stream — nothing else may consume it */
             rng: () => number;
+            /** per-SEAT talent picks; AI seats normally have none and get
+             *  the catalog default (PROGRESSION_PLAN.md §1c) */
+            loadoutOf: (seat: SeatId) => Loadout | undefined;
+            /** garrison / shop deploy prices (extra slot, base rune, …) */
+            deploySettings: DeploySettings;
+            /** per-SEAT stronghold spells already bought this match */
+            forgeSpellOwned: string[][];
+            /** this seat's commander forge-spell pool */
+            forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
         },
     ) {}
 
@@ -94,49 +106,22 @@ export class AiOpponent implements Opponent {
     }
 
     private runBuildActions(): void {
-        const { dispatch, placement, economy, rng, unlockedUnits, unlockUsedThisRound, speciality } =
-            this.ctx;
+        const { placement, rng } = this.ctx;
         const team = this.team;
-        const unlocked = unlockedUnits[this.seat]!;
 
-        // one unlock per round — pick an affordable locked type when possible
-        if (!unlockUsedThisRound[this.seat]) {
-            const locked = SHOP_UNIT_IDS.filter((id) => !unlocked.includes(id));
-            const affordable = locked.filter(
-                (id) =>
-                    unlockCostForSpeciality(id, speciality[this.seat] ?? null) <=
-                    economy.balance(this.seat),
-            );
-            const pool = affordable.length > 0 ? affordable : locked;
-            if (pool.length > 0 && rng() < 0.85) {
-                const typeId = pool[Math.floor(rng() * pool.length)]!;
-                dispatch({ kind: 'unlockUnit', team, seat: this.seat, typeId });
-            }
-        }
+        // 1) first buy: prefer a cheap unit (< 200); unlock one if needed
+        this.buyUnit(this.pickFirstBuyType());
 
-        // 1) fill every deploy slot first
+        // 2) remaining deploy slots: random among affordable unlocked types
         for (let guard = 0; guard < 30; guard++) {
-            const affordable = UNIT_TYPES.filter(
-                (t) =>
-                    !t.extra &&
-                    isPlayerBuyable(t) &&
-                    unlockedUnits[this.seat]!.includes(t.id) &&
-                    economy.canAfford(this.seat, t),
-            );
+            const affordable = this.affordableArmyTypes();
             if (affordable.length === 0) break;
             const type = affordable[Math.floor(rng() * affordable.length)]!;
-            const spot = placement.findAiSpot(team, this.seat, type, rng);
-            if (!spot) break;
-            const done = dispatch({
-                kind: 'buy',
-                team,
-                seat: this.seat,
-                typeId: type.id,
-                anchor: spot.anchor,
-                rotated: spot.rotated,
-            });
-            if (!done) break;
+            if (!this.buyUnit(type)) break;
         }
+
+        // 3) spare ~100 supply → +1 garrison slot + a shop rune to equip
+        this.maybeBuySlotAndRune();
 
         // rearrange packs
         for (const unit of placement.allUnits()) {
@@ -145,9 +130,15 @@ export class AiOpponent implements Opponent {
             const spot = placement.findAiSpot(team, this.seat, unit.type, rng);
             if (!spot) continue;
             if (spot.rotated !== unit.rotated) {
-                dispatch({ kind: 'rotate', team, seat: this.seat, unitId: unit.id });
+                this.ctx.dispatch({ kind: 'rotate', team, seat: this.seat, unitId: unit.id });
             }
-            dispatch({ kind: 'move', team, seat: this.seat, unitId: unit.id, anchor: spot.anchor });
+            this.ctx.dispatch({
+                kind: 'move',
+                team,
+                seat: this.seat,
+                unitId: unit.id,
+                anchor: spot.anchor,
+            });
         }
 
         // equip inventory items onto bare packs
@@ -156,8 +147,117 @@ export class AiOpponent implements Opponent {
         // cast available tactics / spells toward the opponent
         this.placeTactics();
 
-        // leftover supply → techs / levels / towers
+        // leftover: pack levels → stronghold spells → unit techs (never buildings)
         this.spendLeftoverUpgrades();
+    }
+
+    /** unlocked, buyable army types this seat can afford right now */
+    private affordableArmyTypes(pred?: (t: UnitType) => boolean): UnitType[] {
+        const { economy, unlockedUnits } = this.ctx;
+        return UNIT_TYPES.filter(
+            (t) =>
+                !t.extra &&
+                isPlayerBuyable(t) &&
+                unlockedUnits[this.seat]!.includes(t.id) &&
+                economy.canAfford(this.seat, t) &&
+                (!pred || pred(t)),
+        );
+    }
+
+    /** how many of this seat's army packs are of each type (for first-buy diversity) */
+    private ownedArmyCounts(): Map<string, number> {
+        const counts = new Map<string, number>();
+        for (const u of this.ctx.placement.allUnits()) {
+            if (u.seat !== this.seat || u.type.structure || u.type.extra) continue;
+            counts.set(u.type.id, (counts.get(u.type.id) ?? 0) + 1);
+        }
+        return counts;
+    }
+
+    /**
+     * Among candidates, prefer types this seat has fewer of (missing first,
+     * then the lesser count). Ties break randomly.
+     */
+    private preferLesserOwned(candidates: readonly UnitType[]): UnitType | null {
+        if (candidates.length === 0) return null;
+        const counts = this.ownedArmyCounts();
+        const { rng } = this.ctx;
+        let best: UnitType[] = [];
+        let bestCount = Number.POSITIVE_INFINITY;
+        for (const t of candidates) {
+            const n = counts.get(t.id) ?? 0;
+            if (n < bestCount) {
+                bestCount = n;
+                best = [t];
+            } else if (n === bestCount) {
+                best.push(t);
+            }
+        }
+        return best[Math.floor(rng() * best.length)]!;
+    }
+
+    /**
+     * Prefer cost &lt; 200, and among those the type this seat has fewer of —
+     * unlock that type first when it is still locked (even if another cheap
+     * type is already buyable). If still nothing cheap, fall back to any
+     * affordable type (same diversity).
+     */
+    private pickFirstBuyType(): UnitType | null {
+        const { economy, unlockedUnits, unlockUsedThisRound, speciality } = this.ctx;
+        const unlocked = unlockedUnits[this.seat]!;
+
+        const allCheap: UnitType[] = [];
+        for (const id of SHOP_UNIT_IDS) {
+            const t = unitTypeById(id);
+            if (t && t.cost < CHEAP_UNIT_COST) allCheap.push(t);
+        }
+        const preferred = this.preferLesserOwned(allCheap);
+        if (
+            preferred &&
+            !unlocked.includes(preferred.id) &&
+            !unlockUsedThisRound[this.seat] &&
+            unlockCostForSpeciality(preferred.id, speciality[this.seat] ?? null) <=
+                economy.balance(this.seat)
+        ) {
+            this.ctx.dispatch({
+                kind: 'unlockUnit',
+                team: this.team,
+                seat: this.seat,
+                typeId: preferred.id,
+            });
+        }
+
+        const cheap = this.affordableArmyTypes((t) => t.cost < CHEAP_UNIT_COST);
+        const pool = cheap.length > 0 ? cheap : this.affordableArmyTypes();
+        return this.preferLesserOwned(pool);
+    }
+
+    private buyUnit(type: UnitType | null): boolean {
+        if (!type) return false;
+        const { dispatch, placement, rng } = this.ctx;
+        const spot = placement.findAiSpot(this.team, this.seat, type, rng);
+        if (!spot) return false;
+        return dispatch({
+            kind: 'buy',
+            team: this.team,
+            seat: this.seat,
+            typeId: type.id,
+            anchor: spot.anchor,
+            rotated: spot.rotated,
+        });
+    }
+
+    /**
+     * After army buys: if supply covers +1 deploy slot and a base rune, buy both
+     * so the rune can be equipped in {@link applyItems}.
+     */
+    private maybeBuySlotAndRune(): void {
+        const { dispatch, economy, rng, deploySettings } = this.ctx;
+        const need = deploySettings.extraSlotCost + deploySettings.baseRuneCost;
+        if (economy.balance(this.seat) < need) return;
+        if (!dispatch({ kind: 'buyDeploySlot', team: this.team, seat: this.seat })) return;
+        const itemId = BASE_RUNE_IDS[Math.floor(rng() * BASE_RUNE_IDS.length)]!;
+        dispatch({ kind: 'buyRune', team: this.team, seat: this.seat, itemId });
     }
 
     private applyItems(): void {
@@ -289,10 +389,39 @@ export class AiOpponent implements Opponent {
         }
     }
 
-    /** spend remaining supply on techs / pack levels while affordable (no building upgrades) */
+    /**
+     * leftover supply: pack levels first, then stronghold forge spells, then
+     * unit techs. Never upgrades buildings.
+     */
     private spendLeftoverUpgrades(): void {
-        const { dispatch, placement, economy, techTree } = this.ctx;
+        const { dispatch, placement, economy, techTree, forgeSpellOwned, forgeSpellsOf } = this.ctx;
         const team = this.team;
+
+        let leveled = true;
+        while (leveled) {
+            leveled = false;
+            for (const unit of placement.allUnits()) {
+                if (unit.seat !== this.seat || unit.type.structure || unit.type.extra) continue;
+                if (dispatch({ kind: 'buyLevel', team, seat: this.seat, unitId: unit.id })) {
+                    leveled = true;
+                }
+            }
+        }
+
+        const ownedSpells = forgeSpellOwned[this.seat]!;
+        let boughtSpell = true;
+        while (boughtSpell) {
+            boughtSpell = false;
+            const pool = forgeSpellsOf(this.seat) ?? [];
+            for (const tacticId of pool) {
+                if (ownedSpells.includes(tacticId)) continue;
+                const cost = TACTICS[tacticId]?.strongholdCost;
+                if (cost === undefined || economy.balance(this.seat) < cost) continue;
+                if (dispatch({ kind: 'buyForgeSpell', team, seat: this.seat, tacticId })) {
+                    boughtSpell = true;
+                }
+            }
+        }
 
         const ownedTypeIds = [
             ...new Set(
@@ -308,23 +437,26 @@ export class AiOpponent implements Opponent {
             bought = false;
             for (const typeId of ownedTypeIds) {
                 const type = unitTypeById(typeId);
-                const techs = type ? techsForUnit(type.id) : [];
+                const techs = type ? techsForUnit(type.id, this.ctx.loadoutOf(this.seat)) : [];
                 if (!type || techs.length === 0) continue;
                 const owned = techTree.ownedFor(this.seat, type.id);
                 for (const tech of techs) {
                     if (owned.has(tech.id)) continue;
                     const cost = economy.techCostOf(tech, owned.size);
                     if (economy.balance(this.seat) < cost) continue;
-                    if (dispatch({ kind: 'buyTech', team, seat: this.seat, typeId: type.id, techId: tech.id })) {
+                    if (
+                        dispatch({
+                            kind: 'buyTech',
+                            team,
+                            seat: this.seat,
+                            typeId: type.id,
+                            techId: tech.id,
+                        })
+                    ) {
                         bought = true;
                     }
                 }
             }
-        }
-
-        for (const unit of placement.allUnits()) {
-            if (unit.seat !== this.seat || unit.type.structure || unit.type.extra) continue;
-            dispatch({ kind: 'buyLevel', team, seat: this.seat, unitId: unit.id });
         }
     }
 }

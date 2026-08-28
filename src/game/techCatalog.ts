@@ -212,7 +212,9 @@ export const UNIT_TECH_SLOTS: Record<string, number> = {
     archer: 3,
     wizard: 2,
     crowRider: 3, // engines + stingers + aegis (slots must cover the allowlist)
-    ballista: 12, // match full allowlist — wraps in the details pane
+    // 4 of 12 — the widest allowlist in the game, and now a real choice:
+    // pick a siege, anti-air or fire build rather than taking everything.
+    ballista: 4,
 };
 
 /** How many tech slots this unit type shows / can select. */
@@ -231,26 +233,55 @@ export function allowedTechIds(typeId: string): readonly string[] {
 }
 
 /**
- * Techs selected for this match for a unit type.
- * Pregame picker will replace this; for now: first N allowed ids (N = slot limit).
+ * A player's talent picks, keyed by unit type id. Structural on purpose —
+ * `loadouts.ts` owns building / normalizing / persisting one, but this
+ * module has to read it without importing that (it would be a cycle).
+ *
+ * A Loadout reaching here is assumed NORMALIZED (see `normalizeLoadout`):
+ * every id allowed for its own type, deduped, within the slot limit. It
+ * crosses the wire, so normalizing on receipt is what stops a peer's picks
+ * from feeding the sim something the allowlist forbids.
  */
-export function selectedTechIds(typeId: string, maxSlots = techSlotLimit(typeId)): string[] {
-    return allowedTechIds(typeId).slice(0, maxSlots).filter((id) => id in TECHS);
+export interface Loadout {
+    /** talent picks, keyed by unit type id */
+    readonly techs: Readonly<Record<string, readonly string[]>>;
+    // Deliberately a CONTAINER rather than the bare techs map, so later
+    // pregame choices are additive rather than a migration of everything
+    // already saved in user.sav and already crossing the wire:
+    //   spells?:     Record<commanderId, tacticId[]>  — per-commander forge
+    //                spells, today fixed on the StartCard (`forgeSpells`,
+    //                read in exactly one place: Game's forge-spell lookup)
+    //   commanders?: string[]  — which of START_CARDS the seat's 4-card
+    //                offer may draw from (a BAN list, not a pick list — see
+    //                PROGRESSION_PLAN.md §1h for why)
+    // Neither is implemented. Adding one means a new optional field here, a
+    // branch in normalizeLoadout, and nothing else — the seat/wire/replay
+    // plumbing already carries whatever this object holds.
 }
 
-/** Resolved TechDefs for the current match selection (≤ that unit's slot limit). */
-export function techsForUnit(typeId: string, maxSlots = techSlotLimit(typeId)): TechDef[] {
-    return selectedTechIds(typeId, maxSlots)
+/**
+ * Techs selected for this match for a unit type, by the owning seat.
+ *
+ * With no loadout — AI seats, the showcase page, replays recorded before
+ * the picker existed — this stays the historical default (the first N
+ * allowed ids, N = slot limit), so every seatless caller behaves exactly
+ * as it did before loadouts.
+ */
+export function selectedTechIds(typeId: string, loadout?: Loadout): readonly string[] {
+    const picked = loadout?.techs?.[typeId];
+    if (picked) return picked;
+    return allowedTechIds(typeId).slice(0, techSlotLimit(typeId)).filter((id) => id in TECHS);
+}
+
+/** Resolved TechDefs for this seat's selection (≤ that unit's slot limit). */
+export function techsForUnit(typeId: string, loadout?: Loadout): TechDef[] {
+    return selectedTechIds(typeId, loadout)
         .map((id) => TECHS[id])
         .filter((t): t is TechDef => !!t);
 }
 
-export function isTechSelectedForUnit(
-    typeId: string,
-    techId: string,
-    maxSlots = techSlotLimit(typeId),
-): boolean {
-    return selectedTechIds(typeId, maxSlots).includes(techId);
+export function isTechSelectedForUnit(typeId: string, techId: string, loadout?: Loadout): boolean {
+    return selectedTechIds(typeId, loadout).includes(techId);
 }
 
 /**

@@ -5,6 +5,11 @@ import {
     FIRE_TINT_NORMAL,
     HAZARD_DRIP_FALL_SEC,
     HazardField,
+    OIL_DIRECTED_BACK,
+    OIL_DIRECTED_CROSS,
+    OIL_DIRECTED_FWD,
+    OIL_DIRECTED_LENGTH_MUL,
+    OIL_DIRECTED_TAIL_FRAC,
     OIL_SPEED_MULT,
     insideAnyShield,
     livingShieldDisks,
@@ -14,6 +19,7 @@ import {
 } from './fire';
 import { ITEMS } from './items';
 import type { SeatId } from './seats';
+import { detAtan2, detCos, detSin, hypot, wrapPi } from './detMath';
 import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
@@ -28,14 +34,18 @@ import {
     type RallyRoute,
 } from './tactics';
 import { effectiveFlying, effectiveTargets, type ResolvedStats } from './tech';
-import { ownedCleaveTechs, ownedOnKillTechs, ownedProduceTechs } from './techCatalog';
+import { ownedCleaveTechs, ownedOnKillTechs, ownedProduceTechs, type Loadout } from './techCatalog';
 import {
     COMMAND_TOWER,
     DEPLOY_AIR_Y,
     RESEARCH_CENTER,
+    GARRISON_ARCHER,
+    GARRISON_FOV_HALF,
+    STRONGHOLD,
     bloodColorOf,
     resolveDeathWear,
     projectileAimY,
+    clearBattleTint,
     syncBattleTint,
     type BattleTeam,
     type DeathWear,
@@ -53,6 +63,7 @@ import {
     beginDeathTip,
     clearDeathFall,
     clearDeathTip,
+    clearCorpsePose,
     crashDriftFromKnock,
     crashLandFromFall,
     deathTipAmount,
@@ -67,7 +78,11 @@ import {
     type DeathTipState,
 } from './deathFall';
 import {
+    beginHammerCrush,
     clearBuildingCollapse,
+    groundTipAt,
+    hammerCrushSpin,
+    HAMMER_CRUSH_SEAT_Y,
     tickBuildingCollapse,
     type BuildingCollapseState,
 } from './buildingCollapse';
@@ -81,6 +96,8 @@ export const GOLDEN_AURA_RADIUS = 40;
 export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
 /** battle clock time when ballista Golden Aura is applied once (after other pre-battle effects) */
 export const GOLDEN_AURA_APPLY_AT = 0.1;
+/** storm bolt: personal tower-like debuff duration (refreshed on each hit) */
+export const STORM_DEBUFF_SEC = 5;
 /** units stand still for this long at battle start before moving or firing */
 export const BATTLE_START_FREEZE = 1.0;
 
@@ -102,6 +119,11 @@ export interface SimConfig {
     statsOf: (unit: Unit) => ResolvedStats;
     /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean;
+    /** a seat's talent picks — only fire profiles need the SELECTION itself
+     *  (everything else filters through hasTech, which already reflects it) */
+    loadoutOf: (seat: SeatId) => Loadout | undefined;
+    /** `lifeline` mode: a side's packs drop the moment its Stronghold does */
+    strongholdLifeline: boolean;
     /** base flank spawn duration in seconds (before per-seat multiplier) */
     flankSpawnSeconds: number;
     /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
@@ -123,7 +145,7 @@ export interface SimConfig {
      * takes environmental damage.
      */
     spellStrikes?: readonly SpellStrike[];
-    /** ticking spell zones (storm bolts, meteor shower, poison gas) */
+    /** ticking spell zones (storm bolts, meteor shower, acid rain) */
     spellZones?: readonly SpellZone[];
     /** one-shot capsule ignitions (dragon breath along its flight path) */
     spellIgnites?: readonly SpellIgnite[];
@@ -171,11 +193,15 @@ export interface SpellZone {
     delaySeconds: number;
     duration: number;
     interval: number;
-    /** flat damage per tick */
+    /** flat damage per tick (storm / meteor); unused for acidRain */
     damage: number;
-    mode: 'storm' | 'meteorShower' | 'poison';
+    mode: 'storm' | 'meteorShower' | 'acidRain';
     impactRadius?: number;
     igniteRadius?: number;
+    /** acidRain: drips spawned each tick */
+    dropsPerTick?: number;
+    /** acidRain: inclusive round expiry for stamped puddles */
+    acidExpiresRound?: number;
     seed: number;
 }
 
@@ -300,6 +326,11 @@ export interface Actor {
     rocketTarget: Actor | null;
     /** sim time until which this mech ignores tower-destruction debuffs (ballista aura) */
     goldenUntil: number;
+    /**
+     * Storm-bolt tower-like debuff on this actor (same multipliers as seat tower
+     * loss). Golden aura / debuff-immune items ignore it via {@link isGolden}.
+     */
+    stormDebuffUntil: number;
     /** battle time when flank spawn finishes (0 = already spawned) */
     spawnUntil: number;
     /** took damage during flank spawn — hp no longer auto-ramps */
@@ -373,6 +404,13 @@ export interface Actor {
     /** render-only: blast shove xz (stones / meteor / hammer), decays each frame */
     impulseX?: number;
     impulseZ?: number;
+    /**
+     * Render-only: accumulated procedural gait phase (rad). Advanced every
+     * render frame from wall time × speed ratio × walkCadence (smooth at display Hz).
+     */
+    gaitPhase?: number;
+    /** render-only: last animateActor timeSeconds used to integrate gaitPhase */
+    gaitTime?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
     prevCooldown?: number;
     /** render-only: sim elapsed when a flying cleave slam started */
@@ -441,6 +479,8 @@ export interface Projectile {
     source: Unit;
     /** render style copied from the shooter — visual only */
     style: 'bolt' | 'arrow' | 'largeArrow' | 'stone' | 'orb';
+    /** tip flame while flying (fire arrows / lit ballista); clears on hit or TTL */
+    lit?: boolean;
     /** gravity (world units/s²) for lobbed shots — absent = straight flight */
     gravity?: number;
     /** homing shots chase this actor and hit nothing else */
@@ -500,6 +540,20 @@ export type SimEvent =
           fire?: boolean;
           /** camera kick strength; omitted/0 = no shake (most explosions) */
           shake?: number;
+          /**
+           * Oriented rectangle ground scar (Hammer of the Gods). When set,
+           * wear stamps this footprint instead of a circle of `radius`.
+           */
+          rect?: { halfWidth: number; halfDepth: number; yaw: number };
+      }
+    /** Hammer smash: flatten scenery in the footprint (battle-phase only). */
+    | {
+          kind: 'hammerCrush';
+          x: number;
+          z: number;
+          halfWidth: number;
+          halfDepth: number;
+          yaw: number;
       }
     | {
           kind: 'death';
@@ -517,6 +571,32 @@ export type SimEvent =
           /** normalized killing-blow direction (from knockback), so gore jets along it */
           dx?: number;
           dz?: number;
+          /**
+           * Throws the gore down `dx`/`dz` instead of letting it fountain: the
+           * omni cloud gets the direction too, faster, flatter and longer-lived.
+           * Omit / 1 = the ordinary spurt.
+           */
+          fling?: number;
+          /** Ash death scorch override (from UnitType.deathAshScorch). */
+          ashScorch?: { radius: number; strength: number };
+          /** Hammer pancake — multiply ground + particle gore (e.g. 1.25). */
+          bloodScale?: number;
+      }
+    /**
+     * A Stronghold has come down in `lifeline` and its collapse is rolling
+     * outward. The renderer expands its dust front at this same `speed`, so
+     * what the player watches reach a pack IS what kills it.
+     */
+    | {
+          kind: 'strongholdCollapse';
+          team: BattleTeam;
+          x: number;
+          y: number;
+          z: number;
+          /** world units per second the front travels */
+          speed: number;
+          /** where it stops mattering — the far corner of the board */
+          maxRadius: number;
       }
     | { kind: 'levelup'; x: number; y: number; z: number }
     /** ground fire stamped / oil ignited — y is sim terrain height */
@@ -534,9 +614,18 @@ export type SimEvent =
     /** meteor-shower shard cue — visual falls until `at`, then sim resolves hit */
     | { kind: 'spellMeteor'; x: number; z: number; at: number }
     /** oil/acid drip cue — blob falls until `at`, then that disc stamps on the ground */
-    | { kind: 'hazardDrip'; hazard: 'oil' | 'acid' | 'fire'; x: number; z: number; at: number }
-    /** storm lightning bolt cue (render-only) */
-    | { kind: 'spellLightning'; x: number; z: number }
+    | {
+          kind: 'hazardDrip';
+          hazard: 'oil' | 'acid' | 'fire';
+          x: number;
+          z: number;
+          at: number;
+          /** visual-only: smaller/straighter drops (acid rain) */
+          dripScale?: number;
+          dripLean?: number;
+      }
+    /** storm lightning bolt cue (render-only) — `y` is hit height when known */
+    | { kind: 'spellLightning'; x: number; z: number; y?: number }
     /** wizard convert finished — flash + mesh recolor hook */
     | { kind: 'convert'; index: number; x: number; y: number; z: number; team: BattleTeam }
     /** command tower / research center destroyed — seat debuff starts/extends */
@@ -552,52 +641,20 @@ export type SimEvent =
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
+/** overkill fed to a lifeline death, as a multiple of the victim's own max hp —
+ *  drives the tip-over flop and, for flyers, how far the wreck is thrown */
+const COLLAPSE_OVERKILL = 4;
+/** outward shove on each corpse, decayed per frame like any blast impulse */
+const COLLAPSE_SHOVE = 0.55;
+/** how hard a lifeline death throws its gore along the blast line */
+const COLLAPSE_GORE_FLING = 2.8;
+/** how hard a razed building's own stone is thrown down the front's path */
+const COLLAPSE_DEBRIS_FLING = 2.4;
+/** world units per second the collapse front travels outward */
+const COLLAPSE_SPEED = 78;
+
 /** ballista / catapult lob — strong enough to read as an arc at long range */
 const BALLISTIC_GRAVITY = 28;
-
-/**
- * Deterministic replacement for Math.hypot: sqrt IS correctly rounded per
- * IEEE-754 in every engine, Math.hypot is NOT — a lockstep-multiplayer
- * hazard across browsers.
- */
-function hypot(x: number, y: number, z = 0): number {
-    return Math.sqrt(x * x + y * y + z * z);
-}
-
-/**
- * Deterministic replacements for Math.sin/cos — same hazard as Math.hypot
- * above (implementation-approximated per spec, not guaranteed bit-identical
- * across engines) but strikeHits' Hammer rectangle test below feeds a real
- * hit/miss decision, not just a visual offset. Range-reduced Taylor series
- * to x^11, built from only +, -, *, / (exactly specified by IEEE-754), so
- * every peer computes identical bits regardless of engine.
- */
-function wrapPi(a: number): number {
-    const twoPi = Math.PI * 2;
-    return a - twoPi * Math.floor((a + Math.PI) / twoPi);
-}
-
-/** exported for reuse anywhere else a deterministic angle→offset conversion
- *  feeds a value that must agree across peers (see game.ts's production-
- *  reserve parking and horde camp-scatter spawn points) */
-export function detSin(a: number): number {
-    let x = wrapPi(a);
-    // fold into [-π/2, π/2], where the series below converges tightly
-    if (x > Math.PI / 2) x = Math.PI - x;
-    else if (x < -Math.PI / 2) x = -Math.PI - x;
-    const x2 = x * x;
-    return (
-        x *
-        (1 +
-            x2 *
-                (-1 / 6 +
-                    x2 * (1 / 120 + x2 * (-1 / 5040 + x2 * (1 / 362880 - x2 / 39916800)))))
-    );
-}
-
-export function detCos(a: number): number {
-    return detSin(a + Math.PI / 2);
-}
 
 /** Deterministic 0..1 from an integer seed (lockstep-safe; no Math.sin). */
 function detHash01(n: number): number {
@@ -606,7 +663,9 @@ function detHash01(n: number): number {
     return ((x >>> 0) % 1_000_000) / 1_000_000;
 }
 
-/** circle (default) or hammer rectangle footprint — includes actor radius as padding */
+/** circle (default) or hammer rectangle footprint.
+ *  Hammer: center must lie in HAMMER_ZONE (no radius pad) so damage matches the scar.
+ *  Circles: include actor radius as padding. */
 function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean {
     if (s.tacticId === HAMMER_ID) {
         const yaw = s.yaw ?? 0;
@@ -616,10 +675,8 @@ function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean 
         const dz = z - s.z;
         const lx = dx * c + dz * sn;
         const lz = -dx * sn + dz * c;
-        return (
-            Math.abs(lx) <= HAMMER_ZONE.halfWidth + pad &&
-            Math.abs(lz) <= HAMMER_ZONE.halfDepth + pad
-        );
+        // pad ignored — scar ↔ kill must match what you see on the ground
+        return Math.abs(lx) <= HAMMER_ZONE.halfWidth && Math.abs(lz) <= HAMMER_ZONE.halfDepth;
     }
     return hypot(x - s.x, z - s.z) <= s.radius + pad;
 }
@@ -747,6 +804,18 @@ export class BattleSim {
     private onKillSpawnSeq = 0;
     /** pack → cleave disk radius; 0 / missing = single-target melee */
     private readonly cleaveRadiusByUnit = new Map<Unit, number>();
+    /**
+     * Collapse fronts rolling outward from a fallen Stronghold. Each kills the
+     * packs of its own side as it reaches them, so the army goes down from the
+     * keep outward instead of all at once.
+     */
+    private readonly collapseFronts: {
+        team: BattleTeam;
+        x: number;
+        z: number;
+        startedAt: number;
+        maxRadius: number;
+    }[] = [];
     /** scheduled spell strikes; each fires exactly once at its `at` time */
     private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
     /** ticking spell zones with their private rng streams and tick clocks */
@@ -767,6 +836,8 @@ export class BattleSim {
         igniteRadius?: number;
         fired: boolean;
     }[] = [];
+    /** when true, kills from applyBurnDamage use hammer pancake death */
+    private crushingHammer = false;
     /** oil/acid/fire drips along capsule paths — announce fall, then stamp on land */
     private readonly drips: {
         kind: 'oil' | 'acid' | 'fire';
@@ -785,6 +856,9 @@ export class BattleSim {
         announced: boolean;
         stamped: boolean;
         silent: boolean;
+        /** visual-only drip size (acid rain) */
+        dripScale?: number;
+        dripLean?: number;
     }[] = [];
 
     constructor(
@@ -794,7 +868,8 @@ export class BattleSim {
         this.hazards = config.oilField?.cloneForBattle() ?? new HazardField();
         for (const unit of units) {
             if (unit.destroyed) {
-                if (this.isDebuffBuilding(unit)) {
+                // a razed tower owes nothing here either — see Unit.razed
+                if (this.isDebuffBuilding(unit) && !unit.razed) {
                     this.extendSeatDebuff(unit.seat, unit.level);
                 }
                 continue; // rubble is not a target
@@ -826,11 +901,16 @@ export class BattleSim {
                     radius: unit.type.collisionRadius,
                     index: 0,
                     hurtTimer: 0,
-                    altitude: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
-                    prevAltitude: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
-                    footY: effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                    // a pinned pack (garrison archer on his battlement) owns
+                    // its own absolute Y — feetY already returns altitude
+                    // verbatim whenever it is above zero
+                    altitude: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                    prevAltitude:
+                        unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                    footY: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
                     rocketTarget: null,
                     goldenUntil: 0,
+                    stormDebuffUntil: 0,
                     spawnUntil: 0,
                     spawnDamaged: false,
                     pathDestX: null,
@@ -1146,22 +1226,38 @@ export class BattleSim {
         z: number,
         radius: number,
         profile: FireProfile | undefined,
+        opts?: { shotDir?: { x: number; z: number } },
     ): void {
         if (!profile) return;
         if (profile.oil) {
             const shields = livingShieldDisks(this.actors.map((a) => a.unit));
             const expires = this.config.oilExpiresRound ?? 9999;
-            this.hazards.stampOil(
-                x,
-                z,
-                profile.oil.radius,
-                expires,
-                shields,
-                this.elapsed,
-            );
+            const dir = opts?.shotDir;
+            if (dir && hypot(dir.x, dir.z) > 1e-6) {
+                this.hazards.stampOilDirected(
+                    x,
+                    z,
+                    profile.oil.radius,
+                    dir.x,
+                    dir.z,
+                    expires,
+                    shields,
+                    this.elapsed,
+                );
+            } else {
+                this.hazards.stampOil(
+                    x,
+                    z,
+                    profile.oil.radius,
+                    expires,
+                    shields,
+                    this.elapsed,
+                );
+            }
         }
         if (profile.ground) {
             const g = profile.ground;
+            const shields = livingShieldDisks(this.actors.map((a) => a.unit));
             const oilCells = this.hazards.stampFire(
                 x,
                 z,
@@ -1169,6 +1265,7 @@ export class BattleSim {
                 this.elapsed,
                 g.duration,
                 g.intensity,
+                shields,
             );
             const y = simGroundHeightAt(x, z);
             this.events.push({
@@ -1185,7 +1282,16 @@ export class BattleSim {
             this.hazards.igniteOilTouchingFire(this.elapsed);
         }
         if (!profile.burn) return;
-        const r = Math.max(radius, profile.ground?.radius ?? profile.oil?.radius ?? 0);
+        const oilReach = profile.oil
+            ? opts?.shotDir && hypot(opts.shotDir.x, opts.shotDir.z) > 1e-6
+                ? profile.oil.radius *
+                  OIL_DIRECTED_LENGTH_MUL *
+                  (OIL_DIRECTED_FWD +
+                      (OIL_DIRECTED_BACK + OIL_DIRECTED_FWD) * OIL_DIRECTED_TAIL_FRAC +
+                      OIL_DIRECTED_CROSS)
+                : profile.oil.radius
+            : 0;
+        const r = Math.max(radius, profile.ground?.radius ?? oilReach);
         for (const a of this.actors) {
             if (!a.alive) continue;
             if (hypot(a.x - x, a.z - z) > r + a.radius) continue;
@@ -1194,7 +1300,7 @@ export class BattleSim {
     }
 
     private fireProfileOf(source: Unit): FireProfile | undefined {
-        return resolveFireProfile(source.type, source.seat, this.config.hasTech);
+        return resolveFireProfile(source.type, source.seat, this.config.hasTech, this.config.loadoutOf(source.seat));
     }
 
     /**
@@ -1301,6 +1407,7 @@ export class BattleSim {
             z: a.z,
             radius,
             heavy: true,
+            shake: a.altitude > 0 ? (a.unit.type.cleaveShake ?? 0) : 0,
         });
         if (a.altitude > 0) {
             a.stompAt = this.elapsed;
@@ -1316,13 +1423,31 @@ export class BattleSim {
         // burning cells never leave oil behind when the flames go out
         this.hazards.consumeOilUnderFire(this.elapsed);
         this.hazards.igniteOilTouchingFire(this.elapsed);
+        const shields = livingShieldDisks(this.actors.map((u) => u.unit));
         for (const a of this.actors) {
             if (!a.alive) continue;
+
+            const underWard = insideAnyShield(a.x, a.z, shields);
+
+            // acid: toxic column at xz — ground and air both corrode (unlike fire/burn).
+            // Living wards protect units standing under them (spell / hazard carve).
+            if (!underWard && !a.unit.type.structure && this.hazards.hasAcidAt(a.x, a.z)) {
+                const dealt = ((a.maxHp * ACID_DPS_PERCENT) / 100) * dt * this.damageTakenMult(a);
+                this.applyBurnDamage(a, dealt);
+                a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
+            }
+
             if (a.altitude > 0) {
                 // air: clear any burn that somehow stuck (e.g. landed then took off)
                 continue;
             }
             if (a.unit.type.extra) continue;
+            if (underWard) {
+                // wards quench standing fire / burn DoT while covered
+                a.burnUntil = 0;
+                a.burnDps = 0;
+                continue;
+            }
 
             // standing in fire refreshes burn from cell intensity
             const cellDps = this.hazards.fireDpsAt(a.x, a.z, this.elapsed);
@@ -1342,18 +1467,6 @@ export class BattleSim {
             } else {
                 a.burnUntil = 0;
                 a.burnDps = 0;
-            }
-
-            // acid: continuous percent-of-max-HP damage while standing in the
-            // cell — same technical mechanism as oil's speed-slow (a per-step
-            // field read, gone the instant the unit steps off), no lingering
-            // DoT of its own. The corroded debuff (extra damage taken from
-            // EVERYTHING) is what lingers, via CORRODE_LINGER_SECONDS below.
-            // Ground hazard like oil/fire: ward domes do not block it.
-            if (!a.unit.type.structure && this.hazards.hasAcidAt(a.x, a.z)) {
-                const dealt = ((a.maxHp * ACID_DPS_PERCENT) / 100) * dt * this.damageTakenMult(a);
-                this.applyBurnDamage(a, dealt);
-                a.corrodedUntil = this.elapsed + CORRODE_LINGER_SECONDS;
             }
         }
     }
@@ -1384,8 +1497,10 @@ export class BattleSim {
     ): void {
         if (strength <= 0 || radius <= 0) return;
         const r = Math.max(0.5, radius);
+        const shields = livingShieldDisks(this.actors.map((a) => a.unit));
         for (const a of this.actors) {
             if (a.unit.type.structure || a.unit.type.extra) continue;
+            if (insideAnyShield(a.x, a.z, shields)) continue;
             const dist = hypot(a.x - x, a.z - z);
             const reach = r + a.radius;
             if (dist > reach) continue;
@@ -1693,7 +1808,7 @@ export class BattleSim {
         const levelMult = this.levelMult(child);
         const maxHp = stats.hp * levelMult;
         const shieldMax = hasShieldHp(child, this.config.hasTech) ? maxHp : 0;
-        const alt = effectiveFlying(child.type, child.seat, this.config.hasTech);
+        const alt = child.pinnedY ?? effectiveFlying(child.type, child.seat, this.config.hasTech);
         let nth = 0;
         const firstActorIdx = this.actors.length;
         for (const m of child.members) {
@@ -1722,6 +1837,7 @@ export class BattleSim {
                 footY: alt,
                 rocketTarget: null,
                 goldenUntil: 0,
+                stormDebuffUntil: 0,
                 spawnUntil: 0,
                 spawnDamaged: false,
                 pathDestX: null,
@@ -1986,6 +2102,8 @@ export class BattleSim {
                         x: d.x,
                         z: d.z,
                         at: d.landAt,
+                        dripScale: d.dripScale,
+                        dripLean: d.dripLean,
                     });
                 }
             }
@@ -2028,6 +2146,7 @@ export class BattleSim {
         const dz = f.z2 - f.z;
         const len = hypot(dx, dz);
         const steps = Math.max(1, Math.ceil(len / (f.radius * 0.7)));
+        const shields = livingShieldDisks(this.actors.map((a) => a.unit));
         for (let i = 0; i <= steps; i++) {
             const t = i / steps;
             const px = f.x + dx * t;
@@ -2039,6 +2158,7 @@ export class BattleSim {
                 this.elapsed,
                 f.burnSeconds,
                 f.intensity,
+                shields,
             );
             // one visual burst per stamp keeps the sweep readable
             this.events.push({
@@ -2053,11 +2173,10 @@ export class BattleSim {
         this.hazards.igniteOilTouchingFire(this.elapsed);
     }
 
-    /** one tick of a storm / meteor shower / poison zone (all point-targeted) */
+    /** one tick of a storm / meteor shower / acid-rain zone (all point-targeted) */
     private tickSpellZone(z: (typeof this.zones)[number], tickAt: number): void {
         if (z.mode === 'storm') {
-            // one lightning bolt at a random unit inside — canonical actor
-            // order + the zone's own rng keep the pick deterministic
+            // aim at a random unit inside; splash debuffs a disc around the strike
             const candidates = this.actors.filter(
                 (a) =>
                     a.alive &&
@@ -2073,21 +2192,30 @@ export class BattleSim {
                     hypot(target.x - d.x, target.z - d.z) <= d.unit.type.shield.radius,
             );
             if (dome) {
-                dome.hp -= z.damage;
-                dome.hurtTimer = HURT_BAR_SECONDS;
-                if (dome.hp <= 0) this.breakShield(dome);
+                // wards block the strike — no unit debuff
                 this.events.push({ kind: 'impact', x: dome.x, y: 3, z: dome.z });
-                this.events.push({ kind: 'spellLightning', x: dome.x, z: dome.z });
+                this.events.push({ kind: 'spellLightning', x: dome.x, y: 3, z: dome.z });
             } else {
-                this.applyBurnDamage(target, z.damage);
+                const splash = z.impactRadius ?? 0;
+                for (const a of this.actors) {
+                    if (!a.alive || a.unit.type.extra || a.unit.type.structure) continue;
+                    if (hypot(a.x - target.x, a.z - target.z) > splash + a.radius) continue;
+                    // units under a ward at the splash edge are still protected
+                    const underWard = this.actors.some(
+                        (d) =>
+                            d.alive &&
+                            d.unit.type.shield &&
+                            hypot(a.x - d.x, a.z - d.z) <= d.unit.type.shield.radius,
+                    );
+                    if (underWard) continue;
+                    this.applyStormDebuff(a);
+                }
                 this.events.push({
-                    kind: 'explosion',
+                    kind: 'spellLightning',
                     x: target.x,
                     y: target.footY + 0.8,
                     z: target.z,
-                    radius: 2.5,
                 });
-                this.events.push({ kind: 'spellLightning', x: target.x, z: target.z });
             }
             return;
         }
@@ -2122,12 +2250,46 @@ export class BattleSim {
             });
             return;
         }
-        // poison: gas gnaws at EVERY unit inside — seeps under ward domes;
-        // only poison-proof unit types ignore it
-        for (const a of this.actors) {
-            if (!a.alive || a.unit.type.extra || a.unit.type.poisonImmune) continue;
-            if (hypot(a.x - z.x, a.z - z.z) > z.radius + a.radius) continue;
-            this.applyBurnDamage(a, z.damage);
+        if (z.mode === 'acidRain') {
+            // Several small acid drips per tick — sparse puddles over a huge circle.
+            const drops = Math.max(1, z.dropsPerTick ?? 1);
+            const puddleR = z.impactRadius ?? 2;
+            const expires =
+                z.acidExpiresRound ?? this.config.oilExpiresRound ?? 9999;
+            const fallSec = HAZARD_DRIP_FALL_SEC;
+            for (let d = 0; d < drops; d++) {
+                let ox = 0;
+                let oz = 0;
+                for (let tries = 0; tries < 16; tries++) {
+                    const cx = (z.rng() * 2 - 1) * z.radius;
+                    const cz = (z.rng() * 2 - 1) * z.radius;
+                    if (cx * cx + cz * cz <= z.radius * z.radius) {
+                        ox = cx;
+                        oz = cz;
+                        break;
+                    }
+                }
+                const landAt = tickAt + fallSec;
+                this.drips.push({
+                    kind: 'acid',
+                    x: z.x + ox,
+                    z: z.z + oz,
+                    radius: puddleR,
+                    expiresRound: expires,
+                    burnSeconds: 0,
+                    intensity: 0,
+                    damage: 0,
+                    tint: FIRE_TINT_NORMAL,
+                    fallStart: tickAt,
+                    landAt,
+                    announced: false,
+                    stamped: false,
+                    silent: false,
+                    dripScale: 0.48,
+                    dripLean: 0.8,
+                });
+            }
+            return;
         }
     }
 
@@ -2173,7 +2335,8 @@ export class BattleSim {
      * One area strike: everything in the blast takes environmental damage
      * (both teams, air included) — except targets under a living ward dome.
      * Each dome involved eats the strike damage ONCE and can break.
-     * Hammer uses the HAMMER_ZONE rectangle; other strikes use a circle.
+     * Hammer uses the HAMMER_ZONE rectangle (same as ground scar) for both
+     * ground and air; other strikes use a circle.
      * Strikes whose impact point lies inside a ward disc are absorbed at the
      * roof (meteors / hammers do not pass through).
      */
@@ -2193,7 +2356,7 @@ export class BattleSim {
         const y = simGroundHeightAt(s.x, s.z);
         const hammer = s.tacticId === HAMMER_ID;
         const meteor = s.tacticId === BIG_METEOR_ID;
-        // particles/scorch: cover the hammer footprint (approx half-diagonal)
+        // particles: cover the hammer footprint (approx half-diagonal)
         const visualRadius = hammer
             ? Math.sqrt(HAMMER_ZONE.halfWidth * HAMMER_ZONE.halfWidth + HAMMER_ZONE.halfDepth * HAMMER_ZONE.halfDepth)
             : s.radius;
@@ -2207,14 +2370,33 @@ export class BattleSim {
             heavy: hammer || meteor,
             fire: meteor,
             shake: meteor ? 1 : 0,
+            rect: hammer
+                ? {
+                      // scar = hit zone (HAMMER_ZONE) — ground + air damage use the same rect
+                      halfWidth: HAMMER_ZONE.halfWidth,
+                      halfDepth: HAMMER_ZONE.halfDepth,
+                      yaw: s.yaw ?? 0,
+                  }
+                : undefined,
         });
-        this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
-        this.applyBlastImpulse(
-            s.x,
-            s.z,
-            visualRadius,
-            meteor ? 2.6 : hammer ? 2.2 : 1.5,
-        );
+        if (hammer) {
+            this.crushingHammer = true;
+            this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
+            this.crushingHammer = false;
+            this.events.push({
+                kind: 'hammerCrush',
+                x: s.x,
+                z: s.z,
+                halfWidth: HAMMER_ZONE.halfWidth,
+                halfDepth: HAMMER_ZONE.halfDepth,
+                yaw: s.yaw ?? 0,
+            });
+            // No blast shove — impulse was sliding pancakes (and their meshes)
+            // outside the scar while blood stayed at the kill seat.
+        } else {
+            this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
+            this.applyBlastImpulse(s.x, s.z, visualRadius, meteor ? 2.6 : 1.5);
+        }
     }
 
     /**
@@ -2260,6 +2442,82 @@ export class BattleSim {
             d.hp -= damage;
             d.hurtTimer = HURT_BAR_SECONDS;
             if (d.hp <= 0) this.breakShield(d);
+        }
+    }
+
+    /**
+     * Debug/cheat: kill every living actor a predicate picks, through the same
+     * `kill` a real blow uses — so a Stronghold dropped this way still runs the
+     * lifeline wipe, the collapse shockwave and every death that follows.
+     *
+     * Not an action and not logged: single-player only, and calling it in a
+     * networked match would desync the moment the peer replayed without it.
+     */
+    cheatDestroy(pick: (unit: Unit) => boolean): void {
+        for (const a of this.actors) {
+            if (!a.alive || !pick(a.unit)) continue;
+            this.kill(a, null, a.maxHp);
+        }
+    }
+
+    /** far corner of the board from here — where a front stops mattering */
+    private collapseReach(x: number, z: number): number {
+        const hw = this.config.boardHalfW ?? 200;
+        const hh = this.config.boardHalfZ ?? 200;
+        return (
+            Math.max(
+                hypot(x + hw, z + hh),
+                hypot(x - hw, z + hh),
+                hypot(x + hw, z - hh),
+                hypot(x - hw, z - hh),
+            ) * 1.05
+        );
+    }
+
+    /**
+     * Advance every collapse front and kill what it has reached. Radius is read
+     * off the sim clock, not accumulated per step, so a client that ran its
+     * steps in a different rhythm still kills the same packs at the same tick.
+     */
+    private stepCollapseFronts(): void {
+        for (let i = this.collapseFronts.length - 1; i >= 0; i--) {
+            const f = this.collapseFronts[i]!;
+            const radius = (this.elapsed - f.startedAt) * COLLAPSE_SPEED;
+            if (radius >= f.maxRadius) {
+                this.collapseFronts.splice(i, 1);
+                continue;
+            }
+            for (const a of this.actors) {
+                if (!a.alive) continue;
+                // its own side, and the horde with it: this is a keep's worth of
+                // masonry going outward, and the besiegers are standing in it.
+                // An enemy army keeps its own Stronghold's fate to itself.
+                if (actorTeam(a) !== f.team && actorTeam(a) !== 'horde') continue;
+                const dx = a.x - f.x;
+                const dz = a.z - f.z;
+                if (hypot(dx, dz) > radius) continue; // the front has not arrived
+                const len = hypot(dx, dz) || 1;
+                const away = { x: dx / len, z: dz / len };
+                if (a.unit.type.shield) {
+                    // A Ward Stone has no colliders — nothing can shoot it, and
+                    // its only end is its pool running out. Take that path
+                    // rather than kill(), or the dome is left hanging over a
+                    // pylon that has already fallen.
+                    this.breakShield(a);
+                    continue;
+                }
+                if (a.unit.type.structure) {
+                    // the base goes down with the keep. Towers topple away from
+                    // it, but a razed tower is not one an enemy brought down:
+                    // razed, so it leaves its side no parting debuff.
+                    this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, false, true);
+                    continue;
+                }
+                this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, true);
+                // and keeps sliding — the same corpse impulse a blast applies
+                a.impulseX = away.x * COLLAPSE_SHOVE;
+                a.impulseZ = away.z * COLLAPSE_SHOVE;
+            }
         }
     }
 
@@ -2365,12 +2623,20 @@ export class BattleSim {
         this.debuffUntil.set(seat, Math.max(this.debuffUntil.get(seat) ?? 0, this.elapsed) + add);
     }
 
-    /** tower-destruction debuff is active for this mech's OWN seat right now
-     *  (not its side/team — a teammate's building loss never debuffs it) */
+    /** tower-destruction or storm-bolt debuff is active for this mech right now.
+     *  Seat tower loss affects the whole seat; storm bolts are personal.
+     *  Golden aura / debuff-immune items shrug both off. */
     private isDebuffed(actor: Actor): boolean {
         if (this.isGolden(actor)) return false;
+        if (actor.stormDebuffUntil > this.elapsed + 1e-9) return true;
         const until = this.debuffUntil.get(actor.unit.seat) ?? 0;
         return this.elapsed < until - 1e-9;
+    }
+
+    /** refresh personal storm debuff (same multipliers as tower loss) */
+    private applyStormDebuff(actor: Actor): void {
+        if (this.isGolden(actor) || actor.unit.type.structure || actor.unit.type.extra) return;
+        actor.stormDebuffUntil = Math.max(actor.stormDebuffUntil, this.elapsed + STORM_DEBUFF_SEC);
     }
 
     /** flat tower-destruction multiplier — only while the debuff timer runs.
@@ -2439,13 +2705,16 @@ export class BattleSim {
     ): CrashLand[] {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
-            // debuff severity is flat now (see debuff/isDebuffed) — no
-            // count to reflect, just whether it's active or not
-            let tint: 'normal' | 'golden' | 'debuff' | 'spawning' = 'normal';
+            // golden > tower debuff > acid (corroded) > burn DoT > spawning
+            let tint: 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning' = 'normal';
             let spawnProgress = 0;
             if (this.isGolden(a)) tint = 'golden';
             else if (this.isDebuffed(a) && (debuffTintAt?.(a.unit.seat, a.x, a.z) ?? true)) {
                 tint = 'debuff';
+            } else if (a.corrodedUntil > this.elapsed) {
+                tint = 'acid';
+            } else if (a.burnUntil > this.elapsed && a.burnDps > 0) {
+                tint = 'burn';
             } else if (this.isSpawning(a)) {
                 tint = 'spawning';
                 spawnProgress = this.spawnProgress(a);
@@ -2470,14 +2739,22 @@ export class BattleSim {
                     settleCorpsePose(a.mesh);
                     clearDeathTip(a.mesh);
                 }
+            } else if (a.mesh.userData.hammerCrushed) {
+                // Keep the 4% pancake on the lawn (not sunk like standing feet)
+                const wx = a.unit.world.x + a.mesh.position.x;
+                const wz = a.unit.world.z + a.mesh.position.z;
+                const gy = worldHeightAt(wx, wz) + HAMMER_CRUSH_SEAT_Y;
+                a.mesh.position.y = gy;
+                const crush = a.mesh.userData.buildingCollapse as BuildingCollapseState | undefined;
+                if (crush) crush.startY = gy;
             } else {
                 // Settled wreck: hug terrain height + slope
                 const wx = a.unit.world.x + a.mesh.position.x;
                 const wz = a.unit.world.z + a.mesh.position.z;
                 alignSettledCorpse(a.mesh, wx, wz, worldHeightAt(wx, wz) + GROUND_UNIT_Y);
             }
-            // Settled / tipping wrecks still slide from later blasts
-            if (!fall) {
+            // Settled / tipping wrecks still slide from later blasts — not hammer pancakes
+            if (!fall && !a.mesh.userData.hammerCrushed) {
                 const ix = a.impulseX ?? 0;
                 const iz = a.impulseZ ?? 0;
                 if (Math.hypot(ix, iz) > 0.008) {
@@ -2498,11 +2775,21 @@ export class BattleSim {
             }
             if (fall || tip) continue;
         }
-        // Destroyed structures settle into rubble (render-only; sim death is instant)
+        // Destroyed structures settle into rubble; hammer-crushed units pancake
         for (const a of this.actors) {
-            if (a.alive || !a.unit.type.structure) continue;
+            if (a.alive) continue;
             const collapse = a.mesh.userData.buildingCollapse as BuildingCollapseState | undefined;
-            if (collapse && !tickBuildingCollapse(a.mesh, collapse, timeSeconds)) {
+            if (a.mesh.userData.hammerCrushed) {
+                // structures skip the dead-mech loop above — seat pancakes here too
+                const wx = a.unit.world.x + a.mesh.position.x;
+                const wz = a.unit.world.z + a.mesh.position.z;
+                const gy = worldHeightAt(wx, wz) + HAMMER_CRUSH_SEAT_Y;
+                if (collapse) collapse.startY = gy;
+                else a.mesh.position.y = gy;
+            }
+            if (!collapse) continue;
+            if (!a.unit.type.structure && !a.mesh.userData.hammerCrushed) continue;
+            if (!tickBuildingCollapse(a.mesh, collapse, timeSeconds)) {
                 clearBuildingCollapse(a.mesh);
             }
         }
@@ -2525,8 +2812,12 @@ export class BattleSim {
         a.prevCooldown = a.cooldown;
         const recoil = a.recoil ?? 0;
 
-        // walk factor from per-step displacement (0 standing, ~1 at full speed)
-        const moving = Math.min(1, Math.hypot(a.x - a.prevX, a.z - a.prevZ) / 0.12);
+        // Fraction of UnitType.speed actually traveled this step (0 idle, ~1
+        // full, ~0.1 when stunned). Same idea as skinned walk timeScale.
+        const stepDist = Math.hypot(a.x - a.prevX, a.z - a.prevZ);
+        const stepDt = this.prevStepDt || BattleSim.STEP;
+        const nominal = a.unit.type.speed * stepDt;
+        const moving = nominal > 1e-6 ? Math.min(1, stepDist / nominal) : 0;
         const yaw = a.mesh.rotation.y;
 
         // ground units stride, roll, and lean forward as they walk; flyers keep
@@ -2544,10 +2835,20 @@ export class BattleSim {
             // plane (see feetY), so this can't affect determinism.
             const groundY = worldHeightAt(a.rx, a.rz) + GROUND_UNIT_Y;
             if (!a.mesh.userData.animated) {
-                const gait = Math.sin(timeSeconds * 9 + a.index);
-                a.mesh.position.y = groundY + Math.abs(gait) * 0.16 * moving + recoil * 0.06;
-                a.mesh.rotation.z = gait * 0.06 * moving; // side-to-side roll
-                a.mesh.rotation.x = -0.06 * moving; // slight lean — kept small so noses don't dig in
+                const lean = a.unit.type.walkLean ?? 1;
+                const cadence = a.unit.type.walkCadence ?? 1;
+                // Integrate on render frames (not SIM_HZ) — stepping phase only
+                // on sim ticks made lean hold then jump (~4 frames at 60fps).
+                const last = a.gaitTime ?? timeSeconds;
+                const dt = Math.max(0, Math.min(0.1, timeSeconds - last));
+                a.gaitTime = timeSeconds;
+                a.gaitPhase = (a.gaitPhase ?? 0) + dt * 9 * cadence * moving;
+                const gait = Math.sin((a.gaitPhase ?? 0) + a.index);
+                a.mesh.position.y =
+                    groundY + Math.abs(gait) * 0.16 * lean * moving + recoil * 0.06;
+                a.mesh.rotation.z = gait * 0.06 * lean * moving; // side-to-side roll
+                // slight lean — walkLean can push dwarves harder; base stays small
+                a.mesh.rotation.x = -0.06 * lean * moving;
             } else {
                 a.mesh.position.y = groundY;
             }
@@ -2555,7 +2856,12 @@ export class BattleSim {
             // climb from deployment hover (ground + DEPLOY_AIR_Y) to the combat
             // air layer via unit.flightLift — battle used to snap to altitude
             // immediately, which read as a teleport especially on hills
-            const lift = a.unit.flightLift;
+            // A pinned pack is already exactly where it belongs — it never
+            // climbed out of a deployment hover, so it must not be lerped from
+            // one. Without this the garrison archer's lift stays 0 (tickFlight
+            // only ramps real flyers) and the climb resolves to ground level:
+            // he renders inside his own keep and shoots from in there.
+            const lift = a.unit.pinnedY != null ? 1 : a.unit.flightLift;
             const fromY = worldHeightAt(a.rx, a.rz) + DEPLOY_AIR_Y;
             const hoverY = fromY + (a.altitude - fromY) * lift;
             const groundY = worldHeightAt(a.rx, a.rz) + GROUND_UNIT_Y;
@@ -2573,10 +2879,15 @@ export class BattleSim {
                 destZ = a.stompVictim.rz;
                 destY = a.stompVictim.footY + a.stompVictim.unit.type.meshScale * 0.55;
             }
-            a.mesh.position.y =
-                hoverY +
-                (destY - hoverY) * stomp.drop +
-                (stomp.drop < 0.02 ? Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift : 0);
+            // Idle hover sway — for things that actually hover. A pinned pack is
+            // standing on stone, and lift is 1 for it by construction, so
+            // without this exclusion it drifts a third of a unit up and down
+            // on its own battlement.
+            const hoverBob =
+                a.unit.pinnedY != null || stomp.drop >= 0.02
+                    ? 0
+                    : Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift;
+            a.mesh.position.y = hoverY + (destY - hoverY) * stomp.drop + hoverBob;
             if (a.stompAir && stomp.drop > 0.01) {
                 a.mesh.position.x += (destX - a.rx) * stomp.drop;
                 a.mesh.position.z += (destZ - a.rz) * stomp.drop;
@@ -2708,6 +3019,14 @@ export class BattleSim {
         killer: Unit | null,
         dealt = 0,
         knockDir?: { x: number; z: number },
+        /** force the heavy gore burst a large pack gets — see the `big` event field */
+        violent = false,
+        /**
+         * Flattened by its own keep coming down, rather than destroyed by an
+         * enemy. The building still falls, but none of the bookkeeping a real
+         * kill carries applies — nobody earned this.
+         */
+        razed = false,
     ): void {
         if (killer) killer.kills++;
         // no XP for executing a still-spawning pack — it never fully arrived
@@ -2744,18 +3063,34 @@ export class BattleSim {
             // erupt from the torso (footY tracks ground + altitude), not the feet
             y: target.footY + t.meshScale * 1.3,
             z: target.z,
-            big: target.radius >= 2 || !!t.structure,
+            big: violent || target.radius >= 2 || !!t.structure,
+            fling: violent ? COLLAPSE_GORE_FLING : razed ? COLLAPSE_DEBRIS_FLING : undefined,
             wear,
             structure: !!t.structure,
             structureHeight,
             structureRadius: t.structure ? target.radius : undefined,
             blood: wear === 'blood' ? bloodColorOf(t) : undefined,
+            ashScorch: wear === 'ash' ? t.deathAshScorch : undefined,
             dx: klen > 1e-6 ? knockDir!.x / klen : undefined,
             dz: klen > 1e-6 ? knockDir!.z / klen : undefined,
+            bloodScale: this.crushingHammer && wear === 'blood' ? 1.25 : undefined,
         });
         if (t.structure) {
-            target.unit.markDestroyed(knockDir ?? undefined);
-            if (this.isDebuffBuilding(target.unit)) {
+            if (razed) target.unit.razed = true;
+            target.unit.markDestroyed(knockDir ?? undefined, {
+                crush: this.crushingHammer,
+            });
+            // The garrison cannot be shot at — the keep under it is the only
+            // way in, so when the keep goes the wall goes with it. Killed with
+            // no killer: the besieger earned the Stronghold, not four archers.
+            if (target.unit.type === STRONGHOLD) {
+                for (const a of this.actors) {
+                    if (!a.alive || a.unit.type !== GARRISON_ARCHER) continue;
+                    if (a.unit.seat !== target.unit.seat) continue;
+                    this.kill(a, null, a.maxHp, undefined, true);
+                }
+            }
+            if (this.isDebuffBuilding(target.unit) && !razed) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
                 // half tower height — tallest collider × meshScale / 2
                 const towerTop =
@@ -2770,6 +3105,26 @@ export class BattleSim {
                     level: target.unit.level,
                 });
             }
+        } else if (this.crushingHammer) {
+            // Hammer: pancake flat — no tip / crash tumble
+            // Seat ON the lawn (HAMMER_CRUSH_SEAT_Y), not GROUND_UNIT_Y — 4% flats vanish if sunk
+            const groundY = worldHeightAt(target.x, target.z) + HAMMER_CRUSH_SEAT_Y;
+            clearDeathFall(target.mesh);
+            clearDeathTip(target.mesh);
+            clearCorpsePose(target.mesh);
+            const tip = groundTipAt(target.x, target.z);
+            beginHammerCrush(target.mesh, {
+                groundY,
+                spin: hammerCrushSpin(target.index + 17),
+                endTipX: tip.tipX,
+                endTipZ: tip.tipZ,
+            });
+            target.mesh.userData.dead = true;
+            clearBattleTint(target.mesh);
+            if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
+            // setDead after crush flag so pancakes stay visible even if wrecks are hidden
+            getUnitInstanceRenderer()?.setDead(target.mesh);
+            target.mesh.visible = true;
         } else {
             // tip over along the killing blow (fallback: slight random lean)
             const amount = dealt > 0 ? deathTipAmount(dealt, target.maxHp) : Math.PI * 0.5;
@@ -2823,8 +3178,33 @@ export class BattleSim {
                 beginDeathTip(target.mesh, tips.tipZ, groundY, -1, tips.tipX);
             }
             target.mesh.userData.dead = true;
+            clearBattleTint(target.mesh);
             if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
             getUnitInstanceRenderer()?.setDead(target.mesh);
+        }
+        // Lifeline: a side's army stands only while its Stronghold does. Killed
+        // with no killer, so this grants no XP and triggers no on-kill spawns —
+        // the Stronghold's slayer earns the siege, not a dozen extra kills. The
+        // round then ends on its own, with nothing mobile left on that side.
+        if (this.config.strongholdLifeline && target.unit.type === STRONGHOLD) {
+            const towerTop = Math.max(1, ...t.colliders.map((c) => c.y)) * t.meshScale;
+            const maxRadius = this.collapseReach(target.x, target.z);
+            this.collapseFronts.push({
+                team: actorTeam(target),
+                x: target.x,
+                z: target.z,
+                startedAt: this.elapsed,
+                maxRadius,
+            });
+            this.events.push({
+                kind: 'strongholdCollapse',
+                team: target.unit.team,
+                x: target.x,
+                y: target.altitude + towerTop * 0.5,
+                z: target.z,
+                speed: COLLAPSE_SPEED,
+                maxRadius,
+            });
         }
     }
 
@@ -2933,7 +3313,7 @@ export class BattleSim {
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                                 this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                             }
-                            faceToward(a, Math.atan2(-tdx, -tdz), dt);
+                            faceToward(a, detAtan2(-tdx, -tdz), dt);
                             continue;
                         }
                         // ranged / convert-ray on a rally route: fire while marching
@@ -2966,9 +3346,9 @@ export class BattleSim {
             const reach = stats.range + a.radius + target.radius;
             const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
 
-            // dead zone: the closest enemy is too near and nothing shootable is
-            // left (closestEnemy only returns a too-close foe as a last resort) —
-            // back straight away until it clears the min range and a shot opens
+            // dead zone: no foe outside min range to shoot or walk toward
+            // (closestEnemy only hands back a too-close target as last resort) —
+            // back away until the ring clears or a better target appears
             if (minReach > 0 && tDist < minReach) {
                 // Back away while still aiming at the foe (don't bank into the retreat vector).
                 this.steerToward(
@@ -2982,7 +3362,7 @@ export class BattleSim {
                     target,
                     bigs,
                     0,
-                    { aimYaw: Math.atan2(tdx, tdz), locomotion: 'track' },
+                    { aimYaw: detAtan2(tdx, tdz), locomotion: 'track' },
                 );
                 continue;
             }
@@ -3007,7 +3387,7 @@ export class BattleSim {
                         this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                     }
                 }
-                faceToward(a, Math.atan2(-tdx, -tdz), dt);
+                faceToward(a, detAtan2(-tdx, -tdz), dt);
                 continue;
             }
 
@@ -3044,6 +3424,9 @@ export class BattleSim {
         this.stepHazards(dt);
         add('projectiles');
         this.flushOnKillSpawns();
+        // after the kills, so a Stronghold felled this step starts its front on
+        // the next one rather than reaching halfway across the board instantly
+        this.stepCollapseFronts();
         this.prevStepDt = dt;
     }
 
@@ -3071,6 +3454,9 @@ export class BattleSim {
         stopMargin = 0,
         opts?: { aimYaw?: number; locomotion?: 'track' | 'pivot' | 'cruise' },
     ): void {
+        // A pinned pack is standing on something. Whatever the stats say, and
+        // whatever route or rally or bonus points elsewhere, it does not walk.
+        if (a.unit.pinnedY != null) return;
         let steerX = seekX;
         let steerZ = seekZ;
 
@@ -3117,7 +3503,7 @@ export class BattleSim {
         if (steerLen > 1e-4) {
             steerX /= steerLen;
             steerZ /= steerLen;
-            const desiredYaw = opts?.aimYaw ?? Math.atan2(-steerX, -steerZ);
+            const desiredYaw = opts?.aimYaw ?? detAtan2(-steerX, -steerZ);
             const mode = opts?.locomotion ?? a.unit.type.turnMove ?? 'track';
             faceToward(a, desiredYaw, dt);
             if (mode === 'pivot' && !facingAligned(a, desiredYaw)) return;
@@ -3125,8 +3511,10 @@ export class BattleSim {
             let moveX = steerX;
             let moveZ = steerZ;
             if (mode === 'cruise') {
-                moveX = -Math.sin(a.facing);
-                moveZ = -Math.cos(a.facing);
+                // detSin/detCos, not Math.*: this is the movement vector, not a
+                // visual offset — it lands in a.x/a.z, which the state hash mixes
+                moveX = -detSin(a.facing);
+                moveZ = -detCos(a.facing);
             }
 
             const speed =
@@ -3161,7 +3549,7 @@ export class BattleSim {
         const move = speed * dt;
         a.x += (-a.x / dist) * move;
         a.z += (-a.z / dist) * move;
-        faceToward(a, Math.atan2(a.x / dist, a.z / dist), dt);
+        faceToward(a, detAtan2(a.x / dist, a.z / dist), dt);
     }
 
     /**
@@ -3424,6 +3812,12 @@ export class BattleSim {
             team: actorTeam(a),
             source: a.unit,
             style: at.projectileStyle ?? 'bolt',
+            lit: (() => {
+                const style = at.projectileStyle ?? 'bolt';
+                if (style !== 'arrow' && style !== 'largeArrow') return false;
+                const fire = this.fireProfileOf(a.unit);
+                return !!(fire?.burn || fire?.ground);
+            })(),
             gravity,
             target: at.homing ? target : undefined,
             ttl: PROJECTILE_TTL,
@@ -3604,7 +3998,9 @@ export class BattleSim {
                         dropStone: p.style === 'stone',
                     });
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit);
-                    this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source));
+                    this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source), {
+                        shotDir: { x: sx, z: sz },
+                    });
                     this.applyCorrodeOnHit(p.source, hit);
                 }
                 continue; // bullet consumed
@@ -3647,7 +4043,9 @@ export class BattleSim {
                         dropStone: p.style === 'stone',
                     });
                     this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
-                    this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source));
+                    this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source), {
+                        shotDir: { x: sx, z: sz },
+                    });
                 }
                 continue;
             }
@@ -3686,7 +4084,7 @@ export class BattleSim {
             if (hypot(a.x - x, a.z - z) > radius + a.radius) continue;
             const dealt = p.damage * this.damageTakenMult(a);
             const knock =
-                shotDir && Math.hypot(shotDir.x, shotDir.z) > 1e-6
+                shotDir && hypot(shotDir.x, shotDir.z) > 1e-6
                     ? shotDir
                     : { x: a.x - x, z: a.z - z };
             this.applyDamage(
@@ -3706,7 +4104,7 @@ export class BattleSim {
                   : 1.1;
         this.applyBlastImpulse(x, z, radius, blastStrength, shotDir);
         // burn + ground fire (friendly fire) — after kinetic hits
-        this.applyFireAt(p.source, x, z, radius, this.fireProfileOf(p.source));
+        this.applyFireAt(p.source, x, z, radius, this.fireProfileOf(p.source), { shotDir });
     }
 
     /** mass-based push-out: heavy units shove light ones aside, structures never move */
@@ -3981,6 +4379,7 @@ export class BattleSim {
                 target.alive &&
                 actorTeam(target) !== team &&
                 !target.unit.type.extra &&
+                !target.unit.type.notAcquired &&
                 // structures are valid ray victims (damage, not convert)
                 (target.unit.type.structure ||
                     (target.altitude > 0 ? targets.air : targets.ground)) &&
@@ -4092,6 +4491,7 @@ export class BattleSim {
             if (!a.alive || actorTeam(a) === team) continue;
             // board extras (wards) are hit via beam blocking, not as ray targets
             if (a.unit.type.extra) continue;
+            if (a.unit.type.notAcquired) continue; // nobody aims a beam at him either
             if (a.unit.type.structure) {
                 // buildings: always ground ray victims (damage, not convert)
             } else if (a.altitude > 0 ? !targets.air : !targets.ground) {
@@ -4160,9 +4560,24 @@ export class BattleSim {
      * With `anyLayer` the matrix is ignored — used to pick something to walk
      * to and wait at when no attackable enemy is left.
      *
+     * Min-range (dead zone): prefer any foe outside the ring (shoot or walk
+     * toward). Only return a too-close foe when nothing else is left — the
+     * caller then flees. Sticky chase never locks onto a dead-zone target.
+     *
      * Uses an expanding-ring spatial search over {@link targetHash} (rebuilt
      * at step start) so cost stays near O(k) instead of O(n) per mech.
      */
+    /**
+     * A pack with a field of fire only sees foes inside it. Everyone else has
+     * `fovYaw` null and sees the whole board, so this is free for them.
+     */
+    private inFieldOfFire(from: Actor, target: Actor): boolean {
+        const fov = from.unit.fovYaw;
+        if (fov == null) return true;
+        const ang = detAtan2(target.x - from.x, target.z - from.z);
+        return Math.abs(wrapPi(ang - fov)) <= GARRISON_FOV_HALF;
+    }
+
     private closestEnemy(from: Actor, anyLayer = false): Actor | null {
         const layer = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech);
         const wantAir = anyLayer || layer.air;
@@ -4173,21 +4588,27 @@ export class BattleSim {
             cached.alive &&
             actorTeam(cached) !== actorTeam(from) &&
             !cached.unit.type.extra &&
+            !cached.unit.type.notAcquired &&
+            this.inFieldOfFire(from, cached) &&
             (cached.altitude > 0 ? wantAir : wantGround);
 
         const stats = this.resolved.get(from.unit)!;
         const minRange = stats.minRange;
+        const inDeadZone = (cached: Actor): boolean => {
+            if (minRange <= 0) return false;
+            const minReach = minRange + from.radius + cached.radius;
+            const dx = cached.x - from.x;
+            const dz = cached.z - from.z;
+            return dx * dx + dz * dz < minReach * minReach;
+        };
         const inWeaponRange = (cached: Actor): boolean => {
             const reach = stats.range + from.radius + cached.radius;
             const dx = cached.x - from.x;
             const dz = cached.z - from.z;
             const d2 = dx * dx + dz * dz;
             if (d2 > reach * reach) return false;
-            if (minRange > 0) {
-                // inside the dead zone: not a live engagement — force re-evaluation
-                const minReach = minRange + from.radius + cached.radius;
-                if (d2 < minReach * minReach) return false;
-            }
+            if (inDeadZone(cached)) return false;
+            if (!this.inFieldOfFire(from, cached)) return false;
             return true;
         };
 
@@ -4198,16 +4619,17 @@ export class BattleSim {
                 return cached;
             }
             const refresh = ((this.stepIndex + from.index) % TARGET_REFRESH_STEPS) === 0;
-            // out of range (or no cache): keep chasing the same foe between refreshes
-            if (!refresh && cached && cacheOk(cached)) {
+            // Chase sticky between refreshes — but never lock onto a dead-zone
+            // foe (that would kite instead of walking to a shootable target).
+            if (!refresh && cached && cacheOk(cached) && !inDeadZone(cached)) {
                 return cached;
             }
         }
 
         const team = actorTeam(from);
-        // `best` = closest enemy this unit can actually shoot (outside its dead
-        // zone). `bestAny` = closest enemy regardless — the kite fallback when
-        // everything left is too close. For minRange 0 they're always identical.
+        // `best` = closest foe outside the dead zone (fire at / walk toward).
+        // `bestAny` = closest foe including inside min range — flee fallback
+        // only when `best` is empty. For minRange 0 they're always identical.
         let best: Actor | null = null;
         let bestD = Infinity;
         let bestAny: Actor | null = null;
@@ -4217,7 +4639,10 @@ export class BattleSim {
 
         const consider = (a: Actor): void => {
             if (!a.alive || actorTeam(a) === team) return;
+            // in the hash so shots can cross him, but never picked to shoot at
+            if (a.unit.type.notAcquired) return;
             if (a.altitude > 0 ? !wantAir : !wantGround) return;
+            if (!this.inFieldOfFire(from, a)) return;
             const ddx = a.x - from.x;
             const ddz = a.z - from.z;
             const d = ddx * ddx + ddz * ddz;
@@ -4227,7 +4652,7 @@ export class BattleSim {
             }
             if (minRange > 0) {
                 const minReach = minRange + from.radius + a.radius;
-                if (d < minReach * minReach) return; // dead zone — can't shoot it
+                if (d < minReach * minReach) return; // dead zone — not a walk/shoot pick
             }
             if (d < bestD || (d === bestD && best !== null && a.index < best.index)) {
                 bestD = d;
@@ -4260,8 +4685,8 @@ export class BattleSim {
                 scanCell(cx + ring, cz + dz);
             }
         }
-        // prefer a shootable target; fall back to the closest (too-close) one so
-        // the caller can kite away from it
+        // Prefer outside-dead-zone (shoot or approach); only then kite the
+        // closest too-close foe.
         const result = best ?? bestAny;
         if (!anyLayer) {
             if (from.cachedEnemy !== result) {

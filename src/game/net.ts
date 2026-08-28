@@ -6,8 +6,10 @@ import type { DebugEvent } from './debugLog';
 import type { ChatItem } from './emotes';
 import { getPlayerName, peerRoomId, roomCodeFromName } from './player';
 import { getAvatarDataUrl } from './avatar';
+import { activeLoadout } from './loadouts';
+import type { Loadout } from './techCatalog';
 import type { CanonicalSeatDef, SeatId } from './seats';
-import type { GameSettings } from './settings';
+import type { GameSettings, StrongholdMode } from './settings';
 import type { Team } from './units';
 
 /** PeerJS signaling target — null means the public PeerJS cloud. */
@@ -267,6 +269,8 @@ export interface CustomGameConfig {
     roundCardPreset: string;
     /** multiplies each commander card’s starting HP (both teams); see GameSettings.commanderHpFactor */
     commanderHpFactor: number;
+    /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
+    strongholdMode: StrongholdMode;
 }
 
 /**
@@ -317,23 +321,6 @@ export type NetMessage =
      *  the same spectator-only wire tag as on `action` above. `seq` is the
      *  same per-seat monotonic counter `action` uses (see its doc comment). */
     | { type: 'undo'; round: number; seat?: SeatId; side?: 'a' | 'b'; seq: number }
-    /** state checksum at every battle start — mismatch = desync, triggers a resync */
-    | { type: 'check'; round: number; hash: number }
-    /** a reloaded/rejoining peer asks for the full match state */
-    | { type: 'resume' }
-    /** the survivor's answer: seed + full action log (in the SENDER's perspective);
-     *  battleElapsed = how far its currently RUNNING battle has played (null in build);
-     *  phaseRemaining = the sender's live build-phase clock (replay can't
-     *  reconstruct it — it isn't a logged action) */
-    | {
-          type: 'state';
-          version: number;
-          seed: number;
-          settings: GameSettings;
-          actions: LoggedAction[];
-          battleElapsed: number | null;
-          phaseRemaining: number;
-      }
     /** battle playback speed — kept in sync so both players finish together */
     | { type: 'speed'; multiplier: number }
     /** chat: emote or short text — never part of game state. `from` is
@@ -393,7 +380,16 @@ export type NetMessage =
     // ---- star topology (2v2+, N seats): host-relayed, own message family so
     // the classic 2-seat path above stays completely untouched ------------
     /** guest's opening handshake on connecting to a star (2v2+) room */
-    | { type: 'starJoin'; name: string; version: number; avatar?: string | null }
+    /** `loadout` is the joiner's own talent picks — combat-affecting, so the
+     *  host normalizes it and puts it on the roster, which is what actually
+     *  distributes it to every client (see CanonicalSeatDef.loadout). */
+    | {
+          type: 'starJoin';
+          name: string;
+          version: number;
+          avatar?: string | null;
+          loadout?: Loadout;
+      }
     /** host's per-recipient match setup: canonical roster + which seat is theirs.
      *  `settings.seats` is unset here — the LOCAL roster is derived per client
      *  via `localizeRoster(roster, yourSide)`, never sent pre-relabeled. */
@@ -747,43 +743,6 @@ export class NetworkOpponent implements Opponent {
 }
 
 /**
- * What `Game`/`main.ts` need from a 1v1 connection during actual play and
- * its own recovery — the FULL shared surface, so `main.ts`'s reconnect
- * wiring (`wireReconnect`) never has to know or care which transport this
- * is (`NetSession`/PeerJS, `SteamGuestSession`/Steam, or a future one) — it only
- * ever calls methods declared here. Naming/handshake setup still stays each
- * transport's own concern (`resumeSession`/`hostSteamStarRoom` etc. construct a
- * fresh `Session` however they need to).
- */
-export interface Session {
-    onClose: (() => void) | null;
-    attach(handler: (msg: NetMessage) => void): void;
-    /** waits for the next single message (used for the post-recovery handshake) */
-    once(): Promise<NetMessage>;
-    send(msg: NetMessage): void;
-    close(): void;
-    /**
-     * Called once `onClose` has fired: attempt to recover this SAME
-     * logical connection, resolving with a replacement `Session` if/when
-     * it succeeds (bounded by `signal` — the caller owns the timeout).
-     * Omit entirely (leave undefined) if this transport has nothing left
-     * to try once `onClose` fires — the caller then treats the grace
-     * window as already elapsed, uniformly, with no transport check of
-     * its own. PeerJS's DataConnection can genuinely die and needs an
-     * explicit redial (see `NetSession.attemptRecovery`); Steam's own P2P
-     * layer self-heals a brief drop transparently BEFORE its watchdog-
-     * driven `onClose` ever fires (see net-steam.ts's own doc comment), so
-     * by the time `onClose` fires there, there's nothing left worth
-     * retrying — the Steam sessions simply don't implement this method.
-     */
-    attemptRecovery?(signal: AbortSignal): Promise<Session>;
-    /** identity fields behind the (PeerJS-only) cold-reload resume marker —
-     *  undefined for transports (Steam) with no such feature. */
-    ownId?: string;
-    remoteId?: string;
-}
-
-/**
  * What `Game` needs from the star (2v2+) host relay during actual play —
  * lobby-formation concerns (`listen`/`setRosterEntry`/`currentRoster`/
  * `nextOpenSeat`/`peerId`/`onRosterChange`) stay main.ts's concern,
@@ -842,7 +801,12 @@ export interface HostHub {
     /** lobby roster changed (join, leave, kick, ready) — re-render */
     onRosterChange: (() => void) | null;
     /** accept joiners; see StarHub.listen for the onJoin contract */
-    listen(onJoin: (name: string, version: number, avatar?: string | null) => SeatId | { reject: string }): void;
+    listen(onJoin: (
+            name: string,
+            version: number,
+            avatar?: string | null,
+            loadout?: Loadout,
+        ) => SeatId | { reject: string }): void;
     /** first seat still free for a human, or null when the room is full */
     nextOpenSeat(): SeatId | null;
     kickSeat(seat: SeatId): void;
@@ -967,7 +931,12 @@ export class StarHub implements HostHub {
      * signature transport-specific, and forced the menu to carry a second copy
      * of the whole lobby wiring for Steam.
      */
-    listen(onJoin: (name: string, version: number, avatar?: string | null) => SeatId | { reject: string }): void {
+    listen(onJoin: (
+            name: string,
+            version: number,
+            avatar?: string | null,
+            loadout?: Loadout,
+        ) => SeatId | { reject: string }): void {
         this.peer.on('connection', (conn) => {
             conn.on('open', () => {
                 // A connection that opens but never sends its handshake
@@ -1088,7 +1057,7 @@ export class StarHub implements HostHub {
                         this.onRosterChange?.();
                         return;
                     }
-                    const decision = onJoin(msg.name, msg.version, msg.avatar);
+                    const decision = onJoin(msg.name, msg.version, msg.avatar, msg.loadout);
                     if (typeof decision !== 'number') {
                         conn.send({ type: 'starRejected', reason: decision.reject });
                         conn.close();
@@ -1811,7 +1780,13 @@ export function joinStarRoom(
                 reject(e);
             });
         });
-        conn.send({ type: 'starJoin', name: localName, version: GAME_VERSION, avatar: getAvatarDataUrl() });
+        conn.send({
+            type: 'starJoin',
+            name: localName,
+            version: GAME_VERSION,
+            avatar: getAvatarDataUrl(),
+            loadout: activeLoadout(),
+        });
         return new StarGuestSession(peer, conn);
     })();
     return { session, cancel: () => peer?.destroy() };

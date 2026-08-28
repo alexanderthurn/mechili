@@ -100,7 +100,8 @@ export class UnitInstanceRenderer {
         if (!meta || meta.life === 'dead') return;
         this.removeFromPool(proxy, meta);
         this.moveTo(proxy, meta.typeId, meta.team, 'dead', meta.level);
-        proxy.visible = prefs().renderDeadUnits;
+        // Hammer pancakes stay drawn even when the "render dead units" pref is off
+        proxy.visible = prefs().renderDeadUnits || !!proxy.userData.hammerCrushed;
         const next = this.ownerPool.get(proxy);
         if (next) this.writeMatrix(proxy, this.pools.get(next.key)!, next.index);
     }
@@ -141,11 +142,11 @@ export class UnitInstanceRenderer {
 
     /**
      * Battle tint via per-instance color (multiplies the level-tinted material).
-     * Golden / debuff / spawning override; `normal` restores white multiply.
+     * Golden / debuff / acid / burn / spawning override; `normal` restores white multiply.
      */
     setTint(
         proxy: Group,
-        tint: 'normal' | 'golden' | 'debuff' | 'spawning',
+        tint: 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning',
         timeSeconds: number,
         debuffStacks = 1,
         spawnProgress = 0,
@@ -170,6 +171,16 @@ export class UnitInstanceRenderer {
                 (0.15 + 0.25 * Math.sin(t + 2.4)) * amp,
                 (0.45 + 0.4 * Math.sin(t + 4.8)) * amp,
             );
+        } else if (tint === 'acid') {
+            const t = timeSeconds * 5.5;
+            const pulse = 0.5 + 0.5 * Math.sin(t);
+            const g = 0.55 + 0.35 * Math.sin(t + 1.2);
+            _color.setRGB(0.35 + pulse * 0.25, 1.1 + g * 0.5, 0.2 + pulse * 0.15);
+        } else if (tint === 'burn') {
+            const t = timeSeconds * 6.2;
+            const pulse = 0.5 + 0.5 * Math.sin(t);
+            const flicker = 0.5 + 0.5 * Math.sin(t * 2.1 + 0.7);
+            _color.setRGB(1.6 + pulse * 0.6, 0.35 + flicker * 0.45, 0.05);
         } else if (tint === 'spawning') {
             const pulse = 0.5 + 0.5 * Math.sin(timeSeconds * 6.5);
             const g = 0.45 + spawnProgress * 0.35 + pulse * 0.1;
@@ -204,11 +215,16 @@ export class UnitInstanceRenderer {
         const showDead = prefs().renderDeadUnits;
         for (const [key, pool] of this.pools) {
             if (key.endsWith(':dead') && !showDead) {
+                // Pref hides normal wrecks; hammer pancakes stay visible via proxy.visible.
+                for (let i = 0; i < pool.owners.length; i++) {
+                    const proxy = pool.owners[i]!;
+                    const meta = this.ownerPool.get(proxy);
+                    this.writeMatrix(proxy, pool, i, meta?.typeId);
+                }
                 for (const mesh of pool.parts) {
-                    if (mesh.count !== 0) {
-                        mesh.count = 0;
-                        mesh.instanceMatrix.needsUpdate = true;
-                    }
+                    mesh.count = pool.owners.length;
+                    mesh.instanceMatrix.needsUpdate = true;
+                    if (this.needsColor && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
                 }
                 continue;
             }
@@ -268,10 +284,19 @@ export class UnitInstanceRenderer {
     applyDeadPref(show: boolean = prefs().renderDeadUnits): void {
         for (const [key, pool] of this.pools) {
             if (!key.endsWith(':dead')) continue;
-            for (const owner of pool.owners) owner.visible = show;
+            for (const owner of pool.owners) {
+                owner.visible = show || !!owner.userData.hammerCrushed;
+            }
             for (const mesh of pool.parts) {
-                mesh.count = show ? pool.owners.length : 0;
+                // Always keep pool capacity; writeMatrix HIDEs non-visible wrecks.
+                // Zeroing count here used to wipe hammer pancakes entirely.
+                mesh.count = pool.owners.length;
                 mesh.instanceMatrix.needsUpdate = true;
+            }
+            for (let i = 0; i < pool.owners.length; i++) {
+                const proxy = pool.owners[i]!;
+                const meta = this.ownerPool.get(proxy);
+                this.writeMatrix(proxy, pool, i, meta?.typeId);
             }
         }
     }

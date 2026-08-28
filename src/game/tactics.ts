@@ -43,14 +43,14 @@ export const DRAGON_APPROACH_SEC = 0.38;
 export const DRAGON_POUR_DURATION_SEC = 1.55;
 
 /**
- * Hammer of the Gods ground footprint (world units), centered on the stamp.
- * Shared by aim marker, mesh facing, and strike damage.
- *  halfWidth → X (across the head) · halfDepth → Z (thickness)
- *  Player yaw is chosen at placement (point-yaw); this default is unused in play.
+ * Hammer of the Gods footprint (world units), centered on the stamp.
+ * Shared by aim marker, ground scar, scenery crush, and strike damage
+ * (ground + air). halfWidth → X (across the head) · halfDepth → Z (thickness).
+ * Sized to the wear scar (formerly 17×34 aim box × 0.855).
  */
 export const HAMMER_ZONE = {
-    halfWidth: 17,
-    halfDepth: 34,
+    halfWidth: 14.535,
+    halfDepth: 29.07,
 };
 
 /**
@@ -134,20 +134,21 @@ export const TACTICS: Record<
              * Ticking area effect running `duration` seconds after the delay,
              * point-targeted only: 'storm' zaps one random unit per tick
              * (wards absorb per bolt); 'meteorShower' drops a small strike on
-             * a random spot per tick (+ ignites fire); 'poison' damages every
-             * unit inside per tick — gas ignores wards, unit types with
-             * `poisonImmune` shrug it off.
+             * a random spot per tick (+ ignites fire); 'acidRain' rains small
+             * acid drips that stamp sparse ground acid (same rules as Acid Spill).
              */
             zone?: {
-                mode: 'storm' | 'meteorShower' | 'poison';
+                mode: 'storm' | 'meteorShower' | 'acidRain';
                 duration: number;
                 interval: number;
-                /** flat damage per tick */
+                /** flat damage per tick (storm / meteor); unused for acidRain */
                 damage: number;
-                /** meteorShower: splash radius per impact */
+                /** meteorShower / acidRain: splash or puddle radius per impact */
                 impactRadius?: number;
                 /** meteorShower: ground-fire radius per impact */
                 igniteRadius?: number;
+                /** acidRain: how many drips spawn each tick */
+                dropsPerTick?: number;
             };
             /** two-point: progressive fire pour along the capsule (dragon breath) —
              *  stamped left→right over {@link DRAGON_POUR_DURATION_SEC}, not a one-shot.
@@ -161,6 +162,12 @@ export const TACTICS: Record<
          */
         acidCapsule?: { durationRounds: number; dpsPercent: number };
         fireCapsule?: { burnSeconds: number; intensity: number };
+        /**
+         * Price to buy one charge outright at the Stronghold. Per spell, not
+         * per tier — a commander is free to carry three expensive ones. Absent
+         * = not sold there at all, so a new spell has to opt in on purpose.
+         */
+        strongholdCost?: number;
         /** oil spill only */
         oilRadius?: number;
         oilDurationRounds?: number;
@@ -179,6 +186,7 @@ export const TACTICS: Record<
     },
     [OIL_SPILL_ID]: {
         id: OIL_SPILL_ID,
+        strongholdCost: 100,
         name: 'Oil Spill',
         icon: 'tactic-oil',
         kind: 'placement',
@@ -223,6 +231,7 @@ export const TACTICS: Record<
     },
     [SPAWN_DWARVES_ID]: {
         id: SPAWN_DWARVES_ID,
+        strongholdCost: 100,
         name: 'Summon Dwarves',
         icon: 'tactic-summon-dwarves',
         kind: 'placement',
@@ -237,6 +246,7 @@ export const TACTICS: Record<
     },
     [BIG_METEOR_ID]: {
         id: BIG_METEOR_ID,
+        strongholdCost: 200,
         name: 'Meteor',
         icon: 'tactic-meteor',
         kind: 'placement',
@@ -249,6 +259,7 @@ export const TACTICS: Record<
     },
     [SPAWN_CROWS_ID]: {
         id: SPAWN_CROWS_ID,
+        strongholdCost: 200,
         name: 'Summon Crow Riders',
         icon: 'tactic-summon-crows',
         kind: 'placement',
@@ -263,6 +274,7 @@ export const TACTICS: Record<
     },
     [HAMMER_ID]: {
         id: HAMMER_ID,
+        strongholdCost: 300,
         name: 'Hammer of the Gods',
         icon: 'tactic-hammer',
         kind: 'placement',
@@ -276,34 +288,44 @@ export const TACTICS: Record<
     },
     [STORM_ID]: {
         id: STORM_ID,
+        strongholdCost: 200,
         name: 'Storm Call',
         icon: 'tactic-storm',
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 2,
-        radius: 7 * CELL,
+        radius: 11.025 * CELL,
         spell: {
             delaySeconds: 3,
-            zone: { mode: 'storm', duration: 10, interval: 0.7, damage: 150 },
+            zone: {
+                mode: 'storm',
+                // 70% area + 70% bolt count vs prior; same flash cadence
+                duration: 7,
+                interval: 0.7,
+                damage: 0,
+                /** splash around each bolt — debuffs nearby units */
+                impactRadius: 1.75 * CELL,
+            },
         },
         description:
-            'Mark a wide circle anywhere. A storm gathers there and hurls lightning at random units for a while — ward domes absorb the bolts (and suffer).',
+            'Mark a wide circle anywhere. Small storm clouds gather high above and hurl lightning at random spots — bolts deal no damage but shock units in a wide splash with a tower-like debuff unless they have golden aura. Ward domes still block the strikes.',
     },
     [METEOR_SHOWER_ID]: {
         id: METEOR_SHOWER_ID,
+        strongholdCost: 300,
         name: 'Meteor Shower',
         icon: 'tactic-shower',
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 2,
-        radius: 10.5 * CELL,
+        radius: 15.75 * CELL,
         spell: {
             delaySeconds: 3,
             zone: {
                 mode: 'meteorShower',
-                // 3× duration; interval scaled so total meteor count stays ~same
                 duration: 24,
-                interval: 1.8,
+                // half interval → ~2× meteors over the same window
+                interval: 0.9,
                 damage: 140,
                 impactRadius: 1.5 * CELL,
                 igniteRadius: 1 * CELL,
@@ -314,6 +336,7 @@ export const TACTICS: Record<
     },
     [ACID_ID]: {
         id: ACID_ID,
+        strongholdCost: 200,
         name: 'Acid Spill',
         icon: 'tactic-acid',
         kind: 'placement',
@@ -323,10 +346,11 @@ export const TACTICS: Record<
         // pours left→right shortly after battle start (same drip timing as oil)
         acidCapsule: { durationRounds: ACID_SPILL_DURATION_ROUNDS, dpsPercent: ACID_DPS_PERCENT },
         description:
-            'Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Units standing in it sizzle and turn corroded — taking extra damage from everything.',
+            'Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Ground and air units over the puddle sizzle and turn corroded — taking extra damage from everything.',
     },
     [FIRE_SPILL_ID]: {
         id: FIRE_SPILL_ID,
+        strongholdCost: 100,
         name: 'Fire Spill',
         icon: 'tactic-fire',
         kind: 'placement',
@@ -339,6 +363,7 @@ export const TACTICS: Record<
     },
     [DRAGON_ID]: {
         id: DRAGON_ID,
+        strongholdCost: 300,
         name: 'Dragon Attack',
         icon: 'tactic-dragon',
         kind: 'placement',
@@ -355,18 +380,27 @@ export const TACTICS: Record<
     },
     [POISON_CLOUD_ID]: {
         id: POISON_CLOUD_ID,
+        strongholdCost: 300,
         name: 'Poison Cloud',
         icon: 'tactic-poison',
         kind: 'placement',
         targeting: 'point',
         cooldownRounds: 2,
-        radius: 5 * CELL,
+        // Same footprint as Meteor Shower — sparse acid rain fills it gradually.
+        radius: 10.5 * CELL,
         spell: {
             delaySeconds: 2,
-            zone: { mode: 'poison', duration: 12, interval: 0.5, damage: 12 },
+            zone: {
+                mode: 'acidRain',
+                duration: 14,
+                interval: 0.28,
+                damage: 0,
+                impactRadius: 0.55 * CELL,
+                dropsPerTick: 3,
+            },
         },
         description:
-            'Mark a circle anywhere. A toxic cloud settles there and gnaws at every unit inside — gas seeps under ward domes; only poison-proof creatures ignore it.',
+            'Mark a huge circle. Toxic clouds gather overhead and rain small acid drops across the area — sparse puddles that corrode ground and air units like Acid Spill, but over a much wider field.',
     },
 };
 
@@ -397,9 +431,12 @@ function roundsLabel(n: number): string {
 export function formatTacticStats(t: (typeof TACTICS)[string]): string[] {
     const lines: string[] = [];
 
-    if (t.cooldownRounds > 0) {
-        lines.push(`Cooldown ${roundsLabel(t.cooldownRounds)}`);
-    }
+    // +1, and never hidden: `cooldownRounds` counts rounds to WAIT, so 0 means
+    // "back next round" rather than "no cooldown" (see the type's own note, and
+    // the in-game badge, which reads cooldownRounds + 1 for exactly this reason).
+    // Printing the raw field left every 0 blank and made a once-per-round spell
+    // look like it had no limit at all.
+    lines.push(`Cooldown ${roundsLabel(t.cooldownRounds + 1)}`);
 
     if (t.radius != null && (t.spell || t.acidCapsule || t.fireCapsule || t.oilRadius)) {
         lines.push(`Aim ${cellsLabel(t.radius)}`);
@@ -423,9 +460,12 @@ export function formatTacticStats(t: (typeof TACTICS)[string]): string[] {
         if (spell.zone) {
             const z = spell.zone;
             if (z.mode === 'storm') {
-                lines.push(`Lightning ${z.damage} every ${z.interval}s`);
-            } else if (z.mode === 'poison') {
-                lines.push(`Poison ${z.damage} every ${z.interval}s`);
+                lines.push(`Lightning every ${z.interval}s (debuff only)`);
+                if (z.impactRadius != null) lines.push(`Splash ${cellsLabel(z.impactRadius)}`);
+            } else if (z.mode === 'acidRain') {
+                const n = z.dropsPerTick ?? 1;
+                lines.push(`Acid rain ×${n} every ${z.interval}s`);
+                if (z.impactRadius != null) lines.push(`Drop ${cellsLabel(z.impactRadius)}`);
             } else if (z.mode === 'meteorShower') {
                 lines.push(`Meteor ${z.damage} every ${z.interval}s`);
                 if (z.impactRadius != null) lines.push(`Impact ${cellsLabel(z.impactRadius)}`);
@@ -600,23 +640,15 @@ export function clampTacticPoint(
     };
 }
 
-/** Short glyphs for canvas / ground markers (atlas sprites are HUD-only). */
+/** Short glyphs for emoji ground markers (see spellMarkerIcons ATLAS_MARKER_TACTICS). */
 const TACTIC_WORLD_GLYPH: Record<string, string> = {
     [RALLY_ROUTE_ID]: '⚑',
-    [OIL_SPILL_ID]: '🛢',
     [SELL_UNIT_ID]: '💰',
     [MOVE_UNIT_ID]: '🏃',
     [TUTOR_ID]: '📖',
-    [SPAWN_DWARVES_ID]: '⚒',
-    [BIG_METEOR_ID]: '☄',
-    [SPAWN_CROWS_ID]: '🐦',
     [HAMMER_ID]: '🔨',
     [STORM_ID]: '🌩',
-    [METEOR_SHOWER_ID]: '🌠',
-    [ACID_ID]: '🧪',
-    [FIRE_SPILL_ID]: '🔥',
     [DRAGON_ID]: '🐉',
-    [POISON_CLOUD_ID]: '☠',
 };
 
 export function tacticWorldGlyph(tacticId: string): string {

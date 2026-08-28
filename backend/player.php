@@ -177,6 +177,9 @@ function defaultPlayer(string $name): array {
         'draws' => 0,
         'games' => 0,
         'mpGames' => 0,
+        'gamesAi' => 0,
+        'games1v1' => 0,
+        'games2v2' => 0,
         'createdAt' => $now,
         'updatedAt' => $now,
     ];
@@ -202,6 +205,9 @@ function publicPlayer(array $p, bool $withAvatar = false): array {
         'draws' => (int)($p['draws'] ?? 0),
         'games' => (int)($p['games'] ?? 0),
         'mpGames' => (int)($p['mpGames'] ?? 0),
+        'gamesAi' => (int)($p['gamesAi'] ?? max(0, (int)($p['games'] ?? 0) - (int)($p['mpGames'] ?? 0))),
+        'games1v1' => (int)($p['games1v1'] ?? ($p['mpGames'] ?? 0)),
+        'games2v2' => (int)($p['games2v2'] ?? 0),
         'hasPassword' => playerHasPassword($p),
         'hasAvatar' => !empty($p['avatar']) && is_string($p['avatar']),
     ];
@@ -628,7 +634,10 @@ function handleResult(): void {
             respond(['ok' => false, 'error' => 'auth', 'needsPassword' => true, 'rated' => false], 200);
         }
         if ($mode === 'ai' && in_array($result, ['victory', 'defeat', 'draw'], true)) {
-            $localPlayer = bumpAiStats($localPlayer, $result);
+            $localPlayer = bumpUnratedStats($localPlayer, $result, 'gamesAi');
+            writeLocked($fp, $localPlayer);
+        } elseif ($mode === '2v2' && in_array($result, ['victory', 'defeat', 'draw'], true)) {
+            $localPlayer = bumpUnratedStats($localPlayer, $result, 'games2v2');
             writeLocked($fp, $localPlayer);
         } elseif ($isNew) {
             writeLocked($fp, $localPlayer);
@@ -680,6 +689,8 @@ function handleResult(): void {
     $b['peakMmr'] = max((int)($b['peakMmr'] ?? 0), $newB);
     $a['mpGames'] = (int)($a['mpGames'] ?? 0) + 1;
     $b['mpGames'] = (int)($b['mpGames'] ?? 0) + 1;
+    $a['games1v1'] = (int)($a['games1v1'] ?? 0) + 1;
+    $b['games1v1'] = (int)($b['games1v1'] ?? 0) + 1;
     $a['games'] = (int)($a['games'] ?? 0) + 1;
     $b['games'] = (int)($b['games'] ?? 0) + 1;
     if ($result === 'victory') {
@@ -721,8 +732,9 @@ function handleResult(): void {
     ]);
 }
 
-function bumpAiStats(array $p, string $result): array {
+function bumpUnratedStats(array $p, string $result, string $counter): array {
     $p['games'] = (int)($p['games'] ?? 0) + 1;
+    $p[$counter] = (int)($p[$counter] ?? 0) + 1;
     if ($result === 'victory') $p['wins'] = (int)($p['wins'] ?? 0) + 1;
     elseif ($result === 'defeat') $p['losses'] = (int)($p['losses'] ?? 0) + 1;
     else $p['draws'] = (int)($p['draws'] ?? 0) + 1;

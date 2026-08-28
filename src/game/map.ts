@@ -11,7 +11,8 @@ import {
     Vector3,
 } from 'three';
 
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND } from './groundQuality';
+import { hypot } from './detMath';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -33,6 +34,15 @@ export { grassAlbedoUrl, grassNormalUrl, sandAlbedoUrl };
  * Driven by scenery season changes; shaders bind this same object.
  */
 export const summerDryUniform = { value: 0 };
+
+/**
+ * 1 = live fire ground is charcoal (fire VFX medium/high with tongues).
+ * 0 = orange puddle (low fire VFX). Shared — one write updates all ground shaders.
+ */
+export const fireCharcoalGroundUniform = { value: 0 };
+
+/** Shared battle time for fire flicker — ground + high/ultra vegetation hazard tint. */
+export const hazardTimeShared = { value: 0 };
 
 /** world units per grid tile */
 export const CELL = 4;
@@ -147,6 +157,13 @@ function smooth01(t: number): number {
     return c * c * (3 - 2 * c);
 }
 
+/** Deterministic 0..1 from an int (scorch patchiness, etc.). */
+function fractHash(n: number): number {
+    let h = Math.imul(n ^ (n >>> 16), 0x45d9f3b) >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) >>> 0;
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 /** seeded smooth 2D value noise in [0, 1] — cheap terrain-shaping building block */
 export function makeValueNoise(seed: number): (x: number, y: number) => number {
     const lattice = (ix: number, iy: number): number => {
@@ -166,6 +183,152 @@ export function makeValueNoise(seed: number): (x: number, y: number) => number {
         return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
     };
 }
+
+/** Cheap hash/fbm for high/ultra ground hazards (declared once at shader top). */
+const HAZARD_NOISE_GLSL =
+    'float hazHash( vec2 p ) {\n' +
+    '\treturn fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
+    '}\n' +
+    'float hazNoise( vec2 p ) {\n' +
+    '\tvec2 i = floor( p );\n' +
+    '\tvec2 f = fract( p );\n' +
+    '\tf = f * f * ( 3.0 - 2.0 * f );\n' +
+    '\treturn mix(\n' +
+    '\t\tmix( hazHash( i ), hazHash( i + vec2( 1.0, 0.0 ) ), f.x ),\n' +
+    '\t\tmix( hazHash( i + vec2( 0.0, 1.0 ) ), hazHash( i + vec2( 1.0, 1.0 ) ), f.x ),\n' +
+    '\t\tf.y );\n' +
+    '}\n' +
+    'float hazFbm( vec2 p ) {\n' +
+    '\treturn hazNoise( p ) * 0.55 + hazNoise( p * 2.17 ) * 0.3 + hazNoise( p * 4.31 ) * 0.15;\n' +
+    '}\n';
+
+/**
+ * Oil / fire / acid albedo. High/ultra: sluggish tar, active embers, bubbling acid.
+ * Lower tiers keep a readable flat puddle.
+ * Expects `footWear` (0..1 footstep / sand-wear strength) already in scope —
+ * used to disturb oil and acid so trails stay readable under puddles.
+ */
+function groundHazardColorGlsl(rich: boolean): string {
+    const masks =
+        '\tvec3 haz = texture2D(uHazardMask, vMacroUv).rgb;\n' +
+        (rich
+            ? '\tfloat oilM = 0.0;\n'
+            : '\tfloat oilM = smoothstep(0.04, 0.28, haz.r);\n') +
+        '\tfloat fireG = smoothstep(0.14, 0.5, haz.g);\n' +
+        '\tfloat fireB = smoothstep(0.12, 0.48, haz.b);\n' +
+        '\tfloat orangeM = fireG * (1.0 - fireB * 0.85);\n' +
+        '\tfloat azureM = min(fireG, fireB);\n' +
+        '\tfloat acidM = fireB * (1.0 - fireG * 0.85);\n' +
+        '\tfloat footPrint = smoothstep( 0.06, 0.36, footWear );\n';
+    const oilFoot =
+        // Footsteps thin the oil film and leave darker stirred-tar tracks.
+        '\tfloat oilPrint = oilM * footPrint;\n' +
+        '\toilM *= 1.0 - footPrint * 0.155;\n';
+    const oilFootAfter =
+        '\tvec3 oilTrack = vec3( 0.05, 0.035, 0.02 );\n' +
+        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, oilTrack, oilPrint * 0.205 );\n';
+    const acidFoot =
+        // Corroded tracks: darker pressed acid + a lime edge where the film breaks.
+        '\tfloat acidPrint = acidM * footPrint;\n' +
+        '\tacidCol = mix( acidCol, vec3( 0.02, 0.07, 0.015 ), acidPrint * 0.175 );\n' +
+        '\tacidCol = mix( acidCol, vec3( 0.55, 0.95, 0.22 ), acidPrint * footPrint * 0.0875 );\n';
+    if (!rich) {
+        return (
+            masks +
+            oilFoot +
+            '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.002, 0.002, 0.002), oilM * 0.995);\n' +
+            oilFootAfter +
+            '\tfloat flicker = 0.55 + 0.45 * sin(uHazardTime * 9.0 + vMacroUv.x * 40.0 + vMacroUv.y * 28.0);\n' +
+            '\tvec3 orangeCol = mix(vec3(0.18, 0.03, 0.0), vec3(1.0, 0.32, 0.04), flicker);\n' +
+            '\tvec3 tongueGround = mix(vec3(0.75, 0.12, 0.02), vec3(1.0, 0.5, 0.07), flicker);\n' +
+            '\tvec3 liveFireCol = mix( orangeCol, tongueGround, uFireCharcoalGround );\n' +
+            '\tfloat liveFireAmt = orangeM * mix( 0.72, 0.94, uFireCharcoalGround );\n' +
+            '\tliveFireAmt *= mix( orangeM, 1.0, uFireCharcoalGround );\n' +
+            '\tdiffuseColor.rgb = mix( diffuseColor.rgb, liveFireCol, liveFireAmt );\n' +
+            '\tvec3 azureCol = mix(vec3(0.12, 0.02, 0.02), vec3(1.0, 0.32, 0.05), flicker);\n' +
+            '\tazureCol = mix(azureCol, vec3(0.12, 0.14, 0.55), 0.22);\n' +
+            '\tvec3 azureTongue = mix(vec3(0.12, 0.1, 0.45), vec3(1.0, 0.48, 0.1), flicker);\n' +
+            '\tazureCol = mix( azureCol, azureTongue, uFireCharcoalGround * 0.85 );\n' +
+            '\tdiffuseColor.rgb = mix(diffuseColor.rgb, azureCol, azureM * mix( 0.7, 0.9, uFireCharcoalGround ));\n' +
+            '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
+            '\tvec3 acidCol = mix(vec3(0.04, 0.14, 0.02), vec3(0.38, 0.92, 0.12), bubble);\n' +
+            acidFoot +
+            '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n'
+        );
+    }
+    return (
+        masks +
+        // Oil: photo-like black tar — solid core, frayed rim, mild center fretting.
+        '\tfloat oilBase = smoothstep( 0.04, 0.28, haz.r );\n' +
+        '\tfloat oilEdge = smoothstep( 0.02, 0.18, oilBase ) * ( 1.0 - smoothstep( 0.28, 0.62, oilBase ) );\n' +
+        '\tfloat oilChew = hazFbm( vBoardXZ * 1.55 + vec2( 3.1, 7.7 ) );\n' +
+        '\tfloat oilChew2 = hazNoise( vBoardXZ * 3.2 + 11.0 );\n' +
+        '\tfloat oilFray = oilChew * 0.55 + oilChew2 * 0.45;\n' +
+        '\toilM = oilBase * ( 1.0 - oilEdge * ( 1.0 - smoothstep( 0.32, 0.78, oilFray ) ) * 0.9 );\n' +
+        // Sparse thin spots inside the puddle — larger than before, milder cut.
+        '\tfloat oilCenter = smoothstep( 0.3, 0.6, oilBase );\n' +
+        '\tfloat oilFret = hazNoise( vBoardXZ * 0.67 + 4.2 );\n' +
+        '\tfloat oilFret2 = hazNoise( vBoardXZ * 1.2 + 13.0 );\n' +
+        '\tfloat oilFretMask = smoothstep( 0.74, 0.93, oilFret ) * smoothstep( 0.5, 0.82, oilFret2 );\n' +
+        '\toilM *= 1.0 - oilCenter * oilFretMask * 0.11;\n' +
+        oilFoot +
+        '\tfloat oilFlow = hazFbm( vBoardXZ * 0.14 + vec2( uHazardTime * 0.032, uHazardTime * 0.019 ) );\n' +
+        // Sparse cool grey specular film (like wet pool reflection), rest stays black.
+        '\tfloat oilFilmN = hazNoise( vBoardXZ * 0.42 + vec2( uHazardTime * 0.02, -uHazardTime * 0.015 ) );\n' +
+        '\tfloat oilFilm = smoothstep( 0.7, 0.92, oilFlow ) * smoothstep( 0.62, 0.88, oilFilmN );\n' +
+        '\tvec3 oilCol = mix( vec3( 0.0012, 0.0012, 0.0012 ), vec3( 0.28, 0.29, 0.3 ), oilFilm * 0.35 );\n' +
+        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, oilCol, oilM * 0.995 );\n' +
+        oilFootAfter +
+        // Fire: upward ember flow + hot sparks (more active than a sine puddle).
+        '\tfloat fireFlow = hazFbm( vBoardXZ * 0.48 + vec2( uHazardTime * 0.22, -uHazardTime * 1.35 ) );\n' +
+        '\tfloat firePop = hazNoise( vBoardXZ * 1.55 + vec2( -uHazardTime * 1.1, uHazardTime * 2.4 ) );\n' +
+        '\tfloat embers = pow( clamp( fireFlow, 0.0, 1.0 ), 1.75 );\n' +
+        '\tfloat sparks = smoothstep( 0.78, 0.94, firePop );\n' +
+        '\tfloat flicker = 0.38 + 0.62 * embers;\n' +
+        '\tvec3 orangeCol = mix( vec3( 0.12, 0.02, 0.0 ), vec3( 1.0, 0.38, 0.05 ), flicker );\n' +
+        '\torangeCol = mix( orangeCol, vec3( 1.0, 0.84, 0.3 ), sparks * 0.7 );\n' +
+        '\tvec3 tongueGround = mix( vec3( 0.48, 0.07, 0.012 ), vec3( 1.0, 0.52, 0.08 ), embers );\n' +
+        '\ttongueGround = mix( tongueGround, vec3( 1.0, 0.9, 0.42 ), sparks * 0.55 );\n' +
+        '\tvec3 liveFireCol = mix( orangeCol, tongueGround, uFireCharcoalGround );\n' +
+        '\tfloat liveFireAmt = orangeM * mix( 0.72, 0.94, uFireCharcoalGround );\n' +
+        '\tliveFireAmt *= mix( orangeM, 1.0, uFireCharcoalGround );\n' +
+        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, liveFireCol, liveFireAmt );\n' +
+        '\tvec3 azureCol = mix( vec3( 0.1, 0.02, 0.02 ), vec3( 1.0, 0.36, 0.06 ), flicker );\n' +
+        '\tazureCol = mix( azureCol, vec3( 0.14, 0.16, 0.58 ), 0.28 * ( 1.0 - embers ) );\n' +
+        '\tvec3 azureTongue = mix( vec3( 0.1, 0.08, 0.42 ), vec3( 1.0, 0.5, 0.12 ), embers );\n' +
+        '\tazureCol = mix( azureCol, azureTongue, uFireCharcoalGround * 0.85 );\n' +
+        '\tazureCol = mix( azureCol, vec3( 0.85, 0.9, 1.0 ), sparks * 0.35 );\n' +
+        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, azureCol, azureM * mix( 0.7, 0.9, uFireCharcoalGround ) );\n' +
+        // Acid: pulsing cells + lime rings (not oil-slow, not fire-flicker).
+        '\tvec2 acidCell = floor( vBoardXZ * 0.52 );\n' +
+        '\tvec2 acidF = fract( vBoardXZ * 0.52 );\n' +
+        '\tfloat acidBest = 8.0;\n' +
+        '\tfor ( int j = -1; j <= 1; j ++ ) {\n' +
+        '\t\tfor ( int i = -1; i <= 1; i ++ ) {\n' +
+        '\t\t\tvec2 g = vec2( float( i ), float( j ) );\n' +
+        '\t\t\tfloat id = hazHash( acidCell + g );\n' +
+        '\t\t\tvec2 o = vec2( id, hazHash( acidCell + g + 17.3 ) );\n' +
+        '\t\t\tfloat pulse = 0.55 + 0.45 * sin( uHazardTime * 1.7 + id * 31.0 );\n' +
+        '\t\t\tacidBest = min( acidBest, length( g + o - acidF ) / pulse );\n' +
+        '\t\t}\n' +
+        '\t}\n' +
+        '\tfloat acidCaustic = hazFbm( vBoardXZ * 0.62 + vec2( uHazardTime * 0.19, -uHazardTime * 0.14 ) );\n' +
+        '\tfloat acidRing = smoothstep( 0.48, 0.32, acidBest ) * smoothstep( 0.14, 0.26, acidBest );\n' +
+        '\tfloat acidCore = smoothstep( 0.30, 0.06, acidBest );\n' +
+        '\tvec3 acidCol = mix( vec3( 0.03, 0.12, 0.02 ), vec3( 0.2, 0.82, 0.1 ), acidCaustic );\n' +
+        '\tacidCol = mix( acidCol, vec3( 0.48, 0.98, 0.18 ), acidCore * 0.75 );\n' +
+        '\tacidCol = mix( acidCol, vec3( 0.85, 1.0, 0.38 ), acidRing * 0.85 );\n' +
+        acidFoot +
+        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, acidCol, acidM * 0.88 );\n'
+    );
+}
+
+const HAZARD_ROUGHNESS_GLSL =
+    // Wet only where the grey film sits; edges stay a touch duller (coated grass).
+    '\troughnessFactor = mix( roughnessFactor, 0.1, oilM * 0.55 );\n' +
+    '\troughnessFactor = mix( roughnessFactor, 0.08, oilM * oilFilm * 0.4 );\n' +
+    '\troughnessFactor = mix( roughnessFactor, 0.76, ( orangeM + azureM ) * 0.4 );\n' +
+    '\troughnessFactor = mix( roughnessFactor, 0.22, acidM * 0.75 );\n';
 
 /**
  * A battlefield built from a {@link MapSize}. Owns the grid math
@@ -215,6 +378,12 @@ export class BattleMap {
     private sandSeed = 0;
     private sandDirty = false;
     private sandFlushAt = 0;
+    /**
+     * Hazard cells charcoal growth: step count (0..max) while fire is live.
+     * Last sim-time we grew each cell (parallel array).
+     */
+    private fireScorchCells: Uint8Array | null = null;
+    private fireScorchAt: Float32Array | null = null;
 
     /**
      * Oil / active-fire mask (separate from wear RGB): R = oil, G = fire.
@@ -228,6 +397,8 @@ export class BattleMap {
     private hazardFlushAt = 0;
     /** updated each frame for fire flicker in the ground shader */
     private hazardTimeUniform: { value: number } | null = null;
+    /** mirrors {@link fireCharcoalGroundUniform} for CPU-side stamp decisions */
+    private fireCharcoalGround = false;
     /** 0..1 weather-driven snow dusting on the board (see `setSnowCover`) */
     private snowCoverUniform: { value: number } | null = null;
 
@@ -360,7 +531,7 @@ export class BattleMap {
         const edge = Math.min(this.halfW - Math.abs(x), this.halfH - Math.abs(z));
         let fade = smooth01((edge - rimW) / 14);
         for (const a of this.baseAnchors()) {
-            const d = Math.hypot(x - a.x, z - a.z);
+            const d = hypot(x - a.x, z - a.z);
             fade = Math.min(fade, smooth01((d - a.r) / 10));
         }
         return THEME.terrain.reliefDepth * hill * fade;
@@ -666,11 +837,300 @@ export class BattleMap {
         this.sandDirty = true;
     }
 
-    /** Stamp scorched earth under explosions / big breaks (B). */
+    /** Stamp scorched earth (B) — same soft double disc as blood. */
     stampScorch(x: number, z: number, radius: number, strength = 0.16): void {
         if (!this.wearEnabled()) return;
         const s = this.groundEffects === 'medium' ? strength * 0.65 : strength;
         this.stampWearChannel(x, z, radius, s, 'b');
+        this.stampWearChannel(x, z, radius * 1.35, s * 0.35, 'b');
+    }
+
+    /**
+     * Oriented soft rectangle wear (Hammer of the Gods footprint).
+     * Matches HAMMER_ZONE + placement yaw — not a circumscribed disc.
+     */
+    stampWearOrientedRect(
+        x: number,
+        z: number,
+        halfWidth: number,
+        halfDepth: number,
+        yaw: number,
+        opts?: { sand?: number; scorch?: number },
+    ): void {
+        if (!this.wearEnabled()) return;
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        const med = this.groundEffects === 'medium' ? 0.65 : 1;
+        const sandA = (opts?.sand ?? 0.22) * med * WEAR_BLEND.stampStrength;
+        const scorchA = (opts?.scorch ?? 0.5) * med * WEAR_BLEND.stampStrength;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const sx = this.sandW / this.width;
+        const sy = this.sandH / this.height;
+        const hx = Math.max(1, halfWidth * sx);
+        const hy = Math.max(1, halfDepth * sy);
+        if (sandA > 0.01) this.drawWearOrientedRect(ctx, cx, cy, hx, hy, yaw, sandA, 'r');
+        if (scorchA > 0.01) {
+            this.drawWearOrientedRect(ctx, cx, cy, hx * 0.96, hy * 0.96, yaw, scorchA, 'b');
+            this.drawWearOrientedRect(ctx, cx, cy, hx * 1.04, hy * 1.04, yaw, scorchA * 0.22, 'b');
+        }
+        // Divine graffiti — smiley pressed into the scar (same yaw as the hammer)
+        const faceA = Math.max(sandA, scorchA) * 1.15;
+        if (faceA > 0.01) {
+            this.drawWearSmiley(ctx, cx, cy, hx, hy, yaw, faceA * 0.85, 'r');
+            this.drawWearSmiley(ctx, cx, cy, hx, hy, yaw, faceA, 'b');
+        }
+        this.sandDirty = true;
+    }
+
+    /**
+     * Two eyes + a smile in local hammer space (X = width, Y = depth after yaw).
+     * Drawn as soft discs / thick arc so it reads on the wear mask.
+     */
+    private drawWearSmiley(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        halfW: number,
+        halfH: number,
+        yaw: number,
+        alpha: number,
+        channel: 'r' | 'g' | 'b',
+    ): void {
+        const a = Math.min(1, Math.max(0.02, alpha));
+        const rgb =
+            channel === 'r' ? `255,0,0` : channel === 'g' ? `0,255,0` : `0,0,255`;
+        // Fit the face inside the footprint; prefer the shorter axis so it stays on-scar
+        const faceR = Math.min(halfW, halfH) * 0.72 * 1.5;
+        const eyeR = faceR * 0.16;
+        const eyeX = faceR * 0.34;
+        const eyeY = -faceR * 0.28;
+        const smileR = faceR * 0.48;
+        const smileY = faceR * 0.08;
+        const smileW = Math.max(2.5, faceR * 0.14);
+
+        ctx.save();
+        ctx.translate(x, y);
+        // +90° vs hammer yaw so the face reads across the footprint
+        ctx.rotate(yaw + Math.PI * 0.5);
+
+        const fillDisc = (lx: number, ly: number, r: number, strength: number) => {
+            const grad = ctx.createRadialGradient(lx, ly, 0, lx, ly, r);
+            grad.addColorStop(0, `rgba(${rgb},${strength})`);
+            grad.addColorStop(1, `rgba(${rgb},0)`);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(lx, ly, r, 0, Math.PI * 2);
+            ctx.fill();
+        };
+
+        // Eyes
+        fillDisc(-eyeX, eyeY, eyeR, a);
+        fillDisc(eyeX, eyeY, eyeR, a);
+        fillDisc(-eyeX, eyeY, eyeR * 0.55, Math.min(1, a * 1.2));
+        fillDisc(eyeX, eyeY, eyeR * 0.55, Math.min(1, a * 1.2));
+
+        // Smile — thick stroked arc (mouth opens toward +depth)
+        ctx.strokeStyle = `rgba(${rgb},${a})`;
+        ctx.lineWidth = smileW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(0, smileY, smileR, 0.18 * Math.PI, 0.82 * Math.PI, false);
+        ctx.stroke();
+        // softer outer pass
+        ctx.strokeStyle = `rgba(${rgb},${a * 0.45})`;
+        ctx.lineWidth = smileW * 1.65;
+        ctx.beginPath();
+        ctx.arc(0, smileY, smileR, 0.18 * Math.PI, 0.82 * Math.PI, false);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    /** Soft axis-aligned fill after rotate(yaw) — short feather, clear rectangle. */
+    private drawWearOrientedRect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        halfW: number,
+        halfH: number,
+        yaw: number,
+        alpha: number,
+        channel: 'r' | 'g' | 'b',
+    ): void {
+        const a = Math.min(1, Math.max(0.02, alpha));
+        const rgb =
+            channel === 'r' ? `255,0,0` : channel === 'g' ? `0,255,0` : `0,0,255`;
+        // Soft hammer head — not a sharp box (corners ~¼ of the short side)
+        const corner = Math.min(halfW, halfH) * 0.28;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(yaw);
+        const shells = 5;
+        for (let i = 0; i < shells; i++) {
+            const t = i / (shells - 1);
+            const grow = 1 + (1 - t) * 0.1;
+            const layerA = a * (0.28 + t * 0.72);
+            const w = halfW * grow;
+            const h = halfH * grow;
+            ctx.fillStyle = `rgba(${rgb},${layerA})`;
+            this.fillRoundedRect(ctx, -w, -h, w * 2, h * 2, corner * grow);
+        }
+        ctx.restore();
+    }
+
+    private fillRoundedRect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        r: number,
+    ): void {
+        const rr = Math.min(r, w * 0.5, h * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.lineTo(x + w - rr, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+        ctx.lineTo(x + w, y + h - rr);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+        ctx.lineTo(x + rr, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+        ctx.lineTo(x, y + rr);
+        ctx.quadraticCurveTo(x, y, x + rr, y);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    /**
+     * Irregular tower-ruin scorch — blotchy organic shape (not a clean disc).
+     * `seed` keeps the silhouette stable for a given world position.
+     */
+    stampScorchIrregular(
+        x: number,
+        z: number,
+        radius: number,
+        strength = 0.16,
+        seed = Math.imul(Math.floor(x * 1000) ^ Math.floor(z * 1000), 0x9e3779b1),
+    ): void {
+        if (!this.wearEnabled()) return;
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        const s =
+            (this.groundEffects === 'medium' ? strength * 0.65 : strength) * WEAR_BLEND.stampStrength;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const halfU = Math.max(1, radius * WEAR_BLEND.stampRadius * (this.sandW / this.width));
+        let h = (Math.imul(seed, 0x9e3779b1) >>> 0) || 1;
+        const rnd = () => {
+            h ^= h << 13;
+            h ^= h >>> 17;
+            h ^= h << 5;
+            return (h >>> 0) / 4294967296;
+        };
+        const stretch = 0.82 + rnd() * 0.36;
+        this.drawWearRect(ctx, cx, cy, halfU, halfU * stretch, s, 'b', seed);
+        this.sandDirty = true;
+    }
+
+    /**
+     * Irregular burn blotches — core + satellites, with gaps (not oil-solid).
+     */
+    private stampScorchPatchy(x: number, z: number, radius: number, strength: number, seed: number): void {
+        if (!this.wearEnabled()) return;
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        const s = this.groundEffects === 'medium' ? strength * 0.65 : strength;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const r = Math.max(0.5, radius) * (this.sandW / this.width);
+        let h = (Math.imul(seed ^ Math.floor(cx * 13 + cy * 29), 0x9e3779b1) >>> 0) || 1;
+        const rnd = () => {
+            h ^= h << 13;
+            h ^= h >>> 17;
+            h ^= h << 5;
+            return (h >>> 0) / 4294967296;
+        };
+        // Readable core, then blotches that leave irregular holes.
+        this.drawWearBlob(ctx, cx + (rnd() - 0.5) * r * 0.2, cy + (rnd() - 0.5) * r * 0.2, r * 0.7, s * 0.75, 'b');
+        const blobs = 2 + Math.floor(rnd() * 3);
+        for (let i = 0; i < blobs; i++) {
+            const ang = rnd() * Math.PI * 2;
+            const dist = rnd() * r * 0.9;
+            const bx = cx + Math.cos(ang) * dist;
+            const by = cy + Math.sin(ang) * dist;
+            const br = r * (0.28 + rnd() * 0.4);
+            this.drawWearBlob(ctx, bx, by, br, s * (0.45 + rnd() * 0.45), 'b');
+        }
+        this.sandDirty = true;
+    }
+
+    /**
+     * Charcoal under live ground fire — grows while burning, patchy (not a
+     * solid oil-like fill). Stops when the flame dies; scar stays.
+     */
+    stampScorchUnderFire(
+        field: {
+            cellCols: number;
+            cellRows: number;
+            cellSize: number;
+            worldToCell: (x: number, z: number) => { cx: number; cz: number };
+            index: (cx: number, cz: number) => number;
+            forEachFireCell: (
+                now: number,
+                fn: (x: number, z: number, dps: number, until: number, tint: number) => void,
+            ) => void;
+        },
+        now: number,
+    ): void {
+        // Tongues tier: live ember tint comes from the hazard mask and clears with
+        // the fire — don't also bake permanent wear scars under it.
+        if (this.fireCharcoalGround) return;
+        if (!this.wearEnabled()) return;
+        const n = field.cellCols * field.cellRows;
+        if (!this.fireScorchCells || this.fireScorchCells.length !== n) {
+            this.fireScorchCells = new Uint8Array(n);
+            this.fireScorchAt = new Float32Array(n);
+            this.fireScorchAt.fill(-1e6);
+        }
+        const steps = this.fireScorchCells;
+        const lastAt = this.fireScorchAt!;
+        const GROW_DT = 0.32;
+        const MAX_STEPS = 12;
+        const STEP = 0.18;
+        const r = field.cellSize * 1.2; // only slightly larger than the orange fire glow
+        field.forEachFireCell(now, (x, z) => {
+            const { cx, cz } = field.worldToCell(x, z);
+            if (cx < 0 || cz < 0 || cx >= field.cellCols || cz >= field.cellRows) return;
+            const i = field.index(cx, cz);
+            if (steps[i]! >= MAX_STEPS) return;
+            if (now - lastAt[i]! < GROW_DT) return;
+            // ~15% green pockets — still irregular, but the burn reads.
+            const cellRoll = fractHash(i * 7919 + 104729);
+            if (cellRoll > 0.85) {
+                lastAt[i] = now;
+                steps[i] = MAX_STEPS;
+                return;
+            }
+            const layerRoll = fractHash(i * 7919 + (steps[i]! + 1) * 104729);
+            if (layerRoll > 0.88) {
+                lastAt[i] = now;
+                return;
+            }
+            lastAt[i] = now;
+            steps[i]!++;
+            const jx = (fractHash(i * 1103515245 + 12345) - 0.5) * field.cellSize * 0.45;
+            const jz = (fractHash(i * 1664525 + 1013904223) - 0.5) * field.cellSize * 0.45;
+            const layer = steps[i]!;
+            const strength = STEP * (0.45 + 0.55 * (layer / MAX_STEPS));
+            this.stampScorchPatchy(
+                x + jx,
+                z + jz,
+                r * (0.85 + cellRoll * 0.25),
+                strength,
+                i + layer * 97,
+            );
+        });
     }
 
     /** Push pending canvas stamps to the GPU (throttled unless `force`). */
@@ -758,26 +1218,29 @@ export class BattleMap {
         if (!ctx || !this.hazardMask) return;
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, this.hazardW, this.hazardH);
-        const cellR = field.cellSize * 0.85;
-        const stampOilCell = (x: number, z: number) => {
-            this.stampHazardChannel(x, z, cellR, 0.55, 'r');
-            this.stampHazardChannel(x, z, cellR * 1.35, 0.22, 'r');
+        // Soft discs larger than a cell so puddles melt together (blood-style),
+        // instead of a visible square lattice of tiny stamps.
+        const puddleR = field.cellSize * 1.55;
+        // Orange (low VFX): tight under sparks. Tongues: slightly fuller ember pool.
+        const fireR = field.cellSize * (this.fireCharcoalGround ? 1.05 : 0.72);
+        const stampPuddle = (
+            x: number,
+            z: number,
+            channel: 'r' | 'g' | 'b',
+            core: number,
+            radius = puddleR,
+        ) => {
+            this.stampHazardChannel(x, z, radius, core, channel);
+            this.stampHazardChannel(x, z, radius * 1.2, core * 0.28, channel);
         };
-        field.forEachOilCell((x, z) => stampOilCell(x, z));
+        field.forEachOilCell((x, z) => stampPuddle(x, z, 'r', 0.92));
         field.forEachFireCell(now, (x, z, _dps, _until, tint) => {
-            this.stampHazardChannel(x, z, cellR, 0.7, 'g');
-            this.stampHazardChannel(x, z, cellR * 1.4, 0.3, 'g');
+            stampPuddle(x, z, 'g', 0.78, fireR);
             // dragon azure: G+B together (acid alone is B-only — see ground shader)
             // tint === 1 is FIRE_TINT_DRAGON (avoid importing fire.ts — circular with map)
-            if (tint === 1) {
-                this.stampHazardChannel(x, z, cellR, 0.55, 'b');
-                this.stampHazardChannel(x, z, cellR * 1.35, 0.22, 'b');
-            }
+            if (tint === 1) stampPuddle(x, z, 'b', 0.55, fireR);
         });
-        field.forEachAcidCell((x, z) => {
-            this.stampHazardChannel(x, z, cellR, 0.6, 'b');
-            this.stampHazardChannel(x, z, cellR * 1.35, 0.25, 'b');
-        });
+        field.forEachAcidCell((x, z) => stampPuddle(x, z, 'b', 0.65));
         if (draft) {
             field.forEachCapsuleCells(
                 draft.startX,
@@ -793,7 +1256,7 @@ export class BattleMap {
                             if (dx * dx + dz * dz <= s.radius * s.radius) return;
                         }
                     }
-                    stampOilCell(x, z);
+                    stampPuddle(x, z, 'r', 0.92);
                 },
             );
         }
@@ -818,9 +1281,28 @@ export class BattleMap {
         this.hazardFlushAt = now;
     }
 
+    /**
+     * Shared oil/acid/fire mask (board UV). Used by the ground shader and
+     * high+ scenery flower tint. Creating it is cheap; the canvas is filled
+     * on first oil/acid stamp.
+     */
+    getHazardMask(): CanvasTexture {
+        return this.ensureHazardMask();
+    }
+
     /** Drive fire flicker in the ground shader (visual only). */
     setHazardTime(t: number): void {
         if (this.hazardTimeUniform) this.hazardTimeUniform.value = t;
+        hazardTimeShared.value = t;
+    }
+
+    /**
+     * When true (fire VFX medium/high with flame tongues), live fire ground is
+     * charcoal that clears with the blaze — no orange puddle. Low fire VFX keeps orange.
+     */
+    setFireCharcoalGround(on: boolean): void {
+        this.fireCharcoalGround = on;
+        fireCharcoalGroundUniform.value = on ? 1 : 0;
     }
 
     /** Weather-driven snow wash on the board (visual only, melts under fire/oil/acid). */
@@ -859,6 +1341,8 @@ export class BattleMap {
         const profile = groundMaterialProfile();
         const useDetail = detail && profile.detailStrength > 0;
         const bomb = useDetail && profile.textureBomb;
+        const useCloseTile = detail && profile.closeRepeat > 1.01;
+        const richHazards = profile.tier === 'high' || profile.tier === 'ultra';
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uMacro = { value: macro };
             shader.uniforms.uMacroBase = { value: new Color(THEME.terrain.base) };
@@ -869,11 +1353,13 @@ export class BattleMap {
             shader.uniforms.uSnowCover = { value: 0 };
             this.snowCoverUniform = shader.uniforms.uSnowCover as { value: number };
             shader.uniforms.uDryGrass = summerDryUniform;
+            shader.uniforms.uFireCharcoalGround = fireCharcoalGroundUniform;
             shader.uniforms.uBoardHalf = { value: new Vector2(this.halfW, this.halfH) };
             if (useDetail) {
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
             }
+            bindCloseTileUniforms(shader.uniforms as Record<string, { value: unknown }>, profile);
             shader.vertexShader =
                 'varying vec2 vMacroUv;\nvarying vec2 vBoardXZ;\n' +
                 shader.vertexShader.replace(
@@ -882,7 +1368,11 @@ export class BattleMap {
                 );
             let inject = '';
             let extraUniforms =
-                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n';
+                'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uFireCharcoalGround;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n' +
+                closeTileUniformDecls(profile);
+            if (richHazards) extraUniforms += HAZARD_NOISE_GLSL;
+            // Footstep strength for oil/acid disturbance (set when wear mask is present).
+            inject += '\tfloat footWear = 0.0;\n';
             // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
@@ -906,10 +1396,16 @@ export class BattleMap {
                 '\t}\n' +
                 '\treturn clamp( acc, 0.0, 1.0 );\n' +
                 '}\n';
+            // Closer camera → finer grass tile (blades stop looking human-sized).
+            if (useCloseTile) {
+                inject += closeTileInjectGlsl(profile);
+            } else {
+                inject += closeTileWeightFallbackGlsl(profile);
+            }
             if (useDetail) {
                 extraUniforms += 'uniform float uDetailScale;\nuniform float uDetailStrength;\n';
                 if (bomb) {
-                    // Stochastic blend of rotated UV samples kills wallpaper tiling.
+                    // Keep bomb on the base lawn UV — uniform close tile, no extra breakup.
                     inject +=
                         '\tvec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );\n' +
                         '\tfloat bombW = fract( sin( dot( floor( vMapUv * 4.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
@@ -917,19 +1413,25 @@ export class BattleMap {
                         '\tvec3 bombAlb = texture2D( map, bombUv ).rgb;\n' +
                         '\tdiffuseColor.rgb = mix( diffuseColor.rgb, bombAlb, bombW * 0.55 );\n';
                 }
-                // Micro albedo: multiply-blend a finer UV sample so the lawn
-                // doesn't read as a single wallpaper tile at desktop distance.
-                inject +=
-                    '\tvec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;\n' +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
+                if (useCloseTile) {
+                    inject +=
+                        '\tvec3 detailAlb = texture2D(map, mix( vMapUv, closeUv, closeW ) * uDetailScale).rgb;\n' +
+                        '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
+                } else {
+                    inject +=
+                        '\tvec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;\n' +
+                        '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
+                }
             }
-            // Field photos: multiply dark seamless (photo-2) with photo-0 detail,
-            // UV-bomb photo-2 so tile seams don't read as cutoffs.
+            // Field photos at far/mid; fade out when close so the lawn stays uniform.
             if (photoGrass) {
                 const g = PHOTO_BLEND.grass;
                 shader.uniforms.uPhotoGrass1 = { value: photoGrass[0] };
                 shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
                 extraUniforms += 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n';
+                const pgCloseFade = useCloseTile
+                    ? `\tpgVeil *= mix( 1.0, 0.08, closeW );\n`
+                    : '';
                 inject +=
                     `\tfloat pgSoft = softBlobMask( vMapUv, ${g.cellScale.toFixed(2)}, ${g.density.toFixed(2)}, ${g.radius.toFixed(2)} );\n` +
                     `\tvec2 pgUv = vMapUv * ${g.uvScale.toFixed(2)};\n` +
@@ -941,19 +1443,17 @@ export class BattleMap {
                     '\t\ttexture2D( uPhotoGrass2, pgUv * 0.72 ).rgb,\n' +
                     '\t\ttexture2D( uPhotoGrass2, pgUvB * 0.64 ).rgb,\n' +
                     '\t\tpgBomb );\n' +
-                    // Multiply the two photos, keep some absolute dark from photo-2
                     '\tfloat pgDarkLum = max( dot( pgDark, vec3( 0.299, 0.587, 0.114 ) ), 0.06 );\n' +
                     '\tvec3 pgCombo = pgA * ( pgDark / pgDarkLum );\n' +
                     '\tpgCombo = mix( pgCombo, pgA * pgDark * 2.2, 0.35 );\n' +
                     '\tfloat pgComboLum = max( dot( pgCombo, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );\n' +
                     '\tvec3 pgDetail = pgCombo / pgComboLum;\n' +
-                    // Soft veil + midfield band in world XZ (between players, inset from rim)
                     `\tfloat pgVeil = 0.45 + 0.55 * pgSoft;\n` +
                     '\tvec2 pgN = abs( vBoardXZ ) / max( uBoardHalf, vec2( 1.0 ) );\n' +
-                    // Soft fill over inner ~80% of the board (fade in the outer 10% rim)
                     '\tfloat pgInner = 1.0 - smoothstep( 0.80, 0.92, max( pgN.x, pgN.y ) );\n' +
                     '\tfloat pgPatch = softBlobMask( vMapUv, 0.55, 0.45, 0.7 );\n' +
                     '\tpgVeil *= pgInner * mix( 0.25, 0.55, pgPatch ) * 0.45;\n' +
+                    pgCloseFade +
                     `\tdiffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgVeil * ${g.strength.toFixed(2)} );\n` +
                     `\tdiffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * mix( vec3( 1.0 ), pgDark * 1.8, 0.6 ), pgVeil * ${(g.strength * 0.65).toFixed(2)} );\n`;
             }
@@ -996,46 +1496,38 @@ export class BattleMap {
                 inject +=
                     '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
                     '\tfloat sandLum = preSnowLum;\n' +
-                    '\tfloat scorchM = smoothstep(0.12, 0.45, wear.b);\n' +
+                    '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
+                    '\tfloat scorchM = smoothstep(0.03, 0.22, wear.b);\n' +
                     '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
                     '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.09, 0.07), scorchM * 0.85);\n' +
+                    // Soft organic ash (no floor-grid — that read as pixels).
+                    '\tfloat ashA = fract( sin( dot( vMapUv * 11.0, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
+                    '\tfloat ashB = fract( sin( dot( vMapUv * 29.0, vec2( 269.5, 183.3 ) ) ) * 43758.5453 );\n' +
+                    '\tfloat ashC = fract( sin( dot( vMapUv * 7.3 + ashA, vec2( 91.7, 53.1 ) ) ) * 43758.5453 );\n' +
+                    '\tfloat ashBreak = clamp( ashA * 0.35 + ashB * 0.4 + ashC * 0.25, 0.0, 1.0 );\n' +
+                    '\tfloat scorchFill = scorchM * mix( 0.72, 1.0, ashBreak ) * 0.97;\n' +
+                    '\tvec3 charCol = vec3( 0.008, 0.006, 0.005 );\n' +
+                    '\tvec3 ashDirt = sandTexel * vec3( 0.18, 0.15, 0.12 );\n' +
+                    '\tvec3 burnCol = mix( ashDirt, charCol, smoothstep( 0.12, 0.65, ashBreak ) );\n' +
+                    '\tdiffuseColor.rgb = mix( diffuseColor.rgb, burnCol, scorchFill );\n' +
                     (bloodTintMask
                         ? '\tvec3 goreTint = texture2D(uBloodTint, vMacroUv).rgb;\n' +
                           '\tfloat hasGore = step(0.004, max(goreTint.r, max(goreTint.g, goreTint.b)));\n' +
                           '\tvec3 bloodCol = mix(vec3(0.06, 0.005, 0.008), goreTint, hasGore);\n' +
                           '\tdiffuseColor.rgb = mix(diffuseColor.rgb, bloodCol, bloodM);\n'
                         : '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.005, 0.008), bloodM);\n') +
-                    '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
                     // In snow: footprints = pressed pack (darker frost), not bare mud.
                     // snowMask 0 → dirt trails; snowMask 1 → compacted snow with a hint of grit.
                     // grassStampShow softens mud on lawn only — snow keeps full sandM.
                     '\tvec3 packedSnow = diffuseColor.rgb * vec3( 0.52, 0.58, 0.68 );\n' +
                     '\tvec3 trailCol = mix( sandTexel, mix( packedSnow, sandTexel, 0.22 ), snowMask );\n' +
                     `\tfloat sandShow = sandM * mix( ${WEAR_BLEND.grassStampShow.toFixed(2)}, 1.0, snowMask );\n` +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, trailCol, sandShow);\n';
+                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, trailCol, sandShow);\n' +
+                    // Feed hazard pass so oil/acid keep readable footstep tracks.
+                    '\tfootWear = sandM;\n';
             }
-            // oil / fire / acid — always, gameplay-readable on every quality setting
-            inject +=
-                '\tvec3 haz = texture2D(uHazardMask, vMacroUv).rgb;\n' +
-                '\tfloat oilM = smoothstep(0.06, 0.4, haz.r);\n' +
-                '\tfloat fireG = smoothstep(0.08, 0.45, haz.g);\n' +
-                '\tfloat fireB = smoothstep(0.06, 0.4, haz.b);\n' +
-                // orange fire = G without B; azure dragon = G+B; acid = B without G
-                '\tfloat orangeM = fireG * (1.0 - fireB * 0.85);\n' +
-                '\tfloat azureM = min(fireG, fireB);\n' +
-                '\tfloat acidM = fireB * (1.0 - fireG * 0.85);\n' +
-                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.04, 0.03, 0.015), oilM * 0.92);\n' +
-                '\tfloat flicker = 0.65 + 0.35 * sin(uHazardTime * 9.0 + vMacroUv.x * 40.0 + vMacroUv.y * 28.0);\n' +
-                '\tvec3 orangeCol = mix(vec3(0.08, 0.02, 0.0), vec3(1.0, 0.35, 0.05), flicker);\n' +
-                // dragon ground: orange scorch + deep blue flecks (icea was full azure @ 0.9)
-                '\tvec3 azureCol = mix(vec3(0.08, 0.02, 0.02), vec3(1.0, 0.36, 0.06), flicker);\n' +
-                '\tazureCol = mix(azureCol, vec3(0.12, 0.14, 0.55), 0.22);\n' +
-                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, orangeCol, orangeM * 0.9);\n' +
-                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, azureCol, azureM * 0.88);\n' +
-                '\tfloat bubble = 0.7 + 0.3 * sin(uHazardTime * 3.0 + vMacroUv.x * 60.0 - vMacroUv.y * 50.0);\n' +
-                '\tvec3 acidCol = mix(vec3(0.09, 0.13, 0.015), vec3(0.55, 0.78, 0.10), bubble);\n' +
-                '\tdiffuseColor.rgb = mix(diffuseColor.rgb, acidCol, acidM * 0.88);\n';
+            // oil / fire / acid — always readable; high/ultra add motion
+            inject += groundHazardColorGlsl(richHazards);
             let frag =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 extraUniforms +
@@ -1044,13 +1536,16 @@ export class BattleMap {
             if (useDetail && material.normalMap) {
                 // Micro normals in the same space as the already-perturbed map
                 // (cheap UDN-style). Avoids perturbNormalArb — removed/changed in r185.
-                frag = frag.replace(
-                    '#include <normal_fragment_maps>',
-                    `#include <normal_fragment_maps>
+                let normalInject = `#include <normal_fragment_maps>
 \tvec3 detailN = texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0;
 \tdetailN.xy *= uDetailStrength;
-\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`,
-                );
+\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`;
+                if (useCloseTile) {
+                    normalInject += `
+\tvec3 closeN = texture2D( normalMap, vMapUv * uCloseRepeat ).xyz * 2.0 - 1.0;
+\tnormal = normalize( mix( normal, closeN, closeW ) );`;
+                }
+                frag = frag.replace('#include <normal_fragment_maps>', normalInject);
             }
             if (profile.roughnessFromAlbedo && detail) {
                 frag = frag.replace(
@@ -1058,15 +1553,21 @@ export class BattleMap {
                     `#include <roughnessmap_fragment>
 \tfloat grassLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
 \t// darker soil pockets slightly rougher; bright blades a touch less flat-matte
-\troughnessFactor = clamp( roughnessFactor + ( 0.42 - grassLum ) * 0.22, 0.62, 0.98 );`,
+\troughnessFactor = clamp( roughnessFactor + ( 0.42 - grassLum ) * 0.22, 0.62, 0.98 );
+${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
+                );
+            } else if (richHazards) {
+                frag = frag.replace(
+                    '#include <roughnessmap_fragment>',
+                    `#include <roughnessmap_fragment>\n${HAZARD_ROUGHNESS_GLSL}`,
                 );
             }
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v33${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}-gs${
+            `ground-hazard-v62${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
-            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}`;
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg`;
     }
 
     /**
@@ -1095,6 +1596,8 @@ export class BattleMap {
         }
         this.sandDirty = false;
         this.sandFlushAt = performance.now();
+        this.fireScorchCells = null;
+        this.fireScorchAt = null;
     }
 
     /** Wipe unit wear (new match). Base mud patches stay on their own layer. */
@@ -1112,6 +1615,8 @@ export class BattleMap {
         }
         this.sandDirty = false;
         this.sandFlushAt = performance.now();
+        this.fireScorchCells = null;
+        this.fireScorchAt = null;
     }
 
     /** Radius for a pack courtyard stamp from its tile footprint. */
@@ -1176,6 +1681,8 @@ export class BattleMap {
             this.sandCtx = null;
             this.bloodTintMask = null;
             this.bloodTintCtx = null;
+            this.fireScorchCells = null;
+            this.fireScorchAt = null;
         }
         const hazardMask = this.ensureHazardMask();
 

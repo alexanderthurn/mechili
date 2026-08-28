@@ -71,6 +71,8 @@ const BOLT_URL = new URL('../../assets/models/bolt.glb', import.meta.url).href;
 interface BoltAsset {
     geometry: BufferGeometry;
     material: MeshStandardMaterial;
+    /** Local +Z of the tip after unit-length bake (center at 0). */
+    tipZ: number;
 }
 
 let boltAsset: BoltAsset | null = null;
@@ -275,6 +277,7 @@ function prepareBoltFromScene(scene: Group): BoltAsset | null {
     );
     merged.computeBoundingBox();
     merged.computeVertexNormals();
+    const tipZ = Math.max(merged.boundingBox!.max.z, 0.35);
 
     if (!material) {
         material = new MeshStandardMaterial({
@@ -284,7 +287,7 @@ function prepareBoltFromScene(scene: Group): BoltAsset | null {
         });
     }
 
-    return { geometry: merged, material };
+    return { geometry: merged, material, tipZ };
 }
 
 /** Load shared bolt mesh for archer / ballista InstancedMesh pools. Safe to call repeatedly. */
@@ -312,6 +315,13 @@ export async function preloadProjectileBolt(): Promise<void> {
 
 export function getProjectileBoltAsset(): BoltAsset | null {
     return boltAsset;
+}
+
+/** World-space tip offset along flight dir for a bolt instance (matches 3D mesh tip). */
+export function boltTipWorldOffset(style: 'arrow' | 'largeArrow'): number {
+    const tipZ = boltAsset?.tipZ ?? 0.5;
+    const scale = style === 'largeArrow' ? LARGE_ARROW_SCALE : ARROW_SCALE;
+    return tipZ * scale;
 }
 
 const BRICK_URL = new URL('../../assets/models/brick.glb', import.meta.url).href;
@@ -607,6 +617,54 @@ export class Particles {
         this.blood = new ParticlePool(scene, NormalBlending, 1.2);
     }
 
+    /**
+     * Hammer impact dust: kicks up from points across the oriented rectangle
+     * so the cloud follows the footprint instead of a circle.
+     */
+    private spawnRectExplosionDust(
+        x: number,
+        y: number,
+        z: number,
+        rect: { halfWidth: number; halfDepth: number; yaw: number },
+        heavy: boolean,
+    ): void {
+        const c = Math.cos(rect.yaw);
+        const sn = Math.sin(rect.yaw);
+        const hw = rect.halfWidth;
+        const hd = rect.halfDepth;
+        const samples = heavy ? 36 : 22;
+        for (let i = 0; i < samples; i++) {
+            const lx = (Math.random() * 2 - 1) * hw * 0.95;
+            const lz = (Math.random() * 2 - 1) * hd * 0.95;
+            const px = x + lx * c - lz * sn;
+            const pz = z + lx * sn + lz * c;
+            const ox = (lx / Math.max(hw, 1e-3)) * c - (lz / Math.max(hd, 1e-3)) * sn;
+            const oz = (lx / Math.max(hw, 1e-3)) * sn + (lz / Math.max(hd, 1e-3)) * c;
+            const olen = Math.hypot(ox, oz) || 1;
+            this.burst(px, y, pz, {
+                count: heavy ? 3 : 2,
+                color: i % 3 === 0 ? 0xb8a888 : 0x6e6558,
+                speed: heavy ? 5.5 : 4,
+                life: 0.55 + Math.random() * 0.25,
+                up: heavy ? 4.5 : 3.2,
+                dir: { x: ox / olen, y: 0.35, z: oz / olen },
+            });
+        }
+        for (let i = 0; i < 10; i++) {
+            const lx = (Math.random() * 2 - 1) * hw * 0.35;
+            const lz = (Math.random() * 2 - 1) * hd * 0.9;
+            const px = x + lx * c - lz * sn;
+            const pz = z + lx * sn + lz * c;
+            this.burst(px, y + 0.15, pz, {
+                count: 2,
+                color: 0x4a4338,
+                speed: 3,
+                life: 0.7,
+                up: 5,
+            });
+        }
+    }
+
     burst(
         x: number,
         y: number,
@@ -741,6 +799,18 @@ export class Particles {
                     break;
                 }
                 case 'explosion': {
+                    if (e.rect) {
+                        // Hammer: dust from the oriented footprint (not a radial disc)
+                        this.spawnRectExplosionDust(e.x, e.y, e.z, e.rect, !!e.heavy);
+                        if (e.shake) {
+                            screenShake({
+                                intensity: 0.5 * e.shake,
+                                duration: 0.5,
+                                frequency: 46,
+                            });
+                        }
+                        break;
+                    }
                     // dusty debris / scorched soil — not fire-yellow
                     const s = e.radius / 3;
                     const heavy = e.heavy ? 1.6 : 1;
@@ -826,22 +896,32 @@ export class Particles {
                 case 'death':
                     if (e.wear === 'ash') {
                         if (e.structure) {
+                            // A razed building does not crumble in place: the
+                            // front that flattened it carries its stone with it,
+                            // so the dust goes flat and far down the same line.
+                            const push = e.fling ?? 1;
+                            const swept = push > 1 && e.dx !== undefined;
+                            const along = swept
+                                ? { x: e.dx!, y: 0.2, z: e.dz ?? 0 }
+                                : undefined;
                             // tower-stone dust — solid masonry rain is StoneChipRenderer
                             this.burst(e.x, e.y, e.z, {
-                                count: 40,
+                                count: swept ? 60 : 40,
                                 color: THEME.scenery.masonry,
-                                speed: 12,
-                                life: 1.1,
-                                up: 6,
+                                speed: swept ? 12 * push : 12,
+                                life: swept ? 1.8 : 1.1,
+                                up: swept ? 2 : 6,
                                 blood: true,
+                                dir: along,
                             });
                             this.burst(e.x, e.y + 1.0, e.z, {
-                                count: 28,
+                                count: swept ? 40 : 28,
                                 color: 0x6a705c,
-                                speed: 7,
-                                life: 1.3,
-                                up: 8,
+                                speed: swept ? 7 * push : 7,
+                                life: swept ? 2.0 : 1.3,
+                                up: swept ? 3 : 8,
                                 blood: true,
+                                dir: along,
                             });
                             screenShake({
                                 intensity: 0.85,
@@ -872,41 +952,53 @@ export class Particles {
                     } else {
                         // gore jets along the killing-blow direction (from knockback)
                         const kill = e.dx !== undefined ? { x: e.dx, y: 0.15, z: e.dz ?? 0 } : undefined;
+                        const gore = e.bloodScale ?? 1;
+                        // A flung death (a keep's collapse) throws the omni cloud
+                        // down the blow as well, so nothing fountains straight up:
+                        // faster, flatter and living longer, so it travels.
+                        const fling = e.fling ?? 1;
+                        const thrown = fling > 1;
+                        const omniDir = thrown ? kill : undefined;
+                        const rise = (base: number) => (thrown ? base * 0.35 : base);
+                        const far = (base: number) => (thrown ? base * fling : base);
+                        const linger = (base: number) => (thrown ? base * 1.7 : base);
                         if (e.big) {
                             // massive gib burst — an omni cloud + a jet down the blow
                             this.burst(e.x, e.y, e.z, {
-                                count: 56,
+                                count: Math.round(56 * gore),
                                 color: e.blood ?? THEME.death,
-                                speed: 22,
-                                life: 1.2,
-                                up: 5,
+                                speed: far(22),
+                                life: linger(1.2),
+                                up: rise(5),
                                 blood: true,
+                                dir: omniDir,
                             });
                             this.burst(e.x, e.y + 1, e.z, {
-                                count: 40,
+                                count: Math.round(40 * gore),
                                 color: e.blood != null ? lightenBlood(e.blood) : THEME.deathSecondary,
-                                speed: 16,
-                                life: 0.95,
-                                up: 5,
+                                speed: far(16),
+                                life: linger(0.95),
+                                up: rise(5),
                                 blood: true,
                                 dir: kill,
                             });
                         } else {
                             // omni spurt + a directional gout down the blow
                             this.burst(e.x, e.y, e.z, {
-                                count: 18,
+                                count: Math.round(18 * gore),
                                 color: e.blood ?? THEME.deathSmall,
-                                speed: 15,
-                                life: 0.75,
-                                up: 3,
+                                speed: far(15),
+                                life: linger(0.75),
+                                up: rise(3),
                                 blood: true,
+                                dir: omniDir,
                             });
                             this.burst(e.x, e.y + 0.4, e.z, {
-                                count: 14,
+                                count: Math.round(14 * gore),
                                 color: e.blood ?? THEME.deathSmall,
-                                speed: 14,
-                                life: 0.85,
-                                up: 3,
+                                speed: far(14),
+                                life: linger(0.85),
+                                up: rise(3),
                                 blood: true,
                                 dir: kill,
                             });
@@ -927,7 +1019,7 @@ export class Particles {
  * Built once, shared across pools.
  */
 let particleSprite: Texture | null = null;
-function particleTexture(): Texture {
+export function particleTexture(): Texture {
     if (particleSprite) return particleSprite;
     const s = 64;
     const canvas = document.createElement('canvas');
@@ -947,32 +1039,112 @@ function particleTexture(): Texture {
     return particleSprite;
 }
 
-class ParticlePool {
-    private readonly positions = new Float32Array(MAX_PARTICLES * 3);
-    /** per-particle base tint (uploaded on burst) */
-    private readonly aColor = new Float32Array(MAX_PARTICLES * 3);
+export type SoftParticlePoolOptions = {
+    blending: typeof AdditiveBlending | typeof NormalBlending;
+    size: number;
+    /** default false — forge chimney sparks opt in so tree billboards don't overpaint */
+    depthWrite?: boolean;
+    depthTest?: boolean;
+    renderOrder?: number;
+    /** fragment alpha multiplier (normal-blended smoke) */
+    opacity?: number;
+    maxParticles?: number;
+    /** default {@link GRAVITY} — forge chimney uses 0 so sparks don't rain down */
+    gravity?: number;
+    /** how much particles grow while fading (0 = constant size) */
+    sizeGrowth?: number;
+    /** spawn at this fraction of base size, ramp to full over {@link sizeBirthPhase} (default 1) */
+    sizeBirthScale?: number;
+    /** fraction of lifetime spent growing from {@link sizeBirthScale} → full base size (default 0) */
+    sizeBirthPhase?: number;
+    /** opacity stays 1 until life ratio drops below this, then fades out (default 0.35) */
+    fadeStart?: number;
+    /** horizontal + vertical velocity damping per second (default 2.2) */
+    drag?: number;
+    /** widen horizontal drift as particles age — chimney smoke billows outward (default 0) */
+    billow?: number;
+    /** extra horizontal velocity damping per second — keeps chimney plumes vertical (default 0) */
+    lateralDrag?: number;
+    /** clamp horizontal speed — prevents runaway sideways drift (default: no cap) */
+    maxLateralSpeed?: number;
+    /** gentle left/right push while fading out (default 0) */
+    dissolveSpread?: number;
+};
+
+/** Soft-sprite point pool — shared by battle particles and forge chimney FX. */
+export class SoftParticlePool {
+    private readonly maxParticles: number;
+    private readonly positions: Float32Array;
+    /** per-particle tint (lerps start → end over lifetime) */
+    private readonly aColor: Float32Array;
+    private readonly startColors: Float32Array;
+    private readonly endColors: Float32Array;
     /** per-particle current point size (grows as it dissipates) */
-    private readonly aSize = new Float32Array(MAX_PARTICLES);
+    private readonly aSize: Float32Array;
     /** per-particle current alpha (fades over life) */
-    private readonly aOpacity = new Float32Array(MAX_PARTICLES);
-    private readonly velocities = new Float32Array(MAX_PARTICLES * 3);
+    private readonly aOpacity: Float32Array;
+    private readonly velocities: Float32Array;
     /** per-particle spawn size, before the over-life growth */
-    private readonly baseSizes = new Float32Array(MAX_PARTICLES);
-    private readonly life = new Float32Array(MAX_PARTICLES);
-    private readonly maxLife = new Float32Array(MAX_PARTICLES);
+    private readonly baseSizes: Float32Array;
+    private readonly life: Float32Array;
+    private readonly maxLife: Float32Array;
     private readonly geometry = new BufferGeometry();
     private cursor = 0;
     private readonly tmpColor = new Color();
     /** pool-wide size scalar (blood is smaller/wetter, sparks larger/glowy) */
     private readonly size: number;
+    private readonly gravity: number;
+    private readonly sizeGrowth: number;
+    private readonly sizeBirthScale: number;
+    private readonly sizeBirthPhase: number;
+    private readonly fadeStart: number;
+    private readonly drag: number;
+    private readonly billow: number;
+    private readonly lateralDrag: number;
+    private readonly maxLateralSpeed: number;
+    private readonly dissolveSpread: number;
+    private readonly spreadDirX: Float32Array | null;
+    private readonly spreadDirZ: Float32Array | null;
 
-    constructor(scene: Scene, blending: typeof AdditiveBlending | typeof NormalBlending, size: number) {
-        this.size = size;
+    constructor(scene: Scene, opts: SoftParticlePoolOptions) {
+        this.maxParticles = opts.maxParticles ?? MAX_PARTICLES;
+        this.size = opts.size;
+        this.gravity = opts.gravity ?? GRAVITY;
+        this.sizeGrowth = opts.sizeGrowth ?? 0.4;
+        this.sizeBirthScale = opts.sizeBirthScale ?? 1;
+        this.sizeBirthPhase = opts.sizeBirthPhase ?? 0;
+        this.fadeStart = opts.fadeStart ?? 0.35;
+        this.drag = opts.drag ?? 2.2;
+        this.billow = opts.billow ?? 0;
+        this.lateralDrag = opts.lateralDrag ?? 0;
+        this.maxLateralSpeed = opts.maxLateralSpeed ?? 0;
+        this.dissolveSpread = opts.dissolveSpread ?? 0;
+        if (this.dissolveSpread > 0) {
+            this.spreadDirX = new Float32Array(this.maxParticles);
+            this.spreadDirZ = new Float32Array(this.maxParticles);
+        } else {
+            this.spreadDirX = null;
+            this.spreadDirZ = null;
+        }
+        this.positions = new Float32Array(this.maxParticles * 3);
+        this.aColor = new Float32Array(this.maxParticles * 3);
+        this.startColors = new Float32Array(this.maxParticles * 3);
+        this.endColors = new Float32Array(this.maxParticles * 3);
+        this.aSize = new Float32Array(this.maxParticles);
+        this.aOpacity = new Float32Array(this.maxParticles);
+        this.velocities = new Float32Array(this.maxParticles * 3);
+        this.baseSizes = new Float32Array(this.maxParticles);
+        this.life = new Float32Array(this.maxParticles);
+        this.maxLife = new Float32Array(this.maxParticles);
         this.positions.fill(0);
         this.geometry.setAttribute('position', new BufferAttribute(this.positions, 3).setUsage(DynamicDrawUsage));
         this.geometry.setAttribute('aColor', new BufferAttribute(this.aColor, 3).setUsage(DynamicDrawUsage));
         this.geometry.setAttribute('aSize', new BufferAttribute(this.aSize, 1).setUsage(DynamicDrawUsage));
         this.geometry.setAttribute('aOpacity', new BufferAttribute(this.aOpacity, 1).setUsage(DynamicDrawUsage));
+        const depthWrite = opts.depthWrite ?? false;
+        const depthTest = opts.depthTest ?? true;
+        const renderOrder = opts.renderOrder ?? 0;
+        const poolOpacity = opts.opacity ?? (opts.blending === NormalBlending ? 0.95 : 1);
         // per-particle size + opacity need a custom shader (PointsMaterial has
         // one global size only). Soft sprite → round mist; sizeAttenuation via
         // uScale = drawing-buffer height * 0.5 (matches three's point scaling).
@@ -980,11 +1152,12 @@ class ParticlePool {
             uniforms: {
                 uMap: { value: particleTexture() },
                 uScale: { value: 400 },
-                uOpacity: { value: blending === NormalBlending ? 0.95 : 1 },
+                uOpacity: { value: poolOpacity },
             },
             transparent: true,
-            depthWrite: false,
-            blending,
+            depthWrite,
+            depthTest,
+            blending: opts.blending,
             fog: false,
             vertexShader: /* glsl */ `
                 attribute vec3 aColor;
@@ -1008,19 +1181,21 @@ class ParticlePool {
                 varying float vOpacity;
                 void main() {
                     float a = texture2D(uMap, gl_PointCoord).a;
+                    if (a < 0.02) discard;
                     gl_FragColor = vec4(vColor, a * vOpacity * uOpacity);
                 }
             `,
         });
         const points = new Points(this.geometry, material);
         points.frustumCulled = false;
+        points.renderOrder = renderOrder;
         const bufSize = new Vector2();
         points.onBeforeRender = (renderer) => {
             renderer.getDrawingBufferSize(bufSize);
             material.uniforms.uScale!.value = bufSize.y * 0.5;
         };
         scene.add(points);
-        for (let i = 0; i < MAX_PARTICLES; i++) this.positions[i * 3 + 1] = -9999;
+        for (let i = 0; i < this.maxParticles; i++) this.positions[i * 3 + 1] = -9999;
     }
 
     burst(
@@ -1037,14 +1212,18 @@ class ParticlePool {
             dir?: { x: number; y: number; z: number };
             /** 0..1 multiplier on the random (perpendicular) spread; default 1 */
             spread?: number;
+            /** tint at end of life — smoke darkens → lightens as it cools (default: same as color) */
+            colorEnd?: number;
         },
     ): void {
         this.tmpColor.setHex(opts.color);
+        const endHex = opts.colorEnd ?? opts.color;
+        const endColor = this.tmpColor.clone().setHex(endHex);
         const dir = opts.dir;
         const spread = opts.spread ?? 1;
         for (let n = 0; n < opts.count; n++) {
             const i = this.cursor;
-            this.cursor = (this.cursor + 1) % MAX_PARTICLES;
+            this.cursor = (this.cursor + 1) % this.maxParticles;
             const angle = Math.random() * Math.PI * 2;
             const pitch = Math.random() * Math.PI - Math.PI / 2;
             const speed = opts.speed * (0.4 + Math.random() * 0.6);
@@ -1064,21 +1243,34 @@ class ParticlePool {
                 this.velocities[i * 3 + 1] = ry * speed + (opts.up ?? 2);
                 this.velocities[i * 3 + 2] = rz * speed * spread;
             }
+            this.startColors[i * 3] = this.tmpColor.r;
+            this.startColors[i * 3 + 1] = this.tmpColor.g;
+            this.startColors[i * 3 + 2] = this.tmpColor.b;
+            this.endColors[i * 3] = endColor.r;
+            this.endColors[i * 3 + 1] = endColor.g;
+            this.endColors[i * 3 + 2] = endColor.b;
             this.aColor[i * 3] = this.tmpColor.r;
             this.aColor[i * 3 + 1] = this.tmpColor.g;
             this.aColor[i * 3 + 2] = this.tmpColor.b;
             // mixed droplet sizes — a few fat splats, many fine mist specks
             this.baseSizes[i] = this.size * (0.4 + Math.random() * Math.random() * 1.5);
-            this.aSize[i] = this.baseSizes[i]!;
+            const birthMul = this.sizeBirthPhase > 0 ? this.sizeBirthScale : 1;
+            this.aSize[i] = this.baseSizes[i]! * birthMul;
             this.aOpacity[i] = 1;
             this.life[i] = opts.life * (0.6 + Math.random() * 0.4);
             this.maxLife[i] = this.life[i]!;
+            if (this.spreadDirX && this.spreadDirZ) {
+                const a = Math.random() * Math.PI * 2;
+                this.spreadDirX[i] = Math.cos(a);
+                this.spreadDirZ[i] = Math.sin(a);
+            }
         }
     }
 
     update(dt: number): void {
-        const drag = Math.max(0, 1 - dt * 2.2); // air resistance → spray settles into mist
-        for (let i = 0; i < MAX_PARTICLES; i++) {
+        const vDrag = Math.max(0, 1 - dt * this.drag);
+        const hDrag = Math.max(0, 1 - dt * (this.drag + this.lateralDrag));
+        for (let i = 0; i < this.maxParticles; i++) {
             if (this.life[i]! <= 0) continue;
             this.life[i]! -= dt;
             if (this.life[i]! <= 0) {
@@ -1086,24 +1278,87 @@ class ParticlePool {
                 this.aOpacity[i] = 0;
                 continue;
             }
-            this.velocities[i * 3]! *= drag;
-            this.velocities[i * 3 + 2]! *= drag;
-            this.velocities[i * 3 + 1]! += GRAVITY * dt;
+            this.velocities[i * 3]! *= hDrag;
+            this.velocities[i * 3 + 2]! *= hDrag;
+            this.velocities[i * 3 + 1]! *= vDrag;
+            const fade = this.life[i]! / this.maxLife[i]!;
+            const age = 1 - fade;
+            /** cap growth/spread before dissolve — fade is opacity-only at the end */
+            const growAge = Math.min(age, 1 - this.fadeStart);
+            if (this.billow > 0) {
+                const expand = 1 + dt * this.billow * growAge;
+                this.velocities[i * 3]! *= expand;
+                this.velocities[i * 3 + 2]! *= expand;
+            }
+            this.velocities[i * 3 + 1]! += this.gravity * dt;
+            if (this.gravity >= 0 && this.velocities[i * 3 + 1]! < 0) {
+                this.velocities[i * 3 + 1] = 0;
+            }
+            const dissolving = fade < this.fadeStart;
+            if (dissolving && this.dissolveSpread > 0 && this.spreadDirX && this.spreadDirZ) {
+                const t = 1 - fade / this.fadeStart;
+                const push = dt * this.dissolveSpread * t;
+                this.velocities[i * 3]! += this.spreadDirX[i]! * push;
+                this.velocities[i * 3 + 2]! += this.spreadDirZ[i]! * push;
+            } else if (dissolving) {
+                const settle = Math.max(0, 1 - dt * 6);
+                this.velocities[i * 3]! *= settle;
+                this.velocities[i * 3 + 2]! *= settle;
+            }
+            if (this.maxLateralSpeed > 0) {
+                const vx = this.velocities[i * 3]!;
+                const vz = this.velocities[i * 3 + 2]!;
+                const hSpeed = Math.hypot(vx, vz);
+                const cap =
+                    dissolving && this.dissolveSpread > 0
+                        ? this.maxLateralSpeed * 1.75
+                        : this.maxLateralSpeed;
+                if (hSpeed > cap) {
+                    const s = cap / hSpeed;
+                    this.velocities[i * 3] = vx * s;
+                    this.velocities[i * 3 + 2] = vz * s;
+                }
+            }
             this.positions[i * 3]! += this.velocities[i * 3]! * dt;
             this.positions[i * 3 + 1]! += this.velocities[i * 3 + 1]! * dt;
             this.positions[i * 3 + 2]! += this.velocities[i * 3 + 2]! * dt;
             // soft floor only for near-zero spawns — don't yank hill-anchored flames to y≈0
             if (this.positions[i * 3 + 1]! < -50) this.positions[i * 3 + 1] = -50;
-            const fade = this.life[i]! / this.maxLife[i]!;
-            // stay fully opaque through most of the life, fade out only in the
-            // last ~35% — keeps droplets solid instead of ghosting immediately
-            this.aOpacity[i] = Math.min(1, fade / 0.35);
-            this.aSize[i] = this.baseSizes[i]! * (1 + (1 - fade) * 0.4);
+            // stay fully opaque through most of life, fade out only near the end
+            this.aOpacity[i] = Math.min(1, fade / this.fadeStart);
+            let sizeMul: number;
+            if (this.sizeBirthPhase > 0 && growAge < this.sizeBirthPhase) {
+                const t = growAge / this.sizeBirthPhase;
+                sizeMul = this.sizeBirthScale + (1 - this.sizeBirthScale) * t;
+            } else {
+                const billowT =
+                    this.sizeBirthPhase > 0
+                        ? (growAge - this.sizeBirthPhase) / (1 - this.sizeBirthPhase)
+                        : growAge;
+                sizeMul = 1 + billowT * this.sizeGrowth;
+            }
+            this.aSize[i] = this.baseSizes[i]! * sizeMul;
+            this.aColor[i * 3] =
+                this.startColors[i * 3]! +
+                (this.endColors[i * 3]! - this.startColors[i * 3]!) * age;
+            this.aColor[i * 3 + 1] =
+                this.startColors[i * 3 + 1]! +
+                (this.endColors[i * 3 + 1]! - this.startColors[i * 3 + 1]!) * age;
+            this.aColor[i * 3 + 2] =
+                this.startColors[i * 3 + 2]! +
+                (this.endColors[i * 3 + 2]! - this.startColors[i * 3 + 2]!) * age;
         }
         this.geometry.attributes.position!.needsUpdate = true;
         this.geometry.attributes.aColor!.needsUpdate = true;
         this.geometry.attributes.aSize!.needsUpdate = true;
         this.geometry.attributes.aOpacity!.needsUpdate = true;
+    }
+}
+
+/** @deprecated internal alias */
+class ParticlePool extends SoftParticlePool {
+    constructor(scene: Scene, blending: typeof AdditiveBlending | typeof NormalBlending, size: number) {
+        super(scene, { blending, size });
     }
 }
 
@@ -1388,6 +1643,7 @@ export class StoneChipRenderer {
     private readonly scale = new Vector3();
     private readonly euler = new Euler();
     private readonly chips: StoneChip[] = [];
+    private groundAt: ((x: number, z: number) => number) | null = null;
     private readonly tmpColor = new Color();
     private readonly roundBaseColor: number;
 
@@ -1436,6 +1692,9 @@ export class StoneChipRenderer {
         events: readonly SimEvent[],
         groundHeightAt: (x: number, z: number) => number,
     ): void {
+        // kept for the airborne resample in update() — a chip thrown clear of
+        // its own footprint must land on the lawn it actually reaches
+        this.groundAt = groundHeightAt;
         for (const e of events) {
             if (e.kind !== 'impact' && !(e.kind === 'death' && e.structure)) continue;
             if (e.kind === 'impact' && e.masonry) this.spawnHitChips(e, groundHeightAt);
@@ -1530,7 +1789,13 @@ export class StoneChipRenderer {
         const terrain0 = groundHeightAt(e.x, e.z);
         const height = Math.max(3, e.structureHeight ?? e.y - terrain0 + 1.5);
         const radius = Math.max(1.4, e.structureRadius ?? 2.2);
-        const n = 52 + Math.min(28, Math.round(height * 2.5));
+        // Razed by a collapse front: every stone leaves along the front's own
+        // path instead of dropping around the footprint.
+        const push = e.fling ?? 1;
+        const swept = push > 1 && e.dx !== undefined;
+        const sweepX = swept ? e.dx! : 0;
+        const sweepZ = swept ? (e.dz ?? 0) : 0;
+        const n = (swept ? 74 : 52) + Math.min(28, Math.round(height * 2.5));
         for (let i = 0; i < n; i++) {
             const ang = Math.random() * Math.PI * 2;
             const r = Math.sqrt(Math.random()) * radius * 0.95;
@@ -1539,15 +1804,16 @@ export class StoneChipRenderer {
             const terrain = groundHeightAt(px, pz);
             const py = terrain + height * (0.2 + Math.random() * 0.85);
             const out = 1.5 + Math.random() * 5.5;
+            const carry = swept ? out * push * (0.7 + Math.random() * 1.1) : 0;
             const s = 0.7 + Math.random() * 1.1;
             this.pushChip({
                 shape: 'brick',
                 x: px,
                 y: py,
                 z: pz,
-                vx: Math.cos(ang) * out * (0.35 + Math.random()),
-                vy: -1 + Math.random() * 3.5,
-                vz: Math.sin(ang) * out * (0.35 + Math.random()),
+                vx: Math.cos(ang) * out * (0.35 + Math.random()) + sweepX * carry,
+                vy: -1 + Math.random() * 3.5 + (swept ? 2 + Math.random() * 5 : 0),
+                vz: Math.sin(ang) * out * (0.35 + Math.random()) + sweepZ * carry,
                 sx: s * (0.95 + Math.random() * 0.55),
                 sy: s * (0.65 + Math.random() * 0.45),
                 sz: s * (0.8 + Math.random() * 0.5),
@@ -1619,6 +1885,7 @@ export class StoneChipRenderer {
                 c.rx += c.spinX * dt;
                 c.ry += c.spinY * dt;
                 c.rz += c.spinZ * dt;
+                if (this.groundAt) c.groundY = this.groundAt(c.x, c.z);
                 const rest = chipRestY(c.groundY, c.sy, c.shape);
                 if (c.y < rest) {
                     c.y = rest;

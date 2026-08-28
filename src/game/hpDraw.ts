@@ -1,6 +1,6 @@
 import type { Economy } from './settings';
 import { actorTeam, type Actor, type BattleSim } from './sim';
-import { hpDrawWaveTier, hpWithdrawOf, type HpDrawWaveTier, type Team } from './units';
+import { GARRISON_ARCHER, hpDrawWaveTier, hpWithdrawOf, type HpDrawWaveTier, type Team } from './units';
 
 /** World origin for an HP-draw soul — living unit feet / hover base. */
 function hpDrawOrigin(a: Actor): { x: number; y: number; z: number } {
@@ -93,7 +93,10 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
     let hordeValue = 0;
 
     for (const a of sim.actors) {
-        if (a.unit.type.structure || !a.alive) continue;
+        // A battlement archer is part of the keep, not part of the army that
+        // marched: he never crossed the field, and he cannot be answered on it
+        // either, so he takes no HP off the loser.
+        if (a.unit.type.structure || a.unit.type === GARRISON_ARCHER || !a.alive) continue;
         const headcount = Math.max(1, a.unit.members.length);
         const value = economy.costOf(a.unit.type) / headcount;
         const team = actorTeam(a);
@@ -152,7 +155,10 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
     // lump the deterministic HP math applies, but as fly-to-bar particles.
     if (!playerSurvived || !enemySurvived) {
         for (const a of sim.actors) {
-            if (a.unit.type.structure || !a.alive) continue;
+            // A battlement archer is part of the keep, not part of the army that
+        // marched: he never crossed the field, and he cannot be answered on it
+        // either, so he takes no HP off the loser.
+        if (a.unit.type.structure || a.unit.type === GARRISON_ARCHER || !a.alive) continue;
             if (actorTeam(a) !== null) continue;
             const headcount = Math.max(1, a.unit.members.length);
             const value = economy.costOf(a.unit.type) / headcount;

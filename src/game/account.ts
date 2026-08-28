@@ -20,6 +20,12 @@ export interface PlayerProfile {
     draws: number;
     games: number;
     mpGames: number;
+    /** Solo vs AI (including local duo/horde). */
+    gamesAi: number;
+    /** Ranked/networked 1v1. */
+    games1v1: number;
+    /** Networked 2v2 — counted, not Elo-rated. */
+    games2v2: number;
     hasPassword?: boolean;
     hasAvatar?: boolean;
     /** Present on hello / claim / get / avatar responses only */
@@ -237,7 +243,7 @@ export async function syncOpenProfile(name: string): Promise<PlayerProfile | nul
 
 export async function submitMatchResult(input: {
     matchId: string;
-    mode: 'ai' | 'mp';
+    mode: 'ai' | 'mp' | '2v2';
     result: 'victory' | 'defeat' | 'draw';
     names: { local: string; opponent: string };
 }): Promise<PlayerProfile | null> {
@@ -258,11 +264,20 @@ export async function submitMatchResult(input: {
 
 export function reportMatchResult(input: {
     matchId: string;
-    mode: 'ai' | 'mp';
+    mode: 'ai' | 'mp' | '2v2';
     result: 'victory' | 'defeat' | 'draw';
     names: { local: string; opponent: string };
 }): void {
     void submitMatchResult(input).catch(() => undefined);
+}
+
+/** Public profile lookup — best-effort; null when offline or unknown name. */
+export async function fetchPlayerPublic(name: string): Promise<PlayerProfile | null> {
+    if (!isOpenBuild()) return null;
+    const data = (await fetchJson(
+        `${playerUrl()}?action=get&name=${encodeURIComponent(name)}`,
+    )) as { player?: PlayerProfile } | null;
+    return data?.player ?? null;
 }
 
 export async function fetchLadder(limit = 50): Promise<PlayerProfile[]> {
@@ -281,6 +296,9 @@ export async function fetchLadder(limit = 50): Promise<PlayerProfile[]> {
         draws: row.draws ?? 0,
         games: row.games ?? 0,
         mpGames: row.games ?? 0,
+        gamesAi: row.gamesAi ?? 0,
+        games1v1: row.games1v1 ?? row.games ?? 0,
+        games2v2: row.games2v2 ?? 0,
     }));
 }
 

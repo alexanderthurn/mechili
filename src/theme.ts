@@ -373,8 +373,7 @@ html .mechili-menu,
 html .mechili-name-edit .box,
 html .mechili-suggest .box,
 html .mechili-pause .pause-box,
-html .mechili-resume .resume-box,
-html .mechili-gameover {
+html .mechili-resume .resume-box {
     position: relative;
     color: ${u.cream};
     background: ${leatherFill};
@@ -384,21 +383,28 @@ html .mechili-gameover {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
-/* Gameover must stay absolute-centered — materialStyles' relative chrome
-   otherwise stretches it full-width (worst on 4K). Keep this scoped so menu /
-   pause / suggest keep their own layout widths. */
+/* Soft clash plaque — match the pre-match intro roster (no leather card / gems). */
 html .mechili-gameover {
     position: absolute;
-    left: 50%;
-    top: 40%;
-    transform: translate(-50%, -50%);
+    inset: 0;
+    left: 0;
+    top: 0;
+    transform: none;
+    box-sizing: border-box;
     width: auto;
+    max-width: none;
+    color: ${u.cream};
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 html .mechili-name-edit .box::before,
 html .mechili-suggest .box::before,
 html .mechili-pause .pause-box::before,
-html .mechili-resume .resume-box::before,
-html .mechili-gameover::before {
+html .mechili-resume .resume-box::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -648,6 +654,169 @@ button, input, select, textarea { font-family: inherit; }
  *  themselves, but anything relying on the bare class (chat emotes) rendered
  *  as nothing in the menu until a match injected hudStyles() — after which it
  *  stayed, so icons "started working" once you had played a round. */
+/** The floating hover tip (CardSpellTips). Shared because BOTH sheets need
+ *  it: the same component is used by the match HUD and by the menu's loadout
+ *  screen, and the menu only injects menuStyles() — left in hudStyles() alone
+ *  the tip mounted as an unstyled, unpositioned div at the end of <body>,
+ *  i.e. invisible, until a match had injected hudStyles() once. Same trap
+ *  iconBaseStyles() below documents. */
+
+/**
+ * Shared modal enter/exit. Keep duration in sync with `DIALOG_FADE_MS` in
+ * `ui/dialogFade.ts`. Used by pause, game-over, settings, notices, etc.
+ */
+function dialogFadeStyles(): string {
+    return `
+@keyframes mechili-dialog-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes mechili-dialog-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+.mechili-dialog-fade {
+    animation: mechili-dialog-in 0.2s ease-out;
+}
+.mechili-dialog-fade.mechili-dialog-out {
+    animation: mechili-dialog-out 0.2s ease-in forwards;
+    pointer-events: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-dialog-fade,
+    .mechili-dialog-fade.mechili-dialog-out {
+        animation: none !important;
+    }
+}
+`;
+}
+
+function cardSpellTipStyles(): string {
+    const u = THEME.ui;
+    return `
+.mechili-card-spell-tip {
+    position: fixed;
+    z-index: 10050;
+    width: 280px;
+    padding: 12px 14px;
+    border-radius: 4px;
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    pointer-events: auto;
+    cursor: default;
+    color: ${u.text};
+}
+.mechili-card-spell-tip .ai-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.mechili-card-spell-tip .ai-icon {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+}
+.mechili-card-spell-tip .ai-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: bold;
+    color: ${u.brassLight};
+}
+.mechili-card-spell-tip .ai-desc {
+    font-size: 12px;
+    line-height: 1.5;
+    color: ${u.text};
+    margin-top: 8px;
+}
+/* vertical icon+label list (a unit's chosen talent loadout) */
+.mechili-card-spell-tip .ai-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-top: 8px;
+}
+/* only a rule when something sits above it */
+.mechili-card-spell-tip .ai-desc + .ai-rows {
+    padding-top: 8px;
+    border-top: 1px solid ${u.divider};
+}
+.mechili-card-spell-tip .ai-row {
+    display: flex;
+    /* top, not centre: rows are two lines tall once a description is there,
+       and the icon and cost should line up with the NAME */
+    align-items: flex-start;
+    gap: 7px;
+    font-size: 12px;
+    color: ${u.techOwned};
+}
+.mechili-card-spell-tip .ai-row-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+}
+.mechili-card-spell-tip .ai-row-label { font-weight: bold; }
+.mechili-card-spell-tip .ai-row-desc {
+    font-size: 11px;
+    line-height: 1.35;
+    color: ${u.textMuted};
+}
+.mechili-card-spell-tip .ai-row-cost {
+    flex: 0 0 auto;
+    color: ${u.brassLight};
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+}
+.mechili-card-spell-tip .ai-row-ico {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    font-size: 0;
+}
+.mechili-card-spell-tip .ai-cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+}
+.mechili-card-spell-tip .ai-cost .money-ico.m-icon {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+}
+.mechili-card-spell-tip .ai-forge-ings {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 3px;
+    margin: 0 0 0 auto;
+    align-items: center;
+    flex-shrink: 0;
+}
+.mechili-card-spell-tip .ai-forge-fee {
+    margin-left: 2px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+    white-space: nowrap;
+}
+.mechili-card-spell-tip .ai-forge-ing {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+`;
+}
+
 function iconBaseStyles(): string {
     return `
 .m-icon {
@@ -807,6 +976,8 @@ export function menuStyles(bars?: BarAssets): string {
 ${fontFaceCss()}
 ${materialStyles(u)}
 ${iconBaseStyles()}
+${dialogFadeStyles()}
+${cardSpellTipStyles()}
 ${chatBarStyles(u)}
 ${chatFloatStyles(u, pc, ec)}
 .mechili-menu {
@@ -1212,6 +1383,354 @@ ${chatFloatStyles(u, pc, ec)}
     cursor: pointer;
 }
 .mechili-menu .m-spmode-horde { justify-content: center; font-size: 14px; color: ${u.text}; }
+/* Loadout screen (PROGRESSION_PLAN.md §1g) — the 3D stage IS the screen;
+   every panel floats over it. Its own overlay, not a menu view, so the menu
+   frame's width never constrains it. */
+.mechili-loadout {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 46%, #2a2119 0%, #14100c 62%, #0a0806 100%);
+    color: ${u.text};
+    user-select: none;
+}
+.mechili-loadout .lo-stage {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+}
+.mechili-loadout .lo-stage.mh-draggable { cursor: grab; }
+.mechili-loadout .lo-stage.dragging { cursor: grabbing; }
+
+/* ---- floating panels ---- */
+.mechili-loadout .lo-left,
+.mechili-loadout .lo-right,
+.mechili-loadout .lo-corner {
+    position: absolute;
+    z-index: 1;
+}
+.mechili-loadout .lo-left {
+    top: calc(24px + env(safe-area-inset-top));
+    left: calc(24px + env(safe-area-inset-left));
+    /* bounded to the viewport so the stats can never run off the bottom of
+       a short window — they shrink and scroll instead */
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: clamp(210px, 22vw, 280px);
+}
+.mechili-loadout .lo-right {
+    top: calc(24px + env(safe-area-inset-top));
+    right: calc(24px + env(safe-area-inset-right));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: clamp(250px, 26vw, 340px);
+    max-height: calc(100% - 120px);
+}
+.mechili-loadout .lo-corner {
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    right: calc(24px + env(safe-area-inset-right));
+    display: flex;
+    gap: 8px;
+}
+
+/* ---- unit switcher ---- */
+.mechili-loadout .lo-switcher {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    /* The name is a headline and should not be boxed in by the STATS column
+       width — "Crow Rider" at 34px needs more than the ~280px that panel
+       wants. Overflowing to the right is free: this floats over the stage,
+       and nothing sits beside it. */
+    width: max-content;
+    min-width: 100%;
+    max-width: min(48vw, 520px);
+}
+.mechili-loadout .lo-unitname {
+    flex: 1;
+    font-size: clamp(22px, 2.6vw, 34px);
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: ${u.brassLight};
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mechili-loadout .lo-arrow {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    background: none;
+    border: none;
+    color: ${u.brass};
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+    transition: color 0.14s ease, transform 0.14s ease;
+}
+.mechili-loadout .lo-arrow:hover { color: ${u.hover}; transform: scale(1.2); }
+
+/* ---- stat list: label left, value right, one row each ---- */
+.mechili-loadout .lo-stats {
+    display: flex;
+    flex-direction: column;
+    /* take what is left under the switcher, but never more: past that the
+       list scrolls rather than overflowing the window */
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(16, 13, 10, 0.72);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    border: 1.5px solid ${u.frameLo};
+    border-radius: 4px;
+}
+.mechili-loadout .lo-stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 11px;
+    border-bottom: 1px solid rgba(92, 70, 52, 0.35);
+    font-size: 12px;
+}
+.mechili-loadout .lo-stat:last-child { border-bottom: none; }
+.mechili-loadout .lo-stat .k {
+    color: ${u.textMuted};
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-size: 10px;
+}
+.mechili-loadout .lo-stat .v {
+    color: ${u.cream};
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Stats collapse toggle — mobile only; desktop has room to show stats
+   outright, so it never appears there. */
+.mechili-loadout .lo-statstoggle { display: none; }
+
+/* ---- talents ---- */
+.mechili-loadout .lo-paneltitle {
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+.mechili-loadout .lo-techlist {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-height: 0;
+    overflow-y: auto;
+}
+.mechili-loadout .lo-tech {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 11px 8px 9px;
+    background: rgba(16, 13, 10, 0.72);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    border: 1.5px solid ${u.frameLo};
+    border-radius: 3px;
+    color: ${u.textMuted};
+    font-family: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+.mechili-loadout .lo-tech:hover { border-color: ${u.hover}; color: ${u.cream}; }
+.mechili-loadout .lo-tech.is-on {
+    background: linear-gradient(180deg, rgba(58, 48, 40, 0.9) 0%, rgba(34, 28, 23, 0.9) 100%);
+    border-color: ${u.brass};
+    color: ${u.cream};
+}
+.mechili-loadout .lo-tico {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    font-size: 0;
+}
+.mechili-loadout .lo-tech:not(.is-on) .lo-tico { opacity: 0.55; }
+.mechili-loadout .lo-tname {
+    flex: 1;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    min-width: 0;
+}
+.mechili-loadout .lo-tcost {
+    flex: 0 0 auto;
+    color: ${u.brassLight};
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+}
+
+/* ---- chosen slots ---- */
+.mechili-loadout .lo-slots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+}
+.mechili-loadout .lo-slot {
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: linear-gradient(180deg, rgba(58, 48, 40, 0.9) 0%, rgba(34, 28, 23, 0.9) 100%);
+    border: 1.5px solid ${u.brass};
+    border-radius: 3px;
+    /* REQUIRED, not cosmetic: mask icons tint with background-color:
+       currentColor, and a button does not inherit color — the UA stylesheet
+       sets it to black, so the icon renders black without this. */
+    color: ${u.cream};
+    cursor: pointer;
+    transition: border-color 0.14s ease, color 0.14s ease;
+}
+.mechili-loadout .lo-slot:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+/* an unfilled slot is a placeholder, not a control */
+.mechili-loadout .lo-slot.is-empty {
+    background: rgba(10, 8, 6, 0.6);
+    border: 1.5px dashed ${u.slotBorder};
+    cursor: default;
+}
+.mechili-loadout .lo-sico { width: 26px; height: 26px; font-size: 0; }
+
+/* ---- corner buttons ---- */
+.mechili-loadout .lo-cornerbtn {
+    padding: 9px 18px;
+    background: rgba(16, 13, 10, 0.8);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    border: 1.5px solid ${u.border};
+    border-radius: 3px;
+    color: ${u.text};
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: border-color 0.14s ease, color 0.14s ease, transform 0.14s ease;
+}
+.mechili-loadout .lo-cornerbtn:hover {
+    border-color: ${u.hover};
+    color: ${u.brassLight};
+    transform: translateY(-1px);
+}
+
+/* ---- mobile / narrow ----
+   Panels flow from the TOP — switcher, then talents and slots — while the
+   stage stays absolutely positioned behind everything, so it never pushes
+   anything down (that was the bug when the stage was a flow item: the
+   talent list could start near the bottom of the screen). Whatever height
+   the panels do not use is left at the BOTTOM, which is where the model
+   shows through. */
+@media (max-width: 860px) {
+    .mechili-loadout {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: calc(10px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right))
+            calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+        box-sizing: border-box;
+    }
+    .mechili-loadout .lo-left,
+    .mechili-loadout .lo-right {
+        position: static;
+        inset: auto;
+        width: auto;
+    }
+    .mechili-loadout .lo-left {
+        order: 1;
+        flex: 0 0 auto;
+        gap: 6px;
+        /* keep clear of the corner buttons, which stay pinned top-right */
+        padding-right: 104px;
+    }
+    .mechili-loadout .lo-corner {
+        top: calc(10px + env(safe-area-inset-top));
+        right: calc(10px + env(safe-area-inset-right));
+        bottom: auto;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .mechili-loadout .lo-switcher { width: auto; max-width: none; }
+    .mechili-loadout .lo-unitname { font-size: 20px; text-align: left; }
+    .mechili-loadout .lo-statstoggle {
+        display: block;
+        width: 100%;
+        padding: 6px 10px;
+        background: rgba(16, 13, 10, 0.72);
+        -webkit-backdrop-filter: blur(3px);
+        backdrop-filter: blur(3px);
+        border: 1.5px solid ${u.frameLo};
+        border-radius: 3px;
+        color: ${u.textMuted};
+        font-family: inherit;
+        font-size: 11px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        cursor: pointer;
+    }
+    /* collapsed by default — only the toggle expands it */
+    .mechili-loadout .lo-stats {
+        display: none;
+        grid-template-columns: 1fr 1fr;
+    }
+    .mechili-loadout.is-statsopen .lo-stats { display: grid; }
+    /* the 2-column grid makes the per-row bottom border look like a ladder;
+       dropping it on the last pair reads cleanly in both columns */
+    .mechili-loadout .lo-stats .lo-stat:nth-last-child(-n + 2) { border-bottom: none; }
+    /* talents sit directly under the switcher; the cap is what reserves the
+       bottom of the screen for the model */
+    .mechili-loadout .lo-right {
+        order: 2;
+        flex: 0 1 auto;
+        min-height: 0;
+        max-height: 56vh;
+    }
+    .mechili-loadout .lo-slots { justify-content: center; }
+}
+/* Short viewports (laptop windows, phones in landscape). Nothing is hidden
+   any more — the panels OVERLAY the stage rather than sharing height with
+   it, so a short window costs the model no space. The panels just have to
+   stay inside the screen. */
+@media (max-height: 700px) {
+    .mechili-loadout .lo-right { max-height: calc(100% - 64px); }
+}
+/* touch: the switcher arrows and corner buttons need real tap targets */
+@media (pointer: coarse) {
+    .mechili-loadout .lo-arrow {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 20px;
+    }
+    .mechili-loadout .lo-cornerbtn { min-height: 44px; }
+    .mechili-loadout .lo-statstoggle { min-height: 40px; }
+    .mechili-loadout .lo-tech { padding-top: 11px; padding-bottom: 11px; }
+    .mechili-loadout .lo-slot { width: 48px; height: 48px; }
+}
 /* card-style team-size / Horde toggles (Single Player) — same visual
    language as .m-btn, built on real radio/checkbox inputs (hidden, not
    removed) so the existing :checked-based JS needs no changes at all */
@@ -1667,8 +2186,34 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     height: 36px;
 }
 .mechili-username .u-avatar[hidden] { display: none; }
+/* Wide screens only: a Loadout chip stacked above the username one, wearing
+   the same .mechili-username styling. Dropped under the breakpoint, where
+   the corner is already crowded and the profile dialog's own "Unit loadout"
+   button is the route. The 60px offset clears the username chip (6px
+   padding + 36px avatar + borders, plus a gap); it is deliberately
+   generous, so a chip without an avatar just sits a little higher. */
+.mechili-loadout-btn {
+    display: flex;
+    bottom: calc(14px + 60px + env(safe-area-inset-bottom));
+}
+@media (max-width: 720px) {
+    .mechili-loadout-btn { display: none; }
+}
 .mechili-username:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateY(-1px); }
 .mechili-username:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
+
+/* Single container for every piece of menu chrome (see menuChromeEl in
+   main.ts). Full-bleed so its absolutely-positioned children keep the exact
+   containing block they had as siblings of the wrapper, but transparent to
+   the pointer so it cannot swallow clicks meant for the 3D scene behind it;
+   the children opt back in. No z-index on purpose: that would create a
+   stacking context and trap children that currently compete globally. */
+.mechili-menu-chrome {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.mechili-menu-chrome > * { pointer-events: auto; }
 
 /* Top-right menu chrome: door (Electron quit) + settings gear */
 .mechili-corner-actions {
@@ -1892,7 +2437,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     pointer-events: none;
     will-change: transform;
 }
-.mechili-intro-cover.active .mechili-intro-menu-bg {
+.mechili-intro-cover.dive .mechili-intro-menu-bg {
     animation: mechili-intro-dive 8s linear forwards;
 }
 .mechili-intro-cover .mechili-intro-logo {
@@ -1908,7 +2453,14 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     z-index: 1;
 }
 .mechili-intro-cover.active .mechili-intro-logo {
+    opacity: 1;
+}
+.mechili-intro-cover.dive .mechili-intro-logo {
     /* dissolve as soon as the menu zoom starts — not tied to the 3D handoff */
+    animation: mechili-intro-logo-fade 0.55s ease-out forwards;
+}
+.mechili-intro-cover.dive .mechili-match-roster {
+    /* same beat as the logo — roster shouldn't linger through the dive */
     animation: mechili-intro-logo-fade 0.55s ease-out forwards;
 }
 @keyframes mechili-outro-rise {
@@ -1930,6 +2482,227 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
      * a "double logo" during the fly-out transition. */
     animation: none;
     opacity: 0;
+}
+/* Pre-match roster on the intro cover — menuStyles only: the cover runs
+ * before Game/Hud boots, so hudStyles() is not injected yet. */
+.mechili-match-roster {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 2;
+    padding: clamp(24px, 6vh, 64px) 16px;
+    box-sizing: border-box;
+}
+.mechili-match-roster::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 70% 55% at 50% 48%, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.38) 48%, rgba(0, 0, 0, 0.55) 100%);
+    pointer-events: none;
+}
+.mechili-match-roster .mr-frame {
+    position: relative;
+    z-index: 1;
+    width: min(94vw, 760px);
+    padding: clamp(28px, 5vh, 48px) clamp(22px, 5vw, 44px);
+    box-sizing: border-box;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+}
+.mechili-match-roster .mr-bg {
+    position: absolute;
+    inset: -18% -10%;
+    z-index: 0;
+    pointer-events: none;
+    -webkit-mask-image: radial-gradient(ellipse 68% 54% at 50% 50%, #000 12%, rgba(0, 0, 0, 0.85) 42%, transparent 72%);
+    mask-image: radial-gradient(ellipse 68% 54% at 50% 50%, #000 12%, rgba(0, 0, 0, 0.85) 42%, transparent 72%);
+}
+.mechili-match-roster .mr-bg-core,
+.mechili-match-roster .mr-bg-glow {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+.mechili-match-roster .mr-bg-core {
+    background:
+        radial-gradient(ellipse 48% 42% at 50% 48%, rgba(62, 44, 28, 0.88) 0%, transparent 68%),
+        radial-gradient(ellipse 72% 58% at 50% 50%, rgba(18, 12, 8, 0.82) 0%, transparent 74%),
+        radial-gradient(ellipse 90% 70% at 50% 52%, rgba(6, 4, 3, 0.55) 0%, transparent 78%);
+    filter: blur(0.5px);
+}
+.mechili-match-roster .mr-bg-glow {
+    filter: blur(28px);
+    opacity: 0.72;
+    animation: mechili-roster-aura 4.8s ease-in-out infinite;
+}
+.mechili-match-roster .mr-bg-glow-player {
+    background:
+        radial-gradient(ellipse 42% 55% at 22% 48%,
+            color-mix(in srgb, var(--mr-player, ${pc}) 55%, transparent) 0%,
+            transparent 70%);
+}
+.mechili-match-roster .mr-bg-glow-enemy {
+    background:
+        radial-gradient(ellipse 42% 55% at 78% 52%,
+            color-mix(in srgb, var(--mr-enemy, ${ec}) 55%, transparent) 0%,
+            transparent 70%);
+    animation-delay: -2.4s;
+}
+@keyframes mechili-roster-aura {
+    0%, 100% { opacity: 0.58; transform: scale(1); }
+    50% { opacity: 0.86; transform: scale(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-match-roster .mr-bg-glow { animation: none; }
+}
+.mechili-match-roster .mr-cols {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(18px, 4.5vw, 40px);
+}
+.mechili-match-roster .mr-vs {
+    font-size: clamp(22px, 3.2vw, 32px);
+    font-weight: 900;
+    letter-spacing: 5px;
+    color: ${u.brassLight};
+    text-shadow:
+        0 0 18px color-mix(in srgb, ${u.brassLight} 35%, transparent),
+        0 1px 3px rgba(0, 0, 0, 0.85);
+    flex-shrink: 0;
+}
+.mechili-match-roster .mr-team {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.mechili-match-roster .mr-team-player { text-align: right; align-items: flex-end; }
+.mechili-match-roster .mr-team-enemy { text-align: left; align-items: flex-start; }
+.mechili-match-roster .mr-player {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 4px;
+}
+.mechili-match-roster .mr-team-player .mr-player { justify-content: flex-end; }
+.mechili-match-roster .mr-team-enemy .mr-player {
+    justify-content: flex-start;
+    flex-direction: row-reverse; /* name/mmr then portrait on the right */
+}
+.mechili-match-roster .mr-portrait {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid ${u.frameMid};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+.mechili-match-roster .mr-portrait.player { border-color: var(--mr-player, ${pc}); }
+.mechili-match-roster .mr-portrait.enemy { border-color: var(--mr-enemy, ${ec}); }
+.mechili-match-roster .mr-portrait-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mechili-match-roster .mr-portrait-ph {
+    width: 58%;
+    height: 58%;
+    border-radius: 50%;
+    background: ${u.textMuted};
+    opacity: 0.35;
+}
+.mechili-match-roster .mr-info { min-width: 0; }
+.mechili-match-roster .mr-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: ${u.cream};
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mechili-match-roster .mr-ai {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-left: 6px;
+    opacity: 0.65;
+    text-transform: uppercase;
+}
+.mechili-match-roster .mr-mmr {
+    font-size: 19px;
+    font-weight: 700;
+    color: ${u.brassLight};
+    font-variant-numeric: tabular-nums;
+    margin-top: 3px;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+.mechili-match-roster .mr-mmr.loading {
+    opacity: 0.45;
+    animation: mechili-roster-pulse 1.1s ease-in-out infinite;
+}
+@keyframes mechili-roster-pulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.75; }
+}
+
+/* Small screens: compress intro roster so names + MMR fit. */
+@media (max-width: 599px), (max-height: 540px) {
+    .mechili-match-roster {
+        padding: 16px 12px;
+    }
+    .mechili-match-roster .mr-frame {
+        width: min(96vw, 560px);
+        padding: 22px 16px;
+    }
+    .mechili-match-roster .mr-bg {
+        inset: -14% -6%;
+    }
+    .mechili-match-roster .mr-cols {
+        gap: 12px;
+    }
+    .mechili-match-roster .mr-vs {
+        font-size: 18px;
+        letter-spacing: 3px;
+    }
+    .mechili-match-roster .mr-team {
+        gap: 8px;
+    }
+    .mechili-match-roster .mr-player {
+        gap: 8px;
+        padding: 6px 2px;
+    }
+    .mechili-match-roster .mr-portrait {
+        width: 40px;
+        height: 40px;
+    }
+    .mechili-match-roster .mr-name {
+        font-size: 13px;
+    }
+    .mechili-match-roster .mr-ai {
+        font-size: 9px;
+        margin-left: 5px;
+    }
+    .mechili-match-roster .mr-mmr {
+        font-size: 14px;
+        margin-top: 1px;
+        letter-spacing: 0.35px;
+    }
 }
 .mechili-loading .load-bar {
     width: 100%;
@@ -2025,6 +2798,13 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
 }
 .mechili-name-edit .avatar-pick:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-name-edit .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+/* leaves the dialog rather than committing it — full width, above the
+   Cancel/Save pair, so it never reads as a third commit action */
+.mechili-name-edit .profile-loadout {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+}
 .mechili-name-edit button {
     padding: 8px 14px;
     background: ${u.panelBgDark};
@@ -2562,6 +3342,8 @@ export function hudStyles(bars?: BarAssets): string {
 ${fontFaceCss()}
 ${materialStyles(u)}
 ${iconBaseStyles()}
+${dialogFadeStyles()}
+${cardSpellTipStyles()}
 ${chatBarStyles(u)}
 ${chatFloatStyles(u, pc, ec)}
 .mechili-cinema-hide {
@@ -2605,9 +3387,39 @@ ${chatFloatStyles(u, pc, ec)}
     gap: 6px;
     user-select: none;
     pointer-events: none;
+    transition: opacity 0.28s ease, transform 0.28s ease, visibility 0.28s;
 }
-.mechili-shop-col.disabled { display: none; }
-.mechili-shop-col.battle { display: none; }
+/* build chrome fades out for battle / lock-in (absolute — no layout gap) */
+.mechili-shop-col.disabled,
+.mechili-shop-col.battle {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(10px);
+}
+/* children opt into pointer-events:auto — kill those while faded out */
+.mechili-shop-col.disabled *,
+.mechili-shop-col.battle * {
+    pointer-events: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-shop-col,
+    .mechili-sidebar,
+    .mechili-phone-status .mechili-supply {
+        transition: none !important;
+    }
+    .mechili-shop-col.disabled,
+    .mechili-shop-col.battle {
+        transform: none !important;
+    }
+    .mechili-sidebar.left.battle,
+    .mechili-sidebar.left.waiting {
+        transform: translateY(-50%) !important;
+    }
+    .mechili-sidebar.right.battle {
+        transform: translateY(-50%) !important;
+    }
+}
 .mechili-supply {
     display: flex;
     align-items: center;
@@ -3053,8 +3865,17 @@ ${chatFloatStyles(u, pc, ec)}
     box-sizing: border-box;
     gap: 6px;
 }
+/* The shared grid above fills from the RIGHT (direction: rtl) because the
+   shop is pinned to the right edge of the screen. The unlock dialog is a
+   centred modal, so it reads wrong there — fill from the left instead. The
+   tiles reset direction themselves so their own content is unaffected. */
+.mechili-cards .unlock-picker .shop-grid {
+    direction: ltr;
+    justify-content: start;
+}
 .mechili-shop-col .shop-tile,
 .mechili-cards .unlock-picker .shop-tile {
+    direction: ltr;
     position: relative;
     overflow: hidden;
     appearance: none;
@@ -3125,8 +3946,15 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-cards .unlock-picker .shop-tile:active { transform: scale(0.94); }
 .mechili-shop-col .shop-tile:focus-visible,
 .mechili-cards .unlock-picker .shop-tile:focus-visible { outline: none; border-color: ${u.bronzeLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); z-index: 3; }
+/* Dimmed but still HOVERABLE: you often want to read a unit's talents
+   precisely when you cannot afford it yet. pointer-events:none would take
+   the info frame away with the click, so the click is refused in JS instead
+   — same treatment the panel's locked/owned tiles already get. */
 .mechili-shop-col .shop-tile.unaffordable,
-.mechili-cards .unlock-picker .shop-tile.unaffordable { opacity: 0.35; pointer-events: none; }
+.mechili-cards .unlock-picker .shop-tile.unaffordable {
+    opacity: 0.35;
+    cursor: default;
+}
 .mechili-extras .shop-tile {
     width: 54px;
     height: 54px;
@@ -3377,7 +4205,7 @@ ${chatFloatStyles(u, pc, ec)}
     border-radius: 4px;
     color: ${u.text};
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-    pointer-events: none;
+    pointer-events: auto;
     z-index: 6;
 }
 .mechili-panel .action-info .ai-head { display: flex; align-items: center; gap: 10px; }
@@ -3398,6 +4226,13 @@ ${chatFloatStyles(u, pc, ec)}
     margin: 0 0 0 auto;
     align-items: center;
     flex-shrink: 0;
+}
+.mechili-panel .action-info .ai-forge-fee {
+    margin-left: 2px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+    white-space: nowrap;
 }
 .mechili-panel .action-info .ai-forge-ing {
     width: 22px;
@@ -3448,6 +4283,7 @@ ${chatFloatStyles(u, pc, ec)}
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     user-select: none;
+    transition: opacity 0.28s ease, transform 0.28s ease, visibility 0.28s;
 }
 .mechili-sidebar.left {
     left: env(safe-area-inset-left);
@@ -3466,8 +4302,23 @@ ${chatFloatStyles(u, pc, ec)}
     /* above the detail overlay's dim layer */
     z-index: 60;
 }
-.mechili-sidebar.battle { display: none; }
-.mechili-sidebar.left.waiting { display: none; }
+.mechili-sidebar.battle,
+.mechili-sidebar.left.waiting {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+.mechili-sidebar.battle *,
+.mechili-sidebar.left.waiting * {
+    pointer-events: none !important;
+}
+.mechili-sidebar.left.battle,
+.mechili-sidebar.left.waiting {
+    transform: translate(-12px, -50%);
+}
+.mechili-sidebar.right.battle {
+    transform: translate(12px, -50%);
+}
 /* the hover peek must not sit under the cursor — it would steal the hover
    from the commander card and flicker */
 .mechili-cards.detail.peek { pointer-events: none; }
@@ -3874,6 +4725,28 @@ ${chatFloatStyles(u, pc, ec)}
     box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 12px rgba(0, 255, 102, 0.45);
     animation: forge-bake-pulse 1.25s ease-in-out infinite;
 }
+.mechili-panel .item-sq.forge-bake.cancelable {
+    cursor: pointer;
+    padding: 0;
+}
+.mechili-panel .item-sq.forge-bake.cancelable:hover {
+    box-shadow: 0 0 0 2px rgba(220, 70, 55, 0.95), 0 0 12px rgba(220, 70, 55, 0.5);
+    animation: none;
+}
+/* the unpaid oven's buy button: an action tile sized to sit in the rune row,
+   with the product on it and the price in the red band the shop tiles use */
+.mechili-panel .forge-row .action-tile.forge-buy {
+    width: 44px;
+    height: 44px;
+    padding: 0 0 12px;
+    flex: 0 0 auto;
+    position: relative;
+    border-radius: 6px;
+}
+.mechili-panel .forge-row .action-tile.forge-buy .at-icon {
+    width: 30px;
+    height: 30px;
+}
 @keyframes forge-panel-ready {
     0%, 100% { box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.4); }
     50% { box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.85), 0 0 14px rgba(0, 255, 102, 0.2); }
@@ -4085,6 +4958,15 @@ ${chatFloatStyles(u, pc, ec)}
     border: 2.5px solid rgb(255, 168, 40);
     box-shadow: none;
 }
+.forge-tile-ings .forge-tile-fee {
+    /* the fee reads as part of what you hand over: runes + this */
+    margin-left: 2px;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: ${u.brass};
+    white-space: nowrap;
+}
 .forge-tile-name {
     grid-column: 1 / -1;
     grid-row: 2;
@@ -4127,57 +5009,6 @@ ${chatFloatStyles(u, pc, ec)}
     border-radius: 50%;
     overflow: hidden;
     box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.35);
-}
-.mechili-card-spell-tip {
-    position: fixed;
-    z-index: 10050;
-    width: 280px;
-    padding: 12px 14px;
-    border-radius: 4px;
-    border: 1.5px solid ${u.border};
-    background: ${u.panelBgDark};
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-    pointer-events: none;
-    color: ${u.text};
-}
-.mechili-card-spell-tip .ai-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.mechili-card-spell-tip .ai-icon {
-    width: 28px;
-    height: 28px;
-    flex: 0 0 auto;
-}
-.mechili-card-spell-tip .ai-title {
-    flex: 1;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: bold;
-    color: ${u.brassLight};
-}
-.mechili-card-spell-tip .ai-desc {
-    font-size: 12px;
-    line-height: 1.5;
-    color: ${u.text};
-    margin-top: 8px;
-}
-.mechili-card-spell-tip .ai-forge-ings {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 3px;
-    margin: 0 0 0 auto;
-    align-items: center;
-    flex-shrink: 0;
-}
-.mechili-card-spell-tip .ai-forge-ing {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    overflow: hidden;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
 @keyframes forge-pulse-partial {
     0%, 100% { transform: translateY(0); box-shadow: 0 0 0 1px rgba(255, 208, 64, 0.25), 0 0 10px rgba(255, 208, 64, 0.22); }
@@ -4245,8 +5076,7 @@ ${chatFloatStyles(u, pc, ec)}
      * cards, specialist reveal, unlock dialog, and now the settings panel)
      * still lost that stacking fight and rendered BEHIND the topbar's own
      * stacking context, regardless of DOM order. Comfortably above the
-     * topbar, below .mechili-pause's 55 (pause should still win if both
-     * were ever open at once). */
+     * topbar, below .mechili-pause's 55 and .mechili-gameover's 56. */
     z-index: 50;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -4850,32 +5680,274 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-pause .pause-quit:hover { background: ${u.undoHover}; }
 
+/* One panel for victory / defeat / draw / disconnect — fullscreen soft
+ * clash plaque matching the pre-match intro roster. */
 .mechili-gameover {
     position: absolute;
-    left: 50%;
-    top: 40%;
-    transform: translate(-50%, -50%);
+    inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 18px;
-    padding: 36px 64px;
-    /* chrome filled by materialStyles ornate frame */
+    box-sizing: border-box;
+    padding: clamp(24px, 6vh, 64px) 16px;
+    overflow: hidden;
+    z-index: 56;
     background: transparent;
-    border: 1px solid ${u.frameLo};
-    border-radius: 4px;
+    border: none;
     box-shadow: none;
     user-select: none;
 }
-.mechili-gameover .go-title { font-size: 44px; font-weight: 900; letter-spacing: 10px; }
+.mechili-gameover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse 70% 55% at 50% 48%, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.38) 48%, rgba(0, 0, 0, 0.55) 100%);
+    pointer-events: none;
+}
+.mechili-gameover .go-bg {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(110vw, 920px);
+    height: min(70vh, 520px);
+    transform: translate(-50%, -50%);
+    z-index: 0;
+    pointer-events: none;
+    -webkit-mask-image: radial-gradient(ellipse 68% 54% at 50% 50%, #000 12%, rgba(0, 0, 0, 0.85) 42%, transparent 72%);
+    mask-image: radial-gradient(ellipse 68% 54% at 50% 50%, #000 12%, rgba(0, 0, 0, 0.85) 42%, transparent 72%);
+}
+.mechili-gameover .go-bg-core,
+.mechili-gameover .go-bg-glow {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+.mechili-gameover .go-bg-core {
+    background:
+        radial-gradient(ellipse 48% 42% at 50% 48%, rgba(62, 44, 28, 0.88) 0%, transparent 68%),
+        radial-gradient(ellipse 72% 58% at 50% 50%, rgba(18, 12, 8, 0.82) 0%, transparent 74%),
+        radial-gradient(ellipse 90% 70% at 50% 52%, rgba(6, 4, 3, 0.55) 0%, transparent 78%);
+    filter: blur(0.5px);
+}
+.mechili-gameover .go-bg-glow {
+    filter: blur(28px);
+    opacity: 0.72;
+    animation: mechili-go-aura 4.8s ease-in-out infinite;
+}
+.mechili-gameover .go-bg-glow-player {
+    background:
+        radial-gradient(ellipse 42% 55% at 22% 48%,
+            color-mix(in srgb, ${pc} 55%, transparent) 0%,
+            transparent 70%);
+}
+.mechili-gameover .go-bg-glow-enemy {
+    background:
+        radial-gradient(ellipse 42% 55% at 78% 52%,
+            color-mix(in srgb, ${ec} 55%, transparent) 0%,
+            transparent 70%);
+    animation-delay: -2.4s;
+}
+@keyframes mechili-go-aura {
+    0%, 100% { opacity: 0.58; transform: scale(1); }
+    50% { opacity: 0.86; transform: scale(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-gameover .go-bg-glow { animation: none; }
+}
+.mechili-gameover .go-title,
+.mechili-gameover .go-teams,
+.mechili-gameover .go-note,
+.mechili-gameover .go-rated-note,
+.mechili-gameover .go-sub,
+.mechili-gameover .go-stats,
+.mechili-gameover .go-restart {
+    position: relative;
+    z-index: 1;
+}
+.mechili-gameover .go-title {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 900;
+    letter-spacing: clamp(4px, 0.8vw, 10px);
+    text-align: center;
+    line-height: 1.15;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+}
 .mechili-gameover.victory .go-title { color: ${pc}; }
 .mechili-gameover.defeat .go-title { color: ${ec}; }
 .mechili-gameover.draw .go-title { color: ${u.brassLight}; }
-.mechili-gameover .go-sub { font-size: 14px; letter-spacing: 1px; color: ${u.text}; opacity: 0.75; margin-top: -10px; }
+.mechili-gameover .go-sub { font-size: 14px; letter-spacing: 0.5px; color: ${u.text}; opacity: 0.85; margin-top: -10px; text-align: center; max-width: 28em; line-height: 1.45; }
+.mechili-gameover .go-stats { font-size: 13px; color: ${u.textMuted}; letter-spacing: 0.5px; margin-top: -6px; }
+.mechili-gameover .go-teams {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(18px, 4.5vw, 40px);
+    width: min(94vw, 760px);
+    margin-top: 4px;
+}
+.mechili-gameover .go-vs {
+    align-self: center;
+    font-size: clamp(22px, 3.2vw, 32px);
+    font-weight: 900;
+    letter-spacing: 5px;
+    color: ${u.brassLight};
+    text-shadow:
+        0 0 18px color-mix(in srgb, ${u.brassLight} 35%, transparent),
+        0 1px 3px rgba(0, 0, 0, 0.85);
+    flex-shrink: 0;
+    padding-top: 0;
+    opacity: 1;
+}
+.mechili-gameover .go-team {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.mechili-gameover .go-team-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    opacity: 0.65;
+    text-align: center;
+}
+.mechili-gameover .go-team-player .go-team-label { color: ${pc}; }
+.mechili-gameover .go-team-enemy .go-team-label { color: ${ec}; }
+.mechili-gameover .go-player {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 4px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    min-width: 0;
+}
+/* Portrait on the outer edge; name/mmr flush against it toward VS. */
+.mechili-gameover .go-team-player .go-player { justify-content: flex-start; }
+.mechili-gameover .go-team-enemy .go-player {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+}
+.mechili-gameover .go-team-player .go-player-info { text-align: left; }
+.mechili-gameover .go-team-enemy .go-player-info { text-align: right; }
+.mechili-gameover .go-portrait {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid ${u.frameMid};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+.mechili-gameover .go-portrait.player { border-color: ${pc}; }
+.mechili-gameover .go-portrait.enemy { border-color: ${ec}; }
+.mechili-gameover .go-portrait-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mechili-gameover .go-portrait-ph {
+    width: 58%;
+    height: 58%;
+    border-radius: 50%;
+    background: ${u.textMuted};
+    opacity: 0.35;
+}
+.mechili-gameover .go-player-info { min-width: 0; flex: 0 1 auto; }
+.mechili-gameover .go-player-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: ${u.cream};
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.25;
+}
+.mechili-gameover .go-ai, .mechili-gameover .go-unrated {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-left: 6px;
+    opacity: 0.65;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.mechili-gameover .go-spec { font-size: 11px; color: ${u.textMuted}; margin-top: 1px; }
+.mechili-gameover .go-mmr {
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin-top: 3px;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+    opacity: 1;
+}
+.mechili-gameover .go-mmr.up { color: #7fd88a; }
+.mechili-gameover .go-mmr.down { color: #ff8a7a; }
+.mechili-gameover .go-mmr.flat { color: ${u.brassLight}; }
+
+.mechili-gameover .go-mmr-delta {
+    display: block;
+    margin-top: 1px;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.95;
+}
+
+@media (max-width: 599px), (max-height: 540px) {
+    .mechili-gameover {
+        padding: 16px 12px;
+        gap: 12px;
+    }
+    .mechili-gameover .go-bg {
+        width: min(120vw, 640px);
+        height: min(62vh, 420px);
+    }
+    .mechili-gameover .go-teams {
+        gap: 12px;
+        width: min(96vw, 560px);
+    }
+    .mechili-gameover .go-vs {
+        font-size: 18px;
+        letter-spacing: 3px;
+    }
+    .mechili-gameover .go-player {
+        gap: 8px;
+        padding: 6px 2px;
+    }
+    .mechili-gameover .go-portrait {
+        width: 40px;
+        height: 40px;
+        display: flex;
+    }
+    .mechili-gameover .go-player-name {
+        font-size: 13px;
+    }
+    .mechili-gameover .go-mmr {
+        font-size: 14px;
+        margin-top: 1px;
+        letter-spacing: 0.35px;
+    }
+}
+.mechili-gameover .go-rated-note {
+    font-size: 11px;
+    color: ${u.textMuted};
+    text-align: center;
+    max-width: 26em;
+    line-height: 1.4;
+}
 .mechili-gameover .go-note { font-size: 13px; color: ${u.text}; opacity: 0.85; max-width: 32em; text-align: center; }
 .mechili-cards .reconnect-timer { font-size: 32px; font-variant-numeric: tabular-nums; }
 .mechili-cards .reconnect-timer.urgent { animation: mechili-timer-pulse 0.7s ease-in-out infinite; }
 .mechili-gameover .go-restart {
+    align-self: center;
     padding: 10px 26px;
     background: ${u.alliedBtnBg};
     border: 1.5px solid ${pc};
@@ -5516,7 +6588,7 @@ ${gamepadCursorStyles(u)}
     line-height: 1.5;
     white-space: pre-line;
     user-select: none;
-    pointer-events: none;
+    pointer-events: auto;
 }
 
 @media (max-width: 599px), (max-height: 540px) {
@@ -5557,9 +6629,16 @@ ${gamepadCursorStyles(u)}
     /* money joins the strip on phone (the shop toolbar lives in a sheet);
        dock below the enemy HP + name (portraits hidden, but name remains) */
     .mechili-phone-status { top: calc(72px + env(safe-area-inset-top)); }
-    .mechili-phone-status .mechili-supply { display: flex; }
+    .mechili-phone-status .mechili-supply {
+        display: flex;
+        transition: opacity 0.28s ease, visibility 0.28s;
+    }
     /* no spending during battle — money returns with the next deployment */
-    .mechili-phone-status.battle .mechili-supply { display: none; }
+    .mechili-phone-status.battle .mechili-supply {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
     .mechili-shop-col .mechili-supply { display: none !important; }
     /* menu button moves to the left edge; End Deployment stays centered alone */
     /* spectating a battle with nothing selected: no empty strip */

@@ -1012,6 +1012,7 @@ html, body {
     gap: 14px;
 }
 .mh-tactic {
+    position: relative;
     display: flex;
     flex-direction: column;
     border-radius: 14px;
@@ -1027,6 +1028,12 @@ html, body {
 }
 .mh-tactic-body {
     padding: 14px 14px 16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    /* everything centres under the icon, which is centred itself */
+    text-align: center;
+    align-items: center;
 }
 .mh-tactic-head {
     margin-bottom: 4px;
@@ -1055,19 +1062,67 @@ html, body {
     line-height: 1.5;
     color: ${u.phase};
 }
-.mh-tactic-forge {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 10px;
-    align-items: center;
+/* Base vs advanced reads as a corner tag rather than a line of subtitle: an
+   outline for the raw runes you buy, filled brass for the ones that came out of
+   a forge — the same "upgraded" jump the runes themselves make. */
+.mh-rune-tag {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: ${u.textMuted};
+    background: rgba(12, 9, 6, 0.55);
+    border: 1px solid ${u.border};
 }
-.mh-tactic-rune {
-    width: 28px;
-    height: 28px;
+.mh-rune-tag.forged {
+    color: ${u.parchmentInk};
+    background: ${u.brassLight};
+    border-color: ${u.brassLight};
+    box-shadow: 0 1px 6px rgba(212, 184, 120, 0.35);
+}
+
+/* the in-game price tag (.mechili-panel .action-tile .at-cost): a red band
+   across the bottom edge, white and centred. The card's own overflow:hidden
+   rounds the band's corners to match. */
+.mh-tactic-cost {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 8px 0 9px;
+    font-size: 15px;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    background: rgba(180, 32, 24, 0.92);
+    pointer-events: none;
+    /* a forged rune pays in ingredients + fee, so the band holds icons too */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+}
+.mh-cost-rune {
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
     overflow: hidden;
-    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+.mh-cost-plus {
+    opacity: 0.75;
+    font-weight: 600;
+}
+/* room for the band, the same way the game pads a tile that carries one */
+.mh-tactic:has(.mh-tactic-cost) .mh-tactic-body {
+    padding-bottom: 58px;
 }
 .mh-tactic-stats {
     list-style: none;
@@ -1075,6 +1130,7 @@ html, body {
     padding: 0;
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: 6px;
 }
 .mh-tactic-stats li {

@@ -1,28 +1,46 @@
 import type { Application } from 'pixi.js';
 import { SHOP_UNIT_IDS, type RoundCard, type StartCard } from '../game/cards';
+import { formatMmrDelta } from '../game/mmr';
 import { DISPLAY } from '../game/displayNames';
 import {
     forgeHelpRows,
-    forgeIngredientIcons,
     forgeRecipeMatch,
     type ForgeSpellPool,
 } from '../game/forgeRecipes';
+import { buildingAbilities } from '../game/buildingAbilities';
 import { BASE_RUNE_IDS, ITEMS } from '../game/items';
-import { CHAT_TEXT_LIMIT, EMOTES, emoteById, type ChatItem } from '../game/emotes';
+import { emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
+import { TACTICS } from '../game/tactics';
 import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
 import { closeSettings, openSettings } from './settings';
+import { removeWithDialogFade, withDialogFade } from './dialogFade';
 import { ChatBar } from './chatBar';
 import { ChatFloat } from './chatFloat';
 import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
-import { CardSpellTips, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
+import { CardSpellTips, encodeTipRows, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
+import { registerHoverTipClearer } from './hoverTips';
 import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
-import { THEME, hudStyles } from '../theme';
+import { hudStyles } from '../theme';
 
 export type Phase = 'build' | 'battle' | 'hpDraw';
+
+export type GameOverMember = {
+    name: string;
+    avatar?: string | null;
+    controller: 'human' | 'ai';
+    mmrBefore: number;
+    mmrAfter: number;
+    mmrRated: boolean;
+};
+
+export type GameOverDetails = {
+    playerTeam: GameOverMember[];
+    enemyTeam: GameOverMember[];
+};
 
 type CommanderChip = {
     seat: number;
@@ -162,9 +180,17 @@ export interface SelectionInfo {
             name: string;
             desc: string;
             ingredientIcons?: string[];
+            /** supply to fire the oven for it */
+            forgeCost?: number;
         };
         /** tactic ids this side's specialists unlock */
         spellPool?: string[];
+        /** the oven has been paid for — it bakes at the next deployment */
+        lit?: boolean;
+        /** this seat paid for the burn, so it may also take it back */
+        canUnlight?: boolean;
+        /** affordable only matters while unlit; the tile is the buy button */
+        bakeAffordable?: boolean;
         /** parallel to slotCount; null = empty */
         slots: ({
             icon: string;
@@ -174,6 +200,9 @@ export interface SelectionInfo {
             removable?: boolean;
         } | null)[];
     };
+    /** what this building's fall costs its owner — shown instead of the
+     *  combat stats a structure that cannot shoot has no use for */
+    onDestroyed?: string;
     /** lifetime combat record (absent for structures/extras) */
     record?: { damageDealt: number; kills: number };
     /** veterancy of the pack; xpNext < 0 means max level */
@@ -230,6 +259,18 @@ export interface SelectionInfo {
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** one-time rally-route charge purchase (Research Center only) */
     rallyRouteAbility?: { cost: number; owned: boolean; affordable: boolean };
+    /** Stronghold: your own commander's spells, buyable once each */
+    forgeSpells?: {
+        tacticId: string;
+        icon: string;
+        name: string;
+        desc: string;
+        cost: number;
+        owned: boolean;
+        affordable: boolean;
+    }[];
+    /** Stronghold: archers on the battlements — one at a time, price climbs */
+    garrison?: { cost: number; owned: number; max: number; affordable: boolean };
     movePackAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
@@ -257,6 +298,10 @@ export class Hud {
     onUpgradeTower: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
     onBuyRallyRouteAbility: (() => void) | null = null;
+    onBuyForgeSpell: ((tacticId: string) => void) | null = null;
+    onBuyGarrisonArcher: (() => void) | null = null;
+    onForgeLight: (() => void) | null = null;
+    onForgeUnlight: (() => void) | null = null;
     onBuyMovePackAbility: (() => void) | null = null;
     /**
      * Shop unlock fee as THIS seat pays it (Countess Chonk discounts giants).
@@ -338,6 +383,9 @@ export class Hud {
     private shopUnlockAvailable = false;
     private shopBalance = 0;
     private unitIcons = new Map<string, string>();
+    /** talent rows per unit type, pre-encoded for `data-trows` — kept because
+     *  the unlock picker builds its tiles as HTML long after setUnitTalents */
+    private readonly unitTalentRows = new Map<string, string>();
     private lastShopKey = '';
     private lastShopOrderKey = '';
     private lastLevelAllKey = '';
@@ -370,8 +418,11 @@ export class Hud {
     private settingsDetailOverlay: HTMLDivElement | null = null;
     /** hover tip for forge spells on specialist / round cards */
     private readonly cardSpellTips = new CardSpellTips();
+    private unregisterHoverClear: (() => void) | null = null;
     /** item ids currently in the selected Stronghold forge (for slot hover preview) */
     private lastForgeOvenIds: string[] = [];
+    /** the oven holds a complete recipe — see syncForgeSlotHoverPreview */
+    private forgeHasBake = false;
     private lastForgeSpellPool: string[] = [];
     /** bag rune/item ids (human) — with oven, drives owned-ingredient marks */
     private lastBagItemIds: string[] = [];
@@ -643,20 +694,30 @@ export class Hud {
         const makeShopTile = (type: UnitType, index: number): HTMLButtonElement => {
             const button = document.createElement('button');
             button.className = 'shop-tile';
-            const mechs = type.formation.cols * type.formation.rows;
             button.innerHTML =
                 `<span class="title">${type.name}</span>` +
                 `<span class="art"></span>` +
                 `<span class="cost">${costOf(type)}</span>`;
-            const hits = [type.targets.ground && 'ground', type.targets.air && 'air']
-                .filter(Boolean)
-                .join(' + ');
-            button.title =
-                `${type.name} — ${costOf(type)} supply${type.flying ? ' · FLYING' : ''}\n` +
-                `${mechs > 1 ? `${mechs} units, ` : ''}${type.hp} HP each · hits ${hits}\n` +
-                `damage ${type.damage}${type.splashRadius ? ` (splash ${type.splashRadius})` : ''}` +
-                ` every ${type.attackInterval}s · range ${type.range} · speed ${type.speed}`;
+            // Framed hover window, same one the shop runes use — the native
+            // title could not show the player's chosen talents. Deliberately
+            // just the unit name plus that talent list (rows arrive via
+            // setUnitTalents); the tile itself already shows the cost, and
+            // stats belong in the unit details panel, not on every hover.
+            // Board extras have no talents — fill the tip from their ability
+            // copy so Fire Bolt / Ward Stone aren't title-only.
+            button.dataset.spellTip = '1';
+            button.dataset.ttitle = type.name;
+            if (type.extra) {
+                const abs = buildingAbilities(type);
+                if (abs.length > 0) {
+                    button.dataset.tdesc = abs.map((a) => a.description).join('\n\n');
+                    button.dataset.ticon = abs[0]!.icon;
+                }
+            }
             button.addEventListener('click', () => {
+                // hoverable while unaffordable (see the .unaffordable CSS), so
+                // the refusal has to happen here rather than via pointer-events
+                if (button.classList.contains('unaffordable')) return;
                 const bought = UNIT_TYPES[index]!;
                 // extras need the field for the place-ghost; regular packs only
                 // dismiss the sheet when this buy fills the last deploy slot
@@ -789,6 +850,14 @@ export class Hud {
             });
         });
         this.panel.addEventListener('click', (e) => {
+            // leftover / tap-to-dismiss: the info frame itself (not Buy)
+            const infoFrame = (e.target as HTMLElement).closest('.action-info');
+            if (infoFrame && this.panel.contains(infoFrame)) {
+                if (!(e.target as HTMLElement).closest('.ai-buy')) {
+                    this.hideActionInfo();
+                }
+                return;
+            }
             // touch has no hover: first tap peeks at the info, second tap acts
             if (inputMode() === 'touch') {
                 const peek = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
@@ -812,6 +881,11 @@ export class Hud {
                     '.item-sq.empty.drop-target',
                 );
                 if (emptySlot) this.onApplyArmedItem?.();
+                const cancel = (e.target as HTMLElement).closest<HTMLElement>('[data-forge-unlight]');
+                if (cancel) {
+                    this.onForgeUnlight?.();
+                    return;
+                }
                 const fill = (e.target as HTMLElement).closest<HTMLElement>('.forge-suggest');
                 if (fill?.dataset.forgeFill) {
                     const itemIds = fill.dataset.forgeFill.split(',').filter(Boolean);
@@ -838,6 +912,9 @@ export class Hud {
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
+            else if (button.dataset.forgespell) this.onBuyForgeSpell?.(button.dataset.forgespell);
+            else if (button.dataset.garrison) this.onBuyGarrisonArcher?.();
+            else if (button.dataset.forgeLight) this.onForgeLight?.();
             else if (button.dataset.movepack) this.onBuyMovePackAbility?.();
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
             else if (button.dataset.rangeboost) this.onBuyRoundRangeBoost?.();
@@ -861,6 +938,24 @@ export class Hud {
         });
         this.panel.addEventListener('pointerout', (e) => {
             if ((e as PointerEvent).pointerType === 'touch') return;
+            const relatedNode = e.relatedTarget as Node | null;
+            // moving onto the info frame must not dismiss it (it's now hittable
+            // so leftovers can be clicked closed)
+            if (
+                relatedNode instanceof Element &&
+                relatedNode.closest('.action-info') &&
+                this.panel.contains(relatedNode.closest('.action-info'))
+            ) {
+                return;
+            }
+            const infoFrom = (e.target as HTMLElement).closest('.action-info');
+            if (infoFrom && this.panel.contains(infoFrom)) {
+                if (relatedNode && infoFrom.contains(relatedNode)) return;
+                const toTile = (relatedNode as HTMLElement | null)?.closest?.(infoSel);
+                if (toTile) return;
+                this.hideActionInfo();
+                return;
+            }
             const from = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             const to = (e.relatedTarget as HTMLElement | null)?.closest?.(infoSel);
             if (from && from !== to) {
@@ -949,7 +1044,9 @@ export class Hud {
         // tactic/item for its hint — and a PLACED tactic long-press resets it
         // (the touch version of the contextmenu handler above)
         this.attachLongPress(this.shopColumn, '.shop-tile', (tile) =>
-            this.showTouchTooltip((tile as HTMLButtonElement).title),
+            tile.dataset.spellTip
+                ? this.showRuneHoverTip(tile)
+                : this.showTouchTooltip((tile as HTMLButtonElement).title),
         );
         this.attachLongPress(this.shopColumn, '.shop-rune', (btn) =>
             this.showRuneHoverTip(btn),
@@ -1109,6 +1206,15 @@ export class Hud {
         this.mount(this.phoneBar);
         this.mount(this.phoneStatusEl);
         this.buildChatBar();
+        this.unregisterHoverClear = registerHoverTipClearer(() => this.clearHoverTips());
+    }
+
+    /** Shop action-info, forge cookbook peek, touch tip, specialist hover peek. */
+    private clearHoverTips(): void {
+        this.hideActionInfo();
+        this.hideForgeSlotHoverPreview();
+        document.querySelector('.mechili-touchtip')?.remove();
+        if (this.specDetailViaHover) this.hideSpecialistDetail(true);
     }
 
     /**
@@ -1663,11 +1769,25 @@ export class Hud {
                           (t.armed ? ' armed' : '') +
                           (cancel ? ' cancelable' : '') +
                           (waitRounds !== null ? ' cooling' : '');
-                      const baseHint =
-                          t.hint ??
-                          (t.placed
-                              ? `${t.name}\nClick or right-click to clear and place again.`
-                              : `${t.name}\nClick to place on the map. Right-click to cancel.`);
+                      const def = TACTICS[t.id];
+                      const usage =
+                          t.placed || cancel
+                              ? 'Click or right-click to clear and place again.'
+                              : 'Click to place on the map. Right-click to cancel.';
+                      const tip =
+                          def
+                              ? ` data-spell-tip="1" data-ttitle="${escapeAttr(def.name)}" ` +
+                                `data-tdesc="${escapeAttr(t.hint ?? `${def.description}\n${usage}`)}" ` +
+                                `data-ticon="${escapeAttr(t.icon)}"` +
+                                (def.strongholdCost === undefined
+                                    ? ''
+                                    : ` data-tcost="${def.strongholdCost}" data-tcostlabel="Stronghold"`)
+                              : ` title="${escapeAttr(
+                                    t.hint ??
+                                        (t.placed
+                                            ? `${t.name}\nClick or right-click to clear and place again.`
+                                            : `${t.name}\nClick to place on the map. Right-click to cancel.`),
+                                )}"`;
                       const badge =
                           cancel
                               ? `<span class="inv-cd cancel" title="Click to cancel">cancel</span>`
@@ -1675,7 +1795,7 @@ export class Hud {
                                 ? `<span class="inv-cd wait" title="Ready again in ${waitRounds} round${waitRounds === 1 ? '' : 's'}">${waitRounds}</span>`
                                 : '';
                       return (
-                          `<button class="${cls}" data-tactic="${t.id}" data-index="${t.index}"${routeAttr} title="${escapeAttr(baseHint)}">` +
+                          `<button class="${cls}" data-tactic="${t.id}" data-index="${t.index}"${routeAttr}${tip}>` +
                           `${iconHtml(t.icon)}${badge}</button>`
                       );
                   })
@@ -1737,12 +1857,15 @@ export class Hud {
     /** click-open cookbook — stays until click outside, even if the pointer leaves */
     private forgeRecipesPinned = false;
 
-    /** click outside dismisses sticky recipe peeks; clicks inside the cookbook stay */
+    /** click outside dismisses sticky recipe peeks; clicks inside the cookbook
+     *  stay (tiles open a nested spell tip). Nested tip clicks must not count
+     *  as "outside" or the cookbook would close under the leftover. */
     private readonly onForgeRecipesPointerDown = (e: PointerEvent) => {
         const el = this.forgeSlotPreviewEl;
         if (!el || el.hidden || !el.classList.contains('recipes')) return;
-        const t = e.target as Node | null;
-        if (!t) return;
+        const t = e.target;
+        if (!(t instanceof Node)) return;
+        if (t instanceof Element && t.closest('.mechili-card-spell-tip')) return;
         if (this.forgeSlotPreviewAnchor?.contains(t)) return;
         if (el.contains(t)) return;
         this.dismissForgeRecipesPreview();
@@ -1768,6 +1891,14 @@ export class Hud {
         }
 
         if (anchor.classList.contains('empty') || anchor.dataset.itemId) {
+            // Once the oven holds a complete recipe the cookbook stops being
+            // help and starts being in the way — it covers the very buttons you
+            // came to press. Clicking an empty slot still pins it open
+            // (pinForgeRecipes); only the hover backs off.
+            if (this.forgeHasBake && !this.forgeRecipesPinned) {
+                this.hideForgeSlotHoverPreview();
+                return;
+            }
             this.showForgeRecipesHover(anchor);
             return;
         }
@@ -2102,6 +2233,28 @@ export class Hud {
     }
 
     /** supply price of each always-available base rune in the shop header */
+    /**
+     * The talents this player picked for each unit type (PROGRESSION_PLAN.md
+     * §1), listed vertically in the shop tile's hover window. Fixed for the
+     * whole match, so one call at setup is enough.
+     */
+    setUnitTalents(
+        byType: ReadonlyMap<
+            string,
+            readonly { icon: string; label: string; cost?: number; desc?: string }[]
+        >,
+    ): void {
+        this.unitTalentRows.clear();
+        for (const [typeId, rows] of byType) {
+            if (rows.length > 0) this.unitTalentRows.set(typeId, encodeTipRows(rows));
+        }
+        for (const [typeId, tile] of this.shopUnitTiles) {
+            const enc = this.unitTalentRows.get(typeId);
+            if (enc) tile.dataset.trows = enc;
+            else delete tile.dataset.trows;
+        }
+    }
+
     setShopRuneCost(cost: number, balance: number): void {
         this.shopRuneCost = cost;
         this.shopRuneBalance = balance;
@@ -2246,8 +2399,14 @@ export class Hud {
     ): string {
         const art = this.unitIcons.get(o.id);
         const artStyle = art ? ` style="background-image:${cssUrl(art)}"` : '';
+        // same hover window as the shop tiles — the player wants to see which
+        // talents a unit would bring before paying to unlock it
+        const rows = this.unitTalentRows.get(o.id);
+        const tipAttrs =
+            ` data-spell-tip="1" data-ttitle="${escapeAttr(o.name)}"` +
+            (rows ? ` data-trows="${escapeAttr(rows)}"` : '');
         return (
-            `<button type="button" class="shop-tile${o.affordable ? '' : ' unaffordable'}" data-unit="${o.id}">` +
+            `<button type="button" class="shop-tile${o.affordable ? '' : ' unaffordable'}" data-unit="${o.id}"${tipAttrs}>` +
             `<span class="title">${escapeAttr(o.name)}</span>` +
             `<span class="art"${artStyle}></span>` +
             `<span class="cost">${o.deployCost}</span>` +
@@ -2311,9 +2470,14 @@ export class Hud {
      * Unlocked forge spells + current oven contents — keeps shop-rune / empty-slot
      * recipe hover correct even when Stronghold is not selected.
      */
-    setForgeRecipeContext(pool: readonly string[], ovenItemIds: readonly string[]): void {
+    setForgeRecipeContext(
+        pool: readonly string[],
+        ovenItemIds: readonly string[],
+        hasBake = false,
+    ): void {
         this.lastForgeSpellPool = [...pool];
         this.lastForgeOvenIds = [...ovenItemIds];
+        this.forgeHasBake = hasBake;
         const ovenKey = ovenItemIds.join('\0');
         if (ovenKey !== this.lastForgeOvenKey) {
             this.lastForgeOvenKey = ovenKey;
@@ -2511,6 +2675,30 @@ export class Hud {
                       : 'locked',
             });
         }
+        if (info.garrison) {
+            const g = info.garrison;
+            const full = g.owned >= g.max;
+            tiles.push({
+                data: 'data-garrison="1"',
+                icon: 'spec-archer',
+                title: `Garrison ${g.owned}/${g.max}`,
+                desc: full
+                    ? 'Every battlement is manned.'
+                    : 'Post an archer on the battlements. He shoots like any other archer and never leaves his spot — nothing can shoot back at him, but he falls with the keep. Each one costs more than the last.',
+                cost: full ? 0 : g.cost,
+                state: full ? 'owned' : g.affordable ? 'buy' : 'locked',
+            });
+        }
+        for (const spell of info.forgeSpells ?? []) {
+            tiles.push({
+                data: `data-forgespell="${escapeHtml(spell.tacticId)}"`,
+                icon: spell.icon,
+                title: spell.name,
+                desc: `${spell.desc} Adds one charge to your ${DISPLAY.tactics.toLowerCase()} — once per match.`,
+                cost: spell.cost,
+                state: spell.owned ? 'owned' : spell.affordable ? 'buy' : 'locked',
+            });
+        }
         // unit techs render in their own slotted row (see techSlotsHtml below)
         const actions = this.renderActionTiles(tiles);
         const levelActions = this.renderActionTiles(levelTiles, 'level-actions');
@@ -2552,8 +2740,8 @@ export class Hud {
         const forge = info.forge;
         const forgeSquares = !forge
             ? ''
-            : `<div class="forge-block${forge.bake ? ' ready' : ''}">` +
-              `<div class="forge-label">Forge${forge.bake ? ' · ready' : ''}</div>` +
+            : `<div class="forge-block${forge.lit ? ' ready' : ''}">` +
+              `<div class="forge-label">Forge${forge.lit ? ' · firing' : forge.bake ? ' · ready' : ''}</div>` +
               `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
                   const item = forge.slots[i];
                   if (!item) {
@@ -2599,12 +2787,38 @@ export class Hud {
               }).join('')}` +
               (forge.bake
                   ? `<span class="forge-bake-arrow" aria-hidden="true">→</span>` +
-                    `<span class="item-sq m-icon forge-bake" style="${iconCss(forge.bake.icon)}" ` +
-                    `data-spell-tip="1" ` +
-                    `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
-                    `data-tdesc="${escapeAttr(`${forge.bake.desc}\nBurns into this ${DISPLAY.tactic.toLowerCase()} next deploy.`)}" ` +
-                    `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
-                    `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}"></span>`
+                    (forge.lit
+                        ? // paid for: this is what comes out next deployment.
+                          // Whoever paid can click it again to take it back.
+                          `<${forge.canUnlight ? 'button type="button"' : 'span'} ` +
+                          `class="item-sq m-icon forge-bake${forge.canUnlight ? ' cancelable' : ''}" ` +
+                          `style="${iconCss(forge.bake.icon)}" ` +
+                          (forge.canUnlight ? `data-forge-unlight="1" ` : '') +
+                          `data-spell-tip="1" ` +
+                          `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
+                          `data-tdesc="${escapeAttr(
+                              `${forge.bake.desc}\nFiring — ready next deployment.${
+                                  forge.canUnlight ? '\nClick to cancel and get the supply back.' : ''
+                              }`,
+                          )}" ` +
+                          `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
+                          `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}">` +
+                          `</${forge.canUnlight ? 'button' : 'span'}>`
+                        : // not paid for yet: the same square becomes the buy button
+                          `<button type="button" class="action-tile forge-buy ${
+                              forge.bakeAffordable ? 'buy' : 'locked'
+                          }" data-forge-light="1" ` +
+                          `data-spell-tip="1" ` +
+                          `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
+                          `data-tdesc="${escapeAttr(`${forge.bake.desc}\nFire the forge to start it — ready next deployment.`)}" ` +
+                          `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
+                          (forge.bake.forgeCost === undefined
+                              ? ''
+                              : `data-tfee="${forge.bake.forgeCost}" `) +
+                          `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}">` +
+                          `<span class="at-icon m-icon" style="${iconCss(forge.bake.icon)}"></span>` +
+                          `<span class="at-cost">${forge.bake.forgeCost ?? 0}</span>` +
+                          `</button>`)
                   : '') +
               `</div>` +
               (forge.hint
@@ -2619,11 +2833,9 @@ export class Hud {
             : info.xpNext < 0
               ? 100
               : Math.max(0, Math.min(100, (info.xp / info.xpNext) * 100));
-        const levelLabel = info.structure
-            ? `${info.level}${info.towerUpgrade ? ` / ${info.towerUpgrade.maxLevel}` : ''}`
-            : info.xpNext < 0
-              ? 'max'
-              : `${Math.round(info.xp)}/${Math.round(info.xpNext)} XP`;
+        // structures that shoot (the rocket pad) keep their combat rows; the
+        // towers report 0 damage / 0 range / 0 speed and only clutter with them
+        const combatless = info.structure && info.damage <= 0 && info.range <= 0;
         this.panel.innerHTML =
             `<div class="panel-head">` +
             `<div class="lvl-big"><span class="lvl-cap">LVL</span><span class="lvl-num">${info.level}</span></div>` +
@@ -2635,15 +2847,23 @@ export class Hud {
             `</div>` +
             itemSquares +
             forgeSquares +
-            row('Hits', info.hits) +
             liveRow('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`, 'hp') +
             (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
-            row('Level', levelLabel) +
-            row('Damage', String(Math.round(info.damage))) +
-            row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
-            (info.splash ? row('Splash', String(info.splash)) : '') +
-            row('Range', info.minRange ? `${info.minRange} - ${info.range}` : String(info.range)) +
-            row('Speed', String(info.speed)) +
+            // A building that cannot shoot has no damage, reload, range or
+            // speed worth four rows of zeroes — what its owner actually needs
+            // to know is what breaking it costs them.
+            (combatless
+                ? info.onDestroyed
+                    ? row('If destroyed', escapeHtml(info.onDestroyed))
+                    : ''
+                : row('Damage', String(Math.round(info.damage))) +
+                  row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
+                  (info.splash ? row('Splash', String(info.splash)) : '') +
+                  row(
+                      'Range',
+                      info.minRange ? `${info.minRange} - ${info.range}` : String(info.range),
+                  ) +
+                  row('Speed', String(info.speed))) +
             (info.record
                 ? liveRow('Total dmg', String(Math.round(info.record.damageDealt)), 'dmg') +
                   liveRow('Kills', String(info.record.kills), 'kills')
@@ -2928,9 +3148,9 @@ export class Hud {
 
     /** post-battle damage report; replaces the previous one, dismissible */
     showBattleReport(round: number, rows: { name: string; team: string; damage: number }[]): void {
-        this.hideBattleReport();
-        const el = document.createElement('div');
-        el.className = 'mechili-report';
+        this.hideBattleReport(true);
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-report');
         el.innerHTML =
             `<div class="r-title"><span>Round ${round} — damage</span><button class="r-close">✕</button></div>` +
             rows
@@ -2940,16 +3160,18 @@ export class Hud {
                 )
                 .join('');
         el.querySelector('.r-close')!.addEventListener('click', () => {
-            this.unmount(el);
             if (this.report === el) this.report = null;
+            this.detachOverlay(el);
         });
         this.report = el;
         this.mount(el);
     }
 
-    hideBattleReport(): void {
-        if (this.report) this.unmount(this.report);
+    hideBattleReport(immediate = false): void {
+        if (!this.report) return;
+        const el = this.report;
         this.report = null;
+        this.detachOverlay(el, immediate);
     }
 
     isPauseMenuOpen(): boolean {
@@ -2982,24 +3204,36 @@ export class Hud {
         this.fightBar.classList.toggle('overlay-open', open);
     }
 
-    hidePauseMenu(): void {
-        if (this.pauseMenu) this.unmount(this.pauseMenu);
+    hidePauseMenu(immediate = false): void {
+        if (!this.pauseMenu) return;
+        const el = this.pauseMenu;
         this.pauseMenu = null;
         this.syncOverlayOpen();
+        this.detachOverlay(el, immediate);
     }
 
-    /** dismisses the specialist or round-card picker if it is still open */
-    hideCardOverlay(): void {
+    /** dismisses the round-card / unlock / specialist-pick overlay if still open */
+    hideCardOverlay(immediate = false): void {
         if (!this.cardOverlay) return;
         this.hideCardSpellTip();
-        this.removeCardOverlayElement(this.cardOverlay);
+        const el = this.cardOverlay;
         this.cardOverlay = null;
         this.cardIntroFading = false;
         this.syncOverlayOpen();
+        this.detachOverlay(el, immediate);
     }
 
     private removeCardOverlayElement(el: HTMLElement): void {
         this.unmount(el);
+    }
+
+    /** Fade out (or instantly remove) a mounted overlay, then drop from roots. */
+    private detachOverlay(el: HTMLElement, immediate = false): void {
+        if (immediate) {
+            this.unmount(el);
+            return;
+        }
+        removeWithDialogFade(el, () => this.unmount(el));
     }
 
     /** specialist pick — collapse to own card, wobble, fly to commander frame */
@@ -3139,16 +3373,7 @@ export class Hud {
 
     /** dismiss game-over, pause, notices, reconnect, and card pickers before the menu outro */
     hideMatchOverlays(): void {
-        this.hidePauseMenu();
-        this.hideCardOverlay();
-        this.hideNotice();
-        this.hideReconnectWait();
-        this.hideBattleReport();
-        this.hideSpecialistDetail();
-        this.hideSettingsDetail();
-        this.hideForgeSlotHoverPreview();
-        document.querySelector('.mechili-touchtip')?.remove();
-        closeSettings();
+        this.clearBlockingOverlays();
         for (let i = this.mountedRoots.length - 1; i >= 0; i--) {
             const el = this.mountedRoots[i]!;
             if (!el.classList.contains('mechili-gameover')) continue;
@@ -3157,12 +3382,34 @@ export class Hud {
         this.syncOverlayOpen();
     }
 
+    /**
+     * Tear down every full-screen / high-z overlay that can sit above the
+     * board — shared by match-end UI and menu outro. Leaves game-over
+     * panels alone (callers that need those gone remove them separately).
+     */
+    private clearBlockingOverlays(): void {
+        this.hidePauseMenu(true);
+        this.hideCardOverlay(true);
+        this.hideNotice(true);
+        this.hideReconnectWait(true);
+        this.hideBattleReport(true);
+        this.hideSpecialistDetail(true);
+        this.hideSettingsDetail(true);
+        this.hideForgeSlotHoverPreview();
+        document.querySelector('.mechili-touchtip')?.remove();
+        document.querySelector('.mechili-controls-help')?.remove();
+        document.querySelector('.mechili-suggest')?.remove();
+        closeSettings(true);
+    }
+
     private showCardOverlay(overlay: HTMLDivElement): void {
-        this.hideCardOverlay();
+        this.hideCardOverlay(true);
         // phone: an open sheet (e.g. the shop behind the unlock picker) would
         // show through the overlay's dim layer — close it first
         this.setPhoneTab(null);
         this.bindCardSpellTips(overlay);
+        // intro drive owns opacity — don't fight it with the dialog enter anim
+        if (!this.introChromeHidden) withDialogFade(overlay);
         this.cardOverlay = overlay;
         this.syncOverlayOpen();
         this.mount(overlay);
@@ -3193,9 +3440,9 @@ export class Hud {
     }
 
     private showPauseMenu(): void {
-        this.hidePauseMenu();
-        const el = document.createElement('div');
-        el.className = 'mechili-pause';
+        this.hidePauseMenu(true);
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-pause');
         el.innerHTML =
             `<div class="pause-box">` +
             `<div class="pause-title">Menu</div>` +
@@ -3206,7 +3453,7 @@ export class Hud {
         el.querySelector('.pause-resume')!.addEventListener('click', () => this.hidePauseMenu());
         el.querySelector('.pause-settings')!.addEventListener('click', () => openSettings(this.overlayParent));
         el.querySelector('.pause-quit')!.addEventListener('click', () => {
-            this.hidePauseMenu();
+            this.hidePauseMenu(true);
             this.onQuitToMenu?.();
         });
         this.pauseMenu = el;
@@ -3373,10 +3620,13 @@ export class Hud {
         this.lastSpecDetailKey = contentKey;
 
         // avoid stacking duplicate overlays
+        const fresh = !this.specDetailOverlay;
         if (this.specDetailOverlay) this.unmount(this.specDetailOverlay);
 
         const overlay = document.createElement('div');
         overlay.className = `mechili-cards detail${viaHover ? ' peek' : ''}`;
+        // click-open fades; hover peek stays instant so HP-bar peeks stay snappy
+        if (fresh && !viaHover) withDialogFade(overlay);
 
         const colsHtml = teamChips
             .map((chip) => {
@@ -3434,6 +3684,7 @@ export class Hud {
      */
     private forgeRecipesMemoKey = '';
     private forgeRecipesMemoHtml = '';
+
     private forgeRecipesBlockHtml(
         pool: readonly string[],
         bagIds: readonly string[],
@@ -3505,8 +3756,9 @@ export class Hud {
                 `data-ttitle="${escapeAttr(r.spellName)}" ` +
                 `data-tdesc="${escapeAttr(r.spellDesc)}" ` +
                 `data-ticon="${escapeAttr(r.spellIcon)}" ` +
+                `data-tfee="${r.forgeCost}" ` +
                 `data-forge-ings="${escapeAttr(r.ingredientIcons.join(','))}">` +
-                `<div class="forge-tile-ings">${ings}</div>` +
+                `<div class="forge-tile-ings">${ings}<span class="forge-tile-fee">+ ${r.forgeCost}</span></div>` +
                 `<span class="forge-arrow">→</span>` +
                 `${iconHtml(r.spellIcon, 'forge-spell')}` +
                 `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +
@@ -3541,16 +3793,22 @@ export class Hud {
     }
 
     /** dismiss the specialist detail popup (hover-out or click) */
-    private hideSpecialistDetail(): void {
-        if (this.specDetailOverlay) {
-            this.unmount(this.specDetailOverlay);
-            this.specDetailOverlay = null;
+    private hideSpecialistDetail(immediate = false): void {
+        if (!this.specDetailOverlay) {
+            this.specDetailSeat = null;
+            this.specDetailViaHover = false;
+            this.lastSpecDetailKey = '';
+            return;
         }
+        const el = this.specDetailOverlay;
+        const viaHover = this.specDetailViaHover;
+        this.specDetailOverlay = null;
         this.specDetailSeat = null;
         this.specDetailViaHover = false;
         this.lastSpecDetailKey = '';
         this.hideCardSpellTip();
         this.enemyInventoryEl.classList.remove('reveal');
+        this.detachOverlay(el, immediate || viaHover);
     }
 
     /** mouse hover details for forge spells on specialist cards / recipe tiles */
@@ -3572,8 +3830,8 @@ export class Hud {
     /** a dismissible popup listing this match's settings (click the supply counter) */
     private showSettingsDetail(): void {
         if (this.settingsDetailOverlay) this.unmount(this.settingsDetailOverlay);
-        const overlay = document.createElement('div');
-        overlay.className = 'mechili-cards detail settings-detail';
+        const overlay = withDialogFade(document.createElement('div'));
+        overlay.classList.add('mechili-cards', 'detail', 'settings-detail');
         overlay.innerHTML =
             `<div class="settings-panel">` +
             `<button type="button" class="settings-close" aria-label="Close">&times;</button>` +
@@ -3606,12 +3864,15 @@ export class Hud {
     }
 
     /** dismiss the match-settings popup */
-    private hideSettingsDetail(): void {
-        if (this.settingsDetailOverlay) {
-            this.unmount(this.settingsDetailOverlay);
-            this.settingsDetailOverlay = null;
+    private hideSettingsDetail(immediate = false): void {
+        if (!this.settingsDetailOverlay) {
+            this.syncOverlayOpen();
+            return;
         }
+        const el = this.settingsDetailOverlay;
+        this.settingsDetailOverlay = null;
         this.syncOverlayOpen();
+        this.detachOverlay(el, immediate);
     }
 
     /** the between-round card offer: pick one (paying its cost) or skip for supply */
@@ -3665,9 +3926,9 @@ export class Hud {
 
     /** full-screen blocking notice (reconnect wait, resync); replaces any previous one */
     showNotice(text: string, buttonLabel?: string, onButton?: () => void): void {
-        this.hideNotice();
-        const el = document.createElement('div');
-        el.className = 'mechili-cards'; // reuses the dimmed overlay styling
+        this.hideNotice(true);
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-cards'); // reuses the dimmed overlay styling
         el.innerHTML =
             `<div class="cards-title" style="font-size:20px; letter-spacing:2px;">${text}</div>` +
             (buttonLabel ? `<button class="cards-skip">${buttonLabel}</button>` : '');
@@ -3678,19 +3939,21 @@ export class Hud {
         this.mount(el);
     }
 
-    hideNotice(): void {
-        if (this.notice) this.unmount(this.notice);
+    hideNotice(immediate = false): void {
+        if (!this.notice) return;
+        const el = this.notice;
         this.notice = null;
+        this.detachOverlay(el, immediate);
     }
 
     private reconnectWait: HTMLDivElement | null = null;
 
     /** connection lost: blocking notice with a live countdown to forfeit */
     showReconnectWait(onGiveUp: () => void): void {
-        this.hideNotice();
-        this.hideReconnectWait();
-        const el = document.createElement('div');
-        el.className = 'mechili-cards';
+        this.hideNotice(true);
+        this.hideReconnectWait(true);
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-cards');
         el.innerHTML =
             `<div class="cards-title" style="font-size:20px; letter-spacing:2px;">Connection lost — reconnecting…</div>` +
             `<div class="cards-title reconnect-timer"></div>` +
@@ -3709,51 +3972,122 @@ export class Hud {
         el.classList.toggle('urgent', s <= 5);
     }
 
-    hideReconnectWait(): void {
-        if (this.reconnectWait) this.unmount(this.reconnectWait);
+    hideReconnectWait(immediate = false): void {
+        if (!this.reconnectWait) return;
+        const el = this.reconnectWait;
         this.reconnectWait = null;
+        this.detachOverlay(el, immediate);
+    }
+
+    private gameOverTeamHtml(team: 'player' | 'enemy', members: GameOverMember[]): string {
+        const rows = members
+            .map((m) => {
+                const portrait = m.avatar
+                    ? `<img class="go-portrait-img" src="${escapeAttr(m.avatar)}" alt="" draggable="false" />`
+                    : `<span class="go-portrait-ph" aria-hidden="true"></span>`;
+                const delta = m.mmrAfter - m.mmrBefore;
+                const deltaClass =
+                    delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+                return (
+                    `<div class="go-player">` +
+                    `<div class="go-portrait ${team}">${portrait}</div>` +
+                    `<div class="go-player-info">` +
+                    `<div class="go-player-name">${escapeHtml(m.name)}${m.controller === 'ai' ? '<span class="go-ai">AI</span>' : ''}</div>` +
+                    `<div class="go-mmr ${deltaClass}">` +
+                    `<span class="go-mmr-final">${m.mmrAfter}</span>` +
+                    `<span class="go-mmr-delta">${formatMmrDelta(delta)}</span>` +
+                    `</div>` +
+                    `</div></div>`
+                );
+            })
+            .join('');
+        return `<div class="go-team go-team-${team}">${rows}</div>`;
     }
 
     /** the grace window elapsed with no reconnect — we win by forfeit */
-    showForfeitWin(): void {
-        this.hideReconnectWait();
-        const el = document.createElement('div');
-        el.className = 'mechili-gameover victory';
-        el.innerHTML =
-            `<div class="go-title">VICTORY</div>` +
-            `<div class="go-sub">Opponent disconnected</div>` +
-            `<button class="go-restart">Back to main menu</button>`;
-        el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
+    showForfeitWin(details?: GameOverDetails): void {
+        this.prepareMatchEndUi();
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-gameover', 'victory');
+        el.innerHTML = this.gameOverInnerHtml('VICTORY', details);
+        el.querySelector('.go-restart')!.addEventListener('click', () => this.leaveGameOver(el));
         this.mount(el);
     }
 
     /** the peer connection died — nothing to do but return to the menu */
     showDisconnect(): void {
-        const el = document.createElement('div');
-        el.className = 'mechili-gameover draw';
-        el.innerHTML = `<div class="go-title">DISCONNECTED</div><button class="go-restart">Back to main menu</button>`;
-        el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
+        this.prepareMatchEndUi();
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-gameover', 'draw');
+        el.innerHTML =
+            `<div class="go-bg" aria-hidden="true">` +
+            `<span class="go-bg-glow go-bg-glow-player"></span>` +
+            `<span class="go-bg-glow go-bg-glow-enemy"></span>` +
+            `<span class="go-bg-core"></span>` +
+            `</div>` +
+            `<div class="go-title">DISCONNECTED</div>` +
+            `<button class="go-restart">Back to main menu</button>`;
+        el.querySelector('.go-restart')!.addEventListener('click', () => this.leaveGameOver(el));
         this.mount(el);
     }
 
     showGameOver(
         result: 'victory' | 'defeat' | 'draw',
-        options?: { note?: string; backLabel?: string; title?: string },
+        options?: {
+            note?: string;
+            backLabel?: string;
+            title?: string;
+            details?: GameOverDetails;
+        },
     ): void {
-        const el = document.createElement('div');
-        el.className = `mechili-gameover ${result}`;
-        // `options.title` overrides the perspective-relative default — a
-        // spectator has no side of their own, so "VICTORY"/"DEFEAT" (which
-        // side THEY happen to be arbitrarily anchored to) is meaningless;
-        // see finishMatch's watching branch for the neutral "X wins" label.
+        this.prepareMatchEndUi();
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-gameover', result);
         const title = options?.title ?? (result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW');
-        const note = options?.note ? `<div class="go-note">${escapeHtml(options.note)}</div>` : '';
+        el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note);
         const backLabel = options?.backLabel ?? 'Back to main menu';
-        el.innerHTML =
-            `<div class="go-title">${title}</div>${note}` +
-            `<button class="go-restart">${escapeHtml(backLabel)}</button>`;
-        el.querySelector('.go-restart')!.addEventListener('click', () => this.onQuitToMenu?.());
+        const btn = el.querySelector('.go-restart')!;
+        btn.textContent = backLabel;
+        btn.addEventListener('click', () => this.leaveGameOver(el));
         this.mount(el);
+    }
+
+    /** Fade the result panel out, then return to the menu. */
+    private leaveGameOver(el: HTMLElement): void {
+        removeWithDialogFade(el, () => {
+            this.unmount(el);
+            this.onQuitToMenu?.();
+        });
+    }
+
+    /** Clear overlays that can sit above / steal clicks from the result panel. */
+    private prepareMatchEndUi(): void {
+        this.clearBlockingOverlays();
+        this.syncOverlayOpen();
+    }
+
+    private gameOverInnerHtml(
+        title: string,
+        details?: GameOverDetails,
+        note?: string,
+    ): string {
+        const teams = details
+            ? `<div class="go-teams">` +
+              this.gameOverTeamHtml('player', details.playerTeam) +
+              `<div class="go-vs">VS</div>` +
+              this.gameOverTeamHtml('enemy', details.enemyTeam) +
+              `</div>`
+            : '';
+        const noteEl = note ? `<div class="go-note">${escapeHtml(note)}</div>` : '';
+        return (
+            `<div class="go-bg" aria-hidden="true">` +
+            `<span class="go-bg-glow go-bg-glow-player"></span>` +
+            `<span class="go-bg-glow go-bg-glow-enemy"></span>` +
+            `<span class="go-bg-core"></span>` +
+            `</div>` +
+            `<div class="go-title">${escapeHtml(title)}</div>${teams}${noteEl}` +
+            `<button class="go-restart">Back to main menu</button>`
+        );
     }
 
     setSupply(amount: number): void {
@@ -3789,7 +4123,9 @@ export class Hud {
         // match-ui-root uses pointer-events:none so an empty root never blocks the menu
         el.style.pointerEvents = 'auto';
         this.mountedRoots.push(el);
-        if (this.uiHidden) el.classList.add('mechili-cinema-hide');
+        if (this.uiHidden && !el.classList.contains('mechili-gameover')) {
+            el.classList.add('mechili-cinema-hide');
+        }
         if (this.introChromeHidden) el.classList.add('mechili-intro-hide');
         this.overlayParent.appendChild(el);
     }
@@ -3837,16 +4173,21 @@ export class Hud {
 
     /**
      * Hide every HUD chrome element (shop, topbar, panels, overlays) for
-     * clean screenshots / atmosphere viewing. Leaves a tiny keyboard hint.
+     * clean screenshots / atmosphere viewing. Leaves a tiny keyboard hint
+     * unless `hint: false` (match-end cinema under the fullscreen dialog).
+     * Game-over panels stay visible so the end roster can sit on cinema.
      */
-    setUiHidden(hidden: boolean): void {
-        if (this.uiHidden === hidden) return;
-        this.uiHidden = hidden;
-        for (const el of this.mountedRoots) {
-            el.classList.toggle('mechili-cinema-hide', hidden);
+    setUiHidden(hidden: boolean, opts?: { hint?: boolean }): void {
+        const showHint = hidden && opts?.hint !== false;
+        if (this.uiHidden !== hidden) {
+            this.uiHidden = hidden;
+            for (const el of this.mountedRoots) {
+                if (el.classList.contains('mechili-gameover')) continue;
+                el.classList.toggle('mechili-cinema-hide', hidden);
+            }
+            if (this.itemGhost) this.itemGhost.classList.toggle('mechili-cinema-hide', hidden);
         }
-        if (this.itemGhost) this.itemGhost.classList.toggle('mechili-cinema-hide', hidden);
-        if (hidden) {
+        if (hidden && showHint) {
             if (!this.cinemaHint) {
                 const hint = document.createElement('div');
                 hint.className = 'mechili-cinema-hint';
@@ -3882,6 +4223,8 @@ export class Hud {
 
     /** removes every HUD element from the page */
     destroy(): void {
+        this.unregisterHoverClear?.();
+        this.unregisterHoverClear = null;
         this.hideMatchOverlays();
         this.clearInvDragListeners();
         this.invDrag = null;

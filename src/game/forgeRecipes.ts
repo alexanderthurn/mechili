@@ -3,33 +3,19 @@
  * {@link FORGE_SLOTS_PER_PLAYER} (duo → up to 6). Exact multiset recipes → one
  * product next deploy; if nothing matches, every rune is refunded.
  *
- * Products are either a spell (specialist-gated) or an advanced rune
- * (available to everyone). Ingredient multisets must be unique across the
- * whole table — never the same oven → two different products.
+ * Currently only advanced-rune recipes are active. Ingredient multisets must
+ * be unique across the whole table — never the same oven → two different
+ * products.
  *
  * Fuel is the four base runes (earth / fire / water / wind).
- * Same-element stacks craft advanced runes (anyone). Mixed recipes craft
- * specialist-gated spells. The pack-utility spells are open to everyone:
- * Rally Route (one Wind), Field Lesson (Fire + Wind), Move Pack (Earth + two
- * Wind) and Buyback (Water + two Wind).
+ * Same-element stacks craft advanced runes (anyone).
  */
 import type { SeatId } from './seats';
 import {
-    ACID_ID,
-    BIG_METEOR_ID,
-    DRAGON_ID,
-    FIRE_SPILL_ID,
-    HAMMER_ID,
-    METEOR_SHOWER_ID,
     MOVE_UNIT_ID,
     SELL_UNIT_ID,
     TUTOR_ID,
-    OIL_SPILL_ID,
-    POISON_CLOUD_ID,
     RALLY_ROUTE_ID,
-    SPAWN_CROWS_ID,
-    SPAWN_DWARVES_ID,
-    STORM_ID,
     TACTICS,
 } from './tactics';
 import { ITEMS } from './items';
@@ -92,17 +78,13 @@ export function emptyForgeSlots(capacity = FORGE_SLOTS_PER_PLAYER): (ForgeSlot |
     return Array.from({ length: capacity }, () => null);
 }
 
-function tactic(id: string): ForgeProduct {
-    return { kind: 'tactic', id };
-}
 function item(id: string): ForgeProduct {
     return { kind: 'item', id };
 }
 
 /**
- * Spell / rune recipe table — unique ingredient multisets only.
- * Rune products and the pack-utility spells (Rally Route, Field Lesson, Move
- * Pack, Buyback) are always available; other spells are specialist-gated.
+ * Rune recipe table — unique ingredient multisets only.
+ * Spell recipes removed for now; only advanced runes remain.
  */
 export const FORGE_RECIPES: ForgeRecipe[] = [
     // --- advanced runes (anyone) ---
@@ -112,28 +94,7 @@ export const FORGE_RECIPES: ForgeRecipe[] = [
     { ingredients: ['wind', 'wind'], product: item('golden'), priority: 1 }, // Sunstone
     { ingredients: ['earth', 'earth', 'earth'], product: item('colossus'), priority: 1 }, // Mithril
     { ingredients: ['fire', 'fire', 'fire'], product: item('wrath'), priority: 1 }, // Berserk
-
-    // --- 1 rune ---
-    { ingredients: ['earth'], product: tactic(SPAWN_DWARVES_ID), priority: 1 },
-    { ingredients: ['fire'], product: tactic(FIRE_SPILL_ID), priority: 1 },
-    { ingredients: ['water'], product: tactic(OIL_SPILL_ID), priority: 1 },
-    { ingredients: ['wind'], product: tactic(RALLY_ROUTE_ID), priority: 1 },
-
-    // --- 2 runes ---
-    { ingredients: ['earth', 'fire'], product: tactic(BIG_METEOR_ID), priority: 1 },
-    { ingredients: ['earth', 'water'], product: tactic(POISON_CLOUD_ID), priority: 1 },
-    { ingredients: ['fire', 'water'], product: tactic(ACID_ID), priority: 1 },
-    { ingredients: ['earth', 'wind'], product: tactic(STORM_ID), priority: 1 },
-    { ingredients: ['water', 'wind'], product: tactic(SPAWN_CROWS_ID), priority: 1 },
-
-    { ingredients: ['fire', 'wind'], product: tactic(TUTOR_ID), priority: 1 },
-
-    // --- 3 runes ---
-    { ingredients: ['earth', 'fire', 'water'], product: tactic(HAMMER_ID), priority: 1 },
-    { ingredients: ['earth', 'fire', 'wind'], product: tactic(METEOR_SHOWER_ID), priority: 1 },
-    { ingredients: ['fire', 'fire', 'wind'], product: tactic(DRAGON_ID), priority: 1 },
-    { ingredients: ['earth', 'wind', 'wind'], product: tactic(MOVE_UNIT_ID), priority: 1 },
-    { ingredients: ['water', 'wind', 'wind'], product: tactic(SELL_UNIT_ID), priority: 1 },
+    { ingredients: ['water', 'water', 'water'], product: item('bulwark'), priority: 1 }, // Bulwark
 ];
 
 function ingredientKey(ingredients: readonly string[]): string {
@@ -410,40 +371,32 @@ export function forgeHintText(
     slots: readonly (ForgeSlot | null)[],
     when: 'next' | 'this' = 'next',
     pool: ForgeSpellPool = 'all',
+    lit = true,
 ): string {
     const filled = slots.filter((s): s is ForgeSlot => !!s);
-    const whenLabel = when === 'this' ? 'This deploy' : 'Next deploy';
     if (filled.length === 0) {
         return '';
     }
-    const result = resolveForge(slots, pool);
-    const info = result.product ? forgeProductInfo(result.product) : null;
-    if (!info) {
+    if (!resolveForge(slots, pool).product) {
         return when === 'this'
-            ? 'No matching recipe — all runes returned to their owners this deploy.'
-            : 'No matching recipe — all runes return to their owners next deploy.';
+            ? 'No matching recipe — all runes returned to their owners this deploy'
+            : 'No matching recipe — all runes return to their owners next deploy';
     }
-    const kindLabel =
-        result.product!.kind === 'item' ? DISPLAY.item : DISPLAY.tactic;
-    const parts = result.consumed.map((c) => ITEMS[c.itemId]?.name ?? c.itemId);
-    const recipeLabel = summarizeMultiset(parts);
-    let text = `${whenLabel}: ${info.name} ${kindLabel.toLowerCase()} (${recipeLabel}).`;
-    if (result.refunds.length > 0) {
-        const back = summarizeMultiset(result.refunds.map((r) => ITEMS[r.itemId]?.name ?? r.itemId));
-        text +=
-            when === 'this'
-                ? ` Leftover ${back} returned to bag.`
-                : ` Leftover ${back} return to bag.`;
-    }
-    return text;
+    // A matched recipe promises nothing until the burn is bought — the buy
+    // button carries that message, and a line beside it claiming otherwise
+    // would be a promise the oven is not making yet.
+    if (!lit) return '';
+    // Once it IS burning, the recipe is old news: the runes are sitting in the
+    // oven and the product is on the square next to them. All that is left to
+    // say is when. (No leftovers to mention either — resolveForge only returns
+    // a product on an exact match, so `refunds` is empty whenever one exists.)
+    return when === 'this' ? 'Ready this deploy' : 'Ready next deploy';
 }
 
-function summarizeMultiset(names: string[]): string {
-    const counts = new Map<string, number>();
-    for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
-    return [...counts.entries()]
-        .map(([n, c]) => (c > 1 ? `${c}× ${n}` : n))
-        .join(' + ');
+
+/** Supply the oven charges to produce this — per product, 0 when it is free. */
+export function forgeProductCost(product: ForgeProduct): number {
+    return product.kind === 'item' ? (ITEMS[product.id]?.forgeCost ?? 0) : 0;
 }
 
 export interface ForgeHelpRow {
@@ -455,6 +408,8 @@ export interface ForgeHelpRow {
     spellDesc: string;
     /** 'item' = advanced rune; 'tactic' = spell */
     productKind: ForgeProduct['kind'];
+    /** supply to fire the oven for this one, on top of the ingredients */
+    forgeCost: number;
 }
 
 function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
@@ -470,6 +425,7 @@ function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
         spellName: info.name,
         spellDesc: info.desc,
         productKind: recipe.product.kind,
+        forgeCost: forgeProductCost(recipe.product),
     };
 }
 
@@ -562,6 +518,8 @@ export interface RuneCardForgeRow {
     /** every ingredient owned once this card is taken */
     ready: boolean;
     ingredients: { itemId: string; icon: string; owned: boolean }[];
+    /** supply to fire the oven for this one, on top of the ingredients */
+    forgeCost: number;
 }
 
 /**
@@ -596,6 +554,7 @@ export function forgeRecipesForRuneCard(
             spellDesc: info.desc,
             ready: ingredients.every((ing) => ing.owned),
             ingredients,
+            forgeCost: forgeProductCost(recipe.product),
         });
     }
     rows.sort((a, b) => a.ingredients.length - b.ingredients.length);

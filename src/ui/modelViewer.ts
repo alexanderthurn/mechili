@@ -246,6 +246,13 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
 
     const onResize = () => layout();
     window.addEventListener('resize', onResize);
+    // The canvas can be laid out AFTER this runs — created inside a hidden
+    // panel, revealed later — in which case the construction-time layout()
+    // measured 0×0 and a window resize was the only thing that would ever
+    // fix it. Observing the canvas itself covers reveal, container resize and
+    // orientation change alike.
+    const sizeObserver = new ResizeObserver(() => layout());
+    sizeObserver.observe(canvas);
     layout();
     tick();
 
@@ -285,6 +292,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
             cancelAnimationFrame(raf);
             window.clearTimeout(resumeTimer);
             window.removeEventListener('resize', onResize);
+            sizeObserver.disconnect();
             canvas.removeEventListener('pointerdown', onPointerDown);
             canvas.removeEventListener('pointermove', onPointerMove);
             canvas.removeEventListener('pointerup', endDrag);

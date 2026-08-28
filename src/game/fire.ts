@@ -11,9 +11,10 @@
  * - Igniting any oil cell flood-fills the whole connected oil component.
  */
 
+import { hypot } from './detMath';
 import { CELL, STANDARD_MAP, type MapSize } from './map';
 import type { SeatId } from './seats';
-import { techsForUnit } from './techCatalog';
+import { techsForUnit, type Loadout } from './techCatalog';
 
 /** world units per hazard cell — finer than board tiles for splat connectivity */
 export const HAZARD_CELL = 2;
@@ -25,6 +26,17 @@ export const OIL_SPILL_DURATION_ROUNDS = 1;
 /** default Acid Spill tactic stamp — same shape as oil, different per-step effect */
 export const ACID_SPILL_RADIUS = 4 * CELL;
 export const ACID_SPILL_DURATION_ROUNDS = 1;
+/** Directed oil (pitch bolts): splash extends backward / forward along flight. */
+export const OIL_DIRECTED_BACK = 0.05;
+export const OIL_DIRECTED_FWD = 0.95;
+/** Stretch configured radius along flight (longer forward spray). */
+export const OIL_DIRECTED_LENGTH_MUL = 1.75;
+/** Quarter-width at the wide forward end (fraction of spill length). */
+export const OIL_DIRECTED_CROSS = 0.28;
+/** Narrow back end = wide end ÷ 4 (impact side). */
+export const OIL_DIRECTED_TIP = OIL_DIRECTED_CROSS / 4;
+/** Extra length after peak width — tapers to a point quickly. */
+export const OIL_DIRECTED_TAIL_FRAC = 0.22;
 /** percent of MAX HP per second while standing in acid (a global rate, like OIL_SPEED_MULT) */
 export const ACID_DPS_PERCENT = 3;
 
@@ -92,8 +104,17 @@ export const FIRE_TINT_NORMAL = 0;
  */
 export const FIRE_TINT_DRAGON = 1;
 
-/** ground units on oil cells move at this fraction of normal speed */
-export const OIL_SPEED_MULT = 0.55;
+/**
+ * How much an unlit oil slick slows what walks through it: ground units on an
+ * oil cell move at this fraction of their normal speed. 0.5 = half speed.
+ *
+ * "Unlit" needs no check of its own — igniting a slick CONSUMES it
+ * (`consumeOilUnderFire` zeroes the cell as `igniteConnectedOil` turns it to
+ * fire), so a burning cell is fire, never oil, and this can only ever apply to
+ * a slick nobody has lit. Flyers are exempt at the call site, which is the one
+ * place this is read: `steerToward`'s speed term.
+ */
+export const OIL_SPEED_MULT = 0.5;
 
 /** ground circle of an active ward stone (blocks oil stamps into its disc) */
 export type ShieldDisk = { x: number; z: number; radius: number };
@@ -172,6 +193,7 @@ export function resolveFireProfile(
     type: { id: string; fire?: FireProfile },
     seat: SeatId,
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+    loadout?: Loadout,
 ): FireProfile | undefined {
     let profile: FireProfile | undefined = type.fire
         ? {
@@ -180,7 +202,7 @@ export function resolveFireProfile(
               oil: type.fire.oil ? { ...type.fire.oil } : undefined,
           }
         : undefined;
-    for (const tech of techsForUnit(type.id)) {
+    for (const tech of techsForUnit(type.id, loadout)) {
         if (!tech.fire || !hasTech(seat, type.id, tech.id)) continue;
         if (!profile) profile = {};
         if (tech.fire.burn) profile.burn = { ...tech.fire.burn };
@@ -435,6 +457,61 @@ export class HazardField {
     }
 
     /**
+     * Splash wedge + tail: narrow → full width, then a short extension that
+     * pinches to a point (quadratic taper on the tail = fast narrow).
+     */
+    forEachDirectedSplashCells(
+        backX: number,
+        backZ: number,
+        dirX: number,
+        dirZ: number,
+        mainLength: number,
+        tailLength: number,
+        startQuarterW: number,
+        peakQuarterW: number,
+        tailTipQuarterW: number,
+        fn: (wx: number, wz: number, cx: number, cz: number) => void,
+    ): void {
+        const totalLength = mainLength + tailLength;
+        if (totalLength <= 0) return;
+        const maxQuarter = Math.max(startQuarterW, peakQuarterW, tailTipQuarterW);
+        if (maxQuarter <= 0) return;
+        const len = hypot(dirX, dirZ);
+        if (len < 1e-9) {
+            this.forEachDiscCells(backX, backZ, maxQuarter, fn);
+            return;
+        }
+        dirX /= len;
+        dirZ /= len;
+        const perpX = -dirZ;
+        const perpZ = dirX;
+        const gridSpan = Math.ceil((totalLength + maxQuarter * 2) / this.cellSize) + 1;
+        const { cx: c0, cz: z0 } = this.worldToCell(backX, backZ);
+        for (let cz = z0 - gridSpan; cz <= z0 + gridSpan; cz++) {
+            for (let cx = c0 - gridSpan; cx <= c0 + gridSpan; cx++) {
+                if (!this.inBounds(cx, cz)) continue;
+                const c = this.cellCenter(cx, cz);
+                const dx = c.x - backX;
+                const dz = c.z - backZ;
+                const along = dx * dirX + dz * dirZ;
+                if (along < 0 || along > totalLength) continue;
+                let quarterW: number;
+                if (along <= mainLength || tailLength <= 0) {
+                    const t = mainLength > 0 ? along / mainLength : 0;
+                    quarterW = startQuarterW * (1 - t) + peakQuarterW * t;
+                } else {
+                    const u = (along - mainLength) / tailLength;
+                    const pinch = 1 - u * u;
+                    quarterW = peakQuarterW * pinch + tailTipQuarterW * (1 - pinch);
+                }
+                const perp = Math.abs(dx * perpX + dz * perpZ);
+                if (perp > quarterW) continue;
+                fn(c.x, c.z, cx, cz);
+            }
+        }
+    }
+
+    /**
      * Stamp a disc of oil. Overlapping cells keep the later expiry
      * (`Math.max`). Order of cell writes is row-major ix, iz — deterministic.
      * Pass battle `now` so oil cannot land under (or stay next to) live flame.
@@ -456,6 +533,56 @@ export class HazardField {
             const prev = this.oilExpires[i]!;
             this.oilExpires[i] = prev === 0 ? expiresRound : Math.max(prev, expiresRound);
         });
+        if (now !== undefined) this.igniteOilTouchingFire(now);
+    }
+
+    /**
+     * Splash: narrow at impact → full width → short tail pinching to a point.
+     */
+    stampOilDirected(
+        impactX: number,
+        impactZ: number,
+        length: number,
+        dirX: number,
+        dirZ: number,
+        expiresRound: number,
+        blockedBy: readonly ShieldDisk[] = [],
+        now?: number,
+    ): void {
+        if (expiresRound <= 0 || length <= 0) return;
+        const slen = hypot(dirX, dirZ);
+        if (slen < 1e-6) {
+            this.stampOil(impactX, impactZ, length * 0.5, expiresRound, blockedBy, now);
+            return;
+        }
+        dirX /= slen;
+        dirZ /= slen;
+        const span = length * OIL_DIRECTED_LENGTH_MUL;
+        const backX = impactX - dirX * OIL_DIRECTED_BACK * span;
+        const backZ = impactZ - dirZ * OIL_DIRECTED_BACK * span;
+        const mainLen = (OIL_DIRECTED_BACK + OIL_DIRECTED_FWD) * span;
+        const tailLen = mainLen * OIL_DIRECTED_TAIL_FRAC;
+        const startQuarter = span * OIL_DIRECTED_TIP;
+        const peakQuarter = span * OIL_DIRECTED_CROSS;
+        const tailTipQuarter = startQuarter * 0.35;
+        this.forEachDirectedSplashCells(
+            backX,
+            backZ,
+            dirX,
+            dirZ,
+            mainLen,
+            tailLen,
+            startQuarter,
+            peakQuarter,
+            tailTipQuarter,
+            (wx, wz, cx, cz) => {
+                if (blockedBy.length > 0 && insideAnyShield(wx, wz, blockedBy)) return;
+                const i = this.index(cx, cz);
+                if (now !== undefined && this.fireUntil[i]! > now) return;
+                const prev = this.oilExpires[i]!;
+                this.oilExpires[i] = prev === 0 ? expiresRound : Math.max(prev, expiresRound);
+            },
+        );
         if (now !== undefined) this.igniteOilTouchingFire(now);
     }
 

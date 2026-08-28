@@ -3,6 +3,7 @@
  */
 import { suggestUrl } from './game/net';
 import { prefs } from './game/prefs';
+import { removeWithDialogFade, withDialogFade } from './ui/dialogFade';
 
 export const SUGGEST_CATEGORIES = [
     'Bug',
@@ -132,8 +133,8 @@ export function openSuggest(opts: OpenSuggestOptions): void {
         opts.specs ??
         collectClientSpecs({ light: opts.lightSpecs === true });
 
-    const overlay = document.createElement('div');
-    overlay.className = 'mechili-suggest';
+    const overlay = withDialogFade(document.createElement('div'));
+    overlay.classList.add('mechili-suggest');
     overlay.innerHTML =
         `<div class="box" role="dialog" aria-labelledby="mh-suggest-title">` +
         `<div class="s-title" id="mh-suggest-title">Send feedback</div>` +
@@ -159,7 +160,7 @@ export function openSuggest(opts: OpenSuggestOptions): void {
     const submitBtn = overlay.querySelector<HTMLButtonElement>('[data-act="submit"]')!;
 
     const close = () => {
-        overlay.remove();
+        removeWithDialogFade(overlay, () => overlay.remove());
         window.removeEventListener('keydown', onKey);
     };
     const onKey = (e: KeyboardEvent) => {

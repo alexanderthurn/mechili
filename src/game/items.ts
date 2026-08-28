@@ -47,6 +47,11 @@ export interface ItemDef {
     debuffImmune?: boolean;
     /** grants every mech in the pack a shield pool equal to its max HP */
     grantsShieldHp?: boolean;
+    /**
+     * Supply the Stronghold charges to fire the oven for this rune, on top of
+     * the ingredients. Omit = free. Only advanced (forged) runes have one.
+     */
+    forgeCost?: number;
     description: string;
 }
 
@@ -109,6 +114,7 @@ export const ITEMS: Record<string, ItemDef> = {
         name: 'Carnage',
         icon: 'item-power',
         mods: { damage: 1.75 },
+        forgeCost: 100,
         description: '+75% attack.',
     },
     vigor: {

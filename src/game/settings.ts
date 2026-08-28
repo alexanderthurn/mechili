@@ -1,5 +1,6 @@
 import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
+import { TACTICS } from './tactics';
 import {
     DEFAULT_ROUND_CARD_PRESET_ID,
     ROUND_CARD_ALGORITHMS,
@@ -48,6 +49,8 @@ export interface GameSettings {
      * Team HP itself comes only from those card grants (summed in 2v2).
      */
     commanderHpFactor: number;
+    /** what the Stronghold is worth this match (see {@link StrongholdMode}) */
+    strongholdMode: StrongholdMode;
     economy: EconomySettings;
     towers: TowerSettings;
     leveling: LevelingSettings;
@@ -140,7 +143,8 @@ export interface TowerSettings {
     };
     /**
      * How long a tower loss debuffs its seat. Level 1 lasts baseSeconds; each
-     * level above 1 subtracts stepSeconds (level 2 → 8s, level 3 → 6s, …). If
+     * level above 1 subtracts stepSeconds (level 2 → 6s, level 3 → 4s, …) down
+     * to 0 at level 5, where losing it is free. If
      * another building falls (from the SAME seat) during an active debuff,
      * its own full duration is added on top — unchanged regardless of team
      * size, since the debuff is scoped per seat now, not per side.
@@ -217,6 +221,7 @@ export interface MovePackSettings {
     abilityCost: number;
 }
 
+
 export interface EconomySettings {
     /** income granted in round 1 */
     startingSupply: number;
@@ -254,6 +259,44 @@ export function customGamePaceById(id: string | undefined | null): CustomGamePac
 /** Select-option text: name plus the four timings from the preset. */
 export function formatCustomGamePaceOption(p: CustomGamePacePreset): string {
     return `${p.label} — Deploy ${p.buildSeconds}s · Battle ${p.battleSeconds}s · ${DISPLAY.commander} ${p.specialistSeconds}s · Cards ${p.cardSeconds}s`;
+}
+
+/**
+ * What the Stronghold is worth in a match.
+ *
+ * - `lifeline`  — the default. The side's army lives only while it stands:
+ *                 break one and every pack on that side drops, ending the round
+ *                 on the spot. A siege win instead of a grind.
+ * - `standard`  — a building like any other; losing it only costs you the forge.
+ * - `none`      — no Stronghold on the board at all, so no forge either.
+ *
+ * The id `standard` predates the default moving to `lifeline`; it is kept so
+ * saved Custom Game configs and anything already on the wire still resolve.
+ */
+export type StrongholdMode = 'standard' | 'lifeline' | 'none';
+
+export interface StrongholdModeOption {
+    mode: StrongholdMode;
+    label: string;
+}
+
+export const STRONGHOLD_MODE_OPTIONS: readonly StrongholdModeOption[] = [
+    { mode: 'lifeline', label: 'Army falls with it' },
+    { mode: 'standard', label: 'Just a building' },
+    { mode: 'none', label: 'None on the board' },
+];
+
+export const DEFAULT_STRONGHOLD_MODE: StrongholdMode = 'lifeline';
+
+/** Snap anything off the wire, a save or a URL onto a known mode. */
+export function strongholdModeOption(raw: unknown): StrongholdMode {
+    return STRONGHOLD_MODE_OPTIONS.some((o) => o.mode === raw)
+        ? (raw as StrongholdMode)
+        : DEFAULT_STRONGHOLD_MODE;
+}
+
+export function formatStrongholdModeOption(o: StrongholdModeOption): string {
+    return `Stronghold: ${o.label}`;
 }
 
 /** Custom Game commander-HP multiplier options — both teams share one factor. */
@@ -297,6 +340,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     specialistTimeSeconds: 15,
     cardTimeSeconds: 15,
     commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+    strongholdMode: DEFAULT_STRONGHOLD_MODE,
     economy: {
         startingSupply: 200,
         supplyGrowthPerRound: 200,
@@ -309,7 +353,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
             damageTakenMult: 2.0,
         },
         debuffDuration: {
-            baseSeconds: 10,
+            // 8 with a 2s step lands level 5 on exactly 0 — a fully upgraded
+            // tower costs its seat nothing when it falls
+            baseSeconds: 8,
             stepSeconds: 2,
         },
         upgrade: {
@@ -420,6 +466,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         roundCardPreset: resolveRoundCardPreset(legacy),
         hordePreset: resolveHordePreset(legacy),
         commanderHpFactor: resolveCommanderHpFactor(settings.commanderHpFactor),
+        strongholdMode: strongholdModeOption(settings.strongholdMode),
     };
 }
 
@@ -562,6 +609,21 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     value: `×${settings.commanderHpFactor}`,
                     note: 'scales each commander card’s starting HP for both teams',
                 },
+                {
+                    label: 'Stronghold',
+                    value:
+                        settings.strongholdMode === 'lifeline'
+                            ? 'Army falls with it'
+                            : settings.strongholdMode === 'none'
+                              ? 'None on the board'
+                              : 'Just a building',
+                    note:
+                        settings.strongholdMode === 'lifeline'
+                            ? 'break one and every pack on that side drops — the round ends there'
+                            : settings.strongholdMode === 'none'
+                              ? 'no Stronghold, so no forge either'
+                              : 'losing it only costs you the forge',
+                },
             ],
         },
         {
@@ -703,6 +765,17 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     note: `Vanguard — grants one move-pack ${DISPLAY.tactic.toLowerCase()} charge`,
                 },
             ],
+        },
+        {
+            title: 'Commander Spells',
+            rows: Object.values(TACTICS)
+                .filter((t) => t.strongholdCost !== undefined)
+                .sort((a, b) => a.strongholdCost! - b.strongholdCost! || a.name.localeCompare(b.name))
+                .map((t) => ({
+                    label: t.name,
+                    value: `${t.strongholdCost} supply, one-time`,
+                    note: 'Stronghold — only on a commander that knows it',
+                })),
         },
         {
             title: 'Boosts',

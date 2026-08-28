@@ -20,7 +20,7 @@ import {
     BUILDING_SNOW_IDS,
 } from './buildingSnow';
 import { CROW_RIDER_MODEL_ID, markCrowWingFlapMaterial } from './crowWingFlap';
-import type { BattleTeam, Team } from './units';
+import type { BattleTeam } from './units';
 
 /**
  * Units backed by a generated GLB model instead of procedural primitives.
@@ -123,6 +123,14 @@ const attackNodes = new Map<string, { x: number; y: number; z: number }>();
  * AttackNode). Used by StrongholdFlags.
  */
 const flagNodes = new Map<string, { x: number; y: number; z: number }>();
+/**
+ * `Unit1`, `Unit2`, … empties: standing spots authored into a building (the
+ * Stronghold's battlements carry five). Garrison archers stand and SHOOT from
+ * these, so the sim reads them and they ride in {@link
+ * modelGeometryFingerprint} — a peer whose stronghold GLB failed would
+ * otherwise garrison somewhere else and fight a different battle.
+ */
+const slotNodes = new Map<string, { x: number; y: number; z: number }[]>();
 
 /** Local mesh height for badges / arrows (× meshScale → world). Falls back to 1. */
 export function getUnitVisualHeight(id: string): number {
@@ -147,6 +155,15 @@ export function getUnitAttackNodeLocal(id: string): { x: number; y: number; z: n
 export function getUnitFlagNodeLocal(id: string): { x: number; y: number; z: number } | null {
     return flagNodes.get(id) ?? null;
 }
+
+/** One authored standing spot, 1-based to match the `Unit1`… node names. */
+export function getUnitSlotLocal(
+    id: string,
+    slot: number,
+): { x: number; y: number; z: number } | null {
+    return slotNodes.get(id)?.[slot - 1] ?? null;
+}
+
 
 /**
  * Fingerprint of the model-derived geometry the SIM reads — {@link
@@ -186,6 +203,16 @@ export function modelGeometryFingerprint(): number {
     for (const id of [...visualHalfWidths.keys()].sort()) {
         mixStr(id);
         mix(visualHalfWidths.get(id)!);
+    }
+    for (const id of [...slotNodes.keys()].sort()) {
+        const slots = slotNodes.get(id)!;
+        mixStr(id);
+        mix(slots.length);
+        for (const s of slots) {
+            mix(s.x);
+            mix(s.y);
+            mix(s.z);
+        }
     }
     for (const id of [...attackNodes.keys()].sort()) {
         const n = attackNodes.get(id)!;
@@ -458,6 +485,19 @@ export async function loadUnitModels(
                 console.info(
                     `[unitModels] AttackNode '${id}' @ (${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`,
                 );
+            }
+            // Unit1, Unit2, … — consecutive from 1, stop at the first gap
+            const slots: { x: number; y: number; z: number }[] = [];
+            for (let n = 1; ; n++) {
+                const node = root.getObjectByName(`Unit${n}`);
+                if (!node) break;
+                const p = new Vector3();
+                node.getWorldPosition(p);
+                slots.push({ x: p.x, y: p.y, z: p.z });
+            }
+            if (slots.length > 0) {
+                slotNodes.set(id, slots);
+                console.info(`[unitModels] ${slots.length} unit slots on '${id}'`);
             }
             const flag = root.getObjectByName('Flag');
             if (flag) {

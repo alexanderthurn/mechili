@@ -86,9 +86,10 @@ export function deathTipFromKnock(
     // world → local (inverse of rest-forward −Z bake used by AttackNode)
     const lx = nx * c - nz * s;
     const lz = nx * s + nz * c;
+    // Tip so the crown moves with the blow (Rx/Rz right-hand → negate local axes).
     return {
-        tipX: amount * -lz,
-        tipZ: amount * lx,
+        tipX: amount * lz,
+        tipZ: amount * -lx,
     };
 }
 
@@ -214,6 +215,19 @@ export function settleCorpsePose(mesh: Group): void {
     mesh.userData.corpseSettled = true;
     mesh.userData.corpseTipX = mesh.rotation.x;
     mesh.userData.corpseTipZ = mesh.rotation.z;
+}
+
+/**
+ * Forget a baked pose, so the next death bakes its own.
+ *
+ * `corpseSettled` lives on the mesh, and meshes outlive the round that killed
+ * them — without this a unit's SECOND death would be overwritten by the angles
+ * its FIRST one settled at, which reads as the corpse suddenly sitting back up.
+ */
+export function clearCorpsePose(mesh: Group): void {
+    delete mesh.userData.corpseSettled;
+    delete mesh.userData.corpseTipX;
+    delete mesh.userData.corpseTipZ;
 }
 
 /**

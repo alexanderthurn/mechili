@@ -14,6 +14,7 @@ import {
     Vector3,
 } from 'three';
 import { THEME } from '../theme';
+import { detAtan2 } from './detMath';
 
 /**
  * The ward dome's skin: a faint violet film with a band of golden runes
@@ -66,7 +67,15 @@ function makeWardRuneTexture(): CanvasTexture {
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
-import { cloneUnitModel, getUnitVisualHeight, hasUnitModel, loadUnitModels, seedUnitVisualHeight } from './unitModels';
+import {
+    attackNodeWorld,
+    cloneUnitModel,
+    getUnitSlotLocal,
+    getUnitVisualHeight,
+    hasUnitModel,
+    loadUnitModels,
+    seedUnitVisualHeight,
+} from './unitModels';
 import {
     computeCrowWingRate,
     CROW_RIDER_MODEL_ID,
@@ -75,8 +84,8 @@ import {
 } from './crowWingFlap';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
-import { beginBuildingCollapse, clearBuildingCollapse } from './buildingCollapse';
-import { clearDeathFall, clearDeathTip } from './deathFall';
+import { beginBuildingCollapse, beginHammerCrush, clearHammerCrush, groundTipAt, hammerCrushSpin, HAMMER_CRUSH_SEAT_Y } from './buildingCollapse';
+import { clearCorpsePose, clearDeathFall, clearDeathTip } from './deathFall';
 import { preserveBuildingSnow } from './buildingSnow';
 
 export type Team = 'player' | 'enemy';
@@ -287,6 +296,14 @@ export interface UnitType {
      */
     extra?: boolean;
     /**
+     * Never CHOSEN as a target — an enemy walks past looking for something
+     * else. Unlike {@link extra} this is only about acquisition: the unit is
+     * still in the target hash, so a shot crossing it connects, and splash,
+     * blasts and fire all reach it. A garrison archer on a keep: you besiege
+     * the keep, and he takes what lands near him.
+     */
+    notAcquired?: boolean;
+    /**
      * When `false`, players and the AI cannot buy or unlock this type from
      * the shop. Omit or `true` = eligible (still subject to unlock / extras).
      * Horde / Der Komtur units set this false.
@@ -361,6 +378,8 @@ export interface UnitType {
      * Ground stain / death particles. Omit = ash if structure, else blood.
      */
     deathWear?: DeathWear;
+    /** Ash-death scorch on the wear mask. Omit = global big/small defaults. */
+    deathAshScorch?: { radius: number; strength: number };
     /**
      * Hit/death gore tint (hex). Omit = default red. Ignored when wear is
      * ash/none (structures, siege, etc.).
@@ -376,6 +395,8 @@ export interface UnitType {
      * Combined with {@link range} as the engagement distance.
      */
     cleave?: { radius: number };
+    /** Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake). */
+    cleaveShake?: number;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
     burn?: import('./fire').BurnAffinity;
     /**
@@ -410,6 +431,17 @@ export interface UnitType {
     /** seconds between shots */
     attackInterval: number;
     speed: number;
+    /**
+     * Procedural walk lean *height* for non-skinned ground units (omit = 1).
+     * Scales bob / roll / forward lean. Speed (stun, oil, debuffs) still
+     * multiplies via displacement. Pair with {@link walkCadence} for step rate.
+     */
+    walkLean?: number;
+    /**
+     * Procedural walk *step rate* for non-skinned ground units (omit = 1).
+     * Scales gait frequency only — not lean amplitude. See {@link walkLean}.
+     */
+    walkCadence?: number;
     /**
      * Max yaw change while turning (rad/s). Every mobile type sets its own —
      * small infantry high, siege / bosses low. Structures omit (never turn).
@@ -687,7 +719,84 @@ function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 80
 export const COMMAND_TOWER = makeTower('command-tower', 'Vanguard', 3.0, 3);
 export const RESEARCH_CENTER = makeTower('research-center', 'Garrison');
 /** each side's main castle at the back of its territory — bigger and sturdier */
-export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 1600);
+export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 3000);
+
+/**
+ * An archer bought onto the keep's battlements. Shoots exactly like the pack
+ * archer — same bow, same numbers — and differs in three ways only: he cannot
+ * move (`speed: 0`), nothing can shoot him (`colliders: []`, the Ward Stone's
+ * trick), and he stands on an authored `UnitN` slot rather than the grid, via
+ * {@link Unit.pinnedY}. He is deliberately not in UNIT_TYPES: the shop must
+ * never offer him, he is bought from the Stronghold panel one at a time.
+ */
+export const GARRISON_ARCHER: UnitType = {
+    id: 'garrison-archer',
+    name: 'Garrison Archer',
+    // reuses the archer GLB — no second model, and no new fingerprint entry
+    modelId: 'archer',
+    cost: 100,
+    footprint: { cols: 1, rows: 1 },
+    formation: { cols: 1, rows: 1 },
+    meshScale: 2.2,
+    burn: { takenMult: 1.1 },
+    targets: { ground: true, air: true },
+    collisionRadius: 1.0,
+    /**
+     * Nobody AIMS at him — an army besieging a keep shoots the keep — but he
+     * is otherwise as real as anything else on the board: arrows that cross
+     * his collider on the way past hit him, and splash, blast and dragonfire
+     * all reach him. `extra` would have made him immune to all of it, and it
+     * also keeps a unit out of the target hash the projectile sweep reads.
+     */
+    notAcquired: true,
+    colliders: [{ y: 1.1, r: 0.75 }],
+    projectileSpeed: 100,
+    projectileStyle: 'arrow',
+    projectileBallistic: true,
+    projectileLaunchHeightFrac: 0.75,
+    hp: 130,
+    damage: 65,
+    range: 45,
+    attackInterval: 1.4,
+    speed: 0,
+    turnRate: 6,
+    build: buildArcher,
+};
+
+/**
+ * World position of one of a keep's authored standing spots.
+ *
+ * Deliberately the BAKED path only — never the live `getObjectByName` lookup
+ * the commander's decoration uses. This feeds where a garrison archer stands
+ * and therefore what he can shoot, so it has to come out identical on every
+ * peer from the action log alone, with no reference to view state.
+ */
+export function garrisonSlotWorld(keep: Unit, slot: number): { x: number; y: number; z: number } | null {
+    const local = getUnitSlotLocal(keep.type.id, slot);
+    if (!local) return null;
+    const footY = worldHeightAt(keep.world.x, keep.world.z) + GROUND_UNIT_Y;
+    return attackNodeWorld(
+        local,
+        keep.world.x,
+        footY,
+        keep.world.z,
+        keep.facing,
+        keep.visualMeshScale(),
+    );
+}
+
+/** How many archers a keep's battlements hold — `Unit5` is the commander's. */
+export const GARRISON_SLOTS = [1, 2, 3, 4] as const;
+/**
+ * A garrison archer's field of fire, in degrees. He covers this much centred on
+ * outward, and the rest — pointing back into his own keep — is dead. Written in
+ * degrees because that is how it gets tuned; the half-angle below is what the
+ * sim and the marker actually use.
+ */
+export const GARRISON_FOV_DEGREES = 240;
+export const GARRISON_FOV_HALF = (GARRISON_FOV_DEGREES * Math.PI) / 360;
+/** first archer 100, second 200, third 300, fourth 400 */
+export const GARRISON_STEP_COST = 100;
 
 /** shield dome coverage, world units — the top stays below the air layer (18) */
 export const SHIELD_RADIUS = 20;
@@ -828,6 +937,8 @@ export const HORDE_SPINNE: UnitType = {
     turnRate: 1.0,
     turnMove: 'pivot',
     build: buildDwarf,
+    walkCadence: 1.5,
+    walkLean: 1.5,
 };
 
 /**
@@ -914,6 +1025,7 @@ export const HORDE_KOMTUR: UnitType = {
         { y: 2.4, r: 1.5 },
     ],
     cleave: { radius: 8 },
+    cleaveShake: 1,
     fire: {
         ground: { radius: 8, duration: 8, intensity: 21 },
     },
@@ -944,7 +1056,10 @@ export const UNIT_TYPES: UnitType[] = [
         damage: 8,
         range: 2,
         attackInterval: 0.7,
-        speed: 9,
+        speed: 6,
+        // short legs — taller lean + quicker steps than other walkers
+        walkLean: 1,
+        walkCadence: 1.5,
         turnRate: 12,
         build: buildDwarf,
     },
@@ -1018,7 +1133,7 @@ export const UNIT_TYPES: UnitType[] = [
         range: 12,
         attackInterval: 1.1,
         speed: 8,
-        turnRate: 0.25,
+        turnRate: 0.5,
         turnMove: 'cruise',
         build: buildCrowRider,
     },
@@ -1043,6 +1158,7 @@ export const UNIT_TYPES: UnitType[] = [
         // heavy chassis would stamp hard from cost/bulk — keep a light track
         sandWeight: 1.1,
         deathWear: 'ash', // wood/iron siege — burns, no blood
+        deathAshScorch: { radius: 5, strength: 0.35 }, // half the default big-unit ash scar
         burn: { takenMult: 4.0 }, // timber siege — burns hard once lit
         hp: 500,
         damage: 500,
@@ -1153,8 +1269,39 @@ export class Unit {
      * unit yet, and it is ignored when other units pick a facing target.
      */
     revealed = true;
+    /**
+     * Absolute world Y this pack is pinned to, instead of standing on the
+     * terrain under it — a garrison archer up on his keep's battlement. Set
+     * once when the pack is created and never animated: he does not bob, climb
+     * or walk, so every consumer can treat it as a constant.
+     */
+    /**
+     * Spawned straight into the world with no grid cell — {@link Unit.cell} is
+     * a {0,0} placeholder and must never be used to position anything.
+     */
+    gridless = false;
+    pinnedY: number | null = null;
+    /**
+     * Outward direction this pack may shoot along, as `detAtan2(dx, dz)` of the
+     * vector from the building's middle to its slot. A garrison archer covers
+     * {@link GARRISON_FOV_HALF} to either side of it; the wedge behind him is
+     * his own keep, and he does not fire arrows through it.
+     */
+    fovYaw: number | null = null;
+    /**
+     * Which authored `UnitN` spot on its side's keep this pack occupies. The
+     * anchor is re-derived from that keep every frame rather than kept: a keep
+     * GROWS 10% per level, so a position baked when the archer was bought
+     * leaves him buried in the masonry the moment the keep is upgraded.
+     */
+    garrisonSlot: number | null = null;
     /** towers: down for the rest of the CURRENT battle — no longer a target, debuffs its owner's side */
     destroyed = false;
+    /**
+     * Flattened by its own keep's collapse rather than destroyed by an enemy.
+     * Down all the same, but it owes its side no debuff on any path.
+     */
+    razed = false;
     /** board extras: used up this battle (shield broken, rocket fired) — removed at the round reset */
     consumed = false;
     /** the pack's equipped items (up to that type's itemSlotLimit) — permanent once its deployment ended */
@@ -1282,10 +1429,18 @@ export class Unit {
                 this.members.push({ mesh, phase: Math.random() * Math.PI * 2, home: new Vector3(ox, 0, oz) });
             }
         }
-        // default facing until a target is known: straight at the opposing
+        // Default facing until a target is known: straight at the opposing
         // edge — structures too (a castle's gate looks at the enemy), they
-        // just never turn again afterwards
-        this.facing = team === 'enemy' ? Math.PI : 0;
+        // just never turn again afterwards.
+        //
+        // Keyed on the BOARD, never on `team`. 'player'/'enemy' are per-client
+        // labels — every client calls its own side 'player' — so keying on
+        // them gave one unit opposite yaws on two clients. Facing is in the
+        // state hash, and structures never turn, so that mirrored value rode
+        // into every battle-start comparison for the whole match: a desync a
+        // resync could not repair, because both peers just rebuilt it. It also
+        // drew the far side's castles facing backwards. Yaw 0 looks down −z.
+        this.facing = world.z >= 0 ? 0 : Math.PI;
         for (const m of this.members) m.mesh.rotation.y = this.facing;
         this.view.position.copy(this.world);
         this.seatMembers();
@@ -1320,6 +1475,12 @@ export class Unit {
         const rocketAlt = this.type.rocket ? this.flightCeiling() : undefined;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
+            if (this.pinnedY != null) {
+                // absolute, like the rocket below — the battlement he stands on
+                // is not the ground beneath him
+                m.mesh.position.y = this.pinnedY;
+                continue;
+            }
             if (rocketAlt != null) {
                 m.mesh.position.y = rocketAlt;
                 continue;
@@ -1389,10 +1550,30 @@ export class Unit {
     /**
      * Collapses the meshes into rubble until the next round reset.
      * `knock` leans the settle along the killing blow (render-only).
+     * `crush` = Hammer of the Gods pancake (super-flat).
      */
-    markDestroyed(knock?: { x: number; z: number }): void {
+    markDestroyed(knock?: { x: number; z: number }, opts?: { crush?: boolean }): void {
         this.destroyed = true;
         const instances = getUnitInstanceRenderer();
+        if (opts?.crush) {
+            for (let i = 0; i < this.members.length; i++) {
+                const m = this.members[i]!;
+                m.mesh.userData.dead = true;
+                setCrowWingRateOnProxy(m.mesh, 0);
+                const wx = this.world.x + m.mesh.position.x;
+                const wz = this.world.z + m.mesh.position.z;
+                const tip = groundTipAt(wx, wz);
+                beginHammerCrush(m.mesh, {
+                    groundY: worldHeightAt(wx, wz) + HAMMER_CRUSH_SEAT_Y,
+                    spin: hammerCrushSpin(this.id * 131 + i + 17),
+                    endTipX: tip.tipX,
+                    endTipZ: tip.tipZ,
+                });
+                instances?.setDead(m.mesh);
+                m.mesh.visible = true;
+            }
+            return;
+        }
         const klen = knock ? Math.hypot(knock.x, knock.z) : 0;
         // Wide bases (Stronghold) tip very little — a big lean lifts one side into the air
         const wide = this.type.collisionRadius >= 4 || this.type.id === 'stronghold';
@@ -1429,19 +1610,23 @@ export class Unit {
         return base * (1 + steps * 0.05);
     }
 
-    /** Mesh tint by level; base buildings also scale up. */
+    /** Mesh tint by level (packs only); base buildings scale up instead. */
     applyLevelLook(level = this.level): void {
         const scale = this.visualMeshScale(level);
         for (const m of this.members) {
             if (!m.mesh.userData.dead) m.mesh.scale.setScalar(scale);
         }
-        if (level === this.lookDisplayLevel) return;
-        this.lookDisplayLevel = level;
+        // A building says its level by growing, and by the badge over it. The
+        // veterancy hue is a pack's alone: dyeing masonry blue or gold buries
+        // the model's own material under a flat wash.
+        const tintLevel = this.type.structure ? 1 : level;
+        if (tintLevel === this.lookDisplayLevel) return;
+        this.lookDisplayLevel = tintLevel;
         for (const m of this.members) {
             if (m.mesh.userData.instanced) {
-                getUnitInstanceRenderer()?.setLevelTint(m.mesh, level);
+                getUnitInstanceRenderer()?.setLevelTint(m.mesh, tintLevel);
             } else {
-                applyMeshLevelTint(m.mesh, level);
+                applyMeshLevelTint(m.mesh, tintLevel);
             }
         }
     }
@@ -1464,7 +1649,8 @@ export class Unit {
             m.mesh.userData.dead = false;
             clearDeathFall(m.mesh);
             clearDeathTip(m.mesh);
-            clearBuildingCollapse(m.mesh);
+            clearCorpsePose(m.mesh);
+            clearHammerCrush(m.mesh);
             if ((this.type.modelId ?? this.type.id) === CROW_RIDER_MODEL_ID) {
                 setCrowWingRateOnProxy(m.mesh, 0);
                 setCrowWingRestOnProxy(m.mesh, 0);
@@ -1473,6 +1659,7 @@ export class Unit {
         }
         this.seatMembers();
         this.destroyed = false;
+        this.razed = false;
         this.applyLevelLook(this.level);
     }
 
@@ -1505,19 +1692,22 @@ export class Unit {
                     best = t;
                 }
             }
-            m.mesh.rotation.y = Math.atan2(-(best.x - mx), -(best.z - mz));
+            m.mesh.rotation.y = detAtan2(-(best.x - mx), -(best.z - mz));
             if (bestD < squadBestD) {
                 squadBestD = bestD;
                 squadBest = best;
             }
         }
-        this.facing = Math.atan2(-(squadBest.x - this.world.x), -(squadBest.z - this.world.z));
+        this.facing = detAtan2(-(squadBest.x - this.world.x), -(squadBest.z - this.world.z));
     }
 
     update(timeSeconds: number): void {
         // battle owns per-mech Y via BattleSim — don't overwrite walkers with
         // the pack's home-slot height or they sink into (or float over) hills
         if (this.type.structure || !this.inDeployment) return;
+        // pinned packs never bob or re-seat — seatMembers already put them on
+        // their spot, and the idle sway would float them off it
+        if (this.pinnedY != null) return;
         const base = this.memberBaseY();
         const amplitude = 0.04;
         const ox = this.view.position.x;
@@ -1630,10 +1820,12 @@ function applyMeshLevelTint(root: Group, level: number): void {
     });
 }
 
-/** tints a mech during battle — golden > debuff > spawning > normal */
+/** tints a mech during battle — golden > debuff > acid > burn > spawning > normal */
+export type BattleTint = 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning';
+
 export function syncBattleTint(
     mesh: Group,
-    tint: 'normal' | 'golden' | 'debuff' | 'spawning',
+    tint: BattleTint,
     timeSeconds: number,
     debuffStacks = 1,
     spawnProgress = 0,
@@ -1647,6 +1839,8 @@ export function syncBattleTint(
     const grey = TINT_GREY;
     const goldPulse = 1.15 + Math.sin(timeSeconds * 4.5) * 0.4;
     const debuffT = timeSeconds * 7;
+    const acidT = timeSeconds * 5.5;
+    const burnT = timeSeconds * 6.2;
     const spawnGlow = tintScratch;
 
     mesh.traverse((child) => {
@@ -1696,6 +1890,45 @@ export function syncBattleTint(
             return;
         }
 
+        if (tint === 'acid') {
+            let tinted = child.userData.acidMat as MeshStandardMaterial | undefined;
+            const base = child.userData.battleOrigMat as MeshStandardMaterial;
+            if (!tinted) {
+                tinted = base.clone();
+                preserveBuildingSnow(base, tinted);
+                child.userData.acidMat = tinted;
+            }
+            const pulse = 0.5 + 0.5 * Math.sin(acidT);
+            const g = 0.55 + 0.35 * Math.sin(acidT + 1.2);
+            const y = 0.35 + 0.25 * pulse;
+            const slime = new Color(0.25 + y * 0.35, 0.75 + g * 0.2, 0.12 + pulse * 0.1);
+            tinted.color.lerpColors(base.color, slime, 0.55 + pulse * 0.2);
+            tinted.emissive.setRGB(0.15 + pulse * 0.2, 0.65 + g * 0.25, 0.08);
+            tinted.emissiveIntensity = 0.35 + pulse * 0.45;
+            child.material = tinted;
+            return;
+        }
+
+        if (tint === 'burn') {
+            let tinted = child.userData.burnMat as MeshStandardMaterial | undefined;
+            const base = child.userData.battleOrigMat as MeshStandardMaterial;
+            if (!tinted) {
+                tinted = base.clone();
+                preserveBuildingSnow(base, tinted);
+                child.userData.burnMat = tinted;
+            }
+            const pulse = 0.5 + 0.5 * Math.sin(burnT);
+            const flicker = 0.5 + 0.5 * Math.sin(burnT * 2.1 + 0.7);
+            const ember = new Color(0.85 + pulse * 0.15, 0.22 + flicker * 0.2, 0.04);
+            const char = new Color(0.18, 0.1, 0.06);
+            tinted.color.lerpColors(base.color, char, 0.45);
+            tinted.color.lerp(ember, 0.35 + pulse * 0.25);
+            tinted.emissive.setRGB(0.95, 0.28 + flicker * 0.35, 0.02);
+            tinted.emissiveIntensity = 0.45 + pulse * 0.55 + flicker * 0.2;
+            child.material = tinted;
+            return;
+        }
+
         if (tint === 'spawning') {
             let tinted = child.userData.spawnMat as MeshStandardMaterial | undefined;
             const base = child.userData.battleOrigMat as MeshStandardMaterial;
@@ -1732,13 +1965,19 @@ export function clearBattleTint(mesh: Group): void {
         if (orig) child.material = orig;
         const golden = child.userData.goldenMat as MeshStandardMaterial | undefined;
         const debuff = child.userData.debuffMat as MeshStandardMaterial | undefined;
+        const acid = child.userData.acidMat as MeshStandardMaterial | undefined;
+        const burn = child.userData.burnMat as MeshStandardMaterial | undefined;
         const spawn = child.userData.spawnMat as MeshStandardMaterial | undefined;
         golden?.dispose();
         debuff?.dispose();
+        acid?.dispose();
+        burn?.dispose();
         spawn?.dispose();
         delete child.userData.battleOrigMat;
         delete child.userData.goldenMat;
         delete child.userData.debuffMat;
+        delete child.userData.acidMat;
+        delete child.userData.burnMat;
         delete child.userData.spawnMat;
     });
 }
@@ -1781,6 +2020,7 @@ export function buildUnitPreviewMesh(type: UnitType, team: BattleTeam = 'player'
 
 /** type lookup by id — actions and replays store unit types as strings */
 export function unitTypeById(id: string): UnitType | null {
+    if (id === GARRISON_ARCHER.id) return GARRISON_ARCHER;
     if (id === COMMAND_TOWER.id) return COMMAND_TOWER;
     if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
     if (id === STRONGHOLD.id) return STRONGHOLD;

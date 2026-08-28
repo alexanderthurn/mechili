@@ -1,9 +1,17 @@
 import { buildingAbilities } from '../game/buildingAbilities';
 import { START_CARDS, ROUND_RUNE_CARDS, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
-import { forgeIngredientIcons } from '../game/forgeRecipes';
 import { DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
-import { TACTICS, formatTacticStats } from '../game/tactics';
+import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS, ITEMS, itemSlotLimit, type ItemDef } from '../game/items';
+import { FORGE_RECIPES } from '../game/forgeRecipes';
+import {
+    MOVE_UNIT_ID,
+    RALLY_ROUTE_ID,
+    SELL_UNIT_ID,
+    TACTICS,
+    TUTOR_ID,
+    formatTacticStats,
+} from '../game/tactics';
 import { techsForUnit } from '../game/techCatalog';
 import {
     COMMAND_TOWER,
@@ -23,7 +31,7 @@ import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { roundCardFaceHtml } from '../ui/roundCardFace';
 import { cssUrl, iconHtml, moneyHtml } from '../ui/iconAtlas';
 import { openSuggest } from '../suggest';
-import { createShowcaseViewer } from './modelViewer';
+import { createShowcaseViewer } from '../ui/modelViewer';
 import { homepageStyles } from './styles';
 
 const logoUrl = new URL('../../assets/ui/logo.webp', import.meta.url).href;
@@ -121,7 +129,7 @@ const SHOWCASE_SPELLS: { id: SpellAssetId; name: string; blurb: string }[] = [
     {
         id: 'poison',
         name: 'Poison Cloud',
-        blurb: 'Toxic cloud over a marked area.',
+        blurb: 'Toxic sky clouds that rain sparse acid over a huge circle.',
     },
 ];
 
@@ -251,17 +259,72 @@ function shotCard(shot: { src: string; label: string; index: number }): string {
 </button>`;
 }
 
+/**
+ * Where a tactic's price lives depends on which building sells it. The eleven
+ * commander spells carry their own `strongholdCost`; the Vanguard's one-time
+ * buys are match settings, so read them from there rather than copying the
+ * numbers and letting them drift.
+ */
+const VANGUARD_TACTIC_COST: Record<string, number> = {
+    [RALLY_ROUTE_ID]: DEFAULT_SETTINGS.rallyRoute.abilityCost,
+    [MOVE_UNIT_ID]: DEFAULT_SETTINGS.movePack.abilityCost,
+    [SELL_UNIT_ID]: DEFAULT_SETTINGS.sell.abilityCost,
+    // NOTE: Field Lesson has no purchase action yet — it only arrives on a
+    // commander card. Listed at its intended price so the catalog is complete.
+    [TUTOR_ID]: 100,
+};
+
+function tacticPrice(t: (typeof TACTICS)[string]): { cost: number; where: string } | null {
+    if (t.strongholdCost !== undefined) return { cost: t.strongholdCost, where: 'Stronghold' };
+    const vanguard = VANGUARD_TACTIC_COST[t.id];
+    return vanguard === undefined ? null : { cost: vanguard, where: 'Vanguard' };
+}
+
+/** Base runes the forge turns into this one, in recipe order. */
+function runeRecipeIcons(runeId: string): string[] {
+    const recipe = FORGE_RECIPES.find(
+        (r) => r.product.kind === 'item' && r.product.id === runeId,
+    );
+    if (!recipe) return [];
+    return recipe.ingredients
+        .map((id) => ITEMS[id]?.icon)
+        .filter((ico): ico is string => !!ico);
+}
+
+function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
+    // One price tag either way — a base rune is bought, a forged one is paid for
+    // in ingredients plus the forge fee, so the band shows whichever applies.
+    const recipe = isBase ? [] : runeRecipeIcons(item.id);
+    const costHtml = isBase
+        ? `<div class="mh-tactic-cost" title="Bought in the shop, or drafted from a round card" aria-label="Shop price">${DEFAULT_SETTINGS.deploy.baseRuneCost}</div>`
+        : `<div class="mh-tactic-cost" title="Forged at the Stronghold" aria-label="Forge price">${recipe
+              .map((ico) => iconHtml(ico, 'mh-cost-rune'))
+              .join('')}<span class="mh-cost-plus">+</span>${item.forgeCost ?? 0}</div>`;
+    return `
+<article class="mh-tactic mh-rune${isFirst ? ' mh-active' : ''}" data-key="${esc(item.id)}">
+  <span class="mh-rune-tag${isBase ? '' : ' forged'}">${isBase ? 'Base' : 'Advanced'}</span>
+  <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(item.icon, 'mh-tactic-tile')}</div>
+  <div class="mh-tactic-body">
+    <div class="mh-tactic-head">
+      <h3>${esc(item.name)}</h3>
+    </div>
+    <p class="mh-tactic-desc">${esc(item.description)}</p>
+    ${costHtml}
+  </div>
+</article>`;
+}
+
 function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     const kindLabel = t.kind === 'placement' ? 'Placement' : 'One-shot';
     const stats = formatTacticStats(t);
     const statsHtml = stats.length
         ? `<ul class="mh-tactic-stats">${stats.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>`
         : '';
-    const forgeIcons = forgeIngredientIcons(t.id);
-    const forgeHtml = forgeIcons.length
-        ? `<div class="mh-tactic-forge" aria-label="Required runes">${forgeIcons
-              .map((ico) => iconHtml(ico, 'mh-tactic-rune'))
-              .join('')}</div>`
+    // Price replaces the old rune row: tactics are bought now, so what a player
+    // wants to see is the supply, not a recipe.
+    const price = tacticPrice(t);
+    const costHtml = price
+        ? `<div class="mh-tactic-cost" title="Bought at the ${esc(price.where)}" aria-label="${esc(price.where)} price">${price.cost}</div>`
         : '';
     return `
 <article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(t.id)}">
@@ -272,8 +335,8 @@ function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
     </div>
     <p class="mh-tactic-meta">${kindLabel} · ${esc(t.targeting)}</p>
     <p class="mh-tactic-desc">${esc(t.description)}</p>
-    ${forgeHtml}
     ${statsHtml}
+    ${costHtml}
   </div>
 </article>`;
 }
@@ -304,6 +367,12 @@ function settingsGroupHtml(g: SettingGroup): string {
   </table>
 </div>`;
 }
+
+/** Base runes first, then the forged ones — the order a player meets them. */
+const ALL_RUNES: { item: ItemDef; isBase: boolean }[] = [
+    ...BASE_RUNE_IDS.map((id) => ({ item: ITEMS[id]!, isBase: true })),
+    ...ADVANCED_RUNE_IDS.map((id) => ({ item: ITEMS[id]!, isBase: false })),
+].filter((e) => !!e.item);
 
 const ALL_TACTICS = Object.values(TACTICS);
 
@@ -425,9 +494,31 @@ app.innerHTML = `
     </div>
   </section>
 
+  <section class="mh-section" id="runes">
+    <h2>${DISPLAY.items}</h2>
+    <p class="mh-sub">Fused onto a pack for good, lifting every mech in it <span class="mh-sep">⬢</span> most packs hold ${itemSlotLimit('dwarf')}, the ballista ${itemSlotLimit('ballista')}. The four base runes are drafted from round cards or bought in the shop; the stronger ones are forged from them at the Stronghold, and never sold.</p>
+    <select class="mh-card-select" id="mh-runes-select" aria-label="Choose a ${DISPLAY.item.toLowerCase()}">
+      ${ALL_RUNES.map(({ item }) => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('')}
+    </select>
+    <div class="mh-tactics" id="mh-runes-grid">
+      ${ALL_RUNES.map(({ item, isBase }, i) => runeCard(item, isBase, i === 0)).join('')}
+    </div>
+  </section>
+
+  <section class="mh-section" id="tactics">
+    <h2>${DISPLAY.tactics}</h2>
+    <p class="mh-sub">These are the skills on your ${DISPLAY.tactics.toLowerCase()} strip <span class="mh-sep">⬢</span> rallies, spills, summons, and battle casts like the dragon’s fire breath. Battle spells are bought at your Stronghold, once each, and only the three your commander knows. Icons match what you see in-game.</p>
+    <select class="mh-card-select" id="mh-tactics-select" aria-label="Choose a ${DISPLAY.tactic.toLowerCase()}">
+      ${ALL_TACTICS.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
+    </select>
+    <div class="mh-tactics" id="mh-tactics-grid">
+      ${ALL_TACTICS.map((t, i) => tacticCard(t, i === 0)).join('')}
+    </div>
+  </section>
+
   <section class="mh-section" id="round-cards">
     <h2>Round cards</h2>
-    <p class="mh-sub">From round two onward, draft one of several offered ${DISPLAY.items.toLowerCase()} cards drawn from the match pool. Forgeable battle spells come from the Stronghold, not cards.</p>
+    <p class="mh-sub">From round two onward, draft one of several offered ${DISPLAY.items.toLowerCase()} cards drawn from the match pool. Battle spells are bought at the Stronghold, not drafted from cards.</p>
     <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
       ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
     </select>
@@ -438,17 +529,6 @@ app.innerHTML = `
                 `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
         ).join('')}
       </div>
-    </div>
-  </section>
-
-  <section class="mh-section" id="tactics">
-    <h2>${DISPLAY.tactics}</h2>
-    <p class="mh-sub">These are the skills on your ${DISPLAY.tactics.toLowerCase()} strip <span class="mh-sep">⬢</span> rallies, spills, summons, and battle casts like the dragon’s fire breath. Most battle spells are forged at the Stronghold. Icons match what you see in-game.</p>
-    <select class="mh-card-select" id="mh-tactics-select" aria-label="Choose a ${DISPLAY.tactic.toLowerCase()}">
-      ${ALL_TACTICS.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
-    </select>
-    <div class="mh-tactics" id="mh-tactics-grid">
-      ${ALL_TACTICS.map((t, i) => tacticCard(t, i === 0)).join('')}
     </div>
   </section>
 
@@ -963,6 +1043,7 @@ function wireCardSelect(selectId: string, cardSelector: string): void {
 }
 wireCardSelect('mh-specialists-select', '#mh-specialists-row > .card');
 wireCardSelect('mh-round-cards-select', '#mh-round-cards-row > .card');
+wireCardSelect('mh-runes-select', '#mh-runes-grid > .mh-tactic');
 wireCardSelect('mh-tactics-select', '#mh-tactics-grid > .mh-tactic');
 
 const commanderSpellTips = new CardSpellTips();

@@ -10,11 +10,13 @@ import {
     Group,
     IcosahedronGeometry,
     InstancedMesh,
+    Matrix4,
     Mesh,
     MeshBasicMaterial,
     MeshStandardMaterial,
     Object3D,
     PlaneGeometry,
+    Quaternion,
     RepeatWrapping,
     SphereGeometry,
     Sprite,
@@ -39,9 +41,11 @@ import {
     mulberry32,
     registerOuterHeight,
     summerDryUniform,
+    hazardTimeShared,
+    fireCharcoalGroundUniform,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -70,6 +74,15 @@ import {
     updateVegetationSeason,
     type VegetationKind,
 } from './sceneryVegetation';
+import {
+    buildFloorPieceMeshes,
+    floorPieceGroundSink,
+    floorPieceScale,
+    floorPiecesEnabled,
+    listFloorPieces,
+    loadFloorPieces,
+    type FloorPiecePlacement,
+} from './sceneryFloorPieces';
 import { updateBuildingSnowCover, snapBuildingSnowCover } from './buildingSnow';
 import { BillboardTreeShadows, type BlobShadowSource } from './blobShadows';
 
@@ -246,6 +259,16 @@ export class Scenery {
     /** fallen-leaf litter on the meadow — built once, opacity eased in autumn */
     private leafLitter: InstancedMesh | null = null;
     private litterOpacityTarget = 0;
+
+    /**
+     * Hammer crush: original instance matrices so trees/bushes can stand back
+     * up when the battle phase ends.
+     */
+    private readonly crushRestore: {
+        mesh: InstancedMesh;
+        index: number;
+        matrix: Matrix4;
+    }[] = [];
 
     // weather hooks, wired up by the create* builders below
     private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
@@ -441,6 +464,92 @@ export class Scenery {
         return this.rockFactorAt(x, z) < 0.32;
     }
 
+    /**
+     * 0..1 scree pockets on mountains — concave gullies/corners and talus
+     * piled at cliff bases (stones fall and stock up), not open slopes.
+     */
+    private screeAccumAt(x: number, z: number, h: number): number {
+        if (h < 14) return 0;
+        const hAt = (dx: number, dz: number) => this.terrainHeight(x + dx, z + dz);
+        // sample at mountain scale — gullies/corners are tens of wu wide, not mesh-sized
+        const near = 18;
+        const far = 48;
+        const ring8 =
+            (hAt(-near, 0) +
+                hAt(near, 0) +
+                hAt(0, -near) +
+                hAt(0, near) +
+                hAt(-near, -near) +
+                hAt(near, -near) +
+                hAt(-near, near) +
+                hAt(near, near)) /
+            8;
+        const pocket = smooth01((ring8 - h) / 5.5);
+        const lapFar =
+            (hAt(-far, 0) + hAt(far, 0) + hAt(0, -far) + hAt(0, far) - 4 * h) / far;
+        const concave = smooth01(Math.max(0, lapFar) * 0.45);
+        const cliffR = 24;
+        const cliffSlopes = [
+            Math.abs(hAt(cliffR, 0) - h) / cliffR,
+            Math.abs(hAt(-cliffR, 0) - h) / cliffR,
+            Math.abs(hAt(0, cliffR) - h) / cliffR,
+            Math.abs(hAt(0, -cliffR) - h) / cliffR,
+            Math.abs(hAt(cliffR, cliffR) - h) / (cliffR * 1.414),
+            Math.abs(hAt(-cliffR, cliffR) - h) / (cliffR * 1.414),
+        ];
+        const cliffNearby = smooth01((Math.max(...cliffSlopes) - 0.22) / 0.32);
+        const fine = 5;
+        const dhdx = (hAt(fine, 0) - hAt(-fine, 0)) / (2 * fine);
+        const dhdz = (hAt(0, fine) - hAt(0, -fine)) / (2 * fine);
+        const localSlope = Math.hypot(dhdx, dhdz);
+        const talusBed = (1 - smooth01((localSlope - 0.28) / 0.42)) * cliffNearby;
+        let scree = Math.max(pocket, concave * 0.88, talusBed * 0.72);
+        scree *= smooth01((h - 14) / 22) * (1 - smooth01((h - 200) / 85));
+        scree *= 0.78 + 0.22 * this.noise(x / 23 + 61.3, z / 23 + 14.8);
+        return Math.min(1, scree);
+    }
+
+    /** 0..1 — moss only on mid-elevation mountains (not foothills or high peaks). */
+    private mediumAltBand(h: number): number {
+        return smooth01((h - 40) / 22) * (1 - smooth01((h - 100) / 24));
+    }
+
+    /**
+     * 0..1 moss/lichen on cliff walls — shaded vertical faces and crevices,
+     * not scree beds (those stay gravel).
+     */
+    private mossAccumAt(
+        x: number,
+        z: number,
+        h: number,
+        nx: number,
+        ny: number,
+        nz: number,
+        screeLocal: number,
+    ): number {
+        const midAlt = this.mediumAltBand(h);
+        if (midAlt <= 0) return 0;
+        const hAt = (dx: number, dz: number) => this.terrainHeight(x + dx, z + dz);
+        const sunLen = Math.hypot(0.4, 0.82, 0.25);
+        const facing = (nx * 0.4 + ny * 0.82 + nz * 0.25) / sunLen;
+        const shadeBoost = 0.72 + 0.28 * smooth01((0.25 - facing) / 0.55);
+        const wall = 1 - smooth01((ny - 0.58) / 0.34);
+        const near = 16;
+        const ring = (hAt(-near, 0) + hAt(near, 0) + hAt(0, -near) + hAt(0, near)) * 0.25;
+        const crevice = smooth01((ring - h) / 4.8) * (0.35 + 0.65 * wall);
+        const fine = 5;
+        const localSlope = Math.hypot(
+            (hAt(fine, 0) - hAt(-fine, 0)) / (2 * fine),
+            (hAt(0, fine) - hAt(0, -fine)) / (2 * fine),
+        );
+        const cliffFace = smooth01((localSlope - 0.24) / 0.48) * (0.45 + 0.55 * wall);
+        let moss = Math.max(crevice, cliffFace, wall * 0.58);
+        moss *= shadeBoost * midAlt;
+        moss *= 1 - screeLocal * 0.7;
+        moss *= 0.68 + 0.32 * this.noise(x / 13 + 22.7, z / 13 + 8.4);
+        return Math.min(1, moss);
+    }
+
     /** builds the scenario system driving sky, fog, lights, clouds, rain/snow, stars */
     createWeather(
         scene: Scene,
@@ -478,6 +587,77 @@ export class Scenery {
     /** Drive billboard ground blobs when weather is off (createWeather also sets this). */
     attachSun(sun: DirectionalLight): void {
         this.sunLight = sun;
+    }
+
+    /**
+     * Hammer of the Gods: squash trees/bushes/floor props inside the oriented
+     * rect into the dirt. Restored by {@link clearHammerCrush} when battle ends.
+     * Instances whose XZ sits under a living ward disc are skipped.
+     */
+    crushInRect(
+        x: number,
+        z: number,
+        halfWidth: number,
+        halfDepth: number,
+        yaw: number,
+        shields: readonly { x: number; z: number; radius: number }[] = [],
+    ): void {
+        const c = Math.cos(yaw);
+        const sn = Math.sin(yaw);
+        const mat = new Matrix4();
+        const pos = new Vector3();
+        const quat = new Quaternion();
+        const scl = new Vector3();
+        const touched = new Set<InstancedMesh>();
+
+        const inside = (px: number, pz: number): boolean => {
+            const dx = px - x;
+            const dz = pz - z;
+            const lx = dx * c + dz * sn;
+            const lz = -dx * sn + dz * c;
+            return Math.abs(lx) <= halfWidth && Math.abs(lz) <= halfDepth;
+        };
+        const underWard = (px: number, pz: number): boolean => {
+            for (const s of shields) {
+                const dx = px - s.x;
+                const dz = pz - s.z;
+                if (dx * dx + dz * dz <= s.radius * s.radius) return true;
+            }
+            return false;
+        };
+
+        this.group.traverse((o) => {
+            const mesh = o as InstancedMesh;
+            if (!mesh.isInstancedMesh || mesh.count <= 0) return;
+            if (mesh.parent === this.skyGroup) return;
+            for (let i = 0; i < mesh.count; i++) {
+                mesh.getMatrixAt(i, mat);
+                mat.decompose(pos, quat, scl);
+                if (!inside(pos.x, pos.z)) continue;
+                if (underWard(pos.x, pos.z)) continue;
+                if (this.crushRestore.some((r) => r.mesh === mesh && r.index === i)) continue;
+                this.crushRestore.push({ mesh, index: i, matrix: mat.clone() });
+                scl.x *= 1.2;
+                scl.z *= 1.2;
+                scl.y *= 0.04;
+                pos.y -= Math.max(0.05, Math.abs(scl.y) * 0.35);
+                mat.compose(pos, quat, scl);
+                mesh.setMatrixAt(i, mat);
+                touched.add(mesh);
+            }
+        });
+        for (const mesh of touched) mesh.instanceMatrix.needsUpdate = true;
+    }
+
+    /** Undo hammer scenery crush (call when leaving battle phase). */
+    clearHammerCrush(): void {
+        const touched = new Set<InstancedMesh>();
+        for (const r of this.crushRestore) {
+            r.mesh.setMatrixAt(r.index, r.matrix);
+            touched.add(r.mesh);
+        }
+        for (const mesh of touched) mesh.instanceMatrix.needsUpdate = true;
+        this.crushRestore.length = 0;
     }
 
     /** 0..1 how much snow currently lies on the ground (drives the board's own snow blend too) */
@@ -746,80 +926,82 @@ export class Scenery {
         }
         tufts.count = tuftI;
 
-        // --- small stones
-        const STONES = scaleCount(240, this.density.meadow);
-        const stones = new InstancedMesh(
-            new IcosahedronGeometry(0.3, 0),
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }),
-            STONES,
-        );
-        attachVegetationSnow(stones.material as MeshStandardMaterial, { strength: 0.45 });
-        let stoneI = 0;
-        for (let i = 0; i < STONES; i++) {
-            const spot = meadowSpot(40);
-            if (!spot) break;
-            const sc = 0.5 + rng() * 1.1;
-            dummy.position.set(spot.x, spot.h + 0.12 * sc, spot.z);
-            dummy.scale.set(sc, sc * 0.6, sc);
-            dummy.rotation.set(0, rng() * Math.PI * 2, 0);
-            dummy.updateMatrix();
-            stones.setMatrixAt(stoneI, dummy.matrix);
-            color.set(THEME.scenery.rock).lerp(new Color(0x6a6d64), rng() * 0.6);
-            stones.setColorAt(stoneI++, color);
-        }
-        stones.count = stoneI;
-
-        // --- fallen logs
-        const LOGS = scaleCount(26, this.density.meadow);
-        const logs = new InstancedMesh(
-            new CylinderGeometry(0.28, 0.36, 3.2, 6),
-            new MeshStandardMaterial({ color: THEME.scenery.trunk, roughness: 0.9 }),
-            LOGS,
-        );
-        attachVegetationSnow(logs.material as MeshStandardMaterial, { strength: 0.4 });
-        let logI = 0;
-        for (let i = 0; i < LOGS; i++) {
-            const spot = meadowSpot(24);
-            if (!spot) break;
-            const sc = 0.7 + rng() * 0.8;
-            dummy.position.set(spot.x, spot.h + 0.3 * sc, spot.z);
-            dummy.scale.setScalar(sc);
-            dummy.rotation.set((rng() - 0.5) * 0.15, rng() * Math.PI * 2, Math.PI / 2);
-            dummy.updateMatrix();
-            logs.setMatrixAt(logI++, dummy.matrix);
-        }
-        logs.count = logI;
-        logs.castShadow = true;
-
-        // --- mushrooms (stem + cap merged), often in small groups
-        const MUSHROOMS = scaleCount(90, this.density.meadow);
-        const stem = new CylinderGeometry(0.09, 0.13, 0.5, 5).translate(0, 0.25, 0);
-        const cap = new ConeGeometry(0.32, 0.34, 6).translate(0, 0.62, 0);
-        const mushrooms = new InstancedMesh(
-            mergeGeometries([stem, cap])!,
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
-            MUSHROOMS,
-        );
-        attachVegetationSnow(mushrooms.material as MeshStandardMaterial, { strength: 0.82 });
-        let mushI = 0;
-        while (mushI < MUSHROOMS) {
-            const spot = meadowSpot(36);
-            if (!spot) break;
-            const group = 1 + Math.floor(rng() * 3);
-            for (let g = 0; g < group && mushI < MUSHROOMS; g++) {
-                const x = spot.x + (rng() - 0.5) * 2.5;
-                const z = spot.z + (rng() - 0.5) * 2.5;
-                const sc = 0.6 + rng() * 0.9;
-                dummy.position.set(x, this.terrainHeight(x, z), z);
-                dummy.scale.setScalar(sc);
-                dummy.rotation.set(0, rng() * Math.PI * 2, (rng() - 0.5) * 0.15);
+        // --- small stones / logs / mushrooms: GLB floor pieces own these on high/ultra
+        if (!floorPiecesEnabled(this.quality)) {
+            const STONES = scaleCount(240, this.density.meadow);
+            const stones = new InstancedMesh(
+                new IcosahedronGeometry(0.3, 0),
+                new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }),
+                STONES,
+            );
+            attachVegetationSnow(stones.material as MeshStandardMaterial, { strength: 0.45 });
+            let stoneI = 0;
+            for (let i = 0; i < STONES; i++) {
+                const spot = meadowSpot(40);
+                if (!spot) break;
+                const sc = 0.5 + rng() * 1.1;
+                dummy.position.set(spot.x, spot.h + 0.12 * sc, spot.z);
+                dummy.scale.set(sc, sc * 0.6, sc);
+                dummy.rotation.set(0, rng() * Math.PI * 2, 0);
                 dummy.updateMatrix();
-                mushrooms.setMatrixAt(mushI, dummy.matrix);
-                color.set(rng() < 0.4 ? 0xb84a34 : 0xc8a878).lerp(new Color(0xffffff), rng() * 0.25);
-                mushrooms.setColorAt(mushI++, color);
+                stones.setMatrixAt(stoneI, dummy.matrix);
+                color.set(THEME.scenery.rock).lerp(new Color(0x6a6d64), rng() * 0.6);
+                stones.setColorAt(stoneI++, color);
             }
+            stones.count = stoneI;
+
+            const LOGS = scaleCount(26, this.density.meadow);
+            const logs = new InstancedMesh(
+                new CylinderGeometry(0.28, 0.36, 3.2, 6),
+                new MeshStandardMaterial({ color: THEME.scenery.trunk, roughness: 0.9 }),
+                LOGS,
+            );
+            attachVegetationSnow(logs.material as MeshStandardMaterial, { strength: 0.4 });
+            let logI = 0;
+            for (let i = 0; i < LOGS; i++) {
+                const spot = meadowSpot(24);
+                if (!spot) break;
+                const sc = 0.7 + rng() * 0.8;
+                dummy.position.set(spot.x, spot.h + 0.3 * sc, spot.z);
+                dummy.scale.setScalar(sc);
+                dummy.rotation.set((rng() - 0.5) * 0.15, rng() * Math.PI * 2, Math.PI / 2);
+                dummy.updateMatrix();
+                logs.setMatrixAt(logI++, dummy.matrix);
+            }
+            logs.count = logI;
+            logs.castShadow = true;
+
+            const MUSHROOMS = scaleCount(90, this.density.meadow);
+            const stem = new CylinderGeometry(0.09, 0.13, 0.5, 5).translate(0, 0.25, 0);
+            const cap = new ConeGeometry(0.32, 0.34, 6).translate(0, 0.62, 0);
+            const mushrooms = new InstancedMesh(
+                mergeGeometries([stem, cap])!,
+                new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
+                MUSHROOMS,
+            );
+            attachVegetationSnow(mushrooms.material as MeshStandardMaterial, { strength: 0.82 });
+            let mushI = 0;
+            while (mushI < MUSHROOMS) {
+                const spot = meadowSpot(36);
+                if (!spot) break;
+                const group = 1 + Math.floor(rng() * 3);
+                for (let g = 0; g < group && mushI < MUSHROOMS; g++) {
+                    const x = spot.x + (rng() - 0.5) * 2.5;
+                    const z = spot.z + (rng() - 0.5) * 2.5;
+                    const sc = 0.6 + rng() * 0.9;
+                    dummy.position.set(x, this.terrainHeight(x, z), z);
+                    dummy.scale.setScalar(sc);
+                    dummy.rotation.set(0, rng() * Math.PI * 2, (rng() - 0.5) * 0.15);
+                    dummy.updateMatrix();
+                    mushrooms.setMatrixAt(mushI, dummy.matrix);
+                    color.set(rng() < 0.4 ? 0xb84a34 : 0xc8a878).lerp(new Color(0xffffff), rng() * 0.25);
+                    mushrooms.setColorAt(mushI++, color);
+                }
+            }
+            mushrooms.count = mushI;
+
+            this.group.add(stones, logs, mushrooms);
         }
-        mushrooms.count = mushI;
 
         // --- fallen leaf litter: built now, opacity eased in for autumn (see setSeason)
         const LITTER = scaleCount(1200, this.density.meadow);
@@ -851,7 +1033,7 @@ export class Scenery {
         litter.count = litterI;
         this.leafLitter = litter;
 
-        this.group.add(tufts, stones, logs, mushrooms, litter);
+        this.group.add(tufts, litter);
     }
 
     /**
@@ -1037,6 +1219,8 @@ export class Scenery {
         const colors = new Float32Array(pos.count * 3);
         /** 0..1 per vertex: how sandy/gravelly this spot is (lake shores + rare patches) */
         const beach = new Float32Array(pos.count);
+        /** 0..1 scree pockets on mountains (concave corners + talus at cliff bases) */
+        const scree = new Float32Array(pos.count);
         const meadow = new Color(0xffffff); // grass texture shows as-is
         // near-white: the tiled rock texture carries the stone color, the
         // vertex tint only adds large-scale light/dark variation
@@ -1059,6 +1243,7 @@ export class Scenery {
             // never right next to the board — it would break the transition
             const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
             beach[i] = Math.min(1, Math.max(shore, patch)) * smooth01((dOut - 15) / 25);
+            scree[i] = this.screeAccumAt(x, z, h);
 
             rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
             if (h > 35) rockVar.multiplyScalar(0.68 + 0.32 * (1 - smooth01((h - 35) / 130)));
@@ -1071,7 +1256,22 @@ export class Scenery {
         pos.needsUpdate = true;
         geometry.setAttribute('color', new BufferAttribute(colors, 3));
         geometry.setAttribute('aBeach', new BufferAttribute(beach, 1));
+        geometry.setAttribute('aScree', new BufferAttribute(scree, 1));
         geometry.computeVertexNormals();
+        const normalAttr = geometry.attributes.normal!;
+        const mossArr = new Float32Array(pos.count);
+        for (let i = 0; i < pos.count; i++) {
+            mossArr[i] = this.mossAccumAt(
+                pos.getX(i),
+                pos.getZ(i),
+                pos.getY(i),
+                normalAttr.getX(i),
+                normalAttr.getY(i),
+                normalAttr.getZ(i),
+                scree[i]!,
+            );
+        }
+        geometry.setAttribute('aMoss', new BufferAttribute(mossArr, 1));
 
         const material = new MeshStandardMaterial({
             color: s.outerGround,
@@ -1149,6 +1349,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         const tileSize = profile.detailTile;
         // Gravel shore tile — smaller than lawn so pebbles stay pebble-sized
         const shoreTile = 11;
+        /** Coarser shore on mountain scree pockets (same texture as lake gravel) */
+        const shoreMountainTile = 38;
         const rockTile = 34; // legacy rock tile scale
         const rockPhotoTile = PHOTO_BLEND.rock.worldScale;
         const [grass, rockPack, shore] = await Promise.all([
@@ -1227,6 +1429,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 shader.uniforms.uDetailScale = { value: profile.detailScale };
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
             }
+            bindCloseTileUniforms(shader.uniforms as Record<string, { value: unknown }>, profile);
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
                 '\tvec2 cell = floor( uv * cellScale );\n' +
@@ -1250,13 +1453,18 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 '\treturn clamp( acc, 0.0, 1.0 );\n' +
                 '}\n';
             shader.vertexShader =
-                'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'attribute float aBeach;\nattribute float aScree;\nattribute float aMoss;\nvarying float vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
-                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvScree = aScree;\n\tvMoss = aMoss;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
                 );
             let inject = `
     diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
+            if (profile.closeRepeat > 1.01) {
+                inject += closeTileInjectGlsl(profile);
+            } else {
+                inject += closeTileWeightFallbackGlsl(profile);
+            }
             if (bomb) {
                 inject += `
     vec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );
@@ -1265,14 +1473,32 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
     diffuseColor.rgb = mix( diffuseColor.rgb, texture2D( map, bombUv ).rgb, bombW * 0.55 );`;
             }
             if (useDetail) {
-                inject += `
+                if (profile.closeRepeat > 1.01) {
+                    inject += `
+    vec3 detailAlb = texture2D(map, mix( vMapUv, closeUv, closeW ) * uDetailScale).rgb;
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
+                } else {
+                    inject += `
     vec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
+                }
             }
             if (photoGrass) {
-                const g = PHOTO_BLEND.grass;
-                inject += `
-    // Mild photo-0/1 accents only — dark board midfield mix stays off the outer world
+                const pgClose =
+                    profile.closeRepeat > 1.01
+                        ? `
+    float pgSoft = softBlobMask( vMapUv, 1.15, 0.28, 0.12 );
+    vec2 pgUv = vMapUv * 3.4;
+    float pgWhich = fract( sin( dot( floor( vMapUv * 1.15 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+    vec3 pgTex = mix(
+        texture2D( uPhotoGrass1, pgUv ).rgb,
+        texture2D( uPhotoGrass2, pgUv.yx * 1.07 + 0.21 ).rgb,
+        step( 0.5, pgWhich ) );
+    float pgLum = max( dot( pgTex, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
+    vec3 pgDetail = pgTex / pgLum;
+    float pgAmt = pgSoft * 0.55 * mix( 1.0, 0.08, closeW );
+    diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgAmt );`
+                        : `
     float pgSoft = softBlobMask( vMapUv, 1.15, 0.28, 0.12 );
     vec2 pgUv = vMapUv * 3.4;
     float pgWhich = fract( sin( dot( floor( vMapUv * 1.15 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
@@ -1283,6 +1509,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
     float pgLum = max( dot( pgTex, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
     vec3 pgDetail = pgTex / pgLum;
     diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * pgDetail, pgSoft * 0.55 );`;
+                inject += `
+    // Photo accents fade when zoomed in — keep close lawn uniform
+${pgClose}`;
             }
             if (shore) {
                 inject += `
@@ -1316,9 +1545,21 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
     rockCol = mix( rockCol, rockCol * ( rockPhoto / rpLum ), rockSoft * ${rk.strength.toFixed(2)} );`;
                 }
                 inject += `
-    diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rockF);`;
+                if (shore) {
+                    inject += `
+    // scree pockets: shore gravel (small stones piled in concave gullies)
+    float screeShow = clamp( vScree * mountainZone * ( 1.0 - snowF ), 0.0, 1.0 );
+    vec3 gravelCol = texture2D( uShore, vWorldXZ / ${shoreMountainTile.toFixed(1)} ).rgb;
+    diffuseColor.rgb = mix( diffuseColor.rgb, gravelCol, screeShow * max( rockF, 0.3 ) );`;
+                }
+                inject += `
+    // moss: mid-elevation cliffs/crevices only (~40–100 wu), baked in aMoss
+    float midAlt = smoothstep( 40.0, 62.0, vTerrainH ) * ( 1.0 - smoothstep( 100.0, 124.0, vTerrainH ) );
+    float mossShow = clamp( vMoss * ( 0.38 + 0.22 * breakup ) * midAlt, 0.0, 1.0 );
     // same snow tint as the board (see map.ts) so the field edge matches
     diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
+    diffuseColor.rgb = mix( diffuseColor.rgb, mossDetail( vMapUv * vec2( 1.18, 0.92 ) ), mossShow * ( 1.0 - snowF ) * 0.82 );
 ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             } else {
                 inject += `
@@ -1327,24 +1568,34 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
             const needBlob = !!(photoGrass || rockPhoto1);
             let frag =
-                'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'varying float vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 (rock ? 'uniform sampler2D uRock;\n' : '') +
                 (rockPhoto1 ? 'uniform sampler2D uRockPhoto1;\n' : '') +
                 (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (shore ? 'uniform sampler2D uShore;\n' : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
+                closeTileUniformDecls(profile) +
                 'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
                 (needBlob ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
-            if (useDetail && normal) {
+            if (rock) {
                 frag = frag.replace(
-                    '#include <normal_fragment_maps>',
-                    `#include <normal_fragment_maps>
+                    '#include <map_pars_fragment>',
+                    `#include <map_pars_fragment>\n${MOSS_DETAIL_FN_GLSL}`,
+                );
+            }
+            if (useDetail && normal) {
+                let normalInject = `#include <normal_fragment_maps>
 \tvec3 detailN = texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0;
 \tdetailN.xy *= uDetailStrength;
-\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`,
-                );
+\tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`;
+                if (profile.closeRepeat > 1.01) {
+                    normalInject += `
+\tvec3 closeN = texture2D( normalMap, vMapUv * uCloseRepeat ).xyz * 2.0 - 1.0;
+\tnormal = normalize( mix( normal, closeN, closeW ) );`;
+                }
+                frag = frag.replace('#include <normal_fragment_maps>', normalInject);
             }
             if (profile.roughnessFromAlbedo) {
                 frag = frag.replace(
@@ -1357,7 +1608,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v27${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-shore' : ''}-t${shoreTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v50${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -1432,8 +1683,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const playHalfH = forestHalfH;
         const fieldSpot = (clearance: number): { x: number; z: number } => {
             for (;;) {
-                const x = (rng() * 2 - 1) * (playHalfW - 10);
-                const z = (rng() * 2 - 1) * (playHalfH - 10);
+                const x = (rng() * 2 - 1) * playHalfW;
+                const z = (rng() * 2 - 1) * playHalfH;
                 if (anchors.every((a) => Math.hypot(x - a.x, z - a.z) > a.r + clearance)) {
                     return { x, z };
                 }
@@ -1452,10 +1703,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const billboardMix = this.quality === 'high' || this.quality === 'medium';
         const PINES = hq ? 0 : scaleCount(200, dens.outer);
         const LEAFY = hq ? 0 : scaleCount(120, dens.outer);
-        const FIELD_PINES = hq ? 0 : scaleCount(5, dens.field);
-        const FIELD_LEAFY = hq ? 0 : scaleCount(6, dens.field);
+        const FIELD_PINES = hq ? 0 : scaleCount(3, dens.field);
+        const FIELD_LEAFY = hq ? 0 : scaleCount(3, dens.field);
         const BUSHES = hq ? 0 : scaleCount(90, dens.outer);
-        const FIELD_BUSHES = hq ? 0 : scaleCount(45, dens.field);
+        const FIELD_BUSHES = hq ? 0 : scaleCount(22, dens.field);
         // horde mode widens the neutral strip into a real belt — grow a
         // forest in it so the horde has somewhere to live (pure scenery, no
         // collision; packs standing between trunks is the point). Treated
@@ -1628,6 +1879,12 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             m.instanceMatrix.needsUpdate = true;
             if (m.instanceColor) m.instanceColor.needsUpdate = true;
             this.group.add(m);
+            if (
+                (this.quality === 'high' || this.quality === 'ultra') &&
+                m.material instanceof MeshStandardMaterial
+            ) {
+                attachHazardTint(m.material, map, { strength: 'tree' });
+            }
         }
 
         if (farPlants.length > 0) {
@@ -1639,9 +1896,11 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             void this.placeTripoVegetation(fieldHqPlants, groundY, rng);
         }
 
-        // wildflowers on the outer meadow band — matches the field's painted
-        // flowers so the grass doesn't read as an empty green carpet
-        const FLOWERS = scaleCount(280, dens.outer);
+        // wildflowers: 3/4 outer meadow, 1/4 playable board
+        const FLOWERS_TOTAL = scaleCount(280, dens.outer); // half of former 560
+        const MEADOW_FLOWERS = Math.round(FLOWERS_TOTAL * 0.75);
+        const FIELD_FLOWERS = FLOWERS_TOTAL - MEADOW_FLOWERS;
+        const FLOWERS = MEADOW_FLOWERS + FIELD_FLOWERS;
         const flowerGeo = new PlaneGeometry(1.1, 1.1);
         flowerGeo.rotateX(-Math.PI / 2);
         const flowers = new InstancedMesh(
@@ -1657,25 +1916,63 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         );
         this.flowerMaterials.push(flowers.material as MeshStandardMaterial);
         const flowerTones = THEME.terrain.flowers;
+        const clearOfBases = (x: number, z: number) =>
+            anchors.every((a) => Math.hypot(x - a.x, z - a.z) > a.r + 3);
+        // Board flowers: 1/6 edge strip, 1/3 midfield, 1/2 anywhere.
+        const EDGE_BAND = 30;
+        const midHalf = Math.max((map.size.neutralRows * CELL) / 2, map.halfH * 0.22, 18);
+        const boardEdgeSpot = (): { x: number; z: number } => {
+            for (;;) {
+                const side = Math.floor(rng() * 4);
+                let x: number;
+                let z: number;
+                if (side === 0) {
+                    x = (rng() * 2 - 1) * (map.halfW - 2);
+                    z = map.halfH - 2 - rng() * EDGE_BAND;
+                } else if (side === 1) {
+                    x = (rng() * 2 - 1) * (map.halfW - 2);
+                    z = -map.halfH + 2 + rng() * EDGE_BAND;
+                } else if (side === 2) {
+                    x = map.halfW - 2 - rng() * EDGE_BAND;
+                    z = (rng() * 2 - 1) * (map.halfH - 2);
+                } else {
+                    x = -map.halfW + 2 + rng() * EDGE_BAND;
+                    z = (rng() * 2 - 1) * (map.halfH - 2);
+                }
+                if (clearOfBases(x, z)) return { x, z };
+            }
+        };
+        const boardMidSpot = (): { x: number; z: number } => {
+            for (;;) {
+                const x = (rng() * 2 - 1) * (map.halfW - 2);
+                const z = (rng() * 2 - 1) * Math.min(midHalf, map.halfH - EDGE_BAND - 2);
+                if (clearOfBases(x, z)) return { x, z };
+            }
+        };
+        const boardRandomSpot = (): { x: number; z: number } => {
+            for (;;) {
+                const x = (rng() * 2 - 1) * (map.halfW - 2);
+                const z = (rng() * 2 - 1) * (map.halfH - 2);
+                if (clearOfBases(x, z)) return { x, z };
+            }
+        };
         const meadowSpot = (): { x: number; z: number } => {
             for (;;) {
                 const x = (rng() * 2 - 1) * (forestHalfW + 260);
                 const z = (rng() * 2 - 1) * (forestHalfH + 260);
-                if (distOut(x, z) < keepOut) continue;
+                if (distOut(x, z) < 1) continue; // just outside the forest edge
                 const h = this.terrainHeight(x, z);
                 if (h > -0.4 && h < 5) return { x, z }; // meadow only, not in lakes
             }
         };
-        // flowers grow in clumps (a cluster center + a handful around it),
-        // and each clump leans toward one color — like real wildflowers
+        // Small color-matched clumps — not large patches
         let flowerI = 0;
-        while (flowerI < FLOWERS) {
-            const center = meadowSpot();
+        const plantFlowerClump = (cx: number, cz: number, spread: number) => {
             const clumpTone = flowerTones[Math.floor(rng() * flowerTones.length)]!;
-            const clump = 4 + Math.floor(rng() * 6);
+            const clump = 3 + Math.floor(rng() * 5);
             for (let f = 0; f < clump && flowerI < FLOWERS; f++) {
-                const x = center.x + (rng() - 0.5) * 9;
-                const z = center.z + (rng() - 0.5) * 9;
+                const x = cx + (rng() - 0.5) * spread;
+                const z = cz + (rng() - 0.5) * spread;
                 const sc = 0.7 + rng() * 0.9;
                 dummy.position.set(x, groundY(x, z) + 0.08, z);
                 dummy.scale.setScalar(sc);
@@ -1685,8 +1982,35 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 color.set(rng() < 0.75 ? clumpTone : flowerTones[Math.floor(rng() * flowerTones.length)]!);
                 flowers.setColorAt(flowerI++, color);
             }
+        };
+        while (flowerI < MEADOW_FLOWERS) {
+            const center = meadowSpot();
+            plantFlowerClump(center.x, center.z, 9);
         }
+        const fieldEdgeEnd = MEADOW_FLOWERS + Math.round(FIELD_FLOWERS / 6);
+        const fieldMidEnd = MEADOW_FLOWERS + Math.round(FIELD_FLOWERS / 2); // edge 1/6 + mid 1/3
+        while (flowerI < fieldEdgeEnd) {
+            const center = boardEdgeSpot();
+            plantFlowerClump(center.x, center.z, 5);
+        }
+        while (flowerI < fieldMidEnd) {
+            const center = boardMidSpot();
+            plantFlowerClump(center.x, center.z, 5);
+        }
+        while (flowerI < FLOWERS) {
+            const center = boardRandomSpot();
+            plantFlowerClump(center.x, center.z, 5);
+        }
+        flowers.count = flowerI;
+        flowers.instanceMatrix.needsUpdate = true;
+        if (flowers.instanceColor) flowers.instanceColor.needsUpdate = true;
         this.group.add(flowers);
+        // High+: tint petals sitting in oil/acid (medium skips — one less sample).
+        if (this.quality === 'high' || this.quality === 'ultra') {
+            for (const m of this.flowerMaterials) {
+                attachHazardTint(m, map, { fadeAlpha: true });
+            }
+        }
 
         if (trunks && cones && blobs && bushes) {
             void this.applyForestTextures(
@@ -1704,6 +2028,112 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 distOut,
             });
         }
+
+        if (floorPiecesEnabled(this.quality)) {
+            void this.placeFloorPieces(map, rng, { fieldSpot, forestSpot, groundY });
+        }
+    }
+
+    /** Ground clutter from floorpieces.glb — board props + a few special placements. */
+    private async placeFloorPieces(
+        map: BattleMap,
+        rng: () => number,
+        helpers: {
+            fieldSpot: (clearance: number) => { x: number; z: number };
+            forestSpot: (maxHeight: number) => { x: number; z: number };
+            groundY: (x: number, z: number) => number;
+        },
+    ): Promise<void> {
+        await loadFloorPieces();
+        const { fieldSpot, forestSpot, groundY } = helpers;
+
+        // One of each authored piece — shuffle so positions aren't fixed by load order.
+        const ids = listFloorPieces();
+        for (let i = ids.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            const tmp = ids[i]!;
+            ids[i] = ids[j]!;
+            ids[j] = tmp;
+        }
+
+        const placements: FloorPiecePlacement[] = [];
+        const pushPiece = (id: string, x: number, z: number, tilt = 0.22) => {
+            const scale = floorPieceScale(id, rng);
+            placements.push({
+                id,
+                x,
+                y: groundY(x, z) - floorPieceGroundSink(scale),
+                z,
+                scale,
+                yaw: rng() * Math.PI * 2,
+                tiltX: (rng() - 0.5) * tilt,
+                tiltZ: (rng() - 0.5) * tilt,
+            });
+        };
+
+        for (const id of ids) {
+            const { x, z } = fieldSpot(3);
+            pushPiece(id, x, z);
+        }
+
+        // Same GLB set in the outer forest/meadow (replaces procedural stones/logs/mushrooms).
+        const forestPool = listFloorPieces();
+        const FOREST = scaleCount(this.quality === 'ultra' ? 160 : 90, this.density.meadow);
+        for (let i = 0; i < FOREST && forestPool.length > 0; i++) {
+            const id = forestPool[Math.floor(rng() * forestPool.length)]!;
+            const { x, z } = forestSpot(40);
+            pushPiece(id, x, z);
+        }
+
+        // `stone` ×4, evenly along the mid line between the two sides (z ≈ 0).
+        const STONE_COUNT = 4;
+        const margin = 10;
+        const span = map.halfW * 2 - margin * 2;
+        for (let i = 0; i < STONE_COUNT; i++) {
+            const x = -map.halfW + margin + ((i + 0.5) / STONE_COUNT) * span;
+            pushPiece('stone', x, 0, 0.12);
+        }
+
+        // Easter-egg coin — once, in the outer woods, well clear of the board.
+        {
+            const rimW = map.size.rimCells * CELL;
+            const forestHalfW = map.halfW - rimW;
+            const forestHalfH = map.halfH - rimW;
+            const distOut = (x: number, z: number) =>
+                Math.max(Math.abs(x) - forestHalfW, Math.abs(z) - forestHalfH, 0);
+            const COIN_MIN_DIST = 120;
+            let x = 0;
+            let z = 0;
+            let found = false;
+            for (let attempt = 0; attempt < 80; attempt++) {
+                const spot = forestSpot(56);
+                if (distOut(spot.x, spot.z) < COIN_MIN_DIST) continue;
+                x = spot.x;
+                z = spot.z;
+                found = true;
+                break;
+            }
+            if (!found) {
+                // Fallback: push a forest sample outward along its ray from the board.
+                const spot = forestSpot(56);
+                const d = Math.max(distOut(spot.x, spot.z), 1);
+                const scaleOut = COIN_MIN_DIST / d;
+                x = spot.x * scaleOut;
+                z = spot.z * scaleOut;
+            }
+            pushPiece('coin', x, z, 0.18);
+        }
+
+        const meshes = buildFloorPieceMeshes(placements);
+        for (const mesh of meshes) {
+            this.group.add(mesh);
+            if (mesh.material instanceof MeshStandardMaterial) {
+                attachHazardTint(mesh.material, map, { strength: 'tree' });
+            }
+        }
+        console.info(
+            `[scenery] floor pieces: ${placements.length} (board + ${FOREST} forest + specials)`,
+        );
     }
 
     /** Far belt as crossed billboard cards; optional sun-aligned blob shadows. */
@@ -1782,6 +2212,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
             mesh.instanceMatrix.needsUpdate = true;
             this.group.add(mesh);
+            if (mesh.material instanceof MeshStandardMaterial) {
+                attachHazardTint(mesh.material, this.map, { strength: 'tree' });
+            }
             total += mesh.count;
         }
         console.info(`[scenery] field Tripo: ${total}`);
@@ -1809,9 +2242,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const PINE = scaleCount(200, dens.outer);
         const BUSH_R = scaleCount(50, dens.outer);
         const BUSH_T = scaleCount(40, dens.outer);
-        const FIELD_OAK = scaleCount(6, dens.field);
-        const FIELD_PINE = scaleCount(5, dens.field);
-        const FIELD_BUSH = scaleCount(45, dens.field);
+        const FIELD_OAK = scaleCount(3, dens.field);
+        const FIELD_PINE = scaleCount(3, dens.field);
+        const FIELD_BUSH = scaleCount(22, dens.field);
 
         type Plant = { kind: VegetationKind; x: number; z: number; sc: number; near: boolean };
         const plants: Plant[] = [];
@@ -1893,6 +2326,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                     }
                     mesh.instanceMatrix.needsUpdate = true;
                     this.group.add(mesh);
+                    if (mesh.material instanceof MeshStandardMaterial) {
+                        attachHazardTint(mesh.material, map, { strength: 'tree' });
+                    }
                     nearN += mesh.count;
                 }
             }
@@ -2044,6 +2480,21 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
 }
 
 /**
+ * Moss/lichen on rock — re-tints the meadow grass map yellow/brown (no extra texture).
+ * Kept darker/subtle so it reads as damp growth on stone, not bright straw.
+ */
+const MOSS_DETAIL_FN_GLSL = `
+vec3 mossDetail( vec2 uv ) {
+    vec3 g = texture2D( map, uv ).rgb;
+    float lum = max( dot( g, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
+    vec3 straw = ( g / lum ) * vec3( 0.78, 0.48, 0.06 );
+    vec3 darkOrange = vec3( 0.48, 0.28, 0.04 );
+    vec3 moss = mix( g * vec3( 0.82, 0.5, 0.06 ), mix( straw, darkOrange, 0.72 ), 0.94 );
+    return moss * 0.78;
+}
+`;
+
+/**
  * Shared outer snow. Meadow (low) matches the board (`map.ts`: snowMask * 0.82
  * toward 0.92/0.95/0.98). Mountains keep extra winter density + rock ribs.
  */
@@ -2131,4 +2582,109 @@ function makeFlowerTexture(): CanvasTexture {
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
     return texture;
+}
+
+/**
+ * High/ultra: sample the board hazard mask at each instance's world XZ and
+ * tint over oil/acid/fire. Trees & floor props use ground-matching slick +
+ * live fire glow (clears when the blaze dies). Flowers keep a softer soak.
+ * Outside the board UV clamps to black (no tint). Shared materials attach once
+ * but always rebind to the live map mask (asset cache outlives scenery rebuilds).
+ */
+function attachHazardTint(
+    material: MeshStandardMaterial,
+    map: BattleMap,
+    opts: { fadeAlpha?: boolean; strength?: 'flower' | 'tree' } = {},
+): void {
+    const fadeAlpha = opts.fadeAlpha === true;
+    const tree = opts.strength === 'tree';
+    const hazardMask = map.getHazardMask();
+    const boardHalf = new Vector2(map.halfW, map.halfH);
+
+    // Shared materials live in the Tripo/billboard cache across map rebuilds —
+    // always point uniforms at the current mask even if already attached.
+    let maskRef = material.userData.hazardMaskRef as { value: CanvasTexture } | undefined;
+    let halfRef = material.userData.hazardBoardHalfRef as { value: Vector2 } | undefined;
+    if (!maskRef) {
+        maskRef = { value: hazardMask };
+        material.userData.hazardMaskRef = maskRef;
+    } else {
+        maskRef.value = hazardMask;
+    }
+    if (!halfRef) {
+        halfRef = { value: boardHalf };
+        material.userData.hazardBoardHalfRef = halfRef;
+    } else {
+        halfRef.value.copy(boardHalf);
+    }
+
+    if (material.userData.hazardTintAttached) return;
+    material.userData.hazardTintAttached = true;
+    const prevCompile = material.onBeforeCompile;
+    const prevKey = material.customProgramCacheKey.bind(material);
+    // Trees: photo-black oil (match ground). Flowers: softer readable brown.
+    const oilTint = tree ? 'vec3(0.0012, 0.0012, 0.0012)' : 'vec3(0.22, 0.12, 0.05)';
+    const acidTint = tree ? 'vec3(0.06, 0.20, 0.03)' : 'vec3(0.14, 0.34, 0.06)';
+    const oilMix = tree ? '0.995' : '0.92';
+    const acidMix = tree ? '0.94' : '0.88';
+    const fireMix = tree ? '0.96' : '0.55';
+    const alphaLine = fadeAlpha
+        ? `\n  diffuseColor.a *= 1.0 - oilM * 0.5 - acidM * 0.45 - orangeM * 0.35;`
+        : '';
+    material.onBeforeCompile = (shader, renderer) => {
+        prevCompile?.call(material, shader, renderer);
+        shader.uniforms.uFlowerHazardMask = maskRef!;
+        shader.uniforms.uFlowerBoardHalf = halfRef!;
+        shader.uniforms.uHazardTime = hazardTimeShared;
+        shader.uniforms.uFireCharcoalGround = fireCharcoalGroundUniform;
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <common>',
+            `#include <common>
+uniform vec2 uFlowerBoardHalf;
+varying vec2 vFlowerHazUv;`,
+        );
+        // instance origin → board UV (matches ground macro / CanvasTexture flipY)
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+{
+  vec3 flowerBase = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  vFlowerHazUv = vec2(
+    (flowerBase.x + uFlowerBoardHalf.x) / max(2.0 * uFlowerBoardHalf.x, 1e-3),
+    (uFlowerBoardHalf.y - flowerBase.z) / max(2.0 * uFlowerBoardHalf.y, 1e-3)
+  );
+}`,
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <common>',
+            `#include <common>
+uniform sampler2D uFlowerHazardMask;
+uniform float uHazardTime;
+uniform float uFireCharcoalGround;
+varying vec2 vFlowerHazUv;`,
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <color_fragment>',
+            `#include <color_fragment>
+{
+  vec3 haz = texture2D(uFlowerHazardMask, vFlowerHazUv).rgb;
+  float oilM = smoothstep(0.04, 0.28, haz.r);
+  float fireG = smoothstep(0.14, 0.5, haz.g);
+  float fireB = smoothstep(0.12, 0.48, haz.b);
+  float acidM = fireB * (1.0 - fireG * 0.85);
+  float orangeM = fireG * (1.0 - fireB * 0.85);
+  vec3 oilTint = ${oilTint};
+  vec3 acidTint = ${acidTint};
+  diffuseColor.rgb = mix(diffuseColor.rgb, oilTint, oilM * ${oilMix});
+  diffuseColor.rgb = mix(diffuseColor.rgb, acidTint, acidM * ${acidMix});
+  // Live ground fire (oil blaze or direct fire) — clears when haz.g dies
+  float flicker = 0.55 + 0.45 * sin(uHazardTime * 9.0 + vFlowerHazUv.x * 40.0 + vFlowerHazUv.y * 28.0);
+  vec3 fireCol = mix(vec3(0.18, 0.03, 0.0), vec3(1.0, 0.38, 0.05), flicker);
+  diffuseColor.rgb = mix(diffuseColor.rgb, fireCol, orangeM * ${fireMix});${alphaLine}
+}`,
+        );
+    };
+    material.customProgramCacheKey = () =>
+        `${prevKey()}|hazard-tint-v11-${tree ? 'tree' : 'flower'}${fadeAlpha ? '-fade' : ''}`;
+    material.needsUpdate = true;
 }

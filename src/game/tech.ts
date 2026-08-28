@@ -105,6 +105,13 @@ export class TechTree {
     }
 
     statsFor(seat: SeatId, type: UnitType): ResolvedStats {
+        const owned =
+            seat >= 0 && seat < this.owned.length ? this.ownedFor(seat, type.id) : TechTree.EMPTY;
+        return TechTree.statsWithOwned(type, owned);
+    }
+
+    /** Resolve base + tech mods from an explicit owned set (deploy intel fog). */
+    static statsWithOwned(type: UnitType, owned: ReadonlySet<string>): ResolvedStats {
         const stats: ResolvedStats = {
             hp: type.hp,
             damage: type.damage,
@@ -115,9 +122,7 @@ export class TechTree {
             splashRadius: type.splashRadius ?? 0,
         };
         const techIds = new Set<string>(type.innateTechs ?? []);
-        if (seat >= 0 && seat < this.owned.length) {
-            for (const id of this.ownedFor(seat, type.id)) techIds.add(id);
-        }
+        for (const id of owned) techIds.add(id);
         for (const techId of techIds) {
             const tech = techById(techId);
             if (!tech) continue;
@@ -164,5 +169,5 @@ export class TechTree {
         return snap?.[seat]?.get(typeId) ?? TechTree.EMPTY;
     }
 
-    private static readonly EMPTY: ReadonlySet<string> = new Set();
+    static readonly EMPTY: ReadonlySet<string> = new Set();
 }

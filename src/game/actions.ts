@@ -14,9 +14,12 @@ import {
 import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
 import {
     FORGE_SLOTS_PER_PLAYER,
+    forgeProductCost,
     forgeSeatCanInsert,
     forgeSeatFilledCount,
+    resolveForge,
     type ForgeSlot,
+    type ForgeSpellPool,
 } from './forgeRecipes';
 import { isTechSelectedForUnit, techById } from './techCatalog';
 import {
@@ -48,7 +51,20 @@ import type {
 } from './settings';
 import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
-import { levelBasisOf, unitTypeById, unitUnlockCost, isPlayerBuyable, type Team, type Unit, type UnitType } from './units';
+import { detAtan2 } from './detMath';
+import {
+    GARRISON_ARCHER,
+    GARRISON_SLOTS,
+    GARRISON_STEP_COST,
+    STRONGHOLD,
+    garrisonSlotWorld,
+    levelBasisOf,
+    unitTypeById,
+    isPlayerBuyable,
+    type Team,
+    type Unit,
+    type UnitType,
+} from './units';
 
 /**
  * Every way a player (or the enemy AI) can affect the game, as plain data.
@@ -106,6 +122,11 @@ export interface BuyLevelAction {
     team: Team;
     unitId: number;
 }
+/** buys one more archer onto this seat's Stronghold battlements */
+export interface BuyGarrisonArcherAction {
+    kind: 'buyGarrisonArcher';
+    team: Team;
+}
 /** raise several packs one level each — one undo peels the whole batch */
 export interface BuyLevelBatchAction {
     kind: 'buyLevelBatch';
@@ -137,6 +158,26 @@ export interface BuyRallyRouteAbilityAction {
 export interface BuyMovePackAbilityAction {
     kind: 'buyMovePackAbility';
     team: Team;
+}
+/**
+ * Pays to fire the Stronghold's oven on what it currently holds. Until this
+ * runs the runes just sit there; the product arrives next deployment.
+ */
+export interface ForgeLightAction {
+    kind: 'forgeLight';
+    team: Team;
+}
+/** takes the burn back off the fire and refunds whoever paid for it */
+export interface ForgeUnlightAction {
+    kind: 'forgeUnlight';
+    team: Team;
+}
+/** buys one charge of a spell your own commander knows (Stronghold, once each) */
+export interface BuyForgeSpellAction {
+    kind: 'buyForgeSpell';
+    team: Team;
+    /** must be one of THIS seat's commander's own forge spells */
+    tacticId: string;
 }
 /** sells a pack for its refund — spends an ability charge (per-round) or a
  *  card-granted sell tactic (one-shot) */
@@ -332,11 +373,15 @@ type ActionVariant =
     | BuyTechAction
     | BuyLevelAction
     | BuyLevelBatchAction
+    | BuyGarrisonArcherAction
     | RecruitLevelAction
     | UpgradeTowerAction
     | BuySellAbilityAction
     | BuyRallyRouteAbilityAction
     | BuyMovePackAbilityAction
+    | BuyForgeSpellAction
+    | ForgeLightAction
+    | ForgeUnlightAction
     | SellUnitAction
     | MobilizeUnitAction
     | TutorUnitAction
@@ -412,6 +457,8 @@ interface LogEntry extends LoggedAction {
     oilStamp?: OilStamp;
     /** placeSpell / removeSpell */
     spellStamp?: SpellStamp;
+    /** buyGarrisonArcher: the archer that was raised (for undo) */
+    garrisonUnit?: Unit;
 }
 
 export interface ActionContext {
@@ -435,6 +482,10 @@ export interface ActionContext {
     rallyRouteOwned: boolean[];
     /** per-SEAT Vanguard: one-time move-pack purchase (permanent flag) */
     movePackOwned: boolean[];
+    /** per seat: which of its commander's spells it has already bought */
+    forgeSpellOwned: string[][];
+    /** this seat's own commander's forge spells (undefined = no card yet) */
+    forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
     /**
      * per-team buy limits: `limit` is the permanent baseline (specials may
      * raise it for good), `extra` and `used` reset every round
@@ -475,6 +526,10 @@ export interface ActionContext {
      * are logged; burn+grant happens in Game.startBuildPhase (not an action).
      */
     forgeSlots: Record<Team, (ForgeSlot | null)[]>;
+    /** who paid to fire each oven — null = unlit. Cleared when it resolves. */
+    forgeLitBy: Record<Team, SeatId | null>;
+    /** which spells this side's commanders unlock — gates the recipe match */
+    forgePoolOf: (team: Team) => ForgeSpellPool;
     /** rally routes placed this deployment round (cleared each round) */
     rallyRoutes: RallyRoute[];
     /** monotonic id source for rally routes */
@@ -756,7 +811,10 @@ export class ActionDispatcher {
             }
             case 'buyTech': {
                 const type = unitTypeById(action.typeId);
-                const tech = type && isTechSelectedForUnit(type.id, action.techId)
+                // gate on THIS seat's own picks — a talent outside your
+                // loadout is unbuyable, which is also what keeps every
+                // downstream `hasTech` consumer implicitly loadout-correct
+                const tech = type && isTechSelectedForUnit(type.id, action.techId, this.ctx.seats[seat]?.loadout)
                     ? techById(action.techId)
                     : null;
                 if (!type || !tech) return false;
@@ -799,6 +857,39 @@ export class ActionDispatcher {
                 unit.xp = Math.max(0, unit.xp - threshold);
                 unit.level++;
                 unit.refreshLevelBadge();
+                return true;
+            }
+            case 'buyGarrisonArcher': {
+                // The side shares its keep, so the wall is filled and priced
+                // per SIDE, not per seat — an ally buying the third archer
+                // pays for the third, not for their own first.
+                const keep = placement
+                    .allUnits()
+                    .find((u) => u.type === STRONGHOLD && u.team === action.team && !u.destroyed);
+                if (!keep) return false;
+                const taken = placement
+                    .allUnits()
+                    .filter((u) => u.type === GARRISON_ARCHER && u.team === action.team).length;
+                if (taken >= GARRISON_SLOTS.length) return false;
+                const spot = garrisonSlotWorld(keep, GARRISON_SLOTS[taken]!);
+                if (!spot) return false; // keep model has no authored slots
+                const cost = GARRISON_STEP_COST * (taken + 1);
+                if (!economy.spend(seat, cost)) return false;
+                entry.paid = cost;
+                const archer = placement.spawnAtWorld(
+                    GARRISON_ARCHER,
+                    spot.x,
+                    spot.z,
+                    action.team,
+                    seat,
+                );
+                archer.garrisonSlot = GARRISON_SLOTS[taken]!;
+                archer.pinnedY = spot.y;
+                // outward from the keep's middle — the wedge behind him is the
+                // keep itself, and he does not shoot through his own walls
+                archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
+                archer.seatMembers();
+                entry.garrisonUnit = archer;
                 return true;
             }
             case 'buyLevelBatch': {
@@ -870,6 +961,24 @@ export class ActionDispatcher {
                 entry.grantedTactics = [MOVE_UNIT_ID];
                 return true;
             }
+            case 'buyForgeSpell': {
+                const owned = this.ctx.forgeSpellOwned[seat];
+                if (!owned || owned.includes(action.tacticId)) return false; // once each
+                // Gate on the seat's OWN commander, not the team pool: an ally's
+                // signature spell stays theirs to bring, and the gate is what
+                // keeps a modified client from buying anything in the catalog.
+                const pool = this.ctx.forgeSpellsOf(seat);
+                if (!pool?.includes(action.tacticId)) return false;
+                // price rides on the spell; no price means it is not sold here
+                const cost = TACTICS[action.tacticId]?.strongholdCost;
+                if (cost === undefined) return false;
+                if (!economy.spend(seat, cost)) return false;
+                entry.paid = cost;
+                owned.push(action.tacticId);
+                this.ctx.tactics[seat]!.push(action.tacticId);
+                entry.grantedTactics = [action.tacticId];
+                return true;
+            }
             case 'sellUnit': {
                 // per-round ability charges first, then one-shot card tactics
                 const sell = this.ctx.sellState;
@@ -880,6 +989,8 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
                     return false;
                 }
+                // a battlement archer is part of the keep, not a pack you trade
+                if (unit.type === GARRISON_ARCHER) return false;
                 if (useAbility) sell.used[seat]!++;
                 else if (!this.consumeTacticCharge(entry, seat, SELL_UNIT_ID)) {
                     return false;
@@ -1069,8 +1180,36 @@ export class ActionDispatcher {
                 entry.itemAppliedRound = appliedRound;
                 return true;
             }
+            case 'forgeLight': {
+                if (this.ctx.forgeLitBy[action.team] !== null) return false; // already paid
+                const oven = this.ctx.forgeSlots[action.team]!;
+                const product = resolveForge(oven, this.ctx.forgePoolOf(action.team)).product;
+                if (!product) return false; // nothing complete to pay for
+                const cost = forgeProductCost(product);
+                if (!economy.spend(seat, cost)) return false;
+                entry.paid = cost;
+                this.ctx.forgeLitBy[action.team] = seat;
+                return true;
+            }
+            case 'forgeUnlight': {
+                // Only the seat that paid may take it back, which also keeps the
+                // refund honest on a shared oven: an ally cannot cancel your
+                // burn and pocket the supply.
+                if (this.ctx.forgeLitBy[action.team] !== seat) return false;
+                const oven = this.ctx.forgeSlots[action.team]!;
+                const product = resolveForge(oven, this.ctx.forgePoolOf(action.team)).product;
+                // the oven was sealed while lit, so this is what was paid for
+                const cost = product ? forgeProductCost(product) : 0;
+                economy.credit(seat, cost);
+                entry.paid = cost;
+                this.ctx.forgeLitBy[action.team] = null;
+                return true;
+            }
             case 'forgeInsert': {
                 if (!ITEMS[action.itemId]) return false;
+                // a lit oven is paid for: changing its runes would change what
+                // was bought, so it is sealed until it resolves
+                if (this.ctx.forgeLitBy[action.team] !== null) return false;
                 const oven = this.ctx.forgeSlots[action.team]!;
                 if (!forgeSeatCanInsert(oven, seat)) return false;
                 let slot = action.slot;
@@ -1087,6 +1226,7 @@ export class ActionDispatcher {
                 return true;
             }
             case 'forgeFill': {
+                if (this.ctx.forgeLitBy[action.team] !== null) return false; // sealed, see forgeInsert
                 const ids = action.itemIds;
                 if (ids.length === 0 || ids.length > FORGE_SLOTS_PER_PLAYER) return false;
                 for (const id of ids) {
@@ -1120,6 +1260,7 @@ export class ActionDispatcher {
                 return true;
             }
             case 'forgeRemove': {
+                if (this.ctx.forgeLitBy[action.team] !== null) return false; // sealed, see forgeInsert
                 const oven = this.ctx.forgeSlots[action.team]!;
                 const { slot, itemId } = action;
                 if (slot < 0 || slot >= oven.length) return false;
@@ -1432,6 +1573,11 @@ export class ActionDispatcher {
                 economy.credit(seat, e.paid!);
                 break;
             }
+            case 'buyGarrisonArcher': {
+                if (e.garrisonUnit) placement.removeUnit(e.garrisonUnit);
+                economy.credit(seat, e.paid!);
+                break;
+            }
             case 'buyLevelBatch': {
                 const batch = e.levelBatch ?? [];
                 for (let i = batch.length - 1; i >= 0; i--) {
@@ -1486,6 +1632,17 @@ export class ActionDispatcher {
                 // ability counter needs rolling back by hand
                 if (e.usedTactic === undefined) this.ctx.sellState.used[seat]!--;
                 break;
+            case 'buyForgeSpell': {
+                const owned = this.ctx.forgeSpellOwned[seat];
+                for (const id of e.grantedTactics ?? []) {
+                    const t = this.ctx.tactics[seat]!.lastIndexOf(id);
+                    if (t >= 0) this.ctx.tactics[seat]!.splice(t, 1);
+                    const o = owned ? owned.lastIndexOf(id) : -1;
+                    if (owned && o >= 0) owned.splice(o, 1);
+                }
+                economy.credit(seat, e.paid!);
+                break;
+            }
             case 'buyMovePackAbility': {
                 this.ctx.movePackOwned[seat] = false;
                 for (const id of e.grantedTactics ?? []) {
@@ -1554,6 +1711,15 @@ export class ActionDispatcher {
                 if (i >= 0) bag.splice(i, 1);
                 break;
             }
+            case 'forgeLight':
+                this.ctx.forgeLitBy[action.team] = null;
+                economy.credit(seat, e.paid!);
+                break;
+            case 'forgeUnlight':
+                // put it back on the fire and take the refund away again
+                economy.spend(seat, e.paid!);
+                this.ctx.forgeLitBy[action.team] = seat;
+                break;
             case 'forgeInsert': {
                 const oven = this.ctx.forgeSlots[action.team]!;
                 const slot = e.itemSlot ?? action.slot ?? 0;

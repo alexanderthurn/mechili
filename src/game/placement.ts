@@ -1,5 +1,7 @@
 import {
     BoxGeometry,
+    BufferAttribute,
+    BufferGeometry,
     CanvasTexture,
     Color,
     ConeGeometry,
@@ -26,7 +28,7 @@ import {
     TargetPreviewVisuals,
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
-import { Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+import { GARRISON_ARCHER, GARRISON_FOV_HALF, Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { effectiveTargets, effectiveFlying } from './tech';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
@@ -97,6 +99,123 @@ export function createRangeRing(scene: Scene): Mesh {
     mesh.visible = false;
     scene.add(mesh);
     return mesh;
+}
+
+/** arc resolution of the field-of-fire band */
+const FOV_SEGMENTS = 64;
+/** matches RingGeometry(0.985, 1) — the same hairline the range ring uses */
+const FOV_INNER = 0.985;
+/** world width of the two spokes closing the arc back to the archer */
+const FOV_SPOKE_W = 0.6;
+/**
+ * Samples along each spoke. A spoke is as long as the range is wide, so two
+ * end points would span it as one flat chord straight through whatever relief
+ * lies between — the same reason the arc is not two points either.
+ */
+const FOV_SPOKE_SEGMENTS = 24;
+const FOV_ARC_VERTS = (FOV_SEGMENTS + 1) * 2;
+const FOV_SPOKE_VERTS = (FOV_SPOKE_SEGMENTS + 1) * 2;
+
+/**
+ * The covered sector for a pack that can only shoot through part of the circle
+ * — a garrison archer, whose own keep fills the rest. Deliberately the SAME
+ * hairline the range ring is: it is the same piece of information and should
+ * not look like a different feature. Two spokes run from the arc's ends back
+ * to him, so the shape closes and the dead wedge is a wedge rather than a gap
+ * someone forgot to draw.
+ */
+export function createFovWedge(scene: Scene): Mesh {
+    const geo = new BufferGeometry();
+    geo.setAttribute(
+        'position',
+        new BufferAttribute(new Float32Array((FOV_ARC_VERTS + FOV_SPOKE_VERTS * 2) * 3), 3),
+    );
+    const idx: number[] = [];
+    for (let i = 0; i < FOV_SEGMENTS; i++) {
+        const a = i * 2;
+        idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+    for (let spoke = 0; spoke < 2; spoke++) {
+        const base = FOV_ARC_VERTS + spoke * FOV_SPOKE_VERTS;
+        for (let i = 0; i < FOV_SPOKE_SEGMENTS; i++) {
+            const b = base + i * 2;
+            idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+        }
+    }
+    geo.setIndex(idx);
+    const mesh = new Mesh(
+        geo,
+        new MeshBasicMaterial({
+            color: VALID_COLOR,
+            transparent: true,
+            opacity: 0.4,
+            side: DoubleSide,
+            depthWrite: false,
+        }),
+    );
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    scene.add(mesh);
+    return mesh;
+}
+
+/**
+ * Rebuild the band over `yaw` ± `half`. Unit-radius vertices scaled like the
+ * ring, with Y draped in world units (scale.y stays 1), so it hugs the relief
+ * exactly the way {@link placeRangeRing} does.
+ *
+ * Heights come from worldHeightAt, not the board-only groundHeightAt the ring
+ * uses: a garrison archer stands at the board's edge and most of his arc falls
+ * on the OUTER terrain, where the board-only sample reports flat and the band
+ * would cut through the hills it is drawn over.
+ */
+export function placeFovWedge(
+    mesh: Mesh,
+    x: number,
+    z: number,
+    radius: number,
+    yaw: number,
+    half: number,
+): void {
+    const anchorY = worldHeightAt(x, z);
+    const pos = mesh.geometry.attributes.position as BufferAttribute;
+    const put = (i: number, ux: number, uz: number): void => {
+        const wx = x + ux * radius;
+        const wz = z + uz * radius;
+        pos.setXYZ(i, ux, worldHeightAt(wx, wz) - anchorY, uz);
+    };
+
+    for (let i = 0; i <= FOV_SEGMENTS; i++) {
+        // matches fovYaw's own convention, detAtan2(dx, dz)
+        const a = yaw - half + (i / FOV_SEGMENTS) * half * 2;
+        const sx = Math.sin(a);
+        const sz = Math.cos(a);
+        put(i * 2, sx * FOV_INNER, sz * FOV_INNER);
+        put(i * 2 + 1, sx, sz);
+    }
+
+    // the two spokes home to the archer, so the sector reads as a sector —
+    // walked in steps like the arc so they follow the ground on the way out
+    const hw = FOV_SPOKE_W / (2 * Math.max(radius, 1e-3));
+    for (let spoke = 0; spoke < 2; spoke++) {
+        const a = spoke === 0 ? yaw - half : yaw + half;
+        const sx = Math.sin(a);
+        const sz = Math.cos(a);
+        const px = Math.cos(a) * hw;
+        const pz = -Math.sin(a) * hw;
+        const base = FOV_ARC_VERTS + spoke * FOV_SPOKE_VERTS;
+        for (let i = 0; i <= FOV_SPOKE_SEGMENTS; i++) {
+            const r = i / FOV_SPOKE_SEGMENTS;
+            put(base + i * 2, sx * r - px, sz * r - pz);
+            put(base + i * 2 + 1, sx * r + px, sz * r + pz);
+        }
+    }
+
+    pos.needsUpdate = true;
+    mesh.position.set(x, 0.12 + anchorY, z);
+    mesh.scale.set(radius, 1, radius);
+    mesh.renderOrder = 10;
+    mesh.visible = true;
 }
 
 /**
@@ -219,6 +338,11 @@ export class PlacementController {
      */
     itemDropValid: ((unit: Unit) => boolean) | null = null;
     /**
+     * Armed rune: icon strip over valid targets — filled atlas ids, `null` =
+     * empty slot (green drop ring). Overrides the normal status strip.
+     */
+    itemDropStripIcons: ((unit: Unit) => readonly (string | null)[] | null) | null = null;
+    /**
      * An armed own-unit tactic (Field Lesson / Move Pack / Buyback) asking
      * "would this pack be a legal target?". Drives the same green hover plate
      * as a rune drop, but is NOT an item drop — it must not set
@@ -259,6 +383,7 @@ export class PlacementController {
     private readonly hoverMaterial: MeshBasicMaterial;
     private readonly selectMesh: Mesh;
     private readonly rangeMesh: Mesh;
+    private readonly fovMesh: Mesh;
     /** inner ring showing a ranged pack's min range (dead zone) */
     private readonly minRangeMesh: Mesh;
     /** gold ring showing a pack's special-ability aura radius (Golden Aura) */
@@ -291,6 +416,7 @@ export class PlacementController {
     /** floating item symbols over equipped packs (build phase only) */
     private readonly itemBadges: Sprite[] = [];
     private readonly itemBadgeMaterials = new Map<string, SpriteMaterial>();
+    private readonly emptySlotBadgeMaterials = new Map<boolean, SpriteMaterial>();
     /** tiny borderless tech icons in a row over packs (build phase only) */
     private readonly techBadges: Sprite[] = [];
     private readonly techBadgeMaterials = new Map<string, SpriteMaterial>();
@@ -335,8 +461,9 @@ export class PlacementController {
         this.selectMesh = makeMarker(SELECT_COLOR, 0.22);
         this.selectMesh.position.y = 0.03;
 
-        // attack range ring for the selected own pack (unit radius, scaled per unit)
+        // attack / min-range / aura rings for the selected pack (any owner)
         this.rangeMesh = createRangeRing(scene);
+        this.fovMesh = createFovWedge(scene);
         // inner dead-zone ring (min range)
         this.minRangeMesh = createRangeRing(scene);
         (this.minRangeMesh.material as MeshBasicMaterial).color.setHex(MIN_RANGE_COLOR);
@@ -601,6 +728,22 @@ export class PlacementController {
         return { level: snap.level, xp: snap.xp, items: snap.items };
     }
 
+    /**
+     * Re-open a unit's panel without a click — used after an undo, which has to
+     * deselect first (it may be removing the very unit that was selected) but
+     * should not close a panel the undo left standing.
+     */
+    selectUnit(unit: Unit): void {
+        if (this.selectedUnit === unit) return;
+        const previous = this.selectedUnit;
+        this.restoreSelectedView();
+        this.selectedUnit = unit;
+        this.selectedGroup = [];
+        this.rectFormation = false;
+        this.carryingSelected = false;
+        this.onSelect?.(unit, previous);
+    }
+
     deselect(): void {
         this.cancelPlacing();
         this.restoreSelectedView();
@@ -670,6 +813,9 @@ export class PlacementController {
 
     /** repositioning is allowed only in the round the pack was deployed (extras included) */
     canReposition(unit: Unit): boolean {
+        // a garrison archer is bolted to his battlement slot — he is not on the
+        // grid at all, so there is nowhere for a drag to put him down
+        if (unit.type === GARRISON_ARCHER) return false;
         return (
             (!unit.type.structure || !!unit.type.extra) &&
             unit.deployedRound === this.currentRound
@@ -849,7 +995,14 @@ export class PlacementController {
     /** true when any tile under the pack sits in the flank strips (mechs only) */
     isOnFlank(unit: Unit): boolean {
         const team = unit.team;
-        if (team === 'horde' || unit.type.structure || unit.type.extra) return false;
+        // `gridless` first: this reads unit.cell, and a pack spawned into the
+        // world carries a {0,0} placeholder there. Cell (0,0) is a flank tile
+        // once the flanks unlock in round 2, so a garrison archer was being
+        // told to march in from the edge of the board — pinned at battlement
+        // height the whole way, which is a man walking through the air.
+        if (unit.gridless || team === 'horde' || unit.type.structure || unit.type.extra) {
+            return false;
+        }
         const cells = this.coveredCells(this.footprintOf(unit.type, unit.rotated), unit.cell);
         if (!cells) return false;
         return cells.some((c) => this.map.isFlankDeployCell(c, team));
@@ -959,6 +1112,9 @@ export class PlacementController {
         // is fine for a unit that never occupies a grid cell at all
         const actorSeat = team === 'horde' ? -1 : (seat ?? primarySeatOf(this.roster, team));
         const unit = new Unit(type, { col: 0, row: 0 }, team, new Vector3(x, 0, z), false);
+        // that {0,0} cell is a placeholder, not a position — anything drawing
+        // from a unit's cell has to know not to trust it
+        unit.gridless = true;
         unit.seat = actorSeat;
         if (team === 'horde') {
             unit.id = HORDE_ID_BASE + ++this.nextHordeId;
@@ -1091,7 +1247,11 @@ export class PlacementController {
     /** Re-runs the facing rule for every unit (used after the board resets between rounds). */
     refaceAll(): void {
         for (const u of this.units) {
-            if (u.type.structure) continue;
+            // the hovering rocket is a structure that DOES aim (see
+            // faceClosestOf's own guard) — skipping it here left the one
+            // turnable building seeded from whatever fogged view deployment
+            // last gave it
+            if (u.type.structure && !u.type.rocket) continue;
             u.faceClosestOf(this.opponentMechPositions(u.team, u));
         }
     }
@@ -1108,7 +1268,10 @@ export class PlacementController {
     beginBattle(): void {
         for (const u of this.units) {
             u.setDeployment(false);
-            if (u.type.rocket) u.seatMembers();
+            // rockets are already at combat altitude, and a pinned pack owns an
+            // absolute Y of its own — both must be re-seated rather than left
+            // to the ground-hugging path
+            if (u.type.rocket || u.pinnedY != null) u.seatMembers();
         }
     }
 
@@ -1184,6 +1347,38 @@ export class PlacementController {
         const right = this.statusBadgeRight;
         const spacing = 2.3;
 
+        const placeItemSlotStrip = (
+            unit: Unit,
+            world: Vector3,
+            icons: readonly (string | null)[],
+        ) => {
+            const n = icons.length;
+            if (n === 0) return;
+            const y = this.statusStripY(unit, world);
+            const mid = (n - 1) / 2;
+            icons.forEach((iconId, slot) => {
+                let sprite = this.itemBadges[itemUsed];
+                if (!sprite) {
+                    sprite = new Sprite();
+                    this.scene.add(sprite);
+                    this.itemBadges.push(sprite);
+                }
+                sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
+                sprite.material = iconId
+                    ? this.itemBadgeMaterial(iconId)
+                    : this.emptySlotBadgeMaterial(true);
+                sprite.renderOrder = 0;
+                const t = slot - mid;
+                sprite.position.set(
+                    world.x + right.x * t * spacing,
+                    y,
+                    world.z + right.z * t * spacing,
+                );
+                sprite.visible = true;
+                itemUsed++;
+            });
+        };
+
         const placeStrip = (
             unit: Unit,
             world: Vector3,
@@ -1244,6 +1439,11 @@ export class PlacementController {
             // need to follow the live pose, so use `view.position` when the
             // unit is not fogged.
             const world = this.isFogged(unit) ? this.intelWorldOf(unit) : unit.view.position;
+            const dropStrip = this.itemDropStripIcons?.(unit);
+            if (dropStrip && dropStrip.length > 0) {
+                placeItemSlotStrip(unit, world, dropStrip);
+                continue;
+            }
             // forge spell badge is deploy-only (battle shows chimney sparks instead)
             const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(unit) : null;
             if (forge) {
@@ -1310,6 +1510,8 @@ export class PlacementController {
 
     /** how many icons sit in the status strip (drives upgrade-arrow lift) */
     private statusStripCount(unit: Unit): number {
+        const dropStrip = this.itemDropStripIcons?.(unit);
+        if (dropStrip) return dropStrip.length;
         const forge = this.forgeStatusIcons?.(unit);
         if (forge) return forge.spellIcon ? 1 : 0;
         const items = this.intelItemIcons(unit).length;
@@ -1354,6 +1556,23 @@ export class PlacementController {
         return material;
     }
 
+    /** hollow slot disc — green ring when armed rune can land here */
+    private emptySlotBadgeMaterial(dropReady: boolean): SpriteMaterial {
+        let material = this.emptySlotBadgeMaterials.get(dropReady);
+        if (!material) {
+            const texture = this.paintEmptySlotBadgeTexture(dropReady);
+            material = new SpriteMaterial({
+                map: texture,
+                transparent: false,
+                alphaTest: 0.5,
+                depthTest: true,
+                depthWrite: true,
+            });
+            this.emptySlotBadgeMaterials.set(dropReady, material);
+        }
+        return material;
+    }
+
     /** opaque circular plate + atlas icon; corners stay transparent for alphaTest */
     private paintItemBadgeTexture(iconId: string): CanvasTexture {
         const canvas = document.createElement('canvas');
@@ -1370,6 +1589,34 @@ export class PlacementController {
         ctx.clip();
         drawIcon(ctx, iconId, 0, 0, 64);
         ctx.restore();
+        const texture = new CanvasTexture(canvas);
+        texture.colorSpace = SRGBColorSpace;
+        return texture;
+    }
+
+    /** empty pack / forge slot — matches HUD `.item-sq.empty.drop-target` */
+    private paintEmptySlotBadgeTexture(dropReady: boolean): CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d')!;
+        ctx.beginPath();
+        ctx.arc(32, 32, 30, 0, Math.PI * 2);
+        ctx.fillStyle = THEME.ui.techBuyBg;
+        ctx.fill();
+        ctx.lineWidth = dropReady ? 4 : 3;
+        ctx.strokeStyle = dropReady ? '#00ff66' : THEME.ui.border;
+        ctx.stroke();
+        if (dropReady) {
+            ctx.shadowColor = 'rgba(0, 255, 102, 0.55)';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(32, 32, 30, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(0, 255, 102, 0.35)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
         return texture;
@@ -2066,6 +2313,7 @@ export class PlacementController {
         this.hoverMesh.visible = false;
         this.selectMesh.visible = false;
         this.rangeMesh.visible = false;
+        this.fovMesh.visible = false;
         this.minRangeMesh.visible = false;
         this.auraMesh.visible = false;
         this.itemDropHovering = false;
@@ -2192,7 +2440,14 @@ export class PlacementController {
             if (snap) this.applySnapshotPose(sel, snap);
             else sel.view.position.copy(world);
             sel.seatMembers(world.x, world.z);
-            const center = this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
+            // A pack spawned straight into the world (garrison archer, horde
+            // ring) has no grid cell — spawnAtWorld stores a {0,0} placeholder.
+            // Reading it here put the selection plate and the range marker in
+            // the corner of the board instead of under the unit, which is why
+            // clicking a garrison archer showed nothing at all.
+            const center = sel.gridless
+                ? new Vector3(world.x, world.y, world.z)
+                : this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
             this.placeFootprintPlate(
                 this.hoverMesh,
                 this.hoverMaterial,
@@ -2205,10 +2460,21 @@ export class PlacementController {
             markerCenter = center;
         }
 
-        // attack range ring for own packs (follows the carried position)
-        if (sel.team === 'player' && !sel.type.structure && this.rangeOf) {
+        // attack / min-range rings for any selected pack (own or enemy)
+        if (!sel.type.structure && this.rangeOf) {
             const radius = this.rangeOf(sel) + sel.type.collisionRadius;
-            placeRangeRing(this.rangeMesh, markerCenter.x, markerCenter.z, radius);
+            if (sel.fovYaw != null) {
+                placeFovWedge(
+                    this.fovMesh,
+                    markerCenter.x,
+                    markerCenter.z,
+                    radius,
+                    sel.fovYaw,
+                    GARRISON_FOV_HALF,
+                );
+            } else {
+                placeRangeRing(this.rangeMesh, markerCenter.x, markerCenter.z, radius);
+            }
             // inner dead-zone ring for units with a min range
             const minRange = this.minRangeOf?.(sel) ?? 0;
             if (minRange > 0) {
@@ -2216,7 +2482,7 @@ export class PlacementController {
             }
         }
         // gold aura ring for packs with a special-ability radius (Golden Aura)
-        if (sel.team === 'player' && this.auraRangeOf) {
+        if (this.auraRangeOf) {
             const auraRadius = this.auraRangeOf(sel);
             if (auraRadius) {
                 placeRangeRing(this.auraMesh, markerCenter.x, markerCenter.z, auraRadius);
