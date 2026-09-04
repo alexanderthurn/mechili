@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Hærens indsættelse i skovrydningen",
-    "2": "Implementeringsfase og enhedsbutik",
+    "2": "Udrulningsfase og enhedsbutik",
     "3": "Dragens ildånde over marken",
     "4": "Side-om-side implementeringszoner",
     "5": "Massekamp på sletterne",
@@ -62,7 +62,7 @@
     "extra": "Ekstra",
     "attacksGround": "Angriber jorden",
     "attacksAir": "Angriber luften",
-    "shield": "Ward-kuplen",
+    "shield": "Beskyttelseskuppel",
     "rocket": "Hjemmebolt"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Vælg en {{item}}",
     "base": "Grundlag",
     "advanced": "Fremskreden",
-    "shopTitle": "Købt i butikken eller udtrukket fra et rundt kort",
+    "shopTitle": "Købt i butikken eller trukket fra et rundekort",
     "shopLabel": "Butikspris",
     "forgeTitle": "Smedet ved {{building}}",
     "forgeLabel": "Smedjepris"
@@ -121,9 +121,9 @@
     "own-unit": "egen pakke"
   },
   "roundCards": {
-    "title": "Runde kort",
+    "title": "Rundekort",
     "sub": "Fra runde to og fremefter skal du udvælge et af flere tilbudte {{items}}-kort, der trækkes fra kamppuljen. Kampbesværgelser købes i Fæstningen, ikke udvælges fra kort.",
-    "select": "Vælg et rundt kort"
+    "select": "Vælg et rundekort"
   },
   "matchSettings": {
     "title": "Matchindstillinger",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "Om",
-    "lead": "MELODAN er fremstillet af Alexander Thurn (Feuerware). Han er placeret i Bonn, Tyskland.",
+    "lead": "MELODAN er lavet af Alexander Thurn (Feuerware). Han er i Bonn, Tyskland.",
     "inspired": "Dette spil er inspireret af {{mechabellum}}, det bedste spil i genren. MELODAN er en uafhængig fantasy-version; støt venligst originalen og køb Mechabellum. Tak!",
     "openSource": "Spillet er {{github}} (GPL-3.0). Ophavsretten forbliver hos Alexander Thurn / Feuerware. Du er velkommen til at forke det privat, opfinde nye enheder og åbne pull requests. For noget større, et ikke-kommercielt spin-off, et fuldt rebrand osv., er du velkommen til at skrive til mig: {{email}}.",
     "openSourceLink": "åben kildekode på GitHub"

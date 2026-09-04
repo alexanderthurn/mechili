@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Rallireitti",
+    "name": "Kokoontumisreitti",
     "description": "Aseta lähtö-, keski- ja loppuvyöhykkeet. Lähtöympyrän yksiköt marssivat keskenään samanlaisten keski- ja loppualueiden läpi taisellen matkan varrella."
   },
   "oilSpill": {
-    "name": "Öljyvahinko",
+    "name": "Öljylätäkkö",
     "description": "Aseta kaksi öljyympyrää – ääriviivat päällekkäin sijoittumisen aikana; pian taistelun alettua öljy tippuu vasemmalta oikealle polulle (suojalevyt pysyvät vapaina). Yhdistetty öljy syttyy yhdeksi kentäksi, kun tuli osuu siihen."
   },
   "sellUnit": {
-    "name": "Myy pakkaus",
+    "name": "Myy Pack",
     "description": "Napsauta aseistautuaksesi ja napsauta sitten yhtä pakkauksistasi myydäksesi sen tarvikehyvitystä varten."
   },
   "moveUnit": {
-    "name": "Siirtopakkaus",
+    "name": "Siirrä Pack",
     "description": "Napsauta aseistautuaksesi ja napsauta sitten yhtä aiemman kierroksen pakkaustasi – sitä voidaan vetää ja pyörittää uudelleen tämän kierroksen loppuun asti."
   },
   "tutor": {
@@ -44,11 +44,11 @@
     "description": "Merkitse laaja ympyrä mihin tahansa. Meteorit satavat satunnaisiin kohtiin ympyrän sisällä jonkin aikaa, ja jokainen räjähdys polttaa osumaansa maata."
   },
   "acidSpill": {
-    "name": "Happovuodot",
+    "name": "Happolätäkkö",
     "description": "Kaada happokapseli kuin öljyvuoto – se tippuu vasemmalta oikealle maahan pian taistelun alettua. Lätäkön yläpuolella olevat maa- ja ilmayksiköt sihisevät ja syöpyvät – saaden ylimääräistä vahinkoa kaikesta."
   },
   "fireSpill": {
-    "name": "Tulipalon leviäminen",
+    "name": "Tulilätäkkö",
     "description": "Kaada tulikapseli kuin öljyä – se tippuu vasemmalta oikealle pian taistelun alettua ja sytyttää polun tuleen (suojakiekot pysyvät poissa). Yhdistetty öljy syttyy sen mukana. Liekki kestää vain tämän taistelun."
   },
   "dragonAttack": {

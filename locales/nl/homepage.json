@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Legerinzet in de open plek in het bos.",
-    "2": "Implementatiefase en werkplaats",
+    "2": "Uitzetfase en eenheidswinkel",
     "3": "Drakenvuur spuwen over het veld.",
     "4": "Plaatsingszones naast elkaar",
     "5": "Massale veldslag op de vlakte",
@@ -57,12 +57,12 @@
     "spellModel": "Spell model"
   },
   "flag": {
-    "flying": "Vliegen",
+    "flying": "Vliegend",
     "structure": "Structuur",
     "extra": "Extra",
-    "attacksGround": "Aanvallen op de grond",
+    "attacksGround": "Valt grond aan",
     "attacksAir": "Luchtaanvallen",
-    "shield": "Afdelingskoepel",
+    "shield": "Beschermingskoepel",
     "rocket": "Richtbout"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Kies een {{item}}",
     "base": "Baseren",
     "advanced": "Geavanceerd",
-    "shopTitle": "Gekocht in de winkel, of getrokken uit een ronde kaart.",
+    "shopTitle": "Gekocht in de winkel of getrokken uit een rondekaart",
     "shopLabel": "Winkelprijs",
     "forgeTitle": "Gesmeed bij de {{building}}",
     "forgeLabel": "Smeedprijs"
@@ -121,9 +121,9 @@
     "own-unit": "eigen verpakking"
   },
   "roundCards": {
-    "title": "Ronde kaarten",
+    "title": "Rondekaarten",
     "sub": "Vanaf ronde twee kies je één van de verschillende aangeboden {{items}}-kaarten uit de wedstrijdpool. Gevechtsspreuken worden gekocht in de Stronghold, niet gekozen uit kaarten.",
-    "select": "Kies een ronde kaart"
+    "select": "Kies een rondekaart"
   },
   "matchSettings": {
     "title": "Wedstrijdinstellingen",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "Over",
-    "lead": "MELODAN wordt gemaakt door Alexander Thurn (Feuerware). Hij is gevestigd in Bonn, Duitsland.",
+    "lead": "MELODAN wordt gemaakt door Alexander Thurn (Feuerware). Hij zit in Bonn, Duitsland.",
     "inspired": "Dit spel is geïnspireerd op {{mechabellum}}, het beste spel in het genre. MELODAN is een onafhankelijke fantasy-interpretatie; steun het origineel en koop Mechabellum. Dank u wel!",
     "openSource": "Het spel is {{github}} (GPL-3.0). Het auteursrecht blijft bij Alexander Thurn / Feuerware. Je mag het gerust privé forken, nieuwe eenheden bedenken en pull requests indienen. Voor grotere projecten, zoals een niet-commerciële of commerciële spin-off, een volledige rebranding, enzovoort, kun je contact met me opnemen: {{email}}.",
     "openSourceLink": "Open source op GitHub"

@@ -14,9 +14,9 @@
   "rateLimited": "Забагато пропозицій — спробуйте ще раз через {{n}}с.",
   "sendFailed": "Не вдалося надіслати. Спробуйте пізніше.",
   "networkError": "Помилка мережі — спробуйте пізніше.",
-  "catBug": "Помилка",
-  "catBalance": "Баланс",
-  "catFeature": "Функція",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Моделі / мистецтво",
   "catCommunity": "Громада",
   "catOther": "Інше"

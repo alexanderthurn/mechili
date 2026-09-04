@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Rute Reli",
+    "name": "Rute kumpul",
     "description": "Tetapkan zona awal, tengah, dan akhir. Unit-unit di lingkaran awal berbaris melewati zona yang sesuai di tengah, lalu di akhir, bertempur di sepanjang jalan."
   },
   "oilSpill": {
-    "name": "Tumpahan Minyak",
+    "name": "Genangan minyak",
     "description": "Letakkan dua lingkaran minyak — buat garis luarnya selama penempatan; tak lama setelah pertempuran dimulai, minyak menetes dari kiri ke kanan ke jalur (cakram pelindung tetap di luar). Minyak yang terhubung akan menyala sebagai satu medan ketika api menyentuhnya."
   },
   "sellUnit": {
-    "name": "Jual Paket",
+    "name": "Jual Pack",
     "description": "Klik untuk mempersenjatai diri, lalu klik salah satu tas Anda untuk menjualnya dan mendapatkan pengembalian dana persediaan."
   },
   "moveUnit": {
-    "name": "Paket Pindah",
+    "name": "Pindahkan Pack",
     "description": "Klik untuk mempersenjatai, lalu klik salah satu tas Anda dari ronde sebelumnya — tas tersebut dapat diseret dan diputar lagi untuk sisa ronde ini."
   },
   "tutor": {
@@ -36,7 +36,7 @@
     "description": "Klik untuk menempatkan, geser untuk memutar, klik lagi untuk mengunci. Palu ilahi jatuh ke zona tersebut beberapa detik setelah pertempuran dimulai."
   },
   "storm": {
-    "name": "Panggilan Badai",
+    "name": "Panggilan badai",
     "description": "Tandai lingkaran lebar di mana saja. Awan badai kecil berkumpul tinggi di atas dan melemparkan petir ke tempat-tempat acak — sambaran petir tidak menimbulkan kerusakan tetapi menyetrum unit dalam percikan luas dengan efek negatif seperti menara kecuali mereka memiliki aura emas. Kubah pelindung tetap memblokir sambaran petir."
   },
   "meteorShower": {
@@ -44,11 +44,11 @@
     "description": "Buatlah lingkaran lebar di mana saja. Meteor akan berjatuhan secara acak di dalam lingkaran tersebut selama beberapa waktu, setiap ledakan akan membakar tanah yang dihantamnya."
   },
   "acidSpill": {
-    "name": "Tumpahan Asam",
+    "name": "Genangan asam",
     "description": "Tuangkan kapsul asam seperti tumpahan minyak — cairan itu menetes dari kiri ke kanan ke tanah tak lama setelah pertempuran dimulai. Unit darat dan udara di atas genangan tersebut mendesis dan menjadi berkarat — menerima kerusakan tambahan dari segala arah."
   },
   "fireSpill": {
-    "name": "Tumpahan Api",
+    "name": "Genangan api",
     "description": "Tuangkan kapsul api seperti minyak — ia menetes dari kiri ke kanan sesaat setelah pertempuran dimulai dan membakar jalan (cakram pelindung tetap menjauh). Minyak yang terhubung akan ikut terbakar. Api hanya bertahan selama pertempuran ini."
   },
   "dragonAttack": {

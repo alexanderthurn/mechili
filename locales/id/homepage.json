@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Pengerahan tentara di lahan terbuka hutan.",
-    "2": "Fase penyebaran dan bengkel unit",
+    "2": "Fase penempatan dan toko unit",
     "3": "Semburan api naga di atas lapangan.",
     "4": "Zona penempatan berdampingan",
     "5": "Pertempuran besar-besaran di dataran",
@@ -57,12 +57,12 @@
     "spellModel": "Model mantra"
   },
   "flag": {
-    "flying": "Penerbangan",
+    "flying": "Terbang",
     "structure": "Struktur",
     "extra": "Tambahan",
-    "attacksGround": "Serangan darat",
+    "attacksGround": "Menyerang darat",
     "attacksAir": "Serangan udara",
-    "shield": "Kubah bangsal",
+    "shield": "Kubah pelindung",
     "rocket": "Baut pelacak"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Pilih {{item}}",
     "base": "Basis",
     "advanced": "Canggih",
-    "shopTitle": "Dibeli di toko, atau diambil dari kartu bundar.",
+    "shopTitle": "Dibeli di toko atau diambil dari kartu ronde",
     "shopLabel": "Harga toko",
     "forgeTitle": "Ditempa di {{building}}",
     "forgeLabel": "Harga tempa"
@@ -121,9 +121,9 @@
     "own-unit": "tas sendiri"
   },
   "roundCards": {
-    "title": "Kartu bundar",
+    "title": "Kartu ronde",
     "sub": "Mulai ronde kedua dan seterusnya, pilih salah satu dari beberapa kartu {{items}} yang ditawarkan yang diambil dari kumpulan kartu pertandingan. Mantra pertempuran dibeli di Benteng, bukan dipilih dari kartu.",
-    "select": "Pilih kartu bundar."
+    "select": "Pilih kartu ronde"
   },
   "matchSettings": {
     "title": "Pengaturan pertandingan",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "Tentang",
-    "lead": "MELODAN diproduksi oleh Alexander Thurn (Feuerware). Ia berlokasi di Bonn, Jerman.",
+    "lead": "MELODAN dibuat oleh Alexander Thurn (Feuerware). Ia tinggal di Bonn, Jerman.",
     "inspired": "Gim ini terinspirasi oleh {{mechabellum}}, gim terbaik dalam genre ini. MELODAN adalah gim fantasi independen; mohon dukung gim aslinya dan beli Mechabellum. Terima kasih!",
     "openSource": "Gim ini berlisensi {{github}} (GPL-3.0). Hak cipta tetap milik Alexander Thurn / Feuerware. Silakan fork secara pribadi, ciptakan unit baru, dan buka pull request. Untuk sesuatu yang lebih besar, spin-off non-komersial atau komersial, rebranding penuh, dll., silakan hubungi saya: {{email}}.",
     "openSourceLink": "sumber terbuka di GitHub"

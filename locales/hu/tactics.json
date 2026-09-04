@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Rally útvonal",
+    "name": "Gyülekezési útvonal",
     "description": "Helyezz el kezdő-, középső- és végzónákat. A kezdőkörben lévő egységek a középső, majd a végponton azonos eltolt területeken vonulnak át, és végig harcolnak."
   },
   "oilSpill": {
-    "name": "Olajfolt",
+    "name": "Olajtócsa",
     "description": "Helyezz el két olajkört – a kihelyezés során jelöld ki a körvonalat; röviddel a csata kezdete után az olaj balról jobbra csöpög az ösvényre (a védőkorongok maradjanak távol). Az összefüggő olajmezővé gyullad, amikor a tűz hozzáér."
   },
   "sellUnit": {
-    "name": "Eladási csomag",
+    "name": "Pack eladása",
     "description": "Kattints az élesedéshez, majd kattints az egyik csomagodra, hogy eladd és utánpótlás-visszatérítést kapj."
   },
   "moveUnit": {
-    "name": "Mozgatható csomag",
+    "name": "Pack mozgatása",
     "description": "Kattints az élesítéshez, majd kattints az egyik korábbi körös hátizsákodra – a kör további részében újra húzhatod és forgathatod."
   },
   "tutor": {
@@ -44,11 +44,11 @@
     "description": "Jelölj egy széles kört bárhol. A kör belsejében egy ideig meteorok hullanak véletlenszerű pontokra, minden egyes robbanás perzseli a földet, amelyet eltalál."
   },
   "acidSpill": {
-    "name": "Savfolt",
+    "name": "Savtócsa",
     "description": "Önts egy savas kapszulát, mint egy olajfoltot – balról jobbra csöpög a földre röviddel a csata kezdete után. A pocsolya felett lévő földi és légi egységek sisteregve korrodálnak – mindentől extra sebzést szenvednek."
   },
   "fireSpill": {
-    "name": "Tűz kiömlése",
+    "name": "Tűztócsa",
     "description": "Önts egy tűzkapszulát, mint az olajat – balról jobbra csöpög röviddel a csata kezdete után, és lángra lobbantja az utat (a védőkorongok távol maradnak). A hozzá kapcsolódó olaj vele együtt meggyullad. A láng csak ebben a csatában tart."
   },
   "dragonAttack": {

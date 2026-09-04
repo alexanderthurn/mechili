@@ -36,7 +36,7 @@
     "description": "Närliggande allierade motstår torn-debuffs och tar 30 % mindre skada under 30 sekunder. Trollkarlar kan inte konvertera dem – strålen gör skada istället."
   },
   "pitchBolts": {
-    "name": "Pitchbultar",
+    "name": "Tjärbultar",
     "description": "Bultar stänker olja vid stöt (antänds inte — para ihop med eldpilar eller en Fire Bolt)."
   },
   "wideBlast": {

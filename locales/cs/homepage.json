@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Nasazení armády na mýtině lesa",
-    "2": "Fáze nasazení a dílna",
+    "2": "Fáze nasazení a obchod jednotek",
     "3": "Dračí ohnivý dech nad polem",
     "4": "Zóny nasazení vedle sebe",
     "5": "Masová bitva na pláních",
@@ -60,9 +60,9 @@
     "flying": "Létající",
     "structure": "Struktura",
     "extra": "Další",
-    "attacksGround": "Útoky na zemi",
+    "attacksGround": "Útočí na zem",
     "attacksAir": "Útoky ze vzduchu",
-    "shield": "Kupole Ward",
+    "shield": "Ochranná kupole",
     "rocket": "Naváděcí šroub"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Vyberte {{item}}",
     "base": "Báze",
     "advanced": "Moderní",
-    "shopTitle": "Koupeno v obchodě nebo nakresleno z kulatého kartonu",
+    "shopTitle": "Koupeno v obchodě nebo vylosováno z karty kola",
     "shopLabel": "Cena v obchodě",
     "forgeTitle": "Kováno na {{building}}",
     "forgeLabel": "Cena kovárny"
@@ -121,9 +121,9 @@
     "own-unit": "vlastní balíček"
   },
   "roundCards": {
-    "title": "Kulaté karty",
+    "title": "Karty kola",
     "sub": "Od druhého kola si draftujte jednu z několika nabízených karet {{items}} vylosovaných z herního poolu. Bojová kouzla se kupují v pevnosti, ne draftují se z karet.",
-    "select": "Vyberte si kulatou kartu"
+    "select": "Vyberte kartu kola"
   },
   "matchSettings": {
     "title": "Nastavení zápasu",
@@ -145,8 +145,8 @@
     "way5": "Vítejte hráče, pište návody, pomáhejte s moderováním, pokud se toho chcete chopit."
   },
   "about": {
-    "title": "O",
-    "lead": "MELODAN vyrábí Alexander Thurn (Feuerware). Sídlí v Bonnu v Německu.",
+    "title": "O hře",
+    "lead": "MELODAN vytváří Alexander Thurn (Feuerware). Sídlí v Bonnu v Německu.",
     "inspired": "Tato hra je inspirována hrou {{mechabellum}}, nejlepší hrou v žánru. MELODAN je nezávislé fantasy pojetí; prosím podpořte originál a kupte si Mechabellum. Děkujeme!",
     "openSource": "Hra je licencována pod licencí {{github}} (GPL-3.0). Autorská práva zůstávají u Alexandra Thurna / Feuerware. Nebojte se ji soukromě forkovat, vymýšlet nové jednotky a otevírat pull requesty. Pro něco většího, nekomerční nebo spin-off, kompletní rebrand atd. mi klidně napište: {{email}}.",
     "openSourceLink": "open source na GitHubu"

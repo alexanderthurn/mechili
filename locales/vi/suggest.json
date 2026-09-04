@@ -14,9 +14,9 @@
   "rateLimited": "Có quá nhiều gợi ý — hãy thử lại trong {{n}}s.",
   "sendFailed": "Không thể gửi. Vui lòng thử lại sau.",
   "networkError": "Lỗi mạng — vui lòng thử lại sau.",
-  "catBug": "Sâu bọ",
-  "catBalance": "Sự cân bằng",
-  "catFeature": "Tính năng",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Mô hình / nghệ thuật",
   "catCommunity": "Cộng đồng",
   "catOther": "Khác"

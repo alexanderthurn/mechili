@@ -28,7 +28,7 @@
     "description": "Pasokan +{{gain}} sekarang. Penyebaran berikutnya: −{{debt}}. Sekali per putaran."
   },
   "ward_dome": {
-    "name": "Kubah bangsal",
+    "name": "Kubah pelindung",
     "description": "Menyerap proyektil musuh yang masuk ke dalam kubah (radius {{radius}}, tinggi {{height}}). Pool adalah HP unit ini."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Senjata siap digunakan, lalu mengincar musuh pertama dalam jangkauan {{range}} untuk menghasilkan kerusakan {{damage}} (percikan {{splash}})."
   },
   "rally_route": {
-    "name": "Rute Reli",
+    "name": "Rute kumpul",
     "description": "Tambahkan satu muatan rute reli ke strip mantra Anda. Sekali per pertandingan."
   },
   "move_pack": {
-    "name": "Paket Pindah",
+    "name": "Pindahkan Pack",
     "description": "Tambahkan satu muatan paket pindah ke strip mantra Anda: satu paket dari ronde sebelumnya dapat dipindahkan kembali. Sekali per pertandingan."
   },
   "1_deployment": {

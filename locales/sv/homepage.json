@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Arméplacering i skogsröjningen",
-    "2": "Implementeringsfas och enhetsbutik",
+    "2": "Utplaceringsfas och enhetsbutik",
     "3": "Drakeeld andedräkt över fältet",
     "4": "Sida vid sida-distributionszoner",
     "5": "Massstrid på slätterna",
@@ -60,9 +60,9 @@
     "flying": "Flygande",
     "structure": "Strukturera",
     "extra": "Extra",
-    "attacksGround": "Attackerar marken",
+    "attacksGround": "Attackerar mark",
     "attacksAir": "Attackerar luft",
-    "shield": "Ward-kupolen",
+    "shield": "Skyddskupol",
     "rocket": "Målsökande bult"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Välj en {{item}}",
     "base": "Bas",
     "advanced": "Avancerad",
-    "shopTitle": "Köpt i butiken, eller draftad från ett runt kort",
+    "shopTitle": "Köpt i butiken eller draget från ett rundkort",
     "shopLabel": "Butikspris",
     "forgeTitle": "Smidd vid {{building}}",
     "forgeLabel": "Smidningspris"
@@ -121,9 +121,9 @@
     "own-unit": "eget paket"
   },
   "roundCards": {
-    "title": "Runda kort",
+    "title": "Rundkort",
     "sub": "Från och med runda två, drafta ett av flera erbjudna {{items}}-kort som dras från matchpoolen. Stridsformler köps vid Fästet, draftas inte från kort.",
-    "select": "Välj ett runt kort"
+    "select": "Välj ett rundkort"
   },
   "matchSettings": {
     "title": "Matchinställningar",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "Om",
-    "lead": "MELODAN tillverkas av Alexander Thurn (Feuerware). Han är baserad i Bonn, Tyskland.",
+    "lead": "MELODAN görs av Alexander Thurn (Feuerware). Han är baserad i Bonn, Tyskland.",
     "inspired": "Det här spelet är inspirerat av {{mechabellum}}, det bästa spelet i genren. MELODAN är en oberoende fantasyversion; stötta gärna originalet och köp Mechabellum. Tack!",
     "openSource": "Spelet är {{github}} (GPL-3.0). Upphovsrätten tillhör Alexander Thurn / Feuerware. Känn dig fri att forka det privat, uppfinna nya enheter och öppna pull requests. För något större, en icke-kommersiell spin-off, en fullständig rebranding etc., skriv gärna till mig: {{email}}.",
     "openSourceLink": "öppen källkod på GitHub"

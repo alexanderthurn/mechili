@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Hærens utplassering i skogrydding",
-    "2": "Implementeringsfase og enhetsbutikk",
+    "2": "Utplasseringsfase og enhetsbutikk",
     "3": "Dragens ildpust over feltet",
     "4": "Side-om-side distribusjonssoner",
     "5": "Massekamp på slettene",
@@ -57,12 +57,12 @@
     "spellModel": "Stavemodell"
   },
   "flag": {
-    "flying": "Flyr",
+    "flying": "Flygende",
     "structure": "Struktur",
     "extra": "Ekstra",
     "attacksGround": "Angriper bakken",
     "attacksAir": "Angriper luft",
-    "shield": "Avdelingskuppel",
+    "shield": "Beskyttelseskuppel",
     "rocket": "Hjemmebolt"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Velg en {{item}}",
     "base": "Base",
     "advanced": "Avansert",
-    "shopTitle": "Kjøpt i butikken, eller utkastet fra et rundt kort",
+    "shopTitle": "Kjøpt i butikken eller trukket fra et rundekort",
     "shopLabel": "Butikkpris",
     "forgeTitle": "Smidd på {{building}}",
     "forgeLabel": "Smipris"
@@ -121,9 +121,9 @@
     "own-unit": "egen pakke"
   },
   "roundCards": {
-    "title": "Runde kort",
+    "title": "Rundekort",
     "sub": "Fra runde to og utover, draft ett av flere tilbudte {{items}}-kort trukket fra kamppotten. Kampformler kjøpes i Festningen, ikke draftes fra kort.",
-    "select": "Velg et rundt kort"
+    "select": "Velg et rundekort"
   },
   "matchSettings": {
     "title": "Kampinnstillinger",

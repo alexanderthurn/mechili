@@ -129,7 +129,7 @@ Use these **keys** when spot-checking `fr`, `es`, `it`, `pl`, … Same English s
 - [ ] Full line-by-line DE pass (human)
 - [ ] Confirm glossary table with you (this file)
 
-## Checklist polish status (langs #1–#10)
+## Checklist polish status (langs #1–#21)
 
 Applied glossary howler pass (not full native line-by-line):
 
@@ -143,8 +143,19 @@ Applied glossary howler pass (not full native line-by-line):
 - [x] `pl`
 - [x] `it`
 - [x] `tr`
+- [x] `uk`
+- [x] `nl`
+- [x] `cs`
+- [x] `sv` + `nb` + `da` + `fi`
+- [x] `hu`
+- [x] `ro`
+- [x] `bg`
+- [x] `vi`
+- [x] `id` + `ms`
+- [x] `th` (light — already cleaner)
+- [x] `el` (light — already cleaner)
 
-Still deferred: full human tone/catalog pass; Arabic RTL; langs after #10.
+Still deferred: full human tone/catalog pass; Arabic (`ar`) RTL + strings; deeper unit/commander polish.
 
 ## Related
 

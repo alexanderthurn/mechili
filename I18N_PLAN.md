@@ -30,7 +30,7 @@ Translated catalogs in the client bundle: all IDs above (MT seed for newly added
 
 - Arabic RTL layout polish (direction is set; some HUD chrome may still assume LTR)
 - Feuerware privacy / imprint pages (external; translate outside Melodan)
-- Full human polish of MT catalogs (DE done; checklist pass done for fr→tr #1–#10; remaining langs + deeper tone still open)
+- Full human polish of MT catalogs (DE done; checklist pass done for fr→el #1–#21; Arabic + deeper tone still open)
 
 ### Intentionally English / skipped
 

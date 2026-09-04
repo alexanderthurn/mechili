@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Armeijan sijoittuminen metsänraivaukseen",
-    "2": "Käyttöönottovaihe ja yksikköverstas",
+    "2": "Käyttöönottovaihe ja yksikkökauppa",
     "3": "Lohikäärmeen tulen henkäys pellon yllä",
     "4": "Vierekkäiset käyttöönottoalueet",
     "5": "Massataistelu tasangoilla",
@@ -57,12 +57,12 @@
     "spellModel": "Loitsumalli"
   },
   "flag": {
-    "flying": "Lentäminen",
+    "flying": "Lentävä",
     "structure": "Rakenne",
     "extra": "Lisä",
-    "attacksGround": "Hyökkäykset maata vastaan",
+    "attacksGround": "Hyökkää maahan",
     "attacksAir": "Hyökkää ilmaan",
-    "shield": "Osaston kupoli",
+    "shield": "Suojakupoli",
     "rocket": "Itseohjautuva pultti"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Valitse {{item}}",
     "base": "Pohja",
     "advanced": "Edistynyt",
-    "shopTitle": "Ostettu kaupasta tai vedetty pyöreästä kortista",
+    "shopTitle": "Ostettu kaupasta tai nostettu kierroskortista",
     "shopLabel": "Kauppahinta",
     "forgeTitle": "Taottu {{building}}:ssa",
     "forgeLabel": "Forgen hinta"
@@ -121,9 +121,9 @@
     "own-unit": "oma pakkaus"
   },
   "roundCards": {
-    "title": "Pyöreät kortit",
+    "title": "Kierroskortit",
     "sub": "Toisesta kierroksesta eteenpäin nosta yksi useista tarjotuista {{items}}-korteista otteluvarastosta. Taisteluloitsuja ostetaan linnoituksesta, niitä ei nosteta korteista.",
-    "select": "Valitse pyöreä kortti"
+    "select": "Valitse kierroskortti"
   },
   "matchSettings": {
     "title": "Otteluasetukset",
@@ -145,8 +145,8 @@
     "way5": "Toivota pelaajat tervetulleiksi, kirjoita oppaita ja auta moderoinnissa, jos haluat ottaa sen tehtäväksesi."
   },
   "about": {
-    "title": "Noin",
-    "lead": "MELODANin valmistaa Alexander Thurn (Feuerware). Hän sijaitsee Bonnissa, Saksassa.",
+    "title": "Tietoa",
+    "lead": "MELODANin tekee Alexander Thurn (Feuerware). Hän asuu Bonnissa, Saksassa.",
     "inspired": "Tämä peli on saanut inspiraationsa genren parhaasta pelistä {{mechabellum}}. MELODAN on itsenäinen fantasiapeli; tue alkuperäistä peliä ja osta Mechabellum. Kiitos!",
     "openSource": "Peli on {{github}} (GPL-3.0). Tekijänoikeudet pysyvät Alexander Thurnilla / Feuerwarella. Voit vapaasti forkata pelin yksityisesti, keksiä uusia yksiköitä ja avata pull-pyyntöjä. Jos haluat jotain suurempaa, ei-kaupallisen tai spin-offin, täydellisen uudelleenbrändäyksen jne., kirjoita minulle: {{email}}.",
     "openSourceLink": "avoimen lähdekoodin GitHubissa"

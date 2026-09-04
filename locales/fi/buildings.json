@@ -28,7 +28,7 @@
     "description": "+{{gain}} tarvike nyt. Seuraava käyttöönotto: −{{debt}}. Kerran kierroksella."
   },
   "ward_dome": {
-    "name": "Osaston kupoli",
+    "name": "Suojakupoli",
     "description": "Imee vihollisen ammuksia, jotka osuvat kupoliin (säde {{radius}}, korkeus {{height}}). Pooli on tämän yksikön HP."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Kädet paikoilleen, sitten tähtää ensimmäiseen kantaman sisällä olevaan viholliseen {{range}} aiheuttaen {{damage}} vahinkoa (roiske {{splash}})."
   },
   "rally_route": {
-    "name": "Rallireitti",
+    "name": "Kokoontumisreitti",
     "description": "Lisää yksi kokoontumisreitin lataus loitsunauhaasi. Kerran ottelua kohden."
   },
   "move_pack": {
-    "name": "Siirtopakkaus",
+    "name": "Siirrä Pack",
     "description": "Lisää yksi liikkumispakkauksen lataus loitsunauhaasi: yksi aiemman kierroksen pakka muuttuu jälleen liikuteltavaksi. Kerran ottelua kohden."
   },
   "1_deployment": {

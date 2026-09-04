@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Tuyến đường diễu hành",
+    "name": "Đường tập hợp",
     "description": "Đặt các khu vực xuất phát, khu vực giữa và khu vực cuối. Các đơn vị trong vòng tròn xuất phát hành quân qua các vị trí tương ứng ở giữa, sau đó đến cuối, giao tranh dọc đường đi."
   },
   "oilSpill": {
-    "name": "Sự cố tràn dầu",
+    "name": "Vũng dầu",
     "description": "Đặt hai vòng tròn dầu — phác thảo đường viền trong quá trình triển khai; ngay sau khi trận chiến bắt đầu, dầu sẽ nhỏ giọt từ trái sang phải lên đường đi (các đĩa chắn vẫn không bị ảnh hưởng). Dầu nối liền sẽ bốc cháy thành một vùng duy nhất khi lửa chạm vào."
   },
   "sellUnit": {
-    "name": "Bán gói sản phẩm",
+    "name": "Bán Pack",
     "description": "Nhấp chuột để trang bị vũ khí, sau đó nhấp vào một trong các gói vật phẩm của bạn để bán chúng và nhận lại tiền hoàn trả vật phẩm."
   },
   "moveUnit": {
-    "name": "Gói chuyển nhà",
+    "name": "Di chuyển Pack",
     "description": "Nhấp chuột để kích hoạt, sau đó nhấp vào một trong các gói của bạn từ vòng trước — bạn có thể kéo và xoay gói đó một lần nữa cho phần còn lại của vòng này."
   },
   "tutor": {
@@ -36,7 +36,7 @@
     "description": "Nhấp chuột để đặt, di chuyển để xoay, nhấp chuột lần nữa để khóa. Một chiếc búa thần thánh rơi xuống khu vực chỉ vài giây sau khi trận chiến bắt đầu."
   },
   "storm": {
-    "name": "Lời kêu gọi bão tố",
+    "name": "Gọi bão",
     "description": "Vẽ một vòng tròn rộng ở bất kỳ đâu. Những đám mây giông nhỏ tụ lại trên cao và phóng sét vào các vị trí ngẫu nhiên — sét không gây sát thương nhưng gây giật điện cho các đơn vị trong một vùng rộng với hiệu ứng suy yếu giống như tháp, trừ khi chúng có hào quang vàng. Các mái vòm phòng thủ vẫn chặn được các đòn tấn công."
   },
   "meteorShower": {
@@ -44,11 +44,11 @@
     "description": "Hãy vẽ một vòng tròn rộng ở bất kỳ đâu. Các thiên thạch sẽ rơi xuống những vị trí ngẫu nhiên bên trong vòng tròn đó trong một thời gian, mỗi vụ nổ sẽ đốt cháy mặt đất mà nó chạm vào."
   },
   "acidSpill": {
-    "name": "Sự cố tràn axit",
+    "name": "Vũng axit",
     "description": "Đổ một viên nang axit như thể đang làm tràn dầu — nó sẽ nhỏ giọt từ trái sang phải xuống mặt đất ngay khi trận chiến bắt đầu. Các đơn vị trên mặt đất và trên không bay qua vũng axit sẽ bị ăn mòn và hấp thụ thêm sát thương từ mọi thứ."
   },
   "fireSpill": {
-    "name": "Sự cố tràn lửa",
+    "name": "Vũng lửa",
     "description": "Đổ một viên nang lửa như dầu – nó sẽ nhỏ giọt từ trái sang phải ngay khi trận chiến bắt đầu và đốt cháy đường đi (các đĩa bảo vệ vẫn không bị ảnh hưởng). Dầu tiếp xúc sẽ bốc cháy theo. Ngọn lửa chỉ kéo dài trong trận chiến này."
   },
   "dragonAttack": {

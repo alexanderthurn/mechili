@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Trasa rallye",
+    "name": "Trasa shromáždění",
     "description": "Umístěte počáteční, střední a koncovou zónu. Jednotky v počátečním kruhu pochodují přes shodné odsazení uprostřed a poté na konci a cestou bojují."
   },
   "oilSpill": {
-    "name": "Únik ropy",
+    "name": "Ropná louže",
     "description": "Umístěte dva kruhy s olejem – během rozmístění je obrys; krátce po začátku bitvy olej kape zleva doprava na cestu (disky ochrany zůstávají volné). Propojený olej se při dotyku ohně vznítí jako jedno pole."
   },
   "sellUnit": {
-    "name": "Prodat balíček",
+    "name": "Prodat Pack",
     "description": "Kliknutím se aktivujete a poté kliknutím na jeden ze svých balíčků jej prodejte a zaplatíte za zásoby."
   },
   "moveUnit": {
-    "name": "Přesunout balíček",
+    "name": "Přesunout Pack",
     "description": "Kliknutím se aktivujte a poté klikněte na jeden ze svých balíčků z předchozího kola – po zbytek kola jej můžete znovu přetáhnout a otočit."
   },
   "tutor": {
@@ -44,11 +44,11 @@
     "description": "Označte kdekoli široký kruh. Meteority chvíli prší na náhodná místa uvnitř a každý výbuch spaluje zem, na kterou dopadnou."
   },
   "acidSpill": {
-    "name": "Rozlití kyseliny",
+    "name": "Kyselinová louže",
     "description": "Kyselou kapsli nalijte jako olejovou skvrnu – krátce po začátku bitvy kape na zem zleva doprava. Pozemní i vzdušné jednotky nad louží syčí a zrezivějí – čímž dostávají dodatečné poškození od všeho."
   },
   "fireSpill": {
-    "name": "Oheň rozlitý",
+    "name": "Ohnivá louže",
     "description": "Nalijte ohnivou kapsli jako olej – krátce po začátku bitvy kape zleva doprava a zapálí cestu (disky ochrany zůstávají volné). Spojený olej se s ní vznítí. Plamen trvá pouze tuto bitvu."
   },
   "dragonAttack": {

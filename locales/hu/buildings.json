@@ -28,7 +28,7 @@
     "description": "+{{gain}} ellátmány most. Következő bevetés: −{{debt}}. Körönként egyszer."
   },
   "ward_dome": {
-    "name": "Ward kupola",
+    "name": "Védőkupola",
     "description": "Elnyeli az ellenséges lövedékeket, amelyek egy kupolába (sugár {{radius}}, magasság {{height}}) csapódnak be. A medence az egység HP-ja."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Karok a helyükön, majd célpont az első hatótávon belüli ellenfélre {{range}}, {{damage}} sebzést okozva (fröccsenés {{splash}})."
   },
   "rally_route": {
-    "name": "Rally útvonal",
+    "name": "Gyülekezési útvonal",
     "description": "Adj hozzá egy gyülekezési útvonal töltetet a varázslatcsíkodhoz. Meccsenként egyszer."
   },
   "move_pack": {
-    "name": "Mozgatható csomag",
+    "name": "Pack mozgatása",
     "description": "Adj hozzá egy mozgatócsomag-töltetet a varázslatcsíkodhoz: egy korábbi körből származó csomag ismét mozgathatóvá válik. Meccsenként egyszer."
   },
   "1_deployment": {

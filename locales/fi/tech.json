@@ -36,7 +36,7 @@
     "description": "Lähellä olevat liittolaiset vastustavat tornien heikennyksiä ja ottavat 30 % vähemmän vahinkoa 30 sekunnin ajan. Velhot eivät voi muuntaa niitä – säde tekee vahinkoa sen sijaan."
   },
   "pitchBolts": {
-    "name": "Pultit",
+    "name": "Tervapultit",
     "description": "Pultit roiskuttavat öljyä osuessaan (eivät syty – käytä yhdessä tulinuolien tai tulipultin kanssa)."
   },
   "wideBlast": {

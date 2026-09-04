@@ -14,9 +14,9 @@
   "rateLimited": "Πάρα πολλές προτάσεις — δοκίμασε ξανά σε {{n}}δ.",
   "sendFailed": "Αποτυχία αποστολής. Δοκίμασε αργότερα.",
   "networkError": "Σφάλμα δικτύου — δοκίμασε αργότερα.",
-  "catBug": "Σφάλμα",
-  "catBalance": "Ισορροπία",
-  "catFeature": "Λειτουργία",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Μοντέλα / τέχνη",
   "catCommunity": "Κοινότητα",
   "catOther": "Άλλο"

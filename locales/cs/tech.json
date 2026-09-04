@@ -36,7 +36,7 @@
     "description": "Spojenci v blízkosti odolávají debuffům věží a po dobu 30 sekund dostávají o 30 % méně poškození. Kouzelníci je nemohou konvertovat – místo toho způsobuje poškození paprsek."
   },
   "pitchBolts": {
-    "name": "Šrouby s roztečí",
+    "name": "Dehtové šipky",
     "description": "Šípy při nárazu rozstříkají olej (nevznítí se – v kombinaci s ohnivými šípy nebo Ohnivým šípem)."
   },
   "wideBlast": {

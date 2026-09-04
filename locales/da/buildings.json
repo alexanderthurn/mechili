@@ -28,7 +28,7 @@
     "description": "+{{gain}} forsyning nu. Næste indsættelse: −{{debt}}. Én gang pr. runde."
   },
   "ward_dome": {
-    "name": "Ward-kuplen",
+    "name": "Beskyttelseskuppel",
     "description": "Absorberer fjendtlige projektiler, der krydser ind i en kuppel (radius {{radius}}, højde {{height}}). Pool er denne enheds HP."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Armene på plads, derefter målrettet mod den første fjende inden for rækkevidde {{range}} for {{damage}} skade (stænk {{splash}})."
   },
   "rally_route": {
-    "name": "Rallyrute",
+    "name": "Samlingsrute",
     "description": "Tilføj én rallyrute-ladning til din trylleformularstribe. Én gang pr. kamp."
   },
   "move_pack": {
-    "name": "Flyt pakke",
+    "name": "Flyt Pack",
     "description": "Tilføj én trækpakke til din trylleformularstribe: én pakke fra en tidligere runde bliver flytbar igen. Én gang pr. kamp."
   },
   "1_deployment": {

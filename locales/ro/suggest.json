@@ -14,9 +14,9 @@
   "rateLimited": "Prea multe sugestii — încearcă din nou peste {{n}}s.",
   "sendFailed": "Nu s-a putut trimite. Încercați din nou mai târziu.",
   "networkError": "Eroare de rețea — încercați din nou mai târziu.",
-  "catBug": "Insect",
-  "catBalance": "Echilibru",
-  "catFeature": "Caracteristică",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Modele / artă",
   "catCommunity": "Comunitate",
   "catOther": "Alte"

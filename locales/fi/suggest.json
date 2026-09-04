@@ -14,9 +14,9 @@
   "rateLimited": "Liikaa ehdotuksia — yritä uudelleen {{n}} sekunnin kuluttua.",
   "sendFailed": "Lähetys epäonnistui. Yritä myöhemmin uudelleen.",
   "networkError": "Verkkovirhe – yritä myöhemmin uudelleen.",
-  "catBug": "Vika",
-  "catBalance": "Saldo",
-  "catFeature": "Ominaisuus",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Mallit / taide",
   "catCommunity": "Yhteisö",
   "catOther": "Muut"

@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Rallyrute",
+    "name": "Samlingsrute",
     "description": "Start-, midt- og sluttsoner for plassene. Enhetene i startsirkelen marsjerer gjennom matchende forskyvninger i midten, deretter mot slutten, og kjemper underveis."
   },
   "oilSpill": {
-    "name": "Oljesøl",
+    "name": "Oljelakke",
     "description": "Plasser to oljesirkler – marker dem under utplassering; kort tid etter at kampen starter drypper olje fra venstre mot høyre ned på stien (forsvarsskiver forblir klare). Sammenkoblet olje antennes som ett felt når ild berører det."
   },
   "sellUnit": {
-    "name": "Selg pakke",
+    "name": "Selg Pack",
     "description": "Klikk for å aktivere, og klikk deretter på en av pakkene dine for å selge den og få refusjon for forsyninger."
   },
   "moveUnit": {
-    "name": "Flyttpakke",
+    "name": "Flytt Pack",
     "description": "Klikk for å bevæpne, og klikk deretter på en av pakkene dine fra en tidligere runde – den kan dras og roteres igjen resten av runden."
   },
   "tutor": {
@@ -44,11 +44,11 @@
     "description": "Merk en bred sirkel hvor som helst. Meteorer regner ned på tilfeldige steder inni en stund, og hver eksplosjon brenner bakken den treffer."
   },
   "acidSpill": {
-    "name": "Syreutslipp",
+    "name": "Syrelakke",
     "description": "Hell en syrekapsel som et oljesøl – det drypper fra venstre mot høyre ned på bakken kort tid etter at kampen starter. Bakke- og luftenheter over sølepytten freser og korroderer – og tar ekstra skade fra alt."
   },
   "fireSpill": {
-    "name": "Brannutslipp",
+    "name": "Ildlakke",
     "description": "Hell en ildkapsel som olje – den drypper fra venstre mot høyre kort tid etter at kampen starter og setter fyr på stien (beskyttelsesskiver forblir klare). Tilkoblet olje antennes med den. Flammen varer bare i denne kampen."
   },
   "dragonAttack": {

@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Traseul raliului",
+    "name": "Traseu de adunare",
     "description": "Plasați zonele de început, mijloc și sfârșit. Unitățile din cercul de început mărșăluiesc prin decalaje corespunzătoare la mijloc, apoi la sfârșit, luptând pe parcurs."
   },
   "oilSpill": {
-    "name": "Deversare de petrol",
+    "name": "Baltă de ulei",
     "description": "Plasați două cercuri cu ulei — conturați în timpul desfășurării; la scurt timp după începerea luptei, uleiul picură de la stânga la dreapta pe cale (discurile de protecție rămân libere). Uleiul conectat se aprinde ca un singur câmp atunci când focul îl atinge."
   },
   "sellUnit": {
-    "name": "Pachet de vânzare",
+    "name": "Vinde Pack",
     "description": "Apasă pentru a arma, apoi apasă pe unul dintre pachetele tale pentru a-l vinde și a primi o rambursare a proviziilor."
   },
   "moveUnit": {
-    "name": "Pachet de mutare",
+    "name": "Mută Pack",
     "description": "Faceți clic pentru a arma, apoi faceți clic pe unul dintre pachetele dvs. dintr-o rundă anterioară — acesta poate fi tras și rotit din nou pentru restul acestei runde."
   },
   "tutor": {
@@ -36,7 +36,7 @@
     "description": "Clic pentru a plasa, mișcă pentru a roti, click din nou pentru a bloca. Un ciocan divin cade în zonă la câteva secunde după începerea luptei."
   },
   "storm": {
-    "name": "Apel de furtună",
+    "name": "Chemarea furtunii",
     "description": "Marchează un cerc lat oriunde. Nori mici de furtună se adună sus și aruncă fulgere în locuri aleatorii — fulgerele nu provoacă daune, dar șochează unitățile într-o împrăștiere largă cu un debuff asemănător unui turn, cu excepția cazului în care au aură aurie. Cupolele de gardă blochează în continuare loviturile."
   },
   "meteorShower": {
@@ -44,11 +44,11 @@
     "description": "Marchează un cerc lat oriunde. Meteorii cad în locuri aleatorii în interior pentru o vreme, fiecare explozie arzând solul pe care îl lovește."
   },
   "acidSpill": {
-    "name": "Deversare de acid",
+    "name": "Baltă de acid",
     "description": "Toarnă o capsulă acidă ca pe o pată de ulei — picură de la stânga la dreapta pe pământ la scurt timp după începerea luptei. Unitățile terestre și aeriene de deasupra bălții sfârâie și se corodează — suferind daune suplimentare de la tot."
   },
   "fireSpill": {
-    "name": "Scurgere de incendiu",
+    "name": "Baltă de foc",
     "description": "Toarnă o capsulă de foc, asemănătoare cu uleiul — picură de la stânga la dreapta la scurt timp după începerea luptei și dă foc calei (discurile de gardă rămân libere). Uleiul conectat se aprinde odată cu ea. Flacăra durează doar în această bătălie."
   },
   "dragonAttack": {

@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Pengerahan tentera di kawasan hutan",
-    "2": "Fasa pelaksanaan dan bengkel unit",
+    "2": "Fasa penempatan dan kedai unit",
     "3": "Nafas api naga di atas padang",
     "4": "Zon penggunaan bersebelahan",
     "5": "Pertempuran besar-besaran di dataran",
@@ -60,9 +60,9 @@
     "flying": "Terbang",
     "structure": "Struktur",
     "extra": "Tambahan",
-    "attacksGround": "Serangan darat",
+    "attacksGround": "Menyerang darat",
     "attacksAir": "Menyerang udara",
-    "shield": "Kubah wad",
+    "shield": "Kubah pelindung",
     "rocket": "Bolt homing"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Pilih {{item}}",
     "base": "Pangkalan",
     "advanced": "Lanjutan",
-    "shopTitle": "Dibeli di kedai, atau didraf daripada kad bulat",
+    "shopTitle": "Dibeli di kedai atau diambil daripada kad pusingan",
     "shopLabel": "Harga kedai",
     "forgeTitle": "Ditempa di {{building}}",
     "forgeLabel": "Harga tempa"
@@ -121,9 +121,9 @@
     "own-unit": "pek sendiri"
   },
   "roundCards": {
-    "title": "Kad bulat",
+    "title": "Kad pusingan",
     "sub": "Dari pusingan kedua dan seterusnya, draf salah satu daripada beberapa kad {{items}} yang ditawarkan yang diambil dari kolam perlawanan. Jampi pertempuran dibeli di Stronghold, bukan didraf daripada kad.",
-    "select": "Pilih kad bulat"
+    "select": "Pilih kad pusingan"
   },
   "matchSettings": {
     "title": "Tetapan padanan",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "Mengenai",
-    "lead": "MELODAN dihasilkan oleh Alexander Thurn (Feuerware). Ia terletak di Bonn, Jerman.",
+    "lead": "MELODAN dibuat oleh Alexander Thurn (Feuerware). Beliau tinggal di Bonn, Jerman.",
     "inspired": "Permainan ini diinspirasikan oleh {{mechabellum}}, permainan terbaik dalam genre ini. MELODAN ialah sebuah versi fantasi bebas; sila sokong yang asal dan beli Mechabellum. Terima kasih!",
     "openSource": "Permainan ini ialah {{github}} (GPL-3.0). Hak cipta kekal pada Alexander Thurn / Feuerware. Silakan anda membuat fork secara tertutup, mencipta unit baharu dan membuka permintaan pull. Untuk sesuatu yang lebih besar, spin-off bukan atau komersial, penjenamaan semula penuh dll., sila tulis kepada saya: {{email}}.",
     "openSourceLink": "sumber terbuka di GitHub"

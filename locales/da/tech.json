@@ -36,7 +36,7 @@
     "description": "Nærliggende allierede modstår tårn-debuffs og tager 30% mindre skade i 30'erne. Troldmænd kan ikke konvertere dem - strålen giver i stedet skade."
   },
   "pitchBolts": {
-    "name": "Bolte",
+    "name": "Tjærepile",
     "description": "Bolte sprøjter olie ved stød (antændes ikke — parres med ildpile eller en Ildbolt)."
   },
   "wideBlast": {

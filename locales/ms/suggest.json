@@ -14,9 +14,9 @@
   "rateLimited": "Terlalu banyak cadangan — cuba lagi dalam {{n}}s.",
   "sendFailed": "Tidak dapat menghantar. Cuba lagi nanti.",
   "networkError": "Ralat rangkaian — cuba lagi nanti.",
-  "catBug": "Pepijat",
-  "catBalance": "Baki",
-  "catFeature": "Ciri",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Model / seni",
   "catCommunity": "Komuniti",
   "catOther": "Lain-lain"

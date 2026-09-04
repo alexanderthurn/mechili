@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Desfășurarea armatei în defrișarea pădurii",
-    "2": "Faza de desfășurare și atelierul unității",
+    "2": "Faza de desfășurare și magazinul de unități",
     "3": "Respirație de foc de dragon peste câmp",
     "4": "Zone de implementare alăturate",
     "5": "Bătălie în masă pe câmpie",
@@ -57,12 +57,12 @@
     "spellModel": "Model de vrajă"
   },
   "flag": {
-    "flying": "Zbor",
+    "flying": "Zburător",
     "structure": "Structura",
     "extra": "Suplimentar",
-    "attacksGround": "Atacurile la sol",
+    "attacksGround": "Atacă solul",
     "attacksAir": "Atacuri aeriene",
-    "shield": "Domul Ward",
+    "shield": "Cupolă de protecție",
     "rocket": "Șurub de localizare"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Alege un {{item}}",
     "base": "Baza",
     "advanced": "Avansat",
-    "shopTitle": "Cumpărat din magazin sau ales dintr-o carte rotundă",
+    "shopTitle": "Cumpărat din magazin sau extras dintr-o carte de rundă",
     "shopLabel": "Preț de magazin",
     "forgeTitle": "Forjată la {{building}}",
     "forgeLabel": "Preț forjare"
@@ -121,9 +121,9 @@
     "own-unit": "propriul pachet"
   },
   "roundCards": {
-    "title": "Cărți rotunde",
+    "title": "Cărți de rundă",
     "sub": "Din runda a doua încolo, alege una dintre cărțile {{items}} oferite, trase din rezerva de potrivire. Vrăjile de luptă se cumpără la Fortăreață, nu se draftează din cărți.",
-    "select": "Alege o carte rotundă"
+    "select": "Alege o carte de rundă"
   },
   "matchSettings": {
     "title": "Setările meciului",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "Despre",
-    "lead": "MELODAN este fabricat de Alexander Thurn (Feuerware). Acesta își are sediul în Bonn, Germania.",
+    "lead": "MELODAN este făcut de Alexander Thurn (Feuerware). Locuiește în Bonn, Germania.",
     "inspired": "Acest joc este inspirat de {{mechabellum}}, cel mai bun joc din gen. MELODAN este o versiune independentă a jocului fantasy; vă rugăm să susțineți originalul și să cumpărați Mechabellum. Mulțumesc!",
     "openSource": "Jocul este {{github}} (GPL-3.0). Drepturile de autor rămân la Alexander Thurn / Feuerware. Nu ezitați să îl creați în privat, să inventați noi unități și să deschideți cereri de extragere. Pentru ceva mai mare, un spin-off non-comercial sau comercial, un rebranding complet etc., nu ezitați să-mi scrieți: {{email}}.",
     "openSourceLink": "sursă deschisă pe GitHub"

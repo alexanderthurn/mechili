@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Rallyrutt",
+    "name": "Samlingsrutt",
     "description": "Platsens start-, mitt- och målzoner. Enheter i startcirkeln marscherar genom matchande förskjutningar i mitten och sedan i slutet, och kämpar längs vägen."
   },
   "oilSpill": {
-    "name": "Oljeutsläpp",
+    "name": "Oljepöl",
     "description": "Placera två oljecirklar – markera dem under utplaceringen; strax efter att striden börjar droppar olja från vänster till höger ner på vägen (försvarsbrickorna förblir fria). Sammankopplad olja antänds som ett enda fält när eld berör den."
   },
   "sellUnit": {
-    "name": "Sälj paket",
+    "name": "Sälj Pack",
     "description": "Klicka för att aktivera, klicka sedan på ett av dina paket för att sälja det och få återbetalning för dina förnödenheter."
   },
   "moveUnit": {
-    "name": "Flytta paketet",
+    "name": "Flytta Pack",
     "description": "Klicka för att beväpna, klicka sedan på ett av dina paket från en tidigare runda – det kan dras och roteras igen under resten av den här rundan."
   },
   "tutor": {
@@ -44,11 +44,11 @@
     "description": "Markera en bred cirkel var som helst. Meteorer regnar ner på slumpmässiga fläckar inuti ett tag, och varje explosion bränner marken den träffar."
   },
   "acidSpill": {
-    "name": "Syrautsläpp",
+    "name": "Syrapöl",
     "description": "Häll en syrakapsel som ett oljespill – den droppar från vänster till höger ner på marken strax efter att striden har börjat. Mark- och luftenheter ovanför pölen fräser och korroderar – och tar extra skada från allting."
   },
   "fireSpill": {
-    "name": "Brandutsläpp",
+    "name": "Eldpöl",
     "description": "Häll en eldkapsel som olja — den droppar från vänster till höger strax efter att striden börjar och sätter vägen i brand (försvarsskivorna förblir fria). Ansluten olja antänds med den. Lågan varar endast i denna strid."
   },
   "dragonAttack": {

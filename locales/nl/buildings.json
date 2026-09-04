@@ -28,7 +28,7 @@
     "description": "+{{gain}} nu beschikbaar. Volgende inzet: −{{debt}}. Eenmaal per ronde."
   },
   "ward_dome": {
-    "name": "Afdelingskoepel",
+    "name": "Beschermingskoepel",
     "description": "Absorbeert vijandelijke projectielen die een koepel binnendringen (radius {{radius}}, hoogte {{height}}). Pool is de HP van deze eenheid."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Wapens in positie, richt zich vervolgens op de eerste vijand binnen bereik {{range}} voor {{damage}} schade (splash {{splash}})."
   },
   "rally_route": {
-    "name": "Rallyroute",
+    "name": "Verzamelroute",
     "description": "Voeg één rally-route charge toe aan je spreukenstrip. Eenmaal per wedstrijd."
   },
   "move_pack": {
-    "name": "VerhuisPack",
+    "name": "Pack verplaatsen",
     "description": "Voeg één verplaatsingslading toe aan je spreukenstrip: één Pack uit een eerdere ronde wordt opnieuw verplaatsbaar. Eenmaal per wedstrijd."
   },
   "1_deployment": {

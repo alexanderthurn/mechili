@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Rallyrute",
+    "name": "Samlingsrute",
     "description": "Placer start-, midter- og slutzoner. Enheder i startcirklen marcherer gennem matchende forskydninger i midten og derefter til enden, mens de kæmper undervejs."
   },
   "oilSpill": {
-    "name": "Olieudslip",
+    "name": "Oliepøl",
     "description": "Placer to oliecirkler – marker dem under udrulningen; kort efter kampen starter drypper olien fra venstre mod højre ned på stien (forsvarsskiverne forbliver frie). Forbundet olie antændes som ét felt, når ild berører det."
   },
   "sellUnit": {
-    "name": "Sælg pakke",
+    "name": "Sælg Pack",
     "description": "Klik for at aktivere, og klik derefter på en af dine pakker for at sælge den og få refusion for dine forsyninger."
   },
   "moveUnit": {
-    "name": "Flyt pakke",
+    "name": "Flyt Pack",
     "description": "Klik for at bevæbne, og klik derefter på en af dine pakker fra en tidligere runde – den kan trækkes og roteres igen i resten af denne runde."
   },
   "tutor": {
@@ -44,11 +44,11 @@
     "description": "Marker en bred cirkel hvor som helst. Meteorer regner ned på tilfældige steder indeni i et stykke tid, og hver eksplosion brænder jorden, den rammer."
   },
   "acidSpill": {
-    "name": "Syreudslip",
+    "name": "Syrepøl",
     "description": "Hæld en syrekapsel som et olieudslip – det drypper fra venstre mod højre ned på jorden kort efter kampens start. Jord- og luftenheder over vandpytten syder og korroderer – og tager ekstra skade fra alt."
   },
   "fireSpill": {
-    "name": "Brandudslip",
+    "name": "Ildpøl",
     "description": "Hæld en ildkapsel som olie i den — den drypper fra venstre mod højre kort efter kampens start og sætter stien i brand (beskyttelsesskiverne forbliver frie). Forbundet olie antændes med den. Flammen varer kun i denne kamp."
   },
   "dragonAttack": {

@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Laluan Rali",
+    "name": "Laluan kumpul",
     "description": "Letakkan zon permulaan, tengah dan akhir. Unit-unit dalam bulatan permulaan berarak melalui ofset yang sepadan di tengah, kemudian di penghujung, berjuang di sepanjang jalan."
   },
   "oilSpill": {
-    "name": "Tumpahan Minyak",
+    "name": "Genangan minyak",
     "description": "Letakkan dua bulatan minyak — gariskan semasa penggunaan; sejurus selepas pertempuran bermula, minyak menitis dari kiri ke kanan ke laluan (cakera wad kekal bersih). Minyak yang disambungkan akan menyala sebagai satu medan apabila api menyentuhnya."
   },
   "sellUnit": {
-    "name": "Jual Pek",
+    "name": "Jual Pack",
     "description": "Klik untuk menambah, kemudian klik salah satu pek anda untuk menjualnya bagi mendapatkan bayaran balik bekalan."
   },
   "moveUnit": {
-    "name": "Pek Pindah",
+    "name": "Gerakkan Pack",
     "description": "Klik untuk melengkapkan, kemudian klik salah satu pek anda daripada pusingan sebelumnya — ia mungkin diseret dan diputar semula untuk baki pusingan ini."
   },
   "tutor": {
@@ -36,7 +36,7 @@
     "description": "Klik untuk meletakkan, bergerak untuk memutar, klik sekali lagi untuk mengunci. Tukul suci jatuh ke zon beberapa saat selepas pertempuran."
   },
   "storm": {
-    "name": "Panggilan Ribut",
+    "name": "Panggilan ribut",
     "description": "Tandakan bulatan lebar di mana-mana sahaja. Awan ribut kecil berkumpul tinggi di atas dan melontarkan kilat di tempat yang rawak — bolt tidak menghasilkan kerosakan tetapi unit kejutan dalam percikan lebar dengan debuff seperti menara melainkan ia mempunyai aura keemasan. Kubah wad masih menghalang serangan."
   },
   "meteorShower": {
@@ -44,11 +44,11 @@
     "description": "Tandakan bulatan lebar di mana-mana sahaja. Meteor menghujani tempat-tempat rawak di dalam untuk seketika, setiap letupan membakar tanah yang dilanggarnya."
   },
   "acidSpill": {
-    "name": "Tumpahan Asid",
+    "name": "Genangan asid",
     "description": "Tuangkan kapsul asid seperti tumpahan minyak — ia menitis dari kiri ke kanan ke tanah sejurus selepas pertempuran bermula. Unit darat dan udara di atas lopak berdesis dan berkarat — menerima kerosakan tambahan daripada segalanya."
   },
   "fireSpill": {
-    "name": "Tumpahan Api",
+    "name": "Genangan api",
     "description": "Tuangkan kapsul api seperti minyak — ia menitis dari kiri ke kanan sejurus selepas pertempuran bermula dan membakar laluan (cakera wad kekal bersih). Minyak yang disambungkan akan menyala bersamanya. Api hanya bertahan dalam pertempuran ini."
   },
   "dragonAttack": {

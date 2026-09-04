@@ -28,7 +28,7 @@
     "description": "+{{gain}} försörjning nu. Nästa utplacering: −{{debt}}. En gång per runda."
   },
   "ward_dome": {
-    "name": "Ward-kupolen",
+    "name": "Skyddskupol",
     "description": "Absorberar fiendens projektiler som korsar en kupol (radie {{radius}}, höjd {{height}}). Pool är den här enhetens HP."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Armarna på plats, siktar sedan på den första fienden inom räckhåll {{range}} för {{damage}} skada (stänk {{splash}})."
   },
   "rally_route": {
-    "name": "Rallyrutt",
+    "name": "Samlingsrutt",
     "description": "Lägg till en laddning för rallyvägen till din trollformelremsa. En gång per match."
   },
   "move_pack": {
-    "name": "Flytta paketet",
+    "name": "Flytta Pack",
     "description": "Lägg till en flyttpaketsladdning till din trollformelremsa: en paket från en tidigare runda blir flyttbart igen. En gång per match."
   },
   "1_deployment": {

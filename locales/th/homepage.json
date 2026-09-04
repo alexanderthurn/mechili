@@ -57,7 +57,7 @@
     "spellModel": "โมเดลคาถา"
   },
   "flag": {
-    "flying": "บิน",
+    "flying": "บินได้",
     "structure": "โครงสร้าง",
     "extra": "พิเศษ",
     "attacksGround": "โจมตีพื้น",

@@ -28,7 +28,7 @@
     "description": "+{{gain}} bekalkan sekarang. Penggunaan seterusnya: −{{debt}}. Sekali setiap pusingan."
   },
   "ward_dome": {
-    "name": "Kubah wad",
+    "name": "Kubah pelindung",
     "description": "Menyerap projektil musuh yang melintasi kubah (jejari {{radius}}, ketinggian {{height}}). Kolam ialah HP unit ini."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Senjata di tempatnya, kemudian mengenai musuh pertama dalam jarak {{range}} untuk kerosakan {{damage}} (percikan {{splash}})."
   },
   "rally_route": {
-    "name": "Laluan Rali",
+    "name": "Laluan kumpul",
     "description": "Tambahkan satu caj laluan rali pada jalur jampi anda. Sekali setiap perlawanan."
   },
   "move_pack": {
-    "name": "Pek Pindah",
+    "name": "Gerakkan Pack",
     "description": "Tambahkan satu cas pek gerakan pada jalur jampi anda: satu pek dari pusingan sebelumnya boleh digerakkan semula. Sekali setiap perlawanan."
   },
   "1_deployment": {

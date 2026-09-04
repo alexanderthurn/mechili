@@ -36,7 +36,7 @@
     "description": "A közeli szövetségesek ellenállnak a torony gyengítéseinek, és 30 másodpercig 30%-kal kevesebb sebzést szenvednek el. A varázslók nem tudják őket átalakítani – ehelyett a sugár okoz sebzést."
   },
   "pitchBolts": {
-    "name": "Hasítócsavarok",
+    "name": "Szuroknyilak",
     "description": "A nyílvesszők becsapódáskor olajat fröccsennek (nem gyulladnak meg – párosítsd tűznyilakkal vagy Tűznyílvesszővel)."
   },
   "wideBlast": {

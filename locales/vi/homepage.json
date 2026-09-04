@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Triển khai quân đội tại khu vực khai hoang rừng.",
-    "2": "Giai đoạn triển khai và xưởng đơn vị",
+    "2": "Giai đoạn triển khai và cửa hàng đơn vị",
     "3": "Rồng phun lửa trên chiến trường",
     "4": "Các khu vực triển khai liền kề",
     "5": "Trận đánh quy mô lớn trên đồng bằng",
@@ -62,7 +62,7 @@
     "extra": "Thêm",
     "attacksGround": "Tấn công mặt đất",
     "attacksAir": "Tấn công trên không",
-    "shield": "mái vòm Ward",
+    "shield": "Vòm bảo vệ",
     "rocket": "Bu lông định vị"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Chọn một {{item}}",
     "base": "Căn cứ",
     "advanced": "Trình độ cao",
-    "shopTitle": "Mua ở cửa hàng, hoặc rút từ một lá bài tròn.",
+    "shopTitle": "Mua ở cửa hàng hoặc rút từ thẻ vòng",
     "shopLabel": "Giá bán tại cửa hàng",
     "forgeTitle": "Được rèn tại {{building}}",
     "forgeLabel": "Giá rèn"
@@ -121,9 +121,9 @@
     "own-unit": "gói riêng"
   },
   "roundCards": {
-    "title": "Thẻ tròn",
+    "title": "Thẻ vòng",
     "sub": "Từ vòng hai trở đi, hãy chọn một trong số các lá bài {{items}} được cung cấp từ bộ bài của trận đấu. Các lá bài phép thuật chiến đấu được mua tại Pháo đài, chứ không phải được chọn từ các lá bài.",
-    "select": "Chọn một lá bài tròn"
+    "select": "Chọn một thẻ vòng"
   },
   "matchSettings": {
     "title": "Cài đặt trận đấu",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "Về",
-    "lead": "MELODAN được sản xuất bởi Alexander Thurn (Feuerware). Ông đặt trụ sở tại Bonn, Đức.",
+    "lead": "MELODAN do Alexander Thurn (Feuerware) làm. Ông ở Bonn, Đức.",
     "inspired": "Trò chơi này lấy cảm hứng từ {{mechabellum}}, tựa game hay nhất trong thể loại này. MELODAN là một tác phẩm giả tưởng độc lập; hãy ủng hộ bản gốc và mua Mechabellum nhé! Cảm ơn!",
     "openSource": "Trò chơi này là {{github}} (GPL-3.0). Bản quyền thuộc về Alexander Thurn / Feuerware. Bạn có thể tự do sao chép (fork) nó, tạo ra các đơn vị mới và mở các yêu cầu kéo (pull request). Đối với những dự án lớn hơn, một phiên bản phái sinh phi thương mại hoặc thương mại, một sự thay đổi thương hiệu hoàn toàn, v.v., vui lòng liên hệ với tôi: {{email}}.",
     "openSourceLink": "mã nguồn mở trên GitHub"

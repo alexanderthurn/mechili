@@ -14,9 +14,9 @@
   "rateLimited": "För många förslag — försök igen om {{n}}s.",
   "sendFailed": "Kunde inte skicka. Försök igen senare.",
   "networkError": "Nätverksfel — försök igen senare.",
-  "catBug": "Bugga",
-  "catBalance": "Balans",
-  "catFeature": "Särdrag",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Modeller / konst",
   "catCommunity": "Gemenskap",
   "catOther": "Andra"

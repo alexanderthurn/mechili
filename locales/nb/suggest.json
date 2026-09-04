@@ -14,9 +14,9 @@
   "rateLimited": "For mange forslag – prøv igjen om {{n}}s.",
   "sendFailed": "Kunne ikke sende. Prøv på nytt senere.",
   "networkError": "Nettverksfeil – prøv igjen senere.",
-  "catBug": "Feil",
-  "catBalance": "Balansere",
-  "catFeature": "Trekk",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Modeller / kunst",
   "catCommunity": "Fellesskap",
   "catOther": "Annen"

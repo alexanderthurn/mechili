@@ -14,9 +14,9 @@
   "rateLimited": "Terlalu banyak saran — coba lagi dalam {{n}}s.",
   "sendFailed": "Pengiriman gagal. Coba lagi nanti.",
   "networkError": "Terjadi kesalahan jaringan — coba lagi nanti.",
-  "catBug": "Serangga",
-  "catBalance": "Keseimbangan",
-  "catFeature": "Fitur",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Model / seni",
   "catCommunity": "Masyarakat",
   "catOther": "Lainnya"

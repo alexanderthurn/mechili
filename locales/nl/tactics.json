@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Rallyroute",
+    "name": "Verzamelroute",
     "description": "Bepaal de start-, midden- en eindzone. Eenheden in de startcirkel marcheren door overeenkomende zones in het midden en vervolgens aan het eind, waarbij ze onderweg vechten."
   },
   "oilSpill": {
-    "name": "Olielek",
+    "name": "Olieplas",
     "description": "Plaats twee oliecirkels — omlijn ze tijdens het opstellen; kort na het begin van de strijd druppelt de olie van links naar rechts op het pad (de beschermingsschijven blijven vrij). De verbonden olie ontbrandt als één veld wanneer er vuur op komt."
   },
   "sellUnit": {
-    "name": "VerkoopPack",
+    "name": "Pack verkopen",
     "description": "Klik om je wapen te activeren en klik vervolgens op een van je Packs om deze te verkopen en je voorraad aan te vullen."
   },
   "moveUnit": {
-    "name": "VerhuisPack",
+    "name": "Pack verplaatsen",
     "description": "Klik om je wapen te activeren en klik vervolgens op een van je rugzakken uit een eerdere ronde. Je kunt deze rugzak gedurende de rest van deze ronde opnieuw verslepen en draaien."
   },
   "tutor": {
@@ -44,11 +44,11 @@
     "description": "Teken ergens een grote cirkel. Meteorenregens vallen een tijdje op willekeurige plekken binnen die cirkel, waarbij elke inslag de grond verschroeit."
   },
   "acidSpill": {
-    "name": "Zuurlekkage",
+    "name": "Zuurplas",
     "description": "Giet een zuurcapsule uit als een olievlek — het druppelt van links naar rechts op de grond kort nadat de strijd begint. Grond- en luchteenheden boven de plas sissen en corroderen — en lopen extra schade op door alles."
   },
   "fireSpill": {
-    "name": "Brandspill",
+    "name": "Vuurplas",
     "description": "Giet een vuurcapsule als olie; deze druppelt van links naar rechts kort nadat het gevecht begint en steekt het pad in brand (beschermingsschijven blijven vrij). Aangrenzende olie ontbrandt mee. De vlam brandt alleen tijdens dit gevecht."
   },
   "dragonAttack": {

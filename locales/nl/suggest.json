@@ -14,9 +14,9 @@
   "rateLimited": "Te veel suggesties — probeer het opnieuw in {{n}}s.",
   "sendFailed": "Verzenden mislukt. Probeer het later opnieuw.",
   "networkError": "Netwerkfout — probeer het later opnieuw.",
-  "catBug": "Beestje",
-  "catBalance": "Evenwicht",
-  "catFeature": "Functie",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Modellen / kunst",
   "catCommunity": "Gemeenschap",
   "catOther": "Ander"

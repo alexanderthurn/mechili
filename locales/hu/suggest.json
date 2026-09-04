@@ -14,9 +14,9 @@
   "rateLimited": "Túl sok javaslat – próbáld újra {{n}}s múlva.",
   "sendFailed": "Nem sikerült elküldeni. Próbáld újra később.",
   "networkError": "Hálózati hiba – próbálja újra később.",
-  "catBug": "Bogár",
-  "catBalance": "Egyensúly",
-  "catFeature": "Jellemző",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Modellek / művészet",
   "catCommunity": "Közösség",
   "catOther": "Más"

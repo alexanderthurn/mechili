@@ -28,7 +28,7 @@
     "description": "+{{gain}} forsyning nå. Neste utplassering: −{{debt}}. Én gang per runde."
   },
   "ward_dome": {
-    "name": "Avdelingskuppel",
+    "name": "Beskyttelseskuppel",
     "description": "Absorberer fiendtlige prosjektiler som krysser inn i en kuppel (radius {{radius}}, høyde {{height}}). Denne enhetens HP er Pool."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Våpnene på plass, deretter sikter du mot den første fienden innen rekkevidde {{range}} for {{damage}} skade (sprut {{splash}})."
   },
   "rally_route": {
-    "name": "Rallyrute",
+    "name": "Samlingsrute",
     "description": "Legg til én rallyrute-ladning på trollformelstripen din. Én gang per kamp."
   },
   "move_pack": {
-    "name": "Flyttpakke",
+    "name": "Flytt Pack",
     "description": "Legg til én trekkpakke til trylleformularlisten din: én pakke fra en tidligere runde blir flyttbar igjen. Én gang per kamp."
   },
   "1_deployment": {

@@ -14,9 +14,9 @@
   "rateLimited": "Příliš mnoho návrhů – zkuste to znovu za {{n}}s.",
   "sendFailed": "Nepodařilo se odeslat. Zkuste to znovu později.",
   "networkError": "Chyba sítě – zkuste to znovu později.",
-  "catBug": "Chyba",
-  "catBalance": "Váhy",
-  "catFeature": "Funkce",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Modely / umění",
   "catCommunity": "Společenství",
   "catOther": "Ostatní"

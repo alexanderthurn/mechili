@@ -14,9 +14,9 @@
   "rateLimited": "Твърде много предложения — опитайте отново след {{n}}s.",
   "sendFailed": "Не можа да се изпрати. Опитайте отново по-късно.",
   "networkError": "Мрежова грешка — опитайте отново по-късно.",
-  "catBug": "Буболечка",
-  "catBalance": "Баланс",
-  "catFeature": "Функция",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Модели / изкуство",
   "catCommunity": "Общност",
   "catOther": "Друго"

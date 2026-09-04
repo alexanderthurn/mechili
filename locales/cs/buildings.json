@@ -28,7 +28,7 @@
     "description": "+{{gain}} zásoby nyní. Další nasazení: −{{debt}}. Jednou za kolo."
   },
   "ward_dome": {
-    "name": "Kupole Ward",
+    "name": "Ochranná kupole",
     "description": "Absorbuje nepřátelské projektily, které proletí kopulí (poloměr {{radius}}, výška {{height}}). Pool představuje HP této jednotky."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Zbraně na místě, poté se zaměří na prvního nepřítele v dosahu {{range}} a způsobí mu {{damage}} poškození (rozstřik {{splash}})."
   },
   "rally_route": {
-    "name": "Trasa rallye",
+    "name": "Trasa shromáždění",
     "description": "Přidejte si jeden náboj shromažďovací trasy na svůj seznam kouzel. Jednou za zápas."
   },
   "move_pack": {
-    "name": "Přesunout balíček",
+    "name": "Přesun Packu",
     "description": "Přidejte si na svůj pásek kouzel jeden náboj balíčku pohybu: jeden balíček z předchozího kola se opět stane pohyblivým. Jednou za zápas."
   },
   "1_deployment": {

@@ -28,7 +28,7 @@
     "description": "+{{gain}} aprovizionare acum. Următoarea desfășurare: −{{debt}}. O dată pe rundă."
   },
   "ward_dome": {
-    "name": "Domul Ward",
+    "name": "Cupolă de protecție",
     "description": "Absoarbe proiectilele inamice care traversează o cupolă (rază {{radius}}, înălțime {{height}}). Rezerva reprezintă HP-ul acestei unități."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Brațele la locul lor, apoi țintește spre primul inamic din raza de acțiune {{range}} pentru daune {{damage}} (daune stropitoare {{splash}})."
   },
   "rally_route": {
-    "name": "Traseul raliului",
+    "name": "Traseu de adunare",
     "description": "Adaugă o taxă pentru ruta de raliu la banda ta de vrăji. O dată pe meci."
   },
   "move_pack": {
-    "name": "Pachet de mutare",
+    "name": "Mută Pack",
     "description": "Adaugă o încărcătură de pachet de mișcări la banda ta de vrăji: un pachet dintr-o rundă anterioară devine din nou mobil. O dată pe meci."
   },
   "1_deployment": {
