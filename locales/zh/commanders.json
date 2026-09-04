@@ -25,7 +25,7 @@
     "unitsLabel": "1× 鸦骑士 · 3× 矮人"
   },
   "meteor": {
-    "title": "Lord Hitzkopf",
+    "title": "希茨科普夫领主",
     "description": "第 2 回合获得 2 次陨石充能。",
     "unitsLabel": "1× 巫师 · 1× 矮人"
   },
@@ -34,7 +34,7 @@
     "unitsLabel": "1× 鸦骑士 · 1× 弓手 · 2× 矮人"
   },
   "giant": {
-    "title": "Countess Chonk",
+    "title": "壮硕女伯爵",
     "unitsLabel": "1× 弩炮 · 1× 矮人"
   },
   "tutor": {
@@ -47,12 +47,12 @@
     "unitsLabel": "2× 鸦骑士 · 1× 弓手"
   },
   "cursed": {
-    "title": "Cursed Christine",
+    "title": "诅咒的克里斯汀",
     "description": "每回合获得一只免费的黑巢幼体蜘蛛。",
     "unitsLabel": "2× 矮人 · 2× 弓手"
   },
   "flanky": {
-    "title": "Flanky Shadow",
+    "title": "侧翼之影",
     "description": "首次侧翼出现时间减半。",
     "unitsLabel": "2× 矮人 · 2× 弓手"
   }

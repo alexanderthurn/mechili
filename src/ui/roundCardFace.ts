@@ -13,6 +13,7 @@ import {
     roundCardDescription,
     roundCardTitle,
     roundCardUnitsLabel,
+    t,
     tacticName,
 } from '../i18n';
 import { TACTICS } from '../game/tactics';
@@ -55,7 +56,9 @@ function catalogExtras(c: RoundCard): string[] {
     if (c.tactics?.length) {
         extras.push(c.tactics.map((id) => tacticName(id, TACTICS[id]?.name ?? id)).join(', '));
     }
-    if (c.flankSpawnHalf) extras.push('Flank spawn half-time');
+    if (c.flankSpawnHalf) {
+        extras.push(t('hud:flankHalf', { defaultValue: 'Flank spawn half-time' }));
+    }
     return extras;
 }
 
@@ -122,6 +125,6 @@ export function roundCardFaceHtml(c: RoundCard, opts: RoundCardFaceOpts = {}): s
         (subtitle.length ? `<div class="c-units">${escapeHtml(subtitle.join(' · '))}</div>` : '') +
         `<div class="c-desc">${escapeHtml(roundCardDescription(c.id, c.description))}</div>` +
         forgeRowsHtml(forgeRows, runeId) +
-        `<div class="c-cost${c.cost > 0 ? '' : ' free'}">${c.cost > 0 ? moneyHtml(c.cost) : 'Free'}</div>`
+        `<div class="c-cost${c.cost > 0 ? '' : ' free'}">${c.cost > 0 ? moneyHtml(c.cost) : t('hud:free', { defaultValue: 'Free' })}</div>`
     );
 }

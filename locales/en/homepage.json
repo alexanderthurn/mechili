@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Deploy armies in secret and watch the round play out. Your enemy does the same. Adapt, repeat until one of you runs out of HP.",
+  "hero": {
+    "wishlist": "Wishlist now",
+    "trailer": "Watch Trailer",
+    "steamSoon": "Steam page coming soon"
+  },
+  "screenshots": {
+    "title": "Screenshots",
+    "sub": "A look at deployment and battle.",
+    "browse": "Browse screenshots",
+    "open": "Open screenshot: {{label}}",
+    "fallback": "Screenshot",
+    "missing": "{{label}} ⬢ drop file in assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Army deployment in the forest clearing",
+    "2": "Deployment phase and unit shop",
+    "3": "Dragon fire breath over the field",
+    "4": "Side-by-side deployment zones",
+    "5": "Mass battle on the plains",
+    "6": "Winter stronghold in the snow",
+    "7": "Dual bases on the grid",
+    "8": "Large fortified base"
+  },
+  "lightbox": {
+    "gallery": "Screenshot gallery",
+    "close": "Close gallery",
+    "prev": "Previous screenshot",
+    "next": "Next screenshot",
+    "dots": "Screenshots",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Units, buildings & spells",
+    "sub": "Your army, buildings, {{horde}} packs, and battle-spell models. Pick one to inspect — Crow Rider and Dragon flap in this preview.",
+    "canvas": "Unit 3D preview",
+    "loading": "Loading model…",
+    "hint": "Drag to rotate · Scroll to zoom",
+    "select": "Choose a unit, building, or spell",
+    "list": "Units, buildings, and spells",
+    "buildings": "Buildings",
+    "units": "Units",
+    "spells": "Spells"
+  },
+  "stats": {
+    "cost": "Cost",
+    "hp": "HP",
+    "damage": "Damage",
+    "range": "Range",
+    "attackInterval": "Attack interval",
+    "seconds": "{{value}}s",
+    "speed": "Speed",
+    "abilities": "Abilities",
+    "spellModel": "Spell model"
+  },
+  "flag": {
+    "flying": "Flying",
+    "structure": "Structure",
+    "extra": "Extra",
+    "attacksGround": "Attacks ground",
+    "attacksAir": "Attacks air",
+    "shield": "Ward dome",
+    "rocket": "Homing bolt"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Dragon Attack",
+      "blurb": "Strafing fire breath. Wing flap uses the same shader path as Crow Rider (mesh mode)."
+    },
+    "hammer": {
+      "name": "Hammer of the Gods",
+      "blurb": "Divine hammer that drops onto a placed zone."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Single heavy meteor strike."
+    },
+    "meteor-shard": {
+      "name": "Meteor Shower shard",
+      "blurb": "Smaller meteor used by the shower barrage."
+    },
+    "storm": {
+      "name": "Storm Call",
+      "blurb": "Storm cloud that hurls lightning."
+    },
+    "poison": {
+      "name": "Poison Cloud",
+      "blurb": "Toxic sky clouds that rain sparse acid over a huge circle."
+    }
+  },
+  "commanders": {
+    "sub": "Before round one, each player picks a {{commander}}. It sets your starting army, HP pool, a permanent speciality, and three Stronghold forge {{tactics}} (weak / mid / strong). Teammates share the union of their forge {{tactics}}.",
+    "select": "Choose a {{commander}}"
+  },
+  "runes": {
+    "sub": "Fused onto a pack for good, lifting every mech in it {{sep}} most packs hold {{packLimit}}, the ballista {{ballistaLimit}}. The four base runes are drafted from round cards or bought in the shop; the stronger ones are forged from them at the Stronghold, and never sold.",
+    "select": "Choose a {{item}}",
+    "base": "Base",
+    "advanced": "Advanced",
+    "shopTitle": "Bought in the shop, or drafted from a round card",
+    "shopLabel": "Shop price",
+    "forgeTitle": "Forged at the {{building}}",
+    "forgeLabel": "Forge price"
+  },
+  "tactics": {
+    "sub": "These are the skills on your {{tactics}} strip {{sep}} rallies, spills, summons, and battle casts like the dragon’s fire breath. Battle spells are bought at your Stronghold, once each, and only the three your commander knows. Icons match what you see in-game.",
+    "select": "Choose a {{tactic}}",
+    "placement": "Placement",
+    "oneShot": "One-shot",
+    "buyTitle": "Bought at the {{building}}",
+    "priceLabel": "{{building}} price"
+  },
+  "targeting": {
+    "point": "point",
+    "two-point": "two-point",
+    "three-point": "three-point",
+    "point-yaw": "point + facing",
+    "own-unit": "own pack"
+  },
+  "roundCards": {
+    "title": "Round cards",
+    "sub": "From round two onward, draft one of several offered {{items}} cards drawn from the match pool. Battle spells are bought at the Stronghold, not drafted from cards.",
+    "select": "Choose a round card"
+  },
+  "matchSettings": {
+    "title": "Match settings",
+    "sub": "The default rules for a match, pulled straight from the game's settings code so this can't drift from what actually ships. Everything here is tunable — it's open source."
+  },
+  "contribute": {
+    "title": "Contribute",
+    "sub1": "Melodan is developed by a single person, me. I am passionate about this game, but i can not make an AAA title and keep everything perfect, balanced and so on. The idea is to have an open game where anybody can contribute.",
+    "sub2": "Let’s make this together. Balance, bugs, features, art ideas {{sep}} send a short note and I will read it. If you want to do more, welcome!",
+    "play": "Test in Browser",
+    "feedback": "Send feedback",
+    "discord": "Discord",
+    "devlog": "Developer Log",
+    "waysTitle": "Ways to help",
+    "way1": "Share ideas and bug reports",
+    "way2": "Open pull requests on {{github}} (GPL-3.0)",
+    "way3": "Make or improve 3D models",
+    "way4": "Take care of balancing, invent new spells, cards, ideas.",
+    "way5": "Welcome players, write guides, help with moderation if you want to take that on"
+  },
+  "about": {
+    "title": "About",
+    "lead": "MELODAN is made by Alexander Thurn (Feuerware). He is located in Bonn, Germany.",
+    "inspired": "This game is inspired by {{mechabellum}} the best game in the genre. MELODAN is an independent fantasy take; please support the original and buy Mechabelum. Thank you!",
+    "openSource": "The game is {{github}} (GPL-3.0). Copyright stays with Alexander Thurn / Feuerware. Feel free to fork it privately, invent new units, and open pull requests. For something bigger, a non- or commercial spin-off, a full rebrand etc. feel free to write me: {{email}}.",
+    "openSourceLink": "open source on GitHub"
+  },
+  "footer": {
+    "play": "Play",
+    "steam": "Steam",
+    "feedback": "Feedback",
+    "imprint": "Imprint",
+    "privacy": "Data privacy"
+  }
+}

@@ -22,6 +22,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
 import { EffectToggles } from './effectToggles';
 import { DISPLAY } from './displayNames';
+import { t, itemDescription, itemName, tacticDescription, tacticName, techName, unitName } from '../i18n';
 import { THEME } from '../theme';
 import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
@@ -1703,7 +1704,7 @@ export class Game {
                     t.id,
                     techsForUnit(t.id, this.loadoutOf(this.humanSeat)).map((tech) => ({
                         icon: techIcon(tech),
-                        label: tech.name,
+                        label: techName(tech.id, tech.name),
                         cost: tech.cost,
                         desc: techDescription(tech),
                     })),
@@ -3587,7 +3588,9 @@ export class Game {
                 hashes: Object.fromEntries(hashes),
             });
             const names = mismatched.map((s) => this.seats[s]?.name).filter((n): n is string => !!n);
-            if (names.length > 0) this.announceSystem(`Resyncing ${names.join(', ')}…`, names.join(', '));
+            if (names.length > 0) {
+                this.announceSystem(t('hud:noticeResyncing', { names: names.join(', ') }), names.join(', '));
+            }
             for (const seat of mismatched) {
                 this.pendingSyncSeats.add(seat);
                 this.starSeatReconnected(seat);
@@ -4014,13 +4017,18 @@ export class Game {
                 hub.broadcast(relayed);
             };
             hub.onSpectatorDebugLog = (events) => this.debugLog.ingest(events);
-            hub.onSpectatorJoined = (name) => this.announceSystem(`${name} joined as a spectator.`, name);
-            hub.onSpectatorLeft = (name) => this.announceSystem(`${name} stopped spectating.`, name);
+            hub.onSpectatorJoined = (name) =>
+                this.announceSystem(t('hud:noticeSpectatorJoined', { name }), name);
+            hub.onSpectatorLeft = (name) =>
+                this.announceSystem(t('hud:noticeSpectatorLeft', { name }), name);
             hub.listen((claimedName, version, conn) => {
                 if (version !== GAME_VERSION) {
                     conn.send({
                         type: 'spectateRejected',
-                        reason: `Version mismatch — this match runs ${formatGameVersion(GAME_VERSION)}, you have ${formatGameVersion(version)}.`,
+                        reason: t('hud:noticeVersionMismatch', {
+                            host: formatGameVersion(GAME_VERSION),
+                            you: formatGameVersion(version),
+                        }),
                     });
                     conn.close();
                     return;
@@ -4177,8 +4185,10 @@ export class Game {
         this.hud.hidePauseMenu();
         this.placement.deselect();
         this.armedItem = null;
-                this.hud.showNotice('Lost connection to the host — reconnecting…', 'Give up', () =>
-                    this.voluntaryQuit(),
+                this.hud.showNotice(
+                    t('hud:noticeLostConnectionReconnecting'),
+                    t('hud:giveUp'),
+                    () => this.voluntaryQuit(),
                 );
         const controller = new AbortController();
         this.starRedialAbort = controller;
@@ -4204,11 +4214,11 @@ export class Game {
                     this.onNeedsFullResync?.(fresh, reply);
                 } else {
                     fresh.close();
-                    if (!this.matchOver) this.suspend('The host rejected our reconnect.');
+                    if (!this.matchOver) this.suspend(t('hud:noticeHostRejectedReconnect'));
                 }
             })
             .catch(() => {
-                if (!this.matchOver) this.suspend('Lost connection to the host.');
+                if (!this.matchOver) this.suspend(t('hud:noticeLostConnection'));
             })
             .finally(() => {
                 clearTimeout(timeout);
@@ -4319,7 +4329,9 @@ export class Game {
         // while it's already pending
         if (!this.pendingStarSeats.has(seat)) {
             const name = this.seats[seat]?.name;
-            if (name) this.announceSystem(`${name} disconnected — waiting for them to reconnect.`, name);
+            if (name) {
+                this.announceSystem(t('hud:noticeDisconnectedReconnect', { name }), name);
+            }
         }
         this.pendingStarSeats.add(seat);
         this.pendingDropNames = this.computePendingDropNames();
@@ -4402,7 +4414,7 @@ export class Game {
         this.hud.hidePauseMenu();
         this.placement.deselect();
         this.armedItem = null;
-        this.hud.showNotice('Waiting…', 'Give up', () => this.voluntaryQuit());
+        this.hud.showNotice(t('hud:noticeWaiting'), t('hud:giveUp'), () => this.voluntaryQuit());
         this.star.session.send({ type: 'starResyncRequest' });
     }
 
@@ -4438,15 +4450,20 @@ export class Game {
      *  should change (see the per-frame check in tick()) or the underlying
      *  pending-seat set changes. */
     private showSuspendNotice(): void {
-        this.hud.showNotice(this.suspendNoticeText(), 'Give up', () => this.voluntaryQuit());
+        this.hud.showNotice(this.suspendNoticeText(), t('hud:giveUp'), () => this.voluntaryQuit());
     }
 
     private suspendNoticeText(): string {
-        const who = this.pendingDropNames.length > 0 ? this.pendingDropNames.join(', ') : 'Player';
-        if (this.suspendDeadline === null) return `${who} disconnected — waiting…`;
+        const who =
+            this.pendingDropNames.length > 0
+                ? this.pendingDropNames.join(', ')
+                : t('hud:noticePlayer');
+        if (this.suspendDeadline === null) {
+            return t('hud:noticeDisconnectedWaiting', { name: who });
+        }
         const remainingS = Math.max(0, Math.ceil((this.suspendDeadline - performance.now()) / 1000));
         const time = `${Math.floor(remainingS / 60)}:${String(remainingS % 60).padStart(2, '0')}`;
-        return `${who} disconnected — waiting ${time}`;
+        return t('hud:noticeDisconnectedWaitingTime', { name: who, time });
     }
 
     /** star host only: the transport reclaimed the seat — send it
@@ -4498,7 +4515,7 @@ export class Game {
      *  — un-suspend once every pending seat has done the same */
     private starSeatReady(seat: SeatId): void {
         const name = this.seats[seat]?.name;
-        if (name) this.announceSystem(`${name} reconnected.`, name);
+        if (name) this.announceSystem(t('hud:noticeReconnected', { name }), name);
         this.pendingStarSeats.delete(seat);
         this.resumeIfAllClear();
     }
@@ -4684,7 +4701,7 @@ export class Game {
         const rng = mulberry32(seedFrom(this.seed, `ai-quit-${seat}-${this.round}`));
         const ai = new AiOpponent(def.team, seat, this.aiCtxFor(rng));
         this.extraAis.push({ ai, rng, team: def.team, seat });
-        this.announceSystem(`${def.name} disconnected — AI has taken over.`, def.name);
+        this.announceSystem(t('hud:noticeAiTakenOver', { name: def.name }), def.name);
         this.broadcastRoster();
         this.refreshCommanders();
         // this round's build may already be in progress with nobody left
@@ -4747,7 +4764,7 @@ export class Game {
         // this one) as a fatal protocol error, closing the connection
         // instants after accepting it.
         this.starSeatReconnected(seat);
-        this.announceSystem(`${def.name} has taken back their seat.`, def.name);
+        this.announceSystem(t('hud:noticeTakenBackSeat', { name: def.name }), def.name);
         this.broadcastRoster();
         this.refreshCommanders();
         this.refreshRoomAd();
@@ -4932,7 +4949,7 @@ export class Game {
         this.hud.hidePauseMenu();
         this.placement.deselect();
         this.armedItem = null;
-        this.hud.showNotice(message, 'Give up — back to menu', () => this.voluntaryQuit());
+        this.hud.showNotice(message, t('hud:giveUpBackToMenu'), () => this.voluntaryQuit());
     }
 
     /**
@@ -6507,9 +6524,13 @@ export class Game {
                     })),
                     ...cooling.map((s) => {
                         const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
+                        const name = tacticName(tactic.id, tactic.name);
                         return {
                             badge: readyIn,
-                            hint: `${tactic.name} — cooling down.\nReady again in ${readyIn} round${readyIn === 1 ? '' : 's'}.`,
+                            hint: t('hud:tacticCoolingDown', {
+                                name,
+                                ready: t('hud:tacticReadyAgain', { n: readyIn }),
+                            }),
                         };
                     }),
                 ];
@@ -6528,10 +6549,11 @@ export class Game {
                     this.round - tactic.cooldownRounds,
                 );
                 const coolingHint = (usedRound: number, readyIn: number): string => {
-                    const ready = `Ready again in ${readyIn} round${readyIn === 1 ? '' : 's'}.`;
+                    const name = tacticName(tactic.id, tactic.name);
+                    const ready = t('hud:tacticReadyAgain', { n: readyIn });
                     return usedRound === this.round
-                        ? `${tactic.name} — used this round.\nUndo gives it back. ${ready}`
-                        : `${tactic.name} — cooling down.\n${ready}`;
+                        ? t('hud:tacticUsedThisRound', { name, ready })
+                        : t('hud:tacticCoolingDown', { name, ready });
                 };
                 // A spent one-shot has NO per-entry revert: its effect is already
                 // applied to a pack, and only the global undo can take it back.
@@ -6541,7 +6563,10 @@ export class Game {
                 placedEntries = [
                     ...Array.from({ length: ability.used }, () => ({
                         badge: 1,
-                        hint: `${tactic.name} — used this round.\nUndo gives it back. Ready again next round.`,
+                        hint: t('hud:tacticUsedThisRound', {
+                            name: tacticName(tactic.id, tactic.name),
+                            ready: t('hud:tacticReadyAgainNext'),
+                        }),
                     })),
                     ...useRounds.map((r) => {
                         const readyIn = r + tactic.cooldownRounds + 1 - this.round;
@@ -6551,10 +6576,14 @@ export class Game {
                 avail = ability.max - ability.used + Math.max(0, inventory - useRounds.length);
             }
             for (const p of placedEntries) {
+                const name = tacticName(tactic.id, tactic.name);
                 out.push({
                     id: tactic.id,
                     icon: tactic.icon,
-                    name: `${tactic.name} — ${tactic.kind === 'placement' ? 'placed' : 'used'}`,
+                    name:
+                        tactic.kind === 'placement'
+                            ? t('hud:tacticPlaced', { name })
+                            : t('hud:tacticUsedLabel', { name }),
                     armed: false,
                     placed: true,
                     index: slot,
@@ -6573,17 +6602,15 @@ export class Game {
                     slot++;
                     continue;
                 }
+                const desc = tacticDescription(tactic.id, tactic.description);
                 out.push({
                     id: tactic.id,
                     icon: tactic.icon,
-                    name: `${tactic.name} — ${tactic.description}`,
+                    name: `${tacticName(tactic.id, tactic.name)} — ${desc}`,
                     armed: false,
                     index: slot,
                     // one-shots aren't "placed on the map" — override the default hint
-                    hint:
-                        tactic.kind === 'oneShot'
-                            ? `${tactic.description}\nRight-click to cancel.`
-                            : undefined,
+                    hint: tactic.kind === 'oneShot' ? `${desc}\n${t('hud:rightClickCancel')}` : undefined,
                 });
                 slot++;
             }
@@ -8868,7 +8895,7 @@ export class Game {
             const note = matches
                 ? `✓ Matches recorded result (${exp.result}, ${exp.rounds} rounds, ${exp.playerHp}-${exp.enemyHp})`
                 : `⚠ MISMATCH — recorded ${exp.result}/${exp.rounds} rounds/${exp.playerHp}-${exp.enemyHp}, this run: ${result}/${this.round} rounds/${this.playerHp}-${this.enemyHp}`;
-            this.hud.showGameOver(result, { note, backLabel: 'Back to replays', title, details });
+            this.hud.showGameOver(result, { note, backLabel: t('hud:backToReplays'), title, details });
         } else {
             this.hud.showGameOver(result, { title, details });
         }
@@ -8878,12 +8905,12 @@ export class Game {
      *  independent of this.humanSeat, which is just an arbitrary display
      *  reference for them, not a real side. */
     private winningSideTitle(result: 'victory' | 'defeat' | 'draw'): string {
-        if (result === 'draw') return 'DRAW';
+        if (result === 'draw') return t('hud:draw');
         const alive: SideId[] = [];
         for (let side = 0; side < this.hp.length; side++) {
             if (this.hp[side]! > 0) alive.push(side);
         }
-        if (alive.length !== 1) return 'DRAW';
+        if (alive.length !== 1) return t('hud:draw');
         const names = sideIdsOf(this.seats, alive[0]!)
             .map((seat) => this.seats[seat]!.name)
             .join(' & ');
@@ -9839,7 +9866,7 @@ export class Game {
         const team = actorTeam(a);
         const seat = actorSeat(a);
         return {
-            name: u.type.name,
+            name: unitName(u.type.id, u.type.name),
             team,
             owner: this.ownerName(team, seat),
             hits: targetsLabel(
@@ -9883,7 +9910,7 @@ export class Game {
         const fogItems = this.placement.intelOf(u)?.items;
         const ownInteractive = u.team === 'player' && this.playerCanAct;
         return {
-            name: u.type.name,
+            name: unitName(u.type.id, u.type.name),
             team: u.team,
             owner: this.ownerName(u.team, u.seat),
             hits: targetsLabel(
@@ -9944,8 +9971,8 @@ export class Game {
         return itemIds.map((id, i) => ({
             id,
             icon: ITEMS[id]?.icon ?? '?',
-            name: ITEMS[id]?.name ?? id,
-            desc: ITEMS[id]?.description ?? '',
+            name: itemName(id, ITEMS[id]?.name ?? id),
+            desc: itemDescription(id, ITEMS[id]?.description ?? ''),
             removable:
                 allowRemove &&
                 u.seat === this.humanSeat &&
@@ -10003,7 +10030,7 @@ export class Game {
                 if (!t) continue;
                 slots.push({
                     id: t.id,
-                    name: t.name,
+                    name: techName(t.id, t.name),
                     desc: techDescription(t),
                     icon: techIcon(t),
                     cost: 0,
@@ -10031,7 +10058,7 @@ export class Game {
             const cost = this.economy.techCostOf(t, ownedCount);
             slots.push({
                 id: t.id,
-                name: t.name,
+                name: techName(t.id, t.name),
                 desc: techDescription(t),
                 icon: techIcon(t),
                 cost,
@@ -10132,7 +10159,10 @@ export class Game {
                 const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
                 return {
                     id,
-                    label: `Army ${id === 'attack' ? 'attack' : 'HP'} +${pct}%`,
+                    label:
+                        id === 'attack'
+                            ? t('hud:armyAttackBoost', { pct })
+                            : t('hud:armyHpBoost', { pct }),
                     cost,
                     affordable: canBuy && !maxed && bal >= cost,
                     maxed,
@@ -10224,14 +10254,14 @@ export class Game {
     private destructionNote(u: Unit): string | undefined {
         if (!u.type.structure) return undefined;
         if (u.type === STRONGHOLD) {
-            return this.settings.strongholdMode === 'lifeline' ? 'Instant loss' : 'No effect';
+            return this.settings.strongholdMode === 'lifeline' ? t('hud:instantLoss') : t('hud:noEffect');
         }
         if (u.type !== COMMAND_TOWER && u.type !== RESEARCH_CENTER) return undefined;
         // the window shrinks as the building levels, so read it off THIS one —
         // and a fully upgraded tower reaches 0, where the sim applies nothing
         const dur = this.settings.towers.debuffDuration;
         const seconds = Math.max(0, dur.baseSeconds - (u.level - 1) * dur.stepSeconds);
-        return seconds > 0 ? `${seconds} second debuff` : 'No effect';
+        return seconds > 0 ? t('hud:secondDebuff', { n: seconds }) : t('hud:noEffect');
     }
 
     /**
@@ -10333,8 +10363,8 @@ export class Game {
                     return {
                         tacticId,
                         icon: t.icon,
-                        name: t.name,
-                        desc: t.description,
+                        name: tacticName(tacticId, t.name),
+                        desc: tacticDescription(tacticId, t.description),
                         cost,
                         owned,
                         affordable: seatCanBuy && !owned && bal >= cost,
@@ -10407,8 +10437,8 @@ export class Game {
                     return {
                         id,
                         icon: ITEMS[id]?.icon ?? '?',
-                        name: ITEMS[id]?.name ?? id,
-                        desc: ITEMS[id]?.description ?? '',
+                        name: itemName(id, ITEMS[id]?.name ?? id),
+                        desc: itemDescription(id, ITEMS[id]?.description ?? ''),
                         removable: false,
                     };
                 }
@@ -10417,8 +10447,8 @@ export class Game {
                 return {
                     id: s.itemId,
                     icon: ITEMS[s.itemId]?.icon ?? '?',
-                    name: ITEMS[s.itemId]?.name ?? s.itemId,
-                    desc: ITEMS[s.itemId]?.description ?? '',
+                    name: itemName(s.itemId, ITEMS[s.itemId]?.name ?? s.itemId),
+                    desc: itemDescription(s.itemId, ITEMS[s.itemId]?.description ?? ''),
                     removable:
                         canBuy && s.seat === this.humanSeat && s.round === this.round,
                 };
@@ -10467,10 +10497,10 @@ interface BuildingIntelSeat {
 
 /** Short label for the details-pane "Hits" row. */
 function targetsLabel(targets: { ground: boolean; air: boolean }): string {
-    if (targets.ground && targets.air) return 'Ground & air';
-    if (targets.ground) return 'Ground';
-    if (targets.air) return 'Air';
-    return 'None';
+    if (targets.ground && targets.air) return t('hud:groundAir');
+    if (targets.ground) return t('hud:groundOnly');
+    if (targets.air) return t('hud:airOnly');
+    return t('hud:none');
 }
 
 /** yaw so local +Z points from (ax,az) toward (bx,bz); 0 if the points coincide */

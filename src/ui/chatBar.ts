@@ -39,10 +39,10 @@ export class ChatBar {
         bar.className = 'mechili-chat';
         if (opts.inline) bar.classList.add('inline');
 
-        const emoteButtons = EMOTES.map(
-            (e) =>
-                `<button type="button" class="c-emote" data-emote="${e.id}" title="${e.label}">${iconHtml(e.icon, 'c-emote-ico')}</button>`,
-        ).join('');
+        const emoteButtons = EMOTES.map((e) => {
+            const title = t(`hud:emote_${e.id}`, { defaultValue: e.label });
+            return `<button type="button" class="c-emote" data-emote="${e.id}" title="${title}">${iconHtml(e.icon, 'c-emote-ico')}</button>`;
+        }).join('');
         bar.innerHTML =
             `<div class="c-strip">${t('hud:chatStrip')}</div>` +
             `<div class="c-panel">` +

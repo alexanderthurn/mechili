@@ -744,13 +744,13 @@ export class Hud {
 
         this.undoEl = document.createElement('button');
         this.undoEl.className = 'undo';
-        this.undoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} Undo`;
-        this.undoEl.title = 'Revert your last action this round — click again for the one before';
+        this.undoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} ${t('hud:undo')}`;
+        this.undoEl.title = t('hud:undoTip');
         this.undoEl.addEventListener('click', () => this.onUndo?.());
 
         this.supplyFrame = document.createElement('div');
         this.supplyFrame.className = 'mechili-supply clickable';
-        this.supplyFrame.title = 'Match settings';
+        this.supplyFrame.title = t('hud:matchSettings');
         this.supplyEl = document.createElement('span');
         this.supplyEl.className = 'supply';
         this.supplyEl.insertAdjacentHTML('afterbegin', moneyIconHtml('supply-ico'));
@@ -767,7 +767,7 @@ export class Hud {
         this.levelAllGlobalBtn = document.createElement('button');
         this.levelAllGlobalBtn.className = 'level-all-global';
         this.levelAllGlobalBtn.style.display = 'none';
-        this.levelAllGlobalBtn.title = 'Level up every ready pack on the field';
+        this.levelAllGlobalBtn.title = t('hud:levelAllDesc');
         this.levelAllGlobalBtn.addEventListener('click', () => this.onLevelAllGlobal?.());
 
         this.extrasRow = document.createElement('div');
@@ -786,7 +786,7 @@ export class Hud {
         shopHeader.className = 'shop-header';
         this.deploysEl = document.createElement('span');
         this.deploysEl.className = 'unit-cap';
-        this.deploysEl.title = 'Purchases this round / your limit (units + base runes)';
+        this.deploysEl.title = t('hud:deploysTitle');
         this.deploysEl.innerHTML =
             `${iconHtml('ui-settings', 'btn-ico mask-ico')}<span class="unit-cap-label"></span>`;
         this.shopRuneRow = document.createElement('div');
@@ -824,11 +824,11 @@ export class Hud {
         }
         this.unlockTile = document.createElement('button');
         this.unlockTile.className = 'shop-tile unlock';
-        this.unlockTile.title = 'Unlock one new unit type this round';
+        this.unlockTile.title = t('hud:unlockTileTitle');
         this.unlockTile.innerHTML =
-            '<span class="title">Unlock</span>' +
+            `<span class="title">${t('hud:unlock')}</span>` +
             '<span class="unlock-icon">+</span>' +
-            '<span class="unlock-label">Unit</span>';
+            `<span class="unlock-label">${t('hud:unit')}</span>`;
         this.unlockTile.style.display = 'none';
         this.unlockTile.addEventListener('click', () => this.openUnlockPicker());
         shopGrid.appendChild(this.unlockTile);
@@ -1096,7 +1096,7 @@ export class Hud {
         this.spectatorBadgeEl.type = 'button';
         this.spectatorBadgeEl.className = 'spectator-badge';
         this.spectatorBadgeEl.style.display = 'none';
-        this.spectatorBadgeEl.title = 'Spectators watching this match';
+        this.spectatorBadgeEl.title = t('hud:spectatorsTitle');
         this.spectatorBadgeEl.addEventListener('click', () => this.toggleSpectatorList());
         topMeta.append(this.roundEl, this.spectatorBadgeEl);
         this.timerEl = document.createElement('span');
@@ -1110,7 +1110,7 @@ export class Hud {
         this.speedEl.className = 'speed';
         this.speedEl.textContent = '1×';
         // filled in by setSpeedSteps once Game hands over its step list
-        this.speedEl.title = 'Battle speed — click: faster, right click: slower';
+        this.speedEl.title = t('hud:speedTitle');
         this.speedEl.addEventListener('click', () => this.onSpeedUp?.());
         this.speedEl.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -1178,11 +1178,12 @@ export class Hud {
         this.phoneStatusEl.className = 'mechili-phone-status';
         this.phoneUndoEl = document.createElement('button');
         this.phoneUndoEl.className = 'undo';
-        this.phoneUndoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} Undo`;
+        this.phoneUndoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} ${t('hud:undo')}`;
+        this.phoneUndoEl.title = t('hud:undoTip');
         this.phoneUndoEl.addEventListener('click', () => this.onUndo?.());
         const phoneSupplyFrame = document.createElement('div');
         phoneSupplyFrame.className = 'mechili-supply clickable';
-        phoneSupplyFrame.title = 'Match settings';
+        phoneSupplyFrame.title = t('hud:matchSettings');
         this.phoneSupplyEl = document.createElement('span');
         this.phoneSupplyEl.className = 'supply';
         this.phoneSupplyEl.insertAdjacentHTML('afterbegin', moneyIconHtml('supply-ico'));
@@ -1194,14 +1195,14 @@ export class Hud {
         this.phoneLevelAllEl = document.createElement('button');
         this.phoneLevelAllEl.className = 'level-all-global';
         this.phoneLevelAllEl.style.display = 'none';
-        this.phoneLevelAllEl.title = 'Level up every ready pack on the field';
+        this.phoneLevelAllEl.title = t('hud:levelAllDesc');
         this.phoneLevelAllEl.addEventListener('click', () => this.onLevelAllGlobal?.());
         // menu sits at the top of the strip, directly under the enemy card —
         // far away from End Deployment (the topbar twin hides on phone)
         this.phoneMenuEl = document.createElement('button');
         this.phoneMenuEl.className = 'mechili-phone-menu';
         this.phoneMenuEl.innerHTML = iconHtml('ui-menu', 'btn-ico');
-        this.phoneMenuEl.title = 'Menu (Esc)';
+        this.phoneMenuEl.title = t('hud:menuEsc');
         this.phoneMenuEl.addEventListener('click', () => this.onMenuToggle?.());
         this.phoneStatusEl.append(
             this.phoneMenuEl,
@@ -1747,9 +1748,12 @@ export class Hud {
               items
                   .map((i) => {
                       const def = ITEMS[i.id];
-                      const extra =
-                          `Press and drag onto a pack (or click to pick up, then click a pack). ` +
-                          `Free ${DISPLAY.item.toLowerCase()} slot required.`;
+                      const extra = t('hud:invItemUse', {
+                          item: DISPLAY.item,
+                          defaultValue:
+                              `Press and drag onto a pack (or click to pick up, then click a pack). ` +
+                              `Free ${DISPLAY.item} slot required.`,
+                      });
                       const tip =
                           def
                               ? ` data-spell-tip="1" data-ttitle="${escapeAttr(itemName(i.id, def.name))}" ` +
@@ -1766,48 +1770,48 @@ export class Hud {
         const tacticHtml = tactics.length
             ? this.invSectionTitle(DISPLAY.tactics, tactics.length, total) +
               tactics
-                  .map((t) => {
-                      const routeAttr = t.routeId !== undefined ? ` data-route-id="${t.routeId}"` : '';
+                  .map((tac) => {
+                      const routeAttr = tac.routeId !== undefined ? ` data-route-id="${tac.routeId}"` : '';
                       // Generic rule: the cancel affordance requires something
                       // this strip can actually clear, i.e. a routeId. A spent
                       // one-shot has no per-entry revert (only the global undo),
                       // so it must never advertise a button that does nothing.
-                      const cancel = t.badge === 'cancel' && t.routeId !== undefined;
-                      const waitRounds = typeof t.badge === 'number' ? t.badge : null;
+                      const cancel = tac.badge === 'cancel' && tac.routeId !== undefined;
+                      const waitRounds = typeof tac.badge === 'number' ? tac.badge : null;
                       const cls =
                           `inv-item tactic` +
-                          (t.placed ? ' placed' : '') +
-                          (t.armed ? ' armed' : '') +
+                          (tac.placed ? ' placed' : '') +
+                          (tac.armed ? ' armed' : '') +
                           (cancel ? ' cancelable' : '') +
                           (waitRounds !== null ? ' cooling' : '');
-                      const def = TACTICS[t.id];
+                      const def = TACTICS[tac.id];
                       const usage =
-                          t.placed || cancel
-                              ? 'Click or right-click to clear and place again.'
-                              : 'Click to place on the map. Right-click to cancel.';
+                          tac.placed || cancel
+                              ? t('hud:clearAndPlaceAgain')
+                              : t('hud:placeOnMap');
                       const tip =
                           def
-                              ? ` data-spell-tip="1" data-ttitle="${escapeAttr(tacticName(t.id, def.name))}" ` +
-                                `data-tdesc="${escapeAttr(t.hint ?? `${tacticDescription(t.id, def.description)}\n${usage}`)}" ` +
-                                `data-ticon="${escapeAttr(t.icon)}"` +
+                              ? ` data-spell-tip="1" data-ttitle="${escapeAttr(tacticName(tac.id, def.name))}" ` +
+                                `data-tdesc="${escapeAttr(tac.hint ?? `${tacticDescription(tac.id, def.description)}\n${usage}`)}" ` +
+                                `data-ticon="${escapeAttr(tac.icon)}"` +
                                 (def.strongholdCost === undefined
                                     ? ''
-                                    : ` data-tcost="${def.strongholdCost}" data-tcostlabel="Stronghold"`)
+                                    : ` data-tcost="${def.strongholdCost}" data-tcostlabel="${escapeAttr(t('menu:stronghold'))}"`)
                               : ` title="${escapeAttr(
-                                    t.hint ??
-                                        (t.placed
-                                            ? `${tacticName(t.id, t.name)}\nClick or right-click to clear and place again.`
-                                            : `${tacticName(t.id, t.name)}\nClick to place on the map. Right-click to cancel.`),
+                                    tac.hint ??
+                                        (tac.placed
+                                            ? `${tacticName(tac.id, tac.name)}\n${t('hud:clearAndPlaceAgain')}`
+                                            : `${tacticName(tac.id, tac.name)}\n${t('hud:placeOnMap')}`),
                                 )}"`;
                       const badge =
                           cancel
-                              ? `<span class="inv-cd cancel" title="Click to cancel">cancel</span>`
+                              ? `<span class="inv-cd cancel" title="${escapeAttr(t('hud:clickToCancel'))}">${escapeHtml(t('hud:cancelBadge'))}</span>`
                               : waitRounds !== null
-                                ? `<span class="inv-cd wait" title="Ready again in ${waitRounds} round${waitRounds === 1 ? '' : 's'}">${waitRounds}</span>`
+                                ? `<span class="inv-cd wait" title="${escapeAttr(t('hud:readyAgainIn', { n: waitRounds }))}">${waitRounds}</span>`
                                 : '';
                       return (
-                          `<button class="${cls}" data-tactic="${t.id}" data-index="${t.index}"${routeAttr}${tip}>` +
-                          `${iconHtml(t.icon)}${badge}</button>`
+                          `<button class="${cls}" data-tactic="${tac.id}" data-index="${tac.index}"${routeAttr}${tip}>` +
+                          `${iconHtml(tac.icon)}${badge}</button>`
                       );
                   })
                   .join('')
@@ -1955,8 +1959,8 @@ export class Hud {
         el.innerHTML =
             `<div class="forge-recipes-hint">${
                 this.forgeRecipesPinned
-                    ? 'Hover a recipe for details'
-                    : 'Drag onto a Stronghold to forge'
+                    ? t('hud:forgeHoverDetails')
+                    : t('hud:forgeDragHint')
             }</div>` + recipes;
         el.hidden = false;
         this.positionForgeSlotHoverPreview();
@@ -2111,7 +2115,11 @@ export class Hud {
         this.enemyInventoryEl.style.display = visible ? '' : 'none';
         const total = items.length + tactics.length + (options.sellAbility ? 1 : 0);
         const itemHtml = items.length
-            ? this.invSectionTitle(`Enemy ${DISPLAY.items.toLowerCase()}`, items.length, total) +
+            ? this.invSectionTitle(
+                  t('hud:enemyItems', { items: DISPLAY.items.toLowerCase() }),
+                  items.length,
+                  total,
+              ) +
               items
                   .map(
                       (i) =>
@@ -2121,18 +2129,22 @@ export class Hud {
                   .join('')
             : '';
         const tacticHtml = tactics.length
-            ? this.invSectionTitle(`Enemy ${DISPLAY.tactics.toLowerCase()}`, tactics.length, total) +
+            ? this.invSectionTitle(
+                  t('hud:enemyTactics', { tactics: DISPLAY.tactics.toLowerCase() }),
+                  tactics.length,
+                  total,
+              ) +
               tactics
                   .map(
-                      (t) =>
-                          `<span class="inv-item readonly tactic" title="${t.name}">` +
-                          `${iconHtml(t.icon)}</span>`,
+                      (tac) =>
+                          `<span class="inv-item readonly tactic" title="${tac.name}">` +
+                          `${iconHtml(tac.icon)}</span>`,
                   )
                   .join('')
             : '';
         const abilityHtml = options.sellAbility
-            ? this.invSectionTitle('Enemy abilities', 1, total) +
-              `<span class="inv-item readonly" title="Sell packs (unlocked)">` +
+            ? this.invSectionTitle(t('hud:enemyAbilities'), 1, total) +
+              `<span class="inv-item readonly" title="${escapeAttr(t('hud:sellPacksUnlocked'))}">` +
               `${iconHtml('ability-selling')}</span>`
             : '';
         this.enemyInventoryEl.innerHTML = itemHtml + tacticHtml + abilityHtml;
@@ -2161,7 +2173,7 @@ export class Hud {
     private invSectionTitle(label: string, count: number, total: number): string {
         return (
             `<button type="button" class="inv-title" data-inv-toggle="1"` +
-            ` title="Collapse inventory (${total})">` +
+            ` title="${escapeAttr(t('hud:collapseInventoryCount', { n: total }))}">` +
             `<span class="inv-title-label">${escapeHtml(label)}</span>` +
             `<span class="inv-title-meta"><span class="inv-count">${count}</span>` +
             `<span class="inv-chevron" aria-hidden="true"></span></span></button>`
@@ -2208,7 +2220,7 @@ export class Hud {
             side === 'player' ? this.inventoryCollapsed : this.enemyInventoryCollapsed;
         const can = collapsed || this.inventoryStripWrapped(el);
         el.classList.toggle('can-collapse', can);
-        const tip = collapsed ? 'Expand inventory' : 'Collapse inventory';
+        const tip = collapsed ? t('hud:expandInventory') : t('hud:collapseInventory');
         for (const title of el.querySelectorAll<HTMLButtonElement>('.inv-title[data-inv-toggle]')) {
             title.tabIndex = can ? 0 : -1;
             title.title = tip;
@@ -2238,8 +2250,7 @@ export class Hud {
         const label = `${used}/${limit}`;
         const labelEl = this.deploysEl.querySelector<HTMLSpanElement>('.unit-cap-label');
         if (labelEl && labelEl.textContent !== label) labelEl.textContent = label;
-        this.deploysEl.title =
-            `Purchases this round / your limit (units + base runes) · ◇ ${extrasBudgetLeft} left for shields & rockets`;
+        this.deploysEl.title = t('hud:deploysTitleExtras', { n: extrasBudgetLeft });
         this.refreshShopRuneAffordability();
     }
 
@@ -2313,7 +2324,7 @@ export class Hud {
             return;
         }
         const label =
-            info.count >= 2 ? `Level up all (${info.count})` : 'Level up all';
+            info.count >= 2 ? t('hud:levelAll', { n: info.count }) : t('hud:levelUpAll');
         const html =
             `${iconHtml('ability-level-all', 'lag-ico mask-ico')}` +
             `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;
@@ -2548,8 +2559,11 @@ export class Hud {
             levelTiles.push({
                 data: 'data-levelup="1"',
                 icon: 'ability-level',
-                title: 'Level Up',
-                desc: 'Raise this pack one level — it gains its base HP and damage again. Costs banked XP plus supply.',
+                title: t('hud:levelUp'),
+                desc: t('hud:levelUpDesc', {
+                    defaultValue:
+                        'Raise this pack one level — it gains its base HP and damage again. Costs banked XP plus supply.',
+                }),
                 cost: info.levelUp.cost,
                 state: info.levelUp.affordable ? 'buy' : 'locked',
             });
@@ -2557,8 +2571,10 @@ export class Hud {
                 levelTiles.push({
                     data: 'data-levelall="1"',
                     icon: 'ability-level-type',
-                    title: `Level All (${info.levelUp.all.count})`,
-                    desc: 'Level every ready pack of this type at once.',
+                    title: t('hud:levelAll', { n: info.levelUp.all.count }),
+                    desc: t('hud:levelAllDesc', {
+                        defaultValue: 'Level every ready pack of this type at once.',
+                    }),
                     cost: info.levelUp.all.cost,
                     state: info.levelUp.all.affordable ? 'buy' : 'locked',
                 });
@@ -2570,8 +2586,10 @@ export class Hud {
             levelTiles.push({
                 data: 'data-towerupgrade="1"',
                 icon: 'ability-level',
-                title: tu.maxed ? `Max level (${info.level})` : `Upgrade — level ${info.level + 1}`,
-                desc: 'Raise this building one level: it gains its base HP. No XP needed, price rises each level.',
+                title: tu.maxed
+                    ? t('hud:maxLevel', { n: info.level })
+                    : t('hud:upgradeLevel', { n: info.level + 1 }),
+                desc: t('hud:towerUpgradeDesc'),
                 cost: tu.maxed ? undefined : tu.cost,
                 state: tu.maxed ? 'owned' : tu.affordable ? 'buy' : 'locked',
             });
@@ -2583,8 +2601,8 @@ export class Hud {
                 title: b.label,
                 desc:
                     b.id === 'attack'
-                        ? 'Permanent army-wide damage boost. Buy one tier after the other.'
-                        : 'Permanent army-wide HP boost. Buy one tier after the other.',
+                        ? t('hud:boostAttackDesc')
+                        : t('hud:boostHpDesc'),
                 cost: b.cost,
                 state: b.maxed ? 'owned' : b.affordable ? 'buy' : 'locked',
             });
@@ -2593,8 +2611,8 @@ export class Hud {
             tiles.push({
                 data: 'data-deployslot="1"',
                 icon: 'ability-plus-deploy',
-                title: '+1 Deployment',
-                desc: 'One extra unit purchase this round only.',
+                title: t('hud:plusDeploy'),
+                desc: t('hud:plusDeployDesc'),
                 cost: info.deploySlot.cost,
                 state: info.deploySlot.active ? 'owned' : info.deploySlot.affordable ? 'buy' : 'locked',
             });
@@ -2603,8 +2621,11 @@ export class Hud {
             tiles.push({
                 data: 'data-recruit="1"',
                 icon: 'ability-plus-l2',
-                title: 'Recruit at Level 2',
-                desc: 'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
+                title: t('hud:recruitL2'),
+                desc: t('hud:recruitL2Desc', {
+                    defaultValue:
+                        'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
+                }),
                 cost: info.recruit.cost,
                 state: info.recruit.active ? 'owned' : info.recruit.affordable ? 'buy' : 'locked',
             });
@@ -2613,8 +2634,10 @@ export class Hud {
             tiles.push({
                 data: 'data-rangeboost="1"',
                 icon: 'ability-range',
-                title: 'Range Boost',
-                desc: `+${info.rangeBoost.bonus} range for all ranged units, this round only.`,
+                title: t('hud:rangeBoost'),
+                desc: t('hud:rangeBoostDesc', {
+                    defaultValue: `+${info.rangeBoost.bonus} range for all ranged units, this round only.`,
+                }),
                 cost: info.rangeBoost.cost,
                 state: info.rangeBoost.active ? 'owned' : info.rangeBoost.affordable ? 'buy' : 'locked',
             });
@@ -2623,8 +2646,10 @@ export class Hud {
             tiles.push({
                 data: 'data-speedboost="1"',
                 icon: 'ability-speed',
-                title: 'Speed Boost',
-                desc: `+${info.speedBoost.bonus} speed for all units, this round only.`,
+                title: t('hud:speedBoost'),
+                desc: t('hud:speedBoostDesc', {
+                    defaultValue: `+${info.speedBoost.bonus} speed for all units, this round only.`,
+                }),
                 cost: info.speedBoost.cost,
                 state: info.speedBoost.active ? 'owned' : info.speedBoost.affordable ? 'buy' : 'locked',
             });
@@ -2633,8 +2658,10 @@ export class Hud {
             tiles.push({
                 data: 'data-credit="1"',
                 icon: 'ability-credit',
-                title: 'Credit',
-                desc: `+${info.credit.gain} supply now. Next deployment: −${info.credit.debt}. Once per round.`,
+                title: t('hud:credit'),
+                desc: t('hud:creditDesc', {
+                    defaultValue: `+${info.credit.gain} supply now. Next deployment: −${info.credit.debt}. Once per round.`,
+                }),
                 cost: info.credit.active ? undefined : -info.credit.gain,
                 state: info.credit.active ? 'owned' : info.credit.affordable ? 'buy' : 'locked',
             });
@@ -2643,8 +2670,11 @@ export class Hud {
             tiles.push({
                 data: 'data-sellability="1"',
                 icon: 'ability-selling',
-                title: 'Unlock Selling',
-                desc: 'Permanently unlock selling packs (up to one per deployment phase).',
+                title: t('hud:unlockSelling'),
+                desc: t('hud:unlockSellingDesc', {
+                    defaultValue:
+                        'Permanently unlock selling packs (up to one per deployment phase).',
+                }),
                 cost: info.sellAbility.cost,
                 state: info.sellAbility.owned ? 'owned' : info.sellAbility.affordable ? 'buy' : 'locked',
             });
@@ -2653,8 +2683,10 @@ export class Hud {
             tiles.push({
                 data: 'data-sendsupply="1"',
                 icon: 'ability-gift-supply',
-                title: `Send ${info.sendSupply.amount} to Ally`,
-                desc: `Gift ${info.sendSupply.amount} supply to your ally — arrives at the start of next round.`,
+                title: t('hud:sendToAlly', { n: info.sendSupply.amount }),
+                desc: t('hud:sendToAllyDesc', {
+                    defaultValue: `Gift ${info.sendSupply.amount} supply to your ally — arrives at the start of next round.`,
+                }),
                 state: info.sendSupply.affordable ? 'buy' : 'locked',
             });
         }
@@ -2662,8 +2694,8 @@ export class Hud {
             tiles.push({
                 data: 'data-rallyroute="1"',
                 icon: 'tactic-rally',
-                title: 'Buy Rally Route',
-                desc: `Add one rally-route charge to your ${DISPLAY.tactics.toLowerCase()}. Once per match.`,
+                title: t('hud:buyRally'),
+                desc: t('hud:buyRallyDesc', { tactics: DISPLAY.tactics }),
                 cost: info.rallyRouteAbility.cost,
                 state: info.rallyRouteAbility.owned
                     ? 'owned'
@@ -2676,8 +2708,8 @@ export class Hud {
             tiles.push({
                 data: 'data-movepack="1"',
                 icon: 'ui-move',
-                title: 'Buy Move Pack',
-                desc: `Add one move-pack charge to your ${DISPLAY.tactics.toLowerCase()}: re-open one pack from an earlier round for repositioning. Once per match.`,
+                title: t('hud:buyMovePack'),
+                desc: t('hud:buyMovePackDesc', { tactics: DISPLAY.tactics }),
                 cost: info.movePackAbility.cost,
                 state: info.movePackAbility.owned
                     ? 'owned'
@@ -2692,10 +2724,10 @@ export class Hud {
             tiles.push({
                 data: 'data-garrison="1"',
                 icon: 'spec-archer',
-                title: `Garrison ${g.owned}/${g.max}`,
+                title: t('hud:garrison', { n: g.owned, m: g.max }),
                 desc: full
-                    ? 'Every battlement is manned.'
-                    : 'Post an archer on the battlements. He shoots like any other archer and never leaves his spot — nothing can shoot back at him, but he falls with the keep. Each one costs more than the last.',
+                    ? t('hud:garrisonFull')
+                    : t('hud:garrisonDesc'),
                 cost: full ? 0 : g.cost,
                 state: full ? 'owned' : g.affordable ? 'buy' : 'locked',
             });
@@ -2705,7 +2737,7 @@ export class Hud {
                 data: `data-forgespell="${escapeHtml(spell.tacticId)}"`,
                 icon: spell.icon,
                 title: spell.name,
-                desc: `${spell.desc} Adds one charge to your ${DISPLAY.tactics.toLowerCase()} — once per match.`,
+                desc: `${spell.desc} ${t('hud:forgeChargeSuffix', { tactics: DISPLAY.tactics })}`,
                 cost: spell.cost,
                 state: spell.owned ? 'owned' : spell.affordable ? 'buy' : 'locked',
             });
@@ -2734,8 +2766,8 @@ export class Hud {
                       }
                           const removeHint =
                               inputMode() === 'touch'
-                                  ? `Drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`
-                                  : `Click or drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`;
+                                  ? t('hud:returnToBagTouch', { item: DISPLAY.item.toLowerCase() })
+                                  : t('hud:returnToBag', { item: DISPLAY.item.toLowerCase() });
                           return (
                           `<span class="item-sq m-icon${item.removable ? ' removable' : ''}" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
                               item.removable
@@ -2752,7 +2784,13 @@ export class Hud {
         const forgeSquares = !forge
             ? ''
             : `<div class="forge-block${forge.lit ? ' ready' : ''}">` +
-              `<div class="forge-label">Forge${forge.lit ? ' · firing' : forge.bake ? ' · ready' : ''}</div>` +
+              `<div class="forge-label">${
+                  forge.lit
+                      ? t('hud:forgeLabelFiring')
+                      : forge.bake
+                        ? t('hud:forgeLabelReady')
+                        : t('hud:forgeLabel')
+              }</div>` +
               `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
                   const item = forge.slots[i];
                   if (!item) {
@@ -2766,24 +2804,24 @@ export class Hud {
                               `data-forge-fill="${escapeAttr(suggest.itemIds.join(','))}" ` +
                               `data-forge-ings="${escapeAttr(ingIcons.join(','))}" ` +
                               `data-ttitle="${escapeAttr(suggest.name)}" ` +
-                              `data-tdesc="${escapeAttr(`${suggest.desc}\nClick to place these ${DISPLAY.items.toLowerCase()} in the forge.`)}" ` +
+                              `data-tdesc="${escapeAttr(`${suggest.desc}\n${t('hud:forgePlaceSuggest', { items: DISPLAY.items.toLowerCase() })}`)}" ` +
                               `data-ticon="${escapeAttr(suggest.icon)}"></span>`
                           );
                       }
                       const slot = i + 1;
                       const drop = forge.dropReady ? ' drop-target' : '';
                       return (
-                          `<span class="item-sq empty${drop}" data-ttitle="Forge slot ${slot}" data-tdesc="${
+                          `<span class="item-sq empty${drop}" data-ttitle="${escapeAttr(t('hud:forgeSlotTitle', { n: slot }))}" data-tdesc="${escapeAttr(
                               forge.dropReady
-                                  ? `Drop a ${DISPLAY.item.toLowerCase()} here — it forges next deploy.`
-                                  : `Empty forge slot — equip a ${DISPLAY.item.toLowerCase()} from your bag.`
-                          }"></span>`
+                                  ? t('hud:forgeSlotDrop', { item: DISPLAY.item.toLowerCase() })
+                                  : t('hud:forgeSlotEmpty', { item: DISPLAY.item.toLowerCase() }),
+                          )}"></span>`
                       );
                   }
                   const removeHint =
                       inputMode() === 'touch'
-                          ? `Drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`
-                          : `Click or drag off to return this ${DISPLAY.item.toLowerCase()} to your bag (this deploy only).`;
+                          ? t('hud:returnToBagTouch', { item: DISPLAY.item.toLowerCase() })
+                          : t('hud:returnToBag', { item: DISPLAY.item.toLowerCase() });
                   return (
                       `<span class="item-sq m-icon${item.removable ? ' removable' : ''}" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
                           item.removable
@@ -2808,8 +2846,8 @@ export class Hud {
                           `data-spell-tip="1" ` +
                           `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
                           `data-tdesc="${escapeAttr(
-                              `${forge.bake.desc}\nFiring — ready next deployment.${
-                                  forge.canUnlight ? '\nClick to cancel and get the supply back.' : ''
+                              `${forge.bake.desc}\n${t('hud:forgeFiringNext')}${
+                                  forge.canUnlight ? `\n${t('hud:forgeCancelRefund')}` : ''
                               }`,
                           )}" ` +
                           `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
@@ -2821,7 +2859,7 @@ export class Hud {
                           }" data-forge-light="1" ` +
                           `data-spell-tip="1" ` +
                           `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
-                          `data-tdesc="${escapeAttr(`${forge.bake.desc}\nFire the forge to start it — ready next deployment.`)}" ` +
+                          `data-tdesc="${escapeAttr(`${forge.bake.desc}\n${t('hud:forgeFireToStart')}`)}" ` +
                           `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
                           (forge.bake.forgeCost === undefined
                               ? ''
@@ -2849,7 +2887,7 @@ export class Hud {
         const combatless = info.structure && info.damage <= 0 && info.range <= 0;
         this.panel.innerHTML =
             `<div class="panel-head">` +
-            `<div class="lvl-big"><span class="lvl-cap">LVL</span><span class="lvl-num">${info.level}</span></div>` +
+            `<div class="lvl-big"><span class="lvl-cap">${escapeHtml(t('hud:lvlCap'))}</span><span class="lvl-num">${info.level}</span></div>` +
             `<div class="head-main">` +
             `<div class="xpbar ${info.team}"><div style="width:${xpBarPct}%"></div></div>` +
             `<div class="head-names"><span class="title">${escapeHtml(info.name)}</span><span class="team ${info.team}">${escapeHtml(info.owner)}</span></div>` +
@@ -2858,18 +2896,18 @@ export class Hud {
             `</div>` +
             itemSquares +
             forgeSquares +
-            liveRow('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`, 'hp') +
+            liveRow(t('hud:hp'), `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`, 'hp') +
             (info.total > 1 ? row(t('hud:pack'), `${info.alive} / ${info.total}`) : '') +
             // A building that cannot shoot has no damage, reload, range or
             // speed worth four rows of zeroes — what its owner actually needs
             // to know is what breaking it costs them.
             (combatless
                 ? info.onDestroyed
-                    ? row('If destroyed', escapeHtml(info.onDestroyed))
+                    ? row(t('hud:ifDestroyed'), escapeHtml(info.onDestroyed))
                     : ''
                 : row(t('hud:damage'), String(Math.round(info.damage))) +
                   row(t('hud:reload'), `${Math.round(info.attackInterval * 10) / 10}s`) +
-                  (info.splash ? row('Splash', String(info.splash)) : '') +
+                  (info.splash ? row(t('hud:splash'), String(info.splash)) : '') +
                   row(
                       t('hud:range'),
                       info.minRange ? `${info.minRange} - ${info.range}` : String(info.range),
@@ -3046,10 +3084,10 @@ export class Hud {
     ): void {
         this.roundEl.textContent =
             waitingForPeer && !watching
-                ? 'Waiting for opponent'
+                ? t('hud:waitingOpponent')
                 : round === 0
                   ? DISPLAY.commanders
-                  : `Round ${round}`;
+                  : t('hud:round', { n: round });
         const s = Math.max(0, Math.ceil(remainingSeconds));
         this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
         this.topBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
@@ -3066,7 +3104,8 @@ export class Hud {
         // Once I click myself, waitingForPeer covers it — full hide, same
         // as classic 1v1's "locked in" treatment (see game.ts's waitingForPeer).
         this.endButton.classList.toggle('ally-ready', allyLockedIn && !waitingForPeer);
-        this.endButton.title = allyLockedIn && !waitingForPeer ? 'Your ally is ready — waiting on you' : '';
+        this.endButton.title =
+            allyLockedIn && !waitingForPeer ? t('hud:allyReadyTitle') : '';
         this.fightBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         this.fightBar.classList.toggle('waiting', waitingForPeer);
         this.shopColumn.classList.toggle('disabled', phase !== 'build' || waitingForPeer);
@@ -3089,14 +3128,15 @@ export class Hud {
 
     /** Game's live speed steps — drives the button tooltip's key hint. */
     setSpeedSteps(steps: readonly number[]): void {
-        const pause = steps[0] === 0 ? ' (1 = Pause)' : '';
+        const keys = speedKeyHint(steps).toLowerCase();
         this.speedEl.title =
-            `Battle speed — click: faster, right click: slower; ` +
-            `${speedKeyHint(steps).toLowerCase()}${pause}`;
+            steps[0] === 0
+                ? t('hud:speedTitleKeysPause', { keys, pause: t('hud:pause') })
+                : t('hud:speedTitleKeys', { keys });
     }
 
     setSpeed(multiplier: number): void {
-        this.speedEl.textContent = multiplier === 0 ? 'Pause' : `${multiplier}×`;
+        this.speedEl.textContent = multiplier === 0 ? t('hud:pause') : `${multiplier}×`;
     }
 
     /** watch mode replaces this with its own wider-range speed control
@@ -3849,8 +3889,8 @@ export class Hud {
         overlay.classList.add('mechili-cards', 'detail', 'settings-detail');
         overlay.innerHTML =
             `<div class="settings-panel">` +
-            `<button type="button" class="settings-close" aria-label="Close">&times;</button>` +
-            `<div class="settings-panel-title">Match Settings</div>` +
+            `<button type="button" class="settings-close" aria-label="${escapeAttr(t('hud:close'))}">&times;</button>` +
+            `<div class="settings-panel-title">${escapeHtml(t('hud:matchSettings'))}</div>` +
             `<div class="settings-grid">` +
             this.settingsGroups
                 .map(
@@ -3970,9 +4010,9 @@ export class Hud {
         const el = withDialogFade(document.createElement('div'));
         el.classList.add('mechili-cards');
         el.innerHTML =
-            `<div class="cards-title" style="font-size:20px; letter-spacing:2px;">Connection lost — reconnecting…</div>` +
+            `<div class="cards-title" style="font-size:20px; letter-spacing:2px;">${escapeHtml(t('hud:reconnectTitle'))}</div>` +
             `<div class="cards-title reconnect-timer"></div>` +
-            `<button class="cards-skip">Give up</button>`;
+            `<button class="cards-skip">${escapeHtml(t('hud:giveUp'))}</button>`;
         el.querySelector('.cards-skip')!.addEventListener('click', onGiveUp);
         this.reconnectWait = el;
         this.mount(el);
@@ -3983,7 +4023,7 @@ export class Hud {
         const el = this.reconnectWait?.querySelector<HTMLDivElement>('.reconnect-timer');
         if (!el) return;
         const s = Math.max(0, Math.ceil(secondsRemaining));
-        el.textContent = `Opponent has ${s}s to return`;
+        el.textContent = t('hud:opponentReturn', { n: s });
         el.classList.toggle('urgent', s <= 5);
     }
 
@@ -4007,7 +4047,7 @@ export class Hud {
                     `<div class="go-player">` +
                     `<div class="go-portrait ${team}">${portrait}</div>` +
                     `<div class="go-player-info">` +
-                    `<div class="go-player-name">${escapeHtml(m.name)}${m.controller === 'ai' ? '<span class="go-ai">AI</span>' : ''}</div>` +
+                    `<div class="go-player-name">${escapeHtml(m.name)}${m.controller === 'ai' ? `<span class="go-ai">${escapeHtml(t('hud:ai'))}</span>` : ''}</div>` +
                     `<div class="go-mmr ${deltaClass}">` +
                     `<span class="go-mmr-final">${m.mmrAfter}</span>` +
                     `<span class="go-mmr-delta">${formatMmrDelta(delta)}</span>` +

@@ -20,7 +20,7 @@
     "unitsLabel": "1× 弩炮"
   },
   "flanky": {
-    "title": "Flanky",
+    "title": "侧袭",
     "description": "首次侧翼出现时间减半（2.5 秒）。"
   },
   "rallyRoute": {

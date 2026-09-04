@@ -25,6 +25,7 @@ import { AcidFx } from './acidFx';
 import { FlameRenderer } from './flameRenderer';
 import { touchFirstDevice } from './inputCapabilities';
 import { effectiveDpr, prefs } from './prefs';
+import { t } from '../i18n';
 import { THEME } from '../theme';
 
 let prewarmed: WebGLRenderer | null = null;
@@ -68,7 +69,7 @@ export async function prewarmGpu(
     onProgress?: (label: string) => void,
 ): Promise<void> {
     discardPrewarmedRenderer();
-    onProgress?.('Warming graphics…');
+    onProgress?.(t('menu:bootWarming'));
 
     // Let the loader paint the new label before we block on compile.
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
@@ -143,5 +144,5 @@ export async function prewarmGpu(
     (probe.material as MeshStandardMaterial).dispose();
 
     prewarmed = renderer;
-    onProgress?.('Ready');
+    onProgress?.(t('menu:bootReady'));
 }

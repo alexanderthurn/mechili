@@ -106,9 +106,7 @@ export class FriendsPanel {
         overlayBtn.addEventListener('click', () => {
             void steamLobby.openInviteDialog().then((opened) => {
                 this.note(
-                    opened
-                        ? 'Steam overlay opened — pick a friend there.'
-                        : 'Steam would not open the overlay picker.',
+                    opened ? t('menu:overlayOpened') : t('menu:overlayFailed'),
                 );
             });
         });
@@ -176,7 +174,7 @@ export class FriendsPanel {
             this.listEl.append(row(t('menu:noFriends'), 'fr-empty'));
             // The likeliest reason by far during a playtest, and the one a
             // player cannot deduce from an empty list on their own.
-            this.note('Only friends with access to this build can join.');
+            this.note(t('menu:joinAccessNote'));
             return;
         }
         for (const f of list) this.listEl.append(this.friendRow(f));
@@ -214,7 +212,7 @@ export class FriendsPanel {
                     this.invited.add(f.steamId64);
                 } else {
                     invite.disabled = false;
-                    this.note('Could not send that invite — are you still hosting a room?');
+                    this.note(t('menu:inviteFailed'));
                 }
             });
         });

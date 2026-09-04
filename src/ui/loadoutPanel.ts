@@ -35,27 +35,27 @@ function num(n: number): string {
 
 function targetsLabel(type: UnitType): string {
     const { ground, air } = type.targets;
-    if (ground && air) return 'Ground + Air';
-    if (air) return 'Air only';
-    if (ground) return 'Ground only';
-    return 'None';
+    if (ground && air) return t('hud:groundAir');
+    if (air) return t('hud:airOnly');
+    if (ground) return t('hud:groundOnly');
+    return t('hud:none');
 }
 
 /** Base combat stats — before any talent applies. */
 function statRows(type: UnitType): { label: string; value: string }[] {
     const rows = [
-        { label: 'Supply', value: String(type.cost) },
-        { label: 'HP', value: num(type.hp) },
-        { label: 'Damage', value: num(type.damage) },
-        { label: 'Range', value: num(type.range) },
+        { label: t('hud:supply'), value: String(type.cost) },
+        { label: t('hud:hp'), value: num(type.hp) },
+        { label: t('hud:damage'), value: num(type.damage) },
+        { label: t('hud:range'), value: num(type.range) },
         // rate = 1 / interval, shown per second: "interval" reads as a delay,
         // and players compare attack SPEED
-        { label: 'Attacks/s', value: num(1 / type.attackInterval) },
-        { label: 'Move', value: num(type.speed) },
-        { label: 'Targets', value: targetsLabel(type) },
+        { label: t('hud:attacksPerSec'), value: num(1 / type.attackInterval) },
+        { label: t('hud:moveStat'), value: num(type.speed) },
+        { label: t('hud:targets'), value: targetsLabel(type) },
     ];
-    if (type.minRange) rows.splice(4, 0, { label: 'Min range', value: num(type.minRange) });
-    if (type.flying) rows.push({ label: 'Flying', value: 'Yes' });
+    if (type.minRange) rows.splice(4, 0, { label: t('hud:minRange'), value: num(type.minRange) });
+    if (type.flying) rows.push({ label: t('hud:flying'), value: t('hud:yes') });
     return rows;
 }
 

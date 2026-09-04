@@ -9,6 +9,7 @@ import {
 } from './sceneryVegetation';
 import { loadFloorPieces } from './sceneryFloorPieces';
 import { prefs } from './prefs';
+import { t } from '../i18n';
 import { preloadIconAtlas } from '../ui/iconAtlas';
 
 export type BootProgress = {
@@ -41,20 +42,20 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
         onProgress?.({ fraction: Math.min(1, fraction), label });
     };
 
-    report('Loading…');
+    report(t('menu:bootLoading'));
 
     const jobs: Promise<void>[] = [
         preloadUnitVisuals((done, total) => {
             unitsFrac = total > 0 ? done / total : 1;
-            report(`Units ${done}/${total}`);
+            report(t('menu:bootUnits', { done, total }));
         }),
         preloadSpellAssets((done, total) => {
             spellsFrac = total > 0 ? done / total : 1;
-            report(`Spells ${done}/${total}`);
+            report(t('menu:bootSpells', { done, total }));
         }),
         preloadWorldTextures((done, total) => {
             texturesFrac = total > 0 ? done / total : 1;
-            report(`Textures ${done}/${total}`);
+            report(t('menu:bootTextures', { done, total }));
         }),
         preloadIconAtlas(),
         preloadProjectileBolt(),
@@ -71,14 +72,14 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
                 loadFloorPieces(),
             ]).then(() => {
                 sceneryFrac = 1;
-                report('Scenery');
+                report(t('menu:bootScenery'));
             }),
         );
     } else if (sceneryQ === 'medium') {
         jobs.push(
             loadSceneryBillboards().then(() => {
                 sceneryFrac = 1;
-                report('Scenery');
+                report(t('menu:bootScenery'));
             }),
         );
     } else {
@@ -87,5 +88,5 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
 
     await Promise.all(jobs);
 
-    onProgress?.({ fraction: 1, label: 'Ready' });
+    onProgress?.({ fraction: 1, label: t('menu:bootReady') });
 }

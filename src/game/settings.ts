@@ -1,5 +1,6 @@
 import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
+import { t } from '../i18n';
 import { TACTICS } from './tactics';
 import {
     DEFAULT_ROUND_CARD_PRESET_ID,
@@ -258,7 +259,28 @@ export function customGamePaceById(id: string | undefined | null): CustomGamePac
 
 /** Select-option text: name plus the four timings from the preset. */
 export function formatCustomGamePaceOption(p: CustomGamePacePreset): string {
-    return `${p.label} — Deploy ${p.buildSeconds}s · Battle ${p.battleSeconds}s · ${DISPLAY.commander} ${p.specialistSeconds}s · Cards ${p.cardSeconds}s`;
+    const paceKey =
+        p.id === 'blitz'
+            ? 'paceBlitz'
+            : p.id === 'quick'
+              ? 'paceQuick'
+              : p.id === 'standard'
+                ? 'paceStandard'
+                : p.id === 'relaxed'
+                  ? 'paceRelaxed'
+                  : p.id === 'long'
+                    ? 'paceLong'
+                    : null;
+    const localized = paceKey ? t(`settings:${paceKey}`, { defaultValue: p.label }) : p.label;
+    return t('settings:paceOption', {
+        label: localized,
+        build: p.buildSeconds,
+        battle: p.battleSeconds,
+        commander: DISPLAY.commander,
+        specialist: p.specialistSeconds,
+        cards: p.cardSeconds,
+        defaultValue: `${localized} — Deploy ${p.buildSeconds}s · Battle ${p.battleSeconds}s · ${DISPLAY.commander} ${p.specialistSeconds}s · Cards ${p.cardSeconds}s`,
+    });
 }
 
 /**
@@ -296,7 +318,17 @@ export function strongholdModeOption(raw: unknown): StrongholdMode {
 }
 
 export function formatStrongholdModeOption(o: StrongholdModeOption): string {
-    return `Stronghold: ${o.label}`;
+    const labelKey =
+        o.mode === 'lifeline'
+            ? 'strongholdLifeline'
+            : o.mode === 'standard'
+              ? 'strongholdStandard'
+              : 'strongholdNone';
+    const label = t(`settings:${labelKey}`, { defaultValue: o.label });
+    return t('settings:strongholdOption', {
+        label,
+        defaultValue: `Stronghold: ${label}`,
+    });
 }
 
 /** Custom Game commander-HP multiplier options — both teams share one factor. */
@@ -330,7 +362,11 @@ export function resolveCommanderHpFactor(raw: unknown): number {
 }
 
 export function formatCommanderHpFactorOption(o: CommanderHpFactorOption): string {
-    return `${o.label} ${DISPLAY.commander} HP (both teams)`;
+    return t('settings:sheet.commanderHpOption', {
+        label: o.label,
+        commander: DISPLAY.commander,
+        defaultValue: `${o.label} ${DISPLAY.commander} HP (both teams)`,
+    });
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -570,8 +606,8 @@ export interface SettingGroup {
     rows: SettingRow[];
 }
 
-function fmtTimer(t: RoundTimer): string {
-    return typeof t === 'number' ? `${t}s` : t.map((v) => `${v}s`).join('/');
+function fmtTimer(timer: RoundTimer): string {
+    return typeof timer === 'number' ? `${timer}s` : timer.map((v) => `${v}s`).join('/');
 }
 
 /**
@@ -581,208 +617,394 @@ function fmtTimer(t: RoundTimer): string {
  */
 export function describeGameSettings(settings: GameSettings): SettingGroup[] {
     const pct = (n: number) => `${Math.round(n * 100)}%`;
+    const supply = (amount: number) =>
+        t('settings:sheet.supplyAmount', { amount, defaultValue: `${amount} supply` });
+    const abilityOneTime = (amount: number) =>
+        t('settings:sheet.abilityCostOneTime', {
+            amount,
+            defaultValue: `${amount} supply, one-time`,
+        });
     const hordeRows: SettingRow[] = [];
     if (!hordeEnabled(settings)) {
-        hordeRows.push({ label: 'Status', value: 'Off' });
+        hordeRows.push({
+            label: t('settings:sheet.status', { defaultValue: 'Status' }),
+            value: t('settings:sheet.off', { defaultValue: 'Off' }),
+        });
     } else {
         const activeRounds: number[] = [];
         for (let r = 1; r <= HORDE_FINAL_ROUND; r++) {
             if (isHordeRoundActive(settings, r)) activeRounds.push(r);
         }
         hordeRows.push({
-            label: 'Preset',
+            label: t('settings:sheet.preset', { defaultValue: 'Preset' }),
             value: hordeAlgorithmById(settings.hordePreset).describe(),
-            note: `waves on round ${activeRounds.join(', ')}`,
+            note: t('settings:sheet.wavesOnRounds', {
+                rounds: activeRounds.join(', '),
+                defaultValue: `waves on round ${activeRounds.join(', ')}`,
+            }),
         });
     }
 
+    const strongholdValueKey =
+        settings.strongholdMode === 'lifeline'
+            ? 'sheet.strongholdLifeline'
+            : settings.strongholdMode === 'none'
+              ? 'sheet.strongholdNone'
+              : 'sheet.strongholdStandard';
+    const strongholdNoteKey =
+        settings.strongholdMode === 'lifeline'
+            ? 'sheet.strongholdLifelineNote'
+            : settings.strongholdMode === 'none'
+              ? 'sheet.strongholdNoneNote'
+              : 'sheet.strongholdStandardNote';
+    const strongholdValueDefault =
+        settings.strongholdMode === 'lifeline'
+            ? 'Army falls with it'
+            : settings.strongholdMode === 'none'
+              ? 'None on the board'
+              : 'Just a building';
+    const strongholdNoteDefault =
+        settings.strongholdMode === 'lifeline'
+            ? 'break one and every pack on that side drops — the round ends there'
+            : settings.strongholdMode === 'none'
+              ? 'no Stronghold, so no forge either'
+              : 'losing it only costs you the forge';
+
     return [
         {
-            title: 'Timers & HP',
+            title: t('settings:sheet.timersTitle', { defaultValue: 'Timers & HP' }),
             rows: [
-                { label: 'Deployment phase', value: fmtTimer(settings.buildTimeSeconds) },
-                { label: 'Battle phase', value: fmtTimer(settings.battleTimeSeconds) },
-                { label: `${DISPLAY.commander} pick`, value: fmtTimer(settings.specialistTimeSeconds) },
-                { label: 'Round card pick', value: fmtTimer(settings.cardTimeSeconds) },
                 {
-                    label: `${DISPLAY.commander} HP factor`,
-                    value: `×${settings.commanderHpFactor}`,
-                    note: 'scales each commander card’s starting HP for both teams',
+                    label: t('settings:sheet.deploymentPhase', { defaultValue: 'Deployment phase' }),
+                    value: fmtTimer(settings.buildTimeSeconds),
                 },
                 {
-                    label: 'Stronghold',
-                    value:
-                        settings.strongholdMode === 'lifeline'
-                            ? 'Army falls with it'
-                            : settings.strongholdMode === 'none'
-                              ? 'None on the board'
-                              : 'Just a building',
-                    note:
-                        settings.strongholdMode === 'lifeline'
-                            ? 'break one and every pack on that side drops — the round ends there'
-                            : settings.strongholdMode === 'none'
-                              ? 'no Stronghold, so no forge either'
-                              : 'losing it only costs you the forge',
+                    label: t('settings:sheet.battlePhase', { defaultValue: 'Battle phase' }),
+                    value: fmtTimer(settings.battleTimeSeconds),
+                },
+                {
+                    label: t('settings:sheet.commanderPick', {
+                        commander: DISPLAY.commander,
+                        defaultValue: `${DISPLAY.commander} pick`,
+                    }),
+                    value: fmtTimer(settings.specialistTimeSeconds),
+                },
+                {
+                    label: t('settings:sheet.roundCardPick', { defaultValue: 'Round card pick' }),
+                    value: fmtTimer(settings.cardTimeSeconds),
+                },
+                {
+                    label: t('settings:sheet.commanderHpFactor', {
+                        commander: DISPLAY.commander,
+                        defaultValue: `${DISPLAY.commander} HP factor`,
+                    }),
+                    value: t('settings:sheet.commanderHpFactorValue', {
+                        factor: settings.commanderHpFactor,
+                        defaultValue: `×${settings.commanderHpFactor}`,
+                    }),
+                    note: t('settings:sheet.commanderHpFactorNote', {
+                        defaultValue: 'scales each commander card’s starting HP for both teams',
+                    }),
+                },
+                {
+                    label: t('settings:sheet.stronghold', { defaultValue: 'Stronghold' }),
+                    value: t(`settings:${strongholdValueKey}`, { defaultValue: strongholdValueDefault }),
+                    note: t(`settings:${strongholdNoteKey}`, { defaultValue: strongholdNoteDefault }),
                 },
             ],
         },
         {
-            title: 'Economy',
+            title: t('settings:sheet.economyTitle', { defaultValue: 'Economy' }),
             rows: [
-                { label: 'Round 1 income', value: `${settings.economy.startingSupply} supply` },
                 {
-                    label: 'Income growth',
-                    value: `+${settings.economy.supplyGrowthPerRound}/round`,
-                    note: 'round N grants startingSupply + (N-1) × growth',
+                    label: t('settings:sheet.round1Income', { defaultValue: 'Round 1 income' }),
+                    value: supply(settings.economy.startingSupply),
                 },
                 {
-                    label: `${DISPLAY.tech} cost escalation`,
-                    value: `+${settings.economy.techCostEscalation}`,
-                    note: `added to a ${DISPLAY.tech.toLowerCase()}’s price per ${DISPLAY.tech.toLowerCase()} already owned of that unit type`,
+                    label: t('settings:sheet.incomeGrowth', { defaultValue: 'Income growth' }),
+                    value: t('settings:sheet.incomeGrowthValue', {
+                        amount: settings.economy.supplyGrowthPerRound,
+                        defaultValue: `+${settings.economy.supplyGrowthPerRound}/round`,
+                    }),
+                    note: t('settings:sheet.incomeGrowthNote', {
+                        defaultValue: 'round N grants startingSupply + (N-1) × growth',
+                    }),
+                },
+                {
+                    label: t('settings:sheet.techCostEscalation', {
+                        tech: DISPLAY.tech,
+                        defaultValue: `${DISPLAY.tech} cost escalation`,
+                    }),
+                    value: t('settings:sheet.techCostEscalationValue', {
+                        amount: settings.economy.techCostEscalation,
+                        defaultValue: `+${settings.economy.techCostEscalation}`,
+                    }),
+                    note: t('settings:sheet.techCostEscalationNote', {
+                        tech: DISPLAY.tech.toLowerCase(),
+                        defaultValue: `added to a ${DISPLAY.tech.toLowerCase()}’s price per ${DISPLAY.tech.toLowerCase()} already owned of that unit type`,
+                    }),
                 },
             ],
         },
         {
-            title: 'Round cards',
+            title: t('settings:sheet.roundCardsTitle', { defaultValue: 'Round cards' }),
             rows: [
                 {
-                    label: 'Preset',
+                    label: t('settings:sheet.preset', { defaultValue: 'Preset' }),
                     value: roundCardAlgorithmById(settings.roundCardPreset).describe(),
                 },
             ],
         },
-        { title: DISPLAY.horde, rows: hordeRows },
         {
-            title: 'Towers',
+            title: t('settings:sheet.hordeTitle', {
+                horde: DISPLAY.horde,
+                defaultValue: DISPLAY.horde,
+            }),
+            rows: hordeRows,
+        },
+        {
+            title: t('settings:sheet.towersTitle', { defaultValue: 'Towers' }),
             rows: [
                 {
-                    label: 'Per lost tower',
-                    value: `×${settings.towers.debuffPerLostTower.speedMult} speed, ×${settings.towers.debuffPerLostTower.attackMult} attack, ×${settings.towers.debuffPerLostTower.damageTakenMult} damage taken`,
-                    note: 'applies to that side’s units only, stacking multiplicatively, while the debuff runs',
+                    label: t('settings:sheet.perLostTower', { defaultValue: 'Per lost tower' }),
+                    value: t('settings:sheet.perLostTowerValue', {
+                        speed: settings.towers.debuffPerLostTower.speedMult,
+                        attack: settings.towers.debuffPerLostTower.attackMult,
+                        damage: settings.towers.debuffPerLostTower.damageTakenMult,
+                        defaultValue: `×${settings.towers.debuffPerLostTower.speedMult} speed, ×${settings.towers.debuffPerLostTower.attackMult} attack, ×${settings.towers.debuffPerLostTower.damageTakenMult} damage taken`,
+                    }),
+                    note: t('settings:sheet.perLostTowerNote', {
+                        defaultValue:
+                            'applies to that side’s units only, stacking multiplicatively, while the debuff runs',
+                    }),
                 },
                 {
-                    label: 'Debuff duration',
-                    value: `${settings.towers.debuffDuration.baseSeconds}s at level 1`,
-                    note: `−${settings.towers.debuffDuration.stepSeconds}s per level above 1; a new tower loss adds its duration on top`,
+                    label: t('settings:sheet.debuffDuration', { defaultValue: 'Debuff duration' }),
+                    value: t('settings:sheet.debuffDurationValue', {
+                        seconds: settings.towers.debuffDuration.baseSeconds,
+                        defaultValue: `${settings.towers.debuffDuration.baseSeconds}s at level 1`,
+                    }),
+                    note: t('settings:sheet.debuffDurationNote', {
+                        step: settings.towers.debuffDuration.stepSeconds,
+                        defaultValue: `−${settings.towers.debuffDuration.stepSeconds}s per level above 1; a new tower loss adds its duration on top`,
+                    }),
                 },
                 {
-                    label: 'Upgrade cost',
-                    value: `${settings.towers.upgrade.baseCost} supply, +${settings.towers.upgrade.costStep}/level`,
-                    note: `up to level ${settings.towers.upgrade.maxLevel}`,
+                    label: t('settings:sheet.upgradeCost', { defaultValue: 'Upgrade cost' }),
+                    value: t('settings:sheet.upgradeCostValue', {
+                        base: settings.towers.upgrade.baseCost,
+                        step: settings.towers.upgrade.costStep,
+                        defaultValue: `${settings.towers.upgrade.baseCost} supply, +${settings.towers.upgrade.costStep}/level`,
+                    }),
+                    note: t('settings:sheet.upgradeCostNote', {
+                        max: settings.towers.upgrade.maxLevel,
+                        defaultValue: `up to level ${settings.towers.upgrade.maxLevel}`,
+                    }),
                 },
             ],
         },
         {
-            title: 'Deploy',
+            title: t('settings:sheet.deployTitle', { defaultValue: 'Deploy' }),
             rows: [
-                { label: 'Buys per round', value: `${settings.deploy.unitsPerRound}`, note: 'shared by units and base runes' },
                 {
-                    label: 'Base rune',
-                    value: `${settings.deploy.baseRuneCost} supply`,
-                    note: `shop — +${settings.deploy.runeCostStep} per purchase; uses one buy slot`,
+                    label: t('settings:sheet.buysPerRound', { defaultValue: 'Buys per round' }),
+                    value: `${settings.deploy.unitsPerRound}`,
+                    note: t('settings:sheet.buysPerRoundNote', {
+                        defaultValue: 'shared by units and base runes',
+                    }),
                 },
                 {
-                    label: 'Extra buy slot',
-                    value: `${settings.deploy.extraSlotCost} supply`,
-                    note: 'Garrison — this round only',
+                    label: t('settings:sheet.baseRune', { defaultValue: 'Base rune' }),
+                    value: supply(settings.deploy.baseRuneCost),
+                    note: t('settings:sheet.baseRuneNote', {
+                        step: settings.deploy.runeCostStep,
+                        defaultValue: `shop — +${settings.deploy.runeCostStep} per purchase; uses one buy slot`,
+                    }),
                 },
                 {
-                    label: 'Ranged range boost',
-                    value: `${settings.deploy.rangedRangeBoostCost} supply → +${settings.deploy.rangeBoost} range`,
-                    note: 'Garrison — all ranged units, this round only',
+                    label: t('settings:sheet.extraBuySlot', { defaultValue: 'Extra buy slot' }),
+                    value: supply(settings.deploy.extraSlotCost),
+                    note: t('settings:sheet.extraBuySlotNote', {
+                        defaultValue: 'Garrison — this round only',
+                    }),
                 },
                 {
-                    label: 'Army speed boost',
-                    value: `${settings.deploy.armySpeedBoostCost} supply → +${settings.deploy.speedBoost} speed`,
-                    note: 'Garrison — whole army, this round only',
+                    label: t('settings:sheet.rangedRangeBoost', { defaultValue: 'Ranged range boost' }),
+                    value: t('settings:sheet.rangedRangeBoostValue', {
+                        cost: settings.deploy.rangedRangeBoostCost,
+                        boost: settings.deploy.rangeBoost,
+                        defaultValue: `${settings.deploy.rangedRangeBoostCost} supply → +${settings.deploy.rangeBoost} range`,
+                    }),
+                    note: t('settings:sheet.rangedRangeBoostNote', {
+                        defaultValue: 'Garrison — all ranged units, this round only',
+                    }),
                 },
                 {
-                    label: 'Loan',
-                    value: `+${settings.deploy.creditGain} now, −${settings.deploy.creditDebt} next round`,
-                    note: 'Garrison — once per round',
+                    label: t('settings:sheet.armySpeedBoost', { defaultValue: 'Army speed boost' }),
+                    value: t('settings:sheet.armySpeedBoostValue', {
+                        cost: settings.deploy.armySpeedBoostCost,
+                        boost: settings.deploy.speedBoost,
+                        defaultValue: `${settings.deploy.armySpeedBoostCost} supply → +${settings.deploy.speedBoost} speed`,
+                    }),
+                    note: t('settings:sheet.armySpeedBoostNote', {
+                        defaultValue: 'Garrison — whole army, this round only',
+                    }),
                 },
                 {
-                    label: 'Extras budget',
-                    value: `${settings.deploy.extrasBudgetPerRound} supply/round`,
-                    note: 'shields, rockets',
+                    label: t('settings:sheet.loan', { defaultValue: 'Loan' }),
+                    value: t('settings:sheet.loanValue', {
+                        gain: settings.deploy.creditGain,
+                        debt: settings.deploy.creditDebt,
+                        defaultValue: `+${settings.deploy.creditGain} now, −${settings.deploy.creditDebt} next round`,
+                    }),
+                    note: t('settings:sheet.loanNote', {
+                        defaultValue: 'Garrison — once per round',
+                    }),
                 },
                 {
-                    label: 'Flank grace',
-                    value: `${settings.deploy.flankSpawnSeconds}s`,
-                    note: 'first flank deploys once flanks open',
+                    label: t('settings:sheet.extrasBudget', { defaultValue: 'Extras budget' }),
+                    value: t('settings:sheet.extrasBudgetValue', {
+                        amount: settings.deploy.extrasBudgetPerRound,
+                        defaultValue: `${settings.deploy.extrasBudgetPerRound} supply/round`,
+                    }),
+                    note: t('settings:sheet.extrasBudgetNote', {
+                        defaultValue: 'shields, rockets',
+                    }),
+                },
+                {
+                    label: t('settings:sheet.flankGrace', { defaultValue: 'Flank grace' }),
+                    value: t('settings:sheet.flankGraceValue', {
+                        seconds: settings.deploy.flankSpawnSeconds,
+                        defaultValue: `${settings.deploy.flankSpawnSeconds}s`,
+                    }),
+                    note: t('settings:sheet.flankGraceNote', {
+                        defaultValue: 'first flank deploys once flanks open',
+                    }),
                 },
             ],
         },
         {
-            title: 'Leveling',
+            title: t('settings:sheet.levelingTitle', { defaultValue: 'Leveling' }),
             rows: [
-                { label: 'Stat bonus per level', value: `+${pct(settings.leveling.statBonusPerLevel)} hp/damage` },
-                { label: 'Max level', value: `${settings.leveling.maxLevel}` },
                 {
-                    label: 'Level cost',
-                    value: `${pct(settings.leveling.levelCostFactor)} of pack cost`,
-                    note: 'leveling is a purchase, never automatic',
+                    label: t('settings:sheet.statBonusPerLevel', {
+                        defaultValue: 'Stat bonus per level',
+                    }),
+                    value: t('settings:sheet.statBonusPerLevelValue', {
+                        pct: pct(settings.leveling.statBonusPerLevel),
+                        defaultValue: `+${pct(settings.leveling.statBonusPerLevel)} hp/damage`,
+                    }),
                 },
                 {
-                    label: 'Recruit at level 2',
-                    value: `${settings.leveling.recruitLevel2Cost} supply`,
-                    note: 'once-per-round switch — new recruits arrive pre-leveled',
+                    label: t('settings:sheet.maxLevel', { defaultValue: 'Max level' }),
+                    value: `${settings.leveling.maxLevel}`,
+                },
+                {
+                    label: t('settings:sheet.levelCost', { defaultValue: 'Level cost' }),
+                    value: t('settings:sheet.levelCostValue', {
+                        pct: pct(settings.leveling.levelCostFactor),
+                        defaultValue: `${pct(settings.leveling.levelCostFactor)} of pack cost`,
+                    }),
+                    note: t('settings:sheet.levelCostNote', {
+                        defaultValue: 'leveling is a purchase, never automatic',
+                    }),
+                },
+                {
+                    label: t('settings:sheet.recruitAtLevel2', { defaultValue: 'Recruit at level 2' }),
+                    value: supply(settings.leveling.recruitLevel2Cost),
+                    note: t('settings:sheet.recruitAtLevel2Note', {
+                        defaultValue: 'once-per-round switch — new recruits arrive pre-leveled',
+                    }),
                 },
             ],
         },
         {
-            title: 'Sell',
+            title: t('settings:sheet.sellTitle', { defaultValue: 'Sell' }),
             rows: [
                 {
-                    label: 'Ability cost',
-                    value: `${settings.sell.abilityCost} supply, one-time`,
-                    note: 'Vanguard — once bought, permanent',
-                },
-                { label: 'Sells per round', value: `${settings.sell.maxPerRound}` },
-                { label: 'Refund', value: pct(settings.sell.refundFactor), note: 'of the unit’s base cost' },
-            ],
-        },
-        {
-            title: 'Rally Route',
-            rows: [
-                {
-                    label: 'Ability cost',
-                    value: `${settings.rallyRoute.abilityCost} supply, one-time`,
-                    note: `Vanguard — grants one rally-route ${DISPLAY.tactic.toLowerCase()} charge`,
+                    label: t('settings:sheet.abilityCost', { defaultValue: 'Ability cost' }),
+                    value: abilityOneTime(settings.sell.abilityCost),
+                    note: t('settings:sheet.sellAbilityNote', {
+                        defaultValue: 'Vanguard — once bought, permanent',
+                    }),
                 },
                 {
-                    label: 'Boosts',
-                    value: 'Army-wide stat tiers',
+                    label: t('settings:sheet.sellsPerRound', { defaultValue: 'Sells per round' }),
+                    value: `${settings.sell.maxPerRound}`,
                 },
-            ],
-        },
-        {
-            title: 'Move Pack',
-            rows: [
                 {
-                    label: 'Ability cost',
-                    value: `${settings.movePack.abilityCost} supply, one-time`,
-                    note: `Vanguard — grants one move-pack ${DISPLAY.tactic.toLowerCase()} charge`,
+                    label: t('settings:sheet.refund', { defaultValue: 'Refund' }),
+                    value: pct(settings.sell.refundFactor),
+                    note: t('settings:sheet.refundNote', {
+                        defaultValue: 'of the unit’s base cost',
+                    }),
                 },
             ],
         },
         {
-            title: 'Commander Spells',
+            title: t('settings:sheet.rallyRouteTitle', { defaultValue: 'Rally Route' }),
+            rows: [
+                {
+                    label: t('settings:sheet.abilityCost', { defaultValue: 'Ability cost' }),
+                    value: abilityOneTime(settings.rallyRoute.abilityCost),
+                    note: t('settings:sheet.rallyRouteNote', {
+                        tactic: DISPLAY.tactic.toLowerCase(),
+                        defaultValue: `Vanguard — grants one rally-route ${DISPLAY.tactic.toLowerCase()} charge`,
+                    }),
+                },
+                {
+                    label: t('settings:sheet.boosts', { defaultValue: 'Boosts' }),
+                    value: t('settings:sheet.boostsArmyWide', {
+                        defaultValue: 'Army-wide stat tiers',
+                    }),
+                },
+            ],
+        },
+        {
+            title: t('settings:sheet.movePackTitle', { defaultValue: 'Move Pack' }),
+            rows: [
+                {
+                    label: t('settings:sheet.abilityCost', { defaultValue: 'Ability cost' }),
+                    value: abilityOneTime(settings.movePack.abilityCost),
+                    note: t('settings:sheet.movePackNote', {
+                        tactic: DISPLAY.tactic.toLowerCase(),
+                        defaultValue: `Vanguard — grants one move-pack ${DISPLAY.tactic.toLowerCase()} charge`,
+                    }),
+                },
+            ],
+        },
+        {
+            title: t('settings:sheet.commanderSpellsTitle', { defaultValue: 'Commander Spells' }),
             rows: Object.values(TACTICS)
-                .filter((t) => t.strongholdCost !== undefined)
-                .sort((a, b) => a.strongholdCost! - b.strongholdCost! || a.name.localeCompare(b.name))
-                .map((t) => ({
-                    label: t.name,
-                    value: `${t.strongholdCost} supply, one-time`,
-                    note: 'Stronghold — only on a commander that knows it',
+                .filter((spell) => spell.strongholdCost !== undefined)
+                .sort(
+                    (a, b) =>
+                        a.strongholdCost! - b.strongholdCost! || a.name.localeCompare(b.name),
+                )
+                .map((spell) => ({
+                    label: spell.name,
+                    value: abilityOneTime(spell.strongholdCost!),
+                    note: t('settings:sheet.commanderSpellNote', {
+                        defaultValue: 'Stronghold — only on a commander that knows it',
+                    }),
                 })),
         },
         {
-            title: 'Boosts',
+            title: t('settings:sheet.boostsTitle', { defaultValue: 'Boosts' }),
             rows: settings.boosts.costs.map((cost, i) => ({
-                label: `Tier ${i + 1}`,
-                value: `${cost} supply → +${pct(settings.boosts.attackTiers[i]!)} damage, +${pct(settings.boosts.hpTiers[i]!)} hp`,
-                note: 'Vanguard — totals, not stacked on top of the previous tier',
+                label: t('settings:sheet.tier', {
+                    n: i + 1,
+                    defaultValue: `Tier ${i + 1}`,
+                }),
+                value: t('settings:sheet.tierValue', {
+                    cost,
+                    attack: pct(settings.boosts.attackTiers[i]!),
+                    hp: pct(settings.boosts.hpTiers[i]!),
+                    defaultValue: `${cost} supply → +${pct(settings.boosts.attackTiers[i]!)} damage, +${pct(settings.boosts.hpTiers[i]!)} hp`,
+                }),
+                note: t('settings:sheet.tierNote', {
+                    defaultValue: 'Vanguard — totals, not stacked on top of the previous tier',
+                }),
             })),
         },
     ];

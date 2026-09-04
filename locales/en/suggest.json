@@ -1,0 +1,23 @@
+{
+  "title": "Send feedback",
+  "lead": "Tell us what to build, fix, or try. If you want you can add your name and email address.",
+  "discord": "Prefer chat? Join the Discord community.",
+  "category": "Category",
+  "message": "Message",
+  "placeholder": "What should change? What broke? What would help?",
+  "cancel": "Cancel",
+  "submit": "Submit",
+  "sending": "Sending…",
+  "thanksSent": "Thanks — sent.",
+  "thanksSaved": "Thanks — saved.",
+  "writeFirst": "Write a short message first.",
+  "rateLimited": "Too many suggestions — try again in {{n}}s.",
+  "sendFailed": "Could not send. Try again later.",
+  "networkError": "Network error — try again later.",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
+  "catArt": "Models / art",
+  "catCommunity": "Community",
+  "catOther": "Other"
+}

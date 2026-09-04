@@ -330,7 +330,7 @@ function showFatal(title: string, detail: string): void {
         el.addEventListener('click', () => el?.remove());
         document.body.appendChild(el);
     }
-    el.textContent = `${title}\n${detail}\n\n(tap to dismiss)`;
+    el.textContent = `${title}\n${detail}\n\n${t('menu:tapToDismiss')}`;
 }
 window.addEventListener('error', (e) => {
     showFatal(`Error: ${e.message}`, `${e.filename ?? ''}:${e.lineno ?? ''}\n${e.error?.stack ?? ''}`);
@@ -515,8 +515,8 @@ function createThreeCanvas(): HTMLCanvasElement {
     canvas.addEventListener('webglcontextlost', (e) => {
         e.preventDefault();
         showFatal(
-            'WebGL context lost (3D canvas)',
-            'The graphics driver dropped the game view — usually out of GPU memory. Reload the page; lowering the graphics preset in Settings helps.',
+            t('menu:webglLost3dTitle'),
+            t('menu:webglLost3dDetail'),
         );
     });
     return canvas;
@@ -674,7 +674,7 @@ loadingEl.innerHTML =
     `<div class="hp-fill" style="transform:scaleX(0)"></div>` +
     `<span class="hp-val">0%</span>` +
     `</div></div>` +
-    `<div class="load-status">Loading…</div>`;
+    `<div class="load-status">${t('menu:bootLoading')}</div>`;
 wrapper.appendChild(loadingEl);
 const loadFill = loadingEl.querySelector<HTMLDivElement>('.hp-fill')!;
 const loadVal = loadingEl.querySelector<HTMLSpanElement>('.hp-val')!;
@@ -707,8 +707,8 @@ app.canvas.style.inset = '0';
 app.canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault();
     showFatal(
-        'WebGL context lost (UI canvas)',
-        'The graphics driver dropped the UI layer — usually out of GPU memory. Reload the page.',
+        t('menu:webglLostUiTitle'),
+        t('menu:webglLostUiDetail'),
     );
 });
 wrapper.appendChild(app.canvas);
@@ -1592,7 +1592,7 @@ function hostCustomGame(mode: CustomGameMode): void {
             return;
         }
         if (transport === 'steam') {
-            setStatus('Opening Steam lobby…');
+            setStatus(t('menu:openingSteam'));
             await beginHost({
                 transport: 'steam',
                 customConfig: cfg,
@@ -1606,7 +1606,7 @@ function hostCustomGame(mode: CustomGameMode): void {
         }
         const discovery = transport === 'lan' ? 'lan' : 'matchmaking';
         setStatus(
-            discovery === 'lan' ? 'Opening LAN room…' : 'Opening room…',
+            discovery === 'lan' ? t('menu:openingLan') : t('menu:openingRoom'),
         );
         await beginHost({ transport: discovery, horde: false, waitForJoined, customConfig: cfg, buildRoster, mode: layout, offerAiStart: true });
     })();
@@ -1678,25 +1678,25 @@ function showNameEditor(): void {
     overlay.className = 'mechili-name-edit';
     const currentAvatar = getAvatarDataUrl();
     const syncHint = steamLocked
-        ? 'Name comes from Steam. Avatar is custom for Melodan (184×184) and sent to peers when you join.'
+        ? t('menu:hintSteamAvatar')
         : shouldPersistAvatarToPhp()
-          ? 'Avatar is saved on this device and to your online profile (184×184).'
-          : 'Avatar is saved on this device (184×184). Shown to peers when you join.';
+          ? t('menu:hintOnlineAvatar')
+          : t('menu:hintLocalAvatar');
     overlay.innerHTML =
         `<div class="box">` +
-        `<div class="title">${steamLocked ? 'Avatar' : 'Username'}</div>` +
+        `<div class="title">${steamLocked ? t('menu:profileAvatar') : t('menu:profileUsername')}</div>` +
         `<div class="avatar-row">` +
         `<img class="avatar-preview" alt="" hidden />` +
-        `<label class="avatar-pick">Upload image<input class="avatar-file" type="file" accept="image/*" hidden /></label>` +
-        `<button type="button" data-act="clear-avatar">Clear</button>` +
+        `<label class="avatar-pick">${t('menu:uploadImage')}<input class="avatar-file" type="file" accept="image/*" hidden /></label>` +
+        `<button type="button" data-act="clear-avatar">${t('menu:clearAvatar')}</button>` +
         `</div>` +
         `<input class="name-input" maxlength="16" spellcheck="false" value="${getPlayerName()}" ${steamLocked ? 'readonly' : ''} />` +
         `<div class="hint">${syncHint}</div>` +
         `<div class="error" hidden></div>` +
-        `<button type="button" class="profile-loadout" data-act="loadout">Unit loadout</button>` +
+        `<button type="button" class="profile-loadout" data-act="loadout">${t('menu:unitLoadout')}</button>` +
         `<div class="actions">` +
-        `<button type="button" data-act="cancel">Cancel</button>` +
-        `<button type="button" class="primary" data-act="save">Save</button>` +
+        `<button type="button" data-act="cancel">${t('menu:cancel')}</button>` +
+        `<button type="button" class="primary" data-act="save">${t('menu:save')}</button>` +
         `</div></div>`;
 
     const nameInput = overlay.querySelector<HTMLInputElement>('.name-input')!;
@@ -1752,7 +1752,7 @@ function showNameEditor(): void {
             setError('');
             const dataUrl = await resizeImageFileToAvatar(file);
             if (!dataUrl) {
-                setError('Could not use that image — try a smaller PNG or JPEG.');
+                setError(t('menu:errBadImage'));
                 return;
             }
             pendingAvatar = dataUrl;
@@ -1765,7 +1765,7 @@ function showNameEditor(): void {
         const next = steamLocked ? getPlayerName() : validatePlayerName(nameInput.value);
         if (!next) {
             nameInput.style.borderColor = '#e83828';
-            setError('Name must be 2–16 letters, numbers, _ or -.');
+            setError(t('menu:errBadName'));
             return false;
         }
         nameInput.style.borderColor = '';
@@ -2202,7 +2202,7 @@ function renderRosterTable(
         if (sideIndex > 0) {
             const vs = document.createElement('div');
             vs.className = 'm-roster-vs';
-            vs.textContent = 'vs';
+            vs.textContent = t('hud:vs');
             vs.setAttribute('aria-hidden', 'true');
             cols.appendChild(vs);
         }
@@ -2211,7 +2211,7 @@ function renderRosterTable(
         col.className = `m-roster-col m-roster-col-${side}`;
         const header = document.createElement('div');
         header.className = 'm-roster-col-header';
-        header.textContent = `Team ${teamNum}`;
+        header.textContent = t('menu:rosterTeam', { n: teamNum });
         col.appendChild(header);
         for (const seat of bySide.get(side)!) {
             const filled = roster[seat]!.name !== OPEN_SEAT_NAME;
@@ -2222,10 +2222,10 @@ function renderRosterTable(
             const label = document.createElement('span');
             label.className = 'm-roster-seat-name';
             const displayName = filled
-                ? `${roster[seat]!.name}${seat === mySeat ? ' (you)' : ''}`
+                ? `${roster[seat]!.name}${seat === mySeat ? t('menu:rosterYou') : ''}`
                 : guaranteedAi
-                  ? 'AI'
-                  : OPEN_SEAT_NAME;
+                  ? t('menu:rosterAi')
+                  : t('menu:rosterWaiting');
             label.textContent = displayName;
             if (filled) {
                 // Truncated seats still expose the full name on hover / tap.
@@ -2249,7 +2249,7 @@ function renderRosterTable(
             if (filled && seat !== 0 && roster[seat]!.ready) {
                 const ready = document.createElement('span');
                 ready.className = 'm-roster-ready';
-                ready.title = 'Ready';
+                ready.title = t('menu:rosterReady');
                 ready.textContent = '✓';
                 cell.appendChild(ready);
             }
@@ -2268,7 +2268,7 @@ function renderRosterTable(
                 invite.className = 'm-roster-invite';
                 // not "to this seat": an invite reaches the ROOM, and the host
                 // seats whoever accepts in the next opening
-                invite.title = 'Invite a friend';
+                invite.title = t('menu:rosterInvite');
                 invite.textContent = '+';
                 invite.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -2280,7 +2280,7 @@ function renderRosterTable(
                 const kick = document.createElement('button');
                 kick.type = 'button';
                 kick.className = 'm-roster-kick';
-                kick.title = `Kick ${roster[seat]!.name}`;
+                kick.title = t('menu:rosterKick', { name: roster[seat]!.name });
                 kick.textContent = '×';
                 kick.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -2313,15 +2313,15 @@ function inviteToHostedRoom(): void {
         return;
     }
     if (hosting.transport === 'lan') {
-        setStatus('Your room is on the local network — friends: Settings → Multiplayer → LAN, then Matchmaking.', 6000);
+        setStatus(t('menu:lanInviteHint'), 6000);
         return;
     }
     // web: the room is found by the host's name, so a link is the invite
     const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(getPlayerName())}`;
     void navigator.clipboard
         ?.writeText(link)
-        .then(() => setStatus('Room link copied — send it to your friend.', 5000))
-        .catch(() => setStatus(`Send this to your friend: ${link}`, 8000));
+        .then(() => setStatus(t('menu:roomLinkCopied'), 5000))
+        .catch(() => setStatus(t('menu:sendLinkToFriend', { link }), 8000));
 }
 
 /**
@@ -2447,7 +2447,7 @@ async function refreshRoomList(): Promise<void> {
                 const modeTag = ad.mode === '2v2' ? ' (2v2)' : '';
                 const roundTag = ad.round ? t('menu:roundTag', { n: ad.round }) : '';
                 button.textContent = watch
-                    ? `Watch ${ad.name}${modeTag}${roundTag}`
+                    ? t('menu:watchRoom', { name: ad.name, mode: modeTag, round: roundTag })
                     : `${ad.name}${modeTag}${rejoinable ? roundTag : ''}`;
                 roomAdsByKey.set(ad.key, ad);
                 return button;
@@ -2889,10 +2889,10 @@ let replayControlsPanel: ReplayControls | null = null;
  *  resume marker/single-player save so a replay link is never preempted. */
 async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
     setMenuChromeVisible(true);
-    setStatus('Loading replay…');
+    setStatus(t('hud:loadingReplay', { defaultValue: 'Loading replay…' }));
     const record = await fetchMatchReplay(id, side);
     if (!record) {
-        setStatus('Replay not found.');
+        setStatus(t('hud:replayNotFound', { defaultValue: 'Replay not found.' }));
         return;
     }
     setStatus('');
@@ -3039,10 +3039,10 @@ function rebuildStarGuestGame(
  */
 async function verifyReplayAndReturn(id: string, side: 'a' | 'b'): Promise<void> {
     setMenuChromeVisible(true);
-    setStatus('Verifying…');
+    setStatus(t('hud:verifying', { defaultValue: 'Verifying…' }));
     const record = await fetchMatchReplay(id, side);
     if (!record) {
-        setStatus('Replay not found.');
+        setStatus(t('hud:replayNotFound', { defaultValue: 'Replay not found.' }));
         return;
     }
     const settings = record.replay.settings;
@@ -3103,7 +3103,13 @@ async function runBulkVerify(queue: { id: string; side: 'a' | 'b' }[]): Promise<
     const results: BulkVerifyResult[] = [];
     for (let i = 0; i < queue.length; i++) {
         const { id, side } = queue[i]!;
-        setStatus(`Bulk verifying ${i + 1}/${queue.length}…`);
+        setStatus(
+            t('hud:bulkVerifying', {
+                n: i + 1,
+                total: queue.length,
+                defaultValue: `Bulk verifying ${i + 1}/${queue.length}…`,
+            }),
+        );
         const record = await fetchMatchReplay(id, side);
         if (!record) {
             results.push({
@@ -3198,10 +3204,10 @@ function rosterWithWiredAvatars(roster: CanonicalSeatDef[]): CanonicalSeatDef[] 
  *  this works for any roster size, not just the hardcoded 4-seat layout */
 function starAiName(seat: SeatId, roster: CanonicalSeatDef[]): string {
     const mySide = roster[0]!.side;
-    if (roster[seat]!.side === mySide) return 'Ally';
+    if (roster[seat]!.side === mySide) return t('menu:aiNameAlly');
     const foeSeats = roster.map((_, i) => i).filter((i) => roster[i]!.side !== mySide);
-    if (foeSeats.length <= 1) return 'Foe';
-    return foeSeats.indexOf(seat) === 0 ? 'Foe West' : 'Foe East';
+    if (foeSeats.length <= 1) return t('menu:aiNameFoe');
+    return foeSeats.indexOf(seat) === 0 ? t('menu:aiNameFoeWest') : t('menu:aiNameFoeEast');
 }
 /** the HUD's "opponent" name field only ever makes sense for a genuine
  *  2-seat (1v1-via-star) roster — a real 2v2+ has no single opponent to
@@ -3286,10 +3292,13 @@ function updateSteamPresence(
     }
     const status =
         state === 'match'
-            ? 'In a match'
+            ? t('menu:steamPresenceMatch', { defaultValue: 'In a match' })
             : opts.players
-              ? `In a lobby (${opts.players})`
-              : 'In a lobby';
+              ? t('menu:steamPresenceLobbyN', {
+                    n: opts.players,
+                    defaultValue: `In a lobby (${opts.players})`,
+                })
+              : t('menu:steamPresenceLobby', { defaultValue: 'In a lobby' });
     void steam.setPresence({ status, lobbyId: opts.lobbyId ?? null, groupSize: opts.players });
 }
 
@@ -3377,7 +3386,9 @@ function wireHostedHub(
         const roster = hub.currentRoster();
         announceRosterChanges(roster);
         const joined = hub.connectedSeats().length + 1;
-        const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        const names = roster
+            .map((s, i) => (i === 0 ? `${s.name}${t('menu:rosterYou')}` : s.name))
+            .join(', ');
         // only ACTUALLY joined seats (host + currently connected) — the
         // rest of `roster` is still "Waiting…" placeholders, not real names
         const connectedNames = [0, ...hub.connectedSeats()]
@@ -3434,23 +3445,48 @@ function wireHostedHub(
         // Custom Game host wants a last look at who joined (and the chance
         // to kick someone) before committing.
         if (joined >= waitForJoined && !customConfig) {
-            setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined: ${names}. Starting…`);
+            setStatus(
+                t('menu:roomStarting', {
+                    name: hostName,
+                    joined,
+                    total: roster.length,
+                    names,
+                }),
+            );
             startHostedMatch();
             return;
         }
         if (joined >= waitForJoined && customConfig && !allReady) {
-            setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined. Waiting for everyone to ready up.`);
-        } else if (joined >= waitForJoined) {
-            setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined: ${names}. Ready — click Start.`);
-        } else if (offerAiStart) {
-            const modeLabel = mode === '1v1' ? '1vs1' : '2vs2';
-            const remaining = waitForJoined - joined;
-            const namesPart = joined > 1 ? `${connectedNames} - ` : '';
             setStatus(
-                `Room "${hostName}" ${modeLabel} - ${namesPart}waiting for ${remaining} more player${remaining === 1 ? '' : 's'}. Click "Start with AI" to play the empty seats as bots`,
+                t('menu:roomWaitingReady', {
+                    name: hostName,
+                    joined,
+                    total: roster.length,
+                    names,
+                }),
+            );
+        } else if (joined >= waitForJoined) {
+            setStatus(
+                t('menu:roomReadyStart', {
+                    name: hostName,
+                    joined,
+                    total: roster.length,
+                    names,
+                }),
+            );
+        } else if (offerAiStart) {
+            const remaining = waitForJoined - joined;
+            setStatus(
+                t('menu:roomNeedMore', {
+                    name: hostName,
+                    joined,
+                    total: roster.length,
+                    names: connectedNames,
+                    need: remaining,
+                }),
             );
         } else {
-            setStatus('Waiting for an opponent');
+            setStatus(t('menu:waitingOpponent'));
         }
     };
     showLobbyChat((item) =>
@@ -3482,7 +3518,7 @@ function wireHostedHub(
             };
         }
         const seat = hub.nextOpenSeat();
-        if (seat === null) return { reject: 'Room is full.' };
+        if (seat === null) return { reject: t('menu:roomFull') };
         hub.setRosterEntry(seat, {
             side: hub.sideOf(seat),
             controller: 'human',
@@ -3534,14 +3570,14 @@ async function beginHost(opts: {
     setMenuBusy(true);
     setStatus(
         transport === 'steam'
-            ? 'Opening Steam lobby…'
+            ? t('menu:openingSteam')
             : transport === 'lan'
               ? mode === '1v1'
-                  ? 'Opening LAN room…'
-                  : 'Opening LAN 2v2 room…'
+                  ? t('menu:openingLan')
+                  : t('menu:openingLan2v2')
               : mode === '1v1'
-                ? 'Opening room…'
-                : 'Opening 2v2 room…',
+                ? t('menu:openingRoom')
+                : t('menu:openingRoom2v2'),
     );
     const hostName = getPlayerName();
     // Opening a room can't be aborted mid-flight (a real round trip: PeerJS
@@ -3575,7 +3611,7 @@ async function beginHost(opts: {
     } catch (e) {
         pending = null;
         setMenuBusy(false);
-        setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
+        setStatus(t('menu:couldNotHost', { error: e instanceof Error ? e.message : e }));
         return;
     }
     pending = null;
@@ -3718,7 +3754,7 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
                 // handling already does for the "connected, then rejected"
                 // case; this is its "never even connected" counterpart.
                 clearStarResumeMarker();
-                setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
+                setStatus(t('menu:connectionFailed', { error: e instanceof Error ? e.message : e }));
             }
         });
 }
@@ -3739,7 +3775,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
         },
     };
     setMenuBusy(true);
-    setStatus('Connected — waiting for the host to start…');
+    setStatus(t('menu:connectedWaitingHost'));
     // A guest advertises the same lobby, so a third friend can join through
     // either player rather than only through the host.
     updateSteamPresence('lobby', { lobbyId: steamLobbyIdOf(session) });
@@ -3751,7 +3787,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
         setMenuBusy(false);
         clearRosterTable();
         clearLobbySettings();
-        setStatus('Host closed the room.', 5000);
+        setStatus(t('menu:hostClosed'), 5000);
     };
     // this client's OWN seat number, once known — needed both for
     // renderRosterTable's "you" highlighting and to interpret 'ready'
@@ -3792,7 +3828,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                     lobbyReadyCheckEl.checked = hostSaysReady;
                 }
             }
-            setStatus('Connected — waiting for the host to start…');
+            setStatus(t('menu:connectedWaitingHost'));
             return;
         }
         if (msg.type === 'chat') {
@@ -3853,7 +3889,10 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                 clearRosterTable();
                 clearLobbySettings();
                 setStatus(
-                    `Version mismatch — the host runs ${formatGameVersion(msg.version)}, you have ${formatGameVersion(GAME_VERSION)}.`,
+                    t('menu:versionMismatch', {
+                        host: formatGameVersion(msg.version),
+                        you: formatGameVersion(GAME_VERSION),
+                    }),
                     5000,
                 );
                 session.close();
@@ -3887,7 +3926,10 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             clearRosterTable();
             clearLobbySettings();
             setStatus(
-                `Version mismatch — the host runs ${formatGameVersion(msg.version)}, you have ${formatGameVersion(GAME_VERSION)}.`,
+                t('menu:versionMismatch', {
+                    host: formatGameVersion(msg.version),
+                    you: formatGameVersion(GAME_VERSION),
+                }),
                 5000,
             );
             session.close();
@@ -3980,7 +4022,7 @@ function runGuestPending(p: Promise<GuestSession>): void {
         pending = null;
         setMenuBusy(false);
         if (cancelled || String(e).includes('cancelled')) showMenuView('main');
-        else setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
+        else setStatus(t('menu:connectionFailed', { error: e instanceof Error ? e.message : e }));
     });
 }
 
@@ -4067,7 +4109,7 @@ function acceptSteamInvite(lobbySteamId: string): void {
                     });
                 } else {
                     setMenuBusy(false);
-                    setStatus(`Could not join: ${first.reason}`);
+                    setStatus(t('menu:couldNotJoin', { error: first.reason }));
                 }
                 return;
             }
@@ -4076,7 +4118,7 @@ function acceptSteamInvite(lobbySteamId: string): void {
             if (cancelled) return;
             pending = null;
             setMenuBusy(false);
-            setStatus(`Could not join: ${e instanceof Error ? e.message : e}`);
+            setStatus(t('menu:couldNotJoin', { error: e instanceof Error ? e.message : e }));
         }
     })();
 }
@@ -4167,7 +4209,7 @@ async function listRoomAds(transport: MultiplayerTransport, waitMs = 900): Promi
                 const limit = r.memberLimit ?? (mode === '2v2' ? 4 : 2);
                 return {
                     key: r.id,
-                    name: r.data.host || 'Steam player',
+                    name: r.data.host || t('menu:steamPlayerFallback', { defaultValue: 'Steam player' }),
                     mode,
                     round: r.data.round ? Number(r.data.round) : undefined,
                     seats: parseAdSeats(r.data.seats),
@@ -4321,11 +4363,14 @@ async function runQuickMatchmaking(
                 tried.add(c.key);
                 anyAttempt = true;
                 setStatus(
-                    transport === 'lan'
-                        ? `Found LAN room — connecting…`
-                        : transport === 'steam'
-                          ? 'Found Steam lobby — connecting…'
-                          : 'Found room — connecting…',
+                    t('menu:foundConnecting', {
+                        scope:
+                            transport === 'lan'
+                                ? t('menu:scopeLanRoom', { defaultValue: 'LAN room' })
+                                : transport === 'steam'
+                                  ? t('menu:scopeSteamLobby', { defaultValue: 'Steam lobby' })
+                                  : t('menu:scopeRoom', { defaultValue: 'room' }),
+                    }),
                 );
                 const joined = await tryJoinMatchCandidate(c);
                 if (cancelled) return;
@@ -4345,7 +4390,7 @@ async function runQuickMatchmaking(
             return;
         }
         setMenuBusy(false);
-        setStatus(`Matchmaking failed: ${e instanceof Error ? e.message : e}`);
+        setStatus(t('menu:matchmakingFailed', { error: e instanceof Error ? e.message : e }));
     }
 }
 
@@ -4378,7 +4423,7 @@ function startSpectateGame(
     const name = hostName.trim();
     if (!name) return;
     setMenuBusy(true);
-    setStatus(`Looking for "${name}"…`);
+    setStatus(t('menu:lookingForName', { name }));
     void (async () => {
         try {
             // A room that advertised its own spectate endpoint (Steam lobby
@@ -4392,10 +4437,10 @@ function startSpectateGame(
             const endpoint = known?.endpoint ?? (await lookupSpectateEndpoint(name));
             if (!endpoint) {
                 setMenuBusy(false);
-                setStatus(`No live match found for "${name}".`);
+                setStatus(t('menu:noLiveMatch', { name }));
                 return;
             }
-            setStatus('Connecting…');
+            setStatus(t('menu:connecting'));
             // Watch over the same network the match is running on: `endpoint`
             // is the host's steamId64 for a Steam room, a peer id otherwise.
             const result =
@@ -4424,7 +4469,7 @@ function startSpectateGame(
             });
         } catch (e) {
             setMenuBusy(false);
-            setStatus(`Could not watch: ${e instanceof Error ? e.message : e}`);
+            setStatus(t('menu:couldNotWatch', { error: e instanceof Error ? e.message : e }));
         }
     })();
 }
@@ -4504,7 +4549,7 @@ menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
         if (!bootReady) {
-            setStatus('Still loading — one moment…');
+            setStatus(t('menu:stillLoading'));
             return;
         }
         const ad = roomAdsByKey.get(roomBtn.dataset.roomKey ?? '');
@@ -4552,7 +4597,7 @@ menu.addEventListener('click', (e) => {
             mode === 'host' ||
             mode === 'host2v2')
     ) {
-        setStatus('Still loading — one moment…');
+        setStatus(t('menu:stillLoading'));
         return;
     }
 
@@ -4623,8 +4668,8 @@ menu.addEventListener('click', (e) => {
             void (async () => {
                 const transport = await resolveMultiplayerTransport();
                 if (transport === 'steam') {
-                    mmInviteEl.textContent = 'Waiting for your friend…';
-                    mmLinkEl.textContent = 'Invite a friend from the Steam overlay that just opened.';
+                    mmInviteEl.textContent = t('menu:waitingForFriend');
+                    mmLinkEl.textContent = t('menu:steamInviteHint');
                     mmLinkEl.style.display = '';
                     setStatus(transportLookingStatus('steam'));
                     void beginHost({
@@ -4640,8 +4685,8 @@ menu.addEventListener('click', (e) => {
                     return;
                 }
                 if (transport === 'lan') {
-                    mmInviteEl.textContent = 'Waiting for a LAN player…';
-                    mmLinkEl.textContent = 'Your room is advertised on the local network. Friends: Settings → Multiplayer → LAN, then Matchmaking.';
+                    mmInviteEl.textContent = t('menu:waitingForLan');
+                    mmLinkEl.textContent = t('menu:lanInviteWaitingHint');
                     mmLinkEl.style.display = '';
                     setStatus(transportLookingStatus('lan'));
                     if (team === '2v2') void beginHost({ transport: 'lan', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initialStarRoster, mode: '2v2', offerAiStart: true });
@@ -4654,10 +4699,10 @@ menu.addEventListener('click', (e) => {
                     mmInviteEl.disabled = false;
                     return;
                 }
-                mmInviteEl.textContent = 'Waiting for your friend…';
+                mmInviteEl.textContent = t('menu:waitingForFriend');
                 const hostName = getPlayerName();
                 const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(hostName)}`;
-                mmLinkEl.textContent = `Send this to your friend: ${link}`;
+                mmLinkEl.textContent = t('menu:sendLinkToFriend', { link });
                 mmLinkEl.style.display = '';
                 setStatus(transportLookingStatus('matchmaking'));
                 if (team === '2v2') void beginHost({ transport: 'matchmaking', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initialStarRoster, mode: '2v2', offerAiStart: true });
@@ -4705,7 +4750,14 @@ menu.addEventListener('click', (e) => {
                         if (!rooms.length) rooms = await lanRoomsExcludingSelf(2000);
                         const open = rooms[0];
                         if (open) {
-                            setStatus(`Found LAN room "${open.name}" — connecting…`);
+                            setStatus(
+                                t('menu:foundConnecting', {
+                                    scope: t('menu:scopeLanRoomNamed', {
+                                        name: open.name,
+                                        defaultValue: `LAN room "${open.name}"`,
+                                    }),
+                                }),
+                            );
                             beginStarJoin(open.name, {
                                 host: open.host,
                                 port: open.port,
@@ -4817,7 +4869,7 @@ if (bulkVerify) {
     // status text, and every failure case the same way a manual click
     // would — no separate dedicated overlay needed here).
     setMenuChromeVisible(true);
-    setStatus(`Reconnecting to "${starMpMarker.hostName}"…`);
+    setStatus(t('menu:reconnecting', { name: starMpMarker.hostName }));
     // Same automatic version of clicking the room, per transport: Steam rejoins
     // the lobby it recorded, LAN dials the signaling server the room lives on
     // (a fresh process has none configured), matchmaking dials the room code.

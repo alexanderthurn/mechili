@@ -1,8 +1,9 @@
 /**
  * Between-round card presets: match config stores only an id; each algorithm
- * owns schedule + pool progression and the English select-box blurb.
+ * owns schedule + pool progression and the select-box blurb.
  */
 
+import { t } from '../i18n';
 import {
     drawRoundCardOffer,
     type RoundCard,
@@ -37,7 +38,7 @@ export abstract class RoundCardAlgorithm {
 class OffRoundCards extends RoundCardAlgorithm {
     readonly id = 'off';
     describe(): string {
-        return 'Off — no between-round cards';
+        return t('settings:cardsOff', { defaultValue: 'Off — no between-round cards' });
     }
     shouldOffer(): boolean {
         return false;
@@ -51,7 +52,9 @@ class OffRoundCards extends RoundCardAlgorithm {
 class RunesSpareRoundCards extends RoundCardAlgorithm {
     readonly id = 'runes-spare';
     describe(): string {
-        return 'Runes Only (Spare) — base runes on rounds 2, 4, 6, 8, 10';
+        return t('settings:cardsSpare', {
+            defaultValue: 'Runes Only (Spare) — base runes on rounds 2, 4, 6, 8, 10',
+        });
     }
     shouldOffer(round: number): boolean {
         return round >= 2 && round % 2 === 0;
@@ -65,7 +68,9 @@ class RunesSpareRoundCards extends RoundCardAlgorithm {
 class RunesEveryRoundCards extends RoundCardAlgorithm {
     readonly id = 'runes-every';
     describe(): string {
-        return 'Runes Only (Every Round) — base runes every round from round 2';
+        return t('settings:cardsEvery', {
+            defaultValue: 'Runes Only (Every Round) — base runes every round from round 2',
+        });
     }
     shouldOffer(round: number): boolean {
         return round >= 2;
@@ -82,7 +87,9 @@ class RunesEveryRoundCards extends RoundCardAlgorithm {
 class FullRoundCards extends RoundCardAlgorithm {
     readonly id = 'full';
     describe(): string {
-        return 'Full — rounds 2–4 runes, 5–7 unit packs, 8–10 spells';
+        return t('settings:cardsFull', {
+            defaultValue: 'Full — rounds 2–4 runes, 5–7 unit packs, 8–10 spells',
+        });
     }
     shouldOffer(round: number): boolean {
         return round >= 2 && round <= 10;

@@ -20,7 +20,7 @@
     "unitsLabel": "1× Баллиста"
   },
   "flanky": {
-    "title": "Flanky",
+    "title": "Фланки",
     "description": "Первый выход с фланга занимает вдвое меньше времени (2,5 с)."
   },
   "rallyRoute": {

@@ -4,6 +4,7 @@
  */
 
 import { isElectron, lan, steam } from 'steam-electron-build/native';
+import { t } from '../i18n';
 import { prefs, type Prefs } from './prefs';
 
 export type MultiplayerTransportPref = Prefs['multiplayerTransport'];
@@ -72,25 +73,25 @@ export async function resolveStartupTransport(
     return available[0] ?? null;
 }
 
-export function transportLookingStatus(t: MultiplayerTransport): string {
-    switch (t) {
+export function transportLookingStatus(transport: MultiplayerTransport): string {
+    switch (transport) {
         case 'steam':
-            return 'Looking for a match… Steam';
+            return t('menu:transportLookingSteam');
         case 'matchmaking':
-            return 'Looking for a match… Matchmaking';
+            return t('menu:transportLookingMatchmaking');
         case 'lan':
-            return 'Looking for a match… LAN';
+            return t('menu:transportLookingLan');
     }
 }
 
-export function transportConnectedStatus(t: MultiplayerTransport): string {
-    switch (t) {
+export function transportConnectedStatus(transport: MultiplayerTransport): string {
+    switch (transport) {
         case 'steam':
-            return 'Connected via Steam';
+            return t('menu:transportConnectedSteam');
         case 'matchmaking':
-            return 'Connected via Matchmaking';
+            return t('menu:transportConnectedMatchmaking');
         case 'lan':
-            return 'Connected via LAN';
+            return t('menu:transportConnectedLan');
     }
 }
 
@@ -99,25 +100,25 @@ export function transportUnavailableMessage(
 ): string {
     switch (pref) {
         case 'steam':
-            return 'Steam multiplayer needs the Steam client. Pick Web or LAN in Settings, or start Steam and relaunch.';
+            return t('menu:transportUnavailableSteam');
         case 'matchmaking':
-            return 'Online Matchmaking needs an internet connection.';
+            return t('menu:transportUnavailableMatchmaking');
         case 'lan':
             return isElectron()
-                ? 'LAN is unavailable (enable steamElectronBuild.lan and restart).'
-                : 'LAN multiplayer is only available in the Steam/Electron app.';
+                ? t('menu:transportUnavailableLanElectron')
+                : t('menu:transportUnavailableLan');
         default:
-            return 'No multiplayer path available. Check Settings → Multiplayer.';
+            return t('menu:transportUnavailableNone');
     }
 }
 
-export function transportLabel(t: MultiplayerTransport): string {
-    switch (t) {
+export function transportLabel(transport: MultiplayerTransport): string {
+    switch (transport) {
         case 'steam':
-            return 'Steam';
+            return t('menu:transportSteam');
         case 'matchmaking':
-            return 'Matchmaking';
+            return t('menu:transportMatchmaking');
         case 'lan':
-            return 'LAN';
+            return t('menu:transportLan');
     }
 }

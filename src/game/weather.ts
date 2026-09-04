@@ -25,6 +25,7 @@ import type { EffectToggleId, EffectToggles } from './effectToggles';
 import { mulberry32, type BattleMap, worldHeightAt } from './map';
 import { sceneryFogScale } from './prefs';
 import { loadWorldTexture, moonUrl } from './worldTextures';
+import { t } from '../i18n';
 
 /** slow seasonal look — biases the sky tint and drives vegetation via `onSeasonChange` */
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
@@ -454,6 +455,18 @@ export const ATMOSPHERE_SCENES: readonly AtmosphereScene[] = [
     },
 ];
 
+const ATMOSPHERE_LABEL_KEYS: Record<string, string> = {
+    'Spring morning': 'hud:atmosphere.springMorning',
+    'Spring rain': 'hud:atmosphere.springRain',
+    'Summer noon': 'hud:atmosphere.summerNoon',
+    'Summer golden': 'hud:atmosphere.summerGolden',
+    'Summer night': 'hud:atmosphere.summerNight',
+    'Autumn dusk': 'hud:atmosphere.autumnDusk',
+    'Autumn storm': 'hud:atmosphere.autumnStorm',
+    'First snow': 'hud:atmosphere.firstSnow',
+    'Deep winter': 'hud:atmosphere.deepWinter',
+};
+
 /** seconds for the exponential ease toward a new target (sky + foliage share this) */
 export const TRANSITION_TAU = 3.5;
 const RAIN_DROPS = 2200;
@@ -864,8 +877,12 @@ export class Weather {
     /** compact label for cinema / debug — e.g. `1/11 Spring morning` or `custom` */
     sceneStatus(): string {
         const scene = ATMOSPHERE_SCENES[this.sceneIndex];
-        if (!scene) return 'custom';
-        return `${this.sceneIndex + 1}/${ATMOSPHERE_SCENES.length} ${scene.label}`;
+        if (!scene) return t('hud:sceneCustom', { defaultValue: 'custom' });
+        const key = ATMOSPHERE_LABEL_KEYS[scene.label];
+        const label = key
+            ? t(key, { defaultValue: scene.label })
+            : scene.label;
+        return `${this.sceneIndex + 1}/${ATMOSPHERE_SCENES.length} ${label}`;
     }
 
     /** compact live-state dump for the debug overlay — for finetuning presets */

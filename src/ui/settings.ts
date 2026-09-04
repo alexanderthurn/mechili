@@ -20,6 +20,17 @@ import {
 import { applyLanguageFont } from '../theme';
 import { removeWithDialogFade, withDialogFade } from './dialogFade';
 
+const STEAM_URL = 'https://steam.melodan.com';
+
+/** Copy goes through innerHTML in the help sheet — keep translated text inert. */
+function esc(s: string): string {
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 /**
  * The settings dialog — one shared overlay, opened from the main menu and
  * from the in-game top bar. Options apply immediately and persist.
@@ -62,6 +73,84 @@ export function openSettings(parent: HTMLElement): void {
         overlay.querySelector('.s-gfx-head')!.textContent = t('settings:graphics');
         overlay.querySelector('[data-act="reset"]')!.textContent = t('settings:resetAll');
         overlay.querySelector('[data-act="close"]')!.textContent = t('settings:close');
+        const note = overlay.querySelector<HTMLElement>('.s-mp-note');
+        if (note) {
+            note.innerHTML = t('settings:mpNote', {
+                link: `<a href="${STEAM_URL}" target="_blank" rel="noopener noreferrer">${STEAM_URL}</a>`,
+            });
+        }
+        const fsText = overlay.querySelector<HTMLElement>('.s-fullscreen-text');
+        if (fsText) fsText.textContent = t('settings:gfx.fullscreen');
+        const fsHint = overlay.querySelector<HTMLElement>('.s-fullscreen-hint');
+        if (fsHint) fsHint.textContent = t('settings:gfx.fullscreenHint');
+        for (const button of overlay.querySelectorAll<HTMLButtonElement>('.s-preset[data-preset]')) {
+            const id = button.dataset.preset!;
+            button.textContent = t(`settings:gfx.preset${id.charAt(0).toUpperCase()}${id.slice(1)}`);
+        }
+        overlay.querySelector('.s-custom-chip')!.textContent = t('settings:gfx.presetCustom');
+        overlay.querySelector('.s-advanced > summary')!.textContent = t('settings:gfx.advanced');
+        const setLabel = (sel: string, key: string) => {
+            const el = overlay.querySelector<HTMLElement>(sel);
+            if (el) el.textContent = t(key);
+        };
+        setLabel('.s-scenery-label', 'settings:gfx.scenery');
+        setLabel('.s-scenery-hint', 'settings:gfx.sceneryHint');
+        setLabel('.s-ground-label', 'settings:gfx.groundEffects');
+        setLabel('.s-ground-hint', 'settings:gfx.groundHint');
+        setLabel('.s-fire-label', 'settings:gfx.fireEffects');
+        setLabel('.s-fire-hint', 'settings:gfx.fireHint');
+        setLabel('.s-blood-label', 'settings:gfx.blood');
+        setLabel('.s-blood-hint', 'settings:gfx.bloodHint');
+        setLabel('.s-stuck-label', 'settings:gfx.stuckBolts');
+        setLabel('.s-stuck-hint', 'settings:gfx.stuckHint');
+        setLabel('.s-dpr-label', 'settings:gfx.resolution');
+        setLabel('.s-shadows-label', 'settings:gfx.shadows');
+        setLabel('.s-shadows-hint', 'settings:gfx.shadowsHint');
+        setLabel('.s-dead-text', 'settings:gfx.showDead');
+        setLabel('.s-aa-text', 'settings:gfx.antialias');
+        setLabel('.s-aa-hint', 'settings:gfx.antialiasHint');
+        setLabel('.s-uiscale-label', 'settings:gfx.uiSize');
+        setLabel('.s-uiscale-hint', 'settings:gfx.uiHint');
+        const fillOpts = (selectSel: string, map: Record<string, string>) => {
+            const sel = overlay.querySelector<HTMLSelectElement>(selectSel);
+            if (!sel) return;
+            for (const opt of sel.options) {
+                const key = map[opt.value];
+                if (key) opt.textContent = t(key);
+            }
+        };
+        const quality = {
+            ultra: 'settings:gfx.presetUltra',
+            high: 'settings:gfx.presetHigh',
+            medium: 'settings:gfx.presetMedium',
+            low: 'settings:gfx.presetLow',
+            off: 'settings:gfx.presetOff',
+        };
+        fillOpts('.s-scenery', quality);
+        fillOpts('.s-ground', quality);
+        fillOpts('.s-fire', quality);
+        fillOpts('.s-blood', quality);
+        fillOpts('.s-shadows', quality);
+        fillOpts('.s-stuck', {
+            high: 'settings:gfx.stuckHigh',
+            low: 'settings:gfx.stuckLow',
+            off: 'settings:gfx.presetOff',
+        });
+        fillOpts('.s-dpr', {
+            '1': 'settings:gfx.resNative',
+            '0.75': '75%',
+            '0.5': '50%',
+            '0.33': '33%',
+        });
+        fillOpts('.s-uiscale', {
+            '0.25': '25%',
+            '0.5': '50%',
+            '0.75': '75%',
+            '1': 'settings:gfx.uiNormal',
+            '1.25': '125%',
+            '1.5': '150%',
+            '2': '200%',
+        });
     };
 
     overlay.innerHTML =
@@ -97,10 +186,7 @@ export function openSettings(parent: HTMLElement): void {
         `<div class="s-hint s-mp-hint"></div>` +
         // Web build only: Steam and LAN show as unavailable there, which invites
         // the question this answers.
-        (!isElectron()
-            ? `<div class="s-hint s-mp-note">Steam and LAN need the Steam version ` +
-              `<a href="https://steam.melodan.com" target="_blank" rel="noopener noreferrer">https://steam.melodan.com</a></div>`
-            : '') +
+        (!isElectron() ? `<div class="s-hint s-mp-note"></div>` : '') +
         `</section>` +
         `<section class="s-section">` +
         `<div class="s-section-head s-debug-head"></div>` +
@@ -114,57 +200,53 @@ export function openSettings(parent: HTMLElement): void {
         // Desktop only: browsers refuse fullscreen without a user gesture, and
         // the window mode is remembered by the app (window-state.json), not prefs.
         (isElectron()
-            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> Fullscreen <span class="s-hint">F11 / Alt+Enter</span></label>`
+            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> <span class="s-fullscreen-text"></span> <span class="s-hint s-fullscreen-hint"></span></label>`
             : '') +
         `<div class="s-presets">` +
         (['low', 'medium', 'high', 'ultra'] as const)
-            .map(
-                (id) =>
-                    `<button type="button" class="s-preset" data-preset="${id}">` +
-                    `${id.charAt(0).toUpperCase()}${id.slice(1)}</button>`,
-            )
+            .map((id) => `<button type="button" class="s-preset" data-preset="${id}"></button>`)
             .join('') +
         // Not a button: there is nothing to apply, it only reports that the
         // individual options no longer match any preset.
-        `<span class="s-preset s-custom-chip">Custom</span>` +
+        `<span class="s-preset s-custom-chip"></span>` +
         `</div>` +
         // Collapsed by default — the presets are the intended control. Opens by
         // itself once values diverge, so a custom setup is never hidden.
         `<details class="s-advanced">` +
-        `<summary>Advanced settings</summary>` +
-        `<label class="s-row">Scenery <select class="s-scenery">` +
-        `<option value="ultra">Ultra</option>` +
-        `<option value="high">High</option>` +
-        `<option value="medium">Medium</option>` +
-        `<option value="low">Low</option>` +
-        `<option value="off">Off</option>` +
-        `</select> <span class="s-hint">world detail &amp; weather</span></label>` +
-        `<label class="s-row">Ground effects <select class="s-ground">` +
-        `<option value="high">High</option>` +
-        `<option value="medium">Medium</option>` +
-        `<option value="low">Low</option>` +
-        `<option value="off">Off</option>` +
-        `</select> <span class="s-hint">footprints, blood &amp; scorch</span></label>` +
-        `<label class="s-row">Fire effects <select class="s-fire">` +
-        `<option value="high">High</option>` +
-        `<option value="medium">Medium</option>` +
-        `<option value="low">Low</option>` +
-        `<option value="off">Off</option>` +
-        `</select> <span class="s-hint">flames, smoke &amp; acid fumes</span></label>` +
-        `<label class="s-row">Blood <select class="s-blood">` +
-        `<option value="ultra">Ultra</option>` +
-        `<option value="high">High</option>` +
-        `<option value="medium">Medium</option>` +
-        `<option value="low">Low</option>` +
-        `<option value="off">Off</option>` +
-        `</select> <span class="s-hint">spray &amp; fountains</span></label>` +
-        `<label class="s-row">Stuck bolts <select class="s-stuck">` +
-        `<option value="high">High (128)</option>` +
-        `<option value="low">Low (32)</option>` +
-        `<option value="off">Off</option>` +
-        `</select> <span class="s-hint">arrows left in dirt / flesh</span></label>` +
-        `<label class="s-row">Resolution <select class="s-dpr">` +
-        `<option value="1">Native (100%)</option>` +
+        `<summary></summary>` +
+        `<label class="s-row"><span class="s-scenery-label"></span> <select class="s-scenery">` +
+        `<option value="ultra"></option>` +
+        `<option value="high"></option>` +
+        `<option value="medium"></option>` +
+        `<option value="low"></option>` +
+        `<option value="off"></option>` +
+        `</select> <span class="s-hint s-scenery-hint"></span></label>` +
+        `<label class="s-row"><span class="s-ground-label"></span> <select class="s-ground">` +
+        `<option value="high"></option>` +
+        `<option value="medium"></option>` +
+        `<option value="low"></option>` +
+        `<option value="off"></option>` +
+        `</select> <span class="s-hint s-ground-hint"></span></label>` +
+        `<label class="s-row"><span class="s-fire-label"></span> <select class="s-fire">` +
+        `<option value="high"></option>` +
+        `<option value="medium"></option>` +
+        `<option value="low"></option>` +
+        `<option value="off"></option>` +
+        `</select> <span class="s-hint s-fire-hint"></span></label>` +
+        `<label class="s-row"><span class="s-blood-label"></span> <select class="s-blood">` +
+        `<option value="ultra"></option>` +
+        `<option value="high"></option>` +
+        `<option value="medium"></option>` +
+        `<option value="low"></option>` +
+        `<option value="off"></option>` +
+        `</select> <span class="s-hint s-blood-hint"></span></label>` +
+        `<label class="s-row"><span class="s-stuck-label"></span> <select class="s-stuck">` +
+        `<option value="high"></option>` +
+        `<option value="low"></option>` +
+        `<option value="off"></option>` +
+        `</select> <span class="s-hint s-stuck-hint"></span></label>` +
+        `<label class="s-row"><span class="s-dpr-label"></span> <select class="s-dpr">` +
+        `<option value="1"></option>` +
         `<option value="0.75">75%</option>` +
         `<option value="0.5">50%</option>` +
         `<option value="0.33">33%</option>` +
@@ -172,25 +254,25 @@ export function openSettings(parent: HTMLElement): void {
         // Electron only: a browser has no page zoom we may drive, and the OS
         // already applies display scaling there.
         (isElectron()
-            ? `<label class="s-row">UI size <select class="s-uiscale">` +
+            ? `<label class="s-row"><span class="s-uiscale-label"></span> <select class="s-uiscale">` +
               `<option value="0.25">25%</option>` +
               `<option value="0.5">50%</option>` +
               `<option value="0.75">75%</option>` +
-              `<option value="1">100% (normal)</option>` +
+              `<option value="1"></option>` +
               `<option value="1.25">125%</option>` +
               `<option value="1.5">150%</option>` +
               `<option value="2">200%</option>` +
-              `</select> <span class="s-hint">menus &amp; HUD only</span></label>`
+              `</select> <span class="s-hint s-uiscale-hint"></span></label>`
             : '') +
-        `<label class="s-row">Shadows <select class="s-shadows">` +
-        `<option value="ultra">Ultra</option>` +
-        `<option value="high">High</option>` +
-        `<option value="medium">Medium</option>` +
-        `<option value="low">Low</option>` +
-        `<option value="off">Off</option>` +
-        `</select> <span class="s-hint">blobs / sun map</span></label>` +
-        `<label class="s-row"><input type="checkbox" class="s-dead" /> Show dead units</label>` +
-        `<label class="s-row"><input type="checkbox" class="s-aa" /> Antialiasing <span class="s-hint">smoother edges · next match</span></label>` +
+        `<label class="s-row"><span class="s-shadows-label"></span> <select class="s-shadows">` +
+        `<option value="ultra"></option>` +
+        `<option value="high"></option>` +
+        `<option value="medium"></option>` +
+        `<option value="low"></option>` +
+        `<option value="off"></option>` +
+        `</select> <span class="s-hint s-shadows-hint"></span></label>` +
+        `<label class="s-row"><input type="checkbox" class="s-dead" /> <span class="s-dead-text"></span></label>` +
+        `<label class="s-row"><input type="checkbox" class="s-aa" /> <span class="s-aa-text"></span> <span class="s-hint s-aa-hint"></span></label>` +
         `</details>` +
         `</section>` +
         `</div>` +
@@ -224,10 +306,10 @@ export function openSettings(parent: HTMLElement): void {
     const customChip = overlay.querySelector<HTMLElement>('.s-custom-chip')!;
     const advanced = overlay.querySelector<HTMLDetailsElement>('.s-advanced')!;
 
-    const mpHints: Record<Prefs['multiplayerTransport'], string> = {
-        steam: 'Steam lobbies only. Needs Steam running at launch.',
-        matchmaking: 'Online rooms via PeerJS + server list. Needs internet.',
-        lan: 'Local network only (Electron). No internet required.',
+    const mpHintKeys: Record<Prefs['multiplayerTransport'], string> = {
+        steam: 'settings:mpHintSteam',
+        matchmaking: 'settings:mpHintMatchmaking',
+        lan: 'settings:mpHintLan',
     };
 
     const syncFromPrefs = (): void => {
@@ -235,7 +317,7 @@ export function openSettings(parent: HTMLElement): void {
         debugToggle.checked = p.debugOverlay;
         combat.checked = p.combatChat;
         mpSel.value = p.multiplayerTransport;
-        mpHint.textContent = mpHints[p.multiplayerTransport];
+        mpHint.textContent = t(mpHintKeys[p.multiplayerTransport]);
         langSel.value = p.language;
         scenery.value = p.scenery;
         ground.value = p.groundEffects;
@@ -295,7 +377,11 @@ export function openSettings(parent: HTMLElement): void {
             const id = option.value as Prefs['multiplayerTransport'];
             if (available.includes(id)) continue;
             option.disabled = true;
-            if (!option.textContent?.includes('—')) option.textContent += ' — unavailable';
+            // Flag rather than sniff the label: the suffix is translated, so
+            // "does it already say unavailable" is not a text question.
+            if (option.dataset.unavailable) continue;
+            option.dataset.unavailable = '1';
+            option.textContent += t('settings:mpUnavailable');
         }
     });
 
@@ -424,15 +510,21 @@ function row(keys: string, text: string): string {
         `<div class="ch-row">` +
         `<span class="ch-keys">${keys
             .split(' · ')
-            .map((k) => `<kbd>${k}</kbd>`)
+            .map((k) => `<kbd>${esc(k)}</kbd>`)
             .join('')}</span>` +
-        `<span class="ch-desc">${text}</span>` +
+        `<span class="ch-desc">${esc(text)}</span>` +
         `</div>`
     );
 }
 
 function section(title: string, body: string): string {
-    return `<section class="ch-section"><h2>${title}</h2>${body}</section>`;
+    return `<section class="ch-section"><h2>${esc(title)}</h2>${body}</section>`;
+}
+
+/** `settings:controlsKeys.*` — the gesture / device labels inside a `<kbd>`.
+ *  Physical key caps (W A S D, Shift+N, F11, gamepad faces) stay literal. */
+function keyLabel(id: string): string {
+    return t(`settings:controlsKeys.${id}`);
 }
 
 /** Full-screen controls reference — opened from Settings → Controls → Help. */
@@ -445,70 +537,67 @@ export function openControlsHelp(parent: HTMLElement): void {
     overlay.innerHTML =
         `<div class="ch-box m-frame">` +
         `<div class="ch-head">` +
-        `<div class="ch-title">Controls</div>` +
-        `<button type="button" class="m-btn-bronze primary" data-act="close">Close</button>` +
+        `<div class="ch-title">${esc(t('settings:controlsTitle'))}</div>` +
+        `<button type="button" class="m-btn-bronze primary" data-act="close">${esc(t('common:close'))}</button>` +
         `</div>` +
         `<div class="ch-body">` +
         section(
-            'Touch',
-            row('1 finger tap', 'Select, place, or buy — same as a left click') +
-                row('2 finger pinch', 'Zoom — spread or pinch in any direction, not only vertical') +
-                row('2 finger drag', 'Both fingers moving together pans the map') +
-                row('3 finger drag', 'Orbit: left/right rotates heading, up/down tilts'),
+            t('settings:controlsTouch.head'),
+            row(keyLabel('tap1'), t('settings:controlsTouch.tap')) +
+                row(keyLabel('pinch2'), t('settings:controlsTouch.pinch')) +
+                row(keyLabel('drag2'), t('settings:controlsTouch.pan')) +
+                row(keyLabel('drag3'), t('settings:controlsTouch.orbit')),
         ) +
         section(
-            'Mouse',
-            row('Left click', 'Select a pack, place a carried pack, or drop a rune/tactic') +
-                row('Left drag', 'Box-select packs') +
-                row('Right click', 'Cancel / deselect (clears a carried pack, armed rune, or tactic)') +
-                row('Right drag', 'Grab the ground and pan') +
-                row('Middle click', 'Rotate the selected pack') +
-                row('Middle drag', 'Orbit — left/right heading, up/down tilt') +
-                row('Scroll wheel', 'Zoom toward the cursor') +
-                row('Screen edges', 'Pan while the cursor sits at the edge of the window') +
-                row('Speed button', 'Click faster, right-click slower (battle)'),
+            t('settings:controlsMouse.head'),
+            row(keyLabel('leftClick'), t('settings:controlsMouse.select')) +
+                row(keyLabel('leftDrag'), t('settings:controlsMouse.box')) +
+                row(keyLabel('rightClick'), t('settings:controlsMouse.cancel')) +
+                row(keyLabel('rightDrag'), t('settings:controlsMouse.pan')) +
+                row(keyLabel('middleClick'), t('settings:controlsMouse.rotate')) +
+                row(keyLabel('middleDrag'), t('settings:controlsMouse.orbit')) +
+                row(keyLabel('wheel'), t('settings:controlsMouse.zoom')) +
+                row(keyLabel('edges'), t('settings:controlsMouse.edgePan')) +
+                row(keyLabel('speedButton'), t('settings:controlsMouse.speed')),
         ) +
         section(
-            'Keyboard',
-            row('W A S D · Arrows', 'Pan, relative to camera heading') +
-                row('Q · E', 'Rotate heading') +
-                row('Home', 'Reset rotation, tilt, and zoom') +
-                row('R', 'Rotate the selected pack') +
-                row('Escape', 'Pause menu. In cinema mode, first restores the HUD.') +
-                row('Enter', 'Send chat') +
-                row('F11 · Alt+Enter', 'Fullscreen (desktop app)'),
+            t('settings:controlsKeyboard.head'),
+            row(`W A S D · ${keyLabel('arrows')}`, t('settings:controlsKeyboard.pan')) +
+                row('Q · E', t('settings:controlsKeyboard.heading')) +
+                row('Home', t('settings:controlsKeyboard.resetView')) +
+                row('R', t('settings:controlsKeyboard.rotate')) +
+                row('Escape', t('settings:controlsKeyboard.pause')) +
+                row('Enter', t('settings:controlsKeyboard.chat')) +
+                row('F11 · Alt+Enter', t('settings:controlsKeyboard.fullscreen')),
         ) +
         section(
-            'Gamepad',
-            row('Left stick', 'Move the on-screen cursor') +
-                row('A', 'Click. Hold and drag to box-select.') +
-                row('B', 'Cancel / deselect') +
-                row('X', 'Rotate the selected pack') +
-                row('Start', 'Pause menu') +
-                row('Back / Select', 'Reset camera view') +
-                row('Right stick', 'Orbit (heading + tilt)') +
-                row('LB / RB + right stick', 'Pan') +
-                row('LT · RT', 'Zoom toward the cursor'),
+            t('settings:controlsGamepad.head'),
+            row(keyLabel('leftStick'), t('settings:controlsGamepad.cursor')) +
+                row('A', t('settings:controlsGamepad.click')) +
+                row('B', t('settings:controlsGamepad.cancel')) +
+                row('X', t('settings:controlsGamepad.rotate')) +
+                row('Start', t('settings:controlsGamepad.pause')) +
+                row('Back / Select', t('settings:controlsGamepad.resetView')) +
+                row(keyLabel('rightStick'), t('settings:controlsGamepad.orbit')) +
+                row(keyLabel('bumpersStick'), t('settings:controlsGamepad.pan')) +
+                row('LT · RT', t('settings:controlsGamepad.zoom')),
         ) +
         section(
-            'Cheats &amp; debug',
-            `<p class="ch-note">Most spawn/skip cheats are single-player only. Atmosphere keys work in any match (visual). Typed into the field, not chat.</p>` +
-                row('Shift+N', 'Next atmosphere scene, +1000 supply, +5000 HP both sides, battle timer 500s') +
-                row('Shift+X', 'Next season') +
-                row('Shift+V', 'Next weather') +
-                row('Shift+Y', 'Next time of day') +
-                row('Shift+U', 'Single-player: free-spawn every shop unit, max supply, tactics, and bag runes') +
-                row('Ctrl+Shift+U', 'Same as Shift+U, plus horde units, pack-level scramble, and up to 3 techs per press') +
-                row('Shift+H', 'Single-player, deploy phase: extra horde packs (repeat to pile on)') +
-                row('Shift+I', 'Single-player: skip the rest of this round') +
-                row(
-                    'Shift+K',
-                    'Single-player, battle phase: destroy the enemy Stronghold where it stands',
-                ) +
-                row('Shift+C', 'Cinema — hide HUD for screenshots. Escape restores it.') +
-                row('Shift+T', 'Cycle material debug: clay → wireframe → normals → off') +
-                row('Shift+1 … 7', 'Toggle visual layers: clouds, distance fog, height mist, forest fog, rain, snow, stars') +
-                row('Shift+0', 'Turn every visual layer back on'),
+            t('settings:debugHelp.head'),
+            `<p class="ch-note">${esc(t('settings:debugHelp.note'))}</p>` +
+                row('Shift+N', t('settings:debugHelp.scene')) +
+                row('Shift+X', t('settings:debugHelp.season')) +
+                row('Shift+V', t('settings:debugHelp.weather')) +
+                row('Shift+Y', t('settings:debugHelp.timeOfDay')) +
+                row('Shift+U', t('settings:debugHelp.spawnAll')) +
+                row('Ctrl+Shift+U', t('settings:debugHelp.spawnAllPlus')) +
+                row('Shift+H', t('settings:debugHelp.hordePacks')) +
+                row('Shift+I', t('settings:debugHelp.skipRound')) +
+                row('Shift+K', t('settings:debugHelp.killStronghold')) +
+                row('Shift+C', t('settings:debugHelp.cinema')) +
+                row('Shift+T', t('settings:debugHelp.material')) +
+                row('Shift+1 … 7', t('settings:debugHelp.layers')) +
+                row('Shift+0', t('settings:debugHelp.layersOn')),
         ) +
         `</div>` +
         `</div>`;

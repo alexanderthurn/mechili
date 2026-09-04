@@ -26,13 +26,33 @@ import {
 } from '../game/units';
 import { MODEL_SPECS } from '../game/unitModels';
 import { type SpellAssetId } from '../game/spellAssets';
-import { hudStyles, menuStyles } from '../theme';
+import { initI18n, t } from '../i18n';
+import {
+    commanderTitle,
+    itemDescription,
+    itemName,
+    roundCardTitle,
+    tacticDescription,
+    tacticName,
+    techName,
+    unitName,
+} from '../i18n/format';
+import { applyLanguageFont, hudStyles, menuStyles } from '../theme';
 import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { roundCardFaceHtml } from '../ui/roundCardFace';
 import { cssUrl, iconHtml, moneyHtml } from '../ui/iconAtlas';
 import { openSuggest } from '../suggest';
 import { createShowcaseViewer } from '../ui/modelViewer';
 import { homepageStyles } from './styles';
+
+/**
+ * The homepage is its own Vite entry (web.html) — nothing boots i18n for it the
+ * way src/main.ts does for the game, and there is no language picker here, so
+ * it follows the device language. Everything below this line reads copy through
+ * t() while the module body runs, so this has to stay the first statement.
+ */
+const language = await initI18n();
+await applyLanguageFont(language);
 
 const logoUrl = new URL('../../assets/ui/logo.webp', import.meta.url).href;
 const menuBgUrl = new URL('../../assets/ui/menu-bg.webp', import.meta.url).href;
@@ -49,16 +69,10 @@ const PLAY_URL =
         ? 'https://play.melodan.com/'
         : new URL('./index.html', location.href).href;
 
-const SCREENSHOT_DEFS = [
-    { n: 1, label: 'Army deployment in the forest clearing' },
-    { n: 2, label: 'Deployment phase and unit shop' },
-    { n: 3, label: 'Dragon fire breath over the field' },
-    { n: 4, label: 'Side-by-side deployment zones' },
-    { n: 5, label: 'Mass battle on the plains' },
-    { n: 6, label: 'Winter stronghold in the snow' },
-    { n: 7, label: 'Dual bases on the grid' },
-    { n: 8, label: 'Large fortified base' },
-] as const;
+const SCREENSHOT_DEFS = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+    n,
+    label: t(`homepage:shot.${n}`),
+}));
 
 const MORE_SCREENSHOTS = SCREENSHOT_DEFS.map((s) => ({
     src: new URL(`../../assets/marketing/screenshots/fullhd/screen_${s.n}.webp`, import.meta.url).href,
@@ -100,44 +114,28 @@ const UNITS = SHOWCASE_UNITS.filter((t) => !t.structure && isPlayerBuyable(t));
 const HORDE_UNITS = SHOWCASE_UNITS.filter((t) => isHordeShowcaseUnit(t));
 
 /** Spell GLBs for the 3D showcase (not army units — preview-only). */
-const SHOWCASE_SPELLS: { id: SpellAssetId; name: string; blurb: string }[] = [
-    {
-        id: 'dragon',
-        name: 'Dragon Attack',
-        blurb: 'Strafing fire breath. Wing flap uses the same shader path as Crow Rider (mesh mode).',
-    },
-    {
-        id: 'hammer',
-        name: 'Hammer of the Gods',
-        blurb: 'Divine hammer that drops onto a placed zone.',
-    },
-    {
-        id: 'meteor-great',
-        name: 'Meteor',
-        blurb: 'Single heavy meteor strike.',
-    },
-    {
-        id: 'meteor-shard',
-        name: 'Meteor Shower shard',
-        blurb: 'Smaller meteor used by the shower barrage.',
-    },
-    {
-        id: 'storm',
-        name: 'Storm Call',
-        blurb: 'Storm cloud that hurls lightning.',
-    },
-    {
-        id: 'poison',
-        name: 'Poison Cloud',
-        blurb: 'Toxic sky clouds that rain sparse acid over a huge circle.',
-    },
+const SHOWCASE_SPELL_IDS: SpellAssetId[] = [
+    'dragon',
+    'hammer',
+    'meteor-great',
+    'meteor-shard',
+    'storm',
+    'poison',
 ];
+
+const SHOWCASE_SPELLS: { id: SpellAssetId; name: string; blurb: string }[] = SHOWCASE_SPELL_IDS.map(
+    (id) => ({
+        id,
+        name: t(`homepage:spell.${id}.name`),
+        blurb: t(`homepage:spell.${id}.blurb`),
+    }),
+);
 
 function pickButtons(list: UnitType[], activeId: string): string {
     return list
         .map(
             (t) =>
-                `<button type="button" class="mh-pick${t.id === activeId ? ' active' : ''}" role="option" aria-selected="${t.id === activeId}" data-unit-id="${esc(t.id)}" data-mesh-scale="${t.meshScale}">${esc(t.name)}</button>`,
+                `<button type="button" class="mh-pick${t.id === activeId ? ' active' : ''}" role="option" aria-selected="${t.id === activeId}" data-unit-id="${esc(t.id)}" data-mesh-scale="${t.meshScale}">${esc(unitName(t.id, t.name))}</button>`,
         )
         .join('');
 }
@@ -165,7 +163,12 @@ function steamLink(className: string, inner: string): string {
     if (STEAM_URL) {
         return `<a class="${esc(cls)}" href="${esc(STEAM_URL)}" rel="noopener noreferrer" target="_blank">${inner}</a>`;
     }
-    return `<span class="${esc(cls)} disabled" aria-disabled="true" title="Steam page coming soon">${inner}</span>`;
+    return `<span class="${esc(cls)} disabled" aria-disabled="true" title="${esc(t('homepage:hero.steamSoon'))}">${inner}</span>`;
+}
+
+/** The GitHub link, ready to drop into a `{{github}}` slot in translated copy. */
+function githubLink(label: string): string {
+    return `<a href="${esc(GITHUB_URL)}" rel="noopener noreferrer" target="_blank">${esc(label)}</a>`;
 }
 
 function esc(s: string): string {
@@ -184,23 +187,23 @@ function roundCardFace(c: RoundCard): string {
     return roundCardFaceHtml(c, { catalog: true });
 }
 
-function unitFlags(t: UnitType): string[] {
+function unitFlags(type: UnitType): string[] {
     const flags: string[] = [];
-    if (t.flying) flags.push('Flying');
-    if (t.structure) flags.push('Structure');
-    if (t.extra) flags.push('Extra');
-    if (t.targets.ground) flags.push('Attacks ground');
-    if (t.targets.air) flags.push('Attacks air');
-    if (t.shield) flags.push('Ward dome');
-    if (t.rocket) flags.push('Homing bolt');
+    if (type.flying) flags.push(t('homepage:flag.flying'));
+    if (type.structure) flags.push(t('homepage:flag.structure'));
+    if (type.extra) flags.push(t('homepage:flag.extra'));
+    if (type.targets.ground) flags.push(t('homepage:flag.attacksGround'));
+    if (type.targets.air) flags.push(t('homepage:flag.attacksAir'));
+    if (type.shield) flags.push(t('homepage:flag.shield'));
+    if (type.rocket) flags.push(t('homepage:flag.rocket'));
     return flags;
 }
 
-function statsHtml(t: UnitType): string {
-    const flags = unitFlags(t)
+function statsHtml(type: UnitType): string {
+    const flags = unitFlags(type)
         .map((f) => `<span class="mh-flag">${esc(f)}</span>`)
         .join('');
-    const unitTechs = techsForUnit(t.id);
+    const unitTechs = techsForUnit(type.id);
     const techs =
         unitTechs.length > 0
             ? `<div class="mh-techs">
@@ -209,17 +212,17 @@ function statsHtml(t: UnitType): string {
           ${unitTechs
               .map(
                   (tech) =>
-                      `<li>${iconHtml(techIcon(tech), 'mh-tech-ico')}<span class="mh-tech-text"><strong>${esc(tech.name)}</strong> <span class="mh-tech-cost">${moneyHtml(tech.cost)}</span><br /><span class="mh-tech-desc">${esc(techDescription(tech))}</span></span></li>`,
+                      `<li>${iconHtml(techIcon(tech), 'mh-tech-ico')}<span class="mh-tech-text"><strong>${esc(techName(tech.id, tech.name))}</strong> <span class="mh-tech-cost">${moneyHtml(tech.cost)}</span><br /><span class="mh-tech-desc">${esc(techDescription(tech))}</span></span></li>`,
               )
               .join('')}
         </ul>
       </div>`
             : '';
-    const abilities = buildingAbilities(t);
+    const abilities = buildingAbilities(type);
     const abilityBlock =
         abilities.length > 0
             ? `<div class="mh-techs">
-        <div class="mh-techs-label">Abilities</div>
+        <div class="mh-techs-label">${esc(t('homepage:stats.abilities'))}</div>
         <ul class="mh-tech-list">
           ${abilities
               .map(
@@ -231,14 +234,14 @@ function statsHtml(t: UnitType): string {
       </div>`
             : '';
     return `
-    <h3>${esc(t.name)}</h3>
+    <h3>${esc(unitName(type.id, type.name))}</h3>
     <dl class="mh-stat-grid">
-      <dt>Cost</dt><dd>${t.cost}</dd>
-      <dt>HP</dt><dd>${t.hp}</dd>
-      <dt>Damage</dt><dd>${t.damage}</dd>
-      <dt>Range</dt><dd>${t.range}</dd>
-      <dt>Attack interval</dt><dd>${t.attackInterval}s</dd>
-      <dt>Speed</dt><dd>${t.speed}</dd>
+      <dt>${esc(t('homepage:stats.cost'))}</dt><dd>${type.cost}</dd>
+      <dt>${esc(t('homepage:stats.hp'))}</dt><dd>${type.hp}</dd>
+      <dt>${esc(t('homepage:stats.damage'))}</dt><dd>${type.damage}</dd>
+      <dt>${esc(t('homepage:stats.range'))}</dt><dd>${type.range}</dd>
+      <dt>${esc(t('homepage:stats.attackInterval'))}</dt><dd>${esc(t('homepage:stats.seconds', { value: type.attackInterval }))}</dd>
+      <dt>${esc(t('homepage:stats.speed'))}</dt><dd>${type.speed}</dd>
     </dl>
     ${flags ? `<div class="mh-flags">${flags}</div>` : ''}
     ${techs}
@@ -249,12 +252,12 @@ function spellStatsHtml(spell: (typeof SHOWCASE_SPELLS)[number]): string {
     return `
     <h3>${esc(spell.name)}</h3>
     <p class="mh-sub" style="margin:0.4rem 0 0">${esc(spell.blurb)}</p>
-    <div class="mh-flags"><span class="mh-flag">Spell model</span></div>`;
+    <div class="mh-flags"><span class="mh-flag">${esc(t('homepage:stats.spellModel'))}</span></div>`;
 }
 
 function shotCard(shot: { src: string; label: string; index: number }): string {
     return `
-<button type="button" class="mh-shot" data-shot="${shot.index}" aria-haspopup="dialog" aria-label="Open screenshot: ${esc(shot.label)}">
+<button type="button" class="mh-shot" data-shot="${shot.index}" aria-haspopup="dialog" aria-label="${esc(t('homepage:screenshots.open', { label: shot.label }))}">
   <img src="${esc(shot.src)}" alt="${esc(shot.label)}" loading="lazy" data-placeholder="${esc(shot.label)}" />
 </button>`;
 }
@@ -274,10 +277,14 @@ const VANGUARD_TACTIC_COST: Record<string, number> = {
     [TUTOR_ID]: 100,
 };
 
-function tacticPrice(t: (typeof TACTICS)[string]): { cost: number; where: string } | null {
-    if (t.strongholdCost !== undefined) return { cost: t.strongholdCost, where: 'Stronghold' };
-    const vanguard = VANGUARD_TACTIC_COST[t.id];
-    return vanguard === undefined ? null : { cost: vanguard, where: 'Vanguard' };
+function tacticPrice(tactic: (typeof TACTICS)[string]): { cost: number; where: string } | null {
+    if (tactic.strongholdCost !== undefined) {
+        return { cost: tactic.strongholdCost, where: unitName(STRONGHOLD.id, STRONGHOLD.name) };
+    }
+    const vanguard = VANGUARD_TACTIC_COST[tactic.id];
+    return vanguard === undefined
+        ? null
+        : { cost: vanguard, where: unitName(COMMAND_TOWER.id, COMMAND_TOWER.name) };
 }
 
 /** Base runes the forge turns into this one, in recipe order. */
@@ -296,45 +303,47 @@ function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
     // in ingredients plus the forge fee, so the band shows whichever applies.
     const recipe = isBase ? [] : runeRecipeIcons(item.id);
     const costHtml = isBase
-        ? `<div class="mh-tactic-cost" title="Bought in the shop, or drafted from a round card" aria-label="Shop price">${DEFAULT_SETTINGS.deploy.baseRuneCost}</div>`
-        : `<div class="mh-tactic-cost" title="Forged at the Stronghold" aria-label="Forge price">${recipe
+        ? `<div class="mh-tactic-cost" title="${esc(t('homepage:runes.shopTitle'))}" aria-label="${esc(t('homepage:runes.shopLabel'))}">${DEFAULT_SETTINGS.deploy.baseRuneCost}</div>`
+        : `<div class="mh-tactic-cost" title="${esc(t('homepage:runes.forgeTitle', { building: unitName(STRONGHOLD.id, STRONGHOLD.name) }))}" aria-label="${esc(t('homepage:runes.forgeLabel'))}">${recipe
               .map((ico) => iconHtml(ico, 'mh-cost-rune'))
               .join('')}<span class="mh-cost-plus">+</span>${item.forgeCost ?? 0}</div>`;
     return `
 <article class="mh-tactic mh-rune${isFirst ? ' mh-active' : ''}" data-key="${esc(item.id)}">
-  <span class="mh-rune-tag${isBase ? '' : ' forged'}">${isBase ? 'Base' : 'Advanced'}</span>
+  <span class="mh-rune-tag${isBase ? '' : ' forged'}">${esc(t(isBase ? 'homepage:runes.base' : 'homepage:runes.advanced'))}</span>
   <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(item.icon, 'mh-tactic-tile')}</div>
   <div class="mh-tactic-body">
     <div class="mh-tactic-head">
-      <h3>${esc(item.name)}</h3>
+      <h3>${esc(itemName(item.id, item.name))}</h3>
     </div>
-    <p class="mh-tactic-desc">${esc(item.description)}</p>
+    <p class="mh-tactic-desc">${esc(itemDescription(item.id, item.description))}</p>
     ${costHtml}
   </div>
 </article>`;
 }
 
-function tacticCard(t: (typeof TACTICS)[string], isFirst: boolean): string {
-    const kindLabel = t.kind === 'placement' ? 'Placement' : 'One-shot';
-    const stats = formatTacticStats(t);
+function tacticCard(tactic: (typeof TACTICS)[string], isFirst: boolean): string {
+    const kindLabel = t(
+        tactic.kind === 'placement' ? 'homepage:tactics.placement' : 'homepage:tactics.oneShot',
+    );
+    const stats = formatTacticStats(tactic);
     const statsHtml = stats.length
         ? `<ul class="mh-tactic-stats">${stats.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>`
         : '';
     // Price replaces the old rune row: tactics are bought now, so what a player
     // wants to see is the supply, not a recipe.
-    const price = tacticPrice(t);
+    const price = tacticPrice(tactic);
     const costHtml = price
-        ? `<div class="mh-tactic-cost" title="Bought at the ${esc(price.where)}" aria-label="${esc(price.where)} price">${price.cost}</div>`
+        ? `<div class="mh-tactic-cost" title="${esc(t('homepage:tactics.buyTitle', { building: price.where }))}" aria-label="${esc(t('homepage:tactics.priceLabel', { building: price.where }))}">${price.cost}</div>`
         : '';
     return `
-<article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(t.id)}">
-  <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(t.icon, 'mh-tactic-tile')}</div>
+<article class="mh-tactic${isFirst ? ' mh-active' : ''}" data-key="${esc(tactic.id)}">
+  <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(tactic.icon, 'mh-tactic-tile')}</div>
   <div class="mh-tactic-body">
     <div class="mh-tactic-head">
-      <h3>${esc(t.name)}</h3>
+      <h3>${esc(tacticName(tactic.id, tactic.name))}</h3>
     </div>
-    <p class="mh-tactic-meta">${kindLabel} · ${esc(t.targeting)}</p>
-    <p class="mh-tactic-desc">${esc(t.description)}</p>
+    <p class="mh-tactic-meta">${esc(kindLabel)} · ${esc(t(`homepage:targeting.${tactic.targeting}`))}</p>
+    <p class="mh-tactic-desc">${esc(tacticDescription(tactic.id, tactic.description))}</p>
     ${statsHtml}
     ${costHtml}
   </div>
@@ -376,6 +385,10 @@ const ALL_RUNES: { item: ItemDef; isBase: boolean }[] = [
 
 const ALL_TACTICS = Object.values(TACTICS);
 
+/** The hex divider that breaks a lead paragraph in two — passed into copy so
+ *  translators keep one whole sentence per key instead of two halves. */
+const SEP = '<span class="mh-sep">⬢</span>';
+
 const versionLabel = `v${__APP_VERSION__}`;
 const first =
     BUILDINGS.find((t) => t.id === STRONGHOLD.id) ?? BUILDINGS[0] ?? UNITS[0]!;
@@ -395,8 +408,8 @@ app.innerHTML = `
     <img class="mh-logo" src="${esc(logoUrl)}" alt="MELODAN" width="520" height="180" />
     <p class="mh-version">${esc(versionLabel)}</p>
   </div>
-  <p class="mh-tagline">FANTASY AUTO·BATTLER</p>
-  <p class="mh-lead">Deploy armies in secret and watch the round play out. Your enemy does the same. Adapt, repeat until one of you runs out of HP.</p>
+  <p class="mh-tagline">${esc(t('homepage:tagline'))}</p>
+  <p class="mh-lead">${esc(t('homepage:lead'))}</p>
   <div class="mh-play mh-hero-ctas">
     ${steamLink(
         'mh-play-btn steam',
@@ -404,64 +417,64 @@ app.innerHTML = `
         <span class="mh-steam-cta-icon-wrap" aria-hidden="true">
           <img class="mh-steam-cta-icon" src="${esc(steamLogoSmallUrl)}" alt="" width="84" height="84" />
         </span>
-        Wishlist now
+        ${esc(t('homepage:hero.wishlist'))}
       </span>`,
     )}
     <a class="mh-trailer-btn" href="${esc(TRAILER_URL)}" rel="noopener noreferrer" target="_blank">
       ${YOUTUBE_ICON_SVG}
-      <span>Watch Trailer</span>
+      <span>${esc(t('homepage:hero.trailer'))}</span>
     </a>
   </div>
 </header>
 
 <main class="mh-wrap">
   <section class="mh-section" id="screenshots">
-    <h2>Screenshots</h2>
-    <p class="mh-sub">A look at deployment and battle.</p>
+    <h2>${esc(t('homepage:screenshots.title'))}</h2>
+    <p class="mh-sub">${esc(t('homepage:screenshots.sub'))}</p>
     <div class="mh-shots">
       ${SCREENSHOTS.map(shotCard).join('')}
     </div>
     <div class="mh-shots-more-wrap">
       <button type="button" class="mh-shots-more-btn" id="mh-shots-more" aria-haspopup="dialog">
-        Browse screenshots
+        ${esc(t('homepage:screenshots.browse'))}
       </button>
     </div>
   </section>
 
   <section class="mh-section" id="units">
-    <h2>Units, buildings &amp; spells</h2>
-    <p class="mh-sub">Your army, buildings, ${esc(DISPLAY.horde)} packs, and battle-spell models. Pick one to inspect — Crow Rider and Dragon flap in this preview.</p>
+    <h2>${esc(t('homepage:showcase.title'))}</h2>
+    <p class="mh-sub">${esc(t('homepage:showcase.sub', { horde: DISPLAY.horde }))}</p>
     <div class="mh-showcase">
       <div class="mh-showcase-view">
-        <canvas id="mh-unit-canvas" aria-label="Unit 3D preview"></canvas>
+        <canvas id="mh-unit-canvas" aria-label="${esc(t('homepage:showcase.canvas'))}"></canvas>
         <div class="mh-showcase-loading" id="mh-showcase-loading" aria-hidden="true">
           <span class="mh-showcase-spin" aria-hidden="true">⬢</span>
-          Loading model&hellip;
+          ${esc(t('homepage:showcase.loading'))}
         </div>
-        <div class="mh-showcase-hint" id="mh-showcase-hint">Drag to rotate · Scroll to zoom</div>
+        <div class="mh-showcase-hint" id="mh-showcase-hint">${esc(t('homepage:showcase.hint'))}</div>
       </div>
       <div class="mh-showcase-side">
-        <select class="mh-card-select" id="mh-unit-select" aria-label="Choose a unit, building, or spell">
-          <optgroup label="Buildings">
-            ${BUILDINGS.map((t) => `<option value="${esc(t.id)}"${t.id === first.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+        <select class="mh-card-select" id="mh-unit-select" aria-label="${esc(t('homepage:showcase.select'))}">
+          <optgroup label="${esc(t('homepage:showcase.buildings'))}">
+            ${BUILDINGS.map((type) => `<option value="${esc(type.id)}"${type.id === first.id ? ' selected' : ''}>${esc(unitName(type.id, type.name))}</option>`).join('')}
           </optgroup>
-          <optgroup label="Units">
-            ${UNITS.map((t) => `<option value="${esc(t.id)}"${t.id === first.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+          <optgroup label="${esc(t('homepage:showcase.units'))}">
+            ${UNITS.map((type) => `<option value="${esc(type.id)}"${type.id === first.id ? ' selected' : ''}>${esc(unitName(type.id, type.name))}</option>`).join('')}
           </optgroup>
           <optgroup label="${esc(DISPLAY.horde)}">
-            ${HORDE_UNITS.map((t) => `<option value="${esc(t.id)}"${t.id === first.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+            ${HORDE_UNITS.map((type) => `<option value="${esc(type.id)}"${type.id === first.id ? ' selected' : ''}>${esc(unitName(type.id, type.name))}</option>`).join('')}
           </optgroup>
-          <optgroup label="Spells">
+          <optgroup label="${esc(t('homepage:showcase.spells'))}">
             ${SHOWCASE_SPELLS.map((s) => `<option value="spell:${esc(s.id)}">${esc(s.name)}</option>`).join('')}
           </optgroup>
         </select>
-        <div class="mh-unit-picks" role="listbox" aria-label="Units, buildings, and spells">
+        <div class="mh-unit-picks" role="listbox" aria-label="${esc(t('homepage:showcase.list'))}">
           <div class="mh-pick-group">
-            <div class="mh-pick-label">Buildings</div>
+            <div class="mh-pick-label">${esc(t('homepage:showcase.buildings'))}</div>
             <div class="mh-pick-row">${pickButtons(BUILDINGS, first.id)}</div>
           </div>
           <div class="mh-pick-group">
-            <div class="mh-pick-label">Units</div>
+            <div class="mh-pick-label">${esc(t('homepage:showcase.units'))}</div>
             <div class="mh-pick-row">${pickButtons(UNITS, first.id)}</div>
           </div>
           <div class="mh-pick-group">
@@ -469,7 +482,7 @@ app.innerHTML = `
             <div class="mh-pick-row">${pickButtons(HORDE_UNITS, first.id)}</div>
           </div>
           <div class="mh-pick-group">
-            <div class="mh-pick-label">Spells</div>
+            <div class="mh-pick-label">${esc(t('homepage:showcase.spells'))}</div>
             <div class="mh-pick-row">${spellPickButtons(null)}</div>
           </div>
         </div>
@@ -479,10 +492,17 @@ app.innerHTML = `
   </section>
 
   <section class="mh-section" id="specialists">
-    <h2>${DISPLAY.commanders}</h2>
-    <p class="mh-sub">Before round one, each player picks a ${DISPLAY.commander.toLowerCase()}. It sets your starting army, HP pool, a permanent speciality, and three Stronghold forge ${DISPLAY.tactics.toLowerCase()} (weak / mid / strong). Teammates share the union of their forge ${DISPLAY.tactics.toLowerCase()}.</p>
-    <select class="mh-card-select" id="mh-specialists-select" aria-label="Choose a ${DISPLAY.commander.toLowerCase()}">
-      ${START_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
+    <h2>${esc(DISPLAY.commanders)}</h2>
+    <p class="mh-sub">${esc(
+        t('homepage:commanders.sub', {
+            commander: DISPLAY.commander.toLowerCase(),
+            tactics: DISPLAY.tactics.toLowerCase(),
+        }),
+    )}</p>
+    <select class="mh-card-select" id="mh-specialists-select" aria-label="${esc(
+        t('homepage:commanders.select', { commander: DISPLAY.commander.toLowerCase() }),
+    )}">
+      ${START_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(commanderTitle(c.id, c.title))}</option>`).join('')}
     </select>
     <div class="mechili-cards">
       <div class="cards-row" id="mh-specialists-row">
@@ -495,10 +515,16 @@ app.innerHTML = `
   </section>
 
   <section class="mh-section" id="runes">
-    <h2>${DISPLAY.items}</h2>
-    <p class="mh-sub">Fused onto a pack for good, lifting every mech in it <span class="mh-sep">⬢</span> most packs hold ${itemSlotLimit('dwarf')}, the ballista ${itemSlotLimit('ballista')}. The four base runes are drafted from round cards or bought in the shop; the stronger ones are forged from them at the Stronghold, and never sold.</p>
-    <select class="mh-card-select" id="mh-runes-select" aria-label="Choose a ${DISPLAY.item.toLowerCase()}">
-      ${ALL_RUNES.map(({ item }) => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('')}
+    <h2>${esc(DISPLAY.items)}</h2>
+    <p class="mh-sub">${t('homepage:runes.sub', {
+        sep: SEP,
+        packLimit: itemSlotLimit('dwarf'),
+        ballistaLimit: itemSlotLimit('ballista'),
+    })}</p>
+    <select class="mh-card-select" id="mh-runes-select" aria-label="${esc(
+        t('homepage:runes.select', { item: DISPLAY.item.toLowerCase() }),
+    )}">
+      ${ALL_RUNES.map(({ item }) => `<option value="${esc(item.id)}">${esc(itemName(item.id, item.name))}</option>`).join('')}
     </select>
     <div class="mh-tactics" id="mh-runes-grid">
       ${ALL_RUNES.map(({ item, isBase }, i) => runeCard(item, isBase, i === 0)).join('')}
@@ -506,21 +532,26 @@ app.innerHTML = `
   </section>
 
   <section class="mh-section" id="tactics">
-    <h2>${DISPLAY.tactics}</h2>
-    <p class="mh-sub">These are the skills on your ${DISPLAY.tactics.toLowerCase()} strip <span class="mh-sep">⬢</span> rallies, spills, summons, and battle casts like the dragon’s fire breath. Battle spells are bought at your Stronghold, once each, and only the three your commander knows. Icons match what you see in-game.</p>
-    <select class="mh-card-select" id="mh-tactics-select" aria-label="Choose a ${DISPLAY.tactic.toLowerCase()}">
-      ${ALL_TACTICS.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
+    <h2>${esc(DISPLAY.tactics)}</h2>
+    <p class="mh-sub">${t('homepage:tactics.sub', {
+        sep: SEP,
+        tactics: DISPLAY.tactics.toLowerCase(),
+    })}</p>
+    <select class="mh-card-select" id="mh-tactics-select" aria-label="${esc(
+        t('homepage:tactics.select', { tactic: DISPLAY.tactic.toLowerCase() }),
+    )}">
+      ${ALL_TACTICS.map((tactic) => `<option value="${esc(tactic.id)}">${esc(tacticName(tactic.id, tactic.name))}</option>`).join('')}
     </select>
     <div class="mh-tactics" id="mh-tactics-grid">
-      ${ALL_TACTICS.map((t, i) => tacticCard(t, i === 0)).join('')}
+      ${ALL_TACTICS.map((tactic, i) => tacticCard(tactic, i === 0)).join('')}
     </div>
   </section>
 
   <section class="mh-section" id="round-cards">
-    <h2>Round cards</h2>
-    <p class="mh-sub">From round two onward, draft one of several offered ${DISPLAY.items.toLowerCase()} cards drawn from the match pool. Battle spells are bought at the Stronghold, not drafted from cards.</p>
-    <select class="mh-card-select" id="mh-round-cards-select" aria-label="Choose a round card">
-      ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}
+    <h2>${esc(t('homepage:roundCards.title'))}</h2>
+    <p class="mh-sub">${esc(t('homepage:roundCards.sub', { items: DISPLAY.items.toLowerCase() }))}</p>
+    <select class="mh-card-select" id="mh-round-cards-select" aria-label="${esc(t('homepage:roundCards.select'))}">
+      ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(roundCardTitle(c.id, c.title))}</option>`).join('')}
     </select>
     <div class="mechili-cards">
       <div class="cards-row" id="mh-round-cards-row">
@@ -533,55 +564,57 @@ app.innerHTML = `
   </section>
 
   <section class="mh-section" id="settings">
-    <h2>Match settings</h2>
-    <p class="mh-sub">The default rules for a match, pulled straight from the game's settings code so this can't drift from what actually ships. Everything here is tunable &mdash; it's open source.</p>
+    <h2>${esc(t('homepage:matchSettings.title'))}</h2>
+    <p class="mh-sub">${esc(t('homepage:matchSettings.sub'))}</p>
     <div class="mh-settings-grid">
       ${SETTINGS_GROUPS.map(settingsGroupHtml).join('')}
     </div>
   </section>
 
   <section class="mh-section mh-together" id="suggest">
-    <h2>Contribute</h2>
-    <p class="mh-sub">Melodan is developed by a single person, me. I am passionate about this game, but i can not make an AAA title and keep everything perfect, balanced and so on. The idea is to have an open game where anybody can contribute. <br /><br />Let&rsquo;s make this together. Balance, bugs, features, art ideas <span class="mh-sep">⬢</span> send a short note and I will read it. If you want to do more, welcome!</p>
+    <h2>${esc(t('homepage:contribute.title'))}</h2>
+    <p class="mh-sub">${esc(t('homepage:contribute.sub1'))} <br /><br />${t('homepage:contribute.sub2', { sep: SEP })}</p>
     <div class="mh-together-cta">
-      <a class="mh-suggest-btn" href="${PLAY_URL}">Test in Browser</a>
-      <button type="button" class="mh-suggest-btn" id="mh-suggest-open">Send feedback</button>
-      <a class="mh-suggest-btn mh-discord-btn" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank">${DISCORD_ICON_SVG} Discord</a>
+      <a class="mh-suggest-btn" href="${PLAY_URL}">${esc(t('homepage:contribute.play'))}</a>
+      <button type="button" class="mh-suggest-btn" id="mh-suggest-open">${esc(t('homepage:contribute.feedback'))}</button>
+      <a class="mh-suggest-btn mh-discord-btn" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank">${DISCORD_ICON_SVG} ${esc(t('homepage:contribute.discord'))}</a>
       <a class="mh-trailer-btn" href="${esc(DEVLOG_URL)}" rel="noopener noreferrer" target="_blank">
         ${YOUTUBE_ICON_SVG}
-        <span>Developer Log</span>
+        <span>${esc(t('homepage:contribute.devlog'))}</span>
       </a>
     </div>
     <div class="mh-community-body">
       <div class="mh-community-block">
-        <h3>Ways to help</h3>
+        <h3>${esc(t('homepage:contribute.waysTitle'))}</h3>
         <ul class="mh-help-list">
-          <li>Share ideas and bug reports</li>
-          <li>Open pull requests on <a href="${esc(GITHUB_URL)}" rel="noopener noreferrer" target="_blank">GitHub</a> (GPL-3.0)</li>
-          <li>Make or improve 3D models</li>
-          <li>Take care of balancing, invent new spells, cards, ideas.</li>
-          <li>Welcome players, write guides, help with moderation if you want to take that on</li>
+          <li>${esc(t('homepage:contribute.way1'))}</li>
+          <li>${t('homepage:contribute.way2', { github: githubLink('GitHub') })}</li>
+          <li>${esc(t('homepage:contribute.way3'))}</li>
+          <li>${esc(t('homepage:contribute.way4'))}</li>
+          <li>${esc(t('homepage:contribute.way5'))}</li>
         </ul>
       </div>
     </div>
   </section>
   <section class="mh-section mh-about-section" id="about">
-    <h2>About</h2>
+    <h2>${esc(t('homepage:about.title'))}</h2>
     <div class="mh-about">
       <a class="mh-about-brand" href="https://feuerware.com/" rel="noopener noreferrer" target="_blank">
         <img src="${esc(feuerwareLogoUrl)}" alt="Feuerware" width="307" height="307" />
       </a>
       <p class="mh-about-lead">
-        MELODAN is made by Alexander Thurn (Feuerware). He is located in Bonn, Germany.
+        ${esc(t('homepage:about.lead'))}
       </p>
       <p>
-        This game is inspired by <a href="https://www.playmechabellum.com/" rel="noopener noreferrer" target="_blank">Mechabellum</a>
-        the best game in the genre. MELODAN is an independent fantasy take; please support the original and buy Mechabelum. Thank you!
+        ${t('homepage:about.inspired', {
+            mechabellum: `<a href="https://www.playmechabellum.com/" rel="noopener noreferrer" target="_blank">Mechabellum</a>`,
+        })}
       </p>
       <p>
-        The game is <a href="${esc(GITHUB_URL)}" rel="noopener noreferrer" target="_blank">open source on GitHub</a>
-        (GPL-3.0). Copyright stays with Alexander Thurn / Feuerware. Feel free to fork it privately, invent new units, and open pull requests.
-        For something bigger, a non- or commercial spin-off, a full rebrand etc. feel free to write me: <a href="mailto:alex@feuerware.com">alex@feuerware.com</a>.
+        ${t('homepage:about.openSource', {
+            github: githubLink(t('homepage:about.openSourceLink')),
+            email: `<a href="mailto:alex@feuerware.com">alex@feuerware.com</a>`,
+        })}
       </p>
     </div>
   </section>
@@ -589,45 +622,45 @@ app.innerHTML = `
 
 <footer class="mh-wrap mh-footer">
   <div class="mh-footer-links">
-    <a href="${PLAY_URL}">Play</a>
-    ${steamLink('', 'Steam')}
-    <a href="#suggest" id="mh-footer-suggest">Feedback</a>
-    <a href="https://feuerware.com/2025/imprint.html" rel="noopener noreferrer" target="_blank">Imprint</a>
-    <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">Data privacy</a>
+    <a href="${PLAY_URL}">${esc(t('homepage:footer.play'))}</a>
+    ${steamLink('', esc(t('homepage:footer.steam')))}
+    <a href="#suggest" id="mh-footer-suggest">${esc(t('homepage:footer.feedback'))}</a>
+    <a href="https://feuerware.com/2025/imprint.html" rel="noopener noreferrer" target="_blank">${esc(t('homepage:footer.imprint'))}</a>
+    <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">${esc(t('homepage:footer.privacy'))}</a>
   </div>
   <span>${esc(versionLabel)} · MELODAN · Feuerware</span>
 </footer>
 
 <aside class="mh-sticky-play" id="mh-sticky-play" aria-hidden="true">
-  <a class="mh-sticky-btn discord icon-only" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank" aria-label="Discord" title="Discord">
+  <a class="mh-sticky-btn discord icon-only" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank" aria-label="${esc(t('homepage:contribute.discord'))}" title="${esc(t('homepage:contribute.discord'))}">
     <svg class="mh-sticky-icon" viewBox="0 0 127.14 96.36" width="28" height="22" aria-hidden="true" focusable="false">
       <path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1A105.25 105.25 0 0 0 126.6 80.22c2.64-27.38-4.51-51.14-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53 48.84 65.69 42.45 65.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53 91.08 65.69 84.69 65.69Z"/>
     </svg>
   </a>
-  <a class="mh-sticky-btn steam mh-steam-link" href="${esc(STEAM_URL)}" rel="noopener noreferrer" target="_blank" aria-label="Wishlist now" title="Wishlist now">
+  <a class="mh-sticky-btn steam mh-steam-link" href="${esc(STEAM_URL)}" rel="noopener noreferrer" target="_blank" aria-label="${esc(t('homepage:hero.wishlist'))}" title="${esc(t('homepage:hero.wishlist'))}">
     <img class="mh-sticky-icon mh-sticky-steam" src="${esc(steamLogoSmallUrl)}" alt="" width="84" height="84" />
-    Wishlist now
+    ${esc(t('homepage:hero.wishlist'))}
   </a>
 </aside>
 
-<dialog class="mh-lightbox" id="mh-lightbox" aria-label="Screenshot gallery">
+<dialog class="mh-lightbox" id="mh-lightbox" aria-label="${esc(t('homepage:lightbox.gallery'))}">
   <div class="mh-lightbox-chrome">
     <p class="mh-lightbox-count" id="mh-lightbox-count" aria-live="polite"></p>
-    <button type="button" class="mh-lightbox-close" id="mh-lightbox-close" aria-label="Close gallery">&times;</button>
+    <button type="button" class="mh-lightbox-close" id="mh-lightbox-close" aria-label="${esc(t('homepage:lightbox.close'))}">&times;</button>
   </div>
-  <button type="button" class="mh-lightbox-nav prev" id="mh-lightbox-prev" aria-label="Previous screenshot">&#8249;</button>
-  <button type="button" class="mh-lightbox-nav next" id="mh-lightbox-next" aria-label="Next screenshot">&#8250;</button>
+  <button type="button" class="mh-lightbox-nav prev" id="mh-lightbox-prev" aria-label="${esc(t('homepage:lightbox.prev'))}">&#8249;</button>
+  <button type="button" class="mh-lightbox-nav next" id="mh-lightbox-next" aria-label="${esc(t('homepage:lightbox.next'))}">&#8250;</button>
   <div class="mh-lightbox-stage" id="mh-lightbox-stage">
     <img class="mh-lightbox-img" id="mh-lightbox-img" alt="" draggable="false" />
   </div>
   <div class="mh-lightbox-footer">
     <p class="mh-lightbox-caption" id="mh-lightbox-caption"></p>
     <div class="mh-lightbox-links">
-      <a class="mh-lightbox-link" id="mh-lightbox-fullhd" href="#" target="_blank" rel="noopener noreferrer">Full HD</a>
-      <a class="mh-lightbox-link" id="mh-lightbox-4k" href="#" target="_blank" rel="noopener noreferrer">4K</a>
+      <a class="mh-lightbox-link" id="mh-lightbox-fullhd" href="#" target="_blank" rel="noopener noreferrer">${esc(t('homepage:lightbox.fullhd'))}</a>
+      <a class="mh-lightbox-link" id="mh-lightbox-4k" href="#" target="_blank" rel="noopener noreferrer">${esc(t('homepage:lightbox.uhd'))}</a>
     </div>
   </div>
-  <div class="mh-lightbox-dots" id="mh-lightbox-dots" role="tablist" aria-label="Screenshots"></div>
+  <div class="mh-lightbox-dots" id="mh-lightbox-dots" role="tablist" aria-label="${esc(t('homepage:lightbox.dots'))}"></div>
 </dialog>
 `;
 
@@ -674,9 +707,9 @@ app.querySelector('#mh-footer-suggest')?.addEventListener('click', (e) => {
 
 for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
     img.addEventListener('error', () => {
-        const label = img.dataset.placeholder ?? 'Screenshot';
+        const label = img.dataset.placeholder ?? t('homepage:screenshots.fallback');
         const span = document.createElement('span');
-        span.textContent = `${label} ⬢ drop file in assets/marketing/screenshots/`;
+        span.textContent = t('homepage:screenshots.missing', { label });
         img.replaceWith(span);
     });
 }

@@ -7,6 +7,7 @@ import {
     commanderDescription,
     commanderTitle,
     commanderUnitsLabel,
+    t,
 } from '../i18n';
 import { THEME } from '../theme';
 import { iconHtml, moneyHtml } from './iconAtlas';
@@ -148,7 +149,7 @@ export function startCardFaceHtml(c: StartCard): string {
         `<div class="c-portrait">${iconHtml(c.portrait, 'c-portrait-ico')}</div>` +
         `<div class="c-title">${escapeHtml(commanderTitle(c.id, c.title))}</div>` +
         `<div class="c-units">${escapeHtml(commanderUnitsLabel(c.id, c.unitsLabel))}</div>` +
-        `<div class="c-hp">♥ ${c.startingHp} HP</div>` +
+        `<div class="c-hp">♥ ${c.startingHp} ${escapeHtml(t('hud:hp'))}</div>` +
         `<div class="c-desc">${escapeHtml(commanderDescription(c.id, c.description))}</div>` +
         startCardForgeSpellsHtml(c)
     );

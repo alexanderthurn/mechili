@@ -20,6 +20,7 @@ import {
 } from './tactics';
 import { ITEMS } from './items';
 import { DISPLAY } from './displayNames';
+import { itemDescription, itemName, t, tacticDescription, tacticName } from '../i18n';
 
 /** Max runes one player may insert into the shared forge */
 export const FORGE_SLOTS_PER_PLAYER = 3;
@@ -135,13 +136,21 @@ export function forgeProductInfo(
     product: ForgeProduct,
 ): { icon: string; name: string; desc: string } | null {
     if (product.kind === 'tactic') {
-        const t = TACTICS[product.id];
-        if (!t) return null;
-        return { icon: t.icon, name: t.name, desc: t.description };
+        const def = TACTICS[product.id];
+        if (!def) return null;
+        return {
+            icon: def.icon,
+            name: tacticName(product.id, def.name),
+            desc: tacticDescription(product.id, def.description),
+        };
     }
     const it = ITEMS[product.id];
     if (!it) return null;
-    return { icon: it.icon, name: it.name, desc: it.description };
+    return {
+        icon: it.icon,
+        name: itemName(product.id, it.name),
+        desc: itemDescription(product.id, it.description),
+    };
 }
 
 function countMultiset(ids: string[]): Map<string, number> {
@@ -379,8 +388,14 @@ export function forgeHintText(
     }
     if (!resolveForge(slots, pool).product) {
         return when === 'this'
-            ? 'No matching recipe — all runes returned to their owners this deploy'
-            : 'No matching recipe — all runes return to their owners next deploy';
+            ? t('hud:forgeNoMatchThis', {
+                  defaultValue:
+                      'No matching recipe — all runes returned to their owners this deploy',
+              })
+            : t('hud:forgeNoMatchNext', {
+                  defaultValue:
+                      'No matching recipe — all runes return to their owners next deploy',
+              });
     }
     // A matched recipe promises nothing until the burn is bought — the buy
     // button carries that message, and a line beside it claiming otherwise
@@ -390,7 +405,9 @@ export function forgeHintText(
     // oven and the product is on the square next to them. All that is left to
     // say is when. (No leftovers to mention either — resolveForge only returns
     // a product on an exact match, so `refunds` is empty whenever one exists.)
-    return when === 'this' ? 'Ready this deploy' : 'Ready next deploy';
+    return when === 'this'
+        ? t('hud:forgeReadyThis', { defaultValue: 'Ready this deploy' })
+        : t('hud:forgeReadyNext', { defaultValue: 'Ready next deploy' });
 }
 
 

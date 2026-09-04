@@ -9,7 +9,7 @@
  */
 
 import { DISPLAY } from './displayNames';
-import { t } from '../i18n';
+import { t, tacticDescription, tacticName } from '../i18n';
 import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS, ITEMS } from './items';
 import {
     ACID_ID,
@@ -376,14 +376,14 @@ export function startCardForgeIcons(
         ingredientIcons: string[];
     }[] = [];
     for (const id of card.forgeSpells) {
-        const t = TACTICS[id];
-        if (t) {
+        const def = TACTICS[id];
+        if (def) {
             out.push({
-                icon: t.icon,
-                name: t.name,
-                desc: t.description,
+                icon: def.icon,
+                name: tacticName(id, def.name),
+                desc: tacticDescription(id, def.description),
                 // what this commander's own Stronghold charges for it
-                cost: t.strongholdCost,
+                cost: def.strongholdCost,
                 ingredientIcons: forgeIngredientIcons(id),
             });
         }

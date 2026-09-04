@@ -20,6 +20,7 @@ import {
 } from './net';
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { Loadout } from './techCatalog';
+import { t } from '../i18n';
 
 /**
  * Steam-backed transport, parallel to `net.ts`'s PeerJS+PHP one — chosen at
@@ -549,7 +550,7 @@ export class SteamStarHub implements HostHub {
             }
             channel.send({
                 type: 'starRejoinRejected',
-                reason: 'Version mismatch, or that seat is no longer awaiting reconnect.',
+                reason: t('menu:versionMismatchRejoin'),
             });
             channel.dispose();
             return;
@@ -733,7 +734,7 @@ export class SteamStarHub implements HostHub {
         if (seat === 0) return; // the host can't kick themselves
         const viewer = this.bySeat.get(seat);
         if (!viewer) return;
-        viewer.channel?.send({ type: 'starRejected', reason: 'Kicked by the host.' });
+        viewer.channel?.send({ type: 'starRejected', reason: t('menu:kickedByHost') });
         viewer.channel?.dispose();
         this.bySeat.delete(seat);
         const entry = this.roster[seat];
@@ -981,7 +982,7 @@ export async function joinSteamAsSpectator(
         if (msg.type !== 'matchCatchUp' || msg.viewer.kind !== 'spectator') {
             throw new Error('Unexpected reply from host');
         }
-        if (msg.version !== GAME_VERSION) throw new Error('Version mismatch');
+        if (msg.version !== GAME_VERSION) throw new Error(t('menu:versionMismatchShort'));
         return {
             session: new SteamSpectatorSession(channel),
             seed: msg.seed,

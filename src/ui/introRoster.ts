@@ -14,6 +14,7 @@ import {
 import { getAvatarDataUrl } from '../game/avatar';
 import type { GameSettings } from '../game/settings';
 import type { StarRole } from '../game/net';
+import { t } from '../i18n';
 import { withDialogFade } from './dialogFade';
 
 export type IntroRosterEntry = {
@@ -77,7 +78,8 @@ function teamHtml(team: 'player' | 'enemy', entries: IntroRosterEntry[]): string
             const mmrText = e.mmr === null ? '…' : String(e.mmr);
             const mmrClass = e.mmr === null ? 'mr-mmr loading' : 'mr-mmr';
             const localClass = e.isLocal ? ' mr-local' : '';
-            const aiTag = e.controller === 'ai' ? `<span class="mr-ai">AI</span>` : '';
+            const aiTag =
+                e.controller === 'ai' ? `<span class="mr-ai">${escapeHtml(t('hud:ai'))}</span>` : '';
             return (
                 `<div class="mr-player${localClass}" data-name="${escapeAttr(e.name)}">` +
                 `<div class="mr-portrait ${team}">${portrait}</div>` +
@@ -116,7 +118,7 @@ export function mountIntroRoster(
         `</div>` +
         `<div class="mr-cols">` +
         teamHtml('player', entries.filter((e) => e.team === 'player')) +
-        `<div class="mr-vs">VS</div>` +
+        `<div class="mr-vs">${escapeHtml(t('hud:vs'))}</div>` +
         teamHtml('enemy', entries.filter((e) => e.team === 'enemy')) +
         `</div></div>`;
     cover.appendChild(el);

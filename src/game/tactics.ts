@@ -11,6 +11,7 @@ import {
     OIL_SPILL_RADIUS,
 } from './fire';
 import { UNIT_TYPES } from './units';
+import { t, unitName } from '../i18n';
 
 /** tactical orders (not pack items) — granted by round cards, consumed per placement */
 export const RALLY_ROUTE_ID = 'rallyRoute';
@@ -417,18 +418,18 @@ export function usesSpellPlacement(tactic: (typeof TACTICS)[string]): boolean {
 /** world radius → board cells (CELL-sized tiles) for readable UI */
 function cellsLabel(world: number): string {
     const n = Math.round((world / CELL) * 10) / 10;
-    return `${n} cell${n === 1 ? '' : 's'}`;
+    return t('hud:cell', { count: n, defaultValue: `${n} cell${n === 1 ? '' : 's'}` });
 }
 
 function roundsLabel(n: number): string {
-    return `${n} round${n === 1 ? '' : 's'}`;
+    return t('hud:round', { count: n, defaultValue: `${n} round${n === 1 ? '' : 's'}` });
 }
 
 /**
  * Numeric / rule stats derived from the tactic payload (single source of truth).
  * Flavor `description` should stay number-free; UIs render these lines instead.
  */
-export function formatTacticStats(t: (typeof TACTICS)[string]): string[] {
+export function formatTacticStats(tactic: (typeof TACTICS)[string]): string[] {
     const lines: string[] = [];
 
     // +1, and never hidden: `cooldownRounds` counts rounds to WAIT, so 0 means
@@ -436,69 +437,198 @@ export function formatTacticStats(t: (typeof TACTICS)[string]): string[] {
     // the in-game badge, which reads cooldownRounds + 1 for exactly this reason).
     // Printing the raw field left every 0 blank and made a once-per-round spell
     // look like it had no limit at all.
-    lines.push(`Cooldown ${roundsLabel(t.cooldownRounds + 1)}`);
+    lines.push(
+        t('hud:tacticCooldown', {
+            n: roundsLabel(tactic.cooldownRounds + 1),
+            defaultValue: `Cooldown ${roundsLabel(tactic.cooldownRounds + 1)}`,
+        }),
+    );
 
-    if (t.radius != null && (t.spell || t.acidCapsule || t.fireCapsule || t.oilRadius)) {
-        lines.push(`Aim ${cellsLabel(t.radius)}`);
+    if (tactic.radius != null && (tactic.spell || tactic.acidCapsule || tactic.fireCapsule || tactic.oilRadius)) {
+        lines.push(
+            t('hud:tacticAim', {
+                n: cellsLabel(tactic.radius),
+                defaultValue: `Aim ${cellsLabel(tactic.radius)}`,
+            }),
+        );
     }
-    if (t.maxSpan != null) {
-        lines.push(`Max path ${cellsLabel(t.maxSpan)}`);
+    if (tactic.maxSpan != null) {
+        lines.push(
+            t('hud:tacticMaxPath', {
+                n: cellsLabel(tactic.maxSpan),
+                defaultValue: `Max path ${cellsLabel(tactic.maxSpan)}`,
+            }),
+        );
     }
 
-    const spell = t.spell;
+    const spell = tactic.spell;
     if (spell) {
-        lines.push(`Delay ${spell.delaySeconds}s`);
+        lines.push(
+            t('hud:tacticDelay', {
+                n: spell.delaySeconds,
+                defaultValue: `Delay ${spell.delaySeconds}s`,
+            }),
+        );
         if (spell.strike) {
-            lines.push(`Damage ${spell.strike.damage}`);
-            lines.push(`Blast ${cellsLabel(spell.strike.radius)}`);
+            lines.push(
+                t('hud:tacticDamage', {
+                    n: spell.strike.damage,
+                    defaultValue: `Damage ${spell.strike.damage}`,
+                }),
+            );
+            lines.push(
+                t('hud:tacticBlast', {
+                    n: cellsLabel(spell.strike.radius),
+                    defaultValue: `Blast ${cellsLabel(spell.strike.radius)}`,
+                }),
+            );
         }
         if (spell.spawn) {
             const unit = UNIT_TYPES.find((u) => u.id === spell.spawn!.typeId);
-            const label = unit?.name ?? spell.spawn.typeId;
-            lines.push(`Summon ${spell.spawn.count}× ${label}`);
+            const label = unitName(spell.spawn.typeId, unit?.name ?? spell.spawn.typeId);
+            lines.push(
+                t('hud:tacticSummon', {
+                    count: spell.spawn.count,
+                    unit: label,
+                    defaultValue: `Summon ${spell.spawn.count}× ${label}`,
+                }),
+            );
         }
         if (spell.zone) {
             const z = spell.zone;
             if (z.mode === 'storm') {
-                lines.push(`Lightning every ${z.interval}s (debuff only)`);
-                if (z.impactRadius != null) lines.push(`Splash ${cellsLabel(z.impactRadius)}`);
+                lines.push(
+                    t('hud:tacticLightning', {
+                        n: z.interval,
+                        defaultValue: `Lightning every ${z.interval}s (debuff only)`,
+                    }),
+                );
+                if (z.impactRadius != null) {
+                    lines.push(
+                        t('hud:tacticSplash', {
+                            n: cellsLabel(z.impactRadius),
+                            defaultValue: `Splash ${cellsLabel(z.impactRadius)}`,
+                        }),
+                    );
+                }
             } else if (z.mode === 'acidRain') {
                 const n = z.dropsPerTick ?? 1;
-                lines.push(`Acid rain ×${n} every ${z.interval}s`);
-                if (z.impactRadius != null) lines.push(`Drop ${cellsLabel(z.impactRadius)}`);
+                lines.push(
+                    t('hud:tacticAcidRain', {
+                        count: n,
+                        n: z.interval,
+                        defaultValue: `Acid rain ×${n} every ${z.interval}s`,
+                    }),
+                );
+                if (z.impactRadius != null) {
+                    lines.push(
+                        t('hud:tacticDrop', {
+                            n: cellsLabel(z.impactRadius),
+                            defaultValue: `Drop ${cellsLabel(z.impactRadius)}`,
+                        }),
+                    );
+                }
             } else if (z.mode === 'meteorShower') {
-                lines.push(`Meteor ${z.damage} every ${z.interval}s`);
-                if (z.impactRadius != null) lines.push(`Impact ${cellsLabel(z.impactRadius)}`);
+                lines.push(
+                    t('hud:tacticMeteor', {
+                        dmg: z.damage,
+                        n: z.interval,
+                        defaultValue: `Meteor ${z.damage} every ${z.interval}s`,
+                    }),
+                );
+                if (z.impactRadius != null) {
+                    lines.push(
+                        t('hud:tacticImpact', {
+                            n: cellsLabel(z.impactRadius),
+                            defaultValue: `Impact ${cellsLabel(z.impactRadius)}`,
+                        }),
+                    );
+                }
                 if (z.igniteRadius != null) {
-                    lines.push(`Ignite ${cellsLabel(z.igniteRadius)}`);
+                    lines.push(
+                        t('hud:tacticIgnite', {
+                            n: cellsLabel(z.igniteRadius),
+                            defaultValue: `Ignite ${cellsLabel(z.igniteRadius)}`,
+                        }),
+                    );
                 }
             }
-            lines.push(`Duration ${z.duration}s`);
+            lines.push(
+                t('hud:tacticDuration', {
+                    n: z.duration,
+                    defaultValue: `Duration ${z.duration}s`,
+                }),
+            );
         }
         if (spell.igniteCapsule) {
             const c = spell.igniteCapsule;
             if (c.damage != null && c.damage > 0) {
-                lines.push(`Breath damage ${c.damage}`);
+                lines.push(
+                    t('hud:tacticBreath', {
+                        n: c.damage,
+                        defaultValue: `Breath damage ${c.damage}`,
+                    }),
+                );
             }
-            lines.push(`Ground fire DPS ${c.intensity}`);
-            lines.push(`Ground burn ${c.burnSeconds}s`);
+            lines.push(
+                t('hud:tacticGroundFire', {
+                    n: c.intensity,
+                    defaultValue: `Ground fire DPS ${c.intensity}`,
+                }),
+            );
+            lines.push(
+                t('hud:tacticGroundBurn', {
+                    n: c.burnSeconds,
+                    defaultValue: `Ground burn ${c.burnSeconds}s`,
+                }),
+            );
         }
     }
 
-    if (t.fireCapsule) {
-        lines.push(`Fire DPS ${t.fireCapsule.intensity}`);
-        lines.push(`Burn ${t.fireCapsule.burnSeconds}s`);
+    if (tactic.fireCapsule) {
+        lines.push(
+            t('hud:tacticFireDps', {
+                n: tactic.fireCapsule.intensity,
+                defaultValue: `Fire DPS ${tactic.fireCapsule.intensity}`,
+            }),
+        );
+        lines.push(
+            t('hud:tacticBurn', {
+                n: tactic.fireCapsule.burnSeconds,
+                defaultValue: `Burn ${tactic.fireCapsule.burnSeconds}s`,
+            }),
+        );
     }
 
-    if (t.acidCapsule) {
-        lines.push(`Acid ${t.acidCapsule.dpsPercent}% max HP / s`);
-        lines.push(`Lasts ${roundsLabel(t.acidCapsule.durationRounds)}`);
-        lines.push('Applies corroded');
+    if (tactic.acidCapsule) {
+        lines.push(
+            t('hud:tacticAcid', {
+                n: tactic.acidCapsule.dpsPercent,
+                defaultValue: `Acid ${tactic.acidCapsule.dpsPercent}% max HP / s`,
+            }),
+        );
+        lines.push(
+            t('hud:tacticLasts', {
+                n: roundsLabel(tactic.acidCapsule.durationRounds),
+                defaultValue: `Lasts ${roundsLabel(tactic.acidCapsule.durationRounds)}`,
+            }),
+        );
+        lines.push(t('hud:tacticCorroded', { defaultValue: 'Applies corroded' }));
     }
 
-    if (t.oilDurationRounds != null) {
-        lines.push(`Oil ${OIL_SPEED_MULT}× move speed`);
-        lines.push(`Lasts ${roundsLabel(t.oilDurationRounds)}`);
+    if (tactic.oilDurationRounds != null) {
+        lines.push(
+            t('hud:tacticOil', {
+                mult: OIL_SPEED_MULT,
+                defaultValue: `Oil ${OIL_SPEED_MULT}× move speed`,
+            }),
+        );
+        lines.push(
+            t('hud:tacticLasts', {
+                n: roundsLabel(tactic.oilDurationRounds),
+                defaultValue: `Lasts ${roundsLabel(tactic.oilDurationRounds)}`,
+            }),
+        );
     }
 
     return lines;

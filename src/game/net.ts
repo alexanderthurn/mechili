@@ -11,6 +11,7 @@ import type { Loadout } from './techCatalog';
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { GameSettings, StrongholdMode } from './settings';
 import type { Team } from './units';
+import { t } from '../i18n';
 
 /** PeerJS signaling target — null means the public PeerJS cloud. */
 export interface PeerServerConfig {
@@ -976,7 +977,7 @@ export class StarHub implements HostHub {
                         if (!accepted) {
                             conn.send({
                                 type: 'starRejoinRejected',
-                                reason: 'Version mismatch, or that seat is no longer awaiting reconnect.',
+                                reason: t('menu:versionMismatchRejoin'),
                             });
                             conn.close();
                         }
@@ -1008,7 +1009,7 @@ export class StarHub implements HostHub {
                         if (!accepted) {
                             conn.send({
                                 type: 'starRejoinRejected',
-                                reason: 'Version mismatch, or that seat is no longer awaiting reconnect.',
+                                reason: t('menu:versionMismatchRejoin'),
                             });
                             conn.close();
                         }
@@ -1037,7 +1038,7 @@ export class StarHub implements HostHub {
                                 ourVersion: GAME_VERSION,
                                 accepted: false,
                             });
-                            conn.send({ type: 'starRejoinRejected', reason: 'Version mismatch.' });
+                            conn.send({ type: 'starRejoinRejected', reason: t('menu:versionMismatchShort') });
                             conn.close();
                             return;
                         }
@@ -1107,7 +1108,7 @@ export class StarHub implements HostHub {
      */
     kickSeat(seat: SeatId): void {
         if (seat === 0) return; // the host can't kick themselves
-        this.resetSeatToOpen(seat, 'Kicked by the host.');
+        this.resetSeatToOpen(seat, t('menu:kickedByHost'));
     }
 
     /** shared by kickSeat and dropSeat's lobby-phase branch: closes
@@ -1655,7 +1656,7 @@ export async function hostStarRoom(
     const roomId = peerRoomId(name);
 
     if (discovery === 'lan') {
-        onStatus('Opening LAN room…');
+        onStatus(t('menu:openingLan'));
         if (!(await lan.isAvailable())) {
             throw new Error('LAN is not available in this build');
         }
@@ -1698,7 +1699,7 @@ export async function hostStarRoom(
     }
 
     setPeerServerConfig(null);
-    onStatus('Opening room…');
+    onStatus(t('menu:openingRoom'));
     let hub: StarHub;
     try {
         hub = await StarHub.open(initialRoster, roomId);
@@ -1763,7 +1764,7 @@ export function joinStarRoom(
     const session = (async () => {
         if (peerServer) setPeerServerConfig(peerServer);
         else if (peerServer === null) setPeerServerConfig(null);
-        onStatus(`Joining "${hostName.trim()}"…`);
+        onStatus(t('menu:joining', { name: hostName.trim() }));
         peer = await openPeer();
         const conn = await new Promise<DataConnection>((resolve, reject) => {
             const timer = setTimeout(
@@ -2605,7 +2606,7 @@ export async function joinAsSpectator(
         if (msg.type !== 'matchCatchUp' || msg.viewer.kind !== 'spectator') {
             throw new Error('Unexpected reply from host');
         }
-        if (msg.version !== GAME_VERSION) throw new Error('Version mismatch');
+        if (msg.version !== GAME_VERSION) throw new Error(t('menu:versionMismatchShort'));
         return {
             session: new SpectatorSession(peer, conn),
             seed: msg.seed,
