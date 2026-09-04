@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Sky Sorcerer",
+    "description": "Air units get +12% attack and HP.",
+    "unitsLabel": "2× Crow Riders · 1× Dwarves"
+  },
+  "cost": {
+    "title": "Greedy Prince",
+    "description": "All units −12% attack and HP, but +100 supply every round.",
+    "unitsLabel": "2× Archers · 1× Crow Riders · 1× Dwarves"
+  },
+  "elite": {
+    "title": "Elite Prince",
+    "description": "Recruiting at level 2. +100 supply in round 1.",
+    "unitsLabel": "1× Ballista · 1× Dwarves"
+  },
+  "archer": {
+    "title": "Archer Commander",
+    "description": "A free level-3 Archer arrives in round 2.",
+    "unitsLabel": "3× Archers · 2× Dwarves"
+  },
+  "addi": {
+    "title": "Relic Keeper",
+    "description": "Gets 3× Valor rune in round 1.",
+    "unitsLabel": "1× Crow Riders · 3× Dwarves"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "Gets 2 Meteor charges in round 2.",
+    "unitsLabel": "1× Wizard · 1× Dwarves"
+  },
+  "speed": {
+    "title": "Speedy Widow",
+    "unitsLabel": "1× Crow Riders · 1× Archers · 2× Dwarves"
+  },
+  "giant": {
+    "title": "Countess Chonk",
+    "unitsLabel": "1× Ballista · 1× Dwarves"
+  },
+  "tutor": {
+    "title": "Lady Lecture",
+    "description": "Starts with one Field Lesson.",
+    "unitsLabel": "1× Crow Riders · 3× Archers"
+  },
+  "money": {
+    "title": "Money Queen",
+    "unitsLabel": "2× Crow Riders · 1× Archers"
+  },
+  "cursed": {
+    "title": "Cursed Christine",
+    "description": "Gets one free Black Brood spider each round.",
+    "unitsLabel": "2× Dwarves · 2× Archers"
+  },
+  "flanky": {
+    "title": "Flanky Shadow",
+    "description": "First-time flank spawns take half the time.",
+    "unitsLabel": "2× Dwarves · 2× Archers"
+  }
+}

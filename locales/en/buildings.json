@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Upgrade level",
+    "description": "Raise this building one level: it gains its base HP. Price starts at {{baseCost}} and rises by {{costStep}} each level (max level {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Selling",
+    "description": "Permanently unlock selling packs (up to {{maxPerRound}} per deployment phase). Refund is {{refundPct}}% of base cost."
+  },
+  "attack_boost": {
+    "name": "Attack Boost",
+    "description": "Permanent army-wide damage boost. First tier +{{attackPct}}%; buy tiers in order (costs {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP Boost",
+    "description": "Permanent army-wide HP boost. First tier +{{hpPct}}%; buy tiers in order (costs {{costs}})."
+  },
+  "range_boost": {
+    "name": "Range Boost",
+    "description": "+{{amount}} range for all ranged units, this round only."
+  },
+  "speed_boost": {
+    "name": "Speed Boost",
+    "description": "+{{amount}} speed for all units, this round only."
+  },
+  "loan": {
+    "name": "Loan",
+    "description": "+{{gain}} supply now. Next deployment: −{{debt}}. Once per round."
+  },
+  "ward_dome": {
+    "name": "Ward dome",
+    "description": "Absorbs enemy projectiles that cross into a dome (radius {{radius}}, height {{height}}). Pool is this unit’s HP."
+  },
+  "homing_fire_bolt": {
+    "name": "Homing Fire Bolt",
+    "description": "Arms in place, then homes onto the first enemy in range {{range}} for {{damage}} damage (splash {{splash}})."
+  },
+  "rally_route": {
+    "name": "Rally Route",
+    "description": "Add one rally-route charge to your spells strip. Once per match."
+  },
+  "move_pack": {
+    "name": "Move Pack",
+    "description": "Add one move-pack charge to your spells strip: one pack from an earlier round becomes movable again. Once per match."
+  },
+  "1_deployment": {
+    "name": "+1 Deployment",
+    "description": "One extra unit purchase this round only."
+  },
+  "veteran_training": {
+    "name": "Veteran Training",
+    "description": "For the rest of this round, units you buy arrive at level 2 (they still pay the level premium)."
+  },
+  "send_supply_to_ally": {
+    "name": "Send supply to ally",
+    "description": "Gift 100 supply to your ally — arrives at the start of next round. Duo modes only."
+  }
+}

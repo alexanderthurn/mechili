@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "捷足"
+  },
+  "carapace": {
+    "name": "石肤"
+  },
+  "barrel": {
+    "name": "长弓"
+  },
+  "ap": {
+    "name": "穿甲箭"
+  },
+  "fireArrows": {
+    "name": "火箭",
+    "description": "箭矢在地面留下短暂火焰并灼烧——足以点燃油潭。"
+  },
+  "engines": {
+    "name": "疾风之翼"
+  },
+  "stingers": {
+    "name": "鸦爪"
+  },
+  "armor": {
+    "name": "铁甲"
+  },
+  "autoloader": {
+    "name": "速绞盘"
+  },
+  "aegis": {
+    "name": "神盾",
+    "description": "护盾：每个单位获得等于其生命值的第二层生命。远程攻击先消耗护盾；近战、火焰与酸液无视护盾。"
+  },
+  "golden": {
+    "name": "金辉光环",
+    "description": "附近友军抵抗塔楼减益，并在 30 秒内减少 30% 所受伤害。巫师无法转化他们——射线改为造成伤害。"
+  },
+  "pitchBolts": {
+    "name": "沥青弩矢",
+    "description": "弩矢命中时溅洒油脂（不会点燃——需搭配火箭或火焰弩矢）。"
+  },
+  "wideBlast": {
+    "name": "广域爆发",
+    "description": "溅射半径变为三倍（无溅射的单位也会获得溅射）。"
+  },
+  "skyBind": {
+    "name": "缚天",
+    "description": "可攻击地面与空中单位。"
+  },
+  "skyLift": {
+    "name": "升空",
+    "description": "将此单位升入空中（战斗飞行单位）。"
+  },
+  "earthbound": {
+    "name": "缚地",
+    "description": "使此单位留在地面（覆盖升空 / 天生飞行）。"
+  },
+  "spiderMother": {
+    "name": "蛛母"
+  },
+  "darkHarvest": {
+    "name": "暗黑收割"
+  },
+  "_auto": {
+    "modHp": "{{pct}} 生命",
+    "modDamage": "{{pct}} 伤害",
+    "modRange": "{{pct}} 射程",
+    "modSpeed": "{{pct}} 移动速度",
+    "modAttackSpeed": "{{pct}} 攻击速度",
+    "modSplash": "{{mult}}× 溅射半径",
+    "produce": "每 {{every}} 产出 {{child}}（最多 {{max}}）",
+    "produceFirst": "，首次在 {{delay}} 后",
+    "produceOffspring": "。子嗣与亲本等级相同",
+    "onKill": "该单位击杀时唤起 {{child}}",
+    "cleave": "命中此单位周围 {{radius}} 内的每个敌人"
+  }
+}

@@ -2,5 +2,16 @@
   "close": "关闭",
   "back": "返回",
   "reset": "重置",
-  "language": "语言"
+  "language": "语言",
+  "term": {
+    "rune": "符文",
+    "runes": "符文",
+    "talent": "天赋",
+    "talents": "天赋",
+    "spell": "法术",
+    "spells": "法术",
+    "commander": "指挥官",
+    "commanders": "指挥官",
+    "horde": "骑士团长"
+  }
 }

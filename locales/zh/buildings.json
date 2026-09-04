@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "升级",
+    "description": "将此建筑提升一级：获得其基础生命。价格从 {{baseCost}} 起，每级增加 {{costStep}}（最高 {{maxLevel}} 级）。"
+  },
+  "selling": {
+    "name": "出售",
+    "description": "永久解锁出售编队（每个部署阶段最多 {{maxPerRound}} 次）。返还基础费用的 {{refundPct}}%。"
+  },
+  "attack_boost": {
+    "name": "攻击强化",
+    "description": "永久全军伤害提升。第一层 +{{attackPct}}%；按顺序购买层级（费用 {{costs}}）。"
+  },
+  "hp_boost": {
+    "name": "生命强化",
+    "description": "永久全军生命提升。第一层 +{{hpPct}}%；按顺序购买层级（费用 {{costs}}）。"
+  },
+  "range_boost": {
+    "name": "射程强化",
+    "description": "所有远程单位 +{{amount}} 射程，仅本回合。"
+  },
+  "speed_boost": {
+    "name": "速度强化",
+    "description": "所有单位 +{{amount}} 速度，仅本回合。"
+  },
+  "loan": {
+    "name": "借贷",
+    "description": "立即 +{{gain}} 补给。下次部署：−{{debt}}。每回合一次。"
+  },
+  "ward_dome": {
+    "name": "护盾穹顶",
+    "description": "吸收进入穹顶的敌方投射物（半径 {{radius}}，高度 {{height}}）。容量为此单位的生命值。"
+  },
+  "homing_fire_bolt": {
+    "name": "追踪火焰弩矢",
+    "description": "就地装填，然后追踪射程 {{range}} 内的首个敌人，造成 {{damage}} 伤害（溅射 {{splash}}）。"
+  },
+  "rally_route": {
+    "name": "集结路线",
+    "description": "向法术栏添加一次集结路线充能。每场对局一次。"
+  },
+  "move_pack": {
+    "name": "移动编队",
+    "description": "向法术栏添加一次移动编队充能：此前回合的一个编队可再次移动。每场对局一次。"
+  },
+  "1_deployment": {
+    "name": "+1 部署",
+    "description": "本回合额外一次单位购买。"
+  },
+  "veteran_training": {
+    "name": "老兵训练",
+    "description": "本回合剩余时间内，购买的单位以 2 级抵达（仍需支付等级溢价）。"
+  },
+  "send_supply_to_ally": {
+    "name": "向盟友送补给",
+    "description": "赠予盟友 100 补给——于下一回合开始时送达。仅双人模式。"
+  }
+}

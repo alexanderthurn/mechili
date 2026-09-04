@@ -16,6 +16,7 @@
  */
 
 import { friends as steamFriends, lobby as steamLobby, type SteamFriend } from 'steam-electron-build/native';
+import { t } from '../i18n';
 
 /** EPersonaState — anything other than 0 is some flavour of online */
 const STATE_OFFLINE = 0;
@@ -62,8 +63,8 @@ function listSignature(list: SteamFriend[]): string {
 }
 
 function statusLabel(f: SteamFriend): string {
-    if (f.inThisGame) return 'In game';
-    return f.state === STATE_OFFLINE ? 'Offline' : 'Online';
+    if (f.inThisGame) return t('menu:statusInGame');
+    return f.state === STATE_OFFLINE ? t('menu:statusOffline') : t('menu:statusOnline');
 }
 
 /** in-game first, then online, then offline; alphabetical inside each band */
@@ -93,7 +94,7 @@ export class FriendsPanel {
         this.el.style.display = 'none';
         const title = document.createElement('div');
         title.className = 'fr-title';
-        title.textContent = 'Invite a friend';
+        title.textContent = t('menu:friendsTitle');
         this.listEl.className = 'fr-list';
         this.noteEl.className = 'fr-note';
         this.noteEl.style.display = 'none';
@@ -101,7 +102,7 @@ export class FriendsPanel {
         const overlayBtn = document.createElement('button');
         overlayBtn.type = 'button';
         overlayBtn.className = 'fr-overlay-btn';
-        overlayBtn.textContent = 'Open Steam overlay…';
+        overlayBtn.textContent = t('menu:openSteamOverlay');
         overlayBtn.addEventListener('click', () => {
             void steamLobby.openInviteDialog().then((opened) => {
                 this.note(
@@ -115,7 +116,7 @@ export class FriendsPanel {
         const closeBtn = document.createElement('button');
         closeBtn.type = 'button';
         closeBtn.className = 'fr-close';
-        closeBtn.title = 'Close';
+        closeBtn.title = t('menu:close');
         closeBtn.textContent = '×';
         closeBtn.addEventListener('click', () => this.hide());
 
@@ -151,7 +152,7 @@ export class FriendsPanel {
         this.rendered = null;
         this.invited.clear();
         forgetMissingAvatars();
-        this.listEl.replaceChildren(row('Loading friends…', 'fr-empty'));
+        this.listEl.replaceChildren(row(t('menu:loadingFriends'), 'fr-empty'));
         void this.refresh();
         if (this.poll) clearInterval(this.poll);
         // A friend launching the game is the single most likely thing to happen
@@ -172,7 +173,7 @@ export class FriendsPanel {
     private render(list: SteamFriend[]): void {
         this.listEl.replaceChildren();
         if (list.length === 0) {
-            this.listEl.append(row('No Steam friends found.', 'fr-empty'));
+            this.listEl.append(row(t('menu:noFriends'), 'fr-empty'));
             // The likeliest reason by far during a playtest, and the one a
             // player cannot deduce from an empty list on their own.
             this.note('Only friends with access to this build can join.');
@@ -203,12 +204,12 @@ export class FriendsPanel {
         invite.type = 'button';
         invite.className = 'fr-invite';
         const alreadyInvited = this.invited.has(f.steamId64);
-        invite.textContent = alreadyInvited ? 'Invited' : 'Invite';
+        invite.textContent = alreadyInvited ? t('menu:invited') : t('menu:invite');
         invite.disabled = alreadyInvited;
         invite.addEventListener('click', () => {
             invite.disabled = true;
             void steamLobby.inviteUser(f.steamId64).then((sent) => {
-                invite.textContent = sent ? 'Invited' : 'Failed';
+                invite.textContent = sent ? t('menu:invited') : t('menu:failed');
                 if (sent) {
                     this.invited.add(f.steamId64);
                 } else {

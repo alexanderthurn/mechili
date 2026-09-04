@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "天空术士",
+    "description": "空中单位获得 +12% 攻击与生命。",
+    "unitsLabel": "2× 鸦骑士 · 1× 矮人"
+  },
+  "cost": {
+    "title": "贪婪亲王",
+    "description": "所有单位 −12% 攻击与生命，但每回合 +100 补给。",
+    "unitsLabel": "2× 弓手 · 1× 鸦骑士 · 1× 矮人"
+  },
+  "elite": {
+    "title": "精锐亲王",
+    "description": "以 2 级招募。第 1 回合 +100 补给。",
+    "unitsLabel": "1× 弩炮 · 1× 矮人"
+  },
+  "archer": {
+    "title": "弓手统领",
+    "description": "第 2 回合获得一名免费的 3 级弓手。",
+    "unitsLabel": "3× 弓手 · 2× 矮人"
+  },
+  "addi": {
+    "title": "圣物守护者",
+    "description": "第 1 回合获得 3× 勇毅符文。",
+    "unitsLabel": "1× 鸦骑士 · 3× 矮人"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "第 2 回合获得 2 次陨石充能。",
+    "unitsLabel": "1× 巫师 · 1× 矮人"
+  },
+  "speed": {
+    "title": "疾速寡妇",
+    "unitsLabel": "1× 鸦骑士 · 1× 弓手 · 2× 矮人"
+  },
+  "giant": {
+    "title": "Countess Chonk",
+    "unitsLabel": "1× 弩炮 · 1× 矮人"
+  },
+  "tutor": {
+    "title": "训诫女士",
+    "description": "开局拥有一次战场训诫。",
+    "unitsLabel": "1× 鸦骑士 · 3× 弓手"
+  },
+  "money": {
+    "title": "金钱女王",
+    "unitsLabel": "2× 鸦骑士 · 1× 弓手"
+  },
+  "cursed": {
+    "title": "Cursed Christine",
+    "description": "每回合获得一只免费的黑巢幼体蜘蛛。",
+    "unitsLabel": "2× 矮人 · 2× 弓手"
+  },
+  "flanky": {
+    "title": "Flanky Shadow",
+    "description": "首次侧翼出现时间减半。",
+    "unitsLabel": "2× 矮人 · 2× 弓手"
+  }
+}

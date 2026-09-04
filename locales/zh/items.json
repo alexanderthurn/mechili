@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "大地",
+    "description": "+10% 生命。"
+  },
+  "fire": {
+    "name": "火焰",
+    "description": "+10% 攻击。"
+  },
+  "water": {
+    "name": "流水",
+    "description": "+5% 攻击与生命。"
+  },
+  "wind": {
+    "name": "疾风",
+    "description": "+10% 射程。"
+  },
+  "addi": {
+    "name": "勇毅",
+    "description": "+15% 攻击与生命。"
+  },
+  "power": {
+    "name": "屠戮",
+    "description": "+75% 攻击。"
+  },
+  "vigor": {
+    "name": "巨人之血",
+    "description": "+100% 生命。"
+  },
+  "colossus": {
+    "name": "秘银胸甲",
+    "description": "+250% 生命。"
+  },
+  "wrath": {
+    "name": "狂战",
+    "description": "+300% 攻击。"
+  },
+  "golden": {
+    "name": "日耀石",
+    "description": "免疫塔楼减益，并减少 30% 所受伤害。巫师无法转化——射线改为造成伤害。"
+  },
+  "bulwark": {
+    "name": "壁垒",
+    "description": "护盾：每个单位获得等于其生命值的第二层生命。远程攻击先消耗护盾；近战、火焰与酸液无视护盾。"
+  }
+}

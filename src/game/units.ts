@@ -13,6 +13,7 @@ import {
     SRGBColorSpace,
     Vector3,
 } from 'three';
+import { techBlurb, techName, unitName, t } from '../i18n';
 import { THEME } from '../theme';
 import { detAtan2 } from './detMath';
 
@@ -168,40 +169,90 @@ export function techIcon(tech: TechDef): string {
 
 /** human-readable summary of what a tech does — its own text, or built from its mods / produce */
 export function techDescription(tech: TechDef): string {
-    if (tech.description) return tech.description;
+    if (tech.description) {
+        return techBlurb(tech.id, tech.description);
+    }
     const parts: string[] = [];
     const pct = (mult: number) => `${mult >= 1 ? '+' : '−'}${Math.round(Math.abs(mult - 1) * 100)}%`;
     const { hp, damage, range, speed, attackInterval, splashRadius } = tech.mods;
-    if (hp !== undefined && hp !== 1) parts.push(`${pct(hp)} HP`);
-    if (damage !== undefined && damage !== 1) parts.push(`${pct(damage)} damage`);
-    if (range !== undefined && range !== 1) parts.push(`${pct(range)} range`);
-    if (speed !== undefined && speed !== 1) parts.push(`${pct(speed)} move speed`);
+    if (hp !== undefined && hp !== 1) {
+        parts.push(t('tech:_auto.modHp', { pct: pct(hp), defaultValue: `${pct(hp)} HP` }));
+    }
+    if (damage !== undefined && damage !== 1) {
+        parts.push(
+            t('tech:_auto.modDamage', { pct: pct(damage), defaultValue: `${pct(damage)} damage` }),
+        );
+    }
+    if (range !== undefined && range !== 1) {
+        parts.push(
+            t('tech:_auto.modRange', { pct: pct(range), defaultValue: `${pct(range)} range` }),
+        );
+    }
+    if (speed !== undefined && speed !== 1) {
+        parts.push(
+            t('tech:_auto.modSpeed', {
+                pct: pct(speed),
+                defaultValue: `${pct(speed)} move speed`,
+            }),
+        );
+    }
     // a lower attack interval means faster firing (rate = 1 / interval)
     if (attackInterval !== undefined && attackInterval !== 1) {
-        parts.push(`${pct(1 / attackInterval)} attack speed`);
+        const p = pct(1 / attackInterval);
+        parts.push(
+            t('tech:_auto.modAttackSpeed', { pct: p, defaultValue: `${p} attack speed` }),
+        );
     }
     if (splashRadius !== undefined && splashRadius !== 1) {
-        parts.push(`${splashRadius}× splash radius`);
+        parts.push(
+            t('tech:_auto.modSplash', {
+                mult: splashRadius,
+                defaultValue: `${splashRadius}× splash radius`,
+            }),
+        );
     }
     if (tech.produce) {
         const p = tech.produce;
-        const childName = unitTypeById(p.typeId)?.name ?? p.typeId;
+        const child = unitName(p.typeId, unitTypeById(p.typeId)?.name ?? p.typeId);
         const every = formatTechSeconds(p.interval);
-        let line = `Produces ${childName} every ${every} (up to ${p.max})`;
+        let line = t('tech:_auto.produce', {
+            child,
+            every,
+            max: p.max,
+            defaultValue: `Produces ${child} every ${every} (up to ${p.max})`,
+        });
         if (p.delay !== undefined && p.delay !== p.interval) {
-            line += `, first after ${formatTechSeconds(p.delay)}`;
+            line += t('tech:_auto.produceFirst', {
+                delay: formatTechSeconds(p.delay),
+                defaultValue: `, first after ${formatTechSeconds(p.delay)}`,
+            });
         }
-        line += '. Offspring match parent level';
+        line += t('tech:_auto.produceOffspring', {
+            defaultValue: '. Offspring match parent level',
+        });
         parts.push(line);
     }
     if (tech.onKill) {
-        const childName = unitTypeById(tech.onKill.typeId)?.name ?? tech.onKill.typeId;
-        parts.push(`When this unit kills, raise a ${childName}`);
+        const child = unitName(
+            tech.onKill.typeId,
+            unitTypeById(tech.onKill.typeId)?.name ?? tech.onKill.typeId,
+        );
+        parts.push(
+            t('tech:_auto.onKill', {
+                child,
+                defaultValue: `When this unit kills, raise a ${child}`,
+            }),
+        );
     }
     if (tech.cleave) {
-        parts.push(`Hits every enemy within ${tech.cleave.radius} (around this unit)`);
+        parts.push(
+            t('tech:_auto.cleave', {
+                radius: tech.cleave.radius,
+                defaultValue: `Hits every enemy within ${tech.cleave.radius} (around this unit)`,
+            }),
+        );
     }
-    return parts.length ? parts.join('. ') : tech.name;
+    return parts.length ? parts.join('. ') : techName(tech.id, tech.name);
 }
 
 /** Compact seconds for tech blurbs (`0.1s`, `3s`). */

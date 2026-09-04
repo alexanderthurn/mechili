@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "矮人小队",
+    "description": "四个矮人编队加入你的军队。",
+    "unitsLabel": "4× 矮人"
+  },
+  "archers4": {
+    "title": "弓手连队",
+    "description": "四名弓手加入你的军队。",
+    "unitsLabel": "4× 弓手"
+  },
+  "crowRiders2": {
+    "title": "鸦翼",
+    "description": "两群鸦骑士加入你的军队。",
+    "unitsLabel": "2× 鸦骑士"
+  },
+  "ballista1": {
+    "title": "攻城弩炮",
+    "description": "一台弩炮加入你的军队。",
+    "unitsLabel": "1× 弩炮"
+  },
+  "flanky": {
+    "title": "Flanky",
+    "description": "首次侧翼出现时间减半（2.5 秒）。"
+  },
+  "rallyRoute": {
+    "title": "集结路线",
+    "description": "设置行军路线：起点区域内的单位前往终点区域，途中持续交战。"
+  },
+  "sellPack": {
+    "title": "回购",
+    "description": "一次性法术：出售你的一个编队并返还补给。"
+  },
+  "movePack": {
+    "title": "行军令",
+    "description": "一次性法术：此前回合的一个编队可在本回合再次重新部署。"
+  }
+}

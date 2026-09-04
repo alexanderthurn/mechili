@@ -2,5 +2,16 @@
   "close": "Закрыть",
   "back": "Назад",
   "reset": "Сброс",
-  "language": "Язык"
+  "language": "Язык",
+  "term": {
+    "rune": "Руна",
+    "runes": "Руны",
+    "talent": "Талант",
+    "talents": "Таланты",
+    "spell": "Заклинание",
+    "spells": "Заклинания",
+    "commander": "Командир",
+    "commanders": "Командиры",
+    "horde": "Комтур"
+  }
 }

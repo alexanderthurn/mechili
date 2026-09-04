@@ -2,5 +2,16 @@
   "close": "Close",
   "back": "Back",
   "reset": "Reset",
-  "language": "Language"
+  "language": "Language",
+  "term": {
+    "rune": "Rune",
+    "runes": "Runes",
+    "talent": "Talent",
+    "talents": "Talents",
+    "spell": "Spell",
+    "spells": "Spells",
+    "commander": "Commander",
+    "commanders": "Commanders",
+    "horde": "The Komtur"
+  }
 }

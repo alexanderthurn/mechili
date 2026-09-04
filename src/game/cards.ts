@@ -9,6 +9,7 @@
  */
 
 import { DISPLAY } from './displayNames';
+import { t } from '../i18n';
 import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS, ITEMS } from './items';
 import {
     ACID_ID,
@@ -291,9 +292,9 @@ export function roundCardKind(c: RoundCard): 'rune' | 'unit' | 'spell' | 'other'
  * offers stay generic.
  */
 export function roundOfferTitle(cards: readonly RoundCard[]): string {
-    if (cards.length === 0) return 'Choose your card';
+    if (cards.length === 0) return t('hud:chooseCard');
     const kinds = new Set(cards.map(roundCardKind));
-    if (kinds.size !== 1) return 'Choose your card';
+    if (kinds.size !== 1) return t('hud:chooseCard');
     switch ([...kinds][0]) {
         case 'rune':
             return `Choose your ${DISPLAY.item.toLowerCase()}`;
@@ -302,7 +303,7 @@ export function roundOfferTitle(cards: readonly RoundCard[]): string {
         case 'spell':
             return `Choose your ${DISPLAY.tactic.toLowerCase()}`;
         default:
-            return 'Choose your card';
+            return t('hud:chooseCard');
     }
 }
 /** atlas icon for a round-card face (rune / tactic / Flanky) */

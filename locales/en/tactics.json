@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rally Route",
+    "description": "Place start, middle, and end zones. Units in the start circle march through matching offsets at the middle, then the end, fighting along the way."
+  },
+  "oilSpill": {
+    "name": "Oil Spill",
+    "description": "Place two oil circles — outline during deploy; shortly after battle starts oil drips left-to-right onto the path (ward discs stay clear). Connected oil ignites as one field when fire touches it."
+  },
+  "sellUnit": {
+    "name": "Sell Pack",
+    "description": "Click to arm, then click one of your packs to sell it for a supply refund."
+  },
+  "moveUnit": {
+    "name": "Move Pack",
+    "description": "Click to arm, then click one of your packs from an earlier round — it may be dragged and rotated again for the rest of this round."
+  },
+  "tutor": {
+    "name": "Field Lesson",
+    "description": "Click to arm, then click one of your packs — its XP bar fills to the next level. Buying the level still costs supply."
+  },
+  "spawnDwarves": {
+    "name": "Summon Dwarves",
+    "description": "Mark a circle anywhere outside the enemy base. Shortly after battle start, a war band of dwarves bursts from the ground there, one by one — they fight this battle only."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Mark a small circle anywhere. Seconds into the battle a meteor obliterates everything there — only ward domes protect (and pay for it)."
+  },
+  "spawnCrows": {
+    "name": "Summon Crow Riders",
+    "description": "Mark a circle anywhere outside the enemy base. Shortly after battle start, crow riders dive in from the sky, one after another — they fight this battle only."
+  },
+  "hammerOfGods": {
+    "name": "Hammer of the Gods",
+    "description": "Click to place, move to rotate, click again to lock. A divine hammer drops onto the zone seconds into the battle."
+  },
+  "storm": {
+    "name": "Storm Call",
+    "description": "Mark a wide circle anywhere. Small storm clouds gather high above and hurl lightning at random spots — bolts deal no damage but shock units in a wide splash with a tower-like debuff unless they have golden aura. Ward domes still block the strikes."
+  },
+  "meteorShower": {
+    "name": "Meteor Shower",
+    "description": "Mark a wide circle anywhere. Meteors rain onto random spots inside for a while, each blast burning the ground it hits."
+  },
+  "acidSpill": {
+    "name": "Acid Spill",
+    "description": "Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Ground and air units over the puddle sizzle and turn corroded — taking extra damage from everything."
+  },
+  "fireSpill": {
+    "name": "Fire Spill",
+    "description": "Pour a fire capsule like oil — it drips left-to-right shortly after battle starts and sets the path ablaze (ward discs stay clear). Connected oil ignites with it. Flame lasts this battle only."
+  },
+  "dragonAttack": {
+    "name": "Dragon Attack",
+    "description": "Draw the dragon’s strafing path (wider and longer than oil). It dives in and breathes fire along the corridor — the beam scorches units as it passes and paints the ground ablaze. Ward domes absorb the breath (and pay for it)."
+  },
+  "poisonCloud": {
+    "name": "Poison Cloud",
+    "description": "Mark a huge circle. Toxic clouds gather overhead and rain small acid drops across the area — sparse puddles that corrode ground and air units like Acid Spill, but over a much wider field."
+  }
+}

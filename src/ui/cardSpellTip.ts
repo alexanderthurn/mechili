@@ -3,6 +3,11 @@
  * homepage (web.html) commander gallery.
  */
 import { startCardForgeIcons, type StartCard } from '../game/cards';
+import {
+    commanderDescription,
+    commanderTitle,
+    commanderUnitsLabel,
+} from '../i18n';
 import { THEME } from '../theme';
 import { iconHtml, moneyHtml } from './iconAtlas';
 import { registerHoverTipClearer } from './hoverTips';
@@ -141,10 +146,10 @@ export function startCardForgeSpellsHtml(c: StartCard): string {
 export function startCardFaceHtml(c: StartCard): string {
     return (
         `<div class="c-portrait">${iconHtml(c.portrait, 'c-portrait-ico')}</div>` +
-        `<div class="c-title">${escapeHtml(c.title)}</div>` +
-        `<div class="c-units">${escapeHtml(c.unitsLabel)}</div>` +
+        `<div class="c-title">${escapeHtml(commanderTitle(c.id, c.title))}</div>` +
+        `<div class="c-units">${escapeHtml(commanderUnitsLabel(c.id, c.unitsLabel))}</div>` +
         `<div class="c-hp">♥ ${c.startingHp} HP</div>` +
-        `<div class="c-desc">${escapeHtml(c.description)}</div>` +
+        `<div class="c-desc">${escapeHtml(commanderDescription(c.id, c.description))}</div>` +
         startCardForgeSpellsHtml(c)
     );
 }

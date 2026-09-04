@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Garrison Archer"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Black Brood"
+  },
+  "hordeSpinne": {
+    "name": "Black Spider"
+  },
+  "hordeFarmer": {
+    "name": "Dead Farmer"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Dead Farmhand"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Dwarf"
+  },
+  "archer": {
+    "name": "Archer"
+  },
+  "wizard": {
+    "name": "Wizard"
+  },
+  "crowRider": {
+    "name": "Crow Rider"
+  },
+  "ballista": {
+    "name": "Ballista"
+  },
+  "shield": {
+    "name": "Ward Stone"
+  },
+  "rocket": {
+    "name": "Fire Bolt"
+  },
+  "command-tower": {
+    "name": "Vanguard"
+  },
+  "research-center": {
+    "name": "Garrison"
+  },
+  "stronghold": {
+    "name": "Stronghold"
+  },
+  "hordeZombie": {
+    "name": "Black Brood"
+  }
+}

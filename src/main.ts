@@ -104,14 +104,13 @@ import {
     resolveCommanderHpFactor,
     type GameSettings,
 } from './game/settings';
-import { DISPLAY } from './game/displayNames';
 import {
     DEFAULT_ROUND_CARD_PRESET_ID,
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
 } from './game/roundCardAlgorithms';
 import { duoSeats, localizeRoster, canonicalClassicSeats, type CanonicalSeatDef, type SeatId } from './game/seats';
-import { initI18n } from './i18n';
+import { initI18n, onLanguageChange, t } from './i18n';
 import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
 
 const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
@@ -595,7 +594,7 @@ menuChromeEl.appendChild(versionEl);
  *  above the menu panel — the menu is an HTML overlay, so canvas always loses. */
 const playtestEl = document.createElement('div');
 playtestEl.className = 'mechili-playtest';
-playtestEl.textContent = 'PLAYTEST';
+playtestEl.textContent = t('menu:playtest');
 playtestEl.style.display = 'none';
 menuChromeEl.appendChild(playtestEl);
 
@@ -825,7 +824,7 @@ logo.blendMode = 'add';
 const titleFont = FONT_FAMILY[prefs().language];
 void document.fonts.load(`400 18px "${titleFont}"`).catch(() => {});
 const subtitle = new Text({
-    text: 'FANTASY AUTO·BATTLER',
+    text: t('menu:subtitle'),
     style: {
         fill: THEME.subtitle,
         fontFamily: titleFont,
@@ -940,28 +939,28 @@ menu.className = 'mechili-menu';
 menu.style.display = 'none';
 menu.innerHTML = `
     <div class="m-view m-main is-active" data-view="main">
-        <button class="m-btn m-primary" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">Single Player</span></button>
-        <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">Matchmaking (WEB)</span></button>
-        <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label">Custom Game (WEB)</span></button>
+        <button class="m-btn m-primary" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:singlePlayer"></span></button>
+        <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n-matchmaking></span></button>
+        <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label" data-i18n-custom></span></button>
         <div class="m-rooms">
             <div class="m-rooms-head">
-                <span class="m-rooms-label">Open Web Games</span>
-                <button type="button" class="m-rooms-refresh" title="Refresh room list" aria-label="Refresh room list">↻</button>
+                <span class="m-rooms-label" data-i18n-rooms-label></span>
+                <button type="button" class="m-rooms-refresh" data-i18n-title="menu:refreshRooms" data-i18n-aria="menu:refreshRooms">↻</button>
             </div>
-            <div class="m-room-list empty">No open Web Games</div>
+            <div class="m-room-list empty" data-i18n-rooms-empty></div>
         </div>
     </div>
     <div class="m-view m-spmode" data-view="sp">
-        <div class="m-spmode-title">Single Player</div>
+        <div class="m-spmode-title" data-i18n="menu:singlePlayer"></div>
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="sp-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
-            <button class="m-btn m-toggle-card" data-mode="sp-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">${DISPLAY.horde}</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:horde"></span></button>
         </div>
-        <button class="m-btn m-small" data-mode="sp-back">Back</button>
+        <button class="m-btn m-small" data-mode="sp-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-matchmaking" data-view="matchmaking">
-        <div class="m-spmode-title">Matchmaking</div>
+        <div class="m-spmode-title" data-i18n="menu:matchmakingTitle"></div>
         <!-- mode/Horde choice hidden for now (focus: 1v1 Horde only) — not
              removed, just forced+hidden, so it's a one-line revert later -->
         <div class="m-toggle-row" style="display:none">
@@ -976,29 +975,29 @@ menu.innerHTML = `
         </div>
         <label class="m-toggle-pill" style="display:none">
             <input type="checkbox" class="mm-horde" checked>
-            ${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">${DISPLAY.horde}</span>
+            ${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:horde"></span>
         </label>
         <div class="m-seats">
             <div class="m-seat m-seat-you"><span class="mm-you-name"></span></div>
-            <button class="m-seat m-seat-invite" data-mode="mm-invite">+ Invite a Friend</button>
+            <button class="m-seat m-seat-invite" data-mode="mm-invite" data-i18n="menu:inviteFriend"></button>
         </div>
         <div class="m-mm-link" style="display:none"></div>
         <div class="m-room-row">
-            <button class="m-btn m-small" data-mode="mm-back">Back</button>
-            <button class="m-btn m-primary m-small" data-mode="mm-play">Play</button>
+            <button class="m-btn m-small" data-mode="mm-back" data-i18n="menu:back"></button>
+            <button class="m-btn m-primary m-small" data-mode="mm-play" data-i18n="menu:play"></button>
         </div>
     </div>
     <div class="m-view m-mm-simple" data-view="mm-simple">
-        <div class="m-spmode-title">Matchmaking</div>
+        <div class="m-spmode-title" data-i18n="menu:matchmakingTitle"></div>
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="mms-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
             <button class="m-btn m-toggle-card" data-mode="mms-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
-            <button class="m-btn m-toggle-card" data-mode="mms-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">${DISPLAY.horde}</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:horde"></span></button>
         </div>
-        <button class="m-btn m-small" data-mode="mms-back">Back</button>
+        <button class="m-btn m-small" data-mode="mms-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-custom" data-view="custom">
-        <div class="m-spmode-title">Custom Game</div>
+        <div class="m-spmode-title" data-i18n="menu:customGameTitle"></div>
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="cg-host-1v1">
                 ${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">1v1</span>
@@ -1007,10 +1006,10 @@ menu.innerHTML = `
                 ${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">2v2</span>
             </button>
             <button class="m-btn m-toggle-card" data-mode="cg-host-2v2ai">
-                ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">2vAI</span>
+                ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:mode2vAi"></span>
             </button>
         </div>
-        <button class="m-btn m-small" data-mode="cg-back">Back</button>
+        <button class="m-btn m-small" data-mode="cg-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-session" data-view="session">
         <div class="m-status" style="display:none"></div>
@@ -1020,31 +1019,31 @@ menu.innerHTML = `
                 <!-- settings first: a guest reads what they are agreeing to, THEN
                      confirms. (The host never sees the ready row — see
                      showHostLobbySettings — so this ordering only shows up there.) -->
-                <button class="m-lobby-settings-toggle" style="display:none" type="button">Advanced settings ▸</button>
+                <button class="m-lobby-settings-toggle" style="display:none" type="button"></button>
                 <label class="m-lobby-ready-row" style="display:none">
                     <input type="checkbox" class="m-lobby-ready-check">
-                    I'm ready
+                    <span class="m-lobby-ready-label" data-i18n="menu:imReady"></span>
                 </label>
-                <button class="m-btn m-small" data-mode="startstar" style="display:none">Start</button>
-                <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
+                <button class="m-btn m-small" data-mode="startstar" style="display:none"></button>
+                <button class="m-btn m-small m-cancel" style="display:none"></button>
             </div>
             <div class="m-lobby-settings">
-                <label class="m-field">Pace
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:pace"></span>
                     <select class="cg-pace"></select>
                 </label>
-                <label class="m-field">${DISPLAY.horde}
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:horde"></span>
                     <select class="cg-horde"></select>
                 </label>
-                <label class="m-field">Round cards
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:roundCards"></span>
                     <select class="cg-roundcards"></select>
                 </label>
-                <label class="m-field">HP
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:hp"></span>
                     <select class="cg-commander-hp"></select>
                 </label>
-                <label class="m-field">Stronghold
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
                 </label>
-                <button type="button" class="m-lobby-settings-reset" hidden>Reset to defaults</button>
+                <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
             </div>
         </div>
     </div>
@@ -1082,7 +1081,7 @@ const loadoutCornerEl = document.createElement('button');
 loadoutCornerEl.className = 'mechili-username mechili-loadout-btn';
 loadoutCornerEl.type = 'button';
 loadoutCornerEl.style.zIndex = '30';
-loadoutCornerEl.innerHTML = `<span class="u-name">Unit loadout</span>`;
+loadoutCornerEl.innerHTML = `<span class="u-name" data-i18n-loadout></span>`;
 loadoutCornerEl.addEventListener('click', () => {
     if (started || pending) return;
     menuChromeEl.style.display = 'none';
@@ -1098,15 +1097,15 @@ const exitDesktopEl = document.createElement('button');
 exitDesktopEl.className = 'mechili-exit-btn';
 exitDesktopEl.type = 'button';
 exitDesktopEl.innerHTML = iconHtml('ui-room', 'm-ico');
-exitDesktopEl.title = 'Exit to Desktop';
-exitDesktopEl.setAttribute('aria-label', 'Exit to Desktop');
+exitDesktopEl.title = '';
+exitDesktopEl.setAttribute('aria-label', '');
 exitDesktopEl.addEventListener('click', () => void win.close());
 
 const settingsCornerEl = document.createElement('button');
 settingsCornerEl.className = 'mechili-settings-btn';
 settingsCornerEl.type = 'button';
 settingsCornerEl.innerHTML = iconHtml('ui-settings', 'm-ico');
-settingsCornerEl.title = 'Settings';
+settingsCornerEl.title = '';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
 
 cornerActionsEl.append(settingsCornerEl, exitDesktopEl);
@@ -1116,8 +1115,8 @@ menuChromeEl.appendChild(cornerActionsEl);
 const suggestCornerEl = document.createElement('button');
 suggestCornerEl.className = 'mechili-suggest-btn';
 suggestCornerEl.type = 'button';
-suggestCornerEl.textContent = 'Report bug';
-suggestCornerEl.title = 'Report bug';
+suggestCornerEl.textContent = '';
+suggestCornerEl.title = '';
 suggestCornerEl.addEventListener('click', () => {
     openSuggest({ parent: wrapper, source: 'game menu' });
 });
@@ -1199,6 +1198,47 @@ const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-se
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
 const lobbyReadyCheckEl = menu.querySelector<HTMLInputElement>('.m-lobby-ready-check')!;
 const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
+
+/** Last room-list transport scope — kept so language switches can re-paint labels. */
+let roomsListScope: 'LAN' | 'Steam' | 'Web' = 'Web';
+
+/** Paint static menu chrome from the active locale. Dynamic labels (Start /
+ *  Cancel / room rows) are set by their own helpers, which also call `t()`. */
+function paintMenuChrome(): void {
+    for (const el of menu.querySelectorAll<HTMLElement>('[data-i18n]')) {
+        const key = el.getAttribute('data-i18n');
+        if (key) el.textContent = t(key);
+    }
+    for (const el of menu.querySelectorAll<HTMLElement>('[data-i18n-title]')) {
+        const key = el.getAttribute('data-i18n-title');
+        if (key) el.title = t(key);
+    }
+    for (const el of menu.querySelectorAll<HTMLElement>('[data-i18n-aria]')) {
+        const key = el.getAttribute('data-i18n-aria');
+        if (key) el.setAttribute('aria-label', t(key));
+    }
+    setRoomsListHeading(roomsListScope);
+    if (roomListEl.classList.contains('empty')) {
+        roomListEl.textContent =
+            roomListEl.dataset.emptyKind === 'error'
+                ? t('menu:roomsLoadError')
+                : t('menu:noOpenGames', { scope: roomsListScope });
+    }
+    applyLobbySettingsExpanded();
+    if (cancelEl.style.display !== 'none') {
+        cancelEl.textContent = isSessionBusy() ? t('menu:cancel') : t('menu:ok');
+    }
+    const loadoutName = loadoutCornerEl.querySelector('.u-name');
+    if (loadoutName) loadoutName.textContent = t('menu:unitLoadout');
+    settingsCornerEl.title = t('menu:settings');
+    exitDesktopEl.title = t('menu:exitDesktop');
+    exitDesktopEl.setAttribute('aria-label', t('menu:exitDesktop'));
+    suggestCornerEl.textContent = t('menu:reportBug');
+    suggestCornerEl.title = t('menu:reportBug');
+    playtestEl.textContent = t('menu:playtest');
+    subtitle.text = t('menu:subtitle');
+}
+
 // Loadout screen: a full-screen 3D stage with floating UI, so it is its own
 // overlay on the wrapper rather than a view inside the menu frame. Hidden
 // until opened from the profile dialog.
@@ -1305,7 +1345,9 @@ function applyLobbySettingsExpanded(): void {
     sessionEl.classList.toggle('m-has-lobby-settings', lobbySettingsAvailable);
     sessionEl.classList.toggle('m-lobby-settings-open', lobbySettingsAvailable && lobbySettingsExpanded);
     lobbySettingsToggleEl.style.display = lobbySettingsAvailable ? '' : 'none';
-    lobbySettingsToggleEl.textContent = lobbySettingsExpanded ? 'Advanced settings ▾' : 'Advanced settings ▸';
+    lobbySettingsToggleEl.textContent = lobbySettingsExpanded
+        ? t('menu:advancedSettingsOpen')
+        : t('menu:advancedSettingsClosed');
     scheduleLayoutTitle();
 }
 
@@ -1843,7 +1885,7 @@ function setStatus(text: string, autoDismissMs?: number): void {
         // mismatch, a rejection) the room is already gone and the button is
         // just a dismiss — offering to cancel it reads as if leaving were
         // still a choice the player had to make.
-        cancelEl.textContent = isSessionBusy() ? 'Cancel' : 'OK';
+        cancelEl.textContent = isSessionBusy() ? t('menu:cancel') : t('menu:ok');
         if (autoDismissMs) {
             statusClearTimer = setTimeout(() => {
                 setStatus('');
@@ -2330,12 +2372,22 @@ function roomListScopeLabel(
     return 'Web';
 }
 
-function setRoomsListHeading(scope: 'LAN' | 'Steam' | 'Web'): void {
-    roomsLabelEl.textContent = `Open ${scope} Games`;
-    const tag = scope === 'Web' ? 'WEB' : scope === 'Steam' ? 'STEAM' : 'LAN';
-    matchmakingLabelEl.textContent = `Matchmaking (${tag})`;
-    customGameLabelEl.textContent = `Custom Game (${tag})`;
+function transportTag(scope: 'LAN' | 'Steam' | 'Web'): string {
+    return scope === 'Web' ? 'WEB' : scope === 'Steam' ? 'STEAM' : 'LAN';
 }
+
+function setRoomsListHeading(scope: 'LAN' | 'Steam' | 'Web'): void {
+    roomsListScope = scope;
+    roomsLabelEl.textContent = t('menu:openGames', { scope });
+    matchmakingLabelEl.textContent = t('menu:matchmaking', { tag: transportTag(scope) });
+    customGameLabelEl.textContent = t('menu:customGame', { tag: transportTag(scope) });
+}
+
+paintMenuChrome();
+onLanguageChange(() => {
+    paintMenuChrome();
+    if (roomPollActive) void refreshRoomList();
+});
 
 /** Ads behind the rendered buttons — the click handler needs the transport
  *  handle (peer server, lobby id) that a dataset attribute cannot carry. */
@@ -2350,7 +2402,8 @@ async function refreshRoomList(): Promise<void> {
         setRoomsListHeading(scope);
         if (!transport) {
             roomListEl.className = 'm-room-list empty';
-            roomListEl.textContent = `No open ${scope} Games`;
+            roomListEl.dataset.emptyKind = 'none';
+            roomListEl.textContent = t('menu:noOpenGames', { scope });
             scheduleLayoutTitle();
             return;
         }
@@ -2359,11 +2412,13 @@ async function refreshRoomList(): Promise<void> {
         foundRooms = ads.length > 0;
         if (!foundRooms) {
             roomListEl.className = 'm-room-list empty';
-            roomListEl.textContent = `No open ${scope} Games`;
+            roomListEl.dataset.emptyKind = 'none';
+            roomListEl.textContent = t('menu:noOpenGames', { scope });
             scheduleLayoutTitle();
             return;
         }
         roomListEl.className = 'm-room-list';
+        delete roomListEl.dataset.emptyKind;
         // Our own record of the match we dropped out of, trusted ahead of the
         // published seats: right after a restart the host has not yet noticed
         // the drop, and on a transport whose seats never arrive it is the only
@@ -2390,7 +2445,7 @@ async function refreshRoomList(): Promise<void> {
                 button.dataset.roomKind = watch ? 'spectate' : 'join';
                 button.dataset.roomKey = ad.key;
                 const modeTag = ad.mode === '2v2' ? ' (2v2)' : '';
-                const roundTag = ad.round ? ` — round ${ad.round}` : '';
+                const roundTag = ad.round ? t('menu:roundTag', { n: ad.round }) : '';
                 button.textContent = watch
                     ? `Watch ${ad.name}${modeTag}${roundTag}`
                     : `${ad.name}${modeTag}${rejoinable ? roundTag : ''}`;
@@ -2402,7 +2457,8 @@ async function refreshRoomList(): Promise<void> {
         const scope = roomListScopeLabel(transport);
         setRoomsListHeading(scope);
         roomListEl.className = 'm-room-list empty';
-        roomListEl.textContent = 'Could not load rooms';
+        roomListEl.dataset.emptyKind = 'error';
+        roomListEl.textContent = t('menu:roomsLoadError');
     } finally {
         scheduleLayoutTitle();
         if (roomPollActive) {
@@ -3360,10 +3416,10 @@ function wireHostedHub(
         // this fills the empty seats with bots.
         startStarBtn.disabled = !!customConfig && !allReady;
         startStarBtn.textContent = startStarBtn.disabled
-            ? 'Waiting for players to ready up…'
+            ? t('menu:waitingReady')
             : joined < roster.length
-              ? 'Start with AI'
-              : 'Start';
+              ? t('menu:startWithAi')
+              : t('menu:start');
         // Everyone who joined has readied up: light the button so the host can
         // see it is on them now without re-reading the roster. Needs someone to
         // actually be here (joined > 1) — a room the host is alone in trivially

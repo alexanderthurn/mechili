@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "守备弓手"
+  },
+  "hordeWebweaver": {
+    "name": "织网者"
+  },
+  "hordeBrutSpawn": {
+    "name": "黑巢幼体"
+  },
+  "hordeSpinne": {
+    "name": "黑蛛"
+  },
+  "hordeFarmer": {
+    "name": "亡农"
+  },
+  "hordeFarmerSpawn": {
+    "name": "亡雇农"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "矮人"
+  },
+  "archer": {
+    "name": "弓手"
+  },
+  "wizard": {
+    "name": "巫师"
+  },
+  "crowRider": {
+    "name": "鸦骑士"
+  },
+  "ballista": {
+    "name": "弩炮"
+  },
+  "shield": {
+    "name": "护盾石"
+  },
+  "rocket": {
+    "name": "火焰弩矢"
+  },
+  "command-tower": {
+    "name": "先锋"
+  },
+  "research-center": {
+    "name": "守备营"
+  },
+  "stronghold": {
+    "name": "要塞"
+  },
+  "hordeZombie": {
+    "name": "黑巢幼体"
+  }
+}

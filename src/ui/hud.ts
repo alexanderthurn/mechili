@@ -15,6 +15,15 @@ import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { TACTICS } from '../game/tactics';
 import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
+import {
+    t,
+    unitName,
+    itemName,
+    itemDescription,
+    tacticName,
+    tacticDescription,
+    commanderTitle,
+} from '../i18n';
 import { closeSettings, openSettings } from './settings';
 import { removeWithDialogFade, withDialogFade } from './dialogFade';
 import { ChatBar } from './chatBar';
@@ -694,8 +703,9 @@ export class Hud {
         const makeShopTile = (type: UnitType, index: number): HTMLButtonElement => {
             const button = document.createElement('button');
             button.className = 'shop-tile';
+            const name = unitName(type.id, type.name);
             button.innerHTML =
-                `<span class="title">${type.name}</span>` +
+                `<span class="title">${name}</span>` +
                 `<span class="art"></span>` +
                 `<span class="cost">${costOf(type)}</span>`;
             // Framed hover window, same one the shop runes use — the native
@@ -706,7 +716,7 @@ export class Hud {
             // Board extras have no talents — fill the tip from their ability
             // copy so Fire Bolt / Ward Stone aren't title-only.
             button.dataset.spellTip = '1';
-            button.dataset.ttitle = type.name;
+            button.dataset.ttitle = name;
             if (type.extra) {
                 const abs = buildingAbilities(type);
                 if (abs.length > 0) {
@@ -1093,7 +1103,7 @@ export class Hud {
         this.timerEl.className = 'timer';
         const endButton = document.createElement('button');
         endButton.className = 'end-deploy';
-        endButton.textContent = 'End Deployment';
+        endButton.textContent = t('hud:endDeployment');
         endButton.addEventListener('click', () => this.onEndDeployment?.());
         this.endButton = endButton;
         this.speedEl = document.createElement('button');
@@ -1118,10 +1128,10 @@ export class Hud {
         this.phoneBar = document.createElement('div');
         this.phoneBar.className = 'mechili-phonebar';
         const phoneTabs: ['shop' | 'unit' | 'tactics' | 'chat', string, string][] = [
-            ['shop', 'ui-shop', 'Shop'],
-            ['unit', 'ui-unit', 'Unit'],
+            ['shop', 'ui-shop', t('hud:shop')],
+            ['unit', 'ui-unit', t('hud:unit')],
             ['tactics', 'ui-tactics', DISPLAY.tactics],
-            ['chat', 'ui-chat', 'Chat'],
+            ['chat', 'ui-chat', t('hud:chat')],
         ];
         for (const [tab, icon, label] of phoneTabs) {
             const button = document.createElement('button');
@@ -1145,11 +1155,11 @@ export class Hud {
         this.touchUpgradeBtn.addEventListener('click', () => this.onUpgradeTower?.());
         this.touchMoveBtn = document.createElement('button');
         this.touchMoveBtn.className = 'ta-btn ta-move';
-        this.touchMoveBtn.innerHTML = `${iconHtml('ui-move', 'pb-ico')}<span class="pb-label">Move</span>`;
+        this.touchMoveBtn.innerHTML = `${iconHtml('ui-move', 'pb-ico')}<span class="pb-label">${t('hud:move')}</span>`;
         this.touchMoveBtn.addEventListener('click', () => this.onTouchPickUp?.());
         this.touchRotateBtn = document.createElement('button');
         this.touchRotateBtn.className = 'ta-btn ta-rotate';
-        this.touchRotateBtn.innerHTML = `${iconHtml('ui-rotate', 'pb-ico')}<span class="pb-label">Rotate</span>`;
+        this.touchRotateBtn.innerHTML = `${iconHtml('ui-rotate', 'pb-ico')}<span class="pb-label">${t('hud:rotate')}</span>`;
         this.touchRotateBtn.addEventListener('click', () => this.onTouchRotate?.());
         for (const btn of [
             this.touchLevelBtn,
@@ -1282,8 +1292,9 @@ export class Hud {
         const def = ITEMS[itemId];
         if (!def) return;
         el.dataset.spellTip = '1';
-        el.dataset.ttitle = def.name;
-        el.dataset.tdesc = extra ? `${def.description}\n${extra}` : def.description;
+        el.dataset.ttitle = itemName(itemId, def.name);
+        const desc = itemDescription(itemId, def.description);
+        el.dataset.tdesc = extra ? `${desc}\n${extra}` : desc;
         el.dataset.ticon = def.icon;
         el.removeAttribute('title');
     }
@@ -1741,10 +1752,10 @@ export class Hud {
                           `Free ${DISPLAY.item.toLowerCase()} slot required.`;
                       const tip =
                           def
-                              ? ` data-spell-tip="1" data-ttitle="${escapeAttr(def.name)}" ` +
-                                `data-tdesc="${escapeAttr(`${def.description}\n${extra}`)}" ` +
+                              ? ` data-spell-tip="1" data-ttitle="${escapeAttr(itemName(i.id, def.name))}" ` +
+                                `data-tdesc="${escapeAttr(`${itemDescription(i.id, def.description)}\n${extra}`)}" ` +
                                 `data-ticon="${escapeAttr(def.icon)}"`
-                              : ` title="${escapeAttr(`${i.name}\n${extra}`)}"`;
+                              : ` title="${escapeAttr(`${itemName(i.id, i.name)}\n${extra}`)}"`;
                       return (
                           `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${i.index}"${tip}>` +
                           `${iconHtml(i.icon)}</button>`
@@ -1776,8 +1787,8 @@ export class Hud {
                               : 'Click to place on the map. Right-click to cancel.';
                       const tip =
                           def
-                              ? ` data-spell-tip="1" data-ttitle="${escapeAttr(def.name)}" ` +
-                                `data-tdesc="${escapeAttr(t.hint ?? `${def.description}\n${usage}`)}" ` +
+                              ? ` data-spell-tip="1" data-ttitle="${escapeAttr(tacticName(t.id, def.name))}" ` +
+                                `data-tdesc="${escapeAttr(t.hint ?? `${tacticDescription(t.id, def.description)}\n${usage}`)}" ` +
                                 `data-ticon="${escapeAttr(t.icon)}"` +
                                 (def.strongholdCost === undefined
                                     ? ''
@@ -1785,8 +1796,8 @@ export class Hud {
                               : ` title="${escapeAttr(
                                     t.hint ??
                                         (t.placed
-                                            ? `${t.name}\nClick or right-click to clear and place again.`
-                                            : `${t.name}\nClick to place on the map. Right-click to cancel.`),
+                                            ? `${tacticName(t.id, t.name)}\nClick or right-click to clear and place again.`
+                                            : `${tacticName(t.id, t.name)}\nClick to place on the map. Right-click to cancel.`),
                                 )}"`;
                       const badge =
                           cancel
@@ -2380,7 +2391,7 @@ export class Hud {
             const unlockCost = this.unlockCostOf(id);
             return {
                 id,
-                name: type.name,
+                name: unitName(type.id, type.name),
                 unlockCost,
                 deployCost: this.costOf(type),
                 affordable: unlockCost <= this.shopBalance,
@@ -2447,7 +2458,7 @@ export class Hud {
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards unlock-dialog';
         overlay.innerHTML =
-            `<div class="cards-title">Unlock a unit</div>` +
+            `<div class="cards-title">${escapeHtml(t('hud:unlockUnit'))}</div>` +
             `<div class="unlock-picker">` +
             tierHtml +
             `</div>` +
@@ -2848,7 +2859,7 @@ export class Hud {
             itemSquares +
             forgeSquares +
             liveRow('HP', `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`, 'hp') +
-            (info.total > 1 ? row('Pack', `${info.alive} / ${info.total}`) : '') +
+            (info.total > 1 ? row(t('hud:pack'), `${info.alive} / ${info.total}`) : '') +
             // A building that cannot shoot has no damage, reload, range or
             // speed worth four rows of zeroes — what its owner actually needs
             // to know is what breaking it costs them.
@@ -2856,17 +2867,17 @@ export class Hud {
                 ? info.onDestroyed
                     ? row('If destroyed', escapeHtml(info.onDestroyed))
                     : ''
-                : row('Damage', String(Math.round(info.damage))) +
-                  row('Reload', `${Math.round(info.attackInterval * 10) / 10}s`) +
+                : row(t('hud:damage'), String(Math.round(info.damage))) +
+                  row(t('hud:reload'), `${Math.round(info.attackInterval * 10) / 10}s`) +
                   (info.splash ? row('Splash', String(info.splash)) : '') +
                   row(
-                      'Range',
+                      t('hud:range'),
                       info.minRange ? `${info.minRange} - ${info.range}` : String(info.range),
                   ) +
-                  row('Speed', String(info.speed))) +
+                  row(t('hud:speed'), String(info.speed))) +
             (info.record
-                ? liveRow('Total dmg', String(Math.round(info.record.damageDealt)), 'dmg') +
-                  liveRow('Kills', String(info.record.kills), 'kills')
+                ? liveRow(t('hud:totalDmg'), String(Math.round(info.record.damageDealt)), 'dmg') +
+                  liveRow(t('hud:kills'), String(info.record.kills), 'kills')
                 : '') +
             techSlots +
             actions +
@@ -3445,10 +3456,10 @@ export class Hud {
         el.classList.add('mechili-pause');
         el.innerHTML =
             `<div class="pause-box">` +
-            `<div class="pause-title">Menu</div>` +
-            `<button type="button" class="pause-resume">Continue</button>` +
-            `<button type="button" class="pause-settings">Settings</button>` +
-            `<button type="button" class="pause-quit">Quit to menu</button>` +
+            `<div class="pause-title">${t('hud:menu')}</div>` +
+            `<button type="button" class="pause-resume">${t('hud:continue')}</button>` +
+            `<button type="button" class="pause-settings">${t('hud:settings')}</button>` +
+            `<button type="button" class="pause-quit">${t('hud:quitToMenu')}</button>` +
             `</div>`;
         el.querySelector('.pause-resume')!.addEventListener('click', () => this.hidePauseMenu());
         el.querySelector('.pause-settings')!.addEventListener('click', () => openSettings(this.overlayParent));
@@ -3527,7 +3538,7 @@ export class Hud {
         const overlay = document.createElement('div');
         overlay.className = 'mechili-cards';
         overlay.innerHTML =
-            `<div class="cards-title">Choose your ${DISPLAY.commander.toLowerCase()}</div>` +
+            `<div class="cards-title">${escapeHtml(t('hud:chooseCommander'))}</div>` +
             (note ? `<div class="cards-note"></div>` : '') +
             `<div class="cards-row">` +
             cards
@@ -3564,12 +3575,16 @@ export class Hud {
     private updateTeamSpecTitles(): void {
         if (this.playerSpecEl) {
             const playerSeats = this.commanderChips.filter((c) => c.team === 'player');
-            const titles = playerSeats.map((c) => c.card?.title).filter((t): t is string => Boolean(t));
+            const titles = playerSeats
+                .map((c) => (c.card ? commanderTitle(c.card.id, c.card.title) : null))
+                .filter((title): title is string => Boolean(title));
             this.playerSpecEl.textContent = titles.join(' & ');
         }
         if (this.enemySpecEl) {
             const enemySeats = this.commanderChips.filter((c) => c.team === 'enemy');
-            const titles = enemySeats.map((c) => c.card?.title).filter((t): t is string => Boolean(t));
+            const titles = enemySeats
+                .map((c) => (c.card ? commanderTitle(c.card.id, c.card.title) : null))
+                .filter((title): title is string => Boolean(title));
             this.enemySpecEl.textContent = titles.join(' & ');
         }
     }
@@ -3880,7 +3895,7 @@ export class Hud {
         cards: readonly RoundCard[],
         skipReward: number,
         onPick: (cardId: string | null) => void,
-        title = 'Choose your card',
+        title = t('hud:chooseCard'),
         opts?: {
             ownedItemIds?: readonly string[];
             forgePool?: ForgeSpellPool;
@@ -4009,7 +4024,7 @@ export class Hud {
         this.prepareMatchEndUi();
         const el = withDialogFade(document.createElement('div'));
         el.classList.add('mechili-gameover', 'victory');
-        el.innerHTML = this.gameOverInnerHtml('VICTORY', details);
+        el.innerHTML = this.gameOverInnerHtml(t('hud:victory'), details);
         el.querySelector('.go-restart')!.addEventListener('click', () => this.leaveGameOver(el));
         this.mount(el);
     }
@@ -4025,8 +4040,8 @@ export class Hud {
             `<span class="go-bg-glow go-bg-glow-enemy"></span>` +
             `<span class="go-bg-core"></span>` +
             `</div>` +
-            `<div class="go-title">DISCONNECTED</div>` +
-            `<button class="go-restart">Back to main menu</button>`;
+            `<div class="go-title">${escapeHtml(t('hud:disconnected'))}</div>` +
+            `<button class="go-restart">${escapeHtml(t('hud:backToMainMenu'))}</button>`;
         el.querySelector('.go-restart')!.addEventListener('click', () => this.leaveGameOver(el));
         this.mount(el);
     }
@@ -4043,9 +4058,15 @@ export class Hud {
         this.prepareMatchEndUi();
         const el = withDialogFade(document.createElement('div'));
         el.classList.add('mechili-gameover', result);
-        const title = options?.title ?? (result === 'victory' ? 'VICTORY' : result === 'defeat' ? 'DEFEAT' : 'DRAW');
+        const title =
+            options?.title ??
+            (result === 'victory'
+                ? t('hud:victory')
+                : result === 'defeat'
+                  ? t('hud:defeat')
+                  : t('hud:draw'));
         el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note);
-        const backLabel = options?.backLabel ?? 'Back to main menu';
+        const backLabel = options?.backLabel ?? t('hud:backToMainMenu');
         const btn = el.querySelector('.go-restart')!;
         btn.textContent = backLabel;
         btn.addEventListener('click', () => this.leaveGameOver(el));
@@ -4074,7 +4095,7 @@ export class Hud {
         const teams = details
             ? `<div class="go-teams">` +
               this.gameOverTeamHtml('player', details.playerTeam) +
-              `<div class="go-vs">VS</div>` +
+              `<div class="go-vs">${escapeHtml(t('hud:vs'))}</div>` +
               this.gameOverTeamHtml('enemy', details.enemyTeam) +
               `</div>`
             : '';
@@ -4086,7 +4107,7 @@ export class Hud {
             `<span class="go-bg-core"></span>` +
             `</div>` +
             `<div class="go-title">${escapeHtml(title)}</div>${teams}${noteEl}` +
-            `<button class="go-restart">Back to main menu</button>`
+            `<button class="go-restart">${escapeHtml(t('hud:backToMainMenu'))}</button>`
         );
     }
 

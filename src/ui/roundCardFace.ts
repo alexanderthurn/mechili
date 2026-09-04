@@ -8,6 +8,13 @@ import {
     type RuneCardForgeRow,
 } from '../game/forgeRecipes';
 import { ITEMS } from '../game/items';
+import {
+    itemName,
+    roundCardDescription,
+    roundCardTitle,
+    roundCardUnitsLabel,
+    tacticName,
+} from '../i18n';
 import { TACTICS } from '../game/tactics';
 import { iconHtml, moneyHtml } from './iconAtlas';
 
@@ -40,12 +47,13 @@ export type RoundCardFaceOpts = {
 
 function catalogExtras(c: RoundCard): string[] {
     const extras: string[] = [];
-    if (c.unitsLabel) extras.push(c.unitsLabel);
+    const unitsLabel = roundCardUnitsLabel(c.id, c.unitsLabel);
+    if (unitsLabel) extras.push(unitsLabel);
     if (c.items?.length) {
-        extras.push(c.items.map((id) => ITEMS[id]?.name ?? id).join(', '));
+        extras.push(c.items.map((id) => itemName(id, ITEMS[id]?.name ?? id)).join(', '));
     }
     if (c.tactics?.length) {
-        extras.push(c.tactics.map((id) => TACTICS[id]?.name ?? id).join(', '));
+        extras.push(c.tactics.map((id) => tacticName(id, TACTICS[id]?.name ?? id)).join(', '));
     }
     if (c.flankSpawnHalf) extras.push('Flank spawn half-time');
     return extras;
@@ -102,16 +110,17 @@ export function roundCardFaceHtml(c: RoundCard, opts: RoundCardFaceOpts = {}): s
     const forgeRows = runeId
         ? forgeRecipesForRuneCard(runeId, opts.ownedItemIds ?? [], opts.forgePool ?? 'all')
         : [];
+    const unitsLabel = roundCardUnitsLabel(c.id, c.unitsLabel);
     const subtitle = opts.catalog
         ? catalogExtras(c)
-        : c.unitsLabel
-          ? [c.unitsLabel]
+        : unitsLabel
+          ? [unitsLabel]
           : [];
     return (
         (icon ? `<div class="c-portrait">${iconHtml(icon, 'c-portrait-ico')}</div>` : '') +
-        `<div class="c-title">${escapeHtml(c.title)}</div>` +
+        `<div class="c-title">${escapeHtml(roundCardTitle(c.id, c.title))}</div>` +
         (subtitle.length ? `<div class="c-units">${escapeHtml(subtitle.join(' · '))}</div>` : '') +
-        `<div class="c-desc">${escapeHtml(c.description)}</div>` +
+        `<div class="c-desc">${escapeHtml(roundCardDescription(c.id, c.description))}</div>` +
         forgeRowsHtml(forgeRows, runeId) +
         `<div class="c-cost${c.cost > 0 ? '' : ' free'}">${c.cost > 0 ? moneyHtml(c.cost) : 'Free'}</div>`
     );
