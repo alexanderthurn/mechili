@@ -127,7 +127,6 @@
     "tierNote": "Vorhut – Gesamtwerte, nicht zusätzlich zur vorherigen Stufe"
   },
   "mpHintSteam": "Nur Steam-Lobbys. Steam muss beim Start ausgeführt werden.",
-  "mpHintSpielersuche": "Online-Räume über PeerJS + Serverliste. Internetverbindung erforderlich.",
   "mpHintLan": "Nur lokales Netzwerk (Electron). Kein Internetanschluss erforderlich.",
   "mpUnavailable": "— nicht verfügbar",
   "mpNote": "Steam und LAN benötigen die Steam-Version {{link}}",
@@ -241,5 +240,6 @@
     "showDead": "Tote Einheiten anzeigen",
     "antialias": "Kantenglättung",
     "antialiasHint": "glattere Kanten · nächstes Spiel"
-  }
+  },
+  "mpHintMatchmaking": "Online-Räume über PeerJS + Serverliste. Internetverbindung erforderlich."
 }
