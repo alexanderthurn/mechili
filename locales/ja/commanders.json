@@ -25,34 +25,34 @@
     "unitsLabel": "1× 鴉騎兵 · 3× ドワーフ"
   },
   "meteor": {
-    "title": "ヒッツコップフ卿",
+    "title": "Lord Hitzkopf",
     "description": "ラウンド 2 に隕石チャージを 2 回得る。",
     "unitsLabel": "1× 魔術師 · 1× ドワーフ"
   },
   "speed": {
-    "title": "疾風の未亡人",
+    "title": "Speedy Widow",
     "unitsLabel": "1× 鴉騎兵 · 1× 弓兵 · 2× ドワーフ"
   },
   "giant": {
-    "title": "チョンク女伯爵",
+    "title": "Countess Chonk",
     "unitsLabel": "1× バリスタ · 1× ドワーフ"
   },
   "tutor": {
-    "title": "説教の貴婦人",
+    "title": "Lady Lecture",
     "description": "戦場の教えを 1 回所持して開始。",
     "unitsLabel": "1× 鴉騎兵 · 3× 弓兵"
   },
   "money": {
-    "title": "マネー女王",
+    "title": "Money Queen",
     "unitsLabel": "2× 鴉騎兵 · 1× 弓兵"
   },
   "cursed": {
-    "title": "呪われしクリスティン",
+    "title": "Cursed Christine",
     "description": "毎ラウンド無料の黒巣の幼体を 1 体得る。",
     "unitsLabel": "2× ドワーフ · 2× 弓兵"
   },
   "flanky": {
-    "title": "側面の影",
+    "title": "Flanky Shadow",
     "description": "初回の側面出現時間が半分になる。",
     "unitsLabel": "2× ドワーフ · 2× 弓兵"
   }

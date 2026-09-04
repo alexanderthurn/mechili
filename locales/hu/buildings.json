@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Eladási",
-    "description": "Véglegesen feloldhatod az értékesítési csomagokat (telepítési fázisonként akár {{maxPerRound}} értékben). A visszatérítés az alapár {{refundPct}}%-a."
+    "description": "Véglegesen feloldhatod az értékesítési Packokat (telepítési fázisonként akár {{maxPerRound}} értékben). A visszatérítés az alapár {{refundPct}}%-a."
   },
   "attack_boost": {
     "name": "Támadásnövelés",
@@ -41,7 +41,7 @@
   },
   "move_pack": {
     "name": "Pack mozgatása",
-    "description": "Adj hozzá egy mozgatócsomag-töltetet a varázslatcsíkodhoz: egy korábbi körből származó csomag ismét mozgathatóvá válik. Meccsenként egyszer."
+    "description": "Adj hozzá egy mozgatóPack-töltetet a varázslatcsíkodhoz: egy korábbi körből származó Pack ismét mozgathatóvá válik. Meccsenként egyszer."
   },
   "1_deployment": {
     "name": "+1 Bevetés",

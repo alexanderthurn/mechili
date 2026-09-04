@@ -1,6 +1,6 @@
 # Melodan — i18n & fonts handoff
 
-Updated 2026-09-04: full Steam-oriented language list wired + catalogs filled.
+Updated 2026-09-04: checklist polish through Arabic; RTL chrome uses logical CSS.
 
 ## Current state
 
@@ -15,28 +15,31 @@ Language → font (Marcellus by default; override only when glyphs are missing):
 | `ko` | Noto Serif KR |
 | `ja` | Noto Serif JP |
 | `th` | Noto Serif Thai |
-| `ar` | Noto Naskh Arabic (+ `dir=rtl`) |
+| `ar` | Noto Naskh Arabic (+ `dir=rtl`; menu/settings/homepage chrome mirrored) |
 | `el` | Noto Serif |
 
-Translated catalogs in the client bundle: all IDs above (MT seed for newly added Latin/Cyrillic locales; polish as needed).
+Translated catalogs in the client bundle: all IDs above (MT seed + glossary checklist pass).
 
 ### Covered
 
 - Settings, menu, HUD, catalogs, homepage, suggest
 - Homepage language pickers (top-right + footer), shared prefs
 - Device language detection for regional tags (`zh-Hant`, `es-419`, `pt-BR`, `nb`, …)
+- Glossary howler pass for all shipped languages including Arabic
+- Arabic RTL: `dir` + logical CSS for menu/settings/homepage/loadout chrome (game-spatial shop/fightbar stay physical)
 
 ### Deferred
 
-- Arabic RTL layout polish (direction is set; some HUD chrome may still assume LTR)
 - Feuerware privacy / imprint pages (external; translate outside Melodan)
-- Full human polish of MT catalogs (DE done; checklist pass done for fr→el #1–#21; Arabic + deeper tone still open)
+- Full native line-by-line tone pass (units/items long blurbs still mostly MT)
+- Optional deeper Arabic HUD tip positioning once playtested
 
 ### Intentionally English / skipped
 
 - Protocol seat name `'Waiting…'` (wire id; display uses `menu:rosterWaiting`)
 - Combat / debug overlay logs
 - Dev-only bulk-verify result payloads
+- Commander gag titles outside `de` keep English flavor (DE has locked translations)
 
 ## Related
 

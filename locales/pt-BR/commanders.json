@@ -25,34 +25,34 @@
     "unitsLabel": "1× Cavaleiros de Corvo · 3× Anões"
   },
   "meteor": {
-    "title": "Senhor Hitzkopf",
+    "title": "Lord Hitzkopf",
     "description": "Recebe 2 cargas de Meteoro na rodada 2.",
     "unitsLabel": "1× Mago · 1× Anões"
   },
   "speed": {
-    "title": "Viúva Veloz",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Cavaleiros de Corvo · 1× Arqueiros · 2× Anões"
   },
   "giant": {
-    "title": "Condessa Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Balista · 1× Anões"
   },
   "tutor": {
-    "title": "Palestra da Senhora",
+    "title": "Lady Lecture",
     "description": "Começa com uma aula prática.",
     "unitsLabel": "1× Cavaleiros de Corvo · 3× Arqueiros"
   },
   "money": {
-    "title": "Rainha do Dinheiro",
+    "title": "Money Queen",
     "unitsLabel": "2 Cavaleiros de Corvo · 1 Arqueiro"
   },
   "cursed": {
-    "title": "Christine amaldiçoada",
+    "title": "Cursed Christine",
     "description": "Recebe uma aranha da Ninhada Negra grátis a cada rodada.",
     "unitsLabel": "2 anões · 2 arqueiros"
   },
   "flanky": {
-    "title": "Sombra Flanqueada",
+    "title": "Flanky Shadow",
     "description": "A primeira aparição de inimigos nas laterais leva metade do tempo.",
     "unitsLabel": "2 anões · 2 arqueiros"
   }

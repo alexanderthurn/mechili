@@ -25,34 +25,34 @@
     "unitsLabel": "1× فرسان الغراب · 3× أقزام"
   },
   "meteor": {
-    "title": "اللورد هيتسكوبف",
+    "title": "Lord Hitzkopf",
     "description": "يحصل على شحنتي نيزك في الجولة 2.",
     "unitsLabel": "1× ساحر · 1× أقزام"
   },
   "speed": {
-    "title": "الأرملة السريعة",
+    "title": "Speedy Widow",
     "unitsLabel": "1× فرسان الغراب · 1× رماة · 2× أقزام"
   },
   "giant": {
-    "title": "الكونتيسة تشونك",
+    "title": "Countess Chonk",
     "unitsLabel": "1× منجنيق · 1× أقزام"
   },
   "tutor": {
-    "title": "السيدة محاضرة",
+    "title": "Lady Lecture",
     "description": "تبدأ بدرس ميداني واحد.",
     "unitsLabel": "1× فرسان الغراب · 3× رماة"
   },
   "money": {
-    "title": "ملكة المال",
+    "title": "Money Queen",
     "unitsLabel": "2× فرسان الغراب · 1× رماة"
   },
   "cursed": {
-    "title": "كريستين الملعونة",
+    "title": "Cursed Christine",
     "description": "تحصل على عنكبوت حضنة سوداء مجاني كل جولة.",
     "unitsLabel": "2× أقزام · 2× رماة"
   },
   "flanky": {
-    "title": "ظل الجناح",
+    "title": "Flanky Shadow",
     "description": "أول ظهور من الجناح يستغرق نصف الوقت.",
     "unitsLabel": "2× أقزام · 2× رماة"
   }

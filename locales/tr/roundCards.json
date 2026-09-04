@@ -29,10 +29,10 @@
   },
   "sellPack": {
     "title": "Geri alım",
-    "description": "Tek seferlik büyü: Tedarik tutarınızı geri almak için paketlerinizden birini satabilirsiniz."
+    "description": "Tek seferlik büyü: Tedarik tutarınızı geri almak için Packlerinizden birini satabilirsiniz."
   },
   "movePack": {
     "title": "Yürüyüş Emirleri",
-    "description": "Tek seferlik büyü: Önceki turlardan bir paket bu turda tekrar yerine yerleştirilebilir."
+    "description": "Tek seferlik büyü: Önceki turlardan bir Pack bu turda tekrar yerine yerleştirilebilir."
   }
 }

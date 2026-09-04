@@ -25,34 +25,34 @@
     "unitsLabel": "1× Всадники на воронах · 3× Гномы"
   },
   "meteor": {
-    "title": "Лорд Хицкопф",
+    "title": "Lord Hitzkopf",
     "description": "Получает 2 заряда Метеора в раунде 2.",
     "unitsLabel": "1× Волшебник · 1× Гномы"
   },
   "speed": {
-    "title": "Стремительная вдова",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Всадники на воронах · 1× Лучники · 2× Гномы"
   },
   "giant": {
-    "title": "Графиня Чонк",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Баллиста · 1× Гномы"
   },
   "tutor": {
-    "title": "Леди Лекция",
+    "title": "Lady Lecture",
     "description": "Начинает с одним Уроком на поле.",
     "unitsLabel": "1× Всадники на воронах · 3× Лучники"
   },
   "money": {
-    "title": "Королева монет",
+    "title": "Money Queen",
     "unitsLabel": "2× Всадники на воронах · 1× Лучники"
   },
   "cursed": {
-    "title": "Проклятая Кристина",
+    "title": "Cursed Christine",
     "description": "Каждый раунд получает одного бесплатного паука Чёрного выводка.",
     "unitsLabel": "2× Гномы · 2× Лучники"
   },
   "flanky": {
-    "title": "Фланговая тень",
+    "title": "Flanky Shadow",
     "description": "Первый выход с фланга занимает вдвое меньше времени.",
     "unitsLabel": "2× Гномы · 2× Лучники"
   }

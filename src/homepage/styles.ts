@@ -32,7 +32,7 @@ html, body {
 .mh-lang {
     position: absolute;
     top: 14px;
-    right: 14px;
+    inset-inline-end: 14px;
     z-index: 6;
     display: inline-flex;
     align-items: center;
@@ -228,9 +228,9 @@ html, body {
     display: flex;
     position: fixed;
     z-index: 50;
-    right: 0;
+    inset-inline-end: 0;
     bottom: 0;
-    left: auto;
+    inset-inline-start: auto;
     transform: translateY(110%);
     align-items: stretch;
     justify-content: flex-end;
@@ -238,7 +238,7 @@ html, body {
     padding: 0;
     border-radius: 6px 0 0 0;
     border: 1px solid ${u.frameMid};
-    border-right: none;
+    border-inline-end: none;
     border-bottom: none;
     background:
         radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
@@ -250,6 +250,12 @@ html, body {
     opacity: 0;
     pointer-events: none;
     transition: transform 0.28s ease, opacity 0.28s ease;
+}
+:dir(rtl) .mh-sticky-play {
+    border-radius: 0 6px 0 0;
+    box-shadow:
+        6px -6px 24px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 230, 180, 0.12);
 }
 .mh-sticky-play.visible {
     transform: translateY(0);
@@ -264,7 +270,7 @@ html, body {
     padding: 7px 14px;
     border-radius: 0;
     border: none;
-    border-left: 1px solid rgba(255, 208, 64, 0.18);
+    border-inline-start: 1px solid rgba(255, 208, 64, 0.18);
     background: ${u.panelBgDark};
     color: ${u.text};
     text-decoration: none;
@@ -1241,7 +1247,7 @@ html, body {
     display: grid;
     grid-template-columns: 1fr;
     gap: 16px;
-    text-align: left;
+    text-align: start;
 }
 .mh-community-block {
     padding: 20px 22px;
@@ -1395,7 +1401,7 @@ html, body {
 }
 .mh-settings-table th,
 .mh-settings-table td {
-    text-align: left;
+    text-align: start;
     padding: 5px 0;
     vertical-align: top;
 }
@@ -1406,7 +1412,7 @@ html, body {
 .mh-settings-table th {
     color: ${u.textMuted};
     font-weight: 600;
-    padding-right: 12px;
+    padding-inline-end: 12px;
     white-space: nowrap;
 }
 .mh-settings-table td {

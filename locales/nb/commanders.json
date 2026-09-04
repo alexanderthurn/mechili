@@ -30,29 +30,29 @@
     "unitsLabel": "1× Trollmann · 1× Dverger"
   },
   "speed": {
-    "title": "Rask enke",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Kråkeryttere · 1× Bueskyttere · 2× Dverger"
   },
   "giant": {
-    "title": "Grevinne Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Ballista · 1× Dverger"
   },
   "tutor": {
-    "title": "Dameforelesning",
+    "title": "Lady Lecture",
     "description": "Starter med én feltleksjon.",
     "unitsLabel": "1× Kråkeryttere · 3× Bueskyttere"
   },
   "money": {
-    "title": "Pengedronningen",
+    "title": "Money Queen",
     "unitsLabel": "2× Kråkeryttere · 1× Bueskyttere"
   },
   "cursed": {
-    "title": "Forbannede Christine",
+    "title": "Cursed Christine",
     "description": "Får én gratis svart yngel-edderkopp hver runde.",
     "unitsLabel": "2× Dverger · 2× Bueskyttere"
   },
   "flanky": {
-    "title": "Flankeskygge",
+    "title": "Flanky Shadow",
     "description": "Førstegangs flankegytinger tar halvparten av tiden.",
     "unitsLabel": "2× Dverger · 2× Bueskyttere"
   }

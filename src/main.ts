@@ -830,13 +830,14 @@ const subtitle = new Text({
         fontFamily: titleFont,
         fontSize: 18,
         fontWeight: '400',
-        letterSpacing: 6,
+        letterSpacing: prefs().language === 'ar' ? 0 : 6,
         dropShadow: { color: 0x000000, alpha: 0.6, blur: 6, distance: 2, angle: Math.PI / 2 },
     },
 });
 onPrefsChange(() => {
     const family = FONT_FAMILY[prefs().language];
     subtitle.style.fontFamily = family;
+    subtitle.style.letterSpacing = prefs().language === 'ar' ? 0 : 6;
     void document.fonts.load(`400 18px "${family}"`).catch(() => {});
 });
 subtitle.anchor.set(0.5);

@@ -9,11 +9,11 @@
   },
   "sellUnit": {
     "name": "Prodat Pack",
-    "description": "Kliknutím se aktivujete a poté kliknutím na jeden ze svých balíčků jej prodejte a zaplatíte za zásoby."
+    "description": "Kliknutím se aktivujete a poté kliknutím na jeden ze svých Packů jej prodejte a zaplatíte za zásoby."
   },
   "moveUnit": {
     "name": "Přesunout Pack",
-    "description": "Kliknutím se aktivujte a poté klikněte na jeden ze svých balíčků z předchozího kola – po zbytek kola jej můžete znovu přetáhnout a otočit."
+    "description": "Kliknutím se aktivujte a poté klikněte na jeden ze svých Packů z předchozího kola – po zbytek kola jej můžete znovu přetáhnout a otočit."
   },
   "tutor": {
     "name": "Lekce v terénu",

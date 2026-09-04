@@ -29,10 +29,10 @@
   },
   "sellPack": {
     "title": "Pembelian kembali",
-    "description": "Mantra sekali pakai: jual salah satu paketmu untuk mendapatkan pengembalian persediaan."
+    "description": "Mantra sekali pakai: jual salah satu Packmu untuk mendapatkan pengembalian persediaan."
   },
   "movePack": {
     "title": "Perintah Berbaris",
-    "description": "Mantra sekali pakai: satu paket dari ronde sebelumnya dapat diposisikan ulang lagi di ronde ini."
+    "description": "Mantra sekali pakai: satu Pack dari ronde sebelumnya dapat diposisikan ulang lagi di ronde ini."
   }
 }

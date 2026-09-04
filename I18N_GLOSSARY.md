@@ -129,33 +129,21 @@ Use these **keys** when spot-checking `fr`, `es`, `it`, `pl`, … Same English s
 - [ ] Full line-by-line DE pass (human)
 - [ ] Confirm glossary table with you (this file)
 
-## Checklist polish status (langs #1–#21)
+## Checklist polish status (all shipped langs)
 
 Applied glossary howler pass (not full native line-by-line):
 
-- [x] `fr`
-- [x] `es` + `es-419`
-- [x] `pt-BR` + `pt`
-- [x] `ru` (light — already cleaner)
-- [x] `zh` + `zh-Hant` (spot-check — already cleaner)
-- [x] `ja` (light)
-- [x] `ko` (spot-check — already cleaner)
-- [x] `pl`
-- [x] `it`
-- [x] `tr`
-- [x] `uk`
-- [x] `nl`
-- [x] `cs`
-- [x] `sv` + `nb` + `da` + `fi`
-- [x] `hu`
-- [x] `ro`
-- [x] `bg`
-- [x] `vi`
-- [x] `id` + `ms`
-- [x] `th` (light — already cleaner)
-- [x] `el` (light — already cleaner)
+- [x] `fr` … `tr` (#1–#10)
+- [x] `uk` … `el` (#11–#21)
+- [x] `ar` (#22) — strings mostly clean; Pack loanword + suggest cats; RTL chrome
 
-Still deferred: full human tone/catalog pass; Arabic (`ar`) RTL + strings; deeper unit/commander polish.
+Also done in the follow-up pass:
+
+- [x] Arabic RTL logical CSS (menu / settings / homepage / loadout); game-spatial shop & fightbar unchanged
+- [x] Pack parcel leftover sweep in high-vis files (`cs`/`hu`/`ro`/`tr`/`id`/`ms`/`uk`/`bg`/`vi`/…)
+- [x] Commander gag titles outside `de` restored to English flavor names
+
+Still deferred: full human tone/catalog pass on long unit/item blurbs; Feuerware imprint pages.
 
 ## Related
 

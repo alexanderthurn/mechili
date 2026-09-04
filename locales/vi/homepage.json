@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Đơn vị, công trình và phép thuật",
-    "sub": "Đội quân, công trình, gói {{horde}} và mô hình phép thuật chiến đấu của bạn. Chọn một để xem xét — Kỵ sĩ Quạ và Rồng đang tung tăng trong bản xem trước này.",
+    "sub": "Đội quân, công trình, Pack {{horde}} và mô hình phép thuật chiến đấu của bạn. Chọn một để xem xét — Kỵ sĩ Quạ và Rồng đang tung tăng trong bản xem trước này.",
     "canvas": "Xem trước 3D của căn hộ",
     "loading": "Đang tải mô hình…",
     "hint": "Kéo để xoay · Cuộn để phóng to",
@@ -96,7 +96,7 @@
     "select": "Chọn một {{commander}}"
   },
   "runes": {
-    "sub": "Được gắn chặt vào một gói vĩnh viễn, nâng mọi cỗ máy trong đó {{sep}} hầu hết các gói đều chứa {{packLimit}}, máy bắn đá {{ballistaLimit}}. Bốn rune cơ bản được rút ra từ các lá bài tròn hoặc mua trong cửa hàng; những rune mạnh hơn được rèn từ chúng tại Pháo đài và không bao giờ được bán.",
+    "sub": "Được gắn chặt vào một Pack vĩnh viễn, nâng mọi cỗ máy trong đó {{sep}} hầu hết các Pack đều chứa {{packLimit}}, máy bắn đá {{ballistaLimit}}. Bốn rune cơ bản được rút ra từ các lá bài tròn hoặc mua trong cửa hàng; những rune mạnh hơn được rèn từ chúng tại Pháo đài và không bao giờ được bán.",
     "select": "Chọn một {{item}}",
     "base": "Căn cứ",
     "advanced": "Trình độ cao",
@@ -118,7 +118,7 @@
     "two-point": "hai điểm",
     "three-point": "ba điểm",
     "point-yaw": "điểm + hướng",
-    "own-unit": "gói riêng"
+    "own-unit": "Pack riêng"
   },
   "roundCards": {
     "title": "Thẻ vòng",

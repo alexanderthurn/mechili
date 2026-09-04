@@ -1158,7 +1158,7 @@ ${chatFloatStyles(u, pc, ec)}
     font-size: 16px;
     font-weight: bold;
     letter-spacing: 1.5px;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
     box-shadow:
         0 2px 8px rgba(0, 0, 0, 0.35),
@@ -1442,11 +1442,13 @@ ${chatFloatStyles(u, pc, ec)}
     font-weight: bold;
     letter-spacing: 1px;
     cursor: pointer;
-    text-align: left;
+    text-align: start;
     transition: transform 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 .mechili-menu .m-room::before { content: '▸ '; color: ${u.brass}; }
 .mechili-menu .m-room:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateX(2px); }
+:dir(rtl) .mechili-menu .m-room::before { content: '◂ '; }
+:dir(rtl) .mechili-menu .m-room:hover { transform: translateX(-2px); }
 .mechili-menu .m-room:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 /* a running match, joinable only as a spectator — visually distinct from
    an open (joinable-as-player) room above */
@@ -1519,7 +1521,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-loadout .lo-left {
     top: calc(24px + env(safe-area-inset-top));
-    left: calc(24px + env(safe-area-inset-left));
+    inset-inline-start: calc(24px + env(safe-area-inset-left));
     /* bounded to the viewport so the stats can never run off the bottom of
        a short window — they shrink and scroll instead */
     bottom: calc(24px + env(safe-area-inset-bottom));
@@ -1530,7 +1532,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-loadout .lo-right {
     top: calc(24px + env(safe-area-inset-top));
-    right: calc(24px + env(safe-area-inset-right));
+    inset-inline-end: calc(24px + env(safe-area-inset-right));
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -1539,7 +1541,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-loadout .lo-corner {
     bottom: calc(24px + env(safe-area-inset-bottom));
-    right: calc(24px + env(safe-area-inset-right));
+    inset-inline-end: calc(24px + env(safe-area-inset-right));
     display: flex;
     gap: 8px;
 }
@@ -1656,7 +1658,7 @@ ${chatFloatStyles(u, pc, ec)}
     color: ${u.textMuted};
     font-family: inherit;
     font-size: 13px;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
     transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
 }
@@ -1768,18 +1770,18 @@ ${chatFloatStyles(u, pc, ec)}
         order: 1;
         flex: 0 0 auto;
         gap: 6px;
-        /* keep clear of the corner buttons, which stay pinned top-right */
-        padding-right: 104px;
+        /* keep clear of the corner buttons, which stay pinned inline-end */
+        padding-inline-end: 104px;
     }
     .mechili-loadout .lo-corner {
         top: calc(10px + env(safe-area-inset-top));
-        right: calc(10px + env(safe-area-inset-right));
+        inset-inline-end: calc(10px + env(safe-area-inset-right));
         bottom: auto;
         flex-direction: column;
         gap: 6px;
     }
     .mechili-loadout .lo-switcher { width: auto; max-width: none; }
-    .mechili-loadout .lo-unitname { font-size: 20px; text-align: left; }
+    .mechili-loadout .lo-unitname { font-size: 20px; text-align: start; }
     .mechili-loadout .lo-statstoggle {
         display: block;
         width: 100%;
@@ -2251,7 +2253,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-username {
     position: absolute;
-    right: calc(16px + env(safe-area-inset-right));
+    inset-inline-end: calc(16px + env(safe-area-inset-right));
     bottom: calc(14px + env(safe-area-inset-bottom));
     padding: 6px 12px 6px 8px;
     background: ${u.panelBgDark};
@@ -2319,11 +2321,11 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-menu-chrome > * { pointer-events: auto; }
 
-/* Top-right menu chrome: door (Electron quit) + settings gear */
+/* Menu chrome: door (Electron quit) + settings gear — inline-end follows reading dir */
 .mechili-corner-actions {
     position: absolute;
     top: calc(10px + env(safe-area-inset-top));
-    right: calc(16px + env(safe-area-inset-right));
+    inset-inline-end: calc(16px + env(safe-area-inset-right));
     z-index: 30;
     display: flex;
     align-items: center;
@@ -2357,6 +2359,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     font-size: 0;
 }
 .mechili-exit-btn:hover { color: ${u.brassLight}; transform: translateX(2px); }
+:dir(rtl) .mechili-exit-btn:hover { transform: translateX(-2px); }
 .mechili-settings-btn:hover { color: ${u.brassLight}; transform: rotate(45deg); }
 .mechili-exit-btn:focus-visible,
 .mechili-settings-btn:focus-visible {
@@ -2386,7 +2389,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-replay-controls {
     position: absolute;
     top: calc(10px + env(safe-area-inset-top));
-    right: calc(16px + env(safe-area-inset-right));
+    inset-inline-end: calc(16px + env(safe-area-inset-right));
     z-index: 30;
     display: flex;
     flex-direction: column;
@@ -2422,11 +2425,11 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-replay-controls button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-replay-controls .rc-speed-hint { font-size: 11px; color: ${u.textMuted}; white-space: nowrap; }
 
-/* suggest chip, top-left of the main menu (same feel as username) */
+/* suggest chip, inline-start of the main menu (same feel as username) */
 .mechili-suggest-btn {
     position: absolute;
     top: calc(10px + env(safe-area-inset-top));
-    left: calc(16px + env(safe-area-inset-left));
+    inset-inline-start: calc(16px + env(safe-area-inset-left));
     padding: 8px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
@@ -2449,7 +2452,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-username::before { content: '◆ '; color: ${u.brass}; opacity: 0.8; }
 .mechili-version {
     position: absolute;
-    left: calc(16px + env(safe-area-inset-left));
+    inset-inline-start: calc(16px + env(safe-area-inset-left));
     bottom: calc(14px + env(safe-area-inset-bottom));
     padding: 0;
     margin: 0;
@@ -3058,6 +3061,7 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     content: '▸ ';
     color: ${u.bronze};
 }
+:dir(rtl) .mechili-settings .s-advanced > summary::before { content: '◂ '; }
 .mechili-settings .s-advanced[open] > summary::before { content: '▾ '; }
 .mechili-settings .s-advanced > summary:hover { color: ${u.cream}; }
 .mechili-settings .s-row {
@@ -3081,7 +3085,7 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     color: ${u.cream};
 }
 .mechili-settings .s-row select {
-    margin-left: auto;
+    margin-inline-start: auto;
     min-width: 110px;
     background: ${u.leatherMid};
     border: 1px solid ${u.slotBorder};
@@ -3983,13 +3987,15 @@ ${chatFloatStyles(u, pc, ec)}
    shop is pinned to the right edge of the screen. The unlock dialog is a
    centred modal, so it reads wrong there — fill from the left instead. The
    tiles reset direction themselves so their own content is unaffected. */
+/* Unlock picker fills LTR; shop grid still fills from the physical right.
+   Tile content inherits document dir so Arabic labels read correctly. */
 .mechili-cards .unlock-picker .shop-grid {
     direction: ltr;
     justify-content: start;
 }
 .mechili-shop-col .shop-tile,
 .mechili-cards .unlock-picker .shop-tile {
-    direction: ltr;
+    direction: inherit;
     position: relative;
     overflow: hidden;
     appearance: none;
@@ -4220,7 +4226,7 @@ ${chatFloatStyles(u, pc, ec)}
 .money-ico.m-icon {
     width: 1em;
     height: 1em;
-    margin-right: 0.2em;
+    margin-inline-end: 0.2em;
     vertical-align: -0.12em;
 }
 .mechili-sidebar .inv-item .m-icon { width: 30px; height: 30px; }
@@ -4233,7 +4239,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-fightbar .chat-bubble.emote .m-icon { width: 56px; height: 56px; vertical-align: 0; }
 .mechili-fightbar .cf-body .m-icon { width: 28px; height: 28px; vertical-align: -6px; }
 .inv-drag.m-icon { width: 40px; height: 40px; font-size: 0; background-color: ${u.techBuyBg}; }
-.btn-ico.m-icon { width: 16px; height: 16px; margin-right: 4px; vertical-align: -3px; }
+.btn-ico.m-icon { width: 16px; height: 16px; margin-inline-end: 4px; vertical-align: -3px; }
 .mechili-phone-status .btn-ico.m-icon { width: 22px; height: 22px; margin: 0; }
 .mechili-panel .action-tile .at-cost {
     position: absolute; left: 0; bottom: 0; right: 0;
@@ -4307,7 +4313,8 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-panel .tech-slots { margin-top: 10px; }
 
-/* the big hover frame — pops to the right of the panel with full details */
+/* the big hover frame — pops to the right of the panel with full details
+   (panel stays physical-left; do not flip with locale dir) */
 .mechili-panel .action-info {
     position: absolute;
     left: calc(100% + 8px);
@@ -4989,8 +4996,8 @@ ${chatFloatStyles(u, pc, ec)}
     gap: 6px;
 }
 .forge-recipe-group + .forge-recipe-group {
-    border-left: 1px solid ${u.divider};
-    padding-left: 10px;
+    border-inline-start: 1px solid ${u.divider};
+    padding-inline-start: 10px;
 }
 .forge-recipe-group-title {
     font-size: 11px;
@@ -5012,8 +5019,8 @@ ${chatFloatStyles(u, pc, ec)}
         gap: 12px;
     }
     .forge-recipe-group + .forge-recipe-group {
-        border-left: none;
-        padding-left: 0;
+        border-inline-start: none;
+        padding-inline-start: 0;
         border-top: 1px solid ${u.divider};
         padding-top: 10px;
     }
@@ -5650,7 +5657,7 @@ ${chatFloatStyles(u, pc, ec)}
 .settings-close {
     position: absolute;
     top: 6px;
-    right: 8px;
+    inset-inline-end: 8px;
     background: none;
     border: none;
     color: ${u.textMuted};
@@ -5687,7 +5694,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .settings-table th,
 .settings-table td {
-    text-align: left;
+    text-align: start;
     padding: 2px 0;
     vertical-align: top;
 }
@@ -5698,7 +5705,7 @@ ${chatFloatStyles(u, pc, ec)}
 .settings-table th {
     color: ${u.textMuted};
     font-weight: 600;
-    padding-right: 8px;
+    padding-inline-end: 8px;
     white-space: nowrap;
     width: 38%;
 }

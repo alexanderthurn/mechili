@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Penjualan",
-    "description": "Membuka kunci paket penjualan secara permanen (hingga {{maxPerRound}} per fase penyebaran). Pengembalian dana adalah {{refundPct}}% dari biaya dasar."
+    "description": "Membuka kunci Pack penjualan secara permanen (hingga {{maxPerRound}} per fase penyebaran). Pengembalian dana adalah {{refundPct}}% dari biaya dasar."
   },
   "attack_boost": {
     "name": "Peningkatan Serangan",
@@ -41,7 +41,7 @@
   },
   "move_pack": {
     "name": "Pindahkan Pack",
-    "description": "Tambahkan satu muatan paket pindah ke strip mantra Anda: satu paket dari ronde sebelumnya dapat dipindahkan kembali. Sekali per pertandingan."
+    "description": "Tambahkan satu muatan Pack pindah ke strip mantra Anda: satu Pack dari ronde sebelumnya dapat dipindahkan kembali. Sekali per pertandingan."
   },
   "1_deployment": {
     "name": "+1 Penyebaran",

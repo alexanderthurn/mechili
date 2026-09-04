@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Egységek, épületek és varázslatok",
-    "sub": "A sereged, az épületeid, a {{horde}} csomagjaid és a harci varázslat modellek. Válassz egyet a vizsgálathoz — Varjúlovas és Sárkány csapkodnak össze ebben az előzetesben.",
+    "sub": "A sereged, az épületeid, a {{horde}} Packjaid és a harci varázslat modellek. Válassz egyet a vizsgálathoz — Varjúlovas és Sárkány csapkodnak össze ebben az előzetesben.",
     "canvas": "Egység 3D előnézete",
     "loading": "Modell betöltése…",
     "hint": "Húzza a forgatáshoz · Görgessen a nagyításhoz",
@@ -96,7 +96,7 @@
     "select": "Válassz egy {{commander}}-t"
   },
   "runes": {
-    "sub": "Végleg egy csomagra olvasztva, minden benne lévő mech-et felemelve {{sep}}, a legtöbb csomag {{packLimit}}-et, a ballistát {{ballistaLimit}}-t tartalmaz. A négy alaprúnát kerek kártyákból lehet húzni, vagy a boltban megvásárolni; az erősebbeket az Erődben kovácsolják belőlük, és soha nem adják el.",
+    "sub": "Végleg egy Packra olvasztva, minden benne lévő mech-et felemelve {{sep}}, a legtöbb Pack {{packLimit}}-et, a ballistát {{ballistaLimit}}-t tartalmaz. A négy alaprúnát kerek kártyákból lehet húzni, vagy a boltban megvásárolni; az erősebbeket az Erődben kovácsolják belőlük, és soha nem adják el.",
     "select": "Válassz egy {{item}}-t",
     "base": "Bázis",
     "advanced": "Fejlett",
@@ -118,7 +118,7 @@
     "two-point": "kétpontos",
     "three-point": "hárompontos",
     "point-yaw": "pont + nézőpont",
-    "own-unit": "saját csomag"
+    "own-unit": "saját Pack"
   },
   "roundCards": {
     "title": "Körkártyák",

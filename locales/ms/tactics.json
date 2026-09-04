@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Jual Pack",
-    "description": "Klik untuk menambah, kemudian klik salah satu pek anda untuk menjualnya bagi mendapatkan bayaran balik bekalan."
+    "description": "Klik untuk menambah, kemudian klik salah satu Pack anda untuk menjualnya bagi mendapatkan bayaran balik bekalan."
   },
   "moveUnit": {
     "name": "Gerakkan Pack",
-    "description": "Klik untuk melengkapkan, kemudian klik salah satu pek anda daripada pusingan sebelumnya — ia mungkin diseret dan diputar semula untuk baki pusingan ini."
+    "description": "Klik untuk melengkapkan, kemudian klik salah satu Pack anda daripada pusingan sebelumnya — ia mungkin diseret dan diputar semula untuk baki pusingan ini."
   },
   "tutor": {
     "name": "Pelajaran Lapangan",
-    "description": "Klik untuk mengaktifkan lengan, kemudian klik salah satu pek anda — bar XPnya akan terisi ke tahap seterusnya. Membeli tahap tersebut masih memerlukan kos bekalan."
+    "description": "Klik untuk mengaktifkan lengan, kemudian klik salah satu Pack anda — bar XPnya akan terisi ke tahap seterusnya. Membeli tahap tersebut masih memerlukan kos bekalan."
   },
   "spawnDwarves": {
     "name": "Panggil Orang Kerdil",

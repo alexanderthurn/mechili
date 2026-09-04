@@ -30,7 +30,7 @@
     "unitsLabel": "1× Ahli Sihir · 1× Orang Kerdil"
   },
   "speed": {
-    "title": "Balu Cepat",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Penunggang Gagak · 1× Pemanah · 2× Orang Kerdil"
   },
   "giant": {
@@ -38,21 +38,21 @@
     "unitsLabel": "1× Ballista · 1× Orang Kerdil"
   },
   "tutor": {
-    "title": "Syarahan Wanita",
+    "title": "Lady Lecture",
     "description": "Bermula dengan satu Pelajaran Lapangan.",
     "unitsLabel": "1× Penunggang Gagak · 3× Pemanah"
   },
   "money": {
-    "title": "Ratu Wang",
+    "title": "Money Queen",
     "unitsLabel": "2× Penunggang Gagak · 1× Pemanah"
   },
   "cursed": {
-    "title": "Christine yang Terkutuk",
+    "title": "Cursed Christine",
     "description": "Dapat seekor labah-labah Black Brood percuma setiap pusingan.",
     "unitsLabel": "2× Orang Kerdil · 2× Pemanah"
   },
   "flanky": {
-    "title": "Bayangan Flanky",
+    "title": "Flanky Shadow",
     "description": "Pembiakan sayap kali pertama mengambil separuh masa.",
     "unitsLabel": "2× Orang Kerdil · 2× Pemanah"
   }

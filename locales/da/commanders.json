@@ -34,25 +34,25 @@
     "unitsLabel": "1× Krageryttere · 1× Bueskytter · 2× Dværge"
   },
   "giant": {
-    "title": "Grevinde Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Ballista · 1× Dværge"
   },
   "tutor": {
-    "title": "Dameforelæsning",
+    "title": "Lady Lecture",
     "description": "Starter med én feltlektion.",
     "unitsLabel": "1× Krageryttere · 3× Bueskytter"
   },
   "money": {
-    "title": "Pengedronning",
+    "title": "Money Queen",
     "unitsLabel": "2× Krageryttere · 1× Bueskytter"
   },
   "cursed": {
-    "title": "Forbandede Christine",
+    "title": "Cursed Christine",
     "description": "Får én gratis Sort Yngel-edderkop i hver runde.",
     "unitsLabel": "2× Dværge · 2× Bueskytter"
   },
   "flanky": {
-    "title": "Flankeskygge",
+    "title": "Flanky Shadow",
     "description": "Førstegangs flanke-gypninger tager halvdelen af tiden.",
     "unitsLabel": "2× Dværge · 2× Bueskytter"
   }

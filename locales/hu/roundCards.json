@@ -29,7 +29,7 @@
   },
   "sellPack": {
     "title": "Visszavásárlás",
-    "description": "Egyszeri varázslat: add el az egyik csomagodat ellátmány-visszatérítésért."
+    "description": "Egyszeri varázslat: add el az egyik Packodat ellátmány-visszatérítésért."
   },
   "movePack": {
     "title": "Menetelésparancsok",

@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Bán Pack",
-    "description": "Nhấp chuột để trang bị vũ khí, sau đó nhấp vào một trong các gói vật phẩm của bạn để bán chúng và nhận lại tiền hoàn trả vật phẩm."
+    "description": "Nhấp chuột để trang bị vũ khí, sau đó nhấp vào một trong các Pack vật phẩm của bạn để bán chúng và nhận lại tiền hoàn trả vật phẩm."
   },
   "moveUnit": {
     "name": "Di chuyển Pack",
-    "description": "Nhấp chuột để kích hoạt, sau đó nhấp vào một trong các gói của bạn từ vòng trước — bạn có thể kéo và xoay gói đó một lần nữa cho phần còn lại của vòng này."
+    "description": "Nhấp chuột để kích hoạt, sau đó nhấp vào một trong các Pack của bạn từ vòng trước — bạn có thể kéo và xoay Pack đó một lần nữa cho phần còn lại của vòng này."
   },
   "tutor": {
     "name": "Bài học thực hành",
-    "description": "Nhấp chuột để trang bị vũ khí, sau đó nhấp vào một trong các gói vật phẩm của bạn — thanh XP của gói đó sẽ đầy lên cấp độ tiếp theo. Việc mua cấp độ vẫn tốn vật phẩm."
+    "description": "Nhấp chuột để trang bị vũ khí, sau đó nhấp vào một trong các Pack vật phẩm của bạn — thanh XP của Pack đó sẽ đầy lên cấp độ tiếp theo. Việc mua cấp độ vẫn tốn vật phẩm."
   },
   "spawnDwarves": {
     "name": "Triệu hồi người lùn",

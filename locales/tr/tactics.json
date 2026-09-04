@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Pack sat",
-    "description": "Silahı kurmak için tıklayın, ardından tedarik iadesi almak için paketlerinizden birini satmak üzere tıklayın."
+    "description": "Silahı kurmak için tıklayın, ardından tedarik iadesi almak için Packlerinizden birini satmak üzere tıklayın."
   },
   "moveUnit": {
     "name": "Pack hareket ettir",
-    "description": "Silahı etkinleştirmek için tıklayın, ardından önceki turlardan bir paketinizi tıklayın; bu paket, bu turun geri kalanında tekrar sürüklenip döndürülebilir."
+    "description": "Silahı etkinleştirmek için tıklayın, ardından önceki turlardan bir Packinizi tıklayın; bu Pack, bu turun geri kalanında tekrar sürüklenip döndürülebilir."
   },
   "tutor": {
     "name": "Saha Dersi",
-    "description": "Silahı kurmak için tıklayın, ardından paketlerinizden birine tıklayın; XP çubuğu bir sonraki seviyeye dolacak. Seviye atlamak yine de kaynak maliyeti gerektirir."
+    "description": "Silahı kurmak için tıklayın, ardından Packlerinizden birine tıklayın; XP çubuğu bir sonraki seviyeye dolacak. Seviye atlamak yine de kaynak maliyeti gerektirir."
   },
   "spawnDwarves": {
     "name": "Cüceleri Çağır",

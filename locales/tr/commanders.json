@@ -30,11 +30,11 @@
     "unitsLabel": "1 Büyücü · 1 Cüce"
   },
   "speed": {
-    "title": "Hızlı Dul",
+    "title": "Speedy Widow",
     "unitsLabel": "1 adet Karga Süvarisi · 1 adet Okçu · 2 adet Cüce"
   },
   "giant": {
-    "title": "Kontes Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1 adet Balista · 1 adet Cüce"
   },
   "tutor": {
@@ -43,16 +43,16 @@
     "unitsLabel": "1 adet Karga Süvarisi · 3 adet Okçu"
   },
   "money": {
-    "title": "Para Kraliçesi",
+    "title": "Money Queen",
     "unitsLabel": "2 adet Karga Süvarisi · 1 adet Okçu"
   },
   "cursed": {
-    "title": "Lanetli Christine",
+    "title": "Cursed Christine",
     "description": "Her turda bir adet ücretsiz Kara Yavru Örümcek kazanır.",
     "unitsLabel": "2 Cüce · 2 Okçu"
   },
   "flanky": {
-    "title": "Yan Gölge",
+    "title": "Flanky Shadow",
     "description": "İlk kez yandan doğmak, yarı sürede gerçekleşir.",
     "unitsLabel": "2 Cüce · 2 Okçu"
   }

@@ -25,16 +25,16 @@
     "unitsLabel": "1× Călăreți de Ciori · 3× Pitici"
   },
   "meteor": {
-    "title": "Lordul Hitzkopf",
+    "title": "Lord Hitzkopf",
     "description": "Obține 2 încărcături Meteor în runda 2.",
     "unitsLabel": "1× Vrăjitor · 1× Pitici"
   },
   "speed": {
-    "title": "Văduva rapidă",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Călăreți de Ciori · 1× Arcași · 2× Pitici"
   },
   "giant": {
-    "title": "Contesa Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Balistă · 1× Pitici"
   },
   "tutor": {
@@ -43,16 +43,16 @@
     "unitsLabel": "1× Călăreți de Ciori · 3× Arcași"
   },
   "money": {
-    "title": "Regina Banilor",
+    "title": "Money Queen",
     "unitsLabel": "2× Călăreți de Ciori · 1× Arcași"
   },
   "cursed": {
-    "title": "Christine blestemată",
+    "title": "Cursed Christine",
     "description": "Primește un păianjen Black Brood gratuit în fiecare rundă.",
     "unitsLabel": "2× Pitici · 2× Arcași"
   },
   "flanky": {
-    "title": "Umbră Flancă",
+    "title": "Flanky Shadow",
     "description": "Prima apariție pe flancuri durează jumătate din timp.",
     "unitsLabel": "2× Pitici · 2× Arcași"
   }

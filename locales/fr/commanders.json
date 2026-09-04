@@ -30,29 +30,29 @@
     "unitsLabel": "1 magicien · 1 nain"
   },
   "speed": {
-    "title": "Veuve rapide",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Cavaliers corbeaux · 1× Archers · 2× Nains"
   },
   "giant": {
-    "title": "Comtesse Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Baliste · 1× Nains"
   },
   "tutor": {
-    "title": "Conférence de la Dame",
+    "title": "Lady Lecture",
     "description": "Cela commence par une leçon sur le terrain.",
     "unitsLabel": "1 cavalier corbeau · 3 archers"
   },
   "money": {
-    "title": "Reine de l'argent",
+    "title": "Money Queen",
     "unitsLabel": "2 cavaliers corbeaux · 1 archer"
   },
   "cursed": {
-    "title": "Christine maudite",
+    "title": "Cursed Christine",
     "description": "Obtient une araignée de la couvée noire gratuite à chaque tour.",
     "unitsLabel": "2 nains · 2 archers"
   },
   "flanky": {
-    "title": "Ombre de flanc",
+    "title": "Flanky Shadow",
     "description": "Les premières apparitions sur les flancs prennent deux fois moins de temps.",
     "unitsLabel": "2 nains · 2 archers"
   }

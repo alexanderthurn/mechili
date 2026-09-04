@@ -29,10 +29,10 @@
   },
   "sellPack": {
     "title": "Răscumpărare",
-    "description": "Vrajă cu o singură lovitură: vinde unul dintre pachetele tale pentru o rambursare a proviziilor."
+    "description": "Vrajă cu o singură lovitură: vinde unul dintre Pack-urile tale pentru o rambursare a proviziilor."
   },
   "movePack": {
     "title": "Ordine de marș",
-    "description": "Vrajă cu o singură lovitură: un pachet dintr-o rundă anterioară poate fi repoziționat din nou în această rundă."
+    "description": "Vrajă cu o singură lovitură: un Pack dintr-o rundă anterioară poate fi repoziționat din nou în această rundă."
   }
 }

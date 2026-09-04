@@ -25,34 +25,34 @@
     "unitsLabel": "1× ผู้ขี่กา · 3× คนแคระ"
   },
   "meteor": {
-    "title": "ลอร์ดฮิทซ์คอปฟ์",
+    "title": "Lord Hitzkopf",
     "description": "ได้ชาร์จอุกกาบาต 2 ในรอบ 2",
     "unitsLabel": "1× พ่อมด · 1× คนแคระ"
   },
   "speed": {
-    "title": "แม่ม่ายเร็ว",
+    "title": "Speedy Widow",
     "unitsLabel": "1× ผู้ขี่กา · 1× นักธนู · 2× คนแคระ"
   },
   "giant": {
-    "title": "เคาน์เตสชองค์",
+    "title": "Countess Chonk",
     "unitsLabel": "1× บัลลิสตา · 1× คนแคระ"
   },
   "tutor": {
-    "title": "เลดี้เลคเชอร์",
+    "title": "Lady Lecture",
     "description": "เริ่มด้วยบทเรียนสนามหนึ่งครั้ง",
     "unitsLabel": "1× ผู้ขี่กา · 3× นักธนู"
   },
   "money": {
-    "title": "ราชินีเงิน",
+    "title": "Money Queen",
     "unitsLabel": "2× ผู้ขี่กา · 1× นักธนู"
   },
   "cursed": {
-    "title": "คริสตีนต้องสาป",
+    "title": "Cursed Christine",
     "description": "ได้แมงมุมฝูงดำฟรีหนึ่งตัวทุกรอบ",
     "unitsLabel": "2× คนแคระ · 2× นักธนู"
   },
   "flanky": {
-    "title": "เงาปีกข้าง",
+    "title": "Flanky Shadow",
     "description": "การเกิดปีกข้างครั้งแรกใช้เวลาน้อยลงครึ่งหนึ่ง",
     "unitsLabel": "2× คนแคระ · 2× นักธนู"
   }

@@ -25,12 +25,12 @@
     "unitsLabel": "1× Penunggang Gagak · 3× Kurcaci"
   },
   "meteor": {
-    "title": "Tuan Hitzkopf",
+    "title": "Lord Hitzkopf",
     "description": "Mendapatkan 2 muatan Meteor di ronde 2.",
     "unitsLabel": "1 Penyihir · 1 Kurcaci"
   },
   "speed": {
-    "title": "Janda Cepat",
+    "title": "Speedy Widow",
     "unitsLabel": "1 Penunggang Gagak · 1 Pemanah · 2 Kurcaci"
   },
   "giant": {
@@ -38,21 +38,21 @@
     "unitsLabel": "1× Ballista · 1× Kurcaci"
   },
   "tutor": {
-    "title": "Ceramah Wanita",
+    "title": "Lady Lecture",
     "description": "Dimulai dengan satu Pelajaran Lapangan.",
     "unitsLabel": "1× Penunggang Gagak · 3× Pemanah"
   },
   "money": {
-    "title": "Ratu Uang",
+    "title": "Money Queen",
     "unitsLabel": "2 Penunggang Gagak · 1 Pemanah"
   },
   "cursed": {
-    "title": "Christine yang terkutuk",
+    "title": "Cursed Christine",
     "description": "Dapatkan satu laba-laba Black Brood gratis di setiap putaran.",
     "unitsLabel": "2 Kurcaci · 2 Pemanah"
   },
   "flanky": {
-    "title": "Bayangan Samping",
+    "title": "Flanky Shadow",
     "description": "Kemunculan pertama dari sisi sayap membutuhkan setengah waktu.",
     "unitsLabel": "2 Kurcaci · 2 Pemanah"
   }

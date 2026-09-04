@@ -25,29 +25,29 @@
     "unitsLabel": "1× Jeźdźcy Kruków · 3× Krasnoludy"
   },
   "meteor": {
-    "title": "Pan Hitzkopf",
+    "title": "Lord Hitzkopf",
     "description": "Otrzymuje 2 ładunki Meteorów w rundzie 2.",
     "unitsLabel": "1× Czarodziej · 1× Krasnoludy"
   },
   "speed": {
-    "title": "Szybka Wdowa",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Jeźdźcy Kruków · 1× Łucznicy · 2× Krasnoludy"
   },
   "giant": {
-    "title": "Hrabina Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Balista · 1× Krasnoludy"
   },
   "tutor": {
-    "title": "Wykład dla pań",
+    "title": "Lady Lecture",
     "description": "Zaczyna się od jednej lekcji terenowej.",
     "unitsLabel": "1× Jeźdźcy Kruków · 3× Łucznicy"
   },
   "money": {
-    "title": "Królowa Pieniędzy",
+    "title": "Money Queen",
     "unitsLabel": "2× Jeźdźcy Kruków · 1× Łucznicy"
   },
   "cursed": {
-    "title": "Przeklęta Christine",
+    "title": "Cursed Christine",
     "description": "Otrzymuje jednego darmowego pająka Black Brood w każdej rundzie.",
     "unitsLabel": "2× Krasnoludy · 2× Łucznicy"
   },

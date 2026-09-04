@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Unități, clădiri și vrăji",
-    "sub": "Armata ta, clădirile, pachetele {{horde}} și modelele de vrăji de luptă. Alege unul pentru a-l inspecta — Crow Rider și Dragon dau frâu liber în această previzualizare.",
+    "sub": "Armata ta, clădirile, Pack-urile {{horde}} și modelele de vrăji de luptă. Alege unul pentru a-l inspecta — Crow Rider și Dragon dau frâu liber în această previzualizare.",
     "canvas": "Previzualizare 3D a unității",
     "loading": "Se încarcă modelul…",
     "hint": "Trageți pentru rotire · Derulați pentru zoom",
@@ -96,7 +96,7 @@
     "select": "Alege un {{commander}}"
   },
   "runes": {
-    "sub": "Fuzionate definitiv pe un pachet, ridicând fiecare robot din el {{sep}}, majoritatea pachetelor conțin {{packLimit}}, balista {{ballistaLimit}}. Cele patru rune de bază sunt extrase din cărți rotunde sau cumpărate din magazin; cele mai puternice sunt făurite din ele la Fortăreață și nu sunt niciodată vândute.",
+    "sub": "Fuzionate definitiv pe un Pack, ridicând fiecare robot din el {{sep}}, majoritatea Pack-urilor conțin {{packLimit}}, balista {{ballistaLimit}}. Cele patru rune de bază sunt extrase din cărți rotunde sau cumpărate din magazin; cele mai puternice sunt făurite din ele la Fortăreață și nu sunt niciodată vândute.",
     "select": "Alege un {{item}}",
     "base": "Baza",
     "advanced": "Avansat",
@@ -118,7 +118,7 @@
     "two-point": "două puncte",
     "three-point": "trei puncte",
     "point-yaw": "punct + orientare",
-    "own-unit": "propriul pachet"
+    "own-unit": "propriul Pack"
   },
   "roundCards": {
     "title": "Cărți de rundă",

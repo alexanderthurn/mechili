@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Unit, bangunan & mantera",
-    "sub": "Tentera, bangunan, pek {{horde}} dan model jampi pertempuran anda. Pilih satu untuk diperiksa — Crow Rider dan Dragon muncul dalam pratonton ini.",
+    "sub": "Tentera, bangunan, Pack {{horde}} dan model jampi pertempuran anda. Pilih satu untuk diperiksa — Crow Rider dan Dragon muncul dalam pratonton ini.",
     "canvas": "Pratonton Unit 3D",
     "loading": "Memuatkan model…",
     "hint": "Seret untuk memutar · Tatal untuk zum",
@@ -96,7 +96,7 @@
     "select": "Pilih {{commander}}"
   },
   "runes": {
-    "sub": "Dicantumkan ke dalam pek untuk selama-lamanya, mengangkat setiap jentera di dalamnya {{sep}} kebanyakan pek memuatkan {{packLimit}}, ballista {{ballistaLimit}}. Empat rune asas didraf daripada kad bulat atau dibeli di kedai; yang lebih kuat ditempa daripadanya di Stronghold, dan tidak pernah dijual.",
+    "sub": "Dicantumkan ke dalam Pack untuk selama-lamanya, mengangkat setiap jentera di dalamnya {{sep}} kebanyakan Pack memuatkan {{packLimit}}, ballista {{ballistaLimit}}. Empat rune asas didraf daripada kad bulat atau dibeli di kedai; yang lebih kuat ditempa daripadanya di Stronghold, dan tidak pernah dijual.",
     "select": "Pilih {{item}}",
     "base": "Pangkalan",
     "advanced": "Lanjutan",
@@ -118,7 +118,7 @@
     "two-point": "dua titik",
     "three-point": "tiga mata",
     "point-yaw": "titik + menghadap",
-    "own-unit": "pek sendiri"
+    "own-unit": "Pack sendiri"
   },
   "roundCards": {
     "title": "Kad pusingan",

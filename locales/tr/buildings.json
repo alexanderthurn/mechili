@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Satış",
-    "description": "Paket satışının kilidini kalıcı olarak açın (dağıtım aşaması başına en fazla {{maxPerRound}}). Geri ödeme, temel maliyetin {{refundPct}}%'i kadardır."
+    "description": "Pack satışının kilidini kalıcı olarak açın (dağıtım aşaması başına en fazla {{maxPerRound}}). Geri ödeme, temel maliyetin {{refundPct}}%'i kadardır."
   },
   "attack_boost": {
     "name": "Saldırı Güçlendirmesi",
@@ -41,7 +41,7 @@
   },
   "move_pack": {
     "name": "Pack hareketi",
-    "description": "Büyü şeridinize bir hareket paketi hakkı ekleyin: önceki turlardan bir paket tekrar hareket ettirilebilir hale gelir. Maç başına bir kez."
+    "description": "Büyü şeridinize bir hareket Packi hakkı ekleyin: önceki turlardan bir Pack tekrar hareket ettirilebilir hale gelir. Maç başına bir kez."
   },
   "1_deployment": {
     "name": "+1 Dağıtım",

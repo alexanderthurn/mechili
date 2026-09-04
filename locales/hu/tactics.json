@@ -9,7 +9,7 @@
   },
   "sellUnit": {
     "name": "Pack eladása",
-    "description": "Kattints az élesedéshez, majd kattints az egyik csomagodra, hogy eladd és utánpótlás-visszatérítést kapj."
+    "description": "Kattints az élesedéshez, majd kattints az egyik Packodra, hogy eladd és utánpótlás-visszatérítést kapj."
   },
   "moveUnit": {
     "name": "Pack mozgatása",
@@ -17,7 +17,7 @@
   },
   "tutor": {
     "name": "Terepi lecke",
-    "description": "Kattints az élesedéshez, majd kattints az egyik csomagodra – az XP sávja feltöltődik a következő szintre. A szint megvásárlása továbbra is készletbe kerül."
+    "description": "Kattints az élesedéshez, majd kattints az egyik Packodra – az XP sávja feltöltődik a következő szintre. A szint megvásárlása továbbra is készletbe kerül."
   },
   "spawnDwarves": {
     "name": "Törpök idézése",

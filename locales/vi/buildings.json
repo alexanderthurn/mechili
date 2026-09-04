@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Bán hàng",
-    "description": "Mở khóa vĩnh viễn các gói bán hàng (tối đa {{maxPerRound}} mỗi giai đoạn triển khai). Hoàn tiền là {{refundPct}}% giá gốc."
+    "description": "Mở khóa vĩnh viễn các Pack bán hàng (tối đa {{maxPerRound}} mỗi giai đoạn triển khai). Hoàn tiền là {{refundPct}}% giá gốc."
   },
   "attack_boost": {
     "name": "Tăng sức tấn công",
@@ -41,7 +41,7 @@
   },
   "move_pack": {
     "name": "Di chuyển Pack",
-    "description": "Thêm một lượt di chuyển vào dải phép thuật của bạn: một gói bài từ vòng trước sẽ lại có thể di chuyển được. Chỉ một lần mỗi trận đấu."
+    "description": "Thêm một lượt di chuyển vào dải phép thuật của bạn: một Pack bài từ vòng trước sẽ lại có thể di chuyển được. Chỉ một lần mỗi trận đấu."
   },
   "1_deployment": {
     "name": "+1 Triển khai",

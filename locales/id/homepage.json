@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Unit, bangunan & mantra",
-    "sub": "Pasukanmu, bangunan, paket {{horde}}, dan model mantra pertempuran. Pilih satu untuk diperiksa — Penunggang Gagak dan Naga mengepak dalam pratinjau ini.",
+    "sub": "Pasukanmu, bangunan, Pack {{horde}}, dan model mantra pertempuran. Pilih satu untuk diperiksa — Penunggang Gagak dan Naga mengepak dalam pratinjau ini.",
     "canvas": "Pratinjau Unit 3D",
     "loading": "Memuat model…",
     "hint": "Geser untuk memutar · Gulir untuk memperbesar",
@@ -96,7 +96,7 @@
     "select": "Pilih {{commander}}"
   },
   "runes": {
-    "sub": "Disatukan dengan sebuah paket untuk selamanya, mengangkat setiap mech di dalamnya {{sep}} sebagian besar paket memuat {{packLimit}}, ballista {{ballistaLimit}}. Empat rune dasar diambil dari kartu bulat atau dibeli di toko; rune yang lebih kuat ditempa dari rune tersebut di Benteng, dan tidak pernah dijual.",
+    "sub": "Disatukan dengan sebuah Pack untuk selamanya, mengangkat setiap mech di dalamnya {{sep}} sebagian besar Pack memuat {{packLimit}}, ballista {{ballistaLimit}}. Empat rune dasar diambil dari kartu bulat atau dibeli di toko; rune yang lebih kuat ditempa dari rune tersebut di Benteng, dan tidak pernah dijual.",
     "select": "Pilih {{item}}",
     "base": "Basis",
     "advanced": "Canggih",

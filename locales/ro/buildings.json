@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Vânzare",
-    "description": "Deblochează permanent pachete de vânzare (până la {{maxPerRound}} per fază de implementare). Rambursarea este de {{refundPct}}% din costul de bază."
+    "description": "Deblochează permanent Pack-uri de vânzare (până la {{maxPerRound}} per fază de implementare). Rambursarea este de {{refundPct}}% din costul de bază."
   },
   "attack_boost": {
     "name": "Atacul sporit",
@@ -41,7 +41,7 @@
   },
   "move_pack": {
     "name": "Mută Pack",
-    "description": "Adaugă o încărcătură de pachet de mișcări la banda ta de vrăji: un pachet dintr-o rundă anterioară devine din nou mobil. O dată pe meci."
+    "description": "Adaugă o încărcătură de Pack de mișcări la banda ta de vrăji: un Pack dintr-o rundă anterioară devine din nou mobil. O dată pe meci."
   },
   "1_deployment": {
     "name": "+1 Implementare",

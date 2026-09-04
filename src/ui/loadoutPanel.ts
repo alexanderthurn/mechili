@@ -98,12 +98,12 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
     const prevBtn = document.createElement('button');
     prevBtn.type = 'button';
     prevBtn.className = 'lo-arrow';
-    prevBtn.innerHTML = '&#9664;';
+    prevBtn.innerHTML = document.documentElement.dir === 'rtl' ? '&#9654;' : '&#9664;';
     prevBtn.setAttribute('aria-label', t('hud:previousUnit'));
     const nextBtn = document.createElement('button');
     nextBtn.type = 'button';
     nextBtn.className = 'lo-arrow';
-    nextBtn.innerHTML = '&#9654;';
+    nextBtn.innerHTML = document.documentElement.dir === 'rtl' ? '&#9664;' : '&#9654;';
     nextBtn.setAttribute('aria-label', t('hud:nextUnit'));
     const switcher = document.createElement('div');
     switcher.className = 'lo-switcher';

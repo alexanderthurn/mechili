@@ -25,34 +25,34 @@
     "unitsLabel": "1× 까마귀 기수 · 3× 드워프"
   },
   "meteor": {
-    "title": "히츠코프 영주",
+    "title": "Lord Hitzkopf",
     "description": "2라운드에 운석 충전 2회를 받습니다.",
     "unitsLabel": "1× 마법사 · 1× 드워프"
   },
   "speed": {
-    "title": "질주의 과부",
+    "title": "Speedy Widow",
     "unitsLabel": "1× 까마귀 기수 · 1× 궁수 · 2× 드워프"
   },
   "giant": {
-    "title": "촌크 백작부인",
+    "title": "Countess Chonk",
     "unitsLabel": "1× 발리스타 · 1× 드워프"
   },
   "tutor": {
-    "title": "훈계 부인",
+    "title": "Lady Lecture",
     "description": "전장 훈계 1회로 시작합니다.",
     "unitsLabel": "1× 까마귀 기수 · 3× 궁수"
   },
   "money": {
-    "title": "금전 여왕",
+    "title": "Money Queen",
     "unitsLabel": "2× 까마귀 기수 · 1× 궁수"
   },
   "cursed": {
-    "title": "저주받은 크리스틴",
+    "title": "Cursed Christine",
     "description": "매 라운드 무료 검은 무리 거미 1마리를 받습니다.",
     "unitsLabel": "2× 드워프 · 2× 궁수"
   },
   "flanky": {
-    "title": "측면의 그림자",
+    "title": "Flanky Shadow",
     "description": "첫 측면 출현 시간이 절반으로 줄습니다.",
     "unitsLabel": "2× 드워프 · 2× 궁수"
   }

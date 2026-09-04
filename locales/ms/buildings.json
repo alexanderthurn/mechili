@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Menjual",
-    "description": "Buka kunci pek jualan secara kekal (sehingga {{maxPerRound}} setiap fasa penggunaan). Bayaran balik ialah {{refundPct}}% daripada kos asas."
+    "description": "Buka kunci Pack jualan secara kekal (sehingga {{maxPerRound}} setiap fasa penggunaan). Bayaran balik ialah {{refundPct}}% daripada kos asas."
   },
   "attack_boost": {
     "name": "Penggalak Serangan",
@@ -41,7 +41,7 @@
   },
   "move_pack": {
     "name": "Gerakkan Pack",
-    "description": "Tambahkan satu cas pek gerakan pada jalur jampi anda: satu pek dari pusingan sebelumnya boleh digerakkan semula. Sekali setiap perlawanan."
+    "description": "Tambahkan satu cas Pack gerakan pada jalur jampi anda: satu Pack dari pusingan sebelumnya boleh digerakkan semula. Sekali setiap perlawanan."
   },
   "1_deployment": {
     "name": "+1 Pelaksanaan",

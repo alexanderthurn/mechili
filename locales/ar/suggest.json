@@ -14,9 +14,9 @@
   "rateLimited": "اقتراحات كثيرة جدًا — حاول مجددًا خلال {{n}} ث.",
   "sendFailed": "تعذر الإرسال. حاول لاحقًا.",
   "networkError": "خطأ في الشبكة — حاول لاحقًا.",
-  "catBug": "خلل",
-  "catBalance": "توازن",
-  "catFeature": "ميزة",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "نماذج / فن",
   "catCommunity": "مجتمع",
   "catOther": "أخرى"

@@ -30,29 +30,29 @@
     "unitsLabel": "1× Čaroděj · 1× Trpaslíci"
   },
   "speed": {
-    "title": "Rychlá vdova",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Jezdci na vránách · 1× Lučištníci · 2× Trpaslíci"
   },
   "giant": {
-    "title": "Hraběnka Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Balista · 1× Trpaslíci"
   },
   "tutor": {
-    "title": "Dámská přednáška",
+    "title": "Lady Lecture",
     "description": "Začíná jednou terénní lekcí.",
     "unitsLabel": "1× Jezdci na vránách · 3× Lučištníci"
   },
   "money": {
-    "title": "Královna peněz",
+    "title": "Money Queen",
     "unitsLabel": "2× Jezdci na vránách · 1× Lučištníci"
   },
   "cursed": {
-    "title": "Prokletá Christine",
+    "title": "Cursed Christine",
     "description": "V každém kole získá jednoho pavouka Černého plodu zdarma.",
     "unitsLabel": "2× Trpaslíci · 2× Lučištníci"
   },
   "flanky": {
-    "title": "Okrajový stín",
+    "title": "Flanky Shadow",
     "description": "První objevení se na boku trvá polovinu času.",
     "unitsLabel": "2× Trpaslíci · 2× Lučištníci"
   }

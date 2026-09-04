@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Jednotky, budovy a kouzla",
-    "sub": "Vaše armáda, budovy, balíčky {{horde}} a modely bitevních kouzel. Vyberte si jeden k prozkoumání – Vrána Jezdce a Dračí mávání v tomto náhledu.",
+    "sub": "Vaše armáda, budovy, Packy {{horde}} a modely bitevních kouzel. Vyberte si jeden k prozkoumání – Vrána Jezdce a Dračí mávání v tomto náhledu.",
     "canvas": "Náhled jednotky 3D",
     "loading": "Načítání modelu…",
     "hint": "Přetažením otočíte · Posunutím přiblížíte",
@@ -96,7 +96,7 @@
     "select": "Vyberte {{commander}}"
   },
   "runes": {
-    "sub": "Navždy sloučeno s balíčkem a zvedá všechny mechy v něm {{sep}}. Většina balíčků obsahuje {{packLimit}}, balistu {{ballistaLimit}}. Čtyři základní runy se draftují z kulatých karet nebo se kupují v obchodě; ty silnější se z nich ukují v pevnosti a nikdy se neprodávají.",
+    "sub": "Navždy sloučeno s Packem a zvedá všechny mechy v něm {{sep}}. Většina Packů obsahuje {{packLimit}}, balistu {{ballistaLimit}}. Čtyři základní runy se draftují z kulatých karet nebo se kupují v obchodě; ty silnější se z nich ukují v pevnosti a nikdy se neprodávají.",
     "select": "Vyberte {{item}}",
     "base": "Báze",
     "advanced": "Moderní",
@@ -118,7 +118,7 @@
     "two-point": "dvoubodový",
     "three-point": "tříbodový",
     "point-yaw": "hrot + obklad",
-    "own-unit": "vlastní balíček"
+    "own-unit": "vlastní Pack"
   },
   "roundCards": {
     "title": "Karty kola",

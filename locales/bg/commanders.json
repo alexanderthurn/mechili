@@ -25,34 +25,34 @@
     "unitsLabel": "1× Ездачи на врани · 3× Джуджета"
   },
   "meteor": {
-    "title": "Лорд Хицкопф",
+    "title": "Lord Hitzkopf",
     "description": "Получава 2 заряда на метеорит във втори рунд.",
     "unitsLabel": "1× Магьосник · 1× Джуджета"
   },
   "speed": {
-    "title": "Бърза вдовица",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Ездачи на врани · 1× Стрелци с лък · 2× Джуджета"
   },
   "giant": {
-    "title": "Графиня Чонк",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Балиста · 1× Джуджета"
   },
   "tutor": {
-    "title": "Лекция на дамата",
+    "title": "Lady Lecture",
     "description": "Започва с един полеви урок.",
     "unitsLabel": "1× Ездачи на врани · 3× Стрелци с лък"
   },
   "money": {
-    "title": "Кралица на парите",
+    "title": "Money Queen",
     "unitsLabel": "2× Ездачи на врани · 1× Стрелци с лък"
   },
   "cursed": {
-    "title": "Прокълнатата Кристин",
+    "title": "Cursed Christine",
     "description": "Получава един безплатен черен паяк във всеки рунд.",
     "unitsLabel": "2× Джуджета · 2× Стрелци с лък"
   },
   "flanky": {
-    "title": "Лъскава сянка",
+    "title": "Flanky Shadow",
     "description": "Първото появяване на фланките отнема наполовина по-малко време.",
     "unitsLabel": "2× Джуджета · 2× Стрелци с лък"
   }

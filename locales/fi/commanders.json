@@ -25,34 +25,34 @@
     "unitsLabel": "1× Variksenratsastajat · 3× Kääpiöt"
   },
   "meteor": {
-    "title": "Lordi Hitzkopf",
+    "title": "Lord Hitzkopf",
     "description": "Saa 2 meteorilatausta toisella kierroksella.",
     "unitsLabel": "1× Velho · 1× Kääpiöt"
   },
   "speed": {
-    "title": "Nopea leski",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Varisratsastajat · 1× Jousimiehet · 2× Kääpiöt"
   },
   "giant": {
-    "title": "Kreivitär Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Ballista · 1× Kääpiöt"
   },
   "tutor": {
-    "title": "Lady-luento",
+    "title": "Lady Lecture",
     "description": "Alkaa yhdellä kenttätunnilla.",
     "unitsLabel": "1× Variksenratsastajat · 3× Jousimiehet"
   },
   "money": {
-    "title": "Rahakuningatar",
+    "title": "Money Queen",
     "unitsLabel": "2× Varisratsastajat · 1× Jousimiehet"
   },
   "cursed": {
-    "title": "Kirottu Christine",
+    "title": "Cursed Christine",
     "description": "Saat yhden ilmaisen mustan hautahämähäkin joka kierros.",
     "unitsLabel": "2× Kääpiöt · 2× Jousimiehet"
   },
   "flanky": {
-    "title": "Flankyn varjo",
+    "title": "Flanky Shadow",
     "description": "Ensimmäiset kylkikuten ilmestymiset vievät puolet ajasta.",
     "unitsLabel": "2× Kääpiöt · 2× Jousimiehet"
   }

@@ -25,34 +25,34 @@
     "unitsLabel": "1 Kỵ sĩ Quạ · 3 Người lùn"
   },
   "meteor": {
-    "title": "Lãnh chúa Hitzkopf",
+    "title": "Lord Hitzkopf",
     "description": "Nhận được 2 lượt sử dụng Meteor ở vòng 2.",
     "unitsLabel": "1 Pháp sư · 1 Người lùn"
   },
   "speed": {
-    "title": "Góa phụ nhanh nhẹn",
+    "title": "Speedy Widow",
     "unitsLabel": "1 Kỵ binh Quạ · 1 Cung thủ · 2 Người lùn"
   },
   "giant": {
-    "title": "Nữ bá tước Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1 máy bắn đá · 1 người lùn"
   },
   "tutor": {
-    "title": "Bài giảng của quý bà",
+    "title": "Lady Lecture",
     "description": "Bắt đầu bằng một bài học thực hành ngoài hiện trường.",
     "unitsLabel": "1 Kỵ binh Quạ · 3 Cung thủ"
   },
   "money": {
-    "title": "Nữ hoàng tiền bạc",
+    "title": "Money Queen",
     "unitsLabel": "2 kỵ sĩ quạ · 1 cung thủ"
   },
   "cursed": {
-    "title": "Christine bị nguyền rủa",
+    "title": "Cursed Christine",
     "description": "Mỗi vòng chơi, bạn sẽ nhận được một con nhện Black Brood miễn phí.",
     "unitsLabel": "2 lính lùn · 2 cung thủ"
   },
   "flanky": {
-    "title": "Bóng tối sườn",
+    "title": "Flanky Shadow",
     "description": "Lần đầu tiên xuất hiện từ sườn, thời gian chỉ bằng một nửa.",
     "unitsLabel": "2 lính lùn · 2 cung thủ"
   }

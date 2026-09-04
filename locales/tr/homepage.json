@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Birimler, binalar ve büyüler",
-    "sub": "Ordunuz, binalarınız, {{horde}} paketleriniz ve savaş büyüsü modelleriniz. İncelemek için birini seçin — bu önizlemede Karga Binicisi ve Ejderha kanat çırpıyor.",
+    "sub": "Ordunuz, binalarınız, {{horde}} Packleriniz ve savaş büyüsü modelleriniz. İncelemek için birini seçin — bu önizlemede Karga Binicisi ve Ejderha kanat çırpıyor.",
     "canvas": "Ünite 3D önizlemesi",
     "loading": "Model yükleniyor…",
     "hint": "Döndürmek için sürükleyin · Yakınlaştırmak için kaydırın",
@@ -96,7 +96,7 @@
     "select": "Bir {{commander}} seçin"
   },
   "runes": {
-    "sub": "Pakete kalıcı olarak kaynaştırılmış, içindeki her mekanizmayı kaldıran {{sep}} (çoğu paket {{packLimit}} içerir), balista {{ballistaLimit}}. Dört temel rün, tur kartılardan seçilir veya dükkandan satın alınır; daha güçlü olanlar Kalede bunlardan dövülür ve asla satılmaz.",
+    "sub": "Packe kalıcı olarak kaynaştırılmış, içindeki her mekanizmayı kaldıran {{sep}} (çoğu Pack {{packLimit}} içerir), balista {{ballistaLimit}}. Dört temel rün, tur kartılardan seçilir veya dükkandan satın alınır; daha güçlü olanlar Kalede bunlardan dövülür ve asla satılmaz.",
     "select": "Bir {{item}} seçin",
     "base": "Temel",
     "advanced": "Gelişmiş",
@@ -118,7 +118,7 @@
     "two-point": "iki puan",
     "three-point": "üç sayılık",
     "point-yaw": "nokta + karşı karşıya",
-    "own-unit": "kendi paketi"
+    "own-unit": "kendi Packi"
   },
   "roundCards": {
     "title": "Tur kartları",

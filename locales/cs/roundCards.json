@@ -29,10 +29,10 @@
   },
   "sellPack": {
     "title": "Zpětný odkup",
-    "description": "Jednorázové kouzlo: prodejte jeden ze svých balíčků a získáte náhradu za zásoby."
+    "description": "Jednorázové kouzlo: prodejte jeden ze svých Packů a získáte náhradu za zásoby."
   },
   "movePack": {
     "title": "Pochodové rozkazy",
-    "description": "Jednorázové kouzlo: jeden balíček z předchozího kola může být v tomto kole opět přemístěn."
+    "description": "Jednorázové kouzlo: jeden Pack z předchozího kola může být v tomto kole opět přemístěn."
   }
 }

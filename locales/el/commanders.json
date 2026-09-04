@@ -25,34 +25,34 @@
     "unitsLabel": "1× Καβαλάρηδες κορακιού · 3× Νάνοι"
   },
   "meteor": {
-    "title": "Λόρδος Χίτσκοπφ",
+    "title": "Lord Hitzkopf",
     "description": "Παίρνει 2 φορτίσεις Μετεωρίτη στον γύρο 2.",
     "unitsLabel": "1× Μάγος · 1× Νάνοι"
   },
   "speed": {
-    "title": "Γρήγορη χήρα",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Καβαλάρηδες κορακιού · 1× Τοξότες · 2× Νάνοι"
   },
   "giant": {
-    "title": "Κόμισσα Τσονκ",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Βαλλίστρα · 1× Νάνοι"
   },
   "tutor": {
-    "title": "Λέιντι Λέκτσερ",
+    "title": "Lady Lecture",
     "description": "Ξεκινά με ένα Μάθημα πεδίου.",
     "unitsLabel": "1× Καβαλάρηδες κορακιού · 3× Τοξότες"
   },
   "money": {
-    "title": "Βασίλισσα χρημάτων",
+    "title": "Money Queen",
     "unitsLabel": "2× Καβαλάρηδες κορακιού · 1× Τοξότες"
   },
   "cursed": {
-    "title": "Καταραμένη Χριστίνα",
+    "title": "Cursed Christine",
     "description": "Παίρνει μία δωρεάν αράχνη Μαύρης γέννας κάθε γύρο.",
     "unitsLabel": "2× Νάνοι · 2× Τοξότες"
   },
   "flanky": {
-    "title": "Σκιά πλευράς",
+    "title": "Flanky Shadow",
     "description": "Η πρώτη εμφάνιση πλευράς παίρνει τον μισό χρόνο.",
     "unitsLabel": "2× Νάνοι · 2× Τοξότες"
   }

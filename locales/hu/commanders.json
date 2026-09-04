@@ -25,34 +25,34 @@
     "unitsLabel": "1× Varjúlovasok · 3× Törpök"
   },
   "meteor": {
-    "title": "Hitzkopf lord",
+    "title": "Lord Hitzkopf",
     "description": "2 meteor töltetet kap a 2. körben.",
     "unitsLabel": "1× Varázsló · 1× Törpök"
   },
   "speed": {
-    "title": "Gyors özvegy",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Varjúlovasok · 1× Íjászok · 2× Törpök"
   },
   "giant": {
-    "title": "Chonk grófnő",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Ballista · 1× Törpök"
   },
   "tutor": {
-    "title": "Hölgy előadás",
+    "title": "Lady Lecture",
     "description": "Egy terepórával kezdődik.",
     "unitsLabel": "1× Varjúlovasok · 3× Íjászok"
   },
   "money": {
-    "title": "Pénzkirálynő",
+    "title": "Money Queen",
     "unitsLabel": "2× Varjúlovasok · 1× Íjászok"
   },
   "cursed": {
-    "title": "Átkozott Krisztina",
+    "title": "Cursed Christine",
     "description": "Minden körben kapsz egy ingyenes fekete seprűpókot.",
     "unitsLabel": "2× Törp · 2× Íjász"
   },
   "flanky": {
-    "title": "Oldalsó árnyék",
+    "title": "Flanky Shadow",
     "description": "Az első oldalra érkezés fele annyi időt vesz igénybe.",
     "unitsLabel": "2× Törp · 2× Íjász"
   }

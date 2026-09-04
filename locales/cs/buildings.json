@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Prodejní",
-    "description": "Trvale odemkněte prodejní balíčky (až do {{maxPerRound}} za fázi nasazení). Vrácení peněz je {{refundPct}} % ze základní ceny."
+    "description": "Trvale odemkněte prodejní Packy (až do {{maxPerRound}} za fázi nasazení). Vrácení peněz je {{refundPct}} % ze základní ceny."
   },
   "attack_boost": {
     "name": "Zvýšení útoku",
@@ -41,7 +41,7 @@
   },
   "move_pack": {
     "name": "Přesun Packu",
-    "description": "Přidejte si na svůj pásek kouzel jeden náboj balíčku pohybu: jeden balíček z předchozího kola se opět stane pohyblivým. Jednou za zápas."
+    "description": "Přidejte si na svůj pásek kouzel jeden náboj Packu pohybu: jeden Pack z předchozího kola se opět stane pohyblivým. Jednou za zápas."
   },
   "1_deployment": {
     "name": "+1 Nasazení",

@@ -34,25 +34,25 @@
     "unitsLabel": "1× Kråkörare · 1× Bågskyttar · 2× Dvärgar"
   },
   "giant": {
-    "title": "Grevinnan Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Ballista · 1× Dvärgar"
   },
   "tutor": {
-    "title": "Ladyföreläsning",
+    "title": "Lady Lecture",
     "description": "Börjar med en fältlektion.",
     "unitsLabel": "1× Kråkörare · 3× Bågskyttar"
   },
   "money": {
-    "title": "Pengadrottning",
+    "title": "Money Queen",
     "unitsLabel": "2× Kråkörare · 1× Bågskyttar"
   },
   "cursed": {
-    "title": "Förbannade Christine",
+    "title": "Cursed Christine",
     "description": "Får en gratis svart yngelspindel varje runda.",
     "unitsLabel": "2× Dvärgar · 2× Bågskyttar"
   },
   "flanky": {
-    "title": "Flankig skugga",
+    "title": "Flanky Shadow",
     "description": "Första gången flank-spawns tar halva tiden.",
     "unitsLabel": "2× Dvärgar · 2× Bågskyttar"
   }

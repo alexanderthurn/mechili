@@ -30,29 +30,29 @@
     "unitsLabel": "1× Mago · 1× Nano"
   },
   "speed": {
-    "title": "Vedova Veloce",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Cavalieri Corvo · 1× Arcieri · 2× Nani"
   },
   "giant": {
-    "title": "Contessa Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Balista · 1× Nani"
   },
   "tutor": {
-    "title": "Conferenza della signora",
+    "title": "Lady Lecture",
     "description": "Si inizia con una lezione pratica sul campo.",
     "unitsLabel": "1× Cavalieri Corvo · 3× Arcieri"
   },
   "money": {
-    "title": "Regina del denaro",
+    "title": "Money Queen",
     "unitsLabel": "2× Cavalieri Corvo · 1× Arcieri"
   },
   "cursed": {
-    "title": "Cristina maledetta",
+    "title": "Cursed Christine",
     "description": "Ottieni un ragno Black Brood gratis a ogni round.",
     "unitsLabel": "2 nani · 2 arcieri"
   },
   "flanky": {
-    "title": "Ombra laterale",
+    "title": "Flanky Shadow",
     "description": "Le prime apparizioni sui fianchi richiedono la metà del tempo.",
     "unitsLabel": "2 nani · 2 arcieri"
   }

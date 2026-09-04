@@ -25,34 +25,34 @@
     "unitsLabel": "1× 鴉騎士 · 3× 矮人"
   },
   "meteor": {
-    "title": "希茨科普夫領主",
+    "title": "Lord Hitzkopf",
     "description": "第 2 回合獲得 2 次隕石充能。",
     "unitsLabel": "1× 巫師 · 1× 矮人"
   },
   "speed": {
-    "title": "疾速寡婦",
+    "title": "Speedy Widow",
     "unitsLabel": "1× 鴉騎士 · 1× 弓手 · 2× 矮人"
   },
   "giant": {
-    "title": "壯碩女伯爵",
+    "title": "Countess Chonk",
     "unitsLabel": "1× 弩炮 · 1× 矮人"
   },
   "tutor": {
-    "title": "訓誡女士",
+    "title": "Lady Lecture",
     "description": "開局擁有一次戰場訓誡。",
     "unitsLabel": "1× 鴉騎士 · 3× 弓手"
   },
   "money": {
-    "title": "金錢女王",
+    "title": "Money Queen",
     "unitsLabel": "2× 鴉騎士 · 1× 弓手"
   },
   "cursed": {
-    "title": "詛咒的克里斯汀",
+    "title": "Cursed Christine",
     "description": "每回合獲得一隻免費的黑巢幼體蜘蛛。",
     "unitsLabel": "2× 矮人 · 2× 弓手"
   },
   "flanky": {
-    "title": "側翼之影",
+    "title": "Flanky Shadow",
     "description": "首次側翼出現時間減半。",
     "unitsLabel": "2× 矮人 · 2× 弓手"
   }

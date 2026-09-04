@@ -25,16 +25,16 @@
     "unitsLabel": "1× Kraaienrijders · 3× Dwergen"
   },
   "meteor": {
-    "title": "Heer Hitzkopf",
+    "title": "Lord Hitzkopf",
     "description": "Krijgt 2 Meteor-ladingen in ronde 2.",
     "unitsLabel": "1× Tovenaar · 1× Dwerg"
   },
   "speed": {
-    "title": "Snelle weduwe",
+    "title": "Speedy Widow",
     "unitsLabel": "1× Kraaienrijders · 1× Boogschutters · 2× Dwergen"
   },
   "giant": {
-    "title": "Gravin Chonk",
+    "title": "Countess Chonk",
     "unitsLabel": "1× Ballista · 1× Dwergen"
   },
   "tutor": {
@@ -43,16 +43,16 @@
     "unitsLabel": "1× Kraaienrijders · 3× Boogschutters"
   },
   "money": {
-    "title": "Geldkoningin",
+    "title": "Money Queen",
     "unitsLabel": "2× Kraaienrijders · 1× Boogschutters"
   },
   "cursed": {
-    "title": "Vervloekte Christine",
+    "title": "Cursed Christine",
     "description": "Je krijgt elke ronde één gratis Zwarte Broedspin.",
     "unitsLabel": "2 dwergen · 2 boogschutters"
   },
   "flanky": {
-    "title": "Flankachtige Schaduw",
+    "title": "Flanky Shadow",
     "description": "Bij de eerste keer spawnen vanaf de flank duurt het de helft van de tijd.",
     "unitsLabel": "2 dwergen · 2 boogschutters"
   }
