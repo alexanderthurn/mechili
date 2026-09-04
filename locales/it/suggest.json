@@ -14,9 +14,9 @@
   "rateLimited": "Troppi suggerimenti: riprova in {{n}}s.",
   "sendFailed": "Invio non riuscito. Riprova più tardi.",
   "networkError": "Errore di rete: riprova più tardi.",
-  "catBug": "Insetto",
-  "catBalance": "Bilancia",
-  "catFeature": "Caratteristica",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Modelli / arte",
   "catCommunity": "Comunità",
   "catOther": "Altro"

@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Ruta del rally",
+    "name": "Ruta de reunión",
     "description": "Coloca las zonas de inicio, intermedia y final. Las unidades en el círculo de inicio marchan a través de desplazamientos coincidentes en la zona intermedia y luego en la final, combatiendo en el camino."
   },
   "oilSpill": {
-    "name": "Derrame de petróleo",
+    "name": "Charco de aceite",
     "description": "Coloca dos círculos de aceite: delinea el contorno durante el despliegue; poco después de que comience la batalla, el aceite gotea de izquierda a derecha sobre el camino (los discos de protección permanecen despejados). El aceite conectado se enciende como un solo campo al contacto con el fuego."
   },
   "sellUnit": {
-    "name": "Pack de venta",
+    "name": "Vender Pack",
     "description": "Haz clic para armar, luego haz clic en uno de tus Packs para venderlo y obtener un reembolso por suministros."
   },
   "moveUnit": {
-    "name": "Pack de mudanza",
+    "name": "Mover Pack",
     "description": "Haz clic para armar, luego haz clic en uno de tus Packs de una ronda anterior; es posible que se arrastre y gire nuevamente durante el resto de esta ronda."
   },
   "tutor": {
@@ -44,11 +44,11 @@
     "description": "Dibuja un círculo amplio en cualquier lugar. Durante un tiempo, una lluvia de meteoritos caerá sobre puntos aleatorios en su interior, y cada explosión quemará el suelo que impacte."
   },
   "acidSpill": {
-    "name": "Derrame de ácido",
+    "name": "Charco de ácido",
     "description": "Vierta una cápsula de ácido como si fuera un derrame de petróleo: gotea de izquierda a derecha sobre el suelo poco después de que comience la batalla. Las unidades terrestres y aéreas sobre el charco chisporrotean y se corroen, sufriendo daños adicionales por todo."
   },
   "fireSpill": {
-    "name": "Derrame de fuego",
+    "name": "Charco de fuego",
     "description": "Vierte una cápsula de fuego como si fuera aceite: gotea de izquierda a derecha poco después de que comience la batalla e incendia el camino (los discos de protección permanecen despejados). El aceite conectado se enciende con ella. La llama dura solo durante esta batalla."
   },
   "dragonAttack": {

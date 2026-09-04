@@ -28,7 +28,7 @@
     "description": "+{{gain}} fornecimento agora. Próxima implantação: −{{debt}}. Uma vez por rodada."
   },
   "ward_dome": {
-    "name": "Cúpula da enfermaria",
+    "name": "Cúpula protetora",
     "description": "Absorve projéteis inimigos que cruzam para dentro de uma cúpula (raio {{radius}}, altura {{height}}). A reserva representa os pontos de vida (HP) desta unidade."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Armas posicionadas, então mira no primeiro inimigo ao alcance {{range}} para causar {{damage}} de dano (espalhamento {{splash}})."
   },
   "rally_route": {
-    "name": "Rota do Rali",
+    "name": "Rota de reunião",
     "description": "Adicione uma carga de rota de reunião à sua faixa de feitiços. Uma vez por partida."
   },
   "move_pack": {
-    "name": "Pack de Mudança",
+    "name": "Pack de movimento",
     "description": "Adicione uma carga de Pack de movimento à sua faixa de feitiços: um Pack de uma rodada anterior torna-se móvel novamente. Uma vez por partida."
   },
   "1_deployment": {

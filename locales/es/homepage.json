@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Despliegue del ejército en el claro del bosque",
-    "2": "Fase de despliegue y taller de la unidad",
+    "2": "Fase de despliegue y tienda de unidades",
     "3": "Aliento de fuego de dragón sobre el campo",
     "4": "Zonas de despliegue paralelas",
     "5": "Batalla masiva en las llanuras",
@@ -57,12 +57,12 @@
     "spellModel": "Modelo de hechizo"
   },
   "flag": {
-    "flying": "Vuelo",
+    "flying": "Volador",
     "structure": "Estructura",
     "extra": "Extra",
-    "attacksGround": "Ataques terrestres",
+    "attacksGround": "Ataca suelo",
     "attacksAir": "Ataques aéreos",
-    "shield": "Cúpula del pabellón",
+    "shield": "Cúpula protectora",
     "rocket": "perno de inicio"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Elige un {{item}}",
     "base": "Base",
     "advanced": "Avanzado",
-    "shopTitle": "Comprado en la tienda o seleccionado de una tarjeta redonda.",
+    "shopTitle": "Comprado en la tienda o sacado de una carta de ronda",
     "shopLabel": "Precio de la tienda",
     "forgeTitle": "Forjado en el {{building}}",
     "forgeLabel": "Precio de forja"
@@ -121,9 +121,9 @@
     "own-unit": "Pack propio"
   },
   "roundCards": {
-    "title": "Tarjetas redondas",
+    "title": "Cartas de ronda",
     "sub": "A partir de la segunda ronda, elige una de las varias cartas {{items}} ofrecidas, extraídas del conjunto de cartas disponibles. Los hechizos de batalla se compran en la Fortaleza, no se eligen de las cartas.",
-    "select": "Elige una tarjeta redonda"
+    "select": "Elige una carta de ronda"
   },
   "matchSettings": {
     "title": "Ajustes de coincidencia",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "Acerca de",
-    "lead": "MELODAN es un producto de Alexander Thurn (Feuerware). Su empresa reside en Bonn, Alemania.",
+    "lead": "MELODAN está hecho por Alexander Thurn (Feuerware). Reside en Bonn, Alemania.",
     "inspired": "Este juego está inspirado en {{mechabellum}}, el mejor juego del género. MELODAN es una propuesta independiente de fantasía; por favor, apoyen al original y compren Mechabellum. ¡Gracias!",
     "openSource": "El juego es {{github}} (GPL-3.0). Los derechos de autor pertenecen a Alexander Thurn / Feuerware. Puedes bifurcarlo de forma privada, crear nuevas unidades y enviar solicitudes de extracción. Para proyectos más ambiciosos, como un spin-off comercial o no comercial, un cambio de marca completo, etc., puedes escribirme a: {{email}}.",
     "openSourceLink": "código abierto en GitHub"

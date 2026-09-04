@@ -14,9 +14,9 @@
   "rateLimited": "Zbyt wiele sugestii — spróbuj ponownie za {{n}}s.",
   "sendFailed": "Nie udało się wysłać. Spróbuj ponownie później.",
   "networkError": "Błąd sieciowy — spróbuj ponownie później.",
-  "catBug": "Błąd",
-  "catBalance": "Balansować",
-  "catFeature": "Funkcja",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Modele / sztuka",
   "catCommunity": "Wspólnota",
   "catOther": "Inny"

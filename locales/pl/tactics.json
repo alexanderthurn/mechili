@@ -1,10 +1,10 @@
 {
   "rallyRoute": {
-    "name": "Trasa rajdu",
+    "name": "Trasa zbiórki",
     "description": "Wyznacz strefy startową, środkową i końcową. Jednostki w okręgu startowym maszerują przez pasujące do siebie przesunięcia na środku, a następnie na końcu, walcząc po drodze."
   },
   "oilSpill": {
-    "name": "Wyciek ropy",
+    "name": "Kałuża oleju",
     "description": "Umieść dwa kręgi oleju – obrysuj je podczas rozstawiania; krótko po rozpoczęciu bitwy olej kapie z lewej do prawej na ścieżkę (dyski ochronne pozostają czyste). Połączone kręgi oleju zapalają się jako jedno pole, gdy ogień je dotknie."
   },
   "sellUnit": {
@@ -12,7 +12,7 @@
     "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich Packów, aby go sprzedać i uzyskać zwrot kosztów za zapasy."
   },
   "moveUnit": {
-    "name": "Pack do przenoszenia",
+    "name": "Przenieś Pack",
     "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich Packów z poprzedniej rundy — możesz go przeciągać i obracać do końca tej rundy."
   },
   "tutor": {
@@ -44,11 +44,11 @@
     "description": "Zaznacz szeroki okrąg w dowolnym miejscu. Meteoryty będą spadać na losowe punkty w środku przez jakiś czas, a każdy wybuch będzie wypalał ziemię, w którą uderzy."
   },
   "acidSpill": {
-    "name": "Wyciek kwasu",
+    "name": "Kałuża kwasu",
     "description": "Wlej kapsułkę z kwasem jak plamę oleju – kapie ona z lewej do prawej na ziemię wkrótce po rozpoczęciu bitwy. Jednostki naziemne i powietrzne nad kałużą skwierczą i korodują – odnosząc dodatkowe obrażenia od wszystkiego."
   },
   "fireSpill": {
-    "name": "Wyciek ognia",
+    "name": "Kałuża ognia",
     "description": "Wlej kapsułę z ogniem, podobną do oleju – kapie ona z lewej do prawej krótko po rozpoczęciu bitwy i podpala ścieżkę (dyski ochronne pozostają czyste). Połączony olej zapala się wraz z nią. Płomień utrzymuje się tylko w tej bitwie."
   },
   "dragonAttack": {

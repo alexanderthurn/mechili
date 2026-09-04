@@ -28,7 +28,7 @@
     "description": "+{{gain}} suministro ahora. Próximo despliegue: −{{debt}}. Una vez por ronda."
   },
   "ward_dome": {
-    "name": "Cúpula del pabellón",
+    "name": "Cúpula protectora",
     "description": "Absorbe los proyectiles enemigos que entran en una cúpula (radio {{radius}}, altura {{height}}). El área de almacenamiento es la salud de esta unidad."
   },
   "homing_fire_bolt": {
@@ -36,12 +36,12 @@
     "description": "Armas en posición, luego se dirige al primer enemigo dentro del alcance {{range}} para infligir daño {{damage}} (salpicadura {{splash}})."
   },
   "rally_route": {
-    "name": "Ruta del rally",
-    "description": "Añade una carga de ruta de reunión a tu eliminación de hechizos. Una vez por partida."
+    "name": "Ruta de reunión",
+    "description": "Añade una carga de ruta de reunión a tu barra de hechizos. Una vez por partida."
   },
   "move_pack": {
-    "name": "Pack de mudanza",
-    "description": "Añade una carga de Pack de movimiento a tu descarte de hechizos: un Pack de una ronda anterior vuelve a ser movible. Una vez por partida."
+    "name": "Pack de movimiento",
+    "description": "Añade una carga de Pack de movimiento a tu barra de hechizos: un Pack de una ronda anterior vuelve a ser movible. Una vez por partida."
   },
   "1_deployment": {
     "name": "+1 Despliegue",

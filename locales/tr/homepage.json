@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Orman temizleme çalışmalarına ordunun konuşlandırılması",
-    "2": "Dağıtım aşaması ve birim mağazası",
+    "2": "Konuşlanma aşaması ve birim dükkânı",
     "3": "Ejderhanın ateş püskürtmesi tarlanın üzerinde",
     "4": "Yan yana konuşlandırma bölgeleri",
     "5": "Ovalarda kitlesel savaş",
@@ -60,9 +60,9 @@
     "flying": "Uçan",
     "structure": "Yapı",
     "extra": "Ekstra",
-    "attacksGround": "Yere saldırıyor",
+    "attacksGround": "Yere saldırır",
     "attacksAir": "Hava saldırıları",
-    "shield": "Koğuş kubbesi",
+    "shield": "Koruma kubbesi",
     "rocket": "Hedefleme cıvatası"
   },
   "spell": {
@@ -96,11 +96,11 @@
     "select": "Bir {{commander}} seçin"
   },
   "runes": {
-    "sub": "Pakete kalıcı olarak kaynaştırılmış, içindeki her mekanizmayı kaldıran {{sep}} (çoğu paket {{packLimit}} içerir), balista {{ballistaLimit}}. Dört temel rün, yuvarlak kartlardan seçilir veya dükkandan satın alınır; daha güçlü olanlar Kalede bunlardan dövülür ve asla satılmaz.",
+    "sub": "Pakete kalıcı olarak kaynaştırılmış, içindeki her mekanizmayı kaldıran {{sep}} (çoğu paket {{packLimit}} içerir), balista {{ballistaLimit}}. Dört temel rün, tur kartılardan seçilir veya dükkandan satın alınır; daha güçlü olanlar Kalede bunlardan dövülür ve asla satılmaz.",
     "select": "Bir {{item}} seçin",
     "base": "Temel",
     "advanced": "Gelişmiş",
-    "shopTitle": "Dükkândan satın alınmış veya yuvarlak bir kart destesinden çekilmiş.",
+    "shopTitle": "Dükkândan satın alınmış veya tur kartından çekilmiş.",
     "shopLabel": "Mağaza fiyatı",
     "forgeTitle": "{{building}}'da dövüldü",
     "forgeLabel": "Dövme fiyatı"
@@ -121,9 +121,9 @@
     "own-unit": "kendi paketi"
   },
   "roundCards": {
-    "title": "Yuvarlak kartlar",
+    "title": "Tur kartları",
     "sub": "İkinci turdan itibaren, maç havuzundan çekilen çeşitli {{items}} kartlarından birini seçin. Savaş büyüleri Kale'den satın alınır, kartlardan seçilmez.",
-    "select": "Yuvarlak bir kart seçin."
+    "select": "Bir tur kartı seçin"
   },
   "matchSettings": {
     "title": "Maç ayarları",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "Hakkında",
-    "lead": "MELODAN, Alexander Thurn (Feuerware) tarafından üretilmektedir. Kendisi Almanya'nın Bonn şehrinde bulunmaktadır.",
+    "lead": "MELODAN, Alexander Thurn (Feuerware) tarafından geliştirildi. Bonn, Almanya’da yaşıyor.",
     "inspired": "Bu oyun, türün en iyi oyunu olan {{mechabellum}}'dan esinlenilmiştir. MELODAN bağımsız bir fantastik kurgudur; lütfen orijinal oyunu destekleyin ve Mechabellum'u satın alın. Teşekkürler!",
     "openSource": "Oyun {{github}} (GPL-3.0) lisanslıdır. Telif hakkı Alexander Thurn / Feuerware'e aittir. Oyunu özel olarak çatallayabilir, yeni birimler icat edebilir ve çekme istekleri açabilirsiniz. Daha büyük bir şey, ticari olmayan veya ticari olmayan bir yan ürün, tam bir yeniden markalama vb. için bana yazabilirsiniz: {{email}}.",
     "openSourceLink": "GitHub'da açık kaynak kodlu"
@@ -157,5 +157,6 @@
     "feedback": "Geri bildirim",
     "imprint": "Künye",
     "privacy": "Veri gizliliği"
-  }
+  },
+  "shopTitle": "Dükkândan satın alınmış veya tur kartından çekilmiş."
 }

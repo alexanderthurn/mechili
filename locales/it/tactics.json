@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Percorso del rally",
+    "name": "Percorso di raduno",
     "description": "Posiziona le zone di partenza, intermedia e finale. Le unità nel cerchio di partenza marciano attraverso gli offset corrispondenti al centro, poi alla fine, combattendo lungo il percorso."
   },
   "oilSpill": {
-    "name": "fuoriuscita di petrolio",
+    "name": "Pozza d’olio",
     "description": "Posiziona due cerchi di olio: delinea il contorno durante il dispiegamento; poco dopo l'inizio della battaglia, l'olio gocciola da sinistra a destra sul percorso (i dischi di protezione rimangono liberi). L'olio collegato si incendia come un unico campo quando viene colpito dal fuoco."
   },
   "sellUnit": {
-    "name": "Confezione di vendita",
+    "name": "Vendi Pack",
     "description": "Fai clic per armarti, poi fai clic su uno dei tuoi Packs per venderlo e ottenere un rimborso di rifornimenti."
   },
   "moveUnit": {
-    "name": "Pack di movimento",
+    "name": "Muovi Pack",
     "description": "Fai clic per armarti, poi fai clic su uno dei tuoi Packs di un round precedente: potrai trascinarlo e ruotarlo di nuovo per il resto di questo round."
   },
   "tutor": {
@@ -36,7 +36,7 @@
     "description": "Clicca per posizionare, sposta per ruotare, clicca di nuovo per bloccare. Un martello divino cade sulla zona pochi secondi dopo l'inizio della battaglia."
   },
   "storm": {
-    "name": "Chiamata di forza",
+    "name": "Richiamo della tempesta",
     "description": "Traccia un ampio cerchio in un punto qualsiasi. Piccole nuvole temporalesche si addensano in alto e scagliano fulmini in punti casuali: i fulmini non infliggono danni ma folgorano le unità in un'ampia area con un debuff simile a quello di una torre, a meno che non abbiano un'aura dorata. Le cupole di protezione bloccano comunque gli attacchi."
   },
   "meteorShower": {
@@ -44,11 +44,11 @@
     "description": "Traccia un ampio cerchio in un punto qualsiasi. Per un certo periodo, una pioggia di meteoriti colpirà punti casuali al suo interno, e ogni esplosione brucerà il terreno su cui cade."
   },
   "acidSpill": {
-    "name": "Versamento acido",
+    "name": "Pozza d’acido",
     "description": "Versa una capsula acida come se fosse una fuoriuscita di petrolio: gocciola da sinistra a destra sul terreno poco dopo l'inizio della battaglia. Le unità terrestri e aeree sopra la pozza sfrigolano e si corrodono, subendo danni aggiuntivi da qualsiasi cosa."
   },
   "fireSpill": {
-    "name": "Incendio",
+    "name": "Pozza di fuoco",
     "description": "Versa una capsula di fuoco come se fosse olio: gocciola da sinistra a destra poco dopo l'inizio della battaglia e incendia il percorso (i dischi di protezione rimangono liberi). L'olio collegato si incendia insieme ad essa. La fiamma dura solo per questa battaglia."
   },
   "dragonAttack": {

@@ -145,7 +145,7 @@
     "way5": "プレイヤーを歓迎し、ガイドを書き、モデレーションを手伝いたいならそれも歓迎"
   },
   "about": {
-    "title": "について",
+    "title": "このゲームについて",
     "lead": "MELODAN は Alexander Thurn（Feuerware）が制作。ドイツ・ボン在住。",
     "inspired": "このゲームはジャンル最高の {{mechabellum}} に着想を得ています。MELODAN は独立したファンタジー解釈です；ぜひオリジナルを応援し Mechabellum を購入してください。ありがとう！",
     "openSource": "ゲームは {{github}}（GPL-3.0）。著作権は Alexander Thurn / Feuerware に帰属します。私的フォーク、新ユニットの発明、プルリクエスト歓迎です。より大きなこと、非商用／商用スピンオフ、全面リブランディングなどは {{email}} までご連絡ください。",

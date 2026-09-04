@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Desdobramento do exército na clareira da floresta",
-    "2": "Fase de implantação e oficina de unidades",
+    "2": "Fase de implantação e loja de unidades",
     "3": "Sopro de fogo de dragão sobre o campo",
     "4": "Zonas de implantação lado a lado",
     "5": "Batalha em massa nas planícies",
@@ -57,12 +57,12 @@
     "spellModel": "Modelo de feitiço"
   },
   "flag": {
-    "flying": "Vôo",
+    "flying": "Voador",
     "structure": "Estrutura",
     "extra": "Extra",
-    "attacksGround": "Ataques terrestres",
+    "attacksGround": "Ataca o solo",
     "attacksAir": "Ataques aéreos",
-    "shield": "Cúpula da enfermaria",
+    "shield": "Cúpula protetora",
     "rocket": "parafuso teleguiado"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Escolha um {{item}}",
     "base": "Base",
     "advanced": "Avançado",
-    "shopTitle": "Comprada na loja ou sorteada de uma carta redonda.",
+    "shopTitle": "Comprado na loja ou tirado de uma carta de rodada",
     "shopLabel": "Preço de tabela",
     "forgeTitle": "Forjado no {{building}}",
     "forgeLabel": "Preço da forja"
@@ -121,9 +121,9 @@
     "own-unit": "Pack próprio"
   },
   "roundCards": {
-    "title": "Cartas redondas",
+    "title": "Cartas de rodada",
     "sub": "A partir da segunda rodada, escolha uma das várias cartas {{items}} oferecidas, sorteadas do conjunto de cartas da partida. Feitiços de batalha são comprados na Fortaleza, não sorteados de cartas.",
-    "select": "Escolha uma carta redonda"
+    "select": "Escolha uma carta de rodada"
   },
   "matchSettings": {
     "title": "Configurações de correspondência",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "Sobre",
-    "lead": "MELODAN é fabricado por Alexander Thurn (Feuerware). Ele está localizado em Bonn, Alemanha.",
+    "lead": "MELODAN é feito por Alexander Thurn (Feuerware). Ele fica em Bonn, Alemanha.",
     "inspired": "Este jogo foi inspirado em {{mechabellum}}, o melhor jogo do gênero. MELODAN é uma versão independente de fantasia; por favor, apoie o original e compre Mechabellum. Obrigado!",
     "openSource": "O jogo é {{github}} (GPL-3.0). Os direitos autorais pertencem a Alexander Thurn / Feuerware. Sinta-se à vontade para criar um fork privado, inventar novas unidades e abrir pull requests. Para algo maior, um spin-off não comercial ou comercial, uma reformulação completa da marca, etc., entre em contato comigo: {{email}}.",
     "openSourceLink": "código aberto no GitHub"

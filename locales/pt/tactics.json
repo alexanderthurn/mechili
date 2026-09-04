@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Rota do Rali",
+    "name": "Rota de reunião",
     "description": "Defina as zonas de partida, meio e fim. As unidades no círculo de partida marcham através de marcações correspondentes no meio e, em seguida, no fim, lutando ao longo do percurso."
   },
   "oilSpill": {
-    "name": "Derramamento de petróleo",
+    "name": "Poça de óleo",
     "description": "Coloque dois círculos de óleo — contorne-os durante a implantação; logo após o início da batalha, o óleo pinga da esquerda para a direita no caminho (os discos de proteção permanecem livres). O óleo conectado se inflama como um único campo quando o fogo o toca."
   },
   "sellUnit": {
-    "name": "Pack de Venda",
+    "name": "Vender Pack",
     "description": "Clique para ativar e, em seguida, clique em um dos seus Packs para vendê-lo e receber um reembolso de suprimentos."
   },
   "moveUnit": {
-    "name": "Pack de Mudança",
+    "name": "Mover Pack",
     "description": "Clique para ativar e, em seguida, clique em um dos seus Packs de uma rodada anterior — ele poderá ser arrastado e girado novamente durante o restante desta rodada."
   },
   "tutor": {
@@ -36,7 +36,7 @@
     "description": "Clique para posicionar, mova para girar, clique novamente para travar. Um martelo divino cai na área segundos após o início da batalha."
   },
   "storm": {
-    "name": "Chamada da Tempestade",
+    "name": "Chamado da tempestade",
     "description": "Marque um círculo amplo em qualquer lugar. Pequenas nuvens de tempestade se formam no alto e lançam raios em pontos aleatórios — os raios não causam dano, mas eletrocutam as unidades em uma ampla área com um efeito negativo semelhante a uma torre, a menos que elas possuam aura dourada. Domos de proteção ainda bloqueiam os raios."
   },
   "meteorShower": {
@@ -44,11 +44,11 @@
     "description": "Marque um círculo amplo em qualquer lugar. Meteoros cairão sobre pontos aleatórios dentro desse círculo por um tempo, cada explosão queimando o solo que atinge."
   },
   "acidSpill": {
-    "name": "Derramamento de ácido",
+    "name": "Poça de ácido",
     "description": "Derrame uma cápsula de ácido como se fosse um derramamento de óleo — ela pinga da esquerda para a direita no chão logo após o início da batalha. Unidades terrestres e aéreas sobre a poça crepitam e se corroem — sofrendo danos adicionais de todos os lados."
   },
   "fireSpill": {
-    "name": "Derramamento de fogo",
+    "name": "Poça de fogo",
     "description": "Derrame uma cápsula de fogo como se fosse óleo — ela pinga da esquerda para a direita logo após o início da batalha e incendeia o caminho (os discos de proteção permanecem livres). O óleo conectado a ela se inflama junto. A chama dura apenas esta batalha."
   },
   "dragonAttack": {

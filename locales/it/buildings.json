@@ -28,7 +28,7 @@
     "description": "+{{gain}} fornitura ora. Prossimo dispiegamento: −{{debt}}. Una volta per round."
   },
   "ward_dome": {
-    "name": "Cupola del reparto",
+    "name": "Cupola di protezione",
     "description": "Assorbe i proiettili nemici che attraversano una cupola (raggio {{radius}}, altezza {{height}}). Il pool rappresenta i punti vita di questa unità."
   },
   "homing_fire_bolt": {
@@ -36,7 +36,7 @@
     "description": "Armi in posizione, quindi punta sul primo nemico nel raggio d'azione {{range}} per infliggere {{damage}} danni (danno ad area {{splash}})."
   },
   "rally_route": {
-    "name": "Percorso del rally",
+    "name": "Percorso di raduno",
     "description": "Aggiungi una carica di percorso di raduno alla tua striscia di magie. Una volta per partita."
   },
   "move_pack": {

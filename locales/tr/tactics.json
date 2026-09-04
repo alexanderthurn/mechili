@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Ralli Rotası",
+    "name": "Toplanma rotası",
     "description": "Başlangıç, orta ve bitiş bölgelerini belirleyin. Başlangıç çemberindeki birlikler, ortadaki ve ardından sondaki eşleşen mesafelerden geçerek ilerler ve yol boyunca savaşırlar."
   },
   "oilSpill": {
-    "name": "Petrol Sızıntısı",
+    "name": "Yağ birikintisi",
     "description": "İki yağ çemberi yerleştirin — yerleştirme sırasında ana hatlarını çizin; savaş başladıktan kısa bir süre sonra yağ, soldan sağa doğru yola damlar (koruma diskleri açıkta kalır). Ateş temas ettiğinde, birbirine bağlı yağ tek bir alan olarak tutuşur."
   },
   "sellUnit": {
-    "name": "Paket Satışı",
+    "name": "Pack sat",
     "description": "Silahı kurmak için tıklayın, ardından tedarik iadesi almak için paketlerinizden birini satmak üzere tıklayın."
   },
   "moveUnit": {
-    "name": "Taşıma Paketi",
+    "name": "Pack hareket ettir",
     "description": "Silahı etkinleştirmek için tıklayın, ardından önceki turlardan bir paketinizi tıklayın; bu paket, bu turun geri kalanında tekrar sürüklenip döndürülebilir."
   },
   "tutor": {
@@ -36,7 +36,7 @@
     "description": "Yerleştirmek için tıklayın, döndürmek için hareket ettirin, kilitlemek için tekrar tıklayın. Savaşın başlamasından saniyeler sonra bölgeye ilahi bir çekiç düşüyor."
   },
   "storm": {
-    "name": "Fırtına Çağrısı",
+    "name": "Fırtına çağrısı",
     "description": "İstediğiniz yere geniş bir daire çizin. Küçük fırtına bulutları yukarıda toplanır ve rastgele noktalara şimşekler fırlatır; şimşekler hasar vermez ancak altın auraya sahip olmadıkları sürece kule benzeri bir olumsuz etkiyle birimleri geniş bir alanda şok eder. Koruma kubbeleri yine de şimşekleri engeller."
   },
   "meteorShower": {
@@ -44,11 +44,11 @@
     "description": "Herhangi bir yere geniş bir daire çizin. Bir süre boyunca dairenin içindeki rastgele noktalara meteorlar yağacak ve her patlama çarptığı zemini yakacak."
   },
   "acidSpill": {
-    "name": "Asit Dökülmesi",
+    "name": "Asit birikintisi",
     "description": "Asit kapsülünü petrol sızıntısı gibi dökün; savaş başladıktan kısa bir süre sonra soldan sağa doğru yere damlar. Su birikintisinin üzerindeki kara ve hava birimleri cızırdar ve paslanır; her şeyden ekstra hasar alırlar."
   },
   "fireSpill": {
-    "name": "Yangın Sıçraması",
+    "name": "Ateş birikintisi",
     "description": "Ateş kapsülünü yağ gibi dökün; savaş başladıktan kısa bir süre sonra soldan sağa damlar ve yolu alevlendirir (koruma diskleri uzak durur). Bağlantılı yağ da onunla birlikte tutuşur. Alev sadece bu savaş boyunca sürer."
   },
   "dragonAttack": {

@@ -36,7 +36,7 @@
     "description": "Les alliés proches résistent aux malus des tours et subissent 30 % de dégâts en moins pendant 30 secondes. Les sorciers ne peuvent pas les convertir ; le rayon inflige des dégâts à la place."
   },
   "pitchBolts": {
-    "name": "Boulons de pas",
+    "name": "Carreaux de poix",
     "description": "Les carreaux projettent de l'huile à l'impact (ne s'enflamment pas — à utiliser avec des flèches enflammées ou un carreau enflammé)."
   },
   "wideBlast": {

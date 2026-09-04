@@ -28,7 +28,7 @@
     "description": "Dostawa +{{gain}} teraz. Następne rozmieszczenie: −{{debt}}. Raz na rundę."
   },
   "ward_dome": {
-    "name": "Kopuła oddziału",
+    "name": "Kopuła ochronna",
     "description": "Absorbuje pociski wroga, które przechodzą przez kopułę (promień {{radius}}, wysokość {{height}}). Pula to HP tej jednostki."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Ustawia broń, a następnie atakuje pierwszego wroga w zasięgu {{range}}, zadając obrażenia {{damage}} (rozpryskowe {{splash}})."
   },
   "rally_route": {
-    "name": "Trasa rajdu",
+    "name": "Trasa zbiórki",
     "description": "Dodaj jeden ładunek trasy rajdu do swojego paska zaklęć. Raz na mecz."
   },
   "move_pack": {
-    "name": "Pack do przenoszenia",
+    "name": "Przeniesienie Packa",
     "description": "Dodaj jeden ładunek Packu ruchu do paska zaklęć: jeden Pack z poprzedniej rundy znów staje się ruchomy. Raz na mecz."
   },
   "1_deployment": {

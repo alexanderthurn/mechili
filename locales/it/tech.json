@@ -36,7 +36,7 @@
     "description": "Gli alleati vicini resistono ai debuff della torre e subiscono il 30% di danni in meno per 30 secondi. I maghi non possono convertirli: il raggio infligge danni al loro posto."
   },
   "pitchBolts": {
-    "name": "Bulloni di pece",
+    "name": "Dardi di pece",
     "description": "I dardi schizzano olio all'impatto (non si incendiano: da usare in combinazione con frecce infuocate o un dardo infuocato)."
   },
   "wideBlast": {

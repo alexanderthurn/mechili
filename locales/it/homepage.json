@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Schieramento dell'esercito nella radura della foresta",
-    "2": "Fase di implementazione e produzione unitaria",
+    "2": "Fase di schieramento e negozio unità",
     "3": "Il soffio di fuoco del drago si abbatte sul campo.",
     "4": "Zone di dispiegamento affiancate",
     "5": "Battaglia di massa nelle pianure",
@@ -57,12 +57,12 @@
     "spellModel": "Modello di incantesimo"
   },
   "flag": {
-    "flying": "Volare",
+    "flying": "Volante",
     "structure": "Struttura",
     "extra": "Extra",
-    "attacksGround": "Attacchi di terra",
+    "attacksGround": "Attacca il suolo",
     "attacksAir": "Attacchi aerei",
-    "shield": "Cupola del reparto",
+    "shield": "Cupola di protezione",
     "rocket": "Bullone di guida"
   },
   "spell": {
@@ -83,7 +83,7 @@
       "blurb": "Meteore più piccole utilizzate dallo sciame meteorico."
     },
     "storm": {
-      "name": "Chiamata di forza",
+      "name": "Richiamo della tempesta",
       "blurb": "Nube temporalesca che scaglia fulmini."
     },
     "poison": {
@@ -100,7 +100,7 @@
     "select": "Scegli un {{item}}",
     "base": "Base",
     "advanced": "Avanzato",
-    "shopTitle": "Acquistato in negozio o pescato da un mazzo di carte",
+    "shopTitle": "Comprato in negozio o estratto da una carta del round",
     "shopLabel": "Prezzo al dettaglio",
     "forgeTitle": "Forgiato presso il {{building}}",
     "forgeLabel": "Prezzo forgiato"
@@ -121,9 +121,9 @@
     "own-unit": "proprio Pack"
   },
   "roundCards": {
-    "title": "Carte rotonde",
+    "title": "Carte del round",
     "sub": "Dal secondo round in poi, scegli una delle diverse carte {{items}} offerte, pescate dal pool di carte della partita. Gli incantesimi di battaglia si acquistano alla Fortezza, non si scelgono dalle carte.",
-    "select": "Scegli una carta rotonda"
+    "select": "Scegli una carta del round"
   },
   "matchSettings": {
     "title": "Impostazioni partita",
@@ -145,8 +145,8 @@
     "way5": "Dai il benvenuto ai giocatori, scrivi guide, aiuta con la moderazione se vuoi occupartene"
   },
   "about": {
-    "title": "Di",
-    "lead": "MELODAN è prodotto da Alexander Thurn (Feuerware). La sua attività ha sede a Bonn, in Germania.",
+    "title": "Informazioni",
+    "lead": "MELODAN è realizzato da Alexander Thurn (Feuerware). Si trova a Bonn, in Germania.",
     "inspired": "Questo gioco è ispirato a {{mechabellum}}, il miglior gioco del genere. MELODAN è una versione fantasy indipendente; per favore, supportate l'originale e acquistate Mechabellum. Grazie!",
     "openSource": "Il gioco è {{github}} (GPL-3.0). Il copyright rimane di Alexander Thurn / Feuerware. Sentitevi liberi di effettuare un fork privato, inventare nuove unità e aprire pull request. Per qualcosa di più grande, uno spin-off non commerciale o non commerciale, un rebranding completo ecc. sentitevi liberi di scrivermi: {{email}}.",
     "openSourceLink": "Codice sorgente aperto su GitHub"

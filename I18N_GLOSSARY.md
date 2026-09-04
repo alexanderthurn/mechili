@@ -127,8 +127,24 @@ Use these **keys** when spot-checking `fr`, `es`, `it`, `pl`, … Same English s
 - [x] Unify **du** (no remaining formal *Sie* in `locales/de`)
 - [x] Fix howlers listed above (+ Matchmaking/Raum sweep in `menu.json`)
 - [ ] Full line-by-line DE pass (human)
-- [ ] Apply same checklist to other MT locales
 - [ ] Confirm glossary table with you (this file)
+
+## Checklist polish status (langs #1–#10)
+
+Applied glossary howler pass (not full native line-by-line):
+
+- [x] `fr`
+- [x] `es` + `es-419`
+- [x] `pt-BR` + `pt`
+- [x] `ru` (light — already cleaner)
+- [x] `zh` + `zh-Hant` (spot-check — already cleaner)
+- [x] `ja` (light)
+- [x] `ko` (spot-check — already cleaner)
+- [x] `pl`
+- [x] `it`
+- [x] `tr`
+
+Still deferred: full human tone/catalog pass; Arabic RTL; langs after #10.
 
 ## Related
 

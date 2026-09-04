@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Rozmieszczenie wojsk na polanie leśnej",
-    "2": "Faza rozmieszczenia i warsztat jednostkowy",
+    "2": "Faza rozmieszczenia i sklep jednostek",
     "3": "Ziejący ogniem smok nad polem",
     "4": "Strefy rozmieszczenia obok siebie",
     "5": "Masowa bitwa na równinach",
@@ -60,9 +60,9 @@
     "flying": "Latający",
     "structure": "Struktura",
     "extra": "Dodatkowy",
-    "attacksGround": "Ataki naziemne",
+    "attacksGround": "Atakuje ziemię",
     "attacksAir": "Atakuje powietrze",
-    "shield": "Kopuła oddziału",
+    "shield": "Kopuła ochronna",
     "rocket": "Śruba samonaprowadzająca"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Wybierz {{item}}",
     "base": "Opierać",
     "advanced": "Zaawansowany",
-    "shopTitle": "Kupione w sklepie lub wylosowane z okrągłej karty",
+    "shopTitle": "Kupione w sklepie lub wylosowane z karty rundy",
     "shopLabel": "Cena sklepowa",
     "forgeTitle": "Wykute w {{building}}",
     "forgeLabel": "Cena kuźni"
@@ -121,9 +121,9 @@
     "own-unit": "własny Pack"
   },
   "roundCards": {
-    "title": "Karty okrągłe",
+    "title": "Karty rundy",
     "sub": "Od drugiej rundy dobieraj jedną z kilku oferowanych kart {{items}} z puli meczowej. Zaklęcia bojowe kupuje się w Twierdzy, a nie dobiera z kart.",
-    "select": "Wybierz okrągłą kartę"
+    "select": "Wybierz kartę rundy"
   },
   "matchSettings": {
     "title": "Ustawienia dopasowania",
@@ -145,8 +145,8 @@
     "way5": "Witajcie gracze, piszcie poradniki, pomóżcie w moderacji, jeśli chcecie się tym zająć"
   },
   "about": {
-    "title": "O",
-    "lead": "MELODAN jest produkowany przez Alexandra Thurna (Feuerware) z siedzibą w Bonn w Niemczech.",
+    "title": "O grze",
+    "lead": "MELODAN tworzy Alexander Thurn (Feuerware). Siedziba: Bonn, Niemcy.",
     "inspired": "Ta gra jest inspirowana {{mechabellum}}, najlepszą grą w tym gatunku. MELODAN to niezależne fantasy; wesprzyjcie oryginał i kupcie Mechabellum. Dziękujemy!",
     "openSource": "Gra ma licencję {{github}} (GPL-3.0). Prawa autorskie należą do Alexandra Thurna / Feuerware. Możesz swobodnie tworzyć forki, tworzyć nowe jednostki i otwierać pull requesty. Jeśli masz ochotę na coś większego, niekomercyjny lub niekomercyjny spin-off, pełny rebranding itp., napisz do mnie: {{email}}.",
     "openSourceLink": "open source na GitHub"
@@ -157,5 +157,6 @@
     "feedback": "Informacja zwrotna",
     "imprint": "Odcisk",
     "privacy": "Prywatność danych"
-  }
+  },
+  "shopTitle": "Kupione w sklepie lub wylosowane z karty rundy"
 }

@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Déploiement de l'armée dans la clairière",
-    "2": "Phase de déploiement et atelier de fabrication",
+    "2": "Phase de déploiement et boutique d’unités",
     "3": "Souffle de feu du dragon sur le champ",
     "4": "Zones de déploiement côte à côte",
     "5": "Bataille massive dans les plaines",
@@ -57,12 +57,12 @@
     "spellModel": "Modèle de sort"
   },
   "flag": {
-    "flying": "Vol",
+    "flying": "Volant",
     "structure": "Structure",
     "extra": "Supplémentaire",
-    "attacksGround": "Attaques au sol",
+    "attacksGround": "Attaque le sol",
     "attacksAir": "Attaques aériennes",
-    "shield": "Dôme du service",
+    "shield": "Dôme de protection",
     "rocket": "Boulon de guidage"
   },
   "spell": {
@@ -100,7 +100,7 @@
     "select": "Choisissez un {{item}}",
     "base": "Base",
     "advanced": "Avancé",
-    "shopTitle": "Acheté en magasin ou tiré au sort sur une carte ronde",
+    "shopTitle": "Acheté en boutique ou tiré d'une carte de manche",
     "shopLabel": "Prix en magasin",
     "forgeTitle": "Forgé au {{building}}",
     "forgeLabel": "Prix de la forge"
@@ -121,9 +121,9 @@
     "own-unit": "propre Pack"
   },
   "roundCards": {
-    "title": "Cartes rondes",
+    "title": "Cartes de manche",
     "sub": "À partir du deuxième tour, choisissez une carte parmi celles proposées ({{items}}) issues de la réserve. Les sorts de combat s'achètent à la Forteresse et ne sont pas choisis parmi les cartes.",
-    "select": "Choisissez une carte ronde"
+    "select": "Choisis une carte de manche"
   },
   "matchSettings": {
     "title": "Paramètres du match",
@@ -146,7 +146,7 @@
   },
   "about": {
     "title": "À propos",
-    "lead": "MELODAN est une marque fabriquée par Alexander Thurn (Feuerware). Son atelier est situé à Bonn, en Allemagne.",
+    "lead": "MELODAN est développé par Alexander Thurn (Feuerware). Il est basé à Bonn, en Allemagne.",
     "inspired": "Ce jeu s'inspire de {{mechabellum}}, le meilleur jeu du genre. MELODAN est une œuvre de fantasy indépendante ; soutenez le jeu original et achetez Mechabellum. Merci !",
     "openSource": "Le jeu est sous licence {{github}} (GPL-3.0). Les droits d'auteur appartiennent à Alexander Thurn / Feuerware. N'hésitez pas à le dupliquer, à créer de nouvelles unités et à soumettre des demandes de fusion. Pour un projet plus ambitieux, un spin-off non commercial ou à but non lucratif, une refonte complète, etc., contactez-moi : {{email}}.",
     "openSourceLink": "open source sur GitHub"

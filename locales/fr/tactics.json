@@ -1,18 +1,18 @@
 {
   "rallyRoute": {
-    "name": "Parcours du rallye",
+    "name": "Route de ralliement",
     "description": "Délimitez des zones de départ, intermédiaire et d'arrivée. Les unités situées dans le cercle de départ défilent en suivant des décalages correspondants au niveau du milieu, puis de l'arrivée, en combattant tout au long du parcours."
   },
   "oilSpill": {
-    "name": "marée noire",
+    "name": "Nappe d’huile",
     "description": "Placez deux cercles d'huile — tracez-en le contour lors du déploiement ; peu après le début du combat, l'huile s'écoule de gauche à droite sur le chemin (les disques de protection restent dégagés). L'huile reliée s'enflamme comme un seul champ au contact du feu."
   },
   "sellUnit": {
-    "name": "Pack de vente",
+    "name": "Vendre un Pack",
     "description": "Cliquez pour armer, puis cliquez sur l'un de vos Packs pour le vendre et obtenir un remboursement de ravitaillement."
   },
   "moveUnit": {
-    "name": "Pack de déménagement",
+    "name": "Déplacer un Pack",
     "description": "Cliquez pour armer, puis cliquez sur l'un de vos packs d'un tour précédent ; vous pourrez le déplacer et le faire pivoter à nouveau pour le reste de ce tour."
   },
   "tutor": {
@@ -44,11 +44,11 @@
     "description": "Tracez un large cercle n'importe où. Des météores s'abattent aléatoirement à l'intérieur pendant un certain temps, chaque explosion brûlant le sol qu'elle touche."
   },
   "acidSpill": {
-    "name": "Déversement d'acide",
+    "name": "Nappe d’acide",
     "description": "Déversez une capsule d'acide comme une marée noire : elle s'écoule de gauche à droite sur le sol peu après le début du combat. Les unités terrestres et aériennes situées au-dessus de la flaque crépitent et se corrodent, subissant des dégâts supplémentaires de toutes parts."
   },
   "fireSpill": {
-    "name": "Déversement d'incendie",
+    "name": "Nappe de feu",
     "description": "Versez une capsule de feu comme de l'huile : elle s'écoule de gauche à droite peu après le début du combat et embrase le passage (les disques de protection restent à distance). L'huile en contact avec elle s'enflamme également. La flamme ne dure que pendant ce combat."
   },
   "dragonAttack": {

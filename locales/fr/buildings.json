@@ -28,7 +28,7 @@
     "description": "+{{gain}} approvisionnement immédiat. Prochain déploiement : −{{debt}}. Une fois par tour."
   },
   "ward_dome": {
-    "name": "Dôme du service",
+    "name": "Dôme de protection",
     "description": "Absorbe les projectiles ennemis qui pénètrent dans un dôme (rayon {{radius}}, hauteur {{height}}). La réserve correspond aux PV de cette unité."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Armes en place, puis se dirige vers le premier ennemi à portée {{range}} pour {{damage}} dégâts (éclaboussure {{splash}})."
   },
   "rally_route": {
-    "name": "Parcours du rallye",
+    "name": "Route de ralliement",
     "description": "Ajoutez une charge de ralliement à votre réserve de sorts. Une fois par match."
   },
   "move_pack": {
-    "name": "Pack de déménagement",
+    "name": "Pack de déplacement",
     "description": "Ajoutez une charge de déplacement à votre réserve de sorts : un Pack d'un tour précédent peut à nouveau être déplacé. Une fois par match."
   },
   "1_deployment": {

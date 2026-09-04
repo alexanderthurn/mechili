@@ -28,7 +28,7 @@
     "description": "+{{gain}} şu an tedarik ediliyor. Sonraki dağıtım: −{{debt}}. Tur başına bir kez."
   },
   "ward_dome": {
-    "name": "Koğuş kubbesi",
+    "name": "Koruma kubbesi",
     "description": "Kubbe şeklindeki alana (yarıçap {{radius}}, yükseklik {{height}}) giren düşman mermilerini emer. Havuz, bu birimin HP'sidir."
   },
   "homing_fire_bolt": {
@@ -36,11 +36,11 @@
     "description": "Silahlar yerinde, ardından menzildeki ilk düşmana {{range}} ile nişan alarak {{damage}} hasar verir (alan etkisi {{splash}})."
   },
   "rally_route": {
-    "name": "Ralli Rotası",
+    "name": "Toplanma rotası",
     "description": "Büyü şeridinize bir adet toplanma rotası yükü ekleyin. Maç başına bir kez."
   },
   "move_pack": {
-    "name": "Taşıma Paketi",
+    "name": "Pack hareketi",
     "description": "Büyü şeridinize bir hareket paketi hakkı ekleyin: önceki turlardan bir paket tekrar hareket ettirilebilir hale gelir. Maç başına bir kez."
   },
   "1_deployment": {
