@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Himmeltrollmann",
+    "description": "Luftenheter får +12 % angrep og HP.",
+    "unitsLabel": "2× Kråkeryttere · 1× Dverger"
+  },
+  "cost": {
+    "title": "Grådig prins",
+    "description": "Alle enheter −12 % angrep og HP, men +100 i forsyning hver runde.",
+    "unitsLabel": "2× Bueskyttere · 1× Kråkeryttere · 1× Dverger"
+  },
+  "elite": {
+    "title": "Eliteprinsen",
+    "description": "Rekruttering på nivå 2. +100 i forsyning i runde 1.",
+    "unitsLabel": "1× Ballista · 1× Dverger"
+  },
+  "archer": {
+    "title": "Bueskytterkommandør",
+    "description": "En gratis nivå 3-bueskytter ankommer i runde 2.",
+    "unitsLabel": "3× Bueskyttere · 2× Dverger"
+  },
+  "addi": {
+    "title": "Relikviebevarer",
+    "description": "Får 3× Tapperhetsrune i runde 1.",
+    "unitsLabel": "1× Kråkeryttere · 3× Dverger"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "Får 2 meteorladninger i runde 2.",
+    "unitsLabel": "1× Trollmann · 1× Dverger"
+  },
+  "speed": {
+    "title": "Rask enke",
+    "unitsLabel": "1× Kråkeryttere · 1× Bueskyttere · 2× Dverger"
+  },
+  "giant": {
+    "title": "Grevinne Chonk",
+    "unitsLabel": "1× Ballista · 1× Dverger"
+  },
+  "tutor": {
+    "title": "Dameforelesning",
+    "description": "Starter med én feltleksjon.",
+    "unitsLabel": "1× Kråkeryttere · 3× Bueskyttere"
+  },
+  "money": {
+    "title": "Pengedronningen",
+    "unitsLabel": "2× Kråkeryttere · 1× Bueskyttere"
+  },
+  "cursed": {
+    "title": "Forbannede Christine",
+    "description": "Får én gratis svart yngel-edderkopp hver runde.",
+    "unitsLabel": "2× Dverger · 2× Bueskyttere"
+  },
+  "flanky": {
+    "title": "Flankeskygge",
+    "description": "Førstegangs flankegytinger tar halvparten av tiden.",
+    "unitsLabel": "2× Dverger · 2× Bueskyttere"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Terre",
+    "description": "+10% PV."
+  },
+  "fire": {
+    "name": "Feu",
+    "description": "+10% d'attaque."
+  },
+  "water": {
+    "name": "Eau",
+    "description": "+5% d'attaque et de PV."
+  },
+  "wind": {
+    "name": "Vent",
+    "description": "Plage de +10 %."
+  },
+  "addi": {
+    "name": "Valeur",
+    "description": "+15% d'attaque et de PV."
+  },
+  "power": {
+    "name": "Carnage",
+    "description": "+75% d'attaque."
+  },
+  "vigor": {
+    "name": "Sang géant",
+    "description": "+100% PV."
+  },
+  "colossus": {
+    "name": "Cuirasse en mithril",
+    "description": "+250% PV."
+  },
+  "wrath": {
+    "name": "Fou furieux",
+    "description": "+300% d'attaque."
+  },
+  "golden": {
+    "name": "Pierre de soleil",
+    "description": "Immunisé contre les malus de tour et subit 30 % de dégâts en moins. Les sorciers ne peuvent pas convertir ; le rayon inflige des dégâts à la place."
+  },
+  "bulwark": {
+    "name": "Rempart",
+    "description": "Bouclier : chaque unité gagne une seconde réserve de points de vie égale à ses PV. Les attaques à distance vident le bouclier en premier ; les attaques de mêlée, de feu et d’acide l’ignorent."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Země",
+    "description": "+10% zdraví."
+  },
+  "fire": {
+    "name": "Oheň",
+    "description": "+10% útok."
+  },
+  "water": {
+    "name": "Voda",
+    "description": "+5% k útoku a HP."
+  },
+  "wind": {
+    "name": "Vítr",
+    "description": "+10% dosah."
+  },
+  "addi": {
+    "name": "Chrabrost",
+    "description": "+15% k útoku a HP."
+  },
+  "power": {
+    "name": "Krveprolití",
+    "description": "+75% útok."
+  },
+  "vigor": {
+    "name": "Obří krev",
+    "description": "+100% zdraví."
+  },
+  "colossus": {
+    "name": "Mithrilový kyrys",
+    "description": "+250 % zdraví."
+  },
+  "wrath": {
+    "name": "Šílený",
+    "description": "+300% útok."
+  },
+  "golden": {
+    "name": "Sluneční kámen",
+    "description": "Imunitní vůči debuffům věží a dostává o 30 % méně poškození. Kouzelníci nemohou konvertovat – místo toho způsobuje poškození paprsek."
+  },
+  "bulwark": {
+    "name": "Val",
+    "description": "Štít: každá jednotka získává druhý objem zdraví odpovídající jejím HP. Zásahy na dálku nejprve vysávají štít; útoky zblízka, oheň a kyselina jej ignorují."
+  }
+}

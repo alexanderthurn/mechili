@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rally útvonal",
+    "description": "Helyezz el kezdő-, középső- és végzónákat. A kezdőkörben lévő egységek a középső, majd a végponton azonos eltolt területeken vonulnak át, és végig harcolnak."
+  },
+  "oilSpill": {
+    "name": "Olajfolt",
+    "description": "Helyezz el két olajkört – a kihelyezés során jelöld ki a körvonalat; röviddel a csata kezdete után az olaj balról jobbra csöpög az ösvényre (a védőkorongok maradjanak távol). Az összefüggő olajmezővé gyullad, amikor a tűz hozzáér."
+  },
+  "sellUnit": {
+    "name": "Eladási csomag",
+    "description": "Kattints az élesedéshez, majd kattints az egyik csomagodra, hogy eladd és utánpótlás-visszatérítést kapj."
+  },
+  "moveUnit": {
+    "name": "Mozgatható csomag",
+    "description": "Kattints az élesítéshez, majd kattints az egyik korábbi körös hátizsákodra – a kör további részében újra húzhatod és forgathatod."
+  },
+  "tutor": {
+    "name": "Terepi lecke",
+    "description": "Kattints az élesedéshez, majd kattints az egyik csomagodra – az XP sávja feltöltődik a következő szintre. A szint megvásárlása továbbra is készletbe kerül."
+  },
+  "spawnDwarves": {
+    "name": "Törpök idézése",
+    "description": "Jelölj egy kört az ellenséges bázison kívül bárhol. Röviddel a csata kezdete után egy törpökből álló harci csapat tör elő a földből, egyesével – csak ebben a csatában vívják meg őket."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Jelölj egy kis kört bárhol. Másodpercekkel a csata kezdete után egy meteor mindent elsöpör ott – csak a ward kupolák védenek (és fizetnek érte)."
+  },
+  "spawnCrows": {
+    "name": "Varjúlovasok idézése",
+    "description": "Jelölj egy kört az ellenséges bázison kívül bárhol. Röviddel a csata kezdete után varjúlovasok zuhannak le az égből, egymás után – ők csak ezt a csatát vívják."
+  },
+  "hammerOfGods": {
+    "name": "Az istenek kalapácsa",
+    "description": "Kattints a lehelyezéshez, mozgasd az elforgatáshoz, kattints újra a rögzítéshez. Egy isteni kalapács hullik a zónára másodpercekkel a csata kezdete után."
+  },
+  "storm": {
+    "name": "Viharhívás",
+    "description": "Jelölj ki egy széles kört bárhol. Magasan gyűlnek a kis viharfelhők, és véletlenszerű pontokra villámokat szórnak – a villámok nem okoznak sebzést, de széles körben sokkolják az egységeket, toronyszerű gyengítéssel, kivéve, ha arany aurával rendelkeznek. Az őrszemek kupolái továbbra is blokkolják a csapásokat."
+  },
+  "meteorShower": {
+    "name": "Meteorraj",
+    "description": "Jelölj egy széles kört bárhol. A kör belsejében egy ideig meteorok hullanak véletlenszerű pontokra, minden egyes robbanás perzseli a földet, amelyet eltalál."
+  },
+  "acidSpill": {
+    "name": "Savfolt",
+    "description": "Önts egy savas kapszulát, mint egy olajfoltot – balról jobbra csöpög a földre röviddel a csata kezdete után. A pocsolya felett lévő földi és légi egységek sisteregve korrodálnak – mindentől extra sebzést szenvednek."
+  },
+  "fireSpill": {
+    "name": "Tűz kiömlése",
+    "description": "Önts egy tűzkapszulát, mint az olajat – balról jobbra csöpög röviddel a csata kezdete után, és lángra lobbantja az utat (a védőkorongok távol maradnak). A hozzá kapcsolódó olaj vele együtt meggyullad. A láng csak ebben a csatában tart."
+  },
+  "dragonAttack": {
+    "name": "Sárkánytámadás",
+    "description": "Rajzold le a sárkány csapásmérő ösvényét (szélesebb és hosszabb, mint az olaj). Lecsap és tüzet okád a folyosón – a sugár elhaladva perzseli az egységeket és lángba borítja a földet. Az őrszemek kupolái elnyelik a leheletet (és fizetnek érte)."
+  },
+  "poisonCloud": {
+    "name": "Mérgező felhő",
+    "description": "Jelölj ki egy hatalmas kört. Mérgező felhők gyűlnek a fejed felett, és apró savcseppeket hullatnak a területre – ritka tócsák, amelyek a Savfolthoz hasonlóan korrodálják a talajon és a levegőben lévő egységeket, de egy sokkal szélesebb területen."
+  }
+}

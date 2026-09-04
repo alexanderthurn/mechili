@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Kerahkan pasukan secara rahasia dan saksikan jalannya ronde. Musuhmu melakukan hal yang sama. Beradaptasi, ulangi sampai salah satu dari kalian kehabisan HP.",
+  "hero": {
+    "wishlist": "Daftar keinginan sekarang",
+    "trailer": "Tonton Trailernya",
+    "steamSoon": "Halaman Steam akan segera hadir."
+  },
+  "screenshots": {
+    "title": "Tangkapan layar",
+    "sub": "Meninjau pengerahan pasukan dan pertempuran.",
+    "browse": "Lihat tangkapan layar",
+    "open": "Buka tangkapan layar: {{label}}",
+    "fallback": "Tangkapan layar",
+    "missing": "{{label}} ⬢ seret file ke assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Pengerahan tentara di lahan terbuka hutan.",
+    "2": "Fase penyebaran dan bengkel unit",
+    "3": "Semburan api naga di atas lapangan.",
+    "4": "Zona penempatan berdampingan",
+    "5": "Pertempuran besar-besaran di dataran",
+    "6": "Benteng musim dingin di tengah salju",
+    "7": "Dua basis pada grid",
+    "8": "Pangkalan besar yang diper fortified"
+  },
+  "lightbox": {
+    "gallery": "Galeri tangkapan layar",
+    "close": "Tutup galeri",
+    "prev": "Tangkapan layar sebelumnya",
+    "next": "Tangkapan layar berikutnya",
+    "dots": "Tangkapan layar",
+    "fullhd": "Resolusi Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Unit, bangunan & mantra",
+    "sub": "Pasukanmu, bangunan, paket {{horde}}, dan model mantra pertempuran. Pilih satu untuk diperiksa — Penunggang Gagak dan Naga mengepak dalam pratinjau ini.",
+    "canvas": "Pratinjau Unit 3D",
+    "loading": "Memuat model…",
+    "hint": "Geser untuk memutar · Gulir untuk memperbesar",
+    "select": "Pilih unit, bangunan, atau mantra.",
+    "list": "Unit, bangunan, dan mantra",
+    "buildings": "Bangunan",
+    "units": "Satuan",
+    "spells": "Mantra"
+  },
+  "stats": {
+    "cost": "Biaya",
+    "hp": "HP",
+    "damage": "Kerusakan",
+    "range": "Jangkauan",
+    "attackInterval": "Interval serangan",
+    "seconds": "{{value}}s",
+    "speed": "Kecepatan",
+    "abilities": "Kemampuan",
+    "spellModel": "Model mantra"
+  },
+  "flag": {
+    "flying": "Penerbangan",
+    "structure": "Struktur",
+    "extra": "Tambahan",
+    "attacksGround": "Serangan darat",
+    "attacksAir": "Serangan udara",
+    "shield": "Kubah bangsal",
+    "rocket": "Baut pelacak"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Serangan Naga",
+      "blurb": "Semburan api yang mengarah ke samping. Kepakan sayap menggunakan jalur shader yang sama dengan Crow Rider (mode mesh)."
+    },
+    "hammer": {
+      "name": "Palu Para Dewa",
+      "blurb": "Palu ilahi yang dijatuhkan ke zona yang telah ditentukan."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Satu hantaman meteor besar."
+    },
+    "meteor-shard": {
+      "name": "Pecahan Hujan Meteor",
+      "blurb": "Meteor yang lebih kecil digunakan oleh rentetan hujan meteor."
+    },
+    "storm": {
+      "name": "Panggilan Badai",
+      "blurb": "Awan badai yang melontarkan petir."
+    },
+    "poison": {
+      "name": "Awan Beracun",
+      "blurb": "Awan beracun di langit yang menghujani asam dalam jumlah sedikit di atas lingkaran besar."
+    }
+  },
+  "commanders": {
+    "sub": "Sebelum ronde pertama, setiap pemain memilih {{commander}}. Ini menentukan pasukan awal Anda, jumlah HP, spesialisasi permanen, dan tiga bengkel Stronghold {{tactics}} (lemah / sedang / kuat). Rekan satu tim berbagi persatuan bengkel {{tactics}} mereka.",
+    "select": "Pilih {{commander}}"
+  },
+  "runes": {
+    "sub": "Disatukan dengan sebuah paket untuk selamanya, mengangkat setiap mech di dalamnya {{sep}} sebagian besar paket memuat {{packLimit}}, ballista {{ballistaLimit}}. Empat rune dasar diambil dari kartu bulat atau dibeli di toko; rune yang lebih kuat ditempa dari rune tersebut di Benteng, dan tidak pernah dijual.",
+    "select": "Pilih {{item}}",
+    "base": "Basis",
+    "advanced": "Canggih",
+    "shopTitle": "Dibeli di toko, atau diambil dari kartu bundar.",
+    "shopLabel": "Harga toko",
+    "forgeTitle": "Ditempa di {{building}}",
+    "forgeLabel": "Harga tempa"
+  },
+  "tactics": {
+    "sub": "Ini adalah kemampuan pada strip {{tactics}} Anda. {{sep}} melakukan serangan, melancarkan mantra, memanggil, dan melancarkan serangan tempur seperti semburan api naga. Mantra tempur dibeli di Benteng Anda, masing-masing satu kali, dan hanya tiga yang diketahui oleh komandan Anda. Ikon sesuai dengan yang Anda lihat di dalam game.",
+    "select": "Pilih {{tactic}}",
+    "placement": "Penempatan",
+    "oneShot": "Satu kali tayang",
+    "buyTitle": "Dibeli di {{building}}",
+    "priceLabel": "{{building}} harga"
+  },
+  "targeting": {
+    "point": "titik",
+    "two-point": "dua poin",
+    "three-point": "tiga poin",
+    "point-yaw": "titik + menghadap",
+    "own-unit": "tas sendiri"
+  },
+  "roundCards": {
+    "title": "Kartu bundar",
+    "sub": "Mulai ronde kedua dan seterusnya, pilih salah satu dari beberapa kartu {{items}} yang ditawarkan yang diambil dari kumpulan kartu pertandingan. Mantra pertempuran dibeli di Benteng, bukan dipilih dari kartu.",
+    "select": "Pilih kartu bundar."
+  },
+  "matchSettings": {
+    "title": "Pengaturan pertandingan",
+    "sub": "Aturan default untuk sebuah pertandingan, diambil langsung dari kode pengaturan game sehingga tidak akan menyimpang dari apa yang sebenarnya dirilis. Semuanya di sini dapat disesuaikan — ini adalah perangkat lunak sumber terbuka."
+  },
+  "contribute": {
+    "title": "Menyumbang",
+    "sub1": "Melodan dikembangkan oleh satu orang, yaitu saya. Saya sangat menyukai game ini, tetapi saya tidak bisa membuat game AAA dan menjaga semuanya tetap sempurna, seimbang, dan sebagainya. Idenya adalah untuk membuat game terbuka di mana siapa pun dapat berkontribusi.",
+    "sub2": "Mari kita buat ini bersama-sama. Keseimbangan, bug, fitur, ide seni {{sep}} kirim catatan singkat dan saya akan membacanya. Jika Anda ingin melakukan lebih banyak, silakan!",
+    "play": "Uji di Browser",
+    "feedback": "Kirim masukan",
+    "discord": "Perselisihan",
+    "devlog": "Catatan Pengembang",
+    "waysTitle": "Cara untuk membantu",
+    "way1": "Bagikan ide dan laporan bug.",
+    "way2": "Buka permintaan pull request pada {{github}} (GPL-3.0)",
+    "way3": "Membuat atau meningkatkan model 3D",
+    "way4": "Jaga keseimbangan, ciptakan mantra, kartu, dan ide baru.",
+    "way5": "Selamat datang para pemain, tulis panduan, bantu moderasi jika Anda ingin melakukannya."
+  },
+  "about": {
+    "title": "Tentang",
+    "lead": "MELODAN diproduksi oleh Alexander Thurn (Feuerware). Ia berlokasi di Bonn, Jerman.",
+    "inspired": "Gim ini terinspirasi oleh {{mechabellum}}, gim terbaik dalam genre ini. MELODAN adalah gim fantasi independen; mohon dukung gim aslinya dan beli Mechabelum. Terima kasih!",
+    "openSource": "Gim ini berlisensi {{github}} (GPL-3.0). Hak cipta tetap milik Alexander Thurn / Feuerware. Silakan fork secara pribadi, ciptakan unit baru, dan buka pull request. Untuk sesuatu yang lebih besar, spin-off non-komersial atau komersial, rebranding penuh, dll., silakan hubungi saya: {{email}}.",
+    "openSourceLink": "sumber terbuka di GitHub"
+  },
+  "footer": {
+    "play": "Bermain",
+    "steam": "Uap",
+    "feedback": "Masukan",
+    "imprint": "Jejak",
+    "privacy": "Privasi data"
+  }
+}

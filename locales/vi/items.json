@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Trái đất",
+    "description": "Tăng 10% HP."
+  },
+  "fire": {
+    "name": "Ngọn lửa",
+    "description": "Tăng 10% sức tấn công."
+  },
+  "water": {
+    "name": "Nước",
+    "description": "Tăng 5% sức tấn công và máu."
+  },
+  "wind": {
+    "name": "Gió",
+    "description": "Khoảng +10%."
+  },
+  "addi": {
+    "name": "Lòng dũng cảm",
+    "description": "Tăng 15% sức tấn công và máu."
+  },
+  "power": {
+    "name": "Cuộc tàn sát",
+    "description": "Tăng 75% sức tấn công."
+  },
+  "vigor": {
+    "name": "Máu Khổng Lồ",
+    "description": "Tăng 100% HP."
+  },
+  "colossus": {
+    "name": "Áo giáp Mithril",
+    "description": "+250% HP."
+  },
+  "wrath": {
+    "name": "Cuồng nộ",
+    "description": "Tăng 300% sức tấn công."
+  },
+  "golden": {
+    "name": "Đá Mặt Trời",
+    "description": "Miễn nhiễm với hiệu ứng giảm sức mạnh của tháp phòng thủ và chịu ít hơn 30% sát thương. Pháp sư không thể chuyển hóa năng lượng — tia sáng sẽ gây sát thương thay vào đó."
+  },
+  "bulwark": {
+    "name": "Thành lũy",
+    "description": "Khiên: Mỗi đơn vị nhận thêm một lượng máu thứ hai bằng với lượng máu hiện có. Các đòn tấn công tầm xa sẽ làm giảm khiên trước; các đòn tấn công cận chiến, lửa và axit sẽ bỏ qua hiệu ứng này."
+  }
+}

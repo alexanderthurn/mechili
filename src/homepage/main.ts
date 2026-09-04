@@ -31,6 +31,7 @@ import {
     commanderTitle,
     itemDescription,
     itemName,
+    midTerm,
     roundCardTitle,
     tacticDescription,
     tacticName,
@@ -511,12 +512,12 @@ app.innerHTML = `
     <h2>${esc(DISPLAY.commanders)}</h2>
     <p class="mh-sub">${esc(
         t('homepage:commanders.sub', {
-            commander: DISPLAY.commander.toLowerCase(),
-            tactics: DISPLAY.tactics.toLowerCase(),
+            commander: midTerm(DISPLAY.commander),
+            tactics: midTerm(DISPLAY.tactics),
         }),
     )}</p>
     <select class="mh-card-select" id="mh-specialists-select" aria-label="${esc(
-        t('homepage:commanders.select', { commander: DISPLAY.commander.toLowerCase() }),
+        t('homepage:commanders.select', { commander: midTerm(DISPLAY.commander) }),
     )}">
       ${START_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(commanderTitle(c.id, c.title))}</option>`).join('')}
     </select>
@@ -538,7 +539,7 @@ app.innerHTML = `
         ballistaLimit: itemSlotLimit('ballista'),
     })}</p>
     <select class="mh-card-select" id="mh-runes-select" aria-label="${esc(
-        t('homepage:runes.select', { item: DISPLAY.item.toLowerCase() }),
+        t('homepage:runes.select', { item: midTerm(DISPLAY.item) }),
     )}">
       ${ALL_RUNES.map(({ item }) => `<option value="${esc(item.id)}">${esc(itemName(item.id, item.name))}</option>`).join('')}
     </select>
@@ -551,10 +552,10 @@ app.innerHTML = `
     <h2>${esc(DISPLAY.tactics)}</h2>
     <p class="mh-sub">${t('homepage:tactics.sub', {
         sep: SEP,
-        tactics: DISPLAY.tactics.toLowerCase(),
+        tactics: midTerm(DISPLAY.tactics),
     })}</p>
     <select class="mh-card-select" id="mh-tactics-select" aria-label="${esc(
-        t('homepage:tactics.select', { tactic: DISPLAY.tactic.toLowerCase() }),
+        t('homepage:tactics.select', { tactic: midTerm(DISPLAY.tactic) }),
     )}">
       ${ALL_TACTICS.map((tactic) => `<option value="${esc(tactic.id)}">${esc(tacticName(tactic.id, tactic.name))}</option>`).join('')}
     </select>
@@ -565,7 +566,7 @@ app.innerHTML = `
 
   <section class="mh-section" id="round-cards">
     <h2>${esc(t('homepage:roundCards.title'))}</h2>
-    <p class="mh-sub">${esc(t('homepage:roundCards.sub', { items: DISPLAY.items.toLowerCase() }))}</p>
+    <p class="mh-sub">${esc(t('homepage:roundCards.sub', { items: midTerm(DISPLAY.items) }))}</p>
     <select class="mh-card-select" id="mh-round-cards-select" aria-label="${esc(t('homepage:roundCards.select'))}">
       ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(roundCardTitle(c.id, c.title))}</option>`).join('')}
     </select>

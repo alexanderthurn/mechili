@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Erde",
+    "description": "+10% HP."
+  },
+  "fire": {
+    "name": "Feuer",
+    "description": "+10% Angriff."
+  },
+  "water": {
+    "name": "Wasser",
+    "description": "+5 % Angriff und HP."
+  },
+  "wind": {
+    "name": "Wind",
+    "description": "+10% Spanne."
+  },
+  "addi": {
+    "name": "Tapferkeit",
+    "description": "+15 % Angriff und HP."
+  },
+  "power": {
+    "name": "Blutbad",
+    "description": "+75% Angriff."
+  },
+  "vigor": {
+    "name": "Riesenblut",
+    "description": "+100% HP."
+  },
+  "colossus": {
+    "name": "Mithril-Kürass",
+    "description": "+250% HP."
+  },
+  "wrath": {
+    "name": "Berserker",
+    "description": "+300% Angriff."
+  },
+  "golden": {
+    "name": "Sonnenstein",
+    "description": "Immun gegen Turm-Debuffs und erleidet 30 % weniger Schaden. Zauberer können nicht konvertieren – der Strahl verursacht stattdessen Schaden."
+  },
+  "bulwark": {
+    "name": "Bollwerk",
+    "description": "Schild: Jede Einheit erhält einen zweiten Lebenspunktepool in Höhe ihrer Gesamt-LP. Fernkampfangriffe verbrauchen zuerst den Schild; Nahkampfangriffe, Feuer und Säure ignorieren ihn."
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rallyrute",
+    "description": "Start-, midt- og sluttsoner for plassene. Enhetene i startsirkelen marsjerer gjennom matchende forskyvninger i midten, deretter mot slutten, og kjemper underveis."
+  },
+  "oilSpill": {
+    "name": "Oljesøl",
+    "description": "Plasser to oljesirkler – marker dem under utplassering; kort tid etter at kampen starter drypper olje fra venstre mot høyre ned på stien (forsvarsskiver forblir klare). Sammenkoblet olje antennes som ett felt når ild berører det."
+  },
+  "sellUnit": {
+    "name": "Selg pakke",
+    "description": "Klikk for å aktivere, og klikk deretter på en av pakkene dine for å selge den og få refusjon for forsyninger."
+  },
+  "moveUnit": {
+    "name": "Flyttpakke",
+    "description": "Klikk for å bevæpne, og klikk deretter på en av pakkene dine fra en tidligere runde – den kan dras og roteres igjen resten av runden."
+  },
+  "tutor": {
+    "name": "Feltleksjon",
+    "description": "Klikk for å bevæpne, og klikk deretter på en av pakkene dine – XP-linjen fylles til neste nivå. Å kjøpe nivået koster fortsatt forsyning."
+  },
+  "spawnDwarves": {
+    "name": "Tilkall dverger",
+    "description": "Merk en sirkel hvor som helst utenfor fiendens base. Kort tid etter at kampen startet, bryter en krigsgruppe av dverger ut av bakken der, én etter én – de kjemper kun dette slaget."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Merk en liten sirkel hvor som helst. Sekunder inn i kampen utsletter en meteor alt der – bare kupler beskytter (og betaler for det)."
+  },
+  "spawnCrows": {
+    "name": "Tilkall kråkeryttere",
+    "description": "Merk en sirkel hvor som helst utenfor fiendens base. Kort tid etter at kampen har startet, stuper kråkerytterne ned fra himmelen, én etter én – de kjemper kun i dette slaget."
+  },
+  "hammerOfGods": {
+    "name": "Gudenes hammer",
+    "description": "Klikk for å plassere, flytt for å rotere, klikk igjen for å låse. En guddommelig hammer faller ned på sonen sekunder inn i kampen."
+  },
+  "storm": {
+    "name": "Stormkall",
+    "description": "Merk en bred sirkel hvor som helst. Små stormskyer samler seg høyt over og slynger lyn mot tilfeldige steder – lyn gjør ingen skade, men støter enheter i et bredt plask med en tårnlignende debuff med mindre de har en gyllen aura. Avdelingskupler blokkerer fortsatt angrepene."
+  },
+  "meteorShower": {
+    "name": "Meteorsverm",
+    "description": "Merk en bred sirkel hvor som helst. Meteorer regner ned på tilfeldige steder inni en stund, og hver eksplosjon brenner bakken den treffer."
+  },
+  "acidSpill": {
+    "name": "Syreutslipp",
+    "description": "Hell en syrekapsel som et oljesøl – det drypper fra venstre mot høyre ned på bakken kort tid etter at kampen starter. Bakke- og luftenheter over sølepytten freser og korroderer – og tar ekstra skade fra alt."
+  },
+  "fireSpill": {
+    "name": "Brannutslipp",
+    "description": "Hell en ildkapsel som olje – den drypper fra venstre mot høyre kort tid etter at kampen starter og setter fyr på stien (beskyttelsesskiver forblir klare). Tilkoblet olje antennes med den. Flammen varer bare i denne kampen."
+  },
+  "dragonAttack": {
+    "name": "Drageangrep",
+    "description": "Tegn dragens angrepssti (bredere og lengre enn olje). Den stuper nedi og puster ild langs korridoren – strålen svir enheter når den passerer og maler bakken i flammer. Avdelingskupler absorberer pusten (og betaler for den)."
+  },
+  "poisonCloud": {
+    "name": "Giftsky",
+    "description": "Merk en stor sirkel. Giftige skyer samler seg over dem og regner små syredråper over området – sparsomme pytter som korroderer bakken og luftenheter som syreutslipp, men over et mye større felt."
+  }
+}

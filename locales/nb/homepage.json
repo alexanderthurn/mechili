@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Utplasser hærer i hemmelighet og se runden utspille seg. Fienden din gjør det samme. Tilpass deg, gjenta til en av dere går tom for HP.",
+  "hero": {
+    "wishlist": "Ønskeliste nå",
+    "trailer": "Se traileren",
+    "steamSoon": "Steam-side kommer snart"
+  },
+  "screenshots": {
+    "title": "Skjermbilder",
+    "sub": "Et blikk på utplassering og kamp.",
+    "browse": "Bla gjennom skjermbilder",
+    "open": "Åpne skjermbilde: {{label}}",
+    "fallback": "Skjermbilde",
+    "missing": "{{label}} ⬢ slipp filen i ressurser/markedsføring/skjermbilder/"
+  },
+  "shot": {
+    "1": "Hærens utplassering i skogrydding",
+    "2": "Implementeringsfase og enhetsbutikk",
+    "3": "Dragens ildpust over feltet",
+    "4": "Side-om-side distribusjonssoner",
+    "5": "Massekamp på slettene",
+    "6": "Vinterfestning i snøen",
+    "7": "Doble baser på rutenettet",
+    "8": "Stor befestet base"
+  },
+  "lightbox": {
+    "gallery": "Skjermbildegalleri",
+    "close": "Lukk galleriet",
+    "prev": "Forrige skjermbilde",
+    "next": "Neste skjermbilde",
+    "dots": "Skjermbilder",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Enheter, bygninger og trollformler",
+    "sub": "Hæren din, bygningene, {{horde}}-pakkene og modeller av kampformler. Velg én å inspisere – Kråkerytteren og Dragen flagrer i denne forhåndsvisningen.",
+    "canvas": "Forhåndsvisning av enhet 3D",
+    "loading": "Laster inn modell…",
+    "hint": "Dra for å rotere · Bla for å zoome",
+    "select": "Velg en enhet, bygning eller trylleformel",
+    "list": "Enheter, bygninger og trollformler",
+    "buildings": "bygninger",
+    "units": "Enheter",
+    "spells": "Formler"
+  },
+  "stats": {
+    "cost": "Koste",
+    "hp": "HP",
+    "damage": "Skader",
+    "range": "Spekter",
+    "attackInterval": "Angrepsintervall",
+    "seconds": "{{value}}s",
+    "speed": "Fart",
+    "abilities": "Evner",
+    "spellModel": "Stavemodell"
+  },
+  "flag": {
+    "flying": "Flyr",
+    "structure": "Struktur",
+    "extra": "Ekstra",
+    "attacksGround": "Angriper bakken",
+    "attacksAir": "Angriper luft",
+    "shield": "Avdelingskuppel",
+    "rocket": "Hjemmebolt"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Drageangrep",
+      "blurb": "Strafende ildpust. Vingeklaff bruker samme skyggeleggingsbane som Crow Rider (nettmodus)."
+    },
+    "hammer": {
+      "name": "Gudenes hammer",
+      "blurb": "Guddommelig hammer som faller ned på en plassert sone."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Et enkelt kraftig meteornedslag."
+    },
+    "meteor-shard": {
+      "name": "Meteorsvermskår",
+      "blurb": "Mindre meteor brukt av dusjsperren."
+    },
+    "storm": {
+      "name": "Stormkall",
+      "blurb": "Stormsky som slynger lyn."
+    },
+    "poison": {
+      "name": "Giftsky",
+      "blurb": "Giftige himmelskyer som regner sparsom syre over en enorm sirkel."
+    }
+  },
+  "commanders": {
+    "sub": "Før runde én velger hver spiller en {{commander}}. Den angir starthæren din, HP-poolen, en permanent spesialitet og tre festningssmeder {{tactics}} (svak / middels / sterk). Lagkameratene deler foreningen av smien sin {{tactics}}.",
+    "select": "Velg en {{commander}}"
+  },
+  "runes": {
+    "sub": "Smeltet sammen med en pakke for godt, og løfter hver mech i den {{sep}}, de fleste pakker rommer {{packLimit}}, ballistaen {{ballistaLimit}}. De fire basisrunene er utarbeidet fra runde kort eller kjøpt i butikken; de sterkere er smidd fra dem i Festningen, og selges aldri.",
+    "select": "Velg en {{item}}",
+    "base": "Base",
+    "advanced": "Avansert",
+    "shopTitle": "Kjøpt i butikken, eller utkastet fra et rundt kort",
+    "shopLabel": "Butikkpris",
+    "forgeTitle": "Smidd på {{building}}",
+    "forgeLabel": "Smipris"
+  },
+  "tactics": {
+    "sub": "Dette er ferdighetene på din {{tactics}} stripe {{sep}} samlinger, spill, innkallinger og kampkast som dragens ildpust. Kampformler kjøpes i ditt festningssted, én gang hver, og bare de tre kommandøren din kjenner. Ikonene samsvarer med det du ser i spillet.",
+    "select": "Velg en {{tactic}}",
+    "placement": "Plassering",
+    "oneShot": "Ett-skudd",
+    "buyTitle": "Kjøpt hos {{building}}",
+    "priceLabel": "{{building}} pris"
+  },
+  "targeting": {
+    "point": "punkt",
+    "two-point": "to-poengs",
+    "three-point": "trepoengs",
+    "point-yaw": "punkt + vendt",
+    "own-unit": "egen pakke"
+  },
+  "roundCards": {
+    "title": "Runde kort",
+    "sub": "Fra runde to og utover, draft ett av flere tilbudte {{items}}-kort trukket fra kamppotten. Kampformler kjøpes i Festningen, ikke draftes fra kort.",
+    "select": "Velg et rundt kort"
+  },
+  "matchSettings": {
+    "title": "Kampinnstillinger",
+    "sub": "Standardreglene for en kamp, hentet rett fra spillets innstillingskode, slik at dette ikke kan avvike fra det som faktisk leveres. Alt her er justerbart – det er åpen kildekode."
+  },
+  "contribute": {
+    "title": "Medvirke",
+    "sub1": "Melodan er utviklet av én person, meg. Jeg brenner for dette spillet, men jeg kan ikke lage en AAA-tittel og holde alt perfekt, balansert og så videre. Tanken er å ha et åpent spill der alle kan bidra.",
+    "sub2": "La oss lage dette sammen. Balanse, feil, funksjoner, kunstideer {{sep}} send en kort melding, så leser jeg den. Hvis du vil gjøre mer, er du velkommen!",
+    "play": "Test i nettleser",
+    "feedback": "Send tilbakemelding",
+    "discord": "Disharmoni",
+    "devlog": "Utviklerlogg",
+    "waysTitle": "Måter å hjelpe på",
+    "way1": "Del ideer og feilrapporter",
+    "way2": "Åpne pull-forespørsler på {{github}} (GPL-3.0)",
+    "way3": "Lag eller forbedre 3D-modeller",
+    "way4": "Ta vare på balansen, finn opp nye trollformler, kort, ideer.",
+    "way5": "Ønsk spillere velkommen, skriv guider, hjelp til med moderering hvis du vil ta på deg det."
+  },
+  "about": {
+    "title": "Om",
+    "lead": "MELODAN er laget av Alexander Thurn (Feuerware). Han holder til i Bonn, Tyskland.",
+    "inspired": "Dette spillet er inspirert av {{mechabellum}}, det beste spillet i sjangeren. MELODAN er en uavhengig fantasy-versjon; støtt originalen og kjøp Mechabelum. Takk!",
+    "openSource": "Spillet er {{github}} (GPL-3.0). Opphavsretten tilhører Alexander Thurn / Feuerware. Du kan gjerne forke det privat, finne opp nye enheter og åpne pull requests. For noe større, en ikke-kommersiell spin-off, en fullstendig rebranding osv., kan du gjerne skrive til meg: {{email}}.",
+    "openSourceLink": "åpen kildekode på GitHub"
+  },
+  "footer": {
+    "play": "Spille",
+    "steam": "Damp",
+    "feedback": "Tilbakemelding",
+    "imprint": "Avtrykk",
+    "privacy": "Databeskyttelse"
+  }
+}

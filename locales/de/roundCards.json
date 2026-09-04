@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Zwergenbande",
+    "description": "Vier Zwergenrudel verstärken deine Armee.",
+    "unitsLabel": "4× Zwerge"
+  },
+  "archers4": {
+    "title": "Archer Company",
+    "description": "Vier Bogenschützen verstärken deine Armee.",
+    "unitsLabel": "4 Bogenschützen"
+  },
+  "crowRiders2": {
+    "title": "Krähenflügel",
+    "description": "Zwei Krähenreiter-Schwärme schließen sich deiner Armee an.",
+    "unitsLabel": "2× Krähenreiter"
+  },
+  "ballista1": {
+    "title": "Belagerungsballiste",
+    "description": "Eine Balliste verstärkt deine Armee.",
+    "unitsLabel": "1× Balliste"
+  },
+  "flanky": {
+    "title": "Flanky",
+    "description": "Beim ersten Spawnen auf der Flanke dauert es nur die Hälfte der Zeit (2,5 Sekunden)."
+  },
+  "rallyRoute": {
+    "title": "Rallye-Strecke",
+    "description": "Legt eine Marschroute fest: Einheiten in der Startzone marschieren zur Endzone und kämpfen dabei."
+  },
+  "sellPack": {
+    "title": "Rückkauf",
+    "description": "Einmaliger Zauber: Verkaufe eines deiner Pakete und erhalte dafür eine Rückerstattung deiner Vorräte."
+  },
+  "movePack": {
+    "title": "Marschbefehl",
+    "description": "Einmaliger Zauber: Ein Kartenstapel aus einer früheren Runde kann in dieser Runde erneut positioniert werden."
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Гарнізонний лучник"
+  },
+  "hordeWebweaver": {
+    "name": "Павутинник"
+  },
+  "hordeBrutSpawn": {
+    "name": "Чорний виводок"
+  },
+  "hordeSpinne": {
+    "name": "Чорний павук"
+  },
+  "hordeFarmer": {
+    "name": "Мертвий фермер"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Мертвий фермер"
+  },
+  "hordeKomtur": {
+    "name": "Ганс фон Штоффельн"
+  },
+  "dwarf": {
+    "name": "Карлик"
+  },
+  "archer": {
+    "name": "Лучник"
+  },
+  "wizard": {
+    "name": "Чарівник"
+  },
+  "crowRider": {
+    "name": "Вершник на воронах"
+  },
+  "ballista": {
+    "name": "Баліста"
+  },
+  "shield": {
+    "name": "Ворд Стоун"
+  },
+  "rocket": {
+    "name": "Вогняна болт"
+  },
+  "command-tower": {
+    "name": "Авангард"
+  },
+  "research-center": {
+    "name": "Гаррісон"
+  },
+  "stronghold": {
+    "name": "Твердиня"
+  },
+  "hordeZombie": {
+    "name": "Чорний виводок"
+  }
+}

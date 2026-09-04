@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Kääpiöorkesteri",
+    "description": "Neljä kääpiölaumaa liittyy armeijaasi.",
+    "unitsLabel": "4× Kääpiöt"
+  },
+  "archers4": {
+    "title": "Archer Company",
+    "description": "Neljä jousimiestä liittyy armeijaasi.",
+    "unitsLabel": "4× Jousimiehet"
+  },
+  "crowRiders2": {
+    "title": "Variksen siipi",
+    "description": "Kaksi Varisratsastajien parvea liittyy armeijaasi.",
+    "unitsLabel": "2× Varisratsastajat"
+  },
+  "ballista1": {
+    "title": "Piiritysballista",
+    "description": "Ballista liittyy armeijaasi.",
+    "unitsLabel": "1× Ballista"
+  },
+  "flanky": {
+    "title": "Reunustava",
+    "description": "Ensimmäiset kylkikuten ilmestymiset kestävät puolet normaalista ajasta (2,5 sekuntia)."
+  },
+  "rallyRoute": {
+    "title": "Rallireitti",
+    "description": "Aseta marssireitti: lähtöalueella olevat yksiköt suuntaavat maalialueelle ja taistelevat matkan varrella."
+  },
+  "sellPack": {
+    "title": "Takaisinosto",
+    "description": "Kertaluonteinen loitsu: myy yksi pakkauksistasi ja saat tarvikehyvityksen."
+  },
+  "movePack": {
+    "title": "Marssimääräykset",
+    "description": "Kertaluonteinen loitsu: yhden aiemman kierroksen pakan voi siirtää tällä kierroksella."
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Upgrade-Stufe",
+    "description": "Erhöht man dieses Gebäude um eine Stufe, erhält es seine Basis-HP zurück. Der Preis beginnt bei {{baseCost}} und steigt mit jeder Stufe um {{costStep}} (maximale Stufe {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Verkauf",
+    "description": "Verkaufspakete dauerhaft freischalten (bis zu {{maxPerRound}} pro Einsatzphase). Die Rückerstattung beträgt {{refundPct}}% der Basiskosten."
+  },
+  "attack_boost": {
+    "name": "Angriffsverstärkung",
+    "description": "Permanenter Schadensbonus für die gesamte Armee. Erste Stufe +{{attackPct}}%; Stufen der Reihe nach kaufen (kostet {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP-Boost",
+    "description": "Permanenter HP-Bonus für die gesamte Armee. Erste Stufe +{{hpPct}}%; Stufen der Reihe nach kaufen (kostet {{costs}})."
+  },
+  "range_boost": {
+    "name": "Reichweitenerhöhung",
+    "description": "+{{amount}} Reichweite für alle Fernkampfeinheiten, nur in dieser Runde."
+  },
+  "speed_boost": {
+    "name": "Geschwindigkeitsschub",
+    "description": "+{{amount}} Geschwindigkeit für alle Einheiten, nur in dieser Runde."
+  },
+  "loan": {
+    "name": "Darlehen",
+    "description": "+{{gain}} Jetzt liefern. Nächste Bereitstellung: −{{debt}}. Einmal pro Runde."
+  },
+  "ward_dome": {
+    "name": "Kuppel des Ward",
+    "description": "Absorbiert gegnerische Projektile, die in einen kuppelförmigen Bereich eindringen (Radius {{radius}}, Höhe {{height}}). Der Wert für „Pool“ entspricht den Trefferpunkten dieser Einheit."
+  },
+  "homing_fire_bolt": {
+    "name": "Zielsuchender Feuerbolzen",
+    "description": "Waffen in Position, dann zielt er auf den ersten Feind in Reichweite {{range}} für {{damage}} Schaden (Flächenschaden {{splash}})."
+  },
+  "rally_route": {
+    "name": "Rallye-Strecke",
+    "description": "Füge deiner Zauberleiste eine Rallye-Route-Ladung hinzu. Einmal pro Spiel."
+  },
+  "move_pack": {
+    "name": "Umzugspaket",
+    "description": "Füge deiner Zauberleiste eine Bewegungspaketladung hinzu: Ein Paket aus einer früheren Runde wird wieder beweglich. Einmal pro Spielzug."
+  },
+  "1_deployment": {
+    "name": "+1 Bereitstellung",
+    "description": "Nur eine zusätzliche Einheit in dieser Runde erhältlich."
+  },
+  "veteran_training": {
+    "name": "Veteranenausbildung",
+    "description": "Im weiteren Verlauf dieser Runde erreichen die gekauften Einheiten Stufe 2 (sie zahlen weiterhin den Stufenaufschlag)."
+  },
+  "send_supply_to_ally": {
+    "name": "Nachschub an Verbündeten senden",
+    "description": "Schenke deinem Verbündeten 100 Vorräte – diese treffen zu Beginn der nächsten Runde ein. Nur im Duo-Modus."
+  }
+}

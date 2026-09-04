@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Archer de la garnison"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Couvée noire"
+  },
+  "hordeSpinne": {
+    "name": "Araignée noire"
+  },
+  "hordeFarmer": {
+    "name": "Fermier mort"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Fermier mort"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Nain"
+  },
+  "archer": {
+    "name": "Archer"
+  },
+  "wizard": {
+    "name": "Magicien"
+  },
+  "crowRider": {
+    "name": "Crow Rider"
+  },
+  "ballista": {
+    "name": "Baliste"
+  },
+  "shield": {
+    "name": "Pierre de garde"
+  },
+  "rocket": {
+    "name": "Éclair de feu"
+  },
+  "command-tower": {
+    "name": "Avant-garde"
+  },
+  "research-center": {
+    "name": "Garnison"
+  },
+  "stronghold": {
+    "name": "Bastion"
+  },
+  "hordeZombie": {
+    "name": "Couvée noire"
+  }
+}

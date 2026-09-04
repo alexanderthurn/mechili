@@ -1,7 +1,15 @@
 /**
  * Content display helpers. English on defs remains the fallback when a key is missing.
  */
-import { t } from './index';
+import { getLanguage, t } from './index';
+
+/**
+ * Casing for vocabulary terms interpolated mid-sentence.
+ * English lowercases ("a commander"); German keeps noun capitals ("einen Kommandant").
+ */
+export function midTerm(value: string): string {
+    return getLanguage() === 'en' ? value.toLowerCase() : value;
+}
 
 export function term(
     id:

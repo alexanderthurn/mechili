@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Setzt eure Armeen heimlich ein und beobachtet den Spielverlauf. Euer Gegner verfährt genauso. Passt euch an und wiederholt das Ganze, bis einer von euch keine Lebenspunkte mehr hat.",
+  "hero": {
+    "wishlist": "Jetzt auf die Wunschliste setzen",
+    "trailer": "Trailer ansehen",
+    "steamSoon": "Steam-Seite folgt in Kürze"
+  },
+  "screenshots": {
+    "title": "Screenshots",
+    "sub": "Ein Blick auf Einsatz und Kampf.",
+    "browse": "Screenshots ansehen",
+    "open": "Screenshot öffnen: {{label}}",
+    "fallback": "Screenshot",
+    "missing": "{{label}} ⬢ Datei in assets/marketing/screenshots/ ablegen"
+  },
+  "shot": {
+    "1": "Armeeeinsatz auf der Waldlichtung",
+    "2": "Einsatzphase und Werkstatt",
+    "3": "Drachenfeueratem über dem Feld",
+    "4": "Nebeneinanderliegende Einsatzzonen",
+    "5": "Massenschlacht in der Ebene",
+    "6": "Winterfestung im Schnee",
+    "7": "Doppelbasen auf dem Gitter",
+    "8": "Großer befestigter Stützpunkt"
+  },
+  "lightbox": {
+    "gallery": "Screenshot-Galerie",
+    "close": "Galerie schließen",
+    "prev": "Vorheriger Screenshot",
+    "next": "Nächster Screenshot",
+    "dots": "Screenshots",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Einheiten, Gebäude & Zaubersprüche",
+    "sub": "Deine Armee, Gebäude, {{horde}}-Pakete und Kampfzauber-Modelle. Wähle eines aus, um es genauer anzusehen – Krähenreiter und Drache sind in dieser Vorschau zu sehen.",
+    "canvas": "3D-Vorschau der Einheit",
+    "loading": "Modell wird geladen…",
+    "hint": "Zum Drehen ziehen · Zum Zoomen scrollen",
+    "select": "Wähle eine Einheit, ein Gebäude oder einen Zauber.",
+    "list": "Einheiten, Gebäude und Zaubersprüche",
+    "buildings": "Gebäude",
+    "units": "Einheiten",
+    "spells": "Zaubersprüche"
+  },
+  "stats": {
+    "cost": "Kosten",
+    "hp": "HP",
+    "damage": "Schaden",
+    "range": "Reichweite",
+    "attackInterval": "Angriffsintervall",
+    "seconds": "{{value}}s",
+    "speed": "Geschwindigkeit",
+    "abilities": "Fähigkeiten",
+    "spellModel": "Zaubermodell"
+  },
+  "flag": {
+    "flying": "Fliegen",
+    "structure": "Struktur",
+    "extra": "Extra",
+    "attacksGround": "Angriffe am Boden",
+    "attacksAir": "Luftangriffe",
+    "shield": "Kuppel des Ward",
+    "rocket": "Zielbolzen"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Drachenangriff",
+      "blurb": "Seitwärts gerichteter Feueratem. Der Flügelschlag verwendet denselben Shader-Pfad wie beim Krähenreiter (Mesh-Modus)."
+    },
+    "hammer": {
+      "name": "Hammer der Götter",
+      "blurb": "Göttlicher Hammer, der auf eine platzierte Zone fällt."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Ein einzelner schwerer Meteoriteneinschlag."
+    },
+    "meteor-shard": {
+      "name": "Meteorstromsplitter",
+      "blurb": "Kleinerer Meteor, der von der Schauerbarriere genutzt wird."
+    },
+    "storm": {
+      "name": "Sturmwarnung",
+      "blurb": "Gewitterwolke, die Blitze schleudert."
+    },
+    "poison": {
+      "name": "Giftwolke",
+      "blurb": "Giftige Himmelswolken, die über einem riesigen Kreis spärlich Säure regnen lassen."
+    }
+  },
+  "commanders": {
+    "sub": "Vor der ersten Runde wählt jeder Spieler einen {{commander}}. Dieser bestimmt seine Startarmee, seine Lebenspunkte, eine permanente Spezialisierung und drei Festungs-Schmiede-{{tactics}} (schwach/mittel/stark). Teammitglieder teilen sich die Vereinigung ihrer Schmiede-{{tactics}}.",
+    "select": "Wählen Sie einen {{commander}}"
+  },
+  "runes": {
+    "sub": "Fest mit einem Paket verschmolzen, hebt es jeden Mech darin an {{sep}}. Die meisten Pakete enthalten {{packLimit}}, die Balliste {{ballistaLimit}}. Die vier Basisrunen werden aus runden Karten gezogen oder im Laden gekauft; die stärkeren werden in der Festung daraus geschmiedet und niemals verkauft.",
+    "select": "Wählen Sie einen {{item}}",
+    "base": "Base",
+    "advanced": "Fortschrittlich",
+    "shopTitle": "Im Laden gekauft oder aus einer Rundenkarte gezogen",
+    "shopLabel": "Ladenpreis",
+    "forgeTitle": "Geschmiedet bei {{building}}",
+    "forgeLabel": "Schmiedepreis"
+  },
+  "tactics": {
+    "sub": "Dies sind die Fähigkeiten auf deinem {{tactics}}-Streifen {{sep}}: Angriffe, Zauber, Beschwörungen und Kampfzauber wie der Feueratem des Drachen. Kampfzauber können in deiner Festung erworben werden, jeweils nur einmal, und nur die drei, die dein Kommandant kennt. Die Symbole entsprechen denen im Spiel.",
+    "select": "Wählen Sie einen {{tactic}}",
+    "placement": "Platzierung",
+    "oneShot": "One-Shot",
+    "buyTitle": "Gekauft bei {{building}}",
+    "priceLabel": "{{building}} Preis"
+  },
+  "targeting": {
+    "point": "Punkt",
+    "two-point": "Zwei-Punkte-Spiel",
+    "three-point": "Dreipunkt",
+    "point-yaw": "Punkt + Ausrichtung",
+    "own-unit": "eigene Packung"
+  },
+  "roundCards": {
+    "title": "Runde Karten",
+    "sub": "Ab der zweiten Runde wählt man eine der angebotenen {{items}}-Karten aus dem Spielpool. Kampfzauber werden in der Festung gekauft und nicht aus Karten gezogen.",
+    "select": "Wähle eine runde Karte"
+  },
+  "matchSettings": {
+    "title": "Spieleinstellungen",
+    "sub": "Die Standardregeln für ein Match stammen direkt aus dem Einstellungscode des Spiels, sodass sie nicht von der finalen Version abweichen können. Alles hier ist anpassbar – es ist Open Source."
+  },
+  "contribute": {
+    "title": "Beitragen",
+    "sub1": "Melodan wird von mir allein entwickelt. Ich brenne für dieses Spiel, aber ich kann kein AAA-Spiel entwickeln, bei dem alles perfekt und ausbalanciert ist. Die Idee ist ein offenes Spiel, an dem jeder mitwirken kann.",
+    "sub2": "Lasst uns das gemeinsam angehen. Balance, Bugs, Features, Grafikideen {{sep}} – schickt mir eine kurze Nachricht, ich lese sie. Wer mehr machen möchte, ist herzlich willkommen!",
+    "play": "Im Browser testen",
+    "feedback": "Feedback senden",
+    "discord": "Zwietracht",
+    "devlog": "Entwickler-Logbuch",
+    "waysTitle": "Möglichkeiten zur Hilfe",
+    "way1": "Ideen und Fehlerberichte austauschen",
+    "way2": "Pull-Requests für {{github}} (GPL-3.0) öffnen",
+    "way3": "3D-Modelle erstellen oder verbessern",
+    "way4": "Sorge für Ausgewogenheit, erfinde neue Zaubersprüche, Karten und Ideen.",
+    "way5": "Willkommen, liebe Spieler! Schreibt Anleitungen und helft bei der Moderation, wenn ihr das übernehmen wollt."
+  },
+  "about": {
+    "title": "Um",
+    "lead": "MELODAN wird von Alexander Thurn (Feuerware) hergestellt. Er hat seinen Sitz in Bonn, Deutschland.",
+    "inspired": "Dieses Spiel ist von {{mechabellum}}, dem besten Spiel des Genres, inspiriert. MELODAN ist ein unabhängiges Fantasy-Abenteuer; bitte unterstützt das Original und kauft Mechabelum. Vielen Dank!",
+    "openSource": "Das Spiel ist {{github}} (GPL-3.0). Das Copyright verbleibt bei Alexander Thurn / Feuerware. Sie können es gerne privat forken, neue Einheiten erstellen und Pull Requests öffnen. Für größere Projekte, nicht-kommerzielle oder -freie Ableger, ein komplettes Rebranding usw. kontaktieren Sie mich bitte: {{email}}.",
+    "openSourceLink": "Open Source auf GitHub"
+  },
+  "footer": {
+    "play": "Spielen",
+    "steam": "Dampf",
+    "feedback": "Rückmeldung",
+    "imprint": "Impressum",
+    "privacy": "Datenschutz"
+  }
+}

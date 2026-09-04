@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTÁZIA AUTO·BATTLER",
+  "lead": "Titokban helyezz el seregeket, és nézd a kör kibontakozását. Az ellenséged is ugyanezt teszi. Alkalmazkodj, ismételd, amíg valamelyikőtöknek el nem fogy az életereje.",
+  "hero": {
+    "wishlist": "Kívánságlista most",
+    "trailer": "Nézd meg az előzetest",
+    "steamSoon": "Steam oldal hamarosan"
+  },
+  "screenshots": {
+    "title": "Képernyőképek",
+    "sub": "Pillantás a telepítésre és a csatára.",
+    "browse": "Képernyőképek böngészése",
+    "open": "Képernyőkép megnyitása: {{label}}",
+    "fallback": "Képernyőkép",
+    "missing": "{{label}} ⬢ Fájl behelyezése az eszközök/marketing/képernyőképek/ mappába"
+  },
+  "shot": {
+    "1": "Hadsereg bevetése az erdőtisztáson",
+    "2": "Telepítési fázis és egységgyár",
+    "3": "Sárkány tűz lehelete a mező felett",
+    "4": "Egymás melletti telepítési zónák",
+    "5": "Tömeges csata a síkságon",
+    "6": "Téli erődítmény a hóban",
+    "7": "Kettős bázisok a rácson",
+    "8": "Nagy erődített bázis"
+  },
+  "lightbox": {
+    "gallery": "Képernyőkép-galéria",
+    "close": "Galéria bezárása",
+    "prev": "Előző képernyőkép",
+    "next": "Következő képernyőkép",
+    "dots": "Képernyőképek",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Egységek, épületek és varázslatok",
+    "sub": "A sereged, az épületeid, a {{horde}} csomagjaid és a harci varázslat modellek. Válassz egyet a vizsgálathoz — Varjúlovas és Sárkány csapkodnak össze ebben az előzetesben.",
+    "canvas": "Egység 3D előnézete",
+    "loading": "Modell betöltése…",
+    "hint": "Húzza a forgatáshoz · Görgessen a nagyításhoz",
+    "select": "Válassz egy egységet, épületet vagy varázslatot",
+    "list": "Egységek, épületek és varázslatok",
+    "buildings": "Épületek",
+    "units": "Egységek",
+    "spells": "Varázslatok"
+  },
+  "stats": {
+    "cost": "Költség",
+    "hp": "HP",
+    "damage": "Kár",
+    "range": "Hatótávolság",
+    "attackInterval": "Támadási intervallum",
+    "seconds": "{{value}}s",
+    "speed": "Sebesség",
+    "abilities": "Képességek",
+    "spellModel": "Helyesírási modell"
+  },
+  "flag": {
+    "flying": "Repülő",
+    "structure": "Szerkezet",
+    "extra": "Külön",
+    "attacksGround": "Támadások földön",
+    "attacksAir": "Támadja a levegőt",
+    "shield": "Ward kupola",
+    "rocket": "önirányító csavar"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Sárkánytámadás",
+      "blurb": "Tűzlehelet rángatása. A szárnyfékkar ugyanazt az árnyékoló útvonalat használja, mint a Varjúlovas (hálós mód)."
+    },
+    "hammer": {
+      "name": "Az istenek kalapácsa",
+      "blurb": "Isteni kalapács, ami egy elhelyezett zónára hullik."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Egyetlen heves meteorbecsapódás."
+    },
+    "meteor-shard": {
+      "name": "Meteorzápor szilánkja",
+      "blurb": "A záporeső által használt kisebb meteor."
+    },
+    "storm": {
+      "name": "Viharhívás",
+      "blurb": "Villámokat szóró viharfelhő."
+    },
+    "poison": {
+      "name": "Mérgező felhő",
+      "blurb": "Mérgező égfelhők, amelyek hatalmas kört borítva gyér savat szórnak."
+    }
+  },
+  "commanders": {
+    "sub": "Az első kör előtt minden játékos választ egy {{commander}}-t. Ez meghatározza a kezdő sereged, az ÉP-készleted, egy állandó specialitásodat és három Erődkovácsműhelyedet {{tactics}} (gyenge / közepes / erős). A csapattársak megosztják a kovácsműhelyük egyesülését {{tactics}}.",
+    "select": "Válassz egy {{commander}}-t"
+  },
+  "runes": {
+    "sub": "Végleg egy csomagra olvasztva, minden benne lévő mech-et felemelve {{sep}}, a legtöbb csomag {{packLimit}}-et, a ballistát {{ballistaLimit}}-t tartalmaz. A négy alaprúnát kerek kártyákból lehet húzni, vagy a boltban megvásárolni; az erősebbeket az Erődben kovácsolják belőlük, és soha nem adják el.",
+    "select": "Válassz egy {{item}}-t",
+    "base": "Bázis",
+    "advanced": "Fejlett",
+    "shopTitle": "Boltban vásárolt, vagy kerek kártyából húzott",
+    "shopLabel": "Vásárlási ár",
+    "forgeTitle": "Kovácsolva a {{building}}-nál",
+    "forgeLabel": "Kovácsolt ár"
+  },
+  "tactics": {
+    "sub": "Ezek a képességek a {{tactics}} csíkodon {{sep}}: gyülekezések, kiszóródások, idézések és harci varázslatok, mint például a sárkány tűzlehelete. A harci varázslatokat az erődítményedben lehet megvásárolni, mindegyiket egyszer, és csak azt a hármat, amit a parancsnokod ismer. Az ikonok megegyeznek azzal, amit a játékban látsz.",
+    "select": "Válassz egy {{tactic}}-t",
+    "placement": "Elhelyezés",
+    "oneShot": "Egy lövés",
+    "buyTitle": "Vettem a {{building}}-ban",
+    "priceLabel": "{{building}} ár"
+  },
+  "targeting": {
+    "point": "pont",
+    "two-point": "kétpontos",
+    "three-point": "hárompontos",
+    "point-yaw": "pont + nézőpont",
+    "own-unit": "saját csomag"
+  },
+  "roundCards": {
+    "title": "Kerek kártyák",
+    "sub": "A második körtől kezdve húzz egyet a felkínált {{items}} lapok közül a meccskészletből. A harci varázslatokat az Erődben kell megvásárolni, nem kártyákból.",
+    "select": "Válassz egy kerek kártyát"
+  },
+  "matchSettings": {
+    "title": "Mérkőzésbeállítások",
+    "sub": "A meccs alapértelmezett szabályai, közvetlenül a játék beállítási kódjából átvéve, így ezek nem térhetnek el a tényleges eredeti állapottól. Minden itt hangolható – nyílt forráskódú."
+  },
+  "contribute": {
+    "title": "Hozzájárul",
+    "sub1": "A Melodant egyetlen ember, én fejlesztettem. Szenvedélyesen rajongok ezért a játékért, de nem tudok úgy AAA címet készíteni, hogy minden tökéletes, kiegyensúlyozott és így tovább maradjon. Az ötlet az, hogy egy nyílt játékot hozzunk létre, ahová bárki hozzájárulhat.",
+    "sub2": "Alkossuk meg együtt. Egyensúly, hibák, funkciók, művészeti ötletek {{sep}} Küldj egy rövid üzenetet, és elolvasom. Ha szeretnél még többet csinálni, szívesen látunk!",
+    "play": "Tesztelés böngészőben",
+    "feedback": "Visszajelzés küldése",
+    "discord": "Viszály",
+    "devlog": "Fejlesztői napló",
+    "waysTitle": "Segítő módok",
+    "way1": "Ötletek és hibajelentések megosztása",
+    "way2": "Nyílt pull requestek a {{github}} oldalon (GPL-3.0)",
+    "way3": "3D modellek készítése vagy fejlesztése",
+    "way4": "Gondoskodj az egyensúlyozásról, találj ki új varázslatokat, kártyákat, ötleteket.",
+    "way5": "Üdvözöljük a játékosokat, írjunk útmutatókat, segítsünk a moderálásban, ha ezt el akarjuk vállalni."
+  },
+  "about": {
+    "title": "Körülbelül",
+    "lead": "A MELODAN-t Alexander Thurn (Feuerware) gyártja. Székhelye Bonnban, Németországban található.",
+    "inspired": "Ezt a játékot a műfaj legjobb játéka, a {{mechabellum}} ihlette. A MELODAN egy független fantasy feldolgozás; kérlek támogasd az eredeti játékot és vásárold meg a Mechabelumot. Köszönöm!",
+    "openSource": "A játék {{github}} (GPL-3.0). A szerzői jogok Alexander Thurn / Feuerware tulajdonában maradnak. Nyugodtan forkold privátban, találj ki új egységeket és tegyél közzé pull requesteket. Valami nagyobbért, nem kereskedelmi célú spin-offért, teljes átnevezésért stb. nyugodtan írj nekem: {{email}}.",
+    "openSourceLink": "nyílt forráskódú a GitHubon"
+  },
+  "footer": {
+    "play": "Játék",
+    "steam": "Gőz",
+    "feedback": "Visszacsatolás",
+    "imprint": "Impresszum",
+    "privacy": "Adatvédelem"
+  }
+}

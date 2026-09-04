@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Banda de enanos",
+    "description": "Cuatro grupos de enanos se unen a tu ejército.",
+    "unitsLabel": "4× Enanos"
+  },
+  "archers4": {
+    "title": "Compañía Archer",
+    "description": "Cuatro arqueros se unen a tu ejército.",
+    "unitsLabel": "4 arqueros"
+  },
+  "crowRiders2": {
+    "title": "Ala de cuervo",
+    "description": "Dos bandadas de Jinetes Cuervo se unen a tu ejército.",
+    "unitsLabel": "2× Jinetes Cuervo"
+  },
+  "ballista1": {
+    "title": "Balista de asedio",
+    "description": "Una balista se une a tu ejército.",
+    "unitsLabel": "1× Ballista"
+  },
+  "flanky": {
+    "title": "Flanky",
+    "description": "La primera aparición de flancos tarda la mitad de tiempo (2,5 s)."
+  },
+  "rallyRoute": {
+    "title": "Ruta del rally",
+    "description": "Establece una ruta de marcha: las unidades en la zona de inicio se dirigen a la zona final, combatiendo por el camino."
+  },
+  "sellPack": {
+    "title": "Recompra",
+    "description": "Hechizo de un solo uso: vende uno de tus paquetes para obtener un reembolso de suministros."
+  },
+  "movePack": {
+    "title": "Órdenes de marcha",
+    "description": "Hechizo de un solo uso: un paquete de una ronda anterior puede ser reposicionado nuevamente en esta ronda."
+  }
+}

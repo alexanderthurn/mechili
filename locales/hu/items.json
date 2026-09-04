@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Föld",
+    "description": "+10% ÉP."
+  },
+  "fire": {
+    "name": "Tűz",
+    "description": "+10% támadás."
+  },
+  "water": {
+    "name": "Víz",
+    "description": "+5% támadás és HP."
+  },
+  "wind": {
+    "name": "Szél",
+    "description": "+10%-os tartomány."
+  },
+  "addi": {
+    "name": "Bátorság",
+    "description": "+15% támadás és HP."
+  },
+  "power": {
+    "name": "Vérontás",
+    "description": "+75% támadás."
+  },
+  "vigor": {
+    "name": "Óriásvér",
+    "description": "+100% ÉP."
+  },
+  "colossus": {
+    "name": "Mithril mellvért",
+    "description": "+250% ÉP."
+  },
+  "wrath": {
+    "name": "Berserk",
+    "description": "+300% támadás."
+  },
+  "golden": {
+    "name": "Avanturin",
+    "description": "Immunis a torony gyengítéseire és 30%-kal kevesebb sebzést szenved. A varázslók nem tudnak átalakulni – helyette a sugár okoz sebzést."
+  },
+  "bulwark": {
+    "name": "Bástya",
+    "description": "Pajzs: minden egység kap egy második életerő-készletet, amely megegyezik az életerejének értékével. A távolsági találatok először a pajzsot merítik le; a közelharci, tűz és sav esetén ez nem számít."
+  }
+}

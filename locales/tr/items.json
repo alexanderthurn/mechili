@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Toprak",
+    "description": "+%10 HP."
+  },
+  "fire": {
+    "name": "Ateş",
+    "description": "+%10 saldırı gücü."
+  },
+  "water": {
+    "name": "su",
+    "description": "+%5 saldırı ve can puanı."
+  },
+  "wind": {
+    "name": "Rüzgâr",
+    "description": "+%10 aralığı."
+  },
+  "addi": {
+    "name": "Cesaret",
+    "description": "+%15 saldırı ve can puanı."
+  },
+  "power": {
+    "name": "Katliam",
+    "description": "+%75 saldırı gücü."
+  },
+  "vigor": {
+    "name": "Dev Kanı",
+    "description": "+%100 HP."
+  },
+  "colossus": {
+    "name": "Mithril Zırhı",
+    "description": "+%250 HP."
+  },
+  "wrath": {
+    "name": "Berserk",
+    "description": "+%300 saldırı gücü."
+  },
+  "golden": {
+    "name": "Güneştaşı",
+    "description": "Kule zayıflatmalarından etkilenmez ve %30 daha az hasar alır. Büyücüler dönüştüremez; ışın bunun yerine hasar verir."
+  },
+  "bulwark": {
+    "name": "Küpeşte",
+    "description": "Kalkan: Her birim, HP'sine eşit ikinci bir sağlık havuzu kazanır. Menzilli saldırılar kalkanı önce tüketir; yakın dövüş, ateş ve asit saldırıları kalkanı görmezden gelir."
+  }
+}

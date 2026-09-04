@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Garrison Archer"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Zwarte Broed"
+  },
+  "hordeSpinne": {
+    "name": "Zwarte spin"
+  },
+  "hordeFarmer": {
+    "name": "Dode boer"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Dode landarbeider"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Dwerg"
+  },
+  "archer": {
+    "name": "Boogschutter"
+  },
+  "wizard": {
+    "name": "Tovenaar"
+  },
+  "crowRider": {
+    "name": "Kraaienrijder"
+  },
+  "ballista": {
+    "name": "Ballista"
+  },
+  "shield": {
+    "name": "Ward Stone"
+  },
+  "rocket": {
+    "name": "Vuurflits"
+  },
+  "command-tower": {
+    "name": "Voorhoede"
+  },
+  "research-center": {
+    "name": "Garnizoen"
+  },
+  "stronghold": {
+    "name": "Bolwerk"
+  },
+  "hordeZombie": {
+    "name": "Zwarte Broed"
+  }
+}

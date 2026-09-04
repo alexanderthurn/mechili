@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Dvärgbandet",
+    "description": "Fyra dvärgflockar ansluter sig till din armé.",
+    "unitsLabel": "4× Dvärgar"
+  },
+  "archers4": {
+    "title": "Archer Company",
+    "description": "Fyra bågskyttar ansluter sig till din armé.",
+    "unitsLabel": "4× Bågskyttar"
+  },
+  "crowRiders2": {
+    "title": "Kråka vinge",
+    "description": "Två flockar av kråkryttare ansluter sig till din armé.",
+    "unitsLabel": "2× Kråkörare"
+  },
+  "ballista1": {
+    "title": "Belägring Ballista",
+    "description": "En ballista ansluter sig till din armé.",
+    "unitsLabel": "1× Ballista"
+  },
+  "flanky": {
+    "title": "Flankig",
+    "description": "Första gången flank-spawns dyker upp tar halva tiden (2,5 sekunder)."
+  },
+  "rallyRoute": {
+    "title": "Rallyrutt",
+    "description": "Placera en marschväg: enheter i startzonen beger sig mot målzonen och strider längs vägen."
+  },
+  "sellPack": {
+    "title": "Återköp",
+    "description": "Engångsbesvärjelse: sälj ett av dina paket för att få tillbaka dina förnödenheter."
+  },
+  "movePack": {
+    "title": "Marschordrar",
+    "description": "Engångsbesvärjelse: en flock från en tidigare runda kan ompositioneras igen denna runda."
+  }
+}

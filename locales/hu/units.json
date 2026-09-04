@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Garrison Archer"
+  },
+  "hordeWebweaver": {
+    "name": "Webszövő"
+  },
+  "hordeBrutSpawn": {
+    "name": "Fekete seprű"
+  },
+  "hordeSpinne": {
+    "name": "Fekete Pók"
+  },
+  "hordeFarmer": {
+    "name": "Halott gazda"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Halott farmmunkás"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Törpe"
+  },
+  "archer": {
+    "name": "Íjász"
+  },
+  "wizard": {
+    "name": "Varázsló"
+  },
+  "crowRider": {
+    "name": "Varjúlovas"
+  },
+  "ballista": {
+    "name": "Ballista"
+  },
+  "shield": {
+    "name": "Ward Stone"
+  },
+  "rocket": {
+    "name": "Tűzvillám"
+  },
+  "command-tower": {
+    "name": "Élcsapat"
+  },
+  "research-center": {
+    "name": "Helyőrség"
+  },
+  "stronghold": {
+    "name": "Erőd"
+  },
+  "hordeZombie": {
+    "name": "Fekete seprű"
+  }
+}

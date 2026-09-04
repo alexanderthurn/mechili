@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Himmelssorceraren",
+    "description": "Luftenheter får +12% attack och HP.",
+    "unitsLabel": "2× Kråkörtare · 1× Dvärgar"
+  },
+  "cost": {
+    "title": "Giriga prinsen",
+    "description": "Alla enheter −12% attack och HP, men +100 i förnödenheter varje runda.",
+    "unitsLabel": "2× Bågskyttar · 1× Kråkörare · 1× Dvärgar"
+  },
+  "elite": {
+    "title": "Elitprinsen",
+    "description": "Rekryterar på nivå 2. +100 i utbudet i omgång 1.",
+    "unitsLabel": "1× Ballista · 1× Dvärgar"
+  },
+  "archer": {
+    "title": "Bågskyttebefälhavare",
+    "description": "En gratis nivå-3-bågskytt anländer i rond 2.",
+    "unitsLabel": "3× Bågskyttar · 2× Dvärgar"
+  },
+  "addi": {
+    "title": "Relikbevarare",
+    "description": "Får 3× Valor-runan i omgång 1.",
+    "unitsLabel": "1× Kråkörtare · 3× Dvärgar"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "Får 2 meteorladdningar i rond 2.",
+    "unitsLabel": "1× Trollkarl · 1× Dvärgar"
+  },
+  "speed": {
+    "title": "Speedy Widow",
+    "unitsLabel": "1× Kråkörare · 1× Bågskyttar · 2× Dvärgar"
+  },
+  "giant": {
+    "title": "Grevinnan Chonk",
+    "unitsLabel": "1× Ballista · 1× Dvärgar"
+  },
+  "tutor": {
+    "title": "Ladyföreläsning",
+    "description": "Börjar med en fältlektion.",
+    "unitsLabel": "1× Kråkörare · 3× Bågskyttar"
+  },
+  "money": {
+    "title": "Pengadrottning",
+    "unitsLabel": "2× Kråkörare · 1× Bågskyttar"
+  },
+  "cursed": {
+    "title": "Förbannade Christine",
+    "description": "Får en gratis svart yngelspindel varje runda.",
+    "unitsLabel": "2× Dvärgar · 2× Bågskyttar"
+  },
+  "flanky": {
+    "title": "Flankig skugga",
+    "description": "Första gången flank-spawns tar halva tiden.",
+    "unitsLabel": "2× Dvärgar · 2× Bågskyttar"
+  }
+}

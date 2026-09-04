@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Arcașul Garnizoanei"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Puiet negru"
+  },
+  "hordeSpinne": {
+    "name": "Păianjenul Negru"
+  },
+  "hordeFarmer": {
+    "name": "Fermierul mort"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Fermier mort"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Pitic"
+  },
+  "archer": {
+    "name": "Arcaş"
+  },
+  "wizard": {
+    "name": "Vrăjitor"
+  },
+  "crowRider": {
+    "name": "Călăreț de corbi"
+  },
+  "ballista": {
+    "name": "Balistă"
+  },
+  "shield": {
+    "name": "Piatra Ward"
+  },
+  "rocket": {
+    "name": "Fulger de Foc"
+  },
+  "command-tower": {
+    "name": "Avangardă"
+  },
+  "research-center": {
+    "name": "Garnizoană"
+  },
+  "stronghold": {
+    "name": "Bastion"
+  },
+  "hordeZombie": {
+    "name": "Puiet negru"
+  }
+}

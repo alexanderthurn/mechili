@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Päivitystaso",
+    "description": "Nosta tätä rakennusta yhdellä tasolla: se saa peruselämäpisteensä. Hinta alkaa {{baseCost}}:sta ja nousee {{costStep}}:lla jokaisella tasolla (maksimitaso {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Myynti",
+    "description": "Avaa myyntipaketteja pysyvästi (enintään {{maxPerRound}} käyttöönottovaihetta kohden). Hyvitys on {{refundPct}} % perushinnasta."
+  },
+  "attack_boost": {
+    "name": "Hyökkäystehostus",
+    "description": "Pysyvä armeijanlaajuinen vaurionlisäys. Ensimmäinen taso +{{attackPct}}%; osta tasot järjestyksessä (hinta {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP-tehostus",
+    "description": "Pysyvä armeijanlaajuinen HP:n lisäys. Ensimmäinen taso +{{hpPct}}%; osta tasot järjestyksessä (hinta {{costs}})."
+  },
+  "range_boost": {
+    "name": "Kantamateho",
+    "description": "+{{amount}} kantama kaikille kantamayksiköille, vain tässä kierroksessa."
+  },
+  "speed_boost": {
+    "name": "Nopeuden tehostus",
+    "description": "+{{amount}} nopeus kaikille yksiköille, vain tällä kierroksella."
+  },
+  "loan": {
+    "name": "Lainata",
+    "description": "+{{gain}} tarvike nyt. Seuraava käyttöönotto: −{{debt}}. Kerran kierroksella."
+  },
+  "ward_dome": {
+    "name": "Osaston kupoli",
+    "description": "Imee vihollisen ammuksia, jotka osuvat kupoliin (säde {{radius}}, korkeus {{height}}). Pooli on tämän yksikön HP."
+  },
+  "homing_fire_bolt": {
+    "name": "Itseohjautuva tulipultti",
+    "description": "Kädet paikoilleen, sitten tähtää ensimmäiseen kantaman sisällä olevaan viholliseen {{range}} aiheuttaen {{damage}} vahinkoa (roiske {{splash}})."
+  },
+  "rally_route": {
+    "name": "Rallireitti",
+    "description": "Lisää yksi kokoontumisreitin lataus loitsunauhaasi. Kerran ottelua kohden."
+  },
+  "move_pack": {
+    "name": "Siirtopakkaus",
+    "description": "Lisää yksi liikkumispakkauksen lataus loitsunauhaasi: yksi aiemman kierroksen pakka muuttuu jälleen liikuteltavaksi. Kerran ottelua kohden."
+  },
+  "1_deployment": {
+    "name": "+1 käyttöönotto",
+    "description": "Vain yksi lisäyksikkö ostettavissa tällä kierroksella."
+  },
+  "veteran_training": {
+    "name": "Veteraanikoulutus",
+    "description": "Kierroksen loppuosan ostamasi yksiköt saapuvat tasolle 2 (ne maksavat silti tasopreemion)."
+  },
+  "send_supply_to_ally": {
+    "name": "Lähetä tarvikkeita liittolaiselle",
+    "description": "Lahjoita 100 tarviketta liittolaisellesi – saapuu seuraavan kierroksen alussa. Vain kaksinpelimuodoissa."
+  }
+}

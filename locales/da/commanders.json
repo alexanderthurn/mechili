@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Himmeltroldmand",
+    "description": "Luftenheder får +12% angreb og HP.",
+    "unitsLabel": "2× Krageryttere · 1× Dværge"
+  },
+  "cost": {
+    "title": "Grådig prins",
+    "description": "Alle enheder −12% angreb og HP, men +100 forsyning hver runde.",
+    "unitsLabel": "2× Bueskytter · 1× Krageryttere · 1× Dværge"
+  },
+  "elite": {
+    "title": "Eliteprinsen",
+    "description": "Rekruttering på niveau 2. +100 i udbud i runde 1.",
+    "unitsLabel": "1× Ballista · 1× Dværge"
+  },
+  "archer": {
+    "title": "Bueskyttekommandør",
+    "description": "En gratis niveau-3-bueskytte ankommer i runde 2.",
+    "unitsLabel": "3× Bueskytter · 2× Dværge"
+  },
+  "addi": {
+    "title": "Relikviebevarer",
+    "description": "Får 3× Tapperhedsrune i runde 1.",
+    "unitsLabel": "1× Krageryttere · 3× Dværge"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "Får 2 meteorladninger i runde 2.",
+    "unitsLabel": "1× Troldmand · 1× Dværge"
+  },
+  "speed": {
+    "title": "Speedy Widow",
+    "unitsLabel": "1× Krageryttere · 1× Bueskytter · 2× Dværge"
+  },
+  "giant": {
+    "title": "Grevinde Chonk",
+    "unitsLabel": "1× Ballista · 1× Dværge"
+  },
+  "tutor": {
+    "title": "Dameforelæsning",
+    "description": "Starter med én feltlektion.",
+    "unitsLabel": "1× Krageryttere · 3× Bueskytter"
+  },
+  "money": {
+    "title": "Pengedronning",
+    "unitsLabel": "2× Krageryttere · 1× Bueskytter"
+  },
+  "cursed": {
+    "title": "Forbandede Christine",
+    "description": "Får én gratis Sort Yngel-edderkop i hver runde.",
+    "unitsLabel": "2× Dværge · 2× Bueskytter"
+  },
+  "flanky": {
+    "title": "Flankeskygge",
+    "description": "Førstegangs flanke-gypninger tager halvdelen af tiden.",
+    "unitsLabel": "2× Dværge · 2× Bueskytter"
+  }
+}

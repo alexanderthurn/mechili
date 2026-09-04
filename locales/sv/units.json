@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Garrison Archer"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Svart yngel"
+  },
+  "hordeSpinne": {
+    "name": "Svart spindel"
+  },
+  "hordeFarmer": {
+    "name": "Död bonde"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Död bonddräng"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Dvärg"
+  },
+  "archer": {
+    "name": "Bågskytt"
+  },
+  "wizard": {
+    "name": "Trollkarl"
+  },
+  "crowRider": {
+    "name": "Kråkaryttare"
+  },
+  "ballista": {
+    "name": "Ballista"
+  },
+  "shield": {
+    "name": "Ward Stone"
+  },
+  "rocket": {
+    "name": "Fire Bolt"
+  },
+  "command-tower": {
+    "name": "Förtrupp"
+  },
+  "research-center": {
+    "name": "Garnison"
+  },
+  "stronghold": {
+    "name": "Fäste"
+  },
+  "hordeZombie": {
+    "name": "Svart yngel"
+  }
+}

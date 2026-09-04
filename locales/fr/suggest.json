@@ -1,0 +1,23 @@
+{
+  "title": "Envoyer des commentaires",
+  "lead": "Dites-nous ce que vous souhaitez construire, réparer ou tester. Si vous le souhaitez, vous pouvez ajouter votre nom et votre adresse courriel.",
+  "discord": "Vous préférez discuter en ligne ? Rejoignez la communauté Discord.",
+  "category": "Catégorie",
+  "message": "Message",
+  "placeholder": "Que faut-il changer ? Qu'est-ce qui a dysfonctionné ? Qu'est-ce qui pourrait aider ?",
+  "cancel": "Annuler",
+  "submit": "Soumettre",
+  "sending": "Envoi…",
+  "thanksSent": "Merci — envoyé.",
+  "thanksSaved": "Merci — enregistré.",
+  "writeFirst": "Commencez par écrire un court message.",
+  "rateLimited": "Trop de suggestions — réessayez dans {{n}}s.",
+  "sendFailed": "Impossible d'envoyer. Veuillez réessayer plus tard.",
+  "networkError": "Erreur réseau — veuillez réessayer plus tard.",
+  "catBug": "Bogue",
+  "catBalance": "Équilibre",
+  "catFeature": "Fonctionnalité",
+  "catArt": "Modèles / art",
+  "catCommunity": "Communauté",
+  "catOther": "Autre"
+}

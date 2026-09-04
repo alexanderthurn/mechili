@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Törpe zenekar",
+    "description": "Négy törpe falka csatlakozik a seregedhez.",
+    "unitsLabel": "4× Törpök"
+  },
+  "archers4": {
+    "title": "Íjász Társaság",
+    "description": "Négy íjász csatlakozik a seregedhez.",
+    "unitsLabel": "4× Íjászok"
+  },
+  "crowRiders2": {
+    "title": "Varjúszárny",
+    "description": "Két Varjúlovas csapat csatlakozik a seregedhez.",
+    "unitsLabel": "2× Varjúlovasok"
+  },
+  "ballista1": {
+    "title": "Ostrom Ballista",
+    "description": "Egy ballista csatlakozik a seregedhez.",
+    "unitsLabel": "1× Ballista"
+  },
+  "flanky": {
+    "title": "Oldalsó",
+    "description": "Az első oldalra érkezés fele annyi időt vesz igénybe (2,5 másodperc)."
+  },
+  "rallyRoute": {
+    "title": "Rally útvonal",
+    "description": "Menetelés útvonalának elhelyezése: a startzónában lévő egységek a célzóna felé tartanak, és útközben harcolnak."
+  },
+  "sellPack": {
+    "title": "Visszavásárlás",
+    "description": "Egyszeri varázslat: add el az egyik csomagodat ellátmány-visszatérítésért."
+  },
+  "movePack": {
+    "title": "Menetelésparancsok",
+    "description": "Egyszeri varázslat: egy korábbi körből származó pakli áthelyezhető ebben a körben."
+  }
+}

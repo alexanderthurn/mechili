@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Banda dei Nani",
+    "description": "Quattro gruppi di nani si uniscono al tuo esercito.",
+    "unitsLabel": "4× Nani"
+  },
+  "archers4": {
+    "title": "Compagnia Archer",
+    "description": "Quattro arcieri si uniscono al tuo esercito.",
+    "unitsLabel": "4 arcieri"
+  },
+  "crowRiders2": {
+    "title": "Ala di corvo",
+    "description": "Due stormi di Cavalieri Corvo si uniscono al tuo esercito.",
+    "unitsLabel": "2× Cavalieri del Corvo"
+  },
+  "ballista1": {
+    "title": "Balista d'assedio",
+    "description": "Una balista si unisce al tuo esercito.",
+    "unitsLabel": "1× Balista"
+  },
+  "flanky": {
+    "title": "Flanky",
+    "description": "Le prime apparizioni sui fianchi richiedono la metà del tempo (2,5 secondi)."
+  },
+  "rallyRoute": {
+    "title": "Percorso del rally",
+    "description": "Traccia un percorso di marcia: le unità nella zona di partenza si dirigono verso la zona di arrivo, combattendo lungo il tragitto."
+  },
+  "sellPack": {
+    "title": "Riacquisto",
+    "description": "Incantesimo monouso: vendi uno dei tuoi pacchetti per ottenere un rimborso di rifornimenti."
+  },
+  "movePack": {
+    "title": "Ordini di marcia",
+    "description": "Incantesimo a uso singolo: un pacchetto di carte di un turno precedente può essere riposizionato nuovamente in questo turno."
+  }
+}

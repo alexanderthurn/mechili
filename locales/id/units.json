@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Garrison Archer"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Black Brood"
+  },
+  "hordeSpinne": {
+    "name": "Laba-laba Hitam"
+  },
+  "hordeFarmer": {
+    "name": "Petani yang Mati"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Pekerja Pertanian yang Mati"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Kerdil"
+  },
+  "archer": {
+    "name": "Pemanah"
+  },
+  "wizard": {
+    "name": "Penyihir"
+  },
+  "crowRider": {
+    "name": "Penunggang Gagak"
+  },
+  "ballista": {
+    "name": "Ballista"
+  },
+  "shield": {
+    "name": "Batu Bangsal"
+  },
+  "rocket": {
+    "name": "Petir"
+  },
+  "command-tower": {
+    "name": "Pelopor"
+  },
+  "research-center": {
+    "name": "Garnisun"
+  },
+  "stronghold": {
+    "name": "Kubu"
+  },
+  "hordeZombie": {
+    "name": "Black Brood"
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Kerahkan tentera secara rahsia dan saksikan pusingan itu berlaku. Musuh anda melakukan perkara yang sama. Sesuaikan diri, ulangi sehingga salah seorang daripada anda kehabisan HP.",
+  "hero": {
+    "wishlist": "Senarai keinginan sekarang",
+    "trailer": "Tonton Treler",
+    "steamSoon": "Halaman Steam akan datang tidak lama lagi"
+  },
+  "screenshots": {
+    "title": "Tangkapan skrin",
+    "sub": "Satu pandangan tentang pengerahan dan pertempuran.",
+    "browse": "Layari tangkapan skrin",
+    "open": "Buka tangkapan skrin: {{label}}",
+    "fallback": "Tangkapan skrin",
+    "missing": "{{label}} ⬢ lepaskan fail dalam aset/pemasaran/tangkapan skrin/"
+  },
+  "shot": {
+    "1": "Pengerahan tentera di kawasan hutan",
+    "2": "Fasa pelaksanaan dan bengkel unit",
+    "3": "Nafas api naga di atas padang",
+    "4": "Zon penggunaan bersebelahan",
+    "5": "Pertempuran besar-besaran di dataran",
+    "6": "Kubu kuat musim sejuk di salji",
+    "7": "Pangkalan berganda pada grid",
+    "8": "Pangkalan berkubu besar"
+  },
+  "lightbox": {
+    "gallery": "Galeri tangkapan skrin",
+    "close": "Tutup galeri",
+    "prev": "Tangkapan skrin sebelumnya",
+    "next": "Tangkapan skrin seterusnya",
+    "dots": "Tangkapan skrin",
+    "fullhd": "HD Penuh",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Unit, bangunan & mantera",
+    "sub": "Tentera, bangunan, pek {{horde}} dan model jampi pertempuran anda. Pilih satu untuk diperiksa — Crow Rider dan Dragon muncul dalam pratonton ini.",
+    "canvas": "Pratonton Unit 3D",
+    "loading": "Memuatkan model…",
+    "hint": "Seret untuk memutar · Tatal untuk zum",
+    "select": "Pilih unit, bangunan atau jampi",
+    "list": "Unit, bangunan dan jampi",
+    "buildings": "Bangunan",
+    "units": "Unit",
+    "spells": "Jampi"
+  },
+  "stats": {
+    "cost": "Kos",
+    "hp": "HP",
+    "damage": "Kerosakan",
+    "range": "Julat",
+    "attackInterval": "Selang serangan",
+    "seconds": "{{value}}s",
+    "speed": "Kelajuan",
+    "abilities": "Kebolehan",
+    "spellModel": "Model ejaan"
+  },
+  "flag": {
+    "flying": "Terbang",
+    "structure": "Struktur",
+    "extra": "Tambahan",
+    "attacksGround": "Serangan darat",
+    "attacksAir": "Menyerang udara",
+    "shield": "Kubah wad",
+    "rocket": "Bolt homing"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Serangan Naga",
+      "blurb": "Menembak nafas api. Kepak sayap menggunakan laluan shader yang sama seperti Crow Rider (mod mesh)."
+    },
+    "hammer": {
+      "name": "Tukul Dewa-Dewa",
+      "blurb": "Tukul suci yang jatuh ke zon yang diletakkan."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Hentaman meteor berat tunggal."
+    },
+    "meteor-shard": {
+      "name": "Serpihan Hujan Meteor",
+      "blurb": "Meteor yang lebih kecil digunakan oleh pancuran air."
+    },
+    "storm": {
+      "name": "Panggilan Ribut",
+      "blurb": "Awan ribut yang melontarkan kilat."
+    },
+    "poison": {
+      "name": "Awan Racun",
+      "blurb": "Awan langit toksik yang menghujani asid jarang di atas bulatan besar."
+    }
+  },
+  "commanders": {
+    "sub": "Sebelum pusingan pertama, setiap pemain memilih {{commander}}. Ia menetapkan tentera permulaan anda, kumpulan HP, kepakaran kekal dan tiga forge Stronghold {{tactics}} (lemah / sederhana / kuat). Rakan sepasukan berkongsi kesatuan forge mereka {{tactics}}.",
+    "select": "Pilih {{commander}}"
+  },
+  "runes": {
+    "sub": "Dicantumkan ke dalam pek untuk selama-lamanya, mengangkat setiap jentera di dalamnya {{sep}} kebanyakan pek memuatkan {{packLimit}}, ballista {{ballistaLimit}}. Empat rune asas didraf daripada kad bulat atau dibeli di kedai; yang lebih kuat ditempa daripadanya di Stronghold, dan tidak pernah dijual.",
+    "select": "Pilih {{item}}",
+    "base": "Pangkalan",
+    "advanced": "Lanjutan",
+    "shopTitle": "Dibeli di kedai, atau didraf daripada kad bulat",
+    "shopLabel": "Harga kedai",
+    "forgeTitle": "Ditempa di {{building}}",
+    "forgeLabel": "Harga tempa"
+  },
+  "tactics": {
+    "sub": "Ini adalah kemahiran pada jalur {{tactics}} {{sep}} anda, rali, tumpahan, saman dan lontaran pertempuran seperti nafas api naga. Jampi pertempuran dibeli di Kubu kuat anda, sekali setiap satu, dan hanya tiga komander anda yang tahu. Ikon sepadan dengan apa yang anda lihat dalam permainan.",
+    "select": "Pilih {{tactic}}",
+    "placement": "Penempatan",
+    "oneShot": "Satu tembakan",
+    "buyTitle": "Dibeli di {{building}}",
+    "priceLabel": "{{building}} harga"
+  },
+  "targeting": {
+    "point": "titik",
+    "two-point": "dua titik",
+    "three-point": "tiga mata",
+    "point-yaw": "titik + menghadap",
+    "own-unit": "pek sendiri"
+  },
+  "roundCards": {
+    "title": "Kad bulat",
+    "sub": "Dari pusingan kedua dan seterusnya, draf salah satu daripada beberapa kad {{items}} yang ditawarkan yang diambil dari kolam perlawanan. Jampi pertempuran dibeli di Stronghold, bukan didraf daripada kad.",
+    "select": "Pilih kad bulat"
+  },
+  "matchSettings": {
+    "title": "Tetapan padanan",
+    "sub": "Peraturan lalai untuk perlawanan, diambil terus daripada kod tetapan permainan supaya ini tidak boleh menyimpang daripada apa yang sebenarnya dihantar. Semuanya di sini boleh ditala — ia adalah sumber terbuka."
+  },
+  "contribute": {
+    "title": "Sumbangan",
+    "sub1": "Melodan dibangunkan oleh seorang sahaja, saya. Saya sangat meminati permainan ini, tetapi saya tidak boleh membuat tajuk AAA dan memastikan semuanya sempurna, seimbang dan sebagainya. Ideanya adalah untuk mempunyai permainan terbuka di mana sesiapa sahaja boleh menyumbang.",
+    "sub2": "Mari kita buat ini bersama-sama. Keseimbangan, pepijat, ciri, idea seni {{sep}} hantar nota ringkas dan saya akan membacanya. Jika anda ingin melakukan lebih banyak lagi, selamat datang!",
+    "play": "Uji dalam Pelayar",
+    "feedback": "Hantar maklum balas",
+    "discord": "Percanggahan",
+    "devlog": "Log Pembangun",
+    "waysTitle": "Cara untuk membantu",
+    "way1": "Kongsikan idea dan laporan pepijat",
+    "way2": "Buka permintaan tarik pada {{github}} (GPL-3.0)",
+    "way3": "Buat atau perbaiki model 3D",
+    "way4": "Jaga keseimbangan, cipta mantera, kad, idea baharu.",
+    "way5": "Selamat datang pemain, tulis panduan, bantu dengan moderasi jika anda ingin mengambil alih tugas itu"
+  },
+  "about": {
+    "title": "Mengenai",
+    "lead": "MELODAN dihasilkan oleh Alexander Thurn (Feuerware). Ia terletak di Bonn, Jerman.",
+    "inspired": "Permainan ini diinspirasikan oleh {{mechabellum}}, permainan terbaik dalam genre ini. MELODAN ialah sebuah versi fantasi bebas; sila sokong yang asal dan beli Mechabelum. Terima kasih!",
+    "openSource": "Permainan ini ialah {{github}} (GPL-3.0). Hak cipta kekal pada Alexander Thurn / Feuerware. Silakan anda membuat fork secara tertutup, mencipta unit baharu dan membuka permintaan pull. Untuk sesuatu yang lebih besar, spin-off bukan atau komersial, penjenamaan semula penuh dll., sila tulis kepada saya: {{email}}.",
+    "openSourceLink": "sumber terbuka di GitHub"
+  },
+  "footer": {
+    "play": "Main",
+    "steam": "Wap",
+    "feedback": "Maklum balas",
+    "imprint": "Cetakan",
+    "privacy": "Privasi data"
+  }
+}

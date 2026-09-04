@@ -1,0 +1,17 @@
+{
+  "close": "Vicino",
+  "back": "Indietro",
+  "reset": "Reset",
+  "language": "Lingua",
+  "term": {
+    "rune": "Runa",
+    "runes": "Rune",
+    "talent": "Talento",
+    "talents": "Talenti",
+    "spell": "Sillabare",
+    "spells": "Incantesimi",
+    "commander": "Comandante",
+    "commanders": "Comandanti",
+    "horde": "Il Komtur"
+  }
+}

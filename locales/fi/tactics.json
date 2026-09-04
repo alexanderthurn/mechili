@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rallireitti",
+    "description": "Aseta lähtö-, keski- ja loppuvyöhykkeet. Lähtöympyrän yksiköt marssivat keskenään samanlaisten keski- ja loppualueiden läpi taisellen matkan varrella."
+  },
+  "oilSpill": {
+    "name": "Öljyvahinko",
+    "description": "Aseta kaksi öljyympyrää – ääriviivat päällekkäin sijoittumisen aikana; pian taistelun alettua öljy tippuu vasemmalta oikealle polulle (suojalevyt pysyvät vapaina). Yhdistetty öljy syttyy yhdeksi kentäksi, kun tuli osuu siihen."
+  },
+  "sellUnit": {
+    "name": "Myy pakkaus",
+    "description": "Napsauta aseistautuaksesi ja napsauta sitten yhtä pakkauksistasi myydäksesi sen tarvikehyvitystä varten."
+  },
+  "moveUnit": {
+    "name": "Siirtopakkaus",
+    "description": "Napsauta aseistautuaksesi ja napsauta sitten yhtä aiemman kierroksen pakkaustasi – sitä voidaan vetää ja pyörittää uudelleen tämän kierroksen loppuun asti."
+  },
+  "tutor": {
+    "name": "Kenttäoppitunti",
+    "description": "Napsauta aseistautuaksesi ja napsauta sitten yhtä pakkaustasi – sen kokemuspalkki täyttyy seuraavalle tasolle. Tason ostaminen maksaa silti huoltoa."
+  },
+  "spawnDwarves": {
+    "name": "Kutsu kääpiöitä",
+    "description": "Merkitse ympyrä mihin tahansa vihollisen tukikohdan ulkopuolelle. Pian taistelun alettua kääpiöiden sotajoukko ryntää maasta esiin yksi kerrallaan – he taistelevat vain tässä taistelussa."
+  },
+  "bigMeteor": {
+    "name": "Meteori",
+    "description": "Merkitse pieni ympyrä mihin tahansa. Muutaman sekunnin kuluttua taistelun alkamisesta meteori tuhoaa kaiken siellä – vain suojakupolit suojelevat (ja maksavat siitä)."
+  },
+  "spawnCrows": {
+    "name": "Kutsu varisratsastajia",
+    "description": "Merkitse ympyrä mihin tahansa vihollisen tukikohdan ulkopuolelle. Pian taistelun alettua variksenratsastajat syöksyvät taivaalta yksi toisensa jälkeen – he taistelevat vain tässä taistelussa."
+  },
+  "hammerOfGods": {
+    "name": "Jumalten vasara",
+    "description": "Napsauta asettaaksesi, siirrä kääntääksesi, napsauta uudelleen lukitaksesi. Taivaallinen vasara putoaa alueelle sekunteja taistelun alkamisen jälkeen."
+  },
+  "storm": {
+    "name": "Myrskykutsu",
+    "description": "Merkitse laaja ympyrä mihin tahansa. Pienet ukkospilvet kerääntyvät korkealle ja sinkoavat salamoita satunnaisiin kohtiin – nuolet eivät aiheuta vahinkoa, mutta iskevät yksiköihin laajalla roiskeella ja aiheuttavat tornimaisen heikkenemisen, ellei niillä ole kultaista auraa. Suojakupolit estävät silti iskut."
+  },
+  "meteorShower": {
+    "name": "Meteoriparvi",
+    "description": "Merkitse laaja ympyrä mihin tahansa. Meteorit satavat satunnaisiin kohtiin ympyrän sisällä jonkin aikaa, ja jokainen räjähdys polttaa osumaansa maata."
+  },
+  "acidSpill": {
+    "name": "Happovuodot",
+    "description": "Kaada happokapseli kuin öljyvuoto – se tippuu vasemmalta oikealle maahan pian taistelun alettua. Lätäkön yläpuolella olevat maa- ja ilmayksiköt sihisevät ja syöpyvät – saaden ylimääräistä vahinkoa kaikesta."
+  },
+  "fireSpill": {
+    "name": "Tulipalon leviäminen",
+    "description": "Kaada tulikapseli kuin öljyä – se tippuu vasemmalta oikealle pian taistelun alettua ja sytyttää polun tuleen (suojakiekot pysyvät poissa). Yhdistetty öljy syttyy sen mukana. Liekki kestää vain tämän taistelun."
+  },
+  "dragonAttack": {
+    "name": "Lohikäärmeen hyökkäys",
+    "description": "Piirrä lohikäärmeen iskureitti (leveämpi ja pidempi kuin öljy). Se syöksyy sisään ja hengittää tulta käytävää pitkin – säde polttaa yksiköitä ohittaessaan ja maalaa maan liekkeihin. Suojakupolit imevät hengityksen (ja maksavat siitä)."
+  },
+  "poisonCloud": {
+    "name": "Myrkkypilvi",
+    "description": "Merkitse valtava ympyrä. Myrkyllisiä pilviä kerääntyy yläpuolelle ja sataa pieniä happopisaroita alueen yli – harvalukuisia lätäköitä, jotka syövyttävät maassa ja ilmassa olevia yksiköitä kuten happovuoto, mutta paljon laajemmalla alueella."
+  }
+}

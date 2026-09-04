@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Zet je legers in het geheim in en kijk hoe de ronde zich ontvouwt. Je vijand doet hetzelfde. Pas je aan en herhaal dit totdat een van jullie geen levenspunten meer over heeft.",
+  "hero": {
+    "wishlist": "Nu op je verlanglijstje zetten",
+    "trailer": "Bekijk de trailer",
+    "steamSoon": "De Steam-pagina komt binnenkort online."
+  },
+  "screenshots": {
+    "title": "Screenshots",
+    "sub": "Een blik op de inzet en de strijd.",
+    "browse": "Bekijk schermafbeeldingen",
+    "open": "Open schermafbeelding: {{label}}",
+    "fallback": "Schermafbeelding",
+    "missing": "{{label}} ⬢ sleep het bestand naar assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Legerinzet in de open plek in het bos.",
+    "2": "Implementatiefase en werkplaats",
+    "3": "Drakenvuur spuwen over het veld.",
+    "4": "Plaatsingszones naast elkaar",
+    "5": "Massale veldslag op de vlakte",
+    "6": "Winterbolwerk in de sneeuw",
+    "7": "Dubbele bases op het raster",
+    "8": "Grote versterkte basis"
+  },
+  "lightbox": {
+    "gallery": "Screenshotgalerij",
+    "close": "Galerij sluiten",
+    "prev": "Vorige schermafbeelding",
+    "next": "Volgende schermafbeelding",
+    "dots": "Screenshots",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Eenheden, gebouwen en spreuken",
+    "sub": "Je leger, gebouwen, {{horde}}-pakketten en modellen voor gevechtsspreuken. Kies er één om te bekijken: Crow Rider en Dragon flapperen in deze preview.",
+    "canvas": "3D-voorbeeld van de unit",
+    "loading": "Model laden…",
+    "hint": "Slepen om te roteren · Scrollen om in te zoomen",
+    "select": "Kies een eenheid, gebouw of spreuk.",
+    "list": "Eenheden, gebouwen en spreuken",
+    "buildings": "Gebouwen",
+    "units": "Eenheden",
+    "spells": "Spreuken"
+  },
+  "stats": {
+    "cost": "Kosten",
+    "hp": "HP",
+    "damage": "Schade",
+    "range": "Bereik",
+    "attackInterval": "Aanvalsinterval",
+    "seconds": "{{value}}s",
+    "speed": "Snelheid",
+    "abilities": "Vaardigheden",
+    "spellModel": "Spell model"
+  },
+  "flag": {
+    "flying": "Vliegen",
+    "structure": "Structuur",
+    "extra": "Extra",
+    "attacksGround": "Aanvallen op de grond",
+    "attacksAir": "Luchtaanvallen",
+    "shield": "Afdelingskoepel",
+    "rocket": "Richtbout"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Drakenaanval",
+      "blurb": "Zijwaartse vuuradem. Vleugelbeweging maakt gebruik van hetzelfde shaderpad als Crow Rider (mesh-modus)."
+    },
+    "hammer": {
+      "name": "Hamer van de Goden",
+      "blurb": "Een goddelijke hamer die op een bepaalde plek neerdaalt."
+    },
+    "meteor-great": {
+      "name": "Meteoor",
+      "blurb": "Een enkele, zware meteorietinslag."
+    },
+    "meteor-shard": {
+      "name": "fragment van een meteorenregen",
+      "blurb": "Kleinere meteoren die deel uitmaken van de meteorenregen."
+    },
+    "storm": {
+      "name": "Stormoproep",
+      "blurb": "Een onweerswolk die bliksemflitsen voortbrengt."
+    },
+    "poison": {
+      "name": "Giftwolk",
+      "blurb": "Giftige wolken aan de hemel waaruit schaarse zure regen neerdaalt boven een enorme cirkel."
+    }
+  },
+  "commanders": {
+    "sub": "Voor de eerste ronde kiest elke speler een {{commander}}. Deze bepaalt je startleger, je HP-pool, een permanente specialiteit en drie Stronghold-smederijen {{tactics}} (zwak / gemiddeld / sterk). Teamgenoten delen de combinatie van hun smederijen {{tactics}}.",
+    "select": "Kies een {{commander}}"
+  },
+  "runes": {
+    "sub": "Vastgehecht aan een pakket, tilt elke mech erin op {{sep}} de meeste pakketten bevatten {{packLimit}}, de ballista {{ballistaLimit}}. De vier basisrunen worden getrokken uit ronde kaarten of gekocht in de winkel; de sterkere worden daaruit gesmeed in het Bolwerk en worden nooit verkocht.",
+    "select": "Kies een {{item}}",
+    "base": "Baseren",
+    "advanced": "Geavanceerd",
+    "shopTitle": "Gekocht in de winkel, of getrokken uit een ronde kaart.",
+    "shopLabel": "Winkelprijs",
+    "forgeTitle": "Gesmeed bij de {{building}}",
+    "forgeLabel": "Smeedprijs"
+  },
+  "tactics": {
+    "sub": "Dit zijn de vaardigheden op je {{tactics}}-strip: {{sep}}-oproepen, spreuken, summons en gevechtsspreuken zoals de vuuradem van de draak. Gevechtsspreuken worden in je vesting gekocht, één keer per stuk, en alleen de drie die je commandant kent. De pictogrammen komen overeen met wat je in het spel ziet.",
+    "select": "Kies een {{tactic}}",
+    "placement": "Plaatsing",
+    "oneShot": "Eenmalig",
+    "buyTitle": "Gekocht bij de {{building}}",
+    "priceLabel": "{{building}} prijs"
+  },
+  "targeting": {
+    "point": "punt",
+    "two-point": "twee punten",
+    "three-point": "driepunt",
+    "point-yaw": "punt + tegenover",
+    "own-unit": "eigen verpakking"
+  },
+  "roundCards": {
+    "title": "Ronde kaarten",
+    "sub": "Vanaf ronde twee kies je één van de verschillende aangeboden {{items}}-kaarten uit de wedstrijdpool. Gevechtsspreuken worden gekocht in de Stronghold, niet gekozen uit kaarten.",
+    "select": "Kies een ronde kaart"
+  },
+  "matchSettings": {
+    "title": "Wedstrijdinstellingen",
+    "sub": "De standaardregels voor een wedstrijd, rechtstreeks overgenomen uit de instellingen van het spel, zodat deze niet kunnen afwijken van de uiteindelijke versie. Alles is hier aanpasbaar — het is open source."
+  },
+  "contribute": {
+    "title": "Bijdragen",
+    "sub1": "Melodan is ontwikkeld door één persoon, mijzelf. Ik ben enorm enthousiast over dit spel, maar ik kan geen AAA-titel maken en tegelijkertijd alles perfect, gebalanceerd en dergelijke houden. Het idee is om een open spel te creëren waaraan iedereen kan bijdragen.",
+    "sub2": "Laten we dit samen doen. Balans, bugs, functies, ideeën voor artwork {{sep}} stuur een kort berichtje en ik lees het. Als je meer wilt doen, ben je van harte welkom!",
+    "play": "Testen in de browser",
+    "feedback": "Feedback verzenden",
+    "discord": "Meningsverschil",
+    "devlog": "Ontwikkelaarslogboek",
+    "waysTitle": "Manieren om te helpen",
+    "way1": "Deel ideeën en bugrapporten.",
+    "way2": "Open pull requests op {{github}} (GPL-3.0)",
+    "way3": "3D-modellen maken of verbeteren",
+    "way4": "Zorg voor een goede balans, bedenk nieuwe spreuken, kaarten en ideeën.",
+    "way5": "Welkom spelers, schrijf handleidingen, help met moderatie als je dat wilt."
+  },
+  "about": {
+    "title": "Over",
+    "lead": "MELODAN wordt gemaakt door Alexander Thurn (Feuerware). Hij is gevestigd in Bonn, Duitsland.",
+    "inspired": "Dit spel is geïnspireerd op {{mechabellum}}, het beste spel in het genre. MELODAN is een onafhankelijke fantasy-interpretatie; steun het origineel en koop Mechabelum. Dank u wel!",
+    "openSource": "Het spel is {{github}} (GPL-3.0). Het auteursrecht blijft bij Alexander Thurn / Feuerware. Je mag het gerust privé forken, nieuwe eenheden bedenken en pull requests indienen. Voor grotere projecten, zoals een niet-commerciële of commerciële spin-off, een volledige rebranding, enzovoort, kun je contact met me opnemen: {{email}}.",
+    "openSourceLink": "Open source op GitHub"
+  },
+  "footer": {
+    "play": "Toneelstuk",
+    "steam": "Stoom",
+    "feedback": "Feedback",
+    "imprint": "Impressum",
+    "privacy": "Gegevensprivacy"
+  }
+}

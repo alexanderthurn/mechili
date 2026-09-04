@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Aprimore o nível",
+    "description": "Aumente este edifício um nível: ele recupera seu HP base. O preço inicial é {{baseCost}} e aumenta em {{costStep}} a cada nível (nível máximo {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Vendendo",
+    "description": "Desbloqueia permanentemente os pacotes de venda (até {{maxPerRound}} por fase de implantação). O reembolso é de {{refundPct}}% do custo base."
+  },
+  "attack_boost": {
+    "name": "Aumento de ataque",
+    "description": "Aumento permanente de dano para todo o exército. Primeiro nível +{{attackPct}}%; compre os níveis em ordem (custa {{costs}})."
+  },
+  "hp_boost": {
+    "name": "Aumento de HP",
+    "description": "Aumento permanente de HP para todo o exército. Primeiro nível +{{hpPct}}%; compre os níveis em ordem (custa {{costs}})."
+  },
+  "range_boost": {
+    "name": "Aumento de alcance",
+    "description": "+{{amount}} alcance para todas as unidades de longo alcance, somente nesta rodada."
+  },
+  "speed_boost": {
+    "name": "Aumento de velocidade",
+    "description": "+{{amount}} velocidade para todas as unidades, apenas nesta rodada."
+  },
+  "loan": {
+    "name": "Empréstimo",
+    "description": "+{{gain}} fornecimento agora. Próxima implantação: −{{debt}}. Uma vez por rodada."
+  },
+  "ward_dome": {
+    "name": "Cúpula da enfermaria",
+    "description": "Absorve projéteis inimigos que cruzam para dentro de uma cúpula (raio {{radius}}, altura {{height}}). A reserva representa os pontos de vida (HP) desta unidade."
+  },
+  "homing_fire_bolt": {
+    "name": "Raio teleguiado",
+    "description": "Armas posicionadas, então mira no primeiro inimigo ao alcance {{range}} para causar {{damage}} de dano (espalhamento {{splash}})."
+  },
+  "rally_route": {
+    "name": "Rota do Rali",
+    "description": "Adicione uma carga de rota de reunião à sua faixa de feitiços. Uma vez por partida."
+  },
+  "move_pack": {
+    "name": "Pacote de Mudança",
+    "description": "Adicione uma carga de pacote de movimento à sua faixa de feitiços: um pacote de uma rodada anterior torna-se móvel novamente. Uma vez por partida."
+  },
+  "1_deployment": {
+    "name": "+1 Implantação",
+    "description": "Nesta rodada, só será possível comprar uma unidade extra."
+  },
+  "veteran_training": {
+    "name": "Treinamento para Veteranos",
+    "description": "Durante o restante desta rodada, as unidades que você comprar chegarão no nível 2 (elas ainda pagarão o prêmio de nível)."
+  },
+  "send_supply_to_ally": {
+    "name": "Enviar suprimentos para o aliado",
+    "description": "Presenteie seu aliado com 100 unidades de suprimento — elas chegam no início da próxima rodada. Apenas no modo Dupla."
+  }
+}

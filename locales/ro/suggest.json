@@ -1,0 +1,23 @@
+{
+  "title": "Trimite feedback",
+  "lead": "Spuneți-ne ce să construim, să reparăm sau să încercăm. Dacă doriți, puteți adăuga numele și adresa de e-mail.",
+  "discord": "Preferi chatul? Alătură-te comunității Discord.",
+  "category": "Categorie",
+  "message": "Mesaj",
+  "placeholder": "Ce ar trebui să se schimbe? Ce s-a stricat? Ce ar ajuta?",
+  "cancel": "Anula",
+  "submit": "Trimite",
+  "sending": "Se trimite…",
+  "thanksSent": "Mulțumesc — trimis.",
+  "thanksSaved": "Mulțumesc — salvat.",
+  "writeFirst": "Scrie mai întâi un mesaj scurt.",
+  "rateLimited": "Prea multe sugestii — încearcă din nou peste {{n}}s.",
+  "sendFailed": "Nu s-a putut trimite. Încercați din nou mai târziu.",
+  "networkError": "Eroare de rețea — încercați din nou mai târziu.",
+  "catBug": "Insect",
+  "catBalance": "Echilibru",
+  "catFeature": "Caracteristică",
+  "catArt": "Modele / artă",
+  "catCommunity": "Comunitate",
+  "catOther": "Alte"
+}

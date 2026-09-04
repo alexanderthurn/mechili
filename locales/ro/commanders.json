@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Vrăjitorul Cerului",
+    "description": "Unitățile aeriene primesc +12% atac și HP.",
+    "unitsLabel": "2× Călăreți de Ciori · 1× Pitici"
+  },
+  "cost": {
+    "title": "Prinț lacom",
+    "description": "Toate unitățile primesc -12% atac și HP, dar +100 provizii în fiecare rundă.",
+    "unitsLabel": "2× Arcași · 1× Călăreți de Ciori · 1× Pitici"
+  },
+  "elite": {
+    "title": "Prinț de Elită",
+    "description": "Recrutare la nivelul 2. +100 provizii în runda 1.",
+    "unitsLabel": "1× Balistă · 1× Pitici"
+  },
+  "archer": {
+    "title": "Comandantul Arcașului",
+    "description": "Un arcaș gratuit de nivel 3 sosește în runda 2.",
+    "unitsLabel": "3× Arcași · 2× Pitici"
+  },
+  "addi": {
+    "title": "Păstrător de relicve",
+    "description": "Obține 3× runa Valor în runda 1.",
+    "unitsLabel": "1× Călăreți de Ciori · 3× Pitici"
+  },
+  "meteor": {
+    "title": "Lordul Hitzkopf",
+    "description": "Obține 2 încărcături Meteor în runda 2.",
+    "unitsLabel": "1× Vrăjitor · 1× Pitici"
+  },
+  "speed": {
+    "title": "Văduva rapidă",
+    "unitsLabel": "1× Călăreți de Ciori · 1× Arcași · 2× Pitici"
+  },
+  "giant": {
+    "title": "Contesa Chonk",
+    "unitsLabel": "1× Balistă · 1× Pitici"
+  },
+  "tutor": {
+    "title": "Lady Lecture",
+    "description": "Începe cu o lecție pe teren.",
+    "unitsLabel": "1× Călăreți de Ciori · 3× Arcași"
+  },
+  "money": {
+    "title": "Regina Banilor",
+    "unitsLabel": "2× Călăreți de Ciori · 1× Arcași"
+  },
+  "cursed": {
+    "title": "Christine blestemată",
+    "description": "Primește un păianjen Black Brood gratuit în fiecare rundă.",
+    "unitsLabel": "2× Pitici · 2× Arcași"
+  },
+  "flanky": {
+    "title": "Umbră Flancă",
+    "description": "Prima apariție pe flancuri durează jumătate din timp.",
+    "unitsLabel": "2× Pitici · 2× Arcași"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "close": "Fechar",
+  "back": "Voltar",
+  "reset": "Reiniciar",
+  "language": "Linguagem",
+  "term": {
+    "rune": "Runa",
+    "runes": "Runas",
+    "talent": "Talento",
+    "talents": "Talentos",
+    "spell": "Soletrar",
+    "spells": "Feitiços",
+    "commander": "Comandante",
+    "commanders": "Comandantes",
+    "horde": "O Komtur"
+  }
+}

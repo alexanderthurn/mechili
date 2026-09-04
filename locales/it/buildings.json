@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Livello di aggiornamento",
+    "description": "Aumenta di un livello questo edificio: ottiene i suoi HP base. Il prezzo parte da {{baseCost}} e aumenta di {{costStep}} per ogni livello (livello massimo {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Vendita",
+    "description": "Sblocca in modo permanente i pacchetti di vendita (fino a {{maxPerRound}} per fase di implementazione). Il rimborso è pari a {{refundPct}}% del costo base."
+  },
+  "attack_boost": {
+    "name": "Potenziamento dell'attacco",
+    "description": "Aumento permanente dei danni per tutto l'esercito. Primo livello +{{attackPct}}%; acquista i livelli in ordine (costo {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP Boost",
+    "description": "Aumento permanente dei Punti Vita per tutto l'esercito. Primo livello +{{hpPct}}%; acquista i livelli in ordine (costo {{costs}})."
+  },
+  "range_boost": {
+    "name": "Aumento dell'autonomia",
+    "description": "Portata +{{amount}} per tutte le unità a distanza, solo in questo round."
+  },
+  "speed_boost": {
+    "name": "Aumento di velocità",
+    "description": "+{{amount}} velocità per tutte le unità, solo in questo round."
+  },
+  "loan": {
+    "name": "Prestito",
+    "description": "+{{gain}} fornitura ora. Prossimo dispiegamento: −{{debt}}. Una volta per round."
+  },
+  "ward_dome": {
+    "name": "Cupola del reparto",
+    "description": "Assorbe i proiettili nemici che attraversano una cupola (raggio {{radius}}, altezza {{height}}). Il pool rappresenta i punti vita di questa unità."
+  },
+  "homing_fire_bolt": {
+    "name": "Dardo di fuoco a ricerca automatica",
+    "description": "Armi in posizione, quindi punta sul primo nemico nel raggio d'azione {{range}} per infliggere {{damage}} danni (danno ad area {{splash}})."
+  },
+  "rally_route": {
+    "name": "Percorso del rally",
+    "description": "Aggiungi una carica di percorso di raduno alla tua striscia di magie. Una volta per partita."
+  },
+  "move_pack": {
+    "name": "Pacchetto di movimento",
+    "description": "Aggiungi una carica di pacchetto di movimento alla tua striscia di incantesimi: un pacchetto di un round precedente torna a essere movimentabile. Una sola volta per partita."
+  },
+  "1_deployment": {
+    "name": "+1 Dispiegamento",
+    "description": "È possibile acquistare un'unità aggiuntiva solo in questo round."
+  },
+  "veteran_training": {
+    "name": "Addestramento dei veterani",
+    "description": "Per il resto di questo round, le unità che acquisti arrivano al livello 2 (pagano comunque il sovrapprezzo di livello)."
+  },
+  "send_supply_to_ally": {
+    "name": "Invia rifornimenti all'alleato",
+    "description": "Regala 100 unità di rifornimenti al tuo alleato: arriveranno all'inizio del prossimo round. Solo in modalità Duo."
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Placera ut arméer i hemlighet och se rundan utspela sig. Din fiende gör detsamma. Anpassa dig, upprepa tills en av er får slut på HP.",
+  "hero": {
+    "wishlist": "Önskelista nu",
+    "trailer": "Se trailern",
+    "steamSoon": "Steam-sida kommer snart"
+  },
+  "screenshots": {
+    "title": "Skärmdumpar",
+    "sub": "En titt på utplacering och strid.",
+    "browse": "Bläddra bland skärmdumpar",
+    "open": "Öppna skärmdump: {{label}}",
+    "fallback": "Skärmdump",
+    "missing": "{{label}} ⬢ släpp filen i resurser/marknadsföring/skärmdumpar/"
+  },
+  "shot": {
+    "1": "Arméplacering i skogsröjningen",
+    "2": "Implementeringsfas och enhetsbutik",
+    "3": "Drakeeld andedräkt över fältet",
+    "4": "Sida vid sida-distributionszoner",
+    "5": "Massstrid på slätterna",
+    "6": "Vinterfästning i snön",
+    "7": "Dubbla baser på nätet",
+    "8": "Stor befäst bas"
+  },
+  "lightbox": {
+    "gallery": "Skärmdumpsgalleri",
+    "close": "Stäng galleriet",
+    "prev": "Föregående skärmdump",
+    "next": "Nästa skärmdump",
+    "dots": "Skärmdumpar",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Enheter, byggnader och trollformler",
+    "sub": "Din armé, byggnader, {{horde}}-paket och modeller av stridsformler. Välj en att inspektera — Kråkridtaren och Draken flaxar i den här förhandsvisningen.",
+    "canvas": "Förhandsvisning av enhet 3D",
+    "loading": "Laddar modell…",
+    "hint": "Dra för att rotera · Scrolla för att zooma",
+    "select": "Välj en enhet, byggnad eller besvärjelse",
+    "list": "Enheter, byggnader och trollformler",
+    "buildings": "Bebyggelse",
+    "units": "Enheter",
+    "spells": "Trollformler"
+  },
+  "stats": {
+    "cost": "Kosta",
+    "hp": "HP",
+    "damage": "Skada",
+    "range": "Räckvidd",
+    "attackInterval": "Attackintervall",
+    "seconds": "{{value}}s",
+    "speed": "Hastighet",
+    "abilities": "Förmågor",
+    "spellModel": "Stavningsmodell"
+  },
+  "flag": {
+    "flying": "Flygande",
+    "structure": "Strukturera",
+    "extra": "Extra",
+    "attacksGround": "Attackerar marken",
+    "attacksAir": "Attackerar luft",
+    "shield": "Ward-kupolen",
+    "rocket": "Målsökande bult"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Drakattack",
+      "blurb": "Strafande eldandedräkt. Vingklaffen använder samma skuggningsväg som Crow Rider (nätläge)."
+    },
+    "hammer": {
+      "name": "Gudarnas hammare",
+      "blurb": "Gudomlig hammare som faller ner på en placerad zon."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Enstaka kraftiga meteornedslag."
+    },
+    "meteor-shard": {
+      "name": "Meteorregnsskärva",
+      "blurb": "Mindre meteor som används av duschspärren."
+    },
+    "storm": {
+      "name": "Stormanrop",
+      "blurb": "Stormmoln som kastar blixtar."
+    },
+    "poison": {
+      "name": "Giftmoln",
+      "blurb": "Giftiga himmelmoln som regnar gles syra över en enorm cirkel."
+    }
+  },
+  "commanders": {
+    "sub": "Före den första rundan väljer varje spelare en {{commander}}. Den anger din startarmé, HP-pool, en permanent specialitet och tre fästesmedjor {{tactics}} (svag / medel / stark). Lagkamrater delar föreningen av sin smedja {{tactics}}.",
+    "select": "Välj en {{commander}}"
+  },
+  "runes": {
+    "sub": "Smält samman med en packe för gott, och lyfter varje mech i den {{sep}} rymmer de flesta packar {{packLimit}}, ballistan {{ballistaLimit}}. De fyra basrunorna är utarbetade från runda kort eller köpta i butiken; de starkare är smidda från dem i Fästet och säljs aldrig.",
+    "select": "Välj en {{item}}",
+    "base": "Bas",
+    "advanced": "Avancerad",
+    "shopTitle": "Köpt i butiken, eller draftad från ett runt kort",
+    "shopLabel": "Butikspris",
+    "forgeTitle": "Smidd vid {{building}}",
+    "forgeLabel": "Smidningspris"
+  },
+  "tactics": {
+    "sub": "Det här är färdigheterna på din {{tactics}}-remsa {{sep}}: samlingar, spill, kallelser och stridskast som drakens eldandedräkt. Stridsformler köps i ditt fäste, en gång per förmåga, och bara de tre som din befälhavare känner till. Ikonerna matchar det du ser i spelet.",
+    "select": "Välj en {{tactic}}",
+    "placement": "Placering",
+    "oneShot": "Engångsbehandling",
+    "buyTitle": "Köpt på {{building}}",
+    "priceLabel": "{{building}} pris"
+  },
+  "targeting": {
+    "point": "punkt",
+    "two-point": "tvåpoängare",
+    "three-point": "trepoängare",
+    "point-yaw": "punkt + vändning",
+    "own-unit": "eget paket"
+  },
+  "roundCards": {
+    "title": "Runda kort",
+    "sub": "Från och med runda två, drafta ett av flera erbjudna {{items}}-kort som dras från matchpoolen. Stridsformler köps vid Fästet, draftas inte från kort.",
+    "select": "Välj ett runt kort"
+  },
+  "matchSettings": {
+    "title": "Matchinställningar",
+    "sub": "Standardreglerna för en match, hämtade direkt från spelets inställningskod så att det inte kan avvika från vad som faktiskt levereras. Allt här är justerbart – det är öppen källkod."
+  },
+  "contribute": {
+    "title": "Medverka",
+    "sub1": "Melodan är utvecklat av en enda person, jag. Jag brinner för det här spelet, men jag kan inte skapa en AAA-titel och hålla allt perfekt, balanserat och så vidare. Tanken är att ha ett öppet spel där vem som helst kan bidra.",
+    "sub2": "Låt oss göra detta tillsammans. Balans, buggar, funktioner, konstidéer {{sep}} skicka ett kort meddelande så läser jag det. Om du vill göra mer, välkommen!",
+    "play": "Testa i webbläsare",
+    "feedback": "Skicka feedback",
+    "discord": "Disharmoni",
+    "devlog": "Utvecklarlogg",
+    "waysTitle": "Sätt att hjälpa till",
+    "way1": "Dela idéer och felrapporter",
+    "way2": "Öppna pull requests på {{github}} (GPL-3.0)",
+    "way3": "Skapa eller förbättra 3D-modeller",
+    "way4": "Ta hand om balansering, uppfinn nya trollformler, kort, idéer.",
+    "way5": "Välkomna spelare, skriv guider, hjälp till med moderering om du vill ta dig an det."
+  },
+  "about": {
+    "title": "Om",
+    "lead": "MELODAN tillverkas av Alexander Thurn (Feuerware). Han är baserad i Bonn, Tyskland.",
+    "inspired": "Det här spelet är inspirerat av {{mechabellum}}, det bästa spelet i genren. MELODAN är en oberoende fantasyversion; stötta gärna originalet och köp Mechabelum. Tack!",
+    "openSource": "Spelet är {{github}} (GPL-3.0). Upphovsrätten tillhör Alexander Thurn / Feuerware. Känn dig fri att forka det privat, uppfinna nya enheter och öppna pull requests. För något större, en icke-kommersiell spin-off, en fullständig rebranding etc., skriv gärna till mig: {{email}}.",
+    "openSourceLink": "öppen källkod på GitHub"
+  },
+  "footer": {
+    "play": "Spela",
+    "steam": "Ånga",
+    "feedback": "Feed-back",
+    "imprint": "Avtryck",
+    "privacy": "Datasekretess"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "title": "Odeslat zpětnou vazbu",
+  "lead": "Řekněte nám, co máme postavit, opravit nebo vyzkoušet. Pokud chcete, můžete přidat své jméno a e-mailovou adresu.",
+  "discord": "Dáváte přednost chatu? Přidejte se ke komunitě Discordu.",
+  "category": "Kategorie",
+  "message": "Zpráva",
+  "placeholder": "Co by se mělo změnit? Co se pokazilo? Co by pomohlo?",
+  "cancel": "Zrušit",
+  "submit": "Předložit",
+  "sending": "Odesílání…",
+  "thanksSent": "Díky – odesláno.",
+  "thanksSaved": "Díky – zachráněno.",
+  "writeFirst": "Nejprve napište krátkou zprávu.",
+  "rateLimited": "Příliš mnoho návrhů – zkuste to znovu za {{n}}s.",
+  "sendFailed": "Nepodařilo se odeslat. Zkuste to znovu později.",
+  "networkError": "Chyba sítě – zkuste to znovu později.",
+  "catBug": "Chyba",
+  "catBalance": "Váhy",
+  "catFeature": "Funkce",
+  "catArt": "Modely / umění",
+  "catCommunity": "Společenství",
+  "catOther": "Ostatní"
+}

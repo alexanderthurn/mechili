@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Arquero de guarnición"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Progenie negra"
+  },
+  "hordeSpinne": {
+    "name": "Araña negra"
+  },
+  "hordeFarmer": {
+    "name": "Granjero muerto"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Peón agrícola muerto"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Enano"
+  },
+  "archer": {
+    "name": "Arquero"
+  },
+  "wizard": {
+    "name": "Mago"
+  },
+  "crowRider": {
+    "name": "El jinete del cuervo"
+  },
+  "ballista": {
+    "name": "Balista"
+  },
+  "shield": {
+    "name": "Piedra de Ward"
+  },
+  "rocket": {
+    "name": "Rayo de fuego"
+  },
+  "command-tower": {
+    "name": "Vanguardia"
+  },
+  "research-center": {
+    "name": "Guarnición"
+  },
+  "stronghold": {
+    "name": "Fortaleza"
+  },
+  "hordeZombie": {
+    "name": "Progenie negra"
+  }
+}

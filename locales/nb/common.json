@@ -1,0 +1,17 @@
+{
+  "close": "Lukke",
+  "back": "Tilbake",
+  "reset": "Tilbakestill",
+  "language": "Språk",
+  "term": {
+    "rune": "Rune",
+    "runes": "Runer",
+    "talent": "Talent",
+    "talents": "Talenter",
+    "spell": "Stave",
+    "spells": "Formler",
+    "commander": "Kommandør",
+    "commanders": "Kommandører",
+    "horde": "Komturen"
+  }
+}

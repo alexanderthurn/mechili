@@ -1,0 +1,17 @@
+{
+  "close": "Cerca",
+  "back": "Atrás",
+  "reset": "Reiniciar",
+  "language": "Idioma",
+  "term": {
+    "rune": "Runa",
+    "runes": "Runas",
+    "talent": "Talento",
+    "talents": "Prendas",
+    "spell": "Deletrear",
+    "spells": "Hechizos",
+    "commander": "Comandante",
+    "commanders": "Comandantes",
+    "horde": "El Komtur"
+  }
+}

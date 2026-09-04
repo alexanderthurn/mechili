@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Groupe de nains",
+    "description": "Quatre meutes de nains rejoignent votre armée.",
+    "unitsLabel": "4× Nains"
+  },
+  "archers4": {
+    "title": "Compagnie Archer",
+    "description": "Quatre archers rejoignent votre armée.",
+    "unitsLabel": "4 archers"
+  },
+  "crowRiders2": {
+    "title": "Aile de corbeau",
+    "description": "Deux volées de cavaliers corbeaux rejoignent votre armée.",
+    "unitsLabel": "2× Cavaliers Corbeaux"
+  },
+  "ballista1": {
+    "title": "Baliste de siège",
+    "description": "Une baliste rejoint votre armée.",
+    "unitsLabel": "1× Baliste"
+  },
+  "flanky": {
+    "title": "Flanc",
+    "description": "Les premières apparitions sur les flancs prennent deux fois moins de temps (2,5 s)."
+  },
+  "rallyRoute": {
+    "title": "Parcours du rallye",
+    "description": "Établissez un itinéraire de marche : les unités de la zone de départ se dirigent vers la zone d’arrivée, en combattant tout au long du chemin."
+  },
+  "sellPack": {
+    "title": "Rachat",
+    "description": "Sort à usage unique : vendez un de vos paquets pour obtenir un remboursement de vos ressources."
+  },
+  "movePack": {
+    "title": "Ordres de marche",
+    "description": "Sort à usage unique : un paquet d’un tour précédent peut être repositionné à nouveau pendant ce tour."
+  }
+}

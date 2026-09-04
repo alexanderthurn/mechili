@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Ordularınızı gizlice konuşlandırın ve turun nasıl geliştiğini izleyin. Düşmanınız da aynısını yapacak. Adapte olun, birinizin canı bitene kadar tekrarlayın.",
+  "hero": {
+    "wishlist": "Şimdi istek listenize ekleyin",
+    "trailer": "Fragmanı İzle",
+    "steamSoon": "Steam sayfası yakında yayında olacak."
+  },
+  "screenshots": {
+    "title": "Ekran görüntüleri",
+    "sub": "Konuşlandırma ve savaşa bir bakış.",
+    "browse": "Ekran görüntülerini inceleyin",
+    "open": "Ekran görüntüsünü aç: {{label}}",
+    "fallback": "Ekran görüntüsü",
+    "missing": "{{label}} ⬢ dosyayı assets/marketing/screenshots/ klasörüne bırakın"
+  },
+  "shot": {
+    "1": "Orman temizleme çalışmalarına ordunun konuşlandırılması",
+    "2": "Dağıtım aşaması ve birim mağazası",
+    "3": "Ejderhanın ateş püskürtmesi tarlanın üzerinde",
+    "4": "Yan yana konuşlandırma bölgeleri",
+    "5": "Ovalarda kitlesel savaş",
+    "6": "Karlar içindeki kış kalesi",
+    "7": "şebekede çift üsler",
+    "8": "Büyük müstahkem üs"
+  },
+  "lightbox": {
+    "gallery": "Ekran görüntüsü galerisi",
+    "close": "Galeriyi kapat",
+    "prev": "Önceki ekran görüntüsü",
+    "next": "Sonraki ekran görüntüsü",
+    "dots": "Ekran görüntüleri",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Birimler, binalar ve büyüler",
+    "sub": "Ordunuz, binalarınız, {{horde}} paketleriniz ve savaş büyüsü modelleriniz. İncelemek için birini seçin — bu önizlemede Karga Binicisi ve Ejderha kanat çırpıyor.",
+    "canvas": "Ünite 3D önizlemesi",
+    "loading": "Model yükleniyor…",
+    "hint": "Döndürmek için sürükleyin · Yakınlaştırmak için kaydırın",
+    "select": "Bir birim, bina veya büyü seçin.",
+    "list": "Birimler, binalar ve büyüler",
+    "buildings": "Binalar",
+    "units": "Birimler",
+    "spells": "Büyüler"
+  },
+  "stats": {
+    "cost": "Maliyet",
+    "hp": "HP",
+    "damage": "Zarar",
+    "range": "Menzil",
+    "attackInterval": "Saldırı aralığı",
+    "seconds": "{{value}}s",
+    "speed": "Hız",
+    "abilities": "Yetenekler",
+    "spellModel": "Büyü modeli"
+  },
+  "flag": {
+    "flying": "Uçan",
+    "structure": "Yapı",
+    "extra": "Ekstra",
+    "attacksGround": "Yere saldırıyor",
+    "attacksAir": "Hava saldırıları",
+    "shield": "Koğuş kubbesi",
+    "rocket": "Hedefleme cıvatası"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Ejderha Saldırısı",
+      "blurb": "Yanal ateş püskürtme. Kanat çırpma, Crow Rider (ağ modu) ile aynı gölgelendirici yolunu kullanır."
+    },
+    "hammer": {
+      "name": "Tanrıların Çekici",
+      "blurb": "Belirlenen bölgeye düşen ilahi çekiç."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Tek bir şiddetli meteor çarpması."
+    },
+    "meteor-shard": {
+      "name": "Meteor Yağmuru Parçası",
+      "blurb": "Göktaşı yağmurunun yarattığı bombardımanda kullanılan daha küçük bir göktaşı."
+    },
+    "storm": {
+      "name": "Fırtına Çağrısı",
+      "blurb": "Şimşekler saçan fırtına bulutu."
+    },
+    "poison": {
+      "name": "Zehirli Bulut",
+      "blurb": "Zehirli gökyüzü bulutları, devasa bir daire üzerinde seyrek asit yağdırıyor."
+    }
+  },
+  "commanders": {
+    "sub": "Birinci turdan önce her oyuncu bir {{commander}} seçer. Bu, başlangıç ordunuzu, can puanınızı, kalıcı bir uzmanlığınızı ve üç Kale ocağınızı {{tactics}} (zayıf / orta / güçlü) belirler. Takım arkadaşları, ocaklarının birleşimini {{tactics}} paylaşırlar.",
+    "select": "Bir {{commander}} seçin"
+  },
+  "runes": {
+    "sub": "Pakete kalıcı olarak kaynaştırılmış, içindeki her mekanizmayı kaldıran {{sep}} (çoğu paket {{packLimit}} içerir), balista {{ballistaLimit}}. Dört temel rün, yuvarlak kartlardan seçilir veya dükkandan satın alınır; daha güçlü olanlar Kalede bunlardan dövülür ve asla satılmaz.",
+    "select": "Bir {{item}} seçin",
+    "base": "Temel",
+    "advanced": "Gelişmiş",
+    "shopTitle": "Dükkândan satın alınmış veya yuvarlak bir kart destesinden çekilmiş.",
+    "shopLabel": "Mağaza fiyatı",
+    "forgeTitle": "{{building}}'da dövüldü",
+    "forgeLabel": "Dövme fiyatı"
+  },
+  "tactics": {
+    "sub": "Bunlar, {{tactics}} şeridinizdeki {{sep}} yeteneklerdir; ejderhanın ateş nefesi gibi saldırılar, saldırılar, çağırmalar ve savaş büyüleri. Savaş büyüleri, Kalenizden birer kez satın alınır ve komutanınız yalnızca üçünü bilir. Simgeler, oyunda gördüğünüzle eşleşir.",
+    "select": "Bir {{tactic}} seçin",
+    "placement": "Atama",
+    "oneShot": "Tek atışlık",
+    "buyTitle": "{{building}}'dan satın alındı",
+    "priceLabel": "{{building}} fiyatı"
+  },
+  "targeting": {
+    "point": "nokta",
+    "two-point": "iki puan",
+    "three-point": "üç sayılık",
+    "point-yaw": "nokta + karşı karşıya",
+    "own-unit": "kendi paketi"
+  },
+  "roundCards": {
+    "title": "Yuvarlak kartlar",
+    "sub": "İkinci turdan itibaren, maç havuzundan çekilen çeşitli {{items}} kartlarından birini seçin. Savaş büyüleri Kale'den satın alınır, kartlardan seçilmez.",
+    "select": "Yuvarlak bir kart seçin."
+  },
+  "matchSettings": {
+    "title": "Maç ayarları",
+    "sub": "Maç için varsayılan kurallar, oyunun ayarlar kodundan doğrudan alınmıştır, bu nedenle gerçekte piyasaya sürülenlerden sapması mümkün değildir. Buradaki her şey ayarlanabilir; açık kaynaklıdır."
+  },
+  "contribute": {
+    "title": "Katkı yapmak",
+    "sub1": "Melodan tek bir kişi tarafından, yani benim tarafımdan geliştirildi. Bu oyuna tutkuyla bağlıyım, ancak AAA kalitesinde bir oyun yapıp her şeyi mükemmel, dengeli ve kusursuz tutamam. Buradaki fikir, herkesin katkıda bulunabileceği açık uçlu bir oyun yaratmak.",
+    "sub2": "Bunu birlikte yapalım. Denge, hatalar, özellikler, sanat fikirleri {{sep}} kısa bir not gönderin, okuyacağım. Daha fazlasını yapmak isterseniz, hoş geldiniz!",
+    "play": "Tarayıcıda test edin",
+    "feedback": "Geri bildirim gönder",
+    "discord": "Discord",
+    "devlog": "Geliştirici Günlüğü",
+    "waysTitle": "Yardım etmenin yolları",
+    "way1": "Fikirlerinizi ve hata raporlarınızı paylaşın.",
+    "way2": "{{github}} (GPL-3.0) üzerinde açık çekme istekleri oluşturun.",
+    "way3": "3 boyutlu modeller oluşturun veya geliştirin.",
+    "way4": "Dengelemeye dikkat edin, yeni büyüler, kartlar, fikirler icat edin.",
+    "way5": "Oyuncuları karşılayın, rehberler yazın, isterseniz moderasyona yardımcı olun."
+  },
+  "about": {
+    "title": "Hakkında",
+    "lead": "MELODAN, Alexander Thurn (Feuerware) tarafından üretilmektedir. Kendisi Almanya'nın Bonn şehrinde bulunmaktadır.",
+    "inspired": "Bu oyun, türün en iyi oyunu olan {{mechabellum}}'dan esinlenilmiştir. MELODAN bağımsız bir fantastik kurgudur; lütfen orijinal oyunu destekleyin ve Mechabelum'u satın alın. Teşekkürler!",
+    "openSource": "Oyun {{github}} (GPL-3.0) lisanslıdır. Telif hakkı Alexander Thurn / Feuerware'e aittir. Oyunu özel olarak çatallayabilir, yeni birimler icat edebilir ve çekme istekleri açabilirsiniz. Daha büyük bir şey, ticari olmayan veya ticari olmayan bir yan ürün, tam bir yeniden markalama vb. için bana yazabilirsiniz: {{email}}.",
+    "openSourceLink": "GitHub'da açık kaynak kodlu"
+  },
+  "footer": {
+    "play": "Oynamak",
+    "steam": "Buhar",
+    "feedback": "Geri bildirim",
+    "imprint": "Künye",
+    "privacy": "Veri gizliliği"
+  }
+}

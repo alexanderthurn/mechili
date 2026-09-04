@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Jorden",
+    "description": "+10 % HP."
+  },
+  "fire": {
+    "name": "Brand",
+    "description": "+10% attack."
+  },
+  "water": {
+    "name": "Vatten",
+    "description": "+5% attack och HP."
+  },
+  "wind": {
+    "name": "Vind",
+    "description": "+10% intervall."
+  },
+  "addi": {
+    "name": "Tapperhet",
+    "description": "+15% attack och HP."
+  },
+  "power": {
+    "name": "Blodbad",
+    "description": "+75% attack."
+  },
+  "vigor": {
+    "name": "Jätteblod",
+    "description": "+100 % HP."
+  },
+  "colossus": {
+    "name": "Mithril Cuirass",
+    "description": "+250 % HP."
+  },
+  "wrath": {
+    "name": "Bärsärk",
+    "description": "+300% attack."
+  },
+  "golden": {
+    "name": "Solsten",
+    "description": "Immun mot torn-debuffs och tar 30% mindre skada. Trollkarlar kan inte konvertera — strålen gör skada istället."
+  },
+  "bulwark": {
+    "name": "Bålverk",
+    "description": "Sköld: varje enhet får en andra hälsopool som motsvarar dess HP. Avståndsträffar dränerar skölden först; närstrid, eld och syra ignorerar det."
+  }
+}

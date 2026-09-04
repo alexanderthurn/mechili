@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Garrison Archer"
+  },
+  "hordeWebweaver": {
+    "name": "Tkač pavučin"
+  },
+  "hordeBrutSpawn": {
+    "name": "Černý plod"
+  },
+  "hordeSpinne": {
+    "name": "Černý pavouk"
+  },
+  "hordeFarmer": {
+    "name": "Mrtvý farmář"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Mrtvý farmář"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Trpaslík"
+  },
+  "archer": {
+    "name": "Lukostřelec"
+  },
+  "wizard": {
+    "name": "Čaroděj"
+  },
+  "crowRider": {
+    "name": "Jezdec na vránu"
+  },
+  "ballista": {
+    "name": "Balista"
+  },
+  "shield": {
+    "name": "Ward Stone"
+  },
+  "rocket": {
+    "name": "Požární šroub"
+  },
+  "command-tower": {
+    "name": "Předvoj"
+  },
+  "research-center": {
+    "name": "Posádka"
+  },
+  "stronghold": {
+    "name": "Pevnost"
+  },
+  "hordeZombie": {
+    "name": "Černý plod"
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Pieds de flotte"
+  },
+  "carapace": {
+    "name": "Stone Hide"
+  },
+  "barrel": {
+    "name": "Arc"
+  },
+  "ap": {
+    "name": "Flèches perforantes"
+  },
+  "fireArrows": {
+    "name": "Flèches de feu",
+    "description": "Les flèches provoquent un bref incendie au sol et brûlent — suffisamment pour enflammer les flaques d'huile."
+  },
+  "engines": {
+    "name": "Ailes de vent"
+  },
+  "stingers": {
+    "name": "Serres de corbeau"
+  },
+  "armor": {
+    "name": "Placage de fer"
+  },
+  "autoloader": {
+    "name": "Treuil rapide"
+  },
+  "aegis": {
+    "name": "Égide",
+    "description": "Bouclier : chaque unité gagne une seconde réserve de points de vie égale à ses PV. Les attaques à distance vident le bouclier en premier ; les attaques de mêlée, de feu et d’acide l’ignorent."
+  },
+  "golden": {
+    "name": "Aura dorée",
+    "description": "Les alliés proches résistent aux malus des tours et subissent 30 % de dégâts en moins pendant 30 secondes. Les sorciers ne peuvent pas les convertir ; le rayon inflige des dégâts à la place."
+  },
+  "pitchBolts": {
+    "name": "Boulons de pas",
+    "description": "Les carreaux projettent de l'huile à l'impact (ne s'enflamment pas — à utiliser avec des flèches enflammées ou un carreau enflammé)."
+  },
+  "wideBlast": {
+    "name": "Explosion large",
+    "description": "Rayon d'éclaboussure triple (octroie des éclaboussures aux unités qui n'en possèdent pas)."
+  },
+  "skyBind": {
+    "name": "Sky Bind",
+    "description": "Peut attaquer les unités terrestres et aériennes."
+  },
+  "skyLift": {
+    "name": "Ascenseur panoramique",
+    "description": "Permet de faire décoller cet appareil (avion de combat)."
+  },
+  "earthbound": {
+    "name": "Attaché à la terre",
+    "description": "Maintient cet appareil au sol (remplace le Sky Lift / le vol naturel)."
+  },
+  "spiderMother": {
+    "name": "Mère des araignées"
+  },
+  "darkHarvest": {
+    "name": "Moisson noire"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} dégâts",
+    "modRange": "Gamme {{pct}}",
+    "modSpeed": "{{pct}} vitesse de déplacement",
+    "modAttackSpeed": "{{pct}} vitesse d'attaque",
+    "modSplash": "{{mult}}× rayon d'éclaboussure",
+    "produce": "Produit {{child}} tous les {{every}} (jusqu'à {{max}})",
+    "produceFirst": ", premier après {{delay}}",
+    "produceOffspring": "La progéniture atteint le niveau des parents.",
+    "onKill": "Lorsque cette unité tue, déclenchez un {{child}}",
+    "cleave": "Touche tous les ennemis à portée de {{radius}} (autour de cette unité)"
+  }
+}

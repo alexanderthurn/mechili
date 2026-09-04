@@ -1,0 +1,23 @@
+{
+  "title": "Feedback senden",
+  "lead": "Sagen Sie uns, was wir bauen, reparieren oder ausprobieren sollen. Wenn Sie möchten, können Sie Ihren Namen und Ihre E-Mail-Adresse angeben.",
+  "discord": "Du chattest lieber? Dann tritt der Discord-Community bei.",
+  "category": "Kategorie",
+  "message": "Nachricht",
+  "placeholder": "Was sollte sich ändern? Was ist kaputtgegangen? Was würde helfen?",
+  "cancel": "Stornieren",
+  "submit": "Einreichen",
+  "sending": "Senden…",
+  "thanksSent": "Danke – gesendet.",
+  "thanksSaved": "Danke – gespeichert.",
+  "writeFirst": "Schreiben Sie zunächst eine kurze Nachricht.",
+  "rateLimited": "Zu viele Vorschläge – versuchen Sie es erneut in {{n}}s.",
+  "sendFailed": "Senden fehlgeschlagen. Bitte versuchen Sie es später erneut.",
+  "networkError": "Netzwerkfehler – bitte versuchen Sie es später erneut.",
+  "catBug": "Insekt",
+  "catBalance": "Gleichgewicht",
+  "catFeature": "Besonderheit",
+  "catArt": "Modelle / Kunst",
+  "catCommunity": "Gemeinschaft",
+  "catOther": "Andere"
+}

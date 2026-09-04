@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Jord",
+    "description": "+10 % HP."
+  },
+  "fire": {
+    "name": "Ild",
+    "description": "+10 % angrep."
+  },
+  "water": {
+    "name": "Vann",
+    "description": "+5 % angrep og HP."
+  },
+  "wind": {
+    "name": "Vind",
+    "description": "+10 % rekkevidde."
+  },
+  "addi": {
+    "name": "Tapperhet",
+    "description": "+15 % angrep og HP."
+  },
+  "power": {
+    "name": "Blodbad",
+    "description": "+75 % angrep."
+  },
+  "vigor": {
+    "name": "Kjempeblod",
+    "description": "+100 % HP."
+  },
+  "colossus": {
+    "name": "Mithril Cuirass",
+    "description": "+250 % HK."
+  },
+  "wrath": {
+    "name": "Berserk",
+    "description": "+300 % angrep."
+  },
+  "golden": {
+    "name": "Solstein",
+    "description": "Immun mot tårn-debuffs og tar 30 % mindre skade. Trollmenn kan ikke konvertere – strålen gjør skade i stedet."
+  },
+  "bulwark": {
+    "name": "Bulwark",
+    "description": "Skjold: hver enhet får en andre helsepool som tilsvarer HP-en. Avstandstreff tapper skjoldet først; nærkamp, ild og syre ignorerer det."
+  }
+}

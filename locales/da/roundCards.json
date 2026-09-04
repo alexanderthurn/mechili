@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Dværgband",
+    "description": "Fire dværgeflokke slutter sig til din hær.",
+    "unitsLabel": "4× Dværge"
+  },
+  "archers4": {
+    "title": "Archer Company",
+    "description": "Fire bueskytter slutter sig til din hær.",
+    "unitsLabel": "4× Bueskytter"
+  },
+  "crowRiders2": {
+    "title": "Kragevinge",
+    "description": "To flokke af Crow Rider slutter sig til din hær.",
+    "unitsLabel": "2× Krageryttere"
+  },
+  "ballista1": {
+    "title": "Belejring af Ballista",
+    "description": "En ballista slutter sig til din hær.",
+    "unitsLabel": "1× Ballista"
+  },
+  "flanky": {
+    "title": "Flanke",
+    "description": "Førstegangs flanke-gypninger tager halvdelen af tiden (2,5 sekunder)."
+  },
+  "rallyRoute": {
+    "title": "Rallyrute",
+    "description": "Placer en marchrute: enheder i startzonen går mod slutzonen og kæmper undervejs."
+  },
+  "sellPack": {
+    "title": "Tilbagekøb",
+    "description": "Engangsbesværgelse: sælg en af dine pakker for at få refusion for dine forsyninger."
+  },
+  "movePack": {
+    "title": "Marchordre",
+    "description": "Engangsbesværgelse: en pakke fra en tidligere runde kan ompositioneres igen i denne runde."
+  }
+}

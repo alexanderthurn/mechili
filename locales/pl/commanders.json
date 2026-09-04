@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Niebiański Czarodziej",
+    "description": "Jednostki powietrzne otrzymują +12% ataku i HP.",
+    "unitsLabel": "2× Jeźdźcy Kruków · 1× Krasnoludy"
+  },
+  "cost": {
+    "title": "Chciwy książę",
+    "description": "Wszystkie jednostki otrzymują −12% ataku i HP, ale +100 zaopatrzenia w każdej rundzie.",
+    "unitsLabel": "2× Łucznicy · 1× Jeźdźcy Kruków · 1× Krasnoludy"
+  },
+  "elite": {
+    "title": "Elitarny Książę",
+    "description": "Rekrutacja na poziomie 2. +100 zaopatrzenia w rundzie 1.",
+    "unitsLabel": "1× Balista · 1× Krasnoludy"
+  },
+  "archer": {
+    "title": "Dowódca Łuczników",
+    "description": "Darmowy Łucznik 3 poziomu pojawia się w rundzie 2.",
+    "unitsLabel": "3× Łucznicy · 2× Krasnoludy"
+  },
+  "addi": {
+    "title": "Strażnik relikwii",
+    "description": "Otrzymuje 3× runę Męstwa w rundzie 1.",
+    "unitsLabel": "1× Jeźdźcy Kruków · 3× Krasnoludy"
+  },
+  "meteor": {
+    "title": "Pan Hitzkopf",
+    "description": "Otrzymuje 2 ładunki Meteorów w rundzie 2.",
+    "unitsLabel": "1× Czarodziej · 1× Krasnoludy"
+  },
+  "speed": {
+    "title": "Szybka Wdowa",
+    "unitsLabel": "1× Jeźdźcy Kruków · 1× Łucznicy · 2× Krasnoludy"
+  },
+  "giant": {
+    "title": "Hrabina Chonk",
+    "unitsLabel": "1× Balista · 1× Krasnoludy"
+  },
+  "tutor": {
+    "title": "Wykład dla pań",
+    "description": "Zaczyna się od jednej lekcji terenowej.",
+    "unitsLabel": "1× Jeźdźcy Kruków · 3× Łucznicy"
+  },
+  "money": {
+    "title": "Królowa Pieniędzy",
+    "unitsLabel": "2× Jeźdźcy Kruków · 1× Łucznicy"
+  },
+  "cursed": {
+    "title": "Przeklęta Christine",
+    "description": "Otrzymuje jednego darmowego pająka Black Brood w każdej rundzie.",
+    "unitsLabel": "2× Krasnoludy · 2× Łucznicy"
+  },
+  "flanky": {
+    "title": "Flanky Shadow",
+    "description": "Pierwsze pojawienie się flanki zajmuje połowę czasu.",
+    "unitsLabel": "2× Krasnoludy · 2× Łucznicy"
+  }
+}

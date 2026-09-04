@@ -1,0 +1,17 @@
+{
+  "close": "Közeli",
+  "back": "Vissza",
+  "reset": "Visszaállítás",
+  "language": "Nyelv",
+  "term": {
+    "rune": "Rúna",
+    "runes": "Rúnák",
+    "talent": "Tehetség",
+    "talents": "Tehetségek",
+    "spell": "Varázslat",
+    "spells": "Varázslatok",
+    "commander": "Parancsnok",
+    "commanders": "Parancsnokok",
+    "horde": "A Komtur"
+  }
+}

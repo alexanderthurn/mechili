@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Piedi veloci"
+  },
+  "carapace": {
+    "name": "Nascondiglio di pietra"
+  },
+  "barrel": {
+    "name": "Arco lungo"
+  },
+  "ap": {
+    "name": "Frecce perforanti"
+  },
+  "fireArrows": {
+    "name": "Frecce di fuoco",
+    "description": "Le frecce provocano un breve incendio a terra e bruciano, abbastanza da incendiare pozze di petrolio."
+  },
+  "engines": {
+    "name": "Ali di tempesta"
+  },
+  "stingers": {
+    "name": "Artigli di corvo"
+  },
+  "armor": {
+    "name": "Placcatura in ferro"
+  },
+  "autoloader": {
+    "name": "Verricello rapido"
+  },
+  "aegis": {
+    "name": "Egida",
+    "description": "Scudo: ogni unità ottiene un secondo punto salute pari ai suoi HP. Gli attacchi a distanza consumano prima lo scudo; gli attacchi corpo a corpo, fuoco e acido lo ignorano."
+  },
+  "golden": {
+    "name": "Aura dorata",
+    "description": "Gli alleati vicini resistono ai debuff della torre e subiscono il 30% di danni in meno per 30 secondi. I maghi non possono convertirli: il raggio infligge danni al loro posto."
+  },
+  "pitchBolts": {
+    "name": "Bulloni di pece",
+    "description": "I dardi schizzano olio all'impatto (non si incendiano: da usare in combinazione con frecce infuocate o un dardo infuocato)."
+  },
+  "wideBlast": {
+    "name": "Esplosione ad ampio raggio",
+    "description": "Triplica il raggio d'azione dello spruzzo (conferisce l'effetto spruzzo anche alle unità che ne sono sprovviste)."
+  },
+  "skyBind": {
+    "name": "Legame celeste",
+    "description": "Può attaccare unità terrestri e aeree."
+  },
+  "skyLift": {
+    "name": "Sky Lift",
+    "description": "Solleva quest'unità in aria (veicolo da combattimento)."
+  },
+  "earthbound": {
+    "name": "Terrestre",
+    "description": "Mantiene questa unità a terra (sovrascrive Sky Lift / volo naturale)."
+  },
+  "spiderMother": {
+    "name": "Madre dei ragni"
+  },
+  "darkHarvest": {
+    "name": "Raccolto Oscuro"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} danni",
+    "modRange": "{{pct}} gamma",
+    "modSpeed": "{{pct}} velocità di movimento",
+    "modAttackSpeed": "{{pct}} velocità d'attacco",
+    "modSplash": "{{mult}}× raggio di spruzzo",
+    "produce": "Produce {{child}} ogni {{every}} (fino a {{max}})",
+    "produceFirst": ", prima dopo {{delay}}",
+    "produceOffspring": "La prole corrisponde al livello del genitore",
+    "onKill": "Quando questa unità uccide, genera un {{child}}",
+    "cleave": "Colpisce tutti i nemici entro {{radius}} (intorno a questa unità)"
+  }
+}

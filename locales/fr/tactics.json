@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Parcours du rallye",
+    "description": "Délimitez des zones de départ, intermédiaire et d'arrivée. Les unités situées dans le cercle de départ défilent en suivant des décalages correspondants au niveau du milieu, puis de l'arrivée, en combattant tout au long du parcours."
+  },
+  "oilSpill": {
+    "name": "marée noire",
+    "description": "Placez deux cercles d'huile — tracez-en le contour lors du déploiement ; peu après le début du combat, l'huile s'écoule de gauche à droite sur le chemin (les disques de protection restent dégagés). L'huile reliée s'enflamme comme un seul champ au contact du feu."
+  },
+  "sellUnit": {
+    "name": "Pack de vente",
+    "description": "Cliquez pour armer, puis cliquez sur l'un de vos paquets pour le vendre et obtenir un remboursement de ravitaillement."
+  },
+  "moveUnit": {
+    "name": "Pack de déménagement",
+    "description": "Cliquez pour armer, puis cliquez sur l'un de vos packs d'un tour précédent ; vous pourrez le déplacer et le faire pivoter à nouveau pour le reste de ce tour."
+  },
+  "tutor": {
+    "name": "Leçon sur le terrain",
+    "description": "Cliquez pour armer, puis cliquez sur l'un de vos packs : sa barre d'XP se remplit au niveau suivant. L'achat du niveau supérieur coûte toujours des ressources."
+  },
+  "spawnDwarves": {
+    "name": "Invoquer des nains",
+    "description": "Tracez un cercle n'importe où à l'extérieur de la base ennemie. Peu après le début du combat, une bande de nains surgira du sol, un par un ; ils ne participeront qu'à cette bataille."
+  },
+  "bigMeteor": {
+    "name": "Météore",
+    "description": "Tracez un petit cercle n'importe où. Quelques secondes après le début du combat, une météorite anéantit tout sur son passage ; seuls les dômes de protection offrent un refuge (à leurs frais)."
+  },
+  "spawnCrows": {
+    "name": "Invoquer les cavaliers corbeaux",
+    "description": "Tracez un cercle n'importe où à l'extérieur de la base ennemie. Peu après le début du combat, des cavaliers corbeaux fondent du ciel, les uns après les autres ; ils ne participent qu'à cette bataille."
+  },
+  "hammerOfGods": {
+    "name": "Marteau des dieux",
+    "description": "Cliquez pour placer, déplacez pour faire pivoter, cliquez à nouveau pour verrouiller. Un marteau divin s'abat sur la zone quelques secondes après le début du combat."
+  },
+  "storm": {
+    "name": "Appel de la tempête",
+    "description": "Tracez un large cercle n'importe où. De petits nuages d'orage s'accumulent en altitude et projettent des éclairs aléatoires. Ces éclairs ne causent aucun dégât, mais électrocutent les unités dans une large zone, leur infligeant un malus similaire à celui d'une tour, à moins qu'elles ne soient protégées par une aura dorée. Les dômes de protection bloquent toujours les impacts."
+  },
+  "meteorShower": {
+    "name": "Pluie de météores",
+    "description": "Tracez un large cercle n'importe où. Des météores s'abattent aléatoirement à l'intérieur pendant un certain temps, chaque explosion brûlant le sol qu'elle touche."
+  },
+  "acidSpill": {
+    "name": "Déversement d'acide",
+    "description": "Déversez une capsule d'acide comme une marée noire : elle s'écoule de gauche à droite sur le sol peu après le début du combat. Les unités terrestres et aériennes situées au-dessus de la flaque crépitent et se corrodent, subissant des dégâts supplémentaires de toutes parts."
+  },
+  "fireSpill": {
+    "name": "Déversement d'incendie",
+    "description": "Versez une capsule de feu comme de l'huile : elle s'écoule de gauche à droite peu après le début du combat et embrase le passage (les disques de protection restent à distance). L'huile en contact avec elle s'enflamme également. La flamme ne dure que pendant ce combat."
+  },
+  "dragonAttack": {
+    "name": "Attaque du Dragon",
+    "description": "Tracez la trajectoire de mitraillage du dragon (plus large et plus longue que celle de l'huile). Il plonge et crache du feu le long du couloir ; le rayon brûle les unités sur son passage et embrase le sol. Les dômes de protection absorbent le souffle (et en subissent les conséquences)."
+  },
+  "poisonCloud": {
+    "name": "Nuage toxique",
+    "description": "Tracez un immense cercle. Des nuages toxiques s'amoncellent au-dessus et déversent de fines gouttes d'acide sur la zone — des flaques éparses qui corrodent le sol et l'air comme lors d'une marée noire, mais sur une zone beaucoup plus étendue."
+  }
+}

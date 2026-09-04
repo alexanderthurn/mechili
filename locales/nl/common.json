@@ -1,0 +1,17 @@
+{
+  "close": "Dichtbij",
+  "back": "Terug",
+  "reset": "Reset",
+  "language": "Taal",
+  "term": {
+    "rune": "Rune",
+    "runes": "Runen",
+    "talent": "Talent",
+    "talents": "Talenten",
+    "spell": "Spellen",
+    "spells": "Spreuken",
+    "commander": "Commandant",
+    "commanders": "Commandanten",
+    "horde": "De Komtur"
+  }
+}

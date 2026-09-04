@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rota do Rali",
+    "description": "Defina as zonas de partida, meio e fim. As unidades no círculo de partida marcham através de marcações correspondentes no meio e, em seguida, no fim, lutando ao longo do percurso."
+  },
+  "oilSpill": {
+    "name": "Derramamento de petróleo",
+    "description": "Coloque dois círculos de óleo — contorne-os durante a implantação; logo após o início da batalha, o óleo pinga da esquerda para a direita no caminho (os discos de proteção permanecem livres). O óleo conectado se inflama como um único campo quando o fogo o toca."
+  },
+  "sellUnit": {
+    "name": "Pacote de Venda",
+    "description": "Clique para ativar e, em seguida, clique em um dos seus pacotes para vendê-lo e receber um reembolso de suprimentos."
+  },
+  "moveUnit": {
+    "name": "Pacote de Mudança",
+    "description": "Clique para ativar e, em seguida, clique em um dos seus pacotes de uma rodada anterior — ele poderá ser arrastado e girado novamente durante o restante desta rodada."
+  },
+  "tutor": {
+    "name": "Lição de Campo",
+    "description": "Clique para ativar e, em seguida, clique em um dos seus pacotes — a barra de XP dele será preenchida até o próximo nível. Comprar o nível ainda custa suprimentos."
+  },
+  "spawnDwarves": {
+    "name": "Invocar Anões",
+    "description": "Marque um círculo em qualquer lugar fora da base inimiga. Logo após o início da batalha, um bando de anões surgirá do chão, um a um — eles lutarão apenas nessa batalha."
+  },
+  "bigMeteor": {
+    "name": "Meteoro",
+    "description": "Marque um pequeno círculo em qualquer lugar. Segundos após o início da batalha, um meteoro destrói tudo ali — apenas cúpulas de proteção protegem (e pagam por isso)."
+  },
+  "spawnCrows": {
+    "name": "Invocar Cavaleiros Corvos",
+    "description": "Marque um círculo em qualquer lugar fora da base inimiga. Logo após o início da batalha, cavaleiros corvos mergulham do céu, um após o outro — eles lutam apenas nesta batalha."
+  },
+  "hammerOfGods": {
+    "name": "Martelo dos Deuses",
+    "description": "Clique para posicionar, mova para girar, clique novamente para travar. Um martelo divino cai na área segundos após o início da batalha."
+  },
+  "storm": {
+    "name": "Chamada da Tempestade",
+    "description": "Marque um círculo amplo em qualquer lugar. Pequenas nuvens de tempestade se formam no alto e lançam raios em pontos aleatórios — os raios não causam dano, mas eletrocutam as unidades em uma ampla área com um efeito negativo semelhante a uma torre, a menos que elas possuam aura dourada. Domos de proteção ainda bloqueiam os raios."
+  },
+  "meteorShower": {
+    "name": "Chuva de meteoros",
+    "description": "Marque um círculo amplo em qualquer lugar. Meteoros cairão sobre pontos aleatórios dentro desse círculo por um tempo, cada explosão queimando o solo que atinge."
+  },
+  "acidSpill": {
+    "name": "Derramamento de ácido",
+    "description": "Derrame uma cápsula de ácido como se fosse um derramamento de óleo — ela pinga da esquerda para a direita no chão logo após o início da batalha. Unidades terrestres e aéreas sobre a poça crepitam e se corroem — sofrendo danos adicionais de todos os lados."
+  },
+  "fireSpill": {
+    "name": "Derramamento de fogo",
+    "description": "Derrame uma cápsula de fogo como se fosse óleo — ela pinga da esquerda para a direita logo após o início da batalha e incendeia o caminho (os discos de proteção permanecem livres). O óleo conectado a ela se inflama junto. A chama dura apenas esta batalha."
+  },
+  "dragonAttack": {
+    "name": "Ataque do Dragão",
+    "description": "Desenhe a trajetória de ataque do dragão (mais larga e mais longa que o óleo). Ele mergulha e cospe fogo ao longo do corredor — o raio incinera as unidades à sua passagem e pinta o chão em chamas. As cúpulas de proteção absorvem o sopro (e pagam o preço)."
+  },
+  "poisonCloud": {
+    "name": "Nuvem Venenosa",
+    "description": "Marque um círculo enorme. Nuvens tóxicas se acumulam no céu e pequenas gotas de ácido caem sobre a área — poças esparsas que corroem unidades terrestres e aéreas semelhantes a Acid Spill, mas em uma área muito maior."
+  }
+}

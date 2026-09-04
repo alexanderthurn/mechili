@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Zespół krasnoludów",
+    "description": "Cztery stada krasnoludów dołączają do twojej armii.",
+    "unitsLabel": "4× Krasnoludy"
+  },
+  "archers4": {
+    "title": "Kompania Łuczników",
+    "description": "Do twojej armii dołączają czterej łucznicy.",
+    "unitsLabel": "4× Łucznicy"
+  },
+  "crowRiders2": {
+    "title": "Skrzydło Kruka",
+    "description": "Dwa stada Jeźdźców Kruków dołączają do twojej armii.",
+    "unitsLabel": "2× Jeźdźcy Kruków"
+  },
+  "ballista1": {
+    "title": "Balista oblężnicza",
+    "description": "Do twojej armii dołącza balista.",
+    "unitsLabel": "1× Balista"
+  },
+  "flanky": {
+    "title": "Flanky",
+    "description": "Pierwsze pojawienie się flanki zajmuje połowę czasu (2,5 sek.)."
+  },
+  "rallyRoute": {
+    "title": "Trasa rajdu",
+    "description": "Wyznacz trasę marszu: jednostki ze strefy początkowej kierują się do strefy końcowej, walcząc po drodze."
+  },
+  "sellPack": {
+    "title": "Odkup",
+    "description": "Zaklęcie jednorazowe: sprzedaj jeden ze swoich pakietów, aby otrzymać zwrot zapasów."
+  },
+  "movePack": {
+    "title": "Rozkazy marszowe",
+    "description": "Zaklęcie jednorazowe: jeden pakiet z poprzedniej rundy może zostać przeniesiony ponownie w tej rundzie."
+  }
+}

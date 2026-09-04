@@ -1,0 +1,161 @@
+{
+  "tagline": "TỰ ĐỘNG CHIẾN ĐẤU GIẢ TƯỞNG",
+  "lead": "Triển khai quân đội một cách bí mật và quan sát diễn biến của vòng đấu. Kẻ thù của bạn cũng làm tương tự. Thích nghi, lặp lại cho đến khi một trong hai bên hết máu.",
+  "hero": {
+    "wishlist": "Thêm vào danh sách yêu thích ngay",
+    "trailer": "Xem đoạn giới thiệu",
+    "steamSoon": "Trang Steam sắp ra mắt"
+  },
+  "screenshots": {
+    "title": "Ảnh chụp màn hình",
+    "sub": "Tổng quan về triển khai và chiến đấu.",
+    "browse": "Xem ảnh chụp màn hình",
+    "open": "Mở ảnh chụp màn hình: {{label}}",
+    "fallback": "Ảnh chụp màn hình",
+    "missing": "{{label}} ⬢ thả tệp vào thư mục assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Triển khai quân đội tại khu vực khai hoang rừng.",
+    "2": "Giai đoạn triển khai và xưởng đơn vị",
+    "3": "Rồng phun lửa trên chiến trường",
+    "4": "Các khu vực triển khai liền kề",
+    "5": "Trận đánh quy mô lớn trên đồng bằng",
+    "6": "Pháo đài mùa đông giữa tuyết",
+    "7": "Hai căn cứ trên lưới",
+    "8": "Căn cứ kiên cố lớn"
+  },
+  "lightbox": {
+    "gallery": "Bộ sưu tập ảnh chụp màn hình",
+    "close": "Đóng thư viện ảnh",
+    "prev": "Ảnh chụp màn hình trước đó",
+    "next": "Ảnh chụp màn hình tiếp theo",
+    "dots": "Ảnh chụp màn hình",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Đơn vị, công trình và phép thuật",
+    "sub": "Đội quân, công trình, gói {{horde}} và mô hình phép thuật chiến đấu của bạn. Chọn một để xem xét — Kỵ sĩ Quạ và Rồng đang tung tăng trong bản xem trước này.",
+    "canvas": "Xem trước 3D của căn hộ",
+    "loading": "Đang tải mô hình…",
+    "hint": "Kéo để xoay · Cuộn để phóng to",
+    "select": "Chọn một đơn vị, công trình hoặc phép thuật.",
+    "list": "Đơn vị, công trình và phép thuật",
+    "buildings": "Tòa nhà",
+    "units": "Đơn vị",
+    "spells": "Phép thuật"
+  },
+  "stats": {
+    "cost": "Trị giá",
+    "hp": "HP",
+    "damage": "Hư hại",
+    "range": "Phạm vi",
+    "attackInterval": "Khoảng thời gian tấn công",
+    "seconds": "{{value}}s",
+    "speed": "Tốc độ",
+    "abilities": "Khả năng",
+    "spellModel": "Mô hình phép thuật"
+  },
+  "flag": {
+    "flying": "Bay",
+    "structure": "Kết cấu",
+    "extra": "Thêm",
+    "attacksGround": "Tấn công mặt đất",
+    "attacksAir": "Tấn công trên không",
+    "shield": "mái vòm Ward",
+    "rocket": "Bu lông định vị"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Cuộc tấn công của Rồng",
+      "blurb": "Phun lửa tầm xa. Hiệu ứng vỗ cánh sử dụng cùng đường dẫn đổ bóng với Crow Rider (chế độ lưới)."
+    },
+    "hammer": {
+      "name": "Búa của các vị thần",
+      "blurb": "Chiếc búa thần thánh rơi xuống khu vực đã được đặt sẵn."
+    },
+    "meteor-great": {
+      "name": "Sao băng",
+      "blurb": "Một vụ va chạm thiên thạch lớn duy nhất."
+    },
+    "meteor-shard": {
+      "name": "Mảnh vỡ mưa sao băng",
+      "blurb": "Những thiên thạch nhỏ hơn được sử dụng trong loạt mưa sao băng."
+    },
+    "storm": {
+      "name": "Lời kêu gọi bão tố",
+      "blurb": "Đám mây giông kèm theo sấm sét."
+    },
+    "poison": {
+      "name": "Đám mây độc",
+      "blurb": "Những đám mây độc hại trên bầu trời trút xuống những hạt axit loãng trên một vòng tròn khổng lồ."
+    }
+  },
+  "commanders": {
+    "sub": "Trước vòng một, mỗi người chơi chọn một {{commander}}. Nó sẽ thiết lập đội quân khởi đầu, lượng HP, một chuyên môn vĩnh viễn và ba lò rèn Thành trì {{tactics}} (yếu / trung bình / mạnh). Đồng đội chia sẻ liên minh lò rèn {{tactics}} của họ.",
+    "select": "Chọn một {{commander}}"
+  },
+  "runes": {
+    "sub": "Được gắn chặt vào một gói vĩnh viễn, nâng mọi cỗ máy trong đó {{sep}} hầu hết các gói đều chứa {{packLimit}}, máy bắn đá {{ballistaLimit}}. Bốn rune cơ bản được rút ra từ các lá bài tròn hoặc mua trong cửa hàng; những rune mạnh hơn được rèn từ chúng tại Pháo đài và không bao giờ được bán.",
+    "select": "Chọn một {{item}}",
+    "base": "Căn cứ",
+    "advanced": "Trình độ cao",
+    "shopTitle": "Mua ở cửa hàng, hoặc rút từ một lá bài tròn.",
+    "shopLabel": "Giá bán tại cửa hàng",
+    "forgeTitle": "Được rèn tại {{building}}",
+    "forgeLabel": "Giá rèn"
+  },
+  "tactics": {
+    "sub": "Đây là các kỹ năng trên dải {{tactics}} của bạn, bao gồm các đòn tấn công, hiệu ứng tràn lan, triệu hồi và các phép thuật chiến đấu như hơi thở lửa của rồng. Các phép thuật chiến đấu được mua tại Thành trì của bạn, mỗi loại một lần và chỉ có ba phép thuật mà chỉ huy của bạn biết. Các biểu tượng khớp với những gì bạn thấy trong trò chơi. {{sep}}",
+    "select": "Chọn một {{tactic}}",
+    "placement": "Vị trí",
+    "oneShot": "Một lần",
+    "buyTitle": "Mua tại {{building}}",
+    "priceLabel": "{{building}} giá"
+  },
+  "targeting": {
+    "point": "điểm",
+    "two-point": "hai điểm",
+    "three-point": "ba điểm",
+    "point-yaw": "điểm + hướng",
+    "own-unit": "gói riêng"
+  },
+  "roundCards": {
+    "title": "Thẻ tròn",
+    "sub": "Từ vòng hai trở đi, hãy chọn một trong số các lá bài {{items}} được cung cấp từ bộ bài của trận đấu. Các lá bài phép thuật chiến đấu được mua tại Pháo đài, chứ không phải được chọn từ các lá bài.",
+    "select": "Chọn một lá bài tròn"
+  },
+  "matchSettings": {
+    "title": "Cài đặt trận đấu",
+    "sub": "Các quy tắc mặc định cho một trận đấu được lấy trực tiếp từ mã cài đặt của trò chơi, vì vậy chúng không thể khác biệt so với phiên bản chính thức. Mọi thứ ở đây đều có thể tùy chỉnh — đây là mã nguồn mở."
+  },
+  "contribute": {
+    "title": "Đóng góp",
+    "sub1": "Melodan được phát triển bởi một người duy nhất, chính là tôi. Tôi rất đam mê trò chơi này, nhưng tôi không thể tạo ra một tựa game AAA và đảm bảo mọi thứ đều hoàn hảo, cân bằng, v.v. Ý tưởng là tạo ra một trò chơi mở, nơi bất cứ ai cũng có thể đóng góp.",
+    "sub2": "Chúng ta cùng nhau làm điều này nhé! Cân bằng, lỗi, tính năng, ý tưởng nghệ thuật {{sep}} hãy gửi một ghi chú ngắn và tôi sẽ đọc. Nếu bạn muốn đóng góp thêm, rất hoan nghênh!",
+    "play": "Kiểm tra trong trình duyệt",
+    "feedback": "Gửi phản hồi",
+    "discord": "Discord",
+    "devlog": "Nhật ký nhà phát triển",
+    "waysTitle": "Các cách để giúp đỡ",
+    "way1": "Chia sẻ ý tưởng và báo cáo lỗi",
+    "way2": "Mở các yêu cầu kéo (pull request) trên {{github}} (GPL-3.0)",
+    "way3": "Tạo hoặc cải thiện mô hình 3D",
+    "way4": "Hãy chú trọng đến việc cân bằng, sáng tạo ra những phép thuật, lá bài và ý tưởng mới.",
+    "way5": "Chào mừng người chơi, hãy viết hướng dẫn, hoặc hỗ trợ điều hành nếu bạn muốn."
+  },
+  "about": {
+    "title": "Về",
+    "lead": "MELODAN được sản xuất bởi Alexander Thurn (Feuerware). Ông đặt trụ sở tại Bonn, Đức.",
+    "inspired": "Trò chơi này lấy cảm hứng từ {{mechabellum}}, tựa game hay nhất trong thể loại này. MELODAN là một tác phẩm giả tưởng độc lập; hãy ủng hộ bản gốc và mua Mechabelum nhé! Cảm ơn!",
+    "openSource": "Trò chơi này là {{github}} (GPL-3.0). Bản quyền thuộc về Alexander Thurn / Feuerware. Bạn có thể tự do sao chép (fork) nó, tạo ra các đơn vị mới và mở các yêu cầu kéo (pull request). Đối với những dự án lớn hơn, một phiên bản phái sinh phi thương mại hoặc thương mại, một sự thay đổi thương hiệu hoàn toàn, v.v., vui lòng liên hệ với tôi: {{email}}.",
+    "openSourceLink": "mã nguồn mở trên GitHub"
+  },
+  "footer": {
+    "play": "Chơi",
+    "steam": "Hơi nước",
+    "feedback": "Nhận xét",
+    "imprint": "Thông tin in ấn",
+    "privacy": "Bảo mật dữ liệu"
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Đôi chân nhanh nhẹn"
+  },
+  "carapace": {
+    "name": "Da Đá"
+  },
+  "barrel": {
+    "name": "Cung"
+  },
+  "ap": {
+    "name": "Mũi tên xuyên thấu"
+  },
+  "fireArrows": {
+    "name": "Mũi tên lửa",
+    "description": "Mũi tên tạo ra một đám cháy nhỏ trên mặt đất, đủ để đốt cháy các vũng dầu."
+  },
+  "engines": {
+    "name": "Cánh gió"
+  },
+  "stingers": {
+    "name": "Móng Quạ"
+  },
+  "armor": {
+    "name": "Mạ sắt"
+  },
+  "autoloader": {
+    "name": "Tời nhanh"
+  },
+  "aegis": {
+    "name": "Aegis",
+    "description": "Khiên: Mỗi đơn vị nhận thêm một lượng máu thứ hai bằng với lượng máu hiện có. Các đòn tấn công tầm xa sẽ làm giảm khiên trước; các đòn tấn công cận chiến, lửa và axit sẽ bỏ qua hiệu ứng này."
+  },
+  "golden": {
+    "name": "Hào quang vàng",
+    "description": "Các đồng minh gần đó kháng lại hiệu ứng giảm sức mạnh của trụ và chịu ít hơn 30% sát thương trong 30 giây. Pháp sư không thể chuyển hóa chúng thành hiệu ứng – tia sáng sẽ gây sát thương thay vào đó."
+  },
+  "pitchBolts": {
+    "name": "Bu lông điều chỉnh độ nghiêng",
+    "description": "Mũi tên bắn dầu khi va chạm (không bốc cháy — nên dùng kèm với mũi tên lửa hoặc Mũi tên lửa)."
+  },
+  "wideBlast": {
+    "name": "Vụ nổ lớn",
+    "description": "Tăng gấp ba bán kính sát thương lan (cho phép các đơn vị không có hiệu ứng này có hiệu ứng lan)."
+  },
+  "skyBind": {
+    "name": "Liên kết trên không",
+    "description": "Có thể tấn công các đơn vị trên bộ và trên không."
+  },
+  "skyLift": {
+    "name": "Thang máy trên không",
+    "description": "Nâng thiết bị này lên không trung (máy bay chiến đấu)."
+  },
+  "earthbound": {
+    "name": "Trái đất",
+    "description": "Giữ thiết bị này trên mặt đất (vô hiệu hóa chế độ bay tự do/bay tự nhiên)."
+  },
+  "spiderMother": {
+    "name": "Mẹ của loài nhện"
+  },
+  "darkHarvest": {
+    "name": "Mùa gặt đen tối"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} hư hỏng",
+    "modRange": "{{pct}} phạm vi",
+    "modSpeed": "{{pct}} tốc độ di chuyển",
+    "modAttackSpeed": "{{pct}} tốc độ tấn công",
+    "modSplash": "{{mult}}× bán kính bắn tóe",
+    "produce": "Sản sinh {{child}} mỗi {{every}} (tối đa {{max}})",
+    "produceFirst": ", đầu tiên sau {{delay}}",
+    "produceOffspring": "Con cái đạt cấp độ tương ứng với cha mẹ.",
+    "onKill": "Khi đơn vị này tiêu diệt kẻ địch, hãy nâng {{child}} lên.",
+    "cleave": "Tấn công mọi kẻ địch trong phạm vi {{radius}} (xung quanh đơn vị này)"
+  }
+}

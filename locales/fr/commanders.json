@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Sorcier du Ciel",
+    "description": "Les unités aériennes gagnent +12% d'attaque et de PV.",
+    "unitsLabel": "2 cavaliers corbeaux · 1 nain"
+  },
+  "cost": {
+    "title": "Prince avide",
+    "description": "Toutes les unités subissent une réduction de 12 % de leur attaque et de leurs PV, mais une augmentation de 100 points de ravitaillement à chaque tour.",
+    "unitsLabel": "2 archers · 1 cavalier corbeau · 1 nain"
+  },
+  "elite": {
+    "title": "Prince d'élite",
+    "description": "Recrutement au niveau 2. +100 unités en première phase.",
+    "unitsLabel": "1× Baliste · 1× Nains"
+  },
+  "archer": {
+    "title": "Commandant des archers",
+    "description": "Un archer de niveau 3 gratuit arrive au deuxième tour.",
+    "unitsLabel": "3 archers · 2 nains"
+  },
+  "addi": {
+    "title": "Gardien des reliques",
+    "description": "Obtient 3 runes de Valeur au premier tour.",
+    "unitsLabel": "1× Cavaliers Corbeaux · 3× Nains"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "Obtient 2 charges de Météore au tour 2.",
+    "unitsLabel": "1 magicien · 1 nain"
+  },
+  "speed": {
+    "title": "Veuve rapide",
+    "unitsLabel": "1× Cavaliers corbeaux · 1× Archers · 2× Nains"
+  },
+  "giant": {
+    "title": "Comtesse Chonk",
+    "unitsLabel": "1× Baliste · 1× Nains"
+  },
+  "tutor": {
+    "title": "Conférence de la Dame",
+    "description": "Cela commence par une leçon sur le terrain.",
+    "unitsLabel": "1 cavalier corbeau · 3 archers"
+  },
+  "money": {
+    "title": "Reine de l'argent",
+    "unitsLabel": "2 cavaliers corbeaux · 1 archer"
+  },
+  "cursed": {
+    "title": "Christine maudite",
+    "description": "Obtient une araignée de la couvée noire gratuite à chaque tour.",
+    "unitsLabel": "2 nains · 2 archers"
+  },
+  "flanky": {
+    "title": "Ombre de flanc",
+    "description": "Les premières apparitions sur les flancs prennent deux fois moins de temps.",
+    "unitsLabel": "2 nains · 2 archers"
+  }
+}

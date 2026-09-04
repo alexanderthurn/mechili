@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Yükseltme seviyesi",
+    "description": "Bu binayı bir seviye yükseltin: temel HP değerini kazanır. Fiyatı {{baseCost}}'dan başlar ve her seviye için {{costStep}} artar (maksimum seviye {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Satış",
+    "description": "Paket satışının kilidini kalıcı olarak açın (dağıtım aşaması başına en fazla {{maxPerRound}}). Geri ödeme, temel maliyetin {{refundPct}}%'i kadardır."
+  },
+  "attack_boost": {
+    "name": "Saldırı Güçlendirmesi",
+    "description": "Ordu genelinde kalıcı hasar artışı. İlk kademe +{{attackPct}}%; kademeleri sırayla satın alın ({{costs}} maliyetindedir)."
+  },
+  "hp_boost": {
+    "name": "HP Boost",
+    "description": "Ordu genelinde kalıcı HP artışı. İlk kademe +{{hpPct}}%; kademeleri sırayla satın alın ({{costs}} maliyetindedir)."
+  },
+  "range_boost": {
+    "name": "Menzil Artışı",
+    "description": "+{{amount}} menzili, yalnızca bu turda tüm menzilli birimler için geçerlidir."
+  },
+  "speed_boost": {
+    "name": "Hız Artışı",
+    "description": "+{{amount}} hızı tüm birimler için geçerlidir, sadece bu tur için."
+  },
+  "loan": {
+    "name": "Borç",
+    "description": "+{{gain}} şu an tedarik ediliyor. Sonraki dağıtım: −{{debt}}. Tur başına bir kez."
+  },
+  "ward_dome": {
+    "name": "Koğuş kubbesi",
+    "description": "Kubbe şeklindeki alana (yarıçap {{radius}}, yükseklik {{height}}) giren düşman mermilerini emer. Havuz, bu birimin HP'sidir."
+  },
+  "homing_fire_bolt": {
+    "name": "Hedeflenen Ateş Cıvatası",
+    "description": "Silahlar yerinde, ardından menzildeki ilk düşmana {{range}} ile nişan alarak {{damage}} hasar verir (alan etkisi {{splash}})."
+  },
+  "rally_route": {
+    "name": "Ralli Rotası",
+    "description": "Büyü şeridinize bir adet toplanma rotası yükü ekleyin. Maç başına bir kez."
+  },
+  "move_pack": {
+    "name": "Taşıma Paketi",
+    "description": "Büyü şeridinize bir hareket paketi hakkı ekleyin: önceki turlardan bir paket tekrar hareket ettirilebilir hale gelir. Maç başına bir kez."
+  },
+  "1_deployment": {
+    "name": "+1 Dağıtım",
+    "description": "Bu turda yalnızca bir adet ek satın alma hakkı bulunmaktadır."
+  },
+  "veteran_training": {
+    "name": "Gaziler Eğitimi",
+    "description": "Bu turun geri kalanında, satın aldığınız birimler 2. seviyeden gelir (yine de seviye primini öderler)."
+  },
+  "send_supply_to_ally": {
+    "name": "Müttefike malzeme gönder",
+    "description": "Müttefikinize 100 malzeme hediye edin — bir sonraki turun başında ulaşır. Sadece ikili modlarda geçerlidir."
+  }
+}

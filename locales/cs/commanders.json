@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Nebeský čaroděj",
+    "description": "Letecké jednotky získají +12 % k útoku a HP.",
+    "unitsLabel": "2× Jezdci na vránách · 1× Trpaslíci"
+  },
+  "cost": {
+    "title": "Chamtivý princ",
+    "description": "Všechny jednotky mají −12 % k útoku a HP, ale v každém kole mají +100 k zásobám.",
+    "unitsLabel": "2× Lučištníci · 1× Jezdci na vránách · 1× Trpaslíci"
+  },
+  "elite": {
+    "title": "Elitní princ",
+    "description": "Nábor na 2. úrovni. +100 zásob v 1. kole.",
+    "unitsLabel": "1× Balista · 1× Trpaslíci"
+  },
+  "archer": {
+    "title": "Velitel lučištníků",
+    "description": "Ve 2. kole dorazí volný lučištník 3. úrovně.",
+    "unitsLabel": "3× Lučištníci · 2× Trpaslíci"
+  },
+  "addi": {
+    "title": "Strážce relikvií",
+    "description": "Získá 3× runu Statečnosti v 1. kole.",
+    "unitsLabel": "1× Jezdci na vránách · 3× Trpaslíci"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "Získá 2 náboje meteoru ve 2. kole.",
+    "unitsLabel": "1× Čaroděj · 1× Trpaslíci"
+  },
+  "speed": {
+    "title": "Rychlá vdova",
+    "unitsLabel": "1× Jezdci na vránách · 1× Lučištníci · 2× Trpaslíci"
+  },
+  "giant": {
+    "title": "Hraběnka Chonk",
+    "unitsLabel": "1× Balista · 1× Trpaslíci"
+  },
+  "tutor": {
+    "title": "Dámská přednáška",
+    "description": "Začíná jednou terénní lekcí.",
+    "unitsLabel": "1× Jezdci na vránách · 3× Lučištníci"
+  },
+  "money": {
+    "title": "Královna peněz",
+    "unitsLabel": "2× Jezdci na vránách · 1× Lučištníci"
+  },
+  "cursed": {
+    "title": "Prokletá Christine",
+    "description": "V každém kole získá jednoho pavouka Černého plodu zdarma.",
+    "unitsLabel": "2× Trpaslíci · 2× Lučištníci"
+  },
+  "flanky": {
+    "title": "Okrajový stín",
+    "description": "První objevení se na boku trvá polovinu času.",
+    "unitsLabel": "2× Trpaslíci · 2× Lučištníci"
+  }
+}

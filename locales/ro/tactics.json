@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Traseul raliului",
+    "description": "Plasați zonele de început, mijloc și sfârșit. Unitățile din cercul de început mărșăluiesc prin decalaje corespunzătoare la mijloc, apoi la sfârșit, luptând pe parcurs."
+  },
+  "oilSpill": {
+    "name": "Deversare de petrol",
+    "description": "Plasați două cercuri cu ulei — conturați în timpul desfășurării; la scurt timp după începerea luptei, uleiul picură de la stânga la dreapta pe cale (discurile de protecție rămân libere). Uleiul conectat se aprinde ca un singur câmp atunci când focul îl atinge."
+  },
+  "sellUnit": {
+    "name": "Pachet de vânzare",
+    "description": "Apasă pentru a arma, apoi apasă pe unul dintre pachetele tale pentru a-l vinde și a primi o rambursare a proviziilor."
+  },
+  "moveUnit": {
+    "name": "Pachet de mutare",
+    "description": "Faceți clic pentru a arma, apoi faceți clic pe unul dintre pachetele dvs. dintr-o rundă anterioară — acesta poate fi tras și rotit din nou pentru restul acestei runde."
+  },
+  "tutor": {
+    "name": "Lecție de teren",
+    "description": "Apasă pentru a te înarma, apoi dă clic pe unul dintre pachetele tale — bara sa de XP se umple până la nivelul următor. Cumpărarea nivelului costă în continuare provizii."
+  },
+  "spawnDwarves": {
+    "name": "Invocă pitici",
+    "description": "Marchează un cerc oriunde în afara bazei inamice. La scurt timp după începerea bătăliei, o ceată de pitici izbucnește din pământ, unul câte unul — vor lupta doar în această bătălie."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Marchează un cerc mic oriunde. La câteva secunde după începerea luptei, un meteorit distruge totul acolo — doar domurile de gardă protejează (și plătesc pentru asta)."
+  },
+  "spawnCrows": {
+    "name": "Invocă Călăreți de Corbi",
+    "description": "Marchează un cerc oriunde în afara bazei inamice. La scurt timp după începerea bătăliei, călăreții corbilor se aruncă din cer, unul după altul — ei vor lupta doar această bătălie."
+  },
+  "hammerOfGods": {
+    "name": "Ciocanul Zeilor",
+    "description": "Clic pentru a plasa, mișcă pentru a roti, click din nou pentru a bloca. Un ciocan divin cade în zonă la câteva secunde după începerea luptei."
+  },
+  "storm": {
+    "name": "Apel de furtună",
+    "description": "Marchează un cerc lat oriunde. Nori mici de furtună se adună sus și aruncă fulgere în locuri aleatorii — fulgerele nu provoacă daune, dar șochează unitățile într-o împrăștiere largă cu un debuff asemănător unui turn, cu excepția cazului în care au aură aurie. Cupolele de gardă blochează în continuare loviturile."
+  },
+  "meteorShower": {
+    "name": "Ploaia de meteoriți",
+    "description": "Marchează un cerc lat oriunde. Meteorii cad în locuri aleatorii în interior pentru o vreme, fiecare explozie arzând solul pe care îl lovește."
+  },
+  "acidSpill": {
+    "name": "Deversare de acid",
+    "description": "Toarnă o capsulă acidă ca pe o pată de ulei — picură de la stânga la dreapta pe pământ la scurt timp după începerea luptei. Unitățile terestre și aeriene de deasupra bălții sfârâie și se corodează — suferind daune suplimentare de la tot."
+  },
+  "fireSpill": {
+    "name": "Scurgere de incendiu",
+    "description": "Toarnă o capsulă de foc, asemănătoare cu uleiul — picură de la stânga la dreapta la scurt timp după începerea luptei și dă foc calei (discurile de gardă rămân libere). Uleiul conectat se aprinde odată cu ea. Flacăra durează doar în această bătălie."
+  },
+  "dragonAttack": {
+    "name": "Atac de dragon",
+    "description": "Desenează calea de mitraliere a dragonului (mai lată și mai lungă decât petrolul). Acesta se aruncă în apă și scuipă foc de-a lungul coridorului — raza arde unitățile la trecere și pictează pământul în flăcări. Domurile de gardă absorb respirația (și plătesc pentru ea)."
+  },
+  "poisonCloud": {
+    "name": "Nor otrăvitor",
+    "description": "Marchează un cerc imens. Nori toxici se adună deasupra și plouă cu picături mici de acid în toată zona - bălți rare care corodează unitățile terestre și aeriene, precum Acid Spill, dar pe un câmp mult mai larg."
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Himmelszauberer",
+    "description": "Lufteinheiten erhalten +12 % Angriff und Trefferpunkte.",
+    "unitsLabel": "2x Krähenreiter · 1x Zwerge"
+  },
+  "cost": {
+    "title": "Gieriger Prinz",
+    "description": "Alle Einheiten -12 % Angriff und Trefferpunkte, aber +100 Nachschub pro Runde.",
+    "unitsLabel": "2 Bogenschützen · 1 Krähenreiter · 1 Zwerge"
+  },
+  "elite": {
+    "title": "Eliteprinz",
+    "description": "Rekrutierung auf Stufe 2. +100 Angebot in Runde 1.",
+    "unitsLabel": "1× Balliste · 1× Zwerge"
+  },
+  "archer": {
+    "title": "Bogenschützenkommandant",
+    "description": "In Runde 2 erscheint ein kostenloser Bogenschütze der Stufe 3.",
+    "unitsLabel": "3 Bogenschützen · 2 Zwerge"
+  },
+  "addi": {
+    "title": "Reliquienbewahrer",
+    "description": "Erhält in Runde 1 3x Tapferkeitsrune.",
+    "unitsLabel": "1x Krähenreiter · 3x Zwerge"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "Erhält in Runde 2 2 Meteor-Ladungen.",
+    "unitsLabel": "1 Zauberer · 1 Zwerge"
+  },
+  "speed": {
+    "title": "Schnelle Witwe",
+    "unitsLabel": "1x Krähenreiter · 1x Bogenschützen · 2x Zwerge"
+  },
+  "giant": {
+    "title": "Gräfin Chonk",
+    "unitsLabel": "1× Balliste · 1× Zwerge"
+  },
+  "tutor": {
+    "title": "Lady Lecture",
+    "description": "Beginnt mit einer Feldlektion.",
+    "unitsLabel": "1x Krähenreiter · 3x Bogenschützen"
+  },
+  "money": {
+    "title": "Geldkönigin",
+    "unitsLabel": "2 Krähenreiter · 1 Bogenschütze"
+  },
+  "cursed": {
+    "title": "Verfluchte Christine",
+    "description": "Erhält in jeder Runde eine kostenlose Schwarze Brutspinne.",
+    "unitsLabel": "2 Zwerge · 2 Bogenschützen"
+  },
+  "flanky": {
+    "title": "Flanky Shadow",
+    "description": "Beim ersten Flankenangriff dauert das Spawnen nur halb so lange.",
+    "unitsLabel": "2 Zwerge · 2 Bogenschützen"
+  }
+}

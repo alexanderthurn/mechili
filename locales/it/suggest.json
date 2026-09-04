@@ -1,0 +1,23 @@
+{
+  "title": "Invia feedback",
+  "lead": "Dicci cosa costruire, riparare o provare. Se vuoi, puoi aggiungere il tuo nome e indirizzo email.",
+  "discord": "Preferisci chattare? Unisciti alla community Discord.",
+  "category": "Categoria",
+  "message": "Messaggio",
+  "placeholder": "Cosa dovrebbe cambiare? Cosa si è rotto? Cosa potrebbe essere d'aiuto?",
+  "cancel": "Cancellare",
+  "submit": "Invia",
+  "sending": "Invio…",
+  "thanksSent": "Grazie, inviato.",
+  "thanksSaved": "Grazie, salvato.",
+  "writeFirst": "Scrivi prima un breve messaggio.",
+  "rateLimited": "Troppi suggerimenti: riprova in {{n}}s.",
+  "sendFailed": "Invio non riuscito. Riprova più tardi.",
+  "networkError": "Errore di rete: riprova più tardi.",
+  "catBug": "Insetto",
+  "catBalance": "Bilancia",
+  "catFeature": "Caratteristica",
+  "catArt": "Modelli / arte",
+  "catCommunity": "Comunità",
+  "catOther": "Altro"
+}

@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Schnelle Füße"
+  },
+  "carapace": {
+    "name": "Steinhaut"
+  },
+  "barrel": {
+    "name": "Langbogen"
+  },
+  "ap": {
+    "name": "Durchdringende Pfeile"
+  },
+  "fireArrows": {
+    "name": "Feuerpfeile",
+    "description": "Die Pfeile hinterlassen ein kurzes Bodenfeuer, das ausreicht, um Ölpfützen zu entzünden."
+  },
+  "engines": {
+    "name": "Sturmflügel"
+  },
+  "stingers": {
+    "name": "Krähenkrallen"
+  },
+  "armor": {
+    "name": "Eisenplattierung"
+  },
+  "autoloader": {
+    "name": "Schnellwinde"
+  },
+  "aegis": {
+    "name": "Ägide",
+    "description": "Schild: Jede Einheit erhält einen zweiten Lebenspunktepool in Höhe ihrer Gesamt-LP. Fernkampfangriffe verbrauchen zuerst den Schild; Nahkampfangriffe, Feuer und Säure ignorieren ihn."
+  },
+  "golden": {
+    "name": "Goldene Aura",
+    "description": "Verbündete in der Nähe sind resistent gegen Turm-Debuffs und erleiden 30 Sekunden lang 30 % weniger Schaden. Zauberer können diese Effekte nicht umwandeln – der Strahl verursacht stattdessen Schaden."
+  },
+  "pitchBolts": {
+    "name": "Pitch-Bolzen",
+    "description": "Die Bolzen verspritzen beim Aufprall Öl (entzündet sich nicht – daher mit Feuerpfeilen oder einem Feuerbolzen kombinieren)."
+  },
+  "wideBlast": {
+    "name": "Breitstrahl",
+    "description": "Verdreifacht den Spritzradius (gewährt Einheiten ohne Spritzschutz diesen auch)."
+  },
+  "skyBind": {
+    "name": "Sky Bind",
+    "description": "Kann Boden- und Lufteinheiten angreifen."
+  },
+  "skyLift": {
+    "name": "Himmelslift",
+    "description": "Hebt diese Einheit in die Luft (Kampfflieger)."
+  },
+  "earthbound": {
+    "name": "Earthbound",
+    "description": "Hält dieses Gerät am Boden (überschreibt Sky Lift / natürlichen Flug)."
+  },
+  "spiderMother": {
+    "name": "Mutter der Spinnen"
+  },
+  "darkHarvest": {
+    "name": "Dunkle Ernte"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} Schaden",
+    "modRange": "{{pct}} Bereich",
+    "modSpeed": "{{pct}} Bewegungsgeschwindigkeit",
+    "modAttackSpeed": "{{pct}} Angriffsgeschwindigkeit",
+    "modSplash": "{{mult}}× Spritzradius",
+    "produce": "Produziert {{child}} alle {{every}} (bis zu {{max}})",
+    "produceFirst": "zuerst nach {{delay}}",
+    "produceOffspring": "Die Nachkommen entsprechen dem Niveau der Eltern.",
+    "onKill": "Wenn diese Einheit tötet, wird ein {{child}} ausgelöst.",
+    "cleave": "Trifft alle Gegner im Umkreis von {{radius}} (um diese Einheit herum)."
+  }
+}

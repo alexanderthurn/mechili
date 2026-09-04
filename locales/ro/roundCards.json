@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Trupa Pitică",
+    "description": "Patru haite de pitici se alătură armatei tale.",
+    "unitsLabel": "4× Pitici"
+  },
+  "archers4": {
+    "title": "Compania Arcașului",
+    "description": "Patru arcași se alătură armatei tale.",
+    "unitsLabel": "4× Arcași"
+  },
+  "crowRiders2": {
+    "title": "Aripă de cioară",
+    "description": "Două turme de Crow Rider se alătură armatei tale.",
+    "unitsLabel": "2× Călăreți de Corbi"
+  },
+  "ballista1": {
+    "title": "Balista de asediu",
+    "description": "O balistă se alătură armatei tale.",
+    "unitsLabel": "1× Balistă"
+  },
+  "flanky": {
+    "title": "Flancos",
+    "description": "Prima apariție pe flancuri durează jumătate din timp (2,5 secunde)."
+  },
+  "rallyRoute": {
+    "title": "Traseul raliului",
+    "description": "Plasează un traseu de marș: unitățile din zona de start se îndreaptă spre zona de final, luptând pe parcurs."
+  },
+  "sellPack": {
+    "title": "Răscumpărare",
+    "description": "Vrajă cu o singură lovitură: vinde unul dintre pachetele tale pentru o rambursare a proviziilor."
+  },
+  "movePack": {
+    "title": "Ordine de marș",
+    "description": "Vrajă cu o singură lovitură: un pachet dintr-o rundă anterioară poate fi repoziționat din nou în această rundă."
+  }
+}

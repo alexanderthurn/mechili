@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Garrison Archer"
+  },
+  "hordeWebweaver": {
+    "name": "Verkkokutoja"
+  },
+  "hordeBrutSpawn": {
+    "name": "Musta sikiö"
+  },
+  "hordeSpinne": {
+    "name": "Musta hämähäkki"
+  },
+  "hordeFarmer": {
+    "name": "Kuollut maanviljelijä"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Kuollut maatyöläinen"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Kääpiö"
+  },
+  "archer": {
+    "name": "Jousimies"
+  },
+  "wizard": {
+    "name": "Velho"
+  },
+  "crowRider": {
+    "name": "Varisratsastaja"
+  },
+  "ballista": {
+    "name": "Ballista"
+  },
+  "shield": {
+    "name": "Ward Stone"
+  },
+  "rocket": {
+    "name": "Palopultti"
+  },
+  "command-tower": {
+    "name": "Etungardi"
+  },
+  "research-center": {
+    "name": "Varuskunta"
+  },
+  "stronghold": {
+    "name": "Linnake"
+  },
+  "hordeZombie": {
+    "name": "Musta sikiö"
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Pies de flota"
+  },
+  "carapace": {
+    "name": "Piel de piedra"
+  },
+  "barrel": {
+    "name": "Arco"
+  },
+  "ap": {
+    "name": "Flechas perforantes"
+  },
+  "fireArrows": {
+    "name": "Flechas de fuego",
+    "description": "Las flechas dejan un breve incendio en el suelo y arden lo suficiente como para incendiar charcos de petróleo."
+  },
+  "engines": {
+    "name": "Alas de vendaval"
+  },
+  "stingers": {
+    "name": "Garras de cuervo"
+  },
+  "armor": {
+    "name": "Recubrimiento de hierro"
+  },
+  "autoloader": {
+    "name": "Cabrestante rápido"
+  },
+  "aegis": {
+    "name": "Égida",
+    "description": "Escudo: cada unidad obtiene una segunda reserva de salud igual a sus puntos de vida. Los ataques a distancia agotan primero el escudo; los ataques cuerpo a cuerpo, de fuego y de ácido lo ignoran."
+  },
+  "golden": {
+    "name": "Aura dorada",
+    "description": "Los aliados cercanos resisten los efectos negativos de la torre y reciben un 30 % menos de daño durante 30 segundos. Los magos no pueden convertirlos; en su lugar, el rayo inflige daño."
+  },
+  "pitchBolts": {
+    "name": "Pernos de paso",
+    "description": "Los proyectiles salpican aceite al impactar (no se incendian; úselos junto con flechas de fuego o un Proyectil de Fuego)."
+  },
+  "wideBlast": {
+    "name": "Explosión amplia",
+    "description": "Triplica el radio de explosión (otorga explosión a las unidades que no la tienen)."
+  },
+  "skyBind": {
+    "name": "Enlace del cielo",
+    "description": "Puede atacar unidades terrestres y aéreas."
+  },
+  "skyLift": {
+    "name": "Teleférico",
+    "description": "Eleva esta unidad en el aire (avión de combate)."
+  },
+  "earthbound": {
+    "name": "Terrestre",
+    "description": "Mantiene esta unidad en tierra (anula el sistema Sky Lift/vuelo natural)."
+  },
+  "spiderMother": {
+    "name": "Madre de las arañas"
+  },
+  "darkHarvest": {
+    "name": "Cosecha oscura"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} daño",
+    "modRange": "Rango {{pct}}",
+    "modSpeed": "{{pct}} velocidad de movimiento",
+    "modAttackSpeed": "{{pct}} velocidad de ataque",
+    "modSplash": "{{mult}}× radio de salpicadura",
+    "produce": "Produce {{child}} cada {{every}} (hasta {{max}})",
+    "produceFirst": ", primero después de {{delay}}",
+    "produceOffspring": ". La descendencia coincide con el nivel de los padres",
+    "onKill": "Cuando esta unidad mate, levanta un {{child}}",
+    "cleave": "Ataca a todos los enemigos dentro de {{radius}} (alrededor de esta unidad)"
+  }
+}

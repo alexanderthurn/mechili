@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLE",
+  "lead": "Desfășoară armate în secret și urmărește desfășurarea rundei. Inamicul tău face la fel. Adaptează-te, repetă acțiunea până când unul dintre voi rămâne fără HP.",
+  "hero": {
+    "wishlist": "Listă de dorințe acum",
+    "trailer": "Urmărește trailerul",
+    "steamSoon": "Pagina de Steam va fi disponibilă în curând"
+  },
+  "screenshots": {
+    "title": "Capturi de ecran",
+    "sub": "O privire asupra desfășurării și bătăliei.",
+    "browse": "Răsfoiți capturile de ecran",
+    "open": "Deschideți captura de ecran: {{label}}",
+    "fallback": "Captură de ecran",
+    "missing": "{{label}} ⬢ plasează fișierul în assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Desfășurarea armatei în defrișarea pădurii",
+    "2": "Faza de desfășurare și atelierul unității",
+    "3": "Respirație de foc de dragon peste câmp",
+    "4": "Zone de implementare alăturate",
+    "5": "Bătălie în masă pe câmpie",
+    "6": "Fortăreață de iarnă în zăpadă",
+    "7": "Baze duble pe grilă",
+    "8": "Bază fortificată mare"
+  },
+  "lightbox": {
+    "gallery": "Galerie de capturi de ecran",
+    "close": "Închide galeria",
+    "prev": "Captura de ecran anterioară",
+    "next": "Următoarea captură de ecran",
+    "dots": "Capturi de ecran",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Unități, clădiri și vrăji",
+    "sub": "Armata ta, clădirile, pachetele {{horde}} și modelele de vrăji de luptă. Alege unul pentru a-l inspecta — Crow Rider și Dragon dau frâu liber în această previzualizare.",
+    "canvas": "Previzualizare 3D a unității",
+    "loading": "Se încarcă modelul…",
+    "hint": "Trageți pentru rotire · Derulați pentru zoom",
+    "select": "Alege o unitate, o clădire sau o vrajă",
+    "list": "Unități, clădiri și vrăji",
+    "buildings": "Clădiri",
+    "units": "Unități",
+    "spells": "Vrăji"
+  },
+  "stats": {
+    "cost": "Cost",
+    "hp": "HP",
+    "damage": "Deteriora",
+    "range": "Gamă",
+    "attackInterval": "Interval de atac",
+    "seconds": "{{value}}s",
+    "speed": "Viteză",
+    "abilities": "Abilități",
+    "spellModel": "Model de vrajă"
+  },
+  "flag": {
+    "flying": "Zbor",
+    "structure": "Structura",
+    "extra": "Suplimentar",
+    "attacksGround": "Atacurile la sol",
+    "attacksAir": "Atacuri aeriene",
+    "shield": "Domul Ward",
+    "rocket": "Șurub de localizare"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Atac de dragon",
+      "blurb": "Respirație de foc mitralieră. Baterea aripilor folosește aceeași cale de shader ca și Crow Rider (modul mesh)."
+    },
+    "hammer": {
+      "name": "Ciocanul Zeilor",
+      "blurb": "Ciocan divin care cade pe o zonă plasată."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Lovitura unui singur meteorit puternic."
+    },
+    "meteor-shard": {
+      "name": "Ciob de ploaie de meteoriți",
+      "blurb": "Meteor mai mic folosit de barajul de ploi."
+    },
+    "storm": {
+      "name": "Apel de furtună",
+      "blurb": "Nor de furtună care aruncă fulgere."
+    },
+    "poison": {
+      "name": "Nor otrăvitor",
+      "blurb": "Nori toxici care plouă cu acid dispersat peste un cerc imens."
+    }
+  },
+  "commanders": {
+    "sub": "Înainte de prima rundă, fiecare jucător alege un {{commander}}. Acesta stabilește armata de pornire, rezerva de HP, o specialitate permanentă și trei forje Stronghold {{tactics}} (slab / mediu / puternic). Coechipierii împart uniunea forjei lor {{tactics}}.",
+    "select": "Alege un {{commander}}"
+  },
+  "runes": {
+    "sub": "Fuzionate definitiv pe un pachet, ridicând fiecare robot din el {{sep}}, majoritatea pachetelor conțin {{packLimit}}, balista {{ballistaLimit}}. Cele patru rune de bază sunt extrase din cărți rotunde sau cumpărate din magazin; cele mai puternice sunt făurite din ele la Fortăreață și nu sunt niciodată vândute.",
+    "select": "Alege un {{item}}",
+    "base": "Baza",
+    "advanced": "Avansat",
+    "shopTitle": "Cumpărat din magazin sau ales dintr-o carte rotundă",
+    "shopLabel": "Preț de magazin",
+    "forgeTitle": "Forjată la {{building}}",
+    "forgeLabel": "Preț forjare"
+  },
+  "tactics": {
+    "sub": "Acestea sunt abilitățile de pe banda ta {{tactics}} {{sep}}: adunări, revărsări, invocări și folosiri de luptă, cum ar fi respirația de foc a dragonului. Vrăjile de luptă se cumpără la Fortăreața ta, o singură dată, și doar cele trei pe care le cunoaște comandantul tău. Pictogramele se potrivesc cu ceea ce vezi în joc.",
+    "select": "Alege un {{tactic}}",
+    "placement": "Plasament",
+    "oneShot": "O singură lovitură",
+    "buyTitle": "Cumpărat de la {{building}}",
+    "priceLabel": "Preț {{building}}"
+  },
+  "targeting": {
+    "point": "punct",
+    "two-point": "două puncte",
+    "three-point": "trei puncte",
+    "point-yaw": "punct + orientare",
+    "own-unit": "propriul pachet"
+  },
+  "roundCards": {
+    "title": "Cărți rotunde",
+    "sub": "Din runda a doua încolo, alege una dintre cărțile {{items}} oferite, trase din rezerva de potrivire. Vrăjile de luptă se cumpără la Fortăreață, nu se draftează din cărți.",
+    "select": "Alege o carte rotundă"
+  },
+  "matchSettings": {
+    "title": "Setările meciului",
+    "sub": "Regulile implicite pentru un meci, extrase direct din codul setărilor jocului, astfel încât să nu se abate de la ceea ce este inclus în realitate. Totul aici este reglabil - este open source."
+  },
+  "contribute": {
+    "title": "Contribui",
+    "sub1": "Melodan este dezvoltat de o singură persoană, eu. Sunt pasionat de acest joc, dar nu pot face un titlu AAA și să păstrez totul perfect, echilibrat și așa mai departe. Ideea este de a avea un joc deschis în care oricine poate contribui.",
+    "sub2": "Hai să facem asta împreună. Echilibru, erori, funcții, idei artistice {{sep}} trimiteți un scurt mesaj și îl voi citi. Dacă doriți să faceți mai mult, bine ați venit!",
+    "play": "Test în browser",
+    "feedback": "Trimite feedback",
+    "discord": "Discordie",
+    "devlog": "Jurnalul dezvoltatorului",
+    "waysTitle": "Modalități de a ajuta",
+    "way1": "Distribuiți idei și raportați erori",
+    "way2": "Deschideți cererile de extragere pe {{github}} (GPL-3.0)",
+    "way3": "Creați sau îmbunătățiți modele 3D",
+    "way4": "Ai grijă de echilibru, inventează noi vrăji, cărți, idei.",
+    "way5": "Urez bun venit jucătorilor, scrieți ghiduri, ajutați cu moderarea dacă doriți să preluați această responsabilitate."
+  },
+  "about": {
+    "title": "Despre",
+    "lead": "MELODAN este fabricat de Alexander Thurn (Feuerware). Acesta își are sediul în Bonn, Germania.",
+    "inspired": "Acest joc este inspirat de {{mechabellum}}, cel mai bun joc din gen. MELODAN este o versiune independentă a jocului fantasy; vă rugăm să susțineți originalul și să cumpărați Mechabelum. Mulțumesc!",
+    "openSource": "Jocul este {{github}} (GPL-3.0). Drepturile de autor rămân la Alexander Thurn / Feuerware. Nu ezitați să îl creați în privat, să inventați noi unități și să deschideți cereri de extragere. Pentru ceva mai mare, un spin-off non-comercial sau comercial, un rebranding complet etc., nu ezitați să-mi scrieți: {{email}}.",
+    "openSourceLink": "sursă deschisă pe GitHub"
+  },
+  "footer": {
+    "play": "Juca",
+    "steam": "Aburi",
+    "feedback": "Feedback",
+    "imprint": "Imprima",
+    "privacy": "Confidențialitatea datelor"
+  }
+}

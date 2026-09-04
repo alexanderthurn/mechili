@@ -1,0 +1,23 @@
+{
+  "title": "Gửi phản hồi",
+  "lead": "Hãy cho chúng tôi biết bạn muốn xây dựng, sửa chữa hoặc thử nghiệm điều gì. Nếu muốn, bạn có thể thêm tên và địa chỉ email của mình.",
+  "discord": "Bạn thích trò chuyện hơn? Hãy tham gia cộng đồng Discord.",
+  "category": "Loại",
+  "message": "Tin nhắn",
+  "placeholder": "Cần thay đổi điều gì? Cái gì đã hỏng? Giải pháp nào sẽ hữu ích?",
+  "cancel": "Hủy bỏ",
+  "submit": "Nộp",
+  "sending": "Đang gửi…",
+  "thanksSent": "Cảm ơn — đã gửi.",
+  "thanksSaved": "Cảm ơn — đã lưu lại.",
+  "writeFirst": "Hãy viết một tin nhắn ngắn trước.",
+  "rateLimited": "Có quá nhiều gợi ý — hãy thử lại trong {{n}}s.",
+  "sendFailed": "Không thể gửi. Vui lòng thử lại sau.",
+  "networkError": "Lỗi mạng — vui lòng thử lại sau.",
+  "catBug": "Sâu bọ",
+  "catBalance": "Sự cân bằng",
+  "catFeature": "Tính năng",
+  "catArt": "Mô hình / nghệ thuật",
+  "catCommunity": "Cộng đồng",
+  "catOther": "Khác"
+}

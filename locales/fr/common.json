@@ -1,0 +1,17 @@
+{
+  "close": "Fermer",
+  "back": "Retour",
+  "reset": "Réinitialiser",
+  "language": "Langue",
+  "term": {
+    "rune": "Rune",
+    "runes": "Runes",
+    "talent": "Talent",
+    "talents": "Talents",
+    "spell": "Épeler",
+    "spells": "Sorts",
+    "commander": "Commandant",
+    "commanders": "Commandants",
+    "horde": "Le Komtur"
+  }
+}

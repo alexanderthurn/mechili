@@ -1,0 +1,17 @@
+{
+  "close": "Blízko",
+  "back": "Zpět",
+  "reset": "Obnovit",
+  "language": "Jazyk",
+  "term": {
+    "rune": "Runa",
+    "runes": "Runy",
+    "talent": "Talent",
+    "talents": "Talenty",
+    "spell": "Kouzlo",
+    "spells": "Kouzla",
+    "commander": "Velitel",
+    "commanders": "Velitelé",
+    "horde": "Komtur"
+  }
+}

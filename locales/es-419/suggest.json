@@ -1,0 +1,23 @@
+{
+  "title": "Enviar comentarios",
+  "lead": "Cuéntanos qué construir, arreglar o probar. Si quieres, puedes añadir tu nombre y dirección de correo electrónico.",
+  "discord": "¿Prefieres chatear? Únete a la comunidad de Discord.",
+  "category": "Categoría",
+  "message": "Mensaje",
+  "placeholder": "¿Qué debería cambiar? ¿Qué falló? ¿Qué ayudaría?",
+  "cancel": "Cancelar",
+  "submit": "Entregar",
+  "sending": "Envío…",
+  "thanksSent": "Gracias — enviado.",
+  "thanksSaved": "Gracias, guardado.",
+  "writeFirst": "Escribe primero un mensaje breve.",
+  "rateLimited": "Demasiadas sugerencias; inténtelo de nuevo en {{n}}s.",
+  "sendFailed": "No se pudo enviar. Inténtalo de nuevo más tarde.",
+  "networkError": "Error de red; inténtelo de nuevo más tarde.",
+  "catBug": "Bicho",
+  "catBalance": "Balance",
+  "catFeature": "Característica",
+  "catArt": "Modelos / arte",
+  "catCommunity": "Comunidad",
+  "catOther": "Otro"
+}

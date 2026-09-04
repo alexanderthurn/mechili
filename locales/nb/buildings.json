@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Oppgraderingsnivå",
+    "description": "Hev denne bygningen ett nivå: den får sin grunnleggende HP. Prisen starter på {{baseCost}} og øker med {{costStep}} hvert nivå (maksnivå {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Selger",
+    "description": "Lås opp salgspakker permanent (opptil {{maxPerRound}} per utrullingsfase). Refusjon er {{refundPct}}% av basiskostnaden."
+  },
+  "attack_boost": {
+    "name": "Angrepsboost",
+    "description": "Permanent skadeøkning for hele hæren. Første nivå +{{attackPct}}%; kjøp nivåer i rekkefølge (koster {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP-økning",
+    "description": "Permanent HP-økning for hele hæren. Første nivå +{{hpPct}}%; kjøp nivåer i rekkefølge (koster {{costs}})."
+  },
+  "range_boost": {
+    "name": "Rekkeviddeøkning",
+    "description": "+{{amount}} rekkevidde for alle avstandsenheter, kun denne runden."
+  },
+  "speed_boost": {
+    "name": "Hastighetsøkning",
+    "description": "+{{amount}} hastighet for alle enheter, kun denne runden."
+  },
+  "loan": {
+    "name": "Låne",
+    "description": "+{{gain}} forsyning nå. Neste utplassering: −{{debt}}. Én gang per runde."
+  },
+  "ward_dome": {
+    "name": "Avdelingskuppel",
+    "description": "Absorberer fiendtlige prosjektiler som krysser inn i en kuppel (radius {{radius}}, høyde {{height}}). Denne enhetens HP er Pool."
+  },
+  "homing_fire_bolt": {
+    "name": "Målsøkende brannbolt",
+    "description": "Våpnene på plass, deretter sikter du mot den første fienden innen rekkevidde {{range}} for {{damage}} skade (sprut {{splash}})."
+  },
+  "rally_route": {
+    "name": "Rallyrute",
+    "description": "Legg til én rallyrute-ladning på trollformelstripen din. Én gang per kamp."
+  },
+  "move_pack": {
+    "name": "Flyttpakke",
+    "description": "Legg til én trekkpakke til trylleformularlisten din: én pakke fra en tidligere runde blir flyttbar igjen. Én gang per kamp."
+  },
+  "1_deployment": {
+    "name": "+1 Implementering",
+    "description": "Kjøp av én ekstra enhet kun denne runden."
+  },
+  "veteran_training": {
+    "name": "Veteranopplæring",
+    "description": "For resten av denne runden ankommer enhetene du kjøper nivå 2 (de betaler fortsatt nivåpremien)."
+  },
+  "send_supply_to_ally": {
+    "name": "Send forsyning til alliert",
+    "description": "Gi 100 forsyninger i gave til din allierte – ankommer i starten av neste runde. Kun i duo-moduser."
+  }
+}

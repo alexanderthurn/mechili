@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Úroveň vylepšení",
+    "description": "Zvyšte úroveň této budovy o jednu: získá základní HP. Cena začíná na {{baseCost}} a zvyšuje se o {{costStep}} s každou úrovní (maximální úroveň {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Prodejní",
+    "description": "Trvale odemkněte prodejní balíčky (až do {{maxPerRound}} za fázi nasazení). Vrácení peněz je {{refundPct}} % ze základní ceny."
+  },
+  "attack_boost": {
+    "name": "Zvýšení útoku",
+    "description": "Trvalé zvýšení poškození pro celou armádu. První úroveň +{{attackPct}}%; kupujte úrovně v pořadí (cena {{costs}})."
+  },
+  "hp_boost": {
+    "name": "Zvýšení HP",
+    "description": "Trvalé zvýšení HP celé armády. První úroveň +{{hpPct}}%; kupujte úrovně v pořadí (cena {{costs}})."
+  },
+  "range_boost": {
+    "name": "Zvýšení dojezdu",
+    "description": "Dosah +{{amount}} pro všechny jednotky na dálku, pouze v tomto kole."
+  },
+  "speed_boost": {
+    "name": "Zvýšení rychlosti",
+    "description": "+{{amount}} rychlost pro všechny jednotky, pouze v tomto kole."
+  },
+  "loan": {
+    "name": "Půjčka",
+    "description": "+{{gain}} zásoby nyní. Další nasazení: −{{debt}}. Jednou za kolo."
+  },
+  "ward_dome": {
+    "name": "Kupole Ward",
+    "description": "Absorbuje nepřátelské projektily, které proletí kopulí (poloměr {{radius}}, výška {{height}}). Pool představuje HP této jednotky."
+  },
+  "homing_fire_bolt": {
+    "name": "Naváděcí palný šíp",
+    "description": "Zbraně na místě, poté se zaměří na prvního nepřítele v dosahu {{range}} a způsobí mu {{damage}} poškození (rozstřik {{splash}})."
+  },
+  "rally_route": {
+    "name": "Trasa rallye",
+    "description": "Přidejte si jeden náboj shromažďovací trasy na svůj seznam kouzel. Jednou za zápas."
+  },
+  "move_pack": {
+    "name": "Přesunout balíček",
+    "description": "Přidejte si na svůj pásek kouzel jeden náboj balíčku pohybu: jeden balíček z předchozího kola se opět stane pohyblivým. Jednou za zápas."
+  },
+  "1_deployment": {
+    "name": "+1 Nasazení",
+    "description": "V tomto kole je možné zakoupit pouze jednu jednotku navíc."
+  },
+  "veteran_training": {
+    "name": "Výcvik veteránů",
+    "description": "Po zbytek tohoto kola jednotky, které koupíte, dosáhnou úrovně 2 (stále platí prémii úrovně)."
+  },
+  "send_supply_to_ally": {
+    "name": "Poslat zásoby spojenci",
+    "description": "Darujte 100 zásob svému spojenci – dorazí na začátku dalšího kola. Pouze v režimech Duo."
+  }
+}

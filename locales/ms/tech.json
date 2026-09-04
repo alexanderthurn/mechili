@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Kaki Armada"
+  },
+  "carapace": {
+    "name": "Sembunyikan Batu"
+  },
+  "barrel": {
+    "name": "Busur Panjang"
+  },
+  "ap": {
+    "name": "Anak Panah Menembus"
+  },
+  "fireArrows": {
+    "name": "Anak Panah Api",
+    "description": "Anak panah meninggalkan api sebentar di darat dan terbakar — cukup untuk menyalakan lopak minyak."
+  },
+  "engines": {
+    "name": "Sayap Gale"
+  },
+  "stingers": {
+    "name": "Crow Cakar"
+  },
+  "armor": {
+    "name": "Penyaduran Besi"
+  },
+  "autoloader": {
+    "name": "Winch Pantas"
+  },
+  "aegis": {
+    "name": "Aegis",
+    "description": "Perisai: setiap unit memperoleh himpunan kesihatan kedua yang bersamaan dengan HPnya. Serangan jarak jauh akan menghabiskan perisai terlebih dahulu; serangan jarak dekat, api dan asid mengabaikannya."
+  },
+  "golden": {
+    "name": "Aura Emas",
+    "description": "Sekutu berdekatan menentang debuff menara dan menerima kerosakan 30% kurang selama 30 saat. Ahli sihir tidak boleh menukarnya — sinar sebaliknya memberikan kerosakan."
+  },
+  "pitchBolts": {
+    "name": "Bolt Pitch",
+    "description": "Bolt memercikkan minyak semasa hentaman (tidak menyala — padankan dengan anak panah api atau Bolt Api)."
+  },
+  "wideBlast": {
+    "name": "Letupan Lebar",
+    "description": "Jejari percikan tiga kali ganda (memberikan percikan kepada unit tanpanya)."
+  },
+  "skyBind": {
+    "name": "Ikatan Langit",
+    "description": "Boleh menyerang unit darat dan udara."
+  },
+  "skyLift": {
+    "name": "Lif Langit",
+    "description": "Mengangkat unit ini ke udara (penerbang tempur)."
+  },
+  "earthbound": {
+    "name": "Terikat di Bumi",
+    "description": "Mengekalkan unit ini di atas tanah (mengatasi Sky Lift / penerbangan semula jadi)."
+  },
+  "spiderMother": {
+    "name": "Ibu Labah-labah"
+  },
+  "darkHarvest": {
+    "name": "Tuaian Gelap"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "kerosakan {{pct}}",
+    "modRange": "Julat {{pct}}",
+    "modSpeed": "{{pct}} kelajuan bergerak",
+    "modAttackSpeed": "{{pct}} kelajuan serangan",
+    "modSplash": "{{mult}}× jejari percikan",
+    "produce": "Menghasilkan {{child}} setiap {{every}} (sehingga {{max}})",
+    "produceFirst": ", pertama selepas {{delay}}",
+    "produceOffspring": ". Padanan anak padan tahap induk",
+    "onKill": "Apabila unit ini mati, naikkan {{child}}",
+    "cleave": "Menyerang setiap musuh dalam lingkungan {{radius}} (di sekitar unit ini)"
+  }
+}

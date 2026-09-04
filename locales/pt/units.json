@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Arqueiro da Guarnição"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Ninhada Negra"
+  },
+  "hordeSpinne": {
+    "name": "Aranha Negra"
+  },
+  "hordeFarmer": {
+    "name": "Fazendeiro morto"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Trabalhador rural morto"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Anão"
+  },
+  "archer": {
+    "name": "Arqueiro"
+  },
+  "wizard": {
+    "name": "Mago"
+  },
+  "crowRider": {
+    "name": "Cavaleiro Corvo"
+  },
+  "ballista": {
+    "name": "Balista"
+  },
+  "shield": {
+    "name": "Pedra de Ward"
+  },
+  "rocket": {
+    "name": "Raio de Fogo"
+  },
+  "command-tower": {
+    "name": "Vanguarda"
+  },
+  "research-center": {
+    "name": "Guarnição"
+  },
+  "stronghold": {
+    "name": "Fortaleza"
+  },
+  "hordeZombie": {
+    "name": "Ninhada Negra"
+  }
+}

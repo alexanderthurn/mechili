@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Aseta armeijoita salaa ja seuraa kierroksen kulkua. Vihollisesi tekee samoin. Sopeudu, toista, kunnes jonkun teistä HP loppuu.",
+  "hero": {
+    "wishlist": "Toivelista nyt",
+    "trailer": "Katso traileri",
+    "steamSoon": "Steam-sivu tulossa pian"
+  },
+  "screenshots": {
+    "title": "Kuvakaappaukset",
+    "sub": "Katsaus käyttöönottoon ja taisteluun.",
+    "browse": "Selaa kuvakaappauksia",
+    "open": "Avaa kuvakaappaus: {{label}}",
+    "fallback": "Kuvakaappaus",
+    "missing": "{{label}} ⬢ pudota tiedosto kansioon resurssit/markkinointi/kuvakaappaukset/"
+  },
+  "shot": {
+    "1": "Armeijan sijoittuminen metsänraivaukseen",
+    "2": "Käyttöönottovaihe ja yksikköverstas",
+    "3": "Lohikäärmeen tulen henkäys pellon yllä",
+    "4": "Vierekkäiset käyttöönottoalueet",
+    "5": "Massataistelu tasangoilla",
+    "6": "Talvinen linnoitus lumessa",
+    "7": "Kaksoisjalustat ruudukossa",
+    "8": "Suuri linnoitettu tukikohta"
+  },
+  "lightbox": {
+    "gallery": "Kuvakaappausgalleria",
+    "close": "Sulje galleria",
+    "prev": "Edellinen kuvakaappaus",
+    "next": "Seuraava kuvakaappaus",
+    "dots": "Kuvakaappaukset",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Yksiköt, rakennukset ja loitsut",
+    "sub": "Armeijasi, rakennuksesi, {{horde}}-pakkauksesi ja taisteluloitsumallisi. Valitse yksi tutkittavaksi — Varisratsastaja ja Lohikäärme räpyttelevät tässä esikatselussa.",
+    "canvas": "Yksikön 3D-esikatselu",
+    "loading": "Mallia ladataan…",
+    "hint": "Vedä kiertääksesi · Vieritä zoomataksesi",
+    "select": "Valitse yksikkö, rakennus tai loitsu",
+    "list": "Yksiköt, rakennukset ja loitsut",
+    "buildings": "Rakennukset",
+    "units": "Yksiköt",
+    "spells": "Loitsut"
+  },
+  "stats": {
+    "cost": "Maksaa",
+    "hp": "HP",
+    "damage": "Vahingoittaa",
+    "range": "Alue",
+    "attackInterval": "Hyökkäysväli",
+    "seconds": "{{value}}s",
+    "speed": "Nopeus",
+    "abilities": "Kyvyt",
+    "spellModel": "Loitsumalli"
+  },
+  "flag": {
+    "flying": "Lentäminen",
+    "structure": "Rakenne",
+    "extra": "Lisä",
+    "attacksGround": "Hyökkäykset maata vastaan",
+    "attacksAir": "Hyökkää ilmaan",
+    "shield": "Osaston kupoli",
+    "rocket": "Itseohjautuva pultti"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Lohikäärmeen hyökkäys",
+      "blurb": "Tulihengitys iskussa. Siipiläpät käyttävät samaa varjostuspolkua kuin Varisratsastaja (verkkotila)."
+    },
+    "hammer": {
+      "name": "Jumalten vasara",
+      "blurb": "Jumalainen vasara, joka putoaa asetettuun vyöhykkeeseen."
+    },
+    "meteor-great": {
+      "name": "Meteori",
+      "blurb": "Yksittäinen voimakas meteorin isku."
+    },
+    "meteor-shard": {
+      "name": "Meteoriparven sirpale",
+      "blurb": "Suihkutulen käyttämä pienempi meteori."
+    },
+    "storm": {
+      "name": "Myrskykutsu",
+      "blurb": "Myrskypilvi, joka sinkoilee salamoita."
+    },
+    "poison": {
+      "name": "Myrkkypilvi",
+      "blurb": "Myrkyllisiä taivaan pilviä, jotka satavat harvaa happoa valtavan ympyrän ylle."
+    }
+  },
+  "commanders": {
+    "sub": "Ennen ensimmäistä kierrosta jokainen pelaaja valitsee {{commander}}:n. Se asettaa aloitusarmeijasi, HP-poolin, pysyvän erikoisalan ja kolme linnoitussepän {{tactics}} (heikko / keskivahva / vahva). Tiimikaverit jakavat sepän liiton {{tactics}}.",
+    "select": "Valitse {{commander}}"
+  },
+  "runes": {
+    "sub": "Yhdistetty pysyvästi pakettiin, nostaen jokaisen siinä olevan mekan {{sep}}. Useimmissa pakeissa on {{packLimit}}, ballista {{ballistaLimit}}. Neljä perusriimua laaditaan pyöreistä korteista tai ostetaan kaupasta; vahvemmat taotaan niistä linnoituksessa, eikä niitä koskaan myydä.",
+    "select": "Valitse {{item}}",
+    "base": "Pohja",
+    "advanced": "Edistynyt",
+    "shopTitle": "Ostettu kaupasta tai vedetty pyöreästä kortista",
+    "shopLabel": "Kauppahinta",
+    "forgeTitle": "Taottu {{building}}:ssa",
+    "forgeLabel": "Forgen hinta"
+  },
+  "tactics": {
+    "sub": "Nämä ovat {{tactics}}-nauhallasi {{sep}} olevat taidot: kokoontumiset, leviämiset, kutsumiset ja taistelulahjaukset, kuten lohikäärmeen tulenhenkäys. Taisteluloitsuja ostetaan linnoituksestasi, kerran kukin, ja vain ne kolme, jotka komentajasi osaa. Kuvakkeet vastaavat pelissä näkemääsi.",
+    "select": "Valitse {{tactic}}",
+    "placement": "Sijoittelu",
+    "oneShot": "Yhden laukauksen",
+    "buyTitle": "Ostettu {{building}}-kaupasta",
+    "priceLabel": "{{building}} hinta"
+  },
+  "targeting": {
+    "point": "kohta",
+    "two-point": "kahden pisteen",
+    "three-point": "kolmen pisteen",
+    "point-yaw": "piste + päin",
+    "own-unit": "oma pakkaus"
+  },
+  "roundCards": {
+    "title": "Pyöreät kortit",
+    "sub": "Toisesta kierroksesta eteenpäin nosta yksi useista tarjotuista {{items}}-korteista otteluvarastosta. Taisteluloitsuja ostetaan linnoituksesta, niitä ei nosteta korteista.",
+    "select": "Valitse pyöreä kortti"
+  },
+  "matchSettings": {
+    "title": "Otteluasetukset",
+    "sub": "Ottelun oletussäännöt, jotka on otettu suoraan pelin asetuskoodista, joten ne eivät voi poiketa alkuperäisestä sisällöstä. Kaikki täällä on viritettävää – se on avoimen lähdekoodin ohjelmistoa."
+  },
+  "contribute": {
+    "title": "Osallistu",
+    "sub1": "Melodanin on kehittänyt yksi ihminen, minä. Olen intohimoinen tätä peliä kohtaan, mutta en voi tehdä AAA-peliä ja pitää kaiken täydellisenä, tasapainoisena ja niin edelleen. Ajatuksena on tehdä pelistä avoin, johon kuka tahansa voi osallistua.",
+    "sub2": "Tehdään tämä yhdessä. Tasapaino, bugit, ominaisuudet, taideideat {{sep}} Lähetä lyhyt viesti, niin luen sen. Jos haluat tehdä lisää, tervetuloa!",
+    "play": "Testaa selaimessa",
+    "feedback": "Lähetä palautetta",
+    "discord": "Eripura",
+    "devlog": "Kehittäjäloki",
+    "waysTitle": "Auttamiskeinoja",
+    "way1": "Jaa ideoita ja bugiraportteja",
+    "way2": "Avoimet pull-pyynnöt {{github}}:ssa (GPL-3.0)",
+    "way3": "Tee tai paranna 3D-malleja",
+    "way4": "Huolehdi tasapainottamisesta, keksi uusia loitsuja, kortteja, ideoita.",
+    "way5": "Toivota pelaajat tervetulleiksi, kirjoita oppaita ja auta moderoinnissa, jos haluat ottaa sen tehtäväksesi."
+  },
+  "about": {
+    "title": "Noin",
+    "lead": "MELODANin valmistaa Alexander Thurn (Feuerware). Hän sijaitsee Bonnissa, Saksassa.",
+    "inspired": "Tämä peli on saanut inspiraationsa genren parhaasta pelistä {{mechabellum}}. MELODAN on itsenäinen fantasiapeli; tue alkuperäistä peliä ja osta Mechabelum. Kiitos!",
+    "openSource": "Peli on {{github}} (GPL-3.0). Tekijänoikeudet pysyvät Alexander Thurnilla / Feuerwarella. Voit vapaasti forkata pelin yksityisesti, keksiä uusia yksiköitä ja avata pull-pyyntöjä. Jos haluat jotain suurempaa, ei-kaupallisen tai spin-offin, täydellisen uudelleenbrändäyksen jne., kirjoita minulle: {{email}}.",
+    "openSourceLink": "avoimen lähdekoodin GitHubissa"
+  },
+  "footer": {
+    "play": "Pelata",
+    "steam": "Höyry",
+    "feedback": "Palaute",
+    "imprint": "Painatus",
+    "privacy": "Tietosuoja"
+  }
+}

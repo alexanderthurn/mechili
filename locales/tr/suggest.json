@@ -1,0 +1,23 @@
+{
+  "title": "Geri bildirim gönder",
+  "lead": "Ne inşa etmemizi, düzeltmemizi veya denememizi istediğinizi bize söyleyin. Dilerseniz adınızı ve e-posta adresinizi de ekleyebilirsiniz.",
+  "discord": "Sohbet etmeyi mi tercih ediyorsunuz? Discord topluluğuna katılın.",
+  "category": "Kategori",
+  "message": "Mesaj",
+  "placeholder": "Neler değişmeli? Neler bozuldu? Neler yardımcı olurdu?",
+  "cancel": "İptal etmek",
+  "submit": "Göndermek",
+  "sending": "Gönderiliyor…",
+  "thanksSent": "Teşekkürler, gönderildi.",
+  "thanksSaved": "Teşekkürler, kaydedildi.",
+  "writeFirst": "Önce kısa bir mesaj yazın.",
+  "rateLimited": "Çok fazla öneri var — lütfen {{n}}s'de tekrar deneyin.",
+  "sendFailed": "Gönderilemedi. Lütfen daha sonra tekrar deneyin.",
+  "networkError": "Ağ hatası — lütfen daha sonra tekrar deneyin.",
+  "catBug": "Böcek",
+  "catBalance": "Denge",
+  "catFeature": "Özellik",
+  "catArt": "Modeller / sanat",
+  "catCommunity": "Toplum",
+  "catOther": "Diğer"
+}

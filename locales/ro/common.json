@@ -1,0 +1,17 @@
+{
+  "close": "Aproape",
+  "back": "Înapoi",
+  "reset": "Resetare",
+  "language": "Limbă",
+  "term": {
+    "rune": "Rune",
+    "runes": "Rune",
+    "talent": "Talent",
+    "talents": "Talente",
+    "spell": "Vrajă",
+    "spells": "Vrăji",
+    "commander": "Comandant",
+    "commanders": "Comandanți",
+    "horde": "Komturul"
+  }
+}

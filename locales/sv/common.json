@@ -1,0 +1,17 @@
+{
+  "close": "Nära",
+  "back": "Tillbaka",
+  "reset": "Återställa",
+  "language": "Språk",
+  "term": {
+    "rune": "Runa",
+    "runes": "Runor",
+    "talent": "Talang",
+    "talents": "Talanger",
+    "spell": "Stava",
+    "spells": "Trollformler",
+    "commander": "Befälhavare",
+    "commanders": "Befälhavare",
+    "horde": "Komturen"
+  }
+}

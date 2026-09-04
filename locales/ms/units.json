@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Pemanah Garrison"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Induk Hitam"
+  },
+  "hordeSpinne": {
+    "name": "Labah-labah Hitam"
+  },
+  "hordeFarmer": {
+    "name": "Petani Mati"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Pekerja Ladang Mati"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Orang kerdil"
+  },
+  "archer": {
+    "name": "Pemanah"
+  },
+  "wizard": {
+    "name": "Ahli sihir"
+  },
+  "crowRider": {
+    "name": "Penunggang Gagak"
+  },
+  "ballista": {
+    "name": "Ballista"
+  },
+  "shield": {
+    "name": "Batu Wad"
+  },
+  "rocket": {
+    "name": "Bolt Api"
+  },
+  "command-tower": {
+    "name": "Vanguard"
+  },
+  "research-center": {
+    "name": "Garrison"
+  },
+  "stronghold": {
+    "name": "Kubu kuat"
+  },
+  "hordeZombie": {
+    "name": "Induk Hitam"
+  }
+}

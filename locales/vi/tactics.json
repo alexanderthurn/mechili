@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Tuyến đường diễu hành",
+    "description": "Đặt các khu vực xuất phát, khu vực giữa và khu vực cuối. Các đơn vị trong vòng tròn xuất phát hành quân qua các vị trí tương ứng ở giữa, sau đó đến cuối, giao tranh dọc đường đi."
+  },
+  "oilSpill": {
+    "name": "Sự cố tràn dầu",
+    "description": "Đặt hai vòng tròn dầu — phác thảo đường viền trong quá trình triển khai; ngay sau khi trận chiến bắt đầu, dầu sẽ nhỏ giọt từ trái sang phải lên đường đi (các đĩa chắn vẫn không bị ảnh hưởng). Dầu nối liền sẽ bốc cháy thành một vùng duy nhất khi lửa chạm vào."
+  },
+  "sellUnit": {
+    "name": "Bán gói sản phẩm",
+    "description": "Nhấp chuột để trang bị vũ khí, sau đó nhấp vào một trong các gói vật phẩm của bạn để bán chúng và nhận lại tiền hoàn trả vật phẩm."
+  },
+  "moveUnit": {
+    "name": "Gói chuyển nhà",
+    "description": "Nhấp chuột để kích hoạt, sau đó nhấp vào một trong các gói của bạn từ vòng trước — bạn có thể kéo và xoay gói đó một lần nữa cho phần còn lại của vòng này."
+  },
+  "tutor": {
+    "name": "Bài học thực hành",
+    "description": "Nhấp chuột để trang bị vũ khí, sau đó nhấp vào một trong các gói vật phẩm của bạn — thanh XP của gói đó sẽ đầy lên cấp độ tiếp theo. Việc mua cấp độ vẫn tốn vật phẩm."
+  },
+  "spawnDwarves": {
+    "name": "Triệu hồi người lùn",
+    "description": "Hãy khoanh tròn một khu vực bất kỳ bên ngoài căn cứ địch. Ngay sau khi trận chiến bắt đầu, từng nhóm chiến binh người lùn sẽ đột nhiên trồi lên từ lòng đất — họ chỉ chiến đấu trong trận này mà thôi."
+  },
+  "bigMeteor": {
+    "name": "Sao băng",
+    "description": "Hãy khoanh tròn một khu vực nhỏ bất kỳ. Chỉ vài giây sau khi trận chiến bắt đầu, một thiên thạch sẽ phá hủy mọi thứ trong khu vực đó — chỉ có các mái vòm bảo vệ (và chi trả cho việc này) mới có thể che chở."
+  },
+  "spawnCrows": {
+    "name": "Triệu hồi Kỵ sĩ Quạ",
+    "description": "Hãy khoanh tròn một khu vực bất kỳ bên ngoài căn cứ địch. Ngay sau khi trận chiến bắt đầu, những kỵ sĩ quạ sẽ lao xuống từ trên trời, từng người một — chúng chỉ chiến đấu trong trận này."
+  },
+  "hammerOfGods": {
+    "name": "Búa của các vị thần",
+    "description": "Nhấp chuột để đặt, di chuyển để xoay, nhấp chuột lần nữa để khóa. Một chiếc búa thần thánh rơi xuống khu vực chỉ vài giây sau khi trận chiến bắt đầu."
+  },
+  "storm": {
+    "name": "Lời kêu gọi bão tố",
+    "description": "Vẽ một vòng tròn rộng ở bất kỳ đâu. Những đám mây giông nhỏ tụ lại trên cao và phóng sét vào các vị trí ngẫu nhiên — sét không gây sát thương nhưng gây giật điện cho các đơn vị trong một vùng rộng với hiệu ứng suy yếu giống như tháp, trừ khi chúng có hào quang vàng. Các mái vòm phòng thủ vẫn chặn được các đòn tấn công."
+  },
+  "meteorShower": {
+    "name": "Mưa sao băng",
+    "description": "Hãy vẽ một vòng tròn rộng ở bất kỳ đâu. Các thiên thạch sẽ rơi xuống những vị trí ngẫu nhiên bên trong vòng tròn đó trong một thời gian, mỗi vụ nổ sẽ đốt cháy mặt đất mà nó chạm vào."
+  },
+  "acidSpill": {
+    "name": "Sự cố tràn axit",
+    "description": "Đổ một viên nang axit như thể đang làm tràn dầu — nó sẽ nhỏ giọt từ trái sang phải xuống mặt đất ngay khi trận chiến bắt đầu. Các đơn vị trên mặt đất và trên không bay qua vũng axit sẽ bị ăn mòn và hấp thụ thêm sát thương từ mọi thứ."
+  },
+  "fireSpill": {
+    "name": "Sự cố tràn lửa",
+    "description": "Đổ một viên nang lửa như dầu – nó sẽ nhỏ giọt từ trái sang phải ngay khi trận chiến bắt đầu và đốt cháy đường đi (các đĩa bảo vệ vẫn không bị ảnh hưởng). Dầu tiếp xúc sẽ bốc cháy theo. Ngọn lửa chỉ kéo dài trong trận chiến này."
+  },
+  "dragonAttack": {
+    "name": "Cuộc tấn công của Rồng",
+    "description": "Hãy vẽ đường bay tấn công của rồng (rộng và dài hơn cả dầu). Nó lao xuống và phun lửa dọc theo hành lang — tia lửa thiêu đốt các đơn vị khi nó đi qua và nhuộm đỏ mặt đất. Các mái vòm phòng thủ hấp thụ hơi thở đó (và phải trả giá)."
+  },
+  "poisonCloud": {
+    "name": "Đám mây độc",
+    "description": "Hãy khoanh tròn một vùng lớn. Những đám mây độc hại sẽ tụ lại phía trên và trút xuống những giọt axit nhỏ li ti khắp khu vực — những vũng nước nhỏ rải rác gây ăn mòn các thiết bị trên mặt đất và trên không giống như trường hợp tràn axit, nhưng trên một phạm vi rộng hơn nhiều."
+  }
+}

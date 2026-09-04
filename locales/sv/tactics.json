@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rallyrutt",
+    "description": "Platsens start-, mitt- och målzoner. Enheter i startcirkeln marscherar genom matchande förskjutningar i mitten och sedan i slutet, och kämpar längs vägen."
+  },
+  "oilSpill": {
+    "name": "Oljeutsläpp",
+    "description": "Placera två oljecirklar – markera dem under utplaceringen; strax efter att striden börjar droppar olja från vänster till höger ner på vägen (försvarsbrickorna förblir fria). Sammankopplad olja antänds som ett enda fält när eld berör den."
+  },
+  "sellUnit": {
+    "name": "Sälj paket",
+    "description": "Klicka för att aktivera, klicka sedan på ett av dina paket för att sälja det och få återbetalning för dina förnödenheter."
+  },
+  "moveUnit": {
+    "name": "Flytta paketet",
+    "description": "Klicka för att beväpna, klicka sedan på ett av dina paket från en tidigare runda – det kan dras och roteras igen under resten av den här rundan."
+  },
+  "tutor": {
+    "name": "Fältlektion",
+    "description": "Klicka för att beväpna, klicka sedan på ett av dina paket – dess XP-stapel fylls till nästa nivå. Att köpa nivån kostar fortfarande förråd."
+  },
+  "spawnDwarves": {
+    "name": "Kalla fram dvärgar",
+    "description": "Markera en cirkel någonstans utanför fiendens bas. Kort efter att striden har börjat, bryter en krigsgrupp av dvärgar ut ur marken där, en efter en – de utkämpar endast denna strid."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Markera en liten cirkel var som helst. Sekunder in i striden utplånar en meteor allt där – endast försvarskupoler skyddar (och betalar för det)."
+  },
+  "spawnCrows": {
+    "name": "Kalla kråkryttare",
+    "description": "Markera en cirkel var som helst utanför fiendens bas. Kort efter att striden har börjat dyker kråkryttarna in från himlen, en efter en – de utkämpar endast denna strid."
+  },
+  "hammerOfGods": {
+    "name": "Gudarnas hammare",
+    "description": "Klicka för att placera, flytta för att rotera, klicka igen för att låsa. En gudomlig hammare faller ner på zonen sekunder in i striden."
+  },
+  "storm": {
+    "name": "Stormanrop",
+    "description": "Markera en bred cirkel var som helst. Små stormmoln samlas högt ovanför och kastar blixtar på slumpmässiga platser – blixtar gör ingen skada men chockar enheter i ett brett plask med en tornliknande debuff om de inte har en gyllene aura. Avdelningskupoler blockerar fortfarande attackerna."
+  },
+  "meteorShower": {
+    "name": "Meteorregn",
+    "description": "Markera en bred cirkel var som helst. Meteorer regnar ner på slumpmässiga fläckar inuti ett tag, och varje explosion bränner marken den träffar."
+  },
+  "acidSpill": {
+    "name": "Syrautsläpp",
+    "description": "Häll en syrakapsel som ett oljespill – den droppar från vänster till höger ner på marken strax efter att striden har börjat. Mark- och luftenheter ovanför pölen fräser och korroderar – och tar extra skada från allting."
+  },
+  "fireSpill": {
+    "name": "Brandutsläpp",
+    "description": "Häll en eldkapsel som olja — den droppar från vänster till höger strax efter att striden börjar och sätter vägen i brand (försvarsskivorna förblir fria). Ansluten olja antänds med den. Lågan varar endast i denna strid."
+  },
+  "dragonAttack": {
+    "name": "Drakattack",
+    "description": "Rita drakens attackväg (bredare och längre än olja). Den dyker ner och andas eld längs korridoren — strålen bränner enheter när den passerar och målar marken i brand. Världskupoler absorberar andningen (och betalar för den)."
+  },
+  "poisonCloud": {
+    "name": "Giftmoln",
+    "description": "Markera en stor cirkel. Giftiga moln samlas ovanför och regnar små syradroppar över området – glesa pölar som korroderar mark- och luftenheter likt syrautsläpp, men över ett mycket större fält."
+  }
+}

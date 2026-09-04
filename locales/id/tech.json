@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Kaki Cepat"
+  },
+  "carapace": {
+    "name": "Kulit Batu"
+  },
+  "barrel": {
+    "name": "Busur besar"
+  },
+  "ap": {
+    "name": "Panah Penembus"
+  },
+  "fireArrows": {
+    "name": "Panah Api",
+    "description": "Anak panah meninggalkan api kecil di tanah dan membakar — cukup untuk menyulut genangan minyak."
+  },
+  "engines": {
+    "name": "Sayap Angin Kencang"
+  },
+  "stingers": {
+    "name": "Cakar Gagak"
+  },
+  "armor": {
+    "name": "Pelapisan Besi"
+  },
+  "autoloader": {
+    "name": "Derek Cepat"
+  },
+  "aegis": {
+    "name": "Perlindungan",
+    "description": "Perisai: setiap unit mendapatkan tambahan poin kesehatan kedua yang setara dengan HP-nya. Serangan jarak jauh akan mengurangi perisai terlebih dahulu; serangan jarak dekat, api, dan asam mengabaikannya."
+  },
+  "golden": {
+    "name": "Aura Emas",
+    "description": "Sekutu di dekatnya menahan efek negatif menara dan menerima 30% lebih sedikit kerusakan selama 30 detik. Penyihir tidak dapat mengubahnya — sinar tersebut malah memberikan kerusakan."
+  },
+  "pitchBolts": {
+    "name": "Baut Pitch",
+    "description": "Anak panah memercikkan minyak saat mengenai sasaran (tidak terbakar — pasangkan dengan anak panah api atau Anak Panah Api)."
+  },
+  "wideBlast": {
+    "name": "Ledakan Luas",
+    "description": "Meningkatkan radius percikan menjadi tiga kali lipat (memberikan efek percikan ke unit yang tidak memilikinya)."
+  },
+  "skyBind": {
+    "name": "Pengikat Langit",
+    "description": "Dapat menyerang unit darat dan udara."
+  },
+  "skyLift": {
+    "name": "Lift Langit",
+    "description": "Mengangkat unit ini ke udara (pesawat tempur)."
+  },
+  "earthbound": {
+    "name": "Terbatas pd bumi",
+    "description": "Menjaga unit ini tetap di tanah (menggantikan Sky Lift / penerbangan alami)."
+  },
+  "spiderMother": {
+    "name": "Ibu dari Laba-laba"
+  },
+  "darkHarvest": {
+    "name": "Panen Gelap"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} kerusakan",
+    "modRange": "Rentang {{pct}}",
+    "modSpeed": "{{pct}} kecepatan gerak",
+    "modAttackSpeed": "{{pct}} kecepatan serangan",
+    "modSplash": "{{mult}}× radius percikan",
+    "produce": "Menghasilkan {{child}} setiap {{every}} (hingga {{max}})",
+    "produceFirst": ", pertama setelah {{delay}}",
+    "produceOffspring": "Keturunan sesuai dengan tingkat orang tua.",
+    "onKill": "Saat unit ini membunuh, angkat {{child}}",
+    "cleave": "Menyerang setiap musuh dalam radius {{radius}} (di sekitar unit ini)"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Égi varázsló",
+    "description": "A légi egységek +12% támadást és HP-t kapnak.",
+    "unitsLabel": "2× Varjúlovasok · 1× Törpök"
+  },
+  "cost": {
+    "title": "Kapzsi herceg",
+    "description": "Minden egységnek -12% támadása és HP-ja van, de +100 ellátmánya minden körben.",
+    "unitsLabel": "2× Íjászok · 1× Varjúlovasok · 1× Törpök"
+  },
+  "elite": {
+    "title": "Elit herceg",
+    "description": "2. szinten toborozunk. +100 utánpótlás az 1. körben.",
+    "unitsLabel": "1× Ballista · 1× Törpök"
+  },
+  "archer": {
+    "title": "Íjászparancsnok",
+    "description": "Egy ingyenes 3. szintű íjász érkezik a 2. körben.",
+    "unitsLabel": "3× Íjász · 2× Törp"
+  },
+  "addi": {
+    "title": "Ereklyeőrző",
+    "description": "3× Bátorság rúnát kap az 1. körben.",
+    "unitsLabel": "1× Varjúlovasok · 3× Törpök"
+  },
+  "meteor": {
+    "title": "Hitzkopf lord",
+    "description": "2 meteor töltetet kap a 2. körben.",
+    "unitsLabel": "1× Varázsló · 1× Törpök"
+  },
+  "speed": {
+    "title": "Gyors özvegy",
+    "unitsLabel": "1× Varjúlovasok · 1× Íjászok · 2× Törpök"
+  },
+  "giant": {
+    "title": "Chonk grófnő",
+    "unitsLabel": "1× Ballista · 1× Törpök"
+  },
+  "tutor": {
+    "title": "Hölgy előadás",
+    "description": "Egy terepórával kezdődik.",
+    "unitsLabel": "1× Varjúlovasok · 3× Íjászok"
+  },
+  "money": {
+    "title": "Pénzkirálynő",
+    "unitsLabel": "2× Varjúlovasok · 1× Íjászok"
+  },
+  "cursed": {
+    "title": "Átkozott Krisztina",
+    "description": "Minden körben kapsz egy ingyenes fekete seprűpókot.",
+    "unitsLabel": "2× Törp · 2× Íjász"
+  },
+  "flanky": {
+    "title": "Oldalsó árnyék",
+    "description": "Az első oldalra érkezés fele annyi időt vesz igénybe.",
+    "unitsLabel": "2× Törp · 2× Íjász"
+  }
+}

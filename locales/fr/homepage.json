@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Déployez vos armées en secret et observez le déroulement du round. Votre ennemi fait de même. Adaptez-vous, et répétez l'opération jusqu'à ce que l'un de vous n'ait plus de points de vie.",
+  "hero": {
+    "wishlist": "Ajoutez-le à votre liste de souhaits dès maintenant",
+    "trailer": "Voir la bande-annonce",
+    "steamSoon": "Page Steam bientôt disponible"
+  },
+  "screenshots": {
+    "title": "Captures d'écran",
+    "sub": "Aperçu du déploiement et des combats.",
+    "browse": "Parcourir les captures d'écran",
+    "open": "Ouvrir la capture d'écran : {{label}}",
+    "fallback": "Capture d'écran",
+    "missing": "{{label}} ⬢ Déposez le fichier dans assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Déploiement de l'armée dans la clairière",
+    "2": "Phase de déploiement et atelier de fabrication",
+    "3": "Souffle de feu du dragon sur le champ",
+    "4": "Zones de déploiement côte à côte",
+    "5": "Bataille massive dans les plaines",
+    "6": "Refuge hivernal sous la neige",
+    "7": "Deux bases sur la grille",
+    "8": "Grande base fortifiée"
+  },
+  "lightbox": {
+    "gallery": "Galerie de captures d'écran",
+    "close": "Fermer la galerie",
+    "prev": "Capture d'écran précédente",
+    "next": "Capture d'écran suivante",
+    "dots": "Captures d'écran",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Unités, bâtiments et sorts",
+    "sub": "Votre armée, vos bâtiments, vos paquets {{horde}} et vos figurines de sorts de combat. Choisissez-en une à examiner : le Cavalier Corbeau et le Dragon sont présentés dans cet aperçu.",
+    "canvas": "Aperçu 3D de l'unité",
+    "loading": "Chargement du modèle…",
+    "hint": "Faites glisser pour faire pivoter · Défilez pour zoomer",
+    "select": "Choisissez une unité, un bâtiment ou un sort",
+    "list": "Unités, bâtiments et sorts",
+    "buildings": "Bâtiments",
+    "units": "Unités",
+    "spells": "Sorts"
+  },
+  "stats": {
+    "cost": "Coût",
+    "hp": "HP",
+    "damage": "Dommage",
+    "range": "Gamme",
+    "attackInterval": "Intervalle d'attaque",
+    "seconds": "{{value}}s",
+    "speed": "Vitesse",
+    "abilities": "Capacités",
+    "spellModel": "Modèle de sort"
+  },
+  "flag": {
+    "flying": "Vol",
+    "structure": "Structure",
+    "extra": "Supplémentaire",
+    "attacksGround": "Attaques au sol",
+    "attacksAir": "Attaques aériennes",
+    "shield": "Dôme du service",
+    "rocket": "Boulon de guidage"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Attaque du Dragon",
+      "blurb": "Souffle de feu en rafale. Le battement d'ailes utilise le même chemin de shader que Crow Rider (mode mesh)."
+    },
+    "hammer": {
+      "name": "Marteau des dieux",
+      "blurb": "Marteau divin qui s'abat sur une zone placée."
+    },
+    "meteor-great": {
+      "name": "Météore",
+      "blurb": "Un seul impact de météorite massive."
+    },
+    "meteor-shard": {
+      "name": "Fragment de pluie de météores",
+      "blurb": "Météore plus petit utilisé par le barrage de la pluie d'étoiles filantes."
+    },
+    "storm": {
+      "name": "Appel de la tempête",
+      "blurb": "Nuage orageux qui projette des éclairs."
+    },
+    "poison": {
+      "name": "Nuage toxique",
+      "blurb": "Des nuages toxiques dans le ciel laissent tomber des gouttes d'acide éparses sur un immense cercle."
+    }
+  },
+  "commanders": {
+    "sub": "Avant le premier tour, chaque joueur choisit un {{commander}}. Celui-ci détermine son armée de départ, ses points de vie, une spécialité permanente et trois forges de forteresse {{tactics}} (faible / moyenne / forte). Les coéquipiers partagent l'union de leurs forges {{tactics}}.",
+    "select": "Choisissez un {{commander}}"
+  },
+  "runes": {
+    "sub": "Intégrés définitivement à un pack, ils soulèvent tous les méchas qu'il contient {{sep}} (la plupart des packs contiennent {{packLimit}}), la baliste {{ballistaLimit}}. Les quatre runes de base sont tirées de cartes rondes ou achetées en boutique ; les plus puissantes sont forgées à partir de celles-ci à la Forteresse et ne sont jamais vendues.",
+    "select": "Choisissez un {{item}}",
+    "base": "Base",
+    "advanced": "Avancé",
+    "shopTitle": "Acheté en magasin ou tiré au sort sur une carte ronde",
+    "shopLabel": "Prix en magasin",
+    "forgeTitle": "Forgé au {{building}}",
+    "forgeLabel": "Prix de la forge"
+  },
+  "tactics": {
+    "sub": "Voici les compétences de votre bande {{tactics}} : ralliements, déchaînements, invocations et sorts de combat, comme le souffle de feu du dragon. Les sorts de combat s’achètent à votre forteresse, une seule fois chacun, et seuls les trois que votre commandant connaît sont connus. Les icônes correspondent à celles affichées en jeu. {{sep}}",
+    "select": "Choisissez un {{tactic}}",
+    "placement": "Placement",
+    "oneShot": "One-shot",
+    "buyTitle": "Acheté au {{building}}",
+    "priceLabel": "{{building}} prix"
+  },
+  "targeting": {
+    "point": "indiquer",
+    "two-point": "deux points",
+    "three-point": "trois points",
+    "point-yaw": "point + face",
+    "own-unit": "propre paquet"
+  },
+  "roundCards": {
+    "title": "Cartes rondes",
+    "sub": "À partir du deuxième tour, choisissez une carte parmi celles proposées ({{items}}) issues de la réserve. Les sorts de combat s'achètent à la Forteresse et ne sont pas choisis parmi les cartes.",
+    "select": "Choisissez une carte ronde"
+  },
+  "matchSettings": {
+    "title": "Paramètres du match",
+    "sub": "Les règles par défaut d'une partie sont extraites directement du code source du jeu ; elles ne peuvent donc pas différer de la version officielle. Tout est paramétrable : le logiciel est libre."
+  },
+  "contribute": {
+    "title": "Contribuer",
+    "sub1": "Melodan est un jeu développé par une seule personne : moi. Je suis passionné par ce jeu, mais je ne peux pas créer un titre AAA et garantir un équilibre et une perfection irréprochables. L'idée est de proposer un jeu ouvert où chacun peut contribuer.",
+    "sub2": "Créons-le ensemble ! Équilibrage, bugs, fonctionnalités, idées artistiques {{sep}} Envoyez-moi un petit message et je le lirai. Si vous souhaitez contribuer davantage, n’hésitez pas !",
+    "play": "Tester dans le navigateur",
+    "feedback": "Envoyer des commentaires",
+    "discord": "Discorde",
+    "devlog": "Journal du développeur",
+    "waysTitle": "Des moyens d'aider",
+    "way1": "Partagez vos idées et vos rapports de bugs",
+    "way2": "Demandes de fusion ouvertes sur {{github}} (GPL-3.0)",
+    "way3": "Créer ou améliorer des modèles 3D",
+    "way4": "Veillez à l'équilibre, inventez de nouveaux sorts, cartes, idées.",
+    "way5": "Accueillez les joueurs, rédigez des guides, participez à la modération si vous le souhaitez."
+  },
+  "about": {
+    "title": "À propos",
+    "lead": "MELODAN est une marque fabriquée par Alexander Thurn (Feuerware). Son atelier est situé à Bonn, en Allemagne.",
+    "inspired": "Ce jeu s'inspire de {{mechabellum}}, le meilleur jeu du genre. MELODAN est une œuvre de fantasy indépendante ; soutenez le jeu original et achetez Mechabelum. Merci !",
+    "openSource": "Le jeu est sous licence {{github}} (GPL-3.0). Les droits d'auteur appartiennent à Alexander Thurn / Feuerware. N'hésitez pas à le dupliquer, à créer de nouvelles unités et à soumettre des demandes de fusion. Pour un projet plus ambitieux, un spin-off non commercial ou à but non lucratif, une refonte complète, etc., contactez-moi : {{email}}.",
+    "openSourceLink": "open source sur GitHub"
+  },
+  "footer": {
+    "play": "Jouer",
+    "steam": "Vapeur",
+    "feedback": "Retour",
+    "imprint": "Imprimer",
+    "privacy": "confidentialité des données"
+  }
+}

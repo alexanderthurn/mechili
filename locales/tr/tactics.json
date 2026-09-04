@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Ralli Rotası",
+    "description": "Başlangıç, orta ve bitiş bölgelerini belirleyin. Başlangıç çemberindeki birlikler, ortadaki ve ardından sondaki eşleşen mesafelerden geçerek ilerler ve yol boyunca savaşırlar."
+  },
+  "oilSpill": {
+    "name": "Petrol Sızıntısı",
+    "description": "İki yağ çemberi yerleştirin — yerleştirme sırasında ana hatlarını çizin; savaş başladıktan kısa bir süre sonra yağ, soldan sağa doğru yola damlar (koruma diskleri açıkta kalır). Ateş temas ettiğinde, birbirine bağlı yağ tek bir alan olarak tutuşur."
+  },
+  "sellUnit": {
+    "name": "Paket Satışı",
+    "description": "Silahı kurmak için tıklayın, ardından tedarik iadesi almak için paketlerinizden birini satmak üzere tıklayın."
+  },
+  "moveUnit": {
+    "name": "Taşıma Paketi",
+    "description": "Silahı etkinleştirmek için tıklayın, ardından önceki turlardan bir paketinizi tıklayın; bu paket, bu turun geri kalanında tekrar sürüklenip döndürülebilir."
+  },
+  "tutor": {
+    "name": "Saha Dersi",
+    "description": "Silahı kurmak için tıklayın, ardından paketlerinizden birine tıklayın; XP çubuğu bir sonraki seviyeye dolacak. Seviye atlamak yine de kaynak maliyeti gerektirir."
+  },
+  "spawnDwarves": {
+    "name": "Cüceleri Çağır",
+    "description": "Düşman üssünün dışında herhangi bir yere bir daire çizin. Savaş başladıktan kısa bir süre sonra, cücelerden oluşan bir savaş birliği oradan teker teker yerden fırlayacak ve sadece bu savaşı yapacaklar."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Herhangi bir yere küçük bir daire çizin. Savaşın başlamasından saniyeler sonra bir meteor oradaki her şeyi yok eder; sadece koruma kubbeleri (ve bunun bedeli) koruma sağlar."
+  },
+  "spawnCrows": {
+    "name": "Karga Süvarilerini Çağır",
+    "description": "Düşman üssünün dışında herhangi bir yere bir daire çizin. Savaş başladıktan kısa bir süre sonra, karga binicileri birer birer gökyüzünden dalış yaparak sadece bu savaşı yapacaklar."
+  },
+  "hammerOfGods": {
+    "name": "Tanrıların Çekici",
+    "description": "Yerleştirmek için tıklayın, döndürmek için hareket ettirin, kilitlemek için tekrar tıklayın. Savaşın başlamasından saniyeler sonra bölgeye ilahi bir çekiç düşüyor."
+  },
+  "storm": {
+    "name": "Fırtına Çağrısı",
+    "description": "İstediğiniz yere geniş bir daire çizin. Küçük fırtına bulutları yukarıda toplanır ve rastgele noktalara şimşekler fırlatır; şimşekler hasar vermez ancak altın auraya sahip olmadıkları sürece kule benzeri bir olumsuz etkiyle birimleri geniş bir alanda şok eder. Koruma kubbeleri yine de şimşekleri engeller."
+  },
+  "meteorShower": {
+    "name": "Meteor Yağmuru",
+    "description": "Herhangi bir yere geniş bir daire çizin. Bir süre boyunca dairenin içindeki rastgele noktalara meteorlar yağacak ve her patlama çarptığı zemini yakacak."
+  },
+  "acidSpill": {
+    "name": "Asit Dökülmesi",
+    "description": "Asit kapsülünü petrol sızıntısı gibi dökün; savaş başladıktan kısa bir süre sonra soldan sağa doğru yere damlar. Su birikintisinin üzerindeki kara ve hava birimleri cızırdar ve paslanır; her şeyden ekstra hasar alırlar."
+  },
+  "fireSpill": {
+    "name": "Yangın Sıçraması",
+    "description": "Ateş kapsülünü yağ gibi dökün; savaş başladıktan kısa bir süre sonra soldan sağa damlar ve yolu alevlendirir (koruma diskleri uzak durur). Bağlantılı yağ da onunla birlikte tutuşur. Alev sadece bu savaş boyunca sürer."
+  },
+  "dragonAttack": {
+    "name": "Ejderha Saldırısı",
+    "description": "Ejderhanın tarama yolunu çizin (yağdan daha geniş ve daha uzun). Dalgıçlık yapar ve koridor boyunca ateş püskürtür; ışın geçtiği yerlerde birimleri yakar ve zemini alevler içinde bırakır. Koruma kubbeleri bu nefesi emer (ve bunun bedelini öder)."
+  },
+  "poisonCloud": {
+    "name": "Zehirli Bulut",
+    "description": "Büyük bir daire çizin. Zehirli bulutlar tepede toplanır ve bölgeye küçük asit damlacıkları yağdırır; bu seyrek su birikintileri, Acid Spill'deki gibi yer ve hava birimlerini aşındırır, ancak çok daha geniş bir alanda."
+  }
+}

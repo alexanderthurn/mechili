@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Nivel de actualización",
+    "description": "Eleva este edificio un nivel: recupera sus puntos de vida base. El precio inicial es {{baseCost}} y aumenta en {{costStep}} por cada nivel (nivel máximo {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Venta",
+    "description": "Desbloquea permanentemente los paquetes de venta (hasta {{maxPerRound}} por fase de despliegue). El reembolso es del {{refundPct}}% del costo base."
+  },
+  "attack_boost": {
+    "name": "Impulso de ataque",
+    "description": "Aumento de daño permanente para todo el ejército. Primer nivel +{{attackPct}}%; compra los niveles en orden (cuesta {{costs}})."
+  },
+  "hp_boost": {
+    "name": "Impulso de HP",
+    "description": "Aumento permanente de HP para todo el ejército. Primer nivel +{{hpPct}}%; compra los niveles en orden (cuesta {{costs}})."
+  },
+  "range_boost": {
+    "name": "Aumento de autonomía",
+    "description": "+{{amount}} alcance para todas las unidades de largo alcance, solo en esta ronda."
+  },
+  "speed_boost": {
+    "name": "Impulso de velocidad",
+    "description": "+{{amount}} velocidad para todas las unidades, solo en esta ronda."
+  },
+  "loan": {
+    "name": "Préstamo",
+    "description": "+{{gain}} suministro ahora. Próximo despliegue: −{{debt}}. Una vez por ronda."
+  },
+  "ward_dome": {
+    "name": "Cúpula del pabellón",
+    "description": "Absorbe los proyectiles enemigos que entran en una cúpula (radio {{radius}}, altura {{height}}). El área de almacenamiento es la salud de esta unidad."
+  },
+  "homing_fire_bolt": {
+    "name": "Rayo teledirigido",
+    "description": "Armas en posición, luego se dirige al primer enemigo dentro del alcance {{range}} para infligir daño {{damage}} (salpicadura {{splash}})."
+  },
+  "rally_route": {
+    "name": "Ruta del rally",
+    "description": "Añade una carga de ruta de reunión a tu eliminación de hechizos. Una vez por partida."
+  },
+  "move_pack": {
+    "name": "Paquete de mudanza",
+    "description": "Añade una carga de paquete de movimiento a tu descarte de hechizos: un paquete de una ronda anterior vuelve a ser movible. Una vez por partida."
+  },
+  "1_deployment": {
+    "name": "+1 Despliegue",
+    "description": "Solo se permite la compra de una unidad adicional en esta ronda."
+  },
+  "veteran_training": {
+    "name": "Formación de veteranos",
+    "description": "Durante el resto de esta ronda, las unidades que compres llegarán al nivel 2 (seguirán pagando la prima de nivel)."
+  },
+  "send_supply_to_ally": {
+    "name": "Enviar suministros al aliado",
+    "description": "Regala 100 unidades a tu aliado; llegarán al inicio de la siguiente ronda. Solo en modo dúo."
+  }
+}

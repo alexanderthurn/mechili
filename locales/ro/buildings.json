@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Nivel de upgrade",
+    "description": "Ridică această clădire cu un nivel: își câștigă HP-ul de bază. Prețul începe de la {{baseCost}} și crește cu {{costStep}} pe fiecare nivel (nivelul maxim {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Vânzare",
+    "description": "Deblochează permanent pachete de vânzare (până la {{maxPerRound}} per fază de implementare). Rambursarea este de {{refundPct}}% din costul de bază."
+  },
+  "attack_boost": {
+    "name": "Atacul sporit",
+    "description": "Creștere permanentă a daunelor la nivelul întregii armate. Primul nivel +{{attackPct}}%; cumpără niveluri în ordine (costă {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP Boost",
+    "description": "Creștere permanentă a HP-ului la nivelul întregii armate. Primul nivel +{{hpPct}}%; cumpără nivelurile în ordine (costă {{costs}})."
+  },
+  "range_boost": {
+    "name": "Amplificare rază de acțiune",
+    "description": "+{{amount}} rază de acțiune pentru toate unitățile de la distanță, doar în această rundă."
+  },
+  "speed_boost": {
+    "name": "Creștere de viteză",
+    "description": "+{{amount}} viteză pentru toate unitățile, doar în această rundă."
+  },
+  "loan": {
+    "name": "Împrumut",
+    "description": "+{{gain}} aprovizionare acum. Următoarea desfășurare: −{{debt}}. O dată pe rundă."
+  },
+  "ward_dome": {
+    "name": "Domul Ward",
+    "description": "Absoarbe proiectilele inamice care traversează o cupolă (rază {{radius}}, înălțime {{height}}). Rezerva reprezintă HP-ul acestei unități."
+  },
+  "homing_fire_bolt": {
+    "name": "Șurub de foc localizat",
+    "description": "Brațele la locul lor, apoi țintește spre primul inamic din raza de acțiune {{range}} pentru daune {{damage}} (daune stropitoare {{splash}})."
+  },
+  "rally_route": {
+    "name": "Traseul raliului",
+    "description": "Adaugă o taxă pentru ruta de raliu la banda ta de vrăji. O dată pe meci."
+  },
+  "move_pack": {
+    "name": "Pachet de mutare",
+    "description": "Adaugă o încărcătură de pachet de mișcări la banda ta de vrăji: un pachet dintr-o rundă anterioară devine din nou mobil. O dată pe meci."
+  },
+  "1_deployment": {
+    "name": "+1 Implementare",
+    "description": "Doar o unitate suplimentară se achiziționează în această rundă."
+  },
+  "veteran_training": {
+    "name": "Antrenament pentru veterani",
+    "description": "Pentru restul acestei runde, unitățile pe care le cumperi ajung la nivelul 2 (încă plătesc prima de nivel)."
+  },
+  "send_supply_to_ally": {
+    "name": "Trimite provizii aliatului",
+    "description": "Oferă 100 de provizii aliatului tău — ajung la începutul rundei următoare. Doar în modurile Duo."
+  }
+}

@@ -1,7 +1,10 @@
 # Locales
 
-Shipped & wired in `src/i18n/index.ts`:
+Loaded eagerly via `import.meta.glob` in `src/i18n/index.ts`.
 
-`en`, `ru`, `zh`, `zh-Hant`, `ko`, `ja`, `th`, `ar`, `el`
+Shipped languages (see `src/i18n/languages.ts`):
 
-Heavy script fonts load lazily when that language is selected.
+`en`, `de`, `fr`, `it`, `ko`, `es`, `es-419`, `zh`, `zh-Hant`, `ru`, `th`, `ja`, `pt`, `pl`, `da`, `nl`, `fi`, `nb`, `sv`, `hu`, `cs`, `ro`, `tr`, `ar`, `pt-BR`, `bg`, `el`, `uk`, `vi`, `id`, `ms`
+
+Heavy script fonts (CJK / Thai / Arabic / Greek) load lazily when selected.
+Latin / Cyrillic / Vietnamese use Exo 2; English uses Marcellus.

@@ -1,0 +1,23 @@
+{
+  "title": "Enviar feedback",
+  "lead": "Diga-nos o que construir, consertar ou testar. Se quiser, pode adicionar seu nome e endereço de e-mail.",
+  "discord": "Prefere conversar por chat? Junte-se à comunidade no Discord.",
+  "category": "Categoria",
+  "message": "Mensagem",
+  "placeholder": "O que deveria mudar? O que deu errado? O que ajudaria?",
+  "cancel": "Cancelar",
+  "submit": "Enviar",
+  "sending": "Enviando…",
+  "thanksSent": "Obrigado — enviado.",
+  "thanksSaved": "Obrigado — salvo.",
+  "writeFirst": "Comece escrevendo uma mensagem curta.",
+  "rateLimited": "Muitas sugestões — tente novamente em {{n}}s.",
+  "sendFailed": "Não foi possível enviar. Tente novamente mais tarde.",
+  "networkError": "Erro de rede — tente novamente mais tarde.",
+  "catBug": "Erro",
+  "catBalance": "Equilíbrio",
+  "catFeature": "Recurso",
+  "catArt": "Modelos / arte",
+  "catCommunity": "Comunidade",
+  "catOther": "Outro"
+}

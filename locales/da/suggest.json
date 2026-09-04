@@ -1,0 +1,23 @@
+{
+  "title": "Send feedback",
+  "lead": "Fortæl os, hvad vi skal bygge, rette eller prøve. Du kan tilføje dit navn og din e-mailadresse, hvis du vil.",
+  "discord": "Foretrækker du chat? Bliv en del af Discord-fællesskabet.",
+  "category": "Kategori",
+  "message": "Besked",
+  "placeholder": "Hvad burde ændres? Hvad gik i stykker? Hvad ville hjælpe?",
+  "cancel": "Ophæve",
+  "submit": "Indsend",
+  "sending": "Sender…",
+  "thanksSent": "Tak - sendt.",
+  "thanksSaved": "Tak - gemt.",
+  "writeFirst": "Skriv først en kort besked.",
+  "rateLimited": "For mange forslag — prøv igen om {{n}}s.",
+  "sendFailed": "Kunne ikke sende. Prøv igen senere.",
+  "networkError": "Netværksfejl — prøv igen senere.",
+  "catBug": "Fejl",
+  "catBalance": "Balance",
+  "catFeature": "Funktion",
+  "catArt": "Modeller / kunst",
+  "catCommunity": "Fællesskab",
+  "catOther": "Andre"
+}

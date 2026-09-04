@@ -1,0 +1,23 @@
+{
+  "title": "Skicka feedback",
+  "lead": "Berätta vad vi ska bygga, fixa eller prova. Om du vill kan du lägga till ditt namn och din e-postadress.",
+  "discord": "Föredrar du chatt? Gå med i Discord-communityn.",
+  "category": "Kategori",
+  "message": "Meddelande",
+  "placeholder": "Vad borde förändras? Vad gick sönder? Vad skulle hjälpa?",
+  "cancel": "Avboka",
+  "submit": "Överlämna",
+  "sending": "Sändning…",
+  "thanksSent": "Tack — skickat.",
+  "thanksSaved": "Tack — räddat.",
+  "writeFirst": "Skriv ett kort meddelande först.",
+  "rateLimited": "För många förslag — försök igen om {{n}}s.",
+  "sendFailed": "Kunde inte skicka. Försök igen senare.",
+  "networkError": "Nätverksfel — försök igen senare.",
+  "catBug": "Bugga",
+  "catBalance": "Balans",
+  "catFeature": "Särdrag",
+  "catArt": "Modeller / konst",
+  "catCommunity": "Gemenskap",
+  "catOther": "Andra"
+}

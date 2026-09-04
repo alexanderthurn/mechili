@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Dwergenband",
+    "description": "Vier dwergengroepen sluiten zich aan bij je leger.",
+    "unitsLabel": "4 dwergen"
+  },
+  "archers4": {
+    "title": "Archer Company",
+    "description": "Vier boogschutters sluiten zich aan bij je leger.",
+    "unitsLabel": "4× Boogschutters"
+  },
+  "crowRiders2": {
+    "title": "Kraaienvleugel",
+    "description": "Twee groepen kraaienrijders sluiten zich aan bij je leger.",
+    "unitsLabel": "2× Kraaienrijders"
+  },
+  "ballista1": {
+    "title": "Belegeringsballista",
+    "description": "Een ballista versterkt je leger.",
+    "unitsLabel": "1× Ballista"
+  },
+  "flanky": {
+    "title": "Flanky",
+    "description": "Bij de eerste keer spawnen vanaf de flank duurt het de helft van de tijd (2,5 seconden)."
+  },
+  "rallyRoute": {
+    "title": "Rallyroute",
+    "description": "Bepaal een marsroute: eenheden in de startzone trekken naar de eindzone en vechten onderweg."
+  },
+  "sellPack": {
+    "title": "Terugkoop",
+    "description": "Eenmalige spreuk: verkoop een van je pakketten voor een terugbetaling van je voorraad."
+  },
+  "movePack": {
+    "title": "Marsorders",
+    "description": "Eenmalige spreuk: één pakket kaarten uit een eerdere ronde mag in deze ronde opnieuw worden geplaatst."
+  }
+}

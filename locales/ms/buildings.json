@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Tahap naik taraf",
+    "description": "Naikkan bangunan ini satu aras: ia akan mendapat HP asasnya. Harga bermula pada {{baseCost}} dan meningkat sebanyak {{costStep}} setiap aras (aras maksimum {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Menjual",
+    "description": "Buka kunci pek jualan secara kekal (sehingga {{maxPerRound}} setiap fasa penggunaan). Bayaran balik ialah {{refundPct}}% daripada kos asas."
+  },
+  "attack_boost": {
+    "name": "Penggalak Serangan",
+    "description": "Peningkatan kerosakan kekal seluruh tentera. Peringkat pertama +{{attackPct}}%; beli peringkat mengikut susunan (kos {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP Boost",
+    "description": "Peningkatan HP kekal seluruh tentera. Peringkat pertama +{{hpPct}}%; beli peringkat mengikut susunan (kos {{costs}})."
+  },
+  "range_boost": {
+    "name": "Peningkatan Julat",
+    "description": "Julat +{{amount}} untuk semua unit jarak jauh, pusingan ini sahaja."
+  },
+  "speed_boost": {
+    "name": "Peningkatan Kelajuan",
+    "description": "+{{amount}} kelajuan untuk semua unit, pusingan ini sahaja."
+  },
+  "loan": {
+    "name": "Pinjaman",
+    "description": "+{{gain}} bekalkan sekarang. Penggunaan seterusnya: −{{debt}}. Sekali setiap pusingan."
+  },
+  "ward_dome": {
+    "name": "Kubah wad",
+    "description": "Menyerap projektil musuh yang melintasi kubah (jejari {{radius}}, ketinggian {{height}}). Kolam ialah HP unit ini."
+  },
+  "homing_fire_bolt": {
+    "name": "Bolt Api Homing",
+    "description": "Senjata di tempatnya, kemudian mengenai musuh pertama dalam jarak {{range}} untuk kerosakan {{damage}} (percikan {{splash}})."
+  },
+  "rally_route": {
+    "name": "Laluan Rali",
+    "description": "Tambahkan satu caj laluan rali pada jalur jampi anda. Sekali setiap perlawanan."
+  },
+  "move_pack": {
+    "name": "Pek Pindah",
+    "description": "Tambahkan satu cas pek gerakan pada jalur jampi anda: satu pek dari pusingan sebelumnya boleh digerakkan semula. Sekali setiap perlawanan."
+  },
+  "1_deployment": {
+    "name": "+1 Pelaksanaan",
+    "description": "Satu pembelian unit tambahan untuk pusingan ini sahaja."
+  },
+  "veteran_training": {
+    "name": "Latihan Veteran",
+    "description": "Untuk baki pusingan ini, unit yang anda beli akan tiba di tahap 2 (mereka masih membayar premium tahap)."
+  },
+  "send_supply_to_ally": {
+    "name": "Hantar bekalan kepada sekutu",
+    "description": "Hadiahkan 100 bekalan kepada sekutu anda — tiba pada permulaan pusingan seterusnya. Mod duo sahaja."
+  }
+}

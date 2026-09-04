@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Trasa rallye",
+    "description": "Umístěte počáteční, střední a koncovou zónu. Jednotky v počátečním kruhu pochodují přes shodné odsazení uprostřed a poté na konci a cestou bojují."
+  },
+  "oilSpill": {
+    "name": "Únik ropy",
+    "description": "Umístěte dva kruhy s olejem – během rozmístění je obrys; krátce po začátku bitvy olej kape zleva doprava na cestu (disky ochrany zůstávají volné). Propojený olej se při dotyku ohně vznítí jako jedno pole."
+  },
+  "sellUnit": {
+    "name": "Prodat balíček",
+    "description": "Kliknutím se aktivujete a poté kliknutím na jeden ze svých balíčků jej prodejte a zaplatíte za zásoby."
+  },
+  "moveUnit": {
+    "name": "Přesunout balíček",
+    "description": "Kliknutím se aktivujte a poté klikněte na jeden ze svých balíčků z předchozího kola – po zbytek kola jej můžete znovu přetáhnout a otočit."
+  },
+  "tutor": {
+    "name": "Lekce v terénu",
+    "description": "Kliknutím se vyzbrojte a poté klikněte na jeden ze svých batohů – jeho ukazatel zkušeností se naplní do další úrovně. Zakoupení úrovně stále stojí zásoby."
+  },
+  "spawnDwarves": {
+    "name": "Přivolejte trpaslíky",
+    "description": "Označte kruh kdekoli vně nepřátelské základny. Krátce po začátku bitvy se ze země jeden po druhém vynoří válečná skupina trpaslíků – bojují pouze v této bitvě."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Označte si kdekoli malý kruh. Během několika sekund bitvy meteorit zničí vše na místě – chrání (a platí za to) pouze ochranná jádra."
+  },
+  "spawnCrows": {
+    "name": "Přivolejte jezdce na vránách",
+    "description": "Označte kruh kdekoli vně nepřátelské základny. Krátce po začátku bitvy se z nebe jeden po druhém snesou jezdci na vránách – bojují pouze v této bitvě."
+  },
+  "hammerOfGods": {
+    "name": "Kladivo bohů",
+    "description": "Kliknutím umístíte, posunutím otočíte, dalším kliknutím uzamknete. Božské kladivo dopadne na zónu vteřinu po začátku bitvy."
+  },
+  "storm": {
+    "name": "Volání bouře",
+    "description": "Označte kdekoli široký kruh. Malé bouřkové mraky se shromažďují vysoko nad nimi a vrhají blesky na náhodná místa – blesky nezpůsobují žádné poškození, ale šokují jednotky v širokém záblesku věžovitým debuffem, pokud nemají zlatou auru. Kupole ochran stále blokují údery."
+  },
+  "meteorShower": {
+    "name": "Meteorický roj",
+    "description": "Označte kdekoli široký kruh. Meteority chvíli prší na náhodná místa uvnitř a každý výbuch spaluje zem, na kterou dopadnou."
+  },
+  "acidSpill": {
+    "name": "Rozlití kyseliny",
+    "description": "Kyselou kapsli nalijte jako olejovou skvrnu – krátce po začátku bitvy kape na zem zleva doprava. Pozemní i vzdušné jednotky nad louží syčí a zrezivějí – čímž dostávají dodatečné poškození od všeho."
+  },
+  "fireSpill": {
+    "name": "Oheň rozlitý",
+    "description": "Nalijte ohnivou kapsli jako olej – krátce po začátku bitvy kape zleva doprava a zapálí cestu (disky ochrany zůstávají volné). Spojený olej se s ní vznítí. Plamen trvá pouze tuto bitvu."
+  },
+  "dragonAttack": {
+    "name": "Dračí útok",
+    "description": "Nakreslete dračí palbu (širší a delší než olej). Vrhne se dovnitř a chrlí oheň podél chodby – paprsek při průletu spaluje jednotky a zapaluje zemi. Chránicí kopule absorbují dech (a platí za to)."
+  },
+  "poisonCloud": {
+    "name": "Jedovatý mrak",
+    "description": "Označte obrovský kruh. Nad hlavou se hromadí toxické mraky a po oblasti prší malé kapky kyseliny – řídké kaluže, které korodují pozemní a vzdušné jednotky podobně jako Acid Spill, ale na mnohem širším poli."
+  }
+}

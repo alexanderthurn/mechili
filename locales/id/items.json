@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Bumi",
+    "description": "+10% HP."
+  },
+  "fire": {
+    "name": "Api",
+    "description": "+10% serangan."
+  },
+  "water": {
+    "name": "Air",
+    "description": "+5% serangan dan HP."
+  },
+  "wind": {
+    "name": "Angin",
+    "description": "Rentang +10%."
+  },
+  "addi": {
+    "name": "Keberanian",
+    "description": "+15% serangan dan HP."
+  },
+  "power": {
+    "name": "Pembantaian",
+    "description": "+75% serangan."
+  },
+  "vigor": {
+    "name": "Darah Raksasa",
+    "description": "+100% HP."
+  },
+  "colossus": {
+    "name": "Pelindung Dada Mithril",
+    "description": "+250% HP."
+  },
+  "wrath": {
+    "name": "Berserk",
+    "description": "Serangan +300%."
+  },
+  "golden": {
+    "name": "Batu Matahari",
+    "description": "Kebal terhadap efek negatif menara dan menerima 30% lebih sedikit kerusakan. Penyihir tidak dapat mengubahnya — sinar tersebut malah memberikan kerusakan."
+  },
+  "bulwark": {
+    "name": "Benteng",
+    "description": "Perisai: setiap unit mendapatkan tambahan poin kesehatan kedua yang setara dengan HP-nya. Serangan jarak jauh akan mengurangi perisai terlebih dahulu; serangan jarak dekat, api, dan asam mengabaikannya."
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rallyrute",
+    "description": "Placer start-, midter- og slutzoner. Enheder i startcirklen marcherer gennem matchende forskydninger i midten og derefter til enden, mens de kæmper undervejs."
+  },
+  "oilSpill": {
+    "name": "Olieudslip",
+    "description": "Placer to oliecirkler – marker dem under udrulningen; kort efter kampen starter drypper olien fra venstre mod højre ned på stien (forsvarsskiverne forbliver frie). Forbundet olie antændes som ét felt, når ild berører det."
+  },
+  "sellUnit": {
+    "name": "Sælg pakke",
+    "description": "Klik for at aktivere, og klik derefter på en af dine pakker for at sælge den og få refusion for dine forsyninger."
+  },
+  "moveUnit": {
+    "name": "Flyt pakke",
+    "description": "Klik for at bevæbne, og klik derefter på en af dine pakker fra en tidligere runde – den kan trækkes og roteres igen i resten af denne runde."
+  },
+  "tutor": {
+    "name": "Feltlektion",
+    "description": "Klik for at bevæbne dig, og klik derefter på en af dine pakker – dens XP-bjælke fyldes op til næste niveau. Køb af niveauet koster stadig forsyning."
+  },
+  "spawnDwarves": {
+    "name": "Tilkald dværge",
+    "description": "Marker en cirkel hvor som helst uden for fjendens base. Kort efter kampens start bryder en krigsgruppe af dværge frem fra jorden, en efter en – de kæmper kun dette slag."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Marker en lille cirkel et vilkårligt sted. Få sekunder inde i kampen udsletter en meteor alt der — kun kupler beskytter (og betaler for det)."
+  },
+  "spawnCrows": {
+    "name": "Tilkald Crow Riders",
+    "description": "Marker en cirkel hvor som helst uden for fjendens base. Kort efter kampens start dykker kragerytterne ned fra himlen, en efter en – de kæmper kun denne kamp."
+  },
+  "hammerOfGods": {
+    "name": "Gudernes Hammer",
+    "description": "Klik for at placere, flyt for at rotere, klik igen for at låse. En guddommelig hammer falder ned på zonen få sekunder inde i kampen."
+  },
+  "storm": {
+    "name": "Stormkald",
+    "description": "Marker en bred cirkel hvor som helst. Små stormskyer samles højt oppe og slynger lyn mod tilfældige steder — bolte gør ingen skade, men chokerer enheder i et bredt plask med en tårnlignende debuff, medmindre de har en gylden aura. Afskærmningskupler blokerer stadig angrebene."
+  },
+  "meteorShower": {
+    "name": "Meteorregn",
+    "description": "Marker en bred cirkel hvor som helst. Meteorer regner ned på tilfældige steder indeni i et stykke tid, og hver eksplosion brænder jorden, den rammer."
+  },
+  "acidSpill": {
+    "name": "Syreudslip",
+    "description": "Hæld en syrekapsel som et olieudslip – det drypper fra venstre mod højre ned på jorden kort efter kampens start. Jord- og luftenheder over vandpytten syder og korroderer – og tager ekstra skade fra alt."
+  },
+  "fireSpill": {
+    "name": "Brandudslip",
+    "description": "Hæld en ildkapsel som olie i den — den drypper fra venstre mod højre kort efter kampens start og sætter stien i brand (beskyttelsesskiverne forbliver frie). Forbundet olie antændes med den. Flammen varer kun i denne kamp."
+  },
+  "dragonAttack": {
+    "name": "Drageangreb",
+    "description": "Tegn dragens angrebssti (bredere og længere end olie). Den dykker ned og puster ild langs korridoren — strålen svidder enheder, når den passerer, og maler jorden i brand. Afskærmningskupler absorberer åndedrættet (og betaler for det)."
+  },
+  "poisonCloud": {
+    "name": "Giftsky",
+    "description": "Marker en stor cirkel. Giftige skyer samler sig over hovedet og lader små syredråber regne hen over området – sparsomme vandpytter, der korroderer jord- og luftenheder ligesom syreudslip, men over et meget bredere felt."
+  }
+}

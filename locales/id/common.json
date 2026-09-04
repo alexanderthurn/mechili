@@ -1,0 +1,17 @@
+{
+  "close": "Menutup",
+  "back": "Kembali",
+  "reset": "Mengatur ulang",
+  "language": "Bahasa",
+  "term": {
+    "rune": "Sajak",
+    "runes": "Rune",
+    "talent": "Bakat",
+    "talents": "Bakat",
+    "spell": "Mengeja",
+    "spells": "Mantra",
+    "commander": "Komandan",
+    "commanders": "Komandan",
+    "horde": "Komtur"
+  }
+}

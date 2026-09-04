@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Cung thủ đồn trú"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Bầy đen"
+  },
+  "hordeSpinne": {
+    "name": "Nhện đen"
+  },
+  "hordeFarmer": {
+    "name": "Người nông dân đã chết"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Người làm nông đã chết"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Người lùn"
+  },
+  "archer": {
+    "name": "Cung thủ"
+  },
+  "wizard": {
+    "name": "Phù thủy"
+  },
+  "crowRider": {
+    "name": "Kỵ sĩ Quạ"
+  },
+  "ballista": {
+    "name": "Ballista"
+  },
+  "shield": {
+    "name": "Ward Stone"
+  },
+  "rocket": {
+    "name": "Tia lửa"
+  },
+  "command-tower": {
+    "name": "Tiên phong"
+  },
+  "research-center": {
+    "name": "Đồn trú"
+  },
+  "stronghold": {
+    "name": "Thành trì"
+  },
+  "hordeZombie": {
+    "name": "Bầy đen"
+  }
+}

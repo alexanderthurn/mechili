@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Picioare de flotă"
+  },
+  "carapace": {
+    "name": "Ascuns de piatră"
+  },
+  "barrel": {
+    "name": "Arc lung"
+  },
+  "ap": {
+    "name": "Săgeți străpungătoare"
+  },
+  "fireArrows": {
+    "name": "Săgeți de foc",
+    "description": "Săgețile lasă un scurt foc la sol și ard — suficient cât să aprindă bălțile de petrol."
+  },
+  "engines": {
+    "name": "Aripi de Gale"
+  },
+  "stingers": {
+    "name": "Gheare de corb"
+  },
+  "armor": {
+    "name": "Placare cu fier"
+  },
+  "autoloader": {
+    "name": "Troliu rapid"
+  },
+  "aegis": {
+    "name": "Aegis",
+    "description": "Scut: fiecare unitate primește o a doua rezervă de viață egală cu HP-ul său. Loviturile la distanță drenează mai întâi scutul; atacurile corp la corp, focul și acidul îl ignoră."
+  },
+  "golden": {
+    "name": "Aură de Aur",
+    "description": "Aliații din apropiere rezistă la debuff-urile turnului și primesc cu 30% mai puține daune timp de 30 de secunde. Vrăjitorii nu le pot converti — raza provoacă daune în schimb."
+  },
+  "pitchBolts": {
+    "name": "Șuruburi de pas",
+    "description": "Șuruburile stropesc cu ulei la impact (nu se aprind - se împerechează cu săgeți de foc sau un Șurub de Foc)."
+  },
+  "wideBlast": {
+    "name": "Explozie largă",
+    "description": "Triplează raza de stropire (acordă stropire unităților care nu o au)."
+  },
+  "skyBind": {
+    "name": "Legătură cerească",
+    "description": "Poate ataca unități terestre și aeriene."
+  },
+  "skyLift": {
+    "name": "Liftul de la cer",
+    "description": "Ridică această unitate în aer (avion de luptă)."
+  },
+  "earthbound": {
+    "name": "Legat de Pământ",
+    "description": "Menține această unitate la sol (anulează Sky Lift / zborul natural)."
+  },
+  "spiderMother": {
+    "name": "Mama păianjenilor"
+  },
+  "darkHarvest": {
+    "name": "Recolta Întunecată"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} daune",
+    "modRange": "Intervalul {{pct}}",
+    "modSpeed": "{{pct}} viteză de mișcare",
+    "modAttackSpeed": "{{pct}} viteză de atac",
+    "modSplash": "{{mult}}× rază de stropire",
+    "produce": "Produce {{child}} la fiecare {{every}} (până la {{max}})",
+    "produceFirst": ", primul după {{delay}}",
+    "produceOffspring": "Nivelul părintelui potrivit pentru urmași",
+    "onKill": "Când această unitate ucide, ridică un {{child}}",
+    "cleave": "Lovește toți inamicii aflați în raza de {{radius}} (în jurul acestei unități)"
+  }
+}

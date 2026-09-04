@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Cüce Bandosu",
+    "description": "Ordunuza dört cüce birliği katılıyor.",
+    "unitsLabel": "4× Cüceler"
+  },
+  "archers4": {
+    "title": "Archer Şirketi",
+    "description": "Ordunuza dört okçu katılıyor.",
+    "unitsLabel": "4× Okçular"
+  },
+  "crowRiders2": {
+    "title": "Karga Kanadı",
+    "description": "İki Crow Rider sürüsü ordunuza katılıyor.",
+    "unitsLabel": "2× Karga Binicileri"
+  },
+  "ballista1": {
+    "title": "Kuşatma Balistası",
+    "description": "Ordunuza bir Balista katılıyor.",
+    "unitsLabel": "1× Balista"
+  },
+  "flanky": {
+    "title": "Yan",
+    "description": "İlk kez yandan doğmak yarı sürede gerçekleşiyor (2,5 saniye)."
+  },
+  "rallyRoute": {
+    "title": "Ralli Rotası",
+    "description": "Bir yürüyüş rotası belirleyin: başlangıç bölgesindeki birlikler, yol boyunca savaşarak bitiş bölgesine doğru ilerler."
+  },
+  "sellPack": {
+    "title": "Geri alım",
+    "description": "Tek seferlik büyü: Tedarik tutarınızı geri almak için paketlerinizden birini satabilirsiniz."
+  },
+  "movePack": {
+    "title": "Yürüyüş Emirleri",
+    "description": "Tek seferlik büyü: Önceki turlardan bir paket bu turda tekrar yerine yerleştirilebilir."
+  }
+}

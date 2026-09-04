@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Phù thủy bầu trời",
+    "description": "Các đơn vị không quân nhận được +12% tấn công và HP.",
+    "unitsLabel": "2 Kỵ sĩ Quạ · 1 Người lùn"
+  },
+  "cost": {
+    "title": "Hoàng tử tham lam",
+    "description": "Tất cả đơn vị giảm 12% sức tấn công và HP, nhưng được cộng thêm 100 nguồn cung mỗi vòng.",
+    "unitsLabel": "2 cung thủ · 1 kỵ binh quạ · 1 người lùn"
+  },
+  "elite": {
+    "title": "Hoàng tử ưu tú",
+    "description": "Tuyển quân ở cấp độ 2. +100 nguồn cung trong vòng 1.",
+    "unitsLabel": "1 máy bắn đá · 1 người lùn"
+  },
+  "archer": {
+    "title": "Chỉ huy cung thủ",
+    "description": "Một cung thủ cấp 3 miễn phí sẽ xuất hiện ở vòng 2.",
+    "unitsLabel": "3 cung thủ · 2 người lùn"
+  },
+  "addi": {
+    "title": "Người giữ di vật",
+    "description": "Nhận được 3 viên ngọc Valor ở vòng 1.",
+    "unitsLabel": "1 Kỵ sĩ Quạ · 3 Người lùn"
+  },
+  "meteor": {
+    "title": "Lãnh chúa Hitzkopf",
+    "description": "Nhận được 2 lượt sử dụng Meteor ở vòng 2.",
+    "unitsLabel": "1 Pháp sư · 1 Người lùn"
+  },
+  "speed": {
+    "title": "Góa phụ nhanh nhẹn",
+    "unitsLabel": "1 Kỵ binh Quạ · 1 Cung thủ · 2 Người lùn"
+  },
+  "giant": {
+    "title": "Nữ bá tước Chonk",
+    "unitsLabel": "1 máy bắn đá · 1 người lùn"
+  },
+  "tutor": {
+    "title": "Bài giảng của quý bà",
+    "description": "Bắt đầu bằng một bài học thực hành ngoài hiện trường.",
+    "unitsLabel": "1 Kỵ binh Quạ · 3 Cung thủ"
+  },
+  "money": {
+    "title": "Nữ hoàng tiền bạc",
+    "unitsLabel": "2 kỵ sĩ quạ · 1 cung thủ"
+  },
+  "cursed": {
+    "title": "Christine bị nguyền rủa",
+    "description": "Mỗi vòng chơi, bạn sẽ nhận được một con nhện Black Brood miễn phí.",
+    "unitsLabel": "2 lính lùn · 2 cung thủ"
+  },
+  "flanky": {
+    "title": "Bóng tối sườn",
+    "description": "Lần đầu tiên xuất hiện từ sườn, thời gian chỉ bằng một nửa.",
+    "unitsLabel": "2 lính lùn · 2 cung thủ"
+  }
+}

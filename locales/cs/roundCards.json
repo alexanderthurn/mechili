@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Trpasličí kapela",
+    "description": "Čtyři trpasličí smečky se připojují k vaší armádě.",
+    "unitsLabel": "4× Trpaslíci"
+  },
+  "archers4": {
+    "title": "Archer Company",
+    "description": "K vaší armádě se připojí čtyři lučištníci.",
+    "unitsLabel": "4× Lučištníci"
+  },
+  "crowRiders2": {
+    "title": "Vraní křídlo",
+    "description": "Dvě hejna Vraních jezdců se připojují k vaší armádě.",
+    "unitsLabel": "2× Jezdci na vránách"
+  },
+  "ballista1": {
+    "title": "Obléhací balista",
+    "description": "Balista se připojí k vaší armádě.",
+    "unitsLabel": "1× Balista"
+  },
+  "flanky": {
+    "title": "Flanky",
+    "description": "První objevení se na boku trvá polovinu času (2,5 s)."
+  },
+  "rallyRoute": {
+    "title": "Trasa rallye",
+    "description": "Umístěte trasu pochodu: jednotky v počáteční zóně míří do koncové zóny a cestou bojují."
+  },
+  "sellPack": {
+    "title": "Zpětný odkup",
+    "description": "Jednorázové kouzlo: prodejte jeden ze svých balíčků a získáte náhradu za zásoby."
+  },
+  "movePack": {
+    "title": "Pochodové rozkazy",
+    "description": "Jednorázové kouzlo: jeden balíček z předchozího kola může být v tomto kole opět přemístěn."
+  }
+}

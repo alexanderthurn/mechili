@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Fleet Feet"
+  },
+  "carapace": {
+    "name": "Kamenná kůže"
+  },
+  "barrel": {
+    "name": "Dlouhý luk"
+  },
+  "ap": {
+    "name": "Probodné šípy"
+  },
+  "fireArrows": {
+    "name": "Ohnivé šípy",
+    "description": "Šípy zanechávají krátký oheň na zemi a hoří – dost na to, aby se zapálily kaluže oleje."
+  },
+  "engines": {
+    "name": "Gale Wings"
+  },
+  "stingers": {
+    "name": "Vraní drápy"
+  },
+  "armor": {
+    "name": "Pokovování železem"
+  },
+  "autoloader": {
+    "name": "Rychlý naviják"
+  },
+  "aegis": {
+    "name": "Aegis",
+    "description": "Štít: každá jednotka získává druhý objem zdraví odpovídající jejím HP. Zásahy na dálku nejprve vysávají štít; útoky zblízka, oheň a kyselina jej ignorují."
+  },
+  "golden": {
+    "name": "Zlatá aura",
+    "description": "Spojenci v blízkosti odolávají debuffům věží a po dobu 30 sekund dostávají o 30 % méně poškození. Kouzelníci je nemohou konvertovat – místo toho způsobuje poškození paprsek."
+  },
+  "pitchBolts": {
+    "name": "Šrouby s roztečí",
+    "description": "Šípy při nárazu rozstříkají olej (nevznítí se – v kombinaci s ohnivými šípy nebo Ohnivým šípem)."
+  },
+  "wideBlast": {
+    "name": "Široký výbuch",
+    "description": "Ztrojnásobuje dosah rozstřiku (uděluje rozstřik jednotkám bez něj)."
+  },
+  "skyBind": {
+    "name": "Sky Bind",
+    "description": "Může útočit na pozemní i vzdušné jednotky."
+  },
+  "skyLift": {
+    "name": "Sky Lanovka",
+    "description": "Zvedne tuto jednotku do vzduchu (bojový letoun)."
+  },
+  "earthbound": {
+    "name": "Připoutaný k zemi",
+    "description": "Udrží tuto jednotku na zemi (přepíše Sky Lift / přirozený let)."
+  },
+  "spiderMother": {
+    "name": "Matka pavouků"
+  },
+  "darkHarvest": {
+    "name": "Temná sklizeň"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} poškození",
+    "modRange": "Rozsah {{pct}}",
+    "modSpeed": "{{pct}} rychlost pohybu",
+    "modAttackSpeed": "{{pct}} rychlost útoku",
+    "modSplash": "{{mult}}× poloměr rozstřiku",
+    "produce": "Produkuje {{child}} každých {{every}} (až do {{max}})",
+    "produceFirst": ", první po {{delay}}",
+    "produceOffspring": "Potomci shodují se na úrovni rodičů",
+    "onKill": "Když tato jednotka zabije, zvedněte {{child}}",
+    "cleave": "Zasáhne každého nepřítele v okruhu {{radius}} (kolem této jednotky)"
+  }
+}

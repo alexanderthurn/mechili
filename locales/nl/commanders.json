@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Hemel Tovenaar",
+    "description": "Luchteenheden krijgen +12% aanvalskracht en HP.",
+    "unitsLabel": "2 kraaienrijders · 1 dwerg"
+  },
+  "cost": {
+    "title": "Gierige Prins",
+    "description": "Alle eenheden verliezen 12% aanvalskracht en HP, maar krijgen elke ronde 100 extra voorraden.",
+    "unitsLabel": "2 boogschutters · 1 kraaienrijder · 1 dwerg"
+  },
+  "elite": {
+    "title": "Elite Prins",
+    "description": "Werving op niveau 2. +100 aanbod in ronde 1.",
+    "unitsLabel": "1× Ballista · 1× Dwergen"
+  },
+  "archer": {
+    "title": "Boogschuttercommandant",
+    "description": "In ronde 2 ontvang je een gratis boogschutter van niveau 3.",
+    "unitsLabel": "3 boogschutters · 2 dwergen"
+  },
+  "addi": {
+    "title": "Relikwiehouder",
+    "description": "Krijgt 3x de Valor-rune in ronde 1.",
+    "unitsLabel": "1× Kraaienrijders · 3× Dwergen"
+  },
+  "meteor": {
+    "title": "Heer Hitzkopf",
+    "description": "Krijgt 2 Meteor-ladingen in ronde 2.",
+    "unitsLabel": "1× Tovenaar · 1× Dwerg"
+  },
+  "speed": {
+    "title": "Snelle weduwe",
+    "unitsLabel": "1× Kraaienrijders · 1× Boogschutters · 2× Dwergen"
+  },
+  "giant": {
+    "title": "Gravin Chonk",
+    "unitsLabel": "1× Ballista · 1× Dwergen"
+  },
+  "tutor": {
+    "title": "Lady Lecture",
+    "description": "Begint met één praktijkles.",
+    "unitsLabel": "1× Kraaienrijders · 3× Boogschutters"
+  },
+  "money": {
+    "title": "Geldkoningin",
+    "unitsLabel": "2× Kraaienrijders · 1× Boogschutters"
+  },
+  "cursed": {
+    "title": "Vervloekte Christine",
+    "description": "Je krijgt elke ronde één gratis Zwarte Broedspin.",
+    "unitsLabel": "2 dwergen · 2 boogschutters"
+  },
+  "flanky": {
+    "title": "Flankachtige Schaduw",
+    "description": "Bij de eerste keer spawnen vanaf de flank duurt het de helft van de tijd.",
+    "unitsLabel": "2 dwergen · 2 boogschutters"
+  }
+}

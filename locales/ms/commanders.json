@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Ahli Sihir Langit",
+    "description": "Unit udara mendapat +12% serangan dan HP.",
+    "unitsLabel": "2× Penunggang Gagak · 1× Orang Kerdil"
+  },
+  "cost": {
+    "title": "Putera Tamak",
+    "description": "Semua unit −12% serangan dan HP, tetapi +100 dibekalkan setiap pusingan.",
+    "unitsLabel": "2× Pemanah · 1× Penunggang Gagak · 1× Orang Kerdil"
+  },
+  "elite": {
+    "title": "Putera Elit",
+    "description": "Merekrut pada tahap 2. Bekalan +100 dalam pusingan 1.",
+    "unitsLabel": "1× Ballista · 1× Orang Kerdil"
+  },
+  "archer": {
+    "title": "Komander Pemanah",
+    "description": "Seorang Pemanah tahap-3 percuma tiba di pusingan 2.",
+    "unitsLabel": "3× Pemanah · 2× Orang Kerdil"
+  },
+  "addi": {
+    "title": "Penjaga Relik",
+    "description": "Mendapat 3× rune Valor dalam pusingan 1.",
+    "unitsLabel": "1× Penunggang Gagak · 3× Orang Kerdil"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "Mendapat 2 cas Meteor dalam pusingan 2.",
+    "unitsLabel": "1× Ahli Sihir · 1× Orang Kerdil"
+  },
+  "speed": {
+    "title": "Balu Cepat",
+    "unitsLabel": "1× Penunggang Gagak · 1× Pemanah · 2× Orang Kerdil"
+  },
+  "giant": {
+    "title": "Countess Chonk",
+    "unitsLabel": "1× Ballista · 1× Orang Kerdil"
+  },
+  "tutor": {
+    "title": "Syarahan Wanita",
+    "description": "Bermula dengan satu Pelajaran Lapangan.",
+    "unitsLabel": "1× Penunggang Gagak · 3× Pemanah"
+  },
+  "money": {
+    "title": "Ratu Wang",
+    "unitsLabel": "2× Penunggang Gagak · 1× Pemanah"
+  },
+  "cursed": {
+    "title": "Christine yang Terkutuk",
+    "description": "Dapat seekor labah-labah Black Brood percuma setiap pusingan.",
+    "unitsLabel": "2× Orang Kerdil · 2× Pemanah"
+  },
+  "flanky": {
+    "title": "Bayangan Flanky",
+    "description": "Pembiakan sayap kali pertama mengambil separuh masa.",
+    "unitsLabel": "2× Orang Kerdil · 2× Pemanah"
+  }
+}

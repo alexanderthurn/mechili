@@ -1,0 +1,23 @@
+{
+  "title": "Visszajelzés küldése",
+  "lead": "Mondd el, mit építsünk, javítsunk vagy próbáljunk ki. Ha szeretnéd, megadhatod a neved és az e-mail címed.",
+  "discord": "Inkább csevegni szeretnél? Csatlakozz a Discord közösséghez.",
+  "category": "Kategória",
+  "message": "Üzenet",
+  "placeholder": "Min kellene változnia? Mi romlott el? Mi segítene?",
+  "cancel": "Mégsem",
+  "submit": "Küldés",
+  "sending": "Küldés…",
+  "thanksSent": "Köszönöm – elküldve.",
+  "thanksSaved": "Köszönöm – megmentve.",
+  "writeFirst": "Először írj egy rövid üzenetet.",
+  "rateLimited": "Túl sok javaslat – próbáld újra {{n}}s múlva.",
+  "sendFailed": "Nem sikerült elküldeni. Próbáld újra később.",
+  "networkError": "Hálózati hiba – próbálja újra később.",
+  "catBug": "Bogár",
+  "catBalance": "Egyensúly",
+  "catFeature": "Jellemző",
+  "catArt": "Modellek / művészet",
+  "catCommunity": "Közösség",
+  "catOther": "Más"
+}

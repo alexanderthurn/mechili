@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Percorso del rally",
+    "description": "Posiziona le zone di partenza, intermedia e finale. Le unità nel cerchio di partenza marciano attraverso gli offset corrispondenti al centro, poi alla fine, combattendo lungo il percorso."
+  },
+  "oilSpill": {
+    "name": "fuoriuscita di petrolio",
+    "description": "Posiziona due cerchi di olio: delinea il contorno durante il dispiegamento; poco dopo l'inizio della battaglia, l'olio gocciola da sinistra a destra sul percorso (i dischi di protezione rimangono liberi). L'olio collegato si incendia come un unico campo quando viene colpito dal fuoco."
+  },
+  "sellUnit": {
+    "name": "Confezione di vendita",
+    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi pacchetti per venderlo e ottenere un rimborso di rifornimenti."
+  },
+  "moveUnit": {
+    "name": "Pacchetto di movimento",
+    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi pacchetti di un round precedente: potrai trascinarlo e ruotarlo di nuovo per il resto di questo round."
+  },
+  "tutor": {
+    "name": "Lezione sul campo",
+    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi pacchetti: la sua barra XP si riempirà al livello successivo. L'acquisto del livello ha comunque un costo in rifornimenti."
+  },
+  "spawnDwarves": {
+    "name": "Evoca nani",
+    "description": "Traccia un cerchio in un punto qualsiasi fuori dalla base nemica. Poco dopo l'inizio della battaglia, una banda di guerrieri nani emergerà dal terreno in quel punto, uno alla volta: combatteranno solo in questa battaglia."
+  },
+  "bigMeteor": {
+    "name": "Meteora",
+    "description": "Traccia un piccolo cerchio in un punto qualsiasi. Pochi secondi dopo l'inizio della battaglia, una meteora spazza via tutto ciò che si trova in quel punto: solo le cupole di protezione offrono riparo (e pagano caro)."
+  },
+  "spawnCrows": {
+    "name": "Evoca Cavalieri Corvo",
+    "description": "Traccia un cerchio in un punto qualsiasi all'esterno della base nemica. Poco dopo l'inizio della battaglia, i cavalieri corvo si tufferanno dal cielo, uno dopo l'altro: combatteranno solo questa battaglia."
+  },
+  "hammerOfGods": {
+    "name": "Martello degli Dei",
+    "description": "Clicca per posizionare, sposta per ruotare, clicca di nuovo per bloccare. Un martello divino cade sulla zona pochi secondi dopo l'inizio della battaglia."
+  },
+  "storm": {
+    "name": "Chiamata di forza",
+    "description": "Traccia un ampio cerchio in un punto qualsiasi. Piccole nuvole temporalesche si addensano in alto e scagliano fulmini in punti casuali: i fulmini non infliggono danni ma folgorano le unità in un'ampia area con un debuff simile a quello di una torre, a meno che non abbiano un'aura dorata. Le cupole di protezione bloccano comunque gli attacchi."
+  },
+  "meteorShower": {
+    "name": "Sciame meteorico",
+    "description": "Traccia un ampio cerchio in un punto qualsiasi. Per un certo periodo, una pioggia di meteoriti colpirà punti casuali al suo interno, e ogni esplosione brucerà il terreno su cui cade."
+  },
+  "acidSpill": {
+    "name": "Versamento acido",
+    "description": "Versa una capsula acida come se fosse una fuoriuscita di petrolio: gocciola da sinistra a destra sul terreno poco dopo l'inizio della battaglia. Le unità terrestri e aeree sopra la pozza sfrigolano e si corrodono, subendo danni aggiuntivi da qualsiasi cosa."
+  },
+  "fireSpill": {
+    "name": "Incendio",
+    "description": "Versa una capsula di fuoco come se fosse olio: gocciola da sinistra a destra poco dopo l'inizio della battaglia e incendia il percorso (i dischi di protezione rimangono liberi). L'olio collegato si incendia insieme ad essa. La fiamma dura solo per questa battaglia."
+  },
+  "dragonAttack": {
+    "name": "Attacco del drago",
+    "description": "Disegna la traiettoria di attacco del drago (più ampia e più lunga dell'olio). Si tuffa e sputa fuoco lungo il corridoio: il raggio brucia le unità al suo passaggio e incendia il terreno. Le cupole dei reparti assorbono il soffio (e ne pagano le conseguenze)."
+  },
+  "poisonCloud": {
+    "name": "Nube velenosa",
+    "description": "Traccia un cerchio enorme. Nuvole tossiche si addensano sopra e fanno piovere piccole gocce di acido sull'area: pozzanghere sparse che corrodono il terreno e unità aeree simili a quelle di Acid Spill, ma su un campo molto più ampio."
+  }
+}

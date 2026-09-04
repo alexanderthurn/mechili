@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Ruta del rally",
+    "description": "Coloca las zonas de inicio, intermedia y final. Las unidades en el círculo de inicio marchan a través de desplazamientos coincidentes en la zona intermedia y luego en la final, combatiendo en el camino."
+  },
+  "oilSpill": {
+    "name": "Derrame de petróleo",
+    "description": "Coloca dos círculos de aceite: delinea el contorno durante el despliegue; poco después de que comience la batalla, el aceite gotea de izquierda a derecha sobre el camino (los discos de protección permanecen despejados). El aceite conectado se enciende como un solo campo al contacto con el fuego."
+  },
+  "sellUnit": {
+    "name": "Paquete de venta",
+    "description": "Haz clic para armar, luego haz clic en uno de tus paquetes para venderlo y obtener un reembolso por suministros."
+  },
+  "moveUnit": {
+    "name": "Paquete de mudanza",
+    "description": "Haz clic para armar, luego haz clic en uno de tus paquetes de una ronda anterior; es posible que se arrastre y gire nuevamente durante el resto de esta ronda."
+  },
+  "tutor": {
+    "name": "Lección de campo",
+    "description": "Haz clic para armar, luego haz clic en uno de tus paquetes; su barra de XP se llenará hasta el siguiente nivel. Comprar el nivel aún cuesta suministros."
+  },
+  "spawnDwarves": {
+    "name": "Invocar enanos",
+    "description": "Dibuja un círculo en cualquier lugar fuera de la base enemiga. Poco después de que comience la batalla, una banda de guerreros enanos emergerá del suelo, uno por uno; lucharán únicamente en esta batalla."
+  },
+  "bigMeteor": {
+    "name": "Meteorito",
+    "description": "Dibuja un pequeño círculo en cualquier lugar. A los pocos segundos de comenzar la batalla, un meteorito lo arrasa todo; solo las cúpulas protectoras resguardan (y pagan las consecuencias)."
+  },
+  "spawnCrows": {
+    "name": "Invocar a los Jinetes Cuervo",
+    "description": "Dibuja un círculo en cualquier punto fuera de la base enemiga. Poco después de que comience la batalla, jinetes de cuervos se lanzan desde el cielo, uno tras otro; solo luchan en esta batalla."
+  },
+  "hammerOfGods": {
+    "name": "Martillo de los Dioses",
+    "description": "Haz clic para colocar, mueve para rotar, haz clic de nuevo para bloquear. Un martillo divino cae sobre la zona segundos después de comenzar la batalla."
+  },
+  "storm": {
+    "name": "Llamada de tormenta",
+    "description": "Dibuja un círculo amplio en cualquier lugar. Pequeñas nubes de tormenta se acumulan en lo alto y lanzan rayos a puntos aleatorios; los rayos no infligen daño, pero electrocutan a las unidades en una amplia zona con un efecto negativo similar al de una torre, a menos que tengan un aura dorada. Las cúpulas protectoras siguen bloqueando los impactos."
+  },
+  "meteorShower": {
+    "name": "Lluvia de meteoritos",
+    "description": "Dibuja un círculo amplio en cualquier lugar. Durante un tiempo, una lluvia de meteoritos caerá sobre puntos aleatorios en su interior, y cada explosión quemará el suelo que impacte."
+  },
+  "acidSpill": {
+    "name": "Derrame de ácido",
+    "description": "Vierta una cápsula de ácido como si fuera un derrame de petróleo: gotea de izquierda a derecha sobre el suelo poco después de que comience la batalla. Las unidades terrestres y aéreas sobre el charco chisporrotean y se corroen, sufriendo daños adicionales por todo."
+  },
+  "fireSpill": {
+    "name": "Derrame de fuego",
+    "description": "Vierte una cápsula de fuego como si fuera aceite: gotea de izquierda a derecha poco después de que comience la batalla e incendia el camino (los discos de protección permanecen despejados). El aceite conectado se enciende con ella. La llama dura solo durante esta batalla."
+  },
+  "dragonAttack": {
+    "name": "Ataque del dragón",
+    "description": "Dibuja la trayectoria de ataque del dragón (más ancha y larga que el petróleo). Se lanza en picado y exhala fuego a lo largo del corredor; el rayo abrasa las unidades a su paso y tiñe el suelo de llamas. Las cúpulas de protección absorben el aliento (y pagan las consecuencias)."
+  },
+  "poisonCloud": {
+    "name": "Nube venenosa",
+    "description": "Dibuja un círculo enorme. Nubes tóxicas se acumulan en lo alto y caen pequeñas gotas de ácido por toda la zona: charcos dispersos que corroen el suelo y el aire como en Acid Spill, pero en un campo mucho más amplio."
+  }
+}

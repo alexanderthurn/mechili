@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Penyihir Langit",
+    "description": "Unit udara mendapatkan tambahan +12% serangan dan HP.",
+    "unitsLabel": "2 Penunggang Gagak · 1 Kurcaci"
+  },
+  "cost": {
+    "title": "Pangeran Serakah",
+    "description": "Semua unit mengalami pengurangan serangan dan HP sebesar 12%, tetapi mendapatkan tambahan 100 suplai setiap putaran.",
+    "unitsLabel": "2 Pemanah · 1 Penunggang Gagak · 1 Kurcaci"
+  },
+  "elite": {
+    "title": "Pangeran Elit",
+    "description": "Rekrutmen di level 2. Pasokan +100 di putaran 1.",
+    "unitsLabel": "1× Ballista · 1× Kurcaci"
+  },
+  "archer": {
+    "title": "Komandan Pemanah",
+    "description": "Seorang Archer level 3 gratis hadir di ronde 2.",
+    "unitsLabel": "3× Pemanah · 2× Kurcaci"
+  },
+  "addi": {
+    "title": "Penjaga Relik",
+    "description": "Mendapatkan 3 rune Valor di ronde 1.",
+    "unitsLabel": "1× Penunggang Gagak · 3× Kurcaci"
+  },
+  "meteor": {
+    "title": "Tuan Hitzkopf",
+    "description": "Mendapatkan 2 muatan Meteor di ronde 2.",
+    "unitsLabel": "1 Penyihir · 1 Kurcaci"
+  },
+  "speed": {
+    "title": "Janda Cepat",
+    "unitsLabel": "1 Penunggang Gagak · 1 Pemanah · 2 Kurcaci"
+  },
+  "giant": {
+    "title": "Countess Chonk",
+    "unitsLabel": "1× Ballista · 1× Kurcaci"
+  },
+  "tutor": {
+    "title": "Ceramah Wanita",
+    "description": "Dimulai dengan satu Pelajaran Lapangan.",
+    "unitsLabel": "1× Penunggang Gagak · 3× Pemanah"
+  },
+  "money": {
+    "title": "Ratu Uang",
+    "unitsLabel": "2 Penunggang Gagak · 1 Pemanah"
+  },
+  "cursed": {
+    "title": "Christine yang terkutuk",
+    "description": "Dapatkan satu laba-laba Black Brood gratis di setiap putaran.",
+    "unitsLabel": "2 Kurcaci · 2 Pemanah"
+  },
+  "flanky": {
+    "title": "Bayangan Samping",
+    "description": "Kemunculan pertama dari sisi sayap membutuhkan setengah waktu.",
+    "unitsLabel": "2 Kurcaci · 2 Pemanah"
+  }
+}

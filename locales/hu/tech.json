@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Fleet Feet"
+  },
+  "carapace": {
+    "name": "Kőbőr"
+  },
+  "barrel": {
+    "name": "Hosszúíj"
+  },
+  "ap": {
+    "name": "Piercing nyilak"
+  },
+  "fireArrows": {
+    "name": "Tűznyilak",
+    "description": "A nyilak rövid ideig tartó tüzet hagynak maguk után a földön, és elégnek – annyira, hogy olajtócsákat gyújtsanak fel."
+  },
+  "engines": {
+    "name": "Gale Wings"
+  },
+  "stingers": {
+    "name": "Varjúkarmok"
+  },
+  "armor": {
+    "name": "Vasbevonat"
+  },
+  "autoloader": {
+    "name": "Gyors csörlő"
+  },
+  "aegis": {
+    "name": "Égisz",
+    "description": "Pajzs: minden egység kap egy második életerő-készletet, amely megegyezik az életerejének értékével. A távolsági találatok először a pajzsot merítik le; a közelharci, tűz és sav esetén ez nem számít."
+  },
+  "golden": {
+    "name": "Arany aura",
+    "description": "A közeli szövetségesek ellenállnak a torony gyengítéseinek, és 30 másodpercig 30%-kal kevesebb sebzést szenvednek el. A varázslók nem tudják őket átalakítani – ehelyett a sugár okoz sebzést."
+  },
+  "pitchBolts": {
+    "name": "Hasítócsavarok",
+    "description": "A nyílvesszők becsapódáskor olajat fröccsennek (nem gyulladnak meg – párosítsd tűznyilakkal vagy Tűznyílvesszővel)."
+  },
+  "wideBlast": {
+    "name": "Széles robbanás",
+    "description": "Megháromszorozza a loccsanás sugarát (loccsanást biztosít az effektus nélküli egységeknek is)."
+  },
+  "skyBind": {
+    "name": "Sky Bind",
+    "description": "Légi és szárazföldi egységeket is támadhat."
+  },
+  "skyLift": {
+    "name": "Églift",
+    "description": "A levegőbe emeli ezt az egységet (harci repülő)."
+  },
+  "earthbound": {
+    "name": "Földhözragadt",
+    "description": "A földön tartja az egységet (felülbírálja az égliftet / természetes repülést)."
+  },
+  "spiderMother": {
+    "name": "Pókok anyja"
+  },
+  "darkHarvest": {
+    "name": "Sötét aratás"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} sebzés",
+    "modRange": "{{pct}} tartomány",
+    "modSpeed": "{{pct}} mozgási sebesség",
+    "modAttackSpeed": "{{pct}} támadási sebesség",
+    "modSplash": "{{mult}}× fröccsenési sugár",
+    "produce": "{{child}}-t termel minden {{every}}-kor (legfeljebb {{max}}-ig)",
+    "produceFirst": ", először a {{delay}} után",
+    "produceOffspring": "Az utódok megegyeznek a szülő szintjével.",
+    "onKill": "Amikor ez az egység megöl, emelj egy {{child}}-t",
+    "cleave": "Minden ellenséget eltalál a {{radius}} körzetben (ennek az egységnek a környékén)"
+  }
+}

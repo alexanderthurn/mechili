@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Fleet Feet"
+  },
+  "carapace": {
+    "name": "Kivi Nahka"
+  },
+  "barrel": {
+    "name": "Pitkäjousi"
+  },
+  "ap": {
+    "name": "Lävistävät nuolet"
+  },
+  "fireArrows": {
+    "name": "Tulinuolet",
+    "description": "Nuolet jättävät lyhyen maahan palavan tulen ja polttavat – tarpeeksi sytyttääkseen öljylammikot."
+  },
+  "engines": {
+    "name": "Gale Wings"
+  },
+  "stingers": {
+    "name": "Varis-kynnet"
+  },
+  "armor": {
+    "name": "Rautapinnoitus"
+  },
+  "autoloader": {
+    "name": "Pikavinssi"
+  },
+  "aegis": {
+    "name": "Aegis",
+    "description": "Kilpi: jokainen yksikkö saa toisen terveysvarannon, joka vastaa sen HP:tä. Kauko-osumat kuluttavat kilven ensin; lähitaistelu, tuli ja happo jättävät sen huomiotta."
+  },
+  "golden": {
+    "name": "Kultainen aura",
+    "description": "Lähellä olevat liittolaiset vastustavat tornien heikennyksiä ja ottavat 30 % vähemmän vahinkoa 30 sekunnin ajan. Velhot eivät voi muuntaa niitä – säde tekee vahinkoa sen sijaan."
+  },
+  "pitchBolts": {
+    "name": "Pultit",
+    "description": "Pultit roiskuttavat öljyä osuessaan (eivät syty – käytä yhdessä tulinuolien tai tulipultin kanssa)."
+  },
+  "wideBlast": {
+    "name": "Laaja räjähdys",
+    "description": "Kolminkertaistaa roiskussäteen (antaa roiskumisvoiman yksiköille, joilla sitä ei ole)."
+  },
+  "skyBind": {
+    "name": "Sky Bind",
+    "description": "Voi hyökätä maa- ja ilmayksiköitä vastaan."
+  },
+  "skyLift": {
+    "name": "Skylift",
+    "description": "Nostaa tämän yksikön ilmaan (taistelulentäjä)."
+  },
+  "earthbound": {
+    "name": "Maanläheinen",
+    "description": "Pitää tämän laitteen maassa (ohittaa Sky Liftin / luonnollisen lennon)."
+  },
+  "spiderMother": {
+    "name": "Hämähäkkien äiti"
+  },
+  "darkHarvest": {
+    "name": "Pimeä sato"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} vahinko",
+    "modRange": "{{pct}}-alue",
+    "modSpeed": "{{pct}} liikkumisnopeus",
+    "modAttackSpeed": "{{pct}} hyökkäysnopeus",
+    "modSplash": "{{mult}}× roiskesäde",
+    "produce": "Tuottaa {{child}} joka {{every}} (enintään {{max}})",
+    "produceFirst": ", ensimmäinen {{delay}}:n jälkeen",
+    "produceOffspring": "Jälkeläiset vastaavat vanhempien tasoa.",
+    "onKill": "Kun tämä yksikkö tappaa, nosta {{child}}",
+    "cleave": "Osuu jokaiseen viholliseen {{radius}}-etäisyydellä (tämän yksikön ympärillä)"
+  }
+}

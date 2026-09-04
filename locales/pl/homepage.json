@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BATTLER",
+  "lead": "Rozstawiaj armie w tajemnicy i obserwuj przebieg rundy. Twój wróg robi to samo. Dostosuj się i powtarzaj, aż któremuś z was zabraknie punktów zdrowia.",
+  "hero": {
+    "wishlist": "Dodaj teraz do listy życzeń",
+    "trailer": "Obejrzyj zwiastun",
+    "steamSoon": "Strona Steam wkrótce"
+  },
+  "screenshots": {
+    "title": "Zrzuty ekranu",
+    "sub": "Przyjrzyjmy się rozmieszczeniu i bitwie.",
+    "browse": "Przeglądaj zrzuty ekranu",
+    "open": "Otwórz zrzut ekranu: {{label}}",
+    "fallback": "Zrzut ekranu",
+    "missing": "{{label}} ⬢ upuść plik w assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Rozmieszczenie wojsk na polanie leśnej",
+    "2": "Faza rozmieszczenia i warsztat jednostkowy",
+    "3": "Ziejący ogniem smok nad polem",
+    "4": "Strefy rozmieszczenia obok siebie",
+    "5": "Masowa bitwa na równinach",
+    "6": "Zimowa twierdza w śniegu",
+    "7": "Podwójne bazy na siatce",
+    "8": "Duża ufortyfikowana baza"
+  },
+  "lightbox": {
+    "gallery": "Galeria zrzutów ekranu",
+    "close": "Zamknij galerię",
+    "prev": "Poprzedni zrzut ekranu",
+    "next": "Następny zrzut ekranu",
+    "dots": "Zrzuty ekranu",
+    "fullhd": "Pełne HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Jednostki, budynki i zaklęcia",
+    "sub": "Twoja armia, budynki, pakiety {{horde}} i modele zaklęć bojowych. Wybierz jeden do obejrzenia — Jeźdźca Kruka i Smoka w tej zapowiedzi.",
+    "canvas": "Podgląd jednostki 3D",
+    "loading": "Ładowanie modelu…",
+    "hint": "Przeciągnij, aby obrócić · Przewiń, aby powiększyć",
+    "select": "Wybierz jednostkę, budynek lub zaklęcie",
+    "list": "Jednostki, budynki i zaklęcia",
+    "buildings": "Zabudowania",
+    "units": "Jednostki",
+    "spells": "Zaklęcia"
+  },
+  "stats": {
+    "cost": "Koszt",
+    "hp": "HP",
+    "damage": "Szkoda",
+    "range": "Zakres",
+    "attackInterval": "Interwał ataku",
+    "seconds": "{{value}}s",
+    "speed": "Prędkość",
+    "abilities": "Umiejętności",
+    "spellModel": "Model zaklęcia"
+  },
+  "flag": {
+    "flying": "Latający",
+    "structure": "Struktura",
+    "extra": "Dodatkowy",
+    "attacksGround": "Ataki naziemne",
+    "attacksAir": "Atakuje powietrze",
+    "shield": "Kopuła oddziału",
+    "rocket": "Śruba samonaprowadzająca"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Atak smoka",
+      "blurb": "Ziejący ogniem oddech. Klapy skrzydeł wykorzystują tę samą ścieżkę shaderów co Crow Rider (tryb siatki)."
+    },
+    "hammer": {
+      "name": "Młot Bogów",
+      "blurb": "Boski młot spadający na wyznaczoną strefę."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Uderzenie pojedynczego, ciężkiego meteorytu."
+    },
+    "meteor-shard": {
+      "name": "Odłamek deszczu meteorytów",
+      "blurb": "Mniejsze meteoryty używane w deszczu meteorów."
+    },
+    "storm": {
+      "name": "Wezwanie burzy",
+      "blurb": "Chmura burzowa, z której padają pioruny."
+    },
+    "poison": {
+      "name": "Chmura trucizny",
+      "blurb": "Toksyczne chmury na niebie, z których rozproszony deszcz kwasu spływa po ogromnym okręgu."
+    }
+  },
+  "commanders": {
+    "sub": "Przed pierwszą rundą każdy gracz wybiera {{commander}}. Ustawia on twoją armię początkową, pulę punktów zdrowia, stałą specjalizację oraz trzy kuźnie Twierdzy {{tactics}} (słabe / średnie / silne). Członkowie drużyny dzielą się swoją kuźnią {{tactics}}.",
+    "select": "Wybierz {{commander}}"
+  },
+  "runes": {
+    "sub": "Połączone z pakietem na dobre, podnosząc każdego mecha w nim zawartego – {{sep}}, większość pakietów ma {{packLimit}}, a balistę {{ballistaLimit}}. Cztery podstawowe runy są dobierane z kart rund lub kupowane w sklepie; silniejsze runy są z nich wykuwane w Twierdzy i nigdy nie są sprzedawane.",
+    "select": "Wybierz {{item}}",
+    "base": "Opierać",
+    "advanced": "Zaawansowany",
+    "shopTitle": "Kupione w sklepie lub wylosowane z okrągłej karty",
+    "shopLabel": "Cena sklepowa",
+    "forgeTitle": "Wykute w {{building}}",
+    "forgeLabel": "Cena kuźni"
+  },
+  "tactics": {
+    "sub": "To umiejętności z paska {{tactics}}, {{sep}}, które możesz wykorzystać do zebrań, rozproszenia, przywołania i rzucania zaklęć bojowych, takich jak ognisty oddech smoka. Zaklęcia bojowe kupuje się w Twierdzy, jednorazowo, i tylko trzy z nich zna dowódca. Ikony odpowiadają tym, które widzisz w grze.",
+    "select": "Wybierz {{tactic}}",
+    "placement": "Umieszczenie",
+    "oneShot": "Jednorazowy",
+    "buyTitle": "Kupione w {{building}}",
+    "priceLabel": "Cena {{building}}"
+  },
+  "targeting": {
+    "point": "punkt",
+    "two-point": "dwupunktowy",
+    "three-point": "trzy punkty",
+    "point-yaw": "punkt + skierowany",
+    "own-unit": "własny pakiet"
+  },
+  "roundCards": {
+    "title": "Karty okrągłe",
+    "sub": "Od drugiej rundy dobieraj jedną z kilku oferowanych kart {{items}} z puli meczowej. Zaklęcia bojowe kupuje się w Twierdzy, a nie dobiera z kart.",
+    "select": "Wybierz okrągłą kartę"
+  },
+  "matchSettings": {
+    "title": "Ustawienia dopasowania",
+    "sub": "Domyślne zasady rozgrywki, zaczerpnięte prosto z kodu ustawień gry, więc nie mogą się różnić od tego, co faktycznie jest w grze. Wszystko jest tu konfigurowalne — to oprogramowanie open source."
+  },
+  "contribute": {
+    "title": "Brać w czymś udział",
+    "sub1": "Melodan jest tworzony przez jedną osobę – mnie. Jestem pasjonatem tej gry, ale nie potrafię stworzyć tytułu AAA, który byłby idealny, zbalansowany itd. Chodzi o to, aby stworzyć grę otwartą, w którą każdy może się włączyć.",
+    "sub2": "Zróbmy to razem. Balans, błędy, funkcje, pomysły artystyczne – {{sep}} wyślij krótką wiadomość, a ja ją przeczytam. Jeśli chcesz zrobić więcej, zapraszam!",
+    "play": "Test w przeglądarce",
+    "feedback": "Wyślij opinię",
+    "discord": "Niezgoda",
+    "devlog": "Dziennik programisty",
+    "waysTitle": "Sposoby pomocy",
+    "way1": "Dziel się pomysłami i zgłaszaj błędy",
+    "way2": "Otwarte żądania ściągnięcia na {{github}} (GPL-3.0)",
+    "way3": "Tworzenie lub ulepszanie modeli 3D",
+    "way4": "Zadbaj o równowagę, wymyślaj nowe zaklęcia, karty, pomysły.",
+    "way5": "Witajcie gracze, piszcie poradniki, pomóżcie w moderacji, jeśli chcecie się tym zająć"
+  },
+  "about": {
+    "title": "O",
+    "lead": "MELODAN jest produkowany przez Alexandra Thurna (Feuerware) z siedzibą w Bonn w Niemczech.",
+    "inspired": "Ta gra jest inspirowana {{mechabellum}}, najlepszą grą w tym gatunku. MELODAN to niezależne fantasy; wesprzyjcie oryginał i kupcie Mechabelum. Dziękujemy!",
+    "openSource": "Gra ma licencję {{github}} (GPL-3.0). Prawa autorskie należą do Alexandra Thurna / Feuerware. Możesz swobodnie tworzyć forki, tworzyć nowe jednostki i otwierać pull requesty. Jeśli masz ochotę na coś większego, niekomercyjny lub niekomercyjny spin-off, pełny rebranding itp., napisz do mnie: {{email}}.",
+    "openSourceLink": "open source na GitHub"
+  },
+  "footer": {
+    "play": "Grać",
+    "steam": "Para",
+    "feedback": "Informacja zwrotna",
+    "imprint": "Odcisk",
+    "privacy": "Prywatność danych"
+  }
+}

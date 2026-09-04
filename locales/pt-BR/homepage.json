@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASIA AUTO·BATTLER",
+  "lead": "Desdobre seus exércitos em segredo e observe o desenrolar da rodada. Seu inimigo faz o mesmo. Adapte-se e repita o processo até que um de vocês fique sem pontos de vida.",
+  "hero": {
+    "wishlist": "Adicione agora à sua lista de desejos",
+    "trailer": "Assista ao trailer.",
+    "steamSoon": "Página da Steam em breve"
+  },
+  "screenshots": {
+    "title": "Capturas de tela",
+    "sub": "Uma análise do destacamento e do combate.",
+    "browse": "Veja as capturas de tela",
+    "open": "Abrir captura de tela: {{label}}",
+    "fallback": "Captura de tela",
+    "missing": "{{label}} ⬢ solte o arquivo em assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Desdobramento do exército na clareira da floresta",
+    "2": "Fase de implantação e oficina de unidades",
+    "3": "Sopro de fogo de dragão sobre o campo",
+    "4": "Zonas de implantação lado a lado",
+    "5": "Batalha em massa nas planícies",
+    "6": "Fortaleza de inverno na neve",
+    "7": "Duas bases na grade",
+    "8": "Grande base fortificada"
+  },
+  "lightbox": {
+    "gallery": "Galeria de capturas de tela",
+    "close": "Fechar galeria",
+    "prev": "Captura de tela anterior",
+    "next": "Próxima captura de tela",
+    "dots": "Capturas de tela",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Unidades, edifícios e feitiços",
+    "sub": "Seu exército, edifícios, pacotes {{horde}} e modelos de feitiços de batalha. Escolha um para inspecionar — Cavaleiro Corvo e Asa de Dragão nesta prévia.",
+    "canvas": "Pré-visualização da unidade 3D",
+    "loading": "Carregando modelo…",
+    "hint": "Arraste para girar · Deslize para ampliar",
+    "select": "Escolha uma unidade, edifício ou feitiço.",
+    "list": "Unidades, edifícios e feitiços",
+    "buildings": "Edifícios",
+    "units": "Unidades",
+    "spells": "Feitiços"
+  },
+  "stats": {
+    "cost": "Custo",
+    "hp": "HP",
+    "damage": "Dano",
+    "range": "Faixa",
+    "attackInterval": "Intervalo de ataque",
+    "seconds": "{{value}}s",
+    "speed": "Velocidade",
+    "abilities": "Habilidades",
+    "spellModel": "Modelo de feitiço"
+  },
+  "flag": {
+    "flying": "Vôo",
+    "structure": "Estrutura",
+    "extra": "Extra",
+    "attacksGround": "Ataques terrestres",
+    "attacksAir": "Ataques aéreos",
+    "shield": "Cúpula da enfermaria",
+    "rocket": "parafuso teleguiado"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Ataque do Dragão",
+      "blurb": "Ataque de bafo de fogo em rasante. O bater de asas usa o mesmo caminho de sombreamento que o Cavaleiro Corvo (modo malha)."
+    },
+    "hammer": {
+      "name": "Martelo dos Deuses",
+      "blurb": "Martelo divino que cai em uma zona específica."
+    },
+    "meteor-great": {
+      "name": "Meteoro",
+      "blurb": "Um único impacto de meteoro pesado."
+    },
+    "meteor-shard": {
+      "name": "Fragmento de chuva de meteoros",
+      "blurb": "Meteoro menor utilizado pela chuva de meteoros."
+    },
+    "storm": {
+      "name": "Chamada da Tempestade",
+      "blurb": "Nuvem de tempestade que lança raios."
+    },
+    "poison": {
+      "name": "Nuvem Venenosa",
+      "blurb": "Nuvens tóxicas no céu que despejam uma fina camada de ácido sobre um enorme círculo."
+    }
+  },
+  "commanders": {
+    "sub": "Antes da primeira rodada, cada jogador escolhe um {{commander}}. Ele define seu exército inicial, a quantidade de pontos de vida, uma especialidade permanente e três forjas de fortaleza {{tactics}} (fraca/média/forte). Os companheiros de equipe compartilham a união de suas forjas {{tactics}}.",
+    "select": "Escolha um {{commander}}"
+  },
+  "runes": {
+    "sub": "Fundida a um pacote para sempre, elevando todos os mechs nele contidos {{sep}} a maioria dos pacotes comporta {{packLimit}}, a balista {{ballistaLimit}}. As quatro runas básicas são sorteadas de cartas redondas ou compradas na loja; as mais fortes são forjadas a partir delas na Fortaleza e nunca são vendidas.",
+    "select": "Escolha um {{item}}",
+    "base": "Base",
+    "advanced": "Avançado",
+    "shopTitle": "Comprada na loja ou sorteada de uma carta redonda.",
+    "shopLabel": "Preço de tabela",
+    "forgeTitle": "Forjado no {{building}}",
+    "forgeLabel": "Preço da forja"
+  },
+  "tactics": {
+    "sub": "Essas são as habilidades da sua faixa {{tactics}}, que incluem ataques, derramamentos, invocações e feitiços de batalha, como o sopro de fogo do dragão. Os feitiços de batalha são comprados na sua Fortaleza, uma vez cada, e apenas os três que seu comandante conhece. Os ícones correspondem ao que você vê no jogo. {{sep}}",
+    "select": "Escolha um {{tactic}}",
+    "placement": "Colocação",
+    "oneShot": "One-shot",
+    "buyTitle": "Comprado no {{building}}",
+    "priceLabel": "{{building}} preço"
+  },
+  "targeting": {
+    "point": "apontar",
+    "two-point": "dois pontos",
+    "three-point": "três pontos",
+    "point-yaw": "ponto + voltado",
+    "own-unit": "pacote próprio"
+  },
+  "roundCards": {
+    "title": "Cartas redondas",
+    "sub": "A partir da segunda rodada, escolha uma das várias cartas {{items}} oferecidas, sorteadas do conjunto de cartas da partida. Feitiços de batalha são comprados na Fortaleza, não sorteados de cartas.",
+    "select": "Escolha uma carta redonda"
+  },
+  "matchSettings": {
+    "title": "Configurações de correspondência",
+    "sub": "As regras padrão para uma partida, extraídas diretamente do código de configurações do jogo, portanto, não divergem do que é lançado oficialmente. Tudo aqui é configurável — é código aberto."
+  },
+  "contribute": {
+    "title": "Contribuir",
+    "sub1": "Melodan é desenvolvido por uma única pessoa, eu. Sou apaixonado por este jogo, mas não consigo criar um título AAA e manter tudo perfeito, equilibrado e assim por diante. A ideia é ter um jogo aberto onde qualquer pessoa possa contribuir.",
+    "sub2": "Vamos fazer isso juntos. Balanceamento, bugs, recursos, ideias de arte {{sep}} envie uma mensagem curta e eu lerei. Se você quiser fazer mais, fique à vontade!",
+    "play": "Teste no navegador",
+    "feedback": "Enviar feedback",
+    "discord": "Discórdia",
+    "devlog": "Diário do desenvolvedor",
+    "waysTitle": "Formas de ajudar",
+    "way1": "Compartilhe ideias e relatórios de erros.",
+    "way2": "Abra pull requests em {{github}} (GPL-3.0)",
+    "way3": "Criar ou aprimorar modelos 3D",
+    "way4": "Cuide do equilíbrio, invente novos feitiços, cartas, ideias.",
+    "way5": "Sejam bem-vindos, jogadores! Escrevam guias e ajudem na moderação, se quiserem."
+  },
+  "about": {
+    "title": "Sobre",
+    "lead": "MELODAN é fabricado por Alexander Thurn (Feuerware). Ele está localizado em Bonn, Alemanha.",
+    "inspired": "Este jogo foi inspirado em {{mechabellum}}, o melhor jogo do gênero. MELODAN é uma versão independente de fantasia; por favor, apoie o original e compre Mechabelum. Obrigado!",
+    "openSource": "O jogo é {{github}} (GPL-3.0). Os direitos autorais pertencem a Alexander Thurn / Feuerware. Sinta-se à vontade para criar um fork privado, inventar novas unidades e abrir pull requests. Para algo maior, um spin-off não comercial ou comercial, uma reformulação completa da marca, etc., entre em contato comigo: {{email}}.",
+    "openSourceLink": "código aberto no GitHub"
+  },
+  "footer": {
+    "play": "Jogar",
+    "steam": "Vapor",
+    "feedback": "Opinião",
+    "imprint": "Imprimir",
+    "privacy": "Privacidade de dados"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "title": "Send tilbakemelding",
+  "lead": "Fortell oss hva vi skal bygge, fikse eller prøve. Hvis du vil, kan du legge til navn og e-postadresse.",
+  "discord": "Foretrekker du chat? Bli med i Discord-fellesskapet.",
+  "category": "Kategori",
+  "message": "Beskjed",
+  "placeholder": "Hva burde endres? Hva gikk i stykker? Hva ville hjelpe?",
+  "cancel": "Kansellere",
+  "submit": "Send inn",
+  "sending": "Sender…",
+  "thanksSent": "Takk – sendt.",
+  "thanksSaved": "Takk – lagret.",
+  "writeFirst": "Skriv en kort melding først.",
+  "rateLimited": "For mange forslag – prøv igjen om {{n}}s.",
+  "sendFailed": "Kunne ikke sende. Prøv på nytt senere.",
+  "networkError": "Nettverksfeil – prøv igjen senere.",
+  "catBug": "Feil",
+  "catBalance": "Balansere",
+  "catFeature": "Trekk",
+  "catArt": "Modeller / kunst",
+  "catCommunity": "Fellesskap",
+  "catOther": "Annen"
+}

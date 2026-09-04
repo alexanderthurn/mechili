@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Tingkatkan level",
+    "description": "Naikkan satu level bangunan ini: ia mendapatkan HP dasar. Harga dimulai dari {{baseCost}} dan naik sebesar {{costStep}} setiap level (level maksimal {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Penjualan",
+    "description": "Membuka kunci paket penjualan secara permanen (hingga {{maxPerRound}} per fase penyebaran). Pengembalian dana adalah {{refundPct}}% dari biaya dasar."
+  },
+  "attack_boost": {
+    "name": "Peningkatan Serangan",
+    "description": "Peningkatan kerusakan permanen untuk seluruh pasukan. Tingkat pertama +{{attackPct}}%; beli tingkatan secara berurutan (biayanya {{costs}})."
+  },
+  "hp_boost": {
+    "name": "Peningkatan HP",
+    "description": "Peningkatan HP permanen untuk seluruh pasukan. Tingkat pertama +{{hpPct}}%; beli tingkatan secara berurutan (biayanya {{costs}})."
+  },
+  "range_boost": {
+    "name": "Peningkatan Jangkauan",
+    "description": "+{{amount}} jangkauan untuk semua unit jarak jauh, hanya pada ronde ini."
+  },
+  "speed_boost": {
+    "name": "Peningkatan Kecepatan",
+    "description": "+{{amount}} kecepatan untuk semua unit, hanya putaran ini saja."
+  },
+  "loan": {
+    "name": "Meminjamkan",
+    "description": "Pasokan +{{gain}} sekarang. Penyebaran berikutnya: −{{debt}}. Sekali per putaran."
+  },
+  "ward_dome": {
+    "name": "Kubah bangsal",
+    "description": "Menyerap proyektil musuh yang masuk ke dalam kubah (radius {{radius}}, tinggi {{height}}). Pool adalah HP unit ini."
+  },
+  "homing_fire_bolt": {
+    "name": "Panah Api Pelacak",
+    "description": "Senjata siap digunakan, lalu mengincar musuh pertama dalam jangkauan {{range}} untuk menghasilkan kerusakan {{damage}} (percikan {{splash}})."
+  },
+  "rally_route": {
+    "name": "Rute Reli",
+    "description": "Tambahkan satu muatan rute reli ke strip mantra Anda. Sekali per pertandingan."
+  },
+  "move_pack": {
+    "name": "Paket Pindah",
+    "description": "Tambahkan satu muatan paket pindah ke strip mantra Anda: satu paket dari ronde sebelumnya dapat dipindahkan kembali. Sekali per pertandingan."
+  },
+  "1_deployment": {
+    "name": "+1 Penyebaran",
+    "description": "Hanya satu pembelian unit tambahan pada putaran ini saja."
+  },
+  "veteran_training": {
+    "name": "Pelatihan Veteran",
+    "description": "Untuk sisa ronde ini, unit yang Anda beli akan tiba di level 2 (mereka tetap membayar premi level)."
+  },
+  "send_supply_to_ally": {
+    "name": "Kirim pasokan ke sekutu",
+    "description": "Berikan 100 suplai kepada sekutu Anda — akan tiba di awal ronde berikutnya. Hanya untuk mode Duo."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Aarde",
+    "description": "+10% HP."
+  },
+  "fire": {
+    "name": "Vuur",
+    "description": "+10% aanvalskracht."
+  },
+  "water": {
+    "name": "Water",
+    "description": "+5% aanval en HP."
+  },
+  "wind": {
+    "name": "Wind",
+    "description": "+10% bereik."
+  },
+  "addi": {
+    "name": "Moed",
+    "description": "+15% aanvalskracht en HP."
+  },
+  "power": {
+    "name": "Bloedbad",
+    "description": "+75% aanvalskracht."
+  },
+  "vigor": {
+    "name": "Reuzenbloed",
+    "description": "+100% HP."
+  },
+  "colossus": {
+    "name": "Mithril borstplaat",
+    "description": "+250% HP."
+  },
+  "wrath": {
+    "name": "Berserk",
+    "description": "+300% aanvalskracht."
+  },
+  "golden": {
+    "name": "Zonnesteen",
+    "description": "Immuun voor toren-debuffs en loopt 30% minder schade op. Tovenaars kunnen niet converteren — de straal brengt in plaats daarvan schade toe."
+  },
+  "bulwark": {
+    "name": "Bolwerk",
+    "description": "Schild: elke eenheid krijgt een tweede levensbalk gelijk aan zijn HP. Aanvallen van afstand putten het schild eerst uit; mêlee-aanvallen, vuur en zuur negeren het."
+  }
+}

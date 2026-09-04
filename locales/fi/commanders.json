@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Taivaanvelho",
+    "description": "Ilmayksiköt saavat +12 % hyökkäyspisteitä ja HP:tä.",
+    "unitsLabel": "2× Varisratsastajat · 1× Kääpiöt"
+  },
+  "cost": {
+    "title": "Ahne prinssi",
+    "description": "Kaikki yksiköt −12 % hyökkäys- ja HP-pisteistä, mutta +100 syöttöpistettä joka kierroksella.",
+    "unitsLabel": "2× Jousimiehet · 1× Variksenratsastajat · 1× Kääpiöt"
+  },
+  "elite": {
+    "title": "Eliittiprinssi",
+    "description": "Rekrytointi tasolla 2. +100 tarviketta ensimmäisellä kierroksella.",
+    "unitsLabel": "1× Ballista · 1× Kääpiöt"
+  },
+  "archer": {
+    "title": "Jousiampujan komentaja",
+    "description": "Ilmainen tason 3 jousimies saapuu toisella kierroksella.",
+    "unitsLabel": "3× Jousimiehet · 2× Kääpiöt"
+  },
+  "addi": {
+    "title": "Muinaisjäänteiden säilyttäjä",
+    "description": "Saa 3× Urheusriimun ensimmäisellä kierroksella.",
+    "unitsLabel": "1× Variksenratsastajat · 3× Kääpiöt"
+  },
+  "meteor": {
+    "title": "Lordi Hitzkopf",
+    "description": "Saa 2 meteorilatausta toisella kierroksella.",
+    "unitsLabel": "1× Velho · 1× Kääpiöt"
+  },
+  "speed": {
+    "title": "Nopea leski",
+    "unitsLabel": "1× Varisratsastajat · 1× Jousimiehet · 2× Kääpiöt"
+  },
+  "giant": {
+    "title": "Kreivitär Chonk",
+    "unitsLabel": "1× Ballista · 1× Kääpiöt"
+  },
+  "tutor": {
+    "title": "Lady-luento",
+    "description": "Alkaa yhdellä kenttätunnilla.",
+    "unitsLabel": "1× Variksenratsastajat · 3× Jousimiehet"
+  },
+  "money": {
+    "title": "Rahakuningatar",
+    "unitsLabel": "2× Varisratsastajat · 1× Jousimiehet"
+  },
+  "cursed": {
+    "title": "Kirottu Christine",
+    "description": "Saat yhden ilmaisen mustan hautahämähäkin joka kierros.",
+    "unitsLabel": "2× Kääpiöt · 2× Jousimiehet"
+  },
+  "flanky": {
+    "title": "Flankyn varjo",
+    "description": "Ensimmäiset kylkikuten ilmestymiset vievät puolet ajasta.",
+    "unitsLabel": "2× Kääpiöt · 2× Jousimiehet"
+  }
+}

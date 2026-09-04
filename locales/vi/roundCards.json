@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Ban nhạc người lùn",
+    "description": "Bốn nhóm lính lùn sẽ gia nhập đội quân của bạn.",
+    "unitsLabel": "4 người lùn"
+  },
+  "archers4": {
+    "title": "Công ty Archer",
+    "description": "Bốn cung thủ sẽ gia nhập đội quân của bạn.",
+    "unitsLabel": "4 cung thủ"
+  },
+  "crowRiders2": {
+    "title": "Cánh Quạ",
+    "description": "Hai đàn Kỵ sĩ Quạ sẽ gia nhập đội quân của bạn.",
+    "unitsLabel": "2 Kỵ sĩ Quạ"
+  },
+  "ballista1": {
+    "title": "Máy bắn đá công thành",
+    "description": "Một khẩu Ballista gia nhập đội quân của bạn.",
+    "unitsLabel": "1× Máy bắn đá"
+  },
+  "flanky": {
+    "title": "Sườn",
+    "description": "Lần xuất hiện đầu tiên ở sườn chỉ mất một nửa thời gian (2,5 giây)."
+  },
+  "rallyRoute": {
+    "title": "Tuyến đường diễu hành",
+    "description": "Thiết lập lộ trình hành quân: các đơn vị ở khu vực xuất phát tiến về khu vực đích, giao tranh dọc đường đi."
+  },
+  "sellPack": {
+    "title": "Mua lại",
+    "description": "Phép thuật dùng một lần: bán một trong những gói đồ của bạn để được hoàn lại tiền vật phẩm."
+  },
+  "movePack": {
+    "title": "Lệnh hành quân",
+    "description": "Phép thuật dùng một lần: một nhóm quân từ vòng trước có thể được di chuyển đến vị trí khác trong vòng này."
+  }
+}

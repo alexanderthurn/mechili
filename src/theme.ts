@@ -574,13 +574,14 @@ export interface BarAssets {
     barFillBlue: string;
 }
 
-import type { LanguageId } from './i18n/languages';
+import { EXO2_LANGUAGE_IDS, LANGUAGE_IDS, type LanguageId } from './i18n/languages';
+
+const EXO2_STACK = '"Exo 2", "Segoe UI", system-ui, sans-serif';
+const MARCELLUS_STACK = '"Marcellus", "Exo 2", "Palatino Linotype", Palatino, Georgia, serif';
 
 /** Per-language UI face — OFL, self-hosted for Steam/offline. */
 const FONT_STACKS: Record<LanguageId, string> = {
-    // Brand Latin serif; Exo 2 only as glyph fallback (not used for ru — see below).
-    en: '"Marcellus", "Exo 2", "Palatino Linotype", Palatino, Georgia, serif',
-    ru: '"Exo 2", "Segoe UI", system-ui, sans-serif',
+    en: MARCELLUS_STACK,
     zh: '"Noto Serif SC", "Songti SC", "SimSun", serif',
     'zh-Hant': '"Noto Serif TC", "PingFang TC", "Microsoft JhengHei", serif',
     ko: '"Noto Serif KR", "Apple SD Gothic Neo", "Malgun Gothic", serif',
@@ -588,12 +589,16 @@ const FONT_STACKS: Record<LanguageId, string> = {
     th: '"Noto Serif Thai", "Thonburi", "Tahoma", serif',
     ar: '"Noto Naskh Arabic", "Segoe UI", "Tahoma", sans-serif',
     el: '"Noto Serif", "Times New Roman", Georgia, serif',
-};
+    // filled below for Exo 2 languages
+} as Record<LanguageId, string>;
+
+for (const id of EXO2_LANGUAGE_IDS) {
+    FONT_STACKS[id] = EXO2_STACK;
+}
 
 /** Primary family name for Pixi Text (must match an @font-face). */
 export const FONT_FAMILY: Record<LanguageId, string> = {
     en: 'Marcellus',
-    ru: 'Exo 2',
     zh: 'Noto Serif SC',
     'zh-Hant': 'Noto Serif TC',
     ko: 'Noto Serif KR',
@@ -601,7 +606,18 @@ export const FONT_FAMILY: Record<LanguageId, string> = {
     th: 'Noto Serif Thai',
     ar: 'Noto Naskh Arabic',
     el: 'Noto Serif',
-};
+} as Record<LanguageId, string>;
+
+for (const id of EXO2_LANGUAGE_IDS) {
+    FONT_FAMILY[id] = 'Exo 2';
+}
+
+// Ensure every shipped language has an entry (dev catch).
+for (const id of LANGUAGE_IDS) {
+    if (!FONT_STACKS[id] || !FONT_FAMILY[id]) {
+        throw new Error(`Missing font mapping for language ${id}`);
+    }
+}
 
 /** Default stack (English / Marcellus). */
 export const FONT_UI = FONT_STACKS.en;

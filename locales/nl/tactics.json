@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rallyroute",
+    "description": "Bepaal de start-, midden- en eindzone. Eenheden in de startcirkel marcheren door overeenkomende zones in het midden en vervolgens aan het eind, waarbij ze onderweg vechten."
+  },
+  "oilSpill": {
+    "name": "Olielek",
+    "description": "Plaats twee oliecirkels — omlijn ze tijdens het opstellen; kort na het begin van de strijd druppelt de olie van links naar rechts op het pad (de beschermingsschijven blijven vrij). De verbonden olie ontbrandt als één veld wanneer er vuur op komt."
+  },
+  "sellUnit": {
+    "name": "Verkooppakket",
+    "description": "Klik om je wapen te activeren en klik vervolgens op een van je pakketten om deze te verkopen en je voorraad aan te vullen."
+  },
+  "moveUnit": {
+    "name": "Verhuispakket",
+    "description": "Klik om je wapen te activeren en klik vervolgens op een van je rugzakken uit een eerdere ronde. Je kunt deze rugzak gedurende de rest van deze ronde opnieuw verslepen en draaien."
+  },
+  "tutor": {
+    "name": "Veldles",
+    "description": "Klik om je uitrusting te activeren en klik vervolgens op een van je pakketten. De ervaringsbalk vult zich dan tot het volgende niveau. Het kopen van het niveau kost nog steeds voorraden."
+  },
+  "spawnDwarves": {
+    "name": "Roep dwergen op",
+    "description": "Teken een cirkel ergens buiten de vijandelijke basis. Kort na het begin van de strijd stormt daar een groep dwergen uit de grond tevoorschijn, één voor één — zij vechten alleen in deze strijd."
+  },
+  "bigMeteor": {
+    "name": "Meteoor",
+    "description": "Teken ergens een kleine cirkel. Enkele seconden na het begin van de strijd vernietigt een meteoriet alles wat zich daar bevindt — alleen beschermende koepels bieden bescherming (en betalen daarvoor)."
+  },
+  "spawnCrows": {
+    "name": "Roep kraaienruiters op",
+    "description": "Teken een cirkel ergens buiten de vijandelijke basis. Kort na het begin van de strijd duiken kraaienrijders één voor één vanuit de lucht naar beneden – zij vechten alleen in deze strijd."
+  },
+  "hammerOfGods": {
+    "name": "Hamer van de Goden",
+    "description": "Klik om te plaatsen, verplaats om te draaien, klik nogmaals om te vergrendelen. Een goddelijke hamer valt seconden na het begin van de strijd op het speelveld."
+  },
+  "storm": {
+    "name": "Stormoproep",
+    "description": "Teken een grote cirkel ergens. Kleine onweerswolken verzamelen zich hoog in de lucht en slingeren bliksem naar willekeurige plekken. De bliksemflitsen richten geen schade aan, maar veroorzaken een schokgolf in een wijd gebied met een torenachtig debuff-effect, tenzij ze een gouden aura hebben. De koepels van de verdedigingswerken blokkeren de blikseminslagen nog steeds."
+  },
+  "meteorShower": {
+    "name": "Meteorenregen",
+    "description": "Teken ergens een grote cirkel. Meteorenregens vallen een tijdje op willekeurige plekken binnen die cirkel, waarbij elke inslag de grond verschroeit."
+  },
+  "acidSpill": {
+    "name": "Zuurlekkage",
+    "description": "Giet een zuurcapsule uit als een olievlek — het druppelt van links naar rechts op de grond kort nadat de strijd begint. Grond- en luchteenheden boven de plas sissen en corroderen — en lopen extra schade op door alles."
+  },
+  "fireSpill": {
+    "name": "Brandspill",
+    "description": "Giet een vuurcapsule als olie; deze druppelt van links naar rechts kort nadat het gevecht begint en steekt het pad in brand (beschermingsschijven blijven vrij). Aangrenzende olie ontbrandt mee. De vlam brandt alleen tijdens dit gevecht."
+  },
+  "dragonAttack": {
+    "name": "Drakenaanval",
+    "description": "Teken het aanvalspad van de draak (breder en langer dan olie). Hij duikt naar beneden en spuwt vuur langs de corridor – de straal verschroeit de eenheden terwijl hij passeert en zet de grond in lichterlaaie. De verdedigingskoepels absorberen de adem (en betalen daarvoor)."
+  },
+  "poisonCloud": {
+    "name": "Giftwolk",
+    "description": "Teken een enorme cirkel. Giftige wolken pakken zich boven het gebied samen en laten kleine zure druppels regenen over het hele gebied – verspreide plasjes die de grond en de lucht aantasten, vergelijkbaar met Acid Spill, maar dan over een veel groter gebied."
+  }
+}

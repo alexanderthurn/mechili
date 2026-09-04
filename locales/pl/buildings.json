@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Poziom ulepszenia",
+    "description": "Podnieś ten budynek o jeden poziom: zyska on bazowe HP. Cena zaczyna się od {{baseCost}} i rośnie o {{costStep}} na każdym poziomie (maksymalny poziom {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Sprzedawanie",
+    "description": "Trwale odblokuj pakiety sprzedażowe (do {{maxPerRound}} na fazę wdrożenia). Zwrot wynosi {{refundPct}}% kosztu bazowego."
+  },
+  "attack_boost": {
+    "name": "Wzmocnienie ataku",
+    "description": "Stały wzrost obrażeń dla całej armii. Pierwszy poziom +{{attackPct}}%; kupuj poziomy w kolejności (koszt {{costs}})."
+  },
+  "hp_boost": {
+    "name": "Wzmocnienie HP",
+    "description": "Stały wzrost punktów zdrowia całej armii. Pierwszy poziom +{{hpPct}}%; kupuj poziomy w kolejności (koszt {{costs}})."
+  },
+  "range_boost": {
+    "name": "Zwiększenie zasięgu",
+    "description": "+{{amount}} zasięg dla wszystkich jednostek dystansowych, tylko w tej rundzie."
+  },
+  "speed_boost": {
+    "name": "Zwiększenie prędkości",
+    "description": "+{{amount}} prędkość dla wszystkich jednostek, tylko w tej rundzie."
+  },
+  "loan": {
+    "name": "Pożyczka",
+    "description": "Dostawa +{{gain}} teraz. Następne rozmieszczenie: −{{debt}}. Raz na rundę."
+  },
+  "ward_dome": {
+    "name": "Kopuła oddziału",
+    "description": "Absorbuje pociski wroga, które przechodzą przez kopułę (promień {{radius}}, wysokość {{height}}). Pula to HP tej jednostki."
+  },
+  "homing_fire_bolt": {
+    "name": "Samonaprowadzający się bełt ogniowy",
+    "description": "Ustawia broń, a następnie atakuje pierwszego wroga w zasięgu {{range}}, zadając obrażenia {{damage}} (rozpryskowe {{splash}})."
+  },
+  "rally_route": {
+    "name": "Trasa rajdu",
+    "description": "Dodaj jeden ładunek trasy rajdu do swojego paska zaklęć. Raz na mecz."
+  },
+  "move_pack": {
+    "name": "Pakiet do przenoszenia",
+    "description": "Dodaj jeden ładunek pakietu ruchu do paska zaklęć: jeden pakiet z poprzedniej rundy znów staje się ruchomy. Raz na mecz."
+  },
+  "1_deployment": {
+    "name": "+1 Rozmieszczenie",
+    "description": "Tylko w tej rundzie możesz kupić jedną dodatkową jednostkę."
+  },
+  "veteran_training": {
+    "name": "Szkolenie weteranów",
+    "description": "Przez resztę tej rundy kupowane przez Ciebie jednostki osiągają poziom 2 (nadal płacą premię za poziom)."
+  },
+  "send_supply_to_ally": {
+    "name": "Wyślij zaopatrzenie do sojusznika",
+    "description": "Podaruj sojusznikowi 100 punktów zaopatrzenia — otrzymasz je na początku następnej rundy. Tylko w trybie duetu."
+  }
+}

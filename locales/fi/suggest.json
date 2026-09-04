@@ -1,0 +1,23 @@
+{
+  "title": "Lähetä palautetta",
+  "lead": "Kerro meille, mitä rakentaa, korjata tai kokeilla. Voit halutessasi lisätä nimesi ja sähköpostiosoitteesi.",
+  "discord": "Mieluummin keskusteletko? Liity Discord-yhteisöön.",
+  "category": "Kategoria",
+  "message": "Viesti",
+  "placeholder": "Minkä pitäisi muuttua? Mikä meni rikki? Mikä auttaisi?",
+  "cancel": "Peruuttaa",
+  "submit": "Lähetä",
+  "sending": "Lähetetään…",
+  "thanksSent": "Kiitos - lähetetty.",
+  "thanksSaved": "Kiitos – tallennettu.",
+  "writeFirst": "Kirjoita ensin lyhyt viesti.",
+  "rateLimited": "Liikaa ehdotuksia — yritä uudelleen {{n}} sekunnin kuluttua.",
+  "sendFailed": "Lähetys epäonnistui. Yritä myöhemmin uudelleen.",
+  "networkError": "Verkkovirhe – yritä myöhemmin uudelleen.",
+  "catBug": "Vika",
+  "catBalance": "Saldo",
+  "catFeature": "Ominaisuus",
+  "catArt": "Mallit / taide",
+  "catCommunity": "Yhteisö",
+  "catOther": "Muut"
+}

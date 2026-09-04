@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Feiticeiro do Céu",
+    "description": "Unidades aéreas recebem +12% de ataque e HP.",
+    "unitsLabel": "2 Cavaleiros de Corvo · 1 Anão"
+  },
+  "cost": {
+    "title": "Príncipe Ganancioso",
+    "description": "Todas as unidades têm -12% de ataque e HP, mas +100 de suprimentos a cada rodada.",
+    "unitsLabel": "2 arqueiros · 1 cavaleiro corvo · 1 anão"
+  },
+  "elite": {
+    "title": "Príncipe de Elite",
+    "description": "Recrutamento no nível 2. +100 de suprimentos na rodada 1.",
+    "unitsLabel": "1× Balista · 1× Anões"
+  },
+  "archer": {
+    "title": "Comandante Arqueiro",
+    "description": "Um arqueiro de nível 3 gratuito chega na rodada 2.",
+    "unitsLabel": "3 arqueiros · 2 anões"
+  },
+  "addi": {
+    "title": "Guardião das Relíquias",
+    "description": "Obtém 3 runas Valor na rodada 1.",
+    "unitsLabel": "1× Cavaleiros de Corvo · 3× Anões"
+  },
+  "meteor": {
+    "title": "Senhor Hitzkopf",
+    "description": "Recebe 2 cargas de Meteoro na rodada 2.",
+    "unitsLabel": "1× Mago · 1× Anões"
+  },
+  "speed": {
+    "title": "Viúva Veloz",
+    "unitsLabel": "1× Cavaleiros de Corvo · 1× Arqueiros · 2× Anões"
+  },
+  "giant": {
+    "title": "Condessa Chonk",
+    "unitsLabel": "1× Balista · 1× Anões"
+  },
+  "tutor": {
+    "title": "Palestra da Senhora",
+    "description": "Começa com uma aula prática.",
+    "unitsLabel": "1× Cavaleiros de Corvo · 3× Arqueiros"
+  },
+  "money": {
+    "title": "Rainha do Dinheiro",
+    "unitsLabel": "2 Cavaleiros de Corvo · 1 Arqueiro"
+  },
+  "cursed": {
+    "title": "Christine amaldiçoada",
+    "description": "Recebe uma aranha da Ninhada Negra grátis a cada rodada.",
+    "unitsLabel": "2 anões · 2 arqueiros"
+  },
+  "flanky": {
+    "title": "Sombra Flanqueada",
+    "description": "A primeira aparição de inimigos nas laterais leva metade do tempo.",
+    "unitsLabel": "2 anões · 2 arqueiros"
+  }
+}

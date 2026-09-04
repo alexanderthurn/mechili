@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Garnizon Archer"
+  },
+  "hordeWebweaver": {
+    "name": "Webdokuyucu"
+  },
+  "hordeBrutSpawn": {
+    "name": "Kara Yavru"
+  },
+  "hordeSpinne": {
+    "name": "Kara Örümcek"
+  },
+  "hordeFarmer": {
+    "name": "Ölü Çiftçi"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Ölü Çiftlik İşçisi"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Cüce"
+  },
+  "archer": {
+    "name": "Okçu"
+  },
+  "wizard": {
+    "name": "Sihirbaz"
+  },
+  "crowRider": {
+    "name": "Karga Binicisi"
+  },
+  "ballista": {
+    "name": "Balista"
+  },
+  "shield": {
+    "name": "Ward Stone"
+  },
+  "rocket": {
+    "name": "Ateş Cıvatası"
+  },
+  "command-tower": {
+    "name": "Öncü"
+  },
+  "research-center": {
+    "name": "Garnizon"
+  },
+  "stronghold": {
+    "name": "Kale"
+  },
+  "hordeZombie": {
+    "name": "Kara Yavru"
+  }
+}

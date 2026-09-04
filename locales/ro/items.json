@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Pământ",
+    "description": "+10% HP."
+  },
+  "fire": {
+    "name": "Foc",
+    "description": "+10% atac."
+  },
+  "water": {
+    "name": "Apă",
+    "description": "+5% atac și HP."
+  },
+  "wind": {
+    "name": "Vânt",
+    "description": "+10% rază de acțiune."
+  },
+  "addi": {
+    "name": "Curaj",
+    "description": "+15% atac și HP."
+  },
+  "power": {
+    "name": "Măcel",
+    "description": "+75% atac."
+  },
+  "vigor": {
+    "name": "Sânge de uriaș",
+    "description": "+100% HP."
+  },
+  "colossus": {
+    "name": "Cuirasă din Mithril",
+    "description": "+250% HP."
+  },
+  "wrath": {
+    "name": "Berserk",
+    "description": "+300% atac."
+  },
+  "golden": {
+    "name": "Piatră solară",
+    "description": "Imun la efectele negative ale turnului și primește cu 30% mai puține daune. Vrăjitorii nu pot converti — raza provoacă daune în schimb."
+  },
+  "bulwark": {
+    "name": "Bastion",
+    "description": "Scut: fiecare unitate primește o a doua rezervă de viață egală cu HP-ul său. Loviturile la distanță drenează mai întâi scutul; atacurile corp la corp, focul și acidul îl ignoră."
+  }
+}

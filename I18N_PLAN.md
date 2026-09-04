@@ -1,6 +1,6 @@
 # Melodan — i18n & fonts handoff
 
-Updated 2026-09-04: script support for hard locales (fonts + picker); en/ru/zh fully translated.
+Updated 2026-09-04: full Steam-oriented language list wired + catalogs filled.
 
 ## Current state
 
@@ -9,7 +9,7 @@ Language → font (lazy for heavy faces):
 | ID | Font |
 |---|---|
 | `en` | Marcellus |
-| `ru` | Exo 2 |
+| Latin / Cyrillic / Vietnamese / id / ms (`de`, `fr`, `it`, `es`, `es-419`, `ru`, `pt`, `pt-BR`, `pl`, `da`, `nl`, `fi`, `nb`, `sv`, `hu`, `cs`, `ro`, `tr`, `bg`, `uk`, `vi`, `id`, `ms`) | Exo 2 |
 | `zh` | Noto Serif SC |
 | `zh-Hant` | Noto Serif TC |
 | `ko` | Noto Serif KR |
@@ -18,17 +18,19 @@ Language → font (lazy for heavy faces):
 | `ar` | Noto Naskh Arabic (+ `dir=rtl`) |
 | `el` | Noto Serif |
 
-Translated catalogs in the client bundle: `en`, `ru`, `zh`, `zh-Hant`, `ko`, `ja`, `th`, `ar`, `el`.
+Translated catalogs in the client bundle: all IDs above (MT seed for newly added Latin/Cyrillic locales; polish as needed).
 
-### Covered (translated)
+### Covered
 
-- Settings, menu, HUD, catalogs, homepage, suggest (all shipped languages above)
+- Settings, menu, HUD, catalogs, homepage, suggest
 - Homepage language pickers (top-right + footer), shared prefs
+- Device language detection for regional tags (`zh-Hant`, `es-419`, `pt-BR`, `nb`, …)
 
-### Next
+### Deferred
 
-- RTL layout polish for Arabic (direction is set; some HUD chrome may still assume LTR)
-- Easier Latin locales (de/fr/…) when ready — Exo 2 / Marcellus
+- Arabic RTL layout polish (direction is set; some HUD chrome may still assume LTR)
+- Feuerware privacy / imprint pages (external; translate outside Melodan)
+- Human review / regional polish of MT catalogs
 
 ### Intentionally English / skipped
 
@@ -40,4 +42,4 @@ Translated catalogs in the client bundle: `en`, `ru`, `zh`, `zh-Hant`, `ko`, `ja
 
 - Prefs: `language`
 - Helpers: `src/i18n/format.ts`
-- Locale scaffold notes: `locales/README.md`
+- Locale notes: `locales/README.md`

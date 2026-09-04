@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Gökyüzü Büyücüsü",
+    "description": "Hava birimleri +%12 saldırı ve can puanı kazanır.",
+    "unitsLabel": "2 x Karga Binicisi · 1 x Cüce"
+  },
+  "cost": {
+    "title": "Açgözlü Prens",
+    "description": "Tüm birimlerin saldırı ve can puanları %12 azalır, ancak her turda +100 erzak kazanırlar.",
+    "unitsLabel": "2 Okçu · 1 Karga Süvarisi · 1 Cüce"
+  },
+  "elite": {
+    "title": "Seçkin Prens",
+    "description": "Seviye 2'de işe alım yapılıyor. 1. turda +100 tedarik.",
+    "unitsLabel": "1 adet Balista · 1 adet Cüce"
+  },
+  "archer": {
+    "title": "Okçu Komutanı",
+    "description": "2. turda ücretsiz 3. seviye bir Okçu geliyor.",
+    "unitsLabel": "3 Okçu · 2 Cüce"
+  },
+  "addi": {
+    "title": "Kalıntı Koruyucusu",
+    "description": "1. turda 3 adet Cesaret rünü kazanır.",
+    "unitsLabel": "1 x Karga Süvarileri · 3 x Cüceler"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "2. turda 2 meteor yükü kazanır.",
+    "unitsLabel": "1 Büyücü · 1 Cüce"
+  },
+  "speed": {
+    "title": "Hızlı Dul",
+    "unitsLabel": "1 adet Karga Süvarisi · 1 adet Okçu · 2 adet Cüce"
+  },
+  "giant": {
+    "title": "Kontes Chonk",
+    "unitsLabel": "1 adet Balista · 1 adet Cüce"
+  },
+  "tutor": {
+    "title": "Lady Lecture",
+    "description": "Bir saha dersiyle başlar.",
+    "unitsLabel": "1 adet Karga Süvarisi · 3 adet Okçu"
+  },
+  "money": {
+    "title": "Para Kraliçesi",
+    "unitsLabel": "2 adet Karga Süvarisi · 1 adet Okçu"
+  },
+  "cursed": {
+    "title": "Lanetli Christine",
+    "description": "Her turda bir adet ücretsiz Kara Yavru Örümcek kazanır.",
+    "unitsLabel": "2 Cüce · 2 Okçu"
+  },
+  "flanky": {
+    "title": "Yan Gölge",
+    "description": "İlk kez yandan doğmak, yarı sürede gerçekleşir.",
+    "unitsLabel": "2 Cüce · 2 Okçu"
+  }
+}

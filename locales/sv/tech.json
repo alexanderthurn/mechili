@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Fleet Feet"
+  },
+  "carapace": {
+    "name": "Stenhud"
+  },
+  "barrel": {
+    "name": "Pilbåge"
+  },
+  "ap": {
+    "name": "Piercingpilar"
+  },
+  "fireArrows": {
+    "name": "Eldpilar",
+    "description": "Pilar lämnar en kort markeld och brinner – tillräckligt för att antända oljepölar."
+  },
+  "engines": {
+    "name": "Gale Wings"
+  },
+  "stingers": {
+    "name": "Kråkklor"
+  },
+  "armor": {
+    "name": "Järnplätering"
+  },
+  "autoloader": {
+    "name": "Snabbvinsch"
+  },
+  "aegis": {
+    "name": "Aegis",
+    "description": "Sköld: varje enhet får en andra hälsopool som motsvarar dess HP. Avståndsträffar dränerar skölden först; närstrid, eld och syra ignorerar det."
+  },
+  "golden": {
+    "name": "Gyllene aura",
+    "description": "Närliggande allierade motstår torn-debuffs och tar 30 % mindre skada under 30 sekunder. Trollkarlar kan inte konvertera dem – strålen gör skada istället."
+  },
+  "pitchBolts": {
+    "name": "Pitchbultar",
+    "description": "Bultar stänker olja vid stöt (antänds inte — para ihop med eldpilar eller en Fire Bolt)."
+  },
+  "wideBlast": {
+    "name": "Bred explosion",
+    "description": "Tredubblar stänkradien (ger stänk till enheter utan den)."
+  },
+  "skyBind": {
+    "name": "Sky Bind",
+    "description": "Kan attackera mark- och luftförband."
+  },
+  "skyLift": {
+    "name": "Sky Lift",
+    "description": "Lyfter denna enhet upp i luften (stridsflygplan)."
+  },
+  "earthbound": {
+    "name": "Jordbundna",
+    "description": "Håller enheten på marken (åsidosätter Sky Lift / naturlig flygning)."
+  },
+  "spiderMother": {
+    "name": "Spindlarnas mor"
+  },
+  "darkHarvest": {
+    "name": "Mörk skörd"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} skada",
+    "modRange": "{{pct}} intervall",
+    "modSpeed": "{{pct}} rörelsehastighet",
+    "modAttackSpeed": "{{pct}} attackhastighet",
+    "modSplash": "{{mult}}× stänkradie",
+    "produce": "Producerar {{child}} varje {{every}} (upp till {{max}})",
+    "produceFirst": ", först efter {{delay}}",
+    "produceOffspring": "Avkommamatchning på föräldranivå",
+    "onKill": "När denna enhet dödar, höj en {{child}}",
+    "cleave": "Träffar alla fiender inom {{radius}} (runt denna enhet)"
+  }
+}

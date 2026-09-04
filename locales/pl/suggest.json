@@ -1,0 +1,23 @@
+{
+  "title": "Wyślij opinię",
+  "lead": "Powiedz nam, co zbudować, naprawić lub wypróbować. Jeśli chcesz, możesz dodać swoje imię i nazwisko oraz adres e-mail.",
+  "discord": "Wolisz czat? Dołącz do społeczności Discord.",
+  "category": "Kategoria",
+  "message": "Wiadomość",
+  "placeholder": "Co powinno się zmienić? Co się zepsuło? Co by pomogło?",
+  "cancel": "Anulować",
+  "submit": "Składać",
+  "sending": "Przesyłka…",
+  "thanksSent": "Dziękuję — wysłane.",
+  "thanksSaved": "Dziękuję — zapisane.",
+  "writeFirst": "Najpierw napisz krótką wiadomość.",
+  "rateLimited": "Zbyt wiele sugestii — spróbuj ponownie za {{n}}s.",
+  "sendFailed": "Nie udało się wysłać. Spróbuj ponownie później.",
+  "networkError": "Błąd sieciowy — spróbuj ponownie później.",
+  "catBug": "Błąd",
+  "catBalance": "Balansować",
+  "catFeature": "Funkcja",
+  "catArt": "Modele / sztuka",
+  "catCommunity": "Wspólnota",
+  "catOther": "Inny"
+}

@@ -1,0 +1,23 @@
+{
+  "title": "Kirim masukan",
+  "lead": "Beri tahu kami apa yang perlu dibangun, diperbaiki, atau dicoba. Jika Anda mau, Anda dapat menambahkan nama dan alamat email Anda.",
+  "discord": "Lebih suka mengobrol? Bergabunglah dengan komunitas Discord.",
+  "category": "Kategori",
+  "message": "Pesan",
+  "placeholder": "Apa yang perlu diubah? Apa yang rusak? Apa yang bisa membantu?",
+  "cancel": "Membatalkan",
+  "submit": "Kirim",
+  "sending": "Mengirim…",
+  "thanksSent": "Terima kasih — sudah dikirim.",
+  "thanksSaved": "Terima kasih — tersimpan.",
+  "writeFirst": "Tulis pesan singkat terlebih dahulu.",
+  "rateLimited": "Terlalu banyak saran — coba lagi dalam {{n}}s.",
+  "sendFailed": "Pengiriman gagal. Coba lagi nanti.",
+  "networkError": "Terjadi kesalahan jaringan — coba lagi nanti.",
+  "catBug": "Serangga",
+  "catBalance": "Keseimbangan",
+  "catFeature": "Fitur",
+  "catArt": "Model / seni",
+  "catCommunity": "Masyarakat",
+  "catOther": "Lainnya"
+}

@@ -1,0 +1,161 @@
+{
+  "tagline": "AUTOBATLER DE FANTASÍA",
+  "lead": "Despliega tus ejércitos en secreto y observa cómo se desarrolla la ronda. Tu enemigo hará lo mismo. Adáptate y repite hasta que uno de los dos se quede sin puntos de vida.",
+  "hero": {
+    "wishlist": "Lista de deseos ahora",
+    "trailer": "Ver tráiler",
+    "steamSoon": "Próximamente estará disponible la página de Steam."
+  },
+  "screenshots": {
+    "title": "Capturas de pantalla",
+    "sub": "Un vistazo al despliegue y la batalla.",
+    "browse": "Explorar capturas de pantalla",
+    "open": "Abrir captura de pantalla: {{label}}",
+    "fallback": "Captura de pantalla",
+    "missing": "{{label}} ⬢ arrastra el archivo a assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Despliegue del ejército en el claro del bosque",
+    "2": "Fase de despliegue y taller de la unidad",
+    "3": "Aliento de fuego de dragón sobre el campo",
+    "4": "Zonas de despliegue paralelas",
+    "5": "Batalla masiva en las llanuras",
+    "6": "Fortaleza invernal en la nieve",
+    "7": "Bases dobles en la cuadrícula",
+    "8": "Gran base fortificada"
+  },
+  "lightbox": {
+    "gallery": "Galería de capturas de pantalla",
+    "close": "Galería de cierre",
+    "prev": "Captura de pantalla anterior",
+    "next": "Siguiente captura de pantalla",
+    "dots": "Capturas de pantalla",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Unidades, edificios y hechizos",
+    "sub": "Tu ejército, edificios, paquetes {{horde}} y modelos de hechizos de batalla. Elige uno para inspeccionar: el Jinete Cuervo y el Dragón aletean en esta vista previa.",
+    "canvas": "Vista previa 3D de la unidad",
+    "loading": "Cargando modelo…",
+    "hint": "Arrastra para girar · Desplázate para hacer zoom",
+    "select": "Elige una unidad, edificio o hechizo.",
+    "list": "Unidades, edificios y hechizos",
+    "buildings": "Edificios",
+    "units": "Unidades",
+    "spells": "Hechizos"
+  },
+  "stats": {
+    "cost": "Costo",
+    "hp": "HP",
+    "damage": "Daño",
+    "range": "Rango",
+    "attackInterval": "intervalo de ataque",
+    "seconds": "{{value}}s",
+    "speed": "Velocidad",
+    "abilities": "Talento",
+    "spellModel": "Modelo de hechizo"
+  },
+  "flag": {
+    "flying": "Vuelo",
+    "structure": "Estructura",
+    "extra": "Extra",
+    "attacksGround": "Ataques terrestres",
+    "attacksAir": "Ataques aéreos",
+    "shield": "Cúpula del pabellón",
+    "rocket": "perno de inicio"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Ataque del dragón",
+      "blurb": "Aliento de fuego en picado. El aleteo utiliza la misma ruta de sombreado que Crow Rider (modo malla)."
+    },
+    "hammer": {
+      "name": "Martillo de los Dioses",
+      "blurb": "Martillo divino que cae sobre una zona colocada."
+    },
+    "meteor-great": {
+      "name": "Meteorito",
+      "blurb": "Impacto de un único meteorito de gran potencia."
+    },
+    "meteor-shard": {
+      "name": "Fragmento de lluvia de meteoritos",
+      "blurb": "Meteorito más pequeño utilizado en la lluvia de meteoritos."
+    },
+    "storm": {
+      "name": "Llamada de tormenta",
+      "blurb": "Nube de tormenta que lanza relámpagos."
+    },
+    "poison": {
+      "name": "Nube venenosa",
+      "blurb": "Nubes tóxicas en el cielo que derraman ácido de forma dispersa sobre un enorme círculo."
+    }
+  },
+  "commanders": {
+    "sub": "Antes de la primera ronda, cada jugador elige un {{commander}}. Este define su ejército inicial, la cantidad de puntos de vida, una especialidad permanente y tres forjas de fortaleza {{tactics}} (débil / media / fuerte). Los compañeros de equipo comparten la unión de sus forjas {{tactics}}.",
+    "select": "Elige un {{commander}}"
+  },
+  "runes": {
+    "sub": "Fusionado a un paquete para siempre, elevando a todos los mechs que contiene {{sep}} (la mayoría de los paquetes contienen {{packLimit}}), la balista {{ballistaLimit}}. Las cuatro runas base se obtienen de cartas redondas o se compran en la tienda; las más fuertes se forjan a partir de ellas en la Fortaleza y nunca se venden.",
+    "select": "Elige un {{item}}",
+    "base": "Base",
+    "advanced": "Avanzado",
+    "shopTitle": "Comprado en la tienda o seleccionado de una tarjeta redonda.",
+    "shopLabel": "Precio de la tienda",
+    "forgeTitle": "Forjado en el {{building}}",
+    "forgeLabel": "Precio de forja"
+  },
+  "tactics": {
+    "sub": "Estas son las habilidades de tu tira {{tactics}} {{sep}}: agrupaciones, derrames, invocaciones y hechizos de batalla como el aliento de fuego del dragón. Los hechizos de batalla se compran en tu Fortaleza, una sola vez cada uno, y solo tu comandante conoce los tres. Los iconos coinciden con lo que ves en el juego.",
+    "select": "Elige un {{tactic}}",
+    "placement": "Colocación",
+    "oneShot": "One-shot",
+    "buyTitle": "Comprado en el {{building}}",
+    "priceLabel": "{{building}} precio"
+  },
+  "targeting": {
+    "point": "punto",
+    "two-point": "dos puntos",
+    "three-point": "tres puntos",
+    "point-yaw": "apuntar + mirando",
+    "own-unit": "paquete propio"
+  },
+  "roundCards": {
+    "title": "Tarjetas redondas",
+    "sub": "A partir de la segunda ronda, elige una de las varias cartas {{items}} ofrecidas, extraídas del conjunto de cartas disponibles. Los hechizos de batalla se compran en la Fortaleza, no se eligen de las cartas.",
+    "select": "Elige una tarjeta redonda"
+  },
+  "matchSettings": {
+    "title": "Ajustes de coincidencia",
+    "sub": "Las reglas predeterminadas para una partida, extraídas directamente del código de configuración del juego, por lo que no pueden diferir de la versión final. Todo es configurable; es de código abierto."
+  },
+  "contribute": {
+    "title": "Contribuir",
+    "sub1": "Melodan es un juego desarrollado por una sola persona: yo. Me apasiona, pero no puedo crear un título AAA y mantener todo perfecto, equilibrado, etc. La idea es tener un juego abierto donde cualquiera pueda contribuir.",
+    "sub2": "Vamos a hacerlo juntos. Equilibrio, errores, características, ideas artísticas {{sep}} Envía una nota breve y la leeré. Si quieres hacer más, ¡bienvenido!",
+    "play": "Prueba en el navegador",
+    "feedback": "Enviar comentarios",
+    "discord": "Discordia",
+    "devlog": "Registro del desarrollador",
+    "waysTitle": "Formas de ayudar",
+    "way1": "Comparta ideas e informes de errores.",
+    "way2": "Se aceptan solicitudes de extracción en {{github}} (GPL-3.0)",
+    "way3": "Crear o mejorar modelos 3D",
+    "way4": "Encárgate del equilibrio, inventa nuevos hechizos, cartas, ideas.",
+    "way5": "Bienvenidos jugadores, escriban guías, ayuden con la moderación si quieren encargarse de ello."
+  },
+  "about": {
+    "title": "Acerca de",
+    "lead": "MELODAN es un producto de Alexander Thurn (Feuerware). Su empresa reside en Bonn, Alemania.",
+    "inspired": "Este juego está inspirado en {{mechabellum}}, el mejor juego del género. MELODAN es una propuesta independiente de fantasía; por favor, apoyen al original y compren Mechabelum. ¡Gracias!",
+    "openSource": "El juego es {{github}} (GPL-3.0). Los derechos de autor pertenecen a Alexander Thurn / Feuerware. Puedes bifurcarlo de forma privada, crear nuevas unidades y enviar solicitudes de extracción. Para proyectos más ambiciosos, como un spin-off comercial o no comercial, un cambio de marca completo, etc., puedes escribirme a: {{email}}.",
+    "openSourceLink": "código abierto en GitHub"
+  },
+  "footer": {
+    "play": "Jugar",
+    "steam": "Vapor",
+    "feedback": "Comentario",
+    "imprint": "Imprimir",
+    "privacy": "Privacidad de datos"
+  }
+}

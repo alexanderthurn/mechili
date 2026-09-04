@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rallye-Strecke",
+    "description": "Platziere Start-, Mittel- und Endzone. Die Einheiten im Startkreis marschieren durch entsprechende Abstände in der Mitte und dann am Ende und kämpfen dabei."
+  },
+  "oilSpill": {
+    "name": "Ölpest",
+    "description": "Platziere zwei Ölkreise – die Umrisse werden beim Aufstellen markiert; kurz nach Kampfbeginn tropft Öl von links nach rechts auf den Weg (Schutzscheiben bleiben frei). Verbundene Ölkreise entzünden sich als ein Feld, sobald sie mit Feuer in Berührung kommen."
+  },
+  "sellUnit": {
+    "name": "Verkaufspaket",
+    "description": "Klicken Sie, um sich zu bewaffnen, und klicken Sie dann auf eines Ihrer Pakete, um es gegen eine Rückerstattung Ihrer Vorräte zu verkaufen."
+  },
+  "moveUnit": {
+    "name": "Umzugspaket",
+    "description": "Klicken Sie, um zu aktivieren, und klicken Sie dann auf eines Ihrer Pakete aus einer früheren Runde – dieses kann für den Rest dieser Runde erneut verschoben und gedreht werden."
+  },
+  "tutor": {
+    "name": "Feldlektion",
+    "description": "Klicke, um die Ausrüstung zu aktivieren, und anschließend auf eines deiner Pakete – dessen XP-Leiste füllt sich bis zur nächsten Stufe. Der Kauf der Stufe kostet weiterhin Vorräte."
+  },
+  "spawnDwarves": {
+    "name": "Zwerge beschwören",
+    "description": "Markiere einen Kreis irgendwo außerhalb der feindlichen Basis. Kurz nach Kampfbeginn bricht dort nacheinander eine Kriegerschar Zwerge aus dem Boden hervor – sie kämpfen nur in dieser Schlacht."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Markieren Sie einen kleinen Kreis an einer beliebigen Stelle. Sekunden nach Beginn der Schlacht vernichtet ein Meteor alles dort – nur Schutzkuppeln bieten Schutz (und bezahlen dafür)."
+  },
+  "spawnCrows": {
+    "name": "Beschwöre Krähenreiter",
+    "description": "Markieren Sie einen Kreis irgendwo außerhalb der feindlichen Basis. Kurz nach Kampfbeginn stürzen sich nacheinander Krähenreiter vom Himmel herab – sie kämpfen nur in diesem einen Kampf."
+  },
+  "hammerOfGods": {
+    "name": "Hammer der Götter",
+    "description": "Klicken zum Platzieren, bewegen zum Drehen, erneut klicken zum Fixieren. Ein göttlicher Hammer fällt wenige Sekunden nach Kampfbeginn auf das Gebiet."
+  },
+  "storm": {
+    "name": "Sturmwarnung",
+    "description": "Zeichne einen großen Kreis an einer beliebigen Stelle. Kleine Gewitterwolken ziehen hoch oben auf und schleudern Blitze an zufälligen Stellen. Die Blitze verursachen keinen Schaden, betäuben aber Einheiten in einem weiten Wirkungsbereich mit einem turmartigen Debuff, es sei denn, sie besitzen eine goldene Aura. Schutzkuppeln blockieren die Blitze weiterhin."
+  },
+  "meteorShower": {
+    "name": "Meteorstrom",
+    "description": "Zeichne einen großen Kreis an einer beliebigen Stelle. Meteore regnen eine Zeit lang auf zufällige Stellen im Inneren herab, wobei jede Explosion den Boden, auf den sie trifft, verbrennt."
+  },
+  "acidSpill": {
+    "name": "Säureunfall",
+    "description": "Schüttet man eine Säurekapsel wie eine Ölpest aus, tropft sie kurz nach Kampfbeginn von links nach rechts auf den Boden. Boden- und Lufteinheiten über der Säurepfütze versengen und korrodieren – und erleiden dadurch zusätzlichen Schaden durch alle Angriffe."
+  },
+  "fireSpill": {
+    "name": "Feuer ausgelaufen",
+    "description": "Schütte eine Feuerkapsel wie Öl aus – sie tropft kurz nach Kampfbeginn von links nach rechts und setzt den Weg in Brand (Schutzscheiben bleiben frei). Angrenzendes Öl entzündet sich ebenfalls. Die Flamme hält nur in diesem Kampf an."
+  },
+  "dragonAttack": {
+    "name": "Drachenangriff",
+    "description": "Zeichne die Flugbahn des Drachen (breiter und länger als Öl). Er stürzt sich herab und speit Feuer entlang des Korridors – der Strahl versengt Einheiten und setzt den Boden in Brand. Schutzkuppeln absorbieren den Feueratem (und zahlen dafür)."
+  },
+  "poisonCloud": {
+    "name": "Giftwolke",
+    "description": "Zeichne einen riesigen Kreis. Giftige Wolken sammeln sich darüber und lassen kleine Säuretropfen über das Gebiet regnen – spärliche Pfützen, die Boden und Luft angreifen, ähnlich wie bei Acid Spill, aber über ein viel größeres Feld."
+  }
+}

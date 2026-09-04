@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Uppgraderingsnivå",
+    "description": "Höj byggnaden en nivå: den får sin grundläggande HP. Priset börjar på {{baseCost}} och ökar med {{costStep}} för varje nivå (maxnivå {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Försäljning",
+    "description": "Lås upp säljpaket permanent (upp till {{maxPerRound}} per utplaceringsfas). Återbetalningen är {{refundPct}}% av baskostnaden."
+  },
+  "attack_boost": {
+    "name": "Attackförstärkning",
+    "description": "Permanent arméomfattande skadaökning. Första nivån +{{attackPct}}%; köp nivåer i ordning (kostar {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP-ökning",
+    "description": "Permanent HP-ökning för hela armén. Första nivån +{{hpPct}}%; köp nivåer i ordning (kostar {{costs}})."
+  },
+  "range_boost": {
+    "name": "Räckviddsökning",
+    "description": "+{{amount}} avstånd för alla avståndsenheter, endast denna runda."
+  },
+  "speed_boost": {
+    "name": "Hastighetsökning",
+    "description": "+{{amount}} hastighet för alla enheter, endast denna runda."
+  },
+  "loan": {
+    "name": "Lån",
+    "description": "+{{gain}} försörjning nu. Nästa utplacering: −{{debt}}. En gång per runda."
+  },
+  "ward_dome": {
+    "name": "Ward-kupolen",
+    "description": "Absorberar fiendens projektiler som korsar en kupol (radie {{radius}}, höjd {{height}}). Pool är den här enhetens HP."
+  },
+  "homing_fire_bolt": {
+    "name": "Målsökande eldbult",
+    "description": "Armarna på plats, siktar sedan på den första fienden inom räckhåll {{range}} för {{damage}} skada (stänk {{splash}})."
+  },
+  "rally_route": {
+    "name": "Rallyrutt",
+    "description": "Lägg till en laddning för rallyvägen till din trollformelremsa. En gång per match."
+  },
+  "move_pack": {
+    "name": "Flytta paketet",
+    "description": "Lägg till en flyttpaketsladdning till din trollformelremsa: en paket från en tidigare runda blir flyttbart igen. En gång per match."
+  },
+  "1_deployment": {
+    "name": "+1 Implementering",
+    "description": "Köp endast en extra enhet denna omgång."
+  },
+  "veteran_training": {
+    "name": "Veteranutbildning",
+    "description": "Under resten av den här rundan anländer enheter du köper till nivå 2 (de betalar fortfarande nivåpremien)."
+  },
+  "send_supply_to_ally": {
+    "name": "Skicka förnödenheter till allierad",
+    "description": "Ge 100 förnödenheter till din allierade — anländer i början av nästa runda. Endast Duo-lägen."
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Garnisonsbogenschütze"
+  },
+  "hordeWebweaver": {
+    "name": "Webweaver"
+  },
+  "hordeBrutSpawn": {
+    "name": "Schwarze Brut"
+  },
+  "hordeSpinne": {
+    "name": "Schwarze Spinne"
+  },
+  "hordeFarmer": {
+    "name": "Toter Bauer"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Toter Landarbeiter"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Zwerg"
+  },
+  "archer": {
+    "name": "Bogenschütze"
+  },
+  "wizard": {
+    "name": "Zauberer"
+  },
+  "crowRider": {
+    "name": "Krähenreiter"
+  },
+  "ballista": {
+    "name": "Ballista"
+  },
+  "shield": {
+    "name": "Ward Stone"
+  },
+  "rocket": {
+    "name": "Feuerblitz"
+  },
+  "command-tower": {
+    "name": "Vorhut"
+  },
+  "research-center": {
+    "name": "Garnison"
+  },
+  "stronghold": {
+    "name": "Hochburg"
+  },
+  "hordeZombie": {
+    "name": "Schwarze Brut"
+  }
+}

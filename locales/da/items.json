@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Jord",
+    "description": "+10% HK."
+  },
+  "fire": {
+    "name": "Brand",
+    "description": "+10% angreb."
+  },
+  "water": {
+    "name": "Vand",
+    "description": "+5% angreb og HP."
+  },
+  "wind": {
+    "name": "Vind",
+    "description": "+10% interval."
+  },
+  "addi": {
+    "name": "Tapperhed",
+    "description": "+15% angreb og HP."
+  },
+  "power": {
+    "name": "Blodbad",
+    "description": "+75% angreb."
+  },
+  "vigor": {
+    "name": "Kæmpeblod",
+    "description": "+100% HK."
+  },
+  "colossus": {
+    "name": "Mithril Cuirass",
+    "description": "+250% HK."
+  },
+  "wrath": {
+    "name": "Bersærk",
+    "description": "+300% angreb."
+  },
+  "golden": {
+    "name": "Solsten",
+    "description": "Immun over for tårn-debuffs og tager 30% mindre skade. Troldmænd kan ikke konvertere — strålen gør i stedet skade."
+  },
+  "bulwark": {
+    "name": "Bolværk",
+    "description": "Skjold: Hver enhed får en anden livspulje svarende til dens HP. Fjernangreb dræner skjoldet først; nærkamp, ild og syre ignorerer det."
+  }
+}

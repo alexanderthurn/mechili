@@ -1,0 +1,17 @@
+{
+  "close": "Kapalı",
+  "back": "Geri",
+  "reset": "Sıfırla",
+  "language": "Dil",
+  "term": {
+    "rune": "Rune",
+    "runes": "Rünler",
+    "talent": "Yetenek",
+    "talents": "Yetenekler",
+    "spell": "Hecelemek",
+    "spells": "Büyüler",
+    "commander": "Komutan",
+    "commanders": "Komutanlar",
+    "horde": "Komtur"
+  }
+}

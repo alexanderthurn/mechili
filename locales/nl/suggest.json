@@ -1,0 +1,23 @@
+{
+  "title": "Feedback verzenden",
+  "lead": "Vertel ons wat we moeten bouwen, repareren of uitproberen. Je kunt desgewenst je naam en e-mailadres toevoegen.",
+  "discord": "Liever chatten? Word lid van de Discord-community.",
+  "category": "Categorie",
+  "message": "Bericht",
+  "placeholder": "Wat moet er veranderen? Wat is er misgegaan? Wat zou helpen?",
+  "cancel": "Annuleren",
+  "submit": "Indienen",
+  "sending": "Verzenden…",
+  "thanksSent": "Bedankt, verzonden.",
+  "thanksSaved": "Bedankt, opgeslagen.",
+  "writeFirst": "Schrijf eerst een kort bericht.",
+  "rateLimited": "Te veel suggesties — probeer het opnieuw in {{n}}s.",
+  "sendFailed": "Verzenden mislukt. Probeer het later opnieuw.",
+  "networkError": "Netwerkfout — probeer het later opnieuw.",
+  "catBug": "Beestje",
+  "catBalance": "Evenwicht",
+  "catFeature": "Functie",
+  "catArt": "Modellen / kunst",
+  "catCommunity": "Gemeenschap",
+  "catOther": "Ander"
+}

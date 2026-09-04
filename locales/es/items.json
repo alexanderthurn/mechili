@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Tierra",
+    "description": "+10% HP."
+  },
+  "fire": {
+    "name": "Fuego",
+    "description": "+10% de ataque."
+  },
+  "water": {
+    "name": "Agua",
+    "description": "+5% de ataque y HP."
+  },
+  "wind": {
+    "name": "Viento",
+    "description": "+10% de rango."
+  },
+  "addi": {
+    "name": "Valor",
+    "description": "+15% de ataque y HP."
+  },
+  "power": {
+    "name": "Carnicería",
+    "description": "+75% de ataque."
+  },
+  "vigor": {
+    "name": "Sangre gigante",
+    "description": "+100% HP."
+  },
+  "colossus": {
+    "name": "Coraza de mithril",
+    "description": "+250% HP."
+  },
+  "wrath": {
+    "name": "Enloquecido",
+    "description": "+300% de ataque."
+  },
+  "golden": {
+    "name": "Piedra solar",
+    "description": "Inmune a los efectos negativos de la torre y recibe un 30 % menos de daño. Los magos no pueden convertir; el rayo inflige daño en su lugar."
+  },
+  "bulwark": {
+    "name": "Baluarte",
+    "description": "Escudo: cada unidad obtiene una segunda reserva de salud igual a sus puntos de vida. Los ataques a distancia agotan primero el escudo; los ataques cuerpo a cuerpo, de fuego y de ácido lo ignoran."
+  }
+}

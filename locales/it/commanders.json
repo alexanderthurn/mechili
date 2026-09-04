@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "Stregone del Cielo",
+    "description": "Le unità aeree ottengono +12% di attacco e punti vita.",
+    "unitsLabel": "2× Cavalieri Corvo · 1× Nani"
+  },
+  "cost": {
+    "title": "Principe avido",
+    "description": "Tutte le unità subiscono una riduzione del 12% all'attacco e ai punti vita, ma ottengono +100 di rifornimento a ogni turno.",
+    "unitsLabel": "2 arcieri · 1 cavaliere corvo · 1 nano"
+  },
+  "elite": {
+    "title": "Elite Derby",
+    "description": "Reclutamento al livello 2. +100 di rifornimenti nel round 1.",
+    "unitsLabel": "1× Balista · 1× Nani"
+  },
+  "archer": {
+    "title": "Comandante degli arcieri",
+    "description": "Un arciere di livello 3 gratuito arriva al secondo round.",
+    "unitsLabel": "3 arcieri · 2 nani"
+  },
+  "addi": {
+    "title": "Custode delle reliquie",
+    "description": "Ottiene 3 rune Valore nel round 1.",
+    "unitsLabel": "1× Cavalieri Corvo · 3× Nani"
+  },
+  "meteor": {
+    "title": "Lord Hitzkopf",
+    "description": "Ottiene 2 cariche Meteora nel round 2.",
+    "unitsLabel": "1× Mago · 1× Nano"
+  },
+  "speed": {
+    "title": "Vedova Veloce",
+    "unitsLabel": "1× Cavalieri Corvo · 1× Arcieri · 2× Nani"
+  },
+  "giant": {
+    "title": "Contessa Chonk",
+    "unitsLabel": "1× Balista · 1× Nani"
+  },
+  "tutor": {
+    "title": "Conferenza della signora",
+    "description": "Si inizia con una lezione pratica sul campo.",
+    "unitsLabel": "1× Cavalieri Corvo · 3× Arcieri"
+  },
+  "money": {
+    "title": "Regina del denaro",
+    "unitsLabel": "2× Cavalieri Corvo · 1× Arcieri"
+  },
+  "cursed": {
+    "title": "Cristina maledetta",
+    "description": "Ottieni un ragno Black Brood gratis a ogni round.",
+    "unitsLabel": "2 nani · 2 arcieri"
+  },
+  "flanky": {
+    "title": "Ombra laterale",
+    "description": "Le prime apparizioni sui fianchi richiedono la metà del tempo.",
+    "unitsLabel": "2 nani · 2 arcieri"
+  }
+}

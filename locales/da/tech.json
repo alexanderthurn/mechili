@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Fleet Feet"
+  },
+  "carapace": {
+    "name": "Stenhud"
+  },
+  "barrel": {
+    "name": "Langbue"
+  },
+  "ap": {
+    "name": "Piercingpile"
+  },
+  "fireArrows": {
+    "name": "Ildpile",
+    "description": "Pile efterlader en kortvarig ild på jorden og brænder – nok til at antænde oliepytter."
+  },
+  "engines": {
+    "name": "Gale Wings"
+  },
+  "stingers": {
+    "name": "Kragekløer"
+  },
+  "armor": {
+    "name": "Jernbelægning"
+  },
+  "autoloader": {
+    "name": "Hurtig spil"
+  },
+  "aegis": {
+    "name": "Aegis",
+    "description": "Skjold: Hver enhed får en anden livspulje svarende til dens HP. Fjernangreb dræner skjoldet først; nærkamp, ild og syre ignorerer det."
+  },
+  "golden": {
+    "name": "Gylden Aura",
+    "description": "Nærliggende allierede modstår tårn-debuffs og tager 30% mindre skade i 30'erne. Troldmænd kan ikke konvertere dem - strålen giver i stedet skade."
+  },
+  "pitchBolts": {
+    "name": "Bolte",
+    "description": "Bolte sprøjter olie ved stød (antændes ikke — parres med ildpile eller en Ildbolt)."
+  },
+  "wideBlast": {
+    "name": "Bred eksplosion",
+    "description": "Tredobler splash-radius (giver splash til enheder uden den)."
+  },
+  "skyBind": {
+    "name": "Sky Bind",
+    "description": "Kan angribe enheder på jorden og i luften."
+  },
+  "skyLift": {
+    "name": "Sky Lift",
+    "description": "Løfter denne enhed op i luften (kampflyver)."
+  },
+  "earthbound": {
+    "name": "Jordbunden",
+    "description": "Holder denne enhed på jorden (tilsidesætter Sky Lift / naturlig flyvning)."
+  },
+  "spiderMother": {
+    "name": "Edderkoppernes mor"
+  },
+  "darkHarvest": {
+    "name": "Mørk høst"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} skade",
+    "modRange": "{{pct}} område",
+    "modSpeed": "{{pct}} bevægelseshastighed",
+    "modAttackSpeed": "{{pct}} angrebshastighed",
+    "modSplash": "{{mult}}× plaskradius",
+    "produce": "Producerer {{child}} hver {{every}} (op til {{max}})",
+    "produceFirst": ", først efter {{delay}}",
+    "produceOffspring": ". Afkomsmatch på forældreniveau",
+    "onKill": "Når denne enhed dræber, hæv en {{child}}",
+    "cleave": "Rammer alle fjender inden for {{radius}} (omkring denne enhed)"
+  }
+}

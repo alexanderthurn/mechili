@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Cấp độ nâng cấp",
+    "description": "Nâng cấp tòa nhà này lên một tầng: nó sẽ có lượng HP cơ bản. Giá khởi điểm là {{baseCost}} và tăng thêm {{costStep}} mỗi tầng (tầng tối đa {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Bán hàng",
+    "description": "Mở khóa vĩnh viễn các gói bán hàng (tối đa {{maxPerRound}} mỗi giai đoạn triển khai). Hoàn tiền là {{refundPct}}% giá gốc."
+  },
+  "attack_boost": {
+    "name": "Tăng sức tấn công",
+    "description": "Tăng sát thương vĩnh viễn cho toàn bộ quân đội. Cấp độ đầu tiên +{{attackPct}}%; mua các cấp độ tiếp theo theo thứ tự (giá {{costs}})."
+  },
+  "hp_boost": {
+    "name": "Tăng công suất HP",
+    "description": "Tăng HP vĩnh viễn cho toàn quân. Cấp độ đầu tiên +{{hpPct}}%; mua các cấp độ tiếp theo theo thứ tự (giá {{costs}})."
+  },
+  "range_boost": {
+    "name": "Tăng phạm vi",
+    "description": "+{{amount}} phạm vi cho tất cả các đơn vị tầm xa, chỉ áp dụng trong vòng này."
+  },
+  "speed_boost": {
+    "name": "Tăng tốc",
+    "description": "Tăng tốc độ +{{amount}} cho tất cả các đơn vị, chỉ áp dụng trong vòng này."
+  },
+  "loan": {
+    "name": "Khoản vay",
+    "description": "Cung cấp ngay +{{gain}}. Lần triển khai tiếp theo: −{{debt}}. Chỉ một lần mỗi vòng."
+  },
+  "ward_dome": {
+    "name": "mái vòm Ward",
+    "description": "Hấp thụ đạn của kẻ địch bay vào trong một vòm (bán kính {{radius}}, chiều cao {{height}}). Pool chính là HP của đơn vị này."
+  },
+  "homing_fire_bolt": {
+    "name": "Tia lửa tự dẫn đường",
+    "description": "Giữ nguyên tư thế, sau đó nhắm mục tiêu vào kẻ địch đầu tiên trong tầm bắn {{range}} để gây sát thương {{damage}} (sát thương lan {{splash}})."
+  },
+  "rally_route": {
+    "name": "Tuyến đường diễu hành",
+    "description": "Thêm một lượt tấn công theo tuyến đường tập hợp vào bộ phép của bạn. Chỉ một lần mỗi trận đấu."
+  },
+  "move_pack": {
+    "name": "Gói chuyển nhà",
+    "description": "Thêm một lượt di chuyển vào dải phép thuật của bạn: một gói bài từ vòng trước sẽ lại có thể di chuyển được. Chỉ một lần mỗi trận đấu."
+  },
+  "1_deployment": {
+    "name": "+1 Triển khai",
+    "description": "Chỉ được mua thêm một sản phẩm duy nhất trong đợt này."
+  },
+  "veteran_training": {
+    "name": "Đào tạo cựu chiến binh",
+    "description": "Trong phần còn lại của vòng này, các đơn vị bạn mua sẽ lên cấp 2 (nhưng vẫn phải trả phí cấp độ cao hơn)."
+  },
+  "send_supply_to_ally": {
+    "name": "Gửi tiếp tế cho đồng minh",
+    "description": "Tặng 100 vật phẩm cho đồng minh của bạn — sẽ được gửi đến vào đầu vòng tiếp theo. Chỉ áp dụng cho chế độ chơi đôi."
+  }
+}

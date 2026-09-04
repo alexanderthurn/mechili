@@ -1,0 +1,161 @@
+{
+  "tagline": "FANTASY AUTO·BOJOVNÍK",
+  "lead": "Tajně rozmístěte armády a sledujte, jak kolo probíhá. Váš nepřítel udělá totéž. Přizpůsobte se a opakujte, dokud jednomu z vás nedojdou HP.",
+  "hero": {
+    "wishlist": "Seznam přání nyní",
+    "trailer": "Sledovat upoutávku",
+    "steamSoon": "Stránka na Steamu bude brzy k dispozici"
+  },
+  "screenshots": {
+    "title": "Snímky obrazovky",
+    "sub": "Pohled na nasazení a bitvu.",
+    "browse": "Procházet snímky obrazovky",
+    "open": "Otevřít snímek obrazovky: {{label}}",
+    "fallback": "Snímek obrazovky",
+    "missing": "{{label}} ⬢ vložit soubor do assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Nasazení armády na mýtině lesa",
+    "2": "Fáze nasazení a dílna",
+    "3": "Dračí ohnivý dech nad polem",
+    "4": "Zóny nasazení vedle sebe",
+    "5": "Masová bitva na pláních",
+    "6": "Zimní pevnost ve sněhu",
+    "7": "Dvojité základny na mřížce",
+    "8": "Velká opevněná základna"
+  },
+  "lightbox": {
+    "gallery": "Galerie screenshotů",
+    "close": "Zavřít galerii",
+    "prev": "Předchozí snímek obrazovky",
+    "next": "Další snímek obrazovky",
+    "dots": "Snímky obrazovky",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Jednotky, budovy a kouzla",
+    "sub": "Vaše armáda, budovy, balíčky {{horde}} a modely bitevních kouzel. Vyberte si jeden k prozkoumání – Vrána Jezdce a Dračí mávání v tomto náhledu.",
+    "canvas": "Náhled jednotky 3D",
+    "loading": "Načítání modelu…",
+    "hint": "Přetažením otočíte · Posunutím přiblížíte",
+    "select": "Vyberte jednotku, budovu nebo kouzlo",
+    "list": "Jednotky, budovy a kouzla",
+    "buildings": "Budovy",
+    "units": "Jednotky",
+    "spells": "Kouzla"
+  },
+  "stats": {
+    "cost": "Náklady",
+    "hp": "HP",
+    "damage": "Poškození",
+    "range": "Rozsah",
+    "attackInterval": "Interval útoku",
+    "seconds": "{{value}}s",
+    "speed": "Rychlost",
+    "abilities": "Schopnosti",
+    "spellModel": "Model kouzla"
+  },
+  "flag": {
+    "flying": "Létající",
+    "structure": "Struktura",
+    "extra": "Další",
+    "attacksGround": "Útoky na zemi",
+    "attacksAir": "Útoky ze vzduchu",
+    "shield": "Kupole Ward",
+    "rocket": "Naváděcí šroub"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Dračí útok",
+      "blurb": "Ohnivý dech při bombardování. Vztlaky křídel používají stejnou shaderovou cestu jako Crow Rider (síťový režim)."
+    },
+    "hammer": {
+      "name": "Kladivo bohů",
+      "blurb": "Božské kladivo, které dopadne na umístěnou zónu."
+    },
+    "meteor-great": {
+      "name": "Meteor",
+      "blurb": "Zásah jednoho těžkého meteoritu."
+    },
+    "meteor-shard": {
+      "name": "Úlomek meteorického roje",
+      "blurb": "Menší meteorit použitý rojovou palebnou deštěm."
+    },
+    "storm": {
+      "name": "Volání bouře",
+      "blurb": "Bouřkový mrak, který vrhá blesky."
+    },
+    "poison": {
+      "name": "Jedovatý mrak",
+      "blurb": "Toxické mraky na obloze, které prší řídkou kyselinou nad obrovským kruhem."
+    }
+  },
+  "commanders": {
+    "sub": "Před prvním kolem si každý hráč vybere {{commander}}. Ten určuje jeho počáteční armádu, HP, trvalou specializaci a tři pevnostní výhně {{tactics}} (slabá / střední / silná). Spoluhráči sdílejí unii své výhně {{tactics}}.",
+    "select": "Vyberte {{commander}}"
+  },
+  "runes": {
+    "sub": "Navždy sloučeno s balíčkem a zvedá všechny mechy v něm {{sep}}. Většina balíčků obsahuje {{packLimit}}, balistu {{ballistaLimit}}. Čtyři základní runy se draftují z kulatých karet nebo se kupují v obchodě; ty silnější se z nich ukují v pevnosti a nikdy se neprodávají.",
+    "select": "Vyberte {{item}}",
+    "base": "Báze",
+    "advanced": "Moderní",
+    "shopTitle": "Koupeno v obchodě nebo nakresleno z kulatého kartonu",
+    "shopLabel": "Cena v obchodě",
+    "forgeTitle": "Kováno na {{building}}",
+    "forgeLabel": "Cena kovárny"
+  },
+  "tactics": {
+    "sub": "Toto jsou dovednosti na vašem {{tactics}} pásu {{sep}}: shromáždění, rozlití, přivolání a seslání kouzla v boji, jako je ohnivý dech draka. Bojová kouzla se kupují ve vaší pevnosti, každé jednou, a zná je pouze váš velitel. Ikony odpovídají tomu, co vidíte ve hře.",
+    "select": "Vyberte {{tactic}}",
+    "placement": "Umístění",
+    "oneShot": "Jednorázový",
+    "buyTitle": "Koupeno v {{building}}",
+    "priceLabel": "Cena {{building}}"
+  },
+  "targeting": {
+    "point": "bod",
+    "two-point": "dvoubodový",
+    "three-point": "tříbodový",
+    "point-yaw": "hrot + obklad",
+    "own-unit": "vlastní balíček"
+  },
+  "roundCards": {
+    "title": "Kulaté karty",
+    "sub": "Od druhého kola si draftujte jednu z několika nabízených karet {{items}} vylosovaných z herního poolu. Bojová kouzla se kupují v pevnosti, ne draftují se z karet.",
+    "select": "Vyberte si kulatou kartu"
+  },
+  "matchSettings": {
+    "title": "Nastavení zápasu",
+    "sub": "Výchozí pravidla pro zápas, převzatá přímo z kódu nastavení hry, takže se nemohou lišit od toho, co je skutečně součástí hry. Všechno zde je laditelné – je to open source."
+  },
+  "contribute": {
+    "title": "Přispět",
+    "sub1": "Melodan vyvíjím jeden člověk, já. Jsem pro tuto hru nadšený, ale nedokážu vytvořit AAA titul a přitom udržet vše perfektní, vyvážené a tak dále. Cílem je mít otevřenou hru, kde může přispět kdokoli.",
+    "sub2": "Pojďme to udělat společně. Vyvažování, chyby, funkce, nápady na grafiku {{sep}} pošlete krátkou zprávu a já si ji přečtu. Pokud chcete udělat víc, vítejte!",
+    "play": "Test v prohlížeči",
+    "feedback": "Odeslat zpětnou vazbu",
+    "discord": "Svár",
+    "devlog": "Protokol vývojáře",
+    "waysTitle": "Způsoby, jak pomoci",
+    "way1": "Sdílejte nápady a hláste chyby",
+    "way2": "Otevřít žádosti o změny (pull requesty) na {{github}} (GPL-3.0)",
+    "way3": "Vytvářejte nebo vylepšujte 3D modely",
+    "way4": "Starejte se o vyvážení, vymýšlejte nová kouzla, karty, nápady.",
+    "way5": "Vítejte hráče, pište návody, pomáhejte s moderováním, pokud se toho chcete chopit."
+  },
+  "about": {
+    "title": "O",
+    "lead": "MELODAN vyrábí Alexander Thurn (Feuerware). Sídlí v Bonnu v Německu.",
+    "inspired": "Tato hra je inspirována hrou {{mechabellum}}, nejlepší hrou v žánru. MELODAN je nezávislé fantasy pojetí; prosím podpořte originál a kupte si Mechabelum. Děkujeme!",
+    "openSource": "Hra je licencována pod licencí {{github}} (GPL-3.0). Autorská práva zůstávají u Alexandra Thurna / Feuerware. Nebojte se ji soukromě forkovat, vymýšlet nové jednotky a otevírat pull requesty. Pro něco většího, nekomerční nebo spin-off, kompletní rebrand atd. mi klidně napište: {{email}}.",
+    "openSourceLink": "open source na GitHubu"
+  },
+  "footer": {
+    "play": "Hrát",
+    "steam": "Pára",
+    "feedback": "Zpětná vazba",
+    "imprint": "Otisk",
+    "privacy": "Ochrana osobních údajů"
+  }
+}

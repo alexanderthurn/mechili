@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Kumpulan Orang Kerdil",
+    "description": "Empat kumpulan Kerdil menyertai tentera anda.",
+    "unitsLabel": "4× Orang Kerdil"
+  },
+  "archers4": {
+    "title": "Syarikat Pemanah",
+    "description": "Empat Pemanah menyertai tentera anda.",
+    "unitsLabel": "4× Pemanah"
+  },
+  "crowRiders2": {
+    "title": "Sayap Gagak",
+    "description": "Dua ekor kawanan Crow Rider menyertai tentera anda.",
+    "unitsLabel": "2× Penunggang Gagak"
+  },
+  "ballista1": {
+    "title": "Ballista Pengepungan",
+    "description": "Seorang Ballista menyertai tentera anda.",
+    "unitsLabel": "1× Ballista"
+  },
+  "flanky": {
+    "title": "Flanky",
+    "description": "Tembakan sayap kali pertama mengambil separuh masa (2.5 saat)."
+  },
+  "rallyRoute": {
+    "title": "Laluan Rali",
+    "description": "Letakkan laluan kawad: unit di zon permulaan menuju ke zon akhir, berjuang di sepanjang jalan."
+  },
+  "sellPack": {
+    "title": "Pembelian Balik",
+    "description": "Mantera sekali gus: jual salah satu pek anda untuk mendapatkan bayaran balik bekalan."
+  },
+  "movePack": {
+    "title": "Perintah Berbaris",
+    "description": "Jampi sekali tembak: satu kumpulan dari pusingan sebelumnya boleh diubah kedudukannya semula pada pusingan ini."
+  }
+}
