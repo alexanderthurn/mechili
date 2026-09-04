@@ -25,7 +25,7 @@
     "unitsLabel": "1x Krähenreiter · 3x Zwerge"
   },
   "meteor": {
-    "title": "Lord Hitzkopf",
+    "title": "Fürst Hitzkopf",
     "description": "Erhält in Runde 2 zwei Meteor-Aufladungen.",
     "unitsLabel": "1 Zauberer · 1 Zwerge"
   },
@@ -38,7 +38,7 @@
     "unitsLabel": "1× Balliste · 1× Zwerge"
   },
   "tutor": {
-    "title": "Lady Lecture",
+    "title": "Frau Vortrag",
     "description": "Beginnt mit einer Feldlektion.",
     "unitsLabel": "1x Krähenreiter · 3x Bogenschützen"
   },
@@ -52,7 +52,7 @@
     "unitsLabel": "2 Zwerge · 2 Bogenschützen"
   },
   "flanky": {
-    "title": "Flanky Shadow",
+    "title": "Flankenschatten",
     "description": "Beim ersten Flankenangriff dauert das Spawnen nur halb so lange.",
     "unitsLabel": "2 Zwerge · 2 Bogenschützen"
   }

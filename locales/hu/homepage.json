@@ -147,7 +147,7 @@
   "about": {
     "title": "Körülbelül",
     "lead": "A MELODAN-t Alexander Thurn (Feuerware) gyártja. Székhelye Bonnban, Németországban található.",
-    "inspired": "Ezt a játékot a műfaj legjobb játéka, a {{mechabellum}} ihlette. A MELODAN egy független fantasy feldolgozás; kérlek támogasd az eredeti játékot és vásárold meg a Mechabelumot. Köszönöm!",
+    "inspired": "Ezt a játékot a műfaj legjobb játéka, a {{mechabellum}} ihlette. A MELODAN egy független fantasy feldolgozás; kérlek támogasd az eredeti játékot és vásárold meg a Mechabellumot. Köszönöm!",
     "openSource": "A játék {{github}} (GPL-3.0). A szerzői jogok Alexander Thurn / Feuerware tulajdonában maradnak. Nyugodtan forkold privátban, találj ki új egységeket és tegyél közzé pull requesteket. Valami nagyobbért, nem kereskedelmi célú spin-offért, teljes átnevezésért stb. nyugodtan írj nekem: {{email}}.",
     "openSourceLink": "nyílt forráskódú a GitHubon"
   },

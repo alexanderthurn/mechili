@@ -3,7 +3,7 @@
     "name": "Garnisonsbogenschütze"
   },
   "hordeWebweaver": {
-    "name": "Webweaver"
+    "name": "Netzweber"
   },
   "hordeBrutSpawn": {
     "name": "Schwarze Brut"
@@ -36,7 +36,7 @@
     "name": "Ballista"
   },
   "shield": {
-    "name": "Ward Stone"
+    "name": "Schutzstein"
   },
   "rocket": {
     "name": "Feuerblitz"

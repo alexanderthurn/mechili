@@ -22,7 +22,14 @@ Game / brand terms. Prefer these over literal MT. Keep brands untranslated.
 | Vanguard (building / tower) | **Vorhut** | leave mixed *Vanguard* in notes | Align settings notes with building name |
 | charge (one use on spell strip) | **Aufladung** | Ladung (cargo) | “grants one charge” |
 | supply / supplies | **Vorrat** / **Vorräte** | Lieferung | Refund / economy |
-| Matchmaking | **Matchmaking** | Partnervermittlung | Or *Spielersuche* if we want pure DE |
+| Matchmaking | **Spielersuche** | Partnervermittlung, Matchmaking | Locked for DE |
+| Ward dome | **Schutzkuppel** | Kuppel des Ward | Locked |
+| Ward Stone | **Schutzstein** | Ward Stone | Locked with Schutzkuppel |
+| Webweaver | **Netzweber** | Webweaver | DE gag/name pass |
+| Flanky Shadow | **Flankenschatten** | Flanky Shadow | |
+| Lady Lecture | **Frau Vortrag** | Lady Lecture | |
+| Lord Hitzkopf | **Fürst Hitzkopf** | Lord Hitzkopf | |
+| Mechabellum | **Mechabellum** | Mechabelum | Double **l** — brand spelling |
 | room (lobby) | **Raum** | Zimmer | |
 | unit shop | **Shop** / **Einheiten-Shop** | Werkstatt | Screenshot blurb |
 | round card | **Rundenkarte** | runde Karte | Not “round-shaped” |
@@ -109,7 +116,7 @@ Use these **keys** when spot-checking `fr`, `es`, `it`, `pl`, … Same English s
 
 | Key | Issue |
 |---|---|
-| `homepage:about.inspired` | Typo **Mechabelum** (also in EN) — fix EN then retranslate or patch |
+| `homepage:about.inspired` | Typo **Mechabelum** → fixed to **Mechabellum** (all locales) |
 
 ---
 

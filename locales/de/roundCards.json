@@ -20,7 +20,7 @@
     "unitsLabel": "1× Balliste"
   },
   "flanky": {
-    "title": "Flanky",
+    "title": "Flanke",
     "description": "Beim ersten Spawnen auf der Flanke dauert es nur die Hälfte der Zeit (2,5 Sekunden)."
   },
   "rallyRoute": {

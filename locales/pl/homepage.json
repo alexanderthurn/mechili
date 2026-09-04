@@ -147,7 +147,7 @@
   "about": {
     "title": "O",
     "lead": "MELODAN jest produkowany przez Alexandra Thurna (Feuerware) z siedzibą w Bonn w Niemczech.",
-    "inspired": "Ta gra jest inspirowana {{mechabellum}}, najlepszą grą w tym gatunku. MELODAN to niezależne fantasy; wesprzyjcie oryginał i kupcie Mechabelum. Dziękujemy!",
+    "inspired": "Ta gra jest inspirowana {{mechabellum}}, najlepszą grą w tym gatunku. MELODAN to niezależne fantasy; wesprzyjcie oryginał i kupcie Mechabellum. Dziękujemy!",
     "openSource": "Gra ma licencję {{github}} (GPL-3.0). Prawa autorskie należą do Alexandra Thurna / Feuerware. Możesz swobodnie tworzyć forki, tworzyć nowe jednostki i otwierać pull requesty. Jeśli masz ochotę na coś większego, niekomercyjny lub niekomercyjny spin-off, pełny rebranding itp., napisz do mnie: {{email}}.",
     "openSourceLink": "open source na GitHub"
   },

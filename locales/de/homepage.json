@@ -147,7 +147,7 @@
   "about": {
     "title": "Über",
     "lead": "MELODAN wird von Alexander Thurn (Feuerware) entwickelt. Er sitzt in Bonn, Deutschland.",
-    "inspired": "Dieses Spiel ist von {{mechabellum}} inspiriert, dem besten Spiel des Genres. MELODAN ist eine eigenständige Fantasy-Variante; bitte unterstütze das Original und kaufe Mechabelum. Vielen Dank!",
+    "inspired": "Dieses Spiel ist von {{mechabellum}} inspiriert, dem besten Spiel des Genres. MELODAN ist eine eigenständige Fantasy-Variante; bitte unterstütze das Original und kaufe Mechabellum. Vielen Dank!",
     "openSource": "Das Spiel ist {{github}} (GPL-3.0). Das Copyright bleibt bei Alexander Thurn / Feuerware. Du kannst es gerne privat forken, neue Einheiten erfinden und Pull Requests öffnen. Für etwas Größeres, einen nicht-kommerziellen oder kommerziellen Ableger, ein komplettes Rebranding usw. schreib mir gerne: {{email}}.",
     "openSourceLink": "Open Source auf GitHub"
   },

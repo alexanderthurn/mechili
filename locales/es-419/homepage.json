@@ -147,7 +147,7 @@
   "about": {
     "title": "Acerca de",
     "lead": "MELODAN es un producto de Alexander Thurn (Feuerware). Su empresa reside en Bonn, Alemania.",
-    "inspired": "Este juego está inspirado en {{mechabellum}}, el mejor juego del género. MELODAN es una propuesta independiente de fantasía; por favor, apoyen al original y compren Mechabelum. ¡Gracias!",
+    "inspired": "Este juego está inspirado en {{mechabellum}}, el mejor juego del género. MELODAN es una propuesta independiente de fantasía; por favor, apoyen al original y compren Mechabellum. ¡Gracias!",
     "openSource": "El juego es {{github}} (GPL-3.0). Los derechos de autor pertenecen a Alexander Thurn / Feuerware. Puedes bifurcarlo de forma privada, crear nuevas unidades y enviar solicitudes de extracción. Para proyectos más ambiciosos, como un spin-off comercial o no comercial, un cambio de marca completo, etc., puedes escribirme a: {{email}}.",
     "openSourceLink": "código abierto en GitHub"
   },

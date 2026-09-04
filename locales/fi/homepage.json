@@ -147,7 +147,7 @@
   "about": {
     "title": "Noin",
     "lead": "MELODANin valmistaa Alexander Thurn (Feuerware). Hän sijaitsee Bonnissa, Saksassa.",
-    "inspired": "Tämä peli on saanut inspiraationsa genren parhaasta pelistä {{mechabellum}}. MELODAN on itsenäinen fantasiapeli; tue alkuperäistä peliä ja osta Mechabelum. Kiitos!",
+    "inspired": "Tämä peli on saanut inspiraationsa genren parhaasta pelistä {{mechabellum}}. MELODAN on itsenäinen fantasiapeli; tue alkuperäistä peliä ja osta Mechabellum. Kiitos!",
     "openSource": "Peli on {{github}} (GPL-3.0). Tekijänoikeudet pysyvät Alexander Thurnilla / Feuerwarella. Voit vapaasti forkata pelin yksityisesti, keksiä uusia yksiköitä ja avata pull-pyyntöjä. Jos haluat jotain suurempaa, ei-kaupallisen tai spin-offin, täydellisen uudelleenbrändäyksen jne., kirjoita minulle: {{email}}.",
     "openSourceLink": "avoimen lähdekoodin GitHubissa"
   },

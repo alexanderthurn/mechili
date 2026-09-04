@@ -147,7 +147,7 @@
   "about": {
     "title": "Về",
     "lead": "MELODAN được sản xuất bởi Alexander Thurn (Feuerware). Ông đặt trụ sở tại Bonn, Đức.",
-    "inspired": "Trò chơi này lấy cảm hứng từ {{mechabellum}}, tựa game hay nhất trong thể loại này. MELODAN là một tác phẩm giả tưởng độc lập; hãy ủng hộ bản gốc và mua Mechabelum nhé! Cảm ơn!",
+    "inspired": "Trò chơi này lấy cảm hứng từ {{mechabellum}}, tựa game hay nhất trong thể loại này. MELODAN là một tác phẩm giả tưởng độc lập; hãy ủng hộ bản gốc và mua Mechabellum nhé! Cảm ơn!",
     "openSource": "Trò chơi này là {{github}} (GPL-3.0). Bản quyền thuộc về Alexander Thurn / Feuerware. Bạn có thể tự do sao chép (fork) nó, tạo ra các đơn vị mới và mở các yêu cầu kéo (pull request). Đối với những dự án lớn hơn, một phiên bản phái sinh phi thương mại hoặc thương mại, một sự thay đổi thương hiệu hoàn toàn, v.v., vui lòng liên hệ với tôi: {{email}}.",
     "openSourceLink": "mã nguồn mở trên GitHub"
   },

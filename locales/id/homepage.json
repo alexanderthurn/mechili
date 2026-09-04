@@ -147,7 +147,7 @@
   "about": {
     "title": "Tentang",
     "lead": "MELODAN diproduksi oleh Alexander Thurn (Feuerware). Ia berlokasi di Bonn, Jerman.",
-    "inspired": "Gim ini terinspirasi oleh {{mechabellum}}, gim terbaik dalam genre ini. MELODAN adalah gim fantasi independen; mohon dukung gim aslinya dan beli Mechabelum. Terima kasih!",
+    "inspired": "Gim ini terinspirasi oleh {{mechabellum}}, gim terbaik dalam genre ini. MELODAN adalah gim fantasi independen; mohon dukung gim aslinya dan beli Mechabellum. Terima kasih!",
     "openSource": "Gim ini berlisensi {{github}} (GPL-3.0). Hak cipta tetap milik Alexander Thurn / Feuerware. Silakan fork secara pribadi, ciptakan unit baru, dan buka pull request. Untuk sesuatu yang lebih besar, spin-off non-komersial atau komersial, rebranding penuh, dll., silakan hubungi saya: {{email}}.",
     "openSourceLink": "sumber terbuka di GitHub"
   },

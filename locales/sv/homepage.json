@@ -147,7 +147,7 @@
   "about": {
     "title": "Om",
     "lead": "MELODAN tillverkas av Alexander Thurn (Feuerware). Han är baserad i Bonn, Tyskland.",
-    "inspired": "Det här spelet är inspirerat av {{mechabellum}}, det bästa spelet i genren. MELODAN är en oberoende fantasyversion; stötta gärna originalet och köp Mechabelum. Tack!",
+    "inspired": "Det här spelet är inspirerat av {{mechabellum}}, det bästa spelet i genren. MELODAN är en oberoende fantasyversion; stötta gärna originalet och köp Mechabellum. Tack!",
     "openSource": "Spelet är {{github}} (GPL-3.0). Upphovsrätten tillhör Alexander Thurn / Feuerware. Känn dig fri att forka det privat, uppfinna nya enheter och öppna pull requests. För något större, en icke-kommersiell spin-off, en fullständig rebranding etc., skriv gärna till mig: {{email}}.",
     "openSourceLink": "öppen källkod på GitHub"
   },

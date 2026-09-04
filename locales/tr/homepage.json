@@ -147,7 +147,7 @@
   "about": {
     "title": "Hakkında",
     "lead": "MELODAN, Alexander Thurn (Feuerware) tarafından üretilmektedir. Kendisi Almanya'nın Bonn şehrinde bulunmaktadır.",
-    "inspired": "Bu oyun, türün en iyi oyunu olan {{mechabellum}}'dan esinlenilmiştir. MELODAN bağımsız bir fantastik kurgudur; lütfen orijinal oyunu destekleyin ve Mechabelum'u satın alın. Teşekkürler!",
+    "inspired": "Bu oyun, türün en iyi oyunu olan {{mechabellum}}'dan esinlenilmiştir. MELODAN bağımsız bir fantastik kurgudur; lütfen orijinal oyunu destekleyin ve Mechabellum'u satın alın. Teşekkürler!",
     "openSource": "Oyun {{github}} (GPL-3.0) lisanslıdır. Telif hakkı Alexander Thurn / Feuerware'e aittir. Oyunu özel olarak çatallayabilir, yeni birimler icat edebilir ve çekme istekleri açabilirsiniz. Daha büyük bir şey, ticari olmayan veya ticari olmayan bir yan ürün, tam bir yeniden markalama vb. için bana yazabilirsiniz: {{email}}.",
     "openSourceLink": "GitHub'da açık kaynak kodlu"
   },
