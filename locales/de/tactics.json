@@ -4,16 +4,16 @@
     "description": "Platziere Start-, Mittel- und Endzone. Die Einheiten im Startkreis marschieren durch entsprechende Abstände in der Mitte und dann am Ende und kämpfen dabei."
   },
   "oilSpill": {
-    "name": "Ölpest",
+    "name": "Ölteppich",
     "description": "Platziere zwei Ölkreise – die Umrisse werden beim Aufstellen markiert; kurz nach Kampfbeginn tropft Öl von links nach rechts auf den Weg (Schutzscheiben bleiben frei). Verbundene Ölkreise entzünden sich als ein Feld, sobald sie mit Feuer in Berührung kommen."
   },
   "sellUnit": {
     "name": "Verkaufs-Pack",
-    "description": "Klicken Sie, um sich zu bewaffnen, und klicken Sie dann auf eines Ihrer Packs, um es gegen eine Rückerstattung Ihrer Vorräte zu verkaufen."
+    "description": "Klicke, um dich zu bewaffnen, und klicke dann auf eines deiner Packs, um es gegen eine Rückerstattung deiner Vorräte zu verkaufen."
   },
   "moveUnit": {
     "name": "Umzugs-Pack",
-    "description": "Klicken Sie, um zu aktivieren, und klicken Sie dann auf eines Ihrer Packs aus einer früheren Runde – dieses kann für den Rest dieser Runde erneut verschoben und gedreht werden."
+    "description": "Klicke zum Aktivieren und dann auf eines deiner Packs aus einer früheren Runde – dieses kannst du für diesen Einsatz erneut bewegen."
   },
   "tutor": {
     "name": "Feldlektion",
@@ -25,18 +25,18 @@
   },
   "bigMeteor": {
     "name": "Meteor",
-    "description": "Markieren Sie einen kleinen Kreis an einer beliebigen Stelle. Sekunden nach Beginn der Schlacht vernichtet ein Meteor alles dort – nur Schutzkuppeln bieten Schutz (und bezahlen dafür)."
+    "description": "Markiere einen kleinen Kreis an einer beliebigen Stelle. Sekunden nach Kampfbeginn vernichtet ein Meteor alles darin."
   },
   "spawnCrows": {
     "name": "Beschwöre Krähenreiter",
-    "description": "Markieren Sie einen Kreis irgendwo außerhalb der feindlichen Basis. Kurz nach Kampfbeginn stürzen sich nacheinander Krähenreiter vom Himmel herab – sie kämpfen nur in diesem einen Kampf."
+    "description": "Markiere einen Kreis irgendwo außerhalb der feindlichen Basis. Kurz nach Kampfbeginn stürzen nacheinander Krähenreiter hinein."
   },
   "hammerOfGods": {
     "name": "Hammer der Götter",
     "description": "Klicken zum Platzieren, bewegen zum Drehen, erneut klicken zum Fixieren. Ein göttlicher Hammer fällt wenige Sekunden nach Kampfbeginn auf das Gebiet."
   },
   "storm": {
-    "name": "Sturmwarnung",
+    "name": "Sturm rufen",
     "description": "Zeichne einen großen Kreis an einer beliebigen Stelle. Kleine Gewitterwolken ziehen hoch oben auf und schleudern Blitze an zufälligen Stellen. Die Blitze verursachen keinen Schaden, betäuben aber Einheiten in einem weiten Wirkungsbereich mit einem turmartigen Debuff, es sei denn, sie besitzen eine goldene Aura. Schutzkuppeln blockieren die Blitze weiterhin."
   },
   "meteorShower": {
@@ -44,11 +44,11 @@
     "description": "Zeichne einen großen Kreis an einer beliebigen Stelle. Meteore regnen eine Zeit lang auf zufällige Stellen im Inneren herab, wobei jede Explosion den Boden, auf den sie trifft, verbrennt."
   },
   "acidSpill": {
-    "name": "Säureunfall",
-    "description": "Schüttet man eine Säurekapsel wie eine Ölpest aus, tropft sie kurz nach Kampfbeginn von links nach rechts auf den Boden. Boden- und Lufteinheiten über der Säurepfütze versengen und korrodieren – und erleiden dadurch zusätzlichen Schaden durch alle Angriffe."
+    "name": "Säureteppich",
+    "description": "Schüttet man eine Säurekapsel wie einen Ölteppich aus, tropft sie kurz nach Kampfbeginn von links nach rechts auf den Boden. Boden- und Lufteinheiten über der Säurepfütze versengen und korrodieren – und erleiden dadurch zusätzlichen Schaden durch alle Angriffe."
   },
   "fireSpill": {
-    "name": "Feuer ausgelaufen",
+    "name": "Feuerfläche",
     "description": "Schütte eine Feuerkapsel wie Öl aus – sie tropft kurz nach Kampfbeginn von links nach rechts und setzt den Weg in Brand (Schutzscheiben bleiben frei). Angrenzendes Öl entzündet sich ebenfalls. Die Flamme hält nur in diesem Kampf an."
   },
   "dragonAttack": {

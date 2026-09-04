@@ -1,6 +1,6 @@
 {
   "tagline": "FANTASY AUTO·BATTLER",
-  "lead": "Setzt eure Armeen heimlich ein und beobachtet den Spielverlauf. Euer Gegner verfährt genauso. Passt euch an und wiederholt das Ganze, bis einer von euch keine Lebenspunkte mehr hat.",
+  "lead": "Setze deine Armeen heimlich ein und sieh zu, wie die Runde abläuft. Dein Gegner macht dasselbe. Passe dich an und wiederhole das, bis einem von euch die Lebenspunkte ausgehen.",
   "hero": {
     "wishlist": "Jetzt auf die Wunschliste setzen",
     "trailer": "Trailer ansehen",
@@ -16,7 +16,7 @@
   },
   "shot": {
     "1": "Armeeeinsatz auf der Waldlichtung",
-    "2": "Einsatzphase und Werkstatt",
+    "2": "Einsatzphase und Einheiten-Shop",
     "3": "Drachenfeueratem über dem Feld",
     "4": "Nebeneinanderliegende Einsatzzonen",
     "5": "Massenschlacht in der Ebene",
@@ -57,12 +57,12 @@
     "spellModel": "Zaubermodell"
   },
   "flag": {
-    "flying": "Fliegen",
+    "flying": "Fliegend",
     "structure": "Struktur",
     "extra": "Extra",
-    "attacksGround": "Angriffe am Boden",
+    "attacksGround": "Greift Boden an",
     "attacksAir": "Luftangriffe",
-    "shield": "Kuppel des Ward",
+    "shield": "Ward-Kuppel",
     "rocket": "Zielbolzen"
   },
   "spell": {
@@ -83,7 +83,7 @@
       "blurb": "Kleinerer Meteor, der von der Schauerbarriere genutzt wird."
     },
     "storm": {
-      "name": "Sturmwarnung",
+      "name": "Sturm rufen",
       "blurb": "Gewitterwolke, die Blitze schleudert."
     },
     "poison": {
@@ -92,24 +92,24 @@
     }
   },
   "commanders": {
-    "sub": "Vor der ersten Runde wählt jeder Spieler einen {{commander}}. Dieser bestimmt seine Startarmee, seine Lebenspunkte, eine permanente Spezialisierung und drei Festungs-Schmiede-{{tactics}} (schwach/mittel/stark). Teammitglieder teilen sich die Vereinigung ihrer Schmiede-{{tactics}}.",
-    "select": "Wählen Sie einen {{commander}}"
+    "sub": "Vor der ersten Runde wählt jeder Spieler einen {{commander}}. Dieser bestimmt seine Startarmee, seine Lebenspunkte, eine permanente Spezialisierung und drei Hochburg-Schmiede-{{tactics}} (schwach/mittel/stark). Teammitglieder teilen sich die Vereinigung ihrer Schmiede-{{tactics}}.",
+    "select": "Wähle einen {{commander}}"
   },
   "runes": {
-    "sub": "Fest mit einem Pack verschmolzen, hebt es jeden Mech darin an {{sep}}. Die meisten Packs enthalten {{packLimit}}, die Balliste {{ballistaLimit}}. Die vier Basisrunen werden aus runden Karten gezogen oder im Laden gekauft; die stärkeren werden in der Festung daraus geschmiedet und niemals verkauft.",
-    "select": "Wählen Sie einen {{item}}",
-    "base": "Base",
-    "advanced": "Fortschrittlich",
+    "sub": "Fest mit einem Pack verschmolzen, hebt es jeden Mech darin an {{sep}}. Die meisten Packs enthalten {{packLimit}}, die Balliste {{ballistaLimit}}. Die vier Basisrunen werden aus Rundenkarten gezogen oder im Shop gekauft; die stärkeren werden in der Hochburg daraus geschmiedet und niemals verkauft.",
+    "select": "Wähle eine {{item}}",
+    "base": "Basis",
+    "advanced": "Erweitert",
     "shopTitle": "Im Laden gekauft oder aus einer Rundenkarte gezogen",
     "shopLabel": "Ladenpreis",
     "forgeTitle": "Geschmiedet bei {{building}}",
     "forgeLabel": "Schmiedepreis"
   },
   "tactics": {
-    "sub": "Dies sind die Fähigkeiten auf deinem {{tactics}}-Streifen {{sep}}: Angriffe, Zauber, Beschwörungen und Kampfzauber wie der Feueratem des Drachen. Kampfzauber können in deiner Festung erworben werden, jeweils nur einmal, und nur die drei, die dein Kommandant kennt. Die Symbole entsprechen denen im Spiel.",
-    "select": "Wählen Sie einen {{tactic}}",
+    "sub": "Dies sind die Fähigkeiten auf deinem {{tactics}}-Streifen {{sep}}: Angriffe, Zauber, Beschwörungen und Kampfzauber wie der Feueratem des Drachen. Kampfzauber kannst du in deiner Hochburg kaufen, jeweils nur einmal, und nur die drei, die dein Kommandant kennt. Die Symbole entsprechen denen im Spiel.",
+    "select": "Wähle einen {{tactic}}",
     "placement": "Platzierung",
-    "oneShot": "One-Shot",
+    "oneShot": "Einmalig",
     "buyTitle": "Gekauft bei {{building}}",
     "priceLabel": "{{building}} Preis"
   },
@@ -118,12 +118,12 @@
     "two-point": "Zwei-Punkte-Spiel",
     "three-point": "Dreipunkt",
     "point-yaw": "Punkt + Ausrichtung",
-    "own-unit": "eigene Packung"
+    "own-unit": "eigene Pack"
   },
   "roundCards": {
     "title": "Runde Karten",
-    "sub": "Ab der zweiten Runde wählt man eine der angebotenen {{items}}-Karten aus dem Spielpool. Kampfzauber werden in der Festung gekauft und nicht aus Karten gezogen.",
-    "select": "Wähle eine runde Karte"
+    "sub": "Ab der zweiten Runde wählst du eine der angebotenen {{items}}-Karten aus dem Spielpool. Kampfzauber werden in der Hochburg gekauft und nicht aus Karten gezogen.",
+    "select": "Wähle eine Rundenkarte"
   },
   "matchSettings": {
     "title": "Spieleinstellungen",
@@ -146,9 +146,9 @@
   },
   "about": {
     "title": "Um",
-    "lead": "MELODAN wird von Alexander Thurn (Feuerware) hergestellt. Er hat seinen Sitz in Bonn, Deutschland.",
-    "inspired": "Dieses Spiel ist von {{mechabellum}}, dem besten Spiel des Genres, inspiriert. MELODAN ist ein unabhängiges Fantasy-Abenteuer; bitte unterstützt das Original und kauft Mechabelum. Vielen Dank!",
-    "openSource": "Das Spiel ist {{github}} (GPL-3.0). Das Copyright verbleibt bei Alexander Thurn / Feuerware. Sie können es gerne privat forken, neue Einheiten erstellen und Pull Requests öffnen. Für größere Projekte, nicht-kommerzielle oder -freie Ableger, ein komplettes Rebranding usw. kontaktieren Sie mich bitte: {{email}}.",
+    "lead": "MELODAN wird von Alexander Thurn (Feuerware) entwickelt. Er sitzt in Bonn, Deutschland.",
+    "inspired": "Dieses Spiel ist von {{mechabellum}} inspiriert, dem besten Spiel des Genres. MELODAN ist eine eigenständige Fantasy-Variante; bitte unterstütze das Original und kaufe Mechabelum. Vielen Dank!",
+    "openSource": "Das Spiel ist {{github}} (GPL-3.0). Das Copyright bleibt bei Alexander Thurn / Feuerware. Du kannst es gerne privat forken, neue Einheiten erfinden und Pull Requests öffnen. Für etwas Größeres, einen nicht-kommerziellen oder kommerziellen Ableger, ein komplettes Rebranding usw. schreib mir gerne: {{email}}.",
     "openSourceLink": "Open Source auf GitHub"
   },
   "footer": {

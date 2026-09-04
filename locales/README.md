@@ -8,3 +8,5 @@ Shipped languages (see `src/i18n/languages.ts`):
 
 Heavy script fonts (CJK / Thai / Arabic / Greek) load lazily when selected.
 Latin / Cyrillic / Vietnamese use Exo 2; English uses Marcellus.
+
+Glossary + MT pitfall checklist (joint review): see `I18N_GLOSSARY.md`.

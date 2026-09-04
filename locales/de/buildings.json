@@ -28,7 +28,7 @@
     "description": "+{{gain}} Jetzt liefern. Nächste Bereitstellung: −{{debt}}. Einmal pro Runde."
   },
   "ward_dome": {
-    "name": "Kuppel des Ward",
+    "name": "Ward-Kuppel",
     "description": "Absorbiert gegnerische Projektile, die in einen kuppelförmigen Bereich eindringen (Radius {{radius}}, Höhe {{height}}). Der Wert für „Pool“ entspricht den Trefferpunkten dieser Einheit."
   },
   "homing_fire_bolt": {
@@ -37,11 +37,11 @@
   },
   "rally_route": {
     "name": "Rallye-Strecke",
-    "description": "Füge deiner Zauberleiste eine Rallye-Route-Ladung hinzu. Einmal pro Spiel."
+    "description": "Füge deiner Zauberleiste eine Rallye-Routen-Aufladung hinzu. Einmal pro Spiel."
   },
   "move_pack": {
     "name": "Umzugs-Pack",
-    "description": "Füge deiner Zauberleiste eine Bewegungs-Pack-Ladung hinzu: Ein Pack aus einer früheren Runde wird wieder beweglich. Einmal pro Spielzug."
+    "description": "Füge deiner Zauberleiste eine Bewegungs-Pack-Aufladung hinzu: Ein Pack aus einer früheren Runde wird wieder beweglich. Einmal pro Spiel."
   },
   "1_deployment": {
     "name": "+1 Bereitstellung",
