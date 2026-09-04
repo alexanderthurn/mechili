@@ -1,5 +1,5 @@
 {
-  "title": "Configurações",
+  "title": "Definições",
   "look": "Aparência",
   "controls": "Controles",
   "controlsHelp": "Ajuda",
@@ -11,8 +11,8 @@
   "debugOverlay": "Sobreposição de depuração",
   "debugHint": "FPS, tempos, sincronização — em partida",
   "graphics": "Gráficos",
-  "resetAll": "Redefinir todas as configurações",
-  "resetConfirm": "Restaurar todas as configurações para os padrões de fábrica?\n\nSeu nome e avatar serão mantidos. Os gráficos e outras opções voltarão às configurações padrão de fábrica.",
+  "resetAll": "Redefinir todas as definições",
+  "resetConfirm": "Restaurar todas as definições para os padrões de fábrica?\n\nSeu nome e avatar serão mantidos. Os gráficos e outras opções voltarão às definições padrão de fábrica.",
   "close": "Fechar",
   "paceBlitz": "Blitz",
   "paceQuick": "Rápido",
@@ -144,7 +144,7 @@
     "middleClick": "Clique do meio",
     "middleDrag": "Arrastar com o botão do meio",
     "wheel": "roda de rolagem",
-    "edges": "Bordas da tela",
+    "edges": "Limites do ecrã",
     "speedButton": "Botão de velocidade",
     "arrows": "Flechas",
     "leftStick": "manche esquerdo",
@@ -167,7 +167,7 @@
     "rotate": "Gire o Pack selecionado",
     "orbit": "Órbita — direção esquerda/direita, inclinação para cima/para baixo",
     "zoom": "Aproximar o zoom em direção ao cursor",
-    "edgePan": "Desloque a tela enquanto o cursor estiver na borda da janela.",
+    "edgePan": "Desloque a tela enquanto o cursor estiver na limite da janela.",
     "speed": "Clique mais rápido, clique com o botão direito mais devagar (batalha)"
   },
   "controlsKeyboard": {
@@ -178,11 +178,11 @@
     "rotate": "Gire o Pack selecionado",
     "pause": "Menu de pausa. No modo cinema, primeiro restaura o HUD.",
     "chat": "Enviar mensagem",
-    "fullscreen": "Tela cheia (aplicativo para desktop)"
+    "fullscreen": "Ecrã completo (aplicativo para desktop)"
   },
   "controlsGamepad": {
     "head": "gamepad",
-    "cursor": "Mova o cursor na tela.",
+    "cursor": "Mova o cursor no ecrã.",
     "click": "Clique. Mantenha pressionado e arraste para selecionar a área desejada.",
     "cancel": "Cancelar/desmarcar",
     "rotate": "Gire o Pack selecionado",
@@ -204,13 +204,13 @@
     "hordePacks": "Modo para um jogador, fase de implantação: grupos extras de inimigos (repita para aumentar o número de inimigos).",
     "skipRound": "Modo para um jogador: pule o resto desta rodada.",
     "killStronghold": "Modo para um jogador, fase de batalha: destrua a fortaleza inimiga onde ela estiver.",
-    "cinema": "Cinema — oculta a interface para capturas de tela. A tecla Esc a restaura.",
+    "cinema": "Cinema — oculta a interface para capturas de ecrã. A tecla Esc a restaura.",
     "material": "Depuração de materiais do ciclo: argila → estrutura de arame → normais → desativado",
     "layers": "Alternar camadas visuais: nuvens, nevoeiro distante, neblina alta, nevoeiro florestal, chuva, neve, estrelas",
     "layersOn": "Ative novamente todas as camadas visuais."
   },
   "gfx": {
-    "fullscreen": "Tela cheia",
+    "fullscreen": "Ecrã completo",
     "fullscreenHint": "F11 / Alt+Enter",
     "presetLow": "Baixo",
     "presetMedium": "Médio",
@@ -218,7 +218,7 @@
     "presetUltra": "Ultra",
     "presetCustom": "Personalizado",
     "presetOff": "Desligado",
-    "advanced": "Configurações avançadas",
+    "advanced": "Definições avançadas",
     "scenery": "Cenário",
     "sceneryHint": "Informações mundiais e clima",
     "groundEffects": "efeitos de solo",
@@ -233,7 +233,7 @@
     "stuckHint": "flechas deixadas na terra/carne",
     "resolution": "Resolução",
     "resNative": "Nativo (100%)",
-    "uiSize": "Tamanho da interface do usuário",
+    "uiSize": "Tamanho da interface do utilizador",
     "uiNormal": "100% (normal)",
     "uiHint": "somente menus e HUD",
     "shadows": "Sombras",

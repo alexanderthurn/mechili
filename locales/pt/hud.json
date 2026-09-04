@@ -1,6 +1,6 @@
 {
   "undo": "Desfazer",
-  "matchSettings": "Configurações de correspondência",
+  "matchSettings": "Definições da partida",
   "menuEsc": "Menu (Esc)",
   "endDeployment": "Implantação final",
   "shop": "Comprar",
@@ -10,7 +10,7 @@
   "continue": "Continuar",
   "quitToMenu": "Voltar ao menu",
   "menu": "Menu",
-  "settings": "Configurações",
+  "settings": "Definições",
   "victory": "VITÓRIA",
   "defeat": "DERROTA",
   "draw": "EMPATE",

@@ -31,8 +31,14 @@ Translated catalogs in the client bundle: all IDs above (MT seed + glossary chec
 ### Deferred
 
 - Feuerware privacy / imprint pages (external; translate outside Melodan)
-- Full native line-by-line tone pass (units/items long blurbs still mostly MT)
-- Optional deeper Arabic HUD tip positioning once playtested
+- Full native line-by-line tone pass on long unit/item/tactic blurbs (still mostly MT; UI howler pass done)
+- Optional deeper Arabic HUD tip positioning (playtest)
+- Deeper `es`↔`es-419` / `pt`↔`pt-BR` regionalization beyond light vocab hooks
+
+### Regional notes
+
+- `es` vs `es-419`: shared catalogs; LATAM uses **costo** (Spain **coste**)
+- `pt` vs `pt-BR`: BR kept as shared MT seed; **pt** lightly Europeanized (Definições, utilizador, ecrã, ficheiro, género)
 
 ### Intentionally English / skipped
 

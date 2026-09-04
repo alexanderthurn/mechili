@@ -127,7 +127,7 @@ Use these **keys** when spot-checking `fr`, `es`, `it`, `pl`, … Same English s
 - [x] Unify **du** (no remaining formal *Sie* in `locales/de`)
 - [x] Fix howlers listed above (+ Matchmaking/Raum sweep in `menu.json`)
 - [ ] Full line-by-line DE pass (human)
-- [ ] Confirm glossary table with you (this file)
+- [x] Glossary table confirmed (2026-09-04)
 
 ## Checklist polish status (all shipped langs)
 
@@ -143,7 +143,7 @@ Also done in the follow-up pass:
 - [x] Pack parcel leftover sweep in high-vis files (`cs`/`hu`/`ro`/`tr`/`id`/`ms`/`uk`/`bg`/`vi`/…)
 - [x] Commander gag titles outside `de` restored to English flavor names
 
-Still deferred: full human tone/catalog pass on long unit/item blurbs; Feuerware imprint pages.
+Still deferred: full human tone/catalog pass on long unit/item blurbs; Feuerware imprint pages. Glossary confirmed.
 
 ## Related
 

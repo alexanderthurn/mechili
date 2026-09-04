@@ -7,12 +7,12 @@
     "steamSoon": "Página da Steam em breve"
   },
   "screenshots": {
-    "title": "Capturas de tela",
+    "title": "Capturas de ecrã",
     "sub": "Uma análise do destacamento e do combate.",
-    "browse": "Veja as capturas de tela",
-    "open": "Abrir captura de tela: {{label}}",
-    "fallback": "Captura de tela",
-    "missing": "{{label}} ⬢ solte o arquivo em assets/marketing/screenshots/"
+    "browse": "Veja as capturas de ecrã",
+    "open": "Abrir captura de ecrã: {{label}}",
+    "fallback": "Captura de ecrã",
+    "missing": "{{label}} ⬢ solte o ficheiro em assets/marketing/screenshots/"
   },
   "shot": {
     "1": "Desdobramento do exército na clareira da floresta",
@@ -25,11 +25,11 @@
     "8": "Grande base fortificada"
   },
   "lightbox": {
-    "gallery": "Galeria de capturas de tela",
+    "gallery": "Galeria de capturas de ecrã",
     "close": "Fechar galeria",
-    "prev": "Captura de tela anterior",
-    "next": "Próxima captura de tela",
-    "dots": "Capturas de tela",
+    "prev": "Captura de ecrã anterior",
+    "next": "Próxima captura de ecrã",
+    "dots": "Capturas de ecrã",
     "fullhd": "Full HD",
     "uhd": "4K"
   },
@@ -126,8 +126,8 @@
     "select": "Escolha uma carta de rodada"
   },
   "matchSettings": {
-    "title": "Configurações de correspondência",
-    "sub": "As regras padrão para uma partida, extraídas diretamente do código de configurações do jogo, portanto, não divergem do que é lançado oficialmente. Tudo aqui é configurável — é código aberto."
+    "title": "Definições da partida",
+    "sub": "As regras padrão para uma partida, extraídas diretamente do código de definições do jogo, portanto, não divergem do que é lançado oficialmente. Tudo aqui é configurável — é código aberto."
   },
   "contribute": {
     "title": "Contribuir",
@@ -147,7 +147,7 @@
   "about": {
     "title": "Sobre",
     "lead": "MELODAN é feito por Alexander Thurn (Feuerware). Ele fica em Bonn, Alemanha.",
-    "inspired": "Este jogo foi inspirado em {{mechabellum}}, o melhor jogo do gênero. MELODAN é uma versão independente de fantasia; por favor, apoie o original e compre Mechabellum. Obrigado!",
+    "inspired": "Este jogo foi inspirado em {{mechabellum}}, o melhor jogo do género. MELODAN é uma versão independente de fantasia; por favor, apoie o original e compre Mechabellum. Obrigado!",
     "openSource": "O jogo é {{github}} (GPL-3.0). Os direitos autorais pertencem a Alexander Thurn / Feuerware. Sinta-se à vontade para criar um fork privado, inventar novas unidades e abrir pull requests. Para algo maior, um spin-off não comercial ou comercial, uma reformulação completa da marca, etc., entre em contato comigo: {{email}}.",
     "openSourceLink": "código aberto no GitHub"
   },
