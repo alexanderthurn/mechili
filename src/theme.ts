@@ -574,57 +574,67 @@ export interface BarAssets {
     barFillBlue: string;
 }
 
-/** Display + UI face options — OFL, self-hosted for Steam/offline. */
-export type UiFontId = 'cinzel' | 'exo2' | 'marcellus';
+import type { LanguageId } from './i18n/languages';
 
-export const UI_FONTS: Record<
-    UiFontId,
-    { label: string; hint: string; stack: string }
-> = {
-    cinzel: {
-        label: 'Cinzel',
-        hint: 'fantasy titles',
-        stack: '"Cinzel", "Palatino Linotype", Palatino, Georgia, serif',
-    },
-    exo2: {
-        label: 'Exo 2',
-        hint: 'modern HUD',
-        stack: '"Exo 2", "Segoe UI", system-ui, sans-serif',
-    },
-    marcellus: {
-        label: 'Marcellus',
-        hint: 'default',
-        stack: '"Marcellus", "Palatino Linotype", Palatino, Georgia, serif',
-    },
+/** Per-language UI face — OFL, self-hosted for Steam/offline. */
+const FONT_STACKS: Record<LanguageId, string> = {
+    // Brand Latin serif; Exo 2 only as glyph fallback (not used for ru — see below).
+    en: '"Marcellus", "Exo 2", "Palatino Linotype", Palatino, Georgia, serif',
+    ru: '"Exo 2", "Segoe UI", system-ui, sans-serif',
+    zh: '"Noto Serif SC", "Songti SC", "SimSun", serif',
 };
 
-/** Default stack (Marcellus) — Pixi / callers that need a concrete family string. */
-export const FONT_UI = UI_FONTS.marcellus.stack;
+/** Primary family name for Pixi Text (must match an @font-face). */
+export const FONT_FAMILY: Record<LanguageId, string> = {
+    en: 'Marcellus',
+    ru: 'Exo 2',
+    zh: 'Noto Serif SC',
+};
 
-const CINZEL_URL = new URL('../assets/fonts/Cinzel-Variable.ttf', import.meta.url).href;
+/** Default stack (English / Marcellus). */
+export const FONT_UI = FONT_STACKS.en;
+
 const EXO2_URL = new URL('../assets/fonts/Exo2-Variable.ttf', import.meta.url).href;
 const MARCELLUS_URL = new URL('../assets/fonts/Marcellus-Regular.ttf', import.meta.url).href;
+const NOTO_SC_URL = new URL('../assets/fonts/NotoSerifSC-Regular.otf', import.meta.url).href;
 
-/** Live-switch `--font-ui` (everything inherits via body + form-control rules). */
-export function applyUiFont(id: UiFontId): void {
-    const font = UI_FONTS[id] ?? UI_FONTS.marcellus;
-    document.documentElement.style.setProperty('--font-ui', font.stack);
+let notoScFaceInjected = false;
+
+/** Lazily register Noto Serif SC (~12 MB) — only when Chinese is selected. */
+async function ensureNotoSerifSc(): Promise<void> {
+    if (notoScFaceInjected) {
+        await document.fonts.load('400 16px "Noto Serif SC"').catch(() => {});
+        return;
+    }
+    const style = document.createElement('style');
+    style.dataset.font = 'noto-serif-sc';
+    style.textContent = `
+@font-face {
+    font-family: 'Noto Serif SC';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('${NOTO_SC_URL}') format('opentype');
+}`;
+    document.head.appendChild(style);
+    notoScFaceInjected = true;
+    await document.fonts.load('400 16px "Noto Serif SC"').catch(() => {});
+}
+
+/** Live-switch `--font-ui` from the active language. */
+export async function applyLanguageFont(language: LanguageId): Promise<void> {
+    if (language === 'zh') await ensureNotoSerifSc();
+    const stack = FONT_STACKS[language] ?? FONT_STACKS.en;
+    document.documentElement.style.setProperty('--font-ui', stack);
 }
 
 /**
- * One global font setup: @font-face for all candidates, --font-ui, body default,
- * and form-control inherit (buttons/inputs ignore parent font-family otherwise).
+ * One global font setup: @font-face for Latin/Cyrillic faces, --font-ui, body
+ * default, and form-control inherit. Noto SC is injected on demand (see above).
  * Safe to inject more than once.
  */
 export function fontFaceCss(): string {
     return `
-@font-face {
-    font-family: 'Cinzel';
-    font-style: normal;
-    font-weight: 400 900;
-    font-display: swap;
-    src: url('${CINZEL_URL}') format('truetype');
-}
 @font-face {
     font-family: 'Exo 2';
     font-style: normal;
@@ -2965,6 +2975,16 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     color: ${u.cream};
     cursor: pointer;
     user-select: none;
+}
+.mechili-settings .s-lang-globe {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    color: ${u.brassLight};
+    display: block;
+}
+.mechili-settings .s-lang-row:hover .s-lang-globe {
+    color: ${u.cream};
 }
 .mechili-settings .s-row select {
     margin-left: auto;

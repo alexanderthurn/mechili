@@ -1,0 +1,17 @@
+{
+  "title": "Settings",
+  "look": "Look",
+  "controls": "Controls",
+  "controlsHelp": "Help",
+  "chat": "Chat",
+  "combatChat": "Show combat chat",
+  "multiplayer": "Multiplayer",
+  "connection": "Connection",
+  "debug": "Debug",
+  "debugOverlay": "Debug overlay",
+  "debugHint": "FPS, timings, sync — in match",
+  "graphics": "Graphics",
+  "resetAll": "Reset all settings",
+  "resetConfirm": "Reset all settings to defaults?\n\nYour name and avatar are kept. Graphics and other options go back to factory defaults.",
+  "close": "Close"
+}

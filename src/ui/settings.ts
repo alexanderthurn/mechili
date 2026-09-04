@@ -10,8 +10,14 @@ import {
 import { isElectron, win } from 'steam-electron-build/native';
 
 import { availableTransports } from '../game/multiplayerTransport';
-
-import { applyUiFont, UI_FONTS, type UiFontId } from '../theme';
+import {
+    LANGUAGE_IDS,
+    LANGUAGE_NATIVE_NAMES,
+    setLanguage,
+    t,
+    type LanguageId,
+} from '../i18n';
+import { applyLanguageFont } from '../theme';
 import { removeWithDialogFade, withDialogFade } from './dialogFade';
 
 /**
@@ -30,39 +36,60 @@ export function closeSettings(immediate = false): void {
 export function openSettings(parent: HTMLElement): void {
     if (document.querySelector('.mechili-settings')) return; // already open
 
-    const fontOptions = (Object.keys(UI_FONTS) as UiFontId[])
-        .map((id) => {
-            const f = UI_FONTS[id];
-            return `<option value="${id}">${f.label}</option>`;
-        })
-        .join('');
+    const langOptions = LANGUAGE_IDS.map(
+        (id) => `<option value="${id}">${LANGUAGE_NATIVE_NAMES[id]}</option>`,
+    ).join('');
 
     const overlay = withDialogFade(document.createElement('div'));
     overlay.classList.add('mechili-settings');
     // #match-ui-root is pointer-events:none — without this, in-match Settings
     // (opened from pause) looks fine but nothing inside is clickable.
     overlay.style.pointerEvents = 'auto';
+
+    const paintChrome = (): void => {
+        overlay.querySelector('.s-title')!.textContent = t('settings:title');
+        overlay.querySelector('.s-look-head')!.textContent = t('settings:look');
+        overlay.querySelector('.s-lang-label')!.textContent = t('common:language');
+        overlay.querySelector('.s-controls-head')!.textContent = t('settings:controls');
+        overlay.querySelector('[data-act="controls-help"]')!.textContent = t('settings:controlsHelp');
+        overlay.querySelector('.s-chat-head')!.textContent = t('settings:chat');
+        overlay.querySelector('.s-combat-text')!.textContent = t('settings:combatChat');
+        overlay.querySelector('.s-mp-head')!.textContent = t('settings:multiplayer');
+        overlay.querySelector('.s-mp-label')!.textContent = t('settings:connection');
+        overlay.querySelector('.s-debug-head')!.textContent = t('settings:debug');
+        overlay.querySelector('.s-debug-text')!.textContent = t('settings:debugOverlay');
+        overlay.querySelector('.s-debug-hint')!.textContent = t('settings:debugHint');
+        overlay.querySelector('.s-gfx-head')!.textContent = t('settings:graphics');
+        overlay.querySelector('[data-act="reset"]')!.textContent = t('settings:resetAll');
+        overlay.querySelector('[data-act="close"]')!.textContent = t('settings:close');
+    };
+
     overlay.innerHTML =
         `<div class="box m-frame">` +
-        `<div class="s-title">Settings</div>` +
+        `<div class="s-title"></div>` +
         `<div class="s-body">` +
         `<div class="s-col s-col-general">` +
         `<section class="s-section">` +
-        `<div class="s-section-head">Look</div>` +
-        `<label class="s-row">UI font <select class="s-font">${fontOptions}</select>` +
-        ` <span class="s-hint s-font-hint"></span></label>` +
+        `<div class="s-section-head s-look-head"></div>` +
+        `<label class="s-row s-lang-row">` +
+        `<svg class="s-lang-globe" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">` +
+        `<circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.25"/>` +
+        `<ellipse cx="8" cy="8" rx="2.6" ry="6.25" fill="none" stroke="currentColor" stroke-width="1.1"/>` +
+        `<path d="M2.1 8h11.8M3.2 4.8h9.6M3.2 11.2h9.6" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>` +
+        `</svg>` +
+        `<span class="s-lang-label"></span> <select class="s-lang">${langOptions}</select></label>` +
         `</section>` +
         `<section class="s-section">` +
-        `<div class="s-section-head">Controls</div>` +
-        `<button type="button" class="m-btn-bronze s-help-btn" data-act="controls-help">Help</button>` +
+        `<div class="s-section-head s-controls-head"></div>` +
+        `<button type="button" class="m-btn-bronze s-help-btn" data-act="controls-help"></button>` +
         `</section>` +
         `<section class="s-section">` +
-        `<div class="s-section-head">Chat</div>` +
-        `<label class="s-row"><input type="checkbox" class="s-combat" /> Show combat chat</label>` +
+        `<div class="s-section-head s-chat-head"></div>` +
+        `<label class="s-row"><input type="checkbox" class="s-combat" /> <span class="s-combat-text"></span></label>` +
         `</section>` +
         `<section class="s-section">` +
-        `<div class="s-section-head">Multiplayer</div>` +
-        `<label class="s-row">Connection <select class="s-mp">` +
+        `<div class="s-section-head s-mp-head"></div>` +
+        `<label class="s-row"><span class="s-mp-label"></span> <select class="s-mp">` +
         `<option value="steam">Steam</option>` +
         `<option value="matchmaking">Web</option>` +
         `<option value="lan">LAN</option>` +
@@ -76,14 +103,14 @@ export function openSettings(parent: HTMLElement): void {
             : '') +
         `</section>` +
         `<section class="s-section">` +
-        `<div class="s-section-head">Debug</div>` +
-        `<label class="s-row"><input type="checkbox" class="s-debug" /> Debug overlay` +
-        ` <span class="s-hint">FPS, timings, sync — in match</span></label>` +
+        `<div class="s-section-head s-debug-head"></div>` +
+        `<label class="s-row"><input type="checkbox" class="s-debug" /> <span class="s-debug-text"></span>` +
+        ` <span class="s-hint s-debug-hint"></span></label>` +
         `</section>` +
         `</div>` +
         `<div class="s-col s-col-graphics">` +
         `<section class="s-section">` +
-        `<div class="s-section-head">Graphics</div>` +
+        `<div class="s-section-head s-gfx-head"></div>` +
         // Desktop only: browsers refuse fullscreen without a user gesture, and
         // the window mode is remembered by the app (window-state.json), not prefs.
         (isElectron()
@@ -169,18 +196,19 @@ export function openSettings(parent: HTMLElement): void {
         `</div>` +
         `</div>` +
         `<div class="actions">` +
-        `<button type="button" class="s-reset" data-act="reset">Reset all settings</button>` +
-        `<button type="button" class="m-btn-bronze primary" data-act="close">Close</button>` +
+        `<button type="button" class="s-reset" data-act="reset"></button>` +
+        `<button type="button" class="m-btn-bronze primary" data-act="close"></button>` +
         `</div>` +
         `</div>`;
+
+    paintChrome();
 
     const fullscreen = overlay.querySelector<HTMLInputElement>('.s-fullscreen');
     const debugToggle = overlay.querySelector<HTMLInputElement>('.s-debug')!;
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;
     const mpSel = overlay.querySelector<HTMLSelectElement>('.s-mp')!;
     const mpHint = overlay.querySelector<HTMLElement>('.s-mp-hint')!;
-    const fontSel = overlay.querySelector<HTMLSelectElement>('.s-font')!;
-    const fontHint = overlay.querySelector<HTMLElement>('.s-font-hint')!;
+    const langSel = overlay.querySelector<HTMLSelectElement>('.s-lang')!;
     const scenery = overlay.querySelector<HTMLSelectElement>('.s-scenery')!;
     const ground = overlay.querySelector<HTMLSelectElement>('.s-ground')!;
     const fire = overlay.querySelector<HTMLSelectElement>('.s-fire')!;
@@ -208,8 +236,7 @@ export function openSettings(parent: HTMLElement): void {
         combat.checked = p.combatChat;
         mpSel.value = p.multiplayerTransport;
         mpHint.textContent = mpHints[p.multiplayerTransport];
-        fontSel.value = p.uiFont;
-        fontHint.textContent = UI_FONTS[p.uiFont]?.hint ?? '';
+        langSel.value = p.language;
         scenery.value = p.scenery;
         ground.value = p.groundEffects;
         fire.value = p.fireVfx;
@@ -232,6 +259,7 @@ export function openSettings(parent: HTMLElement): void {
         // Only ever open it: closing on a preset click would yank the panel away
         // while the player is still working in it.
         if (active === null) advanced.open = true;
+        paintChrome();
     };
 
     /**
@@ -291,11 +319,14 @@ export function openSettings(parent: HTMLElement): void {
         });
         syncFromPrefs();
     });
-    fontSel.addEventListener('change', () => {
-        const uiFont = fontSel.value as UiFontId;
-        updatePrefs({ uiFont });
-        applyUiFont(uiFont);
-        syncFromPrefs();
+    langSel.addEventListener('change', () => {
+        const language = langSel.value as LanguageId;
+        updatePrefs({ language });
+        void (async () => {
+            await setLanguage(language);
+            await applyLanguageFont(language);
+            syncFromPrefs();
+        })();
     });
 
     scenery.addEventListener('change', () => {
@@ -361,16 +392,15 @@ export function openSettings(parent: HTMLElement): void {
             return;
         }
         if (target.closest('[data-act="reset"]')) {
-            if (
-                !window.confirm(
-                    'Reset all settings to defaults?\n\nYour name and avatar are kept. Graphics and other options go back to factory defaults.',
-                )
-            ) {
+            if (!window.confirm(t('settings:resetConfirm'))) {
                 return;
             }
             resetSettingsStorage();
-            applyUiFont(prefs().uiFont);
-            syncFromPrefs();
+            void (async () => {
+                await setLanguage(prefs().language);
+                await applyLanguageFont(prefs().language);
+                syncFromPrefs();
+            })();
             return;
         }
         if (target === overlay || target.closest('[data-act="close"]')) {

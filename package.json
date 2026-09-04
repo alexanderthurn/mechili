@@ -31,6 +31,7 @@
     "start:playtest:win": "set \"SteamAppId=5115110\" && steam-electron-build dev"
   },
   "dependencies": {
+    "i18next": "^26.4.2",
     "peerjs": "^1.5.5",
     "pixi.js": "^8.19.0",
     "steam-electron-build": "github:alexanderthurn/steam-electron-build",

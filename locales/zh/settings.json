@@ -1,0 +1,17 @@
+{
+  "title": "设置",
+  "look": "外观",
+  "controls": "操作",
+  "controlsHelp": "帮助",
+  "chat": "聊天",
+  "combatChat": "显示战斗聊天",
+  "multiplayer": "多人游戏",
+  "connection": "连接方式",
+  "debug": "调试",
+  "debugOverlay": "调试叠加层",
+  "debugHint": "帧率、耗时、同步 — 对局中",
+  "graphics": "画面",
+  "resetAll": "重置全部设置",
+  "resetConfirm": "将所有设置恢复为默认值？\n\n名字与头像会保留。画面及其他选项将恢复出厂设置。",
+  "close": "关闭"
+}

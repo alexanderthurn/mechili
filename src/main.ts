@@ -111,7 +111,8 @@ import {
     roundCardAlgorithmById,
 } from './game/roundCardAlgorithms';
 import { duoSeats, localizeRoster, canonicalClassicSeats, type CanonicalSeatDef, type SeatId } from './game/seats';
-import { THEME, applyUiFont, menuStyles } from './theme';
+import { initI18n } from './i18n';
+import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
 
 const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
 /**
@@ -552,8 +553,11 @@ document.body.appendChild(wrapper);
 const style = document.createElement('style');
 style.textContent = menuStyles();
 document.head.appendChild(style);
-applyUiFont(prefs().uiFont);
-onPrefsChange(() => applyUiFont(prefs().uiFont));
+await initI18n(prefs().language);
+await applyLanguageFont(prefs().language);
+onPrefsChange(() => {
+    void applyLanguageFont(prefs().language);
+});
 
 /**
  * Every piece of menu chrome lives in here — the menu panel, the corner
@@ -818,17 +822,23 @@ logo.anchor.set(0.5);
 // the logo art is on a black background (alpha isn't supported in this pipeline);
 // additive blending drops the black and lets the wordmark glow over the scene
 logo.blendMode = 'add';
-void document.fonts.load('700 18px Cinzel').catch(() => {});
+const titleFont = FONT_FAMILY[prefs().language];
+void document.fonts.load(`400 18px "${titleFont}"`).catch(() => {});
 const subtitle = new Text({
     text: 'FANTASY AUTO·BATTLER',
     style: {
         fill: THEME.subtitle,
-        fontFamily: 'Cinzel',
+        fontFamily: titleFont,
         fontSize: 18,
-        fontWeight: '700',
+        fontWeight: '400',
         letterSpacing: 6,
         dropShadow: { color: 0x000000, alpha: 0.6, blur: 6, distance: 2, angle: Math.PI / 2 },
     },
+});
+onPrefsChange(() => {
+    const family = FONT_FAMILY[prefs().language];
+    subtitle.style.fontFamily = family;
+    void document.fonts.load(`400 18px "${family}"`).catch(() => {});
 });
 subtitle.anchor.set(0.5);
 title.addChild(logo);

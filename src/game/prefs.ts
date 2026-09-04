@@ -4,7 +4,9 @@ import { steam } from 'steam-electron-build/native';
 
 import { probeHardware, probeMobile, type HardwareProbe } from './hardwareTier';
 import { touchFirstDevice } from './inputCapabilities';
-import type { UiFontId } from '../theme';
+import { detectDeviceLanguage } from '../i18n/detect';
+import type { LanguageId } from '../i18n/languages';
+import { isLanguageId } from '../i18n/languages';
 import { isUserStorageKey } from './userStorage';
 
 /** Outer world / forests / terrain detail ('off' also disables all weather FX). */
@@ -108,8 +110,11 @@ export interface Prefs {
      * what device last generated an event.
      */
     controlScheme: ControlScheme;
-    /** UI typeface — Cinzel / Exo 2 / Marcellus (live-switched via --font-ui). Default: Marcellus. */
-    uiFont: UiFontId;
+    /**
+     * UI language (also selects the typeface: en→Marcellus, ru→Exo 2, zh→Noto Serif SC).
+     * First-run default follows the device language when we ship it.
+     */
+    language: LanguageId;
     /**
      * How Matchmaking / Custom host finds opponents.
      * steam / matchmaking / lan — only that path (fails clearly if unavailable).
@@ -246,7 +251,7 @@ const DEFAULTS: Prefs = {
     combatChat: true,
     ...GRAPHICS_PRESETS.high,
     controlScheme: 'auto',
-    uiFont: 'marcellus',
+    language: detectDeviceLanguage(),
     uiScale: 1,
     debugOverlay: false,
     // Steam builds default to Steam lobbies, the browser to the web backend.
@@ -351,8 +356,11 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     ) {
         p.controlScheme = DEFAULTS.controlScheme;
     }
-    if (p.uiFont !== 'cinzel' && p.uiFont !== 'exo2' && p.uiFont !== 'marcellus') {
-        p.uiFont = DEFAULTS.uiFont;
+    // Font picker retired — language owns the typeface. Drop legacy uiFont.
+    const legacy = p as Prefs & { uiFont?: unknown };
+    delete legacy.uiFont;
+    if (!isLanguageId(p.language)) {
+        p.language = detectDeviceLanguage();
     }
     // Former 'auto' pref → concrete Web path (no silent transport picking).
     if ((p.multiplayerTransport as string) === 'auto') {
@@ -581,7 +589,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     stuckProjectiles: asWord(['off', 'low', 'high']),
     shadows: asWord(QUALITY_5),
     controlScheme: asWord(['auto', 'mouse', 'touch', 'gamepad']),
-    uiFont: asWord(['cinzel', 'exo2', 'marcellus']),
+    language: asWord(['en', 'ru', 'zh']),
     multiplayerTransport: asWord(['steam', 'matchmaking', 'lan']),
 };
 
