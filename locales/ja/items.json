@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "大地",
+    "description": "+10% HP。"
+  },
+  "fire": {
+    "name": "炎",
+    "description": "+10% 攻撃。"
+  },
+  "water": {
+    "name": "水",
+    "description": "+5% 攻撃と HP。"
+  },
+  "wind": {
+    "name": "風",
+    "description": "+10% 射程。"
+  },
+  "addi": {
+    "name": "勇気",
+    "description": "+15% 攻撃と HP。"
+  },
+  "power": {
+    "name": "殺戮",
+    "description": "+75% 攻撃。"
+  },
+  "vigor": {
+    "name": "巨人の血",
+    "description": "+100% HP。"
+  },
+  "colossus": {
+    "name": "ミスリル胸甲",
+    "description": "+250% HP。"
+  },
+  "wrath": {
+    "name": "狂戦士",
+    "description": "+300% 攻撃。"
+  },
+  "golden": {
+    "name": "太陽石",
+    "description": "塔のデバフに免疫、被ダメージを 30% 軽減。魔術師は変換できず——光線はダメージを与える。"
+  },
+  "bulwark": {
+    "name": "防壁",
+    "description": "シールド：各ユニットが HP と同じ第二ライフプールを得る。遠隔攻撃は先にシールドを削り、近接・炎・酸は無視する。"
+  }
+}

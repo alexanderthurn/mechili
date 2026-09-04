@@ -582,6 +582,12 @@ const FONT_STACKS: Record<LanguageId, string> = {
     en: '"Marcellus", "Exo 2", "Palatino Linotype", Palatino, Georgia, serif',
     ru: '"Exo 2", "Segoe UI", system-ui, sans-serif',
     zh: '"Noto Serif SC", "Songti SC", "SimSun", serif',
+    'zh-Hant': '"Noto Serif TC", "PingFang TC", "Microsoft JhengHei", serif',
+    ko: '"Noto Serif KR", "Apple SD Gothic Neo", "Malgun Gothic", serif',
+    ja: '"Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif',
+    th: '"Noto Serif Thai", "Thonburi", "Tahoma", serif',
+    ar: '"Noto Naskh Arabic", "Segoe UI", "Tahoma", sans-serif',
+    el: '"Noto Serif", "Times New Roman", Georgia, serif',
 };
 
 /** Primary family name for Pixi Text (must match an @font-face). */
@@ -589,6 +595,12 @@ export const FONT_FAMILY: Record<LanguageId, string> = {
     en: 'Marcellus',
     ru: 'Exo 2',
     zh: 'Noto Serif SC',
+    'zh-Hant': 'Noto Serif TC',
+    ko: 'Noto Serif KR',
+    ja: 'Noto Serif JP',
+    th: 'Noto Serif Thai',
+    ar: 'Noto Naskh Arabic',
+    el: 'Noto Serif',
 };
 
 /** Default stack (English / Marcellus). */
@@ -597,40 +609,101 @@ export const FONT_UI = FONT_STACKS.en;
 const EXO2_URL = new URL('../assets/fonts/Exo2-Variable.ttf', import.meta.url).href;
 const MARCELLUS_URL = new URL('../assets/fonts/Marcellus-Regular.ttf', import.meta.url).href;
 const NOTO_SC_URL = new URL('../assets/fonts/NotoSerifSC-Regular.otf', import.meta.url).href;
+const NOTO_TC_URL = new URL('../assets/fonts/NotoSerifTC-Regular.otf', import.meta.url).href;
+const NOTO_KR_URL = new URL('../assets/fonts/NotoSerifKR-Regular.otf', import.meta.url).href;
+const NOTO_JP_URL = new URL('../assets/fonts/NotoSerifJP-Regular.otf', import.meta.url).href;
+const NOTO_THAI_URL = new URL('../assets/fonts/NotoSerifThai-Regular.ttf', import.meta.url).href;
+const NOTO_ARABIC_URL = new URL('../assets/fonts/NotoNaskhArabic-Regular.ttf', import.meta.url).href;
+const NOTO_SERIF_URL = new URL('../assets/fonts/NotoSerif-Regular.ttf', import.meta.url).href;
 
-let notoScFaceInjected = false;
+const injectedFaces = new Set<string>();
 
-/** Lazily register Noto Serif SC (~12 MB) — only when Chinese is selected. */
-async function ensureNotoSerifSc(): Promise<void> {
-    if (notoScFaceInjected) {
-        await document.fonts.load('400 16px "Noto Serif SC"').catch(() => {});
+async function ensureLazyFace(opts: {
+    id: string;
+    family: string;
+    url: string;
+    format: 'opentype' | 'truetype';
+}): Promise<void> {
+    if (injectedFaces.has(opts.id)) {
+        await document.fonts.load(`400 16px "${opts.family}"`).catch(() => {});
         return;
     }
     const style = document.createElement('style');
-    style.dataset.font = 'noto-serif-sc';
+    style.dataset.font = opts.id;
     style.textContent = `
 @font-face {
-    font-family: 'Noto Serif SC';
+    font-family: '${opts.family}';
     font-style: normal;
     font-weight: 400;
     font-display: swap;
-    src: url('${NOTO_SC_URL}') format('opentype');
+    src: url('${opts.url}') format('${opts.format}');
 }`;
     document.head.appendChild(style);
-    notoScFaceInjected = true;
-    await document.fonts.load('400 16px "Noto Serif SC"').catch(() => {});
+    injectedFaces.add(opts.id);
+    await document.fonts.load(`400 16px "${opts.family}"`).catch(() => {});
 }
 
-/** Live-switch `--font-ui` from the active language. */
+/** Live-switch `--font-ui` (and document direction) from the active language. */
 export async function applyLanguageFont(language: LanguageId): Promise<void> {
-    if (language === 'zh') await ensureNotoSerifSc();
+    if (language === 'zh') {
+        await ensureLazyFace({
+            id: 'noto-serif-sc',
+            family: 'Noto Serif SC',
+            url: NOTO_SC_URL,
+            format: 'opentype',
+        });
+    } else if (language === 'zh-Hant') {
+        await ensureLazyFace({
+            id: 'noto-serif-tc',
+            family: 'Noto Serif TC',
+            url: NOTO_TC_URL,
+            format: 'opentype',
+        });
+    } else if (language === 'ko') {
+        await ensureLazyFace({
+            id: 'noto-serif-kr',
+            family: 'Noto Serif KR',
+            url: NOTO_KR_URL,
+            format: 'opentype',
+        });
+    } else if (language === 'ja') {
+        await ensureLazyFace({
+            id: 'noto-serif-jp',
+            family: 'Noto Serif JP',
+            url: NOTO_JP_URL,
+            format: 'opentype',
+        });
+    } else if (language === 'th') {
+        await ensureLazyFace({
+            id: 'noto-serif-thai',
+            family: 'Noto Serif Thai',
+            url: NOTO_THAI_URL,
+            format: 'truetype',
+        });
+    } else if (language === 'ar') {
+        await ensureLazyFace({
+            id: 'noto-naskh-arabic',
+            family: 'Noto Naskh Arabic',
+            url: NOTO_ARABIC_URL,
+            format: 'truetype',
+        });
+    } else if (language === 'el') {
+        await ensureLazyFace({
+            id: 'noto-serif',
+            family: 'Noto Serif',
+            url: NOTO_SERIF_URL,
+            format: 'truetype',
+        });
+    }
     const stack = FONT_STACKS[language] ?? FONT_STACKS.en;
     document.documentElement.style.setProperty('--font-ui', stack);
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
 }
 
 /**
  * One global font setup: @font-face for Latin/Cyrillic faces, --font-ui, body
- * default, and form-control inherit. Noto SC is injected on demand (see above).
+ * default, and form-control inherit. Script-heavy faces (CJK / Thai / Arabic /
+ * Greek) are injected on demand in {@link applyLanguageFont}.
  * Safe to inject more than once.
  */
 export function fontFaceCss(): string {

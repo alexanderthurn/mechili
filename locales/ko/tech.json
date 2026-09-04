@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "질주하는 발"
+  },
+  "carapace": {
+    "name": "돌가죽"
+  },
+  "barrel": {
+    "name": "장궁"
+  },
+  "ap": {
+    "name": "관통 화살"
+  },
+  "fireArrows": {
+    "name": "화염 화살",
+    "description": "화살이 짧은 지상 불길을 남기고 불태웁니다 — 기름 웅덩이를 점화하기에 충분합니다."
+  },
+  "engines": {
+    "name": "돌풍 날개"
+  },
+  "stingers": {
+    "name": "까마귀 발톱"
+  },
+  "armor": {
+    "name": "철판 장갑"
+  },
+  "autoloader": {
+    "name": "빠른 윈치"
+  },
+  "aegis": {
+    "name": "이지스",
+    "description": "방패: 모든 유닛가 자신의 체력과 같은 두 번째 체력 풀을 얻습니다. 원거리 공격은 먼저 방패를 소모하고, 근접·화염·산은 방패를 무시합니다."
+  },
+  "golden": {
+    "name": "황금 오라",
+    "description": "주변 아군이 30초 동안 탑 디버프에 저항하고 받는 피해가 30% 감소합니다. 마법사가 변환할 수 없습니다 — 광선이 대신 피해를 줍니다."
+  },
+  "pitchBolts": {
+    "name": "피치 볼트",
+    "description": "볼트가 착탄 시 기름을 튀합니다 (점화되지 않음 — 화염 화살이나 화염 볼트와 함께 사용)."
+  },
+  "wideBlast": {
+    "name": "광역 폭발",
+    "description": "스플래시 반경을 3배로 늘립니다 (스플래시가 없는 유닛에도 부여)."
+  },
+  "skyBind": {
+    "name": "하늘 속박",
+    "description": "지상과 공중 유닛을 모두 공격할 수 있습니다."
+  },
+  "skyLift": {
+    "name": "하늘 부상",
+    "description": "이 유닛을 공중으로 올립니다 (전투 비행체)."
+  },
+  "earthbound": {
+    "name": "대지 속박",
+    "description": "이 유닛을 지상에 유지합니다 (하늘 부상 / 고유 비행을 덮어씀)."
+  },
+  "spiderMother": {
+    "name": "거미의 어머니"
+  },
+  "darkHarvest": {
+    "name": "어둠의 수확"
+  },
+  "_auto": {
+    "modHp": "{{pct}} 체력",
+    "modDamage": "{{pct}} 공격력",
+    "modRange": "{{pct}} 사거리",
+    "modSpeed": "{{pct}} 이동 속도",
+    "modAttackSpeed": "{{pct}} 공격 속도",
+    "modSplash": "{{mult}}× 스플래시 반경",
+    "produce": "{{every}}마다 {{child}} 생산 (최대 {{max}})",
+    "produceFirst": ", 첫 생산은 {{delay}} 후",
+    "produceOffspring": ". 자손은 부모와 같은 레벨",
+    "onKill": "이 유닛이 처치하면 {{child}}를 일으킴",
+    "cleave": "이 유닛 주변 {{radius}} 안의 모든 적에게 타격"
+  }
+}

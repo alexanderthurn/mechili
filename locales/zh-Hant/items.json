@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "大地",
+    "description": "+10% 生命。"
+  },
+  "fire": {
+    "name": "火焰",
+    "description": "+10% 攻擊。"
+  },
+  "water": {
+    "name": "流水",
+    "description": "+5% 攻擊與生命。"
+  },
+  "wind": {
+    "name": "疾風",
+    "description": "+10% 射程。"
+  },
+  "addi": {
+    "name": "勇毅",
+    "description": "+15% 攻擊與生命。"
+  },
+  "power": {
+    "name": "屠戮",
+    "description": "+75% 攻擊。"
+  },
+  "vigor": {
+    "name": "巨人之血",
+    "description": "+100% 生命。"
+  },
+  "colossus": {
+    "name": "秘銀胸甲",
+    "description": "+250% 生命。"
+  },
+  "wrath": {
+    "name": "狂戰",
+    "description": "+300% 攻擊。"
+  },
+  "golden": {
+    "name": "日耀石",
+    "description": "免疫塔樓減益，並減少 30% 所受傷害。巫師無法轉化——射線改為造成傷害。"
+  },
+  "bulwark": {
+    "name": "壁壘",
+    "description": "護盾：每個單位獲得等於其生命值的第二層生命。遠程攻擊先消耗護盾；近戰、火焰與酸液無視護盾。"
+  }
+}

@@ -25,3 +25,5 @@ misc/**
 
 # Claude Code local settings (personal, not shared)
 .claude/settings.local.json
+
+.venv-opencc/

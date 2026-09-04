@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "俊足"
+  },
+  "carapace": {
+    "name": "石の皮"
+  },
+  "barrel": {
+    "name": "長弓"
+  },
+  "ap": {
+    "name": "貫通の矢"
+  },
+  "fireArrows": {
+    "name": "火炎の矢",
+    "description": "矢が短い地上の炎と燃焼を残す——油溜まりに火をつけるのに十分。"
+  },
+  "engines": {
+    "name": "疾風の翼"
+  },
+  "stingers": {
+    "name": "鴉の爪"
+  },
+  "armor": {
+    "name": "鉄板装甲"
+  },
+  "autoloader": {
+    "name": "素早い巻き上げ"
+  },
+  "aegis": {
+    "name": "イージス",
+    "description": "シールド：各ユニットが HP と同じ第二ライフプールを得る。遠隔攻撃は先にシールドを削り、近接・炎・酸は無視する。"
+  },
+  "golden": {
+    "name": "黄金のオーラ",
+    "description": "近くの味方は 30 秒間、塔のデバフに耐性を持ち被ダメージを 30% 軽減。魔術師は変換できず——光線はダメージを与える。"
+  },
+  "pitchBolts": {
+    "name": "ピッチボルト",
+    "description": "ボルト着弾時に油をスプラッシュ（着火しない——火炎の矢や火炎ボルトと組み合わせる）。"
+  },
+  "wideBlast": {
+    "name": "広域爆発",
+    "description": "スプラッシュ半径を 3 倍（スプラッシュを持たないユニットにも付与）。"
+  },
+  "skyBind": {
+    "name": "空縛り",
+    "description": "地上と飛行ユニットの両方を攻撃できる。"
+  },
+  "skyLift": {
+    "name": "空上げ",
+    "description": "このユニットを空中へ持ち上げる（戦闘飛行体）。"
+  },
+  "earthbound": {
+    "name": "地縛り",
+    "description": "このユニットを地上に留める（空上げ / 本来の飛行を上書き）。"
+  },
+  "spiderMother": {
+    "name": "蜘蛛の母"
+  },
+  "darkHarvest": {
+    "name": "闇の収穫"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} ダメージ",
+    "modRange": "{{pct}} 射程",
+    "modSpeed": "{{pct}} 移動速度",
+    "modAttackSpeed": "{{pct}} 攻撃速度",
+    "modSplash": "スプラッシュ半径 {{mult}}×",
+    "produce": "{{every}}ごとに {{child}} を生産（最大 {{max}}）",
+    "produceFirst": "、最初は {{delay}} 後",
+    "produceOffspring": "。子供は親と同じレベル",
+    "onKill": "このユニットがキルすると {{child}} を起こす",
+    "cleave": "このユニット周囲 {{radius}} 内の全敵に命中"
+  }
+}

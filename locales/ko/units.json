@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "주둔 궁수"
+  },
+  "hordeWebweaver": {
+    "name": "그물직이"
+  },
+  "hordeBrutSpawn": {
+    "name": "검은 무리"
+  },
+  "hordeSpinne": {
+    "name": "검은 거미"
+  },
+  "hordeFarmer": {
+    "name": "죽은 농부"
+  },
+  "hordeFarmerSpawn": {
+    "name": "죽은 머슴"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "드워프"
+  },
+  "archer": {
+    "name": "궁수"
+  },
+  "wizard": {
+    "name": "마법사"
+  },
+  "crowRider": {
+    "name": "까마귀 기수"
+  },
+  "ballista": {
+    "name": "발리스타"
+  },
+  "shield": {
+    "name": "방호석"
+  },
+  "rocket": {
+    "name": "화염 볼트"
+  },
+  "command-tower": {
+    "name": "선봉"
+  },
+  "research-center": {
+    "name": "주둔지"
+  },
+  "stronghold": {
+    "name": "요새"
+  },
+  "hordeZombie": {
+    "name": "검은 무리"
+  }
+}

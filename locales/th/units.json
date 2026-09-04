@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "นักธนูประจำป้อม"
+  },
+  "hordeWebweaver": {
+    "name": "ทอใย"
+  },
+  "hordeBrutSpawn": {
+    "name": "ฝูงดำ"
+  },
+  "hordeSpinne": {
+    "name": "แมงมุมดำ"
+  },
+  "hordeFarmer": {
+    "name": "ชาวนาตาย"
+  },
+  "hordeFarmerSpawn": {
+    "name": "ลูกน้องไร่ตาย"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "คนแคระ"
+  },
+  "archer": {
+    "name": "นักธนู"
+  },
+  "wizard": {
+    "name": "พ่อมด"
+  },
+  "crowRider": {
+    "name": "ผู้ขี่กา"
+  },
+  "ballista": {
+    "name": "บัลลิสตา"
+  },
+  "shield": {
+    "name": "หินคุ้มครอง"
+  },
+  "rocket": {
+    "name": "ลูกไฟ"
+  },
+  "command-tower": {
+    "name": "แนวหน้า"
+  },
+  "research-center": {
+    "name": "กองรักษาการณ์"
+  },
+  "stronghold": {
+    "name": "ป้อมหลัก"
+  },
+  "hordeZombie": {
+    "name": "ฝูงดำ"
+  }
+}

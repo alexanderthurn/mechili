@@ -1,0 +1,17 @@
+{
+  "close": "關閉",
+  "back": "返回",
+  "reset": "重置",
+  "language": "語言",
+  "term": {
+    "rune": "符文",
+    "runes": "符文",
+    "talent": "天賦",
+    "talents": "天賦",
+    "spell": "法術",
+    "spells": "法術",
+    "commander": "指揮官",
+    "commanders": "指揮官",
+    "horde": "騎士團長"
+  }
+}

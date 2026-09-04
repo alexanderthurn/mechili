@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "レベル強化",
+    "description": "この建物を 1 レベル上げる：基礎 HP を得る。価格は {{baseCost}} から始まり、レベルごとに {{costStep}} 上がる（最大レベル {{maxLevel}}）。"
+  },
+  "selling": {
+    "name": "売却",
+    "description": "パックの売却を恒久的に解放（配備フェーズごとに最大 {{maxPerRound}}）。返金は基本コストの {{refundPct}}%。"
+  },
+  "attack_boost": {
+    "name": "攻撃ブースト",
+    "description": "軍全体の恒久ダメージ強化。第 1 段階 +{{attackPct}}%；段階は順番に購入（費用 {{costs}}）。"
+  },
+  "hp_boost": {
+    "name": "HP ブースト",
+    "description": "軍全体の恒久 HP 強化。第 1 段階 +{{hpPct}}%；段階は順番に購入（費用 {{costs}}）。"
+  },
+  "range_boost": {
+    "name": "射程ブースト",
+    "description": "全遠隔ユニットの射程 +{{amount}}（このラウンドのみ）。"
+  },
+  "speed_boost": {
+    "name": "速度ブースト",
+    "description": "全ユニットの速度 +{{amount}}（このラウンドのみ）。"
+  },
+  "loan": {
+    "name": "融資",
+    "description": "今すぐ補給 +{{gain}}。次の配備で −{{debt}}。ラウンドに 1 回。"
+  },
+  "ward_dome": {
+    "name": "防護ドーム",
+    "description": "ドーム内に入る敵の投射物を吸収する（半径 {{radius}}、高さ {{height}}）。プールはこのユニットの HP。"
+  },
+  "homing_fire_bolt": {
+    "name": "追尾火炎ボルト",
+    "description": "その場で武装し、射程 {{range}} 内の最初の敵へ追尾し {{damage}} ダメージ（スプラッシュ {{splash}}）。"
+  },
+  "rally_route": {
+    "name": "集結ルート",
+    "description": "スペル帯に集結ルートのチャージを 1 つ追加。マッチに 1 回。"
+  },
+  "move_pack": {
+    "name": "パック移動",
+    "description": "スペル帯にパック移動のチャージを 1 つ追加：以前のラウンドのパック 1 つを再び動かせる。マッチに 1 回。"
+  },
+  "1_deployment": {
+    "name": "+1 配備",
+    "description": "このラウンドのみユニット購入が 1 回増える。"
+  },
+  "veteran_training": {
+    "name": "熟練訓練",
+    "description": "このラウンドの残り、購入したユニットはレベル 2 で到着する（レベル分の追加費用は支払う）。"
+  },
+  "send_supply_to_ally": {
+    "name": "味方へ補給を送る",
+    "description": "味方に補給 100 を贈る — 次ラウンド開始時に届く。デュオモードのみ。"
+  }
+}

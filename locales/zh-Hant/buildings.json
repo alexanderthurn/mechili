@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "升級",
+    "description": "將此建築提升一級：獲得其基礎生命。價格從 {{baseCost}} 起，每級增加 {{costStep}}（最高 {{maxLevel}} 級）。"
+  },
+  "selling": {
+    "name": "出售",
+    "description": "永久解鎖出售編隊（每個部署階段最多 {{maxPerRound}} 次）。返還基礎費用的 {{refundPct}}%。"
+  },
+  "attack_boost": {
+    "name": "攻擊強化",
+    "description": "永久全軍傷害提升。第一層 +{{attackPct}}%；按順序購買層級（費用 {{costs}}）。"
+  },
+  "hp_boost": {
+    "name": "生命強化",
+    "description": "永久全軍生命提升。第一層 +{{hpPct}}%；按順序購買層級（費用 {{costs}}）。"
+  },
+  "range_boost": {
+    "name": "射程強化",
+    "description": "所有遠程單位 +{{amount}} 射程，僅本回合。"
+  },
+  "speed_boost": {
+    "name": "速度強化",
+    "description": "所有單位 +{{amount}} 速度，僅本回合。"
+  },
+  "loan": {
+    "name": "借貸",
+    "description": "立即 +{{gain}} 補給。下次部署：−{{debt}}。每回合一次。"
+  },
+  "ward_dome": {
+    "name": "護盾穹頂",
+    "description": "吸收進入穹頂的敵方投射物（半徑 {{radius}}，高度 {{height}}）。容量為此單位的生命值。"
+  },
+  "homing_fire_bolt": {
+    "name": "追蹤火焰弩矢",
+    "description": "就地裝填，然後追蹤射程 {{range}} 內的首個敵人，造成 {{damage}} 傷害（濺射 {{splash}}）。"
+  },
+  "rally_route": {
+    "name": "集結路線",
+    "description": "向法術欄添加一次集結路線充能。每場對局一次。"
+  },
+  "move_pack": {
+    "name": "移動編隊",
+    "description": "向法術欄添加一次移動編隊充能：此前回合的一個編隊可再次移動。每場對局一次。"
+  },
+  "1_deployment": {
+    "name": "+1 部署",
+    "description": "本回合額外一次單位購買。"
+  },
+  "veteran_training": {
+    "name": "老兵訓練",
+    "description": "本回合剩餘時間內，購買的單位以 2 級抵達（仍需支付等級溢價）。"
+  },
+  "send_supply_to_ally": {
+    "name": "向盟友送補給",
+    "description": "贈予盟友 100 補給——於下一回合開始時送達。僅雙人模式。"
+  }
+}

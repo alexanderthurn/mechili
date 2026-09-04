@@ -1,0 +1,17 @@
+{
+  "close": "ปิด",
+  "back": "กลับ",
+  "reset": "รีเซ็ต",
+  "language": "ภาษา",
+  "term": {
+    "rune": "รูน",
+    "runes": "รูน",
+    "talent": "พรสวรรค์",
+    "talents": "พรสวรรค์",
+    "spell": "คาถา",
+    "spells": "คาถา",
+    "commander": "ผู้บัญชาการ",
+    "commanders": "ผู้บัญชาการ",
+    "horde": "คอมตูร์"
+  }
+}

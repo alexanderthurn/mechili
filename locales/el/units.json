@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "Τοξότης φρουράς"
+  },
+  "hordeWebweaver": {
+    "name": "Υφαντής ιστών"
+  },
+  "hordeBrutSpawn": {
+    "name": "Μαύρη γέννα"
+  },
+  "hordeSpinne": {
+    "name": "Μαύρη αράχνη"
+  },
+  "hordeFarmer": {
+    "name": "Νεκρός αγρότης"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Νεκρός εργάτης αγροκτήματος"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Νάνος"
+  },
+  "archer": {
+    "name": "Τοξότης"
+  },
+  "wizard": {
+    "name": "Μάγος"
+  },
+  "crowRider": {
+    "name": "Καβαλάρης κορακιού"
+  },
+  "ballista": {
+    "name": "Βαλλίστρα"
+  },
+  "shield": {
+    "name": "Πέτρα ασπίδας"
+  },
+  "rocket": {
+    "name": "Πύρινο βέλος"
+  },
+  "command-tower": {
+    "name": "Εμπροσθοφυλακή"
+  },
+  "research-center": {
+    "name": "Φρουρά"
+  },
+  "stronghold": {
+    "name": "Οχυρό"
+  },
+  "hordeZombie": {
+    "name": "Μαύρη γέννα"
+  }
+}

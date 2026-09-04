@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "대지",
+    "description": "+10% 체력."
+  },
+  "fire": {
+    "name": "화염",
+    "description": "+10% 공격력."
+  },
+  "water": {
+    "name": "물",
+    "description": "+5% 공격력과 체력."
+  },
+  "wind": {
+    "name": "바람",
+    "description": "+10% 사거리."
+  },
+  "addi": {
+    "name": "용맹",
+    "description": "+15% 공격력과 체력."
+  },
+  "power": {
+    "name": "학살",
+    "description": "+75% 공격력."
+  },
+  "vigor": {
+    "name": "거인의 피",
+    "description": "+100% 체력."
+  },
+  "colossus": {
+    "name": "미스릴 흉갑",
+    "description": "+250% 체력."
+  },
+  "wrath": {
+    "name": "광전사",
+    "description": "+300% 공격력."
+  },
+  "golden": {
+    "name": "태양석",
+    "description": "탑 디버프에 면역이며 받는 피해가 30% 감소합니다. 마법사가 변환할 수 없습니다 — 광선이 대신 피해를 줍니다."
+  },
+  "bulwark": {
+    "name": "성벽",
+    "description": "방패: 모든 유닛가 자신의 체력과 같은 두 번째 체력 풀을 얻습니다. 원거리 공격은 먼저 방패를 소모하고, 근접·화염·산은 방패를 무시합니다."
+  }
+}

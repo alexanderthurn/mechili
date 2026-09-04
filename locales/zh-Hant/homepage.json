@@ -1,0 +1,161 @@
+{
+  "tagline": "奇幻自走戰鬥",
+  "lead": "秘密部署軍隊，然後看這一回合自行打完。對手也在做同樣的事。不斷調整、反覆交手，直到一方生命值耗盡。",
+  "hero": {
+    "wishlist": "立即加入願望單",
+    "trailer": "觀看預告片",
+    "steamSoon": "Steam 頁面即將上線"
+  },
+  "screenshots": {
+    "title": "遊戲截圖",
+    "sub": "看看部署與戰鬥的樣子。",
+    "browse": "瀏覽全部截圖",
+    "open": "打開截圖：{{label}}",
+    "fallback": "截圖",
+    "missing": "{{label}} ⬢ 請把文件放入 assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "林間空地上的軍隊部署",
+    "2": "部署階段與單位商店",
+    "3": "巨龍的火焰吐息掠過戰場",
+    "4": "兩側並列的部署區",
+    "5": "平原上的大規模會戰",
+    "6": "雪中的冬季要塞",
+    "7": "網格上的雙方基地",
+    "8": "大型堡壘基地"
+  },
+  "lightbox": {
+    "gallery": "截圖畫廊",
+    "close": "關閉畫廊",
+    "prev": "上一張截圖",
+    "next": "下一張截圖",
+    "dots": "遊戲截圖",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "單位、建築與法術",
+    "sub": "你的軍隊、建築、{{horde}}的部隊，以及戰鬥法術模型。點選其一即可細看——鴉騎士與巨龍會在預覽中振翅。",
+    "canvas": "單位 3D 預覽",
+    "loading": "正在加載模型…",
+    "hint": "拖動旋轉 · 滾輪縮放",
+    "select": "選擇單位、建築或法術",
+    "list": "單位、建築與法術",
+    "buildings": "建築",
+    "units": "單位",
+    "spells": "法術"
+  },
+  "stats": {
+    "cost": "費用",
+    "hp": "生命值",
+    "damage": "傷害",
+    "range": "射程",
+    "attackInterval": "攻擊間隔",
+    "seconds": "{{value}} 秒",
+    "speed": "速度",
+    "abilities": "能力",
+    "spellModel": "法術模型"
+  },
+  "flag": {
+    "flying": "飛行",
+    "structure": "建築",
+    "extra": "額外",
+    "attacksGround": "可攻擊地面",
+    "attacksAir": "可攻擊空中",
+    "shield": "護盾穹頂",
+    "rocket": "追蹤弩箭"
+  },
+  "spell": {
+    "dragon": {
+      "name": "巨龍襲擊",
+      "blurb": "沿走廊噴射火焰吐息。振翅與鴉騎士使用同一套著色器路徑（網格模式）。"
+    },
+    "hammer": {
+      "name": "眾神之錘",
+      "blurb": "從天砸向指定區域的神錘。"
+    },
+    "meteor-great": {
+      "name": "隕石",
+      "blurb": "單次重型隕石撞擊。"
+    },
+    "meteor-shard": {
+      "name": "隕石雨碎塊",
+      "blurb": "隕石雨齊射所用的小型隕石。"
+    },
+    "storm": {
+      "name": "召喚風暴",
+      "blurb": "投擲閃電的風暴雲。"
+    },
+    "poison": {
+      "name": "毒雲",
+      "blurb": "在巨大範圍內稀疏落下酸雨的毒雲。"
+    }
+  },
+  "commanders": {
+    "sub": "第一回合開始前，每位玩家選擇一位{{commander}}。它決定你的起始軍隊、生命值池、一項永久專長，以及三個要塞鍛造{{tactics}}（弱 / 中 / 強）。隊友共享彼此鍛造{{tactics}}的合集。",
+    "select": "選擇{{commander}}"
+  },
+  "runes": {
+    "sub": "永久融入某支部隊，強化其中每一名成員 {{sep}} 多數部隊可容納 {{packLimit}} 個，弩炮為 {{ballistaLimit}} 個。四種基礎符文可從回合卡抽取或在商店購買；更強的符文由它們在要塞鍛造而成，且永不出售。",
+    "select": "選擇{{item}}",
+    "base": "基礎",
+    "advanced": "進階",
+    "shopTitle": "在商店購買，或從回合卡抽取",
+    "shopLabel": "商店價格",
+    "forgeTitle": "在{{building}}鍛造",
+    "forgeLabel": "鍛造價格"
+  },
+  "tactics": {
+    "sub": "這些是你{{tactics}}欄上的技能 {{sep}} 集結、潑灑、召喚，以及像巨龍火焰吐息這樣的戰鬥施法。戰鬥法術在你的要塞購買，每個僅一次，且只能買你的指揮官掌握的那三個。圖標與遊戲內一致。",
+    "select": "選擇{{tactic}}",
+    "placement": "放置型",
+    "oneShot": "一次性",
+    "buyTitle": "在{{building}}購買",
+    "priceLabel": "{{building}}價格"
+  },
+  "targeting": {
+    "point": "單點",
+    "two-point": "兩點",
+    "three-point": "三點",
+    "point-yaw": "單點 + 朝向",
+    "own-unit": "自己的部隊"
+  },
+  "roundCards": {
+    "title": "回合卡",
+    "sub": "從第二回合起，從對局卡池抽出的數張{{items}}卡中選擇一張。戰鬥法術在要塞購買，而不是從卡牌中抽取。",
+    "select": "選擇回合卡"
+  },
+  "matchSettings": {
+    "title": "對局設置",
+    "sub": "一局對戰的默認規則，直接取自遊戲的設置代碼，因此不會與實際發佈的版本產生偏差。這裡的一切都可以調整——本作開源。"
+  },
+  "contribute": {
+    "title": "參與貢獻",
+    "sub1": "Melodan 由一個人開發，就是我。我熱愛這款遊戲，但我做不出 AAA 級作品，也無法把一切都做到完美、平衡等等。我的想法是做一款開放的遊戲，任何人都能參與其中。",
+    "sub2": "讓我們一起來做這件事。平衡、缺陷、功能、美術創意 {{sep}} 寫幾句話發給我，我都會讀。想做得更多，也非常歡迎！",
+    "play": "在瀏覽器中試玩",
+    "feedback": "發送反饋",
+    "discord": "Discord",
+    "devlog": "開發日誌",
+    "waysTitle": "可以怎樣幫忙",
+    "way1": "分享想法與缺陷報告",
+    "way2": "在 {{github}} 上提交拉取請求（GPL-3.0）",
+    "way3": "製作或改進 3D 模型",
+    "way4": "負責平衡性，構思新的法術、卡牌與創意。",
+    "way5": "歡迎新玩家、撰寫攻略，若你願意接手，也可以幫忙做社區管理"
+  },
+  "about": {
+    "title": "關於",
+    "lead": "MELODAN 由 Alexander Thurn（Feuerware）製作，他居住在德國波恩。",
+    "inspired": "本作受 {{mechabellum}} 啟發——它是該類型中最好的遊戲。MELODAN 是獨立的奇幻演繹；也請支持原作，購買 Mechabellum。謝謝！",
+    "openSource": "本作{{github}}（GPL-3.0）。版權仍歸 Alexander Thurn / Feuerware 所有。歡迎私下 fork、設計新單位並提交拉取請求。若想做更大的事——非商業或商業衍生作品、徹底改頭換面等——歡迎寫信給我：{{email}}。",
+    "openSourceLink": "在 GitHub 上開源"
+  },
+  "footer": {
+    "play": "開始遊戲",
+    "steam": "Steam",
+    "feedback": "反饋",
+    "imprint": "版本說明",
+    "privacy": "隱私政策"
+  }
+}

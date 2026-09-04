@@ -1,0 +1,17 @@
+{
+  "close": "إغلاق",
+  "back": "رجوع",
+  "reset": "إعادة تعيين",
+  "language": "اللغة",
+  "term": {
+    "rune": "رون",
+    "runes": "رونات",
+    "talent": "موهبة",
+    "talents": "مواهب",
+    "spell": "تعويذة",
+    "spells": "تعويذات",
+    "commander": "قائد",
+    "commanders": "قادة",
+    "horde": "الكومتور"
+  }
+}

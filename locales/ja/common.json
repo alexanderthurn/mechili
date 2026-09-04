@@ -1,0 +1,17 @@
+{
+  "close": "閉じる",
+  "back": "戻る",
+  "reset": "リセット",
+  "language": "言語",
+  "term": {
+    "rune": "ルーン",
+    "runes": "ルーン",
+    "talent": "タレント",
+    "talents": "タレント",
+    "spell": "スペル",
+    "spells": "スペル",
+    "commander": "指揮官",
+    "commanders": "指揮官",
+    "horde": "コムトゥール"
+  }
+}

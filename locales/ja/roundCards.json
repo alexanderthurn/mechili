@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "ドワーフの一団",
+    "description": "ドワーフのパックが 4 つ軍に加わる。",
+    "unitsLabel": "4× ドワーフ"
+  },
+  "archers4": {
+    "title": "弓兵中隊",
+    "description": "弓兵が 4 つ軍に加わる。",
+    "unitsLabel": "4× 弓兵"
+  },
+  "crowRiders2": {
+    "title": "鴉の翼",
+    "description": "鴉騎兵の群れが 2 つ軍に加わる。",
+    "unitsLabel": "2× 鴉騎兵"
+  },
+  "ballista1": {
+    "title": "攻城バリスタ",
+    "description": "バリスタが軍に加わる。",
+    "unitsLabel": "1× バリスタ"
+  },
+  "flanky": {
+    "title": "フランキー",
+    "description": "初回の側面出現時間が半分になる（2.5秒）。"
+  },
+  "rallyRoute": {
+    "title": "集結ルート",
+    "description": "進軍ルートを配置：開始ゾーンのユニットが終了ゾーンへ向かい、途中で戦いながら進む。"
+  },
+  "sellPack": {
+    "title": "買い戻し",
+    "description": "ワンショットスペル：自分のパックを 1 つ売り、補給を返金。"
+  },
+  "movePack": {
+    "title": "行軍命令",
+    "description": "ワンショットスペル：以前のラウンドのパック 1 つを、このラウンド再び配置し直せる。"
+  }
+}

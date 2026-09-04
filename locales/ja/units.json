@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "守備弓兵"
+  },
+  "hordeWebweaver": {
+    "name": "網紡ぎ"
+  },
+  "hordeBrutSpawn": {
+    "name": "黒巣の幼体"
+  },
+  "hordeSpinne": {
+    "name": "黒蜘蛛"
+  },
+  "hordeFarmer": {
+    "name": "死した農夫"
+  },
+  "hordeFarmerSpawn": {
+    "name": "死した農手"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "ドワーフ"
+  },
+  "archer": {
+    "name": "弓兵"
+  },
+  "wizard": {
+    "name": "魔術師"
+  },
+  "crowRider": {
+    "name": "鴉騎兵"
+  },
+  "ballista": {
+    "name": "バリスタ"
+  },
+  "shield": {
+    "name": "護りの石"
+  },
+  "rocket": {
+    "name": "火炎ボルト"
+  },
+  "command-tower": {
+    "name": "前衛"
+  },
+  "research-center": {
+    "name": "守備営"
+  },
+  "stronghold": {
+    "name": "要塞"
+  },
+  "hordeZombie": {
+    "name": "黒巣の幼体"
+  }
+}

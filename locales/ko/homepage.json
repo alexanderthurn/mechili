@@ -1,0 +1,161 @@
+{
+  "tagline": "판타지 오토·배틀러",
+  "lead": "군대를 몰래 배치하고 라운드가 펼쳐지는 것을 지켜보세요. 상대도 똑같이 합니다. 적응하고, 한쪽의 체력이 바닥날 때까지 반복하세요.",
+  "hero": {
+    "wishlist": "지금 위시리스트",
+    "trailer": "트레일러 보기",
+    "steamSoon": "Steam 페이지 곧 공개"
+  },
+  "screenshots": {
+    "title": "스크린샷",
+    "sub": "배치와 전투를 한눈에.",
+    "browse": "스크린샷 둘러보기",
+    "open": "스크린샷 열기: {{label}}",
+    "fallback": "스크린샷",
+    "missing": "{{label}} ⬢ assets/marketing/screenshots/에 파일을 넣으세요"
+  },
+  "shot": {
+    "1": "숲 공터의 군대 배치",
+    "2": "배치 단계와 유닛 상점",
+    "3": "전장을 가로지르는 용의 불숨",
+    "4": "나란한 배치 구역",
+    "5": "평원의 대규모 전투",
+    "6": "눈 속의 겨울 요새",
+    "7": "격자 위 이중 기지",
+    "8": "대형 요새 기지"
+  },
+  "lightbox": {
+    "gallery": "스크린샷 갤러리",
+    "close": "갤러리 닫기",
+    "prev": "이전 스크린샷",
+    "next": "다음 스크린샷",
+    "dots": "스크린샷",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "유닛, 건물 & 주문",
+    "sub": "당신의 군대, 건물, {{horde}} 편대, 전투 주문 모델. 하나를 골라 살펴보세요 — 이 미리보기에서 까마귀 기수와 용이 날갯짓합니다.",
+    "canvas": "유닛 3D 미리보기",
+    "loading": "모델 로딩 중…",
+    "hint": "드래그로 회전 · 스크롤로 줌",
+    "select": "유닛, 건물 또는 주문 선택",
+    "list": "유닛, 건물, 주문",
+    "buildings": "건물",
+    "units": "유닛",
+    "spells": "주문"
+  },
+  "stats": {
+    "cost": "비용",
+    "hp": "체력",
+    "damage": "공격력",
+    "range": "사거리",
+    "attackInterval": "공격 간격",
+    "seconds": "{{value}}초",
+    "speed": "속도",
+    "abilities": "능력",
+    "spellModel": "주문 모델"
+  },
+  "flag": {
+    "flying": "비행",
+    "structure": "구조물",
+    "extra": "추가",
+    "attacksGround": "지상 공격",
+    "attacksAir": "공중 공격",
+    "shield": "방호 돔",
+    "rocket": "유도 볼트"
+  },
+  "spell": {
+    "dragon": {
+      "name": "용 습격",
+      "blurb": "기총 사격 불숨. 날갯짓은 까마귀 기수와 같은 셰이더 경로를 사용합니다 (메시 모드)."
+    },
+    "hammer": {
+      "name": "신들의 망치",
+      "blurb": "배치한 구역에 떨어지는 신성한 망치."
+    },
+    "meteor-great": {
+      "name": "운석",
+      "blurb": "단발의 강력한 운석 타격."
+    },
+    "meteor-shard": {
+      "name": "운석우 파편",
+      "blurb": "운석우 탄막에 쓰이는 작은 운석."
+    },
+    "storm": {
+      "name": "폭풍 소환",
+      "blurb": "번개를 내리치는 폭풍운."
+    },
+    "poison": {
+      "name": "독구름",
+      "blurb": "거대한 원 위에 성긴 산을 뿌리는 독성 하늘구름."
+    }
+  },
+  "commanders": {
+    "sub": "1라운드 전에 각 플레이어가 {{commander}}을(를) 고릅니다. 시작 군대, 체력 풀, 영구 특기, 요새 대장간 {{tactics}} 세 가지(약 / 중 / 강)를 정합니다. 팀원은 대장간 {{tactics}}의 합집합을 공유합니다.",
+    "select": "{{commander}} 선택"
+  },
+  "runes": {
+    "sub": "편대에 영구적으로 융합되어 안의 모든 메크를 강화합니다 {{sep}} 대부분의 편대는 {{packLimit}}개, 발리스타는 {{ballistaLimit}}개. 네 가지 기본 룬은 라운드 카드에서 고르거나 상점에서 사고, 더 강한 룬은 요새에서 그것으로 단조하며 판매되지 않습니다.",
+    "select": "{{item}} 선택",
+    "base": "기본",
+    "advanced": "고급",
+    "shopTitle": "상점에서 구매하거나 라운드 카드에서 고름",
+    "shopLabel": "상점 가격",
+    "forgeTitle": "{{building}}에서 단조",
+    "forgeLabel": "단조 가격"
+  },
+  "tactics": {
+    "sub": "{{tactics}} 바에 있는 기술입니다 {{sep}} 집결, 유출, 소환, 용의 불숨 같은 전투 시전. 전투 주문은 요새에서 각 한 번씩만 구매하며, 지휘관이 아는 세 가지만 가능합니다. 아이콘은 게임 안에서 보이는 것과 같습니다.",
+    "select": "{{tactic}} 선택",
+    "placement": "배치형",
+    "oneShot": "일회성",
+    "buyTitle": "{{building}}에서 구매",
+    "priceLabel": "{{building}} 가격"
+  },
+  "targeting": {
+    "point": "지점",
+    "two-point": "두 지점",
+    "three-point": "세 지점",
+    "point-yaw": "지점 + 방향",
+    "own-unit": "내 편대"
+  },
+  "roundCards": {
+    "title": "라운드 카드",
+    "sub": "2라운드부터 매치 풀에서 뽑은 여러 {{items}} 카드 중 하나를 고릅니다. 전투 주문은 카드가 아니라 요새에서 구매합니다.",
+    "select": "라운드 카드 선택"
+  },
+  "matchSettings": {
+    "title": "매치 설정",
+    "sub": "매치의 기본 규칙으로, 게임 설정 코드에서 그대로 가져와 실제 출시본과 어긋나지 않습니다. 여기의 모든 것은 조정 가능합니다 — 오픈 소스입니다."
+  },
+  "contribute": {
+    "title": "기여하기",
+    "sub1": "Melodan은 저 혼자 개발합니다. 이 게임에 열정이 있지만, AAA급으로 만들고 모든 것을 완벽하고 균형 있게 유지할 수는 없습니다. 누구나 기여할 수 있는 열린 게임이 목표입니다.",
+    "sub2": "함께 만들어 봅시다. 밸런스, 버그, 기능, 아트 아이디어 {{sep}} 짧은 메모를 보내 주시면 읽겠습니다. 더 하고 싶으시다면 환영합니다!",
+    "play": "브라우저에서 테스트",
+    "feedback": "피드백 보내기",
+    "discord": "Discord",
+    "devlog": "개발자 로그",
+    "waysTitle": "도울 방법",
+    "way1": "아이디어와 버그 제보 공유",
+    "way2": "{{github}}에 풀 리퀘스트 열기 (GPL-3.0)",
+    "way3": "3D 모델 제작 또는 개선",
+    "way4": "밸런스 관리, 새 주문·카드·아이디어 고안",
+    "way5": "플레이어 환영, 가이드 작성, 원하시면 모더레이션 도움"
+  },
+  "about": {
+    "title": "소개",
+    "lead": "MELODAN은 Alexander Thurn (Feuerware)이 만듭니다. 독일 본에 있습니다.",
+    "inspired": "이 게임은 장르 최고의 게임 {{mechabellum}}에서 영감을 받았습니다. MELODAN은 독립적인 판타지 해석입니다; 원작을 지지하고 Mechabellum을 구매해 주세요. 감사합니다!",
+    "openSource": "이 게임은 {{github}} (GPL-3.0)입니다. 저작권은 Alexander Thurn / Feuerware에 있습니다. 개인적으로 포크하고, 새 유닛을 만들고, 풀 리퀘스트를 열어 주세요. 더 큰 것, 비상업·상업 스핀오프, 전체 리브랜드 등은 편하게 연락해 주세요: {{email}}.",
+    "openSourceLink": "GitHub에서 오픈 소스"
+  },
+  "footer": {
+    "play": "플레이",
+    "steam": "Steam",
+    "feedback": "피드백",
+    "imprint": "법적 고지",
+    "privacy": "개인정보"
+  }
+}

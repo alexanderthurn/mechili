@@ -1,0 +1,56 @@
+{
+  "garrison-archer": {
+    "name": "رامٍ حامية"
+  },
+  "hordeWebweaver": {
+    "name": "ناسج الشبكة"
+  },
+  "hordeBrutSpawn": {
+    "name": "الحضنة السوداء"
+  },
+  "hordeSpinne": {
+    "name": "العنكبوت الأسود"
+  },
+  "hordeFarmer": {
+    "name": "فلاح ميت"
+  },
+  "hordeFarmerSpawn": {
+    "name": "عامل مزرعة ميت"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "قزم"
+  },
+  "archer": {
+    "name": "رامٍ"
+  },
+  "wizard": {
+    "name": "ساحر"
+  },
+  "crowRider": {
+    "name": "فارس الغراب"
+  },
+  "ballista": {
+    "name": "منجنيق"
+  },
+  "shield": {
+    "name": "حجر الوقاية"
+  },
+  "rocket": {
+    "name": "صاعقة نارية"
+  },
+  "command-tower": {
+    "name": "الطليعة"
+  },
+  "research-center": {
+    "name": "الحامية"
+  },
+  "stronghold": {
+    "name": "القلعة"
+  },
+  "hordeZombie": {
+    "name": "الحضنة السوداء"
+  }
+}

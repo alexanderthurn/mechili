@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "드워프 무리",
+    "description": "드워프 편대 네 개가 합류합니다.",
+    "unitsLabel": "4× 드워프"
+  },
+  "archers4": {
+    "title": "궁수 중대",
+    "description": "궁수 네 명이 합류합니다.",
+    "unitsLabel": "4× 궁수"
+  },
+  "crowRiders2": {
+    "title": "까마귀 날개",
+    "description": "까마귀 기수 무리 두 개가 합류합니다.",
+    "unitsLabel": "2× 까마귀 기수"
+  },
+  "ballista1": {
+    "title": "공성 발리스타",
+    "description": "발리스타가 합류합니다.",
+    "unitsLabel": "1× 발리스타"
+  },
+  "flanky": {
+    "title": "측면",
+    "description": "첫 측면 출현 시간이 절반으로 줄습니다 (2.5초)."
+  },
+  "rallyRoute": {
+    "title": "집결 경로",
+    "description": "행군 경로를 배치합니다: 시작 구역의 유닛이 끝 구역으로 향하며 도중에 싸웁니다."
+  },
+  "sellPack": {
+    "title": "환매",
+    "description": "일회성 주문: 내 편대 하나를 판매해 보급을 환급받습니다."
+  },
+  "movePack": {
+    "title": "행군 명령",
+    "description": "일회성 주문: 이전 라운드의 편대 하나를 이번 라운드에 다시 재배치할 수 있습니다."
+  }
+}

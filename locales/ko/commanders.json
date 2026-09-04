@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "하늘 마법사",
+    "description": "공중 유닛이 +12% 공격력과 체력을 얻습니다.",
+    "unitsLabel": "2× 까마귀 기수 · 1× 드워프"
+  },
+  "cost": {
+    "title": "탐욕의 왕자",
+    "description": "모든 유닛 −12% 공격력과 체력, 대신 매 라운드 +100 보급.",
+    "unitsLabel": "2× 궁수 · 1× 까마귀 기수 · 1× 드워프"
+  },
+  "elite": {
+    "title": "정예 왕자",
+    "description": "2레벨로 모집. 1라운드에 +100 보급.",
+    "unitsLabel": "1× 발리스타 · 1× 드워프"
+  },
+  "archer": {
+    "title": "궁수 지휘관",
+    "description": "2라운드에 무료 3레벨 궁수가 도착합니다.",
+    "unitsLabel": "3× 궁수 · 2× 드워프"
+  },
+  "addi": {
+    "title": "성물 수호자",
+    "description": "1라운드에 용맹 룬 3개를 받습니다.",
+    "unitsLabel": "1× 까마귀 기수 · 3× 드워프"
+  },
+  "meteor": {
+    "title": "히츠코프 영주",
+    "description": "2라운드에 운석 충전 2회를 받습니다.",
+    "unitsLabel": "1× 마법사 · 1× 드워프"
+  },
+  "speed": {
+    "title": "질주의 과부",
+    "unitsLabel": "1× 까마귀 기수 · 1× 궁수 · 2× 드워프"
+  },
+  "giant": {
+    "title": "촌크 백작부인",
+    "unitsLabel": "1× 발리스타 · 1× 드워프"
+  },
+  "tutor": {
+    "title": "훈계 부인",
+    "description": "전장 훈계 1회로 시작합니다.",
+    "unitsLabel": "1× 까마귀 기수 · 3× 궁수"
+  },
+  "money": {
+    "title": "금전 여왕",
+    "unitsLabel": "2× 까마귀 기수 · 1× 궁수"
+  },
+  "cursed": {
+    "title": "저주받은 크리스틴",
+    "description": "매 라운드 무료 검은 무리 거미 1마리를 받습니다.",
+    "unitsLabel": "2× 드워프 · 2× 궁수"
+  },
+  "flanky": {
+    "title": "측면의 그림자",
+    "description": "첫 측면 출현 시간이 절반으로 줄습니다.",
+    "unitsLabel": "2× 드워프 · 2× 궁수"
+  }
+}

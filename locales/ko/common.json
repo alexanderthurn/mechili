@@ -1,0 +1,17 @@
+{
+  "close": "닫기",
+  "back": "뒤로",
+  "reset": "초기화",
+  "language": "언어",
+  "term": {
+    "rune": "룬",
+    "runes": "룬",
+    "talent": "특성",
+    "talents": "특성",
+    "spell": "주문",
+    "spells": "주문",
+    "commander": "지휘관",
+    "commanders": "지휘관",
+    "horde": "기사단장"
+  }
+}

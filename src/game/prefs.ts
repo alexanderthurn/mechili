@@ -589,7 +589,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     stuckProjectiles: asWord(['off', 'low', 'high']),
     shadows: asWord(QUALITY_5),
     controlScheme: asWord(['auto', 'mouse', 'touch', 'gamepad']),
-    language: asWord(['en', 'ru', 'zh']),
+    language: asWord(['en', 'ru', 'zh', 'zh-Hant', 'ko', 'ja', 'th', 'ar', 'el']),
     multiplayerTransport: asWord(['steam', 'matchmaking', 'lan']),
 };
 

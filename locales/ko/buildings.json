@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "레벨 업그레이드",
+    "description": "이 건물을 한 레벨 올립니다: 기본 체력을 얻습니다. 가격은 {{baseCost}}에서 시작해 레벨마다 {{costStep}}씩 오릅니다 (최대 레벨 {{maxLevel}})."
+  },
+  "selling": {
+    "name": "판매",
+    "description": "편대 판매를 영구적으로 해금합니다 (배치 단계당 최대 {{maxPerRound}}회). 환급은 기본 비용의 {{refundPct}}%입니다."
+  },
+  "attack_boost": {
+    "name": "공격 강화",
+    "description": "영구적인 전군 공격력 강화. 첫 단계는 +{{attackPct}}%; 순서대로 구매합니다 (비용 {{costs}})."
+  },
+  "hp_boost": {
+    "name": "체력 강화",
+    "description": "영구적인 전군 체력 강화. 첫 단계는 +{{hpPct}}%; 순서대로 구매합니다 (비용 {{costs}})."
+  },
+  "range_boost": {
+    "name": "사거리 강화",
+    "description": "이번 라운드만 모든 원거리 유닛의 사거리 +{{amount}}."
+  },
+  "speed_boost": {
+    "name": "속도 강화",
+    "description": "이번 라운드만 모든 유닛의 속도 +{{amount}}."
+  },
+  "loan": {
+    "name": "대출",
+    "description": "지금 +{{gain}} 보급. 다음 배치: −{{debt}}. 라운드당 1회."
+  },
+  "ward_dome": {
+    "name": "방호 돔",
+    "description": "돔 안으로 들어오는 적 투사체를 흡수합니다 (반경 {{radius}}, 높이 {{height}}). 풀은 이 유닛의 체력입니다."
+  },
+  "homing_fire_bolt": {
+    "name": "유도 화염 화살",
+    "description": "제자리에서 무장한 뒤, 사거리 {{range}} 안의 첫 적에게 유도되어 {{damage}} 피해를 줍니다 (스플래시 {{splash}})."
+  },
+  "rally_route": {
+    "name": "집결 경로",
+    "description": "주문 바에 집결 경로 충전을 하나 추가합니다. 매치당 1회."
+  },
+  "move_pack": {
+    "name": "편대 이동",
+    "description": "주문 바에 편대 이동 충전을 하나 추가합니다: 이전 라운드의 편대 하나를 다시 움직일 수 있게 됩니다. 매치당 1회."
+  },
+  "1_deployment": {
+    "name": "+1 배치",
+    "description": "이번 라운드만 유닛을 하나 더 구매할 수 있습니다."
+  },
+  "veteran_training": {
+    "name": "베테랑 훈련",
+    "description": "이번 라운드 동안 구매한 유닛이 2레벨로 도착합니다 (레벨 할증은 그대로 지불)."
+  },
+  "send_supply_to_ally": {
+    "name": "아군에게 보급 보내기",
+    "description": "아군에게 보급 100을 선물합니다 — 다음 라운드 시작 시 도착합니다. 듀오 모드 전용."
+  }
+}

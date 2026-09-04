@@ -1,0 +1,59 @@
+{
+  "air": {
+    "title": "天空の魔術師",
+    "description": "飛行ユニットの攻撃と HP が +12%。",
+    "unitsLabel": "2× 鴉騎兵 · 1× ドワーフ"
+  },
+  "cost": {
+    "title": "強欲の王子",
+    "description": "全ユニットの攻撃と HP が −12%、ただし毎ラウンド +100 補給。",
+    "unitsLabel": "2× 弓兵 · 1× 鴉騎兵 · 1× ドワーフ"
+  },
+  "elite": {
+    "title": "精鋭の王子",
+    "description": "レベル 2 で募集。ラウンド 1 で +100 補給。",
+    "unitsLabel": "1× バリスタ · 1× ドワーフ"
+  },
+  "archer": {
+    "title": "弓兵の指揮官",
+    "description": "ラウンド 2 に無料のレベル 3 弓兵が到着。",
+    "unitsLabel": "3× 弓兵 · 2× ドワーフ"
+  },
+  "addi": {
+    "title": "聖遺物の番人",
+    "description": "ラウンド 1 に勇気ルーンを 3× 得る。",
+    "unitsLabel": "1× 鴉騎兵 · 3× ドワーフ"
+  },
+  "meteor": {
+    "title": "ヒッツコップフ卿",
+    "description": "ラウンド 2 に隕石チャージを 2 回得る。",
+    "unitsLabel": "1× 魔術師 · 1× ドワーフ"
+  },
+  "speed": {
+    "title": "疾風の未亡人",
+    "unitsLabel": "1× 鴉騎兵 · 1× 弓兵 · 2× ドワーフ"
+  },
+  "giant": {
+    "title": "チョンク女伯爵",
+    "unitsLabel": "1× バリスタ · 1× ドワーフ"
+  },
+  "tutor": {
+    "title": "説教の貴婦人",
+    "description": "戦場の教えを 1 回所持して開始。",
+    "unitsLabel": "1× 鴉騎兵 · 3× 弓兵"
+  },
+  "money": {
+    "title": "マネー女王",
+    "unitsLabel": "2× 鴉騎兵 · 1× 弓兵"
+  },
+  "cursed": {
+    "title": "呪われしクリスティン",
+    "description": "毎ラウンド無料の黒巣の幼体を 1 体得る。",
+    "unitsLabel": "2× ドワーフ · 2× 弓兵"
+  },
+  "flanky": {
+    "title": "側面の影",
+    "description": "初回の側面出現時間が半分になる。",
+    "unitsLabel": "2× ドワーフ · 2× 弓兵"
+  }
+}
