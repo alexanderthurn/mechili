@@ -5,7 +5,7 @@
   "category": "Kategorie",
   "message": "Nachricht",
   "placeholder": "Was sollte sich ändern? Was ist kaputtgegangen? Was würde helfen?",
-  "cancel": "Stornieren",
+  "cancel": "Abbrechen",
   "submit": "Einreichen",
   "sending": "Senden…",
   "thanksSent": "Danke – gesendet.",
@@ -14,10 +14,10 @@
   "rateLimited": "Zu viele Vorschläge – versuch es erneut in {{n}}s.",
   "sendFailed": "Senden fehlgeschlagen. Bitte versuch es später erneut.",
   "networkError": "Netzwerkfehler – bitte versuch es später erneut.",
-  "catBug": "Insekt",
-  "catBalance": "Gleichgewicht",
-  "catFeature": "Besonderheit",
+  "catBug": "Bug",
+  "catBalance": "Balance",
+  "catFeature": "Feature",
   "catArt": "Modelle / Kunst",
-  "catCommunity": "Gemeinschaft",
-  "catOther": "Andere"
+  "catCommunity": "Community",
+  "catOther": "Sonstiges"
 }

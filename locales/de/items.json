@@ -9,15 +9,15 @@
   },
   "water": {
     "name": "Wasser",
-    "description": "+5 % Angriff und HP."
+    "description": "+5% Angriff und HP."
   },
   "wind": {
     "name": "Wind",
-    "description": "+10% Spanne."
+    "description": "+10% Reichweite."
   },
   "addi": {
     "name": "Tapferkeit",
-    "description": "+15 % Angriff und HP."
+    "description": "+15% Angriff und HP."
   },
   "power": {
     "name": "Blutbad",
@@ -32,12 +32,12 @@
     "description": "+250% HP."
   },
   "wrath": {
-    "name": "Berserker",
+    "name": "Berserk",
     "description": "+300% Angriff."
   },
   "golden": {
     "name": "Sonnenstein",
-    "description": "Immun gegen Turm-Debuffs und erleidet 30 % weniger Schaden. Zauberer können nicht konvertieren – der Strahl verursacht stattdessen Schaden."
+    "description": "Immun gegen Turm-Debuffs und erleidet 30% weniger Schaden. Zauberer können nicht konvertieren – der Strahl verursacht stattdessen Schaden."
   },
   "bulwark": {
     "name": "Bollwerk",

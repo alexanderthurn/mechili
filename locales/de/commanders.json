@@ -6,12 +6,12 @@
   },
   "cost": {
     "title": "Gieriger Prinz",
-    "description": "Alle Einheiten -12 % Angriff und Trefferpunkte, aber +100 Nachschub pro Runde.",
+    "description": "Alle Einheiten −12% Angriff und HP, aber +100 Vorräte pro Runde.",
     "unitsLabel": "2 Bogenschützen · 1 Krähenreiter · 1 Zwerge"
   },
   "elite": {
     "title": "Eliteprinz",
-    "description": "Rekrutierung auf Stufe 2. +100 Angebot in Runde 1.",
+    "description": "Rekrutierung auf Stufe 2. +100 Vorräte in Runde 1.",
     "unitsLabel": "1× Balliste · 1× Zwerge"
   },
   "archer": {
@@ -26,7 +26,7 @@
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Erhält in Runde 2 2 Meteor-Aufladungen.",
+    "description": "Erhält in Runde 2 zwei Meteor-Aufladungen.",
     "unitsLabel": "1 Zauberer · 1 Zwerge"
   },
   "speed": {

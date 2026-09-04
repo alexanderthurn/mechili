@@ -1,11 +1,11 @@
 {
   "dwarves4": {
     "title": "Zwergenbande",
-    "description": "Vier Zwergenrudel verstärken deine Armee.",
+    "description": "Vier Zwergen-Packs verstärken deine Armee.",
     "unitsLabel": "4× Zwerge"
   },
   "archers4": {
-    "title": "Archer Company",
+    "title": "Bogenschützen-Kompanie",
     "description": "Vier Bogenschützen verstärken deine Armee.",
     "unitsLabel": "4 Bogenschützen"
   },
@@ -24,7 +24,7 @@
     "description": "Beim ersten Spawnen auf der Flanke dauert es nur die Hälfte der Zeit (2,5 Sekunden)."
   },
   "rallyRoute": {
-    "title": "Rallye-Strecke",
+    "title": "Rally-Route",
     "description": "Legt eine Marschroute fest: Einheiten in der Startzone marschieren zur Endzone und kämpfen dabei."
   },
   "sellPack": {
@@ -33,6 +33,6 @@
   },
   "movePack": {
     "title": "Marschbefehl",
-    "description": "Einmaliger Zauber: Ein Kartenstapel aus einer früheren Runde kann in dieser Runde erneut positioniert werden."
+    "description": "Einmaliger Zauber: Ein Pack aus einer früheren Runde kann in dieser Runde erneut positioniert werden."
   }
 }

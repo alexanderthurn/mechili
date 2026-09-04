@@ -33,18 +33,18 @@
   },
   "golden": {
     "name": "Goldene Aura",
-    "description": "Verbündete in der Nähe sind resistent gegen Turm-Debuffs und erleiden 30 Sekunden lang 30 % weniger Schaden. Zauberer können diese Effekte nicht umwandeln – der Strahl verursacht stattdessen Schaden."
+    "description": "Verbündete in der Nähe sind resistent gegen Turm-Debuffs und erleiden 30% weniger Schaden für 30s. Zauberer können sie nicht konvertieren – der Strahl verursacht stattdessen Schaden."
   },
   "pitchBolts": {
-    "name": "Pitch-Bolzen",
+    "name": "Pechbolzen",
     "description": "Die Bolzen verspritzen beim Aufprall Öl (entzündet sich nicht – daher mit Feuerpfeilen oder einem Feuerbolzen kombinieren)."
   },
   "wideBlast": {
     "name": "Breitstrahl",
-    "description": "Verdreifacht den Spritzradius (gewährt Einheiten ohne Spritzschutz diesen auch)."
+    "description": "Verdreifacht den Splash-Radius (gibt Einheiten ohne Splash diesen dazu)."
   },
   "skyBind": {
-    "name": "Sky Bind",
+    "name": "Himmelsbindung",
     "description": "Kann Boden- und Lufteinheiten angreifen."
   },
   "skyLift": {
@@ -52,8 +52,8 @@
     "description": "Hebt diese Einheit in die Luft (Kampfflieger)."
   },
   "earthbound": {
-    "name": "Earthbound",
-    "description": "Hält dieses Gerät am Boden (überschreibt Sky Lift / natürlichen Flug)."
+    "name": "Erdgebunden",
+    "description": "Hält diese Einheit am Boden (überschreibt Himmelslift / natürlichen Flug)."
   },
   "spiderMother": {
     "name": "Mutter der Spinnen"
@@ -64,14 +64,14 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} Schaden",
-    "modRange": "{{pct}} Bereich",
+    "modRange": "{{pct}} Reichweite",
     "modSpeed": "{{pct}} Bewegungsgeschwindigkeit",
     "modAttackSpeed": "{{pct}} Angriffsgeschwindigkeit",
     "modSplash": "{{mult}}× Spritzradius",
     "produce": "Produziert {{child}} alle {{every}} (bis zu {{max}})",
     "produceFirst": "zuerst nach {{delay}}",
-    "produceOffspring": "Die Nachkommen entsprechen dem Niveau der Eltern.",
-    "onKill": "Wenn diese Einheit tötet, wird ein {{child}} ausgelöst.",
+    "produceOffspring": "Nachkommen entsprechen dem Level der Eltern.",
+    "onKill": "Wenn diese Einheit tötet, erscheint ein {{child}}.",
     "cleave": "Trifft alle Gegner im Umkreis von {{radius}} (um diese Einheit herum)."
   }
 }

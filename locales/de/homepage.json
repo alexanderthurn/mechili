@@ -1,6 +1,6 @@
 {
   "tagline": "FANTASY AUTO·BATTLER",
-  "lead": "Setze deine Armeen heimlich ein und sieh zu, wie die Runde abläuft. Dein Gegner macht dasselbe. Passe dich an und wiederhole das, bis einem von euch die Lebenspunkte ausgehen.",
+  "lead": "Setze deine Armeen heimlich ein und sieh zu, wie die Runde abläuft. Dein Gegner macht dasselbe. Passe dich an und wiederhole das, bis einem von euch die HP ausgehen.",
   "hero": {
     "wishlist": "Jetzt auf die Wunschliste setzen",
     "trailer": "Trailer ansehen",
@@ -20,7 +20,7 @@
     "3": "Drachenfeueratem über dem Feld",
     "4": "Nebeneinanderliegende Einsatzzonen",
     "5": "Massenschlacht in der Ebene",
-    "6": "Winterfestung im Schnee",
+    "6": "Winter-Hochburg im Schnee",
     "7": "Doppelbasen auf dem Gitter",
     "8": "Großer befestigter Stützpunkt"
   },
@@ -34,16 +34,16 @@
     "uhd": "4K"
   },
   "showcase": {
-    "title": "Einheiten, Gebäude & Zaubersprüche",
+    "title": "Einheiten, Gebäude & Zauber",
     "sub": "Deine Armee, Gebäude, {{horde}}-Packs und Kampfzauber-Modelle. Wähle eines aus, um es genauer anzusehen – Krähenreiter und Drache sind in dieser Vorschau zu sehen.",
     "canvas": "3D-Vorschau der Einheit",
     "loading": "Modell wird geladen…",
     "hint": "Zum Drehen ziehen · Zum Zoomen scrollen",
     "select": "Wähle eine Einheit, ein Gebäude oder einen Zauber.",
-    "list": "Einheiten, Gebäude und Zaubersprüche",
+    "list": "Einheiten, Gebäude und Zauber",
     "buildings": "Gebäude",
     "units": "Einheiten",
-    "spells": "Zaubersprüche"
+    "spells": "Zauber"
   },
   "stats": {
     "cost": "Kosten",
@@ -61,14 +61,14 @@
     "structure": "Struktur",
     "extra": "Extra",
     "attacksGround": "Greift Boden an",
-    "attacksAir": "Luftangriffe",
-    "shield": "Ward-Kuppel",
-    "rocket": "Zielbolzen"
+    "attacksAir": "Greift Luft an",
+    "shield": "Schutzkuppel",
+    "rocket": "Zielsuchender Bolzen"
   },
   "spell": {
     "dragon": {
       "name": "Drachenangriff",
-      "blurb": "Seitwärts gerichteter Feueratem. Der Flügelschlag verwendet denselben Shader-Pfad wie beim Krähenreiter (Mesh-Modus)."
+      "blurb": "Feueratem im Vorbeiflug. Flügelschlag nutzt denselben Shader-Pfad wie beim Krähenreiter (Mesh-Modus)."
     },
     "hammer": {
       "name": "Hammer der Götter",
@@ -96,12 +96,12 @@
     "select": "Wähle einen {{commander}}"
   },
   "runes": {
-    "sub": "Fest mit einem Pack verschmolzen, hebt es jeden Mech darin an {{sep}}. Die meisten Packs enthalten {{packLimit}}, die Balliste {{ballistaLimit}}. Die vier Basisrunen werden aus Rundenkarten gezogen oder im Shop gekauft; die stärkeren werden in der Hochburg daraus geschmiedet und niemals verkauft.",
+    "sub": "Fest mit einem Pack verbunden, stärkt es jeden Mech darin {{sep}}. Die meisten Packs enthalten {{packLimit}}, die Balliste {{ballistaLimit}}. Die vier Basisrunen werden aus Rundenkarten gezogen oder im Shop gekauft; die stärkeren werden in der Hochburg daraus geschmiedet und niemals verkauft.",
     "select": "Wähle eine {{item}}",
     "base": "Basis",
     "advanced": "Erweitert",
-    "shopTitle": "Im Laden gekauft oder aus einer Rundenkarte gezogen",
-    "shopLabel": "Ladenpreis",
+    "shopTitle": "Im Shop gekauft oder aus einer Rundenkarte gezogen",
+    "shopLabel": "Shop-Preis",
     "forgeTitle": "Geschmiedet bei {{building}}",
     "forgeLabel": "Schmiedepreis"
   },
@@ -115,13 +115,13 @@
   },
   "targeting": {
     "point": "Punkt",
-    "two-point": "Zwei-Punkte-Spiel",
+    "two-point": "Zweipunkt",
     "three-point": "Dreipunkt",
     "point-yaw": "Punkt + Ausrichtung",
-    "own-unit": "eigene Pack"
+    "own-unit": "eigenes Pack"
   },
   "roundCards": {
-    "title": "Runde Karten",
+    "title": "Rundenkarten",
     "sub": "Ab der zweiten Runde wählst du eine der angebotenen {{items}}-Karten aus dem Spielpool. Kampfzauber werden in der Hochburg gekauft und nicht aus Karten gezogen.",
     "select": "Wähle eine Rundenkarte"
   },
@@ -138,14 +138,14 @@
     "discord": "Discord",
     "devlog": "Entwickler-Logbuch",
     "waysTitle": "Möglichkeiten zur Hilfe",
-    "way1": "Ideen und Fehlerberichte austauschen",
+    "way1": "Teile Ideen und Fehlerberichte",
     "way2": "Pull-Requests für {{github}} (GPL-3.0) öffnen",
     "way3": "3D-Modelle erstellen oder verbessern",
     "way4": "Sorge für Ausgewogenheit, erfinde neue Zaubersprüche, Karten und Ideen.",
-    "way5": "Willkommen, liebe Spieler! Schreibt Anleitungen und helft bei der Moderation, wenn ihr das übernehmen wollt."
+    "way5": "Heiße Spieler willkommen, schreibe Guides, hilf bei der Moderation, wenn du das übernehmen willst"
   },
   "about": {
-    "title": "Um",
+    "title": "Über",
     "lead": "MELODAN wird von Alexander Thurn (Feuerware) entwickelt. Er sitzt in Bonn, Deutschland.",
     "inspired": "Dieses Spiel ist von {{mechabellum}} inspiriert, dem besten Spiel des Genres. MELODAN ist eine eigenständige Fantasy-Variante; bitte unterstütze das Original und kaufe Mechabelum. Vielen Dank!",
     "openSource": "Das Spiel ist {{github}} (GPL-3.0). Das Copyright bleibt bei Alexander Thurn / Feuerware. Du kannst es gerne privat forken, neue Einheiten erfinden und Pull Requests öffnen. Für etwas Größeres, einen nicht-kommerziellen oder kommerziellen Ableger, ein komplettes Rebranding usw. schreib mir gerne: {{email}}.",
@@ -154,7 +154,7 @@
   "footer": {
     "play": "Spielen",
     "steam": "Steam",
-    "feedback": "Rückmeldung",
+    "feedback": "Feedback",
     "imprint": "Impressum",
     "privacy": "Datenschutz"
   }

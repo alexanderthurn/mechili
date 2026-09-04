@@ -1,7 +1,7 @@
 {
   "upgrade_level": {
-    "name": "Upgrade-Stufe",
-    "description": "Erhöht man dieses Gebäude um eine Stufe, erhält es seine Basis-HP zurück. Der Preis beginnt bei {{baseCost}} und steigt mit jeder Stufe um {{costStep}} (maximale Stufe {{maxLevel}})."
+    "name": "Stufe erhöhen",
+    "description": "Werte dieses Gebäude um eine Stufe auf: es erhält seine Basis-HP dazu. Preis startet bei {{baseCost}} und steigt je Stufe um {{costStep}} (max. Stufe {{maxLevel}})."
   },
   "selling": {
     "name": "Verkauf",
@@ -25,31 +25,31 @@
   },
   "loan": {
     "name": "Darlehen",
-    "description": "+{{gain}} Jetzt liefern. Nächste Bereitstellung: −{{debt}}. Einmal pro Runde."
+    "description": "+{{gain}} Vorräte jetzt. Nächster Einsatz: −{{debt}}. Einmal pro Runde."
   },
   "ward_dome": {
     "name": "Ward-Kuppel",
-    "description": "Absorbiert gegnerische Projektile, die in einen kuppelförmigen Bereich eindringen (Radius {{radius}}, Höhe {{height}}). Der Wert für „Pool“ entspricht den Trefferpunkten dieser Einheit."
+    "description": "Absorbiert gegnerische Projektile, die in die Kuppel eindringen (Radius {{radius}}, Höhe {{height}}). Der Pool entspricht den HP dieser Einheit."
   },
   "homing_fire_bolt": {
     "name": "Zielsuchender Feuerbolzen",
-    "description": "Waffen in Position, dann zielt er auf den ersten Feind in Reichweite {{range}} für {{damage}} Schaden (Flächenschaden {{splash}})."
+    "description": "Richtet sich vor Ort aus und sucht dann den ersten Feind in Reichweite {{range}} für {{damage}} Schaden (Splash {{splash}})."
   },
   "rally_route": {
-    "name": "Rallye-Strecke",
+    "name": "Rally-Route",
     "description": "Füge deiner Zauberleiste eine Rallye-Routen-Aufladung hinzu. Einmal pro Spiel."
   },
   "move_pack": {
-    "name": "Umzugs-Pack",
+    "name": "Bewegungs-Pack",
     "description": "Füge deiner Zauberleiste eine Bewegungs-Pack-Aufladung hinzu: Ein Pack aus einer früheren Runde wird wieder beweglich. Einmal pro Spiel."
   },
   "1_deployment": {
-    "name": "+1 Bereitstellung",
-    "description": "Nur eine zusätzliche Einheit in dieser Runde erhältlich."
+    "name": "+1 Einsatz",
+    "description": "Ein zusätzlicher Einheitenkauf nur in dieser Runde."
   },
   "veteran_training": {
     "name": "Veteranenausbildung",
-    "description": "Im weiteren Verlauf dieser Runde erreichen die gekauften Einheiten Stufe 2 (sie zahlen weiterhin den Stufenaufschlag)."
+    "description": "Für den Rest dieser Runde starten gekaufte Einheiten auf Stufe 2 (Stufenaufpreis bleibt)."
   },
   "send_supply_to_ally": {
     "name": "Nachschub an Verbündeten senden",

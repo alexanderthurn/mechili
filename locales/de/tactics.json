@@ -1,7 +1,7 @@
 {
   "rallyRoute": {
-    "name": "Rallye-Strecke",
-    "description": "Platziere Start-, Mittel- und Endzone. Die Einheiten im Startkreis marschieren durch entsprechende Abstände in der Mitte und dann am Ende und kämpfen dabei."
+    "name": "Rally-Route",
+    "description": "Platziere Start-, Mittel- und Endzone. Einheiten im Startkreis marschieren über die Mitte zum Ende und kämpfen dabei."
   },
   "oilSpill": {
     "name": "Ölteppich",
@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Verkaufs-Pack",
-    "description": "Klicke, um dich zu bewaffnen, und klicke dann auf eines deiner Packs, um es gegen eine Rückerstattung deiner Vorräte zu verkaufen."
+    "description": "Klicke zum Aktivieren und dann auf eines deiner Packs, um es gegen eine Rückerstattung deiner Vorräte zu verkaufen."
   },
   "moveUnit": {
-    "name": "Umzugs-Pack",
-    "description": "Klicke zum Aktivieren und dann auf eines deiner Packs aus einer früheren Runde – dieses kannst du für diesen Einsatz erneut bewegen."
+    "name": "Bewegungs-Pack",
+    "description": "Klicke zum Aktivieren und dann auf eines deiner Packs aus einer früheren Runde – du kannst es in dieser Runde erneut verschieben und drehen."
   },
   "tutor": {
     "name": "Feldlektion",
-    "description": "Klicke, um die Ausrüstung zu aktivieren, und anschließend auf eines deiner Packs – dessen XP-Leiste füllt sich bis zur nächsten Stufe. Der Kauf der Stufe kostet weiterhin Vorräte."
+    "description": "Klicke zum Aktivieren und dann auf eines deiner Packs – die XP-Leiste füllt sich bis zur nächsten Stufe. Die Stufe zu kaufen kostet weiterhin Vorräte."
   },
   "spawnDwarves": {
     "name": "Zwerge beschwören",
@@ -25,15 +25,15 @@
   },
   "bigMeteor": {
     "name": "Meteor",
-    "description": "Markiere einen kleinen Kreis an einer beliebigen Stelle. Sekunden nach Kampfbeginn vernichtet ein Meteor alles darin."
+    "description": "Markiere einen kleinen Kreis an einer beliebigen Stelle. Sekunden nach Kampfbeginn vernichtet ein Meteor alles darin – nur Schutzkuppeln schützen (und zahlen dafür)."
   },
   "spawnCrows": {
     "name": "Beschwöre Krähenreiter",
-    "description": "Markiere einen Kreis irgendwo außerhalb der feindlichen Basis. Kurz nach Kampfbeginn stürzen nacheinander Krähenreiter hinein."
+    "description": "Markiere einen Kreis irgendwo außerhalb der feindlichen Basis. Kurz nach Kampfbeginn stürzen nacheinander Krähenreiter vom Himmel – sie kämpfen nur in dieser Schlacht."
   },
   "hammerOfGods": {
     "name": "Hammer der Götter",
-    "description": "Klicken zum Platzieren, bewegen zum Drehen, erneut klicken zum Fixieren. Ein göttlicher Hammer fällt wenige Sekunden nach Kampfbeginn auf das Gebiet."
+    "description": "Klicke zum Platzieren, bewege zum Drehen, klicke erneut zum Fixieren. Ein göttlicher Hammer fällt wenige Sekunden nach Kampfbeginn auf das Gebiet."
   },
   "storm": {
     "name": "Sturm rufen",
@@ -57,6 +57,6 @@
   },
   "poisonCloud": {
     "name": "Giftwolke",
-    "description": "Zeichne einen riesigen Kreis. Giftige Wolken sammeln sich darüber und lassen kleine Säuretropfen über das Gebiet regnen – spärliche Pfützen, die Boden und Luft angreifen, ähnlich wie bei Acid Spill, aber über ein viel größeres Feld."
+    "description": "Zeichne einen riesigen Kreis. Giftige Wolken sammeln sich darüber und lassen kleine Säuretropfen über das Gebiet regnen – spärliche Pfützen, die Boden und Luft angreifen, ähnlich wie Säureteppich, aber über ein viel größeres Feld."
   }
 }
