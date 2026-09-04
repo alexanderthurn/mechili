@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Unités, bâtiments et sorts",
-    "sub": "Votre armée, vos bâtiments, vos paquets {{horde}} et vos figurines de sorts de combat. Choisissez-en une à examiner : le Cavalier Corbeau et le Dragon sont présentés dans cet aperçu.",
+    "sub": "Votre armée, vos bâtiments, vos Packs {{horde}} et vos figurines de sorts de combat. Choisissez-en une à examiner : le Cavalier Corbeau et le Dragon sont présentés dans cet aperçu.",
     "canvas": "Aperçu 3D de l'unité",
     "loading": "Chargement du modèle…",
     "hint": "Faites glisser pour faire pivoter · Défilez pour zoomer",
@@ -118,7 +118,7 @@
     "two-point": "deux points",
     "three-point": "trois points",
     "point-yaw": "point + face",
-    "own-unit": "propre paquet"
+    "own-unit": "propre Pack"
   },
   "roundCards": {
     "title": "Cartes rondes",
@@ -135,7 +135,7 @@
     "sub2": "Créons-le ensemble ! Équilibrage, bugs, fonctionnalités, idées artistiques {{sep}} Envoyez-moi un petit message et je le lirai. Si vous souhaitez contribuer davantage, n’hésitez pas !",
     "play": "Tester dans le navigateur",
     "feedback": "Envoyer des commentaires",
-    "discord": "Discorde",
+    "discord": "Discord",
     "devlog": "Journal du développeur",
     "waysTitle": "Des moyens d'aider",
     "way1": "Partagez vos idées et vos rapports de bugs",
@@ -153,7 +153,7 @@
   },
   "footer": {
     "play": "Jouer",
-    "steam": "Vapeur",
+    "steam": "Steam",
     "feedback": "Retour",
     "imprint": "Imprimer",
     "privacy": "confidentialité des données"

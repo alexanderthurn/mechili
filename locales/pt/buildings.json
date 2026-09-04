@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Vendendo",
-    "description": "Desbloqueia permanentemente os pacotes de venda (até {{maxPerRound}} por fase de implantação). O reembolso é de {{refundPct}}% do custo base."
+    "description": "Desbloqueia permanentemente os Packs de venda (até {{maxPerRound}} por fase de implantação). O reembolso é de {{refundPct}}% do custo base."
   },
   "attack_boost": {
     "name": "Aumento de ataque",
@@ -40,8 +40,8 @@
     "description": "Adicione uma carga de rota de reunião à sua faixa de feitiços. Uma vez por partida."
   },
   "move_pack": {
-    "name": "Pacote de Mudança",
-    "description": "Adicione uma carga de pacote de movimento à sua faixa de feitiços: um pacote de uma rodada anterior torna-se móvel novamente. Uma vez por partida."
+    "name": "Pack de Mudança",
+    "description": "Adicione uma carga de Pack de movimento à sua faixa de feitiços: um Pack de uma rodada anterior torna-se móvel novamente. Uma vez por partida."
   },
   "1_deployment": {
     "name": "+1 Implantação",

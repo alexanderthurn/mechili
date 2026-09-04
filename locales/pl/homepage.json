@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Jednostki, budynki i zaklęcia",
-    "sub": "Twoja armia, budynki, pakiety {{horde}} i modele zaklęć bojowych. Wybierz jeden do obejrzenia — Jeźdźca Kruka i Smoka w tej zapowiedzi.",
+    "sub": "Twoja armia, budynki, Packs {{horde}} i modele zaklęć bojowych. Wybierz jeden do obejrzenia — Jeźdźca Kruka i Smoka w tej zapowiedzi.",
     "canvas": "Podgląd jednostki 3D",
     "loading": "Ładowanie modelu…",
     "hint": "Przeciągnij, aby obrócić · Przewiń, aby powiększyć",
@@ -96,7 +96,7 @@
     "select": "Wybierz {{commander}}"
   },
   "runes": {
-    "sub": "Połączone z pakietem na dobre, podnosząc każdego mecha w nim zawartego – {{sep}}, większość pakietów ma {{packLimit}}, a balistę {{ballistaLimit}}. Cztery podstawowe runy są dobierane z kart rund lub kupowane w sklepie; silniejsze runy są z nich wykuwane w Twierdzy i nigdy nie są sprzedawane.",
+    "sub": "Połączone z Packem na dobre, podnosząc każdego mecha w nim zawartego – {{sep}}, większość Packów ma {{packLimit}}, a balistę {{ballistaLimit}}. Cztery podstawowe runy są dobierane z kart rund lub kupowane w sklepie; silniejsze runy są z nich wykuwane w Twierdzy i nigdy nie są sprzedawane.",
     "select": "Wybierz {{item}}",
     "base": "Opierać",
     "advanced": "Zaawansowany",
@@ -118,7 +118,7 @@
     "two-point": "dwupunktowy",
     "three-point": "trzy punkty",
     "point-yaw": "punkt + skierowany",
-    "own-unit": "własny pakiet"
+    "own-unit": "własny Pack"
   },
   "roundCards": {
     "title": "Karty okrągłe",
@@ -135,7 +135,7 @@
     "sub2": "Zróbmy to razem. Balans, błędy, funkcje, pomysły artystyczne – {{sep}} wyślij krótką wiadomość, a ja ją przeczytam. Jeśli chcesz zrobić więcej, zapraszam!",
     "play": "Test w przeglądarce",
     "feedback": "Wyślij opinię",
-    "discord": "Niezgoda",
+    "discord": "Discord",
     "devlog": "Dziennik programisty",
     "waysTitle": "Sposoby pomocy",
     "way1": "Dziel się pomysłami i zgłaszaj błędy",
@@ -153,7 +153,7 @@
   },
   "footer": {
     "play": "Grać",
-    "steam": "Para",
+    "steam": "Steam",
     "feedback": "Informacja zwrotna",
     "imprint": "Odcisk",
     "privacy": "Prywatność danych"

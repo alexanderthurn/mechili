@@ -8,16 +8,16 @@
     "description": "Plaats twee oliecirkels — omlijn ze tijdens het opstellen; kort na het begin van de strijd druppelt de olie van links naar rechts op het pad (de beschermingsschijven blijven vrij). De verbonden olie ontbrandt als één veld wanneer er vuur op komt."
   },
   "sellUnit": {
-    "name": "Verkooppakket",
-    "description": "Klik om je wapen te activeren en klik vervolgens op een van je pakketten om deze te verkopen en je voorraad aan te vullen."
+    "name": "VerkoopPack",
+    "description": "Klik om je wapen te activeren en klik vervolgens op een van je Packs om deze te verkopen en je voorraad aan te vullen."
   },
   "moveUnit": {
-    "name": "Verhuispakket",
+    "name": "VerhuisPack",
     "description": "Klik om je wapen te activeren en klik vervolgens op een van je rugzakken uit een eerdere ronde. Je kunt deze rugzak gedurende de rest van deze ronde opnieuw verslepen en draaien."
   },
   "tutor": {
     "name": "Veldles",
-    "description": "Klik om je uitrusting te activeren en klik vervolgens op een van je pakketten. De ervaringsbalk vult zich dan tot het volgende niveau. Het kopen van het niveau kost nog steeds voorraden."
+    "description": "Klik om je uitrusting te activeren en klik vervolgens op een van je Packs. De ervaringsbalk vult zich dan tot het volgende niveau. Het kopen van het niveau kost nog steeds voorraden."
   },
   "spawnDwarves": {
     "name": "Roep dwergen op",

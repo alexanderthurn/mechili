@@ -135,7 +135,7 @@
     "sub2": "Lad os gøre dette sammen. Balance, fejl, funktioner, kunstneriske idéer {{sep}} send en kort besked, så læser jeg den. Hvis du vil lave mere, er du velkommen!",
     "play": "Test i browser",
     "feedback": "Send feedback",
-    "discord": "Disharmoni",
+    "discord": "Discord",
     "devlog": "Udviklerlog",
     "waysTitle": "Måder at hjælpe på",
     "way1": "Del idéer og fejlrapporter",
@@ -153,7 +153,7 @@
   },
   "footer": {
     "play": "Spil",
-    "steam": "Damp",
+    "steam": "Steam",
     "feedback": "Feedback",
     "imprint": "Aftryk",
     "privacy": "Databeskyttelse"

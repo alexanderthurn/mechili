@@ -135,7 +135,7 @@
     "sub2": "Mari kita buat ini bersama-sama. Keseimbangan, bug, fitur, ide seni {{sep}} kirim catatan singkat dan saya akan membacanya. Jika Anda ingin melakukan lebih banyak, silakan!",
     "play": "Uji di Browser",
     "feedback": "Kirim masukan",
-    "discord": "Perselisihan",
+    "discord": "Discord",
     "devlog": "Catatan Pengembang",
     "waysTitle": "Cara untuk membantu",
     "way1": "Bagikan ide dan laporan bug.",
@@ -153,7 +153,7 @@
   },
   "footer": {
     "play": "Bermain",
-    "steam": "Uap",
+    "steam": "Steam",
     "feedback": "Masukan",
     "imprint": "Jejak",
     "privacy": "Privasi data"

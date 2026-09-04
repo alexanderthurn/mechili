@@ -135,7 +135,7 @@
     "sub2": "Pojďme to udělat společně. Vyvažování, chyby, funkce, nápady na grafiku {{sep}} pošlete krátkou zprávu a já si ji přečtu. Pokud chcete udělat víc, vítejte!",
     "play": "Test v prohlížeči",
     "feedback": "Odeslat zpětnou vazbu",
-    "discord": "Svár",
+    "discord": "Discord",
     "devlog": "Protokol vývojáře",
     "waysTitle": "Způsoby, jak pomoci",
     "way1": "Sdílejte nápady a hláste chyby",
@@ -153,7 +153,7 @@
   },
   "footer": {
     "play": "Hrát",
-    "steam": "Pára",
+    "steam": "Steam",
     "feedback": "Zpětná vazba",
     "imprint": "Otisk",
     "privacy": "Ochrana osobních údajů"

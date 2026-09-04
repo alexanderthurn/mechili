@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Confezione di vendita",
-    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi pacchetti per venderlo e ottenere un rimborso di rifornimenti."
+    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi Packs per venderlo e ottenere un rimborso di rifornimenti."
   },
   "moveUnit": {
-    "name": "Pacchetto di movimento",
-    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi pacchetti di un round precedente: potrai trascinarlo e ruotarlo di nuovo per il resto di questo round."
+    "name": "Pack di movimento",
+    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi Packs di un round precedente: potrai trascinarlo e ruotarlo di nuovo per il resto di questo round."
   },
   "tutor": {
     "name": "Lezione sul campo",
-    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi pacchetti: la sua barra XP si riempirà al livello successivo. L'acquisto del livello ha comunque un costo in rifornimenti."
+    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi Packs: la sua barra XP si riempirà al livello successivo. L'acquisto del livello ha comunque un costo in rifornimenti."
   },
   "spawnDwarves": {
     "name": "Evoca nani",

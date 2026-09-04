@@ -29,10 +29,10 @@
   },
   "sellPack": {
     "title": "Terugkoop",
-    "description": "Eenmalige spreuk: verkoop een van je pakketten voor een terugbetaling van je voorraad."
+    "description": "Eenmalige spreuk: verkoop een van je Packs voor een terugbetaling van je voorraad."
   },
   "movePack": {
     "title": "Marsorders",
-    "description": "Eenmalige spreuk: één pakket kaarten uit een eerdere ronde mag in deze ronde opnieuw worden geplaatst."
+    "description": "Eenmalige spreuk: één Pack kaarten uit een eerdere ronde mag in deze ronde opnieuw worden geplaatst."
   }
 }

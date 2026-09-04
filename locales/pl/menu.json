@@ -104,7 +104,7 @@
   "transportUnavailableLan": "Tryb wieloosobowy w sieci LAN jest dostępny wyłącznie w aplikacji Steam/Electron.",
   "transportUnavailableLanElectron": "Sieć LAN jest niedostępna (włącz steamElectronBuild.lan i uruchom ponownie).",
   "transportUnavailableNone": "Brak dostępnej ścieżki trybu wieloosobowego. Sprawdź Ustawienia → Tryb wieloosobowy.",
-  "transportSteam": "Para",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Swatanie",
   "transportLan": "Sieć lokalna",
   "overlayOpened": "Otworzyła się nakładka Steam — wybierz tam znajomego.",

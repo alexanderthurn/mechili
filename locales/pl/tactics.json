@@ -8,16 +8,16 @@
     "description": "Umieść dwa kręgi oleju – obrysuj je podczas rozstawiania; krótko po rozpoczęciu bitwy olej kapie z lewej do prawej na ścieżkę (dyski ochronne pozostają czyste). Połączone kręgi oleju zapalają się jako jedno pole, gdy ogień je dotknie."
   },
   "sellUnit": {
-    "name": "Sprzedaj pakiet",
-    "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich pakietów, aby go sprzedać i uzyskać zwrot kosztów za zapasy."
+    "name": "Sprzedaj Pack",
+    "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich Packów, aby go sprzedać i uzyskać zwrot kosztów za zapasy."
   },
   "moveUnit": {
-    "name": "Pakiet do przenoszenia",
-    "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich pakietów z poprzedniej rundy — możesz go przeciągać i obracać do końca tej rundy."
+    "name": "Pack do przenoszenia",
+    "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich Packów z poprzedniej rundy — możesz go przeciągać i obracać do końca tej rundy."
   },
   "tutor": {
     "name": "Lekcja terenowa",
-    "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich pakietów – jego pasek XP wypełni się do następnego poziomu. Kupno tego poziomu nadal kosztuje zapasy."
+    "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich Packów – jego pasek XP wypełni się do następnego poziomu. Kupno tego poziomu nadal kosztuje zapasy."
   },
   "spawnDwarves": {
     "name": "Przywołaj krasnoludy",

@@ -29,10 +29,10 @@
   },
   "sellPack": {
     "title": "Recompra",
-    "description": "Hechizo de un solo uso: vende uno de tus paquetes para obtener un reembolso de suministros."
+    "description": "Hechizo de un solo uso: vende uno de tus Packs para obtener un reembolso de suministros."
   },
   "movePack": {
     "title": "Órdenes de marcha",
-    "description": "Hechizo de un solo uso: un paquete de una ronda anterior puede ser reposicionado nuevamente en esta ronda."
+    "description": "Hechizo de un solo uso: un Pack de una ronda anterior puede ser reposicionado nuevamente en esta ronda."
   }
 }

@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Vendita",
-    "description": "Sblocca in modo permanente i pacchetti di vendita (fino a {{maxPerRound}} per fase di implementazione). Il rimborso è pari a {{refundPct}}% del costo base."
+    "description": "Sblocca in modo permanente i Packs di vendita (fino a {{maxPerRound}} per fase di implementazione). Il rimborso è pari a {{refundPct}}% del costo base."
   },
   "attack_boost": {
     "name": "Potenziamento dell'attacco",
@@ -40,8 +40,8 @@
     "description": "Aggiungi una carica di percorso di raduno alla tua striscia di magie. Una volta per partita."
   },
   "move_pack": {
-    "name": "Pacchetto di movimento",
-    "description": "Aggiungi una carica di pacchetto di movimento alla tua striscia di incantesimi: un pacchetto di un round precedente torna a essere movimentabile. Una sola volta per partita."
+    "name": "Pack di movimento",
+    "description": "Aggiungi una carica di Pack di movimento alla tua striscia di incantesimi: un Pack di un round precedente torna a essere movimentabile. Una sola volta per partita."
   },
   "1_deployment": {
     "name": "+1 Dispiegamento",

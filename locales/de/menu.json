@@ -104,7 +104,7 @@
   "transportUnavailableLan": "LAN-Mehrspieler ist nur in der Steam/Electron-App verfügbar.",
   "transportUnavailableLanElectron": "LAN ist nicht verfügbar (aktivieren Sie steamElectronBuild.lan und starten Sie das System neu).",
   "transportUnavailableNone": "Es ist kein Mehrspielermodus verfügbar. Überprüfen Sie die Einstellungen → Mehrspieler.",
-  "transportSteam": "Dampf",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Partnervermittlung",
   "transportLan": "LAN",
   "overlayOpened": "Steam-Overlay geöffnet – wähle dort einen Freund aus.",

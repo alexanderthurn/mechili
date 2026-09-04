@@ -104,7 +104,7 @@
   "transportUnavailableLan": "LAN мултиплейърът е достъпен само в приложението Steam/Electron.",
   "transportUnavailableLanElectron": "LAN не е налична (активирайте steamElectronBuild.lan и рестартирайте).",
   "transportUnavailableNone": "Няма наличен мултиплейър режим. Проверете „Настройки“ → „Мултиплейър“.",
-  "transportSteam": "Пара",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Сватовничество",
   "transportLan": "Локална мрежа (LAN)",
   "overlayOpened": "Steam overlay е отворен — изберете приятел там.",

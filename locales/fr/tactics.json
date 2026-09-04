@@ -9,7 +9,7 @@
   },
   "sellUnit": {
     "name": "Pack de vente",
-    "description": "Cliquez pour armer, puis cliquez sur l'un de vos paquets pour le vendre et obtenir un remboursement de ravitaillement."
+    "description": "Cliquez pour armer, puis cliquez sur l'un de vos Packs pour le vendre et obtenir un remboursement de ravitaillement."
   },
   "moveUnit": {
     "name": "Pack de déménagement",

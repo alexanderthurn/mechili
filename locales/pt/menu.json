@@ -104,7 +104,7 @@
   "transportUnavailableLan": "O modo multijogador em LAN está disponível apenas no aplicativo Steam/Electron.",
   "transportUnavailableLanElectron": "A rede local (LAN) está indisponível (ative o steamElectronBuild.lan e reinicie).",
   "transportUnavailableNone": "Não há opção multijogador disponível. Verifique Configurações → Multijogador.",
-  "transportSteam": "Vapor",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Encontros",
   "transportLan": "LAN",
   "overlayOpened": "A interface do Steam foi aberta — escolha um amigo ali.",

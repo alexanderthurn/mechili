@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Sprzedawanie",
-    "description": "Trwale odblokuj pakiety sprzedażowe (do {{maxPerRound}} na fazę wdrożenia). Zwrot wynosi {{refundPct}}% kosztu bazowego."
+    "description": "Trwale odblokuj Packs sprzedażowe (do {{maxPerRound}} na fazę wdrożenia). Zwrot wynosi {{refundPct}}% kosztu bazowego."
   },
   "attack_boost": {
     "name": "Wzmocnienie ataku",
@@ -40,8 +40,8 @@
     "description": "Dodaj jeden ładunek trasy rajdu do swojego paska zaklęć. Raz na mecz."
   },
   "move_pack": {
-    "name": "Pakiet do przenoszenia",
-    "description": "Dodaj jeden ładunek pakietu ruchu do paska zaklęć: jeden pakiet z poprzedniej rundy znów staje się ruchomy. Raz na mecz."
+    "name": "Pack do przenoszenia",
+    "description": "Dodaj jeden ładunek Packu ruchu do paska zaklęć: jeden Pack z poprzedniej rundy znów staje się ruchomy. Raz na mecz."
   },
   "1_deployment": {
     "name": "+1 Rozmieszczenie",

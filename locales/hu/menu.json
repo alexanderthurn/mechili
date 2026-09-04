@@ -104,7 +104,7 @@
   "transportUnavailableLan": "A LAN többjátékos mód csak a Steam/Electron alkalmazásban érhető el.",
   "transportUnavailableLanElectron": "A LAN nem érhető el (engedélyezze a steamElectronBuild.lan fájlt, és indítsa újra).",
   "transportUnavailableNone": "Nincs elérhető többjátékos mód. Válassza a Beállítások → Többjátékos mód lehetőséget.",
-  "transportSteam": "Gőz",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Társkeresés",
   "transportLan": "LAN",
   "overlayOpened": "Megnyílt a Steam overlay – válassz egy barátot.",

@@ -104,7 +104,7 @@
   "transportUnavailableLan": "LAN çok oyunculu modu yalnızca Steam/Electron uygulamasında mevcuttur.",
   "transportUnavailableLanElectron": "Yerel ağ kullanılamıyor (steamElectronBuild.lan'ı etkinleştirin ve yeniden başlatın).",
   "transportUnavailableNone": "Çok oyunculu mod mevcut değil. Ayarlar → Çok Oyunculu bölümünü kontrol edin.",
-  "transportSteam": "Buhar",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Çöpçatanlık",
   "transportLan": "LAN",
   "overlayOpened": "Steam arayüzü açıldı — oradan bir arkadaşınızı seçin.",

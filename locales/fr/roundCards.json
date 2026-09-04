@@ -29,10 +29,10 @@
   },
   "sellPack": {
     "title": "Rachat",
-    "description": "Sort à usage unique : vendez un de vos paquets pour obtenir un remboursement de vos ressources."
+    "description": "Sort à usage unique : vendez un de vos Packs pour obtenir un remboursement de vos ressources."
   },
   "movePack": {
     "title": "Ordres de marche",
-    "description": "Sort à usage unique : un paquet d’un tour précédent peut être repositionné à nouveau pendant ce tour."
+    "description": "Sort à usage unique : un Pack d’un tour précédent peut être repositionné à nouveau pendant ce tour."
   }
 }

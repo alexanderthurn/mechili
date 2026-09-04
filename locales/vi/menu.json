@@ -104,7 +104,7 @@
   "transportUnavailableLan": "Chế độ chơi nhiều người qua mạng LAN chỉ khả dụng trên ứng dụng Steam/Electron.",
   "transportUnavailableLanElectron": "Mạng LAN không khả dụng (vui lòng bật steamElectronBuild.lan và khởi động lại).",
   "transportUnavailableNone": "Không có tùy chọn chơi nhiều người. Kiểm tra Cài đặt → Chơi nhiều người.",
-  "transportSteam": "Hơi nước",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Mai mối",
   "transportLan": "Mạng LAN",
   "overlayOpened": "Lớp phủ Steam đã được mở — hãy chọn một người bạn ở đó.",

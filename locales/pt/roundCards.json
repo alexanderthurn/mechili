@@ -29,10 +29,10 @@
   },
   "sellPack": {
     "title": "Recompra",
-    "description": "Feitiço de uso único: venda um dos seus pacotes para receber um reembolso de suprimentos."
+    "description": "Feitiço de uso único: venda um dos seus Packs para receber um reembolso de suprimentos."
   },
   "movePack": {
     "title": "Ordens de marcha",
-    "description": "Feitiço de uso único: um pacote de uma rodada anterior pode ser reposicionado nesta rodada."
+    "description": "Feitiço de uso único: um Pack de uma rodada anterior pode ser reposicionado nesta rodada."
   }
 }

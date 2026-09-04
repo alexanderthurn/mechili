@@ -29,10 +29,10 @@
   },
   "sellPack": {
     "title": "Odkup",
-    "description": "Zaklęcie jednorazowe: sprzedaj jeden ze swoich pakietów, aby otrzymać zwrot zapasów."
+    "description": "Zaklęcie jednorazowe: sprzedaj jeden ze swoich Packów, aby otrzymać zwrot zapasów."
   },
   "movePack": {
     "title": "Rozkazy marszowe",
-    "description": "Zaklęcie jednorazowe: jeden pakiet z poprzedniej rundy może zostać przeniesiony ponownie w tej rundzie."
+    "description": "Zaklęcie jednorazowe: jeden Pack z poprzedniej rundy może zostać przeniesiony ponownie w tej rundzie."
   }
 }

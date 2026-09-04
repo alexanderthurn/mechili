@@ -135,7 +135,7 @@
     "sub2": "Tehdään tämä yhdessä. Tasapaino, bugit, ominaisuudet, taideideat {{sep}} Lähetä lyhyt viesti, niin luen sen. Jos haluat tehdä lisää, tervetuloa!",
     "play": "Testaa selaimessa",
     "feedback": "Lähetä palautetta",
-    "discord": "Eripura",
+    "discord": "Discord",
     "devlog": "Kehittäjäloki",
     "waysTitle": "Auttamiskeinoja",
     "way1": "Jaa ideoita ja bugiraportteja",
@@ -153,7 +153,7 @@
   },
   "footer": {
     "play": "Pelata",
-    "steam": "Höyry",
+    "steam": "Steam",
     "feedback": "Palaute",
     "imprint": "Painatus",
     "privacy": "Tietosuoja"

@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Unità, edifici e incantesimi",
-    "sub": "Il tuo esercito, gli edifici, i pacchetti {{horde}} e i modelli degli incantesimi di battaglia. Scegline uno da esaminare: Crow Rider e Dragon flap in questa anteprima.",
+    "sub": "Il tuo esercito, gli edifici, i Packs {{horde}} e i modelli degli incantesimi di battaglia. Scegline uno da esaminare: Crow Rider e Dragon flap in questa anteprima.",
     "canvas": "Anteprima 3D dell'unità",
     "loading": "Caricamento del modello…",
     "hint": "Trascina per ruotare · Scorri per ingrandire",
@@ -96,7 +96,7 @@
     "select": "Scegli un {{commander}}"
   },
   "runes": {
-    "sub": "Fuso su un pacchetto per sempre, sollevando ogni mech in esso {{sep}} la maggior parte dei pacchetti contiene {{packLimit}}, la balista {{ballistaLimit}}. Le quattro rune base vengono pescate da carte rotonde o acquistate nel negozio; quelle più potenti vengono forgiate da esse nella Fortezza e non vengono mai vendute.",
+    "sub": "Fuso su un Pack per sempre, sollevando ogni mech in esso {{sep}} la maggior parte dei Packs contiene {{packLimit}}, la balista {{ballistaLimit}}. Le quattro rune base vengono pescate da carte rotonde o acquistate nel negozio; quelle più potenti vengono forgiate da esse nella Fortezza e non vengono mai vendute.",
     "select": "Scegli un {{item}}",
     "base": "Base",
     "advanced": "Avanzato",
@@ -118,7 +118,7 @@
     "two-point": "due punti",
     "three-point": "tre punti",
     "point-yaw": "punto + rivolto",
-    "own-unit": "proprio pacchetto"
+    "own-unit": "proprio Pack"
   },
   "roundCards": {
     "title": "Carte rotonde",
@@ -135,7 +135,7 @@
     "sub2": "Realizziamolo insieme. Bilanciamento, bug, funzionalità, idee artistiche {{sep}} invia un breve messaggio e lo leggerò. Se vuoi contribuire ulteriormente, benvenuto!",
     "play": "Prova nel browser",
     "feedback": "Invia feedback",
-    "discord": "Discordia",
+    "discord": "Discord",
     "devlog": "Registro dello sviluppatore",
     "waysTitle": "Modi per aiutare",
     "way1": "Condividi idee e segnalazioni di bug",
@@ -153,7 +153,7 @@
   },
   "footer": {
     "play": "Giocare",
-    "steam": "Vapore",
+    "steam": "Steam",
     "feedback": "Feedback",
     "imprint": "Impronta",
     "privacy": "Privacy dei dati"

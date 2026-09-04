@@ -104,7 +104,7 @@
   "transportUnavailableLan": "Modul multiplayer în LAN este disponibil doar în aplicația Steam/Electron.",
   "transportUnavailableLanElectron": "LAN-ul nu este disponibil (activați steamElectronBuild.lan și reporniți).",
   "transportUnavailableNone": "Nu este disponibilă nicio cale multiplayer. Verificați Setări → Multiplayer.",
-  "transportSteam": "Aburi",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Matchmaking",
   "transportLan": "LAN",
   "overlayOpened": "Suprapunerea Steam s-a deschis — alege un prieten de acolo.",

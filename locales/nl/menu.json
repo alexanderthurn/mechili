@@ -104,7 +104,7 @@
   "transportUnavailableLan": "LAN-multiplayer is alleen beschikbaar in de Steam/Electron-app.",
   "transportUnavailableLanElectron": "LAN is niet beschikbaar (schakel steamElectronBuild.lan in en herstart).",
   "transportUnavailableNone": "Geen multiplayer-optie beschikbaar. Controleer Instellingen → Multiplayer.",
-  "transportSteam": "Stoom",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Matchmaking",
   "transportLan": "LAN",
   "overlayOpened": "De Steam-overlay is geopend — kies daar een vriend.",

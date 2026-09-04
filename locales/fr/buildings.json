@@ -41,7 +41,7 @@
   },
   "move_pack": {
     "name": "Pack de déménagement",
-    "description": "Ajoutez une charge de déplacement à votre réserve de sorts : un paquet d'un tour précédent peut à nouveau être déplacé. Une fois par match."
+    "description": "Ajoutez une charge de déplacement à votre réserve de sorts : un Pack d'un tour précédent peut à nouveau être déplacé. Une fois par match."
   },
   "1_deployment": {
     "name": "+1 Déploiement",

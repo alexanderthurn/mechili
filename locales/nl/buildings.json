@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Verkopen",
-    "description": "Verkooppakketten permanent ontgrendelen (tot {{maxPerRound}} per implementatiefase). Terugbetaling is {{refundPct}}% van de basiskosten."
+    "description": "VerkoopPacks permanent ontgrendelen (tot {{maxPerRound}} per implementatiefase). Terugbetaling is {{refundPct}}% van de basiskosten."
   },
   "attack_boost": {
     "name": "Aanvalsboost",
@@ -40,8 +40,8 @@
     "description": "Voeg één rally-route charge toe aan je spreukenstrip. Eenmaal per wedstrijd."
   },
   "move_pack": {
-    "name": "Verhuispakket",
-    "description": "Voeg één verplaatsingslading toe aan je spreukenstrip: één pakket uit een eerdere ronde wordt opnieuw verplaatsbaar. Eenmaal per wedstrijd."
+    "name": "VerhuisPack",
+    "description": "Voeg één verplaatsingslading toe aan je spreukenstrip: één Pack uit een eerdere ronde wordt opnieuw verplaatsbaar. Eenmaal per wedstrijd."
   },
   "1_deployment": {
     "name": "+1 Implementatie",

@@ -104,7 +104,7 @@
   "transportUnavailableLan": "Multiplayer LAN hanya tersedia dalam aplikasi Steam/Electron.",
   "transportUnavailableLanElectron": "LAN tidak tersedia (dayakan steamElectronBuild.lan dan mulakan semula).",
   "transportUnavailableNone": "Tiada laluan berbilang pemain tersedia. Semak Tetapan → Berbilang Pemain.",
-  "transportSteam": "Wap",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Mencari jodoh",
   "transportLan": "LAN",
   "overlayOpened": "Lapisan stim dibuka — pilih rakan di sana.",

@@ -8,16 +8,16 @@
     "description": "Coloque dois círculos de óleo — contorne-os durante a implantação; logo após o início da batalha, o óleo pinga da esquerda para a direita no caminho (os discos de proteção permanecem livres). O óleo conectado se inflama como um único campo quando o fogo o toca."
   },
   "sellUnit": {
-    "name": "Pacote de Venda",
-    "description": "Clique para ativar e, em seguida, clique em um dos seus pacotes para vendê-lo e receber um reembolso de suprimentos."
+    "name": "Pack de Venda",
+    "description": "Clique para ativar e, em seguida, clique em um dos seus Packs para vendê-lo e receber um reembolso de suprimentos."
   },
   "moveUnit": {
-    "name": "Pacote de Mudança",
-    "description": "Clique para ativar e, em seguida, clique em um dos seus pacotes de uma rodada anterior — ele poderá ser arrastado e girado novamente durante o restante desta rodada."
+    "name": "Pack de Mudança",
+    "description": "Clique para ativar e, em seguida, clique em um dos seus Packs de uma rodada anterior — ele poderá ser arrastado e girado novamente durante o restante desta rodada."
   },
   "tutor": {
     "name": "Lição de Campo",
-    "description": "Clique para ativar e, em seguida, clique em um dos seus pacotes — a barra de XP dele será preenchida até o próximo nível. Comprar o nível ainda custa suprimentos."
+    "description": "Clique para ativar e, em seguida, clique em um dos seus Packs — a barra de XP dele será preenchida até o próximo nível. Comprar o nível ainda custa suprimentos."
   },
   "spawnDwarves": {
     "name": "Invocar Anões",

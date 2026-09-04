@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Einheiten, Gebäude & Zaubersprüche",
-    "sub": "Deine Armee, Gebäude, {{horde}}-Pakete und Kampfzauber-Modelle. Wähle eines aus, um es genauer anzusehen – Krähenreiter und Drache sind in dieser Vorschau zu sehen.",
+    "sub": "Deine Armee, Gebäude, {{horde}}-Packs und Kampfzauber-Modelle. Wähle eines aus, um es genauer anzusehen – Krähenreiter und Drache sind in dieser Vorschau zu sehen.",
     "canvas": "3D-Vorschau der Einheit",
     "loading": "Modell wird geladen…",
     "hint": "Zum Drehen ziehen · Zum Zoomen scrollen",
@@ -96,7 +96,7 @@
     "select": "Wählen Sie einen {{commander}}"
   },
   "runes": {
-    "sub": "Fest mit einem Paket verschmolzen, hebt es jeden Mech darin an {{sep}}. Die meisten Pakete enthalten {{packLimit}}, die Balliste {{ballistaLimit}}. Die vier Basisrunen werden aus runden Karten gezogen oder im Laden gekauft; die stärkeren werden in der Festung daraus geschmiedet und niemals verkauft.",
+    "sub": "Fest mit einem Pack verschmolzen, hebt es jeden Mech darin an {{sep}}. Die meisten Packs enthalten {{packLimit}}, die Balliste {{ballistaLimit}}. Die vier Basisrunen werden aus runden Karten gezogen oder im Laden gekauft; die stärkeren werden in der Festung daraus geschmiedet und niemals verkauft.",
     "select": "Wählen Sie einen {{item}}",
     "base": "Base",
     "advanced": "Fortschrittlich",
@@ -135,7 +135,7 @@
     "sub2": "Lasst uns das gemeinsam angehen. Balance, Bugs, Features, Grafikideen {{sep}} – schickt mir eine kurze Nachricht, ich lese sie. Wer mehr machen möchte, ist herzlich willkommen!",
     "play": "Im Browser testen",
     "feedback": "Feedback senden",
-    "discord": "Zwietracht",
+    "discord": "Discord",
     "devlog": "Entwickler-Logbuch",
     "waysTitle": "Möglichkeiten zur Hilfe",
     "way1": "Ideen und Fehlerberichte austauschen",
@@ -153,7 +153,7 @@
   },
   "footer": {
     "play": "Spielen",
-    "steam": "Dampf",
+    "steam": "Steam",
     "feedback": "Rückmeldung",
     "imprint": "Impressum",
     "privacy": "Datenschutz"

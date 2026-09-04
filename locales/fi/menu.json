@@ -104,7 +104,7 @@
   "transportUnavailableLan": "Lähiverkon moninpeli on saatavilla vain Steam/Electron-sovelluksessa.",
   "transportUnavailableLanElectron": "Lähiverkko ei ole käytettävissä (ota steamElectronBuild.lan käyttöön ja käynnistä uudelleen).",
   "transportUnavailableNone": "Moninpelipolkua ei ole saatavilla. Tarkista Asetukset → Moninpeli",
-  "transportSteam": "Höyry",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Parinmuodostus",
   "transportLan": "Lähiverkko",
   "overlayOpened": "Steam-peliliittymä avattu – valitse sieltä ystävä.",

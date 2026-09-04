@@ -8,16 +8,16 @@
     "description": "Coloca dos círculos de aceite: delinea el contorno durante el despliegue; poco después de que comience la batalla, el aceite gotea de izquierda a derecha sobre el camino (los discos de protección permanecen despejados). El aceite conectado se enciende como un solo campo al contacto con el fuego."
   },
   "sellUnit": {
-    "name": "Paquete de venta",
-    "description": "Haz clic para armar, luego haz clic en uno de tus paquetes para venderlo y obtener un reembolso por suministros."
+    "name": "Pack de venta",
+    "description": "Haz clic para armar, luego haz clic en uno de tus Packs para venderlo y obtener un reembolso por suministros."
   },
   "moveUnit": {
-    "name": "Paquete de mudanza",
-    "description": "Haz clic para armar, luego haz clic en uno de tus paquetes de una ronda anterior; es posible que se arrastre y gire nuevamente durante el resto de esta ronda."
+    "name": "Pack de mudanza",
+    "description": "Haz clic para armar, luego haz clic en uno de tus Packs de una ronda anterior; es posible que se arrastre y gire nuevamente durante el resto de esta ronda."
   },
   "tutor": {
     "name": "Lección de campo",
-    "description": "Haz clic para armar, luego haz clic en uno de tus paquetes; su barra de XP se llenará hasta el siguiente nivel. Comprar el nivel aún cuesta suministros."
+    "description": "Haz clic para armar, luego haz clic en uno de tus Packs; su barra de XP se llenará hasta el siguiente nivel. Comprar el nivel aún cuesta suministros."
   },
   "spawnDwarves": {
     "name": "Invocar enanos",

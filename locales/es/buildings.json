@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Venta",
-    "description": "Desbloquea permanentemente los paquetes de venta (hasta {{maxPerRound}} por fase de despliegue). El reembolso es del {{refundPct}}% del costo base."
+    "description": "Desbloquea permanentemente los Packs de venta (hasta {{maxPerRound}} por fase de despliegue). El reembolso es del {{refundPct}}% del costo base."
   },
   "attack_boost": {
     "name": "Impulso de ataque",
@@ -40,8 +40,8 @@
     "description": "Añade una carga de ruta de reunión a tu eliminación de hechizos. Una vez por partida."
   },
   "move_pack": {
-    "name": "Paquete de mudanza",
-    "description": "Añade una carga de paquete de movimiento a tu descarte de hechizos: un paquete de una ronda anterior vuelve a ser movible. Una vez por partida."
+    "name": "Pack de mudanza",
+    "description": "Añade una carga de Pack de movimiento a tu descarte de hechizos: un Pack de una ronda anterior vuelve a ser movible. Una vez por partida."
   },
   "1_deployment": {
     "name": "+1 Despliegue",

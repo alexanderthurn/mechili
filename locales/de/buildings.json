@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Verkauf",
-    "description": "Verkaufspakete dauerhaft freischalten (bis zu {{maxPerRound}} pro Einsatzphase). Die Rückerstattung beträgt {{refundPct}}% der Basiskosten."
+    "description": "Verkaufs-Packs dauerhaft freischalten (bis zu {{maxPerRound}} pro Einsatzphase). Die Rückerstattung beträgt {{refundPct}}% der Basiskosten."
   },
   "attack_boost": {
     "name": "Angriffsverstärkung",
@@ -40,8 +40,8 @@
     "description": "Füge deiner Zauberleiste eine Rallye-Route-Ladung hinzu. Einmal pro Spiel."
   },
   "move_pack": {
-    "name": "Umzugspaket",
-    "description": "Füge deiner Zauberleiste eine Bewegungspaketladung hinzu: Ein Paket aus einer früheren Runde wird wieder beweglich. Einmal pro Spielzug."
+    "name": "Umzugs-Pack",
+    "description": "Füge deiner Zauberleiste eine Bewegungs-Pack-Ladung hinzu: Ein Pack aus einer früheren Runde wird wieder beweglich. Einmal pro Spielzug."
   },
   "1_deployment": {
     "name": "+1 Bereitstellung",

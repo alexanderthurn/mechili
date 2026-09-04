@@ -29,10 +29,10 @@
   },
   "sellPack": {
     "title": "Riacquisto",
-    "description": "Incantesimo monouso: vendi uno dei tuoi pacchetti per ottenere un rimborso di rifornimenti."
+    "description": "Incantesimo monouso: vendi uno dei tuoi Packs per ottenere un rimborso di rifornimenti."
   },
   "movePack": {
     "title": "Ordini di marcia",
-    "description": "Incantesimo a uso singolo: un pacchetto di carte di un turno precedente può essere riposizionato nuovamente in questo turno."
+    "description": "Incantesimo a uso singolo: un Pack di carte di un turno precedente può essere riposizionato nuovamente in questo turno."
   }
 }

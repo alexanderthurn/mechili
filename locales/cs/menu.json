@@ -104,7 +104,7 @@
   "transportUnavailableLan": "LAN multiplayer je k dispozici pouze v aplikaci Steam/Electron.",
   "transportUnavailableLanElectron": "LAN není k dispozici (povolte steamElectronBuild.lan a restartujte).",
   "transportUnavailableNone": "Není k dispozici žádná cesta pro více hráčů. Zkontrolujte Nastavení → Více hráčů.",
-  "transportSteam": "Pára",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Dohazování",
   "transportLan": "LAN",
   "overlayOpened": "Otevřela se překryvná vrstva Steamu – vyberte si tam přítele.",

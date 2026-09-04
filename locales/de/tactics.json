@@ -8,16 +8,16 @@
     "description": "Platziere zwei Ölkreise – die Umrisse werden beim Aufstellen markiert; kurz nach Kampfbeginn tropft Öl von links nach rechts auf den Weg (Schutzscheiben bleiben frei). Verbundene Ölkreise entzünden sich als ein Feld, sobald sie mit Feuer in Berührung kommen."
   },
   "sellUnit": {
-    "name": "Verkaufspaket",
-    "description": "Klicken Sie, um sich zu bewaffnen, und klicken Sie dann auf eines Ihrer Pakete, um es gegen eine Rückerstattung Ihrer Vorräte zu verkaufen."
+    "name": "Verkaufs-Pack",
+    "description": "Klicken Sie, um sich zu bewaffnen, und klicken Sie dann auf eines Ihrer Packs, um es gegen eine Rückerstattung Ihrer Vorräte zu verkaufen."
   },
   "moveUnit": {
-    "name": "Umzugspaket",
-    "description": "Klicken Sie, um zu aktivieren, und klicken Sie dann auf eines Ihrer Pakete aus einer früheren Runde – dieses kann für den Rest dieser Runde erneut verschoben und gedreht werden."
+    "name": "Umzugs-Pack",
+    "description": "Klicken Sie, um zu aktivieren, und klicken Sie dann auf eines Ihrer Packs aus einer früheren Runde – dieses kann für den Rest dieser Runde erneut verschoben und gedreht werden."
   },
   "tutor": {
     "name": "Feldlektion",
-    "description": "Klicke, um die Ausrüstung zu aktivieren, und anschließend auf eines deiner Pakete – dessen XP-Leiste füllt sich bis zur nächsten Stufe. Der Kauf der Stufe kostet weiterhin Vorräte."
+    "description": "Klicke, um die Ausrüstung zu aktivieren, und anschließend auf eines deiner Packs – dessen XP-Leiste füllt sich bis zur nächsten Stufe. Der Kauf der Stufe kostet weiterhin Vorräte."
   },
   "spawnDwarves": {
     "name": "Zwerge beschwören",

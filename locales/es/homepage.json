@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Unidades, edificios y hechizos",
-    "sub": "Tu ejército, edificios, paquetes {{horde}} y modelos de hechizos de batalla. Elige uno para inspeccionar: el Jinete Cuervo y el Dragón aletean en esta vista previa.",
+    "sub": "Tu ejército, edificios, Packs {{horde}} y modelos de hechizos de batalla. Elige uno para inspeccionar: el Jinete Cuervo y el Dragón aletean en esta vista previa.",
     "canvas": "Vista previa 3D de la unidad",
     "loading": "Cargando modelo…",
     "hint": "Arrastra para girar · Desplázate para hacer zoom",
@@ -96,7 +96,7 @@
     "select": "Elige un {{commander}}"
   },
   "runes": {
-    "sub": "Fusionado a un paquete para siempre, elevando a todos los mechs que contiene {{sep}} (la mayoría de los paquetes contienen {{packLimit}}), la balista {{ballistaLimit}}. Las cuatro runas base se obtienen de cartas redondas o se compran en la tienda; las más fuertes se forjan a partir de ellas en la Fortaleza y nunca se venden.",
+    "sub": "Fusionado a un Pack para siempre, elevando a todos los mechs que contiene {{sep}} (la mayoría de los Packs contienen {{packLimit}}), la balista {{ballistaLimit}}. Las cuatro runas base se obtienen de cartas redondas o se compran en la tienda; las más fuertes se forjan a partir de ellas en la Fortaleza y nunca se venden.",
     "select": "Elige un {{item}}",
     "base": "Base",
     "advanced": "Avanzado",
@@ -118,7 +118,7 @@
     "two-point": "dos puntos",
     "three-point": "tres puntos",
     "point-yaw": "apuntar + mirando",
-    "own-unit": "paquete propio"
+    "own-unit": "Pack propio"
   },
   "roundCards": {
     "title": "Tarjetas redondas",
@@ -135,7 +135,7 @@
     "sub2": "Vamos a hacerlo juntos. Equilibrio, errores, características, ideas artísticas {{sep}} Envía una nota breve y la leeré. Si quieres hacer más, ¡bienvenido!",
     "play": "Prueba en el navegador",
     "feedback": "Enviar comentarios",
-    "discord": "Discordia",
+    "discord": "Discord",
     "devlog": "Registro del desarrollador",
     "waysTitle": "Formas de ayudar",
     "way1": "Comparta ideas e informes de errores.",
@@ -153,7 +153,7 @@
   },
   "footer": {
     "play": "Jugar",
-    "steam": "Vapor",
+    "steam": "Steam",
     "feedback": "Comentario",
     "imprint": "Imprimir",
     "privacy": "Privacidad de datos"

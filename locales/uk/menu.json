@@ -104,7 +104,7 @@
   "transportUnavailableLan": "Багатокористувацький режим по локальній мережі доступний лише в додатку Steam/Electron.",
   "transportUnavailableLanElectron": "Локальна мережа недоступна (увімкніть steamElectronBuild.lan та перезавантажте).",
   "transportUnavailableNone": "Немає доступного багатокористувацького режиму. Перевірте \"Налаштування\" → \"Мультиплеєр\".",
-  "transportSteam": "Пара",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Сватовство",
   "transportLan": "Локальна мережа",
   "overlayOpened": "Відкрито оверлей Steam — виберіть там друга.",

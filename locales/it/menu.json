@@ -104,7 +104,7 @@
   "transportUnavailableLan": "La modalità multigiocatore LAN è disponibile solo nell'app Steam/Electron.",
   "transportUnavailableLanElectron": "La rete LAN non è disponibile (abilitare steamElectronBuild.lan e riavviare).",
   "transportUnavailableNone": "Non è disponibile alcuna modalità multigiocatore. Controlla Impostazioni → Multigiocatore.",
-  "transportSteam": "Vapore",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Abbinamento",
   "transportLan": "LAN",
   "overlayOpened": "Si è aperta la sovrapposizione di Steam: scegli un amico da lì.",

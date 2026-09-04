@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Eenheden, gebouwen en spreuken",
-    "sub": "Je leger, gebouwen, {{horde}}-pakketten en modellen voor gevechtsspreuken. Kies er één om te bekijken: Crow Rider en Dragon flapperen in deze preview.",
+    "sub": "Je leger, gebouwen, {{horde}}-Packs en modellen voor gevechtsspreuken. Kies er één om te bekijken: Crow Rider en Dragon flapperen in deze preview.",
     "canvas": "3D-voorbeeld van de unit",
     "loading": "Model laden…",
     "hint": "Slepen om te roteren · Scrollen om in te zoomen",
@@ -96,7 +96,7 @@
     "select": "Kies een {{commander}}"
   },
   "runes": {
-    "sub": "Vastgehecht aan een pakket, tilt elke mech erin op {{sep}} de meeste pakketten bevatten {{packLimit}}, de ballista {{ballistaLimit}}. De vier basisrunen worden getrokken uit ronde kaarten of gekocht in de winkel; de sterkere worden daaruit gesmeed in het Bolwerk en worden nooit verkocht.",
+    "sub": "Vastgehecht aan een Pack, tilt elke mech erin op {{sep}} de meeste Packs bevatten {{packLimit}}, de ballista {{ballistaLimit}}. De vier basisrunen worden getrokken uit ronde kaarten of gekocht in de winkel; de sterkere worden daaruit gesmeed in het Bolwerk en worden nooit verkocht.",
     "select": "Kies een {{item}}",
     "base": "Baseren",
     "advanced": "Geavanceerd",
@@ -135,7 +135,7 @@
     "sub2": "Laten we dit samen doen. Balans, bugs, functies, ideeën voor artwork {{sep}} stuur een kort berichtje en ik lees het. Als je meer wilt doen, ben je van harte welkom!",
     "play": "Testen in de browser",
     "feedback": "Feedback verzenden",
-    "discord": "Meningsverschil",
+    "discord": "Discord",
     "devlog": "Ontwikkelaarslogboek",
     "waysTitle": "Manieren om te helpen",
     "way1": "Deel ideeën en bugrapporten.",
@@ -153,7 +153,7 @@
   },
   "footer": {
     "play": "Toneelstuk",
-    "steam": "Stoom",
+    "steam": "Steam",
     "feedback": "Feedback",
     "imprint": "Impressum",
     "privacy": "Gegevensprivacy"

@@ -104,7 +104,7 @@
   "transportUnavailableLan": "LAN-flerspiller er bare tilgjengelig i Steam/Electron-appen.",
   "transportUnavailableLanElectron": "LAN er ikke tilgjengelig (aktiver steamElectronBuild.lan og start på nytt).",
   "transportUnavailableNone": "Ingen flerspillerbane tilgjengelig. Sjekk Innstillinger → Flerspiller.",
-  "transportSteam": "Damp",
+  "transportSteam": "Steam",
   "transportMatchmaking": "Matchmaking",
   "transportLan": "LAN",
   "overlayOpened": "Steam-overlegg åpnet – velg en venn der.",
