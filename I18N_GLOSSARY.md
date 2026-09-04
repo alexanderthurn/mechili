@@ -33,6 +33,23 @@ Game / brand terms. Prefer these over literal MT. Keep brands untranslated.
 | Middle-mouse drag | **Mittlere Maustaste ziehen** | Mittlerer Zug | |
 | Level (verb, upgrade packs) | **aufwerten** / **Level** | Nivellierung | |
 | made by (indie credit) | **entwickelt von** / **von … gemacht** | hergestellt | |
+| Move Pack | **Bewegungs-Pack** | Umzugs-Pack | *Umzug* = moving house |
+| Rally Route | **Rally-Route** | Rallye-Strecke | *Rallye* = motorsport |
+| range (attack) | **Reichweite** | Spanne, Bereich | |
+| Pitch Bolts | **Pechbolzen** | Pitch-Bolzen | *Pitch* = tar |
+| Cancel (UI) | **Abbrechen** | Stornieren | |
+| Menu (pause) | **Menü** | Speisekarte | |
+| Draw (tie) | **UNENTSCHIEDEN** | Ziehen | |
+| Defeat | **NIEDERLAGE** | Verlust | |
+| Look (settings) | **Aussehen** | Suchen | |
+| Controls | **Steuerung** | Bedienelemente | |
+| Pan (camera) | **Schwenken** | Pfanne | frying pan |
+| Custom | **Benutzerdefiniert** | Brauch | |
+| Native (resolution) | **Nativ** | Einheimisch | |
+| About | **Über** | Um | |
+| Bug / Balance / Feature (suggest cats.) | **Bug** / **Balance** / **Feature** | Insekt / Gleichgewicht / Besonderheit | |
+| Shop | **Shop** | Geschäft, Werkstatt | |
+| supply | **Vorrat** / **Vorräte** | Lieferung, Versorgung, Angebot | |
 
 Tone: **du** everywhere in German player UI (not *Sie*, not mixing *ihr* on marketing lines unless intentional plural address).
 
