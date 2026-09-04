@@ -25,7 +25,7 @@ Namespaces: `common`, `settings`, `menu`, `hud`, `suggest`, `homepage`, `units`,
 - Replay controls + load/verify status
 - Round-card face extras (`Free`, flank half-time)
 - Cinema atmosphere scene labels
-- Homepage marketing entry (`web.html` → own `initI18n`)
+- Homepage marketing entry (`web.html` → own `initI18n` + language pickers top-right and footer, shared prefs)
 
 ### Intentionally English / skipped
 

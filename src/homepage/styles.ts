@@ -16,6 +16,7 @@ html, body {
 }
 
 .melodan-home {
+    position: relative;
     min-height: 100vh;
     min-height: 100dvh;
     background: linear-gradient(180deg, #1a2818 0%, #121c12 35%, #0a0e0a 70%, #000000 100%);
@@ -26,6 +27,40 @@ html, body {
             linear-gradient(180deg, rgba(12, 20, 10, 0.55), rgba(18, 28, 14, 0.88)),
             var(--menu-bg) center / cover no-repeat fixed;
     }
+}
+
+.mh-lang {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: ${u.brassLight};
+}
+.mh-lang-globe {
+    flex-shrink: 0;
+    display: block;
+}
+.mh-lang-select {
+    background: rgba(18, 28, 14, 0.72);
+    border: 1px solid ${u.divider};
+    border-radius: 3px;
+    color: ${u.cream};
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+.mh-lang-select:hover,
+.mh-lang-select:focus-visible {
+    border-color: ${u.brass};
+    outline: none;
+}
+.mh-lang-select option {
+    color: ${u.cream};
+    background: #1a2818;
 }
 
 .mh-wrap {
@@ -1322,6 +1357,18 @@ html, body {
     display: flex;
     flex-wrap: wrap;
     gap: 14px;
+}
+.mh-footer-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 18px;
+}
+.mh-lang-footer {
+    position: static;
+}
+.mh-lang-footer .mh-lang-select {
+    background: transparent;
 }
 
 .mh-settings-grid {

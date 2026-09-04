@@ -26,7 +26,7 @@ import {
 } from '../game/units';
 import { MODEL_SPECS } from '../game/unitModels';
 import { type SpellAssetId } from '../game/spellAssets';
-import { initI18n, t } from '../i18n';
+import { initI18n, t, setLanguage, LANGUAGE_IDS, LANGUAGE_NATIVE_NAMES, type LanguageId } from '../i18n';
 import {
     commanderTitle,
     itemDescription,
@@ -37,6 +37,7 @@ import {
     techName,
     unitName,
 } from '../i18n/format';
+import { prefs, updatePrefs } from '../game/prefs';
 import { applyLanguageFont, hudStyles, menuStyles } from '../theme';
 import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { roundCardFaceHtml } from '../ui/roundCardFace';
@@ -47,11 +48,12 @@ import { homepageStyles } from './styles';
 
 /**
  * The homepage is its own Vite entry (web.html) — nothing boots i18n for it the
- * way src/main.ts does for the game, and there is no language picker here, so
- * it follows the device language. Everything below this line reads copy through
- * t() while the module body runs, so this has to stay the first statement.
+ * way src/main.ts does for the game. Language follows the shared prefs key
+ * (same as in-game Settings); first visit uses the device language. Everything
+ * below this line reads copy through t() while the module body runs, so this
+ * has to stay ahead of any string lookups.
  */
-const language = await initI18n();
+const language = await initI18n(prefs().language);
 await applyLanguageFont(language);
 
 const logoUrl = new URL('../../assets/ui/logo.webp', import.meta.url).href;
@@ -403,6 +405,20 @@ style.textContent = menuStyles() + hudStyles() + homepageStyles();
 document.head.appendChild(style);
 
 app.innerHTML = `
+<label class="mh-lang">
+  <svg class="mh-lang-globe" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+    <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.25"/>
+    <ellipse cx="8" cy="8" rx="2.6" ry="6.25" fill="none" stroke="currentColor" stroke-width="1.1"/>
+    <path d="M2.1 8h11.8M3.2 4.8h9.6M3.2 11.2h9.6" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+  </svg>
+  <select class="mh-lang-select" aria-label="${esc(t('common:language'))}">
+    ${LANGUAGE_IDS.map(
+        (id) =>
+            `<option value="${id}"${id === language ? ' selected' : ''}>${LANGUAGE_NATIVE_NAMES[id]}</option>`,
+    ).join('')}
+  </select>
+</label>
+
 <header class="mh-hero mh-wrap">
   <div class="mh-brand">
     <img class="mh-logo" src="${esc(logoUrl)}" alt="MELODAN" width="520" height="180" />
@@ -628,7 +644,22 @@ app.innerHTML = `
     <a href="https://feuerware.com/2025/imprint.html" rel="noopener noreferrer" target="_blank">${esc(t('homepage:footer.imprint'))}</a>
     <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">${esc(t('homepage:footer.privacy'))}</a>
   </div>
-  <span>${esc(versionLabel)} · MELODAN · Feuerware</span>
+  <div class="mh-footer-meta">
+    <label class="mh-lang mh-lang-footer">
+      <svg class="mh-lang-globe" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+        <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.25"/>
+        <ellipse cx="8" cy="8" rx="2.6" ry="6.25" fill="none" stroke="currentColor" stroke-width="1.1"/>
+        <path d="M2.1 8h11.8M3.2 4.8h9.6M3.2 11.2h9.6" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+      </svg>
+      <select class="mh-lang-select" aria-label="${esc(t('common:language'))}">
+        ${LANGUAGE_IDS.map(
+            (id) =>
+                `<option value="${id}"${id === language ? ' selected' : ''}>${LANGUAGE_NATIVE_NAMES[id]}</option>`,
+        ).join('')}
+      </select>
+    </label>
+    <span>${esc(versionLabel)} · MELODAN · Feuerware</span>
+  </div>
 </footer>
 
 <aside class="mh-sticky-play" id="mh-sticky-play" aria-hidden="true">
@@ -703,6 +734,19 @@ app.querySelector('#mh-footer-suggest')?.addEventListener('click', (e) => {
     e.preventDefault();
     document.getElementById('suggest')?.scrollIntoView({ behavior: 'smooth' });
     openHomepageSuggest();
+});
+
+app.querySelectorAll<HTMLSelectElement>('.mh-lang-select').forEach((sel) => {
+    sel.addEventListener('change', (e) => {
+        const next = (e.currentTarget as HTMLSelectElement).value as LanguageId;
+        if (next === language) return;
+        updatePrefs({ language: next });
+        void (async () => {
+            await setLanguage(next);
+            await applyLanguageFont(next);
+            location.reload();
+        })();
+    });
 });
 
 for (const img of app.querySelectorAll<HTMLImageElement>('.mh-shot img')) {
