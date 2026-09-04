@@ -576,41 +576,46 @@ export interface BarAssets {
 
 import { EXO2_LANGUAGE_IDS, LANGUAGE_IDS, type LanguageId } from './i18n/languages';
 
-const EXO2_STACK = '"Exo 2", "Segoe UI", system-ui, sans-serif';
+/** Brand Latin serif; Exo 2 only fills rare missing glyphs (e.g. Romanian ș/ț). */
 const MARCELLUS_STACK = '"Marcellus", "Exo 2", "Palatino Linotype", Palatino, Georgia, serif';
+const EXO2_STACK = '"Exo 2", "Segoe UI", system-ui, sans-serif';
 
-/** Per-language UI face — OFL, self-hosted for Steam/offline. */
-const FONT_STACKS: Record<LanguageId, string> = {
-    en: MARCELLUS_STACK,
-    zh: '"Noto Serif SC", "Songti SC", "SimSun", serif',
-    'zh-Hant': '"Noto Serif TC", "PingFang TC", "Microsoft JhengHei", serif',
-    ko: '"Noto Serif KR", "Apple SD Gothic Neo", "Malgun Gothic", serif',
-    ja: '"Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif',
-    th: '"Noto Serif Thai", "Thonburi", "Tahoma", serif',
-    ar: '"Noto Naskh Arabic", "Segoe UI", "Tahoma", sans-serif',
-    el: '"Noto Serif", "Times New Roman", Georgia, serif',
-    // filled below for Exo 2 languages
-} as Record<LanguageId, string>;
-
+/**
+ * Per-language UI face — OFL, self-hosted for Steam/offline.
+ * Default Marcellus; override only when Marcellus cannot render the script.
+ */
+const FONT_STACKS = Object.fromEntries(LANGUAGE_IDS.map((id) => [id, MARCELLUS_STACK])) as Record<
+    LanguageId,
+    string
+>;
+FONT_STACKS.zh = '"Noto Serif SC", "Songti SC", "SimSun", serif';
+FONT_STACKS['zh-Hant'] = '"Noto Serif TC", "PingFang TC", "Microsoft JhengHei", serif';
+FONT_STACKS.ko = '"Noto Serif KR", "Apple SD Gothic Neo", "Malgun Gothic", serif';
+FONT_STACKS.ja = '"Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif';
+FONT_STACKS.th = '"Noto Serif Thai", "Thonburi", "Tahoma", serif';
+FONT_STACKS.ar = '"Noto Naskh Arabic", "Segoe UI", "Tahoma", sans-serif';
+FONT_STACKS.el = '"Noto Serif", "Times New Roman", Georgia, serif';
 for (const id of EXO2_LANGUAGE_IDS) {
     FONT_STACKS[id] = EXO2_STACK;
 }
 
 /** Primary family name for Pixi Text (must match an @font-face). */
-export const FONT_FAMILY: Record<LanguageId, string> = {
-    en: 'Marcellus',
-    zh: 'Noto Serif SC',
-    'zh-Hant': 'Noto Serif TC',
-    ko: 'Noto Serif KR',
-    ja: 'Noto Serif JP',
-    th: 'Noto Serif Thai',
-    ar: 'Noto Naskh Arabic',
-    el: 'Noto Serif',
-} as Record<LanguageId, string>;
-
+const FONT_FAMILY = Object.fromEntries(LANGUAGE_IDS.map((id) => [id, 'Marcellus'])) as Record<
+    LanguageId,
+    string
+>;
+FONT_FAMILY.zh = 'Noto Serif SC';
+FONT_FAMILY['zh-Hant'] = 'Noto Serif TC';
+FONT_FAMILY.ko = 'Noto Serif KR';
+FONT_FAMILY.ja = 'Noto Serif JP';
+FONT_FAMILY.th = 'Noto Serif Thai';
+FONT_FAMILY.ar = 'Noto Naskh Arabic';
+FONT_FAMILY.el = 'Noto Serif';
 for (const id of EXO2_LANGUAGE_IDS) {
     FONT_FAMILY[id] = 'Exo 2';
 }
+
+export { FONT_FAMILY };
 
 // Ensure every shipped language has an entry (dev catch).
 for (const id of LANGUAGE_IDS) {
@@ -717,7 +722,7 @@ export async function applyLanguageFont(language: LanguageId): Promise<void> {
 }
 
 /**
- * One global font setup: @font-face for Latin/Cyrillic faces, --font-ui, body
+ * One global font setup: @font-face for Marcellus + Exo 2, --font-ui, body
  * default, and form-control inherit. Script-heavy faces (CJK / Thai / Arabic /
  * Greek) are injected on demand in {@link applyLanguageFont}.
  * Safe to inject more than once.

@@ -2,8 +2,10 @@
  * Shipped UI languages. Each language owns its display font — Settings picks
  * a language, not a typeface.
  *
- * Script-heavy locales (CJK / Thai / Arabic / Greek) lazy-load their faces in
- * `applyLanguageFont`. Latin / Cyrillic (except English→Marcellus) use Exo 2.
+ * Default face is Marcellus. Switch only when Marcellus lacks the script
+ * (CJK / Thai / Arabic / Greek → Noto; Cyrillic / Vietnamese → Exo 2).
+ * Latin locales keep Marcellus; Exo 2 stays in the stack as glyph fallback
+ * (e.g. rare Romanian ș/ț).
  */
 export type LanguageId =
     | 'en'
@@ -114,29 +116,14 @@ export function isLanguageId(value: unknown): value is LanguageId {
     return typeof value === 'string' && LANGUAGE_ID_SET.has(value);
 }
 
-/** Languages that use the Exo 2 face (Latin Extended, Cyrillic, Vietnamese, …). */
+/**
+ * Languages that need Exo 2 as the primary face because Marcellus lacks the
+ * script (Cyrillic) or most of the orthography (Vietnamese).
+ * Other Latin locales use Marcellus, with Exo 2 only as a glyph fallback.
+ */
 export const EXO2_LANGUAGE_IDS: readonly LanguageId[] = [
-    'de',
-    'fr',
-    'it',
-    'es',
-    'es-419',
     'ru',
-    'pt',
-    'pl',
-    'da',
-    'nl',
-    'fi',
-    'nb',
-    'sv',
-    'hu',
-    'cs',
-    'ro',
-    'tr',
-    'pt-BR',
     'bg',
     'uk',
     'vi',
-    'id',
-    'ms',
 ] as const;

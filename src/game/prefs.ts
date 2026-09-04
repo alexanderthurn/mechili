@@ -111,7 +111,7 @@ export interface Prefs {
      */
     controlScheme: ControlScheme;
     /**
-     * UI language (also selects the typeface: en→Marcellus, ru→Exo 2, zh→Noto Serif SC).
+     * UI language (also selects the typeface: Marcellus by default; Exo 2 / Noto only when needed).
      * First-run default follows the device language when we ship it.
      */
     language: LanguageId;

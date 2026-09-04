@@ -4,12 +4,12 @@ Updated 2026-09-04: full Steam-oriented language list wired + catalogs filled.
 
 ## Current state
 
-Language → font (lazy for heavy faces):
+Language → font (Marcellus by default; override only when glyphs are missing):
 
 | ID | Font |
 |---|---|
-| `en` | Marcellus |
-| Latin / Cyrillic / Vietnamese / id / ms (`de`, `fr`, `it`, `es`, `es-419`, `ru`, `pt`, `pt-BR`, `pl`, `da`, `nl`, `fi`, `nb`, `sv`, `hu`, `cs`, `ro`, `tr`, `bg`, `uk`, `vi`, `id`, `ms`) | Exo 2 |
+| Most languages (incl. `en`, `de`, `fr`, …) | **Marcellus** (+ Exo 2 glyph fallback) |
+| `ru`, `bg`, `uk`, `vi` | Exo 2 (Cyrillic / Vietnamese) |
 | `zh` | Noto Serif SC |
 | `zh-Hant` | Noto Serif TC |
 | `ko` | Noto Serif KR |
