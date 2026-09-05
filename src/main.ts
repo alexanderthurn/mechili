@@ -80,7 +80,7 @@ import {
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
-import { effectiveDpr, onPrefsChange, prefs, updatePrefs } from './game/prefs';
+import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { cssUrl, iconHtml } from './ui/iconAtlas';
@@ -552,6 +552,7 @@ document.body.appendChild(wrapper);
 const style = document.createElement('style');
 style.textContent = menuStyles();
 document.head.appendChild(style);
+await applySteamLanguageDefault();
 await initI18n(prefs().language);
 await applyLanguageFont(prefs().language);
 onPrefsChange(() => {

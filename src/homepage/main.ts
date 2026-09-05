@@ -38,7 +38,7 @@ import {
     techName,
     unitName,
 } from '../i18n/format';
-import { prefs, updatePrefs } from '../game/prefs';
+import { prefs, updatePrefs, applySteamLanguageDefault } from '../game/prefs';
 import { applyLanguageFont, hudStyles, menuStyles } from '../theme';
 import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { roundCardFaceHtml } from '../ui/roundCardFace';
@@ -50,11 +50,12 @@ import { homepageStyles } from './styles';
 /**
  * The homepage is its own Vite entry (web.html) — nothing boots i18n for it the
  * way src/main.ts does for the game. Language follows the shared prefs key
- * (same as in-game Settings); first visit uses the device language. Everything
+ * (same as in-game Settings); first visit uses Steam game language when available,
+ * otherwise the device language. Everything
  * below this line reads copy through t() while the module body runs, so this
  * has to stay ahead of any string lookups.
  */
-const language = await initI18n(prefs().language);
+const language = await initI18n(await applySteamLanguageDefault());
 await applyLanguageFont(language);
 
 const logoUrl = new URL('../../assets/ui/logo.webp', import.meta.url).href;

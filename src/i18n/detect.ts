@@ -91,6 +91,51 @@ export function matchShippedLanguage(tag: string): LanguageId | null {
     return null;
 }
 
+/**
+ * Steamworks `ISteamApps::GetCurrentGameLanguage` API names → shipped Melodan ids.
+ * https://partner.steamgames.com/doc/store/localization/languages
+ */
+const STEAM_GAME_LANGUAGE: Record<string, LanguageId> = {
+    english: 'en',
+    german: 'de',
+    french: 'fr',
+    italian: 'it',
+    korean: 'ko',
+    spanish: 'es',
+    latam: 'es-419',
+    schinese: 'zh',
+    tchinese: 'zh-Hant',
+    russian: 'ru',
+    thai: 'th',
+    japanese: 'ja',
+    portuguese: 'pt',
+    brazilian: 'pt-BR',
+    polish: 'pl',
+    danish: 'da',
+    dutch: 'nl',
+    finnish: 'fi',
+    norwegian: 'nb',
+    swedish: 'sv',
+    hungarian: 'hu',
+    czech: 'cs',
+    romanian: 'ro',
+    turkish: 'tr',
+    arabic: 'ar',
+    bulgarian: 'bg',
+    greek: 'el',
+    ukrainian: 'uk',
+    vietnamese: 'vi',
+    indonesian: 'id',
+};
+
+/** Map a Steam API language name to a shipped Melodan language, or null. */
+export function matchSteamGameLanguage(steamName: string | null | undefined): LanguageId | null {
+    if (!steamName) return null;
+    const key = steamName.trim().toLowerCase();
+    if (!key) return null;
+    return STEAM_GAME_LANGUAGE[key] ?? null;
+}
+
 /** Device language if we ship it, otherwise English. */
 export function detectDeviceLanguage(): LanguageId {
     if (typeof navigator === 'undefined') return 'en';

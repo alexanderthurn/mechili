@@ -25,6 +25,7 @@ Translated catalogs in the client bundle: all IDs above (MT seed + glossary chec
 - Settings, menu, HUD, catalogs, homepage, suggest
 - Homepage language pickers (top-right + footer), shared prefs
 - Device language detection for regional tags (`zh-Hant`, `es-419`, `pt-BR`, `nb`, …)
+- Steam first-run language: `GetCurrentGameLanguage` via steam-electron-build ≥1.11.4 (only when no saved `language` pref)
 - Glossary howler pass for all shipped languages including Arabic
 - Arabic RTL: `dir` + logical CSS for menu/settings/homepage/loadout chrome (game-spatial shop/fightbar stay physical)
 

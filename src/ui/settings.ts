@@ -1,5 +1,6 @@
 import {
     applyGraphicsPreset,
+    applySteamLanguageDefault,
     detectGraphicsPreset,
     prefs,
     resetSettingsStorage,
@@ -483,6 +484,7 @@ export function openSettings(parent: HTMLElement): void {
             }
             resetSettingsStorage();
             void (async () => {
+                await applySteamLanguageDefault();
                 await setLanguage(prefs().language);
                 await applyLanguageFont(prefs().language);
                 syncFromPrefs();
