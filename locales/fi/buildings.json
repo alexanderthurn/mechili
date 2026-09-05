@@ -29,7 +29,7 @@
   },
   "ward_dome": {
     "name": "Suojakupoli",
-    "description": "Imee vihollisen ammuksia, jotka osuvat kupoliin (säde {{radius}}, korkeus {{height}}). Pooli on tämän yksikön HP."
+    "description": "Imee kupoliin tulevat vihollisen ammukset (säde {{radius}}, korkeus {{height}}). Absorption kapasiteetti vastaa tämän yksikön HP:tä."
   },
   "homing_fire_bolt": {
     "name": "Itseohjautuva tulipultti",

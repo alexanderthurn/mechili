@@ -1,9 +1,9 @@
 {
   "garrison-archer": {
-    "name": "Garrison Archer"
+    "name": "Garnizoensboogschutter"
   },
   "hordeWebweaver": {
-    "name": "Webweaver"
+    "name": "Webwever"
   },
   "hordeBrutSpawn": {
     "name": "Zwarte Broed"
@@ -39,7 +39,7 @@
     "name": "Beschermsteen"
   },
   "rocket": {
-    "name": "Vuurflits"
+    "name": "Vuurbout"
   },
   "command-tower": {
     "name": "Voorhoede"
@@ -48,7 +48,7 @@
     "name": "Garnizoen"
   },
   "stronghold": {
-    "name": "Bolwerk"
+    "name": "Burcht"
   },
   "hordeZombie": {
     "name": "Zwarte Broed"

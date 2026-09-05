@@ -31,9 +31,9 @@ Translated catalogs in the client bundle: all IDs above (MT seed + glossary chec
 ### Deferred
 
 - Feuerware privacy / imprint pages (external; translate outside Melodan)
-- Full native line-by-line tone pass on long unit/item/tactic blurbs (still mostly MT; UI howler pass done)
+- Optional native-speaker editorial (AI catalog deep pass done 2026-09-04)
 - Optional deeper Arabic HUD tip positioning (playtest)
-- Deeper `es`↔`es-419` / `pt`↔`pt-BR` regionalization beyond light vocab hooks
+- Deeper `es`↔`es-419` regionalization beyond **coste/costo** (catalogs still mostly shared)
 
 ### Regional notes
 

@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Pack verkopen",
-    "description": "Klik om je wapen te activeren en klik vervolgens op een van je Packs om deze te verkopen en je voorraad aan te vullen."
+    "description": "Klik om te activeren, klik daarna op een van je Packs om het te verkopen voor een voorraadteruggave."
   },
   "moveUnit": {
     "name": "Pack verplaatsen",
-    "description": "Klik om je wapen te activeren en klik vervolgens op een van je rugzakken uit een eerdere ronde. Je kunt deze rugzak gedurende de rest van deze ronde opnieuw verslepen en draaien."
+    "description": "Klik om te activeren, klik daarna op een Pack uit een eerdere ronde — het mag de rest van deze ronde weer worden gesleept en gedraaid."
   },
   "tutor": {
     "name": "Veldles",
-    "description": "Klik om je uitrusting te activeren en klik vervolgens op een van je Packs. De ervaringsbalk vult zich dan tot het volgende niveau. Het kopen van het niveau kost nog steeds voorraden."
+    "description": "Klik om te activeren, klik daarna op een van je Packs — de XP-balk vult tot het volgende niveau. Het niveau kopen kost nog steeds voorraad."
   },
   "spawnDwarves": {
     "name": "Roep dwergen op",
@@ -57,6 +57,6 @@
   },
   "poisonCloud": {
     "name": "Giftwolk",
-    "description": "Teken een enorme cirkel. Giftige wolken pakken zich boven het gebied samen en laten kleine zure druppels regenen over het hele gebied – verspreide plasjes die de grond en de lucht aantasten, vergelijkbaar met Acid Spill, maar dan over een veel groter gebied."
+    "description": "Teken een enorme cirkel. Giftige wolken verzamelen zich en laten kleine zuurdruppels vallen — spaarzame plassen die grond- en luchteenheden aantasten zoals Zuurplas, maar over een veel groter veld."
   }
 }

@@ -13,7 +13,7 @@
   },
   "wind": {
     "name": "Vento",
-    "description": "+10% de variação."
+    "description": "+10% de alcance."
   },
   "addi": {
     "name": "Valentia",
@@ -24,7 +24,7 @@
     "description": "+75% de ataque."
   },
   "vigor": {
-    "name": "Sangue Gigante",
+    "name": "Sangue de Gigante",
     "description": "+100% HP."
   },
   "colossus": {
@@ -41,6 +41,6 @@
   },
   "bulwark": {
     "name": "Baluarte",
-    "description": "Escudo: cada unidade ganha uma segunda reserva de vida igual ao seu HP atual. Ataques à distância drenam o escudo primeiro; ataques corpo a corpo, fogo e ácido o ignoram."
+    "description": "Escudo: todos os ataques à distância atingem o escudo primeiro. Concede um segundo pool de HP igual ao HP da unidade; quando o escudo chega a 0, a unidade morre. Não pode ser vendido."
   }
 }

@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Sell Pack",
-    "description": "Click to arm, then click one of your packs to sell it for a supply refund."
+    "description": "Click to activate, then click one of your packs to sell it for a supply refund."
   },
   "moveUnit": {
     "name": "Move Pack",
-    "description": "Click to arm, then click one of your packs from an earlier round — it may be dragged and rotated again for the rest of this round."
+    "description": "Click to activate, then click one of your packs from an earlier round — it may be dragged and rotated again for the rest of this round."
   },
   "tutor": {
     "name": "Field Lesson",
-    "description": "Click to arm, then click one of your packs — its XP bar fills to the next level. Buying the level still costs supply."
+    "description": "Click to activate, then click one of your packs — its XP bar fills to the next level. Buying the level still costs supply."
   },
   "spawnDwarves": {
     "name": "Summon Dwarves",

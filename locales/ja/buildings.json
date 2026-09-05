@@ -29,19 +29,19 @@
   },
   "ward_dome": {
     "name": "防護ドーム",
-    "description": "ドーム内に入る敵の投射物を吸収する（半径 {{radius}}、高さ {{height}}）。プールはこのユニットの HP。"
+    "description": "ドーム内に入る敵の投射物を吸収する（半径 {{radius}}、高さ {{height}}）。吸収量はこのユニットのHPに等しい。"
   },
   "homing_fire_bolt": {
     "name": "追尾火炎ボルト",
-    "description": "その場で武装し、射程 {{range}} 内の最初の敵へ追尾し {{damage}} ダメージ（スプラッシュ {{splash}}）。"
+    "description": "その場で起動し、射程 {{range}} の最初の敵に追尾して {{damage}} ダメージ（スプラッシュ {{splash}}）。"
   },
   "rally_route": {
     "name": "集結ルート",
-    "description": "スペル帯に集結ルートのチャージを 1 つ追加。マッチに 1 回。"
+    "description": "スペルバーに集結ルートのチャージを1つ追加。試合につき1回。"
   },
   "move_pack": {
     "name": "パック移動",
-    "description": "スペル帯にパック移動のチャージを 1 つ追加：以前のラウンドのパック 1 つを再び動かせる。マッチに 1 回。"
+    "description": "スペルバーにパック移動チャージを1つ追加：以前のラウンドのパックが再び動かせる。試合につき1回。"
   },
   "1_deployment": {
     "name": "+1 配備",

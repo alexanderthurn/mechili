@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Vendre un Pack",
-    "description": "Cliquez pour armer, puis cliquez sur l'un de vos Packs pour le vendre et obtenir un remboursement de ravitaillement."
+    "description": "Clique pour activer, puis clique sur un de tes Packs pour le vendre et récupérer du ravitaillement."
   },
   "moveUnit": {
     "name": "Déplacer un Pack",
-    "description": "Cliquez pour armer, puis cliquez sur l'un de vos packs d'un tour précédent ; vous pourrez le déplacer et le faire pivoter à nouveau pour le reste de ce tour."
+    "description": "Clique pour activer, puis clique sur un de tes Packs d'un tour précédent — tu pourras à nouveau le déplacer et le faire pivoter pour le reste de ce tour."
   },
   "tutor": {
     "name": "Leçon sur le terrain",
-    "description": "Cliquez pour armer, puis cliquez sur l'un de vos packs : sa barre d'XP se remplit au niveau suivant. L'achat du niveau supérieur coûte toujours des ressources."
+    "description": "Clique pour activer, puis clique sur un de tes Packs — sa barre d'XP se remplit jusqu'au niveau suivant. Acheter le niveau coûte toujours du ravitaillement."
   },
   "spawnDwarves": {
     "name": "Invoquer des nains",
@@ -45,7 +45,7 @@
   },
   "acidSpill": {
     "name": "Nappe d’acide",
-    "description": "Déversez une capsule d'acide comme une marée noire : elle s'écoule de gauche à droite sur le sol peu après le début du combat. Les unités terrestres et aériennes situées au-dessus de la flaque crépitent et se corrodent, subissant des dégâts supplémentaires de toutes parts."
+    "description": "Déverse une capsule d'acide comme une Nappe d'huile : elle s'écoule de gauche à droite peu après le début du combat. Les unités terrestres et aériennes au-dessus de la flaque crépitent et se corrodent, subissant des dégâts supplémentaires de toutes les sources."
   },
   "fireSpill": {
     "name": "Nappe de feu",
@@ -57,6 +57,6 @@
   },
   "poisonCloud": {
     "name": "Nuage toxique",
-    "description": "Tracez un immense cercle. Des nuages toxiques s'amoncellent au-dessus et déversent de fines gouttes d'acide sur la zone — des flaques éparses qui corrodent le sol et l'air comme lors d'une marée noire, mais sur une zone beaucoup plus étendue."
+    "description": "Trace un immense cercle. Des nuages toxiques s'amoncellent et déversent de fines gouttes d'acide — des flaques éparses qui corrodent les unités au sol et dans les airs comme la Nappe d'acide, mais sur une zone bien plus vaste."
   }
 }

@@ -4,20 +4,20 @@
     "description": "Umístěte počáteční, střední a koncovou zónu. Jednotky v počátečním kruhu pochodují přes shodné odsazení uprostřed a poté na konci a cestou bojují."
   },
   "oilSpill": {
-    "name": "Ropná louže",
+    "name": "Olejová louže",
     "description": "Umístěte dva kruhy s olejem – během rozmístění je obrys; krátce po začátku bitvy olej kape zleva doprava na cestu (disky ochrany zůstávají volné). Propojený olej se při dotyku ohně vznítí jako jedno pole."
   },
   "sellUnit": {
     "name": "Prodat Pack",
-    "description": "Kliknutím se aktivujete a poté kliknutím na jeden ze svých Packů jej prodejte a zaplatíte za zásoby."
+    "description": "Kliknutím aktivuj a pak klikni na jeden ze svých Packů, abys ho prodal a získal náhradu v zásobách."
   },
   "moveUnit": {
     "name": "Přesunout Pack",
-    "description": "Kliknutím se aktivujte a poté klikněte na jeden ze svých Packů z předchozího kola – po zbytek kola jej můžete znovu přetáhnout a otočit."
+    "description": "Kliknutím aktivuj a pak klikni na Pack z dřívějšího kola — po zbytek tohoto kola ho znovu můžeš táhnout a otáčet."
   },
   "tutor": {
     "name": "Lekce v terénu",
-    "description": "Kliknutím se vyzbrojte a poté klikněte na jeden ze svých batohů – jeho ukazatel zkušeností se naplní do další úrovně. Zakoupení úrovně stále stojí zásoby."
+    "description": "Kliknutím aktivuj a pak klikni na jeden ze svých Packů — XP lišta se naplní do další úrovně. Koupě úrovně stále stojí zásoby."
   },
   "spawnDwarves": {
     "name": "Přivolejte trpaslíky",
@@ -25,7 +25,7 @@
   },
   "bigMeteor": {
     "name": "Meteor",
-    "description": "Označte si kdekoli malý kruh. Během několika sekund bitvy meteorit zničí vše na místě – chrání (a platí za to) pouze ochranná jádra."
+    "description": "Označ malý kruh kdekoli. Sekundy po začátku bitvy meteor zničí vše uvnitř — chrání pouze ochranné kupole (a platí za to)."
   },
   "spawnCrows": {
     "name": "Přivolejte jezdce na vránách",
@@ -45,7 +45,7 @@
   },
   "acidSpill": {
     "name": "Kyselinová louže",
-    "description": "Kyselou kapsli nalijte jako olejovou skvrnu – krátce po začátku bitvy kape na zem zleva doprava. Pozemní i vzdušné jednotky nad louží syčí a zrezivějí – čímž dostávají dodatečné poškození od všeho."
+    "description": "Vylej kyselinovou kapsli jako Olejovou louži — krátce po začátku bitvy kape zleva doprava. Pozemní a vzdušné jednotky nad louží syčí a korodují a berou bonusové poškození ze všech zdrojů."
   },
   "fireSpill": {
     "name": "Ohnivá louže",
@@ -53,10 +53,10 @@
   },
   "dragonAttack": {
     "name": "Dračí útok",
-    "description": "Nakreslete dračí palbu (širší a delší než olej). Vrhne se dovnitř a chrlí oheň podél chodby – paprsek při průletu spaluje jednotky a zapaluje zemi. Chránicí kopule absorbují dech (a platí za to)."
+    "description": "Nakresli dráhu dračího dechu (širší a delší než olej). Střemhlav se vrhne a chrlí oheň podél koridoru — paprsek spaluje jednotky a zapaluje zem. Ochranné kupole dech absorbují (a platí za to)."
   },
   "poisonCloud": {
     "name": "Jedovatý mrak",
-    "description": "Označte obrovský kruh. Nad hlavou se hromadí toxické mraky a po oblasti prší malé kapky kyseliny – řídké kaluže, které korodují pozemní a vzdušné jednotky podobně jako Acid Spill, ale na mnohem širším poli."
+    "description": "Nakresli obrovský kruh. Jedovaté mraky se shromáždí a prší malé kyselé kapky — řídké louže, které korodují pozemní i vzdušné jednotky jako Kyselinová louže, ale na mnohem širším poli."
   }
 }

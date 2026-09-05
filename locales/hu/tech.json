@@ -64,7 +64,7 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} sebzés",
-    "modRange": "{{pct}} tartomány",
+    "modRange": "{{pct}} hatótáv",
     "modSpeed": "{{pct}} mozgási sebesség",
     "modAttackSpeed": "{{pct}} támadási sebesség",
     "modSplash": "{{mult}}× fröccsenési sugár",

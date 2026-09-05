@@ -3,7 +3,7 @@
     "name": "Arqueiro da Guarnição"
   },
   "hordeWebweaver": {
-    "name": "Webweaver"
+    "name": "Tecelã de Teias"
   },
   "hordeBrutSpawn": {
     "name": "Ninhada Negra"
@@ -36,7 +36,7 @@
     "name": "Balista"
   },
   "shield": {
-    "name": "Pedra de Ward"
+    "name": "Pedra de Proteção"
   },
   "rocket": {
     "name": "Raio de Fogo"

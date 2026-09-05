@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Vender Pack",
-    "description": "Clique para ativar e, em seguida, clique em um dos seus Packs para vendê-lo e receber um reembolso de suprimentos."
+    "description": "Clique para ativar e depois clique em um dos seus Packs para vendê-lo e recuperar suprimentos."
   },
   "moveUnit": {
     "name": "Mover Pack",
-    "description": "Clique para ativar e, em seguida, clique em um dos seus Packs de uma rodada anterior — ele poderá ser arrastado e girado novamente durante o restante desta rodada."
+    "description": "Clique para ativar e depois clique em um Pack de uma rodada anterior — ele pode ser arrastado e girado de novo pelo resto desta rodada."
   },
   "tutor": {
     "name": "Lição de Campo",
-    "description": "Clique para ativar e, em seguida, clique em um dos seus Packs — a barra de XP dele será preenchida até o próximo nível. Comprar o nível ainda custa suprimentos."
+    "description": "Clique para ativar e depois clique em um dos seus Packs — a barra de XP enche até o próximo nível. Comprar o nível ainda custa suprimentos."
   },
   "spawnDwarves": {
     "name": "Invocar Anões",
@@ -45,7 +45,7 @@
   },
   "acidSpill": {
     "name": "Poça de ácido",
-    "description": "Derrame uma cápsula de ácido como se fosse um derramamento de óleo — ela pinga da esquerda para a direita no chão logo após o início da batalha. Unidades terrestres e aéreas sobre a poça crepitam e se corroem — sofrendo danos adicionais de todos os lados."
+    "description": "Despeje uma cápsula de ácido como uma Poça de óleo — ela escorre da esquerda para a direita pouco depois do início da batalha. Unidades terrestres e aéreas sobre a poça chiçam e corroem, sofrendo dano extra de todas as fontes."
   },
   "fireSpill": {
     "name": "Poça de fogo",
@@ -57,6 +57,6 @@
   },
   "poisonCloud": {
     "name": "Nuvem Venenosa",
-    "description": "Marque um círculo enorme. Nuvens tóxicas se acumulam no céu e pequenas gotas de ácido caem sobre a área — poças esparsas que corroem unidades terrestres e aéreas semelhantes a Acid Spill, mas em uma área muito maior."
+    "description": "Marque um círculo enorme. Nuvens tóxicas se acumulam e chovem gotas de ácido — poças esparsas que corroem unidades terrestres e aéreas como a Poça de ácido, mas numa área bem maior."
   }
 }

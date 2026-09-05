@@ -29,7 +29,7 @@
   },
   "ward_dome": {
     "name": "Beskyttelseskuppel",
-    "description": "Absorberer fiendtlige prosjektiler som krysser inn i en kuppel (radius {{radius}}, høyde {{height}}). Denne enhetens HP er Pool."
+    "description": "Absorberer fiendtlige prosjektiler som kommer inn i kuppelen (radius {{radius}}, høyde {{height}}). Absorpsjonskapasiteten tilsvarer denne enhetens HP."
   },
   "homing_fire_bolt": {
     "name": "Målsøkende brannbolt",

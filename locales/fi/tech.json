@@ -64,7 +64,7 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} vahinko",
-    "modRange": "{{pct}}-alue",
+    "modRange": "{{pct}} kantama",
     "modSpeed": "{{pct}} liikkumisnopeus",
     "modAttackSpeed": "{{pct}} hyökkäysnopeus",
     "modSplash": "{{mult}}× roiskesäde",

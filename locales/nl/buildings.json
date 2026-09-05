@@ -1,11 +1,11 @@
 {
   "upgrade_level": {
-    "name": "Upgradeniveau",
+    "name": "Niveau verhogen",
     "description": "Verhoog dit gebouw met één niveau: het krijgt zijn basis-HP erbij. De prijs begint bij {{baseCost}} en stijgt met {{costStep}} per niveau (maximaal niveau {{maxLevel}})."
   },
   "selling": {
     "name": "Verkopen",
-    "description": "VerkoopPacks permanent ontgrendelen (tot {{maxPerRound}} per implementatiefase). Terugbetaling is {{refundPct}}% van de basiskosten."
+    "description": "Ontgrendel permanent het verkopen van Packs (tot {{maxPerRound}} per inzetfase). Teruggave is {{refundPct}}% van de basiskosten."
   },
   "attack_boost": {
     "name": "Aanvalsboost",
@@ -16,7 +16,7 @@
     "description": "Permanente HP-boost voor het hele leger. Eerste niveau +{{hpPct}}%; koop niveaus in volgorde (kosten {{costs}})."
   },
   "range_boost": {
-    "name": "Actieradiusvergroting",
+    "name": "Bereikvergroting",
     "description": "+{{amount}} bereik voor alle eenheden met een afstandswapen, alleen deze ronde."
   },
   "speed_boost": {
@@ -25,27 +25,27 @@
   },
   "loan": {
     "name": "Lening",
-    "description": "+{{gain}} nu beschikbaar. Volgende inzet: −{{debt}}. Eenmaal per ronde."
+    "description": "+{{gain}} voorraad nu. Volgende inzet: −{{debt}}. Eén keer per ronde."
   },
   "ward_dome": {
     "name": "Beschermingskoepel",
-    "description": "Absorbeert vijandelijke projectielen die een koepel binnendringen (radius {{radius}}, hoogte {{height}}). Pool is de HP van deze eenheid."
+    "description": "Absorbeert vijandelijke projectielen die de koepel binnenkomen (straal {{radius}}, hoogte {{height}}). Absorptiecapaciteit is de HP van deze eenheid."
   },
   "homing_fire_bolt": {
-    "name": "Zelfsturende vuurstraal",
-    "description": "Wapens in positie, richt zich vervolgens op de eerste vijand binnen bereik {{range}} voor {{damage}} schade (splash {{splash}})."
+    "name": "Zelfsturende vuurbout",
+    "description": "Wordt ter plekke geactiveerd en zoekt daarna de eerste vijand in bereik {{range}} voor {{damage}} schade (splash {{splash}})."
   },
   "rally_route": {
     "name": "Verzamelroute",
-    "description": "Voeg één rally-route charge toe aan je spreukenstrip. Eenmaal per wedstrijd."
+    "description": "Voeg één verzamelroute-lading toe aan je spreukenstrook. Eén keer per wedstrijd."
   },
   "move_pack": {
     "name": "Pack verplaatsen",
     "description": "Voeg één verplaatsingslading toe aan je spreukenstrip: één Pack uit een eerdere ronde wordt opnieuw verplaatsbaar. Eenmaal per wedstrijd."
   },
   "1_deployment": {
-    "name": "+1 Implementatie",
-    "description": "Slechts één extra exemplaar per ronde te koop."
+    "name": "+1 Inzet",
+    "description": "Eén extra eenheidsaankoop, alleen deze ronde."
   },
   "veteran_training": {
     "name": "Veteranentraining",
@@ -53,6 +53,6 @@
   },
   "send_supply_to_ally": {
     "name": "Stuur voorraden naar bondgenoot",
-    "description": "Geef 100 eenheden aan je bondgenoot cadeau — deze arriveert aan het begin van de volgende ronde. Alleen beschikbaar in duo-modi."
+    "description": "Geef 100 voorraad aan je bondgenoot — komt aan bij de start van de volgende ronde. Alleen duomodi."
   }
 }

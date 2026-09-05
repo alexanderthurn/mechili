@@ -1,11 +1,11 @@
 {
   "upgrade_level": {
-    "name": "Nivel de actualización",
-    "description": "Eleva este edificio un nivel: recupera sus puntos de vida base. El precio inicial es {{baseCost}} y aumenta en {{costStep}} por cada nivel (nivel máximo {{maxLevel}})."
+    "name": "Subir de nivel",
+    "description": "Sube este edificio un nivel: gana sus PV base. El precio empieza en {{baseCost}} y sube {{costStep}} por nivel (máx. nivel {{maxLevel}})."
   },
   "selling": {
     "name": "Venta",
-    "description": "Desbloquea permanentemente los Packs de venta (hasta {{maxPerRound}} por fase de despliegue). El reembolso es del {{refundPct}}% del costo base."
+    "description": "Desbloquea permanentemente la venta de Packs (hasta {{maxPerRound}} por fase de despliegue). El reembolso es el {{refundPct}}% del coste base."
   },
   "attack_boost": {
     "name": "Impulso de ataque",
@@ -16,8 +16,8 @@
     "description": "Aumento permanente de HP para todo el ejército. Primer nivel +{{hpPct}}%; compra los niveles en orden (cuesta {{costs}})."
   },
   "range_boost": {
-    "name": "Aumento de autonomía",
-    "description": "+{{amount}} alcance para todas las unidades de largo alcance, solo en esta ronda."
+    "name": "Aumento de alcance",
+    "description": "+{{amount}} de alcance para todas las unidades a distancia, solo esta ronda."
   },
   "speed_boost": {
     "name": "Impulso de velocidad",
@@ -29,18 +29,18 @@
   },
   "ward_dome": {
     "name": "Cúpula protectora",
-    "description": "Absorbe los proyectiles enemigos que entran en una cúpula (radio {{radius}}, altura {{height}}). El área de almacenamiento es la salud de esta unidad."
+    "description": "Absorbe proyectiles enemigos que entran en la cúpula (radio {{radius}}, altura {{height}}). La capacidad de absorción equivale a los PV de esta unidad."
   },
   "homing_fire_bolt": {
-    "name": "Rayo teledirigido",
-    "description": "Armas en posición, luego se dirige al primer enemigo dentro del alcance {{range}} para infligir daño {{damage}} (salpicadura {{splash}})."
+    "name": "Rayo de fuego teledirigido",
+    "description": "Se arma en el sitio y luego se dirige al primer enemigo en alcance {{range}} por {{damage}} de daño (área {{splash}})."
   },
   "rally_route": {
     "name": "Ruta de reunión",
     "description": "Añade una carga de ruta de reunión a tu barra de hechizos. Una vez por partida."
   },
   "move_pack": {
-    "name": "Pack de movimiento",
+    "name": "Mover Pack",
     "description": "Añade una carga de Pack de movimiento a tu barra de hechizos: un Pack de una ronda anterior vuelve a ser movible. Una vez por partida."
   },
   "1_deployment": {
@@ -53,6 +53,6 @@
   },
   "send_supply_to_ally": {
     "name": "Enviar suministros al aliado",
-    "description": "Regala 100 unidades a tu aliado; llegarán al inicio de la siguiente ronda. Solo en modo dúo."
+    "description": "Regala 100 de suministro a tu aliado — llega al inicio de la siguiente ronda. Solo modos dúo."
   }
 }

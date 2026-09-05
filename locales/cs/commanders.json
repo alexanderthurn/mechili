@@ -1,7 +1,7 @@
 {
   "air": {
     "title": "Nebeský čaroděj",
-    "description": "Letecké jednotky získají +12 % k útoku a HP.",
+    "description": "Vzdušné jednotky získají +12 % útoku a HP.",
     "unitsLabel": "2× Jezdci na vránách · 1× Trpaslíci"
   },
   "cost": {
@@ -16,12 +16,12 @@
   },
   "archer": {
     "title": "Velitel lučištníků",
-    "description": "Ve 2. kole dorazí volný lučištník 3. úrovně.",
+    "description": "V kole 2 dorazí lučištník 3. úrovně zdarma.",
     "unitsLabel": "3× Lučištníci · 2× Trpaslíci"
   },
   "addi": {
     "title": "Strážce relikvií",
-    "description": "Získá 3× runu Statečnosti v 1. kole.",
+    "description": "V kole 1 získá 3× runu Chrabrosti.",
     "unitsLabel": "1× Jezdci na vránách · 3× Trpaslíci"
   },
   "meteor": {

@@ -29,7 +29,7 @@
   },
   "ward_dome": {
     "name": "Skyddskupol",
-    "description": "Absorberar fiendens projektiler som korsar en kupol (radie {{radius}}, höjd {{height}}). Pool är den här enhetens HP."
+    "description": "Absorberar fientliga projektiler som kommer in i kupolen (radie {{radius}}, höjd {{height}}). Absorptionskapaciteten motsvarar denna enhets HP."
   },
   "homing_fire_bolt": {
     "name": "Målsökande eldbult",

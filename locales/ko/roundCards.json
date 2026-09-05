@@ -6,7 +6,7 @@
   },
   "archers4": {
     "title": "궁수 중대",
-    "description": "궁수 네 명이 합류합니다.",
+    "description": "궁수 편대 네 개가 군대에 합류한다.",
     "unitsLabel": "4× 궁수"
   },
   "crowRiders2": {
@@ -20,7 +20,7 @@
     "unitsLabel": "1× 발리스타"
   },
   "flanky": {
-    "title": "측면",
+    "title": "Flanky",
     "description": "첫 측면 출현 시간이 절반으로 줄습니다 (2.5초)."
   },
   "rallyRoute": {

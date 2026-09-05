@@ -1,17 +1,17 @@
 {
   "dwarves4": {
-    "title": "Cüce Bandosu",
+    "title": "Cüce Takımı",
     "description": "Ordunuza dört cüce birliği katılıyor.",
     "unitsLabel": "4× Cüceler"
   },
   "archers4": {
-    "title": "Archer Şirketi",
-    "description": "Ordunuza dört okçu katılıyor.",
+    "title": "Okçu Birliği",
+    "description": "Dört Okçu Packi orduna katılır.",
     "unitsLabel": "4× Okçular"
   },
   "crowRiders2": {
     "title": "Karga Kanadı",
-    "description": "İki Crow Rider sürüsü ordunuza katılıyor.",
+    "description": "İki Karga Binicisi sürüsü orduna katılır.",
     "unitsLabel": "2× Karga Binicileri"
   },
   "ballista1": {
@@ -20,11 +20,11 @@
     "unitsLabel": "1× Balista"
   },
   "flanky": {
-    "title": "Yan",
+    "title": "Flanky",
     "description": "İlk kez yandan doğmak yarı sürede gerçekleşiyor (2,5 saniye)."
   },
   "rallyRoute": {
-    "title": "Ralli Rotası",
+    "title": "Toplanma Rotası",
     "description": "Bir yürüyüş rotası belirleyin: başlangıç bölgesindeki birlikler, yol boyunca savaşarak bitiş bölgesine doğru ilerler."
   },
   "sellPack": {

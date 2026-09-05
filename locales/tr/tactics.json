@@ -5,19 +5,19 @@
   },
   "oilSpill": {
     "name": "Yağ birikintisi",
-    "description": "İki yağ çemberi yerleştirin — yerleştirme sırasında ana hatlarını çizin; savaş başladıktan kısa bir süre sonra yağ, soldan sağa doğru yola damlar (koruma diskleri açıkta kalır). Ateş temas ettiğinde, birbirine bağlı yağ tek bir alan olarak tutuşur."
+    "description": "İki yağ dairesi yerleştir — konuşlanmada kontur; savaş başladıktan kısa sonra yağ soldan sağa akar (koruma diskleri temiz kalır). Bağlı yağ ateşle birleşince tek alan olarak tutuşur."
   },
   "sellUnit": {
     "name": "Pack sat",
-    "description": "Silahı kurmak için tıklayın, ardından tedarik iadesi almak için Packlerinizden birini satmak üzere tıklayın."
+    "description": "Etkinleştirmek için tıkla, sonra Packlerinden birine tıklayıp sat ve erzak iadesi al."
   },
   "moveUnit": {
     "name": "Pack hareket ettir",
-    "description": "Silahı etkinleştirmek için tıklayın, ardından önceki turlardan bir Packinizi tıklayın; bu Pack, bu turun geri kalanında tekrar sürüklenip döndürülebilir."
+    "description": "Etkinleştirmek için tıkla, sonra önceki turdan bir Packe tıkla — bu turun geri kalanında yeniden sürüklenebilir ve döndürülebilir."
   },
   "tutor": {
     "name": "Saha Dersi",
-    "description": "Silahı kurmak için tıklayın, ardından Packlerinizden birine tıklayın; XP çubuğu bir sonraki seviyeye dolacak. Seviye atlamak yine de kaynak maliyeti gerektirir."
+    "description": "Etkinleştirmek için tıkla, sonra Packlerinden birine tıkla — XP çubuğu sonraki seviyeye dolar. Seviye almak hâlâ erzak ister."
   },
   "spawnDwarves": {
     "name": "Cüceleri Çağır",
@@ -45,7 +45,7 @@
   },
   "acidSpill": {
     "name": "Asit birikintisi",
-    "description": "Asit kapsülünü petrol sızıntısı gibi dökün; savaş başladıktan kısa bir süre sonra soldan sağa doğru yere damlar. Su birikintisinin üzerindeki kara ve hava birimleri cızırdar ve paslanır; her şeyden ekstra hasar alırlar."
+    "description": "Asit kapsülünü yağ birikintisi gibi dök — savaş başladıktan kısa sonra soldan sağa akar. Birikinti üzerindeki kara ve hava birimleri cızırdar ve aşınır; her kaynaktan ekstra hasar alır."
   },
   "fireSpill": {
     "name": "Ateş birikintisi",
@@ -53,10 +53,10 @@
   },
   "dragonAttack": {
     "name": "Ejderha Saldırısı",
-    "description": "Ejderhanın tarama yolunu çizin (yağdan daha geniş ve daha uzun). Dalgıçlık yapar ve koridor boyunca ateş püskürtür; ışın geçtiği yerlerde birimleri yakar ve zemini alevler içinde bırakır. Koruma kubbeleri bu nefesi emer (ve bunun bedelini öder)."
+    "description": "Ejderhanın saldırı yolunu çiz (yağdan daha geniş ve uzun). Süzülerek dalış yapar ve koridor boyunca ateş püskürtür — ışın birimleri yakar ve zemini ateşe verir. Koruma kubbeleri nefesi emer (ve bedelini öder)."
   },
   "poisonCloud": {
     "name": "Zehirli Bulut",
-    "description": "Büyük bir daire çizin. Zehirli bulutlar tepede toplanır ve bölgeye küçük asit damlacıkları yağdırır; bu seyrek su birikintileri, Acid Spill'deki gibi yer ve hava birimlerini aşındırır, ancak çok daha geniş bir alanda."
+    "description": "Dev bir daire çiz. Zehirli bulutlar toplanır ve alana küçük asit damlaları yağdırır — Asit birikintisi gibi kara ve hava birimlerini aşındıran seyrek asit birikintileri, ama çok daha geniş alanda."
   }
 }

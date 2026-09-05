@@ -64,14 +64,14 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "kerosakan {{pct}}",
-    "modRange": "Julat {{pct}}",
+    "modRange": "{{pct}} julat",
     "modSpeed": "{{pct}} kelajuan bergerak",
     "modAttackSpeed": "{{pct}} kelajuan serangan",
     "modSplash": "{{mult}}× jejari percikan",
     "produce": "Menghasilkan {{child}} setiap {{every}} (sehingga {{max}})",
     "produceFirst": ", pertama selepas {{delay}}",
-    "produceOffspring": ". Padanan anak padan tahap induk",
-    "onKill": "Apabila unit ini mati, naikkan {{child}}",
+    "produceOffspring": ". Anak padan tahap induk",
+    "onKill": "Apabila unit ini membunuh, bangkitkan {{child}}",
     "cleave": "Menyerang setiap musuh dalam lingkungan {{radius}} (di sekitar unit ini)"
   }
 }

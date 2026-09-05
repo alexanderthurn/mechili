@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Selg Pack",
-    "description": "Klikk for å aktivere, og klikk deretter på en av pakkene dine for å selge den og få refusjon for forsyninger."
+    "description": "Klikk for å aktivere, deretter klikk på et av Packene dine for å selge det og få forsyning tilbake."
   },
   "moveUnit": {
     "name": "Flytt Pack",
-    "description": "Klikk for å bevæpne, og klikk deretter på en av pakkene dine fra en tidligere runde – den kan dras og roteres igjen resten av runden."
+    "description": "Klikk for å aktivere, deretter klikk på et Pack fra en tidligere runde — det kan dras og roteres igjen resten av denne runden."
   },
   "tutor": {
     "name": "Feltleksjon",
-    "description": "Klikk for å bevæpne, og klikk deretter på en av pakkene dine – XP-linjen fylles til neste nivå. Å kjøpe nivået koster fortsatt forsyning."
+    "description": "Klikk for å aktivere, deretter klikk på et av Packene dine — XP-linjen fylles til neste nivå. Å kjøpe nivået koster fortsatt forsyning."
   },
   "spawnDwarves": {
     "name": "Tilkall dverger",

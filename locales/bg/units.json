@@ -1,9 +1,9 @@
 {
   "garrison-archer": {
-    "name": "Гарисън Арчър"
+    "name": "Гарнизонен стрелец"
   },
   "hordeWebweaver": {
-    "name": "Тъкач на мрежи"
+    "name": "Тъкач на паяжини"
   },
   "hordeBrutSpawn": {
     "name": "Черно потомство"
@@ -15,7 +15,7 @@
     "name": "Мъртъв фермер"
   },
   "hordeFarmerSpawn": {
-    "name": "Мъртъв фермер"
+    "name": "Мъртъв ратай"
   },
   "hordeKomtur": {
     "name": "Ханс фон Щофелн"
@@ -39,13 +39,13 @@
     "name": "Защитен камък"
   },
   "rocket": {
-    "name": "Огнена стрела"
+    "name": "Огнен болт"
   },
   "command-tower": {
     "name": "Авангард"
   },
   "research-center": {
-    "name": "Гарисън"
+    "name": "Гарнизон"
   },
   "stronghold": {
     "name": "Крепост"

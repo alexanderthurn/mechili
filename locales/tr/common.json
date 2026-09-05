@@ -1,14 +1,14 @@
 {
-  "close": "Kapalı",
+  "close": "Kapat",
   "back": "Geri",
   "reset": "Sıfırla",
   "language": "Dil",
   "term": {
-    "rune": "Rune",
+    "rune": "Rün",
     "runes": "Rünler",
     "talent": "Yetenek",
     "talents": "Yetenekler",
-    "spell": "Hecelemek",
+    "spell": "Büyü",
     "spells": "Büyüler",
     "commander": "Komutan",
     "commanders": "Komutanlar",

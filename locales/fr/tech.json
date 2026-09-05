@@ -1,12 +1,12 @@
 {
   "legs": {
-    "name": "Pieds de flotte"
+    "name": "Pieds véloces"
   },
   "carapace": {
-    "name": "Stone Hide"
+    "name": "Peau de pierre"
   },
   "barrel": {
-    "name": "Arc"
+    "name": "Arc long"
   },
   "ap": {
     "name": "Flèches perforantes"
@@ -44,16 +44,16 @@
     "description": "Rayon d'éclaboussure triple (octroie des éclaboussures aux unités qui n'en possèdent pas)."
   },
   "skyBind": {
-    "name": "Sky Bind",
+    "name": "Lien céleste",
     "description": "Peut attaquer les unités terrestres et aériennes."
   },
   "skyLift": {
-    "name": "Ascenseur panoramique",
-    "description": "Permet de faire décoller cet appareil (avion de combat)."
+    "name": "Envol céleste",
+    "description": "Fait décoller cette unité (voltigeur de combat)."
   },
   "earthbound": {
     "name": "Attaché à la terre",
-    "description": "Maintient cet appareil au sol (remplace le Sky Lift / le vol naturel)."
+    "description": "Maintient cette unité au sol (annule Envol céleste / le vol naturel)."
   },
   "spiderMother": {
     "name": "Mère des araignées"
@@ -62,9 +62,9 @@
     "name": "Moisson noire"
   },
   "_auto": {
-    "modHp": "{{pct}} HP",
+    "modHp": "{{pct}} PV",
     "modDamage": "{{pct}} dégâts",
-    "modRange": "Gamme {{pct}}",
+    "modRange": "{{pct}} de portée",
     "modSpeed": "{{pct}} vitesse de déplacement",
     "modAttackSpeed": "{{pct}} vitesse d'attaque",
     "modSplash": "{{mult}}× rayon d'éclaboussure",

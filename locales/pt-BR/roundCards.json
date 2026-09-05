@@ -1,12 +1,12 @@
 {
   "dwarves4": {
-    "title": "Banda Anã",
-    "description": "Quatro grupos de anões se juntam ao seu exército.",
+    "title": "Bando de Anões",
+    "description": "Quatro Packs de anões se juntam ao seu exército.",
     "unitsLabel": "4× Anões"
   },
   "archers4": {
-    "title": "Companhia Archer",
-    "description": "Quatro arqueiros se juntam ao seu exército.",
+    "title": "Companhia de Arqueiros",
+    "description": "Quatro Packs de arqueiros se juntam ao seu exército.",
     "unitsLabel": "4 arqueiros"
   },
   "crowRiders2": {
@@ -20,11 +20,11 @@
     "unitsLabel": "1× Balista"
   },
   "flanky": {
-    "title": "Flanqueado",
-    "description": "O primeiro surgimento de inimigos pelas laterais leva metade do tempo (2,5s)."
+    "title": "Flanky",
+    "description": "As primeiras aparições no flanco levam metade do tempo."
   },
   "rallyRoute": {
-    "title": "Rota do Rali",
+    "title": "Rota de reunião",
     "description": "Estabeleça uma rota de marcha: as unidades na zona inicial dirigem-se para a zona final, combatendo ao longo do percurso."
   },
   "sellPack": {

@@ -12,16 +12,16 @@
     "name": "Чорний павук"
   },
   "hordeFarmer": {
-    "name": "Мертвий фермер"
+    "name": "Мертвий селянин"
   },
   "hordeFarmerSpawn": {
-    "name": "Мертвий фермер"
+    "name": "Мертвий наймит"
   },
   "hordeKomtur": {
     "name": "Ганс фон Штоффельн"
   },
   "dwarf": {
-    "name": "Карлик"
+    "name": "Гном"
   },
   "archer": {
     "name": "Лучник"
@@ -30,7 +30,7 @@
     "name": "Чарівник"
   },
   "crowRider": {
-    "name": "Вершник на воронах"
+    "name": "Вершник на вороні"
   },
   "ballista": {
     "name": "Баліста"
@@ -39,13 +39,13 @@
     "name": "Камінь захисту"
   },
   "rocket": {
-    "name": "Вогняна болт"
+    "name": "Вогняний болт"
   },
   "command-tower": {
     "name": "Авангард"
   },
   "research-center": {
-    "name": "Гаррісон"
+    "name": "Гарнізон"
   },
   "stronghold": {
     "name": "Твердиня"

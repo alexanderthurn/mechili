@@ -1,6 +1,6 @@
 {
   "legs": {
-    "name": "Fleet Feet"
+    "name": "Rychlé nohy"
   },
   "carapace": {
     "name": "Kamenná kůže"
@@ -9,20 +9,20 @@
     "name": "Dlouhý luk"
   },
   "ap": {
-    "name": "Probodné šípy"
+    "name": "Průbojné šípy"
   },
   "fireArrows": {
     "name": "Ohnivé šípy",
     "description": "Šípy zanechávají krátký oheň na zemi a hoří – dost na to, aby se zapálily kaluže oleje."
   },
   "engines": {
-    "name": "Gale Wings"
+    "name": "Křídla vichru"
   },
   "stingers": {
     "name": "Vraní drápy"
   },
   "armor": {
-    "name": "Pokovování železem"
+    "name": "Železné pláty"
   },
   "autoloader": {
     "name": "Rychlý naviják"
@@ -44,16 +44,16 @@
     "description": "Ztrojnásobuje dosah rozstřiku (uděluje rozstřik jednotkám bez něj)."
   },
   "skyBind": {
-    "name": "Sky Bind",
+    "name": "Nebeská vazba",
     "description": "Může útočit na pozemní i vzdušné jednotky."
   },
   "skyLift": {
-    "name": "Sky Lanovka",
-    "description": "Zvedne tuto jednotku do vzduchu (bojový letoun)."
+    "name": "Vzlet",
+    "description": "Zvedne tuto jednotku do vzduchu (bojový letec)."
   },
   "earthbound": {
     "name": "Připoutaný k zemi",
-    "description": "Udrží tuto jednotku na zemi (přepíše Sky Lift / přirozený let)."
+    "description": "Udrží tuto jednotku na zemi (přepíše Vzlet / přirozený let)."
   },
   "spiderMother": {
     "name": "Matka pavouků"
@@ -64,14 +64,14 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} poškození",
-    "modRange": "Rozsah {{pct}}",
+    "modRange": "{{pct}} dosah",
     "modSpeed": "{{pct}} rychlost pohybu",
     "modAttackSpeed": "{{pct}} rychlost útoku",
     "modSplash": "{{mult}}× poloměr rozstřiku",
     "produce": "Produkuje {{child}} každých {{every}} (až do {{max}})",
     "produceFirst": ", první po {{delay}}",
-    "produceOffspring": "Potomci shodují se na úrovni rodičů",
-    "onKill": "Když tato jednotka zabije, zvedněte {{child}}",
+    "produceOffspring": ". Potomci mají úroveň rodiče",
+    "onKill": "Když tato jednotka zabije, povstane {{child}}",
     "cleave": "Zasáhne každého nepřítele v okruhu {{radius}} (kolem této jednotky)"
   }
 }

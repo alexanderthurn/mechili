@@ -1,12 +1,12 @@
 {
   "dwarves4": {
-    "title": "Zespół krasnoludów",
-    "description": "Cztery stada krasnoludów dołączają do twojej armii.",
+    "title": "Drużyna krasnoludów",
+    "description": "Cztery Packi krasnoludów dołączają do twojej armii.",
     "unitsLabel": "4× Krasnoludy"
   },
   "archers4": {
     "title": "Kompania Łuczników",
-    "description": "Do twojej armii dołączają czterej łucznicy.",
+    "description": "Cztery Packi łuczników dołączają do twojej armii.",
     "unitsLabel": "4× Łucznicy"
   },
   "crowRiders2": {
@@ -24,7 +24,7 @@
     "description": "Pierwsze pojawienie się flanki zajmuje połowę czasu (2,5 sek.)."
   },
   "rallyRoute": {
-    "title": "Trasa rajdu",
+    "title": "Trasa zbiórki",
     "description": "Wyznacz trasę marszu: jednostki ze strefy początkowej kierują się do strefy końcowej, walcząc po drodze."
   },
   "sellPack": {

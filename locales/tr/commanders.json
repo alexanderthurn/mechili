@@ -11,7 +11,7 @@
   },
   "elite": {
     "title": "Seçkin Prens",
-    "description": "Seviye 2'de işe alım yapılıyor. 1. turda +100 tedarik.",
+    "description": "2. seviyeden asker alımı. 1. turda +100 erzak.",
     "unitsLabel": "1 adet Balista · 1 adet Cüce"
   },
   "archer": {
@@ -20,7 +20,7 @@
     "unitsLabel": "3 Okçu · 2 Cüce"
   },
   "addi": {
-    "title": "Kalıntı Koruyucusu",
+    "title": "Emanet Koruyucusu",
     "description": "1. turda 3 adet Cesaret rünü kazanır.",
     "unitsLabel": "1 x Karga Süvarileri · 3 x Cüceler"
   },

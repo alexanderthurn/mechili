@@ -6,7 +6,7 @@
     "name": "Steenhuid"
   },
   "barrel": {
-    "name": "Handboog"
+    "name": "Langboog"
   },
   "ap": {
     "name": "Doorborende pijlen"
@@ -25,7 +25,7 @@
     "name": "IJzerbeplating"
   },
   "autoloader": {
-    "name": "Snellier"
+    "name": "Snelle lier"
   },
   "aegis": {
     "name": "Aegis",
@@ -40,20 +40,20 @@
     "description": "Bij impact spat er olie uit de bouten (ontbrandt niet – combineer ze met vuurpijlen of een vuurbout)."
   },
   "wideBlast": {
-    "name": "Breedband",
+    "name": "Wijde Knal",
     "description": "Verdrievoudigt de spatradius (geeft spateffect aan eenheden die dit nog niet hebben)."
   },
   "skyBind": {
-    "name": "Sky Bind",
+    "name": "Hemelband",
     "description": "Kan grond- en luchteenheden aanvallen."
   },
   "skyLift": {
-    "name": "Sky Lift",
-    "description": "Hiermee wordt deze eenheid de lucht in getild (gevechtsvliegtuig)."
+    "name": "Hemelvlucht",
+    "description": "Tilt deze eenheid de lucht in (vechtende vlieger)."
   },
   "earthbound": {
     "name": "Aardgebonden",
-    "description": "Houdt dit apparaat op de grond (overschrijft Sky Lift / natuurlijke vlucht)."
+    "description": "Houdt deze eenheid op de grond (overschrijft Hemelvlucht / natuurlijke vlucht)."
   },
   "spiderMother": {
     "name": "Moeder van de spinnen"
@@ -70,8 +70,8 @@
     "modSplash": "{{mult}}× spatstraal",
     "produce": "Produceert {{child}} elke {{every}} (tot {{max}})",
     "produceFirst": ", eerst na {{delay}}",
-    "produceOffspring": "Nakomelingen evenaren het ouderlijk niveau.",
-    "onKill": "Wanneer deze eenheid doodt, werp dan een {{child}}",
+    "produceOffspring": ". Nakomelingen evenaren het ouderniveau",
+    "onKill": "Wanneer deze eenheid doodt, verrijst er een {{child}}",
     "cleave": "Raakt elke vijand binnen {{radius}} (rondom deze eenheid)"
   }
 }

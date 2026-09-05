@@ -29,11 +29,11 @@
   },
   "ward_dome": {
     "name": "Védőkupola",
-    "description": "Elnyeli az ellenséges lövedékeket, amelyek egy kupolába (sugár {{radius}}, magasság {{height}}) csapódnak be. A medence az egység HP-ja."
+    "description": "Elnyeli a kupolába belépő ellenséges lövedékeket (sugár {{radius}}, magasság {{height}}). Az elnyelési kapacitás e egység HP-jével egyenlő."
   },
   "homing_fire_bolt": {
     "name": "Önirányító tűzcsavar",
-    "description": "Karok a helyükön, majd célpont az első hatótávon belüli ellenfélre {{range}}, {{damage}} sebzést okozva (fröccsenés {{splash}})."
+    "description": "Helyben élesít, majd a {{range}} hatótávon belüli első ellenségre irányul {{damage}} sebzésért (splash {{splash}})."
   },
   "rally_route": {
     "name": "Gyülekezési útvonal",

@@ -1,5 +1,5 @@
 {
-  "close": "Vicino",
+  "close": "Chiudi",
   "back": "Indietro",
   "reset": "Reset",
   "language": "Lingua",
@@ -8,7 +8,7 @@
     "runes": "Rune",
     "talent": "Talento",
     "talents": "Talenti",
-    "spell": "Sillabare",
+    "spell": "Incantesimo",
     "spells": "Incantesimi",
     "commander": "Comandante",
     "commanders": "Comandanti",

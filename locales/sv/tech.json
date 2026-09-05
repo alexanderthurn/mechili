@@ -64,7 +64,7 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} skada",
-    "modRange": "{{pct}} intervall",
+    "modRange": "{{pct}} räckvidd",
     "modSpeed": "{{pct}} rörelsehastighet",
     "modAttackSpeed": "{{pct}} attackhastighet",
     "modSplash": "{{mult}}× stänkradie",

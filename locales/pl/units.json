@@ -3,7 +3,7 @@
     "name": "Łucznik garnizonowy"
   },
   "hordeWebweaver": {
-    "name": "Webweaver"
+    "name": "Sieciotkacz"
   },
   "hordeBrutSpawn": {
     "name": "Czarny lęg"
@@ -21,7 +21,7 @@
     "name": "Hans von Stoffeln"
   },
   "dwarf": {
-    "name": "Karzeł"
+    "name": "Krasnolud"
   },
   "archer": {
     "name": "Łucznik"
@@ -30,16 +30,16 @@
     "name": "Czarodziej"
   },
   "crowRider": {
-    "name": "Jeździec Kruk"
+    "name": "Jeździec kruka"
   },
   "ballista": {
     "name": "Balista"
   },
   "shield": {
-    "name": "Kamień Warda"
+    "name": "Kamień ochronny"
   },
   "rocket": {
-    "name": "Zapalna strzała"
+    "name": "Ognisty bełt"
   },
   "command-tower": {
     "name": "Awangarda"

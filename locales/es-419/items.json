@@ -24,7 +24,7 @@
     "description": "+75% de ataque."
   },
   "vigor": {
-    "name": "Sangre gigante",
+    "name": "Sangre de gigante",
     "description": "+100% HP."
   },
   "colossus": {
@@ -32,7 +32,7 @@
     "description": "+250% HP."
   },
   "wrath": {
-    "name": "Enloquecido",
+    "name": "Berserker",
     "description": "+300% de ataque."
   },
   "golden": {

@@ -6,7 +6,7 @@
     "name": "Webszövő"
   },
   "hordeBrutSpawn": {
-    "name": "Fekete seprű"
+    "name": "Fekete fészekalj"
   },
   "hordeSpinne": {
     "name": "Fekete Pók"
@@ -51,6 +51,6 @@
     "name": "Erőd"
   },
   "hordeZombie": {
-    "name": "Fekete seprű"
+    "name": "Fekete fészekalj"
   }
 }

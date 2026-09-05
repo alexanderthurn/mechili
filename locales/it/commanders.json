@@ -10,7 +10,7 @@
     "unitsLabel": "2 arcieri · 1 cavaliere corvo · 1 nano"
   },
   "elite": {
-    "title": "Elite Derby",
+    "title": "Principe d'élite",
     "description": "Reclutamento al livello 2. +100 di rifornimenti nel round 1.",
     "unitsLabel": "1× Balista · 1× Nani"
   },
@@ -39,7 +39,7 @@
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Si inizia con una lezione pratica sul campo.",
+    "description": "Inizia con una Lezione sul campo.",
     "unitsLabel": "1× Cavalieri Corvo · 3× Arcieri"
   },
   "money": {
@@ -48,7 +48,7 @@
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Ottieni un ragno Black Brood gratis a ogni round.",
+    "description": "Ottiene un ragno Covata Nera gratis ogni round.",
     "unitsLabel": "2 nani · 2 arcieri"
   },
   "flanky": {

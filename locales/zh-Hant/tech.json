@@ -12,7 +12,7 @@
     "name": "穿甲箭"
   },
   "fireArrows": {
-    "name": "火箭",
+    "name": "火焰箭",
     "description": "箭矢在地面留下短暫火焰並灼燒——足以點燃油潭。"
   },
   "engines": {
@@ -37,7 +37,7 @@
   },
   "pitchBolts": {
     "name": "瀝青弩矢",
-    "description": "弩矢命中時濺灑油脂（不會點燃——需搭配火箭或火焰弩矢）。"
+    "description": "弩矢命中時濺灑油脂（不會點燃——需搭配火焰箭或火焰弩矢）。"
   },
   "wideBlast": {
     "name": "廣域爆發",
@@ -71,7 +71,7 @@
     "produce": "每 {{every}} 產出 {{child}}（最多 {{max}}）",
     "produceFirst": "，首次在 {{delay}} 後",
     "produceOffspring": "。子嗣與親本等級相同",
-    "onKill": "該單位擊殺時喚起 {{child}}",
+    "onKill": "當此單位擊殺時，喚出 {{child}}",
     "cleave": "命中此單位周圍 {{radius}} 內的每個敵人"
   }
 }

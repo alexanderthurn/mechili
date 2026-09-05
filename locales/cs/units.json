@@ -1,12 +1,12 @@
 {
   "garrison-archer": {
-    "name": "Garrison Archer"
+    "name": "Posádkový lučištník"
   },
   "hordeWebweaver": {
     "name": "Tkač pavučin"
   },
   "hordeBrutSpawn": {
-    "name": "Černý plod"
+    "name": "Černý potěr"
   },
   "hordeSpinne": {
     "name": "Černý pavouk"
@@ -15,7 +15,7 @@
     "name": "Mrtvý farmář"
   },
   "hordeFarmerSpawn": {
-    "name": "Mrtvý farmář"
+    "name": "Mrtvý nádeník"
   },
   "hordeKomtur": {
     "name": "Hans von Stoffeln"
@@ -24,13 +24,13 @@
     "name": "Trpaslík"
   },
   "archer": {
-    "name": "Lukostřelec"
+    "name": "Lučištník"
   },
   "wizard": {
     "name": "Čaroděj"
   },
   "crowRider": {
-    "name": "Jezdec na vránu"
+    "name": "Jezdec na vráně"
   },
   "ballista": {
     "name": "Balista"
@@ -39,7 +39,7 @@
     "name": "Ochranný kámen"
   },
   "rocket": {
-    "name": "Požární šroub"
+    "name": "Ohnivá střela"
   },
   "command-tower": {
     "name": "Předvoj"
@@ -51,6 +51,6 @@
     "name": "Pevnost"
   },
   "hordeZombie": {
-    "name": "Černý plod"
+    "name": "Černý potěr"
   }
 }

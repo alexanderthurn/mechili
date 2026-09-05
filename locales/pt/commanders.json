@@ -21,7 +21,7 @@
   },
   "addi": {
     "title": "Guardião das Relíquias",
-    "description": "Obtém 3 runas Valor na rodada 1.",
+    "description": "Recebe 3 runas Valentia na rodada 1.",
     "unitsLabel": "1× Cavaleiros de Corvo · 3× Anões"
   },
   "meteor": {
@@ -39,7 +39,7 @@
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Começa com uma aula prática.",
+    "description": "Começa com uma Lição de Campo.",
     "unitsLabel": "1× Cavaleiros de Corvo · 3× Arqueiros"
   },
   "money": {
@@ -53,7 +53,7 @@
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "A primeira aparição de inimigos nas laterais leva metade do tempo.",
+    "description": "As primeiras aparições no flanco levam metade do tempo.",
     "unitsLabel": "2 anões · 2 arqueiros"
   }
 }

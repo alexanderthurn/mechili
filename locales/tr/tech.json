@@ -1,6 +1,6 @@
 {
   "legs": {
-    "name": "Fleet Feet"
+    "name": "Tez Ayaklar"
   },
   "carapace": {
     "name": "Taş Deri"
@@ -36,7 +36,7 @@
     "description": "Yakındaki müttefikler kule zayıflatmalarına karşı direnç gösterir ve 30 saniye boyunca %30 daha az hasar alır. Büyücüler bunları dönüştüremez; bunun yerine ışın hasar verir."
   },
   "pitchBolts": {
-    "name": "Zift Cıvataları",
+    "name": "Zift Okları",
     "description": "Cıvatalar çarpma anında yağ sıçratır (ateş almaz - ateşli oklarla veya Ateş Cıvatası ile birlikte kullanın)."
   },
   "wideBlast": {
@@ -48,12 +48,12 @@
     "description": "Hem kara hem de hava birliklerine saldırabilir."
   },
   "skyLift": {
-    "name": "Gökyüzü Asansörü",
-    "description": "Bu birimi havaya kaldırır (savaş uçağı)."
+    "name": "Göğe Yükseliş",
+    "description": "Bu birimi havaya kaldırır (uçan savaşçı)."
   },
   "earthbound": {
     "name": "Toprağa bağlı",
-    "description": "Bu üniteyi yerde tutar (Sky Lift / doğal uçuş özelliğini geçersiz kılar)."
+    "description": "Bu birimi yerde tutar (Göğe Yükseliş / doğal uçuşu iptal eder)."
   },
   "spiderMother": {
     "name": "Örümceklerin Annesi"
@@ -64,14 +64,14 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} hasar",
-    "modRange": "{{pct}} aralığı",
+    "modRange": "{{pct}} menzil",
     "modSpeed": "{{pct}} hareket hızı",
     "modAttackSpeed": "{{pct}} saldırı hızı",
     "modSplash": "{{mult}}× sıçrama yarıçapı",
-    "produce": "Her {{every}} için {{child}} üretir (en fazla {{max}}'ye kadar).",
+    "produce": "Her {{every}} {{child}} üretir (en fazla {{max}})",
     "produceFirst": ", önce {{delay}}'dan sonra",
-    "produceOffspring": "Yavrular ebeveyn düzeyine uygun olmalıdır.",
-    "onKill": "Bu birim öldürdüğünde, bir {{child}} yükseltin.",
+    "produceOffspring": ". Yavrular ebeveyn seviyesindedir",
+    "onKill": "Bu birim öldürdüğünde bir {{child}} diriltir",
     "cleave": "{{radius}} içindeki (bu birimin etrafındaki) tüm düşmanlara vurur."
   }
 }

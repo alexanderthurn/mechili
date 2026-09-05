@@ -29,7 +29,7 @@
   },
   "ward_dome": {
     "name": "Kubah pelindung",
-    "description": "Menyerap projektil musuh yang melintasi kubah (jejari {{radius}}, ketinggian {{height}}). Kolam ialah HP unit ini."
+    "description": "Menyerap projektil musuh yang masuk kubah (jejari {{radius}}, tinggi {{height}}). Kapasiti penyerapan sama dengan HP unit ini."
   },
   "homing_fire_bolt": {
     "name": "Bolt Api Homing",

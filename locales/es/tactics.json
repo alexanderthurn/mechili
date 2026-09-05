@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Vender Pack",
-    "description": "Haz clic para armar, luego haz clic en uno de tus Packs para venderlo y obtener un reembolso por suministros."
+    "description": "Haz clic para activar, luego haz clic en uno de tus Packs para venderlo y recuperar suministro."
   },
   "moveUnit": {
     "name": "Mover Pack",
-    "description": "Haz clic para armar, luego haz clic en uno de tus Packs de una ronda anterior; es posible que se arrastre y gire nuevamente durante el resto de esta ronda."
+    "description": "Haz clic para activar, luego haz clic en uno de tus Packs de una ronda anterior — podrás volver a arrastrarlo y girarlo el resto de esta ronda."
   },
   "tutor": {
     "name": "Lección de campo",
-    "description": "Haz clic para armar, luego haz clic en uno de tus Packs; su barra de XP se llenará hasta el siguiente nivel. Comprar el nivel aún cuesta suministros."
+    "description": "Haz clic para activar, luego haz clic en uno de tus Packs — su barra de XP se llena hasta el siguiente nivel. Comprar el nivel sigue costando suministro."
   },
   "spawnDwarves": {
     "name": "Invocar enanos",
@@ -45,7 +45,7 @@
   },
   "acidSpill": {
     "name": "Charco de ácido",
-    "description": "Vierta una cápsula de ácido como si fuera un derrame de petróleo: gotea de izquierda a derecha sobre el suelo poco después de que comience la batalla. Las unidades terrestres y aéreas sobre el charco chisporrotean y se corroen, sufriendo daños adicionales por todo."
+    "description": "Vierte una cápsula de ácido como un Charco de aceite: gotea de izquierda a derecha poco después de que empiece la batalla. Las unidades terrestres y aéreas sobre el charco chisporrotean y se corroen, sufriendo daño extra de todas las fuentes."
   },
   "fireSpill": {
     "name": "Charco de fuego",
@@ -53,10 +53,10 @@
   },
   "dragonAttack": {
     "name": "Ataque del dragón",
-    "description": "Dibuja la trayectoria de ataque del dragón (más ancha y larga que el petróleo). Se lanza en picado y exhala fuego a lo largo del corredor; el rayo abrasa las unidades a su paso y tiñe el suelo de llamas. Las cúpulas de protección absorben el aliento (y pagan las consecuencias)."
+    "description": "Dibuja la trayectoria del dragón (más ancha y larga que la de aceite). Se lanza en picado y escupe fuego por el corredor — el rayo quema unidades e incendia el suelo. Las cúpulas protectoras absorben el aliento (y pagan por ello)."
   },
   "poisonCloud": {
     "name": "Nube venenosa",
-    "description": "Dibuja un círculo enorme. Nubes tóxicas se acumulan en lo alto y caen pequeñas gotas de ácido por toda la zona: charcos dispersos que corroen el suelo y el aire como en Acid Spill, pero en un campo mucho más amplio."
+    "description": "Marca un círculo enorme. Nubes tóxicas se acumulan arriba y dejan caer pequeñas gotas de ácido — charcos dispersos que corroen unidades terrestres y aéreas como el Charco de ácido, pero en un área mucho mayor."
   }
 }

@@ -29,11 +29,11 @@
   },
   "ward_dome": {
     "name": "Ward dome",
-    "description": "Absorbs enemy projectiles that cross into a dome (radius {{radius}}, height {{height}}). Pool is this unit’s HP."
+    "description": "Absorbs enemy projectiles that cross into a dome (radius {{radius}}, height {{height}}). Absorption capacity equals this unit’s HP."
   },
   "homing_fire_bolt": {
     "name": "Homing Fire Bolt",
-    "description": "Arms in place, then homes onto the first enemy in range {{range}} for {{damage}} damage (splash {{splash}})."
+    "description": "Primes in place, then homes onto the first enemy in range {{range}} for {{damage}} damage (splash {{splash}})."
   },
   "rally_route": {
     "name": "Rally Route",

@@ -1,12 +1,12 @@
 {
   "dwarves4": {
-    "title": "Dwergenband",
-    "description": "Vier dwergengroepen sluiten zich aan bij je leger.",
+    "title": "Dwergenbende",
+    "description": "Vier Dwergen-Packs voegen zich bij je leger.",
     "unitsLabel": "4 dwergen"
   },
   "archers4": {
-    "title": "Archer Company",
-    "description": "Vier boogschutters sluiten zich aan bij je leger.",
+    "title": "Boogschutterscompagnie",
+    "description": "Vier Boogschutter-Packs voegen zich bij je leger.",
     "unitsLabel": "4× Boogschutters"
   },
   "crowRiders2": {
@@ -24,7 +24,7 @@
     "description": "Bij de eerste keer spawnen vanaf de flank duurt het de helft van de tijd (2,5 seconden)."
   },
   "rallyRoute": {
-    "title": "Rallyroute",
+    "title": "Verzamelroute",
     "description": "Bepaal een marsroute: eenheden in de startzone trekken naar de eindzone en vechten onderweg."
   },
   "sellPack": {
@@ -33,6 +33,6 @@
   },
   "movePack": {
     "title": "Marsorders",
-    "description": "Eenmalige spreuk: één Pack kaarten uit een eerdere ronde mag in deze ronde opnieuw worden geplaatst."
+    "description": "Eenmalige spreuk: één Pack uit een eerdere ronde kan deze ronde opnieuw worden geplaatst."
   }
 }

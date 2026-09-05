@@ -6,7 +6,7 @@
   },
   "archers4": {
     "title": "Archer Company",
-    "description": "Fyra bågskyttar ansluter sig till din armé.",
+    "description": "Fyra bågskytt-Pack ansluter sig till din armé.",
     "unitsLabel": "4× Bågskyttar"
   },
   "crowRiders2": {
@@ -20,7 +20,7 @@
     "unitsLabel": "1× Ballista"
   },
   "flanky": {
-    "title": "Flankig",
+    "title": "Flanky",
     "description": "Första gången flank-spawns dyker upp tar halva tiden (2,5 sekunder)."
   },
   "rallyRoute": {

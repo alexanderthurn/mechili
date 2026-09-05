@@ -1,12 +1,12 @@
 {
   "dwarves4": {
-    "title": "Grup Kurcaci",
+    "title": "Regu Kurcaci",
     "description": "Empat kelompok Kurcaci bergabung dengan pasukanmu.",
     "unitsLabel": "4× Kurcaci"
   },
   "archers4": {
-    "title": "Perusahaan Archer",
-    "description": "Empat pemanah bergabung dengan pasukanmu.",
+    "title": "Kompi Pemanah",
+    "description": "Empat Pack Pemanah bergabung dengan pasukanmu.",
     "unitsLabel": "4× Pemanah"
   },
   "crowRiders2": {
@@ -20,7 +20,7 @@
     "unitsLabel": "1× Ballista"
   },
   "flanky": {
-    "title": "Sisi samping",
+    "title": "Flanky",
     "description": "Kemunculan pertama dari sisi sayap membutuhkan setengah waktu (2,5 detik)."
   },
   "rallyRoute": {

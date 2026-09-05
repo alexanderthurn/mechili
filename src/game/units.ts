@@ -220,16 +220,18 @@ export function techDescription(tech: TechDef): string {
             every,
             max: p.max,
             defaultValue: `Produces ${child} every ${every} (up to ${p.max})`,
-        });
+        }).replace(/[.。．]+$/u, '');
         if (p.delay !== undefined && p.delay !== p.interval) {
-            line += t('tech:_auto.produceFirst', {
+            const first = t('tech:_auto.produceFirst', {
                 delay: formatTechSeconds(p.delay),
                 defaultValue: `, first after ${formatTechSeconds(p.delay)}`,
-            });
+            }).replace(/^[,，\s]+/u, '');
+            line += `, ${first}`;
         }
-        line += t('tech:_auto.produceOffspring', {
-            defaultValue: '. Offspring match parent level',
-        });
+        const offspring = t('tech:_auto.produceOffspring', {
+            defaultValue: 'Offspring match parent level',
+        }).replace(/^[,.。．\s]+/u, '').replace(/[.。．]+$/u, '');
+        line += `. ${offspring}`;
         parts.push(line);
     }
     if (tech.onKill) {
@@ -241,7 +243,7 @@ export function techDescription(tech: TechDef): string {
             t('tech:_auto.onKill', {
                 child,
                 defaultValue: `When this unit kills, raise a ${child}`,
-            }),
+            }).replace(/[.。．]+$/u, ''),
         );
     }
     if (tech.cleave) {
@@ -249,7 +251,7 @@ export function techDescription(tech: TechDef): string {
             t('tech:_auto.cleave', {
                 radius: tech.cleave.radius,
                 defaultValue: `Hits every enemy within ${tech.cleave.radius} (around this unit)`,
-            }),
+            }).replace(/[.。．]+$/u, ''),
         );
     }
     return parts.length ? parts.join('. ') : techName(tech.id, tech.name);

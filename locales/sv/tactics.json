@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Sälj Pack",
-    "description": "Klicka för att aktivera, klicka sedan på ett av dina paket för att sälja det och få återbetalning för dina förnödenheter."
+    "description": "Klicka för att aktivera, klicka sedan på ett av dina Pack för att sälja det och få tillbaka förråd."
   },
   "moveUnit": {
     "name": "Flytta Pack",
-    "description": "Klicka för att beväpna, klicka sedan på ett av dina paket från en tidigare runda – det kan dras och roteras igen under resten av den här rundan."
+    "description": "Klicka för att aktivera, klicka sedan på ett Pack från en tidigare runda — det kan dras och roteras igen under resten av denna runda."
   },
   "tutor": {
     "name": "Fältlektion",
-    "description": "Klicka för att beväpna, klicka sedan på ett av dina paket – dess XP-stapel fylls till nästa nivå. Att köpa nivån kostar fortfarande förråd."
+    "description": "Klicka för att aktivera, klicka sedan på ett av dina Pack — XP-fältet fylls till nästa nivå. Att köpa nivån kostar fortfarande förråd."
   },
   "spawnDwarves": {
     "name": "Kalla fram dvärgar",

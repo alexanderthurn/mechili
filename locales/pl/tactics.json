@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Sprzedaj Pack",
-    "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich Packów, aby go sprzedać i uzyskać zwrot kosztów za zapasy."
+    "description": "Kliknij, aby aktywować, potem kliknij jeden ze swoich Packów, by sprzedać go za zwrot zapasów."
   },
   "moveUnit": {
     "name": "Przenieś Pack",
-    "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich Packów z poprzedniej rundy — możesz go przeciągać i obracać do końca tej rundy."
+    "description": "Kliknij, aby aktywować, potem kliknij Pack z wcześniejszej rundy — możesz go znów przeciągać i obracać do końca tej rundy."
   },
   "tutor": {
     "name": "Lekcja terenowa",
-    "description": "Kliknij, aby uzbroić, a następnie kliknij jeden ze swoich Packów – jego pasek XP wypełni się do następnego poziomu. Kupno tego poziomu nadal kosztuje zapasy."
+    "description": "Kliknij, aby aktywować, potem kliknij jeden ze swoich Packów — pasek XP wypełnia się do następnego poziomu. Kupno poziomu nadal kosztuje zapasy."
   },
   "spawnDwarves": {
     "name": "Przywołaj krasnoludy",
@@ -57,6 +57,6 @@
   },
   "poisonCloud": {
     "name": "Chmura trucizny",
-    "description": "Zaznacz ogromny okrąg. Nad głowami zbierają się toksyczne chmury, które zrzucają na obszar drobne krople kwasu – rzadkie kałuże, które niszczą elementy naziemne i powietrzne, podobnie jak rozlany kwas, ale na znacznie szerszym obszarze."
+    "description": "Zaznacz ogromne koło. Trujące chmury zbierają się i zrzucają małe krople kwasu — rzadkie kałuże, które korodują jednostki naziemne i powietrzne jak Kałuża kwasu, ale na dużo szerszym polu."
   }
 }

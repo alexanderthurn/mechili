@@ -13,7 +13,7 @@
   },
   "wind": {
     "name": "Vent",
-    "description": "Plage de +10 %."
+    "description": "+10 % de portée."
   },
   "addi": {
     "name": "Valeur",
@@ -24,7 +24,7 @@
     "description": "+75% d'attaque."
   },
   "vigor": {
-    "name": "Sang géant",
+    "name": "Sang de géant",
     "description": "+100% PV."
   },
   "colossus": {
@@ -32,7 +32,7 @@
     "description": "+250% PV."
   },
   "wrath": {
-    "name": "Fou furieux",
+    "name": "Berserk",
     "description": "+300% d'attaque."
   },
   "golden": {

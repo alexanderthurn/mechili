@@ -1,12 +1,12 @@
 {
   "dwarves4": {
-    "title": "Trpasličí kapela",
-    "description": "Čtyři trpasličí smečky se připojují k vaší armádě.",
+    "title": "Trpasličí družina",
+    "description": "Čtyři trpasličí Packy se přidají k tvé armádě.",
     "unitsLabel": "4× Trpaslíci"
   },
   "archers4": {
-    "title": "Archer Company",
-    "description": "K vaší armádě se připojí čtyři lučištníci.",
+    "title": "Rota lučištníků",
+    "description": "Čtyři Packy lučištníků se přidají k tvé armádě.",
     "unitsLabel": "4× Lučištníci"
   },
   "crowRiders2": {
@@ -24,7 +24,7 @@
     "description": "První objevení se na boku trvá polovinu času (2,5 s)."
   },
   "rallyRoute": {
-    "title": "Trasa rallye",
+    "title": "Trasa shromáždění",
     "description": "Umístěte trasu pochodu: jednotky v počáteční zóně míří do koncové zóny a cestou bojují."
   },
   "sellPack": {

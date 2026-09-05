@@ -6,7 +6,7 @@
   },
   "archers4": {
     "title": "Compania Arcașului",
-    "description": "Patru arcași se alătură armatei tale.",
+    "description": "Patru Pack-uri de Arcași se alătură armatei tale.",
     "unitsLabel": "4× Arcași"
   },
   "crowRiders2": {
@@ -20,11 +20,11 @@
     "unitsLabel": "1× Balistă"
   },
   "flanky": {
-    "title": "Flancos",
+    "title": "Flanky",
     "description": "Prima apariție pe flancuri durează jumătate din timp (2,5 secunde)."
   },
   "rallyRoute": {
-    "title": "Traseul raliului",
+    "title": "Traseu de adunare",
     "description": "Plasează un traseu de marș: unitățile din zona de start se îndreaptă spre zona de final, luptând pe parcurs."
   },
   "sellPack": {

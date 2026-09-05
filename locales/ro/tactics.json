@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Vinde Pack",
-    "description": "Apasă pentru a arma, apoi apasă pe unul dintre Pack-urile tale pentru a-l vinde și a primi o rambursare a proviziilor."
+    "description": "Apasă pentru a activa, apoi apasă pe unul dintre Pack-urile tale ca să-l vinzi și să primești aprovizionarea înapoi."
   },
   "moveUnit": {
     "name": "Mută Pack",
-    "description": "Faceți clic pentru a arma, apoi faceți clic pe unul dintre Pack-urile dvs. dintr-o rundă anterioară — acesta poate fi tras și rotit din nou pentru restul acestei runde."
+    "description": "Apasă pentru a activa, apoi apasă pe un Pack dintr-o rundă anterioară — poate fi tras și rotit din nou pentru restul acestei runde."
   },
   "tutor": {
     "name": "Lecție de teren",
-    "description": "Apasă pentru a te înarma, apoi dă clic pe unul dintre Pack-urile tale — bara sa de XP se umple până la nivelul următor. Cumpărarea nivelului costă în continuare provizii."
+    "description": "Apasă pentru a activa, apoi apasă pe unul dintre Pack-urile tale — bara de XP se umple până la nivelul următor. Cumpărarea nivelului costă în continuare aprovizionare."
   },
   "spawnDwarves": {
     "name": "Invocă pitici",

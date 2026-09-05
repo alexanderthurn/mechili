@@ -33,7 +33,7 @@
   },
   "homing_fire_bolt": {
     "name": "追蹤火焰弩矢",
-    "description": "就地裝填，然後追蹤射程 {{range}} 內的首個敵人，造成 {{damage}} 傷害（濺射 {{splash}}）。"
+    "description": "就地待發，然後追蹤射程 {{range}} 內的第一個敵人，造成 {{damage}} 傷害（濺射 {{splash}}）。"
   },
   "rally_route": {
     "name": "集結路線",

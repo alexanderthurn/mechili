@@ -29,11 +29,11 @@
   },
   "ward_dome": {
     "name": "Cupolă de protecție",
-    "description": "Absoarbe proiectilele inamice care traversează o cupolă (rază {{radius}}, înălțime {{height}}). Rezerva reprezintă HP-ul acestei unități."
+    "description": "Absorb proiectilele inamice care intră în cupolă (rază {{radius}}, înălțime {{height}}). Capacitatea de absorbție este egală cu HP-ul acestei unități."
   },
   "homing_fire_bolt": {
     "name": "Șurub de foc localizat",
-    "description": "Brațele la locul lor, apoi țintește spre primul inamic din raza de acțiune {{range}} pentru daune {{damage}} (daune stropitoare {{splash}})."
+    "description": "Se armează pe loc, apoi vizează primul inamic din raza {{range}} pentru {{damage}} damage (splash {{splash}})."
   },
   "rally_route": {
     "name": "Traseu de adunare",

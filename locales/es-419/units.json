@@ -3,7 +3,7 @@
     "name": "Arquero de guarnición"
   },
   "hordeWebweaver": {
-    "name": "Webweaver"
+    "name": "Tejedora de redes"
   },
   "hordeBrutSpawn": {
     "name": "Progenie negra"
@@ -30,13 +30,13 @@
     "name": "Mago"
   },
   "crowRider": {
-    "name": "El jinete del cuervo"
+    "name": "Jinete de cuervo"
   },
   "ballista": {
     "name": "Balista"
   },
   "shield": {
-    "name": "Piedra de Ward"
+    "name": "Piedra protectora"
   },
   "rocket": {
     "name": "Rayo de fuego"

@@ -1,7 +1,7 @@
 {
   "earth": {
     "name": "Ziemia",
-    "description": "+10% PW."
+    "description": "+10% HP."
   },
   "fire": {
     "name": "Ogień",
@@ -25,11 +25,11 @@
   },
   "vigor": {
     "name": "Olbrzymia krew",
-    "description": "+100% PW."
+    "description": "+100% HP."
   },
   "colossus": {
     "name": "Napierśnik mithrilowy",
-    "description": "+250% PW."
+    "description": "+250% HP."
   },
   "wrath": {
     "name": "Szał",
@@ -41,6 +41,6 @@
   },
   "bulwark": {
     "name": "Bastion",
-    "description": "Tarcza: każda jednostka zyskuje drugą pulę zdrowia równą jej PW. Ciosy dystansowe najpierw wyczerpują tarczę; walka wręcz, ogień i kwas ją ignorują."
+    "description": "Tarcza: każda jednostka zyskuje drugą pulę zdrowia równą jej HP. Ciosy dystansowe najpierw wyczerpują tarczę; walka wręcz, ogień i kwas ją ignorują."
   }
 }

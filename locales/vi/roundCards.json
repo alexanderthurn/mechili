@@ -5,8 +5,8 @@
     "unitsLabel": "4 người lùn"
   },
   "archers4": {
-    "title": "Công ty Archer",
-    "description": "Bốn cung thủ sẽ gia nhập đội quân của bạn.",
+    "title": "Đại đội Cung thủ",
+    "description": "Bốn Pack Cung thủ gia nhập quân đội của bạn.",
     "unitsLabel": "4 cung thủ"
   },
   "crowRiders2": {
@@ -20,7 +20,7 @@
     "unitsLabel": "1× Máy bắn đá"
   },
   "flanky": {
-    "title": "Sườn",
+    "title": "Flanky",
     "description": "Lần xuất hiện đầu tiên ở sườn chỉ mất một nửa thời gian (2,5 giây)."
   },
   "rallyRoute": {

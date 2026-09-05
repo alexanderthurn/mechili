@@ -1,5 +1,5 @@
 {
-  "close": "Cerca",
+  "close": "Cerrar",
   "back": "Atrás",
   "reset": "Reiniciar",
   "language": "Idioma",
@@ -7,8 +7,8 @@
     "rune": "Runa",
     "runes": "Runas",
     "talent": "Talento",
-    "talents": "Prendas",
-    "spell": "Deletrear",
+    "talents": "Talentos",
+    "spell": "Hechizo",
     "spells": "Hechizos",
     "commander": "Comandante",
     "commanders": "Comandantes",

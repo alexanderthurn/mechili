@@ -1,11 +1,11 @@
 {
   "upgrade_level": {
-    "name": "Úroveň vylepšení",
+    "name": "Zvýšit úroveň",
     "description": "Zvyšte úroveň této budovy o jednu: získá základní HP. Cena začíná na {{baseCost}} a zvyšuje se o {{costStep}} s každou úrovní (maximální úroveň {{maxLevel}})."
   },
   "selling": {
-    "name": "Prodejní",
-    "description": "Trvale odemkněte prodejní Packy (až do {{maxPerRound}} za fázi nasazení). Vrácení peněz je {{refundPct}} % ze základní ceny."
+    "name": "Prodej",
+    "description": "Trvale odemkne prodávání Packů (až {{maxPerRound}} za fázi rozmístění). Náhrada je {{refundPct}} % základních nákladů."
   },
   "attack_boost": {
     "name": "Zvýšení útoku",
@@ -16,7 +16,7 @@
     "description": "Trvalé zvýšení HP celé armády. První úroveň +{{hpPct}}%; kupujte úrovně v pořadí (cena {{costs}})."
   },
   "range_boost": {
-    "name": "Zvýšení dojezdu",
+    "name": "Zvýšení dosahu",
     "description": "Dosah +{{amount}} pro všechny jednotky na dálku, pouze v tomto kole."
   },
   "speed_boost": {
@@ -29,11 +29,11 @@
   },
   "ward_dome": {
     "name": "Ochranná kupole",
-    "description": "Absorbuje nepřátelské projektily, které proletí kopulí (poloměr {{radius}}, výška {{height}}). Pool představuje HP této jednotky."
+    "description": "Pohlcuje nepřátelské projektily vstupující do kupole (poloměr {{radius}}, výška {{height}}). Zásoba pohlcení se rovná HP této jednotky."
   },
   "homing_fire_bolt": {
-    "name": "Naváděcí palný šíp",
-    "description": "Zbraně na místě, poté se zaměří na prvního nepřítele v dosahu {{range}} a způsobí mu {{damage}} poškození (rozstřik {{splash}})."
+    "name": "Samonaváděcí ohnivá střela",
+    "description": "Zaměří se na místě a pak sleduje prvního nepřítele v dosahu {{range}} za {{damage}} poškození (splash {{splash}})."
   },
   "rally_route": {
     "name": "Trasa shromáždění",

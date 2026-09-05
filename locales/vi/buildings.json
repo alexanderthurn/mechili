@@ -29,7 +29,7 @@
   },
   "ward_dome": {
     "name": "Vòm bảo vệ",
-    "description": "Hấp thụ đạn của kẻ địch bay vào trong một vòm (bán kính {{radius}}, chiều cao {{height}}). Pool chính là HP của đơn vị này."
+    "description": "Hấp thụ đạn địch đi vào vòm (bán kính {{radius}}, cao {{height}}). Dung lượng hấp thụ bằng HP của đơn vị này."
   },
   "homing_fire_bolt": {
     "name": "Tia lửa tự dẫn đường",

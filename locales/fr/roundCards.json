@@ -1,12 +1,12 @@
 {
   "dwarves4": {
     "title": "Groupe de nains",
-    "description": "Quatre meutes de nains rejoignent votre armée.",
+    "description": "Quatre Packs de nains rejoignent ton armée.",
     "unitsLabel": "4× Nains"
   },
   "archers4": {
-    "title": "Compagnie Archer",
-    "description": "Quatre archers rejoignent votre armée.",
+    "title": "Compagnie d'archers",
+    "description": "Quatre Packs d'archers rejoignent ton armée.",
     "unitsLabel": "4 archers"
   },
   "crowRiders2": {
@@ -20,11 +20,11 @@
     "unitsLabel": "1× Baliste"
   },
   "flanky": {
-    "title": "Flanc",
+    "title": "Flanky",
     "description": "Les premières apparitions sur les flancs prennent deux fois moins de temps (2,5 s)."
   },
   "rallyRoute": {
-    "title": "Parcours du rallye",
+    "title": "Route de ralliement",
     "description": "Établissez un itinéraire de marche : les unités de la zone de départ se dirigent vers la zone d’arrivée, en combattant tout au long du chemin."
   },
   "sellPack": {

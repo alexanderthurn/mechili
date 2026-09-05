@@ -36,7 +36,7 @@
     "description": "近くの味方は 30 秒間、塔のデバフに耐性を持ち被ダメージを 30% 軽減。魔術師は変換できず——光線はダメージを与える。"
   },
   "pitchBolts": {
-    "name": "ピッチボルト",
+    "name": "瀝青ボルト",
     "description": "ボルト着弾時に油をスプラッシュ（着火しない——火炎の矢や火炎ボルトと組み合わせる）。"
   },
   "wideBlast": {
@@ -48,8 +48,8 @@
     "description": "地上と飛行ユニットの両方を攻撃できる。"
   },
   "skyLift": {
-    "name": "空上げ",
-    "description": "このユニットを空中へ持ち上げる（戦闘飛行体）。"
+    "name": "空中浮揚",
+    "description": "このユニットを空中へ引き上げる（戦闘飛行者）。"
   },
   "earthbound": {
     "name": "地縛り",
@@ -71,7 +71,7 @@
     "produce": "{{every}}ごとに {{child}} を生産（最大 {{max}}）",
     "produceFirst": "、最初は {{delay}} 後",
     "produceOffspring": "。子供は親と同じレベル",
-    "onKill": "このユニットがキルすると {{child}} を起こす",
+    "onKill": "このユニットが倒したとき、{{child}}を呼び出す",
     "cleave": "このユニット周囲 {{radius}} 内の全敵に命中"
   }
 }

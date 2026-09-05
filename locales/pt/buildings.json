@@ -1,11 +1,11 @@
 {
   "upgrade_level": {
     "name": "Aprimore o nível",
-    "description": "Aumente este edifício um nível: ele recupera seu HP base. O preço inicial é {{baseCost}} e aumenta em {{costStep}} a cada nível (nível máximo {{maxLevel}})."
+    "description": "Suba este edifício um nível: ele ganha seu HP base. O preço começa em {{baseCost}} e sobe {{costStep}} por nível (máx. {{maxLevel}})."
   },
   "selling": {
-    "name": "Vendendo",
-    "description": "Desbloqueia permanentemente os Packs de venda (até {{maxPerRound}} por fase de implantação). O reembolso é de {{refundPct}}% do custo base."
+    "name": "Venda",
+    "description": "Desbloqueia permanentemente a venda de Packs (até {{maxPerRound}} por fase de implantação). O reembolso é {{refundPct}}% do custo base."
   },
   "attack_boost": {
     "name": "Aumento de ataque",
@@ -17,7 +17,7 @@
   },
   "range_boost": {
     "name": "Aumento de alcance",
-    "description": "+{{amount}} alcance para todas as unidades de longo alcance, somente nesta rodada."
+    "description": "+{{amount}} de alcance para todas as unidades à distância, somente nesta rodada."
   },
   "speed_boost": {
     "name": "Aumento de velocidade",
@@ -29,18 +29,18 @@
   },
   "ward_dome": {
     "name": "Cúpula protetora",
-    "description": "Absorve projéteis inimigos que cruzam para dentro de uma cúpula (raio {{radius}}, altura {{height}}). A reserva representa os pontos de vida (HP) desta unidade."
+    "description": "Absorve projéteis inimigos que entram na cúpula (raio {{radius}}, altura {{height}}). A capacidade de absorção equivale ao HP desta unidade."
   },
   "homing_fire_bolt": {
-    "name": "Raio teleguiado",
-    "description": "Armas posicionadas, então mira no primeiro inimigo ao alcance {{range}} para causar {{damage}} de dano (espalhamento {{splash}})."
+    "name": "Raio de Fogo teleguiado",
+    "description": "Arma-se no lugar e então mira no primeiro inimigo em alcance {{range}} causando {{damage}} de dano (área {{splash}})."
   },
   "rally_route": {
     "name": "Rota de reunião",
     "description": "Adicione uma carga de rota de reunião à sua faixa de feitiços. Uma vez por partida."
   },
   "move_pack": {
-    "name": "Pack de movimento",
+    "name": "Mover Pack",
     "description": "Adicione uma carga de Pack de movimento à sua faixa de feitiços: um Pack de uma rodada anterior torna-se móvel novamente. Uma vez por partida."
   },
   "1_deployment": {
@@ -49,10 +49,10 @@
   },
   "veteran_training": {
     "name": "Treinamento para Veteranos",
-    "description": "Durante o restante desta rodada, as unidades que você comprar chegarão no nível 2 (elas ainda pagarão o prêmio de nível)."
+    "description": "Pelo resto desta rodada, unidades compradas chegam no nível 2 (ainda pagam o acréscimo de nível)."
   },
   "send_supply_to_ally": {
     "name": "Enviar suprimentos para o aliado",
-    "description": "Presenteie seu aliado com 100 unidades de suprimento — elas chegam no início da próxima rodada. Apenas no modo Dupla."
+    "description": "Dê 100 de suprimentos ao seu aliado — chegam no início da próxima rodada. Somente modos duo."
   }
 }

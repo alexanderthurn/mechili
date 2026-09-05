@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Myy Pack",
-    "description": "Napsauta aseistautuaksesi ja napsauta sitten yhtä pakkauksistasi myydäksesi sen tarvikehyvitystä varten."
+    "description": "Napsauta aktivoidaksesi, napsauta sitten yhtä Packeistasi myydäksesi sen ja saadaksesi huollon takaisin."
   },
   "moveUnit": {
     "name": "Siirrä Pack",
-    "description": "Napsauta aseistautuaksesi ja napsauta sitten yhtä aiemman kierroksen pakkaustasi – sitä voidaan vetää ja pyörittää uudelleen tämän kierroksen loppuun asti."
+    "description": "Napsauta aktivoidaksesi, napsauta sitten aiemman kierroksen Packia — sitä voi taas raahata ja kiertää tämän kierroksen loppuun."
   },
   "tutor": {
     "name": "Kenttäoppitunti",
-    "description": "Napsauta aseistautuaksesi ja napsauta sitten yhtä pakkaustasi – sen kokemuspalkki täyttyy seuraavalle tasolle. Tason ostaminen maksaa silti huoltoa."
+    "description": "Napsauta aktivoidaksesi, napsauta sitten yhtä Packeistasi — XP-palkki täyttyy seuraavaan tasoon. Tason ostaminen maksaa yhä huoltoa."
   },
   "spawnDwarves": {
     "name": "Kutsu kääpiöitä",

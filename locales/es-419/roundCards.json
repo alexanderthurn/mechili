@@ -1,12 +1,12 @@
 {
   "dwarves4": {
     "title": "Banda de enanos",
-    "description": "Cuatro grupos de enanos se unen a tu ejército.",
+    "description": "Cuatro Packs de enanos se unen a tu ejército.",
     "unitsLabel": "4× Enanos"
   },
   "archers4": {
-    "title": "Compañía Archer",
-    "description": "Cuatro arqueros se unen a tu ejército.",
+    "title": "Compañía de arqueros",
+    "description": "Cuatro Packs de arqueros se unen a tu ejército.",
     "unitsLabel": "4 arqueros"
   },
   "crowRiders2": {
@@ -17,14 +17,14 @@
   "ballista1": {
     "title": "Balista de asedio",
     "description": "Una balista se une a tu ejército.",
-    "unitsLabel": "1× Ballista"
+    "unitsLabel": "1× Balista"
   },
   "flanky": {
     "title": "Flanky",
-    "description": "La primera aparición de flancos tarda la mitad de tiempo (2,5 s)."
+    "description": "La primera aparición por el flanco tarda la mitad de tiempo."
   },
   "rallyRoute": {
-    "title": "Ruta del rally",
+    "title": "Ruta de reunión",
     "description": "Establece una ruta de marcha: las unidades en la zona de inicio se dirigen a la zona final, combatiendo por el camino."
   },
   "sellPack": {

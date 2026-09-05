@@ -3,7 +3,7 @@
     "name": "Archer de la garnison"
   },
   "hordeWebweaver": {
-    "name": "Webweaver"
+    "name": "Tisse-Toile"
   },
   "hordeBrutSpawn": {
     "name": "Couvée noire"
@@ -15,7 +15,7 @@
     "name": "Fermier mort"
   },
   "hordeFarmerSpawn": {
-    "name": "Fermier mort"
+    "name": "Valet de ferme mort"
   },
   "hordeKomtur": {
     "name": "Hans von Stoffeln"
@@ -30,7 +30,7 @@
     "name": "Magicien"
   },
   "crowRider": {
-    "name": "Crow Rider"
+    "name": "Cavalier corbeau"
   },
   "ballista": {
     "name": "Baliste"

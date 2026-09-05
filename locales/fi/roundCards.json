@@ -6,7 +6,7 @@
   },
   "archers4": {
     "title": "Archer Company",
-    "description": "Neljä jousimiestä liittyy armeijaasi.",
+    "description": "Neljä jousimies-Packia liittyy armeijaasi.",
     "unitsLabel": "4× Jousimiehet"
   },
   "crowRiders2": {
@@ -20,7 +20,7 @@
     "unitsLabel": "1× Ballista"
   },
   "flanky": {
-    "title": "Reunustava",
+    "title": "Flanky",
     "description": "Ensimmäiset kylkikuten ilmestymiset kestävät puolet normaalista ajasta (2,5 sekuntia)."
   },
   "rallyRoute": {

@@ -1,6 +1,6 @@
 {
   "upgrade_level": {
-    "name": "Niveau de mise à niveau",
+    "name": "Monter d'un niveau",
     "description": "Améliorez ce bâtiment d'un niveau : il gagne ses PV de base. Le prix commence à {{baseCost}} et augmente de {{costStep}} à chaque niveau (niveau maximum {{maxLevel}})."
   },
   "selling": {
@@ -12,11 +12,11 @@
     "description": "Bonus de dégâts permanent pour toute l'armée. Premier niveau : +{{attackPct}} % ; achetez les niveaux suivants dans l'ordre (coût : {{costs}})."
   },
   "hp_boost": {
-    "name": "Boost de puissance",
+    "name": "Boost de PV",
     "description": "Bonus permanent de PV pour toute l'armée. Premier niveau : +{{hpPct}} % ; achetez les niveaux dans l'ordre (coûte {{costs}})."
   },
   "range_boost": {
-    "name": "Augmentation de l'autonomie",
+    "name": "Augmentation de portée",
     "description": "+{{amount}} portée pour toutes les unités à distance, ce tour uniquement."
   },
   "speed_boost": {
@@ -32,20 +32,20 @@
     "description": "Absorbe les projectiles ennemis qui pénètrent dans un dôme (rayon {{radius}}, hauteur {{height}}). La réserve correspond aux PV de cette unité."
   },
   "homing_fire_bolt": {
-    "name": "Carreau de tir à tête chercheuse",
-    "description": "Armes en place, puis se dirige vers le premier ennemi à portée {{range}} pour {{damage}} dégâts (éclaboussure {{splash}})."
+    "name": "Éclair de feu à tête chercheuse",
+    "description": "S'arme sur place, puis fonce sur le premier ennemi à portée {{range}} pour {{damage}} dégâts (zone {{splash}})."
   },
   "rally_route": {
     "name": "Route de ralliement",
     "description": "Ajoutez une charge de ralliement à votre réserve de sorts. Une fois par match."
   },
   "move_pack": {
-    "name": "Pack de déplacement",
+    "name": "Déplacer un Pack",
     "description": "Ajoutez une charge de déplacement à votre réserve de sorts : un Pack d'un tour précédent peut à nouveau être déplacé. Une fois par match."
   },
   "1_deployment": {
     "name": "+1 Déploiement",
-    "description": "Un seul achat supplémentaire est autorisé cette fois-ci seulement."
+    "description": "Un achat d'unité supplémentaire ce tour uniquement."
   },
   "veteran_training": {
     "name": "Formation des vétérans",
@@ -53,6 +53,6 @@
   },
   "send_supply_to_ally": {
     "name": "Envoyer des approvisionnements à l'allié",
-    "description": "Offrez 100 unités de ravitaillement à votre allié — disponibles au début du prochain round. Mode Duo uniquement."
+    "description": "Offre 100 de ravitaillement à ton allié — arrive au début du prochain tour. Modes duo uniquement."
   }
 }

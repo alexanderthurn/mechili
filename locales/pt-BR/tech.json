@@ -3,7 +3,7 @@
     "name": "Pés ligeiros"
   },
   "carapace": {
-    "name": "Esconderijo de pedra"
+    "name": "Pele de Pedra"
   },
   "barrel": {
     "name": "Arco longo"
@@ -29,7 +29,7 @@
   },
   "aegis": {
     "name": "Égide",
-    "description": "Escudo: cada unidade ganha uma segunda reserva de vida igual ao seu HP atual. Ataques à distância drenam o escudo primeiro; ataques corpo a corpo, fogo e ácido o ignoram."
+    "description": "Escudo: cada unidade ganha uma segunda reserva de vida igual ao seu HP. Ataques à distância drenam o escudo primeiro; ataques corpo a corpo, fogo e ácido o ignoram."
   },
   "golden": {
     "name": "Aura Dourada",
@@ -48,12 +48,12 @@
     "description": "Pode atacar unidades terrestres e aéreas."
   },
   "skyLift": {
-    "name": "Sky Lift",
-    "description": "Eleva esta unidade ao ar (aeronave de combate)."
+    "name": "Voo Elevado",
+    "description": "Eleva esta unidade ao ar (voador de combate)."
   },
   "earthbound": {
-    "name": "Terra",
-    "description": "Mantém esta unidade no solo (substitui o Sky Lift/voo natural)."
+    "name": "Preso ao Solo",
+    "description": "Mantém esta unidade no chão (anula Voo Elevado / o voo natural)."
   },
   "spiderMother": {
     "name": "Mãe das Aranhas"
@@ -64,14 +64,14 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} dano",
-    "modRange": "{{pct}} intervalo",
+    "modRange": "{{pct}} de alcance",
     "modSpeed": "{{pct}} velocidade de movimento",
     "modAttackSpeed": "{{pct}} velocidade de ataque",
     "modSplash": "{{mult}}× raio de respingo",
     "produce": "Produz {{child}} a cada {{every}} (até {{max}})",
     "produceFirst": ", primeiro após {{delay}}",
     "produceOffspring": "A prole corresponde ao nível dos pais.",
-    "onKill": "Quando esta unidade matar, gere um {{child}}",
+    "onKill": "Quando esta unidade mata, ergue-se um {{child}}",
     "cleave": "Atinge todos os inimigos dentro de {{radius}} (ao redor desta unidade)"
   }
 }

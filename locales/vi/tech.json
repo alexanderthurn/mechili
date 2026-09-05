@@ -64,7 +64,7 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} hư hỏng",
-    "modRange": "{{pct}} phạm vi",
+    "modRange": "{{pct}} tầm đánh",
     "modSpeed": "{{pct}} tốc độ di chuyển",
     "modAttackSpeed": "{{pct}} tốc độ tấn công",
     "modSplash": "{{mult}}× bán kính bắn tóe",

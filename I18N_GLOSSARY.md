@@ -1,8 +1,8 @@
 # Melodan — i18n glossary & MT polish notes
 
-Draft for joint review. **German (`de`) howlers + `du` are being applied in catalogs; other languages still need a pass using the checklist below.**
+Draft for joint review. Glossary table **confirmed** (2026-09-04). Catalog deep pass applied across all shipped languages (AI sense-check vs EN/DE; not a native-speaker editorial).
 
-## Glossary (proposed — lock together)
+## Glossary (confirmed)
 
 Game / brand terms. Prefer these over literal MT. Keep brands untranslated.
 
@@ -143,7 +143,14 @@ Also done in the follow-up pass:
 - [x] Pack parcel leftover sweep in high-vis files (`cs`/`hu`/`ro`/`tr`/`id`/`ms`/`uk`/`bg`/`vi`/…)
 - [x] Commander gag titles outside `de` restored to English flavor names
 
-Still deferred: full human tone/catalog pass on long unit/item blurbs; Feuerware imprint pages. Glossary confirmed.
+Still deferred: optional second native-speaker editorial on long blurbs; Feuerware imprint pages. Catalog AI deep pass done 2026-09-04 (gameplay lies, Pack/Spill/Spell/Close, cross-lang patterns).
+
+### Catalog deep-pass notes (2026-09-04)
+
+- Clarified EN sources hostile to MT: “Click to arm” → activate; ward “Pool” → absorption capacity; archers4 → “Four Archer packs”.
+- Hardened `describeTech()` so `_auto` fragment punctuation no longer depends on each locale.
+- Highest remaining risk after this pass: Hungarian case suffixes on interpolations; full informal-address sweeps (ru/uk/bg/cs/tr formal→informal) only partially applied; zh-Hant still partly mainland register.
+
 
 ## Related
 

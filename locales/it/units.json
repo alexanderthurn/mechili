@@ -3,7 +3,7 @@
     "name": "Arciere della guarnigione"
   },
   "hordeWebweaver": {
-    "name": "Webweaver"
+    "name": "Tessitrice di ragnatele"
   },
   "hordeBrutSpawn": {
     "name": "Covata Nera"
@@ -15,7 +15,7 @@
     "name": "Contadino morto"
   },
   "hordeFarmerSpawn": {
-    "name": "Contadino morto"
+    "name": "Bracciante morto"
   },
   "hordeKomtur": {
     "name": "Hans von Stoffeln"
@@ -27,19 +27,19 @@
     "name": "Arciere"
   },
   "wizard": {
-    "name": "Procedura guidata"
+    "name": "Mago"
   },
   "crowRider": {
     "name": "Cavaliere del Corvo"
   },
   "ballista": {
-    "name": "Ballista"
+    "name": "Balista"
   },
   "shield": {
-    "name": "Ward Stone"
+    "name": "Pietra di protezione"
   },
   "rocket": {
-    "name": "Fulmine"
+    "name": "Dardo di fuoco"
   },
   "command-tower": {
     "name": "Avanguardia"

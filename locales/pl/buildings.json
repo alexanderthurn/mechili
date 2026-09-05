@@ -1,11 +1,11 @@
 {
   "upgrade_level": {
-    "name": "Poziom ulepszenia",
+    "name": "Podnieś poziom",
     "description": "Podnieś ten budynek o jeden poziom: zyska on bazowe HP. Cena zaczyna się od {{baseCost}} i rośnie o {{costStep}} na każdym poziomie (maksymalny poziom {{maxLevel}})."
   },
   "selling": {
     "name": "Sprzedawanie",
-    "description": "Trwale odblokuj Packs sprzedażowe (do {{maxPerRound}} na fazę wdrożenia). Zwrot wynosi {{refundPct}}% kosztu bazowego."
+    "description": "Trwale odblokuj sprzedaż Packów (do {{maxPerRound}} na fazę rozmieszczenia). Zwrot to {{refundPct}}% kosztu bazowego."
   },
   "attack_boost": {
     "name": "Wzmocnienie ataku",
@@ -25,19 +25,19 @@
   },
   "loan": {
     "name": "Pożyczka",
-    "description": "Dostawa +{{gain}} teraz. Następne rozmieszczenie: −{{debt}}. Raz na rundę."
+    "description": "+{{gain}} zaopatrzenia teraz. Następne rozmieszczenie: −{{debt}}. Raz na rundę."
   },
   "ward_dome": {
     "name": "Kopuła ochronna",
-    "description": "Absorbuje pociski wroga, które przechodzą przez kopułę (promień {{radius}}, wysokość {{height}}). Pula to HP tej jednostki."
+    "description": "Pochłania wrogie pociski wnikające w kopułę (promień {{radius}}, wysokość {{height}}). Pojemność pochłaniania równa się HP tej jednostki."
   },
   "homing_fire_bolt": {
     "name": "Samonaprowadzający się bełt ogniowy",
-    "description": "Ustawia broń, a następnie atakuje pierwszego wroga w zasięgu {{range}}, zadając obrażenia {{damage}} (rozpryskowe {{splash}})."
+    "description": "Uzbraja się na miejscu, potem namierza pierwszego wroga w zasięgu {{range}} za {{damage}} obrażeń (splash {{splash}})."
   },
   "rally_route": {
     "name": "Trasa zbiórki",
-    "description": "Dodaj jeden ładunek trasy rajdu do swojego paska zaklęć. Raz na mecz."
+    "description": "Dodaj jedno naładowanie trasy zbiórki do paska zaklęć. Raz na mecz."
   },
   "move_pack": {
     "name": "Przeniesienie Packa",
@@ -53,6 +53,6 @@
   },
   "send_supply_to_ally": {
     "name": "Wyślij zaopatrzenie do sojusznika",
-    "description": "Podaruj sojusznikowi 100 punktów zaopatrzenia — otrzymasz je na początku następnej rundy. Tylko w trybie duetu."
+    "description": "Podaruj sojusznikowi 100 zapasów — otrzyma je na początku następnej rundy. Tylko tryby duo."
   }
 }

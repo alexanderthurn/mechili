@@ -64,7 +64,7 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} daune",
-    "modRange": "Intervalul {{pct}}",
+    "modRange": "{{pct}} rază",
     "modSpeed": "{{pct}} viteză de mișcare",
     "modAttackSpeed": "{{pct}} viteză de atac",
     "modSplash": "{{mult}}× rază de stropire",

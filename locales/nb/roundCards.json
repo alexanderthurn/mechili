@@ -6,7 +6,7 @@
   },
   "archers4": {
     "title": "Archer Company",
-    "description": "Fire bueskyttere slutter seg til hæren din.",
+    "description": "Fire bueskytter-Pack blir med i hæren din.",
     "unitsLabel": "4× Bueskyttere"
   },
   "crowRiders2": {
@@ -20,7 +20,7 @@
     "unitsLabel": "1× Ballista"
   },
   "flanky": {
-    "title": "Flanke",
+    "title": "Flanky",
     "description": "Førstegangs flanke-gytinger tar halvparten så lang tid (2,5 sekunder)."
   },
   "rallyRoute": {

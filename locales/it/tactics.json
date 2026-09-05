@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Vendi Pack",
-    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi Packs per venderlo e ottenere un rimborso di rifornimenti."
+    "description": "Fai clic per attivare, poi fai clic su uno dei tuoi Pack per venderlo e recuperare le scorte."
   },
   "moveUnit": {
     "name": "Muovi Pack",
-    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi Packs di un round precedente: potrai trascinarlo e ruotarlo di nuovo per il resto di questo round."
+    "description": "Fai clic per attivare, poi fai clic su uno dei tuoi Pack di un round precedente — potrà di nuovo essere trascinato e ruotato per il resto di questo round."
   },
   "tutor": {
     "name": "Lezione sul campo",
-    "description": "Fai clic per armarti, poi fai clic su uno dei tuoi Packs: la sua barra XP si riempirà al livello successivo. L'acquisto del livello ha comunque un costo in rifornimenti."
+    "description": "Fai clic per attivare, poi fai clic su uno dei tuoi Pack — la barra XP si riempie fino al livello successivo. Comprare il livello costa ancora scorte."
   },
   "spawnDwarves": {
     "name": "Evoca nani",
@@ -45,7 +45,7 @@
   },
   "acidSpill": {
     "name": "Pozza d’acido",
-    "description": "Versa una capsula acida come se fosse una fuoriuscita di petrolio: gocciola da sinistra a destra sul terreno poco dopo l'inizio della battaglia. Le unità terrestri e aeree sopra la pozza sfrigolano e si corrodono, subendo danni aggiuntivi da qualsiasi cosa."
+    "description": "Versa una capsula di acido come una Pozza d'olio — gocciola da sinistra a destra poco dopo l'inizio della battaglia. Le unità a terra e in aria sulla pozza sibilano e si corrodono, subendo danni extra da ogni fonte."
   },
   "fireSpill": {
     "name": "Pozza di fuoco",
@@ -53,10 +53,10 @@
   },
   "dragonAttack": {
     "name": "Attacco del drago",
-    "description": "Disegna la traiettoria di attacco del drago (più ampia e più lunga dell'olio). Si tuffa e sputa fuoco lungo il corridoio: il raggio brucia le unità al suo passaggio e incendia il terreno. Le cupole dei reparti assorbono il soffio (e ne pagano le conseguenze)."
+    "description": "Disegna la traiettoria del drago (più larga e lunga dell'olio). Si tuffa e sputa fuoco lungo il corridoio — il raggio brucia le unità e incendia il suolo. Le cupole di protezione assorbono il soffio (e ne pagano il costo)."
   },
   "poisonCloud": {
     "name": "Nube velenosa",
-    "description": "Traccia un cerchio enorme. Nuvole tossiche si addensano sopra e fanno piovere piccole gocce di acido sull'area: pozzanghere sparse che corrodono il terreno e unità aeree simili a quelle di Acid Spill, ma su un campo molto più ampio."
+    "description": "Segna un cerchio enorme. Nubi tossiche si radunano in alto e fanno piovere piccole gocce di acido — pozzanghere sparse che corrodono unità a terra e in aria come la Pozza d'acido, ma su un'area molto più ampia."
   }
 }

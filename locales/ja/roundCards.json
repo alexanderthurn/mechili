@@ -6,7 +6,7 @@
   },
   "archers4": {
     "title": "弓兵中隊",
-    "description": "弓兵が 4 つ軍に加わる。",
+    "description": "弓兵のパックが4つ軍に加わる。",
     "unitsLabel": "4× 弓兵"
   },
   "crowRiders2": {
@@ -20,7 +20,7 @@
     "unitsLabel": "1× バリスタ"
   },
   "flanky": {
-    "title": "フランキー",
+    "title": "Flanky",
     "description": "初回の側面出現時間が半分になる（2.5秒）。"
   },
   "rallyRoute": {

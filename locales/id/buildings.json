@@ -29,11 +29,11 @@
   },
   "ward_dome": {
     "name": "Kubah pelindung",
-    "description": "Menyerap proyektil musuh yang masuk ke dalam kubah (radius {{radius}}, tinggi {{height}}). Pool adalah HP unit ini."
+    "description": "Menyerap proyektil musuh yang masuk kubah (radius {{radius}}, tinggi {{height}}). Kapasitas serapan sama dengan HP unit ini."
   },
   "homing_fire_bolt": {
     "name": "Panah Api Pelacak",
-    "description": "Senjata siap digunakan, lalu mengincar musuh pertama dalam jangkauan {{range}} untuk menghasilkan kerusakan {{damage}} (percikan {{splash}})."
+    "description": "Siap di tempat, lalu mengejar musuh pertama dalam jangkauan {{range}} sebesar {{damage}} kerusakan (splash {{splash}})."
   },
   "rally_route": {
     "name": "Rute kumpul",

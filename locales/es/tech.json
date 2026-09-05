@@ -1,19 +1,19 @@
 {
   "legs": {
-    "name": "Pies de flota"
+    "name": "Pies veloces"
   },
   "carapace": {
     "name": "Piel de piedra"
   },
   "barrel": {
-    "name": "Arco"
+    "name": "Arco largo"
   },
   "ap": {
     "name": "Flechas perforantes"
   },
   "fireArrows": {
     "name": "Flechas de fuego",
-    "description": "Las flechas dejan un breve incendio en el suelo y arden lo suficiente como para incendiar charcos de petróleo."
+    "description": "Las flechas dejan un breve incendio en el suelo y arden lo suficiente como para incendiar charcos de aceite."
   },
   "engines": {
     "name": "Alas de vendaval"
@@ -36,7 +36,7 @@
     "description": "Los aliados cercanos resisten los efectos negativos de la torre y reciben un 30 % menos de daño durante 30 segundos. Los magos no pueden convertirlos; en su lugar, el rayo inflige daño."
   },
   "pitchBolts": {
-    "name": "Virotes de pez",
+    "name": "Virotes de brea",
     "description": "Los proyectiles salpican aceite al impactar (no se incendian; úselos junto con flechas de fuego o un Proyectil de Fuego)."
   },
   "wideBlast": {
@@ -48,12 +48,12 @@
     "description": "Puede atacar unidades terrestres y aéreas."
   },
   "skyLift": {
-    "name": "Teleférico",
-    "description": "Eleva esta unidad en el aire (avión de combate)."
+    "name": "Alzavuelo",
+    "description": "Eleva esta unidad por los aires (volador de combate)."
   },
   "earthbound": {
     "name": "Terrestre",
-    "description": "Mantiene esta unidad en tierra (anula el sistema Sky Lift/vuelo natural)."
+    "description": "Mantiene esta unidad en el suelo (anula Alzavuelo / el vuelo natural)."
   },
   "spiderMother": {
     "name": "Madre de las arañas"
@@ -64,7 +64,7 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} daño",
-    "modRange": "Rango {{pct}}",
+    "modRange": "{{pct}} de alcance",
     "modSpeed": "{{pct}} velocidad de movimiento",
     "modAttackSpeed": "{{pct}} velocidad de ataque",
     "modSplash": "{{mult}}× radio de salpicadura",

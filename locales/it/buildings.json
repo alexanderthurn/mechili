@@ -1,11 +1,11 @@
 {
   "upgrade_level": {
-    "name": "Livello di aggiornamento",
+    "name": "Aumenta di livello",
     "description": "Aumenta di un livello questo edificio: ottiene i suoi HP base. Il prezzo parte da {{baseCost}} e aumenta di {{costStep}} per ogni livello (livello massimo {{maxLevel}})."
   },
   "selling": {
     "name": "Vendita",
-    "description": "Sblocca in modo permanente i Packs di vendita (fino a {{maxPerRound}} per fase di implementazione). Il rimborso è pari a {{refundPct}}% del costo base."
+    "description": "Sblocca in modo permanente la vendita dei Pack (fino a {{maxPerRound}} per fase di schieramento). Il rimborso è il {{refundPct}}% del costo base."
   },
   "attack_boost": {
     "name": "Potenziamento dell'attacco",
@@ -16,7 +16,7 @@
     "description": "Aumento permanente dei Punti Vita per tutto l'esercito. Primo livello +{{hpPct}}%; acquista i livelli in ordine (costo {{costs}})."
   },
   "range_boost": {
-    "name": "Aumento dell'autonomia",
+    "name": "Aumento della gittata",
     "description": "Portata +{{amount}} per tutte le unità a distanza, solo in questo round."
   },
   "speed_boost": {
@@ -29,18 +29,18 @@
   },
   "ward_dome": {
     "name": "Cupola di protezione",
-    "description": "Assorbe i proiettili nemici che attraversano una cupola (raggio {{radius}}, altezza {{height}}). Il pool rappresenta i punti vita di questa unità."
+    "description": "Assorbe i proiettili nemici che entrano nella cupola (raggio {{radius}}, altezza {{height}}). La capacità di assorbimento equivale ai PV di questa unità."
   },
   "homing_fire_bolt": {
     "name": "Dardo di fuoco a ricerca automatica",
-    "description": "Armi in posizione, quindi punta sul primo nemico nel raggio d'azione {{range}} per infliggere {{damage}} danni (danno ad area {{splash}})."
+    "description": "Si arma sul posto, poi punta sul primo nemico in gittata {{range}} per {{damage}} danni (area {{splash}})."
   },
   "rally_route": {
     "name": "Percorso di raduno",
     "description": "Aggiungi una carica di percorso di raduno alla tua striscia di magie. Una volta per partita."
   },
   "move_pack": {
-    "name": "Pack di movimento",
+    "name": "Muovi Pack",
     "description": "Aggiungi una carica di Pack di movimento alla tua striscia di incantesimi: un Pack di un round precedente torna a essere movimentabile. Una sola volta per partita."
   },
   "1_deployment": {
@@ -53,6 +53,6 @@
   },
   "send_supply_to_ally": {
     "name": "Invia rifornimenti all'alleato",
-    "description": "Regala 100 unità di rifornimenti al tuo alleato: arriveranno all'inizio del prossimo round. Solo in modalità Duo."
+    "description": "Regala 100 scorte al tuo alleato — arrivano all'inizio del round successivo. Solo modalità duo."
   }
 }

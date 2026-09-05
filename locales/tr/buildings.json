@@ -1,6 +1,6 @@
 {
   "upgrade_level": {
-    "name": "Yükseltme seviyesi",
+    "name": "Seviye yükselt",
     "description": "Bu binayı bir seviye yükseltin: temel HP değerini kazanır. Fiyatı {{baseCost}}'dan başlar ve her seviye için {{costStep}} artar (maksimum seviye {{maxLevel}})."
   },
   "selling": {
@@ -12,7 +12,7 @@
     "description": "Ordu genelinde kalıcı hasar artışı. İlk kademe +{{attackPct}}%; kademeleri sırayla satın alın ({{costs}} maliyetindedir)."
   },
   "hp_boost": {
-    "name": "HP Boost",
+    "name": "HP Güçlendirmesi",
     "description": "Ordu genelinde kalıcı HP artışı. İlk kademe +{{hpPct}}%; kademeleri sırayla satın alın ({{costs}} maliyetindedir)."
   },
   "range_boost": {
@@ -25,15 +25,15 @@
   },
   "loan": {
     "name": "Borç",
-    "description": "+{{gain}} şu an tedarik ediliyor. Sonraki dağıtım: −{{debt}}. Tur başına bir kez."
+    "description": "Şimdi +{{gain}} erzak. Sonraki konuşlanma: −{{debt}}. Turda bir kez."
   },
   "ward_dome": {
     "name": "Koruma kubbesi",
-    "description": "Kubbe şeklindeki alana (yarıçap {{radius}}, yükseklik {{height}}) giren düşman mermilerini emer. Havuz, bu birimin HP'sidir."
+    "description": "Kubbeye giren düşman mermilerini emer (yarıçap {{radius}}, yükseklik {{height}}). Emilim kapasitesi bu birimin HP'sine eşittir."
   },
   "homing_fire_bolt": {
-    "name": "Hedeflenen Ateş Cıvatası",
-    "description": "Silahlar yerinde, ardından menzildeki ilk düşmana {{range}} ile nişan alarak {{damage}} hasar verir (alan etkisi {{splash}})."
+    "name": "Güdümlü Alev Oku",
+    "description": "Yerinde kurulur, sonra {{range}} menzildeki ilk düşmana yönelerek {{damage}} hasar verir (splash {{splash}})."
   },
   "rally_route": {
     "name": "Toplanma rotası",
@@ -48,11 +48,11 @@
     "description": "Bu turda yalnızca bir adet ek satın alma hakkı bulunmaktadır."
   },
   "veteran_training": {
-    "name": "Gaziler Eğitimi",
+    "name": "Veteran Eğitimi",
     "description": "Bu turun geri kalanında, satın aldığınız birimler 2. seviyeden gelir (yine de seviye primini öderler)."
   },
   "send_supply_to_ally": {
-    "name": "Müttefike malzeme gönder",
+    "name": "Müttefikine erzak gönder",
     "description": "Müttefikinize 100 malzeme hediye edin — bir sonraki turun başında ulaşır. Sadece ikili modlarda geçerlidir."
   }
 }

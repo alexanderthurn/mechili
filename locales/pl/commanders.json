@@ -21,7 +21,7 @@
   },
   "addi": {
     "title": "Strażnik relikwii",
-    "description": "Otrzymuje 3× runę Męstwa w rundzie 1.",
+    "description": "Otrzymuje 3× runę Dzielności w rundzie 1.",
     "unitsLabel": "1× Jeźdźcy Kruków · 3× Krasnoludy"
   },
   "meteor": {
@@ -48,7 +48,7 @@
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Otrzymuje jednego darmowego pająka Black Brood w każdej rundzie.",
+    "description": "Otrzymuje jednego darmowego pająka Czarnego lęgu co rundę.",
     "unitsLabel": "2× Krasnoludy · 2× Łucznicy"
   },
   "flanky": {

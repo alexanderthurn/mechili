@@ -39,7 +39,7 @@
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Comienza con una lección práctica.",
+    "description": "Comienza con una Lección de campo.",
     "unitsLabel": "1× Jinetes de cuervo · 3× Arqueros"
   },
   "money": {
@@ -48,12 +48,12 @@
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Obtiene una araña de la prole negra gratis en cada ronda.",
+    "description": "Obtiene una araña de la Progenie negra gratis cada ronda.",
     "unitsLabel": "2 enanos · 2 arqueros"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Los ataques por flanco por primera vez tardan la mitad de tiempo.",
+    "description": "La primera aparición por el flanco tarda la mitad de tiempo.",
     "unitsLabel": "2 enanos · 2 arqueros"
   }
 }

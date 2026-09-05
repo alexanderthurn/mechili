@@ -3,7 +3,7 @@
     "name": "Piedi veloci"
   },
   "carapace": {
-    "name": "Nascondiglio di pietra"
+    "name": "Pelle di pietra"
   },
   "barrel": {
     "name": "Arco lungo"
@@ -13,7 +13,7 @@
   },
   "fireArrows": {
     "name": "Frecce di fuoco",
-    "description": "Le frecce provocano un breve incendio a terra e bruciano, abbastanza da incendiare pozze di petrolio."
+    "description": "Le frecce provocano un breve incendio a terra e bruciano, abbastanza da incendiare pozze di olio."
   },
   "engines": {
     "name": "Ali di tempesta"
@@ -48,12 +48,12 @@
     "description": "Può attaccare unità terrestri e aeree."
   },
   "skyLift": {
-    "name": "Sky Lift",
-    "description": "Solleva quest'unità in aria (veicolo da combattimento)."
+    "name": "Ascesa celeste",
+    "description": "Solleva quest'unità in aria (volante da combattimento)."
   },
   "earthbound": {
     "name": "Terrestre",
-    "description": "Mantiene questa unità a terra (sovrascrive Sky Lift / volo naturale)."
+    "description": "Mantiene questa unità a terra (annulla Ascesa celeste / il volo naturale)."
   },
   "spiderMother": {
     "name": "Madre dei ragni"
@@ -64,7 +64,7 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} danni",
-    "modRange": "{{pct}} gamma",
+    "modRange": "{{pct}} gittata",
     "modSpeed": "{{pct}} velocità di movimento",
     "modAttackSpeed": "{{pct}} velocità d'attacco",
     "modSplash": "{{mult}}× raggio di spruzzo",

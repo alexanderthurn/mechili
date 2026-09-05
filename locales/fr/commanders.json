@@ -11,7 +11,7 @@
   },
   "elite": {
     "title": "Prince d'élite",
-    "description": "Recrutement au niveau 2. +100 unités en première phase.",
+    "description": "Recrutement au niveau 2. +100 de ravitaillement au tour 1.",
     "unitsLabel": "1× Baliste · 1× Nains"
   },
   "archer": {
@@ -39,7 +39,7 @@
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Cela commence par une leçon sur le terrain.",
+    "description": "Commence avec une Leçon sur le terrain.",
     "unitsLabel": "1 cavalier corbeau · 3 archers"
   },
   "money": {

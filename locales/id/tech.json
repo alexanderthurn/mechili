@@ -64,14 +64,14 @@
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} kerusakan",
-    "modRange": "Rentang {{pct}}",
+    "modRange": "{{pct}} jangkauan",
     "modSpeed": "{{pct}} kecepatan gerak",
     "modAttackSpeed": "{{pct}} kecepatan serangan",
     "modSplash": "{{mult}}× radius percikan",
     "produce": "Menghasilkan {{child}} setiap {{every}} (hingga {{max}})",
     "produceFirst": ", pertama setelah {{delay}}",
     "produceOffspring": "Keturunan sesuai dengan tingkat orang tua.",
-    "onKill": "Saat unit ini membunuh, angkat {{child}}",
+    "onKill": "Saat unit ini membunuh, bangkitkan {{child}}",
     "cleave": "Menyerang setiap musuh dalam radius {{radius}} (di sekitar unit ini)"
   }
 }

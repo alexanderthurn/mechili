@@ -5,8 +5,8 @@
     "unitsLabel": "4× Törpök"
   },
   "archers4": {
-    "title": "Íjász Társaság",
-    "description": "Négy íjász csatlakozik a seregedhez.",
+    "title": "Íjász század",
+    "description": "Négy Íjász Pack csatlakozik a seregedhez.",
     "unitsLabel": "4× Íjászok"
   },
   "crowRiders2": {
@@ -20,7 +20,7 @@
     "unitsLabel": "1× Ballista"
   },
   "flanky": {
-    "title": "Oldalsó",
+    "title": "Flanky",
     "description": "Az első oldalra érkezés fele annyi időt vesz igénybe (2,5 másodperc)."
   },
   "rallyRoute": {

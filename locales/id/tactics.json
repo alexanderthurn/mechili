@@ -9,15 +9,15 @@
   },
   "sellUnit": {
     "name": "Jual Pack",
-    "description": "Klik untuk mempersenjatai diri, lalu klik salah satu tas Anda untuk menjualnya dan mendapatkan pengembalian dana persediaan."
+    "description": "Klik untuk mengaktifkan, lalu klik salah satu Pack-mu untuk menjualnya dan mendapat refund pasokan."
   },
   "moveUnit": {
     "name": "Pindahkan Pack",
-    "description": "Klik untuk mempersenjatai, lalu klik salah satu tas Anda dari ronde sebelumnya — tas tersebut dapat diseret dan diputar lagi untuk sisa ronde ini."
+    "description": "Klik untuk mengaktifkan, lalu klik Pack dari ronde sebelumnya — bisa digeser dan diputar lagi selama sisa ronde ini."
   },
   "tutor": {
     "name": "Pelajaran Lapangan",
-    "description": "Klik untuk mempersenjatai diri, lalu klik salah satu Pack Anda — bilah XP-nya akan terisi ke level berikutnya. Membeli level tersebut tetap membutuhkan pasokan."
+    "description": "Klik untuk mengaktifkan, lalu klik salah satu Pack-mu — bilah XP terisi sampai level berikutnya. Membeli level masih membutuhkan pasokan."
   },
   "spawnDwarves": {
     "name": "Memanggil Kurcaci",
@@ -45,7 +45,7 @@
   },
   "acidSpill": {
     "name": "Genangan asam",
-    "description": "Tuangkan kapsul asam seperti tumpahan minyak — cairan itu menetes dari kiri ke kanan ke tanah tak lama setelah pertempuran dimulai. Unit darat dan udara di atas genangan tersebut mendesis dan menjadi berkarat — menerima kerusakan tambahan dari segala arah."
+    "description": "Tuang kapsul asam seperti Genangan Minyak — menetes kiri ke kanan tak lama setelah pertempuran dimulai. Unit darat dan udara di atas genangan mendesis dan berkarat, menerima kerusakan ekstra dari segala sumber."
   },
   "fireSpill": {
     "name": "Genangan api",
@@ -57,6 +57,6 @@
   },
   "poisonCloud": {
     "name": "Awan Beracun",
-    "description": "Buatlah lingkaran besar. Awan beracun berkumpul di atas kepala dan menghujani area tersebut dengan tetesan asam kecil — genangan-genangan kecil yang mengikis unit tanah dan udara seperti dalam film Acid Spill, tetapi di area yang jauh lebih luas."
+    "description": "Tandai lingkaran raksasa. Awan beracun berkumpul dan menjatuhkan tetesan asam — genangan jarang yang merusak unit darat dan udara seperti Genangan Asam, tetapi di area jauh lebih luas."
   }
 }

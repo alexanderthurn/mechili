@@ -6,7 +6,7 @@
   },
   "archers4": {
     "title": "弓手連隊",
-    "description": "四名弓手加入你的軍隊。",
+    "description": "四個弓手編隊加入你的軍隊。",
     "unitsLabel": "4× 弓手"
   },
   "crowRiders2": {
@@ -20,7 +20,7 @@
     "unitsLabel": "1× 弩炮"
   },
   "flanky": {
-    "title": "側襲",
+    "title": "Flanky",
     "description": "首次側翼出現時間減半（2.5 秒）。"
   },
   "rallyRoute": {

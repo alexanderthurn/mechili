@@ -13,7 +13,7 @@
   },
   "wind": {
     "name": "Vento",
-    "description": "+10% di intervallo."
+    "description": "+10% di gittata."
   },
   "addi": {
     "name": "Valore",
@@ -24,7 +24,7 @@
     "description": "+75% di attacco."
   },
   "vigor": {
-    "name": "Sangue Gigante",
+    "name": "Sangue di Gigante",
     "description": "+100% HP."
   },
   "colossus": {
@@ -40,7 +40,7 @@
     "description": "Immune ai debuff della torre e subisce il 30% di danni in meno. I maghi non possono convertire: il raggio infligge danni al loro posto."
   },
   "bulwark": {
-    "name": "Murata",
+    "name": "Baluardo",
     "description": "Scudo: ogni unità ottiene un secondo punto salute pari ai suoi HP. Gli attacchi a distanza consumano prima lo scudo; gli attacchi corpo a corpo, fuoco e acido lo ignorano."
   }
 }

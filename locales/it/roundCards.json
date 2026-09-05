@@ -1,12 +1,12 @@
 {
   "dwarves4": {
     "title": "Banda dei Nani",
-    "description": "Quattro gruppi di nani si uniscono al tuo esercito.",
+    "description": "Quattro Pack di nani si uniscono al tuo esercito.",
     "unitsLabel": "4× Nani"
   },
   "archers4": {
-    "title": "Compagnia Archer",
-    "description": "Quattro arcieri si uniscono al tuo esercito.",
+    "title": "Compagnia di arcieri",
+    "description": "Quattro Pack di arcieri si uniscono al tuo esercito.",
     "unitsLabel": "4 arcieri"
   },
   "crowRiders2": {
@@ -24,7 +24,7 @@
     "description": "Le prime apparizioni sui fianchi richiedono la metà del tempo (2,5 secondi)."
   },
   "rallyRoute": {
-    "title": "Percorso del rally",
+    "title": "Percorso di raduno",
     "description": "Traccia un percorso di marcia: le unità nella zona di partenza si dirigono verso la zona di arrivo, combattendo lungo il tragitto."
   },
   "sellPack": {
@@ -33,6 +33,6 @@
   },
   "movePack": {
     "title": "Ordini di marcia",
-    "description": "Incantesimo a uso singolo: un Pack di carte di un turno precedente può essere riposizionato nuovamente in questo turno."
+    "description": "Incantesimo monouso: un Pack di un round precedente può essere riposizionato in questo round."
   }
 }

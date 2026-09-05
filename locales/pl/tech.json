@@ -1,12 +1,12 @@
 {
   "legs": {
-    "name": "Fleet Feet"
+    "name": "Rącze Stopy"
   },
   "carapace": {
     "name": "Kamienna Skóra"
   },
   "barrel": {
-    "name": "Łuk"
+    "name": "Łuk długi"
   },
   "ap": {
     "name": "Przebijające strzały"
@@ -37,23 +37,23 @@
   },
   "pitchBolts": {
     "name": "Bełty smołowe",
-    "description": "Śruby rozpryskują olej przy uderzeniu (nie zapalają się — należy ich używać razem z ognistymi strzałami lub ognistym bełtem)."
+    "description": "Bełty rozpryskują olej przy uderzeniu (nie zapalają się — należy ich używać razem z ognistymi strzałami lub ognistym bełtem)."
   },
   "wideBlast": {
     "name": "Szeroki wybuch",
     "description": "Potraja promień rozprysku (zapewnia rozprysk jednostkom, które go nie posiadają)."
   },
   "skyBind": {
-    "name": "Niebo Bind",
+    "name": "Więzy Nieba",
     "description": "Może atakować jednostki naziemne i powietrzne."
   },
   "skyLift": {
-    "name": "Wyciąg narciarski",
-    "description": "Unosi tę jednostkę w powietrze (samolot bojowy)."
+    "name": "Wzlot",
+    "description": "Podnosi tę jednostkę w powietrze (bojowy lotnik)."
   },
   "earthbound": {
-    "name": "Przyziemny",
-    "description": "Utrzymuje jednostkę na ziemi (zastępuje Sky Lift / naturalny lot)."
+    "name": "Przykuty do ziemi",
+    "description": "Trzyma tę jednostkę na ziemi (zastępuje Wzlot / naturalny lot)."
   },
   "spiderMother": {
     "name": "Matka Pająków"
@@ -63,15 +63,15 @@
   },
   "_auto": {
     "modHp": "{{pct}} HP",
-    "modDamage": "{{pct}} uszkodzenia",
-    "modRange": "Zakres {{pct}}",
+    "modDamage": "{{pct}} obrażeń",
+    "modRange": "{{pct}} zasięgu",
     "modSpeed": "{{pct}} prędkość ruchu",
     "modAttackSpeed": "{{pct}} prędkość ataku",
     "modSplash": "{{mult}}× promień rozprysku",
     "produce": "Produkuje {{child}} co {{every}} (do {{max}})",
     "produceFirst": ", pierwszy po {{delay}}",
-    "produceOffspring": ". Poziom dopasowania potomstwa do rodzica",
-    "onKill": "Gdy ta jednostka zabije, podnieś {{child}}",
+    "produceOffspring": ". Potomstwo ma poziom rodzica",
+    "onKill": "Gdy ta jednostka zabija, podnosi {{child}}",
     "cleave": "Trafia każdego wroga w promieniu {{radius}} (wokół tej jednostki)"
   }
 }

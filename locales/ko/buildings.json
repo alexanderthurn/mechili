@@ -29,11 +29,11 @@
   },
   "ward_dome": {
     "name": "방호 돔",
-    "description": "돔 안으로 들어오는 적 투사체를 흡수합니다 (반경 {{radius}}, 높이 {{height}}). 풀은 이 유닛의 체력입니다."
+    "description": "돔 안으로 들어오는 적 투사체를 흡수한다(반경 {{radius}}, 높이 {{height}}). 흡수량은 이 유닛의 HP와 같다."
   },
   "homing_fire_bolt": {
     "name": "유도 화염 화살",
-    "description": "제자리에서 무장한 뒤, 사거리 {{range}} 안의 첫 적에게 유도되어 {{damage}} 피해를 줍니다 (스플래시 {{splash}})."
+    "description": "제자리에서 대기하다가, 사거리 {{range}}의 첫 적에게 유도되어 {{damage}} 피해(스플래시 {{splash}})."
   },
   "rally_route": {
     "name": "집결 경로",

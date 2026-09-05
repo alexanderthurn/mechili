@@ -1,9 +1,9 @@
 {
   "garrison-archer": {
-    "name": "Garnizon Archer"
+    "name": "Garnizon Okçusu"
   },
   "hordeWebweaver": {
-    "name": "Webdokuyucu"
+    "name": "Ağ Dokuyucu"
   },
   "hordeBrutSpawn": {
     "name": "Kara Yavru"
@@ -36,10 +36,10 @@
     "name": "Balista"
   },
   "shield": {
-    "name": "Ward Stone"
+    "name": "Koruma Taşı"
   },
   "rocket": {
-    "name": "Ateş Cıvatası"
+    "name": "Alev Oku"
   },
   "command-tower": {
     "name": "Öncü"

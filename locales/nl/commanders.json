@@ -1,6 +1,6 @@
 {
   "air": {
-    "title": "Hemel Tovenaar",
+    "title": "Hemeltovenaar",
     "description": "Luchteenheden krijgen +12% aanvalskracht en HP.",
     "unitsLabel": "2 kraaienrijders · 1 dwerg"
   },
@@ -11,7 +11,7 @@
   },
   "elite": {
     "title": "Elite Prins",
-    "description": "Werving op niveau 2. +100 aanbod in ronde 1.",
+    "description": "+100 voorraad in ronde 1. Werven op niveau 2.",
     "unitsLabel": "1× Ballista · 1× Dwergen"
   },
   "archer": {
@@ -21,7 +21,7 @@
   },
   "addi": {
     "title": "Relikwiehouder",
-    "description": "Krijgt 3x de Valor-rune in ronde 1.",
+    "description": "Krijgt 3× Moed-rune in ronde 1.",
     "unitsLabel": "1× Kraaienrijders · 3× Dwergen"
   },
   "meteor": {

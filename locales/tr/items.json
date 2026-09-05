@@ -8,12 +8,12 @@
     "description": "+%10 saldırı gücü."
   },
   "water": {
-    "name": "su",
+    "name": "Su",
     "description": "+%5 saldırı ve can puanı."
   },
   "wind": {
     "name": "Rüzgâr",
-    "description": "+%10 aralığı."
+    "description": "+%10 menzil."
   },
   "addi": {
     "name": "Cesaret",
@@ -40,7 +40,7 @@
     "description": "Kule zayıflatmalarından etkilenmez ve %30 daha az hasar alır. Büyücüler dönüştüremez; ışın bunun yerine hasar verir."
   },
   "bulwark": {
-    "name": "Küpeşte",
+    "name": "Siper",
     "description": "Kalkan: Her birim, HP'sine eşit ikinci bir sağlık havuzu kazanır. Menzilli saldırılar kalkanı önce tüketir; yakın dövüş, ateş ve asit saldırıları kalkanı görmezden gelir."
   }
 }
