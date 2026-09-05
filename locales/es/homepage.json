@@ -46,7 +46,7 @@
     "spells": "Hechizos"
   },
   "stats": {
-    "cost": "Costo",
+    "cost": "Coste",
     "hp": "HP",
     "damage": "Daño",
     "range": "Rango",
@@ -96,7 +96,7 @@
     "select": "Elige un {{commander}}"
   },
   "runes": {
-    "sub": "Fusionado a un Pack para siempre, elevando a todos los mechs que contiene {{sep}} (la mayoría de los Packs contienen {{packLimit}}), la balista {{ballistaLimit}}. Las cuatro runas base se obtienen de cartas redondas o se compran en la tienda; las más fuertes se forjan a partir de ellas en la Fortaleza y nunca se venden.",
+    "sub": "Fusionada a un Pack para siempre, refuerza a todos los mechs del Pack {{sep}} la mayoría de Packs caben {{packLimit}}, la balista {{ballistaLimit}}. Las cuatro runas base se obtienen de cartas de ronda o en la tienda; las más fuertes se forjan a partir de ellas en la Fortaleza y nunca se venden.",
     "select": "Elige un {{item}}",
     "base": "Base",
     "advanced": "Avanzado",
@@ -106,7 +106,7 @@
     "forgeLabel": "Precio de forja"
   },
   "tactics": {
-    "sub": "Estas son las habilidades de tu tira {{tactics}} {{sep}}: agrupaciones, derrames, invocaciones y hechizos de batalla como el aliento de fuego del dragón. Los hechizos de batalla se compran en tu Fortaleza, una sola vez cada uno, y solo tu comandante conoce los tres. Los iconos coinciden con lo que ves en el juego.",
+    "sub": "Estas son las habilidades de tu barra de {{tactics}} {{sep}} rutas de Rally, derrames, invocaciones y hechizos de batalla como el aliento de fuego del dragón. Los hechizos de batalla se compran en tu Fortaleza, una vez cada uno, y solo los tres que conoce tu comandante. Los iconos coinciden con los del juego.",
     "select": "Elige un {{tactic}}",
     "placement": "Colocación",
     "oneShot": "One-shot",
@@ -147,7 +147,7 @@
   "about": {
     "title": "Acerca de",
     "lead": "MELODAN está hecho por Alexander Thurn (Feuerware). Reside en Bonn, Alemania.",
-    "inspired": "Este juego está inspirado en {{mechabellum}}, el mejor juego del género. MELODAN es una propuesta independiente de fantasía; por favor, apoyen al original y compren Mechabellum. ¡Gracias!",
+    "inspired": "Este juego está inspirado en {{mechabellum}}, el mejor del género. MELODAN es una versión fantástica independiente; apoya el original y compra Mechabellum. ¡Gracias!",
     "openSource": "El juego es {{github}} (GPL-3.0). Los derechos de autor pertenecen a Alexander Thurn / Feuerware. Puedes bifurcarlo de forma privada, crear nuevas unidades y enviar solicitudes de extracción. Para proyectos más ambiciosos, como un spin-off comercial o no comercial, un cambio de marca completo, etc., puedes escribirme a: {{email}}.",
     "openSourceLink": "código abierto en GitHub"
   },

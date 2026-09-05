@@ -25,7 +25,7 @@
   },
   "loan": {
     "name": "Prestito",
-    "description": "+{{gain}} fornitura ora. Prossimo dispiegamento: −{{debt}}. Una volta per round."
+    "description": "+{{gain}} scorte ora. Prossimo dispiegamento: −{{debt}}. Una volta per round."
   },
   "ward_dome": {
     "name": "Cupola di protezione",

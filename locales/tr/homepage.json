@@ -96,7 +96,7 @@
     "select": "Bir {{commander}} seçin"
   },
   "runes": {
-    "sub": "Packe kalıcı olarak kaynaştırılmış, içindeki her mekanizmayı kaldıran {{sep}} (çoğu Pack {{packLimit}} içerir), balista {{ballistaLimit}}. Dört temel rün, tur kartılardan seçilir veya dükkandan satın alınır; daha güçlü olanlar Kalede bunlardan dövülür ve asla satılmaz.",
+    "sub": "Bir Pack’e kalıcı olarak kaynaşır ve içindeki her mechi güçlendirir {{sep}} çoğu Pack {{packLimit}}, balista {{ballistaLimit}} tutar. Dört temel rün tur kartlarından veya dükkândan gelir; daha güçlüleri Kale’de bunlardan dövülür ve asla satılmaz.",
     "select": "Bir {{item}} seçin",
     "base": "Temel",
     "advanced": "Gelişmiş",
@@ -106,7 +106,7 @@
     "forgeLabel": "Dövme fiyatı"
   },
   "tactics": {
-    "sub": "Bunlar, {{tactics}} şeridinizdeki {{sep}} yeteneklerdir; ejderhanın ateş nefesi gibi saldırılar, saldırılar, çağırmalar ve savaş büyüleri. Savaş büyüleri, Kalenizden birer kez satın alınır ve komutanınız yalnızca üçünü bilir. Simgeler, oyunda gördüğünüzle eşleşir.",
+    "sub": "Bunlar {{tactics}} şeridindeki beceriler {{sep}} toplanmalar, birikintiler, çağırmalar ve ejderhanın ateş nefesi gibi savaş büyüleri. Savaş büyüleri Kalenden birer kez alınır ve yalnızca komutanının bildiği üç tanedir. Simgeler oyundakiyle aynıdır.",
     "select": "Bir {{tactic}} seçin",
     "placement": "Atama",
     "oneShot": "Tek atışlık",

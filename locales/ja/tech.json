@@ -53,7 +53,7 @@
   },
   "earthbound": {
     "name": "地縛り",
-    "description": "このユニットを地上に留める（空上げ / 本来の飛行を上書き）。"
+    "description": "このユニットを地上に留める（空中浮揚 / 本来の飛行を上書き）。"
   },
   "spiderMother": {
     "name": "蜘蛛の母"

@@ -45,7 +45,7 @@
   },
   "1_deployment": {
     "name": "+1 Despliegue",
-    "description": "Solo se permite la compra de una unidad adicional en esta ronda."
+    "description": "Una compra de unidad extra solo en esta ronda."
   },
   "veteran_training": {
     "name": "Formación de veteranos",

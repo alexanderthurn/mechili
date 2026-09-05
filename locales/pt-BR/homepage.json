@@ -96,7 +96,7 @@
     "select": "Escolha um {{commander}}"
   },
   "runes": {
-    "sub": "Fundida a um Pack para sempre, elevando todos os mechs nele contidos {{sep}} a maioria dos Packs comporta {{packLimit}}, a balista {{ballistaLimit}}. As quatro runas básicas são sorteadas de cartas redondas ou compradas na loja; as mais fortes são forjadas a partir delas na Fortaleza e nunca são vendidas.",
+    "sub": "Fundida a um Pack para sempre, fortalece todos os mechs nele {{sep}} a maioria dos Packs comporta {{packLimit}}, a balista {{ballistaLimit}}. As quatro runas básicas vêm de cartas de rodada ou da loja; as mais fortes são forjadas a partir delas na Fortaleza e nunca são vendidas.",
     "select": "Escolha um {{item}}",
     "base": "Base",
     "advanced": "Avançado",
@@ -106,7 +106,7 @@
     "forgeLabel": "Preço da forja"
   },
   "tactics": {
-    "sub": "Essas são as habilidades da sua faixa {{tactics}}, que incluem ataques, derramamentos, invocações e feitiços de batalha, como o sopro de fogo do dragão. Os feitiços de batalha são comprados na sua Fortaleza, uma vez cada, e apenas os três que seu comandante conhece. Os ícones correspondem ao que você vê no jogo. {{sep}}",
+    "sub": "Essas são as habilidades da sua faixa {{tactics}} {{sep}} rotas de Rally, derramamentos, invocações e feitiços de batalha como o sopro de fogo do dragão. Feitiços de batalha são comprados na Fortaleza, uma vez cada, e só os três que seu comandante conhece. Os ícones batem com os do jogo.",
     "select": "Escolha um {{tactic}}",
     "placement": "Colocação",
     "oneShot": "One-shot",

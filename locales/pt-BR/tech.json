@@ -29,7 +29,7 @@
   },
   "aegis": {
     "name": "Égide",
-    "description": "Escudo: cada unidade ganha uma segunda reserva de vida igual ao seu HP. Ataques à distância drenam o escudo primeiro; ataques corpo a corpo, fogo e ácido o ignoram."
+    "description": "Escudo: cada unidade ganha uma segunda reserva de vida igual ao seu HP. Ataques à distância drenam o escudo primeiro; corpo a corpo, fogo e ácido o ignoram."
   },
   "golden": {
     "name": "Aura Dourada",

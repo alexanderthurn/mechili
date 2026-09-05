@@ -24,7 +24,7 @@
     "description": "+{{amount}} hızı tüm birimler için geçerlidir, sadece bu tur için."
   },
   "loan": {
-    "name": "Borç",
+    "name": "Kredi",
     "description": "Şimdi +{{gain}} erzak. Sonraki konuşlanma: −{{debt}}. Turda bir kez."
   },
   "ward_dome": {

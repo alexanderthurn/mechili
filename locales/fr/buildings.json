@@ -25,7 +25,7 @@
   },
   "loan": {
     "name": "Prêt",
-    "description": "+{{gain}} approvisionnement immédiat. Prochain déploiement : −{{debt}}. Une fois par tour."
+    "description": "+{{gain}} de ravitaillement maintenant. Prochain déploiement : −{{debt}}. Une fois par tour."
   },
   "ward_dome": {
     "name": "Dôme de protection",

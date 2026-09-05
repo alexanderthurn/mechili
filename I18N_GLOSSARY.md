@@ -143,13 +143,19 @@ Also done in the follow-up pass:
 - [x] Pack parcel leftover sweep in high-vis files (`cs`/`hu`/`ro`/`tr`/`id`/`ms`/`uk`/`bg`/`vi`/…)
 - [x] Commander gag titles outside `de` restored to English flavor names
 
-Still deferred: optional second native-speaker editorial on long blurbs; Feuerware imprint pages. Catalog AI deep pass done 2026-09-04 (gameplay lies, Pack/Spill/Spell/Close, cross-lang patterns).
+Still deferred: optional second native-speaker editorial on long blurbs; Feuerware imprint pages. Catalog AI deep pass done 2026-09-04; **top-language tester pass** done 2026-09-05.
 
 ### Catalog deep-pass notes (2026-09-04)
 
 - Clarified EN sources hostile to MT: “Click to arm” → activate; ward “Pool” → absorption capacity; archers4 → “Four Archer packs”.
 - Hardened `describeTech()` so `_auto` fragment punctuation no longer depends on each locale.
 - Highest remaining risk after this pass: Hungarian case suffixes on interpolations; full informal-address sweeps (ru/uk/bg/cs/tr formal→informal) only partially applied; zh-Hant still partly mainland register.
+
+### Top-language tester pass (2026-09-05)
+
+Second pass on highest-traffic Steam locales: `ru`, `zh`, `zh-Hant`, `fr`, `es`, `es-419`, `pt-BR`, `ja`, `ko`, `pl`, `tr`, `it` (EN source / DE already polished).
+
+Fixed remaining UI howlers that survived the catalog pass: Close≠nearby, Draw/Defeat as verbs, Pack≠parcel/Embalar/sac, supply≠delivery/power-feed, Bulwark HP lie (`pt-BR`), board≠board-of-directors/whiteboard, zh Pack=编队/編隊 consistency, zh-Hant TW UI register (設定/滑鼠/…), Rally term drift in HUD/settings.
 
 
 ## Related

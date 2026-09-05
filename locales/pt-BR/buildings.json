@@ -1,6 +1,6 @@
 {
   "upgrade_level": {
-    "name": "Aprimore o nível",
+    "name": "Subir de nível",
     "description": "Suba este edifício um nível: ele ganha seu HP base. O preço começa em {{baseCost}} e sobe {{costStep}} por nível (máx. {{maxLevel}})."
   },
   "selling": {
@@ -45,7 +45,7 @@
   },
   "1_deployment": {
     "name": "+1 Implantação",
-    "description": "Nesta rodada, só será possível comprar uma unidade extra."
+    "description": "Uma compra de unidade extra só nesta rodada."
   },
   "veteran_training": {
     "name": "Treinamento para Veteranos",

@@ -98,7 +98,7 @@
   "runes": {
     "sub": "Połączone z Packem na dobre, podnosząc każdego mecha w nim zawartego – {{sep}}, większość Packów ma {{packLimit}}, a balistę {{ballistaLimit}}. Cztery podstawowe runy są dobierane z kart rund lub kupowane w sklepie; silniejsze runy są z nich wykuwane w Twierdzy i nigdy nie są sprzedawane.",
     "select": "Wybierz {{item}}",
-    "base": "Opierać",
+    "base": "Podstawowa",
     "advanced": "Zaawansowany",
     "shopTitle": "Kupione w sklepie lub wylosowane z karty rundy",
     "shopLabel": "Cena sklepowa",
@@ -106,7 +106,7 @@
     "forgeLabel": "Cena kuźni"
   },
   "tactics": {
-    "sub": "To umiejętności z paska {{tactics}}, {{sep}}, które możesz wykorzystać do zebrań, rozproszenia, przywołania i rzucania zaklęć bojowych, takich jak ognisty oddech smoka. Zaklęcia bojowe kupuje się w Twierdzy, jednorazowo, i tylko trzy z nich zna dowódca. Ikony odpowiadają tym, które widzisz w grze.",
+    "sub": "To umiejętności z twojego paska {{tactics}} {{sep}} zbiórki, kałuże, przywołania i zaklęcia bojowe jak oddech smoka. Zaklęcia bojowe kupujesz w Fortecy, każde raz, i tylko te trzy, które zna twój dowódca. Ikony odpowiadają tym w grze.",
     "select": "Wybierz {{tactic}}",
     "placement": "Umieszczenie",
     "oneShot": "Jednorazowy",

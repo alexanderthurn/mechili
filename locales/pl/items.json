@@ -37,7 +37,7 @@
   },
   "golden": {
     "name": "Kamień słoneczny",
-    "description": "Odporny na osłabienia wieży i otrzymuje o 30% mniej obrażeń. Czarodzieje nie mogą się przemienić — promień zadaje obrażenia."
+    "description": "Odporność na debuffy wież i 30% mniej obrażeń. Magowie nie mogą konwertować — promień zadaje zamiast tego obrażenia."
   },
   "bulwark": {
     "name": "Bastion",

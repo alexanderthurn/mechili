@@ -29,7 +29,7 @@
   },
   "aegis": {
     "name": "Egida",
-    "description": "Tarcza: każda jednostka zyskuje drugą pulę zdrowia równą jej PW. Ciosy dystansowe najpierw wyczerpują tarczę; walka wręcz, ogień i kwas ją ignorują."
+    "description": "Tarcza: każda jednostka zyskuje drugi zasób życia równy jej HP. Ataki dystansowe najpierw zużywają tarczę; wręcz, ogień i kwas ją ignorują."
   },
   "golden": {
     "name": "Złota Aura",

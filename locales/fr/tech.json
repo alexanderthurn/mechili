@@ -37,7 +37,7 @@
   },
   "pitchBolts": {
     "name": "Carreaux de poix",
-    "description": "Les carreaux projettent de l'huile à l'impact (ne s'enflamment pas — à utiliser avec des flèches enflammées ou un carreau enflammé)."
+    "description": "Les carreaux éclaboussent d’huile à l’impact (ne s’enflamment pas — à coupler avec des flèches de feu ou un Éclair de feu)."
   },
   "wideBlast": {
     "name": "Explosion large",

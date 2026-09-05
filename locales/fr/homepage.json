@@ -96,7 +96,7 @@
     "select": "Choisissez un {{commander}}"
   },
   "runes": {
-    "sub": "Intégrés définitivement à un pack, ils soulèvent tous les méchas qu'il contient {{sep}} (la plupart des packs contiennent {{packLimit}}), la baliste {{ballistaLimit}}. Les quatre runes de base sont tirées de cartes rondes ou achetées en boutique ; les plus puissantes sont forgées à partir de celles-ci à la Forteresse et ne sont jamais vendues.",
+    "sub": "Intégrés définitivement à un Pack, ils renforcent tous les méchas qu’il contient {{sep}} la plupart des Packs en tiennent {{packLimit}}, la baliste {{ballistaLimit}}. Les quatre runes de base viennent des cartes de manche ou de la boutique ; les plus puissantes sont forgées à partir de celles-ci au Bastion, et ne sont jamais vendues.",
     "select": "Choisissez un {{item}}",
     "base": "Base",
     "advanced": "Avancé",
@@ -106,7 +106,7 @@
     "forgeLabel": "Prix de la forge"
   },
   "tactics": {
-    "sub": "Voici les compétences de votre bande {{tactics}} : ralliements, déchaînements, invocations et sorts de combat, comme le souffle de feu du dragon. Les sorts de combat s’achètent à votre forteresse, une seule fois chacun, et seuls les trois que votre commandant connaît sont connus. Les icônes correspondent à celles affichées en jeu. {{sep}}",
+    "sub": "Voici les compétences de ta barre {{tactics}} {{sep}} ralliements, nappes, invocations et sorts de combat, comme le souffle de feu du dragon. Les sorts de combat s’achètent à ton Bastion, une fois chacun, et seulement les trois que ton commandant connaît. Les icônes correspondent à celles du jeu.",
     "select": "Choisissez un {{tactic}}",
     "placement": "Placement",
     "oneShot": "One-shot",
@@ -147,7 +147,7 @@
   "about": {
     "title": "À propos",
     "lead": "MELODAN est développé par Alexander Thurn (Feuerware). Il est basé à Bonn, en Allemagne.",
-    "inspired": "Ce jeu s'inspire de {{mechabellum}}, le meilleur jeu du genre. MELODAN est une œuvre de fantasy indépendante ; soutenez le jeu original et achetez Mechabellum. Merci !",
+    "inspired": "Ce jeu s’inspire de {{mechabellum}}, le meilleur du genre. MELODAN en est une version fantasy indépendante ; soutiens l’original et achète Mechabellum. Merci !",
     "openSource": "Le jeu est sous licence {{github}} (GPL-3.0). Les droits d'auteur appartiennent à Alexander Thurn / Feuerware. N'hésitez pas à le dupliquer, à créer de nouvelles unités et à soumettre des demandes de fusion. Pour un projet plus ambitieux, un spin-off non commercial ou à but non lucratif, une refonte complète, etc., contactez-moi : {{email}}.",
     "openSourceLink": "open source sur GitHub"
   },

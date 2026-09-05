@@ -29,7 +29,7 @@
   },
   "aegis": {
     "name": "Egida",
-    "description": "Scudo: ogni unità ottiene un secondo punto salute pari ai suoi HP. Gli attacchi a distanza consumano prima lo scudo; gli attacchi corpo a corpo, fuoco e acido lo ignorano."
+    "description": "Scudo: ogni unità ottiene una seconda riserva di salute pari ai suoi HP. I colpi a distanza consumano prima lo scudo; mischia, fuoco e acido lo ignorano."
   },
   "golden": {
     "name": "Aura dorata",

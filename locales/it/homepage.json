@@ -1,8 +1,8 @@
 {
   "tagline": "AUTOBATTLER FANTASY",
-  "lead": "Schierate gli eserciti in segreto e osservate lo svolgimento del round. Il vostro nemico farà lo stesso. Adattatevi e ripetete finché uno di voi non esaurisce i punti vita.",
+  "lead": "Schiera eserciti in segreto e osserva lo svolgimento del round. Il tuo nemico fa lo stesso. Adattati, ripeti finché uno di voi non resta senza HP.",
   "hero": {
-    "wishlist": "Desiderio desiderato ora",
+    "wishlist": "Aggiungi alla lista desideri",
     "trailer": "Guarda il trailer",
     "steamSoon": "Pagina Steam in arrivo a breve"
   },
@@ -35,7 +35,7 @@
   },
   "showcase": {
     "title": "Unità, edifici e incantesimi",
-    "sub": "Il tuo esercito, gli edifici, i Packs {{horde}} e i modelli degli incantesimi di battaglia. Scegline uno da esaminare: Crow Rider e Dragon flap in questa anteprima.",
+    "sub": "Il tuo esercito, gli edifici, i Pack {{horde}} e i modelli degli incantesimi di battaglia. Scegline uno da esaminare: Cavaliere del Corvo e Drago in questa anteprima.",
     "canvas": "Anteprima 3D dell'unità",
     "loading": "Caricamento del modello…",
     "hint": "Trascina per ruotare · Scorri per ingrandire",
@@ -68,7 +68,7 @@
   "spell": {
     "dragon": {
       "name": "Attacco del drago",
-      "blurb": "Soffio di fuoco laterale. Il battito d'ali utilizza lo stesso percorso shader di Crow Rider (modalità mesh)."
+      "blurb": "Soffio di fuoco laterale. Il battito d'ali usa lo stesso percorso grafico del Cavaliere del Corvo."
     },
     "hammer": {
       "name": "Martello degli Dei",
@@ -96,7 +96,7 @@
     "select": "Scegli un {{commander}}"
   },
   "runes": {
-    "sub": "Fuso su un Pack per sempre, sollevando ogni mech in esso {{sep}} la maggior parte dei Packs contiene {{packLimit}}, la balista {{ballistaLimit}}. Le quattro rune base vengono pescate da carte rotonde o acquistate nel negozio; quelle più potenti vengono forgiate da esse nella Fortezza e non vengono mai vendute.",
+    "sub": "Fusa a un Pack per sempre, potenzia tutti i mech al suo interno {{sep}} la maggior parte dei Pack ne tiene {{packLimit}}, la balista {{ballistaLimit}}. Le quattro rune base si ottengono dalle carte del round o in negozio; le più forti si forgiano da queste nella Roccaforte e non si vendono mai.",
     "select": "Scegli un {{item}}",
     "base": "Base",
     "advanced": "Avanzato",
@@ -106,7 +106,7 @@
     "forgeLabel": "Prezzo forgiato"
   },
   "tactics": {
-    "sub": "Queste sono le abilità sulla tua striscia {{tactics}} {{sep}} raduni, rovesciamenti, evocazioni e lanci di battaglia come il soffio di fuoco del drago. Gli incantesimi di battaglia si acquistano nella tua Fortezza, una sola volta ciascuno, e solo i tre che il tuo comandante conosce. Le icone corrispondono a ciò che vedi nel gioco.",
+    "sub": "Queste sono le abilità della tua barra {{tactics}} {{sep}} raduni, pozze, evocazioni e incantesimi di battaglia come il soffio di fuoco del drago. Gli incantesimi di battaglia si comprano alla Roccaforte, una volta ciascuno, e solo i tre che conosce il tuo comandante. Le icone corrispondono a quelle di gioco.",
     "select": "Scegli un {{tactic}}",
     "placement": "Posizionamento",
     "oneShot": "Un colpo solo",
