@@ -23,7 +23,7 @@ import type { SeatDef, SeatId } from './seats';
  * Campaign (SP climb) playtest knobs — change these while tuning feel.
  * {@link CLIMB_SUPPLY_GROWTH_PER_ROUND}: `null` keeps AI on normal match income growth.
  */
-export const CLIMB_ROUNDS_TO_WIN = 10;
+export const CLIMB_ROUNDS_TO_WIN = 9;
 export const CLIMB_SIDE_HP = 1;
 export const CLIMB_SUPPLY_GROWTH_PER_ROUND: number | null = null;
 /**
