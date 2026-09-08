@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Yksinpeli",
+  "campaign": "Kampanja",
+  "practice": "Harjoitus",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Mukautettu peli ({{tag}})",

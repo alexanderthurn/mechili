@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Jeden hráč",
+  "campaign": "Kampaň",
+  "practice": "Trénink",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Vlastní hra ({{tag}})",

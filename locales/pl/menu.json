@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Pojedynczy gracz",
+  "campaign": "Kampania",
+  "practice": "Trening",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Gra niestandardowa ({{tag}})",

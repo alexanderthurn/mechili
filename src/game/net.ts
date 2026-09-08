@@ -2294,6 +2294,8 @@ export interface SinglePlayerSave {
     battleElapsed: number | null;
     /** optional: older saves predate this field, hydrate falls back to a full timer */
     phaseRemaining?: number;
+    /** Campaign climb wins; older saves omit this (treated as 0) */
+    climbWins?: number;
     localName: string;
 }
 

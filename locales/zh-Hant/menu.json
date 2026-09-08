@@ -1,5 +1,7 @@
 {
   "singlePlayer": "單人遊戲",
+  "campaign": "戰役",
+  "practice": "練習",
   "matchmaking": "匹配（{{tag}}）",
   "matchmakingTitle": "匹配",
   "customGame": "自定義對局（{{tag}}）",

@@ -367,6 +367,8 @@ export class Hud {
     /** shop: buy a always-available base rune (shares the unit buy limit) */
     onBuyRune: ((itemId: string) => boolean) | null = null;
     onQuitToMenu: (() => void) | null = null;
+    /** SP defeat only — rebuild the lost round (see Game.requestRetryLastRound) */
+    onRetryLastRound: (() => void) | null = null;
     /** grant/revoke live deploy vision for a spectator (own seat). Left null
      *  by a spectating client itself — it has no seat to grant from, so the
      *  badge list below renders plain names with no checkboxes. */
@@ -622,8 +624,11 @@ export class Hud {
     private enemyInventoryCollapsed = true;
     private deploysLeft = Infinity;
     private extrasBudgetLeft = Infinity;
+    /** Campaign: hide Ward Stone / Fire Bolt row (any `UnitType.extra`) */
+    private boardExtrasAllowed = true;
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
+    private readonly boardExtraButtons: HTMLButtonElement[] = [];
     /** every HUD root passed through mount() — needed for teardown */
     private readonly mountedRoots: HTMLElement[] = [];
     /** cinema / screenshot mode — all chrome hidden except the exit hint */
@@ -689,16 +694,21 @@ export class Hud {
         overlayParent: HTMLElement,
         costOf: (type: UnitType) => number,
         onBuy: (type: UnitType) => boolean,
+        opts?: { boardExtrasAllowed?: boolean },
     ) {
         this.overlayParent = overlayParent;
         this.costOf = costOf;
+        // Explicit false hides Ward Stone / Fire Bolt / any future board extras.
+        this.boardExtrasAllowed = opts?.boardExtrasAllowed ?? true;
 
         // Permanent shared sheet (also seeded from menu boot) — refresh team
         // colors for this match, never tear down so orphans stay laid out.
         ensureHudStyleSheet();
 
         const shopUnits = UNIT_TYPES.filter((t) => !t.extra && isPlayerBuyable(t));
-        const extraTypes = UNIT_TYPES.filter((t) => t.extra && isPlayerBuyable(t));
+        const extraTypes = this.boardExtrasAllowed
+            ? UNIT_TYPES.filter((t) => t.extra && isPlayerBuyable(t))
+            : [];
 
         const makeShopTile = (type: UnitType, index: number): HTMLButtonElement => {
             const button = document.createElement('button');
@@ -729,6 +739,7 @@ export class Hud {
                 // the refusal has to happen here rather than via pointer-events
                 if (button.classList.contains('unaffordable')) return;
                 const bought = UNIT_TYPES[index]!;
+                if (bought.extra && !this.boardExtrasAllowed) return;
                 // extras need the field for the place-ghost; regular packs only
                 // dismiss the sheet when this buy fills the last deploy slot
                 const lastSlot = !bought.extra && this.deploysLeft <= 1;
@@ -772,11 +783,13 @@ export class Hud {
 
         this.extrasRow = document.createElement('div');
         this.extrasRow.className = 'mechili-extras';
-        // LTR: level-all, then board extras (any count) toward the shop edge
+        // Level-all stays in this row even when Campaign hides Ward Stone / Fire Bolt.
         this.extrasRow.append(this.levelAllGlobalBtn);
         for (const type of extraTypes) {
             const i = UNIT_TYPES.indexOf(type);
-            this.extrasRow.appendChild(makeShopTile(type, i));
+            const tile = makeShopTile(type, i);
+            this.boardExtraButtons.push(tile);
+            this.extrasRow.appendChild(tile);
         }
 
         this.shopPanel = document.createElement('div');
@@ -2254,6 +2267,17 @@ export class Hud {
         this.refreshShopRuneAffordability();
     }
 
+    /** Campaign: hide board-extra shop tiles (Ward Stone, Fire Bolt, …). */
+    setBoardExtrasAllowed(allowed: boolean): void {
+        this.boardExtrasAllowed = allowed;
+        for (const el of this.boardExtraButtons) {
+            el.style.display = allowed ? '' : 'none';
+            el.hidden = !allowed;
+            el.classList.toggle('unaffordable', !allowed);
+            el.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+        }
+    }
+
     /** supply price of each always-available base rune in the shop header */
     /**
      * The talents this player picked for each unit type (PROGRESSION_PLAN.md
@@ -2328,7 +2352,9 @@ export class Hud {
         const html =
             `${iconHtml('ability-level-all', 'lag-ico mask-ico')}` +
             `<span class="lag-copy"><span class="title">${label}</span><span class="cost">${info.cost}</span></span>`;
-        // the shop-toolbar button and its phone twin (top-right strip) mirror each other
+        // the shop-toolbar button and its phone twin (top-right strip) mirror each other.
+        // '' (not 'flex'): each row's own CSS owns the layout, and the phone twin is
+        // hidden on desktop by a plain (non-!important) rule an inline style would beat.
         for (const btn of [this.levelAllGlobalBtn, this.phoneLevelAllEl]) {
             btn.style.display = '';
             btn.innerHTML = html;
@@ -4034,24 +4060,35 @@ export class Hud {
         this.detachOverlay(el, immediate);
     }
 
-    private gameOverTeamHtml(team: 'player' | 'enemy', members: GameOverMember[]): string {
+    private gameOverTeamHtml(
+        team: 'player' | 'enemy',
+        members: GameOverMember[],
+        hideMmr = false,
+    ): string {
         const rows = members
             .map((m) => {
                 const portrait = m.avatar
                     ? `<img class="go-portrait-img" src="${escapeAttr(m.avatar)}" alt="" draggable="false" />`
                     : `<span class="go-portrait-ph" aria-hidden="true"></span>`;
-                const delta = m.mmrAfter - m.mmrBefore;
-                const deltaClass =
-                    delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+                const mmrBlock = hideMmr
+                    ? ''
+                    : (() => {
+                          const delta = m.mmrAfter - m.mmrBefore;
+                          const deltaClass =
+                              delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+                          return (
+                              `<div class="go-mmr ${deltaClass}">` +
+                              `<span class="go-mmr-final">${m.mmrAfter}</span>` +
+                              `<span class="go-mmr-delta">${formatMmrDelta(delta)}</span>` +
+                              `</div>`
+                          );
+                      })();
                 return (
                     `<div class="go-player">` +
                     `<div class="go-portrait ${team}">${portrait}</div>` +
                     `<div class="go-player-info">` +
                     `<div class="go-player-name">${escapeHtml(m.name)}${m.controller === 'ai' ? `<span class="go-ai">${escapeHtml(t('hud:ai'))}</span>` : ''}</div>` +
-                    `<div class="go-mmr ${deltaClass}">` +
-                    `<span class="go-mmr-final">${m.mmrAfter}</span>` +
-                    `<span class="go-mmr-delta">${formatMmrDelta(delta)}</span>` +
-                    `</div>` +
+                    mmrBlock +
                     `</div></div>`
                 );
             })
@@ -4093,6 +4130,12 @@ export class Hud {
             backLabel?: string;
             title?: string;
             details?: GameOverDetails;
+            /** when set, shows a Retry button (single-player defeat only) */
+            allowRetry?: boolean;
+            /**
+             * Campaign: hide MMR (looks like HP) and show Round n/total instead.
+             */
+            climbProgress?: { n: number; total: number };
         },
     ): void {
         this.prepareMatchEndUi();
@@ -4105,19 +4148,58 @@ export class Hud {
                 : result === 'defeat'
                   ? t('hud:defeat')
                   : t('hud:draw'));
-        el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note);
+        const allowRetry = options?.allowRetry === true;
+        const climbNote = options?.climbProgress
+            ? t('hud:climbRoundShort', {
+                  n: options.climbProgress.n,
+                  total: options.climbProgress.total,
+              })
+            : undefined;
+        el.innerHTML = this.gameOverInnerHtml(
+            title,
+            options?.details,
+            options?.note ?? climbNote,
+            allowRetry,
+            !!options?.climbProgress,
+        );
         const backLabel = options?.backLabel ?? t('hud:backToMainMenu');
         const btn = el.querySelector('.go-restart')!;
         btn.textContent = backLabel;
         btn.addEventListener('click', () => this.leaveGameOver(el));
+        const retryBtn = el.querySelector('.go-retry');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+                this.leaveGameOver(el, () => this.onRetryLastRound?.());
+            });
+        }
         this.mount(el);
     }
 
-    /** Fade the result panel out, then return to the menu. */
-    private leaveGameOver(el: HTMLElement): void {
+    /**
+     * Campaign between-level beat: brief "Round n/total" overlay, then `onDone`.
+     */
+    showClimbRoundSplash(round: number, total: number, onDone: () => void): void {
+        this.clearBlockingOverlays();
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-climb-splash');
+        el.innerHTML =
+            `<div class="cs-title">${escapeHtml(t('hud:climbRoundShort', { n: round, total }))}</div>`;
+        this.mount(el);
+        window.setTimeout(() => {
+            removeWithDialogFade(el, () => {
+                this.unmount(el);
+                onDone();
+            });
+        }, 1600);
+    }
+
+    /** Fade the result panel out, then run `after` (default: quit to menu). */
+    private leaveGameOver(el: HTMLElement, after?: () => void): void {
+        if (el.dataset.leaving === '1') return;
+        el.dataset.leaving = '1';
         removeWithDialogFade(el, () => {
             this.unmount(el);
-            this.onQuitToMenu?.();
+            (after ?? (() => this.onQuitToMenu?.()))();
         });
     }
 
@@ -4131,15 +4213,20 @@ export class Hud {
         title: string,
         details?: GameOverDetails,
         note?: string,
+        allowRetry = false,
+        hideMmr = false,
     ): string {
         const teams = details
             ? `<div class="go-teams">` +
-              this.gameOverTeamHtml('player', details.playerTeam) +
+              this.gameOverTeamHtml('player', details.playerTeam, hideMmr) +
               `<div class="go-vs">${escapeHtml(t('hud:vs'))}</div>` +
-              this.gameOverTeamHtml('enemy', details.enemyTeam) +
+              this.gameOverTeamHtml('enemy', details.enemyTeam, hideMmr) +
               `</div>`
             : '';
         const noteEl = note ? `<div class="go-note">${escapeHtml(note)}</div>` : '';
+        const retryBtn = allowRetry
+            ? `<button type="button" class="go-retry">${escapeHtml(t('hud:retryLastRound'))}</button>`
+            : '';
         return (
             `<div class="go-bg" aria-hidden="true">` +
             `<span class="go-bg-glow go-bg-glow-player"></span>` +
@@ -4147,7 +4234,9 @@ export class Hud {
             `<span class="go-bg-core"></span>` +
             `</div>` +
             `<div class="go-title">${escapeHtml(title)}</div>${teams}${noteEl}` +
-            `<button class="go-restart">${escapeHtml(t('hud:backToMainMenu'))}</button>`
+            `<div class="go-actions">${retryBtn}` +
+            `<button type="button" class="go-restart">${escapeHtml(t('hud:backToMainMenu'))}</button>` +
+            `</div>`
         );
     }
 
@@ -4162,7 +4251,9 @@ export class Hud {
         this.lastShopKey = '';
         for (const { el, type } of this.buttons) {
             const cost = this.costOf(type);
-            const blocked = type.extra ? cost > this.extrasBudgetLeft : this.deploysLeft <= 0;
+            const blocked = type.extra
+                ? !this.boardExtrasAllowed || cost > this.extrasBudgetLeft
+                : this.deploysLeft <= 0;
             const locked = !type.extra && !this.shopUnlocked.includes(type.id);
             el.classList.toggle('unaffordable', cost > amount || blocked || locked);
         }

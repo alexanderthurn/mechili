@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Enkeltspiller",
+  "campaign": "Kampagne",
+  "practice": "Træning",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Brugerdefineret spil ({{tag}})",

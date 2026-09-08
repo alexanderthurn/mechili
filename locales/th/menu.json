@@ -1,5 +1,7 @@
 {
   "singlePlayer": "ผู้เล่นคนเดียว",
+  "campaign": "แคมเปญ",
+  "practice": "ฝึกซ้อม",
   "matchmaking": "จับคู่ ({{tag}})",
   "matchmakingTitle": "จับคู่",
   "customGame": "เกมกำหนดเอง ({{tag}})",

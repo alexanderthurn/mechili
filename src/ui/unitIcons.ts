@@ -5,6 +5,7 @@ import {
     HemisphereLight,
     MathUtils,
     Mesh,
+    NoToneMapping,
     PMREMGenerator,
     PerspectiveCamera,
     Scene,
@@ -99,7 +100,13 @@ function renderUnitIcon(renderer: WebGLRenderer, type: UnitType, envMap: Texture
     const oldTarget = renderer.getRenderTarget();
     const oldClear = renderer.getClearColor(new Color());
     const oldAlpha = renderer.getClearAlpha();
+    const oldToneMapping = renderer.toneMapping;
+    const oldExposure = renderer.toneMappingExposure;
 
+    // Bake without the match ACES curve — shop tiles must look the same every
+    // reconstruct (retry / resync), not inherit the live matcher's tone map.
+    renderer.toneMapping = NoToneMapping;
+    renderer.toneMappingExposure = 1;
     renderer.setClearColor(ICON_BG, 1);
     renderer.setRenderTarget(bake);
     renderer.render(scene, camera);
@@ -109,6 +116,8 @@ function renderUnitIcon(renderer: WebGLRenderer, type: UnitType, envMap: Texture
 
     renderer.setRenderTarget(oldTarget);
     renderer.setClearColor(oldClear, oldAlpha);
+    renderer.toneMapping = oldToneMapping;
+    renderer.toneMappingExposure = oldExposure;
     bake.dispose();
     disposePreview(mesh);
 

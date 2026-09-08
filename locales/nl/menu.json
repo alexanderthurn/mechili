@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Singleplayer",
+  "campaign": "Campagne",
+  "practice": "Oefenen",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Aangepast spel ({{tag}})",

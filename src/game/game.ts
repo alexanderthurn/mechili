@@ -182,6 +182,7 @@ import {
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { SpellVisuals, type SpellChargeMarker, type SpellDraft } from './spellVisuals';
 import {
+    CLIMB_AI_DEPLOY_LIMIT,
     DEFAULT_SETTINGS,
     describeGameSettings,
     Economy,
@@ -475,6 +476,17 @@ export class Game {
      */
     private hpPeak: number[] = [];
     private matchOver = false;
+    /**
+     * Campaign climb: round wins so far. Restored from SP save / retry payload
+     * (battle outcomes are not in the action log).
+     */
+    private climbWins = 0;
+    /**
+     * Campaign: decided in {@link finishOrContinueAfterBattle} from post-damage
+     * HP (higher HP wins, even if both negative). Applied after HP-draw VFX.
+     * Cleared by cheat skip so Shift+I can advance without a false loss.
+     */
+    private pendingClimbOutcome: 'win' | 'loss' | null = null;
     /** match-total combat damage by `${team}:${typeId}` — fed into telemetry */
     private readonly matchDamageByType = new Map<string, number>();
     private disposed = false;
@@ -781,6 +793,22 @@ export class Game {
     onConnectionLost: (() => void) | null = null;
     /** set by main: tear down the match and restore the pre-game menu */
     onReturnToMenu: (() => void) | null = null;
+    /**
+     * Set by main: single-player defeat → destroy + reconstruct from a log that
+     * keeps every prior round and the lost round's AI seats, wiping only the
+     * local human's lost-round actions so they can redeploy against the same
+     * AI plan. Payload is produced by {@link requestRetryLastRound}.
+     */
+    onRetryLastRound:
+        | ((payload: {
+              seed: number;
+              settings: GameSettings;
+              actions: LoggedAction[];
+              side: 'a' | 'b';
+              names: { local: string; opponent: string };
+              climbWins: number;
+          }) => void)
+        | null = null;
     /**
      * Set by main: a star (2v2+) guest needs a full teardown-and-reconstruct
      * resync (Phase 7 — replaces the old in-place `applyStarResumeState`
@@ -1101,6 +1129,8 @@ export class Game {
             /** the exporting side's live build-phase clock — replay always
              *  resets it to a fresh full timer, so it's restored separately */
             phaseRemaining?: number;
+            /** Campaign climb wins so far (SP save / retry) */
+            climbWins?: number;
         } | null = null,
         /** 2v2+ star-topology connection — mutually exclusive with `net`.
          *  `settings.seats` must already be the LOCALIZED roster (via
@@ -1474,6 +1504,11 @@ export class Game {
         this.roundBoosts = { range: this.seats.map(() => false), speed: this.seats.map(() => false) };
         this.unlockedUnits = this.seats.map(() => []);
         this.unlockUsedThisRound = this.seats.map(() => false);
+        // Campaign: one free Sell Pack charge in the left tactics strip (same
+        // as a card-granted one-shot — not the Command Tower unlock).
+        if (settings.climb) {
+            this.tacticInventory[this.humanSeat]!.push(SELL_UNIT_ID);
+        }
         this.placement.roster = this.seats;
         this.hpBars.roster = this.seats;
         this.conversionFx.roster = this.seats;
@@ -1529,6 +1564,8 @@ export class Game {
                 },
             },
             commanderHpFactor: settings.commanderHpFactor,
+            climbSideHp: settings.climb?.sideHp ?? null,
+            climbMode: !!settings.climb,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -1606,17 +1643,18 @@ export class Game {
                     const def = this.seats[seat]!;
                     if (def.controller !== 'ai') continue;
                     const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
-                    this.extraAis.push({ ai: new AiOpponent(def.team, seat, this.aiCtxFor(rng)), rng, team: def.team, seat });
+                    this.extraAis.push({ ai: new AiOpponent(def.team, seat, this.aiCtxFor(rng, seat)), rng, team: def.team, seat });
                 }
             }
         } else {
-            this.opponent = new AiOpponent('enemy', primarySeatOf(this.seats, 'enemy'), this.aiCtxFor(this.rngAi));
+            const enemySeat = primarySeatOf(this.seats, 'enemy');
+            this.opponent = new AiOpponent('enemy', enemySeat, this.aiCtxFor(this.rngAi, enemySeat));
             // local duo modes: every further AI seat gets its own brain and rng stream
             for (let seat = 0; seat < this.seats.length; seat++) {
                 const def = this.seats[seat]!;
                 if (def.controller !== 'ai' || seat === primarySeatOf(this.seats, 'enemy')) continue;
                 const rng = mulberry32(seedFrom(this.seed, `ai-${seat}`));
-                this.extraAis.push({ ai: new AiOpponent(def.team, seat, this.aiCtxFor(rng)), rng, team: def.team, seat });
+                this.extraAis.push({ ai: new AiOpponent(def.team, seat, this.aiCtxFor(rng, seat)), rng, team: def.team, seat });
             }
         }
         this.placement.localSeat = this.humanSeat;
@@ -1695,6 +1733,7 @@ export class Game {
             wrapper,
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
+            { boardExtrasAllowed: !this.settings.climb },
         );
         // Shop hover windows list this player's own talent picks. Fixed for
         // the whole match, so once here is enough.
@@ -1717,6 +1756,7 @@ export class Game {
             this.introActive = true;
         }
         this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
+        this.hud.setBoardExtrasAllowed(!this.settings.climb);
         // this match's real settings (including any ?hordeFactor= override) —
         // fixed for the match's lifetime, so a one-time snapshot is enough
         this.hud.setSettingsGroups(describeGameSettings(this.settings));
@@ -1734,6 +1774,7 @@ export class Game {
             unlockCostForSpeciality(typeId, this.speciality[this.humanSeat] ?? null);
         this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
+        this.hud.onRetryLastRound = () => this.requestRetryLastRound();
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
         this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
@@ -2020,6 +2061,7 @@ export class Game {
         this.spawnTowers();
         this.placement.enabled = false;
         if (resume) {
+            this.climbWins = resume.climbWins ?? 0;
             this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
             // replay always resets the round's clock to a fresh full timer
             // time from whoever exported, so a rebuild can't hand either
@@ -2584,6 +2626,7 @@ export class Game {
         this.onStateCheckpoint = null;
         this.onSpeedIndexChange = null;
         this.onReturnToMenu = null;
+        this.onRetryLastRound = null;
         this.onConnectionLost = null;
         // network/backend teardown FIRST, before any rendering/HUD disposal
         // below — those touch three.js/pixi resources and a stray exception
@@ -2666,10 +2709,13 @@ export class Game {
      * left/right split already used for deploy zones), so a 2-seat side
      * gets two independent tower pairs flanking the one shared Stronghold,
      * instead of a single pair both teammates used to share.
+     * Campaign: the human side fields army only — no player Stronghold / towers
+     * (enemy base still spawns so the climb has a visible keep to fight).
      */
     private spawnTowers(): void {
         const { rimCells, flankCols, zoneCols, zoneRows } = this.map.size;
         const ownFar = this.map.ownAtFar;
+        const skipPlayerBuildings = !!this.settings.climb;
         const spawnBuilding = (
             xFrac: number,
             rowFrac: number,
@@ -2692,13 +2738,15 @@ export class Game {
         };
 
         if (this.settings.strongholdMode !== 'none') {
-            spawnBuilding(
-                BASE_ANCHORS.stronghold.xFrac,
-                BASE_ANCHORS.stronghold.rowFrac,
-                STRONGHOLD,
-                'player',
-                primarySeatOf(this.seats, 'player'),
-            );
+            if (!skipPlayerBuildings) {
+                spawnBuilding(
+                    BASE_ANCHORS.stronghold.xFrac,
+                    BASE_ANCHORS.stronghold.rowFrac,
+                    STRONGHOLD,
+                    'player',
+                    primarySeatOf(this.seats, 'player'),
+                );
+            }
             spawnBuilding(
                 BASE_ANCHORS.stronghold.xFrac,
                 BASE_ANCHORS.stronghold.rowFrac,
@@ -2709,6 +2757,7 @@ export class Game {
         }
 
         for (const team of ['player', 'enemy'] as const) {
+            if (skipPlayerBuildings && team === 'player') continue;
             for (const seat of seatIdsOf(this.seats, team)) {
                 const lane = seatLane(this.seats, seat);
                 // remap classic full-zone xFrac into seat's lane; in 2v2 (duo), outer
@@ -2889,6 +2938,12 @@ export class Game {
         this.creditUsed.fill(false);
         this.deployState.used.fill(0);
         this.deployState.extrasSpent.fill(0);
+        // Campaign AI rebuilds a full army each round — raise non-human deploy caps.
+        if (this.settings.climb) {
+            for (let seat = 0; seat < this.seats.length; seat++) {
+                if (seat !== this.humanSeat) this.deployState.limit[seat] = CLIMB_AI_DEPLOY_LIMIT;
+            }
+        }
         this.deployReady.player = false;
         this.deployReady.enemy = false;
         this.seatReady.length = 0;
@@ -2906,7 +2961,7 @@ export class Game {
         this.unlockUsedThisRound.fill(false);
         this.hud.refreshCosts();
         this.refreshShopHud();
-        this.economy.grantRoundIncome(this.round);
+        this.grantClimbAwareRoundIncome();
         // Command Tower Credit debt from last round — after income so it always covers
         // NOTE: must also run while hydrating (debt is never in the action log)
         const creditDebtAmount = this.settings.deploy.creditDebt;
@@ -2977,7 +3032,8 @@ export class Game {
             }
         }
         this.placement.captureIntelSnapshot();
-        this.placement.setIntelFog(true);
+        // Campaign: no fog of war — player sees live AI deploys this round
+        this.placement.setIntelFog(!this.settings.climb);
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
         this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
@@ -2987,12 +3043,37 @@ export class Game {
         if (!this.hydrating) {
             this.opponent.onBuildPhase(this.round);
             for (const e of this.extraAis) e.ai.onBuildPhase(this.round);
+            // Campaign: AI places oil/spells before the player acts — refresh
+            // markers now (per-frame sync also covers this; this avoids a blink).
+            if (this.settings.climb) this.syncTacticVisuals();
         }
 
         // between-round cards (schedule owned by roundCardPreset algorithm)
         if (shouldOfferRoundCards(this.settings, this.round)) this.offerRoundCards();
         // cinema mode: startBuildPhase re-shows grid / deploy chrome — put it back away
         this.enforceCinemaWorld();
+    }
+
+    /**
+     * Normal matches: escalating income for every seat.
+     * Campaign: human uses the same starting supply but
+     * {@link ClimbSettings.playerSupplyGrowthPerRound} (+100) instead of the
+     * normal +200; AI keeps standard growth (then wealth-syncs on rebuild).
+     */
+    private grantClimbAwareRoundIncome(): void {
+        const climb = this.settings.climb;
+        if (!climb) {
+            this.economy.grantRoundIncome(this.round);
+            return;
+        }
+        const eco = this.settings.economy;
+        const aiIncome = eco.startingSupply + (this.round - 1) * eco.supplyGrowthPerRound;
+        const playerIncome =
+            eco.startingSupply + (this.round - 1) * climb.playerSupplyGrowthPerRound;
+        for (let seat = 0; seat < this.seats.length; seat++) {
+            const amount = this.seats[seat]!.team === 'player' ? playerIncome : aiIncome;
+            this.economy.credit(seat, amount);
+        }
     }
 
     /**
@@ -3191,6 +3272,8 @@ export class Game {
             this.hpDrawAfterMatchOver = false;
             this.pendingHpDrawPlan = null;
             this.pendingHpDrawPreHp = null;
+            // Shift+I must not treat the padded/restored HP as a climb verdict
+            this.pendingClimbOutcome = null;
             this.paintHudHp();
         };
 
@@ -3415,7 +3498,10 @@ export class Game {
      * that quit mid-match). Only reads `this.*` fields, so it's safe to
      * call at any point in the match, not just during the constructor.
      */
-    private aiCtxFor(rng: () => number): {
+    private aiCtxFor(
+        rng: () => number,
+        seat: SeatId,
+    ): {
         dispatch: (action: Action) => boolean;
         placement: PlacementController;
         economy: Economy;
@@ -3433,20 +3519,29 @@ export class Game {
         deploySettings: DeploySettings;
         forgeSpellOwned: string[][];
         forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
+        climb?: boolean;
+        rngForRound?: (round: number) => () => number;
     } {
         return {
             dispatch: (action: Action) => {
                 const ok = this.dispatcher.dispatch(action);
-                if (ok && (action.kind === 'buyTech' || action.kind === 'buy')) this.refreshFlightAlts();
+                if (
+                    ok &&
+                    (action.kind === 'buyTech' ||
+                        action.kind === 'buy' ||
+                        action.kind === 'clearArmy')
+                ) {
+                    this.refreshFlightAlts();
+                }
                 // star host: an AI seat's actions bypass dispatchPlayer
                 // entirely, so relay them here instead — same fog-filtered
                 // path as any human seat's traffic
                 if (ok && this.star?.role === 'host' && !this.hydrating) {
-                    const seat = action.seat ?? this.humanSeat;
+                    const actor = action.seat ?? this.humanSeat;
                     if (this.round >= 1 || action.kind === 'chooseCard') {
                         this.relayStarBuildMessage(
-                            { type: 'action', round: this.round, action, seq: this.nextSeatSeq(seat) },
-                            seat,
+                            { type: 'action', round: this.round, action, seq: this.nextSeatSeq(actor) },
+                            actor,
                         );
                     }
                 }
@@ -3461,10 +3556,13 @@ export class Game {
             items: this.itemInventory,
             tactics: this.tacticInventory,
             rng,
-            loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
+            loadoutOf: (s: SeatId) => this.loadoutOf(s),
             deploySettings: this.settings.deploy,
             forgeSpellOwned: this.forgeSpellOwned,
-            forgeSpellsOf: (seat: SeatId) => this.starterCardOfSeat(seat)?.forgeSpells,
+            forgeSpellsOf: (s: SeatId) => this.starterCardOfSeat(s)?.forgeSpells,
+            climb: !!this.settings.climb,
+            rngForRound: (round: number) =>
+                mulberry32(seedFrom(this.seed, `ai-climb-${seat}-${round}`)),
         };
     }
 
@@ -4699,7 +4797,7 @@ export class Game {
             this.star.hub.markReclaimable(seat);
         }
         const rng = mulberry32(seedFrom(this.seed, `ai-quit-${seat}-${this.round}`));
-        const ai = new AiOpponent(def.team, seat, this.aiCtxFor(rng));
+        const ai = new AiOpponent(def.team, seat, this.aiCtxFor(rng, seat));
         this.extraAis.push({ ai, rng, team: def.team, seat });
         this.announceSystem(t('hud:noticeAiTakenOver', { name: def.name }), def.name);
         this.broadcastRoster();
@@ -5062,6 +5160,7 @@ export class Game {
         actions: LoggedAction[];
         battleElapsed: number | null;
         phaseRemaining: number;
+        climbWins: number;
     } {
         return {
             seed: this.seed,
@@ -5069,6 +5168,7 @@ export class Game {
             actions: this.actionsForPeerResume(),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
+            climbWins: this.climbWins,
         };
     }
 
@@ -6234,16 +6334,26 @@ export class Game {
         // still drawn so every client consumes this seat's stream equally)
         const enemyPrimary = primarySeatOf(this.seats, 'enemy');
         const enemyOffer = draw(this.rngRoundCards[enemyPrimary]!);
-        this.triggerExtraRoundCards();
         if (this.hydrating || this.watching) {
             // no UI, no opponent hook — hydrating: the recorded actions
             // carry the picks and this is re-shown once rebuilt (see
             // hydrate()); watching: the replay log drives the pick
             // directly (tickReplayPlayback) and never needs showing at all —
-            // the streams were consumed above so future offers stay aligned
+            // the streams were consumed above so future offers stay aligned.
+            // Burn extra-AI card streams here without dispatching — live
+            // triggerExtraRoundCards would both draw and pick; during hydrate
+            // the pick must come from the log (otherwise rngAi runs and the
+            // logged pick is ignored because roundCardTaken is already set).
+            for (const e of this.extraAis) {
+                roundCardAlgorithmById(this.settings.roundCardPreset).drawOffer(
+                    this.round,
+                    this.rngRoundCards[e.seat]!,
+                );
+            }
             this.pendingOffer = myOffer;
             return;
         }
+        this.triggerExtraRoundCards();
         this.opponent.onRoundCards(enemyOffer);
         this.awaitingCards = true;
         this.phaseRemaining = this.cardSeconds();
@@ -6646,6 +6756,14 @@ export class Game {
         };
     }
 
+    /**
+     * Campaign (and post-lock-in): show live enemy deploy markers / inventory.
+     * Practice / MP keep fog until the local seat locks deployment.
+     */
+    private revealEnemyDeployIntel(): boolean {
+        return this.deployReady.player || !!this.settings.climb;
+    }
+
     private enemyInventoryView(): {
         items: { id: string; icon: string; name: string }[];
         tactics: { icon: string; name: string }[];
@@ -6654,7 +6772,7 @@ export class Game {
         if (this.phase !== 'build') {
             return { items: [], tactics: [], sellAbility: false };
         }
-        const live = this.deployReady.player;
+        const live = this.revealEnemyDeployIntel();
         const items = live ? this.itemsForTeam('enemy') : (this.enemyIntelSnapshot?.items ?? []);
         const tactics = live ? this.tacticsForTeam('enemy') : (this.enemyIntelSnapshot?.tactics ?? []);
         const sellAbility = live
@@ -6685,7 +6803,7 @@ export class Game {
     /** enemy forge tray ids visible to the local player (live or intel) */
     private enemyForgeOvenView(): string[] {
         if (this.phase !== 'build') return [];
-        if (this.deployReady.player) {
+        if (this.revealEnemyDeployIntel()) {
             return (this.forgeSlots.enemy ?? [])
                 .filter((s): s is ForgeSlot => !!s)
                 .map((s) => s.itemId);
@@ -6915,7 +7033,7 @@ export class Game {
         }
     }
 
-    /** this round's spell markers: own always; enemy only after we lock in */
+    /** this round's spell markers: own always; enemy after lock-in (or live in Campaign) */
     private visibleSpellStamps(): readonly SpellStamp[] {
         // Deployment markers belong to deployment. The battle has its own three
         // layers (charge fills, active zone rings, safe-zone disks), all in
@@ -6926,25 +7044,25 @@ export class Game {
         // stray sync — a right-click, Escape, gamepad B, all of which reach
         // cancelTacticPlacement — paints them straight back onto the board.
         if (this.phase !== 'build') return [];
-        const revealEnemy = this.deployReady.player;
+        const revealEnemy = this.revealEnemyDeployIntel();
         return this.spellStamps.filter(
             (s) => s.placedRound === this.round && (s.team === 'player' || revealEnemy),
         );
     }
 
-    /** own oil stamps always; opponent stamps only after we lock in (like rally) */
+    /** own oil stamps always; opponent stamps after lock-in / battle (or live in Campaign) */
     private visibleOilStamps(): readonly OilStamp[] {
         const revealEnemy =
             this.phase === 'battle' ||
-            this.deployReady.player;
+            this.revealEnemyDeployIntel();
         return this.oilStamps.filter((s) => s.team === 'player' || revealEnemy);
     }
 
-    /** own routes always; opponent routes only after we lock in (multiplayer fog) */
+    /** own routes always; opponent routes after lock-in / battle (or live in Campaign) */
     private visibleRallyRoutes(): readonly RallyRoute[] {
         const revealEnemy =
             this.phase === 'battle' ||
-            this.deployReady.player;
+            this.revealEnemyDeployIntel();
         return this.rallyRoutes.filter(
             (r) => r.team === 'player' || revealEnemy,
         );
@@ -7650,6 +7768,8 @@ export class Game {
      *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
     private buyUnit(type: UnitType): boolean {
         if (!this.playerCanAct) return false;
+        // Campaign: no board extras (Ward Stone, Fire Bolt, and any future extras)
+        if (type.extra && this.settings.climb) return false;
         if (!type.extra && !this.unlockedUnits[this.humanSeat]!.includes(type.id)) return false;
         if (this.economy.balance(this.humanSeat) < this.effectiveCost(type)) return false;
         // extras are click-placed: nothing is bought until the placement click
@@ -8597,7 +8717,14 @@ export class Game {
             // announce a verdict of its own.
             this.star.hub.broadcast({ type: 'starNextRound', round: this.round });
         }
-        this.hpDrawAfterMatchOver = this.playerHp <= 0 || this.enemyHp <= 0;
+        if (this.settings.climb && !this.star && !this.watching) {
+            // Higher remaining HP wins the round (even if both went negative
+            // on a timeout). Equal HP → loss (must outscore the AI).
+            this.pendingClimbOutcome = this.playerHp > this.enemyHp ? 'win' : 'loss';
+            this.hpDrawAfterMatchOver = false;
+        } else {
+            this.hpDrawAfterMatchOver = this.playerHp <= 0 || this.enemyHp <= 0;
+        }
         if (this.pendingHpDrawPlan && this.pendingHpDrawPlan.sources.length > 0) {
             this.hpDrawSettleRemaining = this.collapseEndedRound
                 ? HP_DRAW_COLLAPSE_SETTLE
@@ -8728,7 +8855,28 @@ export class Game {
     private proceedAfterHpDraw(): void {
         this.flushHpDrawDisplay();
         this.hpDrawSettleRemaining = 0;
-        if (this.hpDrawAfterMatchOver) {
+        let climbRoundWon = false;
+        if (this.settings.climb && this.pendingClimbOutcome) {
+            const outcome = this.pendingClimbOutcome;
+            this.pendingClimbOutcome = null;
+            // Resume/retry hydrate already restores climbWins from the payload —
+            // re-counting prior round wins here would inflate the total and can
+            // even call presentMatchEnd (→ quitToMenu while hydrating).
+            if (this.hydrating) {
+                if (outcome === 'win') this.restoreClimbHp();
+            } else if (outcome === 'win') {
+                this.climbWins++;
+                if (this.climbWins >= this.settings.climb.roundsToWin) {
+                    this.presentMatchEnd('victory');
+                    return;
+                }
+                this.restoreClimbHp();
+                climbRoundWon = true;
+            } else {
+                this.presentMatchEnd('defeat');
+                return;
+            }
+        } else if (this.hpDrawAfterMatchOver) {
             this.finishMatch();
             return;
         }
@@ -8743,7 +8891,30 @@ export class Game {
             this.startBuildPhase();
             return;
         }
+        // Campaign: brief Round n/total beat before the next build phase
+        if (climbRoundWon && this.settings.climb && !this.hydrating && !this.watching) {
+            const next = Math.min(this.climbWins + 1, this.settings.climb.roundsToWin);
+            this.hud.showClimbRoundSplash(next, this.settings.climb.roundsToWin, () => {
+                if (this.disposed || this.matchOver) return;
+                this.announceBattleEnd();
+            });
+            return;
+        }
         this.announceBattleEnd();
+    }
+
+    /** Campaign: reset both sides to fixed climb HP after a round win. */
+    private restoreClimbHp(): void {
+        const hp = this.settings.climb?.sideHp ?? 1;
+        for (let s = 0; s < this.hp.length; s++) {
+            this.hp[s] = hp;
+            this.hpPeak[s] = hp;
+        }
+        // the round-splash beat still runs in phase 'hpDraw', where paintHudHp
+        // reads the DISPLAY values — re-flush them or the bars keep showing the
+        // spent (post-battle) HP until the next build phase starts
+        this.flushHpDrawDisplay();
+        this.paintHudHp();
     }
 
     /** local battle sim finished — tell the peer, then wait for theirs too
@@ -8897,8 +9068,41 @@ export class Game {
                 : `⚠ MISMATCH — recorded ${exp.result}/${exp.rounds} rounds/${exp.playerHp}-${exp.enemyHp}, this run: ${result}/${this.round} rounds/${this.playerHp}-${this.enemyHp}`;
             this.hud.showGameOver(result, { note, backLabel: t('hud:backToReplays'), title, details });
         } else {
-            this.hud.showGameOver(result, { title, details });
+            const allowRetry = result === 'defeat' && !this.star && !this.watching;
+            const climbProgress = this.settings.climb
+                ? {
+                      n: Math.max(1, this.round),
+                      total: this.settings.climb.roundsToWin,
+                  }
+                : undefined;
+            this.hud.showGameOver(result, { title, details, allowRetry, climbProgress });
         }
+    }
+
+    /**
+     * Single-player defeat → ask main to rebuild from a truncated log that
+     * keeps every prior round and this round's non-human seats (same AI plan),
+     * dropping only the local human's actions for the lost round.
+     */
+    private requestRetryLastRound(): void {
+        if (this.star || this.watching || !this.matchOver) return;
+        if (!this.onRetryLastRound) return;
+        const full = this.exportReplay();
+        const lostRound = this.round;
+        const human = this.humanSeat;
+        const actions = full.actions.filter(
+            (e) =>
+                e.round < lostRound ||
+                (e.round === lostRound && e.action.seat !== undefined && e.action.seat !== human),
+        );
+        this.onRetryLastRound({
+            seed: full.seed,
+            settings: full.settings,
+            actions,
+            side: this.side,
+            names: { ...this.playerNames },
+            climbWins: this.climbWins,
+        });
     }
 
     /** neutral "who actually won" label for a spectator/replay viewer —
@@ -9415,7 +9619,14 @@ export class Game {
             seatIdsOf(this.seats, 'player').some(
                 (seat) => seat !== this.humanSeat && this.seatReady[seat],
             );
-        this.hud.setPhase(this.round, this.phase, this.phaseRemaining, waitingForPeer, allyLockedIn, this.watching);
+        this.hud.setPhase(
+            this.round,
+            this.phase,
+            this.phaseRemaining,
+            waitingForPeer,
+            allyLockedIn,
+            this.watching,
+        );
         // live countdown on the "Waiting…" seat-drop notice — re-render
         // only when the displayed second actually changes, not every frame.
         // matchOver-gated too: finishMatch/resumeIfAllClear already null

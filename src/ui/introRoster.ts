@@ -145,6 +145,23 @@ export function unmountIntroRoster(cover: HTMLElement | null): void {
     cover?.querySelector('.mechili-match-roster')?.remove();
 }
 
+/** Simple Campaign level card on the intro cover (replaces the VS roster). */
+export function mountClimbIntro(cover: HTMLElement, round: number, total: number): void {
+    unmountIntroRoster(cover);
+    unmountClimbIntro(cover);
+    const el = withDialogFade(document.createElement('div'));
+    el.classList.add('mechili-climb-intro');
+    el.innerHTML =
+        `<div class="ci-frame">` +
+        `<div class="ci-title">${escapeHtml(t('hud:climbRoundShort', { n: round, total }))}</div>` +
+        `</div>`;
+    cover.appendChild(el);
+}
+
+export function unmountClimbIntro(cover: HTMLElement | null): void {
+    cover?.querySelector('.mechili-climb-intro')?.remove();
+}
+
 /** Fetch MMR in the background — updates the cover roster when ready. */
 export async function prefetchIntroRosterMmrs(
     cover: HTMLElement,

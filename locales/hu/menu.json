@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Egyjátékos",
+  "campaign": "Kampány",
+  "practice": "Gyakorlás",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Egyéni játék ({{tag}})",

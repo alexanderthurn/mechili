@@ -1,5 +1,7 @@
 {
   "singlePlayer": "シングルプレイヤー",
+  "campaign": "キャンペーン",
+  "practice": "練習",
   "matchmaking": "マッチメイキング（{{tag}}）",
   "matchmakingTitle": "マッチメイキング",
   "customGame": "カスタムゲーム（{{tag}}）",

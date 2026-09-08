@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Jucător unic",
+  "campaign": "Campanie",
+  "practice": "Antrenament",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Joc personalizat ({{tag}})",

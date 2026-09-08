@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Einzelspieler",
+  "campaign": "Kampagne",
+  "practice": "Übung",
   "matchmaking": "Spielersuche ({{tag}})",
   "matchmakingTitle": "Spielersuche",
   "customGame": "Benutzerdefiniertes Spiel ({{tag}})",

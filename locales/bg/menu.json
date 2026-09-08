@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Един играч",
+  "campaign": "Кампания",
+  "practice": "Практика",
   "matchmaking": "Подбор ({{tag}})",
   "matchmakingTitle": "Подбор",
   "customGame": "Персонализирана игра ({{tag}})",

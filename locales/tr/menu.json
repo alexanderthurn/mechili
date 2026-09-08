@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Tek Oyunculu",
+  "campaign": "Kampanya",
+  "practice": "Alıştırma",
   "matchmaking": "Eşleştirme ({{tag}})",
   "matchmakingTitle": "Eşleştirme",
   "customGame": "Özel Oyun ({{tag}})",

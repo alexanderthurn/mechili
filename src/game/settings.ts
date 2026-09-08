@@ -20,6 +20,42 @@ import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
 
 /**
+ * Campaign (SP climb) playtest knobs — change these while tuning feel.
+ * {@link CLIMB_SUPPLY_GROWTH_PER_ROUND}: `null` keeps AI on normal match income growth.
+ */
+export const CLIMB_ROUNDS_TO_WIN = 10;
+export const CLIMB_SIDE_HP = 1;
+export const CLIMB_SUPPLY_GROWTH_PER_ROUND: number | null = null;
+/**
+ * Campaign: human income growth per round (normal matches use 200).
+ * Round grant is still `startingSupply + (round - 1) * growth`.
+ */
+export const CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND = 100;
+/**
+ * Campaign AI rebuild: deploy-slot ceiling so a fresh army can spend income
+ * on many packs (normal matches stay at {@link DeploySettings.unitsPerRound}).
+ */
+export const CLIMB_AI_DEPLOY_LIMIT = 40;
+/**
+ * Fraction of liquid supply the Campaign AI may spend on new packs before
+ * upgrades/tech/runes; leftover goes to levels / forge spells / research.
+ */
+export const CLIMB_AI_PACK_BUDGET_FRACTION = 0.55;
+
+/** SP Campaign rules (see {@link GameSettings.climb}). */
+export interface ClimbSettings {
+    /** Round wins needed for campaign victory */
+    roundsToWin: number;
+    /** Fixed side HP after commander pick (both sides) */
+    sideHp: number;
+    /**
+     * Human income growth per round (normal is {@link EconomySettings.supplyGrowthPerRound}).
+     * Grant = startingSupply + (round - 1) * this.
+     */
+    playerSupplyGrowthPerRound: number;
+}
+
+/**
  * Phase length in seconds: a constant, or a per-round schedule
  * (round 1 → index 0, round 2 → index 1, …; last entry repeats).
  */
@@ -76,6 +112,11 @@ export interface GameSettings {
      * seats). Local modes only for now — never sent over the wire.
      */
     seats?: SeatDef[];
+    /**
+     * Single-player Campaign only: sudden-death climb (fixed side HP, win
+     * N battles to finish). Unset in Practice / MP / Custom.
+     */
+    climb?: ClimbSettings;
     /**
      * Between-round card algorithm id (see {@link ROUND_CARD_ALGORITHMS}).
      * Owns schedule + pool progression.
@@ -503,6 +544,17 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         hordePreset: resolveHordePreset(legacy),
         commanderHpFactor: resolveCommanderHpFactor(settings.commanderHpFactor),
         strongholdMode: strongholdModeOption(settings.strongholdMode),
+        climb: settings.climb
+            ? {
+                  roundsToWin: settings.climb.roundsToWin,
+                  sideHp: settings.climb.sideHp,
+                  playerSupplyGrowthPerRound:
+                      settings.climb.playerSupplyGrowthPerRound ??
+                      // older saves used flat playerSupplyPerRound as the grant amount
+                      (settings.climb as { playerSupplyPerRound?: number }).playerSupplyPerRound ??
+                      CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
+              }
+            : undefined,
     };
 }
 

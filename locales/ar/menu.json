@@ -1,5 +1,7 @@
 {
   "singlePlayer": "لاعب فردي",
+  "campaign": "الحملة",
+  "practice": "تدريب",
   "matchmaking": "البحث عن مباراة ({{tag}})",
   "matchmakingTitle": "البحث عن مباراة",
   "customGame": "لعبة مخصصة ({{tag}})",

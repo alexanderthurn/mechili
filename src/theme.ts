@@ -2566,8 +2566,9 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     /* dissolve as soon as the menu zoom starts — not tied to the 3D handoff */
     animation: mechili-intro-logo-fade 0.55s ease-out forwards;
 }
-.mechili-intro-cover.dive .mechili-match-roster {
-    /* same beat as the logo — roster shouldn't linger through the dive */
+.mechili-intro-cover.dive .mechili-match-roster,
+.mechili-intro-cover.dive .mechili-climb-intro {
+    /* same beat as the logo — roster/card shouldn't linger through the dive */
     animation: mechili-intro-logo-fade 0.55s ease-out forwards;
 }
 @keyframes mechili-outro-rise {
@@ -2590,6 +2591,43 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     animation: none;
     opacity: 0;
 }
+/* Campaign level card — same cover slot as the VS roster, simpler. */
+.mechili-climb-intro {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 2;
+    padding: clamp(24px, 6vh, 64px) 16px;
+    box-sizing: border-box;
+}
+.mechili-climb-intro::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 70% 55% at 50% 48%, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.38) 48%, rgba(0, 0, 0, 0.55) 100%);
+    pointer-events: none;
+}
+.mechili-climb-intro .ci-frame {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+}
+.mechili-climb-intro .ci-title {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85), 0 0 40px rgba(184, 146, 74, 0.25);
+}
+
 /* Pre-match roster on the intro cover — menuStyles only: the cover runs
  * before Game/Hud boots, so hudStyles() is not injected yet. */
 .mechili-match-roster {
@@ -5820,6 +5858,24 @@ ${chatFloatStyles(u, pc, ec)}
     box-shadow: none;
     user-select: none;
 }
+.mechili-climb-splash {
+    position: absolute;
+    inset: 0;
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    background: radial-gradient(ellipse 70% 55% at 50% 48%, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.45) 55%, rgba(0, 0, 0, 0.65) 100%);
+}
+.mechili-climb-splash .cs-title {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85), 0 0 40px rgba(184, 146, 74, 0.25);
+}
 .mechili-gameover::before {
     content: '';
     position: absolute;
@@ -5885,7 +5941,9 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-rated-note,
 .mechili-gameover .go-sub,
 .mechili-gameover .go-stats,
-.mechili-gameover .go-restart {
+.mechili-gameover .go-actions,
+.mechili-gameover .go-restart,
+.mechili-gameover .go-retry {
     position: relative;
     z-index: 1;
 }
@@ -6067,7 +6125,15 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-note { font-size: 13px; color: ${u.text}; opacity: 0.85; max-width: 32em; text-align: center; }
 .mechili-cards .reconnect-timer { font-size: 32px; font-variant-numeric: tabular-nums; }
 .mechili-cards .reconnect-timer.urgent { animation: mechili-timer-pulse 0.7s ease-in-out infinite; }
-.mechili-gameover .go-restart {
+.mechili-gameover .go-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    z-index: 1;
+}
+.mechili-gameover .go-restart,
+.mechili-gameover .go-retry {
     align-self: center;
     padding: 10px 26px;
     background: ${u.alliedBtnBg};
@@ -6078,10 +6144,26 @@ ${chatFloatStyles(u, pc, ec)}
     font-weight: bold;
     letter-spacing: 1px;
     cursor: pointer;
+    transition: transform 0.14s ease, background 0.14s ease;
 }
-.mechili-gameover .go-restart { transition: transform 0.14s ease, background 0.14s ease; }
-.mechili-gameover .go-restart:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
-.mechili-gameover .go-restart:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
+.mechili-gameover .go-restart:hover,
+.mechili-gameover .go-retry:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
+.mechili-gameover .go-restart:focus-visible,
+.mechili-gameover .go-retry:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
+/* with Retry present, Back is the quieter second action */
+.mechili-gameover .go-actions:has(.go-retry) .go-restart {
+    background: transparent;
+    border-color: ${u.border};
+    color: ${u.textMuted};
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    padding: 8px 18px;
+}
+.mechili-gameover .go-actions:has(.go-retry) .go-restart:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: ${u.text};
+}
 
 .mechili-report {
     position: absolute;

@@ -6,6 +6,7 @@ import { ChatFloat } from './ui/chatFloat';
 import { FriendsPanel } from './ui/friendsPanel';
 import {
     introRosterEntries,
+    mountClimbIntro,
     mountIntroRoster,
     prefetchIntroRosterMmrs,
 } from './ui/introRoster';
@@ -91,6 +92,10 @@ import {
     formatStrongholdModeOption,
     strongholdModeOption,
     CUSTOM_GAME_PACE_PRESETS,
+    CLIMB_ROUNDS_TO_WIN,
+    CLIMB_SIDE_HP,
+    CLIMB_SUPPLY_GROWTH_PER_ROUND,
+    CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
     DEFAULT_HORDE_PRESET_ID,
@@ -145,6 +150,27 @@ function applyHordeMode(settings: GameSettings): void {
     if (!presetParam) return;
     if (HORDE_ALGORITHMS.some((a) => a.id === presetParam)) {
         settings.hordePreset = presetParam;
+    }
+}
+
+/**
+ * SP Campaign: sudden-death climb. Income growth defaults to the normal
+ * match economy; set {@link CLIMB_SUPPLY_GROWTH_PER_ROUND} in settings.ts
+ * to override while playtesting.
+ */
+function applyClimbMode(settings: GameSettings): void {
+    settings.climb = {
+        roundsToWin: CLIMB_ROUNDS_TO_WIN,
+        sideHp: CLIMB_SIDE_HP,
+        playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
+    };
+    // Campaign always fields The Komtur at Medium (not Off / not the Low SP-horde default).
+    settings.hordePreset = 'medium';
+    if (CLIMB_SUPPLY_GROWTH_PER_ROUND != null) {
+        settings.economy = {
+            ...settings.economy,
+            supplyGrowthPerRound: CLIMB_SUPPLY_GROWTH_PER_ROUND,
+        };
     }
 }
 
@@ -955,11 +981,19 @@ menu.innerHTML = `
     <div class="m-view m-spmode" data-view="sp">
         <div class="m-spmode-title" data-i18n="menu:singlePlayer"></div>
         <div class="m-toggle-row">
+            <button class="m-btn m-toggle-card" data-mode="sp-campaign">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:campaign"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-practice">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:practice"></span></button>
+        </div>
+        <button class="m-btn m-small" data-mode="sp-back" data-i18n="menu:back"></button>
+    </div>
+    <div class="m-view m-spmode" data-view="sp-practice">
+        <div class="m-spmode-title" data-i18n="menu:practice"></div>
+        <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="sp-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:horde"></span></button>
         </div>
-        <button class="m-btn m-small" data-mode="sp-back" data-i18n="menu:back"></button>
+        <button class="m-btn m-small" data-mode="sp-practice-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-matchmaking" data-view="matchmaking">
         <div class="m-spmode-title" data-i18n="menu:matchmakingTitle"></div>
@@ -1179,7 +1213,8 @@ const customGameLabelEl = menu.querySelector<HTMLSpanElement>('.m-btn[data-mode=
 const statusEl = menu.querySelector<HTMLDivElement>('.m-status')!;
 const rosterTableEl = menu.querySelector<HTMLDivElement>('.m-roster-table')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
-const spModeEl = menu.querySelector<HTMLDivElement>('.m-spmode')!;
+const spModeEl = menu.querySelector<HTMLDivElement>('[data-view="sp"]')!;
+const spPracticeEl = menu.querySelector<HTMLDivElement>('[data-view="sp-practice"]')!;
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
 const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
 const mmHordeEl = menu.querySelector<HTMLInputElement>('.mm-horde')!;
@@ -1251,10 +1286,11 @@ wrapper.appendChild(loadoutPanel.el);
 
 /** Exclusive menu screens — only one is active at a time. Session owns
  *  connecting / lobby / waiting UI so main never stacks under it. */
-type MenuViewId = 'main' | 'sp' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
+type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
 const menuViews: Record<MenuViewId, HTMLElement> = {
     main: mainButtonsEl,
     sp: spModeEl,
+    'sp-practice': spPracticeEl,
     custom: customEl,
     matchmaking: mmModeEl,
     'mm-simple': mmSimpleEl,
@@ -1633,6 +1669,7 @@ type MatchResume = {
     battleElapsed: number | null;
     local?: boolean;
     phaseRemaining?: number;
+    climbWins?: number;
 };
 
 function hideResumeOverlay(): void {
@@ -2575,8 +2612,68 @@ function wireGameMenuReturn(game: Game): void {
         if (introCoverEl) introCoverEl.style.opacity = String(t);
     };
     game.onReturnToMenu = finishReturnToMenu;
+    game.onRetryLastRound = (payload) => void retrySinglePlayerLastRound(payload);
     // no-op for every mode except a star (2v2+) guest — see rebuildStarGuestGame
     game.onNeedsFullResync = rebuildStarGuestGame;
+}
+
+/**
+ * SP defeat "Retry last round": tear down the finished Game and reconstruct
+ * from a log that already keeps prior rounds + the lost round's AI seats.
+ * Skips the match-intro cinematic — the player just left a defeat screen.
+ *
+ * Must replace the Three canvas (same as return-to-menu): destroy() disposes
+ * the GL context, and baking shop icons on that dead canvas made tiles look
+ * brighter / wrong. Await prewarm so we don't race a second renderer onto
+ * the new canvas.
+ */
+async function retrySinglePlayerLastRound(payload: {
+    seed: number;
+    settings: GameSettings;
+    actions: LoggedAction[];
+    side: 'a' | 'b';
+    names: { local: string; opponent: string };
+    climbWins: number;
+}): Promise<void> {
+    stopSinglePlayerPersist?.();
+    stopSinglePlayerPersist = null;
+    activeGame?.destroy();
+    activeGame = null;
+    started = false;
+    clearIntroCover();
+    matchUiRoot.replaceChildren();
+    document.querySelector('.mechili-settings')?.remove();
+    document.querySelector('.mechili-touchtip')?.remove();
+    document.querySelector('.forge-slot-preview')?.remove();
+    // Fresh canvas + warm GL (destroy disposed the old context)
+    discardPrewarmedRenderer();
+    threeCanvas.remove();
+    threeCanvas = createThreeCanvas();
+    wrapper.insertBefore(threeCanvas, app.canvas);
+    setGameLayerVisible(true);
+    await prewarmGpu(threeCanvas);
+    const settings = { ...payload.settings, seed: payload.seed };
+    // Same rebuild path as Practice: skip startGame's match-intro / menu
+    // teardown (Campaign used to re-enter that path and soft-lock or quit).
+    started = true;
+    title.visible = false;
+    logo.alpha = 1;
+    app.renderer.off('resize', layoutTitle);
+    constructGame(
+        settings,
+        payload.side,
+        payload.names,
+        {
+            actions: payload.actions,
+            battleElapsed: null,
+            local: true,
+            climbWins: payload.climbWins,
+        },
+        null,
+        null,
+        null,
+        false,
+    );
 }
 
 /**
@@ -2779,11 +2876,13 @@ function startGame(
     logo.alpha = 0;
     app.renderer.off('resize', layoutTitle);
     // Fresh matches: roster rides the CSS cover and dissolves with it into 3D.
-    // Resume/reconnect skips the roster (cover may already be animating).
-    const showCoverRoster = !resume;
+    // Campaign always uses a simple Round n/total card (also on local resume/retry).
+    // Normal resume/reconnect skips the VS roster (cover may already be animating).
+    const useClimbIntro = !!settings.climb;
+    const showCoverPanel = useClimbIntro || !resume;
 
     if (!coverActive) {
-        showIntroCover(showCoverRoster);
+        showIntroCover(showCoverPanel);
         app.render();
     }
 
@@ -2820,7 +2919,18 @@ function startGame(
         }
     };
 
-    if (showCoverRoster && introCoverEl) {
+    if (showCoverPanel && introCoverEl && useClimbIntro && settings.climb) {
+        const level = Math.min(
+            (resume?.climbWins ?? 0) + 1,
+            settings.climb.roundsToWin,
+        );
+        mountClimbIntro(introCoverEl, level, settings.climb.roundsToWin);
+        void introRosterHold().then(() => {
+            if (gen !== introGen || !started) return;
+            startIntroCoverDive();
+            runBootHandoff();
+        });
+    } else if (showCoverPanel && introCoverEl && !resume) {
         const entries = introRosterEntries(settings, side, names, star);
         mountIntroRoster(introCoverEl, entries, side);
         void prefetchIntroRosterMmrs(introCoverEl, entries).then(async (mmrMap) => {
@@ -2851,6 +2961,7 @@ function wireSinglePlayerPersist(game: Game): () => void {
             actions: data.actions,
             battleElapsed: data.battleElapsed,
             phaseRemaining: data.phaseRemaining,
+            climbWins: data.climbWins,
             localName: getPlayerName(),
         });
     };
@@ -2875,6 +2986,7 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
         actions: save.actions,
         battleElapsed: save.battleElapsed,
         phaseRemaining: save.phaseRemaining,
+        climbWins: save.climbWins ?? 0,
         local: true,
     });
 }
@@ -4589,6 +4701,8 @@ menu.addEventListener('click', (e) => {
     if (
         !bootReady &&
         (mode === 'single' ||
+            mode === 'sp-campaign' ||
+            mode === 'sp-practice' ||
             mode === 'sp-1v1' ||
             mode === 'sp-2v2' ||
             mode === 'sp-horde' ||
@@ -4604,11 +4718,12 @@ menu.addEventListener('click', (e) => {
     }
 
     /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
-    const startLocalMatch = (opts: { duo?: boolean; horde?: boolean } = {}): void => {
+    const startLocalMatch = (opts: { duo?: boolean; horde?: boolean; climb?: boolean } = {}): void => {
         const settings = settingsFromUrl();
         settings.buildTimeSeconds = 60 * 60;
         settings.specialistTimeSeconds = 60 * 60;
         settings.cardTimeSeconds = 60 * 60;
+        if (opts.climb) applyClimbMode(settings);
         if (opts.horde) applyHordeMode(settings);
         if (opts.duo) applyDuoMode(settings);
         startGame(settings);
@@ -4616,10 +4731,17 @@ menu.addEventListener('click', (e) => {
 
     switch (mode) {
         case 'single':
-            // simplified to 1v1 Horde only for now (see sp-1v1/sp-2v2 below,
-            // kept but unreachable from this button — not removed, so the
-            // full picker is a one-line revert away)
-            startLocalMatch({ horde: true });
+            showMenuView('sp');
+            break;
+        case 'sp-campaign':
+            showMenuView('main');
+            startLocalMatch({ climb: true });
+            break;
+        case 'sp-practice':
+            showMenuView('sp-practice');
+            break;
+        case 'sp-practice-back':
+            showMenuView('sp');
             break;
         case 'sp-back':
             showMenuView('main');

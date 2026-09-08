@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Pemain Tunggal",
+  "campaign": "Kampanye",
+  "practice": "Latihan",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Permainan Kustom ({{tag}})",

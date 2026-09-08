@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Enkeltspiller",
+  "campaign": "Kampanje",
+  "practice": "Øving",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Tilpasset spill ({{tag}})",

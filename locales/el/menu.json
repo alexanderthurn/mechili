@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Μονός παίκτης",
+  "campaign": "Εκστρατεία",
+  "practice": "Εξάσκηση",
   "matchmaking": "Αντιστοίχιση ({{tag}})",
   "matchmakingTitle": "Αντιστοίχιση",
   "customGame": "Προσαρμοσμένο παιχνίδι ({{tag}})",

@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Un jugador",
+  "campaign": "Campaña",
+  "practice": "Práctica",
   "matchmaking": "Emparejamiento ({{tag}})",
   "matchmakingTitle": "Emparejamiento",
   "customGame": "Partida personalizada ({{tag}})",

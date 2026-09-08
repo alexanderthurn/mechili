@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Single Player",
+  "campaign": "Campaign",
+  "practice": "Practice",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Custom Game ({{tag}})",

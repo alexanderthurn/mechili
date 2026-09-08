@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Enspelare",
+  "campaign": "Kampanj",
+  "practice": "Övning",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Anpassat spel ({{tag}})",

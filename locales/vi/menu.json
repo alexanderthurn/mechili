@@ -1,5 +1,7 @@
 {
   "singlePlayer": "Chế độ chơi đơn",
+  "campaign": "Chiến dịch",
+  "practice": "Luyện tập",
   "matchmaking": "Matchmaking ({{tag}})",
   "matchmakingTitle": "Matchmaking",
   "customGame": "Trò chơi tùy chỉnh ({{tag}})",
