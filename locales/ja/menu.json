@@ -142,5 +142,9 @@
   "scopeLanRoom": "LAN ルーム",
   "scopeSteamLobby": "Steam ロビー",
   "scopeRoom": "ルーム",
-  "scopeLanRoomNamed": "LAN ルーム「{{name}}」"
+  "scopeLanRoomNamed": "LAN ルーム「{{name}}」",
+  "tutorial": "チュートリアル",
+  "tutorial1": "1\n基本",
+  "tutorial2": "2\n要塞",
+  "tutorial3": "3\n塔"
 }

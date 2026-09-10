@@ -142,5 +142,9 @@
   "scopeLanRoom": "區域網路房間",
   "scopeSteamLobby": "Steam 大廳",
   "scopeRoom": "房間",
-  "scopeLanRoomNamed": "區域網路房間「{{name}}」"
+  "scopeLanRoomNamed": "區域網路房間「{{name}}」",
+  "tutorial": "教學",
+  "tutorial1": "1\n基礎",
+  "tutorial2": "2\n要塞",
+  "tutorial3": "3\n塔"
 }

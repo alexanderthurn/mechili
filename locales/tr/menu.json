@@ -142,5 +142,9 @@
   "scopeLanRoom": "LAN odası",
   "scopeSteamLobby": "Steam lobisi",
   "scopeRoom": "oda",
-  "scopeLanRoomNamed": "LAN odası \"{{name}}\""
+  "scopeLanRoomNamed": "LAN odası \"{{name}}\"",
+  "tutorial": "Eğitim",
+  "tutorial1": "1\nTemeller",
+  "tutorial2": "2\nKale",
+  "tutorial3": "3\nKuleler"
 }

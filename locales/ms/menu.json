@@ -142,5 +142,9 @@
   "scopeLanRoom": "Bilik LAN",
   "scopeSteamLobby": "Lobi Steam",
   "scopeRoom": "bilik",
-  "scopeLanRoomNamed": "Bilik LAN \"{{name}}\""
+  "scopeLanRoomNamed": "Bilik LAN \"{{name}}\"",
+  "tutorial": "Tutorial",
+  "tutorial1": "1\nAsas",
+  "tutorial2": "2\nKubu kuat",
+  "tutorial3": "3\nMenara"
 }

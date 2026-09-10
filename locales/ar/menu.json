@@ -142,5 +142,9 @@
   "scopeLanRoom": "غرفة LAN",
   "scopeSteamLobby": "لوبي Steam",
   "scopeRoom": "غرفة",
-  "scopeLanRoomNamed": "غرفة LAN \"{{name}}\""
+  "scopeLanRoomNamed": "غرفة LAN \"{{name}}\"",
+  "tutorial": "الدليل",
+  "tutorial1": "1\nالأساسيات",
+  "tutorial2": "2\nالقلعة",
+  "tutorial3": "3\nالأبراج"
 }

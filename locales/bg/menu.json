@@ -142,5 +142,9 @@
   "scopeLanRoom": "LAN стая",
   "scopeSteamLobby": "Steam лоби",
   "scopeRoom": "стая",
-  "scopeLanRoomNamed": "LAN стая \"{{name}}\""
+  "scopeLanRoomNamed": "LAN стая \"{{name}}\"",
+  "tutorial": "Обучение",
+  "tutorial1": "1\nОснови",
+  "tutorial2": "2\nКрепост",
+  "tutorial3": "3\nКули"
 }

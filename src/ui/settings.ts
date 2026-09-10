@@ -566,6 +566,7 @@ export function openControlsHelp(parent: HTMLElement): void {
             t('settings:controlsKeyboard.head'),
             row(`W A S D · ${keyLabel('arrows')}`, t('settings:controlsKeyboard.pan')) +
                 row('Q · E', t('settings:controlsKeyboard.heading')) +
+                row('+ · −', t('settings:controlsKeyboard.zoom')) +
                 row('Home', t('settings:controlsKeyboard.resetView')) +
                 row('R', t('settings:controlsKeyboard.rotate')) +
                 row('Escape', t('settings:controlsKeyboard.pause')) +

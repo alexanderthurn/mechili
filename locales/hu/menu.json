@@ -142,5 +142,9 @@
   "scopeLanRoom": "LAN-szoba",
   "scopeSteamLobby": "Steam lobby",
   "scopeRoom": "szoba",
-  "scopeLanRoomNamed": "LAN-szoba \"{{name}}\""
+  "scopeLanRoomNamed": "LAN-szoba \"{{name}}\"",
+  "tutorial": "Bemutató",
+  "tutorial1": "1\nAlapok",
+  "tutorial2": "2\nErőd",
+  "tutorial3": "3\nTornyok"
 }

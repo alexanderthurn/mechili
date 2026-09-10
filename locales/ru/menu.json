@@ -142,5 +142,9 @@
   "scopeLanRoom": "LAN-комнату",
   "scopeSteamLobby": "лобби Steam",
   "scopeRoom": "комнату",
-  "scopeLanRoomNamed": "LAN-комнату «{{name}}»"
+  "scopeLanRoomNamed": "LAN-комнату «{{name}}»",
+  "tutorial": "Обучение",
+  "tutorial1": "1\nОсновы",
+  "tutorial2": "2\nЦитадель",
+  "tutorial3": "3\nБашни"
 }

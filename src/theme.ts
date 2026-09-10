@@ -1847,6 +1847,10 @@ ${chatFloatStyles(u, pc, ec)}
     display: flex;
     flex-direction: column;
     align-items: center;
+    /* .m-btn sets text-align:start for the icon+label ROW buttons. A card
+       stacks instead, and align-items only centers a label that fits on one
+       line — without this, a wrapped label goes left. */
+    text-align: center;
     gap: 4px;
     box-sizing: border-box;
     padding: 14px 10px;
@@ -1872,6 +1876,8 @@ ${chatFloatStyles(u, pc, ec)}
     height: 1px;
     pointer-events: none;
 }
+/* card labels may carry an explicit newline (e.g. the number over the name) */
+.mechili-menu .m-toggle-card .m-label { white-space: pre-line; }
 .mechili-menu .m-toggle-card .m-ico {
     width: 20px;
     height: 20px;
@@ -3532,6 +3538,128 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-cinema-hint.is-visible {
     opacity: 1;
+}
+/* Below .mechili-pause (55) / .mechili-gameover (56) so Esc chrome wins. */
+.mechili-tutorial {
+    position: absolute;
+    left: 50%;
+    top: 18%;
+    transform: translateX(-50%);
+    z-index: 52;
+    width: min(420px, calc(100vw - 32px));
+    padding: 14px 16px 12px;
+    border-radius: 10px;
+    background: rgba(10, 12, 8, 0.88);
+    border: 1px solid rgba(200, 180, 120, 0.45);
+    color: ${u.text};
+    font: 14px/1.45 var(--font-ui);
+    text-align: center;
+    pointer-events: auto;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+.mechili-tutorial .tut-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin-bottom: 6px;
+    color: ${u.debug};
+}
+.mechili-tutorial .tut-body {
+    color: ${u.textMuted};
+    margin-bottom: 10px;
+}
+.mechili-tutorial .tut-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 10px;
+    text-align: left;
+}
+.mechili-tutorial .tut-ctrl {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 8px;
+    align-items: start;
+    padding: 7px 9px;
+    border-radius: 7px;
+    background: rgba(255, 220, 100, 0.08);
+    border: 1px solid rgba(200, 180, 120, 0.35);
+    font-size: 12.5px;
+    line-height: 1.35;
+}
+.mechili-tutorial .tut-ctrl-kind {
+    font-weight: 700;
+    color: ${u.debug};
+    letter-spacing: 0.02em;
+}
+.mechili-tutorial .tut-ctrl-detail {
+    color: ${u.text};
+}
+.mechili-tutorial .tut-next {
+    appearance: none;
+    border: 1px solid rgba(200, 180, 120, 0.55);
+    background: rgba(40, 36, 24, 0.9);
+    color: ${u.text};
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font: inherit;
+}
+.mechili-tutorial .tut-next:hover {
+    border-color: rgba(230, 210, 140, 0.85);
+}
+.mechili-tutorial-nudge {
+    position: absolute;
+    left: 50%;
+    bottom: calc(96px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 53;
+    max-width: min(360px, calc(100vw - 24px));
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(8, 8, 6, 0.82);
+    border: 1px solid rgba(168, 216, 120, 0.4);
+    color: ${u.debug};
+    font: 13px/1.4 var(--font-ui);
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+.mechili-tutorial-nudge.is-visible {
+    opacity: 1;
+}
+.mechili-tut-callout {
+    position: absolute;
+    z-index: 54;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 2.5px solid rgba(255, 220, 100, 0.95);
+    box-shadow:
+        0 0 0 3px rgba(255, 210, 80, 0.28),
+        0 0 18px rgba(255, 200, 60, 0.45),
+        inset 0 0 12px rgba(255, 220, 100, 0.12);
+    background: rgba(255, 210, 80, 0.06);
+    pointer-events: none;
+    animation: tut-callout-pulse 1.25s ease-in-out infinite;
+}
+@keyframes tut-callout-pulse {
+    0%, 100% {
+        border-color: rgba(255, 220, 100, 0.95);
+        box-shadow:
+            0 0 0 3px rgba(255, 210, 80, 0.28),
+            0 0 18px rgba(255, 200, 60, 0.45),
+            inset 0 0 12px rgba(255, 220, 100, 0.12);
+        transform: scale(1);
+    }
+    50% {
+        border-color: rgba(255, 245, 170, 1);
+        box-shadow:
+            0 0 0 6px rgba(255, 220, 100, 0.18),
+            0 0 28px rgba(255, 210, 80, 0.65),
+            inset 0 0 16px rgba(255, 230, 140, 0.18);
+        transform: scale(1.035);
+    }
 }
 .mechili-shop-col {
     position: absolute;
@@ -5943,7 +6071,8 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-stats,
 .mechili-gameover .go-actions,
 .mechili-gameover .go-restart,
-.mechili-gameover .go-retry {
+.mechili-gameover .go-retry,
+.mechili-gameover .go-next {
     position: relative;
     z-index: 1;
 }
@@ -6133,7 +6262,8 @@ ${chatFloatStyles(u, pc, ec)}
     z-index: 1;
 }
 .mechili-gameover .go-restart,
-.mechili-gameover .go-retry {
+.mechili-gameover .go-retry,
+.mechili-gameover .go-next {
     align-self: center;
     padding: 10px 26px;
     background: ${u.alliedBtnBg};
@@ -6147,11 +6277,14 @@ ${chatFloatStyles(u, pc, ec)}
     transition: transform 0.14s ease, background 0.14s ease;
 }
 .mechili-gameover .go-restart:hover,
-.mechili-gameover .go-retry:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
+.mechili-gameover .go-retry:hover,
+.mechili-gameover .go-next:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
 .mechili-gameover .go-restart:focus-visible,
-.mechili-gameover .go-retry:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
-/* with Retry present, Back is the quieter second action */
-.mechili-gameover .go-actions:has(.go-retry) .go-restart {
+.mechili-gameover .go-retry:focus-visible,
+.mechili-gameover .go-next:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
+/* with Retry / Next present, Back is the quieter second action */
+.mechili-gameover .go-actions:has(.go-retry) .go-restart,
+.mechili-gameover .go-actions:has(.go-next) .go-restart {
     background: transparent;
     border-color: ${u.border};
     color: ${u.textMuted};
@@ -6160,7 +6293,8 @@ ${chatFloatStyles(u, pc, ec)}
     letter-spacing: 0.6px;
     padding: 8px 18px;
 }
-.mechili-gameover .go-actions:has(.go-retry) .go-restart:hover {
+.mechili-gameover .go-actions:has(.go-retry) .go-restart:hover,
+.mechili-gameover .go-actions:has(.go-next) .go-restart:hover {
     background: rgba(255, 255, 255, 0.06);
     color: ${u.text};
 }

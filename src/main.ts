@@ -7,6 +7,7 @@ import { FriendsPanel } from './ui/friendsPanel';
 import {
     introRosterEntries,
     mountClimbIntro,
+    mountTutorialIntro,
     mountIntroRoster,
     prefetchIntroRosterMmrs,
 } from './ui/introRoster';
@@ -109,6 +110,7 @@ import {
     resolveCommanderHpFactor,
     type GameSettings,
 } from './game/settings';
+import { applyTutorialMode } from './game/tutorial';
 import {
     DEFAULT_ROUND_CARD_PRESET_ID,
     ROUND_CARD_ALGORITHMS,
@@ -967,7 +969,8 @@ menu.className = 'mechili-menu';
 menu.style.display = 'none';
 menu.innerHTML = `
     <div class="m-view m-main is-active" data-view="main">
-        <button class="m-btn m-primary" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:singlePlayer"></span></button>
+        <button class="m-btn m-primary" data-mode="tutorial">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial"></span></button>
+        <button class="m-btn" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:singlePlayer"></span></button>
         <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n-matchmaking></span></button>
         <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label" data-i18n-custom></span></button>
         <div class="m-rooms">
@@ -977,6 +980,15 @@ menu.innerHTML = `
             </div>
             <div class="m-room-list empty" data-i18n-rooms-empty></div>
         </div>
+    </div>
+    <div class="m-view m-spmode" data-view="tutorial">
+        <div class="m-spmode-title" data-i18n="menu:tutorial"></div>
+        <div class="m-toggle-row">
+            <button class="m-btn m-toggle-card" data-mode="tutorial-1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial1"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="tutorial-2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial2"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="tutorial-3">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial3"></span></button>
+        </div>
+        <button class="m-btn m-small" data-mode="tutorial-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-spmode" data-view="sp">
         <div class="m-spmode-title" data-i18n="menu:singlePlayer"></div>
@@ -1215,6 +1227,7 @@ const rosterTableEl = menu.querySelector<HTMLDivElement>('.m-roster-table')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('[data-view="sp"]')!;
 const spPracticeEl = menu.querySelector<HTMLDivElement>('[data-view="sp-practice"]')!;
+const tutorialEl = menu.querySelector<HTMLDivElement>('[data-view="tutorial"]')!;
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
 const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
 const mmHordeEl = menu.querySelector<HTMLInputElement>('.mm-horde')!;
@@ -1286,11 +1299,12 @@ wrapper.appendChild(loadoutPanel.el);
 
 /** Exclusive menu screens — only one is active at a time. Session owns
  *  connecting / lobby / waiting UI so main never stacks under it. */
-type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
+type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
 const menuViews: Record<MenuViewId, HTMLElement> = {
     main: mainButtonsEl,
     sp: spModeEl,
     'sp-practice': spPracticeEl,
+    tutorial: tutorialEl,
     custom: customEl,
     matchmaking: mmModeEl,
     'mm-simple': mmSimpleEl,
@@ -2613,6 +2627,7 @@ function wireGameMenuReturn(game: Game): void {
     };
     game.onReturnToMenu = finishReturnToMenu;
     game.onRetryLastRound = (payload) => void retrySinglePlayerLastRound(payload);
+    game.onStartTutorial = (lesson) => void startTutorialLesson(lesson);
     // no-op for every mode except a star (2v2+) guest — see rebuildStarGuestGame
     game.onNeedsFullResync = rebuildStarGuestGame;
 }
@@ -2627,14 +2642,22 @@ function wireGameMenuReturn(game: Game): void {
  * brighter / wrong. Await prewarm so we don't race a second renderer onto
  * the new canvas.
  */
-async function retrySinglePlayerLastRound(payload: {
-    seed: number;
-    settings: GameSettings;
-    actions: LoggedAction[];
-    side: 'a' | 'b';
-    names: { local: string; opponent: string };
-    climbWins: number;
-}): Promise<void> {
+type LocalMatchOpts = { duo?: boolean; horde?: boolean; climb?: boolean; tutorial?: number };
+
+/** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
+function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
+    const settings = settingsFromUrl();
+    settings.buildTimeSeconds = 60 * 60;
+    settings.specialistTimeSeconds = 60 * 60;
+    settings.cardTimeSeconds = 60 * 60;
+    if (opts.climb) applyClimbMode(settings);
+    if (opts.horde) applyHordeMode(settings);
+    if (opts.duo) applyDuoMode(settings);
+    if (opts.tutorial != null) applyTutorialMode(settings, opts.tutorial);
+    return settings;
+}
+
+async function teardownForNextMatch(): Promise<void> {
     stopSinglePlayerPersist?.();
     stopSinglePlayerPersist = null;
     activeGame?.destroy();
@@ -2652,6 +2675,26 @@ async function retrySinglePlayerLastRound(payload: {
     wrapper.insertBefore(threeCanvas, app.canvas);
     setGameLayerVisible(true);
     await prewarmGpu(threeCanvas);
+}
+
+/**
+ * "Next" on a finished lesson: same teardown as a retry, then boot the next
+ * tutorial the way the menu would — fresh match, no carried state.
+ */
+async function startTutorialLesson(lesson: number): Promise<void> {
+    await teardownForNextMatch();
+    startGame(localMatchSettings({ tutorial: lesson }));
+}
+
+async function retrySinglePlayerLastRound(payload: {
+    seed: number;
+    settings: GameSettings;
+    actions: LoggedAction[];
+    side: 'a' | 'b';
+    names: { local: string; opponent: string };
+    climbWins: number;
+}): Promise<void> {
+    await teardownForNextMatch();
     const settings = { ...payload.settings, seed: payload.seed };
     // Same rebuild path as Practice: skip startGame's match-intro / menu
     // teardown (Campaign used to re-enter that path and soft-lock or quit).
@@ -2752,7 +2795,11 @@ function constructGame(
         }
     };
     wireGameMenuReturn(game);
-    if (!star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    // Tutorials are not resumable (the lesson's own progress is not in the save),
+    // and must never overwrite the Campaign run held in that slot.
+    if (!star && !replay && !spectate && !settings.tutorial) {
+        stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    }
     if (replayControlsPanel) {
         game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
     }
@@ -2876,10 +2923,11 @@ function startGame(
     logo.alpha = 0;
     app.renderer.off('resize', layoutTitle);
     // Fresh matches: roster rides the CSS cover and dissolves with it into 3D.
-    // Campaign always uses a simple Round n/total card (also on local resume/retry).
+    // Campaign / tutorial use a simple title card (also on local resume/retry).
     // Normal resume/reconnect skips the VS roster (cover may already be animating).
     const useClimbIntro = !!settings.climb;
-    const showCoverPanel = useClimbIntro || !resume;
+    const useTutorialIntro = settings.tutorial != null;
+    const showCoverPanel = useClimbIntro || useTutorialIntro || !resume;
 
     if (!coverActive) {
         showIntroCover(showCoverPanel);
@@ -2925,6 +2973,13 @@ function startGame(
             settings.climb.roundsToWin,
         );
         mountClimbIntro(introCoverEl, level, settings.climb.roundsToWin);
+        void introRosterHold().then(() => {
+            if (gen !== introGen || !started) return;
+            startIntroCoverDive();
+            runBootHandoff();
+        });
+    } else if (showCoverPanel && introCoverEl && useTutorialIntro && settings.tutorial) {
+        mountTutorialIntro(introCoverEl, settings.tutorial.id);
         void introRosterHold().then(() => {
             if (gen !== introGen || !started) return;
             startIntroCoverDive();
@@ -4701,6 +4756,10 @@ menu.addEventListener('click', (e) => {
     if (
         !bootReady &&
         (mode === 'single' ||
+            mode === 'tutorial' ||
+            mode === 'tutorial-1' ||
+            mode === 'tutorial-2' ||
+            mode === 'tutorial-3' ||
             mode === 'sp-campaign' ||
             mode === 'sp-practice' ||
             mode === 'sp-1v1' ||
@@ -4717,19 +4776,27 @@ menu.addEventListener('click', (e) => {
         return;
     }
 
-    /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
-    const startLocalMatch = (opts: { duo?: boolean; horde?: boolean; climb?: boolean } = {}): void => {
-        const settings = settingsFromUrl();
-        settings.buildTimeSeconds = 60 * 60;
-        settings.specialistTimeSeconds = 60 * 60;
-        settings.cardTimeSeconds = 60 * 60;
-        if (opts.climb) applyClimbMode(settings);
-        if (opts.horde) applyHordeMode(settings);
-        if (opts.duo) applyDuoMode(settings);
-        startGame(settings);
-    };
+    const startLocalMatch = (opts: LocalMatchOpts = {}): void => startGame(localMatchSettings(opts));
 
     switch (mode) {
+        case 'tutorial':
+            showMenuView('tutorial');
+            break;
+        case 'tutorial-back':
+            showMenuView('main');
+            break;
+        case 'tutorial-1':
+            showMenuView('main');
+            startLocalMatch({ tutorial: 1 });
+            break;
+        case 'tutorial-2':
+            showMenuView('main');
+            startLocalMatch({ tutorial: 2 });
+            break;
+        case 'tutorial-3':
+            showMenuView('main');
+            startLocalMatch({ tutorial: 3 });
+            break;
         case 'single':
             showMenuView('sp');
             break;

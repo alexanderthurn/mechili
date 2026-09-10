@@ -18,11 +18,7 @@ Language → font (Marcellus by default; override only when glyphs are missing):
 | `ar` | Noto Naskh Arabic (+ `dir=rtl`; menu/settings/homepage chrome mirrored) |
 | `el` | Noto Serif |
 
-Translated catalogs in the client bundle: all IDs above (MT seed + glossary checklist pass).
-
-### Covered
-
-- Settings, menu, HUD, catalogs, homepage, suggest
+Covered catalogs: settings, menu, HUD, **tutorial**, units, items, tactics, tech, commanders, roundCards, buildings, homepage, suggest.
 - Homepage language pickers (top-right + footer), shared prefs
 - Device language detection for regional tags (`zh-Hant`, `es-419`, `pt-BR`, `nb`, …)
 - Steam first-run language: `GetCurrentGameLanguage` via steam-electron-build ≥1.11.4 (only when no saved `language` pref)

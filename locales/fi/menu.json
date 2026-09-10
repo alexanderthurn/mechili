@@ -142,5 +142,9 @@
   "scopeLanRoom": "LAN-huone",
   "scopeSteamLobby": "Steam-lobby",
   "scopeRoom": "huone",
-  "scopeLanRoomNamed": "LAN-huone \"{{name}}\""
+  "scopeLanRoomNamed": "LAN-huone \"{{name}}\"",
+  "tutorial": "Opastus",
+  "tutorial1": "1\nPerusteet",
+  "tutorial2": "2\nLinnake",
+  "tutorial3": "3\nTornit"
 }

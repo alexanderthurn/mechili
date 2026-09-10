@@ -142,5 +142,9 @@
   "scopeLanRoom": "ห้อง LAN",
   "scopeSteamLobby": "ล็อบบี้ Steam",
   "scopeRoom": "ห้อง",
-  "scopeLanRoomNamed": "ห้อง LAN \"{{name}}\""
+  "scopeLanRoomNamed": "ห้อง LAN \"{{name}}\"",
+  "tutorial": "บทสอน",
+  "tutorial1": "1\nพื้นฐาน",
+  "tutorial2": "2\nป้อมหลัก",
+  "tutorial3": "3\nหอคอย"
 }

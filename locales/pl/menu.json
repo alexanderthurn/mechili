@@ -142,5 +142,9 @@
   "scopeLanRoom": "Pokój LAN",
   "scopeSteamLobby": "Lobby Steam",
   "scopeRoom": "pokój",
-  "scopeLanRoomNamed": "Pomieszczenie LAN \"{{name}}\""
+  "scopeLanRoomNamed": "Pomieszczenie LAN \"{{name}}\"",
+  "tutorial": "Samouczek",
+  "tutorial1": "1\nPodstawy",
+  "tutorial2": "2\nTwierdza",
+  "tutorial3": "3\nWieże"
 }

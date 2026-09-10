@@ -43,6 +43,16 @@ import {
     forgeProductCost,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
+import { TutorialAi } from './tutorialAi';
+import {
+    isTutorial,
+    nextTutorialId,
+    tutorialId,
+    TUTORIAL_1_ID,
+    TUTORIAL_2_ID,
+    TUTORIAL_3_ID,
+} from './tutorial';
+import { TutorialRuntime, type TutorialHost } from './tutorialRuntime';
 import {
     clearSinglePlayer,
     clearStarResumeMarker,
@@ -95,6 +105,9 @@ import {
     ROUND_CARDS,
     SKIP_CARD_REWARD,
     START_CARDS,
+    TUTORIAL_2_START_CARD,
+    TUTORIAL_3_START_CARD,
+    TUTORIAL_START_CARD,
     roundOfferTitle,
     type RoundCard,
     type SpecialityId,
@@ -220,6 +233,7 @@ import {
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
+    SPAWN_DWARVES_ID,
     TACTICS,
     clampTacticEnd,
     clampTacticPoint,
@@ -237,11 +251,11 @@ import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
     RESEARCH_CENTER,
-    GARRISON_ARCHER,
-    GARRISON_FOV_HALF,
-    garrisonSlotWorld,
-    GARRISON_SLOTS,
-    GARRISON_STEP_COST,
+    STRONGHOLD_ARCHER,
+    STRONGHOLD_ARCHER_FOV_HALF,
+    strongholdArcherSlotWorld,
+    STRONGHOLD_ARCHER_SLOTS,
+    STRONGHOLD_ARCHER_STEP_COST,
     STRONGHOLD,
     UNIT_TYPES,
     formationHeadcount,
@@ -362,6 +376,8 @@ export class Game {
     private readonly gamepad: GamepadCursor;
     private readonly placement: PlacementController;
     private readonly hud: Hud;
+    /** the lesson driver (overlays, forced pads, round staging); null outside a tutorial */
+    private readonly tutorial: TutorialRuntime | null;
     private readonly debug: DebugOverlay;
     private readonly cpuSampler = new CpuSampler();
     private readonly hpBars = new HpBars();
@@ -799,6 +815,11 @@ export class Game {
      * local human's lost-round actions so they can redeploy against the same
      * AI plan. Payload is produced by {@link requestRetryLastRound}.
      */
+    /**
+     * Set by main: the player finished a lesson and asked for the next one —
+     * tear this match down and boot that tutorial from scratch.
+     */
+    onStartTutorial: ((lesson: number) => void) | null = null;
     onRetryLastRound:
         | ((payload: {
               seed: number;
@@ -1512,6 +1533,9 @@ export class Game {
         this.placement.roster = this.seats;
         this.hpBars.roster = this.seats;
         this.conversionFx.roster = this.seats;
+        // Before the dispatcher: its forgeSpellsOf closure narrows the shelf
+        // per lesson round, so the runtime has to exist by the time it runs.
+        this.tutorial = isTutorial(settings) ? new TutorialRuntime(this.tutorialHost()) : null;
         this.dispatcher = new ActionDispatcher({
             placement: this.placement,
             economy: this.economy,
@@ -1528,7 +1552,7 @@ export class Game {
             sellState: this.sellState,
             rallyRouteOwned: this.rallyRouteOwned,
             forgeSpellOwned: this.forgeSpellOwned,
-            forgeSpellsOf: (seat: SeatId) => this.starterCardOfSeat(seat)?.forgeSpells,
+            forgeSpellsOf: (seat: SeatId) => this.forgeSpellsOf(seat),
             movePackOwned: this.movePackOwned,
             deployState: this.deployState,
             boostState: this.boostState,
@@ -1564,8 +1588,9 @@ export class Game {
                 },
             },
             commanderHpFactor: settings.commanderHpFactor,
-            climbSideHp: settings.climb?.sideHp ?? null,
+            climbSideHp: settings.climb?.sideHp ?? settings.tutorial?.sideHp ?? null,
             climbMode: !!settings.climb,
+            strongholdArcherSlots: this.strongholdArcherSlots(),
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -1648,7 +1673,11 @@ export class Game {
             }
         } else {
             const enemySeat = primarySeatOf(this.seats, 'enemy');
-            this.opponent = new AiOpponent('enemy', enemySeat, this.aiCtxFor(this.rngAi, enemySeat));
+            const lessonId = tutorialId(this.settings);
+            this.opponent =
+                lessonId != null
+                    ? new TutorialAi('enemy', enemySeat, lessonId, this.aiCtxFor(this.rngAi, enemySeat))
+                    : new AiOpponent('enemy', enemySeat, this.aiCtxFor(this.rngAi, enemySeat));
             // local duo modes: every further AI seat gets its own brain and rng stream
             for (let seat = 0; seat < this.seats.length; seat++) {
                 const def = this.seats[seat]!;
@@ -1705,6 +1734,7 @@ export class Game {
             }
             // buildings act through their details — auto-open the sheet (phone-only visual)
             if (unit.type.structure) this.hud.openUnitDetails();
+            this.tutorial?.onUnitSelected();
         };
         this.placement.itemDropValid = (unit) =>
             this.canDropArmedItemOn(unit) || this.canDropForgeOn(unit);
@@ -1733,7 +1763,7 @@ export class Game {
             wrapper,
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
-            { boardExtrasAllowed: !this.settings.climb },
+            { boardExtrasAllowed: !this.settings.climb && !isTutorial(this.settings) },
         );
         // Shop hover windows list this player's own talent picks. Fixed for
         // the whole match, so once here is enough.
@@ -1756,7 +1786,8 @@ export class Game {
             this.introActive = true;
         }
         this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
-        this.hud.setBoardExtrasAllowed(!this.settings.climb);
+        this.hud.setBoardExtrasAllowed(!this.settings.climb && !isTutorial(this.settings));
+        this.tutorial?.applyInitialChrome();
         // this match's real settings (including any ?hordeFactor= override) —
         // fixed for the match's lifetime, so a one-time snapshot is enough
         this.hud.setSettingsGroups(describeGameSettings(this.settings));
@@ -1775,13 +1806,17 @@ export class Game {
         this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         this.hud.onRetryLastRound = () => this.requestRetryLastRound();
+        this.hud.onNextTutorial = () => {
+            const next = nextTutorialId(tutorialId(this.settings));
+            if (next !== null) this.onStartTutorial?.(next);
+        };
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
         this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
         this.hud.onEndDeployment = () => {
-            if (this.phase === 'build') {
-                this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
-            }
+            if (this.phase !== 'build') return;
+            if (this.tutorial && !this.tutorial.tryEndDeploy()) return;
+            this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
         };
         this.hud.onSpeedUp = () => this.cycleSpeed(1);
         this.hud.onSpeedDown = () => this.cycleSpeed(-1);
@@ -1906,6 +1941,7 @@ export class Game {
             // pointer enters the board
             this.placement.clearPointer();
             this.syncTacticVisuals();
+            this.tutorial?.sync2();
         };
         this.hud.onCancelTactic = () => {
             this.cancelTacticPlacement();
@@ -1982,11 +2018,11 @@ export class Game {
             if (!this.playerCanAct) return;
             this.dispatchPlayer({ kind: 'forgeUnlight', team: 'player' });
         };
-        this.hud.onBuyGarrisonArcher = () => {
+        this.hud.onBuyStrongholdArcher = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
             if (!this.playerCanAct) return;
-            this.dispatchPlayer({ kind: 'buyGarrisonArcher', team: 'player' });
+            this.dispatchPlayer({ kind: 'buyStrongholdArcher', team: 'player' });
         };
         this.hud.onBuyForgeSpell = (tacticId) => {
             const unit = this.placement.selectedUnit;
@@ -2020,6 +2056,7 @@ export class Game {
         this.hud.onBuyTech = (techId) => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player') return;
+            if (this.tutorial?.blocksBuyTech(techId)) return;
             this.dispatchPlayer({
                 kind: 'buyTech',
                 team: 'player',
@@ -2097,10 +2134,14 @@ export class Game {
             }
         } else if (matchIntro) {
             // hold the specialist overlay until the camera fly-in finishes
-            this.deferredStarterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
+            // Tutorial: skip the offer — auto commander is applied after intro.
+            this.deferredStarterOffer = isTutorial(this.settings)
+                ? null
+                : this.draw(START_CARDS, 4, this.rngCards.player);
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         } else {
-            this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
+            if (this.tutorial) this.tutorial.applyStarters();
+            else this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         }
         if (this.star?.role === 'host') this.startSpectatorHub();
@@ -2238,11 +2279,13 @@ export class Game {
         done?.();
         this.hud.setMatchChromeVisible(true);
         if (!this.introCardsRevealed) {
-            if (offer) this.showStarterPick(offer);
+            if (this.tutorial) this.tutorial.applyStarters();
+            else if (offer) this.showStarterPick(offer);
             else if (pendingRound) this.showRoundOffer(pendingRound);
         } else {
             this.hud.finishCardOverlayIntro();
         }
+        this.tutorial?.maybeStartGuide();
     }
 
     /** reverse of the menu→match fly-in: pull back, then main restores the menu */
@@ -2627,6 +2670,7 @@ export class Game {
         this.onSpeedIndexChange = null;
         this.onReturnToMenu = null;
         this.onRetryLastRound = null;
+        this.onStartTutorial = null;
         this.onConnectionLost = null;
         // network/backend teardown FIRST, before any rendering/HUD disposal
         // below — those touch three.js/pixi resources and a stray exception
@@ -2682,6 +2726,7 @@ export class Game {
         this.stoneChips.dispose();
         this.controls.dispose();
         this.gamepad.dispose();
+        this.tutorial?.dispose();
         this.hud.destroy();
         this.hpBars.destroy();
         this.hpDrawFx.destroy();
@@ -2713,6 +2758,10 @@ export class Game {
      * (enemy base still spawns so the climb has a visible keep to fight).
      */
     private spawnTowers(): void {
+        if (this.tutorial) {
+            this.tutorial.spawnBaseTowers();
+            return;
+        }
         const { rimCells, flankCols, zoneCols, zoneRows } = this.map.size;
         const ownFar = this.map.ownAtFar;
         const skipPlayerBuildings = !!this.settings.climb;
@@ -2916,11 +2965,16 @@ export class Game {
         this.oilVisuals.sync(this.oilField, 0, [], true);
         this.syncTacticVisuals();
         // flanks and the middle strip open up after the first round; the outer
-        // rim stays undeployable forever
-        const unlocked = this.round >= 2;
-        if (unlocked !== this.map.flanksUnlocked || unlocked !== this.map.neutralUnlocked) {
-            this.map.flanksUnlocked = unlocked;
-            this.map.neutralUnlocked = unlocked;
+        // rim stays undeployable forever. Tutorials never open flanks (Tutorial 1
+        // also uses flankCols: 0 so those strips aren't on the board at all).
+        const wantFlanks = this.round >= 2 && !isTutorial(this.settings);
+        const wantNeutral = this.round >= 2;
+        if (
+            wantFlanks !== this.map.flanksUnlocked ||
+            wantNeutral !== this.map.neutralUnlocked
+        ) {
+            this.map.flanksUnlocked = wantFlanks;
+            this.map.neutralUnlocked = wantNeutral;
             this.refreshOverlay();
         }
         this.gridOverlay.visible = true;
@@ -2944,6 +2998,7 @@ export class Game {
                 if (seat !== this.humanSeat) this.deployState.limit[seat] = CLIMB_AI_DEPLOY_LIMIT;
             }
         }
+        this.tutorial?.applyDeployCaps();
         this.deployReady.player = false;
         this.deployReady.enemy = false;
         this.seatReady.length = 0;
@@ -2959,9 +3014,11 @@ export class Game {
         this.starBattleEndChecks.clear();
         this.starBattleEndChecksCompared = false;
         this.unlockUsedThisRound.fill(false);
+        if (isTutorial(this.settings)) this.unlockUsedThisRound[this.humanSeat] = true;
         this.hud.refreshCosts();
         this.refreshShopHud();
         this.grantClimbAwareRoundIncome();
+        this.tutorial?.topUpRoundIncome();
         // Command Tower Credit debt from last round — after income so it always covers
         // NOTE: must also run while hydrating (debt is never in the action log)
         const creditDebtAmount = this.settings.deploy.creditDebt;
@@ -3032,13 +3089,15 @@ export class Game {
             }
         }
         this.placement.captureIntelSnapshot();
-        // Campaign: no fog of war — player sees live AI deploys this round
-        this.placement.setIntelFog(!this.settings.climb);
+        // Campaign / Tutorial: no fog of war — player sees live AI deploys this round
+        this.placement.setIntelFog(!this.settings.climb && !isTutorial(this.settings));
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
         this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
         // burn AFTER intel capture so the enemy fog still shows last round's oven
         this.burnForges();
+        this.tutorial?.onBuildPhase(this.round);
+
         // replay applies every action from the log — only run live AI when not rebuilding
         if (!this.hydrating) {
             this.opponent.onBuildPhase(this.round);
@@ -3046,6 +3105,7 @@ export class Game {
             // Campaign: AI places oil/spells before the player acts — refresh
             // markers now (per-frame sync also covers this; this avoids a blink).
             if (this.settings.climb) this.syncTacticVisuals();
+            this.tutorial?.onAiBuildPhaseDone();
         }
 
         // between-round cards (schedule owned by roundCardPreset algorithm)
@@ -3274,6 +3334,8 @@ export class Game {
             this.pendingHpDrawPreHp = null;
             // Shift+I must not treat the padded/restored HP as a climb verdict
             this.pendingClimbOutcome = null;
+            // ... nor as a multi-round tutorial one (equal padded HP = a loss)
+            this.tutorial?.clearPendingOutcome();
             this.paintHudHp();
         };
 
@@ -3349,6 +3411,30 @@ export class Game {
                 action: stamped,
                 seq: this.nextSeatSeq(this.humanSeat),
             });
+        }
+        if (stamped.kind === 'move' || stamped.kind === 'rotate' || stamped.kind === 'buy') {
+            this.tutorial?.syncFromBoard();
+        }
+        if (
+            stamped.kind === 'buyStrongholdArcher' ||
+            stamped.kind === 'upgradeTower' ||
+            stamped.kind === 'buyForgeSpell' ||
+            stamped.kind === 'placeOilSpill' ||
+            stamped.kind === 'placeSpell'
+        ) {
+            this.tutorial?.sync2();
+        }
+        if (
+            stamped.kind === 'buyBoost' ||
+            stamped.kind === 'buyRune' ||
+            stamped.kind === 'applyItem' ||
+            stamped.kind === 'removeItem' ||
+            stamped.kind === 'buyTech'
+        ) {
+            this.tutorial?.sync3();
+        }
+        if (stamped.kind === 'endDeployment') {
+            this.tutorial?.onPlayerEndedDeployment();
         }
         return true;
     }
@@ -3559,7 +3645,7 @@ export class Game {
             loadoutOf: (s: SeatId) => this.loadoutOf(s),
             deploySettings: this.settings.deploy,
             forgeSpellOwned: this.forgeSpellOwned,
-            forgeSpellsOf: (s: SeatId) => this.starterCardOfSeat(s)?.forgeSpells,
+            forgeSpellsOf: (s: SeatId) => this.forgeSpellsOf(s),
             climb: !!this.settings.climb,
             rngForRound: (round: number) =>
                 mulberry32(seedFrom(this.seed, `ai-climb-${seat}-${round}`)),
@@ -3748,7 +3834,22 @@ export class Game {
     /** a specific seat's own chosen specialist card (null until picked) */
     private starterCardOfSeat(seat: SeatId): StartCard | null {
         const spec = this.speciality[seat];
-        return spec ? (START_CARDS.find((c) => c.speciality === spec) ?? null) : null;
+        if (!spec) return null;
+        // Tutorial cards share speciality id and live outside START_CARDS —
+        // resolve by lesson so forge spells / buy gates still work.
+        if (spec === 'tutorial') {
+            const lesson = tutorialId(this.settings);
+            if (lesson === TUTORIAL_2_ID) return TUTORIAL_2_START_CARD;
+            if (lesson === TUTORIAL_3_ID) return TUTORIAL_3_START_CARD;
+            if (lesson === TUTORIAL_1_ID) return TUTORIAL_START_CARD;
+            return null;
+        }
+        return START_CARDS.find((c) => c.speciality === spec) ?? null;
+    }
+
+    /** Forge spells buyable this round (a tutorial lesson narrows them per round). */
+    private forgeSpellsOf(seat: SeatId): readonly string[] | undefined {
+        return this.tutorial?.forgeSpellsOf(seat) ?? this.starterCardOfSeat(seat)?.forgeSpells;
     }
 
     /** the side's DISPLAYED specialist card — the primary seat's pick. Every
@@ -3770,7 +3871,9 @@ export class Game {
                 const team = this.seats[seat]!.team;
                 if (!this.starterPicked[seat]) return { seat, card: null };
                 if (team === 'enemy' && !(humanPicked && allEnemiesPicked)) return { seat, card: null };
-                return { seat, card: this.starterCardOfSeat(seat) };
+                const card = this.starterCardOfSeat(seat);
+                // Hidden tutorial commander must never surface in HUD labels.
+                return { seat, card: card?.speciality === 'tutorial' ? null : card };
             }),
         );
     }
@@ -3780,6 +3883,117 @@ export class Game {
         this.refreshShopHud();
         this.syncSpecialities();
         this.maybeStartMatch();
+    }
+
+    /**
+     * The narrow view of this match the tutorial lessons drive. Built with
+     * getters so it can be handed to the runtime before the rest of the
+     * constructor has wired up the HUD / opponent.
+     */
+    private tutorialHost(): TutorialHost {
+        const game = this;
+        return {
+            get settings() {
+                return game.settings;
+            },
+            get map() {
+                return game.map;
+            },
+            get placement() {
+                return game.placement;
+            },
+            get economy() {
+                return game.economy;
+            },
+            get techTree() {
+                return game.techTree;
+            },
+            get hud() {
+                return game.hud;
+            },
+            get seats() {
+                return game.seats;
+            },
+            get humanSeat() {
+                return game.humanSeat;
+            },
+            get opponent() {
+                return game.opponent;
+            },
+            get round() {
+                return game.round;
+            },
+            get hydrating() {
+                return game.hydrating;
+            },
+            get watching() {
+                return game.watching;
+            },
+            get introActive() {
+                return game.introActive;
+            },
+            get starterPicked() {
+                return game.starterPicked;
+            },
+            get unlockUsedThisRound() {
+                return game.unlockUsedThisRound;
+            },
+            get unlockedUnits() {
+                return game.unlockedUnits;
+            },
+            get deployState() {
+                return game.deployState;
+            },
+            get boostState() {
+                return game.boostState;
+            },
+            get tacticInventory() {
+                return game.tacticInventory;
+            },
+            get forgeSpellOwned() {
+                return game.forgeSpellOwned;
+            },
+            get oilStamps() {
+                return game.oilStamps;
+            },
+            get spellStamps() {
+                return game.spellStamps;
+            },
+            get armedTactic() {
+                return game.armedTactic;
+            },
+            get tacticDraftStart() {
+                return game.tacticDraftStart;
+            },
+            cameraSnap: () => {
+                const pose = this.rig.getPose();
+                const right = this.rig.groundRight;
+                const forward = this.rig.groundForward;
+                return {
+                    x: pose.x,
+                    z: pose.z,
+                    zoom: pose.zoom,
+                    heading: pose.heading,
+                    pitch: pose.pitch,
+                    right: { x: right.x, z: right.z },
+                    forward: { x: forward.x, z: forward.z },
+                };
+            },
+            dispatchPlayer: (action) => this.dispatchPlayer(action),
+            afterStarterPick: () => this.afterStarterPick(),
+            refreshShopHud: () => this.refreshShopHud(),
+            updateSelectionUi: () => this.updateSelectionUi(),
+            unitInfo: (unit) => this.unitInfo(unit),
+            strongholdArcherCount: (team) => this.strongholdArcherCount(team),
+            starterForgeSpellsOf: (seat) => this.starterCardOfSeat(seat)?.forgeSpells,
+            cancelTacticPlacement: () => this.cancelTacticPlacement(),
+            restoreSideHp: (hp) => this.restoreTutorialHp(hp),
+        };
+    }
+
+    /** Battlement pads available this match (Tutorial 2 opens pad 5). */
+    private strongholdArcherSlots(): readonly number[] {
+        return this.tutorial?.strongholdArcherSlots() ?? STRONGHOLD_ARCHER_SLOTS;
     }
 
     /** the specialist overlay (also re-shown after a resume that predates the pick) */
@@ -5514,6 +5728,10 @@ export class Game {
         this.hud.refreshCosts();
         this.refreshShopHud();
         this.syncSpecialities(); // restore the fighter-card labels after a rebuild
+        // Tutorial: hydrate may finish during matchIntro — finishMatchIntro will
+        // apply the starters. If intro already ended (or was skipped), restore
+        // the guide here so a reload mid-build isn't silent.
+        if (!this.introActive) this.tutorial?.onHydrateComplete();
     }
 
     /**
@@ -6499,7 +6717,7 @@ export class Game {
         // the unit's own speed, not the commander's gift (same rule as the
         // one-round Vanguard boost below)
         // Flat speed only reaches things that already move. A type with
-        // speed 0 is immobile BY DESIGN — a garrison archer bolted to his
+        // speed 0 is immobile BY DESIGN — a Stronghold archer bolted to his
         // battlement — and handing it +3 does not make it faster, it makes it
         // leave: he walks off the wall toward the enemy, still pinned at
         // battlement height, which is a man strolling through the air.
@@ -6599,6 +6817,7 @@ export class Game {
         };
 
         for (const tactic of Object.values(TACTICS)) {
+            if (this.tutorial?.hidesTacticCharge(tactic.id)) continue;
             const inventory = this.tacticInventory[this.humanSeat]!.filter(
                 (id) => id === tactic.id,
             ).length;
@@ -6761,7 +6980,7 @@ export class Game {
      * Practice / MP keep fog until the local seat locks deployment.
      */
     private revealEnemyDeployIntel(): boolean {
-        return this.deployReady.player || !!this.settings.climb;
+        return this.deployReady.player || !!this.settings.climb || isTutorial(this.settings);
     }
 
     private enemyInventoryView(): {
@@ -7080,7 +7299,10 @@ export class Game {
         this.tacticDraftMid = null;
         this.placement.inputLocked = false;
         // a cancel that cancelled nothing has nothing to repaint
-        if (had) this.syncTacticVisuals();
+        if (had) {
+            this.syncTacticVisuals();
+            this.tutorial?.sync2();
+        }
         return had;
     }
 
@@ -7217,15 +7439,19 @@ export class Game {
         }
 
         const radius = tactic.radius ?? 0;
-        const ground = this.groundAtLocal(x, y, radius);
+        let ground = this.groundAtLocal(x, y, radius);
         if (!ground) return true;
 
         if (tactic.targeting === 'point') {
             if (tactic.respectsSafeZone && this.inSafeZone(ground.x, ground.z, radius)) {
                 return true; // blocked spot — stay armed so the player can re-aim
             }
+            const snapped = this.tutorial?.summonPointClick(tactic.id, ground);
+            if (snapped === 'miss') return true;
+            if (snapped) ground = snapped;
             if (this.dispatchTacticUse(tactic.id, { point: ground })) {
                 this.cancelTacticPlacement();
+                this.tutorial?.sync2();
             }
             return true;
         }
@@ -7301,9 +7527,15 @@ export class Game {
         if (tactic.respectsSafeZone && this.inSafeZone(ground.x, ground.z, radius)) {
             return true; // blocked spot — stay armed so the player can re-aim
         }
+        const guided = this.tutorial?.corridorClick(tactic.id, ground);
+        if (guided === 'miss') return true;
+        if (guided) {
+            ground = guided;
+        }
         if (!this.tacticDraftStart) {
             this.tacticDraftStart = ground;
             this.syncTacticVisuals();
+            this.tutorial?.sync2();
             return true;
         }
         const end = clampTacticEnd(
@@ -7315,6 +7547,7 @@ export class Game {
         );
         if (this.dispatchTacticUse(tactic.id, { start: this.tacticDraftStart, end })) {
             this.cancelTacticPlacement();
+            this.tutorial?.sync2();
         }
         return true;
     }
@@ -7567,7 +7800,8 @@ export class Game {
         this.strongholdCommanders.sync(
             livingKeeps,
             (seat) => this.speciality[seat] ?? null,
-            this.settings.strongholdMode === 'lifeline',
+            this.settings.strongholdMode === 'lifeline' &&
+                !this.tutorial?.suppressesRooftopCommander,
         );
         this.strongholdFlags.update(
             this.time,
@@ -7769,9 +8003,11 @@ export class Game {
     private buyUnit(type: UnitType): boolean {
         if (!this.playerCanAct) return false;
         // Campaign: no board extras (Ward Stone, Fire Bolt, and any future extras)
-        if (type.extra && this.settings.climb) return false;
+        if (type.extra && (this.settings.climb || isTutorial(this.settings))) return false;
+        if (this.tutorial?.blocksBuyEarly(type)) return false;
         if (!type.extra && !this.unlockedUnits[this.humanSeat]!.includes(type.id)) return false;
         if (this.economy.balance(this.humanSeat) < this.effectiveCost(type)) return false;
+        if (this.tutorial?.blocksBuyLate()) return false;
         // extras are click-placed: nothing is bought until the placement click
         if (type.extra) {
             const left =
@@ -7785,18 +8021,21 @@ export class Game {
         const aim = this.buyAimWorld();
         const anchor = this.placement.findBuySpotNear(type, aim.x, aim.z);
         if (!anchor) return false;
-        return this.dispatchPlayer({
+        const ok = this.dispatchPlayer({
             kind: 'buy',
             team: 'player',
             typeId: type.id,
             anchor,
             rotated: false,
         });
+        // buy already syncs the guide via dispatchPlayer
+        return ok;
     }
 
     /** HUD: buy a base rune into the bag — shares the per-round purchase limit with units. */
     private buyRune(itemId: string): boolean {
         if (!this.playerCanAct) return false;
+        if (this.tutorial?.blocksBuyRune()) return false;
         return this.dispatchPlayer({
             kind: 'buyRune',
             team: 'player',
@@ -7847,6 +8086,7 @@ export class Game {
         this.refreshShopHud();
         this.syncTacticVisuals();
         this.refreshFlightAlts();
+        this.tutorial?.sync1();
     }
 
     private unlockUnit(typeId: string): void {
@@ -7929,7 +8169,7 @@ export class Game {
         this.buildingIntelSnapshot = null;
         this.placement.revealAll();
         // before the sim reads their altitude and field of fire
-        this.reseatGarrison();
+        this.reseatStrongholdArchers();
         // Re-seat every mobile pack's facing now that the board is whole. The
         // sim seeds actor facing from mesh.rotation.y, and until this point
         // that came from whatever faceClosestOf last computed during
@@ -8722,6 +8962,10 @@ export class Game {
             // on a timeout). Equal HP → loss (must outscore the AI).
             this.pendingClimbOutcome = this.playerHp > this.enemyHp ? 'win' : 'loss';
             this.hpDrawAfterMatchOver = false;
+        } else if (
+            this.tutorial?.armRoundOutcome(this.playerHp, this.enemyHp, !this.star && !this.watching)
+        ) {
+            this.hpDrawAfterMatchOver = false;
         } else {
             this.hpDrawAfterMatchOver = this.playerHp <= 0 || this.enemyHp <= 0;
         }
@@ -8856,6 +9100,7 @@ export class Game {
         this.flushHpDrawDisplay();
         this.hpDrawSettleRemaining = 0;
         let climbRoundWon = false;
+        let tutorialRoundWon = false;
         if (this.settings.climb && this.pendingClimbOutcome) {
             const outcome = this.pendingClimbOutcome;
             this.pendingClimbOutcome = null;
@@ -8876,6 +9121,13 @@ export class Game {
                 this.presentMatchEnd('defeat');
                 return;
             }
+        } else if (this.tutorial?.hasPendingOutcome) {
+            const result = this.tutorial.consumeRoundOutcome();
+            if (result === 'victory' || result === 'defeat') {
+                this.presentMatchEnd(result);
+                return;
+            }
+            tutorialRoundWon = result === 'roundWon';
         } else if (this.hpDrawAfterMatchOver) {
             this.finishMatch();
             return;
@@ -8900,7 +9152,27 @@ export class Game {
             });
             return;
         }
+        if (tutorialRoundWon && !this.hydrating && !this.watching) {
+            const splash = this.tutorial?.roundSplash();
+            if (splash) {
+                this.hud.showClimbRoundSplash(splash.round, splash.total, () => {
+                    if (this.disposed || this.matchOver) return;
+                    this.announceBattleEnd();
+                });
+                return;
+            }
+        }
         this.announceBattleEnd();
+    }
+
+    /** Multi-round tutorials (2 / 3): reset sudden-death HP between rounds. */
+    private restoreTutorialHp(hp = this.settings.tutorial?.sideHp ?? 1): void {
+        for (let s = 0; s < this.hp.length; s++) {
+            this.hp[s] = hp;
+            this.hpPeak[s] = hp;
+        }
+        this.flushHpDrawDisplay();
+        this.paintHudHp();
     }
 
     /** Campaign: reset both sides to fixed climb HP after a round win. */
@@ -9020,8 +9292,10 @@ export class Game {
         this.hud.hideReconnectWait();
         // watching mode never touches these in the first place (see
         // constructor/main.ts) — clearing them here would wipe out the
-        // player's real, unrelated saved game/resume marker
-        if (!this.watching) {
+        // player's real, unrelated saved game/resume marker. A tutorial is
+        // never persisted either (see constructGame), so ending one must not
+        // wipe the Campaign run waiting in that same slot.
+        if (!this.watching && !isTutorial(this.settings)) {
             clearStarResumeMarker();
             clearSinglePlayer();
         }
@@ -9044,7 +9318,9 @@ export class Game {
         // matches"), while any divergence creates a second file for that
         // side — exactly the mismatch signal worth flagging for review.
         // Rating never applies here either way — it's not a new result.
-        if (!this.watching) {
+        // A scripted lesson is not a match result — it would land in the 'ai'
+        // bucket next to real games and bump this player's AI record.
+        if (!this.watching && !isTutorial(this.settings)) {
             this.reportMatchTelemetry(result);
             this.reportOpenRating(result, opts?.forceReport === true);
         } else if (this.replayVerify) {
@@ -9068,14 +9344,24 @@ export class Game {
                 : `⚠ MISMATCH — recorded ${exp.result}/${exp.rounds} rounds/${exp.playerHp}-${exp.enemyHp}, this run: ${result}/${this.round} rounds/${this.playerHp}-${this.enemyHp}`;
             this.hud.showGameOver(result, { note, backLabel: t('hud:backToReplays'), title, details });
         } else {
-            const allowRetry = result === 'defeat' && !this.star && !this.watching;
+            // A lesson's progress lives only in the runtime, so a rebuilt match
+            // would restart it at zero wins while the board is staged for a
+            // later round — a failed lesson is re-entered from the menu instead.
+            const allowRetry =
+                result === 'defeat' && !this.star && !this.watching && !isTutorial(this.settings);
+            // A finished lesson offers the one after it, so the set can be played
+            // straight through; the last lesson only offers the menu.
+            const allowNext =
+                result === 'victory' &&
+                !this.watching &&
+                nextTutorialId(tutorialId(this.settings)) !== null;
             const climbProgress = this.settings.climb
                 ? {
                       n: Math.max(1, this.round),
                       total: this.settings.climb.roundsToWin,
                   }
                 : undefined;
-            this.hud.showGameOver(result, { title, details, allowRetry, climbProgress });
+            this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress });
         }
     }
 
@@ -9555,7 +9841,7 @@ export class Game {
             this.phase === 'battle' && this.sim ? this.sim.hazards : this.oilField,
         );
         this.updateForgeFx(gameDt);
-        this.reseatGarrison();
+        this.reseatStrongholdArchers();
         this.updateStrongholdFlags();
         this.updateHordeMarkers();
 
@@ -9563,6 +9849,7 @@ export class Game {
             this.controls.update(dtSeconds);
             this.gamepad.update(dtSeconds);
             this.rig.update(dtSeconds);
+            this.tutorial?.tickCamera();
         }
         // ambient motion runs on real time, unaffected by battle fast-forward
         this.scenery.update(dtSeconds, this.rig.camera.position);
@@ -9918,7 +10205,7 @@ export class Game {
             this.resolvedStats(a.unit).range + a.unit.type.collisionRadius;
         const tint = colorForBattleTeam(actorTeam(a)).hex;
         if (fov !== null) {
-            placeFovWedge(this.battleFovMesh, a.rx, a.rz, radius, fov, GARRISON_FOV_HALF);
+            placeFovWedge(this.battleFovMesh, a.rx, a.rz, radius, fov, STRONGHOLD_ARCHER_FOV_HALF);
             (this.battleFovMesh.material as import('three').MeshBasicMaterial).color.setHex(tint);
         } else {
             placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
@@ -10152,7 +10439,7 @@ export class Game {
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade:
-                ownInteractive && u.type.structure && !u.type.extra
+                ownInteractive && u.type.structure && !u.type.extra && !this.tutorial?.boostLessonOnly
                     ? {
                           cost: towerUpgradeCost(u.level, this.settings.towers),
                           affordable:
@@ -10259,6 +10546,26 @@ export class Game {
         const ownedCount = owned.size;
         const bal = this.economy.balance(u.seat);
         const slots: NonNullable<SelectionInfo['techs']> = [];
+        // A lesson can narrow this pack's talent list to a single entry.
+        const soleTechId = this.tutorial?.soleTechFor(u) ?? null;
+        if (soleTechId) {
+            const only = techById(soleTechId);
+            if (!only) return undefined;
+            const isOwned = owned.has(only.id) || !!u.type.innateTechs?.includes(only.id);
+            const cost = this.economy.techCostOf(only, ownedCount);
+            return [
+                {
+                    id: only.id,
+                    name: techName(only.id, only.name),
+                    desc: techDescription(only),
+                    icon: techIcon(only),
+                    cost,
+                    owned: isOwned,
+                    affordable: canBuy && !isOwned && bal >= cost,
+                    produce: isOwned ? this.produceProgressInfo(u, only.id) : undefined,
+                },
+            ];
+        }
         for (let i = 0; i < slotsN; i++) {
             const t = selected[i];
             if (!t) {
@@ -10311,7 +10618,7 @@ export class Game {
         SelectionInfo,
         'recruit' | 'deploySlot' | 'rangeBoost' | 'speedBoost' | 'credit'
     > {
-        if (u.type !== RESEARCH_CENTER) return {};
+        if (u.type !== RESEARCH_CENTER || this.tutorial?.boostLessonOnly) return {};
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const seat = u.seat;
         const bal = this.economy.balance(seat);
@@ -10360,25 +10667,29 @@ export class Game {
         const seat = u.seat;
         const bal = this.economy.balance(seat);
         const intel = this.intelBuildingSeat(u);
+        const boosts: SelectionInfo['boosts'] = (['attack', 'hp'] as const).map((id) => {
+            const tiers =
+                id === 'attack' ? this.settings.boosts.attackTiers : this.settings.boosts.hpTiers;
+            const tier = id === 'attack' ? intel.boostAttack : intel.boostHp;
+            const maxed = tier >= tiers.length;
+            const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
+            const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
+            return {
+                id,
+                label:
+                    id === 'attack'
+                        ? t('hud:armyAttackBoost', { pct })
+                        : t('hud:armyHpBoost', { pct }),
+                cost,
+                affordable: canBuy && !maxed && bal >= cost,
+                maxed,
+            };
+        });
+        // Tutorial 3 round 2 is the boost lesson — the other tracks would only
+        // drain the supply its End Deployment gate needs.
+        if (this.tutorial?.boostLessonOnly) return { boosts };
         return {
-            boosts: (['attack', 'hp'] as const).map((id) => {
-                const tiers =
-                    id === 'attack' ? this.settings.boosts.attackTiers : this.settings.boosts.hpTiers;
-                const tier = id === 'attack' ? intel.boostAttack : intel.boostHp;
-                const maxed = tier >= tiers.length;
-                const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
-                const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
-                return {
-                    id,
-                    label:
-                        id === 'attack'
-                            ? t('hud:armyAttackBoost', { pct })
-                            : t('hud:armyHpBoost', { pct }),
-                    cost,
-                    affordable: canBuy && !maxed && bal >= cost,
-                    maxed,
-                };
-            }),
+            boosts,
             sellAbility: {
                 cost: this.settings.sell.abilityCost,
                 owned: intel.sellOwned,
@@ -10442,9 +10753,9 @@ export class Game {
             rallyOwned: this.rallyRouteOwned.slice(),
             movePackOwned: this.movePackOwned.slice(),
             forgeSpellOwned: this.forgeSpellOwned.map((list) => list.slice()),
-            garrison: {
-                player: this.garrisonCount('player'),
-                enemy: this.garrisonCount('enemy'),
+            strongholdArchers: {
+                player: this.strongholdArcherCount('player'),
+                enemy: this.strongholdArcherCount('enemy'),
             },
             forge: {
                 player: this.forgeSlots.player.map((s) => s?.itemId ?? null),
@@ -10482,7 +10793,7 @@ export class Game {
      * Research Center / Command Tower purchase flags).
      */
     /**
-     * Re-seat every garrison archer on his keep's CURRENT geometry.
+     * Re-seat every Stronghold archer on his keep's CURRENT geometry.
      *
      * A keep grows 10% per level, so the slot he was bought against moves — up
      * and outward — the moment it is upgraded, and an anchor baked at purchase
@@ -10490,14 +10801,14 @@ export class Game {
      * (the keep's level, world and facing), so every peer lands on the same
      * numbers; `fovYaw` feeds the sim and this is what keeps it agreeing.
      */
-    private reseatGarrison(): void {
+    private reseatStrongholdArchers(): void {
         for (const u of this.placement.allUnits()) {
-            if (u.type !== GARRISON_ARCHER || u.garrisonSlot === null) continue;
+            if (u.type !== STRONGHOLD_ARCHER || u.strongholdArcherSlot === null) continue;
             const keep = this.placement
                 .allUnits()
                 .find((k) => k.type === STRONGHOLD && k.team === u.team);
             if (!keep) continue;
-            const spot = garrisonSlotWorld(keep, u.garrisonSlot);
+            const spot = strongholdArcherSlotWorld(keep, u.strongholdArcherSlot);
             if (!spot) continue;
             u.world.set(spot.x, 0, spot.z);
             u.view.position.copy(u.world);
@@ -10508,19 +10819,19 @@ export class Game {
     }
 
     /** archers this side has posted on its keep — the wall is shared per side */
-    private garrisonCount(team: Team): number {
+    private strongholdArcherCount(team: Team): number {
         let n = 0;
         for (const u of this.placement.allUnits()) {
-            if (u.type === GARRISON_ARCHER && u.team === team && !u.consumed) n++;
+            if (u.type === STRONGHOLD_ARCHER && u.team === team && !u.consumed) n++;
         }
         return n;
     }
 
     private strongholdSelection(
         u: Unit,
-    ): Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells' | 'garrison'> {
+    ): Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells' | 'strongholdArchers'> {
         if (u.type !== STRONGHOLD) return {};
-        const out: Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells' | 'garrison'> = {};
+        const out: Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells' | 'strongholdArchers'> = {};
         const team: Team = u.team === 'horde' ? 'player' : u.team;
         const teamSeats = seatIdsOf(this.seats, team);
         const canBuy = u.team === 'player' && this.playerCanAct;
@@ -10541,48 +10852,53 @@ export class Game {
         // as you know, and the panel must not be the one place that says so.
         const manned =
             fogged && this.buildingIntelSnapshot
-                ? (this.buildingIntelSnapshot.garrison[team] ?? 0)
-                : this.garrisonCount(team);
-        const nextCost = GARRISON_STEP_COST * (manned + 1);
-        out.garrison = {
+                ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
+                : this.strongholdArcherCount(team);
+        const nextCost = STRONGHOLD_ARCHER_STEP_COST * (manned + 1);
+        const slotMax = this.strongholdArcherSlots().length;
+        out.strongholdArchers = {
             cost: nextCost,
             owned: manned,
-            max: GARRISON_SLOTS.length,
+            max: slotMax,
             affordable:
                 canBuy &&
-                manned < GARRISON_SLOTS.length &&
+                manned < slotMax &&
                 this.economy.balance(this.humanSeat) >= nextCost,
         };
 
         // Commander forge spells: own seat can buy; enemy seats show owned /
         // last-round intel (same fog window as Research Center / Command Tower).
         const spellSeats = u.team === 'player' ? [this.humanSeat] : teamSeats;
-        out.forgeSpells = spellSeats.flatMap((seat) => {
-            const bought =
-                fogged && this.buildingIntelSnapshot
-                    ? (this.buildingIntelSnapshot.forgeSpellOwned[seat] ?? [])
-                    : (this.forgeSpellOwned[seat] ?? []);
-            const bal = this.economy.balance(seat);
-            const seatCanBuy = canBuy && seat === this.humanSeat;
-            return (this.starterCardOfSeat(seat)?.forgeSpells ?? [])
-                .map((tacticId) => {
-                    const t = TACTICS[tacticId];
-                    // no strongholdCost = this spell isn't sold here
-                    if (!t || t.strongholdCost === undefined) return null;
-                    const cost = t.strongholdCost;
-                    const owned = bought.includes(tacticId);
-                    return {
-                        tacticId,
-                        icon: t.icon,
-                        name: tacticName(tacticId, t.name),
-                        desc: tacticDescription(tacticId, t.description),
-                        cost,
-                        owned,
-                        affordable: seatCanBuy && !owned && bal >= cost,
-                    };
-                })
-                .filter((e): e is NonNullable<typeof e> => e !== null);
-        });
+        // Tutorial 2 round 1 teaches the wall only — the forge shelf stays empty.
+        const forgeShelfOpen = !this.tutorial?.forgeSpellsHidden;
+        out.forgeSpells = forgeShelfOpen
+            ? spellSeats.flatMap((seat) => {
+                  const bought =
+                      fogged && this.buildingIntelSnapshot
+                          ? (this.buildingIntelSnapshot.forgeSpellOwned[seat] ?? [])
+                          : (this.forgeSpellOwned[seat] ?? []);
+                  const bal = this.economy.balance(seat);
+                  const seatCanBuy = canBuy && seat === this.humanSeat;
+                  return (this.forgeSpellsOf(seat) ?? [])
+                      .map((tacticId) => {
+                          const t = TACTICS[tacticId];
+                          // no strongholdCost = this spell isn't sold here
+                          if (!t || t.strongholdCost === undefined) return null;
+                          const cost = t.strongholdCost;
+                          const owned = bought.includes(tacticId);
+                          return {
+                              tacticId,
+                              icon: t.icon,
+                              name: tacticName(tacticId, t.name),
+                              desc: tacticDescription(tacticId, t.description),
+                              cost,
+                              owned,
+                              affordable: seatCanBuy && !owned && bal >= cost,
+                          };
+                      })
+                      .filter((e): e is NonNullable<typeof e> => e !== null);
+              })
+            : [];
 
         const snapIds =
             fogged && this.buildingIntelSnapshot
@@ -10685,7 +11001,7 @@ interface BuildingIntelSnapshot {
     /** Stronghold commander spells bought (per seat) at phase start — fogged view */
     forgeSpellOwned: string[][];
     /** archers posted on each side's battlements at phase start — fogged view */
-    garrison: Record<Team, number>;
+    strongholdArchers: Record<Team, number>;
     /** Stronghold oven contents (item ids) at phase start — fogged view */
     forge: Record<Team, (string | null)[]>;
     /** whether each oven was paid for at phase start — fogged view, and the

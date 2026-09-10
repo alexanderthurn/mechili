@@ -142,5 +142,9 @@
   "scopeLanRoom": "Phòng mạng LAN",
   "scopeSteamLobby": "Phòng chờ Steam",
   "scopeRoom": "phòng",
-  "scopeLanRoomNamed": "Phòng mạng LAN \"{{name}}\""
+  "scopeLanRoomNamed": "Phòng mạng LAN \"{{name}}\"",
+  "tutorial": "Hướng dẫn",
+  "tutorial1": "1\nCơ bản",
+  "tutorial2": "2\nThành trì",
+  "tutorial3": "3\nTháp"
 }

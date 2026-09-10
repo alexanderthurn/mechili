@@ -118,10 +118,24 @@ export interface GameSettings {
      */
     climb?: ClimbSettings;
     /**
+     * Guided single-player tutorial (Practice-like 1v1 + teaching layer).
+     * Unset outside Tutorial menu entries.
+     */
+    tutorial?: TutorialSettings;
+    /**
      * Between-round card algorithm id (see {@link ROUND_CARD_ALGORITHMS}).
      * Owns schedule + pool progression.
      */
     roundCardPreset: string;
+}
+
+/** Which scripted lesson is running (1, 2, 3, …). */
+export interface TutorialSettings {
+    id: number;
+    /** Fixed sudden-death HP for both sides after the auto commander pick. */
+    sideHp: number;
+    /** Multi-round tutorials (e.g. Tutorial 2): rounds needed to complete the lesson. */
+    roundsToWin?: number;
 }
 
 /** Whether horde mode is structurally active (camera widen, waves possible). */
@@ -553,6 +567,13 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
                       // older saves used flat playerSupplyPerRound as the grant amount
                       (settings.climb as { playerSupplyPerRound?: number }).playerSupplyPerRound ??
                       CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
+              }
+            : undefined,
+        tutorial: settings.tutorial
+            ? {
+                  id: settings.tutorial.id,
+                  sideHp: settings.tutorial.sideHp,
+                  roundsToWin: settings.tutorial.roundsToWin,
               }
             : undefined,
     };

@@ -174,6 +174,7 @@
     "head": "Keyboard",
     "pan": "Pan, relative to camera heading",
     "heading": "Rotate heading",
+    "zoom": "Zoom in / out toward the pointer",
     "resetView": "Reset rotation, tilt, and zoom",
     "rotate": "Rotate the selected pack",
     "pause": "Pause menu. In cinema mode, first restores the HUD.",

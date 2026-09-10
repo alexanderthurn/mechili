@@ -1,5 +1,9 @@
 {
   "singlePlayer": "Single Player",
+  "tutorial": "Tutorial",
+  "tutorial1": "1\nBasics",
+  "tutorial2": "2\nStronghold",
+  "tutorial3": "3\nTowers",
   "campaign": "Campaign",
   "practice": "Practice",
   "matchmaking": "Matchmaking ({{tag}})",

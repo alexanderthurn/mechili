@@ -142,5 +142,9 @@
   "scopeLanRoom": "Salle LAN",
   "scopeSteamLobby": "Salon Steam",
   "scopeRoom": "salle",
-  "scopeLanRoomNamed": "Salle LAN \"{{name}}\""
+  "scopeLanRoomNamed": "Salle LAN \"{{name}}\"",
+  "tutorial": "Tutoriel",
+  "tutorial1": "1\nBases",
+  "tutorial2": "2\nBastion",
+  "tutorial3": "3\nTours"
 }

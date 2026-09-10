@@ -68,7 +68,7 @@ export class AiOpponent implements Opponent {
             /** per-SEAT talent picks; AI seats normally have none and get
              *  the catalog default (PROGRESSION_PLAN.md §1c) */
             loadoutOf: (seat: SeatId) => Loadout | undefined;
-            /** garrison / shop deploy prices (extra slot, base rune, …) */
+            /** shop deploy prices (extra slot, base rune, …) */
             deploySettings: DeploySettings;
             /** per-SEAT stronghold spells already bought this match */
             forgeSpellOwned: string[][];
@@ -149,7 +149,7 @@ export class AiOpponent implements Opponent {
             if (!this.buyUnit(type, rng)) break;
         }
 
-        // 3) spare ~100 supply → +1 garrison slot + a shop rune to equip
+        // 3) spare ~100 supply → +1 deploy slot + a shop rune to equip
         this.maybeBuySlotAndRune(rng);
 
         // rearrange packs

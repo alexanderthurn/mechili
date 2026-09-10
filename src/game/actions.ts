@@ -1,4 +1,4 @@
-import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unlockCostForSpeciality, type SpecialityId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, startCardById, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostForSpeciality, type SpecialityId, type ShopUnitId } from './cards';
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
@@ -53,11 +53,10 @@ import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
 import { detAtan2 } from './detMath';
 import {
-    GARRISON_ARCHER,
-    GARRISON_SLOTS,
-    GARRISON_STEP_COST,
+    STRONGHOLD_ARCHER,
+    STRONGHOLD_ARCHER_STEP_COST,
     STRONGHOLD,
-    garrisonSlotWorld,
+    strongholdArcherSlotWorld,
     levelBasisOf,
     unitTypeById,
     isPlayerBuyable,
@@ -123,8 +122,8 @@ export interface BuyLevelAction {
     unitId: number;
 }
 /** buys one more archer onto this seat's Stronghold battlements */
-export interface BuyGarrisonArcherAction {
-    kind: 'buyGarrisonArcher';
+export interface BuyStrongholdArcherAction {
+    kind: 'buyStrongholdArcher';
     team: Team;
 }
 /** raise several packs one level each — one undo peels the whole batch */
@@ -384,7 +383,7 @@ type ActionVariant =
     | BuyTechAction
     | BuyLevelAction
     | BuyLevelBatchAction
-    | BuyGarrisonArcherAction
+    | BuyStrongholdArcherAction
     | RecruitLevelAction
     | UpgradeTowerAction
     | BuySellAbilityAction
@@ -469,8 +468,8 @@ interface LogEntry extends LoggedAction {
     oilStamp?: OilStamp;
     /** placeSpell / removeSpell */
     spellStamp?: SpellStamp;
-    /** buyGarrisonArcher: the archer that was raised (for undo) */
-    garrisonUnit?: Unit;
+    /** buyStrongholdArcher: the archer that was raised (for undo) */
+    strongholdArcherUnit?: Unit;
     /**
      * clearArmy: packs removed (items already returned to the bag — restored
      * onto the pack on undo from {@link clearedPackItems})
@@ -599,6 +598,11 @@ export interface ActionContext {
      * Campaign climb active — gates {@link ClearArmyAction} (AI fresh rebuild).
      */
     climbMode: boolean;
+    /**
+     * Battlement archer pads on a Stronghold (default 4; Tutorial 2 uses 5 and
+     * hides the rooftop commander so pad 5 is free).
+     */
+    strongholdArcherSlots: readonly number[];
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -891,7 +895,7 @@ export class ActionDispatcher {
                 unit.refreshLevelBadge();
                 return true;
             }
-            case 'buyGarrisonArcher': {
+            case 'buyStrongholdArcher': {
                 // The side shares its keep, so the wall is filled and priced
                 // per SIDE, not per seat — an ally buying the third archer
                 // pays for the third, not for their own first.
@@ -899,29 +903,30 @@ export class ActionDispatcher {
                     .allUnits()
                     .find((u) => u.type === STRONGHOLD && u.team === action.team && !u.destroyed);
                 if (!keep) return false;
+                const slots = this.ctx.strongholdArcherSlots;
                 const taken = placement
                     .allUnits()
-                    .filter((u) => u.type === GARRISON_ARCHER && u.team === action.team).length;
-                if (taken >= GARRISON_SLOTS.length) return false;
-                const spot = garrisonSlotWorld(keep, GARRISON_SLOTS[taken]!);
+                    .filter((u) => u.type === STRONGHOLD_ARCHER && u.team === action.team).length;
+                if (taken >= slots.length) return false;
+                const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
                 if (!spot) return false; // keep model has no authored slots
-                const cost = GARRISON_STEP_COST * (taken + 1);
+                const cost = STRONGHOLD_ARCHER_STEP_COST * (taken + 1);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 const archer = placement.spawnAtWorld(
-                    GARRISON_ARCHER,
+                    STRONGHOLD_ARCHER,
                     spot.x,
                     spot.z,
                     action.team,
                     seat,
                 );
-                archer.garrisonSlot = GARRISON_SLOTS[taken]!;
+                archer.strongholdArcherSlot = slots[taken]!;
                 archer.pinnedY = spot.y;
                 // outward from the keep's middle — the wedge behind him is the
                 // keep itself, and he does not shoot through his own walls
                 archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
                 archer.seatMembers();
-                entry.garrisonUnit = archer;
+                entry.strongholdArcherUnit = archer;
                 return true;
             }
             case 'buyLevelBatch': {
@@ -1022,7 +1027,7 @@ export class ActionDispatcher {
                     return false;
                 }
                 // a battlement archer is part of the keep, not a pack you trade
-                if (unit.type === GARRISON_ARCHER) return false;
+                if (unit.type === STRONGHOLD_ARCHER) return false;
                 if (useAbility) sell.used[seat]!++;
                 else if (!this.consumeTacticCharge(entry, seat, SELL_UNIT_ID)) {
                     return false;
@@ -1135,7 +1140,7 @@ export class ActionDispatcher {
                 // race with a teammate's slot either. commanderHpFactor
                 // scales both teams the same (Custom Game / GameSettings).
                 if (this.ctx.starterPicked[seat]) return false;
-                const card = START_CARDS.find((c) => c.id === action.cardId);
+                const card = startCardById(action.cardId);
                 if (!card) return false;
                 this.ctx.starterPicked[seat] = true;
                 this.ctx.speciality[seat] = card.speciality;
@@ -1152,8 +1157,22 @@ export class ActionDispatcher {
                 }
                 // shop unlocks are per-SEAT (your own card decides your own
                 // buyable roster — no sharing, per-seat like items), so unlike
-                // speciality/HP above this is unconditional, not primary-only
-                this.ctx.unlockedUnits[seat] = starterUnlockedUnits(card);
+                // speciality/HP above this is unconditional, not primary-only.
+                // Tutorial commander has an empty pool via starterUnlockedUnits —
+                // bake the lesson roster into the logged chooseCard so resume
+                // / hydrate restore the same shop (not an empty one).
+                this.ctx.unlockedUnits[seat] =
+                    card.id === TUTORIAL_START_CARD_ID
+                        ? action.team === 'player'
+                            ? (['dwarf'] as ShopUnitId[])
+                            : (['archer'] as ShopUnitId[])
+                        : card.id === TUTORIAL_3_START_CARD_ID
+                          ? action.team === 'player'
+                              ? (['dwarf', 'ballista'] as ShopUnitId[])
+                              : (['dwarf', 'archer'] as ShopUnitId[])
+                          : card.id === TUTORIAL_2_START_CARD_ID
+                            ? []
+                            : starterUnlockedUnits(card);
                 // items (tactics) are additive per CARD, not an overwrite like
                 // speciality/HP/unlocks above — every seat's own pick grants
                 // its own items into ITS OWN pool (items are per-seat, never
@@ -1562,7 +1581,7 @@ export class ActionDispatcher {
                 for (const unit of [...placement.allUnits()]) {
                     if (unit.seat !== seat || unit.team !== action.team) continue;
                     if (unit.type.structure || unit.type.extra) continue;
-                    if (unit.type === GARRISON_ARCHER) continue;
+                    if (unit.type === STRONGHOLD_ARCHER) continue;
                     const items = [...unit.items];
                     const itemRounds = [...unit.itemAppliedRound];
                     for (const itemId of items) this.ctx.items[seat]!.push(itemId);
@@ -1623,7 +1642,7 @@ export class ActionDispatcher {
         for (const unit of placement.allUnits()) {
             if (unit.seat !== seat) continue;
             if (unit.type.structure || unit.type.extra) continue;
-            if (unit.type === GARRISON_ARCHER) continue;
+            if (unit.type === STRONGHOLD_ARCHER) continue;
             total += Math.round(economy.costOf(unit.type) * sellSettings.refundFactor);
             if (unit.level > 1) {
                 total += levelCost(unit.type, economy, leveling) * (unit.level - 1);
@@ -1695,8 +1714,8 @@ export class ActionDispatcher {
                 economy.credit(seat, e.paid!);
                 break;
             }
-            case 'buyGarrisonArcher': {
-                if (e.garrisonUnit) placement.removeUnit(e.garrisonUnit);
+            case 'buyStrongholdArcher': {
+                if (e.strongholdArcherUnit) placement.removeUnit(e.strongholdArcherUnit);
                 economy.credit(seat, e.paid!);
                 break;
             }

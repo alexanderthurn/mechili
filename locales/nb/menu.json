@@ -142,5 +142,9 @@
   "scopeLanRoom": "LAN-rom",
   "scopeSteamLobby": "Steam-lobbyen",
   "scopeRoom": "rom",
-  "scopeLanRoomNamed": "LAN-rom \"{{name}}\""
+  "scopeLanRoomNamed": "LAN-rom \"{{name}}\"",
+  "tutorial": "Veiledning",
+  "tutorial1": "1\nGrunnlag",
+  "tutorial2": "2\nHøyborg",
+  "tutorial3": "3\nTårn"
 }

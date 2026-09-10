@@ -17,6 +17,7 @@ const NAMESPACES = [
     'settings',
     'menu',
     'hud',
+    'tutorial',
     'homepage',
     'suggest',
     'units',

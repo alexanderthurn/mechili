@@ -279,7 +279,7 @@ export interface SelectionInfo {
         affordable: boolean;
     }[];
     /** Stronghold: archers on the battlements — one at a time, price climbs */
-    garrison?: { cost: number; owned: number; max: number; affordable: boolean };
+    strongholdArchers?: { cost: number; owned: number; max: number; affordable: boolean };
     movePackAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
@@ -308,7 +308,7 @@ export class Hud {
     onBuySellAbility: (() => void) | null = null;
     onBuyRallyRouteAbility: (() => void) | null = null;
     onBuyForgeSpell: ((tacticId: string) => void) | null = null;
-    onBuyGarrisonArcher: (() => void) | null = null;
+    onBuyStrongholdArcher: (() => void) | null = null;
     onForgeLight: (() => void) | null = null;
     onForgeUnlight: (() => void) | null = null;
     onBuyMovePackAbility: (() => void) | null = null;
@@ -369,6 +369,8 @@ export class Hud {
     onQuitToMenu: (() => void) | null = null;
     /** SP defeat only — rebuild the lost round (see Game.requestRetryLastRound) */
     onRetryLastRound: (() => void) | null = null;
+    /** Tutorial victory with a lesson still to come — start the next one */
+    onNextTutorial: (() => void) | null = null;
     /** grant/revoke live deploy vision for a spectator (own seat). Left null
      *  by a spectating client itself — it has no seat to grant from, so the
      *  badge list below renders plain names with no checkboxes. */
@@ -635,6 +637,10 @@ export class Hud {
     private uiHidden = false;
     private cinemaHint: HTMLDivElement | null = null;
     private cinemaHintTimer: number | null = null;
+    /** Floating pulsating frames that point at tutorial UI targets. */
+    private readonly tutCallouts: HTMLDivElement[] = [];
+    private tutCalloutTargets: HTMLElement[] = [];
+    private tutCalloutRaf: number | null = null;
     private readonly overlayParent: HTMLElement;
     private readonly onItemGhostMove = (e: PointerEvent) => {
         if (!this.itemGhost) return;
@@ -936,7 +942,7 @@ export class Hud {
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
             else if (button.dataset.forgespell) this.onBuyForgeSpell?.(button.dataset.forgespell);
-            else if (button.dataset.garrison) this.onBuyGarrisonArcher?.();
+            else if (button.dataset.strongholdArcher) this.onBuyStrongholdArcher?.();
             else if (button.dataset.forgeLight) this.onForgeLight?.();
             else if (button.dataset.movepack) this.onBuyMovePackAbility?.();
             else if (button.dataset.deployslot) this.onBuyDeploySlot?.();
@@ -2312,6 +2318,213 @@ export class Hud {
         this.refreshShopRuneAffordability();
     }
 
+    /** Tutorial / stripped modes: hide the shop's base-rune row. */
+    setShopRunesVisible(visible: boolean): void {
+        this.shopRuneRow.style.display = visible ? '' : 'none';
+    }
+
+    /**
+     * Stripped lessons: hide the pack shop (tiles + board extras) but KEEP the
+     * toolbar — supply and Undo live there, and a lesson that asks the player
+     * to spend must still show them what they have.
+     */
+    setShopColumnVisible(visible: boolean): void {
+        this.shopPanel.style.display = visible ? '' : 'none';
+        this.extrasRow.style.display = visible ? '' : 'none';
+    }
+
+    /**
+     * Soft tutorial highlight: pulsating rectangles drawn over the real UI
+     * targets (life bars, shop tile, End Deployment, …).
+     * `shop-dwarf` also opens the shop phone tab so the tile is visible.
+     */
+    setTutorialHighlight(target: 'hp' | 'shop-dwarf' | 'end-deploy' | 'rotate' | null): void {
+        this.clearTutorialHighlight();
+        if (!target) return;
+
+        const elements: HTMLElement[] = [];
+        if (target === 'hp') {
+            const playerBar = this.playerStackEl.querySelector<HTMLElement>('.hp-track');
+            const enemyBar = this.enemyStackEl.querySelector<HTMLElement>('.hp-track');
+            if (playerBar) elements.push(playerBar);
+            if (enemyBar) elements.push(enemyBar);
+            // Fall back to whole stacks if bars aren't mounted yet.
+            if (elements.length === 0) {
+                elements.push(this.playerStackEl, this.enemyStackEl);
+            }
+        } else if (target === 'end-deploy') {
+            elements.push(this.endButton);
+        } else if (target === 'rotate') {
+            elements.push(this.touchRotateBtn);
+        } else if (target === 'shop-dwarf') {
+            this.setPhoneTab('shop');
+            const tile = this.shopUnitTiles.get('dwarf');
+            if (tile) elements.push(tile);
+            else elements.push(this.shopPanel);
+        }
+
+        this.mountTutorialCallouts(elements);
+    }
+
+    /** Tutorial 2: Stronghold panel tiles, tactics strip, End Deployment. */
+    setTutorial2Highlight(
+        target:
+            | 'stronghold'
+            | 'stronghold-archers'
+            | 'upgrade'
+            | 'forge-spell'
+            | 'tactics'
+            | 'end-deploy'
+            | null,
+        spellId?: string,
+    ): void {
+        this.clearTutorialHighlight();
+        if (!target) return;
+
+        const elements: HTMLElement[] = [];
+        if (target === 'end-deploy') {
+            elements.push(this.endButton);
+        } else if (target === 'tactics' && spellId) {
+            this.setPhoneTab('tactics');
+            const btn = this.inventoryEl.querySelector<HTMLElement>(
+                `.inv-item[data-tactic="${spellId}"]`,
+            );
+            if (btn) elements.push(btn);
+            else elements.push(this.inventoryEl);
+        } else {
+            this.openUnitDetails();
+            if (target === 'stronghold-archers') {
+                const tile = this.panel.querySelector<HTMLElement>('[data-stronghold-archer]');
+                if (tile) elements.push(tile);
+            } else if (target === 'upgrade') {
+                // Desktop: panel tile. Phone compact chrome: bottom-bar Upgrade.
+                const tile = this.panel.querySelector<HTMLElement>('[data-towerupgrade]');
+                if (tile) {
+                    elements.push(tile);
+                } else if (
+                    this.touchUpgradeBtn.style.display !== 'none' &&
+                    this.touchUpgradeBtn.isConnected
+                ) {
+                    elements.push(this.touchUpgradeBtn);
+                }
+            } else if (target === 'forge-spell' && spellId) {
+                const tile = this.panel.querySelector<HTMLElement>(
+                    `[data-forgespell="${spellId}"]`,
+                );
+                if (tile) elements.push(tile);
+            } else if (target === 'stronghold') {
+                elements.push(this.panel);
+            }
+            // Prefer the specific control — only fall back to the whole sheet
+            // for the generic "open the Stronghold" step.
+            if (elements.length === 0 && target === 'stronghold') {
+                elements.push(this.panel);
+            }
+        }
+
+        if (elements.length === 0) return;
+        this.mountTutorialCallouts(elements);
+    }
+
+    /** Tutorial 3: shop tiles / rune row, Vanguard boost tiles, End Deployment. */
+    setTutorial3Highlight(
+        target:
+            | 'shop-dwarf'
+            | 'shop-ballista'
+            | 'vanguard'
+            | 'boost-attack'
+            | 'boost-hp'
+            | 'runes'
+            | 'tech-barrel'
+            | 'end-deploy'
+            | null,
+    ): void {
+        this.clearTutorialHighlight();
+        // The Vanguard itself is a world object — that step has no UI target.
+        if (!target || target === 'vanguard') return;
+
+        const elements: HTMLElement[] = [];
+        if (target === 'end-deploy') {
+            elements.push(this.endButton);
+        } else if (target === 'shop-dwarf' || target === 'shop-ballista') {
+            this.setPhoneTab('shop');
+            const tile = this.shopUnitTiles.get(target === 'shop-dwarf' ? 'dwarf' : 'ballista');
+            elements.push(tile ?? this.shopPanel);
+        } else if (target === 'runes') {
+            this.setPhoneTab('shop');
+            elements.push(this.shopRuneRow);
+        } else if (target === 'tech-barrel') {
+            this.openUnitDetails();
+            const tile = this.panel.querySelector<HTMLElement>('[data-tech="barrel"]');
+            elements.push(tile ?? this.panel);
+        } else {
+            this.openUnitDetails();
+            const id = target === 'boost-attack' ? 'attack' : 'hp';
+            const tile = this.panel.querySelector<HTMLElement>(`[data-boost="${id}"]`);
+            elements.push(tile ?? this.panel);
+        }
+
+        this.mountTutorialCallouts(elements);
+    }
+
+    /** Frame each target with a pulsating callout and keep them tracking layout. */
+    private mountTutorialCallouts(elements: readonly HTMLElement[]): void {
+        this.tutCalloutTargets = elements.filter((el) => el.isConnected);
+        for (const _ of this.tutCalloutTargets) {
+            const frame = document.createElement('div');
+            frame.className = 'mechili-tut-callout';
+            frame.setAttribute('aria-hidden', 'true');
+            this.overlayParent.appendChild(frame);
+            this.tutCallouts.push(frame);
+        }
+        this.syncTutorialCallouts();
+        const tick = () => {
+            this.syncTutorialCallouts();
+            this.tutCalloutRaf = window.requestAnimationFrame(tick);
+        };
+        this.tutCalloutRaf = window.requestAnimationFrame(tick);
+    }
+
+    private clearTutorialHighlight(): void {
+        if (this.tutCalloutRaf !== null) {
+            window.cancelAnimationFrame(this.tutCalloutRaf);
+            this.tutCalloutRaf = null;
+        }
+        for (const frame of this.tutCallouts) frame.remove();
+        this.tutCallouts.length = 0;
+        this.tutCalloutTargets = [];
+    }
+
+    /** Keep callout frames locked to their targets as layout / resize shifts. */
+    private syncTutorialCallouts(): void {
+        const parentRect = this.overlayParent.getBoundingClientRect();
+        const pad = 6;
+        for (let i = 0; i < this.tutCallouts.length; i++) {
+            const frame = this.tutCallouts[i]!;
+            const target = this.tutCalloutTargets[i];
+            if (!target?.isConnected) {
+                frame.style.display = 'none';
+                continue;
+            }
+            // Hidden phone twin (display:none) — skip until visible.
+            const style = window.getComputedStyle(target);
+            if (style.display === 'none' || style.visibility === 'hidden') {
+                frame.style.display = 'none';
+                continue;
+            }
+            const r = target.getBoundingClientRect();
+            if (r.width < 2 || r.height < 2) {
+                frame.style.display = 'none';
+                continue;
+            }
+            frame.style.display = '';
+            frame.style.left = `${r.left - parentRect.left - pad}px`;
+            frame.style.top = `${r.top - parentRect.top - pad}px`;
+            frame.style.width = `${r.width + pad * 2}px`;
+            frame.style.height = `${r.height + pad * 2}px`;
+        }
+    }
+
     private refreshShopRuneAffordability(): void {
         const blocked = this.deploysLeft <= 0;
         for (const { el } of this.shopRuneButtons) {
@@ -2744,16 +2957,16 @@ export class Hud {
                       : 'locked',
             });
         }
-        if (info.garrison) {
-            const g = info.garrison;
+        if (info.strongholdArchers) {
+            const g = info.strongholdArchers;
             const full = g.owned >= g.max;
             tiles.push({
-                data: 'data-garrison="1"',
+                data: 'data-stronghold-archer="1"',
                 icon: 'spec-archer',
-                title: t('hud:garrison', { n: g.owned, m: g.max }),
+                title: t('hud:strongholdArchers', { n: g.owned, m: g.max }),
                 desc: full
-                    ? t('hud:garrisonFull')
-                    : t('hud:garrisonDesc'),
+                    ? t('hud:strongholdArchersFull')
+                    : t('hud:strongholdArchersDesc'),
                 cost: full ? 0 : g.cost,
                 state: full ? 'owned' : g.affordable ? 'buy' : 'locked',
             });
@@ -4132,6 +4345,8 @@ export class Hud {
             details?: GameOverDetails;
             /** when set, shows a Retry button (single-player defeat only) */
             allowRetry?: boolean;
+            /** when set, shows a Next button (a tutorial with a lesson to follow) */
+            allowNext?: boolean;
             /**
              * Campaign: hide MMR (looks like HP) and show Round n/total instead.
              */
@@ -4155,13 +4370,11 @@ export class Hud {
                   total: options.climbProgress.total,
               })
             : undefined;
-        el.innerHTML = this.gameOverInnerHtml(
-            title,
-            options?.details,
-            options?.note ?? climbNote,
+        el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note ?? climbNote, {
             allowRetry,
-            !!options?.climbProgress,
-        );
+            allowNext: options?.allowNext === true,
+            hideMmr: !!options?.climbProgress,
+        });
         const backLabel = options?.backLabel ?? t('hud:backToMainMenu');
         const btn = el.querySelector('.go-restart')!;
         btn.textContent = backLabel;
@@ -4170,6 +4383,12 @@ export class Hud {
         if (retryBtn) {
             retryBtn.addEventListener('click', () => {
                 this.leaveGameOver(el, () => this.onRetryLastRound?.());
+            });
+        }
+        const nextBtn = el.querySelector('.go-next');
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                this.leaveGameOver(el, () => this.onNextTutorial?.());
             });
         }
         this.mount(el);
@@ -4213,9 +4432,9 @@ export class Hud {
         title: string,
         details?: GameOverDetails,
         note?: string,
-        allowRetry = false,
-        hideMmr = false,
+        opts?: { allowRetry?: boolean; allowNext?: boolean; hideMmr?: boolean },
     ): string {
+        const hideMmr = opts?.hideMmr === true;
         const teams = details
             ? `<div class="go-teams">` +
               this.gameOverTeamHtml('player', details.playerTeam, hideMmr) +
@@ -4224,8 +4443,13 @@ export class Hud {
               `</div>`
             : '';
         const noteEl = note ? `<div class="go-note">${escapeHtml(note)}</div>` : '';
-        const retryBtn = allowRetry
+        const retryBtn = opts?.allowRetry
             ? `<button type="button" class="go-retry">${escapeHtml(t('hud:retryLastRound'))}</button>`
+            : '';
+        // `hud:continue` rather than a tutorial-specific label: it is already
+        // translated in every locale, and it reads right for "on to the next one".
+        const nextBtn = opts?.allowNext
+            ? `<button type="button" class="go-next">${escapeHtml(t('hud:continue'))}</button>`
             : '';
         return (
             `<div class="go-bg" aria-hidden="true">` +
@@ -4234,7 +4458,7 @@ export class Hud {
             `<span class="go-bg-core"></span>` +
             `</div>` +
             `<div class="go-title">${escapeHtml(title)}</div>${teams}${noteEl}` +
-            `<div class="go-actions">${retryBtn}` +
+            `<div class="go-actions">${nextBtn}${retryBtn}` +
             `<button type="button" class="go-restart">${escapeHtml(t('hud:backToMainMenu'))}</button>` +
             `</div>`
         );
@@ -4266,6 +4490,19 @@ export class Hud {
 
     /** No-op — kept so the match tick can call it unconditionally. */
     layout(): void {}
+
+    /**
+     * Lesson overlays mount themselves (they outlive individual HUD panels and
+     * must not ride `mountedRoots`' teardown), so cinema / intro chrome hiding
+     * has to reach them by selector instead.
+     */
+    private tutorialOverlays(): HTMLElement[] {
+        return [
+            ...this.overlayParent.querySelectorAll<HTMLElement>(
+                '.mechili-tutorial, .mechili-tutorial-nudge',
+            ),
+        ];
+    }
 
     private mount(el: HTMLElement): void {
         // don't let HUD interactions fall through to camera/placement handlers
@@ -4310,7 +4547,7 @@ export class Hud {
      */
     setMatchChromeVisible(visible: boolean): void {
         this.introChromeHidden = !visible;
-        for (const el of this.mountedRoots) {
+        for (const el of [...this.mountedRoots, ...this.tutorialOverlays()]) {
             el.style.transition = 'opacity 0.35s ease';
             el.classList.toggle('mechili-intro-hide', !visible);
         }
@@ -4333,7 +4570,7 @@ export class Hud {
         const showHint = hidden && opts?.hint !== false;
         if (this.uiHidden !== hidden) {
             this.uiHidden = hidden;
-            for (const el of this.mountedRoots) {
+            for (const el of [...this.mountedRoots, ...this.tutorialOverlays()]) {
                 if (el.classList.contains('mechili-gameover')) continue;
                 el.classList.toggle('mechili-cinema-hide', hidden);
             }
@@ -4377,6 +4614,7 @@ export class Hud {
     destroy(): void {
         this.unregisterHoverClear?.();
         this.unregisterHoverClear = null;
+        this.clearTutorialHighlight();
         this.hideMatchOverlays();
         this.clearInvDragListeners();
         this.invDrag = null;

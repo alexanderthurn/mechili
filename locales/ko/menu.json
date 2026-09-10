@@ -142,5 +142,9 @@
   "scopeLanRoom": "LAN 방",
   "scopeSteamLobby": "Steam 로비",
   "scopeRoom": "방",
-  "scopeLanRoomNamed": "LAN 방 \"{{name}}\""
+  "scopeLanRoomNamed": "LAN 방 \"{{name}}\"",
+  "tutorial": "튜토리얼",
+  "tutorial1": "1\n기본",
+  "tutorial2": "2\n요새",
+  "tutorial3": "3\n탑"
 }

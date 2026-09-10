@@ -142,5 +142,9 @@
   "scopeLanRoom": "δωμάτιο LAN",
   "scopeSteamLobby": "lobby Steam",
   "scopeRoom": "δωμάτιο",
-  "scopeLanRoomNamed": "δωμάτιο LAN \"{{name}}\""
+  "scopeLanRoomNamed": "δωμάτιο LAN \"{{name}}\"",
+  "tutorial": "Οδηγός",
+  "tutorial1": "1\nΒασικά",
+  "tutorial2": "2\nΟχυρό",
+  "tutorial3": "3\nΠύργοι"
 }

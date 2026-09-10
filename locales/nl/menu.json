@@ -142,5 +142,9 @@
   "scopeLanRoom": "LAN-ruimte",
   "scopeSteamLobby": "Steam-lobby",
   "scopeRoom": "kamer",
-  "scopeLanRoomNamed": "LAN-ruimte \"{{name}}\""
+  "scopeLanRoomNamed": "LAN-ruimte \"{{name}}\"",
+  "tutorial": "Tutorial",
+  "tutorial1": "1\nBasis",
+  "tutorial2": "2\nBurcht",
+  "tutorial3": "3\nTorens"
 }

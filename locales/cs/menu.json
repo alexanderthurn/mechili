@@ -142,5 +142,9 @@
   "scopeLanRoom": "LAN místnost",
   "scopeSteamLobby": "Steam lobby",
   "scopeRoom": "pokoj",
-  "scopeLanRoomNamed": "LAN místnost „{{name}}“"
+  "scopeLanRoomNamed": "LAN místnost „{{name}}“",
+  "tutorial": "Tutoriál",
+  "tutorial1": "1\nZáklady",
+  "tutorial2": "2\nPevnost",
+  "tutorial3": "3\nVěže"
 }

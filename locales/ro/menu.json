@@ -142,5 +142,9 @@
   "scopeLanRoom": "Cameră LAN",
   "scopeSteamLobby": "Lobby-ul Steam",
   "scopeRoom": "cameră",
-  "scopeLanRoomNamed": "Cameră LAN „{{name}}”"
+  "scopeLanRoomNamed": "Cameră LAN „{{name}}”",
+  "tutorial": "Tutorial",
+  "tutorial1": "1\nBazele",
+  "tutorial2": "2\nBastion",
+  "tutorial3": "3\nTurnuri"
 }

@@ -142,5 +142,9 @@
   "scopeLanRoom": "Ruang LAN",
   "scopeSteamLobby": "Lobi Steam",
   "scopeRoom": "ruang",
-  "scopeLanRoomNamed": "Ruang LAN \"{{name}}\""
+  "scopeLanRoomNamed": "Ruang LAN \"{{name}}\"",
+  "tutorial": "Tutorial",
+  "tutorial1": "1\nDasar",
+  "tutorial2": "2\nKubu",
+  "tutorial3": "3\nMenara"
 }

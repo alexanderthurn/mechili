@@ -147,13 +147,26 @@ export function unmountIntroRoster(cover: HTMLElement | null): void {
 
 /** Simple Campaign level card on the intro cover (replaces the VS roster). */
 export function mountClimbIntro(cover: HTMLElement, round: number, total: number): void {
+    mountSimpleIntro(cover, t('hud:climbRoundShort', { n: round, total }));
+}
+
+/** Tutorial lesson card — same cover slot as campaign, titled with the lesson name. */
+export function mountTutorialIntro(cover: HTMLElement, lessonId: number): void {
+    const raw = t(`menu:tutorial${lessonId}`, {
+        defaultValue: t('menu:tutorial', { defaultValue: 'Tutorial' }),
+    });
+    // Menu cards use a line break ("1\\nBasics"); flatten for the cover title.
+    mountSimpleIntro(cover, raw.replace(/\s*\n\s*/g, ' · '));
+}
+
+function mountSimpleIntro(cover: HTMLElement, title: string): void {
     unmountIntroRoster(cover);
     unmountClimbIntro(cover);
     const el = withDialogFade(document.createElement('div'));
     el.classList.add('mechili-climb-intro');
     el.innerHTML =
         `<div class="ci-frame">` +
-        `<div class="ci-title">${escapeHtml(t('hud:climbRoundShort', { n: round, total }))}</div>` +
+        `<div class="ci-title">${escapeHtml(title)}</div>` +
         `</div>`;
     cover.appendChild(el);
 }
