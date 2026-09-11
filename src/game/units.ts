@@ -1271,15 +1271,15 @@ export const UNIT_TYPES: UnitType[] = [
             { y: 2.4, r: 0.9 },
         ],
         // innate disk like Rhino splash — Whirlwind tech widens it
-        cleave: { radius: 4 },
+        cleave: { radius: 2 },
         cleaveScar: false, // no ground crater stamp on swings
         hp: 1620,
-        damage: 95,
+        damage: 195,
         range: 3.4, // short melee reach
         // Match cadence to the long pitch (~1.27s visual @ fireSpeed 3)
         attackInterval: 1.35,
         // Hit late in the throw (visual ~1.27s)
-        meleeHitDelay: 0.8,
+        meleeHitDelay: 0.7,
         // commit early at speed 8.5 → slide into the smash
         meleeLunge: 5,
         speed: 8.5, // faster than dwarf (6) — Rhino closes gaps

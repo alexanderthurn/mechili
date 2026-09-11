@@ -1531,7 +1531,9 @@ export class BattleSim {
         this.strikeMelee(a, target, damage, tdx, tdz, tDist);
     }
 
-    /** XZ disk around the attacker — ground and air, not allies / extras. */
+    /** XZ disk around the attacker — ground and air, not allies / extras.
+     * The locked focus always connects within engagement reach even when the
+     * splash disk is smaller (orc: tight cleave, strong single-target smash). */
     private cleaveStrike(a: Actor, radius: number, damage: number, focus: Actor): void {
         const team = actorTeam(a);
         const hits: Actor[] = [];
@@ -1541,6 +1543,18 @@ export class BattleSim {
             if (actorTeam(t) === team) continue;
             const reach = radius + a.radius + t.radius;
             if (hypot(t.x - a.x, t.z - a.z) <= reach) hits.push(t);
+        }
+        // Focus can sit outside a small cleave (lunge / ranged spacing) — still smash them.
+        if (
+            focus.alive &&
+            focus !== a &&
+            !focus.unit.type.extra &&
+            actorTeam(focus) !== team &&
+            !hits.includes(focus)
+        ) {
+            const stats = this.resolved.get(a.unit)!;
+            const connectAt = (stats.range + a.radius + focus.radius) * 1.35;
+            if (hypot(focus.x - a.x, focus.z - a.z) <= connectAt) hits.unshift(focus);
         }
         for (const t of hits) {
             const dx = t.x - a.x;

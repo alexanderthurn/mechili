@@ -94,10 +94,8 @@ export const ANIM_SPECS: Record<string, AnimSpec> = {
     orc: {
         url: new URL('../../assets/models/orc.glb', import.meta.url).href,
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
-        // Animated feet sit ~1.3 forward of bind-centered origin — pull back so
-        // selection / collision / shadow sit under the stance (rest forward −Z).
-        offset: { z: 1.28 },
-        // full clips: run @ half, pitch smash, fall death (lays along local −X)
+        // Foot align is measured from the walk clip (see footAlign on template) —
+        // blended by anim weight so T-pose deploy and run both sit on the marker.
         walk: 'run',
         walkSpeed: 0.5,
         fire: 'pitch_baseball',
@@ -126,6 +124,12 @@ interface Template {
     fireHold: boolean;
     deathFallLocalX: number;
     deathFallLocalZ: number;
+    /**
+     * Holder-local shift applied to the inner model while anims are weighted,
+     * so walk/fire feet sit on the sim origin. Bind/T-pose uses weight 0 (no shift).
+     */
+    footAlignX: number;
+    footAlignZ: number;
 }
 
 const templates = new Map<string, Template>();
@@ -163,14 +167,92 @@ interface Instance {
     dying: boolean;
     /** When set (homepage showcase), ignore motion and keep this walk weight. */
     walkLock: number | null;
+    /** Inner model rest translation (bind / T-pose seat). */
+    baseInnerX: number;
+    baseInnerZ: number;
+    footAlignX: number;
+    footAlignZ: number;
 }
 
 const instances: Instance[] = [];
 const instanceByRoot = new WeakMap<Object3D, Instance>();
 const _worldPos = new Vector3();
+const _footA = new Vector3();
+const _footB = new Vector3();
 
 export function hasAnimatedModel(id: string): boolean {
     return templates.has(id);
+}
+
+/** Midpoint of L/R foot in holder space (holder assumed unmoved). */
+function midFootInHolder(holder: Object3D): { x: number; z: number } | null {
+    let skinned: SkinnedMesh | undefined;
+    let lFoot: Bone | undefined;
+    let rFoot: Bone | undefined;
+    holder.traverse((o) => {
+        if ((o as SkinnedMesh).isSkinnedMesh) skinned = o as SkinnedMesh;
+        if (o instanceof Bone) {
+            if (o.name === 'L_Foot') lFoot = o;
+            if (o.name === 'R_Foot') rFoot = o;
+        }
+    });
+    if (!skinned || !lFoot || !rFoot) return null;
+    holder.updateMatrixWorld(true);
+    skinned.skeleton.update();
+    lFoot.getWorldPosition(_footA);
+    rFoot.getWorldPosition(_footB);
+    return { x: (_footA.x + _footB.x) * 0.5, z: (_footA.z + _footB.z) * 0.5 };
+}
+
+/**
+ * How far to shift the inner model while the walk clip plays so feet sit on
+ * the holder origin. Restores bind pose afterward so the template stays T-pose.
+ */
+function measureFootAlign(holder: Group, walk: AnimationClip): { x: number; z: number } {
+    const mixer = new AnimationMixer(holder);
+    const act = mixer.clipAction(walk);
+    act.setEffectiveWeight(1);
+    act.play();
+    mixer.setTime(0);
+    const mid = midFootInHolder(holder);
+    mixer.stopAllAction();
+    // Put bones back to bind so deploy / idle still shows T-pose.
+    holder.traverse((o) => {
+        const sk = o as SkinnedMesh;
+        if (sk.isSkinnedMesh) sk.skeleton.pose();
+    });
+    holder.updateMatrixWorld(true);
+    if (!mid) return { x: 0, z: 0 };
+    return { x: -mid.x, z: -mid.z };
+}
+
+function innerModel(holder: Object3D): Object3D | null {
+    return holder.children[0] ?? null;
+}
+
+/**
+ * Object stuck arrows should parent to. For animated units this is the anim
+ * holder that receives foot-align — the empty proxy alone leaves shafts floating.
+ */
+export function stuckBoltAttachOf(proxy: Object3D): Object3D {
+    const inst = instanceForProxy(proxy);
+    return inst?.root ?? proxy;
+}
+
+/** Blend foot align with current anim weights (0 = T-pose seat, 1 = walk seat). */
+function applyFootAlign(inst: Instance): void {
+    // Shift the anim holder (not its inner child) so world scale / AABB seating
+    // stay correct and stuck bolts parented here ride the stance.
+    const w = Math.min(
+        1,
+        Math.max(
+            inst.walk.getEffectiveWeight(),
+            inst.fire?.getEffectiveWeight() ?? 0,
+            inst.death?.getEffectiveWeight() ?? 0,
+        ),
+    );
+    inst.root.position.x = inst.baseInnerX + inst.footAlignX * w;
+    inst.root.position.z = inst.baseInnerZ + inst.footAlignZ * w;
 }
 
 /** Yaw, scale to `height`, center x/z, sit base at y=0 (mirrors the static path). */
@@ -347,7 +429,9 @@ export async function loadAnimatedModels(heights: Record<string, number>): Promi
                 if (death) pinSharedRootPositions([walk, death], locoBones, { preserveY: true });
 
                 const h = (heights[id] || 1) * (spec.scale ?? 1);
+                // No static offset — footAlign blends bind vs walk seats at runtime.
                 const root = normalize(prepared, h, spec.yaw, spec.pitch, spec.roll, spec.offset);
+                const footAlign = measureFootAlign(root, walk);
                 const fallLocal = spec.deathFallLocal ?? { x: 0, z: -1 };
                 templates.set(id, {
                     root,
@@ -360,9 +444,12 @@ export async function loadAnimatedModels(heights: Record<string, number>): Promi
                     fireHold: !!spec.fireHold,
                     deathFallLocalX: fallLocal.x,
                     deathFallLocalZ: fallLocal.z,
+                    footAlignX: footAlign.x,
+                    footAlignZ: footAlign.z,
                 });
                 console.info(
-                    `[unitAnimated] '${id}' ready (root='${bone}', pin=[${locoBones.join(',')}], walk=${walk.duration.toFixed(2)}s` +
+                    `[unitAnimated] '${id}' ready (root='${bone}', pin=[${locoBones.join(',')}],` +
+                        ` footAlign=(${footAlign.x.toFixed(2)},${footAlign.z.toFixed(2)}), walk=${walk.duration.toFixed(2)}s` +
                         `@${(spec.walkSpeed ?? 1).toFixed(2)}x` +
                         (spec.walkRange
                             ? ` trim=${spec.walkRange.start.toFixed(2)}-${spec.walkRange.end.toFixed(2)}`
@@ -453,6 +540,11 @@ export function cloneAnimatedModel(
         firing: false,
         dying: false,
         walkLock: null,
+        // Foot-align shifts the holder; keep the authored inner centering intact.
+        baseInnerX: root.position.x,
+        baseInnerZ: root.position.z,
+        footAlignX: t.footAlignX,
+        footAlignZ: t.footAlignZ,
     };
     mixer.addEventListener('finished', (e) => {
         if (e.action === inst.fire) {
@@ -505,6 +597,8 @@ export function resetAnimatedUnit(proxy: Object3D): void {
     inst.walk.timeScale = inst.baseWalkSpeed;
     inst.walk.setEffectiveWeight(0);
     inst.walk.play();
+    inst.root.position.x = inst.baseInnerX;
+    inst.root.position.z = inst.baseInnerZ;
     // Sample one bind frame so the skinned mesh leaves the clamped fall pose.
     inst.mixer.update(0);
 }
@@ -641,6 +735,7 @@ export function updateAnimatedUnits(dt: number): void {
             }
         }
 
+        applyFootAlign(inst);
         inst.mixer.update(dt);
     }
 }

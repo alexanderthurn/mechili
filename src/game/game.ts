@@ -290,7 +290,7 @@ import { getAvatarDataUrl } from './avatar';
 import { HpBars } from '../ui/hpBars';
 import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
-import { updateAnimatedUnits } from './unitAnimated';
+import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 
 /** menu→match camera fly-in (fresh starts only) */
@@ -9738,7 +9738,8 @@ export class Game {
                     const a = this.sim?.actors[i];
                     if (!a) return null;
                     return {
-                        mesh: a.mesh,
+                        // Animated units: follow the foot-aligned inner model, not the empty proxy
+                        mesh: stuckBoltAttachOf(a.mesh),
                         modelId: a.unit.type.modelId ?? a.unit.type.id,
                         structure: !!a.unit.type.structure,
                     };
@@ -9815,6 +9816,8 @@ export class Game {
                     });
                 }
                 if (profile) cpu.end('battleVisuals');
+                // Pose / foot-align before bolt follow so shafts ride the inner model
+                updateAnimatedUnits(gameDt);
                 this.stuckBolts.sync();
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
                 this.dragonFx.update(this.sim.renderElapsed);
@@ -9882,7 +9885,10 @@ export class Game {
         }
         this.map.setSnowCover(this.scenery.groundSnowCover);
         this.map.setHazardTime(this.time);
-        updateAnimatedUnits(gameDt); // rigged walk/fire — scales with battle speed
+        // Battle already advanced mixers before stuckBolts.sync above.
+        if (this.phase !== 'battle') {
+            updateAnimatedUnits(gameDt); // rigged walk/fire — scales with battle speed
+        }
         // Hide “you can move me” hints + disable visual repositioning once
         // End Deployment has locked this seat in.
         this.placement.repositioningEnabled = this.playerCanAct;

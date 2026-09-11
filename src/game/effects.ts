@@ -1,6 +1,7 @@
 import { screenShake } from './screenShake';
 import {
     AdditiveBlending,
+    Bone,
     Box3,
     BoxGeometry,
     BufferAttribute,
@@ -27,6 +28,7 @@ import {
     Ray,
     Raycaster,
     ShaderMaterial,
+    SkinnedMesh,
     SphereGeometry,
     Vector2,
     Vector3,
@@ -1480,13 +1482,17 @@ const _seatBoxHit = new Vector3();
 const _seatRayLocal = new Ray();
 const _seatCenter = new Vector3();
 const _seatPull = new Vector3();
+const _seatWorldScale = new Vector3();
 
 /** Torso-ish radius in world units — ignores wingspan so crow bolts don't sit on wing AABB. */
 function stuckBodyRadius(modelId: string, attach: Object3D): number {
     const h = getUnitVisualHeight(modelId);
     const hw = getUnitVisualHalfWidth(modelId) || h * 0.35;
-    // Local visual extents × mesh scale (proxy scale is usually uniform meshScale)
-    const sx = Math.abs(attach.scale.x) || 1;
+    // Full chain scale (proxy meshScale × animated normalize), not just attach.scale
+    attach.getWorldScale(_seatWorldScale);
+    const sx =
+        (Math.abs(_seatWorldScale.x) + Math.abs(_seatWorldScale.y) + Math.abs(_seatWorldScale.z)) / 3 ||
+        1;
     const worldH = h * sx;
     const worldHw = hw * sx;
     // Prefer height-based torso; cap so wide flyers don't use full wingspan
@@ -1544,15 +1550,24 @@ function visualSeatDistance(
             }
         }
         if (bestDist < Infinity) return bestDist;
-    } else if (attach.children.length > 0) {
-        const hits = _seatRay.intersectObject(attach, true);
-        for (const h of hits) {
-            if (h.point) consider(h.distance, h.point);
+    } else {
+        // SkinnedMesh.raycast uses undeformed bind buffers — seats float beside a
+        // posed orc. Skip that path and fall through to the torso AABB.
+        let skinned = false;
+        attach.traverse((o) => {
+            if ((o as SkinnedMesh).isSkinnedMesh) skinned = true;
+        });
+        if (!skinned && attach.children.length > 0) {
+            const hits = _seatRay.intersectObject(attach, true);
+            for (const h of hits) {
+                if (h.point) consider(h.distance, h.point);
+            }
+            if (bestDist < Infinity) return bestDist;
         }
-        if (bestDist < Infinity) return bestDist;
     }
 
     // AABB fallback — full visual box for buildings; tight torso for units
+    // (also the primary seat path for skinned / animated units).
     const h = getUnitVisualHeight(modelId);
     if (h <= 0.05) return null;
     const hw = getUnitVisualHalfWidth(modelId) || h * 0.35;
@@ -1561,8 +1576,11 @@ function visualSeatDistance(
         _seatBox.max.set(hw, h, hw);
     } else {
         const bodyHw = Math.min(h * 0.4, hw * 0.4);
-        _seatBox.min.set(-bodyHw, h * 0.12, -bodyHw);
-        _seatBox.max.set(bodyHw, h * 0.88, bodyHw);
+        // Rest forward is −Z; posed chests sit ahead of the holder origin, so
+        // bias the box forward or shafts plant in the empty space behind the mesh.
+        const forwardBias = h * 0.22;
+        _seatBox.min.set(-bodyHw, h * 0.12, -bodyHw - forwardBias);
+        _seatBox.max.set(bodyHw, h * 0.88, bodyHw - forwardBias * 0.25);
     }
     _seatInv.copy(attach.matrixWorld).invert();
     _seatLocalO.copy(origin).applyMatrix4(_seatInv);
@@ -1573,6 +1591,33 @@ function visualSeatDistance(
     _seatBoxHit.applyMatrix4(attach.matrixWorld);
     const dist = origin.distanceTo(_seatBoxHit);
     return dist > 1e-4 && dist <= far ? dist : null;
+}
+
+/**
+ * World-space chest/hip of a skinned attach (posed), or false if none.
+ * Used so stuck shafts aim at the drawn torso instead of the holder origin.
+ */
+function skinnedTorsoWorld(attach: Object3D, visualH: number, out: Vector3): boolean {
+    let skinned: SkinnedMesh | undefined;
+    let hip: Bone | undefined;
+    let chest: Bone | undefined;
+    attach.traverse((o) => {
+        if ((o as SkinnedMesh).isSkinnedMesh) skinned = o as SkinnedMesh;
+        if (!(o instanceof Bone)) return;
+        if (/^hip$/i.test(o.name)) hip = o;
+        if (/^(spine02|spine2|chest)$/i.test(o.name)) chest = o;
+    });
+    const bone = chest ?? hip;
+    if (!skinned || !bone) return false;
+    attach.updateMatrixWorld(true);
+    skinned.skeleton.update();
+    bone.getWorldPosition(out);
+    // Hip alone is low — nudge toward mid-chest in world up
+    if (!chest && hip) {
+        attach.getWorldScale(_seatWorldScale);
+        out.y += visualH * 0.22 * (Math.abs(_seatWorldScale.y) || 1);
+    }
+    return true;
 }
 
 /**
@@ -1620,8 +1665,15 @@ function seatStuckBoltCenter(
         return;
     }
 
-    _seatCenter.set(0, Math.max(0.25, h * 0.48), 0).applyMatrix4(attach.matrixWorld);
+    // Posed skinned units: chest/hip bone is the real torso. Holder-local (0,y,0)
+    // sits behind the drawn mesh (orc run/pitch), so shafts looked stuck in air.
+    const skinnedCenter = skinnedTorsoWorld(attach, h, _seatCenter);
+    if (!skinnedCenter) {
+        _seatCenter.set(0, Math.max(0.25, h * 0.48), 0).applyMatrix4(attach.matrixWorld);
+    }
     const bodyR = stuckBodyRadius(modelId, attach);
+    // Dig a bit deeper into flesh when we only have an approximate torso sphere
+    const embed = dig + (skinnedCenter ? 0.12 : 0);
     const t = visualSeatDistance(
         attach,
         modelId,
@@ -1633,10 +1685,10 @@ function seatStuckBoltCenter(
         'torso',
     );
     if (t != null) {
-        _seatOrigin.addScaledVector(_seatDir, t + dig);
+        _seatOrigin.addScaledVector(_seatDir, t + embed);
     } else {
         // No surface along the shot — plant on the near side of the torso
-        _seatOrigin.copy(_seatCenter).addScaledVector(_seatDir, -(bodyR * 0.72));
+        _seatOrigin.copy(_seatCenter).addScaledVector(_seatDir, -(bodyR * 0.55));
     }
 
     // Pull wingtip / oversized-hitbox seats onto the torso shell
@@ -1645,7 +1697,7 @@ function seatStuckBoltCenter(
     if (dist > bodyR * 1.05) {
         if (dist < 1e-6) _seatPull.copy(_seatDir).multiplyScalar(-1);
         else _seatPull.multiplyScalar(1 / dist);
-        _seatOrigin.copy(_seatCenter).addScaledVector(_seatPull, bodyR * 0.78);
+        _seatOrigin.copy(_seatCenter).addScaledVector(_seatPull, bodyR * 0.65);
     }
 }
 
