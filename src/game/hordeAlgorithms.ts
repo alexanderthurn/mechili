@@ -4,6 +4,8 @@
  * Wave *composition* lives in {@link hordeWavePlan} (hordeRoster.ts).
  */
 
+import { t } from '../i18n';
+
 /** Length of one forest circle (Mother on the last slot). */
 export const HORDE_CYCLE_LEN = 9;
 
@@ -61,7 +63,7 @@ export abstract class HordeAlgorithm {
 class OffHorde extends HordeAlgorithm {
     readonly id = 'off';
     describe(): string {
-        return 'Off — no waves';
+        return t('settings:hordeOff', { defaultValue: 'Off — no waves' });
     }
     enabled(): boolean {
         return false;
@@ -75,7 +77,10 @@ class OffHorde extends HordeAlgorithm {
 class LowHorde extends HordeAlgorithm {
     readonly id = 'low';
     describe(): string {
-        return `Low — waves on 5 and Mother night (${HORDE_FINAL_ROUND})`;
+        return t('settings:hordeLow', {
+            final: HORDE_FINAL_ROUND,
+            defaultValue: `Low — waves on 5 and Mother night (${HORDE_FINAL_ROUND})`,
+        });
     }
     enabled(): boolean {
         return true;
@@ -90,7 +95,10 @@ class LowHorde extends HordeAlgorithm {
 class MediumHorde extends HordeAlgorithm {
     readonly id = 'medium';
     describe(): string {
-        return 'Medium — brood on 3, weavers on 5, farmers on 7, Mother night (9 / 18+ Hans)';
+        return t('settings:hordeMedium', {
+            defaultValue:
+                'Medium — brood on 3, weavers on 5, farmers on 7, Mother night (9 / 18+ Hans)',
+        });
     }
     enabled(): boolean {
         return true;
@@ -105,7 +113,7 @@ class MediumHorde extends HordeAlgorithm {
 class HighHorde extends HordeAlgorithm {
     readonly id = 'high';
     describe(): string {
-        return 'High — a wave every round';
+        return t('settings:hordeHigh', { defaultValue: 'High — a wave every round' });
     }
     enabled(): boolean {
         return true;
@@ -119,7 +127,9 @@ class HighHorde extends HordeAlgorithm {
 class UltraHorde extends HordeAlgorithm {
     readonly id = 'ultra';
     describe(): string {
-        return 'Ultra — every round, double pack counts';
+        return t('settings:hordeUltra', {
+            defaultValue: 'Ultra — every round, double pack counts',
+        });
     }
     enabled(): boolean {
         return true;

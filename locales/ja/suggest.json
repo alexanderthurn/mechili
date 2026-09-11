@@ -1,0 +1,23 @@
+{
+  "title": "フィードバックを送る",
+  "lead": "追加・修正・試してほしいことを教えてください。名前やメールアドレスも任意で残せます。",
+  "discord": "チャットがいい？ Discordコミュニティへ。",
+  "category": "カテゴリ",
+  "message": "メッセージ",
+  "placeholder": "何を変えたい？ 何が壊れた？ 何があると助かる？",
+  "cancel": "キャンセル",
+  "submit": "送信",
+  "sending": "送信中…",
+  "thanksSent": "ありがとう — 送信しました。",
+  "thanksSaved": "ありがとう — 保存しました。",
+  "writeFirst": "先に短いメッセージを書いてください。",
+  "rateLimited": "提案が多すぎます — {{n}}秒後に再試行してください。",
+  "sendFailed": "送信できませんでした。しばらくしてから再試行してください。",
+  "networkError": "ネットワークエラー — しばらくしてから再試行してください。",
+  "catBug": "バグ",
+  "catBalance": "バランス",
+  "catFeature": "機能",
+  "catArt": "モデル / アート",
+  "catCommunity": "コミュニティ",
+  "catOther": "その他"
+}

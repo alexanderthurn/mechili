@@ -39,8 +39,8 @@ import {
     COMMAND_TOWER,
     DEPLOY_AIR_Y,
     RESEARCH_CENTER,
-    GARRISON_ARCHER,
-    GARRISON_FOV_HALF,
+    STRONGHOLD_ARCHER,
+    STRONGHOLD_ARCHER_FOV_HALF,
     STRONGHOLD,
     bloodColorOf,
     resolveDeathWear,
@@ -901,7 +901,7 @@ export class BattleSim {
                     radius: unit.type.collisionRadius,
                     index: 0,
                     hurtTimer: 0,
-                    // a pinned pack (garrison archer on his battlement) owns
+                    // a pinned pack (Stronghold archer on his battlement) owns
                     // its own absolute Y — feetY already returns altitude
                     // verbatim whenever it is above zero
                     altitude: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
@@ -1126,7 +1126,40 @@ export class BattleSim {
 
     /** the round ends as soon as one side has no units left besides its towers */
     get isOver(): boolean {
-        return !this.hasMobileMechs('player') || !this.hasMobileMechs('enemy');
+        const playerAny = this.hasMobileMechs('player');
+        const enemyAny = this.hasMobileMechs('enemy');
+        if (!playerAny || !enemyAny) return true;
+        // Both sides only have building-bound troops (wall archers) — nothing can
+        // march across the field, so settle the round and score survivors.
+        if (!this.hasFieldArmy('player') && !this.hasFieldArmy('enemy')) return true;
+        return false;
+    }
+
+    /**
+     * Living non-structure mechs that can leave their tile — excludes
+     * battlement archers (speed 0 / pinned to the keep).
+     */
+    private hasFieldArmy(team: Team): boolean {
+        return this.actors.some(
+            (a) =>
+                actorTeam(a) === team &&
+                !a.unit.type.structure &&
+                a.unit.type !== STRONGHOLD_ARCHER &&
+                (a.alive || (a.appearAt > 0 && !a.appeared)),
+        );
+    }
+
+    private hasMobileMechs(team: Team): boolean {
+        // dormant summons count — the battle must not end while reinforcements
+        // are still on their way in. Stronghold archers count too: a keep-only
+        // defense is still a fighting force (and must keep the round open
+        // while enemies march in).
+        return this.actors.some(
+            (a) =>
+                actorTeam(a) === team &&
+                !a.unit.type.structure &&
+                (a.alive || (a.appearAt > 0 && !a.appeared)),
+        );
     }
 
     /**
@@ -2586,17 +2619,6 @@ export class BattleSim {
         if (profiling) this.lastProfileSteps = steps;
     }
 
-    private hasMobileMechs(team: Team): boolean {
-        // dormant summons count — the battle must not end while reinforcements
-        // are still on their way in
-        return this.actors.some(
-            (a) =>
-                actorTeam(a) === team &&
-                !a.unit.type.structure &&
-                (a.alive || (a.appearAt > 0 && !a.appeared)),
-        );
-    }
-
     /** Command Tower or Research Center specifically — NOT Stronghold, and
      *  NOT any other non-extra structure. Only these two trigger the
      *  tower-destruction debuff; Stronghold loss is a separate, currently
@@ -2858,7 +2880,7 @@ export class BattleSim {
             // immediately, which read as a teleport especially on hills
             // A pinned pack is already exactly where it belongs — it never
             // climbed out of a deployment hover, so it must not be lerped from
-            // one. Without this the garrison archer's lift stays 0 (tickFlight
+            // one. Without this the Stronghold archer's lift stays 0 (tickFlight
             // only ramps real flyers) and the climb resolves to ground level:
             // he renders inside his own keep and shoots from in there.
             const lift = a.unit.pinnedY != null ? 1 : a.unit.flightLift;
@@ -3080,12 +3102,12 @@ export class BattleSim {
             target.unit.markDestroyed(knockDir ?? undefined, {
                 crush: this.crushingHammer,
             });
-            // The garrison cannot be shot at — the keep under it is the only
+            // The wall archers cannot be shot at — the keep under them is the only
             // way in, so when the keep goes the wall goes with it. Killed with
             // no killer: the besieger earned the Stronghold, not four archers.
             if (target.unit.type === STRONGHOLD) {
                 for (const a of this.actors) {
-                    if (!a.alive || a.unit.type !== GARRISON_ARCHER) continue;
+                    if (!a.alive || a.unit.type !== STRONGHOLD_ARCHER) continue;
                     if (a.unit.seat !== target.unit.seat) continue;
                     this.kill(a, null, a.maxHp, undefined, true);
                 }
@@ -4575,7 +4597,7 @@ export class BattleSim {
         const fov = from.unit.fovYaw;
         if (fov == null) return true;
         const ang = detAtan2(target.x - from.x, target.z - from.z);
-        return Math.abs(wrapPi(ang - fov)) <= GARRISON_FOV_HALF;
+        return Math.abs(wrapPi(ang - fov)) <= STRONGHOLD_ARCHER_FOV_HALF;
     }
 
     private closestEnemy(from: Actor, anyLayer = false): Actor | null {

@@ -13,6 +13,7 @@
  */
 
 import { CHAT_TEXT_LIMIT, EMOTES, type ChatItem } from '../game/emotes';
+import { t } from '../i18n';
 import { iconHtml } from './iconAtlas';
 
 export interface ChatBarOptions {
@@ -38,17 +39,17 @@ export class ChatBar {
         bar.className = 'mechili-chat';
         if (opts.inline) bar.classList.add('inline');
 
-        const emoteButtons = EMOTES.map(
-            (e) =>
-                `<button type="button" class="c-emote" data-emote="${e.id}" title="${e.label}">${iconHtml(e.icon, 'c-emote-ico')}</button>`,
-        ).join('');
+        const emoteButtons = EMOTES.map((e) => {
+            const title = t(`hud:emote_${e.id}`, { defaultValue: e.label });
+            return `<button type="button" class="c-emote" data-emote="${e.id}" title="${title}">${iconHtml(e.icon, 'c-emote-ico')}</button>`;
+        }).join('');
         bar.innerHTML =
-            `<div class="c-strip">Chat</div>` +
+            `<div class="c-strip">${t('hud:chatStrip')}</div>` +
             `<div class="c-panel">` +
             `<div class="c-emotes">${emoteButtons}</div>` +
             `<div class="c-row">` +
-            `<input class="c-input" maxlength="${CHAT_TEXT_LIMIT}" placeholder="message…" spellcheck="false" />` +
-            `<button type="button" class="c-send">Send</button>` +
+            `<input class="c-input" maxlength="${CHAT_TEXT_LIMIT}" placeholder="${t('hud:chatPlaceholder')}" spellcheck="false" />` +
+            `<button type="button" class="c-send">${t('hud:chatSend')}</button>` +
             `</div></div>`;
         this.input = bar.querySelector('.c-input')!;
         if (opts.leading) bar.querySelector('.c-panel')!.prepend(opts.leading);

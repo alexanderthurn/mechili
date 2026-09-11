@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Bando de Anões",
+    "description": "Quatro Packs de anões se juntam ao seu exército.",
+    "unitsLabel": "4× Anões"
+  },
+  "archers4": {
+    "title": "Companhia de Arqueiros",
+    "description": "Quatro Packs de arqueiros se juntam ao seu exército.",
+    "unitsLabel": "4 arqueiros"
+  },
+  "crowRiders2": {
+    "title": "Asa de Corvo",
+    "description": "Dois bandos de Cavaleiros Corvos se juntam ao seu exército.",
+    "unitsLabel": "2× Cavaleiros de Corvo"
+  },
+  "ballista1": {
+    "title": "Balista de Cerco",
+    "description": "Uma balista se junta ao seu exército.",
+    "unitsLabel": "1× Balista"
+  },
+  "flanky": {
+    "title": "Flanky",
+    "description": "As primeiras aparições no flanco levam metade do tempo."
+  },
+  "rallyRoute": {
+    "title": "Rota de reunião",
+    "description": "Estabeleça uma rota de marcha: as unidades na zona inicial dirigem-se para a zona final, combatendo ao longo do percurso."
+  },
+  "sellPack": {
+    "title": "Recompra",
+    "description": "Feitiço de uso único: venda um dos seus Packs para receber um reembolso de suprimentos."
+  },
+  "movePack": {
+    "title": "Ordens de marcha",
+    "description": "Feitiço de uso único: um Pack de uma rodada anterior pode ser reposicionado nesta rodada."
+  }
+}

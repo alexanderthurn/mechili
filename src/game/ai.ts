@@ -4,6 +4,7 @@ import { unlockCostForSpeciality } from './cards';
 import type { RoundCard, SpecialityId, StartCard } from './cards';
 import type { PlacementController } from './placement';
 import type { DeploySettings, Economy } from './settings';
+import { CLIMB_AI_PACK_BUDGET_FRACTION } from './settings';
 import {
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
@@ -67,12 +68,19 @@ export class AiOpponent implements Opponent {
             /** per-SEAT talent picks; AI seats normally have none and get
              *  the catalog default (PROGRESSION_PLAN.md §1c) */
             loadoutOf: (seat: SeatId) => Loadout | undefined;
-            /** garrison / shop deploy prices (extra slot, base rune, …) */
+            /** shop deploy prices (extra slot, base rune, …) */
             deploySettings: DeploySettings;
             /** per-SEAT stronghold spells already bought this match */
             forgeSpellOwned: string[][];
             /** this seat's commander forge-spell pool */
             forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
+            /**
+             * Campaign climb: wipe + wealth-matched fresh rebuild each round.
+             * Practice / MP leave this unset/false.
+             */
+            climb?: boolean;
+            /** Campaign: deterministic per-round stream (seed + round) */
+            rngForRound?: (round: number) => () => number;
         },
     ) {}
 
@@ -95,8 +103,16 @@ export class AiOpponent implements Opponent {
         });
     }
 
-    onBuildPhase(_round: number): void {
-        this.runBuildActions();
+    onBuildPhase(round: number): void {
+        if (this.ctx.climb) {
+            this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
+            this.runBuildActions({
+                climb: true,
+                rng: this.ctx.rngForRound?.(round) ?? this.ctx.rng,
+            });
+        } else {
+            this.runBuildActions();
+        }
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }
 
@@ -105,23 +121,36 @@ export class AiOpponent implements Opponent {
         this.runBuildActions();
     }
 
-    private runBuildActions(): void {
-        const { placement, rng } = this.ctx;
+    private runBuildActions(opts?: { climb?: boolean; rng?: () => number }): void {
+        const { placement } = this.ctx;
+        const rng = opts?.rng ?? this.ctx.rng;
+        const climb = !!opts?.climb;
         const team = this.team;
 
+        const startBal = this.ctx.economy.balance(this.seat);
+        const packFloor = climb
+            ? Math.floor(startBal * (1 - CLIMB_AI_PACK_BUDGET_FRACTION))
+            : 0;
+
         // 1) first buy: prefer a cheap unit (< 200); unlock one if needed
-        this.buyUnit(this.pickFirstBuyType());
+        this.buyUnit(this.pickFirstBuyType(rng), rng);
 
         // 2) remaining deploy slots: random among affordable unlocked types
-        for (let guard = 0; guard < 30; guard++) {
+        // Campaign: buy while leaving packFloor for upgrades (not packs-only).
+        const buyGuard = climb ? 80 : 30;
+        for (let guard = 0; guard < buyGuard; guard++) {
+            if (climb && this.ctx.economy.balance(this.seat) <= packFloor) break;
             const affordable = this.affordableArmyTypes();
             if (affordable.length === 0) break;
             const type = affordable[Math.floor(rng() * affordable.length)]!;
-            if (!this.buyUnit(type)) break;
+            // too dear to stay above the upgrade floor — try another type, don't
+            // abandon pack buying entirely (the guard bounds the retries)
+            if (climb && this.ctx.economy.balance(this.seat) - type.cost < packFloor) continue;
+            if (!this.buyUnit(type, rng)) break;
         }
 
-        // 3) spare ~100 supply → +1 garrison slot + a shop rune to equip
-        this.maybeBuySlotAndRune();
+        // 3) spare ~100 supply → +1 deploy slot + a shop rune to equip
+        this.maybeBuySlotAndRune(rng);
 
         // rearrange packs
         for (const unit of placement.allUnits()) {
@@ -142,13 +171,25 @@ export class AiOpponent implements Opponent {
         }
 
         // equip inventory items onto bare packs
-        this.applyItems();
+        this.applyItems(rng);
 
         // cast available tactics / spells toward the opponent
-        this.placeTactics();
+        this.placeTactics(rng);
 
-        // leftover: pack levels → stronghold spells → unit techs (never buildings)
-        this.spendLeftoverUpgrades();
+        // leftover: pack levels → (non-Campaign) stronghold forge spells → unit techs
+        this.spendLeftoverUpgrades({ buyForgeSpells: !climb });
+
+        // Campaign: any remaining supply after upgrades can buy a few more packs
+        if (climb) {
+            for (let guard = 0; guard < 20; guard++) {
+                const affordable = this.affordableArmyTypes();
+                if (affordable.length === 0) break;
+                const type = affordable[Math.floor(rng() * affordable.length)]!;
+                if (!this.buyUnit(type, rng)) break;
+            }
+            this.applyItems(rng);
+            this.spendLeftoverUpgrades({ buyForgeSpells: false });
+        }
     }
 
     /** unlocked, buyable army types this seat can afford right now */
@@ -178,10 +219,12 @@ export class AiOpponent implements Opponent {
      * Among candidates, prefer types this seat has fewer of (missing first,
      * then the lesser count). Ties break randomly.
      */
-    private preferLesserOwned(candidates: readonly UnitType[]): UnitType | null {
+    private preferLesserOwned(
+        candidates: readonly UnitType[],
+        rng: () => number = this.ctx.rng,
+    ): UnitType | null {
         if (candidates.length === 0) return null;
         const counts = this.ownedArmyCounts();
-        const { rng } = this.ctx;
         let best: UnitType[] = [];
         let bestCount = Number.POSITIVE_INFINITY;
         for (const t of candidates) {
@@ -202,7 +245,7 @@ export class AiOpponent implements Opponent {
      * type is already buyable). If still nothing cheap, fall back to any
      * affordable type (same diversity).
      */
-    private pickFirstBuyType(): UnitType | null {
+    private pickFirstBuyType(rng: () => number = this.ctx.rng): UnitType | null {
         const { economy, unlockedUnits, unlockUsedThisRound, speciality } = this.ctx;
         const unlocked = unlockedUnits[this.seat]!;
 
@@ -211,7 +254,7 @@ export class AiOpponent implements Opponent {
             const t = unitTypeById(id);
             if (t && t.cost < CHEAP_UNIT_COST) allCheap.push(t);
         }
-        const preferred = this.preferLesserOwned(allCheap);
+        const preferred = this.preferLesserOwned(allCheap, rng);
         if (
             preferred &&
             !unlocked.includes(preferred.id) &&
@@ -229,12 +272,12 @@ export class AiOpponent implements Opponent {
 
         const cheap = this.affordableArmyTypes((t) => t.cost < CHEAP_UNIT_COST);
         const pool = cheap.length > 0 ? cheap : this.affordableArmyTypes();
-        return this.preferLesserOwned(pool);
+        return this.preferLesserOwned(pool, rng);
     }
 
-    private buyUnit(type: UnitType | null): boolean {
+    private buyUnit(type: UnitType | null, rng: () => number = this.ctx.rng): boolean {
         if (!type) return false;
-        const { dispatch, placement, rng } = this.ctx;
+        const { dispatch, placement } = this.ctx;
         const spot = placement.findAiSpot(this.team, this.seat, type, rng);
         if (!spot) return false;
         return dispatch({
@@ -251,8 +294,8 @@ export class AiOpponent implements Opponent {
      * After army buys: if supply covers +1 deploy slot and a base rune, buy both
      * so the rune can be equipped in {@link applyItems}.
      */
-    private maybeBuySlotAndRune(): void {
-        const { dispatch, economy, rng, deploySettings } = this.ctx;
+    private maybeBuySlotAndRune(rng: () => number = this.ctx.rng): void {
+        const { dispatch, economy, deploySettings } = this.ctx;
         const need = deploySettings.extraSlotCost + deploySettings.baseRuneCost;
         if (economy.balance(this.seat) < need) return;
         if (!dispatch({ kind: 'buyDeploySlot', team: this.team, seat: this.seat })) return;
@@ -260,8 +303,8 @@ export class AiOpponent implements Opponent {
         dispatch({ kind: 'buyRune', team: this.team, seat: this.seat, itemId });
     }
 
-    private applyItems(): void {
-        const { dispatch, placement, items, rng } = this.ctx;
+    private applyItems(rng: () => number = this.ctx.rng): void {
+        const { dispatch, placement, items } = this.ctx;
         const team = this.team;
         const bag = [...items[this.seat]!];
         if (bag.length === 0) return;
@@ -288,8 +331,8 @@ export class AiOpponent implements Opponent {
         }
     }
 
-    private placeTactics(): void {
-        const { dispatch, placement, tactics, rng } = this.ctx;
+    private placeTactics(rng: () => number = this.ctx.rng): void {
+        const { dispatch, placement, tactics } = this.ctx;
         const team = this.team;
         const foes = placement
             .allUnits()
@@ -392,10 +435,12 @@ export class AiOpponent implements Opponent {
     /**
      * leftover supply: pack levels first, then stronghold forge spells, then
      * unit techs. Never upgrades buildings.
+     * Campaign skips forge-spell buys so supply stays on packs / levels / tech.
      */
-    private spendLeftoverUpgrades(): void {
+    private spendLeftoverUpgrades(opts?: { buyForgeSpells?: boolean }): void {
         const { dispatch, placement, economy, techTree, forgeSpellOwned, forgeSpellsOf } = this.ctx;
         const team = this.team;
+        const buyForgeSpells = opts?.buyForgeSpells !== false;
 
         let leveled = true;
         while (leveled) {
@@ -408,17 +453,19 @@ export class AiOpponent implements Opponent {
             }
         }
 
-        const ownedSpells = forgeSpellOwned[this.seat]!;
-        let boughtSpell = true;
-        while (boughtSpell) {
-            boughtSpell = false;
-            const pool = forgeSpellsOf(this.seat) ?? [];
-            for (const tacticId of pool) {
-                if (ownedSpells.includes(tacticId)) continue;
-                const cost = TACTICS[tacticId]?.strongholdCost;
-                if (cost === undefined || economy.balance(this.seat) < cost) continue;
-                if (dispatch({ kind: 'buyForgeSpell', team, seat: this.seat, tacticId })) {
-                    boughtSpell = true;
+        if (buyForgeSpells) {
+            const ownedSpells = forgeSpellOwned[this.seat]!;
+            let boughtSpell = true;
+            while (boughtSpell) {
+                boughtSpell = false;
+                const pool = forgeSpellsOf(this.seat) ?? [];
+                for (const tacticId of pool) {
+                    if (ownedSpells.includes(tacticId)) continue;
+                    const cost = TACTICS[tacticId]?.strongholdCost;
+                    if (cost === undefined || economy.balance(this.seat) < cost) continue;
+                    if (dispatch({ kind: 'buyForgeSpell', team, seat: this.seat, tacticId })) {
+                        boughtSpell = true;
+                    }
                 }
             }
         }

@@ -574,57 +574,161 @@ export interface BarAssets {
     barFillBlue: string;
 }
 
-/** Display + UI face options — OFL, self-hosted for Steam/offline. */
-export type UiFontId = 'cinzel' | 'exo2' | 'marcellus';
+import { EXO2_LANGUAGE_IDS, LANGUAGE_IDS, type LanguageId } from './i18n/languages';
 
-export const UI_FONTS: Record<
-    UiFontId,
-    { label: string; hint: string; stack: string }
-> = {
-    cinzel: {
-        label: 'Cinzel',
-        hint: 'fantasy titles',
-        stack: '"Cinzel", "Palatino Linotype", Palatino, Georgia, serif',
-    },
-    exo2: {
-        label: 'Exo 2',
-        hint: 'modern HUD',
-        stack: '"Exo 2", "Segoe UI", system-ui, sans-serif',
-    },
-    marcellus: {
-        label: 'Marcellus',
-        hint: 'default',
-        stack: '"Marcellus", "Palatino Linotype", Palatino, Georgia, serif',
-    },
-};
+/** Brand Latin serif; Exo 2 only fills rare missing glyphs (e.g. Romanian ș/ț). */
+const MARCELLUS_STACK = '"Marcellus", "Exo 2", "Palatino Linotype", Palatino, Georgia, serif';
+const EXO2_STACK = '"Exo 2", "Segoe UI", system-ui, sans-serif';
 
-/** Default stack (Marcellus) — Pixi / callers that need a concrete family string. */
-export const FONT_UI = UI_FONTS.marcellus.stack;
+/**
+ * Per-language UI face — OFL, self-hosted for Steam/offline.
+ * Default Marcellus; override only when Marcellus cannot render the script.
+ */
+const FONT_STACKS = Object.fromEntries(LANGUAGE_IDS.map((id) => [id, MARCELLUS_STACK])) as Record<
+    LanguageId,
+    string
+>;
+FONT_STACKS.zh = '"Noto Serif SC", "Songti SC", "SimSun", serif';
+FONT_STACKS['zh-Hant'] = '"Noto Serif TC", "PingFang TC", "Microsoft JhengHei", serif';
+FONT_STACKS.ko = '"Noto Serif KR", "Apple SD Gothic Neo", "Malgun Gothic", serif';
+FONT_STACKS.ja = '"Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif';
+FONT_STACKS.th = '"Noto Serif Thai", "Thonburi", "Tahoma", serif';
+FONT_STACKS.ar = '"Noto Naskh Arabic", "Segoe UI", "Tahoma", sans-serif';
+FONT_STACKS.el = '"Noto Serif", "Times New Roman", Georgia, serif';
+for (const id of EXO2_LANGUAGE_IDS) {
+    FONT_STACKS[id] = EXO2_STACK;
+}
 
-const CINZEL_URL = new URL('../assets/fonts/Cinzel-Variable.ttf', import.meta.url).href;
+/** Primary family name for Pixi Text (must match an @font-face). */
+const FONT_FAMILY = Object.fromEntries(LANGUAGE_IDS.map((id) => [id, 'Marcellus'])) as Record<
+    LanguageId,
+    string
+>;
+FONT_FAMILY.zh = 'Noto Serif SC';
+FONT_FAMILY['zh-Hant'] = 'Noto Serif TC';
+FONT_FAMILY.ko = 'Noto Serif KR';
+FONT_FAMILY.ja = 'Noto Serif JP';
+FONT_FAMILY.th = 'Noto Serif Thai';
+FONT_FAMILY.ar = 'Noto Naskh Arabic';
+FONT_FAMILY.el = 'Noto Serif';
+for (const id of EXO2_LANGUAGE_IDS) {
+    FONT_FAMILY[id] = 'Exo 2';
+}
+
+export { FONT_FAMILY };
+
+// Ensure every shipped language has an entry (dev catch).
+for (const id of LANGUAGE_IDS) {
+    if (!FONT_STACKS[id] || !FONT_FAMILY[id]) {
+        throw new Error(`Missing font mapping for language ${id}`);
+    }
+}
+
+/** Default stack (English / Marcellus). */
+export const FONT_UI = FONT_STACKS.en;
+
 const EXO2_URL = new URL('../assets/fonts/Exo2-Variable.ttf', import.meta.url).href;
 const MARCELLUS_URL = new URL('../assets/fonts/Marcellus-Regular.ttf', import.meta.url).href;
+const NOTO_SC_URL = new URL('../assets/fonts/NotoSerifSC-Regular.otf', import.meta.url).href;
+const NOTO_TC_URL = new URL('../assets/fonts/NotoSerifTC-Regular.otf', import.meta.url).href;
+const NOTO_KR_URL = new URL('../assets/fonts/NotoSerifKR-Regular.otf', import.meta.url).href;
+const NOTO_JP_URL = new URL('../assets/fonts/NotoSerifJP-Regular.otf', import.meta.url).href;
+const NOTO_THAI_URL = new URL('../assets/fonts/NotoSerifThai-Regular.ttf', import.meta.url).href;
+const NOTO_ARABIC_URL = new URL('../assets/fonts/NotoNaskhArabic-Regular.ttf', import.meta.url).href;
+const NOTO_SERIF_URL = new URL('../assets/fonts/NotoSerif-Regular.ttf', import.meta.url).href;
 
-/** Live-switch `--font-ui` (everything inherits via body + form-control rules). */
-export function applyUiFont(id: UiFontId): void {
-    const font = UI_FONTS[id] ?? UI_FONTS.marcellus;
-    document.documentElement.style.setProperty('--font-ui', font.stack);
+const injectedFaces = new Set<string>();
+
+async function ensureLazyFace(opts: {
+    id: string;
+    family: string;
+    url: string;
+    format: 'opentype' | 'truetype';
+}): Promise<void> {
+    if (injectedFaces.has(opts.id)) {
+        await document.fonts.load(`400 16px "${opts.family}"`).catch(() => {});
+        return;
+    }
+    const style = document.createElement('style');
+    style.dataset.font = opts.id;
+    style.textContent = `
+@font-face {
+    font-family: '${opts.family}';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('${opts.url}') format('${opts.format}');
+}`;
+    document.head.appendChild(style);
+    injectedFaces.add(opts.id);
+    await document.fonts.load(`400 16px "${opts.family}"`).catch(() => {});
+}
+
+/** Live-switch `--font-ui` (and document direction) from the active language. */
+export async function applyLanguageFont(language: LanguageId): Promise<void> {
+    if (language === 'zh') {
+        await ensureLazyFace({
+            id: 'noto-serif-sc',
+            family: 'Noto Serif SC',
+            url: NOTO_SC_URL,
+            format: 'opentype',
+        });
+    } else if (language === 'zh-Hant') {
+        await ensureLazyFace({
+            id: 'noto-serif-tc',
+            family: 'Noto Serif TC',
+            url: NOTO_TC_URL,
+            format: 'opentype',
+        });
+    } else if (language === 'ko') {
+        await ensureLazyFace({
+            id: 'noto-serif-kr',
+            family: 'Noto Serif KR',
+            url: NOTO_KR_URL,
+            format: 'opentype',
+        });
+    } else if (language === 'ja') {
+        await ensureLazyFace({
+            id: 'noto-serif-jp',
+            family: 'Noto Serif JP',
+            url: NOTO_JP_URL,
+            format: 'opentype',
+        });
+    } else if (language === 'th') {
+        await ensureLazyFace({
+            id: 'noto-serif-thai',
+            family: 'Noto Serif Thai',
+            url: NOTO_THAI_URL,
+            format: 'truetype',
+        });
+    } else if (language === 'ar') {
+        await ensureLazyFace({
+            id: 'noto-naskh-arabic',
+            family: 'Noto Naskh Arabic',
+            url: NOTO_ARABIC_URL,
+            format: 'truetype',
+        });
+    } else if (language === 'el') {
+        await ensureLazyFace({
+            id: 'noto-serif',
+            family: 'Noto Serif',
+            url: NOTO_SERIF_URL,
+            format: 'truetype',
+        });
+    }
+    const stack = FONT_STACKS[language] ?? FONT_STACKS.en;
+    document.documentElement.style.setProperty('--font-ui', stack);
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
 }
 
 /**
- * One global font setup: @font-face for all candidates, --font-ui, body default,
- * and form-control inherit (buttons/inputs ignore parent font-family otherwise).
+ * One global font setup: @font-face for Marcellus + Exo 2, --font-ui, body
+ * default, and form-control inherit. Script-heavy faces (CJK / Thai / Arabic /
+ * Greek) are injected on demand in {@link applyLanguageFont}.
  * Safe to inject more than once.
  */
 export function fontFaceCss(): string {
     return `
-@font-face {
-    font-family: 'Cinzel';
-    font-style: normal;
-    font-weight: 400 900;
-    font-display: swap;
-    src: url('${CINZEL_URL}') format('truetype');
-}
 @font-face {
     font-family: 'Exo 2';
     font-style: normal;
@@ -1054,7 +1158,7 @@ ${chatFloatStyles(u, pc, ec)}
     font-size: 16px;
     font-weight: bold;
     letter-spacing: 1.5px;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
     box-shadow:
         0 2px 8px rgba(0, 0, 0, 0.35),
@@ -1338,11 +1442,13 @@ ${chatFloatStyles(u, pc, ec)}
     font-weight: bold;
     letter-spacing: 1px;
     cursor: pointer;
-    text-align: left;
+    text-align: start;
     transition: transform 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 .mechili-menu .m-room::before { content: '▸ '; color: ${u.brass}; }
 .mechili-menu .m-room:hover { border-color: ${u.hover}; color: ${u.brassLight}; transform: translateX(2px); }
+:dir(rtl) .mechili-menu .m-room::before { content: '◂ '; }
+:dir(rtl) .mechili-menu .m-room:hover { transform: translateX(-2px); }
 .mechili-menu .m-room:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.3); }
 /* a running match, joinable only as a spectator — visually distinct from
    an open (joinable-as-player) room above */
@@ -1415,7 +1521,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-loadout .lo-left {
     top: calc(24px + env(safe-area-inset-top));
-    left: calc(24px + env(safe-area-inset-left));
+    inset-inline-start: calc(24px + env(safe-area-inset-left));
     /* bounded to the viewport so the stats can never run off the bottom of
        a short window — they shrink and scroll instead */
     bottom: calc(24px + env(safe-area-inset-bottom));
@@ -1426,7 +1532,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-loadout .lo-right {
     top: calc(24px + env(safe-area-inset-top));
-    right: calc(24px + env(safe-area-inset-right));
+    inset-inline-end: calc(24px + env(safe-area-inset-right));
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -1435,7 +1541,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-loadout .lo-corner {
     bottom: calc(24px + env(safe-area-inset-bottom));
-    right: calc(24px + env(safe-area-inset-right));
+    inset-inline-end: calc(24px + env(safe-area-inset-right));
     display: flex;
     gap: 8px;
 }
@@ -1552,7 +1658,7 @@ ${chatFloatStyles(u, pc, ec)}
     color: ${u.textMuted};
     font-family: inherit;
     font-size: 13px;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
     transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
 }
@@ -1664,18 +1770,18 @@ ${chatFloatStyles(u, pc, ec)}
         order: 1;
         flex: 0 0 auto;
         gap: 6px;
-        /* keep clear of the corner buttons, which stay pinned top-right */
-        padding-right: 104px;
+        /* keep clear of the corner buttons, which stay pinned inline-end */
+        padding-inline-end: 104px;
     }
     .mechili-loadout .lo-corner {
         top: calc(10px + env(safe-area-inset-top));
-        right: calc(10px + env(safe-area-inset-right));
+        inset-inline-end: calc(10px + env(safe-area-inset-right));
         bottom: auto;
         flex-direction: column;
         gap: 6px;
     }
     .mechili-loadout .lo-switcher { width: auto; max-width: none; }
-    .mechili-loadout .lo-unitname { font-size: 20px; text-align: left; }
+    .mechili-loadout .lo-unitname { font-size: 20px; text-align: start; }
     .mechili-loadout .lo-statstoggle {
         display: block;
         width: 100%;
@@ -1741,6 +1847,10 @@ ${chatFloatStyles(u, pc, ec)}
     display: flex;
     flex-direction: column;
     align-items: center;
+    /* .m-btn sets text-align:start for the icon+label ROW buttons. A card
+       stacks instead, and align-items only centers a label that fits on one
+       line — without this, a wrapped label goes left. */
+    text-align: center;
     gap: 4px;
     box-sizing: border-box;
     padding: 14px 10px;
@@ -1766,6 +1876,8 @@ ${chatFloatStyles(u, pc, ec)}
     height: 1px;
     pointer-events: none;
 }
+/* card labels may carry an explicit newline (e.g. the number over the name) */
+.mechili-menu .m-toggle-card .m-label { white-space: pre-line; }
 .mechili-menu .m-toggle-card .m-ico {
     width: 20px;
     height: 20px;
@@ -2147,7 +2259,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-username {
     position: absolute;
-    right: calc(16px + env(safe-area-inset-right));
+    inset-inline-end: calc(16px + env(safe-area-inset-right));
     bottom: calc(14px + env(safe-area-inset-bottom));
     padding: 6px 12px 6px 8px;
     background: ${u.panelBgDark};
@@ -2215,11 +2327,11 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-menu-chrome > * { pointer-events: auto; }
 
-/* Top-right menu chrome: door (Electron quit) + settings gear */
+/* Menu chrome: door (Electron quit) + settings gear — inline-end follows reading dir */
 .mechili-corner-actions {
     position: absolute;
     top: calc(10px + env(safe-area-inset-top));
-    right: calc(16px + env(safe-area-inset-right));
+    inset-inline-end: calc(16px + env(safe-area-inset-right));
     z-index: 30;
     display: flex;
     align-items: center;
@@ -2253,6 +2365,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     font-size: 0;
 }
 .mechili-exit-btn:hover { color: ${u.brassLight}; transform: translateX(2px); }
+:dir(rtl) .mechili-exit-btn:hover { transform: translateX(-2px); }
 .mechili-settings-btn:hover { color: ${u.brassLight}; transform: rotate(45deg); }
 .mechili-exit-btn:focus-visible,
 .mechili-settings-btn:focus-visible {
@@ -2282,7 +2395,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-replay-controls {
     position: absolute;
     top: calc(10px + env(safe-area-inset-top));
-    right: calc(16px + env(safe-area-inset-right));
+    inset-inline-end: calc(16px + env(safe-area-inset-right));
     z-index: 30;
     display: flex;
     flex-direction: column;
@@ -2318,11 +2431,11 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-replay-controls button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-replay-controls .rc-speed-hint { font-size: 11px; color: ${u.textMuted}; white-space: nowrap; }
 
-/* suggest chip, top-left of the main menu (same feel as username) */
+/* suggest chip, inline-start of the main menu (same feel as username) */
 .mechili-suggest-btn {
     position: absolute;
     top: calc(10px + env(safe-area-inset-top));
-    left: calc(16px + env(safe-area-inset-left));
+    inset-inline-start: calc(16px + env(safe-area-inset-left));
     padding: 8px 14px;
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
@@ -2345,7 +2458,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-username::before { content: '◆ '; color: ${u.brass}; opacity: 0.8; }
 .mechili-version {
     position: absolute;
-    left: calc(16px + env(safe-area-inset-left));
+    inset-inline-start: calc(16px + env(safe-area-inset-left));
     bottom: calc(14px + env(safe-area-inset-bottom));
     padding: 0;
     margin: 0;
@@ -2459,8 +2572,9 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     /* dissolve as soon as the menu zoom starts — not tied to the 3D handoff */
     animation: mechili-intro-logo-fade 0.55s ease-out forwards;
 }
-.mechili-intro-cover.dive .mechili-match-roster {
-    /* same beat as the logo — roster shouldn't linger through the dive */
+.mechili-intro-cover.dive .mechili-match-roster,
+.mechili-intro-cover.dive .mechili-climb-intro {
+    /* same beat as the logo — roster/card shouldn't linger through the dive */
     animation: mechili-intro-logo-fade 0.55s ease-out forwards;
 }
 @keyframes mechili-outro-rise {
@@ -2483,6 +2597,43 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     animation: none;
     opacity: 0;
 }
+/* Campaign level card — same cover slot as the VS roster, simpler. */
+.mechili-climb-intro {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 2;
+    padding: clamp(24px, 6vh, 64px) 16px;
+    box-sizing: border-box;
+}
+.mechili-climb-intro::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 70% 55% at 50% 48%, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.38) 48%, rgba(0, 0, 0, 0.55) 100%);
+    pointer-events: none;
+}
+.mechili-climb-intro .ci-frame {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+}
+.mechili-climb-intro .ci-title {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85), 0 0 40px rgba(184, 146, 74, 0.25);
+}
+
 /* Pre-match roster on the intro cover — menuStyles only: the cover runs
  * before Game/Hud boots, so hudStyles() is not injected yet. */
 .mechili-match-roster {
@@ -2954,6 +3105,7 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     content: '▸ ';
     color: ${u.bronze};
 }
+:dir(rtl) .mechili-settings .s-advanced > summary::before { content: '◂ '; }
 .mechili-settings .s-advanced[open] > summary::before { content: '▾ '; }
 .mechili-settings .s-advanced > summary:hover { color: ${u.cream}; }
 .mechili-settings .s-row {
@@ -2966,8 +3118,18 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     cursor: pointer;
     user-select: none;
 }
+.mechili-settings .s-lang-globe {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    color: ${u.brassLight};
+    display: block;
+}
+.mechili-settings .s-lang-row:hover .s-lang-globe {
+    color: ${u.cream};
+}
 .mechili-settings .s-row select {
-    margin-left: auto;
+    margin-inline-start: auto;
     min-width: 110px;
     background: ${u.leatherMid};
     border: 1px solid ${u.slotBorder};
@@ -3376,6 +3538,128 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-cinema-hint.is-visible {
     opacity: 1;
+}
+/* Below .mechili-pause (55) / .mechili-gameover (56) so Esc chrome wins. */
+.mechili-tutorial {
+    position: absolute;
+    left: 50%;
+    top: 18%;
+    transform: translateX(-50%);
+    z-index: 52;
+    width: min(420px, calc(100vw - 32px));
+    padding: 14px 16px 12px;
+    border-radius: 10px;
+    background: rgba(10, 12, 8, 0.88);
+    border: 1px solid rgba(200, 180, 120, 0.45);
+    color: ${u.text};
+    font: 14px/1.45 var(--font-ui);
+    text-align: center;
+    pointer-events: auto;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+.mechili-tutorial .tut-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin-bottom: 6px;
+    color: ${u.debug};
+}
+.mechili-tutorial .tut-body {
+    color: ${u.textMuted};
+    margin-bottom: 10px;
+}
+.mechili-tutorial .tut-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 10px;
+    text-align: left;
+}
+.mechili-tutorial .tut-ctrl {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 8px;
+    align-items: start;
+    padding: 7px 9px;
+    border-radius: 7px;
+    background: rgba(255, 220, 100, 0.08);
+    border: 1px solid rgba(200, 180, 120, 0.35);
+    font-size: 12.5px;
+    line-height: 1.35;
+}
+.mechili-tutorial .tut-ctrl-kind {
+    font-weight: 700;
+    color: ${u.debug};
+    letter-spacing: 0.02em;
+}
+.mechili-tutorial .tut-ctrl-detail {
+    color: ${u.text};
+}
+.mechili-tutorial .tut-next {
+    appearance: none;
+    border: 1px solid rgba(200, 180, 120, 0.55);
+    background: rgba(40, 36, 24, 0.9);
+    color: ${u.text};
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font: inherit;
+}
+.mechili-tutorial .tut-next:hover {
+    border-color: rgba(230, 210, 140, 0.85);
+}
+.mechili-tutorial-nudge {
+    position: absolute;
+    left: 50%;
+    bottom: calc(96px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 53;
+    max-width: min(360px, calc(100vw - 24px));
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(8, 8, 6, 0.82);
+    border: 1px solid rgba(168, 216, 120, 0.4);
+    color: ${u.debug};
+    font: 13px/1.4 var(--font-ui);
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+.mechili-tutorial-nudge.is-visible {
+    opacity: 1;
+}
+.mechili-tut-callout {
+    position: absolute;
+    z-index: 54;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 2.5px solid rgba(255, 220, 100, 0.95);
+    box-shadow:
+        0 0 0 3px rgba(255, 210, 80, 0.28),
+        0 0 18px rgba(255, 200, 60, 0.45),
+        inset 0 0 12px rgba(255, 220, 100, 0.12);
+    background: rgba(255, 210, 80, 0.06);
+    pointer-events: none;
+    animation: tut-callout-pulse 1.25s ease-in-out infinite;
+}
+@keyframes tut-callout-pulse {
+    0%, 100% {
+        border-color: rgba(255, 220, 100, 0.95);
+        box-shadow:
+            0 0 0 3px rgba(255, 210, 80, 0.28),
+            0 0 18px rgba(255, 200, 60, 0.45),
+            inset 0 0 12px rgba(255, 220, 100, 0.12);
+        transform: scale(1);
+    }
+    50% {
+        border-color: rgba(255, 245, 170, 1);
+        box-shadow:
+            0 0 0 6px rgba(255, 220, 100, 0.18),
+            0 0 28px rgba(255, 210, 80, 0.65),
+            inset 0 0 16px rgba(255, 230, 140, 0.18);
+        transform: scale(1.035);
+    }
 }
 .mechili-shop-col {
     position: absolute;
@@ -3869,13 +4153,15 @@ ${chatFloatStyles(u, pc, ec)}
    shop is pinned to the right edge of the screen. The unlock dialog is a
    centred modal, so it reads wrong there — fill from the left instead. The
    tiles reset direction themselves so their own content is unaffected. */
+/* Unlock picker fills LTR; shop grid still fills from the physical right.
+   Tile content inherits document dir so Arabic labels read correctly. */
 .mechili-cards .unlock-picker .shop-grid {
     direction: ltr;
     justify-content: start;
 }
 .mechili-shop-col .shop-tile,
 .mechili-cards .unlock-picker .shop-tile {
-    direction: ltr;
+    direction: inherit;
     position: relative;
     overflow: hidden;
     appearance: none;
@@ -4106,7 +4392,7 @@ ${chatFloatStyles(u, pc, ec)}
 .money-ico.m-icon {
     width: 1em;
     height: 1em;
-    margin-right: 0.2em;
+    margin-inline-end: 0.2em;
     vertical-align: -0.12em;
 }
 .mechili-sidebar .inv-item .m-icon { width: 30px; height: 30px; }
@@ -4119,7 +4405,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-fightbar .chat-bubble.emote .m-icon { width: 56px; height: 56px; vertical-align: 0; }
 .mechili-fightbar .cf-body .m-icon { width: 28px; height: 28px; vertical-align: -6px; }
 .inv-drag.m-icon { width: 40px; height: 40px; font-size: 0; background-color: ${u.techBuyBg}; }
-.btn-ico.m-icon { width: 16px; height: 16px; margin-right: 4px; vertical-align: -3px; }
+.btn-ico.m-icon { width: 16px; height: 16px; margin-inline-end: 4px; vertical-align: -3px; }
 .mechili-phone-status .btn-ico.m-icon { width: 22px; height: 22px; margin: 0; }
 .mechili-panel .action-tile .at-cost {
     position: absolute; left: 0; bottom: 0; right: 0;
@@ -4193,7 +4479,8 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-panel .tech-slots { margin-top: 10px; }
 
-/* the big hover frame — pops to the right of the panel with full details */
+/* the big hover frame — pops to the right of the panel with full details
+   (panel stays physical-left; do not flip with locale dir) */
 .mechili-panel .action-info {
     position: absolute;
     left: calc(100% + 8px);
@@ -4875,8 +5162,8 @@ ${chatFloatStyles(u, pc, ec)}
     gap: 6px;
 }
 .forge-recipe-group + .forge-recipe-group {
-    border-left: 1px solid ${u.divider};
-    padding-left: 10px;
+    border-inline-start: 1px solid ${u.divider};
+    padding-inline-start: 10px;
 }
 .forge-recipe-group-title {
     font-size: 11px;
@@ -4898,8 +5185,8 @@ ${chatFloatStyles(u, pc, ec)}
         gap: 12px;
     }
     .forge-recipe-group + .forge-recipe-group {
-        border-left: none;
-        padding-left: 0;
+        border-inline-start: none;
+        padding-inline-start: 0;
         border-top: 1px solid ${u.divider};
         padding-top: 10px;
     }
@@ -5536,7 +5823,7 @@ ${chatFloatStyles(u, pc, ec)}
 .settings-close {
     position: absolute;
     top: 6px;
-    right: 8px;
+    inset-inline-end: 8px;
     background: none;
     border: none;
     color: ${u.textMuted};
@@ -5573,7 +5860,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .settings-table th,
 .settings-table td {
-    text-align: left;
+    text-align: start;
     padding: 2px 0;
     vertical-align: top;
 }
@@ -5584,7 +5871,7 @@ ${chatFloatStyles(u, pc, ec)}
 .settings-table th {
     color: ${u.textMuted};
     font-weight: 600;
-    padding-right: 8px;
+    padding-inline-end: 8px;
     white-space: nowrap;
     width: 38%;
 }
@@ -5699,6 +5986,24 @@ ${chatFloatStyles(u, pc, ec)}
     box-shadow: none;
     user-select: none;
 }
+.mechili-climb-splash {
+    position: absolute;
+    inset: 0;
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    background: radial-gradient(ellipse 70% 55% at 50% 48%, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.45) 55%, rgba(0, 0, 0, 0.65) 100%);
+}
+.mechili-climb-splash .cs-title {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85), 0 0 40px rgba(184, 146, 74, 0.25);
+}
 .mechili-gameover::before {
     content: '';
     position: absolute;
@@ -5764,7 +6069,10 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-rated-note,
 .mechili-gameover .go-sub,
 .mechili-gameover .go-stats,
-.mechili-gameover .go-restart {
+.mechili-gameover .go-actions,
+.mechili-gameover .go-restart,
+.mechili-gameover .go-retry,
+.mechili-gameover .go-next {
     position: relative;
     z-index: 1;
 }
@@ -5946,7 +6254,16 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-note { font-size: 13px; color: ${u.text}; opacity: 0.85; max-width: 32em; text-align: center; }
 .mechili-cards .reconnect-timer { font-size: 32px; font-variant-numeric: tabular-nums; }
 .mechili-cards .reconnect-timer.urgent { animation: mechili-timer-pulse 0.7s ease-in-out infinite; }
-.mechili-gameover .go-restart {
+.mechili-gameover .go-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    z-index: 1;
+}
+.mechili-gameover .go-restart,
+.mechili-gameover .go-retry,
+.mechili-gameover .go-next {
     align-self: center;
     padding: 10px 26px;
     background: ${u.alliedBtnBg};
@@ -5957,10 +6274,30 @@ ${chatFloatStyles(u, pc, ec)}
     font-weight: bold;
     letter-spacing: 1px;
     cursor: pointer;
+    transition: transform 0.14s ease, background 0.14s ease;
 }
-.mechili-gameover .go-restart { transition: transform 0.14s ease, background 0.14s ease; }
-.mechili-gameover .go-restart:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
-.mechili-gameover .go-restart:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
+.mechili-gameover .go-restart:hover,
+.mechili-gameover .go-retry:hover,
+.mechili-gameover .go-next:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
+.mechili-gameover .go-restart:focus-visible,
+.mechili-gameover .go-retry:focus-visible,
+.mechili-gameover .go-next:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
+/* with Retry / Next present, Back is the quieter second action */
+.mechili-gameover .go-actions:has(.go-retry) .go-restart,
+.mechili-gameover .go-actions:has(.go-next) .go-restart {
+    background: transparent;
+    border-color: ${u.border};
+    color: ${u.textMuted};
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    padding: 8px 18px;
+}
+.mechili-gameover .go-actions:has(.go-retry) .go-restart:hover,
+.mechili-gameover .go-actions:has(.go-next) .go-restart:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: ${u.text};
+}
 
 .mechili-report {
     position: absolute;

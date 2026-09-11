@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Ziemia",
+    "description": "+10% HP."
+  },
+  "fire": {
+    "name": "Ogień",
+    "description": "+10% ataku."
+  },
+  "water": {
+    "name": "Woda",
+    "description": "+5% ataku i HP."
+  },
+  "wind": {
+    "name": "Wiatr",
+    "description": "+10% zasięgu."
+  },
+  "addi": {
+    "name": "Dzielność",
+    "description": "+15% ataku i HP."
+  },
+  "power": {
+    "name": "Rzeź",
+    "description": "+75% ataku."
+  },
+  "vigor": {
+    "name": "Olbrzymia krew",
+    "description": "+100% HP."
+  },
+  "colossus": {
+    "name": "Napierśnik mithrilowy",
+    "description": "+250% HP."
+  },
+  "wrath": {
+    "name": "Szał",
+    "description": "+300% ataku."
+  },
+  "golden": {
+    "name": "Kamień słoneczny",
+    "description": "Odporność na debuffy wież i 30% mniej obrażeń. Magowie nie mogą konwertować — promień zadaje zamiast tego obrażenia."
+  },
+  "bulwark": {
+    "name": "Bastion",
+    "description": "Tarcza: każda jednostka zyskuje drugą pulę zdrowia równą jej HP. Ciosy dystansowe najpierw wyczerpują tarczę; walka wręcz, ogień i kwas ją ignorują."
+  }
+}

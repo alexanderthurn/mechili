@@ -1,0 +1,17 @@
+{
+  "close": "Lähellä",
+  "back": "Takaisin",
+  "reset": "Nollaa",
+  "language": "Kieli",
+  "term": {
+    "rune": "Riimu",
+    "runes": "Riimut",
+    "talent": "Lahjakkuus",
+    "talents": "Kykyjä",
+    "spell": "Loitsu",
+    "spells": "Loitsut",
+    "commander": "Komentaja",
+    "commanders": "Komentajat",
+    "horde": "Komtur"
+  }
+}

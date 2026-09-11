@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MELODAN — Steam Assets</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    @font-face {
+      font-family: 'Marcellus';
+      font-style: normal;
+      font-weight: 400;
+      src: url('../assets/fonts/Marcellus-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Exo 2';
+      font-style: normal;
+      font-weight: 100 900;
+      src: url('../assets/fonts/Exo2-Variable.ttf') format('truetype-variations');
+    }
+    @font-face {
+      font-family: 'Noto Serif SC';
+      src: url('../assets/fonts/NotoSerifSC-Regular.otf') format('opentype');
+    }
+    @font-face {
+      font-family: 'Noto Serif TC';
+      src: url('../assets/fonts/NotoSerifTC-Regular.otf') format('opentype');
+    }
+    @font-face {
+      font-family: 'Noto Serif JP';
+      src: url('../assets/fonts/NotoSerifJP-Regular.otf') format('opentype');
+    }
+    @font-face {
+      font-family: 'Noto Serif KR';
+      src: url('../assets/fonts/NotoSerifKR-Regular.otf') format('opentype');
+    }
+    @font-face {
+      font-family: 'Noto Serif Thai';
+      src: url('../assets/fonts/NotoSerifThai-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Naskh Arabic';
+      src: url('../assets/fonts/NotoNaskhArabic-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Serif';
+      src: url('../assets/fonts/NotoSerif-Regular.ttf') format('truetype');
+    }
+
+    :root {
+      --bg: #14110e;
+      --panel: #1c1814;
+      --cream: #f0ecd8;
+      --brass: #b8924a;
+      --brass-light: #d4b878;
+      --brass-dark: #6a5030;
+      --muted: #8a8070;
+      --line: #3a3028;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background:
+        radial-gradient(ellipse at 20% 0%, rgba(184,146,74,0.12), transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(61,140,212,0.08), transparent 45%),
+        var(--bg);
+      color: var(--cream);
+      font-family: 'Exo 2', 'Marcellus', Georgia, serif;
+      padding: 32px 36px 80px;
+      min-height: 100vh;
+    }
+
+    h1 {
+      font-family: 'Marcellus', Georgia, serif;
+      color: var(--brass-light);
+      font-size: 32px;
+      letter-spacing: 0.18em;
+      font-weight: 400;
+      margin-bottom: 6px;
+    }
+
+    .page-subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 28px;
+      max-width: 720px;
+      line-height: 1.45;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 36px;
+      align-items: center;
+    }
+
+    h2.section-title {
+      font-family: 'Marcellus', Georgia, serif;
+      color: var(--brass);
+      font-size: 20px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 400;
+      margin: 48px 0 18px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .asset-section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 14px;
+      max-width: 100%;
+    }
+
+    .asset-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .asset-name {
+      font-family: 'Marcellus', Georgia, serif;
+      color: var(--brass-light);
+      font-size: 15px;
+      letter-spacing: 0.08em;
+    }
+
+    .asset-size { color: var(--muted); font-size: 12px; }
+    .asset-note { color: var(--muted); font-size: 11px; font-style: italic; }
+
+    .canvas-wrap {
+      background: #0a0908;
+      border: 1px solid var(--brass-dark);
+      line-height: 0;
+      overflow: hidden;
+      max-width: 480px;
+    }
+
+    .canvas-wrap canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    button, .download-btn, .download-all-btn {
+      font-family: 'Exo 2', sans-serif;
+      background: transparent;
+      border: 1px solid var(--brass);
+      color: var(--brass-light);
+      padding: 6px 14px;
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover, .download-btn:hover, .download-all-btn:hover {
+      background: rgba(184,146,74,0.18);
+      color: var(--cream);
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+
+    .download-all-btn {
+      border-width: 2px;
+      padding: 10px 22px;
+      font-weight: 600;
+      background: rgba(184,146,74,0.12);
+    }
+
+    .title-studio {
+      display: grid;
+      grid-template-columns: minmax(280px, 420px) 1fr;
+      gap: 28px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .title-studio { grid-template-columns: 1fr; }
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 16px;
+    }
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .control-row label {
+      min-width: 90px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .control-row input[type="text"],
+    .control-row input[type="number"],
+    .control-row select {
+      flex: 1;
+      min-width: 120px;
+      background: #0a0908;
+      border: 1px solid var(--line);
+      color: var(--cream);
+      padding: 6px 10px;
+      font-family: inherit;
+      font-size: 14px;
+    }
+    .control-row input[type="range"] { flex: 1; accent-color: var(--brass); }
+    .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+    .swatch {
+      width: 26px; height: 26px; border-radius: 2px;
+      border: 2px solid transparent; cursor: pointer;
+    }
+    .swatch.active { border-color: var(--cream); }
+
+    .title-preview {
+      background: #1a2737;
+      border: 1px solid var(--line);
+      padding: 12px;
+    }
+    .title-preview canvas { display: block; width: 100%; height: auto; }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>MELODAN — Steam Assets</h1>
+  <p class="page-subtitle">
+    Local generator for Steam store / library art at exact required sizes, plus
+    localized store-page section titles (Steam language suffixes).
+    Open this file in a browser from the repo (<code>scripts/steam_assets.html</code>).
+    Previews are scaled; downloads are full resolution.
+  </p>
+
+  <div class="toolbar">
+    <button class="download-all-btn" id="download-all">⬇ Download all capsules</button>
+    <button class="download-all-btn" id="download-titles" style="background:#2a3a28;border-color:#78c848;color:#b8e090;">⬇ Download titles in all languages</button>
+  </div>
+
+  <div id="store-root"></div>
+  <div id="library-root"></div>
+
+  <h2 class="section-title">Store section titles</h2>
+  <p class="page-subtitle" style="margin-top:-8px;">
+    Same workflow as Diception: one PNG per section × language. English has no
+    suffix; others use Steam names (<code>_schinese</code>, <code>_koreana</code>, <code>_brazilian</code>…).
+    Strings come from Melodan locales (regenerate with <code>python scripts/gen-steam-title-strings.py</code>).
+  </p>
+
+  <div class="title-studio">
+    <div class="controls">
+      <div class="control-row">
+        <label>Section</label>
+        <select id="title-section"></select>
+      </div>
+      <div class="control-row">
+        <label>Language</label>
+        <select id="title-lang"></select>
+      </div>
+      <div class="control-row">
+        <label>Text</label>
+        <input type="text" id="title-text" value="Commanders" />
+      </div>
+      <div class="control-row">
+        <label>Width</label>
+        <input type="number" id="title-w" value="600" min="200" max="1920" />
+      </div>
+      <div class="control-row">
+        <label>Size</label>
+        <input type="range" id="title-fs-slider" min="18" max="72" value="36" />
+        <input type="number" id="title-fs" value="36" min="12" max="120" style="flex:0;width:64px;" />
+      </div>
+      <div class="control-row">
+        <label>Color</label>
+        <div class="swatches" id="title-swatches"></div>
+        <input type="color" id="title-color" value="#d4b878" />
+      </div>
+      <div class="control-row">
+        <button id="title-download-one">Download this title</button>
+      </div>
+      <p class="hint">
+        Fantasy header style: cream fill, brass underline rule — not Diception’s glitch wings.
+        CJK / Thai / Arabic use Melodan’s Noto faces from <code>assets/fonts/</code>.
+      </p>
+    </div>
+    <div class="title-preview">
+      <canvas id="title-canvas" width="600" height="80"></canvas>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+    const STORE_ASSETS = [
+      { id: 'header_capsule', name: 'Header Capsule', w: 920, h: 430, type: 'title' },
+      { id: 'small_capsule', name: 'Small Capsule', w: 462, h: 174, type: 'title' },
+      { id: 'main_capsule', name: 'Main Capsule', w: 1232, h: 706, type: 'title' },
+      { id: 'vertical_capsule', name: 'Vertical Capsule', w: 748, h: 896, type: 'title' },
+      { id: 'library_capsule', name: 'Library Capsule', w: 600, h: 900, type: 'title' },
+      { id: 'library_header', name: 'Library Header', w: 920, h: 430, type: 'title', note: 'Same layout as Header Capsule' },
+      { id: 'cover_image', name: 'Cover / Community', w: 800, h: 450, type: 'title' },
+      { id: 'page_background', name: 'Page Background', w: 1438, h: 810, type: 'bg' },
+      { id: 'library_hero', name: 'Library Hero', w: 3840, h: 1240, type: 'bg' },
+      { id: 'library_logo', name: 'Library Logo', w: 1280, h: 720, type: 'logo_transparent' },
+    ];
+
+    const TITLE_SECTIONS = [
+  {
+    "section": "assemble_legions",
+    "color": "#d4b878",
+    "text": {
+      "english": "ASSEMBLE MYTHICAL LEGIONS",
+      "german": "MYTHISCHE LEGIONEN AUFSTELLEN",
+      "french": "ASSEMBLEZ DES LÉGIONS MYTHIQUES",
+      "italian": "ASSEMBLA LEGIONI MITICHE",
+      "spanish": "REÚNE LEGIONES MÍTICAS",
+      "latam": "REÚNE LEGIONES MÍTICAS",
+      "brazilian": "REÚNA LEGIÕES MÍTICAS",
+      "portuguese": "REÚNE LEGIÕES MÍTICAS",
+      "dutch": "VERZAMEL MYTHISCHE LEGIOENEN",
+      "danish": "SAML MYTISKE LEGIONER",
+      "norwegian": "SAML MYTISKE LEGIONER",
+      "swedish": "SAML MYTISKA LEGIONER",
+      "finnish": "KOKOA MYYTTISIÄ LEGIOONIA",
+      "czech": "SESTAV MYTICKÉ LEGIE",
+      "polish": "ZBIERZ MITYCZNE LEGIONY",
+      "hungarian": "ÁLLÍTSD FEL A MITIKUS LÉGIÓKAT",
+      "romanian": "ADUNĂ LEGIUNI MITICE",
+      "turkish": "EFSANEVİ LEJYONLARI TOPLA",
+      "indonesian": "KUMPULKAN LEGIUN MITIS",
+      "malay": "HIMPUN LEGION MITOS",
+      "vietnamese": "TẬP HỢP BINH ĐOÀN HUYỀN THOẠI",
+      "greek": "ΣΥΓΚΕΝΤΡΩΣΕ ΜΥΘΙΚΕΣ ΛΕΓΕΩΝΕΣ",
+      "bulgarian": "СЪБЕРИ МИТИЧНИ ЛЕГИОНИ",
+      "russian": "СОБЕРИ МИФИЧЕСКИЕ ЛЕГИОНЫ",
+      "ukrainian": "ЗБЕРИ МІФІЧНІ ЛЕГІОНИ",
+      "japanese": "神話の軍団を編制せよ",
+      "koreana": "신화의 군단을 소집하라",
+      "schinese": "组建神话军团",
+      "tchinese": "組建神話軍團",
+      "arabic": "جمّع الجيوش الأسطورية",
+      "thai": "รวบรวมกองทัพในตำนาน"
+    }
+  },
+  {
+    "section": "outthink",
+    "color": "#6eb0e8",
+    "text": {
+      "english": "OUTTHINK, DON'T OUTCLICK",
+      "german": "ÜBERDENKE, NICHT ÜBERKLICKE",
+      "french": "RÉFLÉCHIS, NE CLIQUE PAS PLUS VITE",
+      "italian": "RAGIONA, NON CLICCARE PIÙ VELOCE",
+      "spanish": "PIENSA MEJOR, NO HAGAS MÁS CLICS",
+      "latam": "PIENSA MEJOR, NO HAGAS MÁS CLICS",
+      "brazilian": "PENSE MELHOR, NÃO CLIQUE MAIS RÁPIDO",
+      "portuguese": "PENSA MELHOR, NÃO CLIQUES MAIS RÁPIDO",
+      "dutch": "DENK SLIMMER, KLIK NIET SNELLER",
+      "danish": "TÆNK BEDRE, IKKE KLIK HURTIGERE",
+      "norwegian": "TENK BEDRE, IKKE KLIKK RASKERE",
+      "swedish": "TÄNK BÄTTRE, KLICKA INTE SNABBARE",
+      "finnish": "AJATTELE TERÄVÄMMIN, ÄLÄ KLIKKAA NOPEAMMIN",
+      "czech": "PŘEDEHRAJ ROZUMEM, NE KLIKÁNÍM",
+      "polish": "PRZEŚCIGNIJ MYŚLENIEM, NIE KLIKANIEM",
+      "hungarian": "GONDOLKODJ, NE KATTINTS GYORSABBAN",
+      "romanian": "GÂNDEȘTE MAI BINE, NU DA MAI MULTE CLICURI",
+      "turkish": "DAHA HIZLI TIKLAMA, DAHA İYİ DÜŞÜN",
+      "indonesian": "PIKIR LEBIH TAJAM, JANGAN KLIK LEBIH CEPAT",
+      "malay": "FIKIR LEBIH TAJAM, JANGAN KLIK LEBIH LAJU",
+      "vietnamese": "SUY NGHĨ SÂU, ĐỪNG BẤM NHANH",
+      "greek": "ΣΚΕΨΟΥ ΚΑΛΥΤΕΡΑ, ΜΗΝ ΚΑΝΕΙΣ ΠΙΟ ΓΡΗΓΟΡΑ ΚΛΙΚ",
+      "bulgarian": "МИСЛИ ПО-ДОБРЕ, НЕ КЛИКАЙ ПО-БЪРЗО",
+      "russian": "ДУМАЙ ОСТРЕЕ, А НЕ КЛИКАЙ БЫСТРЕЕ",
+      "ukrainian": "ДУМАЙ ГОСТРІШЕ, А НЕ КЛІКАЙ ШВИДШЕ",
+      "japanese": "速さではなく、知略で勝つ",
+      "koreana": "클릭이 아니라 전략으로 이겨라",
+      "schinese": "靠谋略取胜，而非手速",
+      "tchinese": "靠謀略取勝，而非手速",
+      "arabic": "فَكِّر أذكى، لا تنقر أسرع",
+      "thai": "คิดให้คม อย่าคลิกให้ไว"
+    }
+  },
+  {
+    "section": "magical_armory",
+    "color": "#e87840",
+    "text": {
+      "english": "MASTER YOUR MAGICAL ARMORY",
+      "german": "MEISTERE DEIN MAGISCHES ARSENAL",
+      "french": "MAÎTRISE TON ARSENAL MAGIQUE",
+      "italian": "PADRONEGGIA IL TUO ARSENALE MAGICO",
+      "spanish": "DOMINA TU ARSENAL MÁGICO",
+      "latam": "DOMINA TU ARSENAL MÁGICO",
+      "brazilian": "DOMINE SEU ARSENAL MÁGICO",
+      "portuguese": "DOMINA O TEU ARSENAL MÁGICO",
+      "dutch": "BEHEERS JE MAGISCHE ARSENAAL",
+      "danish": "MESTRE DIT MAGISKE ARSENAL",
+      "norwegian": "MESTRE DITT MAGISKE ARSENAL",
+      "swedish": "BEMÄSTRA DITT MAGISKA ARSENAL",
+      "finnish": "HALLITSE TAIOKAS ASEISTUKSESI",
+      "czech": "OVLÁDNI SVŮJ MAGICKÝ ARZENÁL",
+      "polish": "OPANUJ SWÓJ MAGICZNY ARSENAŁ",
+      "hungarian": "URALD MÁGIÁS FEGYVERTÁRADAT",
+      "romanian": "STĂPÂNEȘTE-ȚI ARSENALUL MAGIC",
+      "turkish": "BÜYÜLÜ CEPHANELİĞİNİ USTALAŞTIR",
+      "indonesian": "KUASAI GUDANG SENJATA GAIBMU",
+      "malay": "KUASAI ARSENAL SIHIR ANDA",
+      "vietnamese": "LÀM CHỦ KHO VŨ KHÍ PHÉP THUẬT",
+      "greek": "ΚΥΡΙΑΡΧΗΣΕ ΤΟ ΜΑΓΙΚΟ ΣΟΥ ΟΠΛΟΣΤΑΣΙΟ",
+      "bulgarian": "ОВЛАДЕЙ МАГИЧЕСКИЯ СИ АРСЕНАЛ",
+      "russian": "ОВЛАДЕЙ СВОИМ МАГИЧЕСКИМ АРСЕНАЛОМ",
+      "ukrainian": "ОПАНУЙ СВІЙ МАГІЧНИЙ АРСЕНАЛ",
+      "japanese": "魔法の武器庫を使いこなせ",
+      "koreana": "마법 무기고를 완벽히 다뤄라",
+      "schinese": "掌控你的魔法武库",
+      "tchinese": "掌控你的魔法武庫",
+      "arabic": "أتقن ترسانتك السحرية",
+      "thai": "เชี่ยวชาญคลังอาวุธเวทมนตร์ของคุณ"
+    }
+  },
+  {
+    "section": "paths_to_glory",
+    "color": "#78c848",
+    "text": {
+      "english": "MULTIPLE PATHS TO GLORY",
+      "german": "VIELE WEGE ZUM RUHM",
+      "french": "PLUSIEURS CHEMINS VERS LA GLOIRE",
+      "italian": "MOLTI SENTIERI VERSO LA GLORIA",
+      "spanish": "MÚLTIPLES CAMINOS HACIA LA GLORIA",
+      "latam": "MÚLTIPLES CAMINOS HACIA LA GLORIA",
+      "brazilian": "MÚLTIPLOS CAMINHOS PARA A GLÓRIA",
+      "portuguese": "MÚLTIPLOS CAMINHOS PARA A GLÓRIA",
+      "dutch": "MEERDERE PADEN NAAR GLORIE",
+      "danish": "FLERE VEJE TIL ÆRE",
+      "norwegian": "FLERE VEIER TIL ÆRE",
+      "swedish": "FLERA VÄGAR TILL ÄRA",
+      "finnish": "MONIA TEITÄ KUNNIAAN",
+      "czech": "VÍCE CEST KE SLÁVĚ",
+      "polish": "WIELE DRÓG DO CHWAŁY",
+      "hungarian": "TÖBB ÚT A DICSŐSÉGHEZ",
+      "romanian": "MAI MULTE CĂI SPRE GLORIE",
+      "turkish": "ŞANA GİDEN BİRDEN FAZLA YOL",
+      "indonesian": "BANYAK JALAN MENUJU KEMULIAAN",
+      "malay": "PELBAGAI JALAN KE KEMULIAAN",
+      "vietnamese": "NHIỀU CON ĐƯỜNG ĐẾN VINH QUANG",
+      "greek": "ΠΟΛΛΟΙ ΔΡΟΜΟΙ ΠΡΟΣ ΤΗ ΔΟΞΑ",
+      "bulgarian": "МНОГО ПЪТИЩА КЪМ СЛАВАТА",
+      "russian": "МНОГО ПУТЕЙ К СЛАВЕ",
+      "ukrainian": "БАГАТО ШЛЯХІВ ДО СЛАВИ",
+      "japanese": "栄光へのいくつもの道",
+      "koreana": "영광으로 가는 여러 길",
+      "schinese": "通往荣耀的多条道路",
+      "tchinese": "通往榮耀的多條道路",
+      "arabic": "مسارات متعددة إلى المجد",
+      "thai": "หลายหนทางสู่เกียรติยศ"
+    }
+  }
+];
+
+    const TITLE_LANGUAGES = [
+      'english', 'french', 'italian', 'german', 'spanish', 'latam',
+      'brazilian', 'portuguese', 'dutch', 'danish', 'norwegian', 'swedish',
+      'finnish', 'czech', 'polish', 'hungarian', 'romanian', 'turkish',
+      'indonesian', 'malay', 'vietnamese', 'greek', 'bulgarian', 'russian',
+      'ukrainian', 'japanese', 'koreana', 'schinese', 'tchinese', 'arabic', 'thai',
+    ];
+
+    const TITLE_FONT_STACK =
+      'Marcellus, "Exo 2", "Noto Serif", "Noto Serif SC", "Noto Serif TC", "Noto Serif JP", "Noto Serif KR", "Noto Serif Thai", "Noto Naskh Arabic", Georgia, serif';
+
+    const assets = {};
+    let logoImg = null;
+    let bgImg = null;
+    /** Offscreen canvases: Komtur (left) · dwarf (right), facing each other. */
+    let flankLeft = null;
+    let flankRight = null;
+
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Failed to load ' + src));
+        img.src = src;
+      });
+    }
+
+    function makeDracoLoader() {
+      const draco = new DRACOLoader();
+      draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+      return draco;
+    }
+
+    /**
+     * Single unit, transparent, no team tint — sharp marketing still.
+     * Framed so the full model fits in view (no head/feet crop).
+     * `face`: 'right' (+X) or 'left' (−X).
+     */
+    async function renderUnitPortrait(url, {
+      face = 'right',
+      size = 1400,
+      yawExtra = 0,
+      pitch = 0.04,
+    } = {}) {
+      const w = size;
+      const h = size;
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
+      const renderer = new THREE.WebGLRenderer({
+        alpha: true,
+        antialias: true,
+        preserveDrawingBuffer: true,
+      });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(1);
+      renderer.setClearColor(0x000000, 0);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+
+      scene.add(new THREE.HemisphereLight(0xe8f6cc, 0x3a4a28, 0.85));
+      const key = new THREE.DirectionalLight(0xfff2c8, 2.1);
+      key.position.set(2.8, 5, 3.2);
+      scene.add(key);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.55);
+      fill.position.set(-3, 2, -2);
+      scene.add(fill);
+      const rim = new THREE.DirectionalLight(0xffffff, 0.35);
+      rim.position.set(face === 'right' ? -2 : 2, 3, -1);
+      scene.add(rim);
+
+      const draco = makeDracoLoader();
+      const loader = new GLTFLoader();
+      loader.setDRACOLoader(draco);
+      const gltf = await loader.loadAsync(url);
+      const root = gltf.scene;
+      root.updateMatrixWorld(true);
+
+      const box0 = new THREE.Box3().setFromObject(root);
+      const center0 = box0.getCenter(new THREE.Vector3());
+      const extent0 = box0.getSize(new THREE.Vector3());
+      const maxDim = Math.max(extent0.x, extent0.y, extent0.z) || 1;
+      root.position.sub(center0);
+      root.scale.setScalar(1 / maxDim);
+      root.rotation.order = 'YXZ';
+      root.rotation.y = (face === 'right' ? 0 : Math.PI) + yawExtra;
+      root.rotation.x = pitch;
+      scene.add(root);
+
+      root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(root);
+      const center = box.getCenter(new THREE.Vector3());
+      root.position.x -= center.x;
+      root.position.z -= center.z;
+      root.position.y -= box.min.y; // feet on y=0
+      root.updateMatrixWorld(true);
+
+      const framed = new THREE.Box3().setFromObject(root);
+      const size3 = framed.getSize(new THREE.Vector3());
+      const mid = framed.getCenter(new THREE.Vector3());
+      // Fit whole AABB in view with padding
+      const fitH = size3.y * 1.18;
+      const fitW = Math.max(size3.x, size3.z) * 1.25;
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const distH = (fitH / 2) / Math.tan(vFov / 2);
+      const distW = (fitW / 2) / Math.tan(vFov / 2) / camera.aspect;
+      const dist = Math.max(distH, distW, 1.2);
+
+      const side = face === 'right' ? -1 : 1;
+      camera.position.set(mid.x + side * dist * 0.22, mid.y + fitH * 0.08, mid.z + dist);
+      camera.lookAt(mid.x, mid.y, mid.z);
+      renderer.render(scene, camera);
+
+      const out = document.createElement('canvas');
+      out.width = w;
+      out.height = h;
+      out.getContext('2d').drawImage(renderer.domElement, 0, 0);
+      renderer.dispose();
+      draco.dispose();
+      return out;
+    }
+
+    async function loadFlankPortraits() {
+      try {
+        // Left: Komtur looking right (at the dwarf)
+        flankLeft = await renderUnitPortrait('/assets/models/horde3.glb', {
+          face: 'right',
+        });
+      } catch (e) {
+        console.warn('[steam assets] komtur failed', e);
+      }
+      try {
+        // Right: dwarf looking left (at the Komtur)
+        flankRight = await renderUnitPortrait('/assets/models/dwarf.glb', {
+          face: 'left',
+          yawExtra: Math.PI / 2, // dwarf model fwd offset in-game
+        });
+      } catch (e) {
+        console.warn('[steam assets] dwarf failed', e);
+      }
+    }
+
+    /** Clear unit flanks only — no team color washes. */
+    function drawFlanks(ctx, w, h) {
+      const vertical = h > w * 1.1;
+      // Leave a little vertical margin so heads/feet aren't clipped by the capsule edge
+      const slotW = w * (vertical ? 0.44 : 0.34);
+      const slotH = h * 0.9;
+      const y = (h - slotH) / 2;
+
+      function blit(portrait, x, fadeFromLeft) {
+        if (!portrait) return;
+        ctx.save();
+        const layer = document.createElement('canvas');
+        layer.width = Math.ceil(slotW);
+        layer.height = Math.ceil(slotH);
+        const lctx = layer.getContext('2d');
+        // Contain with padding — never crop the portrait
+        const pad = 0.9;
+        const scale = Math.min(layer.width / portrait.width, layer.height / portrait.height) * pad;
+        const dw = portrait.width * scale;
+        const dh = portrait.height * scale;
+        lctx.drawImage(portrait, (layer.width - dw) / 2, (layer.height - dh) / 2, dw, dh);
+        // Soft fade only toward the logo so the background stays visible
+        const mask = fadeFromLeft
+          ? lctx.createLinearGradient(0, 0, layer.width, 0)
+          : lctx.createLinearGradient(layer.width, 0, 0, 0);
+        mask.addColorStop(0, 'rgba(0,0,0,1)');
+        mask.addColorStop(0.72, 'rgba(0,0,0,1)');
+        mask.addColorStop(1, 'rgba(0,0,0,0)');
+        lctx.globalCompositeOperation = 'destination-in';
+        lctx.fillStyle = mask;
+        lctx.fillRect(0, 0, layer.width, layer.height);
+        ctx.globalAlpha = 1;
+        ctx.drawImage(layer, x, y, slotW, slotH);
+        ctx.restore();
+      }
+
+      blit(flankLeft, w * 0.01, true);
+      blit(flankRight, w - slotW - w * 0.01, false);
+    }
+
+    function drawAtmosphere(ctx, w, h) {
+      if (bgImg) {
+        // Full-bleed cover — the photo only, no overlays
+        const scale = Math.max(w / bgImg.width, h / bgImg.height);
+        const dw = bgImg.width * scale;
+        const dh = bgImg.height * scale;
+        ctx.drawImage(bgImg, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      } else {
+        ctx.fillStyle = '#0a0908';
+        ctx.fillRect(0, 0, w, h);
+      }
+    }
+
+    function drawLogo(ctx, w, h, opts = {}) {
+      if (!logoImg) return;
+      const maxW = w * (opts.maxW ?? 0.72);
+      const maxH = h * (opts.maxH ?? 0.55);
+      const scale = Math.min(maxW / logoImg.width, maxH / logoImg.height);
+      const dw = logoImg.width * scale;
+      const dh = logoImg.height * scale;
+      const x = (w - dw) / 2;
+      const y = opts.y ?? (h - dh) / 2;
+      ctx.drawImage(logoImg, x, y, dw, dh);
+      // No tagline / subtitle on capsules — Steam rejects extra text on many of these assets.
+    }
+
+    function renderAsset(asset) {
+      const canvas = assets[asset.id];
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const { w, h, type } = asset;
+      canvas.width = w;
+      canvas.height = h;
+      ctx.clearRect(0, 0, w, h);
+
+      if (type === 'logo_transparent') {
+        drawLogo(ctx, w, h, { maxW: 0.85, maxH: 0.7 });
+        return;
+      }
+
+      drawAtmosphere(ctx, w, h);
+      // Side units + team washes (skip pure transparent logo asset)
+      if (type !== 'logo_transparent') {
+        drawFlanks(ctx, w, h);
+      }
+      if (type === 'bg') return;
+
+      const vertical = h > w * 1.1;
+      drawLogo(ctx, w, h, {
+        maxW: vertical ? 0.62 : 0.55,
+        maxH: vertical ? 0.36 : 0.48,
+      });
+    }
+
+    function addSection(rootId, title, list) {
+      const root = document.getElementById(rootId);
+      const h2 = document.createElement('h2');
+      h2.className = 'section-title';
+      h2.textContent = title;
+      root.appendChild(h2);
+
+      const grid = document.createElement('div');
+      grid.className = 'section-grid';
+
+      for (const asset of list) {
+        const section = document.createElement('div');
+        section.className = 'asset-section';
+
+        const header = document.createElement('div');
+        header.className = 'asset-header';
+        header.innerHTML =
+          `<span class="asset-name">${asset.name}</span>` +
+          `<span class="asset-size">${asset.w}×${asset.h}</span>` +
+          (asset.note ? `<span class="asset-note">${asset.note}</span>` : '');
+
+        const btn = document.createElement('button');
+        btn.className = 'download-btn';
+        btn.textContent = 'Download';
+        btn.onclick = () => downloadCanvas(assets[asset.id], `${asset.id}.png`);
+        header.appendChild(btn);
+        section.appendChild(header);
+
+        const wrap = document.createElement('div');
+        wrap.className = 'canvas-wrap';
+        wrap.style.width = Math.min(480, asset.w * (480 / Math.max(asset.w, asset.h))) + 'px';
+        const canvas = document.createElement('canvas');
+        canvas.width = asset.w;
+        canvas.height = asset.h;
+        assets[asset.id] = canvas;
+        wrap.appendChild(canvas);
+        section.appendChild(wrap);
+        grid.appendChild(section);
+      }
+      root.appendChild(grid);
+    }
+
+    function downloadCanvas(canvas, filename) {
+      canvas.toBlob((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, 'image/png');
+    }
+
+    async function downloadAllCapsules() {
+      const btn = document.getElementById('download-all');
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ Zipping…';
+      const zip = new JSZip();
+      for (const asset of STORE_ASSETS) {
+        renderAsset(asset);
+        const blob = await new Promise((r) => assets[asset.id].toBlob(r, 'image/png'));
+        zip.file(`${asset.id}.png`, blob);
+      }
+      const out = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(out);
+      a.download = 'melodan_steam_capsules.zip';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+
+    // ── Section titles ────────────────────────────────────────────────────────
+
+    function activeTitleColor() {
+      const sw = document.querySelector('#title-swatches .swatch.active');
+      return sw ? sw.dataset.color : document.getElementById('title-color').value;
+    }
+
+    function fontForLang(lang) {
+      if (lang === 'schinese') return `"Noto Serif SC", ${TITLE_FONT_STACK}`;
+      if (lang === 'tchinese') return `"Noto Serif TC", ${TITLE_FONT_STACK}`;
+      if (lang === 'japanese') return `"Noto Serif JP", ${TITLE_FONT_STACK}`;
+      if (lang === 'koreana') return `"Noto Serif KR", ${TITLE_FONT_STACK}`;
+      if (lang === 'thai') return `"Noto Serif Thai", ${TITLE_FONT_STACK}`;
+      if (lang === 'arabic') return `"Noto Naskh Arabic", ${TITLE_FONT_STACK}`;
+      if (lang === 'greek' || lang === 'russian' || lang === 'ukrainian' || lang === 'bulgarian')
+        return `"Exo 2", "Noto Serif", ${TITLE_FONT_STACK}`;
+      if (lang === 'vietnamese') return `"Exo 2", ${TITLE_FONT_STACK}`;
+      return TITLE_FONT_STACK;
+    }
+
+    function measureTitle(ctx, text, fontSize, lang) {
+      ctx.font = `${fontSize}px ${fontForLang(lang)}`;
+      return ctx.measureText(text).width;
+    }
+
+    async function renderTitle(opts = {}) {
+      const canvas = document.getElementById('title-canvas');
+      const ctx = canvas.getContext('2d');
+      const w = opts.w ?? (parseInt(document.getElementById('title-w').value) || 600);
+      let fs = opts.fs ?? (parseInt(document.getElementById('title-fs').value) || 36);
+      const text = opts.text ?? document.getElementById('title-text').value;
+      const color = opts.color ?? activeTitleColor();
+      const lang = opts.lang ?? document.getElementById('title-lang').value;
+      const bg = opts.bg ?? '#1a2737';
+
+      const h = Math.max(64, Math.round(fs * 1.85));
+      canvas.width = w;
+      canvas.height = h;
+
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      if (!text) return;
+
+      const budget = w - 48;
+      while (fs > 14 && measureTitle(ctx, text, fs, lang) > budget) fs--;
+
+      try {
+        await document.fonts.load(`${fs}px ${fontForLang(lang)}`, text);
+      } catch (_) { /* offline */ }
+
+      ctx.font = `${fs}px ${fontForLang(lang)}`;
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.45)';
+      ctx.shadowBlur = 6;
+      ctx.fillText(text, w / 2, h / 2 - 2);
+      ctx.shadowBlur = 0;
+
+      // brass underline
+      const tw = measureTitle(ctx, text, fs, lang);
+      const ruleW = Math.min(w - 40, tw + 40);
+      const ruleY = h / 2 + fs * 0.55;
+      const rg = ctx.createLinearGradient((w - ruleW) / 2, 0, (w + ruleW) / 2, 0);
+      rg.addColorStop(0, 'rgba(106,80,48,0)');
+      rg.addColorStop(0.5, color);
+      rg.addColorStop(1, 'rgba(106,80,48,0)');
+      ctx.fillStyle = rg;
+      ctx.fillRect((w - ruleW) / 2, ruleY, ruleW, Math.max(2, fs * 0.06));
+    }
+
+    async function downloadLocalizedTitles() {
+      const btn = document.getElementById('download-titles');
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ Zipping…';
+
+      const zip = new JSZip();
+      const log = [];
+      const w = parseInt(document.getElementById('title-w').value) || 600;
+      const baseFs = parseInt(document.getElementById('title-fs').value) || 36;
+      const canvas = document.getElementById('title-canvas');
+
+      for (const lang of TITLE_LANGUAGES) {
+        for (const sec of TITLE_SECTIONS) {
+          const text = sec.text[lang];
+          if (!text) {
+            log.push(`SKIP ${sec.section} (${lang})`);
+            continue;
+          }
+          await renderTitle({ text, color: sec.color, lang, w, fs: baseFs, bg: '#1a2737' });
+          const file = `${sec.section}_title${lang === 'english' ? '' : '_' + lang}.png`;
+          const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+          zip.file(file, blob);
+          log.push(`${file}  "${text}"  ${sec.color}`);
+        }
+      }
+
+      zip.file(
+        'titles.txt',
+        'MELODAN store page section titles\n' +
+          'Filenames use Steam language suffixes for the asset upload form.\n' +
+          'English = base asset (no suffix).\n\n' +
+          log.join('\n') +
+          '\n',
+      );
+
+      const out = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(out);
+      a.download = 'melodan_store_titles.zip';
+      a.click();
+      URL.revokeObjectURL(a.href);
+
+      // restore preview
+      syncTitleFromControls();
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+
+    function syncTitleFromControls() {
+      const secId = document.getElementById('title-section').value;
+      const lang = document.getElementById('title-lang').value;
+      const sec = TITLE_SECTIONS.find((s) => s.section === secId);
+      if (sec) {
+        document.getElementById('title-text').value = sec.text[lang] || '';
+        document.getElementById('title-color').value = sec.color;
+        document.querySelectorAll('#title-swatches .swatch').forEach((sw) => {
+          sw.classList.toggle('active', sw.dataset.color.toLowerCase() === sec.color.toLowerCase());
+        });
+      }
+      void renderTitle();
+    }
+
+    function setupTitleStudio() {
+      const secSel = document.getElementById('title-section');
+      const langSel = document.getElementById('title-lang');
+      for (const sec of TITLE_SECTIONS) {
+        const opt = document.createElement('option');
+        opt.value = sec.section;
+        opt.textContent = sec.section;
+        secSel.appendChild(opt);
+      }
+      for (const lang of TITLE_LANGUAGES) {
+        const opt = document.createElement('option');
+        opt.value = lang;
+        opt.textContent = lang;
+        langSel.appendChild(opt);
+      }
+
+      const swatches = document.getElementById('title-swatches');
+      const colors = [...new Set(TITLE_SECTIONS.map((s) => s.color))];
+      for (const c of colors) {
+        const sw = document.createElement('div');
+        sw.className = 'swatch';
+        sw.dataset.color = c;
+        sw.style.background = c;
+        sw.onclick = () => {
+          document.querySelectorAll('#title-swatches .swatch').forEach((x) => x.classList.remove('active'));
+          sw.classList.add('active');
+          document.getElementById('title-color').value = c;
+          void renderTitle();
+        };
+        swatches.appendChild(sw);
+      }
+      if (swatches.firstChild) swatches.firstChild.classList.add('active');
+
+      const bind = (id, fn) => document.getElementById(id).addEventListener('input', fn);
+      bind('title-section', syncTitleFromControls);
+      bind('title-lang', syncTitleFromControls);
+      bind('title-text', () => void renderTitle());
+      bind('title-w', () => void renderTitle());
+      bind('title-fs', () => {
+        document.getElementById('title-fs-slider').value = document.getElementById('title-fs').value;
+        void renderTitle();
+      });
+      bind('title-fs-slider', () => {
+        document.getElementById('title-fs').value = document.getElementById('title-fs-slider').value;
+        void renderTitle();
+      });
+      bind('title-color', () => {
+        document.querySelectorAll('#title-swatches .swatch').forEach((x) => x.classList.remove('active'));
+        void renderTitle();
+      });
+
+      document.getElementById('title-download-one').onclick = async () => {
+        await renderTitle();
+        const sec = document.getElementById('title-section').value;
+        const lang = document.getElementById('title-lang').value;
+        const file = `${sec}_title${lang === 'english' ? '' : '_' + lang}.png`;
+        downloadCanvas(document.getElementById('title-canvas'), file);
+      };
+
+      syncTitleFromControls();
+    }
+
+    async function boot() {
+      addSection('store-root', 'Store capsules', STORE_ASSETS.filter((a) => !a.id.startsWith('library_')));
+      addSection('library-root', 'Library', STORE_ASSETS.filter((a) => a.id.startsWith('library_')));
+
+      const bust = '?v=3';
+      try {
+        logoImg = await loadImage('/assets/ui/logo.webp' + bust);
+      } catch (e) {
+        console.warn(e);
+        try { logoImg = await loadImage('/assets/marketing/steam-logo.png' + bust); } catch (e2) { console.warn(e2); }
+      }
+      // Prefer the painted menu plate; fall back to a screenshot if it fails
+      const bgCandidates = [
+        '/assets/ui/menu-bg.webp' + bust,
+        '/assets/marketing/screenshots/fullhd/screen_1.jpg' + bust,
+        '/assets/marketing/screenshots/fullhd/screen_5.jpg' + bust,
+      ];
+      for (const src of bgCandidates) {
+        try {
+          bgImg = await loadImage(src);
+          console.info('[steam assets] background:', src, bgImg.naturalWidth, '×', bgImg.naturalHeight);
+          break;
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+      if (!bgImg) {
+        const tip = document.createElement('p');
+        tip.style.cssText = 'color:#e83828;margin:12px 0;';
+        tip.textContent = 'Background image failed to load — open via http://localhost:8000/scripts/steam_assets.html (not file://).';
+        document.body.insertBefore(tip, document.body.firstChild.nextSibling);
+      }
+
+      await loadFlankPortraits();
+
+      for (const asset of STORE_ASSETS) renderAsset(asset);
+
+      document.getElementById('download-all').onclick = () => void downloadAllCapsules();
+      document.getElementById('download-titles').onclick = () => void downloadLocalizedTitles();
+      setupTitleStudio();
+    }
+
+    boot();
+
+  </script>
+</body>
+</html>

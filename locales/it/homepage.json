@@ -1,0 +1,161 @@
+{
+  "tagline": "AUTOBATTLER FANTASY",
+  "lead": "Schiera eserciti in segreto e osserva lo svolgimento del round. Il tuo nemico fa lo stesso. Adattati, ripeti finché uno di voi non resta senza HP.",
+  "hero": {
+    "wishlist": "Aggiungi alla lista desideri",
+    "trailer": "Guarda il trailer",
+    "steamSoon": "Pagina Steam in arrivo a breve"
+  },
+  "screenshots": {
+    "title": "Schermate",
+    "sub": "Uno sguardo al dispiegamento e alla battaglia.",
+    "browse": "Visualizza gli screenshot",
+    "open": "Apri lo screenshot: {{label}}",
+    "fallback": "Screenshot",
+    "missing": "{{label}} ⬢ trascina il file in assets/marketing/screenshots/"
+  },
+  "shot": {
+    "1": "Schieramento dell'esercito nella radura della foresta",
+    "2": "Fase di schieramento e negozio unità",
+    "3": "Il soffio di fuoco del drago si abbatte sul campo.",
+    "4": "Zone di dispiegamento affiancate",
+    "5": "Battaglia di massa nelle pianure",
+    "6": "Fortezza invernale nella neve",
+    "7": "Doppie basi sulla griglia",
+    "8": "Grande base fortificata"
+  },
+  "lightbox": {
+    "gallery": "Galleria di screenshot",
+    "close": "Chiudi galleria",
+    "prev": "Screenshot precedente",
+    "next": "Prossima schermata",
+    "dots": "Schermate",
+    "fullhd": "Full HD",
+    "uhd": "4K"
+  },
+  "showcase": {
+    "title": "Unità, edifici e incantesimi",
+    "sub": "Il tuo esercito, gli edifici, i Pack {{horde}} e i modelli degli incantesimi di battaglia. Scegline uno da esaminare: Cavaliere del Corvo e Drago in questa anteprima.",
+    "canvas": "Anteprima 3D dell'unità",
+    "loading": "Caricamento del modello…",
+    "hint": "Trascina per ruotare · Scorri per ingrandire",
+    "select": "Scegli un'unità, un edificio o un incantesimo",
+    "list": "Unità, edifici e incantesimi",
+    "buildings": "Edifici",
+    "units": "Unità",
+    "spells": "Incantesimi"
+  },
+  "stats": {
+    "cost": "Costo",
+    "hp": "HP",
+    "damage": "Danno",
+    "range": "Allineare",
+    "attackInterval": "intervallo di attacco",
+    "seconds": "{{value}}s",
+    "speed": "Velocità",
+    "abilities": "Abilità",
+    "spellModel": "Modello di incantesimo"
+  },
+  "flag": {
+    "flying": "Volante",
+    "structure": "Struttura",
+    "extra": "Extra",
+    "attacksGround": "Attacca il suolo",
+    "attacksAir": "Attacchi aerei",
+    "shield": "Cupola di protezione",
+    "rocket": "Bullone di guida"
+  },
+  "spell": {
+    "dragon": {
+      "name": "Attacco del drago",
+      "blurb": "Soffio di fuoco laterale. Il battito d'ali usa lo stesso percorso grafico del Cavaliere del Corvo."
+    },
+    "hammer": {
+      "name": "Martello degli Dei",
+      "blurb": "Martello divino che cade su una zona predefinita."
+    },
+    "meteor-great": {
+      "name": "Meteora",
+      "blurb": "Un singolo impatto meteoritico di grande intensità."
+    },
+    "meteor-shard": {
+      "name": "Frammento di pioggia di meteoriti",
+      "blurb": "Meteore più piccole utilizzate dallo sciame meteorico."
+    },
+    "storm": {
+      "name": "Richiamo della tempesta",
+      "blurb": "Nube temporalesca che scaglia fulmini."
+    },
+    "poison": {
+      "name": "Nube velenosa",
+      "blurb": "Nuvole tossiche nel cielo che riversano una pioggia acida e rarefatta su un'enorme area circolare."
+    }
+  },
+  "commanders": {
+    "sub": "Prima del primo round, ogni giocatore sceglie un {{commander}}. Questo determina il tuo esercito iniziale, i tuoi punti vita, una specializzazione permanente e tre forgia della Fortezza {{tactics}} (debole / media / forte). I compagni di squadra condividono l'unione della loro forgia {{tactics}}.",
+    "select": "Scegli un {{commander}}"
+  },
+  "runes": {
+    "sub": "Fusa a un Pack per sempre, potenzia tutti i mech al suo interno {{sep}} la maggior parte dei Pack ne tiene {{packLimit}}, la balista {{ballistaLimit}}. Le quattro rune base si ottengono dalle carte del round o in negozio; le più forti si forgiano da queste nella Roccaforte e non si vendono mai.",
+    "select": "Scegli un {{item}}",
+    "base": "Base",
+    "advanced": "Avanzato",
+    "shopTitle": "Comprato in negozio o estratto da una carta del round",
+    "shopLabel": "Prezzo al dettaglio",
+    "forgeTitle": "Forgiato presso il {{building}}",
+    "forgeLabel": "Prezzo forgiato"
+  },
+  "tactics": {
+    "sub": "Queste sono le abilità della tua barra {{tactics}} {{sep}} raduni, pozze, evocazioni e incantesimi di battaglia come il soffio di fuoco del drago. Gli incantesimi di battaglia si comprano alla Roccaforte, una volta ciascuno, e solo i tre che conosce il tuo comandante. Le icone corrispondono a quelle di gioco.",
+    "select": "Scegli un {{tactic}}",
+    "placement": "Posizionamento",
+    "oneShot": "Un colpo solo",
+    "buyTitle": "Acquistato al {{building}}",
+    "priceLabel": "{{building}} prezzo"
+  },
+  "targeting": {
+    "point": "punto",
+    "two-point": "due punti",
+    "three-point": "tre punti",
+    "point-yaw": "punto + rivolto",
+    "own-unit": "proprio Pack"
+  },
+  "roundCards": {
+    "title": "Carte del round",
+    "sub": "Dal secondo round in poi, scegli una delle diverse carte {{items}} offerte, pescate dal pool di carte della partita. Gli incantesimi di battaglia si acquistano alla Fortezza, non si scelgono dalle carte.",
+    "select": "Scegli una carta del round"
+  },
+  "matchSettings": {
+    "title": "Impostazioni partita",
+    "sub": "Le regole predefinite per una partita, prese direttamente dal codice delle impostazioni del gioco, quindi non possono discostarsi da quelle effettivamente rilasciate. Tutto è personalizzabile: è open source."
+  },
+  "contribute": {
+    "title": "Contribuire",
+    "sub1": "Melodan è sviluppato da una sola persona, io. Sono appassionato di questo gioco, ma non posso creare un titolo AAA e mantenere tutto perfetto, bilanciato e così via. L'idea è quella di avere un gioco aperto in cui chiunque possa contribuire.",
+    "sub2": "Realizziamolo insieme. Bilanciamento, bug, funzionalità, idee artistiche {{sep}} invia un breve messaggio e lo leggerò. Se vuoi contribuire ulteriormente, benvenuto!",
+    "play": "Prova nel browser",
+    "feedback": "Invia feedback",
+    "discord": "Discord",
+    "devlog": "Registro dello sviluppatore",
+    "waysTitle": "Modi per aiutare",
+    "way1": "Condividi idee e segnalazioni di bug",
+    "way2": "Apri le pull request su {{github}} (GPL-3.0)",
+    "way3": "Realizzare o migliorare modelli 3D",
+    "way4": "Occupati dell'equilibrio, inventa nuovi incantesimi, carte, idee.",
+    "way5": "Dai il benvenuto ai giocatori, scrivi guide, aiuta con la moderazione se vuoi occupartene"
+  },
+  "about": {
+    "title": "Informazioni",
+    "lead": "MELODAN è realizzato da Alexander Thurn (Feuerware). Si trova a Bonn, in Germania.",
+    "inspired": "Questo gioco è ispirato a {{mechabellum}}, il miglior gioco del genere. MELODAN è una versione fantasy indipendente; per favore, supportate l'originale e acquistate Mechabellum. Grazie!",
+    "openSource": "Il gioco è {{github}} (GPL-3.0). Il copyright rimane di Alexander Thurn / Feuerware. Sentitevi liberi di effettuare un fork privato, inventare nuove unità e aprire pull request. Per qualcosa di più grande, uno spin-off non commerciale o non commerciale, un rebranding completo ecc. sentitevi liberi di scrivermi: {{email}}.",
+    "openSourceLink": "Codice sorgente aperto su GitHub"
+  },
+  "footer": {
+    "play": "Giocare",
+    "steam": "Steam",
+    "feedback": "Feedback",
+    "imprint": "Impronta",
+    "privacy": "Privacy dei dati"
+  }
+}

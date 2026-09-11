@@ -14,6 +14,7 @@ import {
 import { getAvatarDataUrl } from '../game/avatar';
 import type { GameSettings } from '../game/settings';
 import type { StarRole } from '../game/net';
+import { t } from '../i18n';
 import { withDialogFade } from './dialogFade';
 
 export type IntroRosterEntry = {
@@ -77,7 +78,8 @@ function teamHtml(team: 'player' | 'enemy', entries: IntroRosterEntry[]): string
             const mmrText = e.mmr === null ? '…' : String(e.mmr);
             const mmrClass = e.mmr === null ? 'mr-mmr loading' : 'mr-mmr';
             const localClass = e.isLocal ? ' mr-local' : '';
-            const aiTag = e.controller === 'ai' ? `<span class="mr-ai">AI</span>` : '';
+            const aiTag =
+                e.controller === 'ai' ? `<span class="mr-ai">${escapeHtml(t('hud:ai'))}</span>` : '';
             return (
                 `<div class="mr-player${localClass}" data-name="${escapeAttr(e.name)}">` +
                 `<div class="mr-portrait ${team}">${portrait}</div>` +
@@ -116,7 +118,7 @@ export function mountIntroRoster(
         `</div>` +
         `<div class="mr-cols">` +
         teamHtml('player', entries.filter((e) => e.team === 'player')) +
-        `<div class="mr-vs">VS</div>` +
+        `<div class="mr-vs">${escapeHtml(t('hud:vs'))}</div>` +
         teamHtml('enemy', entries.filter((e) => e.team === 'enemy')) +
         `</div></div>`;
     cover.appendChild(el);
@@ -141,6 +143,36 @@ export function updateIntroRosterMmrs(
 
 export function unmountIntroRoster(cover: HTMLElement | null): void {
     cover?.querySelector('.mechili-match-roster')?.remove();
+}
+
+/** Simple Campaign level card on the intro cover (replaces the VS roster). */
+export function mountClimbIntro(cover: HTMLElement, round: number, total: number): void {
+    mountSimpleIntro(cover, t('hud:climbRoundShort', { n: round, total }));
+}
+
+/** Tutorial lesson card — same cover slot as campaign, titled with the lesson name. */
+export function mountTutorialIntro(cover: HTMLElement, lessonId: number): void {
+    const raw = t(`menu:tutorial${lessonId}`, {
+        defaultValue: t('menu:tutorial', { defaultValue: 'Tutorial' }),
+    });
+    // Menu cards use a line break ("1\\nBasics"); flatten for the cover title.
+    mountSimpleIntro(cover, raw.replace(/\s*\n\s*/g, ' · '));
+}
+
+function mountSimpleIntro(cover: HTMLElement, title: string): void {
+    unmountIntroRoster(cover);
+    unmountClimbIntro(cover);
+    const el = withDialogFade(document.createElement('div'));
+    el.classList.add('mechili-climb-intro');
+    el.innerHTML =
+        `<div class="ci-frame">` +
+        `<div class="ci-title">${escapeHtml(title)}</div>` +
+        `</div>`;
+    cover.appendChild(el);
+}
+
+export function unmountClimbIntro(cover: HTMLElement | null): void {
+    cover?.querySelector('.mechili-climb-intro')?.remove();
 }
 
 /** Fetch MMR in the background — updates the cover roster when ready. */

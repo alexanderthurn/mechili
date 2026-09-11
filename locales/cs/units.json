@@ -1,0 +1,56 @@
+{
+  "stronghold-archer": {
+    "name": "Posádkový lučištník"
+  },
+  "hordeWebweaver": {
+    "name": "Tkač pavučin"
+  },
+  "hordeBrutSpawn": {
+    "name": "Černý potěr"
+  },
+  "hordeSpinne": {
+    "name": "Černý pavouk"
+  },
+  "hordeFarmer": {
+    "name": "Mrtvý farmář"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Mrtvý nádeník"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Trpaslík"
+  },
+  "archer": {
+    "name": "Lučištník"
+  },
+  "wizard": {
+    "name": "Čaroděj"
+  },
+  "crowRider": {
+    "name": "Jezdec na vráně"
+  },
+  "ballista": {
+    "name": "Balista"
+  },
+  "shield": {
+    "name": "Ochranný kámen"
+  },
+  "rocket": {
+    "name": "Ohnivá střela"
+  },
+  "command-tower": {
+    "name": "Předvoj"
+  },
+  "research-center": {
+    "name": "Posádka"
+  },
+  "stronghold": {
+    "name": "Pevnost"
+  },
+  "hordeZombie": {
+    "name": "Černý potěr"
+  }
+}

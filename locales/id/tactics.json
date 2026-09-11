@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rute kumpul",
+    "description": "Tetapkan zona awal, tengah, dan akhir. Unit-unit di lingkaran awal berbaris melewati zona yang sesuai di tengah, lalu di akhir, bertempur di sepanjang jalan."
+  },
+  "oilSpill": {
+    "name": "Genangan minyak",
+    "description": "Letakkan dua lingkaran minyak — buat garis luarnya selama penempatan; tak lama setelah pertempuran dimulai, minyak menetes dari kiri ke kanan ke jalur (cakram pelindung tetap di luar). Minyak yang terhubung akan menyala sebagai satu medan ketika api menyentuhnya."
+  },
+  "sellUnit": {
+    "name": "Jual Pack",
+    "description": "Klik untuk mengaktifkan, lalu klik salah satu Pack-mu untuk menjualnya dan mendapat refund pasokan."
+  },
+  "moveUnit": {
+    "name": "Pindahkan Pack",
+    "description": "Klik untuk mengaktifkan, lalu klik Pack dari ronde sebelumnya — bisa digeser dan diputar lagi selama sisa ronde ini."
+  },
+  "tutor": {
+    "name": "Pelajaran Lapangan",
+    "description": "Klik untuk mengaktifkan, lalu klik salah satu Pack-mu — bilah XP terisi sampai level berikutnya. Membeli level masih membutuhkan pasokan."
+  },
+  "spawnDwarves": {
+    "name": "Memanggil Kurcaci",
+    "description": "Tandai lingkaran di mana saja di luar markas musuh. Tak lama setelah pertempuran dimulai, sekelompok kurcaci akan muncul dari tanah di sana, satu per satu — mereka hanya bertempur dalam pertempuran ini."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Buatlah lingkaran kecil di mana saja. Beberapa detik setelah pertempuran dimulai, sebuah meteor akan melenyapkan semua yang ada di sana — hanya kubah pelindung yang dapat melindungi (dan menanggung biayanya)."
+  },
+  "spawnCrows": {
+    "name": "Memanggil Penunggang Gagak",
+    "description": "Tandai lingkaran di mana saja di luar pangkalan musuh. Tak lama setelah pertempuran dimulai, para penunggang gagak terjun dari langit, satu demi satu — mereka hanya bertempur dalam pertempuran ini."
+  },
+  "hammerOfGods": {
+    "name": "Palu Para Dewa",
+    "description": "Klik untuk menempatkan, geser untuk memutar, klik lagi untuk mengunci. Palu ilahi jatuh ke zona tersebut beberapa detik setelah pertempuran dimulai."
+  },
+  "storm": {
+    "name": "Panggilan badai",
+    "description": "Tandai lingkaran lebar di mana saja. Awan badai kecil berkumpul tinggi di atas dan melemparkan petir ke tempat-tempat acak — sambaran petir tidak menimbulkan kerusakan tetapi menyetrum unit dalam percikan luas dengan efek negatif seperti menara kecuali mereka memiliki aura emas. Kubah pelindung tetap memblokir sambaran petir."
+  },
+  "meteorShower": {
+    "name": "Hujan Meteor",
+    "description": "Buatlah lingkaran lebar di mana saja. Meteor akan berjatuhan secara acak di dalam lingkaran tersebut selama beberapa waktu, setiap ledakan akan membakar tanah yang dihantamnya."
+  },
+  "acidSpill": {
+    "name": "Genangan asam",
+    "description": "Tuang kapsul asam seperti Genangan Minyak — menetes kiri ke kanan tak lama setelah pertempuran dimulai. Unit darat dan udara di atas genangan mendesis dan berkarat, menerima kerusakan ekstra dari segala sumber."
+  },
+  "fireSpill": {
+    "name": "Genangan api",
+    "description": "Tuangkan kapsul api seperti minyak — ia menetes dari kiri ke kanan sesaat setelah pertempuran dimulai dan membakar jalan (cakram pelindung tetap menjauh). Minyak yang terhubung akan ikut terbakar. Api hanya bertahan selama pertempuran ini."
+  },
+  "dragonAttack": {
+    "name": "Serangan Naga",
+    "description": "Gambarlah jalur serangan naga (lebih lebar dan lebih panjang daripada jalur minyak). Naga itu menukik dan menyemburkan api di sepanjang koridor — semburan api tersebut menghanguskan unit-unit yang dilewatinya dan membakar tanah. Kubah pelindung menyerap semburan api tersebut (dan harus menanggung akibatnya)."
+  },
+  "poisonCloud": {
+    "name": "Awan Beracun",
+    "description": "Tandai lingkaran raksasa. Awan beracun berkumpul dan menjatuhkan tetesan asam — genangan jarang yang merusak unit darat dan udara seperti Genangan Asam, tetapi di area jauh lebih luas."
+  }
+}

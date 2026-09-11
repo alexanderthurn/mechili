@@ -14,6 +14,11 @@ declare module 'steam-electron-build/native' {
         getAvatarDataUrl(): Promise<string | null>;
         /** Steam beta branch, or null when on the default/public branch */
         getCurrentBetaName(): Promise<string | null>;
+        /**
+         * Steamworks current game language (e.g. 'english', 'german', 'schinese').
+         * Null outside Steam / when the API is unavailable.
+         */
+        getCurrentGameLanguage(): Promise<string | null>;
         /** App id we were launched as — a playtest/demo differs from the built-in one; 0 outside Steam */
         getAppId(): Promise<number>;
         unlockAchievement(id: string): Promise<void>;

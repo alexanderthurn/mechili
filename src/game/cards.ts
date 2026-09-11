@@ -9,6 +9,7 @@
  */
 
 import { DISPLAY } from './displayNames';
+import { t, tacticDescription, tacticName } from '../i18n';
 import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS, ITEMS } from './items';
 import {
     ACID_ID,
@@ -43,7 +44,9 @@ export type SpecialityId =
     | 'giant'
     | 'tutor'
     | 'money'
-    | 'cursed';
+    | 'cursed'
+    /** Hidden tutorial-only commander — never offered in normal pools. */
+    | 'tutorial';
 
 /** speciality tuning */
 export const AIR_BONUS = 0.12; // air units: +12% attack & hp
@@ -291,9 +294,9 @@ export function roundCardKind(c: RoundCard): 'rune' | 'unit' | 'spell' | 'other'
  * offers stay generic.
  */
 export function roundOfferTitle(cards: readonly RoundCard[]): string {
-    if (cards.length === 0) return 'Choose your card';
+    if (cards.length === 0) return t('hud:chooseCard');
     const kinds = new Set(cards.map(roundCardKind));
-    if (kinds.size !== 1) return 'Choose your card';
+    if (kinds.size !== 1) return t('hud:chooseCard');
     switch ([...kinds][0]) {
         case 'rune':
             return `Choose your ${DISPLAY.item.toLowerCase()}`;
@@ -302,7 +305,7 @@ export function roundOfferTitle(cards: readonly RoundCard[]): string {
         case 'spell':
             return `Choose your ${DISPLAY.tactic.toLowerCase()}`;
         default:
-            return 'Choose your card';
+            return t('hud:chooseCard');
     }
 }
 /** atlas icon for a round-card face (rune / tactic / Flanky) */
@@ -333,6 +336,8 @@ export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
     tutor: 'wizard',
     money: 'ballista',
     cursed: 'dwarf',
+    // unused — tutorial card returns no unlocks via {@link starterUnlockedUnits}
+    tutorial: 'dwarf',
 };
 
 export interface StartCard {
@@ -375,14 +380,14 @@ export function startCardForgeIcons(
         ingredientIcons: string[];
     }[] = [];
     for (const id of card.forgeSpells) {
-        const t = TACTICS[id];
-        if (t) {
+        const def = TACTICS[id];
+        if (def) {
             out.push({
-                icon: t.icon,
-                name: t.name,
-                desc: t.description,
+                icon: def.icon,
+                name: tacticName(id, def.name),
+                desc: tacticDescription(id, def.description),
                 // what this commander's own Stronghold charges for it
-                cost: t.strongholdCost,
+                cost: def.strongholdCost,
                 ingredientIcons: forgeIngredientIcons(id),
             });
         }
@@ -390,14 +395,80 @@ export function startCardForgeIcons(
     return out;
 }
 
+/** Not in {@link START_CARDS} — never drawn into normal specialist offers. */
+export const TUTORIAL_START_CARD_ID = 'tutorial';
+export const TUTORIAL_2_START_CARD_ID = 'tutorial2';
+export const TUTORIAL_3_START_CARD_ID = 'tutorial3';
+
 /** starter packs + the specialist's signature unit */
 export function starterUnlockedUnits(card: StartCard): ShopUnitId[] {
+    // Tutorial commanders grant no shop roster — the mode assigns unlocks itself.
+    if (
+        card.id === TUTORIAL_START_CARD_ID ||
+        card.id === TUTORIAL_2_START_CARD_ID ||
+        card.id === TUTORIAL_3_START_CARD_ID
+    ) {
+        return [];
+    }
     const ids = new Set<ShopUnitId>();
     for (const id of card.units) {
         if ((SHOP_UNIT_IDS as readonly string[]).includes(id)) ids.add(id as ShopUnitId);
     }
     ids.add(SPECIALITY_UNLOCK[card.speciality]);
     return SHOP_UNIT_IDS.filter((id) => ids.has(id));
+}
+
+/**
+ * Invisible tutorial-only commander: empty army, no forge spells, no pool
+ * presence. Both seats auto-pick this in Tutorial 1.
+ */
+export const TUTORIAL_START_CARD: StartCard = {
+    id: TUTORIAL_START_CARD_ID,
+    title: 'Tutorial Commander',
+    portrait: 'spec-speed',
+    units: [],
+    unitsLabel: '',
+    startingHp: 1,
+    speciality: 'tutorial',
+    forgeSpells: [],
+    description: '',
+};
+
+/** Tutorial 2: Stronghold forge spells only — no field shop. */
+export const TUTORIAL_2_START_CARD: StartCard = {
+    id: TUTORIAL_2_START_CARD_ID,
+    title: 'Tutorial Commander',
+    portrait: 'spec-cost',
+    units: [],
+    unitsLabel: '',
+    startingHp: 1,
+    speciality: 'tutorial',
+    forgeSpells: [OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID],
+    description: '',
+};
+
+/** Tutorial 3: base towers only — no Stronghold, no forge spells. */
+export const TUTORIAL_3_START_CARD: StartCard = {
+    id: TUTORIAL_3_START_CARD_ID,
+    title: 'Tutorial Commander',
+    portrait: 'spec-elite',
+    units: [],
+    unitsLabel: '',
+    startingHp: 1,
+    speciality: 'tutorial',
+    forgeSpells: [],
+    description: '',
+};
+
+const TUTORIAL_START_CARDS_BY_ID: Record<string, StartCard> = {
+    [TUTORIAL_START_CARD_ID]: TUTORIAL_START_CARD,
+    [TUTORIAL_2_START_CARD_ID]: TUTORIAL_2_START_CARD,
+    [TUTORIAL_3_START_CARD_ID]: TUTORIAL_3_START_CARD,
+};
+
+/** Resolve a starter card id from the live pool or the hidden tutorial cards. */
+export function startCardById(cardId: string): StartCard | undefined {
+    return START_CARDS.find((c) => c.id === cardId) ?? TUTORIAL_START_CARDS_BY_ID[cardId];
 }
 
 export const START_CARDS: StartCard[] = [

@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Fejlesztési szint",
+    "description": "Emeld az épületet egy szinttel: megkapod az alap ÉP-jét. Az ár {{baseCost}}-tól kezdődik, és minden szinten {{costStep}}-gyel emelkedik (maximális szint {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Eladási",
+    "description": "Véglegesen feloldhatod az értékesítési Packokat (telepítési fázisonként akár {{maxPerRound}} értékben). A visszatérítés az alapár {{refundPct}}%-a."
+  },
+  "attack_boost": {
+    "name": "Támadásnövelés",
+    "description": "Állandó, seregszintű sebzésnövelés. Első szint +{{attackPct}}%; a szinteket sorrendben vásárold meg (ára {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP Boost",
+    "description": "Állandó, seregszintű HP-növelés. Első szint +{{hpPct}}%; a szinteket sorrendben vásárold meg (ára {{costs}})."
+  },
+  "range_boost": {
+    "name": "Hatótávolság-növelés",
+    "description": "+{{amount}} hatótávolság minden távolsági egységnek, csak ebben a körben."
+  },
+  "speed_boost": {
+    "name": "Sebességnövelés",
+    "description": "+{{amount}} sebesség minden egységnek, csak ebben a körben."
+  },
+  "loan": {
+    "name": "Hitel",
+    "description": "+{{gain}} ellátmány most. Következő bevetés: −{{debt}}. Körönként egyszer."
+  },
+  "ward_dome": {
+    "name": "Védőkupola",
+    "description": "Elnyeli a kupolába belépő ellenséges lövedékeket (sugár {{radius}}, magasság {{height}}). Az elnyelési kapacitás e egység HP-jével egyenlő."
+  },
+  "homing_fire_bolt": {
+    "name": "Önirányító tűzcsavar",
+    "description": "Helyben élesít, majd a {{range}} hatótávon belüli első ellenségre irányul {{damage}} sebzésért (splash {{splash}})."
+  },
+  "rally_route": {
+    "name": "Gyülekezési útvonal",
+    "description": "Adj hozzá egy gyülekezési útvonal töltetet a varázslatcsíkodhoz. Meccsenként egyszer."
+  },
+  "move_pack": {
+    "name": "Pack mozgatása",
+    "description": "Adj hozzá egy mozgatóPack-töltetet a varázslatcsíkodhoz: egy korábbi körből származó Pack ismét mozgathatóvá válik. Meccsenként egyszer."
+  },
+  "1_deployment": {
+    "name": "+1 Bevetés",
+    "description": "Csak egy plusz egység vásárlása lehetséges ebben a körben."
+  },
+  "veteran_training": {
+    "name": "Veteránképzés",
+    "description": "A kör további részében a megvásárolt egységek a 2. szintre érkeznek (továbbra is fizetik a szintprémiumot)."
+  },
+  "send_supply_to_ally": {
+    "name": "Küldj ellátmányt a szövetségesednek",
+    "description": "Ajándékozz 100 ellátmányt a szövetségesednek – a következő kör elején érkezik. Csak Duo módban."
+  }
+}

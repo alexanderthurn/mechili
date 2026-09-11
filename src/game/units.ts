@@ -13,6 +13,7 @@ import {
     SRGBColorSpace,
     Vector3,
 } from 'three';
+import { techBlurb, techName, unitName, t } from '../i18n';
 import { THEME } from '../theme';
 import { detAtan2 } from './detMath';
 
@@ -168,40 +169,92 @@ export function techIcon(tech: TechDef): string {
 
 /** human-readable summary of what a tech does — its own text, or built from its mods / produce */
 export function techDescription(tech: TechDef): string {
-    if (tech.description) return tech.description;
+    if (tech.description) {
+        return techBlurb(tech.id, tech.description);
+    }
     const parts: string[] = [];
     const pct = (mult: number) => `${mult >= 1 ? '+' : '−'}${Math.round(Math.abs(mult - 1) * 100)}%`;
     const { hp, damage, range, speed, attackInterval, splashRadius } = tech.mods;
-    if (hp !== undefined && hp !== 1) parts.push(`${pct(hp)} HP`);
-    if (damage !== undefined && damage !== 1) parts.push(`${pct(damage)} damage`);
-    if (range !== undefined && range !== 1) parts.push(`${pct(range)} range`);
-    if (speed !== undefined && speed !== 1) parts.push(`${pct(speed)} move speed`);
+    if (hp !== undefined && hp !== 1) {
+        parts.push(t('tech:_auto.modHp', { pct: pct(hp), defaultValue: `${pct(hp)} HP` }));
+    }
+    if (damage !== undefined && damage !== 1) {
+        parts.push(
+            t('tech:_auto.modDamage', { pct: pct(damage), defaultValue: `${pct(damage)} damage` }),
+        );
+    }
+    if (range !== undefined && range !== 1) {
+        parts.push(
+            t('tech:_auto.modRange', { pct: pct(range), defaultValue: `${pct(range)} range` }),
+        );
+    }
+    if (speed !== undefined && speed !== 1) {
+        parts.push(
+            t('tech:_auto.modSpeed', {
+                pct: pct(speed),
+                defaultValue: `${pct(speed)} move speed`,
+            }),
+        );
+    }
     // a lower attack interval means faster firing (rate = 1 / interval)
     if (attackInterval !== undefined && attackInterval !== 1) {
-        parts.push(`${pct(1 / attackInterval)} attack speed`);
+        const p = pct(1 / attackInterval);
+        parts.push(
+            t('tech:_auto.modAttackSpeed', { pct: p, defaultValue: `${p} attack speed` }),
+        );
     }
     if (splashRadius !== undefined && splashRadius !== 1) {
-        parts.push(`${splashRadius}× splash radius`);
+        parts.push(
+            t('tech:_auto.modSplash', {
+                mult: splashRadius,
+                defaultValue: `${splashRadius}× splash radius`,
+            }),
+        );
     }
     if (tech.produce) {
         const p = tech.produce;
-        const childName = unitTypeById(p.typeId)?.name ?? p.typeId;
+        const child = unitName(p.typeId, unitTypeById(p.typeId)?.name ?? p.typeId);
         const every = formatTechSeconds(p.interval);
-        let line = `Produces ${childName} every ${every} (up to ${p.max})`;
+        let line = t('tech:_auto.produce', {
+            child,
+            every,
+            max: p.max,
+            defaultValue: `Produces ${child} every ${every} (up to ${p.max})`,
+        }).replace(/[.。．]+$/u, '');
         if (p.delay !== undefined && p.delay !== p.interval) {
-            line += `, first after ${formatTechSeconds(p.delay)}`;
+            const first = t('tech:_auto.produceFirst', {
+                delay: formatTechSeconds(p.delay),
+                defaultValue: `, first after ${formatTechSeconds(p.delay)}`,
+            }).replace(/^[,，\s]+/u, '');
+            line += `, ${first}`;
         }
-        line += '. Offspring match parent level';
+        const offspring = t('tech:_auto.produceOffspring', {
+            defaultValue: 'Offspring match parent level',
+        }).replace(/^[,.。．\s]+/u, '').replace(/[.。．]+$/u, '');
+        line += `. ${offspring}`;
         parts.push(line);
     }
     if (tech.onKill) {
-        const childName = unitTypeById(tech.onKill.typeId)?.name ?? tech.onKill.typeId;
-        parts.push(`When this unit kills, raise a ${childName}`);
+        const child = unitName(
+            tech.onKill.typeId,
+            unitTypeById(tech.onKill.typeId)?.name ?? tech.onKill.typeId,
+        );
+        parts.push(
+            t('tech:_auto.onKill', {
+                child,
+                defaultValue: `When this unit kills, raise a ${child}`,
+            }).replace(/[.。．]+$/u, ''),
+        );
     }
     if (tech.cleave) {
-        parts.push(`Hits every enemy within ${tech.cleave.radius} (around this unit)`);
+        parts.push(
+            t('tech:_auto.cleave', {
+                radius: tech.cleave.radius,
+                defaultValue: `Hits every enemy within ${tech.cleave.radius} (around this unit)`,
+            }).replace(/[.。．]+$/u, ''),
+        );
     }
-    return parts.length ? parts.join('. ') : tech.name;
+    return parts.length ? parts.join('. ') : techName(tech.id, tech.name);
 }
 
 /** Compact seconds for tech blurbs (`0.1s`, `3s`). */
@@ -299,7 +352,7 @@ export interface UnitType {
      * Never CHOSEN as a target — an enemy walks past looking for something
      * else. Unlike {@link extra} this is only about acquisition: the unit is
      * still in the target hash, so a shot crossing it connects, and splash,
-     * blasts and fire all reach it. A garrison archer on a keep: you besiege
+     * blasts and fire all reach it. A Stronghold archer on a keep: you besiege
      * the keep, and he takes what lands near him.
      */
     notAcquired?: boolean;
@@ -729,9 +782,9 @@ export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 3000);
  * {@link Unit.pinnedY}. He is deliberately not in UNIT_TYPES: the shop must
  * never offer him, he is bought from the Stronghold panel one at a time.
  */
-export const GARRISON_ARCHER: UnitType = {
-    id: 'garrison-archer',
-    name: 'Garrison Archer',
+export const STRONGHOLD_ARCHER: UnitType = {
+    id: 'stronghold-archer',
+    name: 'Stronghold Archer',
     // reuses the archer GLB — no second model, and no new fingerprint entry
     modelId: 'archer',
     cost: 100,
@@ -767,11 +820,11 @@ export const GARRISON_ARCHER: UnitType = {
  * World position of one of a keep's authored standing spots.
  *
  * Deliberately the BAKED path only — never the live `getObjectByName` lookup
- * the commander's decoration uses. This feeds where a garrison archer stands
+ * the commander's decoration uses. This feeds where a Stronghold archer stands
  * and therefore what he can shoot, so it has to come out identical on every
  * peer from the action log alone, with no reference to view state.
  */
-export function garrisonSlotWorld(keep: Unit, slot: number): { x: number; y: number; z: number } | null {
+export function strongholdArcherSlotWorld(keep: Unit, slot: number): { x: number; y: number; z: number } | null {
     const local = getUnitSlotLocal(keep.type.id, slot);
     if (!local) return null;
     const footY = worldHeightAt(keep.world.x, keep.world.z) + GROUND_UNIT_Y;
@@ -785,18 +838,22 @@ export function garrisonSlotWorld(keep: Unit, slot: number): { x: number; y: num
     );
 }
 
-/** How many archers a keep's battlements hold — `Unit5` is the commander's. */
-export const GARRISON_SLOTS = [1, 2, 3, 4] as const;
+/** How many archers a keep's battlements hold — `Unit5` is normally the commander's. */
+export const STRONGHOLD_ARCHER_SLOTS = [1, 2, 3, 4] as const;
 /**
- * A garrison archer's field of fire, in degrees. He covers this much centred on
+ * Tutorial 2: no rooftop commander — the fifth battlement pad is an archer slot.
+ */
+export const STRONGHOLD_ARCHER_SLOTS_NO_COMMANDER = [1, 2, 3, 4, 5] as const;
+/**
+ * A Stronghold archer's field of fire, in degrees. He covers this much centred on
  * outward, and the rest — pointing back into his own keep — is dead. Written in
  * degrees because that is how it gets tuned; the half-angle below is what the
  * sim and the marker actually use.
  */
-export const GARRISON_FOV_DEGREES = 240;
-export const GARRISON_FOV_HALF = (GARRISON_FOV_DEGREES * Math.PI) / 360;
+export const STRONGHOLD_ARCHER_FOV_DEGREES = 240;
+export const STRONGHOLD_ARCHER_FOV_HALF = (STRONGHOLD_ARCHER_FOV_DEGREES * Math.PI) / 360;
 /** first archer 100, second 200, third 300, fourth 400 */
-export const GARRISON_STEP_COST = 100;
+export const STRONGHOLD_ARCHER_STEP_COST = 100;
 
 /** shield dome coverage, world units — the top stays below the air layer (18) */
 export const SHIELD_RADIUS = 20;
@@ -1271,7 +1328,7 @@ export class Unit {
     revealed = true;
     /**
      * Absolute world Y this pack is pinned to, instead of standing on the
-     * terrain under it — a garrison archer up on his keep's battlement. Set
+     * terrain under it — a Stronghold archer up on his keep's battlement. Set
      * once when the pack is created and never animated: he does not bob, climb
      * or walk, so every consumer can treat it as a constant.
      */
@@ -1283,8 +1340,8 @@ export class Unit {
     pinnedY: number | null = null;
     /**
      * Outward direction this pack may shoot along, as `detAtan2(dx, dz)` of the
-     * vector from the building's middle to its slot. A garrison archer covers
-     * {@link GARRISON_FOV_HALF} to either side of it; the wedge behind him is
+     * vector from the building's middle to its slot. A Stronghold archer covers
+     * {@link STRONGHOLD_ARCHER_FOV_HALF} to either side of it; the wedge behind him is
      * his own keep, and he does not fire arrows through it.
      */
     fovYaw: number | null = null;
@@ -1294,7 +1351,7 @@ export class Unit {
      * GROWS 10% per level, so a position baked when the archer was bought
      * leaves him buried in the masonry the moment the keep is upgraded.
      */
-    garrisonSlot: number | null = null;
+    strongholdArcherSlot: number | null = null;
     /** towers: down for the rest of the CURRENT battle — no longer a target, debuffs its owner's side */
     destroyed = false;
     /**
@@ -2020,7 +2077,7 @@ export function buildUnitPreviewMesh(type: UnitType, team: BattleTeam = 'player'
 
 /** type lookup by id — actions and replays store unit types as strings */
 export function unitTypeById(id: string): UnitType | null {
-    if (id === GARRISON_ARCHER.id) return GARRISON_ARCHER;
+    if (id === STRONGHOLD_ARCHER.id) return STRONGHOLD_ARCHER;
     if (id === COMMAND_TOWER.id) return COMMAND_TOWER;
     if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
     if (id === STRONGHOLD.id) return STRONGHOLD;

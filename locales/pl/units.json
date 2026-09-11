@@ -1,0 +1,56 @@
+{
+  "stronghold-archer": {
+    "name": "Łucznik garnizonowy"
+  },
+  "hordeWebweaver": {
+    "name": "Sieciotkacz"
+  },
+  "hordeBrutSpawn": {
+    "name": "Czarny lęg"
+  },
+  "hordeSpinne": {
+    "name": "Czarny Pająk"
+  },
+  "hordeFarmer": {
+    "name": "Martwy rolnik"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Martwy parobek"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Krasnolud"
+  },
+  "archer": {
+    "name": "Łucznik"
+  },
+  "wizard": {
+    "name": "Czarodziej"
+  },
+  "crowRider": {
+    "name": "Jeździec kruka"
+  },
+  "ballista": {
+    "name": "Balista"
+  },
+  "shield": {
+    "name": "Kamień ochronny"
+  },
+  "rocket": {
+    "name": "Ognisty bełt"
+  },
+  "command-tower": {
+    "name": "Awangarda"
+  },
+  "research-center": {
+    "name": "Garnizon"
+  },
+  "stronghold": {
+    "name": "Twierdza"
+  },
+  "hordeZombie": {
+    "name": "Czarny lęg"
+  }
+}

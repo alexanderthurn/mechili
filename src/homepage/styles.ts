@@ -16,6 +16,7 @@ html, body {
 }
 
 .melodan-home {
+    position: relative;
     min-height: 100vh;
     min-height: 100dvh;
     background: linear-gradient(180deg, #1a2818 0%, #121c12 35%, #0a0e0a 70%, #000000 100%);
@@ -26,6 +27,40 @@ html, body {
             linear-gradient(180deg, rgba(12, 20, 10, 0.55), rgba(18, 28, 14, 0.88)),
             var(--menu-bg) center / cover no-repeat fixed;
     }
+}
+
+.mh-lang {
+    position: absolute;
+    top: 14px;
+    inset-inline-end: 14px;
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: ${u.brassLight};
+}
+.mh-lang-globe {
+    flex-shrink: 0;
+    display: block;
+}
+.mh-lang-select {
+    background: rgba(18, 28, 14, 0.72);
+    border: 1px solid ${u.divider};
+    border-radius: 3px;
+    color: ${u.cream};
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+.mh-lang-select:hover,
+.mh-lang-select:focus-visible {
+    border-color: ${u.brass};
+    outline: none;
+}
+.mh-lang-select option {
+    color: ${u.cream};
+    background: #1a2818;
 }
 
 .mh-wrap {
@@ -193,9 +228,9 @@ html, body {
     display: flex;
     position: fixed;
     z-index: 50;
-    right: 0;
+    inset-inline-end: 0;
     bottom: 0;
-    left: auto;
+    inset-inline-start: auto;
     transform: translateY(110%);
     align-items: stretch;
     justify-content: flex-end;
@@ -203,7 +238,7 @@ html, body {
     padding: 0;
     border-radius: 6px 0 0 0;
     border: 1px solid ${u.frameMid};
-    border-right: none;
+    border-inline-end: none;
     border-bottom: none;
     background:
         radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
@@ -215,6 +250,12 @@ html, body {
     opacity: 0;
     pointer-events: none;
     transition: transform 0.28s ease, opacity 0.28s ease;
+}
+:dir(rtl) .mh-sticky-play {
+    border-radius: 0 6px 0 0;
+    box-shadow:
+        6px -6px 24px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 230, 180, 0.12);
 }
 .mh-sticky-play.visible {
     transform: translateY(0);
@@ -229,7 +270,7 @@ html, body {
     padding: 7px 14px;
     border-radius: 0;
     border: none;
-    border-left: 1px solid rgba(255, 208, 64, 0.18);
+    border-inline-start: 1px solid rgba(255, 208, 64, 0.18);
     background: ${u.panelBgDark};
     color: ${u.text};
     text-decoration: none;
@@ -1206,7 +1247,7 @@ html, body {
     display: grid;
     grid-template-columns: 1fr;
     gap: 16px;
-    text-align: left;
+    text-align: start;
 }
 .mh-community-block {
     padding: 20px 22px;
@@ -1323,6 +1364,18 @@ html, body {
     flex-wrap: wrap;
     gap: 14px;
 }
+.mh-footer-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 18px;
+}
+.mh-lang-footer {
+    position: static;
+}
+.mh-lang-footer .mh-lang-select {
+    background: transparent;
+}
 
 .mh-settings-grid {
     display: grid;
@@ -1348,7 +1401,7 @@ html, body {
 }
 .mh-settings-table th,
 .mh-settings-table td {
-    text-align: left;
+    text-align: start;
     padding: 5px 0;
     vertical-align: top;
 }
@@ -1359,7 +1412,7 @@ html, body {
 .mh-settings-table th {
     color: ${u.textMuted};
     font-weight: 600;
-    padding-right: 12px;
+    padding-inline-end: 12px;
     white-space: nowrap;
 }
 .mh-settings-table td {

@@ -1,0 +1,23 @@
+{
+  "title": "发送反馈",
+  "lead": "告诉我们该做什么、修什么或试什么。可选填名字和邮箱。",
+  "discord": "更想聊天？加入 Discord 社区。",
+  "category": "分类",
+  "message": "内容",
+  "placeholder": "该改什么？哪里坏了？怎样会更好？",
+  "cancel": "取消",
+  "submit": "提交",
+  "sending": "发送中…",
+  "thanksSent": "谢谢 — 已发送。",
+  "thanksSaved": "谢谢 — 已保存。",
+  "writeFirst": "请先写一句简短说明。",
+  "rateLimited": "提交太频繁 — {{n}} 秒后再试。",
+  "sendFailed": "发送失败，请稍后再试。",
+  "networkError": "网络错误，请稍后再试。",
+  "catBug": "缺陷",
+  "catBalance": "平衡",
+  "catFeature": "功能",
+  "catArt": "模型 / 美术",
+  "catCommunity": "社区",
+  "catOther": "其他"
+}

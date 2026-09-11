@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Aprimore o nível",
+    "description": "Suba este edifício um nível: ele ganha seu HP base. O preço começa em {{baseCost}} e sobe {{costStep}} por nível (máx. {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Venda",
+    "description": "Desbloqueia permanentemente a venda de Packs (até {{maxPerRound}} por fase de implantação). O reembolso é {{refundPct}}% do custo base."
+  },
+  "attack_boost": {
+    "name": "Aumento de ataque",
+    "description": "Aumento permanente de dano para todo o exército. Primeiro nível +{{attackPct}}%; compre os níveis em ordem (custa {{costs}})."
+  },
+  "hp_boost": {
+    "name": "Aumento de HP",
+    "description": "Aumento permanente de HP para todo o exército. Primeiro nível +{{hpPct}}%; compre os níveis em ordem (custa {{costs}})."
+  },
+  "range_boost": {
+    "name": "Aumento de alcance",
+    "description": "+{{amount}} de alcance para todas as unidades à distância, somente nesta rodada."
+  },
+  "speed_boost": {
+    "name": "Aumento de velocidade",
+    "description": "+{{amount}} velocidade para todas as unidades, apenas nesta rodada."
+  },
+  "loan": {
+    "name": "Empréstimo",
+    "description": "+{{gain}} fornecimento agora. Próxima implantação: −{{debt}}. Uma vez por rodada."
+  },
+  "ward_dome": {
+    "name": "Cúpula protetora",
+    "description": "Absorve projéteis inimigos que entram na cúpula (raio {{radius}}, altura {{height}}). A capacidade de absorção equivale ao HP desta unidade."
+  },
+  "homing_fire_bolt": {
+    "name": "Raio de Fogo teleguiado",
+    "description": "Arma-se no lugar e então mira no primeiro inimigo em alcance {{range}} causando {{damage}} de dano (área {{splash}})."
+  },
+  "rally_route": {
+    "name": "Rota de reunião",
+    "description": "Adicione uma carga de rota de reunião à sua faixa de feitiços. Uma vez por partida."
+  },
+  "move_pack": {
+    "name": "Mover Pack",
+    "description": "Adicione uma carga de Pack de movimento à sua faixa de feitiços: um Pack de uma rodada anterior torna-se móvel novamente. Uma vez por partida."
+  },
+  "1_deployment": {
+    "name": "+1 Implantação",
+    "description": "Nesta rodada, só será possível comprar uma unidade extra."
+  },
+  "veteran_training": {
+    "name": "Treinamento para Veteranos",
+    "description": "Pelo resto desta rodada, unidades compradas chegam no nível 2 (ainda pagam o acréscimo de nível)."
+  },
+  "send_supply_to_ally": {
+    "name": "Enviar suprimentos para o aliado",
+    "description": "Dê 100 de suprimentos ao seu aliado — chegam no início da próxima rodada. Somente modos duo."
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Snelle voeten"
+  },
+  "carapace": {
+    "name": "Steenhuid"
+  },
+  "barrel": {
+    "name": "Langboog"
+  },
+  "ap": {
+    "name": "Doorborende pijlen"
+  },
+  "fireArrows": {
+    "name": "Vuurpijlen",
+    "description": "De pijlen veroorzaken een kortstondig vuur op de grond en branden – genoeg om olievlekken te ontsteken."
+  },
+  "engines": {
+    "name": "Stormvleugels"
+  },
+  "stingers": {
+    "name": "Kraaienklauwen"
+  },
+  "armor": {
+    "name": "IJzerbeplating"
+  },
+  "autoloader": {
+    "name": "Snelle lier"
+  },
+  "aegis": {
+    "name": "Aegis",
+    "description": "Schild: elke eenheid krijgt een tweede levensbalk gelijk aan zijn HP. Aanvallen van afstand putten het schild eerst uit; mêlee-aanvallen, vuur en zuur negeren het."
+  },
+  "golden": {
+    "name": "Gouden Aura",
+    "description": "Bondgenoten in de buurt zijn bestand tegen toren-debuffs en lopen 30% minder schade op gedurende 30 seconden. Tovenaars kunnen ze niet omzetten; de straal brengt in plaats daarvan schade toe."
+  },
+  "pitchBolts": {
+    "name": "Teerbouten",
+    "description": "Bij impact spat er olie uit de bouten (ontbrandt niet – combineer ze met vuurpijlen of een vuurbout)."
+  },
+  "wideBlast": {
+    "name": "Wijde Knal",
+    "description": "Verdrievoudigt de spatradius (geeft spateffect aan eenheden die dit nog niet hebben)."
+  },
+  "skyBind": {
+    "name": "Hemelband",
+    "description": "Kan grond- en luchteenheden aanvallen."
+  },
+  "skyLift": {
+    "name": "Hemelvlucht",
+    "description": "Tilt deze eenheid de lucht in (vechtende vlieger)."
+  },
+  "earthbound": {
+    "name": "Aardgebonden",
+    "description": "Houdt deze eenheid op de grond (overschrijft Hemelvlucht / natuurlijke vlucht)."
+  },
+  "spiderMother": {
+    "name": "Moeder van de spinnen"
+  },
+  "darkHarvest": {
+    "name": "Donkere Oogst"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} schade",
+    "modRange": "{{pct}} bereik",
+    "modSpeed": "{{pct}} bewegingssnelheid",
+    "modAttackSpeed": "{{pct}} aanvalssnelheid",
+    "modSplash": "{{mult}}× spatstraal",
+    "produce": "Produceert {{child}} elke {{every}} (tot {{max}})",
+    "produceFirst": ", eerst na {{delay}}",
+    "produceOffspring": ". Nakomelingen evenaren het ouderniveau",
+    "onKill": "Wanneer deze eenheid doodt, verrijst er een {{child}}",
+    "cleave": "Raakt elke vijand binnen {{radius}} (rondom deze eenheid)"
+  }
+}

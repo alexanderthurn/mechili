@@ -1,0 +1,17 @@
+{
+  "close": "Zamknij",
+  "back": "Wstecz",
+  "reset": "Resetuj",
+  "language": "Język",
+  "term": {
+    "rune": "Runa",
+    "runes": "Runy",
+    "talent": "Talent",
+    "talents": "Talenty",
+    "spell": "Zaklęcie",
+    "spells": "Zaklęcia",
+    "commander": "Dowódca",
+    "commanders": "Dowódcy",
+    "horde": "Komtur"
+  }
+}

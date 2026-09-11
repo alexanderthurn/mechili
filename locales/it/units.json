@@ -1,0 +1,56 @@
+{
+  "stronghold-archer": {
+    "name": "Arciere della guarnigione"
+  },
+  "hordeWebweaver": {
+    "name": "Tessitrice di ragnatele"
+  },
+  "hordeBrutSpawn": {
+    "name": "Covata Nera"
+  },
+  "hordeSpinne": {
+    "name": "Ragno nero"
+  },
+  "hordeFarmer": {
+    "name": "Contadino morto"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Bracciante morto"
+  },
+  "hordeKomtur": {
+    "name": "Hans von Stoffeln"
+  },
+  "dwarf": {
+    "name": "Nano"
+  },
+  "archer": {
+    "name": "Arciere"
+  },
+  "wizard": {
+    "name": "Mago"
+  },
+  "crowRider": {
+    "name": "Cavaliere del Corvo"
+  },
+  "ballista": {
+    "name": "Balista"
+  },
+  "shield": {
+    "name": "Pietra di protezione"
+  },
+  "rocket": {
+    "name": "Dardo di fuoco"
+  },
+  "command-tower": {
+    "name": "Avanguardia"
+  },
+  "research-center": {
+    "name": "Guarnigione"
+  },
+  "stronghold": {
+    "name": "Roccaforte"
+  },
+  "hordeZombie": {
+    "name": "Covata Nera"
+  }
+}

@@ -2,9 +2,11 @@
 
 import { steam } from 'steam-electron-build/native';
 
+import { detectDeviceLanguage, matchSteamGameLanguage } from '../i18n/detect';
+import type { LanguageId } from '../i18n/languages';
+import { isLanguageId } from '../i18n/languages';
 import { probeHardware, probeMobile, type HardwareProbe } from './hardwareTier';
 import { touchFirstDevice } from './inputCapabilities';
-import type { UiFontId } from '../theme';
 import { isUserStorageKey } from './userStorage';
 
 /** Outer world / forests / terrain detail ('off' also disables all weather FX). */
@@ -108,8 +110,11 @@ export interface Prefs {
      * what device last generated an event.
      */
     controlScheme: ControlScheme;
-    /** UI typeface — Cinzel / Exo 2 / Marcellus (live-switched via --font-ui). Default: Marcellus. */
-    uiFont: UiFontId;
+    /**
+     * UI language (also selects the typeface: Marcellus by default; Exo 2 / Noto only when needed).
+     * First-run default: Steam game language when available, else device language.
+     */
+    language: LanguageId;
     /**
      * How Matchmaking / Custom host finds opponents.
      * steam / matchmaking / lan — only that path (fails clearly if unavailable).
@@ -242,11 +247,21 @@ let lastHardwareProbe: HardwareProbe | null = null;
 export function hardwareProbe(): HardwareProbe | null {
     return lastHardwareProbe;
 }
+
+/**
+ * True when the loaded prefs JSON already had a `language` field.
+ * Used so Steam game language only fills a missing first-run default —
+ * never overwrites a player (or cloud-restored) choice.
+ */
+let storedHadLanguage = false;
+export function prefsHadStoredLanguage(): boolean {
+    return storedHadLanguage;
+}
 const DEFAULTS: Prefs = {
     combatChat: true,
     ...GRAPHICS_PRESETS.high,
     controlScheme: 'auto',
-    uiFont: 'marcellus',
+    language: detectDeviceLanguage(),
     uiScale: 1,
     debugOverlay: false,
     // Steam builds default to Steam lobbies, the browser to the web backend.
@@ -351,8 +366,11 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     ) {
         p.controlScheme = DEFAULTS.controlScheme;
     }
-    if (p.uiFont !== 'cinzel' && p.uiFont !== 'exo2' && p.uiFont !== 'marcellus') {
-        p.uiFont = DEFAULTS.uiFont;
+    // Font picker retired — language owns the typeface. Drop legacy uiFont.
+    const legacy = p as Prefs & { uiFont?: unknown };
+    delete legacy.uiFont;
+    if (!isLanguageId(p.language)) {
+        p.language = detectDeviceLanguage();
     }
     // Former 'auto' pref → concrete Web path (no silent transport picking).
     if ((p.multiplayerTransport as string) === 'auto') {
@@ -581,7 +599,39 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     stuckProjectiles: asWord(['off', 'low', 'high']),
     shadows: asWord(QUALITY_5),
     controlScheme: asWord(['auto', 'mouse', 'touch', 'gamepad']),
-    uiFont: asWord(['cinzel', 'exo2', 'marcellus']),
+    language: asWord([
+        'en',
+        'de',
+        'fr',
+        'it',
+        'ko',
+        'es',
+        'es-419',
+        'zh',
+        'zh-Hant',
+        'ru',
+        'th',
+        'ja',
+        'pt',
+        'pl',
+        'da',
+        'nl',
+        'fi',
+        'nb',
+        'sv',
+        'hu',
+        'cs',
+        'ro',
+        'tr',
+        'ar',
+        'pt-BR',
+        'bg',
+        'el',
+        'uk',
+        'vi',
+        'id',
+        'ms',
+    ]),
     multiplayerTransport: asWord(['steam', 'matchmaking', 'lan']),
 };
 
@@ -609,6 +659,7 @@ export function prefs(): Prefs {
                     scenery?: unknown;
                     unitShadows?: unknown;
                 };
+                storedHadLanguage = isLanguageId(stored.language);
                 // Migrations first, sanitising second. They rescue shapes the
                 // sanitisers would rightly reject ('full' scenery, unitShadows,
                 // muteChat), so running them the other way round would discard
@@ -666,12 +717,40 @@ export function prefs(): Prefs {
 export function updatePrefs(patch: Partial<Prefs>): void {
     Object.assign(prefs(), patch);
     normalizePrefs(prefs());
+    if (patch.language !== undefined && isLanguageId(prefs().language)) {
+        storedHadLanguage = true;
+    }
     try {
         localStorage.setItem(KEY, JSON.stringify(prefs()));
     } catch {
         /* ignore */
     }
     for (const listener of [...listeners]) listener();
+}
+
+/**
+ * First-run only: prefer Steam's game language over navigator when Steam is
+ * available and no language was stored yet (including after cloud mirror).
+ * Web / no-Steam builds keep detectDeviceLanguage(). Never overrides a saved
+ * Settings choice.
+ */
+export async function applySteamLanguageDefault(): Promise<LanguageId> {
+    const p = prefs();
+    if (storedHadLanguage) return p.language;
+    if (!steam.isAvailable() || typeof steam.getCurrentGameLanguage !== 'function') {
+        return p.language;
+    }
+    try {
+        const steamName = await steam.getCurrentGameLanguage();
+        const mapped = matchSteamGameLanguage(steamName);
+        if (mapped) {
+            updatePrefs({ language: mapped });
+            return mapped;
+        }
+    } catch {
+        /* Steam API missing / failed — keep navigator default */
+    }
+    return p.language;
 }
 
 /**
@@ -692,6 +771,7 @@ export function resetSettingsStorage(): void {
         /* private browsing */
     }
     cached = { ...DEFAULTS };
+    storedHadLanguage = false;
     if (touchFirstDevice()) {
         Object.assign(cached, GRAPHICS_PRESETS.low);
         cached.mobileTuned = true;

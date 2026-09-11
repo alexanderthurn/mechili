@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Stufe erhöhen",
+    "description": "Werte dieses Gebäude um eine Stufe auf: es erhält seine Basis-HP dazu. Preis startet bei {{baseCost}} und steigt je Stufe um {{costStep}} (max. Stufe {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Verkauf",
+    "description": "Verkaufs-Packs dauerhaft freischalten (bis zu {{maxPerRound}} pro Einsatzphase). Die Rückerstattung beträgt {{refundPct}}% der Basiskosten."
+  },
+  "attack_boost": {
+    "name": "Angriffsverstärkung",
+    "description": "Permanenter Schadensbonus für die gesamte Armee. Erste Stufe +{{attackPct}}%; Stufen der Reihe nach kaufen (kostet {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP-Boost",
+    "description": "Permanenter HP-Bonus für die gesamte Armee. Erste Stufe +{{hpPct}}%; Stufen der Reihe nach kaufen (kostet {{costs}})."
+  },
+  "range_boost": {
+    "name": "Reichweitenerhöhung",
+    "description": "+{{amount}} Reichweite für alle Fernkampfeinheiten, nur in dieser Runde."
+  },
+  "speed_boost": {
+    "name": "Geschwindigkeitsschub",
+    "description": "+{{amount}} Geschwindigkeit für alle Einheiten, nur in dieser Runde."
+  },
+  "loan": {
+    "name": "Darlehen",
+    "description": "+{{gain}} Vorräte jetzt. Nächster Einsatz: −{{debt}}. Einmal pro Runde."
+  },
+  "ward_dome": {
+    "name": "Ward-Kuppel",
+    "description": "Absorbiert gegnerische Projektile, die in die Kuppel eindringen (Radius {{radius}}, Höhe {{height}}). Der Pool entspricht den HP dieser Einheit."
+  },
+  "homing_fire_bolt": {
+    "name": "Zielsuchender Feuerbolzen",
+    "description": "Richtet sich vor Ort aus und sucht dann den ersten Feind in Reichweite {{range}} für {{damage}} Schaden (Splash {{splash}})."
+  },
+  "rally_route": {
+    "name": "Rally-Route",
+    "description": "Füge deiner Zauberleiste eine Rallye-Routen-Aufladung hinzu. Einmal pro Spiel."
+  },
+  "move_pack": {
+    "name": "Bewegungs-Pack",
+    "description": "Füge deiner Zauberleiste eine Bewegungs-Pack-Aufladung hinzu: Ein Pack aus einer früheren Runde wird wieder beweglich. Einmal pro Spiel."
+  },
+  "1_deployment": {
+    "name": "+1 Einsatz",
+    "description": "Ein zusätzlicher Einheitenkauf nur in dieser Runde."
+  },
+  "veteran_training": {
+    "name": "Veteranenausbildung",
+    "description": "Für den Rest dieser Runde starten gekaufte Einheiten auf Stufe 2 (Stufenaufpreis bleibt)."
+  },
+  "send_supply_to_ally": {
+    "name": "Nachschub an Verbündeten senden",
+    "description": "Schenke deinem Verbündeten 100 Vorräte – diese treffen zu Beginn der nächsten Runde ein. Nur im Duo-Modus."
+  }
+}

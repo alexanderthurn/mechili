@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Rally-Route",
+    "description": "Platziere Start-, Mittel- und Endzone. Einheiten im Startkreis marschieren über die Mitte zum Ende und kämpfen dabei."
+  },
+  "oilSpill": {
+    "name": "Ölteppich",
+    "description": "Platziere zwei Ölkreise – die Umrisse werden beim Aufstellen markiert; kurz nach Kampfbeginn tropft Öl von links nach rechts auf den Weg (Schutzscheiben bleiben frei). Verbundene Ölkreise entzünden sich als ein Feld, sobald sie mit Feuer in Berührung kommen."
+  },
+  "sellUnit": {
+    "name": "Verkaufs-Pack",
+    "description": "Klicke zum Aktivieren und dann auf eines deiner Packs, um es gegen eine Rückerstattung deiner Vorräte zu verkaufen."
+  },
+  "moveUnit": {
+    "name": "Bewegungs-Pack",
+    "description": "Klicke zum Aktivieren und dann auf eines deiner Packs aus einer früheren Runde – du kannst es in dieser Runde erneut verschieben und drehen."
+  },
+  "tutor": {
+    "name": "Feldlektion",
+    "description": "Klicke zum Aktivieren und dann auf eines deiner Packs – die XP-Leiste füllt sich bis zur nächsten Stufe. Die Stufe zu kaufen kostet weiterhin Vorräte."
+  },
+  "spawnDwarves": {
+    "name": "Zwerge beschwören",
+    "description": "Markiere einen Kreis irgendwo außerhalb der feindlichen Basis. Kurz nach Kampfbeginn bricht dort nacheinander eine Kriegerschar Zwerge aus dem Boden hervor – sie kämpfen nur in dieser Schlacht."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Markiere einen kleinen Kreis an einer beliebigen Stelle. Sekunden nach Kampfbeginn vernichtet ein Meteor alles darin – nur Schutzkuppeln schützen (und zahlen dafür)."
+  },
+  "spawnCrows": {
+    "name": "Beschwöre Krähenreiter",
+    "description": "Markiere einen Kreis irgendwo außerhalb der feindlichen Basis. Kurz nach Kampfbeginn stürzen nacheinander Krähenreiter vom Himmel – sie kämpfen nur in dieser Schlacht."
+  },
+  "hammerOfGods": {
+    "name": "Hammer der Götter",
+    "description": "Klicke zum Platzieren, bewege zum Drehen, klicke erneut zum Fixieren. Ein göttlicher Hammer fällt wenige Sekunden nach Kampfbeginn auf das Gebiet."
+  },
+  "storm": {
+    "name": "Sturm rufen",
+    "description": "Zeichne einen großen Kreis an einer beliebigen Stelle. Kleine Gewitterwolken ziehen hoch oben auf und schleudern Blitze an zufälligen Stellen. Die Blitze verursachen keinen Schaden, betäuben aber Einheiten in einem weiten Wirkungsbereich mit einem turmartigen Debuff, es sei denn, sie besitzen eine goldene Aura. Schutzkuppeln blockieren die Blitze weiterhin."
+  },
+  "meteorShower": {
+    "name": "Meteorstrom",
+    "description": "Zeichne einen großen Kreis an einer beliebigen Stelle. Meteore regnen eine Zeit lang auf zufällige Stellen im Inneren herab, wobei jede Explosion den Boden, auf den sie trifft, verbrennt."
+  },
+  "acidSpill": {
+    "name": "Säureteppich",
+    "description": "Schüttet man eine Säurekapsel wie einen Ölteppich aus, tropft sie kurz nach Kampfbeginn von links nach rechts auf den Boden. Boden- und Lufteinheiten über der Säurepfütze versengen und korrodieren – und erleiden dadurch zusätzlichen Schaden durch alle Angriffe."
+  },
+  "fireSpill": {
+    "name": "Feuerfläche",
+    "description": "Schütte eine Feuerkapsel wie Öl aus – sie tropft kurz nach Kampfbeginn von links nach rechts und setzt den Weg in Brand (Schutzscheiben bleiben frei). Angrenzendes Öl entzündet sich ebenfalls. Die Flamme hält nur in diesem Kampf an."
+  },
+  "dragonAttack": {
+    "name": "Drachenangriff",
+    "description": "Zeichne die Flugbahn des Drachen (breiter und länger als Öl). Er stürzt sich herab und speit Feuer entlang des Korridors – der Strahl versengt Einheiten und setzt den Boden in Brand. Schutzkuppeln absorbieren den Feueratem (und zahlen dafür)."
+  },
+  "poisonCloud": {
+    "name": "Giftwolke",
+    "description": "Zeichne einen riesigen Kreis. Giftige Wolken sammeln sich darüber und lassen kleine Säuretropfen über das Gebiet regnen – spärliche Pfützen, die Boden und Luft angreifen, ähnlich wie Säureteppich, aber über ein viel größeres Feld."
+  }
+}

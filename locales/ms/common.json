@@ -1,0 +1,17 @@
+{
+  "close": "Tutup",
+  "back": "Kembali",
+  "reset": "Tetapkan semula",
+  "language": "Bahasa",
+  "term": {
+    "rune": "Rune",
+    "runes": "Runes",
+    "talent": "Bakat",
+    "talents": "Bakat",
+    "spell": "Ejaan",
+    "spells": "Jampi",
+    "commander": "Komander",
+    "commanders": "Komander",
+    "horde": "Komtur"
+  }
+}

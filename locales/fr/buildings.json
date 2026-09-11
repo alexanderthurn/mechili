@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Monter d'un niveau",
+    "description": "Améliorez ce bâtiment d'un niveau : il gagne ses PV de base. Le prix commence à {{baseCost}} et augmente de {{costStep}} à chaque niveau (niveau maximum {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Vente",
+    "description": "Débloquez définitivement la vente de packs (jusqu'à {{maxPerRound}} par phase de déploiement). Le remboursement est de {{refundPct}}% du coût de base."
+  },
+  "attack_boost": {
+    "name": "Boost d'attaque",
+    "description": "Bonus de dégâts permanent pour toute l'armée. Premier niveau : +{{attackPct}} % ; achetez les niveaux suivants dans l'ordre (coût : {{costs}})."
+  },
+  "hp_boost": {
+    "name": "Boost de PV",
+    "description": "Bonus permanent de PV pour toute l'armée. Premier niveau : +{{hpPct}} % ; achetez les niveaux dans l'ordre (coûte {{costs}})."
+  },
+  "range_boost": {
+    "name": "Augmentation de portée",
+    "description": "+{{amount}} portée pour toutes les unités à distance, ce tour uniquement."
+  },
+  "speed_boost": {
+    "name": "Accélération",
+    "description": "+{{amount}} vitesse pour toutes les unités, ce tour seulement."
+  },
+  "loan": {
+    "name": "Prêt",
+    "description": "+{{gain}} de ravitaillement maintenant. Prochain déploiement : −{{debt}}. Une fois par tour."
+  },
+  "ward_dome": {
+    "name": "Dôme de protection",
+    "description": "Absorbe les projectiles ennemis qui pénètrent dans un dôme (rayon {{radius}}, hauteur {{height}}). La réserve correspond aux PV de cette unité."
+  },
+  "homing_fire_bolt": {
+    "name": "Éclair de feu à tête chercheuse",
+    "description": "S'arme sur place, puis fonce sur le premier ennemi à portée {{range}} pour {{damage}} dégâts (zone {{splash}})."
+  },
+  "rally_route": {
+    "name": "Route de ralliement",
+    "description": "Ajoutez une charge de ralliement à votre réserve de sorts. Une fois par match."
+  },
+  "move_pack": {
+    "name": "Déplacer un Pack",
+    "description": "Ajoutez une charge de déplacement à votre réserve de sorts : un Pack d'un tour précédent peut à nouveau être déplacé. Une fois par match."
+  },
+  "1_deployment": {
+    "name": "+1 Déploiement",
+    "description": "Un achat d'unité supplémentaire ce tour uniquement."
+  },
+  "veteran_training": {
+    "name": "Formation des vétérans",
+    "description": "Pour le reste de ce tour, les unités que vous achetez arrivent au niveau 2 (elles paient toujours la prime de niveau)."
+  },
+  "send_supply_to_ally": {
+    "name": "Envoyer des approvisionnements à l'allié",
+    "description": "Offre 100 de ravitaillement à ton allié — arrive au début du prochain tour. Modes duo uniquement."
+  }
+}

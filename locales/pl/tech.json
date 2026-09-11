@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Rącze Stopy"
+  },
+  "carapace": {
+    "name": "Kamienna Skóra"
+  },
+  "barrel": {
+    "name": "Łuk długi"
+  },
+  "ap": {
+    "name": "Przebijające strzały"
+  },
+  "fireArrows": {
+    "name": "Ogniste strzały",
+    "description": "Strzały pozostawiają na ziemi krótkotrwały ogień, który następnie płonie — na tyle silny, że może zapalić kałuże oleju."
+  },
+  "engines": {
+    "name": "Skrzydła Wichury"
+  },
+  "stingers": {
+    "name": "Szpony wrony"
+  },
+  "armor": {
+    "name": "Powłoka żelazna"
+  },
+  "autoloader": {
+    "name": "Szybka wciągarka"
+  },
+  "aegis": {
+    "name": "Egida",
+    "description": "Tarcza: każda jednostka zyskuje drugi zasób życia równy jej HP. Ataki dystansowe najpierw zużywają tarczę; wręcz, ogień i kwas ją ignorują."
+  },
+  "golden": {
+    "name": "Złota Aura",
+    "description": "Pobliscy sojusznicy są odporni na osłabienia wieży i otrzymują o 30% mniej obrażeń przez 30 s. Czarodzieje nie mogą ich konwertować — promień zamiast tego zadaje obrażenia."
+  },
+  "pitchBolts": {
+    "name": "Bełty smołowe",
+    "description": "Bełty rozpryskują olej przy uderzeniu (nie zapalają się — należy ich używać razem z ognistymi strzałami lub ognistym bełtem)."
+  },
+  "wideBlast": {
+    "name": "Szeroki wybuch",
+    "description": "Potraja promień rozprysku (zapewnia rozprysk jednostkom, które go nie posiadają)."
+  },
+  "skyBind": {
+    "name": "Więzy Nieba",
+    "description": "Może atakować jednostki naziemne i powietrzne."
+  },
+  "skyLift": {
+    "name": "Wzlot",
+    "description": "Podnosi tę jednostkę w powietrze (bojowy lotnik)."
+  },
+  "earthbound": {
+    "name": "Przykuty do ziemi",
+    "description": "Trzyma tę jednostkę na ziemi (zastępuje Wzlot / naturalny lot)."
+  },
+  "spiderMother": {
+    "name": "Matka Pająków"
+  },
+  "darkHarvest": {
+    "name": "Mroczne Żniwa"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} obrażeń",
+    "modRange": "{{pct}} zasięgu",
+    "modSpeed": "{{pct}} prędkość ruchu",
+    "modAttackSpeed": "{{pct}} prędkość ataku",
+    "modSplash": "{{mult}}× promień rozprysku",
+    "produce": "Produkuje {{child}} co {{every}} (do {{max}})",
+    "produceFirst": ", pierwszy po {{delay}}",
+    "produceOffspring": ". Potomstwo ma poziom rodzica",
+    "onKill": "Gdy ta jednostka zabija, podnosi {{child}}",
+    "cleave": "Trafia każdego wroga w promieniu {{radius}} (wokół tej jednostki)"
+  }
+}

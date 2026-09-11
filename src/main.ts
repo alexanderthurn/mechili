@@ -6,6 +6,8 @@ import { ChatFloat } from './ui/chatFloat';
 import { FriendsPanel } from './ui/friendsPanel';
 import {
     introRosterEntries,
+    mountClimbIntro,
+    mountTutorialIntro,
     mountIntroRoster,
     prefetchIntroRosterMmrs,
 } from './ui/introRoster';
@@ -80,7 +82,7 @@ import {
 import { bootGameAssets } from './game/bootAssets';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
-import { effectiveDpr, onPrefsChange, prefs, updatePrefs } from './game/prefs';
+import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { cssUrl, iconHtml } from './ui/iconAtlas';
@@ -91,6 +93,10 @@ import {
     formatStrongholdModeOption,
     strongholdModeOption,
     CUSTOM_GAME_PACE_PRESETS,
+    CLIMB_ROUNDS_TO_WIN,
+    CLIMB_SIDE_HP,
+    CLIMB_SUPPLY_GROWTH_PER_ROUND,
+    CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
     DEFAULT_HORDE_PRESET_ID,
@@ -104,14 +110,15 @@ import {
     resolveCommanderHpFactor,
     type GameSettings,
 } from './game/settings';
-import { DISPLAY } from './game/displayNames';
+import { applyTutorialMode } from './game/tutorial';
 import {
     DEFAULT_ROUND_CARD_PRESET_ID,
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
 } from './game/roundCardAlgorithms';
 import { duoSeats, localizeRoster, canonicalClassicSeats, type CanonicalSeatDef, type SeatId } from './game/seats';
-import { THEME, applyUiFont, menuStyles } from './theme';
+import { initI18n, onLanguageChange, t } from './i18n';
+import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
 
 const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
 /**
@@ -145,6 +152,27 @@ function applyHordeMode(settings: GameSettings): void {
     if (!presetParam) return;
     if (HORDE_ALGORITHMS.some((a) => a.id === presetParam)) {
         settings.hordePreset = presetParam;
+    }
+}
+
+/**
+ * SP Campaign: sudden-death climb. Income growth defaults to the normal
+ * match economy; set {@link CLIMB_SUPPLY_GROWTH_PER_ROUND} in settings.ts
+ * to override while playtesting.
+ */
+function applyClimbMode(settings: GameSettings): void {
+    settings.climb = {
+        roundsToWin: CLIMB_ROUNDS_TO_WIN,
+        sideHp: CLIMB_SIDE_HP,
+        playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
+    };
+    // Campaign always fields The Komtur at Medium (not Off / not the Low SP-horde default).
+    settings.hordePreset = 'medium';
+    if (CLIMB_SUPPLY_GROWTH_PER_ROUND != null) {
+        settings.economy = {
+            ...settings.economy,
+            supplyGrowthPerRound: CLIMB_SUPPLY_GROWTH_PER_ROUND,
+        };
     }
 }
 
@@ -330,7 +358,7 @@ function showFatal(title: string, detail: string): void {
         el.addEventListener('click', () => el?.remove());
         document.body.appendChild(el);
     }
-    el.textContent = `${title}\n${detail}\n\n(tap to dismiss)`;
+    el.textContent = `${title}\n${detail}\n\n${t('menu:tapToDismiss')}`;
 }
 window.addEventListener('error', (e) => {
     showFatal(`Error: ${e.message}`, `${e.filename ?? ''}:${e.lineno ?? ''}\n${e.error?.stack ?? ''}`);
@@ -515,8 +543,8 @@ function createThreeCanvas(): HTMLCanvasElement {
     canvas.addEventListener('webglcontextlost', (e) => {
         e.preventDefault();
         showFatal(
-            'WebGL context lost (3D canvas)',
-            'The graphics driver dropped the game view — usually out of GPU memory. Reload the page; lowering the graphics preset in Settings helps.',
+            t('menu:webglLost3dTitle'),
+            t('menu:webglLost3dDetail'),
         );
     });
     return canvas;
@@ -552,8 +580,12 @@ document.body.appendChild(wrapper);
 const style = document.createElement('style');
 style.textContent = menuStyles();
 document.head.appendChild(style);
-applyUiFont(prefs().uiFont);
-onPrefsChange(() => applyUiFont(prefs().uiFont));
+await applySteamLanguageDefault();
+await initI18n(prefs().language);
+await applyLanguageFont(prefs().language);
+onPrefsChange(() => {
+    void applyLanguageFont(prefs().language);
+});
 
 /**
  * Every piece of menu chrome lives in here — the menu panel, the corner
@@ -591,7 +623,7 @@ menuChromeEl.appendChild(versionEl);
  *  above the menu panel — the menu is an HTML overlay, so canvas always loses. */
 const playtestEl = document.createElement('div');
 playtestEl.className = 'mechili-playtest';
-playtestEl.textContent = 'PLAYTEST';
+playtestEl.textContent = t('menu:playtest');
 playtestEl.style.display = 'none';
 menuChromeEl.appendChild(playtestEl);
 
@@ -671,7 +703,7 @@ loadingEl.innerHTML =
     `<div class="hp-fill" style="transform:scaleX(0)"></div>` +
     `<span class="hp-val">0%</span>` +
     `</div></div>` +
-    `<div class="load-status">Loading…</div>`;
+    `<div class="load-status">${t('menu:bootLoading')}</div>`;
 wrapper.appendChild(loadingEl);
 const loadFill = loadingEl.querySelector<HTMLDivElement>('.hp-fill')!;
 const loadVal = loadingEl.querySelector<HTMLSpanElement>('.hp-val')!;
@@ -704,8 +736,8 @@ app.canvas.style.inset = '0';
 app.canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault();
     showFatal(
-        'WebGL context lost (UI canvas)',
-        'The graphics driver dropped the UI layer — usually out of GPU memory. Reload the page.',
+        t('menu:webglLostUiTitle'),
+        t('menu:webglLostUiDetail'),
     );
 });
 wrapper.appendChild(app.canvas);
@@ -818,17 +850,24 @@ logo.anchor.set(0.5);
 // the logo art is on a black background (alpha isn't supported in this pipeline);
 // additive blending drops the black and lets the wordmark glow over the scene
 logo.blendMode = 'add';
-void document.fonts.load('700 18px Cinzel').catch(() => {});
+const titleFont = FONT_FAMILY[prefs().language];
+void document.fonts.load(`400 18px "${titleFont}"`).catch(() => {});
 const subtitle = new Text({
-    text: 'FANTASY AUTO·BATTLER',
+    text: t('menu:subtitle'),
     style: {
         fill: THEME.subtitle,
-        fontFamily: 'Cinzel',
+        fontFamily: titleFont,
         fontSize: 18,
-        fontWeight: '700',
-        letterSpacing: 6,
+        fontWeight: '400',
+        letterSpacing: prefs().language === 'ar' ? 0 : 6,
         dropShadow: { color: 0x000000, alpha: 0.6, blur: 6, distance: 2, angle: Math.PI / 2 },
     },
+});
+onPrefsChange(() => {
+    const family = FONT_FAMILY[prefs().language];
+    subtitle.style.fontFamily = family;
+    subtitle.style.letterSpacing = prefs().language === 'ar' ? 0 : 6;
+    void document.fonts.load(`400 18px "${family}"`).catch(() => {});
 });
 subtitle.anchor.set(0.5);
 title.addChild(logo);
@@ -930,28 +969,46 @@ menu.className = 'mechili-menu';
 menu.style.display = 'none';
 menu.innerHTML = `
     <div class="m-view m-main is-active" data-view="main">
-        <button class="m-btn m-primary" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">Single Player</span></button>
-        <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">Matchmaking (WEB)</span></button>
-        <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label">Custom Game (WEB)</span></button>
+        <button class="m-btn m-primary" data-mode="tutorial">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial"></span></button>
+        <button class="m-btn" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:singlePlayer"></span></button>
+        <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n-matchmaking></span></button>
+        <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label" data-i18n-custom></span></button>
         <div class="m-rooms">
             <div class="m-rooms-head">
-                <span class="m-rooms-label">Open Web Games</span>
-                <button type="button" class="m-rooms-refresh" title="Refresh room list" aria-label="Refresh room list">↻</button>
+                <span class="m-rooms-label" data-i18n-rooms-label></span>
+                <button type="button" class="m-rooms-refresh" data-i18n-title="menu:refreshRooms" data-i18n-aria="menu:refreshRooms">↻</button>
             </div>
-            <div class="m-room-list empty">No open Web Games</div>
+            <div class="m-room-list empty" data-i18n-rooms-empty></div>
         </div>
     </div>
+    <div class="m-view m-spmode" data-view="tutorial">
+        <div class="m-spmode-title" data-i18n="menu:tutorial"></div>
+        <div class="m-toggle-row">
+            <button class="m-btn m-toggle-card" data-mode="tutorial-1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial1"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="tutorial-2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial2"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="tutorial-3">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial3"></span></button>
+        </div>
+        <button class="m-btn m-small" data-mode="tutorial-back" data-i18n="menu:back"></button>
+    </div>
     <div class="m-view m-spmode" data-view="sp">
-        <div class="m-spmode-title">Single Player</div>
+        <div class="m-spmode-title" data-i18n="menu:singlePlayer"></div>
+        <div class="m-toggle-row">
+            <button class="m-btn m-toggle-card" data-mode="sp-campaign">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:campaign"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-practice">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:practice"></span></button>
+        </div>
+        <button class="m-btn m-small" data-mode="sp-back" data-i18n="menu:back"></button>
+    </div>
+    <div class="m-view m-spmode" data-view="sp-practice">
+        <div class="m-spmode-title" data-i18n="menu:practice"></div>
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="sp-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
-            <button class="m-btn m-toggle-card" data-mode="sp-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">${DISPLAY.horde}</span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:horde"></span></button>
         </div>
-        <button class="m-btn m-small" data-mode="sp-back">Back</button>
+        <button class="m-btn m-small" data-mode="sp-practice-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-matchmaking" data-view="matchmaking">
-        <div class="m-spmode-title">Matchmaking</div>
+        <div class="m-spmode-title" data-i18n="menu:matchmakingTitle"></div>
         <!-- mode/Horde choice hidden for now (focus: 1v1 Horde only) — not
              removed, just forced+hidden, so it's a one-line revert later -->
         <div class="m-toggle-row" style="display:none">
@@ -966,29 +1023,29 @@ menu.innerHTML = `
         </div>
         <label class="m-toggle-pill" style="display:none">
             <input type="checkbox" class="mm-horde" checked>
-            ${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">${DISPLAY.horde}</span>
+            ${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:horde"></span>
         </label>
         <div class="m-seats">
             <div class="m-seat m-seat-you"><span class="mm-you-name"></span></div>
-            <button class="m-seat m-seat-invite" data-mode="mm-invite">+ Invite a Friend</button>
+            <button class="m-seat m-seat-invite" data-mode="mm-invite" data-i18n="menu:inviteFriend"></button>
         </div>
         <div class="m-mm-link" style="display:none"></div>
         <div class="m-room-row">
-            <button class="m-btn m-small" data-mode="mm-back">Back</button>
-            <button class="m-btn m-primary m-small" data-mode="mm-play">Play</button>
+            <button class="m-btn m-small" data-mode="mm-back" data-i18n="menu:back"></button>
+            <button class="m-btn m-primary m-small" data-mode="mm-play" data-i18n="menu:play"></button>
         </div>
     </div>
     <div class="m-view m-mm-simple" data-view="mm-simple">
-        <div class="m-spmode-title">Matchmaking</div>
+        <div class="m-spmode-title" data-i18n="menu:matchmakingTitle"></div>
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="mms-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
             <button class="m-btn m-toggle-card" data-mode="mms-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
-            <button class="m-btn m-toggle-card" data-mode="mms-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label">${DISPLAY.horde}</span></button>
+            <button class="m-btn m-toggle-card" data-mode="mms-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:horde"></span></button>
         </div>
-        <button class="m-btn m-small" data-mode="mms-back">Back</button>
+        <button class="m-btn m-small" data-mode="mms-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-custom" data-view="custom">
-        <div class="m-spmode-title">Custom Game</div>
+        <div class="m-spmode-title" data-i18n="menu:customGameTitle"></div>
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="cg-host-1v1">
                 ${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">1v1</span>
@@ -997,10 +1054,10 @@ menu.innerHTML = `
                 ${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">2v2</span>
             </button>
             <button class="m-btn m-toggle-card" data-mode="cg-host-2v2ai">
-                ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">2vAI</span>
+                ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:mode2vAi"></span>
             </button>
         </div>
-        <button class="m-btn m-small" data-mode="cg-back">Back</button>
+        <button class="m-btn m-small" data-mode="cg-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-session" data-view="session">
         <div class="m-status" style="display:none"></div>
@@ -1010,31 +1067,31 @@ menu.innerHTML = `
                 <!-- settings first: a guest reads what they are agreeing to, THEN
                      confirms. (The host never sees the ready row — see
                      showHostLobbySettings — so this ordering only shows up there.) -->
-                <button class="m-lobby-settings-toggle" style="display:none" type="button">Advanced settings ▸</button>
+                <button class="m-lobby-settings-toggle" style="display:none" type="button"></button>
                 <label class="m-lobby-ready-row" style="display:none">
                     <input type="checkbox" class="m-lobby-ready-check">
-                    I'm ready
+                    <span class="m-lobby-ready-label" data-i18n="menu:imReady"></span>
                 </label>
-                <button class="m-btn m-small" data-mode="startstar" style="display:none">Start</button>
-                <button class="m-btn m-small m-cancel" style="display:none">Cancel</button>
+                <button class="m-btn m-small" data-mode="startstar" style="display:none"></button>
+                <button class="m-btn m-small m-cancel" style="display:none"></button>
             </div>
             <div class="m-lobby-settings">
-                <label class="m-field">Pace
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:pace"></span>
                     <select class="cg-pace"></select>
                 </label>
-                <label class="m-field">${DISPLAY.horde}
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:horde"></span>
                     <select class="cg-horde"></select>
                 </label>
-                <label class="m-field">Round cards
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:roundCards"></span>
                     <select class="cg-roundcards"></select>
                 </label>
-                <label class="m-field">HP
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:hp"></span>
                     <select class="cg-commander-hp"></select>
                 </label>
-                <label class="m-field">Stronghold
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
                 </label>
-                <button type="button" class="m-lobby-settings-reset" hidden>Reset to defaults</button>
+                <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
             </div>
         </div>
     </div>
@@ -1072,7 +1129,7 @@ const loadoutCornerEl = document.createElement('button');
 loadoutCornerEl.className = 'mechili-username mechili-loadout-btn';
 loadoutCornerEl.type = 'button';
 loadoutCornerEl.style.zIndex = '30';
-loadoutCornerEl.innerHTML = `<span class="u-name">Unit loadout</span>`;
+loadoutCornerEl.innerHTML = `<span class="u-name" data-i18n-loadout></span>`;
 loadoutCornerEl.addEventListener('click', () => {
     if (started || pending) return;
     menuChromeEl.style.display = 'none';
@@ -1088,15 +1145,15 @@ const exitDesktopEl = document.createElement('button');
 exitDesktopEl.className = 'mechili-exit-btn';
 exitDesktopEl.type = 'button';
 exitDesktopEl.innerHTML = iconHtml('ui-room', 'm-ico');
-exitDesktopEl.title = 'Exit to Desktop';
-exitDesktopEl.setAttribute('aria-label', 'Exit to Desktop');
+exitDesktopEl.title = '';
+exitDesktopEl.setAttribute('aria-label', '');
 exitDesktopEl.addEventListener('click', () => void win.close());
 
 const settingsCornerEl = document.createElement('button');
 settingsCornerEl.className = 'mechili-settings-btn';
 settingsCornerEl.type = 'button';
 settingsCornerEl.innerHTML = iconHtml('ui-settings', 'm-ico');
-settingsCornerEl.title = 'Settings';
+settingsCornerEl.title = '';
 settingsCornerEl.addEventListener('click', () => openSettings(wrapper));
 
 cornerActionsEl.append(settingsCornerEl, exitDesktopEl);
@@ -1106,8 +1163,8 @@ menuChromeEl.appendChild(cornerActionsEl);
 const suggestCornerEl = document.createElement('button');
 suggestCornerEl.className = 'mechili-suggest-btn';
 suggestCornerEl.type = 'button';
-suggestCornerEl.textContent = 'Report bug';
-suggestCornerEl.title = 'Report bug';
+suggestCornerEl.textContent = '';
+suggestCornerEl.title = '';
 suggestCornerEl.addEventListener('click', () => {
     openSuggest({ parent: wrapper, source: 'game menu' });
 });
@@ -1168,7 +1225,9 @@ const customGameLabelEl = menu.querySelector<HTMLSpanElement>('.m-btn[data-mode=
 const statusEl = menu.querySelector<HTMLDivElement>('.m-status')!;
 const rosterTableEl = menu.querySelector<HTMLDivElement>('.m-roster-table')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
-const spModeEl = menu.querySelector<HTMLDivElement>('.m-spmode')!;
+const spModeEl = menu.querySelector<HTMLDivElement>('[data-view="sp"]')!;
+const spPracticeEl = menu.querySelector<HTMLDivElement>('[data-view="sp-practice"]')!;
+const tutorialEl = menu.querySelector<HTMLDivElement>('[data-view="tutorial"]')!;
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
 const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
 const mmHordeEl = menu.querySelector<HTMLInputElement>('.mm-horde')!;
@@ -1189,6 +1248,47 @@ const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-se
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
 const lobbyReadyCheckEl = menu.querySelector<HTMLInputElement>('.m-lobby-ready-check')!;
 const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
+
+/** Last room-list transport scope — kept so language switches can re-paint labels. */
+let roomsListScope: 'LAN' | 'Steam' | 'Web' = 'Web';
+
+/** Paint static menu chrome from the active locale. Dynamic labels (Start /
+ *  Cancel / room rows) are set by their own helpers, which also call `t()`. */
+function paintMenuChrome(): void {
+    for (const el of menu.querySelectorAll<HTMLElement>('[data-i18n]')) {
+        const key = el.getAttribute('data-i18n');
+        if (key) el.textContent = t(key);
+    }
+    for (const el of menu.querySelectorAll<HTMLElement>('[data-i18n-title]')) {
+        const key = el.getAttribute('data-i18n-title');
+        if (key) el.title = t(key);
+    }
+    for (const el of menu.querySelectorAll<HTMLElement>('[data-i18n-aria]')) {
+        const key = el.getAttribute('data-i18n-aria');
+        if (key) el.setAttribute('aria-label', t(key));
+    }
+    setRoomsListHeading(roomsListScope);
+    if (roomListEl.classList.contains('empty')) {
+        roomListEl.textContent =
+            roomListEl.dataset.emptyKind === 'error'
+                ? t('menu:roomsLoadError')
+                : t('menu:noOpenGames', { scope: roomsListScope });
+    }
+    applyLobbySettingsExpanded();
+    if (cancelEl.style.display !== 'none') {
+        cancelEl.textContent = isSessionBusy() ? t('menu:cancel') : t('menu:ok');
+    }
+    const loadoutName = loadoutCornerEl.querySelector('.u-name');
+    if (loadoutName) loadoutName.textContent = t('menu:unitLoadout');
+    settingsCornerEl.title = t('menu:settings');
+    exitDesktopEl.title = t('menu:exitDesktop');
+    exitDesktopEl.setAttribute('aria-label', t('menu:exitDesktop'));
+    suggestCornerEl.textContent = t('menu:reportBug');
+    suggestCornerEl.title = t('menu:reportBug');
+    playtestEl.textContent = t('menu:playtest');
+    subtitle.text = t('menu:subtitle');
+}
+
 // Loadout screen: a full-screen 3D stage with floating UI, so it is its own
 // overlay on the wrapper rather than a view inside the menu frame. Hidden
 // until opened from the profile dialog.
@@ -1199,10 +1299,12 @@ wrapper.appendChild(loadoutPanel.el);
 
 /** Exclusive menu screens — only one is active at a time. Session owns
  *  connecting / lobby / waiting UI so main never stacks under it. */
-type MenuViewId = 'main' | 'sp' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
+type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
 const menuViews: Record<MenuViewId, HTMLElement> = {
     main: mainButtonsEl,
     sp: spModeEl,
+    'sp-practice': spPracticeEl,
+    tutorial: tutorialEl,
     custom: customEl,
     matchmaking: mmModeEl,
     'mm-simple': mmSimpleEl,
@@ -1295,7 +1397,9 @@ function applyLobbySettingsExpanded(): void {
     sessionEl.classList.toggle('m-has-lobby-settings', lobbySettingsAvailable);
     sessionEl.classList.toggle('m-lobby-settings-open', lobbySettingsAvailable && lobbySettingsExpanded);
     lobbySettingsToggleEl.style.display = lobbySettingsAvailable ? '' : 'none';
-    lobbySettingsToggleEl.textContent = lobbySettingsExpanded ? 'Advanced settings ▾' : 'Advanced settings ▸';
+    lobbySettingsToggleEl.textContent = lobbySettingsExpanded
+        ? t('menu:advancedSettingsOpen')
+        : t('menu:advancedSettingsClosed');
     scheduleLayoutTitle();
 }
 
@@ -1540,7 +1644,7 @@ function hostCustomGame(mode: CustomGameMode): void {
             return;
         }
         if (transport === 'steam') {
-            setStatus('Opening Steam lobby…');
+            setStatus(t('menu:openingSteam'));
             await beginHost({
                 transport: 'steam',
                 customConfig: cfg,
@@ -1554,7 +1658,7 @@ function hostCustomGame(mode: CustomGameMode): void {
         }
         const discovery = transport === 'lan' ? 'lan' : 'matchmaking';
         setStatus(
-            discovery === 'lan' ? 'Opening LAN room…' : 'Opening room…',
+            discovery === 'lan' ? t('menu:openingLan') : t('menu:openingRoom'),
         );
         await beginHost({ transport: discovery, horde: false, waitForJoined, customConfig: cfg, buildRoster, mode: layout, offerAiStart: true });
     })();
@@ -1579,6 +1683,7 @@ type MatchResume = {
     battleElapsed: number | null;
     local?: boolean;
     phaseRemaining?: number;
+    climbWins?: number;
 };
 
 function hideResumeOverlay(): void {
@@ -1626,25 +1731,25 @@ function showNameEditor(): void {
     overlay.className = 'mechili-name-edit';
     const currentAvatar = getAvatarDataUrl();
     const syncHint = steamLocked
-        ? 'Name comes from Steam. Avatar is custom for Melodan (184×184) and sent to peers when you join.'
+        ? t('menu:hintSteamAvatar')
         : shouldPersistAvatarToPhp()
-          ? 'Avatar is saved on this device and to your online profile (184×184).'
-          : 'Avatar is saved on this device (184×184). Shown to peers when you join.';
+          ? t('menu:hintOnlineAvatar')
+          : t('menu:hintLocalAvatar');
     overlay.innerHTML =
         `<div class="box">` +
-        `<div class="title">${steamLocked ? 'Avatar' : 'Username'}</div>` +
+        `<div class="title">${steamLocked ? t('menu:profileAvatar') : t('menu:profileUsername')}</div>` +
         `<div class="avatar-row">` +
         `<img class="avatar-preview" alt="" hidden />` +
-        `<label class="avatar-pick">Upload image<input class="avatar-file" type="file" accept="image/*" hidden /></label>` +
-        `<button type="button" data-act="clear-avatar">Clear</button>` +
+        `<label class="avatar-pick">${t('menu:uploadImage')}<input class="avatar-file" type="file" accept="image/*" hidden /></label>` +
+        `<button type="button" data-act="clear-avatar">${t('menu:clearAvatar')}</button>` +
         `</div>` +
         `<input class="name-input" maxlength="16" spellcheck="false" value="${getPlayerName()}" ${steamLocked ? 'readonly' : ''} />` +
         `<div class="hint">${syncHint}</div>` +
         `<div class="error" hidden></div>` +
-        `<button type="button" class="profile-loadout" data-act="loadout">Unit loadout</button>` +
+        `<button type="button" class="profile-loadout" data-act="loadout">${t('menu:unitLoadout')}</button>` +
         `<div class="actions">` +
-        `<button type="button" data-act="cancel">Cancel</button>` +
-        `<button type="button" class="primary" data-act="save">Save</button>` +
+        `<button type="button" data-act="cancel">${t('menu:cancel')}</button>` +
+        `<button type="button" class="primary" data-act="save">${t('menu:save')}</button>` +
         `</div></div>`;
 
     const nameInput = overlay.querySelector<HTMLInputElement>('.name-input')!;
@@ -1700,7 +1805,7 @@ function showNameEditor(): void {
             setError('');
             const dataUrl = await resizeImageFileToAvatar(file);
             if (!dataUrl) {
-                setError('Could not use that image — try a smaller PNG or JPEG.');
+                setError(t('menu:errBadImage'));
                 return;
             }
             pendingAvatar = dataUrl;
@@ -1713,7 +1818,7 @@ function showNameEditor(): void {
         const next = steamLocked ? getPlayerName() : validatePlayerName(nameInput.value);
         if (!next) {
             nameInput.style.borderColor = '#e83828';
-            setError('Name must be 2–16 letters, numbers, _ or -.');
+            setError(t('menu:errBadName'));
             return false;
         }
         nameInput.style.borderColor = '';
@@ -1833,7 +1938,7 @@ function setStatus(text: string, autoDismissMs?: number): void {
         // mismatch, a rejection) the room is already gone and the button is
         // just a dismiss — offering to cancel it reads as if leaving were
         // still a choice the player had to make.
-        cancelEl.textContent = isSessionBusy() ? 'Cancel' : 'OK';
+        cancelEl.textContent = isSessionBusy() ? t('menu:cancel') : t('menu:ok');
         if (autoDismissMs) {
             statusClearTimer = setTimeout(() => {
                 setStatus('');
@@ -2150,7 +2255,7 @@ function renderRosterTable(
         if (sideIndex > 0) {
             const vs = document.createElement('div');
             vs.className = 'm-roster-vs';
-            vs.textContent = 'vs';
+            vs.textContent = t('hud:vs');
             vs.setAttribute('aria-hidden', 'true');
             cols.appendChild(vs);
         }
@@ -2159,7 +2264,7 @@ function renderRosterTable(
         col.className = `m-roster-col m-roster-col-${side}`;
         const header = document.createElement('div');
         header.className = 'm-roster-col-header';
-        header.textContent = `Team ${teamNum}`;
+        header.textContent = t('menu:rosterTeam', { n: teamNum });
         col.appendChild(header);
         for (const seat of bySide.get(side)!) {
             const filled = roster[seat]!.name !== OPEN_SEAT_NAME;
@@ -2170,10 +2275,10 @@ function renderRosterTable(
             const label = document.createElement('span');
             label.className = 'm-roster-seat-name';
             const displayName = filled
-                ? `${roster[seat]!.name}${seat === mySeat ? ' (you)' : ''}`
+                ? `${roster[seat]!.name}${seat === mySeat ? t('menu:rosterYou') : ''}`
                 : guaranteedAi
-                  ? 'AI'
-                  : OPEN_SEAT_NAME;
+                  ? t('menu:rosterAi')
+                  : t('menu:rosterWaiting');
             label.textContent = displayName;
             if (filled) {
                 // Truncated seats still expose the full name on hover / tap.
@@ -2197,7 +2302,7 @@ function renderRosterTable(
             if (filled && seat !== 0 && roster[seat]!.ready) {
                 const ready = document.createElement('span');
                 ready.className = 'm-roster-ready';
-                ready.title = 'Ready';
+                ready.title = t('menu:rosterReady');
                 ready.textContent = '✓';
                 cell.appendChild(ready);
             }
@@ -2216,7 +2321,7 @@ function renderRosterTable(
                 invite.className = 'm-roster-invite';
                 // not "to this seat": an invite reaches the ROOM, and the host
                 // seats whoever accepts in the next opening
-                invite.title = 'Invite a friend';
+                invite.title = t('menu:rosterInvite');
                 invite.textContent = '+';
                 invite.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -2228,7 +2333,7 @@ function renderRosterTable(
                 const kick = document.createElement('button');
                 kick.type = 'button';
                 kick.className = 'm-roster-kick';
-                kick.title = `Kick ${roster[seat]!.name}`;
+                kick.title = t('menu:rosterKick', { name: roster[seat]!.name });
                 kick.textContent = '×';
                 kick.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -2261,15 +2366,15 @@ function inviteToHostedRoom(): void {
         return;
     }
     if (hosting.transport === 'lan') {
-        setStatus('Your room is on the local network — friends: Settings → Multiplayer → LAN, then Matchmaking.', 6000);
+        setStatus(t('menu:lanInviteHint'), 6000);
         return;
     }
     // web: the room is found by the host's name, so a link is the invite
     const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(getPlayerName())}`;
     void navigator.clipboard
         ?.writeText(link)
-        .then(() => setStatus('Room link copied — send it to your friend.', 5000))
-        .catch(() => setStatus(`Send this to your friend: ${link}`, 8000));
+        .then(() => setStatus(t('menu:roomLinkCopied'), 5000))
+        .catch(() => setStatus(t('menu:sendLinkToFriend', { link }), 8000));
 }
 
 /**
@@ -2320,12 +2425,22 @@ function roomListScopeLabel(
     return 'Web';
 }
 
-function setRoomsListHeading(scope: 'LAN' | 'Steam' | 'Web'): void {
-    roomsLabelEl.textContent = `Open ${scope} Games`;
-    const tag = scope === 'Web' ? 'WEB' : scope === 'Steam' ? 'STEAM' : 'LAN';
-    matchmakingLabelEl.textContent = `Matchmaking (${tag})`;
-    customGameLabelEl.textContent = `Custom Game (${tag})`;
+function transportTag(scope: 'LAN' | 'Steam' | 'Web'): string {
+    return scope === 'Web' ? 'WEB' : scope === 'Steam' ? 'STEAM' : 'LAN';
 }
+
+function setRoomsListHeading(scope: 'LAN' | 'Steam' | 'Web'): void {
+    roomsListScope = scope;
+    roomsLabelEl.textContent = t('menu:openGames', { scope });
+    matchmakingLabelEl.textContent = t('menu:matchmaking', { tag: transportTag(scope) });
+    customGameLabelEl.textContent = t('menu:customGame', { tag: transportTag(scope) });
+}
+
+paintMenuChrome();
+onLanguageChange(() => {
+    paintMenuChrome();
+    if (roomPollActive) void refreshRoomList();
+});
 
 /** Ads behind the rendered buttons — the click handler needs the transport
  *  handle (peer server, lobby id) that a dataset attribute cannot carry. */
@@ -2340,7 +2455,8 @@ async function refreshRoomList(): Promise<void> {
         setRoomsListHeading(scope);
         if (!transport) {
             roomListEl.className = 'm-room-list empty';
-            roomListEl.textContent = `No open ${scope} Games`;
+            roomListEl.dataset.emptyKind = 'none';
+            roomListEl.textContent = t('menu:noOpenGames', { scope });
             scheduleLayoutTitle();
             return;
         }
@@ -2349,11 +2465,13 @@ async function refreshRoomList(): Promise<void> {
         foundRooms = ads.length > 0;
         if (!foundRooms) {
             roomListEl.className = 'm-room-list empty';
-            roomListEl.textContent = `No open ${scope} Games`;
+            roomListEl.dataset.emptyKind = 'none';
+            roomListEl.textContent = t('menu:noOpenGames', { scope });
             scheduleLayoutTitle();
             return;
         }
         roomListEl.className = 'm-room-list';
+        delete roomListEl.dataset.emptyKind;
         // Our own record of the match we dropped out of, trusted ahead of the
         // published seats: right after a restart the host has not yet noticed
         // the drop, and on a transport whose seats never arrive it is the only
@@ -2380,9 +2498,9 @@ async function refreshRoomList(): Promise<void> {
                 button.dataset.roomKind = watch ? 'spectate' : 'join';
                 button.dataset.roomKey = ad.key;
                 const modeTag = ad.mode === '2v2' ? ' (2v2)' : '';
-                const roundTag = ad.round ? ` — round ${ad.round}` : '';
+                const roundTag = ad.round ? t('menu:roundTag', { n: ad.round }) : '';
                 button.textContent = watch
-                    ? `Watch ${ad.name}${modeTag}${roundTag}`
+                    ? t('menu:watchRoom', { name: ad.name, mode: modeTag, round: roundTag })
                     : `${ad.name}${modeTag}${rejoinable ? roundTag : ''}`;
                 roomAdsByKey.set(ad.key, ad);
                 return button;
@@ -2392,7 +2510,8 @@ async function refreshRoomList(): Promise<void> {
         const scope = roomListScopeLabel(transport);
         setRoomsListHeading(scope);
         roomListEl.className = 'm-room-list empty';
-        roomListEl.textContent = 'Could not load rooms';
+        roomListEl.dataset.emptyKind = 'error';
+        roomListEl.textContent = t('menu:roomsLoadError');
     } finally {
         scheduleLayoutTitle();
         if (roomPollActive) {
@@ -2507,8 +2626,97 @@ function wireGameMenuReturn(game: Game): void {
         if (introCoverEl) introCoverEl.style.opacity = String(t);
     };
     game.onReturnToMenu = finishReturnToMenu;
+    game.onRetryLastRound = (payload) => void retrySinglePlayerLastRound(payload);
+    game.onStartTutorial = (lesson) => void startTutorialLesson(lesson);
     // no-op for every mode except a star (2v2+) guest — see rebuildStarGuestGame
     game.onNeedsFullResync = rebuildStarGuestGame;
+}
+
+/**
+ * SP defeat "Retry last round": tear down the finished Game and reconstruct
+ * from a log that already keeps prior rounds + the lost round's AI seats.
+ * Skips the match-intro cinematic — the player just left a defeat screen.
+ *
+ * Must replace the Three canvas (same as return-to-menu): destroy() disposes
+ * the GL context, and baking shop icons on that dead canvas made tiles look
+ * brighter / wrong. Await prewarm so we don't race a second renderer onto
+ * the new canvas.
+ */
+type LocalMatchOpts = { duo?: boolean; horde?: boolean; climb?: boolean; tutorial?: number };
+
+/** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
+function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
+    const settings = settingsFromUrl();
+    settings.buildTimeSeconds = 60 * 60;
+    settings.specialistTimeSeconds = 60 * 60;
+    settings.cardTimeSeconds = 60 * 60;
+    if (opts.climb) applyClimbMode(settings);
+    if (opts.horde) applyHordeMode(settings);
+    if (opts.duo) applyDuoMode(settings);
+    if (opts.tutorial != null) applyTutorialMode(settings, opts.tutorial);
+    return settings;
+}
+
+async function teardownForNextMatch(): Promise<void> {
+    stopSinglePlayerPersist?.();
+    stopSinglePlayerPersist = null;
+    activeGame?.destroy();
+    activeGame = null;
+    started = false;
+    clearIntroCover();
+    matchUiRoot.replaceChildren();
+    document.querySelector('.mechili-settings')?.remove();
+    document.querySelector('.mechili-touchtip')?.remove();
+    document.querySelector('.forge-slot-preview')?.remove();
+    // Fresh canvas + warm GL (destroy disposed the old context)
+    discardPrewarmedRenderer();
+    threeCanvas.remove();
+    threeCanvas = createThreeCanvas();
+    wrapper.insertBefore(threeCanvas, app.canvas);
+    setGameLayerVisible(true);
+    await prewarmGpu(threeCanvas);
+}
+
+/**
+ * "Next" on a finished lesson: same teardown as a retry, then boot the next
+ * tutorial the way the menu would — fresh match, no carried state.
+ */
+async function startTutorialLesson(lesson: number): Promise<void> {
+    await teardownForNextMatch();
+    startGame(localMatchSettings({ tutorial: lesson }));
+}
+
+async function retrySinglePlayerLastRound(payload: {
+    seed: number;
+    settings: GameSettings;
+    actions: LoggedAction[];
+    side: 'a' | 'b';
+    names: { local: string; opponent: string };
+    climbWins: number;
+}): Promise<void> {
+    await teardownForNextMatch();
+    const settings = { ...payload.settings, seed: payload.seed };
+    // Same rebuild path as Practice: skip startGame's match-intro / menu
+    // teardown (Campaign used to re-enter that path and soft-lock or quit).
+    started = true;
+    title.visible = false;
+    logo.alpha = 1;
+    app.renderer.off('resize', layoutTitle);
+    constructGame(
+        settings,
+        payload.side,
+        payload.names,
+        {
+            actions: payload.actions,
+            battleElapsed: null,
+            local: true,
+            climbWins: payload.climbWins,
+        },
+        null,
+        null,
+        null,
+        false,
+    );
 }
 
 /**
@@ -2587,7 +2795,11 @@ function constructGame(
         }
     };
     wireGameMenuReturn(game);
-    if (!star && !replay && !spectate) stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    // Tutorials are not resumable (the lesson's own progress is not in the save),
+    // and must never overwrite the Campaign run held in that slot.
+    if (!star && !replay && !spectate && !settings.tutorial) {
+        stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    }
     if (replayControlsPanel) {
         game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
     }
@@ -2711,11 +2923,14 @@ function startGame(
     logo.alpha = 0;
     app.renderer.off('resize', layoutTitle);
     // Fresh matches: roster rides the CSS cover and dissolves with it into 3D.
-    // Resume/reconnect skips the roster (cover may already be animating).
-    const showCoverRoster = !resume;
+    // Campaign / tutorial use a simple title card (also on local resume/retry).
+    // Normal resume/reconnect skips the VS roster (cover may already be animating).
+    const useClimbIntro = !!settings.climb;
+    const useTutorialIntro = settings.tutorial != null;
+    const showCoverPanel = useClimbIntro || useTutorialIntro || !resume;
 
     if (!coverActive) {
-        showIntroCover(showCoverRoster);
+        showIntroCover(showCoverPanel);
         app.render();
     }
 
@@ -2752,7 +2967,25 @@ function startGame(
         }
     };
 
-    if (showCoverRoster && introCoverEl) {
+    if (showCoverPanel && introCoverEl && useClimbIntro && settings.climb) {
+        const level = Math.min(
+            (resume?.climbWins ?? 0) + 1,
+            settings.climb.roundsToWin,
+        );
+        mountClimbIntro(introCoverEl, level, settings.climb.roundsToWin);
+        void introRosterHold().then(() => {
+            if (gen !== introGen || !started) return;
+            startIntroCoverDive();
+            runBootHandoff();
+        });
+    } else if (showCoverPanel && introCoverEl && useTutorialIntro && settings.tutorial) {
+        mountTutorialIntro(introCoverEl, settings.tutorial.id);
+        void introRosterHold().then(() => {
+            if (gen !== introGen || !started) return;
+            startIntroCoverDive();
+            runBootHandoff();
+        });
+    } else if (showCoverPanel && introCoverEl && !resume) {
         const entries = introRosterEntries(settings, side, names, star);
         mountIntroRoster(introCoverEl, entries, side);
         void prefetchIntroRosterMmrs(introCoverEl, entries).then(async (mmrMap) => {
@@ -2783,6 +3016,7 @@ function wireSinglePlayerPersist(game: Game): () => void {
             actions: data.actions,
             battleElapsed: data.battleElapsed,
             phaseRemaining: data.phaseRemaining,
+            climbWins: data.climbWins,
             localName: getPlayerName(),
         });
     };
@@ -2807,6 +3041,7 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
         actions: save.actions,
         battleElapsed: save.battleElapsed,
         phaseRemaining: save.phaseRemaining,
+        climbWins: save.climbWins ?? 0,
         local: true,
     });
 }
@@ -2823,10 +3058,10 @@ let replayControlsPanel: ReplayControls | null = null;
  *  resume marker/single-player save so a replay link is never preempted. */
 async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
     setMenuChromeVisible(true);
-    setStatus('Loading replay…');
+    setStatus(t('hud:loadingReplay', { defaultValue: 'Loading replay…' }));
     const record = await fetchMatchReplay(id, side);
     if (!record) {
-        setStatus('Replay not found.');
+        setStatus(t('hud:replayNotFound', { defaultValue: 'Replay not found.' }));
         return;
     }
     setStatus('');
@@ -2973,10 +3208,10 @@ function rebuildStarGuestGame(
  */
 async function verifyReplayAndReturn(id: string, side: 'a' | 'b'): Promise<void> {
     setMenuChromeVisible(true);
-    setStatus('Verifying…');
+    setStatus(t('hud:verifying', { defaultValue: 'Verifying…' }));
     const record = await fetchMatchReplay(id, side);
     if (!record) {
-        setStatus('Replay not found.');
+        setStatus(t('hud:replayNotFound', { defaultValue: 'Replay not found.' }));
         return;
     }
     const settings = record.replay.settings;
@@ -3037,7 +3272,13 @@ async function runBulkVerify(queue: { id: string; side: 'a' | 'b' }[]): Promise<
     const results: BulkVerifyResult[] = [];
     for (let i = 0; i < queue.length; i++) {
         const { id, side } = queue[i]!;
-        setStatus(`Bulk verifying ${i + 1}/${queue.length}…`);
+        setStatus(
+            t('hud:bulkVerifying', {
+                n: i + 1,
+                total: queue.length,
+                defaultValue: `Bulk verifying ${i + 1}/${queue.length}…`,
+            }),
+        );
         const record = await fetchMatchReplay(id, side);
         if (!record) {
             results.push({
@@ -3132,10 +3373,10 @@ function rosterWithWiredAvatars(roster: CanonicalSeatDef[]): CanonicalSeatDef[] 
  *  this works for any roster size, not just the hardcoded 4-seat layout */
 function starAiName(seat: SeatId, roster: CanonicalSeatDef[]): string {
     const mySide = roster[0]!.side;
-    if (roster[seat]!.side === mySide) return 'Ally';
+    if (roster[seat]!.side === mySide) return t('menu:aiNameAlly');
     const foeSeats = roster.map((_, i) => i).filter((i) => roster[i]!.side !== mySide);
-    if (foeSeats.length <= 1) return 'Foe';
-    return foeSeats.indexOf(seat) === 0 ? 'Foe West' : 'Foe East';
+    if (foeSeats.length <= 1) return t('menu:aiNameFoe');
+    return foeSeats.indexOf(seat) === 0 ? t('menu:aiNameFoeWest') : t('menu:aiNameFoeEast');
 }
 /** the HUD's "opponent" name field only ever makes sense for a genuine
  *  2-seat (1v1-via-star) roster — a real 2v2+ has no single opponent to
@@ -3220,10 +3461,13 @@ function updateSteamPresence(
     }
     const status =
         state === 'match'
-            ? 'In a match'
+            ? t('menu:steamPresenceMatch', { defaultValue: 'In a match' })
             : opts.players
-              ? `In a lobby (${opts.players})`
-              : 'In a lobby';
+              ? t('menu:steamPresenceLobbyN', {
+                    n: opts.players,
+                    defaultValue: `In a lobby (${opts.players})`,
+                })
+              : t('menu:steamPresenceLobby', { defaultValue: 'In a lobby' });
     void steam.setPresence({ status, lobbyId: opts.lobbyId ?? null, groupSize: opts.players });
 }
 
@@ -3311,7 +3555,9 @@ function wireHostedHub(
         const roster = hub.currentRoster();
         announceRosterChanges(roster);
         const joined = hub.connectedSeats().length + 1;
-        const names = roster.map((s, i) => (i === 0 ? `${s.name} (you)` : s.name)).join(', ');
+        const names = roster
+            .map((s, i) => (i === 0 ? `${s.name}${t('menu:rosterYou')}` : s.name))
+            .join(', ');
         // only ACTUALLY joined seats (host + currently connected) — the
         // rest of `roster` is still "Waiting…" placeholders, not real names
         const connectedNames = [0, ...hub.connectedSeats()]
@@ -3350,10 +3596,10 @@ function wireHostedHub(
         // this fills the empty seats with bots.
         startStarBtn.disabled = !!customConfig && !allReady;
         startStarBtn.textContent = startStarBtn.disabled
-            ? 'Waiting for players to ready up…'
+            ? t('menu:waitingReady')
             : joined < roster.length
-              ? 'Start with AI'
-              : 'Start';
+              ? t('menu:startWithAi')
+              : t('menu:start');
         // Everyone who joined has readied up: light the button so the host can
         // see it is on them now without re-reading the roster. Needs someone to
         // actually be here (joined > 1) — a room the host is alone in trivially
@@ -3368,23 +3614,48 @@ function wireHostedHub(
         // Custom Game host wants a last look at who joined (and the chance
         // to kick someone) before committing.
         if (joined >= waitForJoined && !customConfig) {
-            setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined: ${names}. Starting…`);
+            setStatus(
+                t('menu:roomStarting', {
+                    name: hostName,
+                    joined,
+                    total: roster.length,
+                    names,
+                }),
+            );
             startHostedMatch();
             return;
         }
         if (joined >= waitForJoined && customConfig && !allReady) {
-            setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined. Waiting for everyone to ready up.`);
-        } else if (joined >= waitForJoined) {
-            setStatus(`Room "${hostName}" — ${joined}/${roster.length} joined: ${names}. Ready — click Start.`);
-        } else if (offerAiStart) {
-            const modeLabel = mode === '1v1' ? '1vs1' : '2vs2';
-            const remaining = waitForJoined - joined;
-            const namesPart = joined > 1 ? `${connectedNames} - ` : '';
             setStatus(
-                `Room "${hostName}" ${modeLabel} - ${namesPart}waiting for ${remaining} more player${remaining === 1 ? '' : 's'}. Click "Start with AI" to play the empty seats as bots`,
+                t('menu:roomWaitingReady', {
+                    name: hostName,
+                    joined,
+                    total: roster.length,
+                    names,
+                }),
+            );
+        } else if (joined >= waitForJoined) {
+            setStatus(
+                t('menu:roomReadyStart', {
+                    name: hostName,
+                    joined,
+                    total: roster.length,
+                    names,
+                }),
+            );
+        } else if (offerAiStart) {
+            const remaining = waitForJoined - joined;
+            setStatus(
+                t('menu:roomNeedMore', {
+                    name: hostName,
+                    joined,
+                    total: roster.length,
+                    names: connectedNames,
+                    need: remaining,
+                }),
             );
         } else {
-            setStatus('Waiting for an opponent');
+            setStatus(t('menu:waitingOpponent'));
         }
     };
     showLobbyChat((item) =>
@@ -3416,7 +3687,7 @@ function wireHostedHub(
             };
         }
         const seat = hub.nextOpenSeat();
-        if (seat === null) return { reject: 'Room is full.' };
+        if (seat === null) return { reject: t('menu:roomFull') };
         hub.setRosterEntry(seat, {
             side: hub.sideOf(seat),
             controller: 'human',
@@ -3468,14 +3739,14 @@ async function beginHost(opts: {
     setMenuBusy(true);
     setStatus(
         transport === 'steam'
-            ? 'Opening Steam lobby…'
+            ? t('menu:openingSteam')
             : transport === 'lan'
               ? mode === '1v1'
-                  ? 'Opening LAN room…'
-                  : 'Opening LAN 2v2 room…'
+                  ? t('menu:openingLan')
+                  : t('menu:openingLan2v2')
               : mode === '1v1'
-                ? 'Opening room…'
-                : 'Opening 2v2 room…',
+                ? t('menu:openingRoom')
+                : t('menu:openingRoom2v2'),
     );
     const hostName = getPlayerName();
     // Opening a room can't be aborted mid-flight (a real round trip: PeerJS
@@ -3509,7 +3780,7 @@ async function beginHost(opts: {
     } catch (e) {
         pending = null;
         setMenuBusy(false);
-        setStatus(`Could not host: ${e instanceof Error ? e.message : e}`);
+        setStatus(t('menu:couldNotHost', { error: e instanceof Error ? e.message : e }));
         return;
     }
     pending = null;
@@ -3652,7 +3923,7 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
                 // handling already does for the "connected, then rejected"
                 // case; this is its "never even connected" counterpart.
                 clearStarResumeMarker();
-                setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
+                setStatus(t('menu:connectionFailed', { error: e instanceof Error ? e.message : e }));
             }
         });
 }
@@ -3673,7 +3944,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
         },
     };
     setMenuBusy(true);
-    setStatus('Connected — waiting for the host to start…');
+    setStatus(t('menu:connectedWaitingHost'));
     // A guest advertises the same lobby, so a third friend can join through
     // either player rather than only through the host.
     updateSteamPresence('lobby', { lobbyId: steamLobbyIdOf(session) });
@@ -3685,7 +3956,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
         setMenuBusy(false);
         clearRosterTable();
         clearLobbySettings();
-        setStatus('Host closed the room.', 5000);
+        setStatus(t('menu:hostClosed'), 5000);
     };
     // this client's OWN seat number, once known — needed both for
     // renderRosterTable's "you" highlighting and to interpret 'ready'
@@ -3726,7 +3997,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                     lobbyReadyCheckEl.checked = hostSaysReady;
                 }
             }
-            setStatus('Connected — waiting for the host to start…');
+            setStatus(t('menu:connectedWaitingHost'));
             return;
         }
         if (msg.type === 'chat') {
@@ -3787,7 +4058,10 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                 clearRosterTable();
                 clearLobbySettings();
                 setStatus(
-                    `Version mismatch — the host runs ${formatGameVersion(msg.version)}, you have ${formatGameVersion(GAME_VERSION)}.`,
+                    t('menu:versionMismatch', {
+                        host: formatGameVersion(msg.version),
+                        you: formatGameVersion(GAME_VERSION),
+                    }),
                     5000,
                 );
                 session.close();
@@ -3821,7 +4095,10 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             clearRosterTable();
             clearLobbySettings();
             setStatus(
-                `Version mismatch — the host runs ${formatGameVersion(msg.version)}, you have ${formatGameVersion(GAME_VERSION)}.`,
+                t('menu:versionMismatch', {
+                    host: formatGameVersion(msg.version),
+                    you: formatGameVersion(GAME_VERSION),
+                }),
                 5000,
             );
             session.close();
@@ -3914,7 +4191,7 @@ function runGuestPending(p: Promise<GuestSession>): void {
         pending = null;
         setMenuBusy(false);
         if (cancelled || String(e).includes('cancelled')) showMenuView('main');
-        else setStatus(`Connection failed: ${e instanceof Error ? e.message : e}`);
+        else setStatus(t('menu:connectionFailed', { error: e instanceof Error ? e.message : e }));
     });
 }
 
@@ -4001,7 +4278,7 @@ function acceptSteamInvite(lobbySteamId: string): void {
                     });
                 } else {
                     setMenuBusy(false);
-                    setStatus(`Could not join: ${first.reason}`);
+                    setStatus(t('menu:couldNotJoin', { error: first.reason }));
                 }
                 return;
             }
@@ -4010,7 +4287,7 @@ function acceptSteamInvite(lobbySteamId: string): void {
             if (cancelled) return;
             pending = null;
             setMenuBusy(false);
-            setStatus(`Could not join: ${e instanceof Error ? e.message : e}`);
+            setStatus(t('menu:couldNotJoin', { error: e instanceof Error ? e.message : e }));
         }
     })();
 }
@@ -4101,7 +4378,7 @@ async function listRoomAds(transport: MultiplayerTransport, waitMs = 900): Promi
                 const limit = r.memberLimit ?? (mode === '2v2' ? 4 : 2);
                 return {
                     key: r.id,
-                    name: r.data.host || 'Steam player',
+                    name: r.data.host || t('menu:steamPlayerFallback', { defaultValue: 'Steam player' }),
                     mode,
                     round: r.data.round ? Number(r.data.round) : undefined,
                     seats: parseAdSeats(r.data.seats),
@@ -4255,11 +4532,14 @@ async function runQuickMatchmaking(
                 tried.add(c.key);
                 anyAttempt = true;
                 setStatus(
-                    transport === 'lan'
-                        ? `Found LAN room — connecting…`
-                        : transport === 'steam'
-                          ? 'Found Steam lobby — connecting…'
-                          : 'Found room — connecting…',
+                    t('menu:foundConnecting', {
+                        scope:
+                            transport === 'lan'
+                                ? t('menu:scopeLanRoom', { defaultValue: 'LAN room' })
+                                : transport === 'steam'
+                                  ? t('menu:scopeSteamLobby', { defaultValue: 'Steam lobby' })
+                                  : t('menu:scopeRoom', { defaultValue: 'room' }),
+                    }),
                 );
                 const joined = await tryJoinMatchCandidate(c);
                 if (cancelled) return;
@@ -4279,7 +4559,7 @@ async function runQuickMatchmaking(
             return;
         }
         setMenuBusy(false);
-        setStatus(`Matchmaking failed: ${e instanceof Error ? e.message : e}`);
+        setStatus(t('menu:matchmakingFailed', { error: e instanceof Error ? e.message : e }));
     }
 }
 
@@ -4312,7 +4592,7 @@ function startSpectateGame(
     const name = hostName.trim();
     if (!name) return;
     setMenuBusy(true);
-    setStatus(`Looking for "${name}"…`);
+    setStatus(t('menu:lookingForName', { name }));
     void (async () => {
         try {
             // A room that advertised its own spectate endpoint (Steam lobby
@@ -4326,10 +4606,10 @@ function startSpectateGame(
             const endpoint = known?.endpoint ?? (await lookupSpectateEndpoint(name));
             if (!endpoint) {
                 setMenuBusy(false);
-                setStatus(`No live match found for "${name}".`);
+                setStatus(t('menu:noLiveMatch', { name }));
                 return;
             }
-            setStatus('Connecting…');
+            setStatus(t('menu:connecting'));
             // Watch over the same network the match is running on: `endpoint`
             // is the host's steamId64 for a Steam room, a peer id otherwise.
             const result =
@@ -4358,7 +4638,7 @@ function startSpectateGame(
             });
         } catch (e) {
             setMenuBusy(false);
-            setStatus(`Could not watch: ${e instanceof Error ? e.message : e}`);
+            setStatus(t('menu:couldNotWatch', { error: e instanceof Error ? e.message : e }));
         }
     })();
 }
@@ -4438,7 +4718,7 @@ menu.addEventListener('click', (e) => {
     const roomBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-room');
     if (roomBtn?.dataset.room && !started && !pending) {
         if (!bootReady) {
-            setStatus('Still loading — one moment…');
+            setStatus(t('menu:stillLoading'));
             return;
         }
         const ad = roomAdsByKey.get(roomBtn.dataset.roomKey ?? '');
@@ -4476,6 +4756,12 @@ menu.addEventListener('click', (e) => {
     if (
         !bootReady &&
         (mode === 'single' ||
+            mode === 'tutorial' ||
+            mode === 'tutorial-1' ||
+            mode === 'tutorial-2' ||
+            mode === 'tutorial-3' ||
+            mode === 'sp-campaign' ||
+            mode === 'sp-practice' ||
             mode === 'sp-1v1' ||
             mode === 'sp-2v2' ||
             mode === 'sp-horde' ||
@@ -4486,27 +4772,43 @@ menu.addEventListener('click', (e) => {
             mode === 'host' ||
             mode === 'host2v2')
     ) {
-        setStatus('Still loading — one moment…');
+        setStatus(t('menu:stillLoading'));
         return;
     }
 
-    /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
-    const startLocalMatch = (opts: { duo?: boolean; horde?: boolean } = {}): void => {
-        const settings = settingsFromUrl();
-        settings.buildTimeSeconds = 60 * 60;
-        settings.specialistTimeSeconds = 60 * 60;
-        settings.cardTimeSeconds = 60 * 60;
-        if (opts.horde) applyHordeMode(settings);
-        if (opts.duo) applyDuoMode(settings);
-        startGame(settings);
-    };
+    const startLocalMatch = (opts: LocalMatchOpts = {}): void => startGame(localMatchSettings(opts));
 
     switch (mode) {
+        case 'tutorial':
+            showMenuView('tutorial');
+            break;
+        case 'tutorial-back':
+            showMenuView('main');
+            break;
+        case 'tutorial-1':
+            showMenuView('main');
+            startLocalMatch({ tutorial: 1 });
+            break;
+        case 'tutorial-2':
+            showMenuView('main');
+            startLocalMatch({ tutorial: 2 });
+            break;
+        case 'tutorial-3':
+            showMenuView('main');
+            startLocalMatch({ tutorial: 3 });
+            break;
         case 'single':
-            // simplified to 1v1 Horde only for now (see sp-1v1/sp-2v2 below,
-            // kept but unreachable from this button — not removed, so the
-            // full picker is a one-line revert away)
-            startLocalMatch({ horde: true });
+            showMenuView('sp');
+            break;
+        case 'sp-campaign':
+            showMenuView('main');
+            startLocalMatch({ climb: true });
+            break;
+        case 'sp-practice':
+            showMenuView('sp-practice');
+            break;
+        case 'sp-practice-back':
+            showMenuView('sp');
             break;
         case 'sp-back':
             showMenuView('main');
@@ -4557,8 +4859,8 @@ menu.addEventListener('click', (e) => {
             void (async () => {
                 const transport = await resolveMultiplayerTransport();
                 if (transport === 'steam') {
-                    mmInviteEl.textContent = 'Waiting for your friend…';
-                    mmLinkEl.textContent = 'Invite a friend from the Steam overlay that just opened.';
+                    mmInviteEl.textContent = t('menu:waitingForFriend');
+                    mmLinkEl.textContent = t('menu:steamInviteHint');
                     mmLinkEl.style.display = '';
                     setStatus(transportLookingStatus('steam'));
                     void beginHost({
@@ -4574,8 +4876,8 @@ menu.addEventListener('click', (e) => {
                     return;
                 }
                 if (transport === 'lan') {
-                    mmInviteEl.textContent = 'Waiting for a LAN player…';
-                    mmLinkEl.textContent = 'Your room is advertised on the local network. Friends: Settings → Multiplayer → LAN, then Matchmaking.';
+                    mmInviteEl.textContent = t('menu:waitingForLan');
+                    mmLinkEl.textContent = t('menu:lanInviteWaitingHint');
                     mmLinkEl.style.display = '';
                     setStatus(transportLookingStatus('lan'));
                     if (team === '2v2') void beginHost({ transport: 'lan', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initialStarRoster, mode: '2v2', offerAiStart: true });
@@ -4588,10 +4890,10 @@ menu.addEventListener('click', (e) => {
                     mmInviteEl.disabled = false;
                     return;
                 }
-                mmInviteEl.textContent = 'Waiting for your friend…';
+                mmInviteEl.textContent = t('menu:waitingForFriend');
                 const hostName = getPlayerName();
                 const link = `${location.origin}${location.pathname}?room=${encodeURIComponent(hostName)}`;
-                mmLinkEl.textContent = `Send this to your friend: ${link}`;
+                mmLinkEl.textContent = t('menu:sendLinkToFriend', { link });
                 mmLinkEl.style.display = '';
                 setStatus(transportLookingStatus('matchmaking'));
                 if (team === '2v2') void beginHost({ transport: 'matchmaking', horde: horde, waitForJoined: 2, customConfig: null, buildRoster: initialStarRoster, mode: '2v2', offerAiStart: true });
@@ -4639,7 +4941,14 @@ menu.addEventListener('click', (e) => {
                         if (!rooms.length) rooms = await lanRoomsExcludingSelf(2000);
                         const open = rooms[0];
                         if (open) {
-                            setStatus(`Found LAN room "${open.name}" — connecting…`);
+                            setStatus(
+                                t('menu:foundConnecting', {
+                                    scope: t('menu:scopeLanRoomNamed', {
+                                        name: open.name,
+                                        defaultValue: `LAN room "${open.name}"`,
+                                    }),
+                                }),
+                            );
                             beginStarJoin(open.name, {
                                 host: open.host,
                                 port: open.port,
@@ -4751,7 +5060,7 @@ if (bulkVerify) {
     // status text, and every failure case the same way a manual click
     // would — no separate dedicated overlay needed here).
     setMenuChromeVisible(true);
-    setStatus(`Reconnecting to "${starMpMarker.hostName}"…`);
+    setStatus(t('menu:reconnecting', { name: starMpMarker.hostName }));
     // Same automatic version of clicking the room, per transport: Steam rejoins
     // the lobby it recorded, LAN dials the signaling server the room lives on
     // (a fresh process has none configured), matchmaking dials the room code.

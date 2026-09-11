@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Subir de nivel",
+    "description": "Sube este edificio un nivel: gana sus PV base. El precio empieza en {{baseCost}} y sube {{costStep}} por nivel (máx. nivel {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Venta",
+    "description": "Desbloquea permanentemente la venta de Packs (hasta {{maxPerRound}} por fase de despliegue). El reembolso es el {{refundPct}}% del costo base."
+  },
+  "attack_boost": {
+    "name": "Impulso de ataque",
+    "description": "Aumento de daño permanente para todo el ejército. Primer nivel +{{attackPct}}%; compra los niveles en orden (cuesta {{costs}})."
+  },
+  "hp_boost": {
+    "name": "Impulso de HP",
+    "description": "Aumento permanente de HP para todo el ejército. Primer nivel +{{hpPct}}%; compra los niveles en orden (cuesta {{costs}})."
+  },
+  "range_boost": {
+    "name": "Aumento de alcance",
+    "description": "+{{amount}} de alcance para todas las unidades a distancia, solo esta ronda."
+  },
+  "speed_boost": {
+    "name": "Impulso de velocidad",
+    "description": "+{{amount}} velocidad para todas las unidades, solo en esta ronda."
+  },
+  "loan": {
+    "name": "Préstamo",
+    "description": "+{{gain}} suministro ahora. Próximo despliegue: −{{debt}}. Una vez por ronda."
+  },
+  "ward_dome": {
+    "name": "Cúpula protectora",
+    "description": "Absorbe proyectiles enemigos que entran en la cúpula (radio {{radius}}, altura {{height}}). La capacidad de absorción equivale a los PV de esta unidad."
+  },
+  "homing_fire_bolt": {
+    "name": "Rayo de fuego teledirigido",
+    "description": "Se arma en el sitio y luego se dirige al primer enemigo en alcance {{range}} por {{damage}} de daño (área {{splash}})."
+  },
+  "rally_route": {
+    "name": "Ruta de reunión",
+    "description": "Añade una carga de ruta de reunión a tu barra de hechizos. Una vez por partida."
+  },
+  "move_pack": {
+    "name": "Mover Pack",
+    "description": "Añade una carga de Pack de movimiento a tu barra de hechizos: un Pack de una ronda anterior vuelve a ser movible. Una vez por partida."
+  },
+  "1_deployment": {
+    "name": "+1 Despliegue",
+    "description": "Una compra de unidad extra solo en esta ronda."
+  },
+  "veteran_training": {
+    "name": "Formación de veteranos",
+    "description": "Durante el resto de esta ronda, las unidades que compres llegarán al nivel 2 (seguirán pagando la prima de nivel)."
+  },
+  "send_supply_to_ally": {
+    "name": "Enviar suministros al aliado",
+    "description": "Regala 100 de suministro a tu aliado — llega al inicio de la siguiente ronda. Solo modos dúo."
+  }
+}

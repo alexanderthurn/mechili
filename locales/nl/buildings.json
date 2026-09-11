@@ -1,0 +1,58 @@
+{
+  "upgrade_level": {
+    "name": "Niveau verhogen",
+    "description": "Verhoog dit gebouw met één niveau: het krijgt zijn basis-HP erbij. De prijs begint bij {{baseCost}} en stijgt met {{costStep}} per niveau (maximaal niveau {{maxLevel}})."
+  },
+  "selling": {
+    "name": "Verkopen",
+    "description": "Ontgrendel permanent het verkopen van Packs (tot {{maxPerRound}} per inzetfase). Teruggave is {{refundPct}}% van de basiskosten."
+  },
+  "attack_boost": {
+    "name": "Aanvalsboost",
+    "description": "Permanente schadeboost voor het hele leger. Eerste niveau +{{attackPct}}%; koop niveaus in volgorde (kosten {{costs}})."
+  },
+  "hp_boost": {
+    "name": "HP Boost",
+    "description": "Permanente HP-boost voor het hele leger. Eerste niveau +{{hpPct}}%; koop niveaus in volgorde (kosten {{costs}})."
+  },
+  "range_boost": {
+    "name": "Bereikvergroting",
+    "description": "+{{amount}} bereik voor alle eenheden met een afstandswapen, alleen deze ronde."
+  },
+  "speed_boost": {
+    "name": "Snelheidsboost",
+    "description": "+{{amount}} snelheid voor alle eenheden, alleen in deze ronde."
+  },
+  "loan": {
+    "name": "Lening",
+    "description": "+{{gain}} voorraad nu. Volgende inzet: −{{debt}}. Eén keer per ronde."
+  },
+  "ward_dome": {
+    "name": "Beschermingskoepel",
+    "description": "Absorbeert vijandelijke projectielen die de koepel binnenkomen (straal {{radius}}, hoogte {{height}}). Absorptiecapaciteit is de HP van deze eenheid."
+  },
+  "homing_fire_bolt": {
+    "name": "Zelfsturende vuurbout",
+    "description": "Wordt ter plekke geactiveerd en zoekt daarna de eerste vijand in bereik {{range}} voor {{damage}} schade (splash {{splash}})."
+  },
+  "rally_route": {
+    "name": "Verzamelroute",
+    "description": "Voeg één verzamelroute-lading toe aan je spreukenstrook. Eén keer per wedstrijd."
+  },
+  "move_pack": {
+    "name": "Pack verplaatsen",
+    "description": "Voeg één verplaatsingslading toe aan je spreukenstrip: één Pack uit een eerdere ronde wordt opnieuw verplaatsbaar. Eenmaal per wedstrijd."
+  },
+  "1_deployment": {
+    "name": "+1 Inzet",
+    "description": "Eén extra eenheidsaankoop, alleen deze ronde."
+  },
+  "veteran_training": {
+    "name": "Veteranentraining",
+    "description": "Voor de rest van deze ronde komen de eenheden die je koopt aan op niveau 2 (ze betalen nog steeds de niveaupremie)."
+  },
+  "send_supply_to_ally": {
+    "name": "Stuur voorraden naar bondgenoot",
+    "description": "Geef 100 voorraad aan je bondgenoot — komt aan bij de start van de volgende ronde. Alleen duomodi."
+  }
+}

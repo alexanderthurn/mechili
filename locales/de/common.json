@@ -1,0 +1,17 @@
+{
+  "close": "Schließen",
+  "back": "Zurück",
+  "reset": "Zurücksetzen",
+  "language": "Sprache",
+  "term": {
+    "rune": "Rune",
+    "runes": "Runen",
+    "talent": "Talent",
+    "talents": "Talente",
+    "spell": "Zauber",
+    "spells": "Zauber",
+    "commander": "Kommandant",
+    "commanders": "Kommandanten",
+    "horde": "Der Komtur"
+  }
+}

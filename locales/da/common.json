@@ -1,0 +1,17 @@
+{
+  "close": "Tæt",
+  "back": "Tilbage",
+  "reset": "Nulstil",
+  "language": "Sprog",
+  "term": {
+    "rune": "Rune",
+    "runes": "Runer",
+    "talent": "Talent",
+    "talents": "Talenter",
+    "spell": "Fortryllelse",
+    "spells": "Besværgelser",
+    "commander": "Kommandør",
+    "commanders": "Kommandører",
+    "horde": "Komturen"
+  }
+}

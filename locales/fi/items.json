@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Maa",
+    "description": "+10 % HP:tä."
+  },
+  "fire": {
+    "name": "Palo",
+    "description": "+10% hyökkäys."
+  },
+  "water": {
+    "name": "Vesi",
+    "description": "+5 % hyökkäys ja HP."
+  },
+  "wind": {
+    "name": "Tuuli",
+    "description": "+10 %:n vaihteluväli."
+  },
+  "addi": {
+    "name": "Rohkeus",
+    "description": "+15% hyökkäys ja HP."
+  },
+  "power": {
+    "name": "Verilöyly",
+    "description": "+75% hyökkäys."
+  },
+  "vigor": {
+    "name": "Jättiläisveri",
+    "description": "+100 % HP:tä."
+  },
+  "colossus": {
+    "name": "Mithril-haarniska",
+    "description": "+250 % HP:tä."
+  },
+  "wrath": {
+    "name": "Berserk",
+    "description": "+300% hyökkäys."
+  },
+  "golden": {
+    "name": "Aurinkokivi",
+    "description": "Immuuni tornin heikennyksille ja ottaa 30 % vähemmän vahinkoa. Velhot eivät voi muuntaa – säde tekee vahinkoa."
+  },
+  "bulwark": {
+    "name": "Bulwark",
+    "description": "Kilpi: jokainen yksikkö saa toisen terveysvarannon, joka vastaa sen HP:tä. Kauko-osumat kuluttavat kilven ensin; lähitaistelu, tuli ja happo jättävät sen huomiotta."
+  }
+}

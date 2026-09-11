@@ -1,0 +1,17 @@
+{
+  "close": "Chiudi",
+  "back": "Indietro",
+  "reset": "Reset",
+  "language": "Lingua",
+  "term": {
+    "rune": "Runa",
+    "runes": "Rune",
+    "talent": "Talento",
+    "talents": "Talenti",
+    "spell": "Incantesimo",
+    "spells": "Incantesimi",
+    "commander": "Comandante",
+    "commanders": "Comandanti",
+    "horde": "Il Komtur"
+  }
+}

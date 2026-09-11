@@ -1,4 +1,4 @@
-import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, START_CARDS, starterUnlockedUnits, unlockCostForSpeciality, type SpecialityId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, startCardById, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostForSpeciality, type SpecialityId, type ShopUnitId } from './cards';
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
@@ -53,11 +53,10 @@ import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
 import { detAtan2 } from './detMath';
 import {
-    GARRISON_ARCHER,
-    GARRISON_SLOTS,
-    GARRISON_STEP_COST,
+    STRONGHOLD_ARCHER,
+    STRONGHOLD_ARCHER_STEP_COST,
     STRONGHOLD,
-    garrisonSlotWorld,
+    strongholdArcherSlotWorld,
     levelBasisOf,
     unitTypeById,
     isPlayerBuyable,
@@ -123,8 +122,8 @@ export interface BuyLevelAction {
     unitId: number;
 }
 /** buys one more archer onto this seat's Stronghold battlements */
-export interface BuyGarrisonArcherAction {
-    kind: 'buyGarrisonArcher';
+export interface BuyStrongholdArcherAction {
+    kind: 'buyStrongholdArcher';
     team: Team;
 }
 /** raise several packs one level each — one undo peels the whole batch */
@@ -364,6 +363,17 @@ export interface RemoveSpellAction {
     stampId: number;
 }
 
+/**
+ * Campaign AI only: wipe this seat's mobile army + researched techs, refund
+ * their supply value, return equipped items to the bag, then set liquid
+ * supply to the opposing side's total wealth (liquid + army + tech) so the
+ * rebuild spends the same purse the human currently holds.
+ */
+export interface ClearArmyAction {
+    kind: 'clearArmy';
+    team: Team;
+}
+
 type ActionVariant =
     | BuyAction
     | BuyRuneAction
@@ -373,7 +383,7 @@ type ActionVariant =
     | BuyTechAction
     | BuyLevelAction
     | BuyLevelBatchAction
-    | BuyGarrisonArcherAction
+    | BuyStrongholdArcherAction
     | RecruitLevelAction
     | UpgradeTowerAction
     | BuySellAbilityAction
@@ -406,7 +416,8 @@ type ActionVariant =
     | PlaceOilSpillAction
     | RemoveOilSpillAction
     | PlaceSpellAction
-    | RemoveSpellAction;
+    | RemoveSpellAction
+    | ClearArmyAction;
 
 /**
  * Every action carries its acting SEAT alongside the side (`team`). Omitted
@@ -457,8 +468,17 @@ interface LogEntry extends LoggedAction {
     oilStamp?: OilStamp;
     /** placeSpell / removeSpell */
     spellStamp?: SpellStamp;
-    /** buyGarrisonArcher: the archer that was raised (for undo) */
-    garrisonUnit?: Unit;
+    /** buyStrongholdArcher: the archer that was raised (for undo) */
+    strongholdArcherUnit?: Unit;
+    /**
+     * clearArmy: packs removed (items already returned to the bag — restored
+     * onto the pack on undo from {@link clearedPackItems})
+     */
+    clearedPackItems?: { unitId: number; items: string[]; itemRounds: number[] }[];
+    /** clearArmy: techs removed with the supply that was refunded for each */
+    clearedTechs?: { typeId: string; techId: string; paid: number }[];
+    /** clearArmy: liquid balance after wipe + opposing-wealth sync (for undo) */
+    balanceAfter?: number;
 }
 
 export interface ActionContext {
@@ -569,6 +589,20 @@ export interface ActionContext {
      * from GameSettings.commanderHpFactor — applied at chooseCard time.
      */
     commanderHpFactor: number;
+    /**
+     * Campaign climb: when set, chooseCard sets that side's HP to this value
+     * instead of adding commander startingHp (see GameSettings.climb).
+     */
+    climbSideHp: number | null;
+    /**
+     * Campaign climb active — gates {@link ClearArmyAction} (AI fresh rebuild).
+     */
+    climbMode: boolean;
+    /**
+     * Battlement archer pads on a Stronghold (default 4; Tutorial 2 uses 5 and
+     * hides the rooftop commander so pad 5 is free).
+     */
+    strongholdArcherSlots: readonly number[];
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -733,6 +767,8 @@ export class ActionDispatcher {
                 // structures aren't buyable — except the board extras
                 if (!type || (type.structure && !type.extra)) return false;
                 if (!isPlayerBuyable(type)) return false;
+                // Campaign: human side cannot buy board extras (Ward Stone, Fire Bolt, …)
+                if (type.extra && this.ctx.climbMode && action.team === 'player') return false;
                 if (
                     !type.extra &&
                     !this.ctx.unlockedUnits[seat]!.includes(action.typeId)
@@ -859,7 +895,7 @@ export class ActionDispatcher {
                 unit.refreshLevelBadge();
                 return true;
             }
-            case 'buyGarrisonArcher': {
+            case 'buyStrongholdArcher': {
                 // The side shares its keep, so the wall is filled and priced
                 // per SIDE, not per seat — an ally buying the third archer
                 // pays for the third, not for their own first.
@@ -867,29 +903,30 @@ export class ActionDispatcher {
                     .allUnits()
                     .find((u) => u.type === STRONGHOLD && u.team === action.team && !u.destroyed);
                 if (!keep) return false;
+                const slots = this.ctx.strongholdArcherSlots;
                 const taken = placement
                     .allUnits()
-                    .filter((u) => u.type === GARRISON_ARCHER && u.team === action.team).length;
-                if (taken >= GARRISON_SLOTS.length) return false;
-                const spot = garrisonSlotWorld(keep, GARRISON_SLOTS[taken]!);
+                    .filter((u) => u.type === STRONGHOLD_ARCHER && u.team === action.team).length;
+                if (taken >= slots.length) return false;
+                const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
                 if (!spot) return false; // keep model has no authored slots
-                const cost = GARRISON_STEP_COST * (taken + 1);
+                const cost = STRONGHOLD_ARCHER_STEP_COST * (taken + 1);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 const archer = placement.spawnAtWorld(
-                    GARRISON_ARCHER,
+                    STRONGHOLD_ARCHER,
                     spot.x,
                     spot.z,
                     action.team,
                     seat,
                 );
-                archer.garrisonSlot = GARRISON_SLOTS[taken]!;
+                archer.strongholdArcherSlot = slots[taken]!;
                 archer.pinnedY = spot.y;
                 // outward from the keep's middle — the wedge behind him is the
                 // keep itself, and he does not shoot through his own walls
                 archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
                 archer.seatMembers();
-                entry.garrisonUnit = archer;
+                entry.strongholdArcherUnit = archer;
                 return true;
             }
             case 'buyLevelBatch': {
@@ -990,7 +1027,7 @@ export class ActionDispatcher {
                     return false;
                 }
                 // a battlement archer is part of the keep, not a pack you trade
-                if (unit.type === GARRISON_ARCHER) return false;
+                if (unit.type === STRONGHOLD_ARCHER) return false;
                 if (useAbility) sell.used[seat]!++;
                 else if (!this.consumeTacticCharge(entry, seat, SELL_UNIT_ID)) {
                     return false;
@@ -1103,7 +1140,7 @@ export class ActionDispatcher {
                 // race with a teammate's slot either. commanderHpFactor
                 // scales both teams the same (Custom Game / GameSettings).
                 if (this.ctx.starterPicked[seat]) return false;
-                const card = START_CARDS.find((c) => c.id === action.cardId);
+                const card = startCardById(action.cardId);
                 if (!card) return false;
                 this.ctx.starterPicked[seat] = true;
                 this.ctx.speciality[seat] = card.speciality;
@@ -1111,12 +1148,31 @@ export class ActionDispatcher {
                     this.ctx.flankSpawnMult[seat] = FLANK_SPAWN_HALF_MULT;
                 }
                 entry.prevHp = this.ctx.hp.get(action.team);
-                const grantedHp = Math.round(card.startingHp * this.ctx.commanderHpFactor);
-                this.ctx.hp.set(action.team, this.ctx.hp.get(action.team) + grantedHp);
+                if (this.ctx.climbSideHp != null) {
+                    // Campaign: fixed sudden-death HP — commander startingHp ignored
+                    this.ctx.hp.set(action.team, this.ctx.climbSideHp);
+                } else {
+                    const grantedHp = Math.round(card.startingHp * this.ctx.commanderHpFactor);
+                    this.ctx.hp.set(action.team, this.ctx.hp.get(action.team) + grantedHp);
+                }
                 // shop unlocks are per-SEAT (your own card decides your own
                 // buyable roster — no sharing, per-seat like items), so unlike
-                // speciality/HP above this is unconditional, not primary-only
-                this.ctx.unlockedUnits[seat] = starterUnlockedUnits(card);
+                // speciality/HP above this is unconditional, not primary-only.
+                // Tutorial commander has an empty pool via starterUnlockedUnits —
+                // bake the lesson roster into the logged chooseCard so resume
+                // / hydrate restore the same shop (not an empty one).
+                this.ctx.unlockedUnits[seat] =
+                    card.id === TUTORIAL_START_CARD_ID
+                        ? action.team === 'player'
+                            ? (['dwarf'] as ShopUnitId[])
+                            : (['archer'] as ShopUnitId[])
+                        : card.id === TUTORIAL_3_START_CARD_ID
+                          ? action.team === 'player'
+                              ? (['dwarf', 'ballista'] as ShopUnitId[])
+                              : (['dwarf', 'archer'] as ShopUnitId[])
+                          : card.id === TUTORIAL_2_START_CARD_ID
+                            ? []
+                            : starterUnlockedUnits(card);
                 // items (tactics) are additive per CARD, not an overwrite like
                 // speciality/HP/unlocks above — every seat's own pick grants
                 // its own items into ITS OWN pool (items are per-seat, never
@@ -1517,7 +1573,92 @@ export class ActionDispatcher {
                 this.ctx.spellStamps.splice(i, 1);
                 return true;
             }
+            case 'clearArmy': {
+                if (!this.ctx.climbMode) return false;
+                const balanceBefore = economy.balance(seat);
+                const removed: Unit[] = [];
+                const packItems: { unitId: number; items: string[]; itemRounds: number[] }[] = [];
+                for (const unit of [...placement.allUnits()]) {
+                    if (unit.seat !== seat || unit.team !== action.team) continue;
+                    if (unit.type.structure || unit.type.extra) continue;
+                    if (unit.type === STRONGHOLD_ARCHER) continue;
+                    const items = [...unit.items];
+                    const itemRounds = [...unit.itemAppliedRound];
+                    for (const itemId of items) this.ctx.items[seat]!.push(itemId);
+                    unit.items.length = 0;
+                    unit.itemAppliedRound.length = 0;
+                    const levelPremium =
+                        unit.level > 1
+                            ? levelCost(unit.type, economy, leveling) * (unit.level - 1)
+                            : 0;
+                    const refund =
+                        Math.round(economy.costOf(unit.type) * this.ctx.sellSettings.refundFactor) +
+                        levelPremium;
+                    economy.credit(seat, refund);
+                    packItems.push({ unitId: unit.id, items, itemRounds });
+                    placement.removeUnit(unit);
+                    removed.push(unit);
+                }
+                const clearedTechs: { typeId: string; techId: string; paid: number }[] = [];
+                const ownedSnap = techTree.snapshotOwned()[seat];
+                if (ownedSnap) {
+                    for (const [typeId, set] of ownedSnap) {
+                        const ids = [...set];
+                        for (let i = ids.length - 1; i >= 0; i--) {
+                            const techId = ids[i]!;
+                            const tech = techById(techId);
+                            const paid = tech ? economy.techCostOf(tech, i) : 0;
+                            techTree.remove(seat, typeId, techId);
+                            if (paid > 0) economy.credit(seat, paid);
+                            clearedTechs.push({ typeId, techId, paid });
+                        }
+                    }
+                }
+                // Match opposing side wealth so the rebuild spends the same
+                // purse the human currently holds (liquid + army + tech).
+                let target = 0;
+                for (let s = 0; s < this.ctx.seats.length; s++) {
+                    if (this.ctx.seats[s]!.team === action.team) continue;
+                    target += this.seatClimbWealth(s);
+                }
+                const beforeSync = economy.balance(seat);
+                const delta = target - beforeSync;
+                if (delta > 0) economy.credit(seat, delta);
+                else if (delta < 0) economy.debit(seat, -delta);
+                entry.units = removed;
+                entry.clearedPackItems = packItems;
+                entry.clearedTechs = clearedTechs;
+                entry.paid = balanceBefore;
+                entry.balanceAfter = economy.balance(seat);
+                return true;
+            }
         }
+    }
+
+    /** Liquid + mobile army + researched tech value for Campaign wealth sync. */
+    private seatClimbWealth(seat: SeatId): number {
+        const { placement, economy, techTree, leveling, sellSettings } = this.ctx;
+        let total = economy.balance(seat);
+        for (const unit of placement.allUnits()) {
+            if (unit.seat !== seat) continue;
+            if (unit.type.structure || unit.type.extra) continue;
+            if (unit.type === STRONGHOLD_ARCHER) continue;
+            total += Math.round(economy.costOf(unit.type) * sellSettings.refundFactor);
+            if (unit.level > 1) {
+                total += levelCost(unit.type, economy, leveling) * (unit.level - 1);
+            }
+        }
+        const ownedSnap = techTree.snapshotOwned()[seat];
+        if (ownedSnap) {
+            for (const [, set] of ownedSnap) {
+                const ids = [...set];
+                for (let i = 0; i < ids.length; i++) {
+                    const tech = techById(ids[i]!);
+                    if (tech) total += economy.techCostOf(tech, i);
+                }
+            }
+        }
+        return total;
     }
 
     /** exact inverse of apply — safe because a round's reverts run newest-first */
@@ -1573,8 +1714,8 @@ export class ActionDispatcher {
                 economy.credit(seat, e.paid!);
                 break;
             }
-            case 'buyGarrisonArcher': {
-                if (e.garrisonUnit) placement.removeUnit(e.garrisonUnit);
+            case 'buyStrongholdArcher': {
+                if (e.strongholdArcherUnit) placement.removeUnit(e.strongholdArcherUnit);
                 economy.credit(seat, e.paid!);
                 break;
             }
@@ -1781,6 +1922,38 @@ export class ActionDispatcher {
             }
             case 'removeSpell': {
                 this.ctx.spellStamps.push(e.spellStamp!);
+                break;
+            }
+            case 'clearArmy': {
+                // Physical restore first (no money), then snap liquid to pre-wipe.
+                const techs = e.clearedTechs ?? [];
+                for (let i = techs.length - 1; i >= 0; i--) {
+                    const step = techs[i]!;
+                    techTree.add(seat, step.typeId, step.techId);
+                }
+                const itemMap = new Map(
+                    (e.clearedPackItems ?? []).map((p) => [p.unitId, p] as const),
+                );
+                for (const unit of e.units ?? []) {
+                    const snap = itemMap.get(unit.id);
+                    if (snap) {
+                        const bag = this.ctx.items[seat]!;
+                        for (let i = snap.items.length - 1; i >= 0; i--) {
+                            const id = snap.items[i]!;
+                            const at = bag.lastIndexOf(id);
+                            if (at >= 0) bag.splice(at, 1);
+                        }
+                        unit.items.length = 0;
+                        unit.itemAppliedRound.length = 0;
+                        for (const id of snap.items) unit.items.push(id);
+                        for (const r of snap.itemRounds) unit.itemAppliedRound.push(r);
+                    }
+                    placement.restoreUnit(unit);
+                }
+                const want = e.paid ?? 0; // balanceBefore stamped in apply
+                const d = want - economy.balance(seat);
+                if (d > 0) economy.credit(seat, d);
+                else if (d < 0) economy.debit(seat, -d);
                 break;
             }
             case 'chooseCard':

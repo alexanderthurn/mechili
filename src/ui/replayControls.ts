@@ -6,6 +6,7 @@
  * it survives across the Game reconstructions a round-jump causes (main.ts's
  * rebuildReplayAt), so it can't be owned by the Game instance itself.
  */
+import { t } from '../i18n';
 import { speedKeyFor, speedKeyHint } from './speedKeys';
 
 export interface ReplayControlsCallbacks {
@@ -31,21 +32,24 @@ export class ReplayControls {
         this.root = document.createElement('div');
         this.root.className = 'mechili-replay-controls';
         const roundOptions = Array.from({ length: maxRound }, (_, i) => i + 1)
-            .map((r) => `<option value="${r}">Round ${r}</option>`)
+            .map((r) =>
+                `<option value="${r}">${t('hud:replayRoundOpt', { n: r, defaultValue: `Round ${r}` })}</option>`,
+            )
             .join('');
         this.root.innerHTML =
             `<div class="rc-row">` +
-            `<label>Round <select class="rc-round">${roundOptions}</select></label>` +
-            `<button type="button" class="rc-skip-deploy">Skip Deployment</button>` +
-            `<button type="button" class="rc-skip-battle">Skip Battle</button>` +
-            `<button type="button" class="rc-end">Skip to End</button>` +
+            `<label>${t('hud:replayRound', { defaultValue: 'Round' })} <select class="rc-round">${roundOptions}</select></label>` +
+            `<button type="button" class="rc-skip-deploy">${t('hud:replaySkipDeploy', { defaultValue: 'Skip Deployment' })}</button>` +
+            `<button type="button" class="rc-skip-battle">${t('hud:replaySkipBattle', { defaultValue: 'Skip Battle' })}</button>` +
+            `<button type="button" class="rc-end">${t('hud:replaySkipEnd', { defaultValue: 'Skip to End' })}</button>` +
             `</div>` +
             `<div class="rc-row">` +
-            `<label>Speed <select class="rc-speed">` +
+            `<label>${t('hud:replaySpeed', { defaultValue: 'Speed' })} <select class="rc-speed">` +
             speedSteps
                 .map((s, i) => {
                     const key = speedKeyFor(i, speedSteps.length);
-                    const label = s === 0 ? 'Pause' : `${s}×`;
+                    const label =
+                        s === 0 ? t('hud:pause', { defaultValue: 'Pause' }) : `${s}×`;
                     return `<option value="${i}">${key ? `${key} · ` : ''}${label}</option>`;
                 })
                 .join('') +

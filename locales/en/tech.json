@@ -1,0 +1,77 @@
+{
+  "legs": {
+    "name": "Fleet Feet"
+  },
+  "carapace": {
+    "name": "Stone Hide"
+  },
+  "barrel": {
+    "name": "Longbow"
+  },
+  "ap": {
+    "name": "Piercing Arrows"
+  },
+  "fireArrows": {
+    "name": "Fire Arrows",
+    "description": "Arrows leave a brief ground fire and burn — enough to ignite oil puddles."
+  },
+  "engines": {
+    "name": "Gale Wings"
+  },
+  "stingers": {
+    "name": "Crow Talons"
+  },
+  "armor": {
+    "name": "Iron Plating"
+  },
+  "autoloader": {
+    "name": "Quick Winch"
+  },
+  "aegis": {
+    "name": "Aegis",
+    "description": "Shield: every unit gains a second health pool equal to its HP. Ranged hits drain the shield first; melee, fire and acid ignore it."
+  },
+  "golden": {
+    "name": "Golden Aura",
+    "description": "Nearby allies resist tower debuffs and take 30% less damage for 30s. Wizards cannot convert them — the ray deals damage instead."
+  },
+  "pitchBolts": {
+    "name": "Pitch Bolts",
+    "description": "Bolts splash oil on impact (does not ignite — pair with fire arrows or a Fire Bolt)."
+  },
+  "wideBlast": {
+    "name": "Wide Blast",
+    "description": "Triples splash radius (grants splash to units without it)."
+  },
+  "skyBind": {
+    "name": "Sky Bind",
+    "description": "Can attack ground and air units."
+  },
+  "skyLift": {
+    "name": "Sky Lift",
+    "description": "Lifts this unit into the air (combat flyer)."
+  },
+  "earthbound": {
+    "name": "Earthbound",
+    "description": "Keeps this unit on the ground (overrides Sky Lift / natural flight)."
+  },
+  "spiderMother": {
+    "name": "Mother of Spiders"
+  },
+  "darkHarvest": {
+    "name": "Dark Harvest"
+  },
+  "_auto": {
+    "modHp": "{{pct}} HP",
+    "modDamage": "{{pct}} damage",
+    "modRange": "{{pct}} range",
+    "modSpeed": "{{pct}} move speed",
+    "modAttackSpeed": "{{pct}} attack speed",
+    "modSplash": "{{mult}}× splash radius",
+    "produce": "Produces {{child}} every {{every}} (up to {{max}})",
+    "produceFirst": ", first after {{delay}}",
+    "produceOffspring": ". Offspring match parent level",
+    "onKill": "When this unit kills, raise a {{child}}",
+    "cleave": "Hits every enemy within {{radius}} (around this unit)"
+  }
+}

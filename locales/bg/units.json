@@ -1,0 +1,56 @@
+{
+  "stronghold-archer": {
+    "name": "Гарнизонен стрелец"
+  },
+  "hordeWebweaver": {
+    "name": "Тъкач на паяжини"
+  },
+  "hordeBrutSpawn": {
+    "name": "Черно потомство"
+  },
+  "hordeSpinne": {
+    "name": "Черен паяк"
+  },
+  "hordeFarmer": {
+    "name": "Мъртъв фермер"
+  },
+  "hordeFarmerSpawn": {
+    "name": "Мъртъв ратай"
+  },
+  "hordeKomtur": {
+    "name": "Ханс фон Щофелн"
+  },
+  "dwarf": {
+    "name": "Джудже"
+  },
+  "archer": {
+    "name": "Стрелец"
+  },
+  "wizard": {
+    "name": "Магьосник"
+  },
+  "crowRider": {
+    "name": "Ездач на врани"
+  },
+  "ballista": {
+    "name": "Балиста"
+  },
+  "shield": {
+    "name": "Защитен камък"
+  },
+  "rocket": {
+    "name": "Огнен болт"
+  },
+  "command-tower": {
+    "name": "Авангард"
+  },
+  "research-center": {
+    "name": "Гарнизон"
+  },
+  "stronghold": {
+    "name": "Крепост"
+  },
+  "hordeZombie": {
+    "name": "Черно потомство"
+  }
+}

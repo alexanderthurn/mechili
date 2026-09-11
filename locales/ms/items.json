@@ -1,0 +1,46 @@
+{
+  "earth": {
+    "name": "Bumi",
+    "description": "+10% HP."
+  },
+  "fire": {
+    "name": "Kebakaran",
+    "description": "Serangan +10%."
+  },
+  "water": {
+    "name": "Air",
+    "description": "+5% serangan dan HP."
+  },
+  "wind": {
+    "name": "Angin",
+    "description": "Julat +10%."
+  },
+  "addi": {
+    "name": "Keberanian",
+    "description": "Serangan dan HP +15%."
+  },
+  "power": {
+    "name": "Pembunuhan beramai-ramai",
+    "description": "Serangan +75%."
+  },
+  "vigor": {
+    "name": "Darah Gergasi",
+    "description": "+100% HP."
+  },
+  "colossus": {
+    "name": "Mithril Cuirass",
+    "description": "+250% HP."
+  },
+  "wrath": {
+    "name": "Mengamuk",
+    "description": "Serangan +300%."
+  },
+  "golden": {
+    "name": "Batu Matahari",
+    "description": "Kebal terhadap debuff menara dan menerima kerosakan 30% kurang. Ahli sihir tidak boleh menukar — sinar sebaliknya memberikan kerosakan."
+  },
+  "bulwark": {
+    "name": "Benteng",
+    "description": "Perisai: setiap unit memperoleh himpunan kesihatan kedua yang bersamaan dengan HPnya. Serangan jarak jauh akan menghabiskan perisai terlebih dahulu; serangan jarak dekat, api dan asid mengabaikannya."
+  }
+}

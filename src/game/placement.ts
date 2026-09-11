@@ -28,7 +28,8 @@ import {
     TargetPreviewVisuals,
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
-import { GARRISON_ARCHER, GARRISON_FOV_HALF, Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+import { drapeDiskGeometry, setDrapedMeshPosition, DRAPE_RENDER_ORDER } from './groundMarkers';
+import { STRONGHOLD_ARCHER, STRONGHOLD_ARCHER_FOV_HALF, Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { effectiveTargets, effectiveFlying } from './tech';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
@@ -118,7 +119,7 @@ const FOV_SPOKE_VERTS = (FOV_SPOKE_SEGMENTS + 1) * 2;
 
 /**
  * The covered sector for a pack that can only shoot through part of the circle
- * — a garrison archer, whose own keep fills the rest. Deliberately the SAME
+ * — a Stronghold archer, whose own keep fills the rest. Deliberately the SAME
  * hairline the range ring is: it is the same piece of information and should
  * not look like a different feature. Two spokes run from the arc's ends back
  * to him, so the shape closes and the dead wedge is a wedge rather than a gap
@@ -165,7 +166,7 @@ export function createFovWedge(scene: Scene): Mesh {
  * exactly the way {@link placeRangeRing} does.
  *
  * Heights come from worldHeightAt, not the board-only groundHeightAt the ring
- * uses: a garrison archer stands at the board's edge and most of his arc falls
+ * uses: a Stronghold archer stands at the board's edge and most of his arc falls
  * on the OUTER terrain, where the board-only sample reports flat and the band
  * would cut through the hills it is drawn over.
  */
@@ -410,6 +411,23 @@ export class PlacementController {
     private rectPreview: Unit[] = [];
     /** per-member marker plates (own material each — validity color differs per pack) */
     private readonly groupPlates: Mesh[] = [];
+    /** Tutorial forced-pad footprints (gold pulse / green when filled). */
+    private readonly tutorialTargetPlates: {
+        mesh: Mesh;
+        material: MeshBasicMaterial;
+        anchor: Cell;
+        fp: GridExtent;
+        filled: boolean;
+    }[] = [];
+    /** Tutorial world circles (spell aim zones). */
+    private readonly tutorialWorldMarkers: {
+        mesh: Mesh;
+        material: MeshBasicMaterial;
+        x: number;
+        z: number;
+        radius: number;
+        filled: boolean;
+    }[] = [];
     /** small gold up-arrows over packs with a buyable level */
     private readonly levelArrows: Group[] = [];
     private readonly levelArrowMaterial: MeshBasicMaterial;
@@ -434,7 +452,7 @@ export class PlacementController {
 
     constructor(
         private readonly rig: CameraRig,
-        private readonly map: BattleMap,
+        readonly map: BattleMap,
         private readonly economy: Economy,
         private readonly scene: Scene,
         private readonly surface: HTMLElement,
@@ -589,6 +607,7 @@ export class PlacementController {
     /** detach input listeners and DOM helpers */
     dispose(): void {
         this.enabled = false;
+        this.clearTutorialTargets();
         this.clearIntelGhosts();
         this.deselect();
         this.targetPreview.dispose();
@@ -813,9 +832,9 @@ export class PlacementController {
 
     /** repositioning is allowed only in the round the pack was deployed (extras included) */
     canReposition(unit: Unit): boolean {
-        // a garrison archer is bolted to his battlement slot — he is not on the
+        // a Stronghold archer is bolted to his battlement slot — he is not on the
         // grid at all, so there is nowhere for a drag to put him down
-        if (unit.type === GARRISON_ARCHER) return false;
+        if (unit.type === STRONGHOLD_ARCHER) return false;
         return (
             (!unit.type.structure || !!unit.type.extra) &&
             unit.deployedRound === this.currentRound
@@ -997,7 +1016,7 @@ export class PlacementController {
         const team = unit.team;
         // `gridless` first: this reads unit.cell, and a pack spawned into the
         // world carries a {0,0} placeholder there. Cell (0,0) is a flank tile
-        // once the flanks unlock in round 2, so a garrison archer was being
+        // once the flanks unlock in round 2, so a Stronghold archer was being
         // told to march in from the edge of the board — pinned at battlement
         // height the whole way, which is a man walking through the air.
         if (unit.gridless || team === 'horde' || unit.type.structure || unit.type.extra) {
@@ -1287,6 +1306,124 @@ export class PlacementController {
         this.applyIntelFog();
         this.updateMarkers(timeSeconds);
         this.updateLevelArrows(timeSeconds);
+        this.updateTutorialPlaceTargets(timeSeconds);
+        this.updateTutorialWorldMarkers(timeSeconds);
+    }
+
+    /**
+     * Glowing circles at fixed world positions (spell placement hints).
+     * Geometry is draped over terrain like footprint plates / oil disks.
+     */
+    setTutorialWorldZones(
+        zones: readonly { x: number; z: number; radius: number; filled?: boolean }[],
+    ): void {
+        this.clearTutorialWorldZones();
+        for (const zone of zones) {
+            const material = new MeshBasicMaterial({
+                color: zone.filled ? VALID_COLOR : SELECT_COLOR,
+                transparent: true,
+                opacity: 0.55,
+                side: DoubleSide,
+                depthWrite: false,
+            });
+            const mesh = new Mesh(drapeDiskGeometry(zone.x, zone.z, zone.radius), material);
+            mesh.frustumCulled = false;
+            mesh.renderOrder = DRAPE_RENDER_ORDER;
+            setDrapedMeshPosition(mesh, zone.x, zone.z);
+            this.scene.add(mesh);
+            this.tutorialWorldMarkers.push({
+                mesh,
+                material,
+                x: zone.x,
+                z: zone.z,
+                radius: zone.radius,
+                filled: !!zone.filled,
+            });
+        }
+    }
+
+    /**
+     * Show glowing pads the tutorial asks the player to occupy.
+     * `filled` switches the plate to a steady green “done” tint.
+     */
+    setTutorialPlaceTargets(
+        targets: readonly { anchor: Cell; cols: number; rows: number; filled?: boolean }[],
+    ): void {
+        this.clearTutorialPlaceTargets();
+        for (const t of targets) {
+            const material = new MeshBasicMaterial({
+                color: t.filled ? VALID_COLOR : SELECT_COLOR,
+                transparent: true,
+                opacity: 0.55,
+                side: DoubleSide,
+                depthWrite: false,
+            });
+            const geo = new PlaneGeometry(1, 1);
+            geo.rotateX(-Math.PI / 2);
+            const mesh = new Mesh(geo, material);
+            mesh.renderOrder = 10;
+            this.scene.add(mesh);
+            this.tutorialTargetPlates.push({
+                mesh,
+                material,
+                anchor: { ...t.anchor },
+                fp: { cols: t.cols, rows: t.rows },
+                filled: !!t.filled,
+            });
+        }
+    }
+
+    /** Drop the forced-pad plates only (world circles keep standing). */
+    clearTutorialPlaceTargets(): void {
+        for (const t of this.tutorialTargetPlates) {
+            this.scene.remove(t.mesh);
+            t.mesh.geometry.dispose();
+            t.material.dispose();
+        }
+        this.tutorialTargetPlates.length = 0;
+    }
+
+    /** Drop the world circles only (pad plates keep standing). */
+    clearTutorialWorldZones(): void {
+        for (const z of this.tutorialWorldMarkers) {
+            this.scene.remove(z.mesh);
+            z.mesh.geometry.dispose();
+            z.material.dispose();
+        }
+        this.tutorialWorldMarkers.length = 0;
+    }
+
+    /** Every tutorial ground marker off — pads and circles alike. */
+    clearTutorialTargets(): void {
+        this.clearTutorialPlaceTargets();
+        this.clearTutorialWorldZones();
+    }
+
+    private updateTutorialWorldMarkers(timeSeconds: number): void {
+        for (const m of this.tutorialWorldMarkers) {
+            const color = m.filled ? VALID_COLOR : SELECT_COLOR;
+            const pulse = this.pulse(timeSeconds);
+            m.material.color.setHex(color);
+            m.material.opacity = m.filled ? 0.5 : 0.35 + 0.25 * pulse;
+            // Keep origin on relief (transparent sort uses object position).
+            setDrapedMeshPosition(m.mesh, m.x, m.z);
+        }
+    }
+
+    private updateTutorialPlaceTargets(timeSeconds: number): void {
+        for (const t of this.tutorialTargetPlates) {
+            const center = this.map.areaCenter(t.anchor, t.fp.cols, t.fp.rows);
+            this.placeFootprintPlate(
+                t.mesh,
+                t.material,
+                center,
+                t.fp,
+                t.filled ? VALID_COLOR : SELECT_COLOR,
+                timeSeconds,
+                !t.filled,
+                0.05,
+            );
+        }
     }
 
     private pulse(t: number): number {
@@ -2440,11 +2577,11 @@ export class PlacementController {
             if (snap) this.applySnapshotPose(sel, snap);
             else sel.view.position.copy(world);
             sel.seatMembers(world.x, world.z);
-            // A pack spawned straight into the world (garrison archer, horde
+            // A pack spawned straight into the world (Stronghold archer, horde
             // ring) has no grid cell — spawnAtWorld stores a {0,0} placeholder.
             // Reading it here put the selection plate and the range marker in
             // the corner of the board instead of under the unit, which is why
-            // clicking a garrison archer showed nothing at all.
+            // clicking a Stronghold archer showed nothing at all.
             const center = sel.gridless
                 ? new Vector3(world.x, world.y, world.z)
                 : this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
@@ -2470,7 +2607,7 @@ export class PlacementController {
                     markerCenter.z,
                     radius,
                     sel.fovYaw,
-                    GARRISON_FOV_HALF,
+                    STRONGHOLD_ARCHER_FOV_HALF,
                 );
             } else {
                 placeRangeRing(this.rangeMesh, markerCenter.x, markerCenter.z, radius);

@@ -3,6 +3,7 @@
  */
 import { suggestUrl } from './game/net';
 import { prefs } from './game/prefs';
+import { t } from './i18n';
 import { removeWithDialogFade, withDialogFade } from './ui/dialogFade';
 
 export const SUGGEST_CATEGORIES = [
@@ -19,6 +20,19 @@ export type SuggestCategory = (typeof SUGGEST_CATEGORIES)[number];
 export type SuggestSource = 'homepage' | 'game menu';
 
 const DISCORD_URL = 'https://discord.melodan.com';
+
+const SUGGEST_CATEGORY_LABEL_KEYS: Record<SuggestCategory, string> = {
+    Bug: 'catBug',
+    Balance: 'catBalance',
+    Feature: 'catFeature',
+    'Models / art': 'catArt',
+    Community: 'catCommunity',
+    Other: 'catOther',
+};
+
+function suggestCategoryLabel(category: SuggestCategory): string {
+    return t(`suggest:${SUGGEST_CATEGORY_LABEL_KEYS[category]}`);
+}
 
 function suggestEndpoint(): string {
     return suggestUrl();
@@ -87,7 +101,7 @@ export interface SubmitSuggestInput {
 
 export async function submitSuggest(input: SubmitSuggestInput): Promise<{ ok: true } | { ok: false; error: string }> {
     const message = input.message.trim();
-    if (!message) return { ok: false, error: 'Write a short message first.' };
+    if (!message) return { ok: false, error: t('suggest:writeFirst') };
 
     try {
         const res = await fetch(`${suggestEndpoint()}?action=submit`, {
@@ -104,14 +118,20 @@ export async function submitSuggest(input: SubmitSuggestInput): Promise<{ ok: tr
         const data = (await res.json().catch(() => ({}))) as { error?: string; retryAfter?: number };
         if (res.status === 429) {
             const wait = data.retryAfter ?? 45;
-            return { ok: false, error: `Too many suggestions — try again in ${wait}s.` };
+            return { ok: false, error: t('suggest:rateLimited', { n: wait }) };
         }
         if (!res.ok) {
-            return { ok: false, error: data.error === 'empty message' ? 'Write a short message first.' : 'Could not send. Try again later.' };
+            return {
+                ok: false,
+                error:
+                    data.error === 'empty message'
+                        ? t('suggest:writeFirst')
+                        : t('suggest:sendFailed'),
+            };
         }
         return { ok: true };
     } catch {
-        return { ok: false, error: 'Network error — try again later.' };
+        return { ok: false, error: t('suggest:networkError') };
     }
 }
 
@@ -133,24 +153,31 @@ export function openSuggest(opts: OpenSuggestOptions): void {
         opts.specs ??
         collectClientSpecs({ light: opts.lightSpecs === true });
 
+    const discordHtml = t('suggest:discord').replace(
+        'Discord',
+        `<a href="${DISCORD_URL}" rel="noopener noreferrer" target="_blank">Discord</a>`,
+    );
+
     const overlay = withDialogFade(document.createElement('div'));
     overlay.classList.add('mechili-suggest');
     overlay.innerHTML =
         `<div class="box" role="dialog" aria-labelledby="mh-suggest-title">` +
-        `<div class="s-title" id="mh-suggest-title">Send feedback</div>` +
-        `<p class="s-lead">Tell us what to build, fix, or try. If you want you can add your name and email address.</p>` +
-        `<p class="s-discord">Prefer chat? Join the <a href="${DISCORD_URL}" rel="noopener noreferrer" target="_blank">Discord</a> community.</p>` +
-        `<label class="s-field">Category` +
+        `<div class="s-title" id="mh-suggest-title">${t('suggest:title')}</div>` +
+        `<p class="s-lead">${t('suggest:lead')}</p>` +
+        `<p class="s-discord">${discordHtml}</p>` +
+        `<label class="s-field">${t('suggest:category')}` +
         `<select class="s-cat">` +
-        SUGGEST_CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join('') +
+        SUGGEST_CATEGORIES.map(
+            (c) => `<option value="${c}">${suggestCategoryLabel(c)}</option>`,
+        ).join('') +
         `</select></label>` +
-        `<label class="s-field">Message` +
-        `<textarea class="s-msg" rows="6" placeholder="What should change? What broke? What would help?"></textarea></label>` +
+        `<label class="s-field">${t('suggest:message')}` +
+        `<textarea class="s-msg" rows="6" placeholder="${t('suggest:placeholder')}"></textarea></label>` +
         `<input class="s-hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />` +
         `<p class="s-status" aria-live="polite"></p>` +
         `<div class="actions">` +
-        `<button type="button" data-act="cancel">Cancel</button>` +
-        `<button type="button" class="primary" data-act="submit">Submit</button>` +
+        `<button type="button" data-act="cancel">${t('suggest:cancel')}</button>` +
+        `<button type="button" class="primary" data-act="submit">${t('suggest:submit')}</button>` +
         `</div></div>`;
 
     const cat = overlay.querySelector<HTMLSelectElement>('.s-cat')!;
@@ -174,12 +201,12 @@ export function openSuggest(opts: OpenSuggestOptions): void {
     overlay.querySelector('[data-act="cancel"]')!.addEventListener('click', close);
     submitBtn.addEventListener('click', () => {
         if (hp.value.trim() !== '') {
-            status.textContent = 'Thanks — sent.';
+            status.textContent = t('suggest:thanksSent');
             setTimeout(close, 600);
             return;
         }
         submitBtn.disabled = true;
-        status.textContent = 'Sending…';
+        status.textContent = t('suggest:sending');
         void submitSuggest({
             category: cat.value as SuggestCategory,
             message: msg.value,
@@ -187,7 +214,7 @@ export function openSuggest(opts: OpenSuggestOptions): void {
             specs,
         }).then((result) => {
             if (result.ok) {
-                status.textContent = 'Thanks — saved.';
+                status.textContent = t('suggest:thanksSaved');
                 setTimeout(close, 900);
             } else {
                 status.textContent = result.error;

@@ -1,0 +1,62 @@
+{
+  "rallyRoute": {
+    "name": "Trasa zbiórki",
+    "description": "Wyznacz strefy startową, środkową i końcową. Jednostki w okręgu startowym maszerują przez pasujące do siebie przesunięcia na środku, a następnie na końcu, walcząc po drodze."
+  },
+  "oilSpill": {
+    "name": "Kałuża oleju",
+    "description": "Umieść dwa kręgi oleju – obrysuj je podczas rozstawiania; krótko po rozpoczęciu bitwy olej kapie z lewej do prawej na ścieżkę (dyski ochronne pozostają czyste). Połączone kręgi oleju zapalają się jako jedno pole, gdy ogień je dotknie."
+  },
+  "sellUnit": {
+    "name": "Sprzedaj Pack",
+    "description": "Kliknij, aby aktywować, potem kliknij jeden ze swoich Packów, by sprzedać go za zwrot zapasów."
+  },
+  "moveUnit": {
+    "name": "Przenieś Pack",
+    "description": "Kliknij, aby aktywować, potem kliknij Pack z wcześniejszej rundy — możesz go znów przeciągać i obracać do końca tej rundy."
+  },
+  "tutor": {
+    "name": "Lekcja terenowa",
+    "description": "Kliknij, aby aktywować, potem kliknij jeden ze swoich Packów — pasek XP wypełnia się do następnego poziomu. Kupno poziomu nadal kosztuje zapasy."
+  },
+  "spawnDwarves": {
+    "name": "Przywołaj krasnoludy",
+    "description": "Zaznacz okrąg w dowolnym miejscu poza bazą wroga. Krótko po rozpoczęciu bitwy, z ziemi wyłania się banda krasnoludów, jeden po drugim – walczą tylko w tej bitwie."
+  },
+  "bigMeteor": {
+    "name": "Meteor",
+    "description": "Zaznacz małe kółko w dowolnym miejscu. W ciągu kilku sekund od rozpoczęcia bitwy meteoryt niszczy wszystko, co się tam znajduje — tylko kopuły ochronne chronią (i płacą za to)."
+  },
+  "spawnCrows": {
+    "name": "Przywołaj Jeźdźców Kruków",
+    "description": "Zaznacz okrąg w dowolnym miejscu poza bazą wroga. Krótko po rozpoczęciu bitwy, jeźdźcy kruków spadają z nieba jeden po drugim – walczą tylko w tej bitwie."
+  },
+  "hammerOfGods": {
+    "name": "Młot Bogów",
+    "description": "Kliknij, aby umieścić, przesuń, aby obrócić, kliknij ponownie, aby zablokować. Boski młot spada na pole bitwy kilka sekund po rozpoczęciu bitwy."
+  },
+  "storm": {
+    "name": "Wezwanie burzy",
+    "description": "Zaznacz szeroki okrąg w dowolnym miejscu. Małe chmury burzowe zbierają się wysoko nad nami i ciskają piorunami w losowe miejsca – pioruny nie zadają obrażeń, ale razą jednostki szerokim strumieniem, wywołując efekt osłabienia przypominający wieżę, chyba że mają złotą aurę. Kopuły strażnicze nadal blokują uderzenia."
+  },
+  "meteorShower": {
+    "name": "Deszcz meteorów",
+    "description": "Zaznacz szeroki okrąg w dowolnym miejscu. Meteoryty będą spadać na losowe punkty w środku przez jakiś czas, a każdy wybuch będzie wypalał ziemię, w którą uderzy."
+  },
+  "acidSpill": {
+    "name": "Kałuża kwasu",
+    "description": "Wlej kapsułkę z kwasem jak plamę oleju – kapie ona z lewej do prawej na ziemię wkrótce po rozpoczęciu bitwy. Jednostki naziemne i powietrzne nad kałużą skwierczą i korodują – odnosząc dodatkowe obrażenia od wszystkiego."
+  },
+  "fireSpill": {
+    "name": "Kałuża ognia",
+    "description": "Wlej kapsułę z ogniem, podobną do oleju – kapie ona z lewej do prawej krótko po rozpoczęciu bitwy i podpala ścieżkę (dyski ochronne pozostają czyste). Połączony olej zapala się wraz z nią. Płomień utrzymuje się tylko w tej bitwie."
+  },
+  "dragonAttack": {
+    "name": "Atak smoka",
+    "description": "Narysuj ścieżkę ostrzału smoka (szerszą i dłuższą niż ropa). Zanurza się i zieje ogniem wzdłuż korytarza – promień przypala jednostki w trakcie przelotu i podpala ziemię. Kopuły strażnicze pochłaniają oddech (i za niego płacą)."
+  },
+  "poisonCloud": {
+    "name": "Chmura trucizny",
+    "description": "Zaznacz ogromne koło. Trujące chmury zbierają się i zrzucają małe krople kwasu — rzadkie kałuże, które korodują jednostki naziemne i powietrzne jak Kałuża kwasu, ale na dużo szerszym polu."
+  }
+}

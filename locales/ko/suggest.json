@@ -1,0 +1,23 @@
+{
+  "title": "피드백 보내기",
+  "lead": "만들고, 고치고, 시도할 내용을 알려 주세요. 원하시면 이름과 이메일 주소도 남겨 주세요.",
+  "discord": "채팅이 더 편하신가요? Discord 커뮤니티에 참여하세요.",
+  "category": "분류",
+  "message": "메시지",
+  "placeholder": "무엇이 바뀌어야 할까요? 무엇이 고장 났나요? 무엇이 도움이 될까요?",
+  "cancel": "취소",
+  "submit": "보내기",
+  "sending": "보내는 중…",
+  "thanksSent": "감사합니다 — 전송되었습니다.",
+  "thanksSaved": "감사합니다 — 저장되었습니다.",
+  "writeFirst": "먼저 짧은 메시지를 작성해 주세요.",
+  "rateLimited": "제안이 너무 많습니다 — {{n}}초 후에 다시 시도하세요.",
+  "sendFailed": "보낼 수 없습니다. 나중에 다시 시도하세요.",
+  "networkError": "네트워크 오류 — 나중에 다시 시도하세요.",
+  "catBug": "버그",
+  "catBalance": "밸런스",
+  "catFeature": "기능",
+  "catArt": "모델 / 아트",
+  "catCommunity": "커뮤니티",
+  "catOther": "기타"
+}

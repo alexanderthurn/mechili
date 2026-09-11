@@ -5,6 +5,8 @@ const EDGE_MARGIN = 24; // px from the viewport edge that triggers edge scrollin
 /** fatter hit band while dragging a pack to the screen edge on a phone */
 const TOUCH_EDGE_MARGIN = 44;
 const ROTATE_SPEED = Math.PI / 2; // rad/s for Q/E
+/** held +/- zoom rate (ln scale per second) — matches a brisk wheel flick */
+const KEY_ZOOM_SPEED = 0.85;
 const ORBIT_HEADING_PER_PX = 0.005; // rad per dragged pixel
 const ORBIT_PITCH_PER_PX = 0.004;
 
@@ -29,6 +31,7 @@ const THREE_ORBIT_SLOP = 9;
  *  - right drag: grab the ground and pan (the point stays under the cursor)
  *  - wheel: straight zoom toward the cursor
  *  - Q / E: rotate, Home: reset rotation, tilt and zoom
+ *  - + / − (and numpad): zoom in / out toward the pointer (or view center)
  *
  * Touch (no mouse buttons — gestures instead):
  *  - one-finger drag: grab the ground and pan (taps stay placement clicks;
@@ -52,6 +55,9 @@ export class CameraControls {
     suppressTouchPan: (() => boolean) | null = null;
 
     private readonly pressed = new Set<string>();
+    /** key CODES currently producing '+' / '-' — layout-independent zoom keys */
+    private readonly zoomInCodes = new Set<string>();
+    private readonly zoomOutCodes = new Set<string>();
     private dragGround: Vector3 | null = null;
     private dragStart: { x: number; y: number } | null = null;
     private orbitLast: { x: number; y: number } | null = null;
@@ -87,12 +93,34 @@ export class CameraControls {
 
         listen(window, 'keydown', (e: KeyboardEvent) => {
             if (!this.enabled) return;
+            // ignore when typing in a field / chat
+            const tag = (e.target as HTMLElement | null)?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
             this.pressed.add(e.code);
             if (e.code === 'Home') this.rig.resetView();
+            // Zoom keys are matched by the CHARACTER, not the physical key:
+            // '+' is Equal on US, BracketRight on German, and so on. The
+            // produced code is then remembered so keyup clears it even if the
+            // modifier changed in between (Shift+Equal down, '=' up).
+            if (e.key === '+' || e.key === '=') this.zoomInCodes.add(e.code);
+            else if (e.key === '-' || e.key === '_') this.zoomOutCodes.add(e.code);
+            // stop the browser from page-zooming on Ctrl/Cmd + +/- while we own them
+            if (
+                (this.zoomInCodes.has(e.code) || this.zoomOutCodes.has(e.code)) &&
+                (e.ctrlKey || e.metaKey)
+            ) {
+                e.preventDefault();
+            }
         });
-        listen(window, 'keyup', (e: KeyboardEvent) => this.pressed.delete(e.code));
+        listen(window, 'keyup', (e: KeyboardEvent) => {
+            this.pressed.delete(e.code);
+            this.zoomInCodes.delete(e.code);
+            this.zoomOutCodes.delete(e.code);
+        });
         listen(window, 'blur', () => {
             this.pressed.clear();
+            this.zoomInCodes.clear();
+            this.zoomOutCodes.clear();
             this.pointer = null;
         });
 
@@ -362,6 +390,17 @@ export class CameraControls {
         if (this.pressed.has('KeyQ')) spin += 1;
         if (this.pressed.has('KeyE')) spin -= 1;
         if (spin !== 0) this.rig.rotate(spin * ROTATE_SPEED * dtSeconds);
+
+        // + / − zoom toward the pointer (or the surface center)
+        let zoomDir = 0;
+        if (this.zoomInCodes.size > 0) zoomDir -= 1;
+        if (this.zoomOutCodes.size > 0) zoomDir += 1;
+        if (zoomDir !== 0) {
+            const rect = this.surface.getBoundingClientRect();
+            const sx = this.pointer?.x ?? rect.width * 0.5;
+            const sy = this.pointer?.y ?? rect.height * 0.5;
+            this.rig.zoomAt(Math.exp(zoomDir * KEY_ZOOM_SPEED * dtSeconds), sx, sy);
+        }
 
         // keyboard + edge panning, relative to the camera heading
         let dx = 0;

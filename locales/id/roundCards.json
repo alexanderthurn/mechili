@@ -1,0 +1,38 @@
+{
+  "dwarves4": {
+    "title": "Regu Kurcaci",
+    "description": "Empat kelompok Kurcaci bergabung dengan pasukanmu.",
+    "unitsLabel": "4× Kurcaci"
+  },
+  "archers4": {
+    "title": "Kompi Pemanah",
+    "description": "Empat Pack Pemanah bergabung dengan pasukanmu.",
+    "unitsLabel": "4× Pemanah"
+  },
+  "crowRiders2": {
+    "title": "Sayap Gagak",
+    "description": "Dua kawanan Penunggang Gagak bergabung dengan pasukanmu.",
+    "unitsLabel": "2× Penunggang Gagak"
+  },
+  "ballista1": {
+    "title": "Ballista Pengepungan",
+    "description": "Sebuah Ballista bergabung dengan pasukanmu.",
+    "unitsLabel": "1× Ballista"
+  },
+  "flanky": {
+    "title": "Flanky",
+    "description": "Kemunculan pertama dari sisi sayap membutuhkan setengah waktu (2,5 detik)."
+  },
+  "rallyRoute": {
+    "title": "Rute Reli",
+    "description": "Tetapkan rute pergerakan: unit-unit di zona awal menuju zona akhir, bertempur di sepanjang jalan."
+  },
+  "sellPack": {
+    "title": "Pembelian kembali",
+    "description": "Mantra sekali pakai: jual salah satu Packmu untuk mendapatkan pengembalian persediaan."
+  },
+  "movePack": {
+    "title": "Perintah Berbaris",
+    "description": "Mantra sekali pakai: satu Pack dari ronde sebelumnya dapat diposisikan ulang lagi di ronde ini."
+  }
+}

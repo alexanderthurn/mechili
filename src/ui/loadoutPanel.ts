@@ -23,6 +23,7 @@ import { allowedTechIds, techById, techSlotLimit } from '../game/techCatalog';
 import { hasAnimatedModel } from '../game/unitAnimated';
 import { hasUnitModel } from '../game/unitModels';
 import { techDescription, techIcon, type UnitType } from '../game/units';
+import { t, techName, unitName as localizedUnitName } from '../i18n';
 import { CardSpellTips } from './cardSpellTip';
 import { iconHtml } from './iconAtlas';
 import { createShowcaseViewer, type ShowcaseViewer } from './modelViewer';
@@ -34,27 +35,27 @@ function num(n: number): string {
 
 function targetsLabel(type: UnitType): string {
     const { ground, air } = type.targets;
-    if (ground && air) return 'Ground + Air';
-    if (air) return 'Air only';
-    if (ground) return 'Ground only';
-    return 'None';
+    if (ground && air) return t('hud:groundAir');
+    if (air) return t('hud:airOnly');
+    if (ground) return t('hud:groundOnly');
+    return t('hud:none');
 }
 
 /** Base combat stats — before any talent applies. */
 function statRows(type: UnitType): { label: string; value: string }[] {
     const rows = [
-        { label: 'Supply', value: String(type.cost) },
-        { label: 'HP', value: num(type.hp) },
-        { label: 'Damage', value: num(type.damage) },
-        { label: 'Range', value: num(type.range) },
+        { label: t('hud:supply'), value: String(type.cost) },
+        { label: t('hud:hp'), value: num(type.hp) },
+        { label: t('hud:damage'), value: num(type.damage) },
+        { label: t('hud:range'), value: num(type.range) },
         // rate = 1 / interval, shown per second: "interval" reads as a delay,
         // and players compare attack SPEED
-        { label: 'Attacks/s', value: num(1 / type.attackInterval) },
-        { label: 'Move', value: num(type.speed) },
-        { label: 'Targets', value: targetsLabel(type) },
+        { label: t('hud:attacksPerSec'), value: num(1 / type.attackInterval) },
+        { label: t('hud:moveStat'), value: num(type.speed) },
+        { label: t('hud:targets'), value: targetsLabel(type) },
     ];
-    if (type.minRange) rows.splice(4, 0, { label: 'Min range', value: num(type.minRange) });
-    if (type.flying) rows.push({ label: 'Flying', value: 'Yes' });
+    if (type.minRange) rows.splice(4, 0, { label: t('hud:minRange'), value: num(type.minRange) });
+    if (type.flying) rows.push({ label: t('hud:flying'), value: t('hud:yes') });
     return rows;
 }
 
@@ -97,13 +98,13 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
     const prevBtn = document.createElement('button');
     prevBtn.type = 'button';
     prevBtn.className = 'lo-arrow';
-    prevBtn.innerHTML = '&#9664;';
-    prevBtn.setAttribute('aria-label', 'Previous unit');
+    prevBtn.innerHTML = document.documentElement.dir === 'rtl' ? '&#9654;' : '&#9664;';
+    prevBtn.setAttribute('aria-label', t('hud:previousUnit'));
     const nextBtn = document.createElement('button');
     nextBtn.type = 'button';
     nextBtn.className = 'lo-arrow';
-    nextBtn.innerHTML = '&#9654;';
-    nextBtn.setAttribute('aria-label', 'Next unit');
+    nextBtn.innerHTML = document.documentElement.dir === 'rtl' ? '&#9664;' : '&#9654;';
+    nextBtn.setAttribute('aria-label', t('hud:nextUnit'));
     const switcher = document.createElement('div');
     switcher.className = 'lo-switcher';
     switcher.append(prevBtn, unitName, nextBtn);
@@ -119,7 +120,9 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
     let statsOpen = false;
     const syncStatsToggle = () => {
         el.classList.toggle('is-statsopen', statsOpen);
-        statsToggle.textContent = statsOpen ? 'Stats \u25B4' : 'Stats \u25BE';
+        statsToggle.textContent = statsOpen
+            ? `${t('hud:stats')} \u25B4`
+            : `${t('hud:stats')} \u25BE`;
         statsToggle.setAttribute('aria-expanded', String(statsOpen));
     };
     statsToggle.addEventListener('click', () => {
@@ -133,7 +136,7 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
 
     const techTitle = document.createElement('div');
     techTitle.className = 'lo-paneltitle';
-    techTitle.textContent = 'Talents';
+    techTitle.textContent = t('hud:talents');
     const techList = document.createElement('div');
     techList.className = 'lo-techlist';
     const slots = document.createElement('div');
@@ -145,13 +148,13 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
     const backBtn = document.createElement('button');
     backBtn.type = 'button';
     backBtn.className = 'lo-cornerbtn';
-    backBtn.textContent = 'Close';
+    backBtn.textContent = t('hud:close');
     const resetBtn = document.createElement('button');
     resetBtn.type = 'button';
     resetBtn.className = 'lo-cornerbtn';
     // "all", not "Reset": everything else on this screen is scoped to the
     // selected unit, so an unqualified label would read as "reset the dwarf"
-    resetBtn.textContent = 'Reset all';
+    resetBtn.textContent = t('hud:resetAll');
     const corner = document.createElement('div');
     corner.className = 'lo-corner';
     corner.append(resetBtn, backBtn);
@@ -267,7 +270,7 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
         // both lists hug a screen edge, so the tip flips onto the cursor
         // unless it is pushed further out
         btn.dataset.tipWide = '1';
-        btn.dataset.ttitle = tech.name;
+        btn.dataset.ttitle = techName(tech.id, tech.name);
         btn.dataset.tdesc = techDescription(tech);
         btn.dataset.ticon = techIcon(tech);
     }
@@ -285,7 +288,7 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
             attachTechTip(btn, id);
             btn.innerHTML =
                 `${iconHtml(techIcon(tech), 'lo-tico mask-ico')}` +
-                `<span class="lo-tname">${tech.name}</span>` +
+                `<span class="lo-tname">${techName(tech.id, tech.name)}</span>` +
                 `<span class="lo-tcost">${tech.cost}</span>`;
             btn.addEventListener('click', () => {
                 write(toggleTech(current, type.id, id));
@@ -370,7 +373,7 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
     function render(): void {
         const type = selected();
         if (!type) return;
-        unitName.textContent = type.name;
+        unitName.textContent = localizedUnitName(type.id, type.name);
         renderStats(type);
         renderTechs(type);
         syncModel();
