@@ -65,6 +65,7 @@
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} damage",
     "modRange": "{{pct}} range",
+    "modRangeAdd": "{{amount}} range",
     "modSpeed": "{{pct}} move speed",
     "modAttackSpeed": "{{pct}} attack speed",
     "modSplash": "{{mult}}× splash radius",

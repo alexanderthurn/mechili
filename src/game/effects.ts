@@ -14,6 +14,7 @@ import {
     Euler,
     Group,
     IcosahedronGeometry,
+    InstancedBufferAttribute,
     InstancedMesh,
     Matrix4,
     Mesh,
@@ -69,6 +70,74 @@ function applyProjectileScale(
     const len = scale.length ?? 1;
     const thick = scale.thickness ?? 1;
     return out.set(base.x * thick, base.y * thick, base.z * len);
+}
+
+/**
+ * One stone pool for crow rocks + Hammerer discs: per-instance `instanceTint`
+ * (rgb + a). Opaque white = textured rock; a<1 = flat translucent tint (no map).
+ */
+function patchStoneProjectileMaterial(
+    material: MeshStandardMaterial | MeshLambertMaterial,
+): void {
+    material.transparent = true;
+    material.opacity = 1;
+    // Crow stays depth-written; translucent discs still composite OK in one pass.
+    material.depthWrite = true;
+    const prevCompile = material.onBeforeCompile;
+    const prevKey = material.customProgramCacheKey?.bind(material);
+    material.customProgramCacheKey = () =>
+        `${prevKey?.() ?? material.type}|stoneInstanceTint`;
+    material.onBeforeCompile = (shader, renderer) => {
+        prevCompile?.call(material, shader, renderer);
+        shader.vertexShader = shader.vertexShader
+            .replace(
+                '#include <common>',
+                `#include <common>
+attribute vec4 instanceTint;
+varying vec4 vInstanceTint;`,
+            )
+            .replace(
+                '#include <begin_vertex>',
+                `#include <begin_vertex>
+vInstanceTint = instanceTint;`,
+            );
+        shader.fragmentShader = shader.fragmentShader
+            .replace(
+                '#include <common>',
+                `#include <common>
+varying vec4 vInstanceTint;`,
+            )
+            .replace(
+                '#include <color_fragment>',
+                `#include <color_fragment>
+if (vInstanceTint.a < 0.999) {
+  // Splash disc: flat tinted energy, ignore rock albedo
+  diffuseColor = vec4(vInstanceTint.rgb, vInstanceTint.a);
+} else {
+  diffuseColor.rgb *= vInstanceTint.rgb;
+}`,
+            );
+    };
+    material.needsUpdate = true;
+}
+
+/** Hammerer splash disc — denser so the tint reads clearly. */
+const STONE_DISC_OPACITY = 0.8;
+/** Full yellow↔orange loop length (seconds). */
+const STONE_DISC_CYCLE_SEC = 0.55;
+const STONE_DISC_STOPS = [
+    new Color(THEME.projectile), // yellow
+    new Color(0xff8a1a), // orange
+    new Color(THEME.projectile), // yellow
+];
+
+/** Lerp through {@link STONE_DISC_STOPS} for a looping disc heat shimmer. */
+function sampleStoneDiscTint(out: Color, timeSec: number): void {
+    const n = STONE_DISC_STOPS.length - 1;
+    const phase = ((timeSec % STONE_DISC_CYCLE_SEC) / STONE_DISC_CYCLE_SEC) * n;
+    const i = Math.min(n - 1, Math.floor(phase));
+    const f = phase - i;
+    out.copy(STONE_DISC_STOPS[i]!).lerp(STONE_DISC_STOPS[i + 1]!, f);
 }
 
 /** Crow-rider thrown rock — flight pool and ground debris share this geometry. */
@@ -2146,6 +2215,10 @@ export class StuckBoltRenderer {
 /** Draws the sim's bullets as instanced meshes — one pool per visual style. */
 export class ProjectileRenderer {
     private readonly pools: Record<ProjectileStyle, InstancedMesh>;
+    /** Per-instance rgba for the stone pool (crow opaque white / Hammerer tinted disc). */
+    private readonly stoneTint: InstancedBufferAttribute;
+    private readonly stonePoolMat: MeshStandardMaterial | MeshLambertMaterial;
+    private readonly discTint = new Color();
     private readonly orbMaterial: ShaderMaterial;
     private readonly matrix = new Matrix4();
     private readonly pos = new Vector3();
@@ -2181,8 +2254,13 @@ export class ProjectileRenderer {
         this.sharedRockGeo = rock?.geometry ?? null;
         this.sharedRockMat = rock?.material ?? null;
         if (rock) crowStoneHalfExtentY = rock.height * 0.5;
-        const stoneGeo = rock?.geometry ?? getCrowStoneGeometry();
-        const stoneMat = rock?.material ?? rockFallback;
+        // Own geo+mat so instanceTint / shader patch don't touch chip debris.
+        const stoneGeo = (rock?.geometry ?? getCrowStoneGeometry()).clone();
+        this.stoneTint = new InstancedBufferAttribute(new Float32Array(MAX_PROJECTILES * 4), 4);
+        this.stoneTint.setUsage(DynamicDrawUsage);
+        stoneGeo.setAttribute('instanceTint', this.stoneTint);
+        this.stonePoolMat = (rock?.material ?? rockFallback).clone();
+        patchStoneProjectileMaterial(this.stonePoolMat);
 
         this.pools = {
             bolt: new InstancedMesh(
@@ -2192,7 +2270,7 @@ export class ProjectileRenderer {
             ),
             arrow: new InstancedMesh(arrowGeo, arrowMat, MAX_PROJECTILES),
             largeArrow: new InstancedMesh(largeGeo, largeMat, MAX_PROJECTILES),
-            stone: new InstancedMesh(stoneGeo, stoneMat, MAX_PROJECTILES),
+            stone: new InstancedMesh(stoneGeo, this.stonePoolMat, MAX_PROJECTILES),
             orb: new InstancedMesh(new IcosahedronGeometry(0.85, 2), this.orbMaterial, MAX_PROJECTILES),
         };
         for (const mesh of Object.values(this.pools)) {
@@ -2208,7 +2286,7 @@ export class ProjectileRenderer {
             );
         }
         if (rock) {
-            console.info('[effects] crow stones using rock.glb');
+            console.info('[effects] crow stones using rock.glb (shared tint shader)');
         }
     }
 
@@ -2233,7 +2311,6 @@ export class ProjectileRenderer {
             this.dir.set(p.vx, p.vy, p.vz);
             if (this.dir.lengthSq() < 1e-8) this.dir.set(0, 0, -1);
             else this.dir.normalize();
-            this.quat.setFromUnitVectors(this.fwd, this.dir);
             const base =
                 p.style === 'orb'
                     ? this.orbScale
@@ -2242,16 +2319,58 @@ export class ProjectileRenderer {
                       : p.style === 'largeArrow'
                         ? this.largeArrowScale
                         : this.one;
-            applyProjectileScale(this.scratchScale, base, p.scale);
+            const scaleStart = typeof p.scale === 'number' ? p.scale : null;
+            const asDisc =
+                p.scaleEnd != null &&
+                scaleStart != null &&
+                p.ox != null &&
+                p.oz != null &&
+                p.tx != null &&
+                p.tz != null;
+            if (asDisc) {
+                const path = Math.hypot(p.tx! - p.ox!, p.tz! - p.oz!) || 1e-6;
+                const along = Math.hypot(this.pos.x - p.ox!, this.pos.z - p.oz!);
+                const t = Math.min(1, Math.max(0, along / path));
+                // stay small until the last 20% of the path, then swell to splash size
+                const late = t < 0.8 ? 0 : (t - 0.8) / 0.2;
+                const u = late * late;
+                const xz = (scaleStart + (p.scaleEnd! - scaleStart) * u) * base.x;
+                const y = scaleStart * base.y; // stay thin — flat on the lawn
+                this.scratchScale.set(xz, y, xz);
+                // world-flat disc (no flight-tilt); slight yaw from travel for variety
+                this.quat.setFromAxisAngle(this.fwd.set(0, 1, 0), Math.atan2(p.vx, p.vz));
+            } else {
+                applyProjectileScale(this.scratchScale, base, p.scale);
+                this.quat.setFromUnitVectors(this.fwd.set(0, 0, 1), this.dir);
+            }
             this.matrix.compose(this.pos, this.quat, this.scratchScale);
             const style = p.style;
-            this.pools[style].setMatrixAt(counts[style]++, this.matrix);
+            const slot = counts[style]++;
+            this.pools[style].setMatrixAt(slot, this.matrix);
+            if (style === 'stone') {
+                if (asDisc) {
+                    sampleStoneDiscTint(
+                        this.discTint,
+                        (performance.now() - this.t0) * 0.001,
+                    );
+                    this.stoneTint.setXYZW(
+                        slot,
+                        this.discTint.r,
+                        this.discTint.g,
+                        this.discTint.b,
+                        STONE_DISC_OPACITY,
+                    );
+                } else {
+                    this.stoneTint.setXYZW(slot, 1, 1, 1, 1);
+                }
+            }
         }
         for (const style of Object.keys(this.pools) as ProjectileStyle[]) {
             const mesh = this.pools[style];
             mesh.count = counts[style];
             mesh.instanceMatrix.needsUpdate = true;
         }
+        this.stoneTint.needsUpdate = true;
     }
 
     clear(): void {
@@ -2266,6 +2385,8 @@ export class ProjectileRenderer {
             mesh.count = 1;
             mesh.instanceMatrix.needsUpdate = true;
         }
+        this.stoneTint.setXYZW(0, 1, 1, 1, 1);
+        this.stoneTint.needsUpdate = true;
     }
 
     dispose(): void {
@@ -2277,6 +2398,12 @@ export class ProjectileRenderer {
         for (const mesh of Object.values(this.pools)) {
             mesh.removeFromParent();
             // Shared bolt/rock geo/mat live in the module cache — don't dispose those.
+            // Stone pool owns a cloned geo + patched mat.
+            if (mesh === this.pools.stone) {
+                mesh.geometry.dispose();
+                this.stonePoolMat.dispose();
+                continue;
+            }
             if (mesh.geometry !== sharedGeo && mesh.geometry !== rockGeo && mesh.geometry !== crowGeo) {
                 mesh.geometry.dispose();
             }

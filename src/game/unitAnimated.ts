@@ -57,6 +57,14 @@ export const ANIM_SPECS: Record<string, AnimSpec> = {
         walkSpeed: 1.5,
         fire: 'shortest',
     },
+    hammerer: {
+        url: new URL('../../assets/models/hammerer.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        // named clips: preset:biped:walk / preset:biped:fire
+        walk: 'walk',
+        walkSpeed: 1.35,
+        fire: 'fire',
+    },
 };
 
 export function isAnimatedUnitId(id: string): boolean {

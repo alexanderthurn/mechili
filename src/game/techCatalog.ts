@@ -35,7 +35,8 @@ export const TECHS: Record<string, TechDef> = {
         id: 'barrel',
         name: 'Longbow',
         cost: 200,
-        mods: { range: 1.3 },
+        // flat range bonus (shared by archer / goblin / ballista)
+        mods: { rangeAdd: 20 },
         icon: 'tech-longbow',
     },
     ap: {
@@ -180,6 +181,8 @@ export const TECHS: Record<string, TechDef> = {
  */
 export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     dwarf: ['legs', 'carapace'],
+    goblin: ['barrel'], // Longbow — same range tech as archer
+    hammerer: ['barrel'], // Arclight-style range enhancement
     archer: ['barrel', 'ap', 'fireArrows'],
     wizard: ['skyBind', 'skyLift'],
     crowRider: ['engines', 'stingers', 'aegis'],
@@ -209,6 +212,8 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
  */
 export const UNIT_TECH_SLOTS: Record<string, number> = {
     dwarf: 2,
+    goblin: 1,
+    hammerer: 1,
     archer: 3,
     wizard: 2,
     crowRider: 3, // engines + stingers + aegis (slots must cover the allowlist)

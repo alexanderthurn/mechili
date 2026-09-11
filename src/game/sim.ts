@@ -483,6 +483,17 @@ export interface Projectile {
     lit?: boolean;
     /** mesh scale vs style default; number = uniform, or length/thickness for shafts */
     scale?: number | { length?: number; thickness?: number };
+    /**
+     * Grow mesh from {@link scale} → this over the xz path from muzzle to aim
+     * (render-only). Requires {@link ox}/{@link oz}/{@link tx}/{@link tz}.
+     */
+    scaleEnd?: number;
+    /** muzzle xz when {@link scaleEnd} is set */
+    ox?: number;
+    oz?: number;
+    /** aim xz when {@link scaleEnd} is set */
+    tx?: number;
+    tz?: number;
     /** gravity (world units/s²) for lobbed shots — absent = straight flight */
     gravity?: number;
     /** homing shots chase this actor and hit nothing else */
@@ -3842,6 +3853,10 @@ export class BattleSim {
             source: a.unit,
             style: at.projectileStyle ?? 'bolt',
             scale: at.projectileScale,
+            ...(typeof at.projectileScaleEnd === 'number' &&
+            typeof at.projectileScale === 'number'
+                ? { scaleEnd: at.projectileScaleEnd, ox: mx, oz: mz, tx: aimX, tz: aimZ }
+                : {}),
             lit: (() => {
                 const style = at.projectileStyle ?? 'bolt';
                 if (style !== 'arrow' && style !== 'largeArrow') return false;
@@ -3998,7 +4013,7 @@ export class BattleSim {
                             dx: sx / slen,
                             dy: sy / slen,
                             dz: sz / slen,
-                            dropStone: p.style === 'stone',
+                            dropStone: p.style === 'stone' && p.scaleEnd == null,
                         });
                     }
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit, p.scale);
@@ -4025,7 +4040,7 @@ export class BattleSim {
                         dx: sx / slen,
                         dy: sy / slen,
                         dz: sz / slen,
-                        dropStone: p.style === 'stone',
+                        dropStone: p.style === 'stone' && p.scaleEnd == null,
                     });
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit, p.scale);
                     this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source), {
@@ -4053,7 +4068,7 @@ export class BattleSim {
                             dy: sy / slen,
                             dz: sz / slen,
                             sod: true,
-                            dropStone: true,
+                            dropStone: p.scaleEnd == null,
                         });
                     }
                     this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz, undefined, p.scale);
@@ -4070,7 +4085,7 @@ export class BattleSim {
                         dy: sy / slen,
                         dz: sz / slen,
                         sod: bolt,
-                        dropStone: p.style === 'stone',
+                        dropStone: p.style === 'stone' && p.scaleEnd == null,
                     });
                     this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz, undefined, p.scale);
                     this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source), {

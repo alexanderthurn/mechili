@@ -138,6 +138,8 @@ export class TechTree {
                 if (stats.splashRadius <= 0) stats.splashRadius = splashMod;
                 else stats.splashRadius *= splashMod;
             }
+            // flat after multipliers — same idea as Command Tower range boost
+            if (tech.mods.rangeAdd) stats.range += tech.mods.rangeAdd;
         }
         return stats;
     }

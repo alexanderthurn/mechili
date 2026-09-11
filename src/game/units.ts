@@ -105,7 +105,7 @@ export interface GridExtent {
     rows: number;
 }
 
-/** a purchasable upgrade for a unit type — pure stat multipliers */
+/** a purchasable upgrade for a unit type — mostly multipliers; see `rangeAdd` */
 export interface TechProduce {
     /** unit type id to spawn */
     typeId: string;
@@ -130,11 +130,16 @@ export interface TechDef {
     id: string;
     name: string;
     cost: number;
-    /** multipliers applied to the base stats (attackInterval < 1 = faster) */
+    /**
+     * Stat changes. Multipliers (attackInterval < 1 = faster) unless noted.
+     * `rangeAdd` is a flat bonus applied after any `range` multiplier.
+     */
     mods: Partial<{
         hp: number;
         damage: number;
         range: number;
+        /** flat range bonus (same units as type.range) */
+        rangeAdd: number;
         speed: number;
         attackInterval: number;
         splashRadius: number;
@@ -174,7 +179,7 @@ export function techDescription(tech: TechDef): string {
     }
     const parts: string[] = [];
     const pct = (mult: number) => `${mult >= 1 ? '+' : '−'}${Math.round(Math.abs(mult - 1) * 100)}%`;
-    const { hp, damage, range, speed, attackInterval, splashRadius } = tech.mods;
+    const { hp, damage, range, rangeAdd, speed, attackInterval, splashRadius } = tech.mods;
     if (hp !== undefined && hp !== 1) {
         parts.push(t('tech:_auto.modHp', { pct: pct(hp), defaultValue: `${pct(hp)} HP` }));
     }
@@ -186,6 +191,15 @@ export function techDescription(tech: TechDef): string {
     if (range !== undefined && range !== 1) {
         parts.push(
             t('tech:_auto.modRange', { pct: pct(range), defaultValue: `${pct(range)} range` }),
+        );
+    }
+    if (rangeAdd !== undefined && rangeAdd !== 0) {
+        const signed = rangeAdd > 0 ? `+${rangeAdd}` : `${rangeAdd}`;
+        parts.push(
+            t('tech:_auto.modRangeAdd', {
+                amount: signed,
+                defaultValue: `${signed} range`,
+            }),
         );
     }
     if (speed !== undefined && speed !== 1) {
@@ -401,6 +415,12 @@ export interface UnitType {
      * vs X/Y (girth) separately — goblins use short but thick arrows.
      */
     projectileScale?: number | { length?: number; thickness?: number };
+    /**
+     * If set (uniform number scales only), the mesh lerps from
+     * {@link projectileScale} → this over the flight path (xz), so a blast
+     * shot can start small and end near splash size.
+     */
+    projectileScaleEnd?: number;
     /**
      * spawn height above the unit's altitude (world units). When set, overrides
      * the default collider-mid muzzle for that shot.
@@ -682,6 +702,18 @@ function buildGoblin(parts: PartFactory): void {
     parts.sphere(0.38, 0, 0.32, 0, 'hull');
     parts.sphere(0.15, 0, 0.55, -0.22, 'accent');
     parts.box(0.7, 0.12, 0.35, 0, 0.55, -0.45, 'dark'); // crude bow
+}
+
+function buildHammerer(parts: PartFactory): void {
+    // Arclight-like splash clearer — procedural fallback if GLB missing
+    for (const side of [-1, 1]) {
+        parts.cylinder(0.12, 0.16, 0.85, side * 0.28, 0.42, 0.05, 'dark');
+    }
+    parts.box(1.05, 0.85, 0.8, 0, 1.15, 0, 'hull'); // breastplate
+    parts.sphere(0.28, 0, 1.75, -0.08, 'accent'); // kettle helm
+    const gun = parts.cylinder(0.14, 0.18, 1.35, 0, 1.2, -0.75, 'dark');
+    gun.rotation.x = Math.PI / 2;
+    parts.box(0.35, 0.35, 0.28, 0, 1.2, -1.45, 'accent'); // muzzle
 }
 
 function buildArcher(parts: PartFactory): void {
@@ -1144,7 +1176,7 @@ export const UNIT_TYPES: UnitType[] = [
         cost: 100,
         unlockCost: 0,
         footprint: { cols: 4, rows: 2 },
-        formation: { cols: 6, rows: 3 }, // 18
+        formation: { cols: 8, rows: 3 }, // 24 — same headcount as dwarf, denser in the 4×2 pad
         meshScale: 1,
         burn: { takenMult: 1.05 },
         targets: { ground: true, air: true },
@@ -1165,6 +1197,35 @@ export const UNIT_TYPES: UnitType[] = [
         walkCadence: 1.45,
         turnRate: 11,
         build: buildGoblin,
+    },
+    {
+        // Fantasy Arclight — single pack, medium-range splash vs chaff (dwarfs / goblins)
+        id: 'hammerer',
+        name: 'Hammerer',
+        cost: 100,
+        unlockCost: 0,
+        footprint: { cols: 2, rows: 2 },
+        formation: { cols: 1, rows: 1 },
+        meshScale: 2.4,
+        burn: { takenMult: 0.85 },
+        targets: { ground: true, air: false }, // AA is a later tech (like Arclight)
+        collisionRadius: 1.1,
+        colliders: [{ y: 1.0, r: 0.85 }],
+        projectileSpeed: 75,
+        projectileStyle: 'stone', // crow rock pool — InstancedMesh
+        // grow in flight: pebble → ~splash disk radius (stone mesh r≈0.84)
+        projectileScale: 0.28,
+        projectileScaleEnd: (4 / 0.84) * 0.9, // ~90% of splash disk radius
+        projectileBallistic: true,
+        projectileLaunchHeightFrac: 0.7,
+        splashRadius: 4, // Arclight-like blast vs packed chaff
+        hp: 240,
+        damage: 40, // oneshots dwarfs (40 HP)
+        range: 32,
+        attackInterval: 0.7,
+        speed: 4.5,
+        turnRate: 5,
+        build: buildHammerer,
     },
     {
         id: 'archer',

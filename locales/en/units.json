@@ -26,6 +26,9 @@
   "goblin": {
     "name": "Goblin"
   },
+  "hammerer": {
+    "name": "Hammerer"
+  },
   "archer": {
     "name": "Archer"
   },
