@@ -249,7 +249,7 @@ import {
 } from './tactics';
 import { TechTree, effectiveTargets, effectiveFlying } from './tech';
 import { activeLoadout, randomLoadout } from './loadouts';
-import { ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById, type Loadout } from './techCatalog';
+import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
@@ -5949,6 +5949,19 @@ export class Game {
             mix(st.speed);
             mix(st.attackInterval);
             mix(st.splashRadius);
+            // Cleave is handed to the sim outside `statsOf` (cacheCleaveFor),
+            // so a peer disagreeing about Whirlwind would pass every row above
+            // and only show up a round later through hp. Same derivation as
+            // the sim's own, so both sides compute the identical radius.
+            const cleaveTechs = ownedCleaveTechs(a.unit.type, a.unit.seat, (seat, typeId, techId) =>
+                this.unitHasTech(seat, typeId, techId),
+            );
+            mix(
+                Math.max(
+                    a.unit.type.cleave?.radius ?? 0,
+                    ...cleaveTechs.map(({ cleave }) => cleave.radius),
+                ),
+            );
         }
         marks.stats = h >>> 0;
         // Shared hazard layers — must match on both peers before battle. Acid
