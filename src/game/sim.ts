@@ -761,6 +761,13 @@ const FLY_PASS_CLEAR = 5.2;
 const FLY_PASS_COAST_SEC = 0.4;
 /** Free-flight: ±radian jitter when picking the next approach heading. */
 const FLY_PASS_TURN_SPREAD = Math.PI * 0.95;
+/**
+ * Free-flight: longest a locked pass may run. The pass normally ends once the
+ * flyer is FLY_PASS_CLEAR behind its target, but a target flying the same way
+ * at the same speed (bat vs bat) never falls behind — without a cap the
+ * heading stayed locked and the bat left the board.
+ */
+const FLY_PASS_MAX_SEC = 2.5;
 const HASH_CELL = 8; // ≥ biggest mech-pair contact distance
 /** expanding-ring cap for closest-enemy search (map diagonal ≪ this × cell) */
 const TARGET_MAX_RING = 48;
@@ -1677,7 +1684,7 @@ export class BattleSim {
         if (aim) {
             // Dive onto ground torsos; never sink through the clearance floor.
             // Cap climb a bit above cruise so air duels stay readable.
-            wantY = Math.max(minY, Math.min(aim.y, Math.max(cruise + 3.5, aim.y)));
+            wantY = Math.max(minY, Math.min(aim.y, cruise + 3.5));
         }
 
         const stats = this.resolved.get(a.unit);
@@ -1689,7 +1696,7 @@ export class BattleSim {
         let desiredPitch = 0;
         if (aim) {
             const flat = hypot(aim.x - a.x, aim.z - a.z) || 1e-6;
-            desiredPitch = Math.atan2(aim.y - a.altitude, flat);
+            desiredPitch = detAtan2(aim.y - a.altitude, flat);
             desiredPitch = Math.max(-0.9, Math.min(0.9, desiredPitch));
         }
         const pitchRate = (a.unit.type.turnRate ?? DEFAULT_TURN_RATE) * 0.85;
@@ -1711,10 +1718,12 @@ export class BattleSim {
         canAttack: boolean,
     ): void {
         if (!target || !target.alive) {
+            // Nothing to dive at: hold station and level out. Flying on along
+            // `facing` (the old behaviour) carried an idle flock straight off
+            // the board with nothing ever turning it back.
             a.flyPassPhase = 0;
             a.flyPassStruck = false;
             this.updateFreeFlight(a, dt, null);
-            this.flyAlongFacing(a, stats, d, dt, 0);
             return;
         }
 
@@ -1771,7 +1780,11 @@ export class BattleSim {
             }
             // Past the target along the pass heading → coast
             const behind = (a.x - target.x) * a.flyPassHx + (a.z - target.z) * a.flyPassHz;
-            if (behind >= FLY_PASS_CLEAR || (a.flyPassStruck && tDist >= FLY_PASS_CLEAR)) {
+            if (
+                behind >= FLY_PASS_CLEAR ||
+                (a.flyPassStruck && tDist >= FLY_PASS_CLEAR) ||
+                this.elapsed >= a.flyPassUntil
+            ) {
                 a.flyPassPhase = 2;
                 a.flyPassUntil = this.elapsed + FLY_PASS_COAST_SEC;
             }
@@ -1790,6 +1803,7 @@ export class BattleSim {
             a.flyPassHz = tdz / flat;
             a.flyPassStruck = false;
             a.flyPassPhase = 1;
+            a.flyPassUntil = this.elapsed + FLY_PASS_MAX_SEC;
         }
     }
 
@@ -4374,8 +4388,12 @@ export class BattleSim {
                 // Fixed elevation: solve muzzle speed from range so near and far
                 // shots share the same lob angle (farther ⇒ faster).
                 const theta = (fixedAngleDeg! * Math.PI) / 180;
-                const cosT = Math.cos(theta);
-                const sinT = Math.sin(theta);
+                // detCos/detSin, never Math.*: this sets the stone's velocity,
+                // and ECMAScript lets V8, JavaScriptCore and SpiderMonkey
+                // round cos/sin differently — Safari and Chrome would throw
+                // the same volley to slightly different spots.
+                const cosT = detCos(theta);
+                const sinT = detSin(theta);
                 const tanT = sinT / cosT;
                 gravity = BALLISTIC_GRAVITY;
                 const timeScale = Math.max(1e-3, at.projectileBallisticTimeScale ?? 1);
