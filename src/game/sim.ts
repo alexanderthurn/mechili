@@ -55,7 +55,7 @@ import {
     levelBasisOf,
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
-import { computeCrowWingRate, CROW_RIDER_MODEL_ID, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
+import { computeCrowWingRate, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy, usesWingFlapModel } from './crowWingFlap';
 import { hasUnitDeathAnim, playUnitDeathAnim, playUnitFireAnim, unitDeathFallLocal } from './unitAnimated';
 import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight } from './unitModels';
 import {
@@ -413,6 +413,32 @@ export interface Actor {
     meleePendingAt: number;
     /** {@link Actor.index} of the swing's focus target (FX / cleave focus) */
     meleePendingFocus: number;
+    /**
+     * Center distance to hold while peeling after a ground melee hit
+     * ({@link UnitType.meleeRetreat}). 0 = not retreating.
+     */
+    meleeRetreatGoal: number;
+    /**
+     * Free-flight pierce loop: 0 chase → 1 pass (locked heading) → 2 coast
+     * behind → 3 reorient (det-random yaw) → chase.
+     */
+    flyPassPhase: number;
+    /** sim time when coast ends / turn may finish (phase-dependent) */
+    flyPassUntil: number;
+    /** locked pass heading (xz unit) while piercing */
+    flyPassHx: number;
+    flyPassHz: number;
+    /** already dealt touch damage on this pass */
+    flyPassStruck: boolean;
+    /** desired yaw while reorienting */
+    flyPassTurnYaw: number;
+    /**
+     * Free-flight nose pitch (rad, + = climb). Eased toward chase aim; mesh
+     * mirrors this. Layer flyers leave at 0.
+     */
+    flightPitch: number;
+    /** {@link flightPitch} one sim step ago — render-lerped */
+    prevFlightPitch: number;
     /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
     recoil?: number;
     /** render-only: blast shove xz (stones / meteor / hammer), decays each frame */
@@ -542,6 +568,8 @@ export type SimEvent =
           sod?: boolean;
           /** Crow-rider (etc.) stone projectile — leave a brief grounded rock. */
           dropStone?: boolean;
+          /** Victim {@link UnitType.bloodScale} — scales flesh spray (omit = 1). */
+          bloodScale?: number;
       }
     /** Arrow / ballista shaft planted at a hit (render-only stuck-bolt pool).
      *  `attachIndex` = actor whose mesh the shaft follows (tip/fall/walk). */
@@ -723,6 +751,12 @@ const BIG_RADIUS = 2.5; // actors at least this wide are steered around (towers,
 const APPROACH_OFFSET_HOLD = 0.85;
 /** max world offset from target center while lane-holding */
 const APPROACH_OFFSET_MAX = 4.0;
+/** Free-flight: how far past the target counts as "behind" before coasting. */
+const FLY_PASS_CLEAR = 5.2;
+/** Free-flight: brief pause behind the foe before a det-random turn. */
+const FLY_PASS_COAST_SEC = 0.4;
+/** Free-flight: ±radian jitter when picking the next approach heading. */
+const FLY_PASS_TURN_SPREAD = Math.PI * 0.95;
 const HASH_CELL = 8; // ≥ biggest mech-pair contact distance
 /** expanding-ring cap for closest-enemy search (map diagonal ≪ this × cell) */
 const TARGET_MAX_RING = 48;
@@ -977,6 +1011,15 @@ export class BattleSim {
                     meleePendingDamage: 0,
                     meleePendingAt: 0,
                     meleePendingFocus: 0,
+                    meleeRetreatGoal: 0,
+                    flyPassPhase: 0,
+                    flyPassUntil: 0,
+                    flyPassHx: 0,
+                    flyPassHz: -1,
+                    flyPassStruck: false,
+                    flyPassTurnYaw: 0,
+                    flightPitch: 0,
+                    prevFlightPitch: 0,
                 });
             }
         }
@@ -1390,6 +1433,13 @@ export class BattleSim {
         }
         const dealt = damage * this.damageTakenMult(target);
         this.applyDamage(a.unit, target, dealt, { x: dx, z: dz }, 'direct');
+        if (!a.unit.type.freeFlight) this.armMeleeRetreat(a, target);
+        // Layer flyers plant on the lawn; free-flight bats already dive via altitude.
+        if (a.altitude > 0 && target.altitude === 0 && !a.unit.type.freeFlight) {
+            a.stompAt = this.elapsed;
+            a.stompAir = false;
+            a.stompVictim = undefined;
+        }
         const nx = dx / dist;
         const nz = dz / dist;
         const hitX = target.x - nx * target.radius;
@@ -1418,6 +1468,7 @@ export class BattleSim {
             dx: nx,
             dy: 0,
             dz: nz,
+            bloodScale: target.unit.type.bloodScale,
         });
     }
 
@@ -1531,6 +1582,243 @@ export class BattleSim {
         this.strikeMelee(a, target, damage, tdx, tdz, tDist);
     }
 
+    /** After a ground melee bite, peel to {@link UnitType.meleeRetreat} before diving again. */
+    private armMeleeRetreat(a: Actor, target: Actor): void {
+        const gap = a.unit.type.meleeRetreat ?? 0;
+        if (gap <= 0) return;
+        if (target.altitude > 0) return;
+        a.meleeRetreatGoal = gap + a.radius + target.radius;
+    }
+
+    /**
+     * Hit-and-run peel: keep backing while facing the foe until the retreat
+     * gap clears (or the target is gone / airborne). Returns true when done
+     * for this step.
+     */
+    private tryMeleeRetreat(
+        a: Actor,
+        target: Actor | null,
+        stats: ResolvedStats,
+        d: { speedMult: number; attackMult: number },
+        bigs: Actor[],
+        dt: number,
+        canAttack: boolean,
+    ): boolean {
+        if (a.meleeRetreatGoal <= 0) return false;
+        if (!target || !target.alive || target.altitude > 0) {
+            a.meleeRetreatGoal = 0;
+            return false;
+        }
+        const tdx = target.x - a.x;
+        const tdz = target.z - a.z;
+        const tDist = hypot(tdx, tdz) || 1e-6;
+        if (tDist >= a.meleeRetreatGoal) {
+            a.meleeRetreatGoal = 0;
+            return false;
+        }
+        // Cooldown keeps ticking so the next dive is ready as soon as we turn.
+        if (canAttack) a.cooldown -= dt;
+        this.steerToward(
+            a,
+            -tdx / tDist,
+            -tdz / tDist,
+            a.meleeRetreatGoal - tDist + a.radius,
+            dt,
+            stats,
+            d,
+            target,
+            bigs,
+            0,
+            { aimYaw: detAtan2(tdx, tdz), locomotion: 'track' },
+        );
+        return true;
+    }
+
+    /** Torso / hover height a free-flyer aims its path at. */
+    private freeFlightAimY(target: Actor): number {
+        if (target.altitude > 0) {
+            return target.altitude + target.unit.type.meshScale * 0.35;
+        }
+        return (
+            this.feetY(target) +
+            projectileAimY(target.unit.type) * target.unit.type.meshScale
+        );
+    }
+
+    /** Local ground clearance floor so free-flyers stay in the air layer. */
+    private freeFlightMinY(a: Actor): number {
+        return simGroundSupportAt(a.x, a.z, a.radius * 0.65) + GROUND_UNIT_Y + 1.15;
+    }
+
+    /** Low cruise band for free-flight ({@link UnitType.flying}). */
+    private freeFlightCruiseY(a: Actor): number {
+        return Math.max(a.unit.type.flying ?? 5.5, this.freeFlightMinY(a));
+    }
+
+    /**
+     * Climb/dive + nose pitch for {@link UnitType.freeFlight}. Chase aims at a
+     * world point; retreat / idle levels out toward cruise.
+     */
+    private updateFreeFlight(
+        a: Actor,
+        dt: number,
+        aim: { x: number; y: number; z: number } | null,
+    ): void {
+        if (!a.unit.type.freeFlight) return;
+        if ((a.unit.type.flying ?? 0) <= 0) return;
+
+        const minY = this.freeFlightMinY(a);
+        const cruise = this.freeFlightCruiseY(a);
+        let wantY = cruise;
+        if (aim) {
+            // Dive onto ground torsos; never sink through the clearance floor.
+            // Cap climb a bit above cruise so air duels stay readable.
+            wantY = Math.max(minY, Math.min(aim.y, Math.max(cruise + 3.5, aim.y)));
+        }
+
+        const stats = this.resolved.get(a.unit);
+        const climbSpeed = (stats?.speed ?? 8) * 0.9;
+        const dy = wantY - a.altitude;
+        a.altitude += Math.sign(dy) * Math.min(Math.abs(dy), climbSpeed * dt);
+        a.altitude = Math.max(minY, a.altitude);
+
+        let desiredPitch = 0;
+        if (aim) {
+            const flat = hypot(aim.x - a.x, aim.z - a.z) || 1e-6;
+            desiredPitch = Math.atan2(aim.y - a.altitude, flat);
+            desiredPitch = Math.max(-0.9, Math.min(0.9, desiredPitch));
+        }
+        const pitchRate = (a.unit.type.turnRate ?? DEFAULT_TURN_RATE) * 0.85;
+        const dp = desiredPitch - a.flightPitch;
+        a.flightPitch += Math.sign(dp) * Math.min(Math.abs(dp), pitchRate * dt);
+    }
+
+    /**
+     * Ghost pierce combat for {@link UnitType.freeFlight}: fly through the
+     * target (no unit collision), chip once per pass, coast behind, then a
+     * lockstep-safe random bank before the next dive.
+     */
+    private stepFreeFlightCombat(
+        a: Actor,
+        target: Actor | null,
+        stats: ResolvedStats,
+        d: { speedMult: number; attackMult: number },
+        dt: number,
+        canAttack: boolean,
+    ): void {
+        if (!target || !target.alive) {
+            a.flyPassPhase = 0;
+            a.flyPassStruck = false;
+            this.updateFreeFlight(a, dt, null);
+            this.flyAlongFacing(a, stats, d, dt, 0);
+            return;
+        }
+
+        const aimY = this.freeFlightAimY(target);
+        const tdx = target.x - a.x;
+        const tdz = target.z - a.z;
+        const tDist = hypot(tdx, tdz) || 1e-6;
+        const touch = stats.range + a.radius + target.radius;
+        const commit = touch + (a.unit.type.meleeLunge ?? 3);
+
+        // --- coast: keep sailing past, then pick a det-random turn ---
+        if (a.flyPassPhase === 2) {
+            this.updateFreeFlight(a, dt, { x: a.x + a.flyPassHx, y: this.freeFlightCruiseY(a), z: a.z + a.flyPassHz });
+            this.flyAlongHeading(a, a.flyPassHx, a.flyPassHz, stats, d, dt);
+            if (canAttack) a.cooldown -= dt;
+            if (this.elapsed >= a.flyPassUntil) {
+                const seed = a.index * 100003 + this.stepIndex * 9176 + Math.floor(this.elapsed * 64);
+                const jitter = (detHash01(seed) * 2 - 1) * FLY_PASS_TURN_SPREAD;
+                a.flyPassTurnYaw = wrapPi(a.facing + jitter);
+                a.flyPassPhase = 3;
+            }
+            return;
+        }
+
+        // --- reorient: bank to the random yaw, then chase again ---
+        if (a.flyPassPhase === 3) {
+            this.updateFreeFlight(a, dt, null);
+            faceToward(a, a.flyPassTurnYaw, dt);
+            this.flyAlongFacing(a, stats, d, dt, stats.speed * 0.35 * dt);
+            if (canAttack) a.cooldown -= dt;
+            if (facingAligned(a, a.flyPassTurnYaw, 0.35)) {
+                a.flyPassPhase = 0;
+                a.flyPassStruck = false;
+            }
+            return;
+        }
+
+        // --- pass: locked heading through the foe ---
+        if (a.flyPassPhase === 1) {
+            this.updateFreeFlight(a, dt, { x: target.x, y: aimY, z: target.z });
+            this.flyAlongHeading(a, a.flyPassHx, a.flyPassHz, stats, d, dt);
+            // Touch damage once while overlapping the body volume
+            if (!a.flyPassStruck && tDist <= touch * 1.15) {
+                if (canAttack) a.cooldown -= dt;
+                if (canAttack && a.cooldown <= 0) {
+                    a.cooldown += stats.attackInterval;
+                    const damage =
+                        stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
+                    this.strikeMelee(a, target, damage, tdx, tdz, tDist);
+                    a.flyPassStruck = true;
+                }
+            } else if (canAttack) {
+                a.cooldown -= dt;
+            }
+            // Past the target along the pass heading → coast
+            const behind = (a.x - target.x) * a.flyPassHx + (a.z - target.z) * a.flyPassHz;
+            if (behind >= FLY_PASS_CLEAR || (a.flyPassStruck && tDist >= FLY_PASS_CLEAR)) {
+                a.flyPassPhase = 2;
+                a.flyPassUntil = this.elapsed + FLY_PASS_COAST_SEC;
+            }
+            return;
+        }
+
+        // --- chase: point (slowly) at target and commit a pierce ---
+        this.updateFreeFlight(a, dt, { x: target.x, y: aimY, z: target.z });
+        const aimYaw = detAtan2(-tdx, -tdz);
+        faceToward(a, aimYaw, dt);
+        this.flyAlongFacing(a, stats, d, dt, 0);
+        if (canAttack) a.cooldown -= dt;
+        if (tDist <= commit && facingAligned(a, aimYaw, 0.55)) {
+            const flat = hypot(tdx, tdz) || 1e-6;
+            a.flyPassHx = tdx / flat;
+            a.flyPassHz = tdz / flat;
+            a.flyPassStruck = false;
+            a.flyPassPhase = 1;
+        }
+    }
+
+    /** Move along current facing (cruise). `cap` 0 = full step speed. */
+    private flyAlongFacing(
+        a: Actor,
+        stats: ResolvedStats,
+        d: { speedMult: number },
+        dt: number,
+        cap: number,
+    ): void {
+        const speed = stats.speed * this.debuff(a, d.speedMult);
+        const move = cap > 0 ? Math.min(speed * dt, cap) : speed * dt;
+        a.x += -detSin(a.facing) * move;
+        a.z += -detCos(a.facing) * move;
+    }
+
+    /** Move along a locked xz heading while easing facing onto it. */
+    private flyAlongHeading(
+        a: Actor,
+        hx: number,
+        hz: number,
+        stats: ResolvedStats,
+        d: { speedMult: number },
+        dt: number,
+    ): void {
+        const speed = stats.speed * this.debuff(a, d.speedMult);
+        const move = speed * dt;
+        a.x += hx * move;
+        a.z += hz * move;
+        faceToward(a, detAtan2(-hx, -hz), dt);
+    }
+
     /** XZ disk around the attacker — ground and air, not allies / extras.
      * The locked focus always connects within engagement reach even when the
      * splash disk is smaller (ogre: tight cleave, strong single-target smash). */
@@ -1563,6 +1851,13 @@ export class BattleSim {
         }
         const anyGround =
             hits.some((t) => t.altitude === 0) || (focus.alive && focus.altitude === 0);
+        if (anyGround) {
+            const ground =
+                focus.alive && focus.altitude === 0
+                    ? focus
+                    : (hits.find((t) => t.altitude === 0) ?? focus);
+            if (!a.unit.type.freeFlight) this.armMeleeRetreat(a, ground);
+        }
         if (a.altitude > 0 && !anyGround) {
             const air =
                 focus.alive && focus.altitude > 0
@@ -2068,6 +2363,15 @@ export class BattleSim {
                 meleePendingDamage: 0,
                 meleePendingAt: 0,
                 meleePendingFocus: 0,
+                meleeRetreatGoal: 0,
+                flyPassPhase: 0,
+                flyPassUntil: 0,
+                flyPassHx: 0,
+                flyPassHz: -1,
+                flyPassStruck: false,
+                flyPassTurnYaw: 0,
+                flightPitch: 0,
+                prevFlightPitch: 0,
             };
             actor.footY = this.feetY(actor);
             this.actors.push(actor);
@@ -2966,7 +3270,7 @@ export class BattleSim {
                     a.impulseZ = 0;
                 }
             }
-            if ((a.unit.type.modelId ?? a.unit.type.id) === CROW_RIDER_MODEL_ID && a.mesh.userData.instanced) {
+            if (usesWingFlapModel(a.unit.type.modelId ?? a.unit.type.id) && a.mesh.userData.instanced) {
                 setCrowWingDeathSplay(
                     a.mesh,
                     crowWingDeathSplay(timeSeconds, fall, tip),
@@ -3062,7 +3366,12 @@ export class BattleSim {
             // he renders inside his own keep and shoots from in there.
             const lift = a.unit.pinnedY != null ? 1 : a.unit.flightLift;
             const fromY = worldHeightAt(a.rx, a.rz) + DEPLOY_AIR_Y;
-            const hoverY = fromY + (a.altitude - fromY) * lift;
+            // Free-flight altitude changes every sim step — lerp like xz or it
+            // stutters at SIM_HZ. Layer flyers keep a fixed ceiling so raw is fine.
+            const alt = a.unit.type.freeFlight
+                ? a.prevAltitude + (a.altitude - a.prevAltitude) * this.alpha
+                : a.altitude;
+            const hoverY = fromY + (alt - fromY) * lift;
             const groundY = worldHeightAt(a.rx, a.rz) + GROUND_UNIT_Y;
             // age uses leftover-step alpha so the dive is smooth between sim ticks.
             // Do not treat age≈0 as “done” — that used to clear the slam on the
@@ -3085,7 +3394,9 @@ export class BattleSim {
             const hoverBob =
                 a.unit.pinnedY != null || stomp.drop >= 0.02
                     ? 0
-                    : Math.sin(timeSeconds * 2 + a.index) * 0.35 * lift;
+                    : Math.sin(timeSeconds * 2 + a.index) *
+                      (a.unit.type.freeFlight ? 0.12 : 0.35) *
+                      lift;
             a.mesh.position.y = hoverY + (destY - hoverY) * stomp.drop + hoverBob;
             if (a.stompAir && stomp.drop > 0.01) {
                 a.mesh.position.x += (destX - a.rx) * stomp.drop;
@@ -3100,6 +3411,10 @@ export class BattleSim {
                     a.stompAir = false;
                     a.stompVictim = undefined;
                 }
+            } else if (a.unit.type.freeFlight) {
+                const pitch =
+                    a.prevFlightPitch + (a.flightPitch - a.prevFlightPitch) * this.alpha;
+                a.mesh.rotation.x = pitch;
             }
         }
 
@@ -3145,7 +3460,7 @@ export class BattleSim {
             a.impulseZ = 0;
         }
 
-        if ((a.unit.type.modelId ?? a.unit.type.id) === CROW_RIDER_MODEL_ID && a.mesh.userData.instanced) {
+        if (usesWingFlapModel(a.unit.type.modelId ?? a.unit.type.id) && a.mesh.userData.instanced) {
             setCrowWingRestOnProxy(a.mesh, 0);
             setCrowWingRateOnProxy(
                 a.mesh,
@@ -3272,7 +3587,10 @@ export class BattleSim {
             ashScorch: wear === 'ash' ? t.deathAshScorch : undefined,
             dx: klen > 1e-6 ? knockDir!.x / klen : undefined,
             dz: klen > 1e-6 ? knockDir!.z / klen : undefined,
-            bloodScale: this.crushingHammer && wear === 'blood' ? 1.25 : undefined,
+            bloodScale:
+                wear === 'blood'
+                    ? (t.bloodScale ?? 1) * (this.crushingHammer ? 1.25 : 1)
+                    : undefined,
         });
         if (t.structure) {
             if (razed) target.unit.razed = true;
@@ -3321,7 +3639,7 @@ export class BattleSim {
             });
             target.mesh.userData.dead = true;
             clearBattleTint(target.mesh);
-            if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
+            if (usesWingFlapModel(t.modelId ?? t.id)) setCrowWingRateOnProxy(target.mesh, 0);
             // setDead after crush flag so pancakes stay visible even if wrecks are hidden
             getUnitInstanceRenderer()?.setDead(target.mesh);
             target.mesh.visible = true;
@@ -3391,7 +3709,7 @@ export class BattleSim {
             }
             target.mesh.userData.dead = true;
             clearBattleTint(target.mesh);
-            if ((t.modelId ?? t.id) === CROW_RIDER_MODEL_ID) setCrowWingRateOnProxy(target.mesh, 0);
+            if (usesWingFlapModel(t.modelId ?? t.id)) setCrowWingRateOnProxy(target.mesh, 0);
             getUnitInstanceRenderer()?.setDead(target.mesh);
         }
         // Lifeline: a side's army stands only while its Stronghold does. Killed
@@ -3440,6 +3758,7 @@ export class BattleSim {
             a.prevZ = a.z;
             a.prevAltitude = a.altitude;
             a.prevFacing = a.facing;
+            a.prevFlightPitch = a.flightPitch;
         }
         for (const p of this.projectiles) {
             p.px = p.x;
@@ -3510,12 +3829,22 @@ export class BattleSim {
                 const destZ = a.pathDestZ;
                 const isMelee = !a.unit.type.projectileSpeed && !a.unit.type.convertRay;
 
+                if (a.unit.type.freeFlight) {
+                    this.stepFreeFlightCombat(a, target, stats, d, dt, canAttack);
+                    continue;
+                }
+
                 if (target) {
                     const tdx = target.x - a.x;
                     const tdz = target.z - a.z;
                     const tDist = hypot(tdx, tdz) || 1e-6;
                     const reach = stats.range + a.radius + target.radius;
                     const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
+                    if (
+                        this.tryMeleeRetreat(a, target, stats, d, bigs, dt, canAttack)
+                    ) {
+                        continue;
+                    }
                     if (tDist <= reach && tDist >= minReach) {
                         if (isMelee) {
                             if (
@@ -3563,7 +3892,17 @@ export class BattleSim {
                 continue;
             }
 
-            if (!target) continue;
+            if (!target) {
+                if (a.unit.type.freeFlight) {
+                    this.stepFreeFlightCombat(a, null, stats, d, dt, canAttack);
+                }
+                continue;
+            }
+
+            if (a.unit.type.freeFlight) {
+                this.stepFreeFlightCombat(a, target, stats, d, dt, canAttack);
+                continue;
+            }
 
             const tdx = target.x - a.x;
             const tdz = target.z - a.z;
@@ -3591,6 +3930,10 @@ export class BattleSim {
                     0,
                     { aimYaw: detAtan2(tdx, tdz), locomotion: 'track' },
                 );
+                continue;
+            }
+
+            if (this.tryMeleeRetreat(a, target, stats, d, bigs, dt, canAttack)) {
                 continue;
             }
 
@@ -3718,6 +4061,7 @@ export class BattleSim {
 
         for (const b of this.softCrowdActive(a) ? this.nearby(a) : []) {
             if (b === a || !b.alive || (b.altitude > 0) !== (a.altitude > 0)) continue;
+            if (a.unit.type.freeFlight || b.unit.type.freeFlight) continue; // ghost pierce
             const sx = a.x - b.x;
             const sz = a.z - b.z;
             const sd = hypot(sx, sz);
@@ -3982,13 +4326,20 @@ export class BattleSim {
             const dtPrev = this.prevStepDt || 1e-3;
             const tvx = target.mvX / dtPrev;
             const tvz = target.mvZ / dtPrev;
+            // Free-flight divers change altitude every step — lead Y too or arrows
+            // sail through where the bat was, not where it is.
+            const tvy = target.unit.type.freeFlight
+                ? (target.altitude - target.prevAltitude) / dtPrev
+                : 0;
             let flatDist = hypot(dx, dz) || 1e-6;
             // honest time-to-target (no artificial floor — that lofted short shots past the aim)
             let flightTime = Math.max(1e-3, flatDist / speed);
+            let aimAlt = target.altitude;
             // one refine so closing enemies still get clipped without homing
             for (let i = 0; i < 2; i++) {
                 aimX = target.x + tvx * flightTime;
                 aimZ = target.z + tvz * flightTime;
+                aimAlt = target.altitude + tvy * flightTime;
                 dx = aimX - mx;
                 dz = aimZ - mz;
                 flatDist = hypot(dx, dz) || 1e-6;
@@ -4005,7 +4356,11 @@ export class BattleSim {
                 flatDist = hypot(dx, dz) || 1e-6;
                 flightTime = Math.max(1e-3, flatDist / speed);
             }
-            dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale + aimYOff - muzzleY;
+            if (tt.freeFlight || target.altitude > 0) {
+                dy = aimAlt + aimLocalY * tt.meshScale + aimYOff - muzzleY;
+            } else {
+                dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale + aimYOff - muzzleY;
+            }
             gravity = BALLISTIC_GRAVITY;
             vx = (dx / flatDist) * speed;
             vz = (dz / flatDist) * speed;
@@ -4231,6 +4586,7 @@ export class BattleSim {
                         dy: sy / slen,
                         dz: sz / slen,
                         dropStone: p.style === 'stone' && p.scaleEnd == null,
+                        bloodScale: hit.unit.type.bloodScale,
                     });
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit, p.scale);
                     this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source), {
@@ -4350,6 +4706,7 @@ export class BattleSim {
             if (this.softCrowdActive(a)) {
                 for (const b of this.nearby(a)) {
                     if (b.index <= a.index || !b.alive || b.unit.type.structure) continue;
+                    if (a.unit.type.freeFlight || b.unit.type.freeFlight) continue; // ghost pierce
                     if ((b.altitude > 0) !== (a.altitude > 0)) continue; // air passes over ground
                     this.pushApart(a, b);
                 }
@@ -4473,6 +4830,12 @@ export class BattleSim {
                     a.prevAltitude + (a.altitude - a.prevAltitude) * alpha;
             } else {
                 a.mesh.rotation.y = lerpAngle(a.prevFacing, a.facing, alpha);
+            }
+            // Free-flight also varies altitude every step — stash lerped Y so
+            // animateActor / instance sync share the same smooth height.
+            if (a.unit.type.freeFlight) {
+                a.mesh.userData.renderAltitude =
+                    a.prevAltitude + (a.altitude - a.prevAltitude) * alpha;
             }
         }
     }

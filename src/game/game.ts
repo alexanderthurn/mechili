@@ -181,7 +181,7 @@ import {
     tickBuildingCollapse,
     type BuildingCollapseState,
 } from './buildingCollapse';
-import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay, CROW_RIDER_MODEL_ID } from './crowWingFlap';
+import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay, usesWingFlapModel } from './crowWingFlap';
 import { GROUND_UNIT_Y, setCloseCameraY } from './groundQuality';
 import { modelGeometryFingerprint } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
@@ -9027,7 +9027,7 @@ export class Game {
                 } else if (collapse && !tickBuildingCollapse(mesh, collapse, this.time)) {
                     clearBuildingCollapse(mesh);
                 }
-                if ((unit.type.modelId ?? unit.type.id) === CROW_RIDER_MODEL_ID && mesh.userData.instanced) {
+                if (usesWingFlapModel(unit.type.modelId ?? unit.type.id) && mesh.userData.instanced) {
                     setCrowWingDeathSplay(mesh, crowWingDeathSplay(this.time, fall, tip));
                 }
             }
@@ -10097,7 +10097,8 @@ export class Game {
         for (const e of events) {
             if (e.kind === 'impact' && e.y > 0.25) {
                 if (e.flesh) {
-                    this.map.stampBlood(e.x, e.z, 1.1, 0.55, e.blood);
+                    const mul = e.bloodScale ?? 1;
+                    this.map.stampBlood(e.x, e.z, 1.1 * Math.max(0.35, mul), 0.55 * Math.min(mul, 1), e.blood);
                 } else {
                     // grit / soot under masonry and other non-flesh hits
                     this.map.stampScorch(e.x, e.z, e.masonry ? 1.6 : 1.1, e.masonry ? 0.28 : 0.14);

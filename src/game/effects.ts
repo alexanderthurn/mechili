@@ -862,7 +862,7 @@ export class Particles {
                         break;
                     }
                     this.burst(e.x, e.y, e.z, {
-                        count: 12,
+                        count: Math.max(2, Math.round(12 * (e.bloodScale ?? 1))),
                         color: e.blood ?? THEME.impact,
                         speed: 11,
                         life: 0.5,
@@ -872,7 +872,7 @@ export class Particles {
                     });
                     // a couple of fast gouts that shoot out ahead of the hit
                     this.burst(e.x, e.y, e.z, {
-                        count: 4,
+                        count: Math.max(1, Math.round(4 * (e.bloodScale ?? 1))),
                         color: e.blood ?? THEME.impact,
                         speed: 18,
                         life: 0.65,

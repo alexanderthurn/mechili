@@ -325,6 +325,7 @@ export const SHOP_UNIT_IDS = [
     'hammerer',
     'ogre',
     'archer',
+    'bat',
     'crowRider',
     'ballista',
     'wizard',

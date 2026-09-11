@@ -22,7 +22,7 @@ import {
     attachBuildingSnowToObject,
     BUILDING_SNOW_IDS,
 } from './buildingSnow';
-import { CROW_RIDER_MODEL_ID, markCrowWingFlapMaterial } from './crowWingFlap';
+import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
 import type { BattleTeam } from './units';
 
 /**
@@ -44,6 +44,11 @@ export interface ModelSpec {
     roll?: number;
     offset?: { x?: number; y?: number; z?: number };
     scale?: number;
+    /**
+     * Extra non-uniform scale after height normalize (local axes). Used to
+     * stretch bat / crow wings wider without growing body height.
+     */
+    stretch?: { x?: number; y?: number; z?: number };
     /** Rigged GLB — keep SkinnedMesh; battle anim is {@link unitAnimated}. */
     skinned?: boolean;
     /**
@@ -104,6 +109,12 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     wizard: { url: new URL('../../assets/models/wizard.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     ballista: { url: new URL('../../assets/models/ballista.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
     crowRider: { url: new URL('../../assets/models/crow-rider.glb', import.meta.url).href, yaw: MODEL_FWD_YAW  },
+    // Air chaff (Wasp-like) — wing flap + stretched span for flock silhouette
+    bat: {
+        url: new URL('../../assets/models/bat.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW,
+        stretch: { x: 1.45, z: 1.1 },
+    },
     goblin: {
         url: new URL('../../assets/models/goblin.glb', import.meta.url).href,
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
@@ -349,7 +360,7 @@ function prepareClone(scene: Object3D): Object3D {
     return clone;
 }
 
-/** Yaw, scale to `height`, center on x/z, and sit the base at y=0. */
+/** Yaw, scale to `height`, optional wing stretch, center on x/z, sit base at y=0. */
 function normalize(
     scene: Object3D,
     height: number,
@@ -357,6 +368,7 @@ function normalize(
     pitch?: number,
     roll?: number,
     offset?: { x?: number; y?: number; z?: number },
+    stretch?: { x?: number; y?: number; z?: number },
 ): Group {
     const holder = new Group();
     scene.rotation.y = yaw;
@@ -367,6 +379,11 @@ function normalize(
     const size = box.getSize(new Vector3());
     const s = size.y > 0 ? height / size.y : 1;
     scene.scale.multiplyScalar(s);
+    if (stretch) {
+        if (stretch.x !== undefined) scene.scale.x *= stretch.x;
+        if (stretch.y !== undefined) scene.scale.y *= stretch.y;
+        if (stretch.z !== undefined) scene.scale.z *= stretch.z;
+    }
     box = new Box3().setFromObject(holder);
     const center = box.getCenter(new Vector3());
     scene.position.x -= center.x;
@@ -608,6 +625,7 @@ export async function loadUnitModels(
                 spec.pitch,
                 spec.roll,
                 spec.offset,
+                spec.stretch,
             );
             if (spec.bakePose && !spec.skinned) {
                 bakeSkinnedPose(root, gltf.animations ?? [], spec.bakePose);
@@ -667,7 +685,7 @@ export async function loadUnitModels(
                     attachBuildingSnowToObject(root);
                     for (const part of baked.parts) attachBuildingSnow(part.material);
                 }
-                if (id === CROW_RIDER_MODEL_ID) {
+                if (usesWingFlapModel(id)) {
                     for (const part of baked.parts) markCrowWingFlapMaterial(part.material);
                 }
                 instanceAssets.set(id, baked);

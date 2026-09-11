@@ -13,10 +13,10 @@ import {
 } from 'three';
 import { cloneUnitModel, getUnitVisualHeight, hasUnitModel } from '../game/unitModels';
 import {
-    attachCrowShowcaseWingFlap,
     attachDragonWingFlap,
-    CROW_RIDER_MODEL_ID,
+    attachShowcaseWingFlapForModel,
     updateCrowWingFlap,
+    usesWingFlapModel,
 } from '../game/crowWingFlap';
 import {
     cloneAnimatedModel,
@@ -260,7 +260,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         show(unitId: string, meshScale = 1) {
             if (disposed) return;
             spellLoadGen++;
-            const flap = unitId === CROW_RIDER_MODEL_ID;
+            const flap = usesWingFlapModel(unitId);
             if (hasAnimatedModel(unitId)) {
                 const next = cloneAnimatedModel(unitId, 'player');
                 if (!next) return;
@@ -272,7 +272,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
             const next = cloneUnitModel(unitId, 'player');
             if (!next) return;
             // Game models face −Z; default camera is on +Z — flip so the face shows first.
-            if (flap) attachCrowShowcaseWingFlap(next);
+            if (flap) attachShowcaseWingFlapForModel(unitId, next);
             present(next, { yaw: Math.PI, wingFlap: flap, meshScale });
         },
         async showSpell(spellId: SpellAssetId) {

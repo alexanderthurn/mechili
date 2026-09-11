@@ -79,9 +79,9 @@ import {
 } from './unitModels';
 import {
     computeCrowWingRate,
-    CROW_RIDER_MODEL_ID,
     setCrowWingRateOnProxy,
     setCrowWingRestOnProxy,
+    usesWingFlapModel,
 } from './crowWingFlap';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels, resetAnimatedUnit } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
@@ -382,6 +382,12 @@ export interface UnitType {
     rocket?: { range: number; speed: number; damage: number; splash: number };
     /** flight altitude in world units — air units collide with nothing on the ground */
     flying?: number;
+    /**
+     * Free-flight layer (bats): {@link flying} is a low cruise ceiling, not a
+     * fixed hover band. Altitude climbs/dives toward chase aims and the mesh
+     * pitches at the target. Omit = classic flat air layer (crow riders).
+     */
+    freeFlight?: boolean;
     /** the can-attack matrix: which layers this unit's weapon can hit */
     targets: { ground: boolean; air: boolean };
     /** ground-plane collision circle per mech, in world units — nothing walks through it */
@@ -475,6 +481,11 @@ export interface UnitType {
      */
     bloodColor?: number;
     /**
+     * Multiplier on flesh hit/death blood particles and ground stamps
+     * (1 = normal infantry). Small chaff (bats) use ~0.25–0.4.
+     */
+    bloodScale?: number;
+    /**
      * Burn / ground-fire inflicted by this unit's hits (projectiles, splash, rockets, melee).
      * Ground fire stamps the shared hazard layer; burn DoT uses refresh + strongest DPS.
      */
@@ -536,6 +547,12 @@ export interface UnitType {
      * windup — reads as a charge / attack slide instead of plant-then-swing.
      */
     meleeLunge?: number;
+    /**
+     * Melee only: after hitting a ground target, back off until this many
+     * world units of surface gap remain, then dive again. Flyers use this for
+     * hit-and-run (Wasp-like); air-vs-air stays in contact. Omit / 0 = cling.
+     */
+    meleeRetreat?: number;
     speed: number;
     /**
      * Procedural walk lean *height* for non-skinned ground units (omit = 1).
@@ -790,6 +807,14 @@ function buildCrowRider(parts: PartFactory): void {
     rotor.scale.y = 0.6;
     parts.box(0.12, 0.35, 0.12, 0, 0.35, 0, 'light'); // rider mast
     parts.box(0.9, 0.1, 0.25, 0, -0.25, 0.15, 'accent'); // belly strip
+}
+
+function buildBat(parts: PartFactory): void {
+    parts.sphere(0.35, 0, 0.05, 0, 'dark'); // body
+    parts.sphere(0.18, 0, 0.12, -0.35, 'dark'); // head
+    const wings = parts.box(1.6, 0.06, 0.55, 0, 0.15, 0.05, 'dark');
+    wings.scale.y = 0.5;
+    parts.box(0.08, 0.25, 0.35, 0, -0.05, 0.25, 'dark'); // legs
 }
 
 function buildShield(parts: PartFactory): void {
@@ -1220,7 +1245,7 @@ export const UNIT_TYPES: UnitType[] = [
         projectileScale: { length: 0.55, thickness: 1.35 }, // short shaft, thicker girth
         projectileBallistic: true,
         projectileLaunchHeightFrac: 0.7,
-        aimSpread: 0.55, // tighter volleys than archers — still miss some, not every other shot
+        aimSpread: 0.35, // tighter still — AA vs fast free-flight bats needs to land
         hp: 18,
         damage: 4,
         range: 16,
@@ -1366,6 +1391,39 @@ export const UNIT_TYPES: UnitType[] = [
         turnRate: 0.5,
         turnMove: 'cruise',
         build: buildCrowRider,
+    },
+    {
+        // Fantasy Wasp — low free-flight dive melee; chip + peel vs ground.
+        // Shop-testable for now; later likely a horde wave flavor.
+        id: 'bat',
+        name: 'Bat',
+        cost: 100,
+        unlockCost: 0,
+        // Neat lattice (1 bat per cell) — no formationSpread jitter
+        footprint: { cols: 6, rows: 3 },
+        formation: { cols: 6, rows: 3 }, // 18 ordered flock
+        meshScale: 1.0,
+        flying: 5.5, // low cruise — not crow-height
+        freeFlight: true, // climb/dive toward foes; pitch at aim
+        burn: { takenMult: 1 }, // air: burn status ignored while aloft
+        targets: { ground: true, air: true },
+        collisionRadius: 0.9, // unused for soft push (ghost), kept for broadphase
+        blobShadowScale: 0.55,
+        // Generous AA volumes — wings + body so goblin/archer volleys can connect
+        colliders: [
+            { y: 0.4, r: 0.85 },
+            { y: 0.5, r: 1.35 },
+        ],
+        hp: 10,
+        bloodScale: 0.28, // tiny body — don't fountain like a dwarf
+        damage: 3, // chip — pressure from numbers, not punches
+        range: 2.2, // touch radius while piercing
+        meleeLunge: 5, // commit the pass from a bit out
+        attackInterval: 1.05,
+        speed: 12,
+        turnRate: 3.2, // slow bank — points then flies along facing
+        turnMove: 'cruise',
+        build: buildBat,
     },
     {
         id: 'ballista',
@@ -1883,7 +1941,7 @@ export class Unit {
             clearCorpsePose(m.mesh);
             clearHammerCrush(m.mesh);
             if (m.mesh.userData.animated) resetAnimatedUnit(m.mesh);
-            if ((this.type.modelId ?? this.type.id) === CROW_RIDER_MODEL_ID) {
+            if (usesWingFlapModel(this.type.modelId ?? this.type.id)) {
                 setCrowWingRateOnProxy(m.mesh, 0);
                 setCrowWingRestOnProxy(m.mesh, 0);
             }
@@ -1956,9 +2014,9 @@ export class Unit {
         this.wingLastOz = oz;
     }
 
-    /** Instanced crow-rider wing flap speed from deployment pose / movement. */
+    /** Instanced wing flap speed from deployment pose / movement. */
     private updateCrowWingRates(moving: number, altitude = 0): void {
-        if ((this.type.modelId ?? this.type.id) !== CROW_RIDER_MODEL_ID) return;
+        if (!usesWingFlapModel(this.type.modelId ?? this.type.id)) return;
         for (const m of this.members) {
             if (!m.mesh.userData.instanced) continue;
             setCrowWingRateOnProxy(

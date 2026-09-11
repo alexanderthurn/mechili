@@ -10,8 +10,7 @@ import {
 } from 'three';
 import { HORDE_COLOR, LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import {
-    attachCrowWingFlap,
-    CROW_RIDER_MODEL_ID,
+    attachWingFlapForModel,
     preserveCrowWingFlap,
     randomWingPhase,
     setCrowWingPhase,
@@ -24,6 +23,7 @@ import {
     swapCrowWingRest,
     swapCrowWingBodyRoll,
     updateCrowWingFlap,
+    usesWingFlapModel,
 } from './crowWingFlap';
 import { getUnitInstanceAsset, hasUnitInstanceAsset, type InstancePart } from './unitModels';
 import { attachBuildingSnow } from './buildingSnow';
@@ -315,7 +315,7 @@ export class UnitInstanceRenderer {
         }
         const index = pool.owners.length;
         pool.owners.push(proxy);
-        if (typeId === CROW_RIDER_MODEL_ID) {
+        if (usesWingFlapModel(typeId)) {
             const phase =
                 typeof proxy.userData.wingPhase === 'number'
                     ? proxy.userData.wingPhase
@@ -364,7 +364,7 @@ export class UnitInstanceRenderer {
                     mesh.getColorAt(last, _color);
                     mesh.setColorAt(meta.index, _color);
                 }
-                if (meta.typeId === CROW_RIDER_MODEL_ID) {
+                if (usesWingFlapModel(meta.typeId)) {
                     swapCrowWingPhase(mesh, last, meta.index);
                     swapCrowWingRate(mesh, last, meta.index);
                     swapCrowWingRest(mesh, last, meta.index);
@@ -387,7 +387,7 @@ export class UnitInstanceRenderer {
         }
         proxy.updateWorldMatrix(true, false);
         for (const mesh of pool.parts) mesh.setMatrixAt(index, proxy.matrixWorld);
-        if (typeId === CROW_RIDER_MODEL_ID) {
+        if (typeId && usesWingFlapModel(typeId)) {
             const rate = typeof proxy.userData.wingFlapRate === 'number' ? proxy.userData.wingFlapRate : 0;
             const rest = typeof proxy.userData.wingRest === 'number' ? proxy.userData.wingRest : 0;
             const roll = proxy.rotation.z;
@@ -430,7 +430,7 @@ function makeInstanced(part: InstancePart, typeId: string, level: number, team: 
     if (part.material.userData.wantsBuildingSnow) attachBuildingSnow(mat);
     if (part.material.userData.wantsCrowWingFlap) {
         preserveCrowWingFlap(part.material, mat);
-        attachCrowWingFlap(mat, part.geometry);
+        attachWingFlapForModel(typeId, mat, part.geometry);
     }
     const hex = level >= 2 && level < LEVEL_TINT_COLORS.length ? LEVEL_TINT_COLORS[level] : null;
     if (hex != null) {
@@ -445,7 +445,7 @@ function makeInstanced(part: InstancePart, typeId: string, level: number, team: 
         applyLevelTintColor(mat, _base, HORDE_COLOR.hex, 0.55);
     }
     const mesh = new InstancedMesh(part.geometry.clone(), mat, POOL_CAPACITY);
-    if (typeId === CROW_RIDER_MODEL_ID) setupCrowWingInstanceAttributes(mesh, POOL_CAPACITY);
+    if (usesWingFlapModel(typeId)) setupCrowWingInstanceAttributes(mesh, POOL_CAPACITY);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.frustumCulled = false;
     mesh.castShadow = unitShadowCast(typeId, prefs().shadows);
