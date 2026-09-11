@@ -323,7 +323,7 @@ export const SHOP_UNIT_IDS = [
     'dwarf',
     'goblin',
     'hammerer',
-    'orc',
+    'ogre',
     'archer',
     'crowRider',
     'ballista',

@@ -1552,7 +1552,7 @@ function visualSeatDistance(
         if (bestDist < Infinity) return bestDist;
     } else {
         // SkinnedMesh.raycast uses undeformed bind buffers — seats float beside a
-        // posed orc. Skip that path and fall through to the torso AABB.
+        // posed ogre. Skip that path and fall through to the torso AABB.
         let skinned = false;
         attach.traverse((o) => {
             if ((o as SkinnedMesh).isSkinnedMesh) skinned = true;
@@ -1666,7 +1666,7 @@ function seatStuckBoltCenter(
     }
 
     // Posed skinned units: chest/hip bone is the real torso. Holder-local (0,y,0)
-    // sits behind the drawn mesh (orc run/pitch), so shafts looked stuck in air.
+    // sits behind the drawn mesh (ogre run/pitch), so shafts looked stuck in air.
     const skinnedCenter = skinnedTorsoWorld(attach, h, _seatCenter);
     if (!skinnedCenter) {
         _seatCenter.set(0, Math.max(0.25, h * 0.48), 0).applyMatrix4(attach.matrixWorld);

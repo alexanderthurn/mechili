@@ -1533,7 +1533,7 @@ export class BattleSim {
 
     /** XZ disk around the attacker — ground and air, not allies / extras.
      * The locked focus always connects within engagement reach even when the
-     * splash disk is smaller (orc: tight cleave, strong single-target smash). */
+     * splash disk is smaller (ogre: tight cleave, strong single-target smash). */
     private cleaveStrike(a: Actor, radius: number, damage: number, focus: Actor): void {
         const team = actorTeam(a);
         const hits: Actor[] = [];

@@ -66,7 +66,7 @@ export interface AnimSpec {
     /**
      * Where the authored death clip lays the body in holder XZ (rest forward −Z).
      * Used to yaw the proxy so the fall lines up with the killing blow.
-     * Orc `fall`: head travels ≈ local −X (character's left).
+     * Ogre `fall`: head travels ≈ local −X (character's left).
      */
     deathFallLocal?: { x: number; z: number };
 }
@@ -91,8 +91,8 @@ export const ANIM_SPECS: Record<string, AnimSpec> = {
         walkSpeed: 1.35,
         fire: 'fire',
     },
-    orc: {
-        url: new URL('../../assets/models/orc.glb', import.meta.url).href,
+    ogre: {
+        url: new URL('../../assets/models/ogre.glb', import.meta.url).href,
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         // Foot align is measured from the walk clip (see footAlign on template) —
         // blended by anim weight so T-pose deploy and run both sit on the marker.

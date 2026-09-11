@@ -733,7 +733,7 @@ function buildHammerer(parts: PartFactory): void {
     parts.box(0.35, 0.35, 0.28, 0, 1.2, -1.45, 'accent'); // muzzle
 }
 
-function buildOrc(parts: PartFactory): void {
+function buildOgre(parts: PartFactory): void {
     // Rhino-like breakthrough melee — procedural fallback if GLB missing
     for (const side of [-1, 1]) {
         parts.cylinder(0.14, 0.18, 0.95, side * 0.32, 0.48, 0.05, 'dark');
@@ -1256,8 +1256,8 @@ export const UNIT_TYPES: UnitType[] = [
     },
     {
         // Fantasy Rhino — single fast melee tank; small cleave, breakthrough / aggro soak
-        id: 'orc',
-        name: 'Orc',
+        id: 'ogre',
+        name: 'Ogre',
         cost: 200,
         unlockCost: 50,
         footprint: { cols: 2, rows: 2 },
@@ -1285,7 +1285,7 @@ export const UNIT_TYPES: UnitType[] = [
         speed: 8.5, // faster than dwarf (6) — Rhino closes gaps
         turnRate: 4, // heavy body — was 9 (too snappy for a big melee)
         sandWeight: 1.5,
-        build: buildOrc,
+        build: buildOgre,
     },
     {
         id: 'archer',

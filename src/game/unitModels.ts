@@ -96,8 +96,8 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         skinned: true,
     },
-    orc: {
-        url: new URL('../../assets/models/orc.glb', import.meta.url).href,
+    ogre: {
+        url: new URL('../../assets/models/ogre.glb', import.meta.url).href,
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         skinned: true,
     },

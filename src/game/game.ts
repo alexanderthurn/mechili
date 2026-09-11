@@ -10121,7 +10121,7 @@ export class Game {
                 }
             } else if (e.kind === 'explosion') {
                 if (e.scar === false) {
-                    // VFX-only blast (e.g. orc cleave) — no ground wear stamp
+                    // VFX-only blast (e.g. ogre cleave) — no ground wear stamp
                 } else if (e.rect) {
                     // Hammer: rectangular scar = hit zone (HAMMER_ZONE + yaw)
                     this.map.stampWearOrientedRect(
