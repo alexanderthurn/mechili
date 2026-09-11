@@ -327,6 +327,7 @@ export const SHOP_UNIT_IDS = [
     'archer',
     'bat',
     'crowRider',
+    'mortar',
     'ballista',
     'wizard',
 ] as const;

@@ -44,6 +44,9 @@
   "bat": {
     "name": "Bat"
   },
+  "mortar": {
+    "name": "Mortar"
+  },
   "ballista": {
     "name": "Ballista"
   },

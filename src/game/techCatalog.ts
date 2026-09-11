@@ -207,6 +207,7 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     wizard: ['skyBind', 'skyLift'],
     crowRider: ['engines', 'stingers', 'aegis'],
     bat: ['engines'], // Gale Wings — mobility while testing
+    mortar: ['barrel', 'autoloader', 'ap'], // range / fire rate / damage — Stormcaller pivots
     // ballista: fat allowlist for UI testing — siege-fitting first, then other useful mods
     ballista: [
         'skyBind',
@@ -240,6 +241,7 @@ export const UNIT_TECH_SLOTS: Record<string, number> = {
     wizard: 2,
     crowRider: 3, // engines + stingers + aegis (slots must cover the allowlist)
     bat: 1,
+    mortar: 2,
     // 4 of 12 — the widest allowlist in the game, and now a real choice:
     // pick a siege, anti-air or fire build rather than taking everything.
     ballista: 4,

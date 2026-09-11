@@ -433,6 +433,17 @@ export interface UnitType {
      */
     projectileScaleEnd?: number;
     /**
+     * How many projectiles leave the muzzle per attack (Stormcaller volley).
+     * Omit / 1 = single shot. Each shot deals full {@link damage} and uses
+     * {@link aimSpread} (or a default fan when count > 1).
+     */
+    projectileCount?: number;
+    /**
+     * Soft VFX ribbon behind flying shots. `cloud` = misty smoke puffs
+     * (mortar / Stormcaller stones).
+     */
+    projectileTrail?: 'cloud';
+    /**
      * spawn height above the unit's altitude (world units). When set, overrides
      * the default collider-mid muzzle for that shot.
      */
@@ -445,9 +456,23 @@ export interface UnitType {
     projectileLaunchHeightFrac?: number;
     /**
      * lobbed shot: aims upward and falls under gravity so long-range bolts arc.
-     * `projectileSpeed` is the horizontal speed toward the target.
+     * Without {@link projectileLaunchAngleDeg}, `projectileSpeed` is the fixed
+     * horizontal speed (arc height grows with range). With a launch angle set,
+     * elevation is fixed and muzzle speed is solved from distance (farther =
+     * faster shot, same angle).
      */
     projectileBallistic?: boolean;
+    /**
+     * Ballistic launch elevation in degrees (e.g. 40). When set, muzzle speed
+     * is derived from range so the lob angle stays constant.
+     */
+    projectileLaunchAngleDeg?: number;
+    /**
+     * Ballistic only: stretch the solved parabola in time (same path, longer
+     * hang). 1 = normal; 2 = twice as slow. When set ≠ 1, aim is the target's
+     * position at fire time (no lead) so movers walk out from under the lob.
+     */
+    projectileBallisticTimeScale?: number;
     /** homing shots re-aim mid-flight and hit ONLY their victim — a guaranteed hit (shields still block) */
     homing?: boolean;
     /**
@@ -500,6 +525,11 @@ export interface UnitType {
      * Omit/true = stamp like a stomp crater.
      */
     cleaveScar?: boolean;
+    /**
+     * When false, splash projectile explosions skip the ground scorch stamp.
+     * Omit/true = stamp like other blasts.
+     */
+    splashScar?: boolean;
     /** Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake). */
     cleaveShake?: number;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
@@ -815,6 +845,14 @@ function buildBat(parts: PartFactory): void {
     const wings = parts.box(1.6, 0.06, 0.55, 0, 0.15, 0.05, 'dark');
     wings.scale.y = 0.5;
     parts.box(0.08, 0.25, 0.35, 0, -0.05, 0.25, 'dark'); // legs
+}
+
+function buildMortar(parts: PartFactory): void {
+    parts.box(1.4, 0.35, 1.6, 0, 0.25, 0, 'dark'); // base plate
+    parts.cylinder(0.55, 0.7, 0.45, 0, 0.55, 0.1, 'hull'); // turntable
+    const tube = parts.cylinder(0.28, 0.34, 2.1, 0, 1.35, -0.35, 'hull');
+    tube.rotation.x = -0.55; // lofted barrel
+    parts.sphere(0.22, 0, 0.95, 0.55, 'accent'); // breech
 }
 
 function buildShield(parts: PartFactory): void {
@@ -1424,6 +1462,48 @@ export const UNIT_TYPES: UnitType[] = [
         turnRate: 3.2, // slow bank — points then flies along facing
         turnMove: 'cruise',
         build: buildBat,
+    },
+    {
+        // Fragile long-range mortar pack; volley of unguided splash stones
+        // with a min-range dead zone (no AA).
+        id: 'mortar',
+        name: 'Mortar',
+        cost: 200,
+        unlockCost: 50,
+        footprint: { cols: 5, rows: 2 }, // same pack pad as dwarves
+        formation: { cols: 4, rows: 1 }, // 4 tubes in a single line
+        meshScale: 1.2, // half of prior 2.4
+        targets: { ground: true, air: false },
+        collisionRadius: 1.5,
+        colliders: [
+            { y: 0.7, r: 0.95 },
+            { y: 1.5, r: 0.55 },
+        ],
+        projectileSpeed: 27, // fallback if fixed-angle solve fails
+        projectileStyle: 'stone',
+        projectileScale: 0.5,
+        projectileBallistic: true,
+        projectileLaunchAngleDeg: 35, // fixed lob; speed scales with range
+        projectileBallisticTimeScale: 2, // same arc, 2× hang — movers can dodge
+        projectileLaunchHeightFrac: 0.82,
+        projectileCount: 5, // barrage per tube
+        projectileTrail: 'cloud',
+        aimSpread: 6.5, // unguided scatter — higher = worse aim (try 4–10)
+        splashRadius: 5.5,
+        splashScar: false, // no ground crater stamp per stone
+        sandWeight: 1.05,
+        deathWear: 'ash',
+        deathAshScorch: { radius: 3.5, strength: 0.28 },
+        burn: { takenMult: 3.2 }, // timber siege frame
+        hp: 260, // fragile — dies if crawlers/ogres close the gap
+        damage: 24, // per stone; ×5 ≈ 120 / volley / tube
+        range: 92, // longer than ballista — artillery king
+        minRange: 42, // larger dead zone than ballista
+        attackInterval: 5.8,
+        speed: 2.3,
+        turnRate: 1.35,
+        turnMove: 'pivot',
+        build: buildMortar,
     },
     {
         id: 'ballista',

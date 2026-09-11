@@ -534,6 +534,8 @@ export interface Projectile {
     /** aim xz when {@link scaleEnd} is set */
     tx?: number;
     tz?: number;
+    /** Soft trail ribbon (render-only) — see {@link UnitType.projectileTrail}. */
+    trail?: 'cloud';
     /** gravity (world units/s²) for lobbed shots — absent = straight flight */
     gravity?: number;
     /** homing shots chase this actor and hit nothing else */
@@ -570,6 +572,8 @@ export type SimEvent =
           dropStone?: boolean;
           /** Victim {@link UnitType.bloodScale} — scales flesh spray (omit = 1). */
           bloodScale?: number;
+          /** Ground wear stamp. Omit/true = stamp; false = VFX only. */
+          scar?: boolean;
       }
     /** Arrow / ballista shaft planted at a hit (render-only stuck-bolt pool).
      *  `attachIndex` = actor whose mesh the shaft follows (tip/fall/walk). */
@@ -3871,7 +3875,7 @@ export class BattleSim {
                                 a.cooldown += stats.attackInterval;
                                 const damage =
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                                this.fire(a, target, damage, a.unit.type.projectileSpeed);
+                                this.fireVolley(a, target, damage, a.unit.type.projectileSpeed);
                             }
                         }
                     }
@@ -3943,15 +3947,15 @@ export class BattleSim {
                 continue;
             }
 
-            if (tDist <= reach) {
-                // in range: stand and fire (still gets jostled by the crowd)
+            if (tDist <= reach && tDist >= minReach) {
+                // in range (and outside dead zone): stand and fire
                 if (a.unit.type.projectileSpeed) {
                     if (canAttack) a.cooldown -= dt;
                     if (canAttack && a.cooldown <= 0) {
                         a.cooldown += stats.attackInterval;
                         const damage =
                             stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                        this.fire(a, target, damage, a.unit.type.projectileSpeed);
+                        this.fireVolley(a, target, damage, a.unit.type.projectileSpeed);
                     }
                 }
                 // convert-ray handled elsewhere; melee already returned above
@@ -4268,8 +4272,16 @@ export class BattleSim {
         });
     }
 
+    /** spawns one or more bullets from the shooter's muzzle (see {@link UnitType.projectileCount}) */
+    private fireVolley(a: Actor, target: Actor, damage: number, speed: number): void {
+        const n = Math.max(1, Math.floor(a.unit.type.projectileCount ?? 1));
+        for (let i = 0; i < n; i++) {
+            this.fire(a, target, damage, speed, i);
+        }
+    }
+
     /** spawns a bullet from the shooter's muzzle toward the target's primary hit volume */
-    private fire(a: Actor, target: Actor, damage: number, speed: number): void {
+    private fire(a: Actor, target: Actor, damage: number, speed: number, shotIndex = 0): void {
         const at = a.unit.type;
         const tt = target.unit.type;
         const dirX = target.x - a.x;
@@ -4317,10 +4329,19 @@ export class BattleSim {
         let dz = aimZ - mz;
         let dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale - muzzleY;
 
+        const volley = Math.max(1, Math.floor(at.projectileCount ?? 1));
+        const useSpread =
+            !at.homing &&
+            (at.projectileStyle === 'arrow' ||
+                at.aimSpread != null ||
+                volley > 1);
+
         let vx: number;
         let vy: number;
         let vz: number;
         let gravity: number | undefined;
+        /** expected hang time — used to keep TTL above long mortar lobs */
+        let expectedFlight = 0;
         if (at.projectileBallistic) {
             // horizontal speed toward a lead point; loft so the bolt lands near aim height
             const dtPrev = this.prevStepDt || 1e-3;
@@ -4331,44 +4352,144 @@ export class BattleSim {
             const tvy = target.unit.type.freeFlight
                 ? (target.altitude - target.prevAltitude) / dtPrev
                 : 0;
+            const fixedAngleDeg = at.projectileLaunchAngleDeg;
+            const useFixedAngle =
+                typeof fixedAngleDeg === 'number' &&
+                fixedAngleDeg > 1 &&
+                fixedAngleDeg < 89;
+
             let flatDist = hypot(dx, dz) || 1e-6;
-            // honest time-to-target (no artificial floor — that lofted short shots past the aim)
             let flightTime = Math.max(1e-3, flatDist / speed);
             let aimAlt = target.altitude;
-            // one refine so closing enemies still get clipped without homing
-            for (let i = 0; i < 2; i++) {
-                aimX = target.x + tvx * flightTime;
-                aimZ = target.z + tvz * flightTime;
-                aimAlt = target.altitude + tvy * flightTime;
-                dx = aimX - mx;
-                dz = aimZ - mz;
-                flatDist = hypot(dx, dz) || 1e-6;
-                flightTime = Math.max(1e-3, flatDist / speed);
-            }
-            // scatter after lead so successive arrows don't stack on the same rivet
-            if (at.projectileStyle === 'arrow' && !at.homing) {
-                const spread = this.aimSpread(a, target, flatDist);
-                aimX += spread.ox;
-                aimZ += spread.oz;
-                aimYOff = spread.oy;
-                dx = aimX - mx;
-                dz = aimZ - mz;
-                flatDist = hypot(dx, dz) || 1e-6;
-                flightTime = Math.max(1e-3, flatDist / speed);
-            }
-            if (tt.freeFlight || target.altitude > 0) {
-                dy = aimAlt + aimLocalY * tt.meshScale + aimYOff - muzzleY;
+
+            const resolveAimHeight = (): void => {
+                if (tt.freeFlight || target.altitude > 0) {
+                    dy = aimAlt + aimLocalY * tt.meshScale + aimYOff - muzzleY;
+                } else {
+                    dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale + aimYOff - muzzleY;
+                }
+            };
+
+            if (useFixedAngle) {
+                // Fixed elevation: solve muzzle speed from range so near and far
+                // shots share the same lob angle (farther ⇒ faster).
+                const theta = (fixedAngleDeg! * Math.PI) / 180;
+                const cosT = Math.cos(theta);
+                const sinT = Math.sin(theta);
+                const tanT = sinT / cosT;
+                gravity = BALLISTIC_GRAVITY;
+                const timeScale = Math.max(1e-3, at.projectileBallisticTimeScale ?? 1);
+                // Stretched hang: aim where the target is NOW (no lead). Movers
+                // close under the lob and the stone lands behind them.
+                const aimNow = timeScale !== 1;
+
+                const solveSpeed = (R: number, drop: number): number => {
+                    // drop = aimY - muzzleY; need R·tanθ − drop > 0 to land on the ray.
+                    const reach = R * tanT - drop;
+                    if (reach < 0.15) return -1;
+                    return Math.sqrt((gravity! * R * R) / (2 * cosT * cosT * reach));
+                };
+
+                let muzzle: number;
+                if (aimNow) {
+                    aimX = target.x;
+                    aimZ = target.z;
+                    aimAlt = target.altitude;
+                    dx = aimX - mx;
+                    dz = aimZ - mz;
+                    flatDist = hypot(dx, dz) || 1e-6;
+                } else {
+                    // Seed flight time from a level-ground guess, then refine lead.
+                    muzzle = solveSpeed(flatDist, 0);
+                    if (muzzle < 0) muzzle = speed;
+                    flightTime = Math.max(1e-3, flatDist / (muzzle * cosT));
+                    for (let i = 0; i < 2; i++) {
+                        aimX = target.x + tvx * flightTime;
+                        aimZ = target.z + tvz * flightTime;
+                        aimAlt = target.altitude + tvy * flightTime;
+                        dx = aimX - mx;
+                        dz = aimZ - mz;
+                        flatDist = hypot(dx, dz) || 1e-6;
+                        resolveAimHeight();
+                        muzzle = solveSpeed(flatDist, dy);
+                        if (muzzle < 0) muzzle = Math.max(speed, flatDist * 0.85);
+                        flightTime = Math.max(1e-3, flatDist / (muzzle * cosT));
+                    }
+                }
+                if (useSpread) {
+                    const spread = this.aimSpread(a, target, flatDist, shotIndex);
+                    aimX += spread.ox;
+                    aimZ += spread.oz;
+                    aimYOff = spread.oy;
+                    dx = aimX - mx;
+                    dz = aimZ - mz;
+                    flatDist = hypot(dx, dz) || 1e-6;
+                }
+                resolveAimHeight();
+                muzzle = solveSpeed(flatDist, dy);
+                if (muzzle < 0) muzzle = Math.max(speed, flatDist * 0.85);
+                flightTime = Math.max(1e-3, flatDist / (muzzle * cosT));
+
+                const horiz = muzzle * cosT;
+                vx = (dx / flatDist) * horiz;
+                vz = (dz / flatDist) * horiz;
+                vy = muzzle * sinT;
+                expectedFlight = flightTime;
+
+                // Same path, slower clock: v' = v/s, g' = g/s² (not g/s — that
+                // drops the lob short). Aim stays where the target was at fire.
+                if (timeScale !== 1) {
+                    vx /= timeScale;
+                    vy /= timeScale;
+                    vz /= timeScale;
+                    gravity /= timeScale * timeScale;
+                    expectedFlight *= timeScale;
+                }
             } else {
-                dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale + aimYOff - muzzleY;
+                // Classic: fixed horizontal speed; loft grows with range.
+                // honest time-to-target (no artificial floor — that lofted short shots past the aim)
+                flightTime = Math.max(1e-3, flatDist / speed);
+                // one refine so closing enemies still get clipped without homing
+                for (let i = 0; i < 2; i++) {
+                    aimX = target.x + tvx * flightTime;
+                    aimZ = target.z + tvz * flightTime;
+                    aimAlt = target.altitude + tvy * flightTime;
+                    dx = aimX - mx;
+                    dz = aimZ - mz;
+                    flatDist = hypot(dx, dz) || 1e-6;
+                    flightTime = Math.max(1e-3, flatDist / speed);
+                }
+                // scatter after lead so successive arrows / mortar stones don't stack
+                if (useSpread) {
+                    const spread = this.aimSpread(a, target, flatDist, shotIndex);
+                    aimX += spread.ox;
+                    aimZ += spread.oz;
+                    aimYOff = spread.oy;
+                    dx = aimX - mx;
+                    dz = aimZ - mz;
+                    flatDist = hypot(dx, dz) || 1e-6;
+                    flightTime = Math.max(1e-3, flatDist / speed);
+                }
+                resolveAimHeight();
+                gravity = BALLISTIC_GRAVITY;
+                vx = (dx / flatDist) * speed;
+                vz = (dz / flatDist) * speed;
+                vy = dy / flightTime + 0.5 * gravity * flightTime;
+                expectedFlight = flightTime;
+
+                const timeScale = Math.max(1e-3, at.projectileBallisticTimeScale ?? 1);
+                if (timeScale !== 1) {
+                    vx /= timeScale;
+                    vy /= timeScale;
+                    vz /= timeScale;
+                    gravity /= timeScale * timeScale;
+                    expectedFlight *= timeScale;
+                }
             }
-            gravity = BALLISTIC_GRAVITY;
-            vx = (dx / flatDist) * speed;
-            vz = (dz / flatDist) * speed;
-            vy = dy / flightTime + 0.5 * gravity * flightTime;
         } else {
-            if (at.projectileStyle === 'arrow' && !at.homing) {
+            if (useSpread) {
                 const flatDist = hypot(dx, dz) || 1e-6;
-                const spread = this.aimSpread(a, target, flatDist);
+                const spread = this.aimSpread(a, target, flatDist, shotIndex);
                 aimX += spread.ox;
                 aimZ += spread.oz;
                 aimYOff = spread.oy;
@@ -4380,6 +4501,7 @@ export class BattleSim {
             vx = (dx / len) * speed;
             vy = (dy / len) * speed;
             vz = (dz / len) * speed;
+            expectedFlight = len / speed;
         }
 
         this.projectiles.push({
@@ -4401,6 +4523,7 @@ export class BattleSim {
             typeof at.projectileScale === 'number'
                 ? { scaleEnd: at.projectileScaleEnd, ox: mx, oz: mz, tx: aimX, tz: aimZ }
                 : {}),
+            ...(at.projectileTrail ? { trail: at.projectileTrail } : {}),
             lit: (() => {
                 const style = at.projectileStyle ?? 'bolt';
                 if (style !== 'arrow' && style !== 'largeArrow') return false;
@@ -4409,7 +4532,8 @@ export class BattleSim {
             })(),
             gravity,
             target: at.homing ? target : undefined,
-            ttl: PROJECTILE_TTL,
+            // Long hang must outlive the default 3s TTL or stones vanish mid-arc.
+            ttl: Math.max(PROJECTILE_TTL, expectedFlight + 1),
         });
         this.events.push({ kind: 'muzzle', x: mx, y: muzzleY, z: mz });
     }
@@ -4422,6 +4546,7 @@ export class BattleSim {
         shooter: Actor,
         target: Actor,
         flatDist: number,
+        shotIndex = 0,
     ): { ox: number; oz: number; oy: number } {
         const at = shooter.unit.type;
         const tt = target.unit.type;
@@ -4442,7 +4567,7 @@ export class BattleSim {
         const spreadLat = (0.28 + distF * 1.15) * sizeF * aimMul;
         const spreadY = (0.2 + distF * 0.85) * Math.min(2.1, 0.35 + visualH / 5) * aimMul;
 
-        const seed = shooter.index * 100003 + this.stepIndex;
+        const seed = shooter.index * 100003 + this.stepIndex * 97 + shotIndex * 131;
         const r1 = detHash01(seed) * 2 - 1;
         const r2 = detHash01(seed + 17) * 2 - 1;
         const r3 = detHash01(seed + 41) * 2 - 1;
@@ -4543,7 +4668,14 @@ export class BattleSim {
                 const iz = p.z + sz * hitT;
                 if (splash > 0) {
                     this.explode(p, ix, iz, splash, { x: sx, z: sz });
-                    this.events.push({ kind: 'explosion', x: ix, y: iy, z: iz, radius: splash });
+                    this.events.push({
+                        kind: 'explosion',
+                        x: ix,
+                        y: iy,
+                        z: iz,
+                        radius: splash,
+                        scar: p.source.type.splashScar !== false,
+                    });
                     const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
                     if (hit.unit.type.structure || p.style === 'stone') {
                         this.events.push({
@@ -4559,6 +4691,7 @@ export class BattleSim {
                             dy: sy / slen,
                             dz: sz / slen,
                             dropStone: p.style === 'stone' && p.scaleEnd == null,
+                            scar: p.source.type.splashScar !== false,
                         });
                     }
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit, p.scale);
@@ -4602,7 +4735,14 @@ export class BattleSim {
                 // splash shells detonate on the ground too — a miss still hurts
                 if (splash > 0) {
                     this.explode(p, nx, nz, splash, { x: sx, z: sz });
-                    this.events.push({ kind: 'explosion', x: nx, y: groundY + 0.15, z: nz, radius: splash });
+                    this.events.push({
+                        kind: 'explosion',
+                        x: nx,
+                        y: groundY + 0.15,
+                        z: nz,
+                        radius: splash,
+                        scar: p.source.type.splashScar !== false,
+                    });
                     if (p.style === 'stone') {
                         const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
                         this.events.push({
@@ -4615,6 +4755,7 @@ export class BattleSim {
                             dz: sz / slen,
                             sod: true,
                             dropStone: p.scaleEnd == null,
+                            scar: p.source.type.splashScar !== false,
                         });
                     }
                     this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz, undefined, p.scale);

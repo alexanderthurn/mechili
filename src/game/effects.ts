@@ -1189,6 +1189,7 @@ export class SoftParticlePool {
     private readonly dissolveSpread: number;
     private readonly spreadDirX: Float32Array | null;
     private readonly spreadDirZ: Float32Array | null;
+    private readonly points: Points;
 
     constructor(scene: Scene, opts: SoftParticlePoolOptions) {
         this.maxParticles = opts.maxParticles ?? MAX_PARTICLES;
@@ -1278,8 +1279,26 @@ export class SoftParticlePool {
             renderer.getDrawingBufferSize(bufSize);
             material.uniforms.uScale!.value = bufSize.y * 0.5;
         };
+        this.points = points;
         scene.add(points);
         for (let i = 0; i < this.maxParticles; i++) this.positions[i * 3 + 1] = -9999;
+    }
+
+    /** Hide every live particle (battle end / pool recycle). */
+    clear(): void {
+        for (let i = 0; i < this.maxParticles; i++) {
+            this.life[i] = 0;
+            this.aOpacity[i] = 0;
+            this.positions[i * 3 + 1] = -9999;
+        }
+        this.geometry.attributes.position!.needsUpdate = true;
+        this.geometry.attributes.aOpacity!.needsUpdate = true;
+    }
+
+    dispose(): void {
+        this.points.removeFromParent();
+        this.geometry.dispose();
+        (this.points.material as ShaderMaterial).dispose();
     }
 
     burst(
@@ -2288,6 +2307,9 @@ export class ProjectileRenderer {
     private readonly sharedBoltMat: MeshStandardMaterial | null;
     private readonly sharedRockGeo: BufferGeometry | null;
     private readonly sharedRockMat: MeshStandardMaterial | null;
+    /** Misty cloud ribbon behind mortar / Stormcaller stones. */
+    private readonly cloudTrail: SoftParticlePool;
+    private trailEmitAcc = 0;
 
     constructor(scene: Scene) {
         const wood = new MeshLambertMaterial({ color: 0x8a6a3c, flatShading: true });
@@ -2332,6 +2354,23 @@ export class ProjectileRenderer {
             mesh.count = 0;
             scene.add(mesh);
         }
+        this.cloudTrail = new SoftParticlePool(scene, {
+            blending: NormalBlending,
+            size: 3.6,
+            opacity: 0.55,
+            maxParticles: 2048,
+            gravity: 0.9, // slight float — default GRAVITY is −14 (down)
+            sizeGrowth: 1.8,
+            sizeBirthScale: 0.35,
+            sizeBirthPhase: 0.25,
+            fadeStart: 0.55,
+            drag: 1.4,
+            billow: 0.85,
+            lateralDrag: 0.4,
+            dissolveSpread: 0.6,
+            depthWrite: false,
+            renderOrder: 4,
+        });
         if (bolt) {
             console.info(
                 `[effects] projectile pools using bolt.glb (arrow×${ARROW_SCALE}, ballista×${LARGE_ARROW_SCALE}, cap ${MAX_PROJECTILES})`,
@@ -2343,7 +2382,7 @@ export class ProjectileRenderer {
     }
 
     /** `alpha` interpolates between the last two sim steps for smooth flight */
-    update(projectiles: readonly Projectile[], alpha = 1): void {
+    update(projectiles: readonly Projectile[], alpha = 1, dt = 0): void {
         this.orbMaterial.uniforms.uTime!.value = (performance.now() - this.t0) * 0.001;
         const counts: Record<ProjectileStyle, number> = {
             bolt: 0,
@@ -2352,6 +2391,11 @@ export class ProjectileRenderer {
             stone: 0,
             orb: 0,
         };
+        // Emit trail puffs on a short cadence so 20+ mortar stones stay readable
+        this.trailEmitAcc += dt;
+        const emitTrail = this.trailEmitAcc >= 0.028;
+        if (emitTrail) this.trailEmitAcc = 0;
+
         const n = Math.min(projectiles.length, MAX_PROJECTILES);
         for (let i = 0; i < n; i++) {
             const p = projectiles[i]!;
@@ -2416,6 +2460,22 @@ export class ProjectileRenderer {
                     this.stoneTint.setXYZW(slot, 1, 1, 1, 1);
                 }
             }
+            if (emitTrail && p.trail === 'cloud') {
+                // puff slightly behind the stone so the head stays readable
+                const bx = this.pos.x - this.dir.x * 0.55;
+                const by = this.pos.y - this.dir.y * 0.55;
+                const bz = this.pos.z - this.dir.z * 0.55;
+                this.cloudTrail.burst(bx, by, bz, {
+                    count: 2,
+                    color: 0xd8dee8,
+                    colorEnd: 0x9aa6b8,
+                    speed: 0.55,
+                    life: 0.85,
+                    up: 0.35,
+                    spread: 0.7,
+                    dir: { x: -this.dir.x, y: -this.dir.y * 0.4, z: -this.dir.z },
+                });
+            }
         }
         for (const style of Object.keys(this.pools) as ProjectileStyle[]) {
             const mesh = this.pools[style];
@@ -2423,10 +2483,13 @@ export class ProjectileRenderer {
             mesh.instanceMatrix.needsUpdate = true;
         }
         this.stoneTint.needsUpdate = true;
+        if (dt > 0) this.cloudTrail.update(dt);
     }
 
     clear(): void {
         for (const mesh of Object.values(this.pools)) mesh.count = 0;
+        this.trailEmitAcc = 0;
+        this.cloudTrail.clear();
     }
 
     /** One instance per style so bolt/arrow/stone materials compile before combat. */
@@ -2465,5 +2528,6 @@ export class ProjectileRenderer {
                 else mat.dispose();
             }
         }
+        this.cloudTrail.dispose();
     }
 }

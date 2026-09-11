@@ -2382,7 +2382,7 @@ export class Game {
         if (this.sim && this.phase === 'battle') {
             this.fireFx.update(0, this.sim.hazards, this.sim.elapsed);
             this.acidFx.update(0, this.sim.hazards);
-            this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
+            this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha, 0);
         } else {
             this.projectileRenderer.clear();
             this.acidFx.update(0, this.oilField);
@@ -9819,7 +9819,7 @@ export class Game {
                 // Pose / foot-align before bolt follow so shafts ride the inner model
                 updateAnimatedUnits(gameDt);
                 this.stuckBolts.sync();
-                this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
+                this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha, gameDt);
                 this.dragonFx.update(this.sim.renderElapsed);
                 this.fireFx.setBreathTongues(this.dragonFx.getBreathTongueSamples());
                 this.fireFx.syncProjectileTips(this.sim.projectiles, this.sim.alpha);
@@ -10096,7 +10096,9 @@ export class Game {
         if (prefs().groundEffects === 'off') return;
         for (const e of events) {
             if (e.kind === 'impact' && e.y > 0.25) {
-                if (e.flesh) {
+                if (e.scar === false) {
+                    // VFX-only hit (e.g. mortar stones) — no ground wear stamp
+                } else if (e.flesh) {
                     const mul = e.bloodScale ?? 1;
                     this.map.stampBlood(e.x, e.z, 1.1 * Math.max(0.35, mul), 0.55 * Math.min(mul, 1), e.blood);
                 } else {
