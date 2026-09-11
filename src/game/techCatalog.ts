@@ -173,6 +173,25 @@ export const TECHS: Record<string, TechDef> = {
         icon: 'tech-default',
         onKill: { typeId: 'hordeFarmerSpawn' },
     },
+    /** Fantasy Rhino Whirlwind — widens melee cleave disk. */
+    whirlwind: {
+        id: 'whirlwind',
+        name: 'Whirlwind',
+        cost: 150,
+        mods: {},
+        cleave: { radius: 7 },
+        icon: 'tech-wide-blast',
+        description: 'Wider cleave — hits every enemy in a large disk around this unit.',
+    },
+    /** Fantasy Rhino Mechanical Rage — close the gap and swing faster. */
+    bloodRage: {
+        id: 'bloodRage',
+        name: 'Blood Rage',
+        cost: 100,
+        mods: { speed: 1.3, attackInterval: 0.75 },
+        icon: 'tech-fleet-feet',
+        description: '+30% move speed and +33% attack speed.',
+    },
 };
 
 /**
@@ -183,6 +202,7 @@ export const UNIT_TECH_ALLOWLIST: Record<string, readonly string[]> = {
     dwarf: ['legs', 'carapace'],
     goblin: ['barrel'], // Longbow — same range tech as archer
     hammerer: ['barrel'], // Arclight-style range enhancement
+    orc: ['whirlwind', 'bloodRage', 'carapace'], // Rhino pivots
     archer: ['barrel', 'ap', 'fireArrows'],
     wizard: ['skyBind', 'skyLift'],
     crowRider: ['engines', 'stingers', 'aegis'],
@@ -214,6 +234,7 @@ export const UNIT_TECH_SLOTS: Record<string, number> = {
     dwarf: 2,
     goblin: 1,
     hammerer: 1,
+    orc: 2,
     archer: 3,
     wizard: 2,
     crowRider: 3, // engines + stingers + aegis (slots must cover the allowlist)

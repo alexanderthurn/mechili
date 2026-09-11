@@ -83,10 +83,10 @@ import {
     setCrowWingRateOnProxy,
     setCrowWingRestOnProxy,
 } from './crowWingFlap';
-import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
+import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels, resetAnimatedUnit } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import { beginBuildingCollapse, beginHammerCrush, clearHammerCrush, groundTipAt, hammerCrushSpin, HAMMER_CRUSH_SEAT_Y } from './buildingCollapse';
-import { clearCorpsePose, clearDeathFall, clearDeathTip } from './deathFall';
+import { clearCorpsePose, clearDeathClip, clearDeathFall, clearDeathTip } from './deathFall';
 import { preserveBuildingSnow } from './buildingSnow';
 
 export type Team = 'player' | 'enemy';
@@ -479,6 +479,11 @@ export interface UnitType {
      * Combined with {@link range} as the engagement distance.
      */
     cleave?: { radius: number };
+    /**
+     * When false, cleave swings skip the ground scorch stamp (still deal damage).
+     * Omit/true = stamp like a stomp crater.
+     */
+    cleaveScar?: boolean;
     /** Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake). */
     cleaveShake?: number;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
@@ -514,6 +519,18 @@ export interface UnitType {
     piercesShield?: boolean;
     /** seconds between shots */
     attackInterval: number;
+    /**
+     * Melee only: seconds after the swing starts (cooldown bump / fire anim)
+     * before damage applies. Omit / 0 = hit immediately. Use so long smash
+     * clips connect mid-animation instead of on frame 0.
+     */
+    meleeHitDelay?: number;
+    /**
+     * Melee only: start the swing this many world units before true
+     * contact range (extra surface gap). The unit keeps closing during the
+     * windup — reads as a charge / attack slide instead of plant-then-swing.
+     */
+    meleeLunge?: number;
     speed: number;
     /**
      * Procedural walk lean *height* for non-skinned ground units (omit = 1).
@@ -714,6 +731,16 @@ function buildHammerer(parts: PartFactory): void {
     const gun = parts.cylinder(0.14, 0.18, 1.35, 0, 1.2, -0.75, 'dark');
     gun.rotation.x = Math.PI / 2;
     parts.box(0.35, 0.35, 0.28, 0, 1.2, -1.45, 'accent'); // muzzle
+}
+
+function buildOrc(parts: PartFactory): void {
+    // Rhino-like breakthrough melee — procedural fallback if GLB missing
+    for (const side of [-1, 1]) {
+        parts.cylinder(0.14, 0.18, 0.95, side * 0.32, 0.48, 0.05, 'dark');
+    }
+    parts.box(1.2, 1.1, 0.9, 0, 1.35, 0, 'hull');
+    parts.sphere(0.35, 0, 2.05, -0.05, 'accent');
+    parts.box(0.35, 0.35, 1.4, 0.55, 1.4, -0.55, 'dark'); // cleaver
 }
 
 function buildArcher(parts: PartFactory): void {
@@ -1226,6 +1253,39 @@ export const UNIT_TYPES: UnitType[] = [
         speed: 4.5,
         turnRate: 5,
         build: buildHammerer,
+    },
+    {
+        // Fantasy Rhino — single fast melee tank; small cleave, breakthrough / aggro soak
+        id: 'orc',
+        name: 'Orc',
+        cost: 200,
+        unlockCost: 50,
+        footprint: { cols: 2, rows: 2 },
+        formation: { cols: 1, rows: 1 },
+        meshScale: 3.48, // 1.2× base 2.9
+        burn: { takenMult: 0.65 },
+        targets: { ground: true, air: false },
+        collisionRadius: 1.62,
+        colliders: [
+            { y: 1.2, r: 1.2 },
+            { y: 2.4, r: 0.9 },
+        ],
+        // innate disk like Rhino splash — Whirlwind tech widens it
+        cleave: { radius: 4 },
+        cleaveScar: false, // no ground crater stamp on swings
+        hp: 1620,
+        damage: 95,
+        range: 3.4, // short melee reach
+        // Match cadence to the long pitch (~1.27s visual @ fireSpeed 3)
+        attackInterval: 1.35,
+        // Hit late in the throw (visual ~1.27s)
+        meleeHitDelay: 0.8,
+        // commit early at speed 8.5 → slide into the smash
+        meleeLunge: 5,
+        speed: 8.5, // faster than dwarf (6) — Rhino closes gaps
+        turnRate: 4, // heavy body — was 9 (too snappy for a big melee)
+        sandWeight: 1.5,
+        build: buildOrc,
     },
     {
         id: 'archer',
@@ -1813,8 +1873,10 @@ export class Unit {
             m.mesh.userData.dead = false;
             clearDeathFall(m.mesh);
             clearDeathTip(m.mesh);
+            clearDeathClip(m.mesh);
             clearCorpsePose(m.mesh);
             clearHammerCrush(m.mesh);
+            if (m.mesh.userData.animated) resetAnimatedUnit(m.mesh);
             if ((this.type.modelId ?? this.type.id) === CROW_RIDER_MODEL_ID) {
                 setCrowWingRateOnProxy(m.mesh, 0);
                 setCrowWingRestOnProxy(m.mesh, 0);

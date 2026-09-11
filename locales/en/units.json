@@ -29,6 +29,9 @@
   "hammerer": {
     "name": "Hammerer"
   },
+  "orc": {
+    "name": "Orc"
+  },
   "archer": {
     "name": "Archer"
   },

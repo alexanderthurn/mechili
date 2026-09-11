@@ -56,11 +56,13 @@ import {
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
 import { computeCrowWingRate, CROW_RIDER_MODEL_ID, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
-import { playUnitFireAnim } from './unitAnimated';
+import { hasUnitDeathAnim, playUnitDeathAnim, playUnitFireAnim, unitDeathFallLocal } from './unitAnimated';
 import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight } from './unitModels';
 import {
+    beginDeathClip,
     beginDeathFall,
     beginDeathTip,
+    clearDeathClip,
     clearDeathFall,
     clearDeathTip,
     clearCorpsePose,
@@ -68,12 +70,15 @@ import {
     crashLandFromFall,
     deathTipAmount,
     deathTipFromKnock,
+    deathYawFromKnock,
     settleCorpsePose,
     alignSettledCorpse,
     snapFlyerForDeathFall,
+    tickDeathClip,
     tickDeathFall,
     tickDeathTip,
     type CrashLand,
+    type DeathClipState,
     type DeathFallState,
     type DeathTipState,
 } from './deathFall';
@@ -399,6 +404,15 @@ export interface Actor {
     convertRayTipZ: number;
     /** true this sim step while the convert beam is on (incl. shield-blocked) */
     convertRayActive: boolean;
+    /**
+     * Melee windup: damage waiting to land ({@link UnitType.meleeHitDelay}).
+     * 0 = none pending. Anim starts on cooldown bump; hit resolves later.
+     */
+    meleePendingDamage: number;
+    /** sim {@link elapsed} when {@link meleePendingDamage} should apply */
+    meleePendingAt: number;
+    /** {@link Actor.index} of the swing's focus target (FX / cleave focus) */
+    meleePendingFocus: number;
     /** render-only: fire recoil 0..1, decays each frame (never read by the sim step) */
     recoil?: number;
     /** render-only: blast shove xz (stones / meteor / hammer), decays each frame */
@@ -560,6 +574,8 @@ export type SimEvent =
            * wear stamps this footprint instead of a circle of `radius`.
            */
           rect?: { halfWidth: number; halfDepth: number; yaw: number };
+          /** Ground wear/scorch stamp. Omit/true = stamp; false = VFX only. */
+          scar?: boolean;
       }
     /** Hammer smash: flatten scenery in the footprint (battle-phase only). */
     | {
@@ -958,6 +974,9 @@ export class BattleSim {
                     convertRayTipY: 0,
                     convertRayTipZ: 0,
                     convertRayActive: false,
+                    meleePendingDamage: 0,
+                    meleePendingAt: 0,
+                    meleePendingFocus: 0,
                 });
             }
         }
@@ -1402,6 +1421,116 @@ export class BattleSim {
         });
     }
 
+    /**
+     * Start a melee swing. Instant by default; units with
+     * {@link UnitType.meleeHitDelay} queue damage so the fire anim can wind up.
+     * Cooldown (and thus the fire anim) still bumps on the caller.
+     */
+    private beginMelee(
+        a: Actor,
+        target: Actor,
+        damage: number,
+        dx: number,
+        dz: number,
+        dist: number,
+    ): void {
+        const delay = a.unit.type.meleeHitDelay ?? 0;
+        if (delay <= 0) {
+            this.strikeMelee(a, target, damage, dx, dz, dist);
+            return;
+        }
+        // Don't stack windups if attackInterval < delay (Blood Rage, etc.)
+        if (a.meleePendingDamage > 0) this.resolveMeleePending(a);
+        a.meleePendingDamage = damage;
+        a.meleePendingAt = this.elapsed + delay;
+        a.meleePendingFocus = target.index;
+    }
+
+    /**
+     * Melee in contact — or in the {@link UnitType.meleeLunge} commit band.
+     * Returns true when this actor's combat AI is done for the step.
+     */
+    private tryMeleeEngage(
+        a: Actor,
+        target: Actor,
+        stats: ResolvedStats,
+        d: { speedMult: number; attackMult: number },
+        bigs: Actor[],
+        dt: number,
+        canAttack: boolean,
+        tdx: number,
+        tdz: number,
+        tDist: number,
+    ): boolean {
+        if (a.unit.type.projectileSpeed || a.unit.type.convertRay) return false;
+        const reach = stats.range + a.radius + target.radius;
+        const commit = reach + (a.unit.type.meleeLunge ?? 0);
+        if (tDist > commit) return false;
+
+        if (canAttack) a.cooldown -= dt;
+        if (canAttack && a.cooldown <= 0) {
+            a.cooldown += stats.attackInterval;
+            const damage =
+                stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
+            this.beginMelee(a, target, damage, tdx, tdz, tDist);
+        }
+
+        // Keep closing through the windup (and while still shy of contact) so
+        // a lunging smash reads as a slide instead of a hard stop.
+        const sliding = a.meleePendingDamage > 0 || tDist > reach * 0.92;
+        if (sliding) {
+            this.steerToward(
+                a,
+                tdx / tDist,
+                tdz / tDist,
+                tDist,
+                dt,
+                stats,
+                d,
+                target,
+                bigs,
+                reach * 0.85,
+                { aimYaw: detAtan2(-tdx, -tdz) },
+            );
+        } else {
+            faceToward(a, detAtan2(-tdx, -tdz), dt);
+        }
+        return true;
+    }
+
+    /** Land any queued melee swings whose windup has elapsed. */
+    private stepMeleePending(): void {
+        for (const a of this.actors) {
+            if (!a.alive || a.meleePendingDamage <= 0) continue;
+            if (this.elapsed + 1e-9 < a.meleePendingAt) continue;
+            this.resolveMeleePending(a);
+        }
+    }
+
+    /** Apply a pending melee hit at the attacker's current pose / targets. */
+    private resolveMeleePending(a: Actor): void {
+        const damage = a.meleePendingDamage;
+        if (damage <= 0) return;
+        a.meleePendingDamage = 0;
+        a.meleePendingAt = 0;
+        const focus = this.actors[a.meleePendingFocus];
+        let target = focus && focus.alive ? focus : this.closestEnemy(a);
+        if (!target) return; // whiff — nothing in range
+        const tdx = target.x - a.x;
+        const tdz = target.z - a.z;
+        const tDist = hypot(tdx, tdz) || 1e-6;
+        const radius = this.cleaveRadiusByUnit.get(a.unit) ?? 0;
+        if (radius > 0) {
+            this.cleaveStrike(a, radius, damage, target);
+            return;
+        }
+        const stats = this.resolved.get(a.unit)!;
+        const reach = stats.range + a.radius + target.radius;
+        // slight slack so a foe that edged out mid-swing still takes the hit
+        if (tDist > reach * 1.2) return;
+        this.strikeMelee(a, target, damage, tdx, tdz, tDist);
+    }
+
     /** XZ disk around the attacker — ground and air, not allies / extras. */
     private cleaveStrike(a: Actor, radius: number, damage: number, focus: Actor): void {
         const team = actorTeam(a);
@@ -1456,6 +1585,7 @@ export class BattleSim {
             radius,
             heavy: true,
             shake: a.altitude > 0 ? (a.unit.type.cleaveShake ?? 0) : 0,
+            scar: a.unit.type.cleaveScar !== false,
         });
         if (a.altitude > 0) {
             a.stompAt = this.elapsed;
@@ -1921,6 +2051,9 @@ export class BattleSim {
                 convertRayTipY: 0,
                 convertRayTipZ: 0,
                 convertRayActive: false,
+                meleePendingDamage: 0,
+                meleePendingAt: 0,
+                meleePendingFocus: 0,
             };
             actor.footY = this.feetY(actor);
             this.actors.push(actor);
@@ -2768,6 +2901,7 @@ export class BattleSim {
             if (a.alive || a.unit.type.structure) continue;
             const fall = a.mesh.userData.deathFall as DeathFallState | undefined;
             const tip = a.mesh.userData.deathTip as DeathTipState | undefined;
+            const deathClip = a.mesh.userData.deathClip as DeathClipState | undefined;
             if (fall) {
                 if (!tickDeathFall(a.mesh, fall, timeSeconds, (wx, wz) => worldHeightAt(wx, wz) + GROUND_UNIT_Y)) {
                     crashLands.push(crashLandFromFall(fall));
@@ -2778,6 +2912,17 @@ export class BattleSim {
                 if (!tickDeathTip(a.mesh, tip, timeSeconds)) {
                     settleCorpsePose(a.mesh);
                     clearDeathTip(a.mesh);
+                }
+            } else if (deathClip) {
+                const wx = a.unit.world.x + a.mesh.position.x;
+                const wz = a.unit.world.z + a.mesh.position.z;
+                deathClip.groundY = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
+                if (!tickDeathClip(a.mesh, deathClip, timeSeconds)) {
+                    // Flat from the clip; hills only via alignSettledCorpse.
+                    a.mesh.userData.corpseTipX = 0;
+                    a.mesh.userData.corpseTipZ = 0;
+                    a.mesh.userData.corpseSettled = true;
+                    clearDeathClip(a.mesh);
                 }
             } else if (a.mesh.userData.hammerCrushed) {
                 // Keep the 4% pancake on the lawn (not sunk like standing feet)
@@ -2794,7 +2939,7 @@ export class BattleSim {
                 alignSettledCorpse(a.mesh, wx, wz, worldHeightAt(wx, wz) + GROUND_UNIT_Y);
             }
             // Settled / tipping wrecks still slide from later blasts — not hammer pancakes
-            if (!fall && !a.mesh.userData.hammerCrushed) {
+            if (!fall && !deathClip && !a.mesh.userData.hammerCrushed) {
                 const ix = a.impulseX ?? 0;
                 const iz = a.impulseZ ?? 0;
                 if (Math.hypot(ix, iz) > 0.008) {
@@ -2813,7 +2958,7 @@ export class BattleSim {
                     crowWingDeathSplay(timeSeconds, fall, tip),
                 );
             }
-            if (fall || tip) continue;
+            if (fall || tip || deathClip) continue;
         }
         // Destroyed structures settle into rubble; hammer-crushed units pancake
         for (const a of this.actors) {
@@ -3151,6 +3296,7 @@ export class BattleSim {
             const groundY = worldHeightAt(target.x, target.z) + HAMMER_CRUSH_SEAT_Y;
             clearDeathFall(target.mesh);
             clearDeathTip(target.mesh);
+            clearDeathClip(target.mesh);
             clearCorpsePose(target.mesh);
             const tip = groundTipAt(target.x, target.z);
             beginHammerCrush(target.mesh, {
@@ -3214,6 +3360,18 @@ export class BattleSim {
                     fallStartY,
                     tips.tipX,
                 );
+            } else if (target.mesh.userData.animated && hasUnitDeathAnim(target.mesh)) {
+                // Skinned fall clip: ease yaw so authored tip-over follows the knock
+                const fallLocal = unitDeathFallLocal(target.mesh) ?? { x: 0, z: -1 };
+                const endYaw = deathYawFromKnock(
+                    knockDir?.x ?? 0,
+                    knockDir?.z ?? 0,
+                    fallLocal.x,
+                    fallLocal.z,
+                    target.facing,
+                );
+                const dur = playUnitDeathAnim(target.mesh);
+                beginDeathClip(target.mesh, groundY, dur > 0 ? dur : 0.8, -1, endYaw, 0.4);
             } else {
                 beginDeathTip(target.mesh, tips.tipZ, groundY, -1, tips.tipX);
             }
@@ -3346,15 +3504,22 @@ export class BattleSim {
                     const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
                     if (tDist <= reach && tDist >= minReach) {
                         if (isMelee) {
-                            if (canAttack) a.cooldown -= dt;
-                            if (canAttack && a.cooldown <= 0) {
-                                a.cooldown += stats.attackInterval;
-                                const damage =
-                                    stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                                this.strikeMelee(a, target, damage, tdx, tdz, tDist);
+                            if (
+                                this.tryMeleeEngage(
+                                    a,
+                                    target,
+                                    stats,
+                                    d,
+                                    bigs,
+                                    dt,
+                                    canAttack,
+                                    tdx,
+                                    tdz,
+                                    tDist,
+                                )
+                            ) {
+                                continue;
                             }
-                            faceToward(a, detAtan2(-tdx, -tdz), dt);
-                            continue;
                         }
                         // ranged / convert-ray on a rally route: fire while marching
                         if (a.unit.type.projectileSpeed) {
@@ -3366,6 +3531,14 @@ export class BattleSim {
                                 this.fire(a, target, damage, a.unit.type.projectileSpeed);
                             }
                         }
+                    }
+                    // melee lunge: commit while still closing on a rally march
+                    if (
+                        isMelee &&
+                        tDist > reach &&
+                        this.tryMeleeEngage(a, target, stats, d, bigs, dt, canAttack, tdx, tdz, tDist)
+                    ) {
+                        continue;
                     }
                 }
 
@@ -3407,6 +3580,12 @@ export class BattleSim {
                 continue;
             }
 
+            if (
+                this.tryMeleeEngage(a, target, stats, d, bigs, dt, canAttack, tdx, tdz, tDist)
+            ) {
+                continue;
+            }
+
             if (tDist <= reach) {
                 // in range: stand and fire (still gets jostled by the crowd)
                 if (a.unit.type.projectileSpeed) {
@@ -3417,16 +3596,8 @@ export class BattleSim {
                             stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
                         this.fire(a, target, damage, a.unit.type.projectileSpeed);
                     }
-                } else if (!a.unit.type.convertRay) {
-                    // melee: instant hit (convert-only units skip — ray is their weapon)
-                    if (canAttack) a.cooldown -= dt;
-                    if (canAttack && a.cooldown <= 0) {
-                        a.cooldown += stats.attackInterval;
-                        const damage =
-                            stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                        this.strikeMelee(a, target, damage, tdx, tdz, tDist);
-                    }
                 }
+                // convert-ray handled elsewhere; melee already returned above
                 faceToward(a, detAtan2(-tdx, -tdz), dt);
                 continue;
             }
@@ -3443,6 +3614,10 @@ export class BattleSim {
             this.steerToward(a, dx / dist, dz / dist, tDist, dt, stats, d, target, bigs, reach * 0.95);
         }
         add('ai');
+
+        mark();
+        this.stepMeleePending();
+        add('meleePending');
 
         mark();
         this.stepConversionRays(dt);

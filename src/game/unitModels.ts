@@ -96,6 +96,11 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         skinned: true,
     },
+    orc: {
+        url: new URL('../../assets/models/orc.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        skinned: true,
+    },
     wizard: { url: new URL('../../assets/models/wizard.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     ballista: { url: new URL('../../assets/models/ballista.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
     crowRider: { url: new URL('../../assets/models/crow-rider.glb', import.meta.url).href, yaw: MODEL_FWD_YAW  },

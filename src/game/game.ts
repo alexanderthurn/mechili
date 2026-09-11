@@ -165,11 +165,14 @@ import {
 } from './hpDraw';
 import { HpDrawFx } from './hpDrawFx';
 import {
+    clearDeathClip,
     clearDeathFall,
     clearDeathTip,
     settleCorpsePose,
+    tickDeathClip,
     tickDeathFall,
     tickDeathTip,
+    type DeathClipState,
     type DeathFallState,
     type DeathTipState,
 } from './deathFall';
@@ -8993,6 +8996,7 @@ export class Game {
                 const mesh = m.mesh;
                 const fall = mesh.userData.deathFall as DeathFallState | undefined;
                 const tip = mesh.userData.deathTip as DeathTipState | undefined;
+                const deathClip = mesh.userData.deathClip as DeathClipState | undefined;
                 const collapse = mesh.userData.buildingCollapse as BuildingCollapseState | undefined;
                 if (fall) {
                     if (
@@ -9010,6 +9014,16 @@ export class Game {
                 } else if (tip && !tickDeathTip(mesh, tip, this.time)) {
                     settleCorpsePose(mesh);
                     clearDeathTip(mesh);
+                } else if (deathClip) {
+                    const wx = unit.world.x + mesh.position.x;
+                    const wz = unit.world.z + mesh.position.z;
+                    deathClip.groundY = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
+                    if (!tickDeathClip(mesh, deathClip, this.time)) {
+                        mesh.userData.corpseTipX = 0;
+                        mesh.userData.corpseTipZ = 0;
+                        mesh.userData.corpseSettled = true;
+                        clearDeathClip(mesh);
+                    }
                 } else if (collapse && !tickBuildingCollapse(mesh, collapse, this.time)) {
                     clearBuildingCollapse(mesh);
                 }
@@ -9026,6 +9040,7 @@ export class Game {
                 if (
                     m.mesh.userData.deathFall ||
                     m.mesh.userData.deathTip ||
+                    m.mesh.userData.deathClip ||
                     m.mesh.userData.buildingCollapse
                 ) {
                     return true;
@@ -10099,7 +10114,9 @@ export class Game {
                     );
                 }
             } else if (e.kind === 'explosion') {
-                if (e.rect) {
+                if (e.scar === false) {
+                    // VFX-only blast (e.g. orc cleave) — no ground wear stamp
+                } else if (e.rect) {
                     // Hammer: rectangular scar = hit zone (HAMMER_ZONE + yaw)
                     this.map.stampWearOrientedRect(
                         e.x,
