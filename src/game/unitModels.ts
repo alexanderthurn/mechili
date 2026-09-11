@@ -473,6 +473,9 @@ function pickBakeClip(
 const _skinV = new Vector3();
 const _skinAcc = new Vector3();
 const _skinTmp = new Vector3();
+const _skinN = new Vector3();
+const _skinNAcc = new Vector3();
+const _skinNTmp = new Vector3();
 const _skinBone = new Matrix4();
 const _skinBind = new Matrix4();
 const _skinBindInv = new Matrix4();
@@ -519,10 +522,18 @@ function bakeSkinnedPose(root: Group, clips: AnimationClip[], pose: NonNullable<
             console.warn(`[unitModels] bakePose: '${sm.name || '?'}' has no boneMatrices`);
             continue;
         }
+        // Normals are skinned with the same bone blend as positions (upper
+        // 3x3 via transformDirection), so the model keeps its authored
+        // smoothing. computeVertexNormals() would re-derive them from the
+        // posed triangles and flatten every seam the GLB had softened.
+        const nrm = geo.getAttribute('normal');
         const out = new Float32Array(pos.count * 3);
+        const outN = nrm ? new Float32Array(nrm.count * 3) : null;
         for (let i = 0; i < pos.count; i++) {
             _skinV.fromBufferAttribute(pos, i).applyMatrix4(_skinBind);
             _skinAcc.set(0, 0, 0);
+            if (nrm) _skinN.fromBufferAttribute(nrm, i).transformDirection(_skinBind);
+            _skinNAcc.set(0, 0, 0);
             for (let j = 0; j < 4; j++) {
                 const w = skinWeight.getComponent(i, j);
                 if (w === 0) continue;
@@ -530,16 +541,27 @@ function bakeSkinnedPose(root: Group, clips: AnimationClip[], pose: NonNullable<
                 _skinBone.fromArray(boneMatrices, idx * 16);
                 _skinTmp.copy(_skinV).applyMatrix4(_skinBone).multiplyScalar(w);
                 _skinAcc.add(_skinTmp);
+                if (nrm) {
+                    _skinNTmp.copy(_skinN).transformDirection(_skinBone).multiplyScalar(w);
+                    _skinNAcc.add(_skinNTmp);
+                }
             }
             _skinAcc.applyMatrix4(_skinBindInv);
             out[i * 3] = _skinAcc.x;
             out[i * 3 + 1] = _skinAcc.y;
             out[i * 3 + 2] = _skinAcc.z;
+            if (outN) {
+                _skinNAcc.transformDirection(_skinBindInv);
+                outN[i * 3] = _skinNAcc.x;
+                outN[i * 3 + 1] = _skinNAcc.y;
+                outN[i * 3 + 2] = _skinNAcc.z;
+            }
         }
         geo.setAttribute('position', new BufferAttribute(out, 3));
         geo.deleteAttribute('skinIndex');
         geo.deleteAttribute('skinWeight');
-        geo.computeVertexNormals();
+        if (outN) geo.setAttribute('normal', new BufferAttribute(outN, 3));
+        else geo.computeVertexNormals();
         geo.computeBoundingSphere();
 
         const mats = sm.material;
@@ -609,11 +631,50 @@ function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
  * Level tint is applied live per pack. `heights` gives each unit's procedural
  * local height. Failures fall back to the procedural mesh.
  */
+/**
+ * Models that failed to load, and how to try them again.
+ *
+ * A failed GLB is not just a looks problem: its measured height, half-width
+ * and AttackNode feed the sim and ride in {@link modelGeometryFingerprint}, so
+ * the peer missing one disagrees with everyone at every battle-start barrier.
+ * The host resyncs it — and a resync rebuilds the Game in the same page, where
+ * the memoized preload never reloads anything, so it disagreed again, every
+ * round, for the whole session. Failures now retry: in the background with a
+ * backoff, and again whenever a star guest is resynced. The moment a retry
+ * lands, the fingerprint matches and the loop ends.
+ */
+const failedModels = new Set<string>();
+let lastHeights: Record<string, number> | null = null;
+let retryInFlight: Promise<void> | null = null;
+let retryAttempt = 0;
+const RETRY_DELAYS_MS = [3_000, 10_000, 30_000];
+
+/** Re-load every model that has failed so far. Joins an in-flight retry. */
+export function retryFailedUnitModels(): Promise<void> {
+    if (retryInFlight) return retryInFlight;
+    if (failedModels.size === 0 || !lastHeights) return Promise.resolve();
+    const ids = new Set(failedModels);
+    console.warn(`[unitModels] retrying ${[...ids].join(', ')}`);
+    retryInFlight = loadUnitModels(lastHeights, undefined, ids).finally(() => {
+        retryInFlight = null;
+    });
+    return retryInFlight;
+}
+
+function scheduleModelRetry(): void {
+    if (failedModels.size === 0 || retryAttempt >= RETRY_DELAYS_MS.length) return;
+    const delay = RETRY_DELAYS_MS[retryAttempt++]!;
+    setTimeout(() => void retryFailedUnitModels().then(scheduleModelRetry), delay);
+}
+
 export async function loadUnitModels(
     heights: Record<string, number>,
     onProgress?: (done: number, total: number) => void,
+    /** retry pass: load only these ids (default: every spec) */
+    only?: ReadonlySet<string>,
 ): Promise<void> {
-    const entries = Object.entries(MODEL_SPECS);
+    lastHeights = heights;
+    const entries = Object.entries(MODEL_SPECS).filter(([id]) => !only || only.has(id));
     const total = entries.length;
     const textureBudget = modelTextureBudget();
     let done = 0;
@@ -702,7 +763,9 @@ export async function loadUnitModels(
                     (spec.skinned ? ', skinned — no InstancedMesh' : spec.bakePose ? ', bakePose → InstancedMesh' : '') +
                     ')',
             );
+            failedModels.delete(id);
         } catch (e) {
+            failedModels.add(id);
             console.error(`[unitModels] '${id}' FAILED to load from ${spec.url}; using procedural mesh`, e);
         } finally {
             done += 1;
@@ -717,4 +780,5 @@ export async function loadUnitModels(
         await Promise.all(entries.map(loadEntry));
     }
     console.info(`[unitModels] ready: ${[...templates.keys()].join(', ') || '(none)'}`);
+    if (!only) scheduleModelRetry();
 }

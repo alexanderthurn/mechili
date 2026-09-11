@@ -2296,6 +2296,8 @@ export class ProjectileRenderer {
     private readonly dir = new Vector3();
     private readonly quat = new Quaternion();
     private readonly fwd = new Vector3(0, 0, 1);
+    /** disc yaw axis — separate so `fwd` is never left pointing up */
+    private readonly up = new Vector3(0, 1, 0);
     private readonly one = new Vector3(1, 1, 1);
     private readonly orbScale = new Vector3(ORB_SCALE, ORB_SCALE, ORB_SCALE);
     private readonly arrowScale = new Vector3(ARROW_SCALE, ARROW_SCALE, ARROW_SCALE);
@@ -2434,10 +2436,10 @@ export class ProjectileRenderer {
                 const y = scaleStart * base.y; // stay thin — flat on the lawn
                 this.scratchScale.set(xz, y, xz);
                 // world-flat disc (no flight-tilt); slight yaw from travel for variety
-                this.quat.setFromAxisAngle(this.fwd.set(0, 1, 0), Math.atan2(p.vx, p.vz));
+                this.quat.setFromAxisAngle(this.up, Math.atan2(p.vx, p.vz));
             } else {
                 applyProjectileScale(this.scratchScale, base, p.scale);
-                this.quat.setFromUnitVectors(this.fwd.set(0, 0, 1), this.dir);
+                this.quat.setFromUnitVectors(this.fwd, this.dir);
             }
             this.matrix.compose(this.pos, this.quat, this.scratchScale);
             const style = p.style;

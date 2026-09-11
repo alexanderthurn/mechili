@@ -1,4 +1,5 @@
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
+import { retryFailedUnitModels } from './game/unitModels';
 import type { LoggedAction } from './game/actions';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, emoteById, type ChatItem } from './game/emotes';
 import { ChatBar } from './ui/chatBar';
@@ -3159,6 +3160,11 @@ function rebuildStarGuestGame(
     // real race across ticks
     if (starResyncInFlight) return;
     starResyncInFlight = true;
+    // A resync that exists because this client's model geometry disagrees can
+    // only end if the model it missed finally loads — the rebuild below reuses
+    // the same page and would otherwise disagree again next round. The next
+    // battle-start barrier picks up whatever lands.
+    void retryFailedUnitModels();
     try {
         activeGame?.destroy({ keepStarSession: true });
         activeGame = null;

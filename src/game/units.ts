@@ -1316,7 +1316,7 @@ export const UNIT_TYPES: UnitType[] = [
         projectileLaunchHeightFrac: 0.7,
         splashRadius: 4, // Arclight-like blast vs packed chaff
         hp: 240,
-        damage: 40, // oneshots dwarfs (40 HP)
+        damage: 40, // a bare L1 dwarf's 40 HP exactly — dwarf veterancy, golden aura or costControl all break the one-shot
         range: 32,
         attackInterval: 0.7,
         speed: 4.5,

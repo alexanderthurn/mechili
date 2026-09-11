@@ -123,6 +123,12 @@ export class TechTree {
         };
         const techIds = new Set<string>(type.innateTechs ?? []);
         for (const id of owned) techIds.add(id);
+        // Flat bonuses are summed and applied once, after the loop. Adding
+        // them inside it made the result depend on iteration order — a range
+        // multiplier on a tech that happened to come later would scale the
+        // flat bonus too — and anything order-dependent in stats is one
+        // refactor away from two peers disagreeing.
+        let rangeAdd = 0;
         for (const techId of techIds) {
             const tech = techById(techId);
             if (!tech) continue;
@@ -138,9 +144,10 @@ export class TechTree {
                 if (stats.splashRadius <= 0) stats.splashRadius = splashMod;
                 else stats.splashRadius *= splashMod;
             }
-            // flat after multipliers — same idea as Command Tower range boost
-            if (tech.mods.rangeAdd) stats.range += tech.mods.rangeAdd;
+            rangeAdd += tech.mods.rangeAdd ?? 0;
         }
+        // flat after ALL multipliers — same idea as Command Tower range boost
+        stats.range += rangeAdd;
         return stats;
     }
 
