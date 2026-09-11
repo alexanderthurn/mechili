@@ -373,6 +373,11 @@ export interface UnitType {
     /** ground-plane collision circle per mech, in world units — nothing walks through it */
     collisionRadius: number;
     /**
+     * Multiplier on the low-quality ground blob disc (omit = 1).
+     * Does not change gameplay collision — visual only.
+     */
+    blobShadowScale?: number;
+    /**
      * simplified 3D hit volumes for bullets: spheres on the mech's local y
      * axis (rotation-proof), offsets and radii scaled by meshScale at use
      */
@@ -390,6 +395,12 @@ export interface UnitType {
      * `stone` = hurled rock (catapult); `orb` = wizard magic orb.
      */
     projectileStyle?: 'bolt' | 'arrow' | 'largeArrow' | 'stone' | 'orb';
+    /**
+     * Scale vs the style's default projectile mesh (1 = archer/ballista size).
+     * Number = uniform. For shafts, `{ length, thickness }` scales Z (flight)
+     * vs X/Y (girth) separately — goblins use short but thick arrows.
+     */
+    projectileScale?: number | { length?: number; thickness?: number };
     /**
      * spawn height above the unit's altitude (world units). When set, overrides
      * the default collider-mid muzzle for that shot.
@@ -664,6 +675,13 @@ function buildDwarf(parts: PartFactory): void {
     parts.sphere(0.42, 0, 0.35, 0, 'hull');
     parts.sphere(0.16, 0, 0.62, -0.25, 'accent');
     parts.box(1.0, 0.12, 0.5, 0, 0.12, 0, 'dark'); // leg plate
+}
+
+function buildGoblin(parts: PartFactory): void {
+    // Fang-like ranged chaff — procedural fallback if GLB missing
+    parts.sphere(0.38, 0, 0.32, 0, 'hull');
+    parts.sphere(0.15, 0, 0.55, -0.22, 'accent');
+    parts.box(0.7, 0.12, 0.35, 0, 0.55, -0.45, 'dark'); // crude bow
 }
 
 function buildArcher(parts: PartFactory): void {
@@ -1119,6 +1137,34 @@ export const UNIT_TYPES: UnitType[] = [
         walkCadence: 1.5,
         turnRate: 12,
         build: buildDwarf,
+    },
+    {
+        id: 'goblin',
+        name: 'Goblin',
+        cost: 100,
+        unlockCost: 0,
+        footprint: { cols: 4, rows: 2 },
+        formation: { cols: 6, rows: 3 }, // 18
+        meshScale: 1,
+        burn: { takenMult: 1.05 },
+        targets: { ground: true, air: true },
+        collisionRadius: 0.55,
+        blobShadowScale: 0.5, // small chaff — half the default blob disc
+        colliders: [{ y: 0.32, r: 0.5 }],
+        projectileSpeed: 85,
+        projectileStyle: 'arrow',
+        projectileScale: { length: 0.55, thickness: 1.35 }, // short shaft, thicker girth
+        projectileBallistic: true,
+        projectileLaunchHeightFrac: 0.7,
+        hp: 18,
+        damage: 4,
+        range: 16,
+        attackInterval: 1.45,
+        speed: 4.2, // slower than dwarf rush
+        walkLean: 1,
+        walkCadence: 1.45,
+        turnRate: 11,
+        build: buildGoblin,
     },
     {
         id: 'archer',

@@ -481,6 +481,8 @@ export interface Projectile {
     style: 'bolt' | 'arrow' | 'largeArrow' | 'stone' | 'orb';
     /** tip flame while flying (fire arrows / lit ballista); clears on hit or TTL */
     lit?: boolean;
+    /** mesh scale vs style default; number = uniform, or length/thickness for shafts */
+    scale?: number | { length?: number; thickness?: number };
     /** gravity (world units/s²) for lobbed shots — absent = straight flight */
     gravity?: number;
     /** homing shots chase this actor and hit nothing else */
@@ -527,6 +529,8 @@ export type SimEvent =
           dy: number;
           dz: number;
           style: 'arrow' | 'largeArrow';
+          /** mesh scale vs style default; omit = 1 */
+          scale?: number | { length?: number; thickness?: number };
           attachIndex?: number;
       }
     | {
@@ -1589,6 +1593,7 @@ export class BattleSim {
         sy: number,
         sz: number,
         attach?: Actor,
+        scale?: Projectile['scale'],
     ): void {
         if (style !== 'arrow' && style !== 'largeArrow') return;
         const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
@@ -1601,6 +1606,7 @@ export class BattleSim {
             dy: sy / slen,
             dz: sz / slen,
             style,
+            scale,
             attachIndex: attach?.index,
         });
     }
@@ -1661,17 +1667,18 @@ export class BattleSim {
         sy: number,
         sz: number,
         hit?: Actor,
+        scale?: Projectile['scale'],
     ): void {
         if (style === 'largeArrow') {
             if (hit?.unit.type.structure) {
-                this.emitStuckBolt(style, x, y, z, sx, sy, sz, hit);
+                this.emitStuckBolt(style, x, y, z, sx, sy, sz, hit, scale);
                 return;
             }
             const plant = this.groundPlantAlongRay(x, y, z, sx, sy, sz);
-            this.emitStuckBolt(style, plant.x, plant.y, plant.z, plant.sx, plant.sy, plant.sz);
+            this.emitStuckBolt(style, plant.x, plant.y, plant.z, plant.sx, plant.sy, plant.sz, undefined, scale);
             return;
         }
-        this.emitStuckBolt(style, x, y, z, sx, sy, sz, hit);
+        this.emitStuckBolt(style, x, y, z, sx, sy, sz, hit, scale);
     }
 
     /** dormant summons materialize one by one at their appearAt time */
@@ -3834,6 +3841,7 @@ export class BattleSim {
             team: actorTeam(a),
             source: a.unit,
             style: at.projectileStyle ?? 'bolt',
+            scale: at.projectileScale,
             lit: (() => {
                 const style = at.projectileStyle ?? 'bolt';
                 if (style !== 'arrow' && style !== 'largeArrow') return false;
@@ -3993,7 +4001,7 @@ export class BattleSim {
                             dropStone: p.style === 'stone',
                         });
                     }
-                    this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit);
+                    this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit, p.scale);
                 } else {
                     const dealt = p.damage * this.damageTakenMult(hit);
                     this.applyDamage(
@@ -4019,7 +4027,7 @@ export class BattleSim {
                         dz: sz / slen,
                         dropStone: p.style === 'stone',
                     });
-                    this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit);
+                    this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit, p.scale);
                     this.applyFireAt(p.source, ix, iz, hit.radius, this.fireProfileOf(p.source), {
                         shotDir: { x: sx, z: sz },
                     });
@@ -4048,7 +4056,7 @@ export class BattleSim {
                             dropStone: true,
                         });
                     }
-                    this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
+                    this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz, undefined, p.scale);
                 } else {
                     const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
                     const bolt =
@@ -4064,7 +4072,7 @@ export class BattleSim {
                         sod: bolt,
                         dropStone: p.style === 'stone',
                     });
-                    this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz);
+                    this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz, undefined, p.scale);
                     this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source), {
                         shotDir: { x: sx, z: sz },
                     });

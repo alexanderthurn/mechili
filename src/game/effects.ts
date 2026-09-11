@@ -58,6 +58,19 @@ const ORB_SCALE = 2.4;
 const ARROW_SCALE = 3.2;
 const LARGE_ARROW_SCALE = 9.5; // between prior 8.5 and the too-small 5.95
 
+/** Apply uniform or length/thickness scale onto a style's base Vector3 (Z = flight). */
+function applyProjectileScale(
+    out: Vector3,
+    base: Vector3,
+    scale?: number | { length?: number; thickness?: number },
+): Vector3 {
+    if (scale === undefined) return out.copy(base);
+    if (typeof scale === 'number') return out.copy(base).multiplyScalar(scale);
+    const len = scale.length ?? 1;
+    const thick = scale.thickness ?? 1;
+    return out.set(base.x * thick, base.y * thick, base.z * len);
+}
+
 /** Crow-rider thrown rock — flight pool and ground debris share this geometry. */
 const CROW_STONE_GEO_R = 0.84;
 let crowStoneGeometry: IcosahedronGeometry | null = null;
@@ -2002,6 +2015,7 @@ export class StuckBoltRenderer {
     private readonly fwd = new Vector3(0, 0, 1);
     private readonly arrowScale = new Vector3(ARROW_SCALE, ARROW_SCALE, ARROW_SCALE);
     private readonly largeScale = new Vector3(LARGE_ARROW_SCALE, LARGE_ARROW_SCALE, LARGE_ARROW_SCALE);
+    private readonly scratchScale = new Vector3();
     private readonly sharedBoltGeo: BufferGeometry | null;
     private readonly sharedBoltMat: MeshStandardMaterial | null;
     private readonly slots: StuckSlot[] = [];
@@ -2067,8 +2081,9 @@ export class StuckBoltRenderer {
             this.pos.copy(_seatOrigin);
 
             this.quat.setFromUnitVectors(this.fwd, this.dir);
-            const scale = e.style === 'largeArrow' ? this.largeScale : this.arrowScale;
-            this.matrix.compose(this.pos, this.quat, scale);
+            const base = e.style === 'largeArrow' ? this.largeScale : this.arrowScale;
+            applyProjectileScale(this.scratchScale, base, e.scale);
+            this.matrix.compose(this.pos, this.quat, this.scratchScale);
 
             const slot = this.slots[this.write]!;
             const attach = ref?.mesh ?? null;
@@ -2141,6 +2156,7 @@ export class ProjectileRenderer {
     private readonly orbScale = new Vector3(ORB_SCALE, ORB_SCALE, ORB_SCALE);
     private readonly arrowScale = new Vector3(ARROW_SCALE, ARROW_SCALE, ARROW_SCALE);
     private readonly largeArrowScale = new Vector3(LARGE_ARROW_SCALE, LARGE_ARROW_SCALE, LARGE_ARROW_SCALE);
+    private readonly scratchScale = new Vector3();
     private readonly t0 = performance.now();
     /** Shared bolt.glb geo — dispose once even if used by two pools. */
     private readonly sharedBoltGeo: BufferGeometry | null;
@@ -2218,7 +2234,7 @@ export class ProjectileRenderer {
             if (this.dir.lengthSq() < 1e-8) this.dir.set(0, 0, -1);
             else this.dir.normalize();
             this.quat.setFromUnitVectors(this.fwd, this.dir);
-            const scale =
+            const base =
                 p.style === 'orb'
                     ? this.orbScale
                     : p.style === 'arrow'
@@ -2226,7 +2242,8 @@ export class ProjectileRenderer {
                       : p.style === 'largeArrow'
                         ? this.largeArrowScale
                         : this.one;
-            this.matrix.compose(this.pos, this.quat, scale);
+            applyProjectileScale(this.scratchScale, base, p.scale);
+            this.matrix.compose(this.pos, this.quat, this.scratchScale);
             const style = p.style;
             this.pools[style].setMatrixAt(counts[style]++, this.matrix);
         }

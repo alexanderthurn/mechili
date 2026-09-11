@@ -23,6 +23,9 @@
   "dwarf": {
     "name": "Dwarf"
   },
+  "goblin": {
+    "name": "Goblin"
+  },
   "archer": {
     "name": "Archer"
   },

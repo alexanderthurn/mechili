@@ -1,4 +1,5 @@
 import {
+    AnimationMixer,
     Box3,
     BufferAttribute,
     BufferGeometry,
@@ -7,7 +8,9 @@ import {
     Matrix4,
     Mesh,
     MeshStandardMaterial,
+    SkinnedMesh,
     Vector3,
+    type AnimationClip,
     type Object3D,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -43,6 +46,15 @@ export interface ModelSpec {
     scale?: number;
     /** Rigged GLB — keep SkinnedMesh; battle anim is {@link unitAnimated}. */
     skinned?: boolean;
+    /**
+     * Pose a skinned clip then bake to static meshes for InstancedMesh.
+     * `clip`: substring of clip name, or `first` / `longest` / `shortest`.
+     * Default time `0` = first frame.
+     */
+    bakePose?: {
+        clip?: string | 'first' | 'longest' | 'shortest';
+        time?: number;
+    };
 }
 
 export const MODEL_SPECS: Record<string, ModelSpec> = {
@@ -82,6 +94,14 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     wizard: { url: new URL('../../assets/models/wizard.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     ballista: { url: new URL('../../assets/models/ballista.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
     crowRider: { url: new URL('../../assets/models/crow-rider.glb', import.meta.url).href, yaw: MODEL_FWD_YAW  },
+    goblin: {
+        url: new URL('../../assets/models/goblin.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        scale: 2.85,
+        offset: { y: -0.04 },
+        // skinned walk clip → bake frame 0 into InstancedMesh (no runtime mixer)
+        bakePose: { clip: 'walk', time: 0 },
+    },
     shield: { url: new URL('../../assets/models/shield.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 0.5 }, // ward stone
     rocket: { url: new URL('../../assets/models/rocket.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
     // the two base buildings — distinct castles instead of the shared procedural tower
@@ -364,6 +384,7 @@ function bakeInstanceAsset(root: Group): InstanceAsset {
     root.traverse((o) => {
         const mesh = o as Mesh;
         if (!mesh.isMesh || !mesh.geometry) return;
+        if ((mesh as SkinnedMesh).isSkinnedMesh) return; // must be posed+baked first
         const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         // multi-material meshes are rare on these assets; use the first slot
         const mat = mats[0];
@@ -399,6 +420,122 @@ function bakeInstanceAsset(root: Group): InstanceAsset {
         });
     }
     return { parts };
+}
+
+function pickBakeClip(
+    clips: AnimationClip[],
+    pick: NonNullable<ModelSpec['bakePose']>['clip'],
+): AnimationClip | null {
+    if (clips.length === 0) return null;
+    if (pick === undefined || pick === 'first') return clips[0]!;
+    if (pick === 'longest') {
+        return clips.reduce((a, b) => (b.duration > a.duration ? b : a));
+    }
+    if (pick === 'shortest') {
+        return clips.reduce((a, b) => (b.duration < a.duration ? b : a));
+    }
+    const lower = pick.toLowerCase();
+    return clips.find((c) => c.name.toLowerCase().includes(lower)) ?? clips[0]!;
+}
+
+const _skinV = new Vector3();
+const _skinAcc = new Vector3();
+const _skinTmp = new Vector3();
+const _skinBone = new Matrix4();
+const _skinBind = new Matrix4();
+const _skinBindInv = new Matrix4();
+
+/**
+ * Evaluate `clip` at `time` on `root`, then replace every SkinnedMesh with a
+ * static Mesh whose vertices match that pose (for InstancedMesh baking).
+ */
+function bakeSkinnedPose(root: Group, clips: AnimationClip[], pose: NonNullable<ModelSpec['bakePose']>): void {
+    const clip = pickBakeClip(clips, pose.clip);
+    if (!clip) {
+        console.warn('[unitModels] bakePose: no animation clips — leaving bind pose');
+        return;
+    }
+    const time = Math.max(0, Math.min(pose.time ?? 0, Math.max(clip.duration - 1e-4, 0)));
+    const mixer = new AnimationMixer(root);
+    const action = mixer.clipAction(clip);
+    action.play();
+    action.paused = true;
+    action.time = time;
+    mixer.update(0);
+    root.updateMatrixWorld(true);
+
+    const skinned: SkinnedMesh[] = [];
+    root.traverse((o) => {
+        const m = o as SkinnedMesh;
+        if (m.isSkinnedMesh) skinned.push(m);
+    });
+
+    for (const sm of skinned) {
+        sm.skeleton.update();
+        const geo = dequantizeGeometry(sm.geometry);
+        const pos = geo.getAttribute('position');
+        const skinIndex = geo.getAttribute('skinIndex');
+        const skinWeight = geo.getAttribute('skinWeight');
+        if (!pos || !skinIndex || !skinWeight) {
+            console.warn(`[unitModels] bakePose: '${sm.name || '?'}' missing skin attrs`);
+            continue;
+        }
+        _skinBind.copy(sm.bindMatrix);
+        _skinBindInv.copy(sm.bindMatrixInverse);
+        const boneMatrices = sm.skeleton.boneMatrices;
+        if (!boneMatrices) {
+            console.warn(`[unitModels] bakePose: '${sm.name || '?'}' has no boneMatrices`);
+            continue;
+        }
+        const out = new Float32Array(pos.count * 3);
+        for (let i = 0; i < pos.count; i++) {
+            _skinV.fromBufferAttribute(pos, i).applyMatrix4(_skinBind);
+            _skinAcc.set(0, 0, 0);
+            for (let j = 0; j < 4; j++) {
+                const w = skinWeight.getComponent(i, j);
+                if (w === 0) continue;
+                const idx = skinIndex.getComponent(i, j);
+                _skinBone.fromArray(boneMatrices, idx * 16);
+                _skinTmp.copy(_skinV).applyMatrix4(_skinBone).multiplyScalar(w);
+                _skinAcc.add(_skinTmp);
+            }
+            _skinAcc.applyMatrix4(_skinBindInv);
+            out[i * 3] = _skinAcc.x;
+            out[i * 3 + 1] = _skinAcc.y;
+            out[i * 3 + 2] = _skinAcc.z;
+        }
+        geo.setAttribute('position', new BufferAttribute(out, 3));
+        geo.deleteAttribute('skinIndex');
+        geo.deleteAttribute('skinWeight');
+        geo.computeVertexNormals();
+        geo.computeBoundingSphere();
+
+        const mats = sm.material;
+        const staticMesh = new Mesh(geo, mats);
+        staticMesh.name = sm.name;
+        staticMesh.castShadow = sm.castShadow;
+        staticMesh.receiveShadow = sm.receiveShadow;
+        staticMesh.position.copy(sm.position);
+        staticMesh.quaternion.copy(sm.quaternion);
+        staticMesh.scale.copy(sm.scale);
+        staticMesh.matrixAutoUpdate = sm.matrixAutoUpdate;
+        if (sm.parent) {
+            sm.parent.add(staticMesh);
+            sm.parent.remove(sm);
+        }
+        // don't dispose sm.geometry — GLTF clones often share buffers
+    }
+    mixer.stopAllAction();
+    mixer.uncacheRoot(root);
+
+    // re-sit feet after pose (walk frame can lift the bbox)
+    root.updateMatrixWorld(true);
+    const box = new Box3().setFromObject(root);
+    if (Number.isFinite(box.min.y) && Math.abs(box.min.y) > 1e-4) {
+        root.position.y -= box.min.y;
+        root.updateMatrixWorld(true);
+    }
+    console.info(`[unitModels] bakePose '${clip.name}' @ t=${time.toFixed(3)} → ${skinned.length} mesh(es)`);
 }
 
 const _dq = new Vector3();
@@ -462,6 +599,9 @@ export async function loadUnitModels(
                 spec.roll,
                 spec.offset,
             );
+            if (spec.bakePose && !spec.skinned) {
+                bakeSkinnedPose(root, gltf.animations ?? [], spec.bakePose);
+            }
             // measure after normalize+offset — real top relative to member origin
             const box = new Box3().setFromObject(root);
             visualHeights.set(id, Math.max(box.max.y, 0.05));
@@ -510,6 +650,7 @@ export async function loadUnitModels(
             }
             templates.set(id, root);
             // Rigged units stay on SkinnedMesh + mixer — baking would freeze bind pose.
+            // bakePose models are static after bakeSkinnedPose and use InstancedMesh.
             if (!spec.skinned) {
                 const baked = bakeInstanceAsset(root);
                 if (BUILDING_SNOW_IDS.has(id)) {
@@ -525,7 +666,7 @@ export async function loadUnitModels(
             }
             console.info(
                 `[unitModels] loaded '${id}' from ${spec.url} (height ${visualHeights.get(id)!.toFixed(2)}` +
-                    (spec.skinned ? ', skinned — no InstancedMesh' : '') +
+                    (spec.skinned ? ', skinned — no InstancedMesh' : spec.bakePose ? ', bakePose → InstancedMesh' : '') +
                     ')',
             );
         } catch (e) {

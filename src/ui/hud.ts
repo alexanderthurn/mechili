@@ -3136,7 +3136,6 @@ export class Hud {
             itemSquares +
             forgeSquares +
             liveRow(t('hud:hp'), `${Math.max(0, Math.round(info.hp))} / ${Math.round(info.maxHp)}`, 'hp') +
-            (info.total > 1 ? row(t('hud:pack'), `${info.alive} / ${info.total}`) : '') +
             // A building that cannot shoot has no damage, reload, range or
             // speed worth four rows of zeroes — what its owner actually needs
             // to know is what breaking it costs them.
@@ -3155,6 +3154,9 @@ export class Hud {
             (info.record
                 ? liveRow(t('hud:totalDmg'), String(Math.round(info.record.damageDealt)), 'dmg') +
                   liveRow(t('hud:kills'), String(info.record.kills), 'kills')
+                : '') +
+            (!combatless
+                ? `<div class="row"><span class="v">${escapeHtml(info.hits)}</span></div>`
                 : '') +
             techSlots +
             actions +

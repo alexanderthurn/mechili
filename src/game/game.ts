@@ -2509,10 +2509,11 @@ export class Game {
                 if (t.structure || t.extra) continue;
                 // flyers keep a (smaller) disc projected onto the ground below them
                 const flying = a.altitude > 0;
+                const blobMul = t.blobShadowScale ?? 1;
                 sources.push({
                     x: a.rx,
                     z: a.rz,
-                    radius: Math.max(0.7, a.radius * (flying ? 0.9 : 1.15)),
+                    radius: Math.max(0.35, a.radius * (flying ? 0.9 : 1.15) * blobMul),
                 });
             }
         } else {
@@ -2522,11 +2523,12 @@ export class Game {
                 const t = unit.type;
                 if (t.structure || t.extra) continue;
                 // packs are several mechs — one disc per member, not per pack
+                const blobMul = t.blobShadowScale ?? 1;
                 for (const p of this.placement.visibleMemberWorldPositions(unit)) {
                     sources.push({
                         x: p.x,
                         z: p.z,
-                        radius: Math.max(0.7, t.collisionRadius * 1.15),
+                        radius: Math.max(0.35, t.collisionRadius * 1.15 * blobMul),
                     });
                 }
             }
