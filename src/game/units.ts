@@ -401,6 +401,11 @@ export interface UnitType {
      * Hit detection still uses {@link colliders} — this only steers loft.
      */
     aimY?: number;
+    /**
+     * Multiplier on arrow aim scatter (1 = default archer wobble). Lower = tighter
+     * shots. Only applies when {@link projectileStyle} is `arrow` and not homing.
+     */
+    aimSpread?: number;
     /** ranged mechs fire visible projectiles at this speed (world units/s); melee when absent */
     projectileSpeed?: number;
     /**
@@ -1215,6 +1220,7 @@ export const UNIT_TYPES: UnitType[] = [
         projectileScale: { length: 0.55, thickness: 1.35 }, // short shaft, thicker girth
         projectileBallistic: true,
         projectileLaunchHeightFrac: 0.7,
+        aimSpread: 0.55, // tighter volleys than archers — still miss some, not every other shot
         hp: 18,
         damage: 4,
         range: 16,

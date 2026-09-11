@@ -4083,8 +4083,9 @@ export class BattleSim {
         const distF = Math.min(1.5, flatDist / range);
         // towers (big sizeR) fan across the facade; dwarves stay tight
         const sizeF = Math.min(2.4, 0.5 + sizeR / 2.8);
-        const spreadLat = (0.28 + distF * 1.15) * sizeF;
-        const spreadY = (0.2 + distF * 0.85) * Math.min(2.1, 0.35 + visualH / 5);
+        const aimMul = at.aimSpread ?? 1;
+        const spreadLat = (0.28 + distF * 1.15) * sizeF * aimMul;
+        const spreadY = (0.2 + distF * 0.85) * Math.min(2.1, 0.35 + visualH / 5) * aimMul;
 
         const seed = shooter.index * 100003 + this.stepIndex;
         const r1 = detHash01(seed) * 2 - 1;
