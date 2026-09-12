@@ -141,6 +141,7 @@ import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } f
 import {
     onPrefsChange,
     prefs,
+    updatePrefs,
     debugEnabled,
     effectiveDpr,
     sceneryCameraFar,
@@ -156,6 +157,7 @@ import {
     type SceneryQuality,
     type ShadowQuality,
 } from './prefs';
+import { PostFx } from './postFx';
 import { Particles, ProjectileRenderer, StuckBoltRenderer, StoneChipRenderer } from './effects';
 import {
     buildHpDrawSources,
@@ -165,11 +167,14 @@ import {
 } from './hpDraw';
 import { HpDrawFx } from './hpDrawFx';
 import {
+    clearDeathClip,
     clearDeathFall,
     clearDeathTip,
     settleCorpsePose,
+    tickDeathClip,
     tickDeathFall,
     tickDeathTip,
+    type DeathClipState,
     type DeathFallState,
     type DeathTipState,
 } from './deathFall';
@@ -178,7 +183,7 @@ import {
     tickBuildingCollapse,
     type BuildingCollapseState,
 } from './buildingCollapse';
-import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay, CROW_RIDER_MODEL_ID } from './crowWingFlap';
+import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay, usesWingFlapModel } from './crowWingFlap';
 import { GROUND_UNIT_Y, setCloseCameraY } from './groundQuality';
 import { modelGeometryFingerprint } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
@@ -233,7 +238,6 @@ import {
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
-    SPAWN_DWARVES_ID,
     TACTICS,
     clampTacticEnd,
     clampTacticPoint,
@@ -246,7 +250,7 @@ import {
 } from './tactics';
 import { TechTree, effectiveTargets, effectiveFlying } from './tech';
 import { activeLoadout, randomLoadout } from './loadouts';
-import { ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById, type Loadout } from './techCatalog';
+import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
@@ -287,7 +291,7 @@ import { getAvatarDataUrl } from './avatar';
 import { HpBars } from '../ui/hpBars';
 import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
 import { renderAllUnitIcons } from '../ui/unitIcons';
-import { updateAnimatedUnits } from './unitAnimated';
+import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 
 /** menu→match camera fly-in (fresh starts only) */
@@ -371,6 +375,7 @@ export class Game {
     private readonly techTree: TechTree;
     private readonly scene = new Scene();
     private readonly renderer: WebGLRenderer;
+    private readonly postFx: PostFx;
     private readonly rig = new CameraRig();
     private readonly controls: CameraControls;
     private readonly gamepad: GamepadCursor;
@@ -492,6 +497,13 @@ export class Game {
      */
     private hpPeak: number[] = [];
     private matchOver = false;
+    /**
+     * The player ended this match themselves — the pause menu's "Quit to
+     * menu", or "Give up" on a blocking notice. The result is still a
+     * defeat, but offering "Retry last round" for a round nobody lost reads
+     * as the game not having noticed you left, so the button is suppressed.
+     */
+    private endedByOwnChoice = false;
     /**
      * Campaign climb: round wins so far. Restored from SP save / retry payload
      * (battle outcomes are not in the action log).
@@ -944,6 +956,22 @@ export class Game {
             this.cycleMaterialDebug();
             return;
         }
+        if (e.code === 'KeyO' && e.shiftKey) {
+            // Shift+O cycles ambient occlusion: off → medium → high → ultra
+            // (not Shift+A — A is camera strafe)
+            this.cycleAoQuality();
+            return;
+        }
+        if (e.code === 'KeyB' && e.shiftKey) {
+            // Shift+B cycles bloom: off → high → ultra
+            this.cycleBloomQuality();
+            return;
+        }
+        if (e.code === 'KeyG' && e.shiftKey) {
+            // Shift+G cycles vignette: off → high → ultra
+            this.cycleVignetteQuality();
+            return;
+        }
         if (e.shiftKey && e.code.startsWith('Digit')) {
             const digit = parseInt(e.code.slice(5), 10);
             if (digit === 0) {
@@ -1042,6 +1070,36 @@ export class Game {
             : next === 'wire' ? this.wireOverride
             : next === 'normals' ? this.normalsOverride
             : null;
+    }
+
+    /** Shift+O: live A/B ambient occlusion tiers. */
+    private cycleAoQuality(): void {
+        const order = ['off', 'medium', 'high', 'ultra'] as const;
+        const i = Math.max(0, order.indexOf(prefs().ao));
+        const next = order[(i + 1) % order.length]!;
+        updatePrefs({ ao: next });
+        console.info(`[fx] Shift+O ambient occlusion: ${next}`);
+        this.hud.flashCinemaHint(`AO · ${next}`, 1400);
+    }
+
+    /** Shift+B: live A/B bloom tiers (battle only). */
+    private cycleBloomQuality(): void {
+        const order = ['off', 'high', 'ultra'] as const;
+        const i = Math.max(0, order.indexOf(prefs().bloom));
+        const next = order[(i + 1) % order.length]!;
+        updatePrefs({ bloom: next });
+        console.info(`[fx] Shift+B bloom: ${next}`);
+        this.hud.flashCinemaHint(`Bloom · ${next}`, 1400);
+    }
+
+    /** Shift+G: live A/B vignette tiers (battle only). */
+    private cycleVignetteQuality(): void {
+        const order = ['off', 'high', 'ultra'] as const;
+        const i = Math.max(0, order.indexOf(prefs().vignette));
+        const next = order[(i + 1) % order.length]!;
+        updatePrefs({ vignette: next });
+        console.info(`[fx] Shift+G vignette: ${next}`);
+        this.hud.flashCinemaHint(`Vignette · ${next}`, 1400);
     }
 
     /** Re-bake height-mist shader strength and recompile fogged materials (Shift+3). */
@@ -1308,7 +1366,7 @@ export class Game {
             this.rosterProfilesLoaded = true;
         }
         this.humanSeat = humanSeat;
-        this.economy = new Economy(settings.economy, this.seats.length);
+        this.economy = new Economy(settings.economy, this.seats.length, settings.moneyFactor);
         this.recruitLevel = this.seats.map(() => 1);
         this.creditUsed = this.seats.map(() => false);
         this.creditDebt = this.seats.map(() => false);
@@ -1352,6 +1410,7 @@ export class Game {
         // Slightly above 1 so the denser grass normals/albedo still read under ACES
         this.renderer.toneMappingExposure = touchFirstDevice() ? 1.0 : 1.08;
         this.renderer.setPixelRatio(effectiveDpr());
+        this.postFx = new PostFx(this.renderer, this.scene, this.rig.camera);
 
         this.scene.background = new Color(THEME.sky);
         // scenery 'off' plays without any fog or weather
@@ -1414,6 +1473,7 @@ export class Game {
         this.cloudFx = new CloudFx(this.scene);
         this.dragonFx = new DragonFx(this.scene);
         this.conversionFx = new ConversionFx(this.scene);
+        this.syncPostFx();
         this.oilDripFx = new OilDripFx(this.scene);
         this.hordeMarkers = new HordeMarkers(this.scene);
         this.strongholdCommanders = new StrongholdCommanders(this.scene);
@@ -2368,18 +2428,19 @@ export class Game {
         this.weather?.primeForCompile();
 
         this.renderer.compile(this.scene, this.rig.camera);
-        this.renderer.render(this.scene, this.rig.camera);
+        this.renderFrame();
 
         // restore live combat VFX — clear would blank an in-progress battle frame
         this.fireFx.clear();
         this.fireFx.setQuality(prefs().fireVfx);
         this.acidFx.clear();
         this.acidFx.setQuality(prefs().fireVfx);
+        this.projectileRenderer.setQuality(prefs().fireVfx);
         this.map.setFireCharcoalGround(fireUsesTongues(prefs().fireVfx));
         if (this.sim && this.phase === 'battle') {
             this.fireFx.update(0, this.sim.hazards, this.sim.elapsed);
             this.acidFx.update(0, this.sim.hazards);
-            this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
+            this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha, 0);
         } else {
             this.projectileRenderer.clear();
             this.acidFx.update(0, this.oilField);
@@ -2391,7 +2452,7 @@ export class Game {
         }
         this.updateBlobShadows();
         // replace the primed frame so the player never sees a flash of rain/flames
-        this.renderer.render(this.scene, this.rig.camera);
+        this.renderFrame();
     }
 
     /**
@@ -2423,6 +2484,7 @@ export class Game {
             this.renderer.setPixelRatio(dpr);
             this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
         }
+        this.syncPostFx();
         this.unitInstances.applyShadowPref(prefs().shadows);
         this.meteorFx.applyShadowPref(prefs().shadows);
         this.unitInstances.applyDeadPref(prefs().renderDeadUnits);
@@ -2432,6 +2494,7 @@ export class Game {
             this.appliedFireVfx = fireVfx;
             this.fireFx.setQuality(fireVfx);
             this.acidFx.setQuality(fireVfx);
+            this.projectileRenderer.setQuality(fireVfx);
             this.map.setFireCharcoalGround(fireUsesTongues(fireVfx));
         }
     }
@@ -2509,10 +2572,11 @@ export class Game {
                 if (t.structure || t.extra) continue;
                 // flyers keep a (smaller) disc projected onto the ground below them
                 const flying = a.altitude > 0;
+                const blobMul = t.blobShadowScale ?? 1;
                 sources.push({
                     x: a.rx,
                     z: a.rz,
-                    radius: Math.max(0.7, a.radius * (flying ? 0.9 : 1.15)),
+                    radius: Math.max(0.35, a.radius * (flying ? 0.9 : 1.15) * blobMul),
                 });
             }
         } else {
@@ -2522,11 +2586,12 @@ export class Game {
                 const t = unit.type;
                 if (t.structure || t.extra) continue;
                 // packs are several mechs — one disc per member, not per pack
+                const blobMul = t.blobShadowScale ?? 1;
                 for (const p of this.placement.visibleMemberWorldPositions(unit)) {
                     sources.push({
                         x: p.x,
                         z: p.z,
-                        radius: Math.max(0.7, t.collisionRadius * 1.15),
+                        radius: Math.max(0.35, t.collisionRadius * 1.15 * blobMul),
                     });
                 }
             }
@@ -2741,7 +2806,30 @@ export class Game {
             if (node instanceof HTMLElement) node.remove();
         }
         disposeScene(this.scene);
+        this.postFx.dispose();
         this.renderer.dispose();
+    }
+
+    /** Scene draw — composer when bloom/vignette are on, otherwise direct. */
+    private renderFrame(): void {
+        if (this.postFx.enabled) this.postFx.render();
+        else this.renderer.render(this.scene, this.rig.camera);
+    }
+
+    /** Vignette / bloom in combat; AO also in build so placement stays readable. */
+    private syncPostFx(): void {
+        const p = prefs();
+        if (this.phase === 'battle') {
+            this.postFx.setEffects(p.vignette, p.bloom, p.ao);
+            this.fireFx.setBloomComp(p.bloom);
+            this.conversionFx.setBloomComp(p.bloom);
+        } else {
+            this.postFx.setEffects('off', 'off', p.ao);
+            this.fireFx.setBloomComp('off');
+            this.conversionFx.setBloomComp('off');
+        }
+        // Winter snow sits above the default bloom floor — lift threshold with cover.
+        this.postFx.setSnowCover(this.scenery.groundSnowCover);
     }
 
     /**
@@ -2940,6 +3028,7 @@ export class Game {
         this.weather?.onRound(this.round, this.hydrating);
         this.phase = 'build';
         this.phaseRemaining = this.deploySeconds();
+        this.syncPostFx();
         // scars fade each round so the field heals over a few battles
         if (this.round > 1) this.map.fadeWear(0.68);
         this.stoneChips.clear(); // high-setting collapse rubble lives until here
@@ -3132,7 +3221,9 @@ export class Game {
             eco.startingSupply + (this.round - 1) * climb.playerSupplyGrowthPerRound;
         for (let seat = 0; seat < this.seats.length; seat++) {
             const amount = this.seats[seat]!.team === 'player' ? playerIncome : aiIncome;
-            this.economy.credit(seat, amount);
+            // the campaign's own round income — same money dial as the normal
+            // path, or the setting would silently do nothing in climb
+            this.economy.creditRoundIncome(seat, amount);
         }
     }
 
@@ -5310,6 +5401,8 @@ export class Game {
 
     voluntaryQuit(): void {
         if (!this.matchOver && !this.disposed) {
+            // every branch below ends in a defeat the player asked for
+            this.endedByOwnChoice = true;
             if (this.star?.role === 'host') {
                 this.starForfeit(this.seats[this.humanSeat]!.team);
                 if (!this.matchOver) this.presentMatchEnd('defeat');
@@ -5944,6 +6037,19 @@ export class Game {
             mix(st.speed);
             mix(st.attackInterval);
             mix(st.splashRadius);
+            // Cleave is handed to the sim outside `statsOf` (cacheCleaveFor),
+            // so a peer disagreeing about Whirlwind would pass every row above
+            // and only show up a round later through hp. Same derivation as
+            // the sim's own, so both sides compute the identical radius.
+            const cleaveTechs = ownedCleaveTechs(a.unit.type, a.unit.seat, (seat, typeId, techId) =>
+                this.unitHasTech(seat, typeId, techId),
+            );
+            mix(
+                Math.max(
+                    a.unit.type.cleave?.radius ?? 0,
+                    ...cleaveTechs.map(({ cleave }) => cleave.radius),
+                ),
+            );
         }
         marks.stats = h >>> 0;
         // Shared hazard layers — must match on both peers before battle. Acid
@@ -8157,6 +8263,7 @@ export class Game {
         this.collapseEndedRound = false;
         this.placement.beginBattle();
         this.phase = 'battle';
+        this.syncPostFx();
         this.phaseRemaining = this.battleSeconds();
         this.placement.enabled = false;
         this.placement.hiddenPlacements = false;
@@ -8977,6 +9084,7 @@ export class Game {
             // flash down-then-up when beginHpDrawPhase sets its display values.
             const pre = this.pendingHpDrawPreHp!;
             this.phase = 'hpDraw';
+            this.syncPostFx();
             this.hpDrawDisplayPlayer = pre.player;
             this.hpDrawDisplayEnemy = pre.enemy;
             return;
@@ -8991,6 +9099,7 @@ export class Game {
                 const mesh = m.mesh;
                 const fall = mesh.userData.deathFall as DeathFallState | undefined;
                 const tip = mesh.userData.deathTip as DeathTipState | undefined;
+                const deathClip = mesh.userData.deathClip as DeathClipState | undefined;
                 const collapse = mesh.userData.buildingCollapse as BuildingCollapseState | undefined;
                 if (fall) {
                     if (
@@ -9008,10 +9117,20 @@ export class Game {
                 } else if (tip && !tickDeathTip(mesh, tip, this.time)) {
                     settleCorpsePose(mesh);
                     clearDeathTip(mesh);
+                } else if (deathClip) {
+                    const wx = unit.world.x + mesh.position.x;
+                    const wz = unit.world.z + mesh.position.z;
+                    deathClip.groundY = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
+                    if (!tickDeathClip(mesh, deathClip, this.time)) {
+                        mesh.userData.corpseTipX = 0;
+                        mesh.userData.corpseTipZ = 0;
+                        mesh.userData.corpseSettled = true;
+                        clearDeathClip(mesh);
+                    }
                 } else if (collapse && !tickBuildingCollapse(mesh, collapse, this.time)) {
                     clearBuildingCollapse(mesh);
                 }
-                if ((unit.type.modelId ?? unit.type.id) === CROW_RIDER_MODEL_ID && mesh.userData.instanced) {
+                if (usesWingFlapModel(unit.type.modelId ?? unit.type.id) && mesh.userData.instanced) {
                     setCrowWingDeathSplay(mesh, crowWingDeathSplay(this.time, fall, tip));
                 }
             }
@@ -9024,6 +9143,7 @@ export class Game {
                 if (
                     m.mesh.userData.deathFall ||
                     m.mesh.userData.deathTip ||
+                    m.mesh.userData.deathClip ||
                     m.mesh.userData.buildingCollapse
                 ) {
                     return true;
@@ -9044,6 +9164,7 @@ export class Game {
         this.pendingHpDrawPlan = null;
         this.pendingHpDrawPreHp = null;
         this.phase = 'hpDraw';
+        this.syncPostFx();
         this.hpDrawElapsed = 0;
         this.hpDrawPrePlayer = pre.player;
         this.hpDrawPreEnemy = pre.enemy;
@@ -9348,7 +9469,11 @@ export class Game {
             // would restart it at zero wins while the board is staged for a
             // later round — a failed lesson is re-entered from the menu instead.
             const allowRetry =
-                result === 'defeat' && !this.star && !this.watching && !isTutorial(this.settings);
+                result === 'defeat' &&
+                !this.endedByOwnChoice &&
+                !this.star &&
+                !this.watching &&
+                !isTutorial(this.settings);
             // A finished lesson offers the one after it, so the set can be played
             // straight through; the last lesson only offers the menu.
             const allowNext =
@@ -9569,6 +9694,7 @@ export class Game {
 
     private resize(width: number, height: number): void {
         this.renderer.setSize(width, height, false);
+        this.postFx.setSize(width, height);
         this.rig.resize(width, height);
     }
 
@@ -9721,7 +9847,8 @@ export class Game {
                     const a = this.sim?.actors[i];
                     if (!a) return null;
                     return {
-                        mesh: a.mesh,
+                        // Animated units: follow the foot-aligned inner model, not the empty proxy
+                        mesh: stuckBoltAttachOf(a.mesh),
                         modelId: a.unit.type.modelId ?? a.unit.type.id,
                         structure: !!a.unit.type.structure,
                     };
@@ -9798,8 +9925,10 @@ export class Game {
                     });
                 }
                 if (profile) cpu.end('battleVisuals');
+                // Pose / foot-align before bolt follow so shafts ride the inner model
+                updateAnimatedUnits(gameDt);
                 this.stuckBolts.sync();
-                this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha);
+                this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha, gameDt);
                 this.dragonFx.update(this.sim.renderElapsed);
                 this.fireFx.setBreathTongues(this.dragonFx.getBreathTongueSamples());
                 this.fireFx.syncProjectileTips(this.sim.projectiles, this.sim.alpha);
@@ -9864,8 +9993,12 @@ export class Game {
             }
         }
         this.map.setSnowCover(this.scenery.groundSnowCover);
+        this.postFx.setSnowCover(this.scenery.groundSnowCover);
         this.map.setHazardTime(this.time);
-        updateAnimatedUnits(gameDt); // rigged walk/fire — scales with battle speed
+        // Battle already advanced mixers before stuckBolts.sync above.
+        if (this.phase !== 'battle') {
+            updateAnimatedUnits(gameDt); // rigged walk/fire — scales with battle speed
+        }
         // Hide “you can move me” hints + disable visual repositioning once
         // End Deployment has locked this seat in.
         this.placement.repositioningEnabled = this.playerCanAct;
@@ -9975,7 +10108,7 @@ export class Game {
         if (profile) cpu.end('hud');
         if (profile) cpu.begin();
         updateScreenShake(dtSeconds);
-        this.renderer.render(this.scene, this.rig.camera);
+        this.renderFrame();
         if (profile) cpu.end('render');
         let mechs = 0;
         let mobile: number | undefined;
@@ -10073,8 +10206,11 @@ export class Game {
         if (prefs().groundEffects === 'off') return;
         for (const e of events) {
             if (e.kind === 'impact' && e.y > 0.25) {
-                if (e.flesh) {
-                    this.map.stampBlood(e.x, e.z, 1.1, 0.55, e.blood);
+                if (e.scar === false) {
+                    // VFX-only hit (e.g. mortar stones) — no ground wear stamp
+                } else if (e.flesh) {
+                    const mul = e.bloodScale ?? 1;
+                    this.map.stampBlood(e.x, e.z, 1.1 * Math.max(0.35, mul), 0.55 * Math.min(mul, 1), e.blood);
                 } else {
                     // grit / soot under masonry and other non-flesh hits
                     this.map.stampScorch(e.x, e.z, e.masonry ? 1.6 : 1.1, e.masonry ? 0.28 : 0.14);
@@ -10097,7 +10233,9 @@ export class Game {
                     );
                 }
             } else if (e.kind === 'explosion') {
-                if (e.rect) {
+                if (e.scar === false) {
+                    // VFX-only blast (e.g. ogre cleave) — no ground wear stamp
+                } else if (e.rect) {
                     // Hammer: rectangular scar = hit zone (HAMMER_ZONE + yaw)
                     this.map.stampWearOrientedRect(
                         e.x,
@@ -10117,7 +10255,7 @@ export class Game {
             } else if (e.kind === 'groundFire') {
                 // Orange-tier only: permanent scar seed. Tongues tier uses live charcoal
                 // from the hazard mask (clears when the blaze dies).
-                if (prefs().fireVfx === 'low') {
+                if (e.scar !== false && prefs().fireVfx === 'low') {
                     this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.55, 1.4), 0.22);
                 }
             } else if (e.kind === 'towerDebuff') {

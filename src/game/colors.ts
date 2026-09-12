@@ -87,6 +87,28 @@ export const LEVEL_TINT_STRENGTH = 0.75;
 const _mul = { r: 1, g: 1, b: 1 };
 
 /**
+ * The level hue as a per-instance MULTIPLY — lerp(white, tint, strength), the
+ * same math {@link applyLevelTintColor} bakes into a material, handed back as
+ * a colour instead. That is what lets one InstancedMesh carry every level at
+ * once: the hue rides `instanceColor` per mech rather than forking the pool.
+ */
+export function levelTintMultiplier(
+    out: Color,
+    level: number,
+    strength = LEVEL_TINT_STRENGTH,
+): Color {
+    const hex =
+        level >= 2 && level < LEVEL_TINT_COLORS.length ? LEVEL_TINT_COLORS[level] : null;
+    if (hex == null) return out.setRGB(1, 1, 1);
+    const t = strength;
+    return out.setRGB(
+        1 - t + (((hex >> 16) & 255) / 255) * t,
+        1 - t + (((hex >> 8) & 255) / 255) * t,
+        1 - t + ((hex & 255) / 255) * t,
+    );
+}
+
+/**
  * Dye material color toward a level hue without washing to pastel.
  * Multiplies the base albedo by lerp(white, tint, strength) — keeps texture,
  * reads as real color instead of sky-blue whitening from color.lerp.

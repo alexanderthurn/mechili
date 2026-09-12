@@ -1,4 +1,5 @@
 import {
+    AnimationMixer,
     Box3,
     BufferAttribute,
     BufferGeometry,
@@ -7,19 +8,22 @@ import {
     Matrix4,
     Mesh,
     MeshStandardMaterial,
+    SkinnedMesh,
     Vector3,
+    type AnimationClip,
     type Object3D,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
+import { touchFirstDevice } from './inputCapabilities';
 import {
     attachBuildingSnow,
     attachBuildingSnowToObject,
     BUILDING_SNOW_IDS,
 } from './buildingSnow';
-import { CROW_RIDER_MODEL_ID, markCrowWingFlapMaterial } from './crowWingFlap';
+import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
 import type { BattleTeam } from './units';
 
 /**
@@ -41,8 +45,22 @@ export interface ModelSpec {
     roll?: number;
     offset?: { x?: number; y?: number; z?: number };
     scale?: number;
+    /**
+     * Extra non-uniform scale after height normalize (local axes). Used to
+     * stretch bat / crow wings wider without growing body height.
+     */
+    stretch?: { x?: number; y?: number; z?: number };
     /** Rigged GLB — keep SkinnedMesh; battle anim is {@link unitAnimated}. */
     skinned?: boolean;
+    /**
+     * Pose a skinned clip then bake to static meshes for InstancedMesh.
+     * `clip`: substring of clip name, or `first` / `longest` / `shortest`.
+     * Default time `0` = first frame.
+     */
+    bakePose?: {
+        clip?: string | 'first' | 'longest' | 'shortest';
+        time?: number;
+    };
 }
 
 export const MODEL_SPECS: Record<string, ModelSpec> = {
@@ -79,9 +97,38 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         skinned: true,
     },
+    hammerer: {
+        url: new URL('../../assets/models/hammerer.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        skinned: true,
+    },
+    ogre: {
+        url: new URL('../../assets/models/ogre.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        skinned: true,
+    },
     wizard: { url: new URL('../../assets/models/wizard.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     ballista: { url: new URL('../../assets/models/ballista.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
+    // Mortar — tube siege; static Tripo mesh (cannon toward facing)
+    mortar: {
+        url: new URL('../../assets/models/mortar.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(180),
+    },
     crowRider: { url: new URL('../../assets/models/crow-rider.glb', import.meta.url).href, yaw: MODEL_FWD_YAW  },
+    // Air chaff (Wasp-like) — wing flap + stretched span for flock silhouette
+    bat: {
+        url: new URL('../../assets/models/bat.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW,
+        stretch: { x: 1.45, z: 1.1 },
+    },
+    goblin: {
+        url: new URL('../../assets/models/goblin.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        scale: 2.85,
+        offset: { y: -0.04 },
+        // skinned walk clip → bake frame 0 into InstancedMesh (no runtime mixer)
+        bakePose: { clip: 'walk', time: 0 },
+    },
     shield: { url: new URL('../../assets/models/shield.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 0.5 }, // ward stone
     rocket: { url: new URL('../../assets/models/rocket.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
     // the two base buildings — distinct castles instead of the shared procedural tower
@@ -319,7 +366,7 @@ function prepareClone(scene: Object3D): Object3D {
     return clone;
 }
 
-/** Yaw, scale to `height`, center on x/z, and sit the base at y=0. */
+/** Yaw, scale to `height`, optional wing stretch, center on x/z, sit base at y=0. */
 function normalize(
     scene: Object3D,
     height: number,
@@ -327,6 +374,7 @@ function normalize(
     pitch?: number,
     roll?: number,
     offset?: { x?: number; y?: number; z?: number },
+    stretch?: { x?: number; y?: number; z?: number },
 ): Group {
     const holder = new Group();
     scene.rotation.y = yaw;
@@ -337,6 +385,11 @@ function normalize(
     const size = box.getSize(new Vector3());
     const s = size.y > 0 ? height / size.y : 1;
     scene.scale.multiplyScalar(s);
+    if (stretch) {
+        if (stretch.x !== undefined) scene.scale.x *= stretch.x;
+        if (stretch.y !== undefined) scene.scale.y *= stretch.y;
+        if (stretch.z !== undefined) scene.scale.z *= stretch.z;
+    }
     box = new Box3().setFromObject(holder);
     const center = box.getCenter(new Vector3());
     scene.position.x -= center.x;
@@ -364,6 +417,7 @@ function bakeInstanceAsset(root: Group): InstanceAsset {
     root.traverse((o) => {
         const mesh = o as Mesh;
         if (!mesh.isMesh || !mesh.geometry) return;
+        if ((mesh as SkinnedMesh).isSkinnedMesh) return; // must be posed+baked first
         const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         // multi-material meshes are rare on these assets; use the first slot
         const mat = mats[0];
@@ -401,6 +455,144 @@ function bakeInstanceAsset(root: Group): InstanceAsset {
     return { parts };
 }
 
+function pickBakeClip(
+    clips: AnimationClip[],
+    pick: NonNullable<ModelSpec['bakePose']>['clip'],
+): AnimationClip | null {
+    if (clips.length === 0) return null;
+    if (pick === undefined || pick === 'first') return clips[0]!;
+    if (pick === 'longest') {
+        return clips.reduce((a, b) => (b.duration > a.duration ? b : a));
+    }
+    if (pick === 'shortest') {
+        return clips.reduce((a, b) => (b.duration < a.duration ? b : a));
+    }
+    const lower = pick.toLowerCase();
+    return clips.find((c) => c.name.toLowerCase().includes(lower)) ?? clips[0]!;
+}
+
+const _skinV = new Vector3();
+const _skinAcc = new Vector3();
+const _skinTmp = new Vector3();
+const _skinN = new Vector3();
+const _skinNAcc = new Vector3();
+const _skinNTmp = new Vector3();
+const _skinBone = new Matrix4();
+const _skinBind = new Matrix4();
+const _skinBindInv = new Matrix4();
+
+/**
+ * Evaluate `clip` at `time` on `root`, then replace every SkinnedMesh with a
+ * static Mesh whose vertices match that pose (for InstancedMesh baking).
+ */
+function bakeSkinnedPose(root: Group, clips: AnimationClip[], pose: NonNullable<ModelSpec['bakePose']>): void {
+    const clip = pickBakeClip(clips, pose.clip);
+    if (!clip) {
+        console.warn('[unitModels] bakePose: no animation clips — leaving bind pose');
+        return;
+    }
+    const time = Math.max(0, Math.min(pose.time ?? 0, Math.max(clip.duration - 1e-4, 0)));
+    const mixer = new AnimationMixer(root);
+    const action = mixer.clipAction(clip);
+    action.play();
+    action.paused = true;
+    action.time = time;
+    mixer.update(0);
+    root.updateMatrixWorld(true);
+
+    const skinned: SkinnedMesh[] = [];
+    root.traverse((o) => {
+        const m = o as SkinnedMesh;
+        if (m.isSkinnedMesh) skinned.push(m);
+    });
+
+    for (const sm of skinned) {
+        sm.skeleton.update();
+        const geo = dequantizeGeometry(sm.geometry);
+        const pos = geo.getAttribute('position');
+        const skinIndex = geo.getAttribute('skinIndex');
+        const skinWeight = geo.getAttribute('skinWeight');
+        if (!pos || !skinIndex || !skinWeight) {
+            console.warn(`[unitModels] bakePose: '${sm.name || '?'}' missing skin attrs`);
+            continue;
+        }
+        _skinBind.copy(sm.bindMatrix);
+        _skinBindInv.copy(sm.bindMatrixInverse);
+        const boneMatrices = sm.skeleton.boneMatrices;
+        if (!boneMatrices) {
+            console.warn(`[unitModels] bakePose: '${sm.name || '?'}' has no boneMatrices`);
+            continue;
+        }
+        // Normals are skinned with the same bone blend as positions (upper
+        // 3x3 via transformDirection), so the model keeps its authored
+        // smoothing. computeVertexNormals() would re-derive them from the
+        // posed triangles and flatten every seam the GLB had softened.
+        const nrm = geo.getAttribute('normal');
+        const out = new Float32Array(pos.count * 3);
+        const outN = nrm ? new Float32Array(nrm.count * 3) : null;
+        for (let i = 0; i < pos.count; i++) {
+            _skinV.fromBufferAttribute(pos, i).applyMatrix4(_skinBind);
+            _skinAcc.set(0, 0, 0);
+            if (nrm) _skinN.fromBufferAttribute(nrm, i).transformDirection(_skinBind);
+            _skinNAcc.set(0, 0, 0);
+            for (let j = 0; j < 4; j++) {
+                const w = skinWeight.getComponent(i, j);
+                if (w === 0) continue;
+                const idx = skinIndex.getComponent(i, j);
+                _skinBone.fromArray(boneMatrices, idx * 16);
+                _skinTmp.copy(_skinV).applyMatrix4(_skinBone).multiplyScalar(w);
+                _skinAcc.add(_skinTmp);
+                if (nrm) {
+                    _skinNTmp.copy(_skinN).transformDirection(_skinBone).multiplyScalar(w);
+                    _skinNAcc.add(_skinNTmp);
+                }
+            }
+            _skinAcc.applyMatrix4(_skinBindInv);
+            out[i * 3] = _skinAcc.x;
+            out[i * 3 + 1] = _skinAcc.y;
+            out[i * 3 + 2] = _skinAcc.z;
+            if (outN) {
+                _skinNAcc.transformDirection(_skinBindInv);
+                outN[i * 3] = _skinNAcc.x;
+                outN[i * 3 + 1] = _skinNAcc.y;
+                outN[i * 3 + 2] = _skinNAcc.z;
+            }
+        }
+        geo.setAttribute('position', new BufferAttribute(out, 3));
+        geo.deleteAttribute('skinIndex');
+        geo.deleteAttribute('skinWeight');
+        if (outN) geo.setAttribute('normal', new BufferAttribute(outN, 3));
+        else geo.computeVertexNormals();
+        geo.computeBoundingSphere();
+
+        const mats = sm.material;
+        const staticMesh = new Mesh(geo, mats);
+        staticMesh.name = sm.name;
+        staticMesh.castShadow = sm.castShadow;
+        staticMesh.receiveShadow = sm.receiveShadow;
+        staticMesh.position.copy(sm.position);
+        staticMesh.quaternion.copy(sm.quaternion);
+        staticMesh.scale.copy(sm.scale);
+        staticMesh.matrixAutoUpdate = sm.matrixAutoUpdate;
+        if (sm.parent) {
+            sm.parent.add(staticMesh);
+            sm.parent.remove(sm);
+        }
+        // don't dispose sm.geometry — GLTF clones often share buffers
+    }
+    mixer.stopAllAction();
+    mixer.uncacheRoot(root);
+
+    // re-sit feet after pose (walk frame can lift the bbox)
+    root.updateMatrixWorld(true);
+    const box = new Box3().setFromObject(root);
+    if (Number.isFinite(box.min.y) && Math.abs(box.min.y) > 1e-4) {
+        root.position.y -= box.min.y;
+        root.updateMatrixWorld(true);
+    }
+    console.info(`[unitModels] bakePose '${clip.name}' @ t=${time.toFixed(3)} → ${skinned.length} mesh(es)`);
+}
+
 const _dq = new Vector3();
 
 /** Clone geometry with float32 (non-normalized) position/normal/uv for safe baking. */
@@ -436,6 +628,42 @@ function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
 }
 
 /**
+ * Models that failed to load, and how to try them again.
+ *
+ * A failed GLB is not just a looks problem: its measured height, half-width
+ * and AttackNode feed the sim and ride in {@link modelGeometryFingerprint}, so
+ * the peer missing one disagrees with everyone at every battle-start barrier.
+ * The host resyncs it — and a resync rebuilds the Game in the same page, where
+ * the memoized preload never reloads anything, so it disagreed again, every
+ * round, for the whole session. Failures now retry: in the background with a
+ * backoff, and again whenever a star guest is resynced. The moment a retry
+ * lands, the fingerprint matches and the loop ends.
+ */
+const failedModels = new Set<string>();
+let lastHeights: Record<string, number> | null = null;
+let retryInFlight: Promise<void> | null = null;
+let retryAttempt = 0;
+const RETRY_DELAYS_MS = [3_000, 10_000, 30_000];
+
+/** Re-load every model that has failed so far. Joins an in-flight retry. */
+export function retryFailedUnitModels(): Promise<void> {
+    if (retryInFlight) return retryInFlight;
+    if (failedModels.size === 0 || !lastHeights) return Promise.resolve();
+    const ids = new Set(failedModels);
+    console.warn(`[unitModels] retrying ${[...ids].join(', ')}`);
+    retryInFlight = loadUnitModels(lastHeights, undefined, ids).finally(() => {
+        retryInFlight = null;
+    });
+    return retryInFlight;
+}
+
+function scheduleModelRetry(): void {
+    if (failedModels.size === 0 || retryAttempt >= RETRY_DELAYS_MS.length) return;
+    const delay = RETRY_DELAYS_MS[retryAttempt++]!;
+    setTimeout(() => void retryFailedUnitModels().then(scheduleModelRetry), delay);
+}
+
+/**
  * Load every spec'd model and bake untinted, normalized templates.
  * Level tint is applied live per pack. `heights` gives each unit's procedural
  * local height. Failures fall back to the procedural mesh.
@@ -443,8 +671,11 @@ function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
 export async function loadUnitModels(
     heights: Record<string, number>,
     onProgress?: (done: number, total: number) => void,
+    /** retry pass: load only these ids (default: every spec) */
+    only?: ReadonlySet<string>,
 ): Promise<void> {
-    const entries = Object.entries(MODEL_SPECS);
+    lastHeights = heights;
+    const entries = Object.entries(MODEL_SPECS).filter(([id]) => !only || only.has(id));
     const total = entries.length;
     const textureBudget = modelTextureBudget();
     let done = 0;
@@ -461,7 +692,11 @@ export async function loadUnitModels(
                 spec.pitch,
                 spec.roll,
                 spec.offset,
+                spec.stretch,
             );
+            if (spec.bakePose && !spec.skinned) {
+                bakeSkinnedPose(root, gltf.animations ?? [], spec.bakePose);
+            }
             // measure after normalize+offset — real top relative to member origin
             const box = new Box3().setFromObject(root);
             visualHeights.set(id, Math.max(box.max.y, 0.05));
@@ -510,13 +745,14 @@ export async function loadUnitModels(
             }
             templates.set(id, root);
             // Rigged units stay on SkinnedMesh + mixer — baking would freeze bind pose.
+            // bakePose models are static after bakeSkinnedPose and use InstancedMesh.
             if (!spec.skinned) {
                 const baked = bakeInstanceAsset(root);
                 if (BUILDING_SNOW_IDS.has(id)) {
                     attachBuildingSnowToObject(root);
                     for (const part of baked.parts) attachBuildingSnow(part.material);
                 }
-                if (id === CROW_RIDER_MODEL_ID) {
+                if (usesWingFlapModel(id)) {
                     for (const part of baked.parts) markCrowWingFlapMaterial(part.material);
                 }
                 instanceAssets.set(id, baked);
@@ -525,22 +761,25 @@ export async function loadUnitModels(
             }
             console.info(
                 `[unitModels] loaded '${id}' from ${spec.url} (height ${visualHeights.get(id)!.toFixed(2)}` +
-                    (spec.skinned ? ', skinned — no InstancedMesh' : '') +
+                    (spec.skinned ? ', skinned — no InstancedMesh' : spec.bakePose ? ', bakePose → InstancedMesh' : '') +
                     ')',
             );
+            failedModels.delete(id);
         } catch (e) {
+            failedModels.add(id);
             console.error(`[unitModels] '${id}' FAILED to load from ${spec.url}; using procedural mesh`, e);
         } finally {
             done += 1;
             onProgress?.(done, total);
         }
     };
-    if (textureBudget) {
-        // budgeted devices decode one model at a time — 15 parallel 2K–4K
+    if (touchFirstDevice()) {
+        // small devices decode one model at a time — 15 parallel 2K–4K
         // texture decodes is exactly the boot spike that kills mobile tabs
         for (const entry of entries) await loadEntry(entry);
     } else {
         await Promise.all(entries.map(loadEntry));
     }
     console.info(`[unitModels] ready: ${[...templates.keys()].join(', ') || '(none)'}`);
+    if (!only) scheduleModelRetry();
 }

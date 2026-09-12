@@ -1,59 +1,47 @@
 {
   "air": {
     "title": "Feiticeiro do Céu",
-    "description": "Unidades aéreas recebem +12% de ataque e HP.",
-    "unitsLabel": "2 Cavaleiros de Corvo · 1 Anão"
+    "description": "Unidades aéreas recebem +12% de ataque e HP."
   },
   "cost": {
     "title": "Príncipe Ganancioso",
-    "description": "Todas as unidades têm -12% de ataque e HP, mas +100 de suprimentos a cada rodada.",
-    "unitsLabel": "2 arqueiros · 1 cavaleiro corvo · 1 anão"
+    "description": "Todas as unidades têm -12% de ataque e HP, mas +100 de suprimentos a cada rodada."
   },
   "elite": {
     "title": "Príncipe de Elite",
-    "description": "Recrutamento no nível 2. +100 de suprimentos na rodada 1.",
-    "unitsLabel": "1× Balista · 1× Anões"
+    "description": "Recrutamento no nível 2. +100 de suprimentos na rodada 1."
   },
   "archer": {
     "title": "Comandante Arqueiro",
-    "description": "Um arqueiro de nível 3 gratuito chega na rodada 2.",
-    "unitsLabel": "3 arqueiros · 2 anões"
+    "description": "Um arqueiro de nível 3 gratuito chega na rodada 2."
   },
   "addi": {
     "title": "Guardião das Relíquias",
-    "description": "Recebe 3 runas Valentia na rodada 1.",
-    "unitsLabel": "1× Cavaleiros de Corvo · 3× Anões"
+    "description": "Recebe 3 runas Valentia na rodada 1."
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Recebe 2 cargas de Meteoro na rodada 2.",
-    "unitsLabel": "1× Mago · 1× Anões"
+    "description": "Recebe 2 cargas de Meteoro na rodada 2."
   },
   "speed": {
-    "title": "Speedy Widow",
-    "unitsLabel": "1× Cavaleiros de Corvo · 1× Arqueiros · 2× Anões"
+    "title": "Speedy Widow"
   },
   "giant": {
-    "title": "Countess Chonk",
-    "unitsLabel": "1× Balista · 1× Anões"
+    "title": "Countess Chonk"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Começa com uma Lição de Campo.",
-    "unitsLabel": "1× Cavaleiros de Corvo · 3× Arqueiros"
+    "description": "Começa com uma Lição de Campo."
   },
   "money": {
-    "title": "Money Queen",
-    "unitsLabel": "2 Cavaleiros de Corvo · 1 Arqueiro"
+    "title": "Money Queen"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Recebe uma aranha da Ninhada Negra grátis a cada rodada.",
-    "unitsLabel": "2 anões · 2 arqueiros"
+    "description": "Recebe uma aranha da Ninhada Negra grátis a cada rodada."
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "As primeiras aparições no flanco levam metade do tempo.",
-    "unitsLabel": "2 anões · 2 arqueiros"
+    "description": "As primeiras aparições no flanco levam metade do tempo."
   }
 }

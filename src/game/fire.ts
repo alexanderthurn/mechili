@@ -103,6 +103,12 @@ export const FIRE_TINT_NORMAL = 0;
  *   capsule: fill 0x121828, line 0x8aa8d8
  */
 export const FIRE_TINT_DRAGON = 1;
+/**
+ * Looks like normal orange fire, but does not bake a permanent wear scorch
+ * (meteor shower). Same heat as {@link FIRE_TINT_NORMAL} — equal-DPS ordinary
+ * fire clears this so scar suppression cannot stick after a real blaze joins.
+ */
+export const FIRE_TINT_NOSCAR = 2;
 
 /**
  * How much an unlit oil slick slows what walks through it: ground units on an
@@ -725,8 +731,11 @@ export class HazardField {
             if (this.fireDps[i]! > intensity) {
                 intensity = this.fireDps[i]!;
                 tint = this.fireTint[i]!;
-            } else if (this.fireDps[i]! === intensity && this.fireTint[i]! === FIRE_TINT_DRAGON) {
-                tint = FIRE_TINT_DRAGON;
+            } else if (this.fireDps[i]! === intensity) {
+                // Equal heat: dragon wins look; otherwise prefer scar-capable
+                // over NOSCAR so oil spread does not inherit meteor suppression.
+                if (this.fireTint[i]! === FIRE_TINT_DRAGON) tint = FIRE_TINT_DRAGON;
+                else if (tint === FIRE_TINT_NOSCAR) tint = this.fireTint[i]!;
             }
             if (this.oilExpires[i]! !== 0) seeds.push(i);
             const cx = i % this.cellCols;
@@ -759,6 +768,15 @@ export class HazardField {
             this.fireTint[i] = tint;
         } else if (intensity === prevDps && tint === FIRE_TINT_DRAGON) {
             this.fireTint[i] = FIRE_TINT_DRAGON;
+        } else if (
+            intensity === prevDps &&
+            this.fireTint[i] === FIRE_TINT_NOSCAR &&
+            tint !== FIRE_TINT_NOSCAR
+        ) {
+            // Same heat, but scar-capable (or dragon) fire joins — drop meteor
+            // "no scar" so wear can bake. NOSCAR must not stick once ordinary
+            // blaze of equal DPS occupies the cell.
+            this.fireTint[i] = tint;
         } else if (tint === FIRE_TINT_DRAGON && prevDps > 0) {
             // dragon wash over an existing weaker-or-equal blaze keeps the azure look
             this.fireTint[i] = FIRE_TINT_DRAGON;

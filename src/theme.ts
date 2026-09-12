@@ -73,7 +73,7 @@ export const THEME = {
         bladeDark: '#3c7c30',
         bladeBright: '#8ad85e',
         // rare wildflower dots
-        flowers: ['#fff8f0', '#ffd84d', '#ffa8b8'],
+        flowers: ['#d2c4ae', '#e0b830', '#e898a8'],
         // faint worn-earth patches
         dirt: 'rgba(138, 122, 78, 0.5)',
         // edge darkening — kept very light so the field blends into the outer meadow
@@ -5447,6 +5447,27 @@ ${chatFloatStyles(u, pc, ec)}
     gap: 16px;
     /* Match shop grid content width (274px panel − horizontal padding) */
     width: min(92vw, 248px);
+}
+/* Tablet+ — cost bands sit side by side so the modal uses the middle of
+   the screen instead of a phone-narrow vertical stack. Phone keeps the
+   column above (same 599px break as the compact HUD). */
+@media (min-width: 600px) {
+    .mechili-cards.unlock-dialog .unlock-picker {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 20px 28px;
+        width: min(92vw, 720px);
+    }
+    .mechili-cards.unlock-dialog .unlock-tier {
+        flex: 0 0 auto;
+        align-items: flex-start;
+    }
+    /* Shop grid is width:100% for the docked panel; size to tiles here. */
+    .mechili-cards.unlock-dialog .unlock-picker .shop-grid {
+        width: auto;
+    }
 }
 .mechili-cards .unlock-tier {
     display: flex;

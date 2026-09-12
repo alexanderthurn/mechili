@@ -1,59 +1,47 @@
 {
   "air": {
     "title": "ساحر السماء",
-    "description": "وحدات الجو تحصل على +12% هجوم وصحة.",
-    "unitsLabel": "2× فرسان الغراب · 1× أقزام"
+    "description": "وحدات الجو تحصل على +12% هجوم وصحة."
   },
   "cost": {
     "title": "الأمير الطماع",
-    "description": "كل الوحدات −12% هجوم وصحة، لكن +100 إمداد كل جولة.",
-    "unitsLabel": "2× رماة · 1× فرسان الغراب · 1× أقزام"
+    "description": "كل الوحدات −12% هجوم وصحة، لكن +100 إمداد كل جولة."
   },
   "elite": {
     "title": "أمير النخبة",
-    "description": "التجنيد عند المستوى 2. +100 إمداد في الجولة 1.",
-    "unitsLabel": "1× منجنيق · 1× أقزام"
+    "description": "التجنيد عند المستوى 2. +100 إمداد في الجولة 1."
   },
   "archer": {
     "title": "قائد الرماة",
-    "description": "رامٍ مجاني من المستوى 3 يصل في الجولة 2.",
-    "unitsLabel": "3× رماة · 2× أقزام"
+    "description": "رامٍ مجاني من المستوى 3 يصل في الجولة 2."
   },
   "addi": {
     "title": "حارس الآثار",
-    "description": "يحصل على 3× رون البسالة في الجولة 1.",
-    "unitsLabel": "1× فرسان الغراب · 3× أقزام"
+    "description": "يحصل على 3× رون البسالة في الجولة 1."
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "يحصل على شحنتي نيزك في الجولة 2.",
-    "unitsLabel": "1× ساحر · 1× أقزام"
+    "description": "يحصل على شحنتي نيزك في الجولة 2."
   },
   "speed": {
-    "title": "Speedy Widow",
-    "unitsLabel": "1× فرسان الغراب · 1× رماة · 2× أقزام"
+    "title": "Speedy Widow"
   },
   "giant": {
-    "title": "Countess Chonk",
-    "unitsLabel": "1× منجنيق · 1× أقزام"
+    "title": "Countess Chonk"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "تبدأ بدرس ميداني واحد.",
-    "unitsLabel": "1× فرسان الغراب · 3× رماة"
+    "description": "تبدأ بدرس ميداني واحد."
   },
   "money": {
-    "title": "Money Queen",
-    "unitsLabel": "2× فرسان الغراب · 1× رماة"
+    "title": "Money Queen"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "تحصل على عنكبوت حضنة سوداء مجاني كل جولة.",
-    "unitsLabel": "2× أقزام · 2× رماة"
+    "description": "تحصل على عنكبوت حضنة سوداء مجاني كل جولة."
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "أول ظهور من الجناح يستغرق نصف الوقت.",
-    "unitsLabel": "2× أقزام · 2× رماة"
+    "description": "أول ظهور من الجناح يستغرق نصف الوقت."
   }
 }

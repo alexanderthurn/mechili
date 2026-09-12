@@ -239,7 +239,13 @@
     "shadowsHint": "Flecken / Sonnenkarte",
     "showDead": "Tote Einheiten anzeigen",
     "antialias": "Kantenglättung",
-    "antialiasHint": "glattere Kanten · nächstes Spiel"
+    "antialiasHint": "glattere Kanten · nächstes Spiel",
+    "vignette": "Vignette",
+    "vignetteHint": "dunklere Ränder im Kampf",
+    "bloom": "Bloom",
+    "bloomHint": "Leuchten bei Feuer & Magie · Kampf",
+    "ao": "Umgebungsverdeckung",
+    "aoHint": "Einheiten sitzen fester auf dem Boden"
   },
   "mpHintMatchmaking": "Online-Räume über PeerJS + Serverliste. Internetverbindung erforderlich."
 }

@@ -1,59 +1,47 @@
 {
   "air": {
     "title": "Stregone del Cielo",
-    "description": "Le unità aeree ottengono +12% di attacco e punti vita.",
-    "unitsLabel": "2× Cavalieri Corvo · 1× Nani"
+    "description": "Le unità aeree ottengono +12% di attacco e punti vita."
   },
   "cost": {
     "title": "Principe avido",
-    "description": "Tutte le unità subiscono una riduzione del 12% all'attacco e ai punti vita, ma ottengono +100 di rifornimento a ogni turno.",
-    "unitsLabel": "2 arcieri · 1 cavaliere corvo · 1 nano"
+    "description": "Tutte le unità subiscono una riduzione del 12% all'attacco e ai punti vita, ma ottengono +100 di rifornimento a ogni turno."
   },
   "elite": {
     "title": "Principe d'élite",
-    "description": "Reclutamento al livello 2. +100 di rifornimenti nel round 1.",
-    "unitsLabel": "1× Balista · 1× Nani"
+    "description": "Reclutamento al livello 2. +100 di rifornimenti nel round 1."
   },
   "archer": {
     "title": "Comandante degli arcieri",
-    "description": "Un arciere di livello 3 gratuito arriva al secondo round.",
-    "unitsLabel": "3 arcieri · 2 nani"
+    "description": "Un arciere di livello 3 gratuito arriva al secondo round."
   },
   "addi": {
     "title": "Custode delle reliquie",
-    "description": "Ottiene 3 rune Valore nel round 1.",
-    "unitsLabel": "1× Cavalieri Corvo · 3× Nani"
+    "description": "Ottiene 3 rune Valore nel round 1."
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Ottiene 2 cariche Meteora nel round 2.",
-    "unitsLabel": "1× Mago · 1× Nano"
+    "description": "Ottiene 2 cariche Meteora nel round 2."
   },
   "speed": {
-    "title": "Speedy Widow",
-    "unitsLabel": "1× Cavalieri Corvo · 1× Arcieri · 2× Nani"
+    "title": "Speedy Widow"
   },
   "giant": {
-    "title": "Countess Chonk",
-    "unitsLabel": "1× Balista · 1× Nani"
+    "title": "Countess Chonk"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Inizia con una Lezione sul campo.",
-    "unitsLabel": "1× Cavalieri Corvo · 3× Arcieri"
+    "description": "Inizia con una Lezione sul campo."
   },
   "money": {
-    "title": "Money Queen",
-    "unitsLabel": "2× Cavalieri Corvo · 1× Arcieri"
+    "title": "Money Queen"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Ottiene un ragno Covata Nera gratis ogni round.",
-    "unitsLabel": "2 nani · 2 arcieri"
+    "description": "Ottiene un ragno Covata Nera gratis ogni round."
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Le prime apparizioni sui fianchi richiedono la metà del tempo.",
-    "unitsLabel": "2 nani · 2 arcieri"
+    "description": "Le prime apparizioni sui fianchi richiedono la metà del tempo."
   }
 }

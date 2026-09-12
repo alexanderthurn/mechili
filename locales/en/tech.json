@@ -61,10 +61,19 @@
   "darkHarvest": {
     "name": "Dark Harvest"
   },
+  "whirlwind": {
+    "name": "Whirlwind",
+    "description": "Wider cleave — hits every enemy in a large disk around this unit."
+  },
+  "bloodRage": {
+    "name": "Blood Rage",
+    "description": "+30% move speed and +33% attack speed."
+  },
   "_auto": {
     "modHp": "{{pct}} HP",
     "modDamage": "{{pct}} damage",
     "modRange": "{{pct}} range",
+    "modRangeAdd": "{{amount}} range",
     "modSpeed": "{{pct}} move speed",
     "modAttackSpeed": "{{pct}} attack speed",
     "modSplash": "{{mult}}× splash radius",

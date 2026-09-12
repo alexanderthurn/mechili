@@ -23,6 +23,15 @@
   "dwarf": {
     "name": "Dwarf"
   },
+  "goblin": {
+    "name": "Goblin"
+  },
+  "hammerer": {
+    "name": "Hammerer"
+  },
+  "ogre": {
+    "name": "Ogre"
+  },
   "archer": {
     "name": "Archer"
   },
@@ -31,6 +40,12 @@
   },
   "crowRider": {
     "name": "Crow Rider"
+  },
+  "bat": {
+    "name": "Bat"
+  },
+  "mortar": {
+    "name": "Mortar"
   },
   "ballista": {
     "name": "Ballista"

@@ -1,59 +1,47 @@
 {
   "air": {
     "title": "จอมเวทท้องฟ้า",
-    "description": "ยูนิตอากาศได้ +12% การโจมตีและ HP",
-    "unitsLabel": "2× ผู้ขี่กา · 1× คนแคระ"
+    "description": "ยูนิตอากาศได้ +12% การโจมตีและ HP"
   },
   "cost": {
     "title": "เจ้าชายโลภ",
-    "description": "ยูนิตทั้งหมด −12% การโจมตีและ HP แต่ +100 เสบียงทุกรอบ",
-    "unitsLabel": "2× นักธนู · 1× ผู้ขี่กา · 1× คนแคระ"
+    "description": "ยูนิตทั้งหมด −12% การโจมตีและ HP แต่ +100 เสบียงทุกรอบ"
   },
   "elite": {
     "title": "เจ้าชายชั้นยอด",
-    "description": "รับสมัครที่เลเวล 2 +100 เสบียงในรอบ 1",
-    "unitsLabel": "1× บัลลิสตา · 1× คนแคระ"
+    "description": "รับสมัครที่เลเวล 2 +100 เสบียงในรอบ 1"
   },
   "archer": {
     "title": "ผู้บัญชาการนักธนู",
-    "description": "นักธนูเลเวล 3 ฟรีมาในรอบ 2",
-    "unitsLabel": "3× นักธนู · 2× คนแคระ"
+    "description": "นักธนูเลเวล 3 ฟรีมาในรอบ 2"
   },
   "addi": {
     "title": "ผู้พิทักษ์ของเก่า",
-    "description": "ได้รูนความกล้า 3× ในรอบ 1",
-    "unitsLabel": "1× ผู้ขี่กา · 3× คนแคระ"
+    "description": "ได้รูนความกล้า 3× ในรอบ 1"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "ได้ชาร์จอุกกาบาต 2 ในรอบ 2",
-    "unitsLabel": "1× พ่อมด · 1× คนแคระ"
+    "description": "ได้ชาร์จอุกกาบาต 2 ในรอบ 2"
   },
   "speed": {
-    "title": "Speedy Widow",
-    "unitsLabel": "1× ผู้ขี่กา · 1× นักธนู · 2× คนแคระ"
+    "title": "Speedy Widow"
   },
   "giant": {
-    "title": "Countess Chonk",
-    "unitsLabel": "1× บัลลิสตา · 1× คนแคระ"
+    "title": "Countess Chonk"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "เริ่มด้วยบทเรียนสนามหนึ่งครั้ง",
-    "unitsLabel": "1× ผู้ขี่กา · 3× นักธนู"
+    "description": "เริ่มด้วยบทเรียนสนามหนึ่งครั้ง"
   },
   "money": {
-    "title": "Money Queen",
-    "unitsLabel": "2× ผู้ขี่กา · 1× นักธนู"
+    "title": "Money Queen"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "ได้แมงมุมฝูงดำฟรีหนึ่งตัวทุกรอบ",
-    "unitsLabel": "2× คนแคระ · 2× นักธนู"
+    "description": "ได้แมงมุมฝูงดำฟรีหนึ่งตัวทุกรอบ"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "การเกิดปีกข้างครั้งแรกใช้เวลาน้อยลงครึ่งหนึ่ง",
-    "unitsLabel": "2× คนแคระ · 2× นักธนู"
+    "description": "การเกิดปีกข้างครั้งแรกใช้เวลาน้อยลงครึ่งหนึ่ง"
   }
 }

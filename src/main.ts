@@ -1,4 +1,5 @@
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
+import { retryFailedUnitModels } from './game/unitModels';
 import type { LoggedAction } from './game/actions';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, emoteById, type ChatItem } from './game/emotes';
 import { ChatBar } from './ui/chatBar';
@@ -47,7 +48,6 @@ import {
     type PeerServerConfig,
     type SinglePlayerSave,
     type SpectatorLink,
-    type StarGuestSession,
     type StarRole,
 } from './game/net';
 import * as sebNative from 'steam-electron-build/native';
@@ -100,14 +100,19 @@ import {
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
     DEFAULT_HORDE_PRESET_ID,
+    DEFAULT_MONEY_FACTOR,
     DEFAULT_SETTINGS,
     HORDE_ALGORITHMS,
+    MONEY_FACTOR_OPTIONS,
     commanderHpFactorOption,
     customGamePaceById,
     formatCommanderHpFactorOption,
     formatCustomGamePaceOption,
+    formatMoneyFactorOption,
     hordeAlgorithmById,
+    moneyFactorOption,
     resolveCommanderHpFactor,
+    resolveMoneyFactor,
     type GameSettings,
 } from './game/settings';
 import { applyTutorialMode } from './game/tutorial';
@@ -116,7 +121,7 @@ import {
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
 } from './game/roundCardAlgorithms';
-import { duoSeats, localizeRoster, canonicalClassicSeats, type CanonicalSeatDef, type SeatId } from './game/seats';
+import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { initI18n, onLanguageChange, t } from './i18n';
 import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
 
@@ -201,6 +206,7 @@ const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     hordePreset: DEFAULT_HORDE_PRESET_ID,
     roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
     commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+    moneyFactor: DEFAULT_MONEY_FACTOR,
     strongholdMode: DEFAULT_STRONGHOLD_MODE,
 };
 
@@ -251,6 +257,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             hordePreset: hordeAlgorithmById(hordePreset).id,
             roundCardPreset: roundCardAlgorithmById(roundCardPreset).id,
             commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor),
+            moneyFactor: moneyFactorOption(parsed.moneyFactor),
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
         };
     } catch {
@@ -275,6 +282,7 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.roundCardPreset = roundCardAlgorithmById(cfg.roundCardPreset).id;
     settings.hordePreset = hordeAlgorithmById(cfg.hordePreset).id;
     settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
+    settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
 }
 
@@ -284,6 +292,8 @@ function settingsFromUrl(): GameSettings {
     const settings = structuredClone(DEFAULT_SETTINGS);
     const hpFactor = Number(params.get('commanderHpFactor') ?? params.get('hpFactor'));
     if (hpFactor > 0) settings.commanderHpFactor = hpFactor;
+    const moneyFactor = Number(params.get('moneyFactor') ?? params.get('money'));
+    if (moneyFactor > 0) settings.moneyFactor = moneyFactor;
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
     // no ?horde=1 opt-in anymore — the menu forces applyHordeMode itself
@@ -1088,6 +1098,9 @@ menu.innerHTML = `
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:hp"></span>
                     <select class="cg-commander-hp"></select>
                 </label>
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:money"></span>
+                    <select class="cg-money"></select>
+                </label>
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
                 </label>
@@ -1241,6 +1254,7 @@ const cgPaceEl = menu.querySelector<HTMLSelectElement>('.cg-pace')!;
 const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
 const cgRoundCardsEl = menu.querySelector<HTMLSelectElement>('.cg-roundcards')!;
 const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp')!;
+const cgMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-money')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
@@ -1465,6 +1479,14 @@ for (const optHp of COMMANDER_HP_FACTOR_OPTIONS) {
 }
 wireSelectShortLabels(cgCommanderHpEl);
 
+for (const optMoney of MONEY_FACTOR_OPTIONS) {
+    const opt = document.createElement('option');
+    opt.value = String(optMoney.factor);
+    fillSelectOption(opt, optMoney.label, formatMoneyFactorOption(optMoney));
+    cgMoneyEl.appendChild(opt);
+}
+wireSelectShortLabels(cgMoneyEl);
+
 for (const optSh of STRONGHOLD_MODE_OPTIONS) {
     const opt = document.createElement('option');
     opt.value = optSh.mode;
@@ -1475,13 +1497,14 @@ wireSelectShortLabels(cgStrongholdEl);
 
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'strongholdMode'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode'
 > {
     return {
         pace: DEFAULT_CUSTOM_GAME_PACE_ID,
         hordePreset: DEFAULT_HORDE_PRESET_ID,
         roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
         commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+        moneyFactor: DEFAULT_MONEY_FACTOR,
         strongholdMode: DEFAULT_STRONGHOLD_MODE,
     };
 }
@@ -1491,7 +1514,8 @@ function isNonDefaultLobbySettings(cfg: CustomGameConfig): boolean {
         cfg.pace !== DEFAULT_CUSTOM_GAME_PACE_ID ||
         cfg.hordePreset !== DEFAULT_HORDE_PRESET_ID ||
         cfg.roundCardPreset !== DEFAULT_ROUND_CARD_PRESET_ID ||
-        cfg.commanderHpFactor !== DEFAULT_COMMANDER_HP_FACTOR
+        cfg.commanderHpFactor !== DEFAULT_COMMANDER_HP_FACTOR ||
+        cfg.moneyFactor !== DEFAULT_MONEY_FACTOR
     );
 }
 
@@ -1505,10 +1529,11 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgHordeEl.value = hordeAlgorithmById(cfg.hordePreset).id;
     cgRoundCardsEl.value = roundCardAlgorithmById(cfg.roundCardPreset).id;
     cgCommanderHpEl.value = String(commanderHpFactorOption(cfg.commanderHpFactor));
+    cgMoneyEl.value = String(moneyFactorOption(cfg.moneyFactor));
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
     // Always short in the closed box — hosts open the list for details;
     // guests get a hover/tap tip (see wireLobbySettingTips).
-    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl]) {
+    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl]) {
         syncSelectOptionLabels(sel, false);
     }
     syncLobbySettingsResetVisibility(cfg);
@@ -1576,7 +1601,7 @@ function showLobbySettingTip(anchor: HTMLElement, text: string, sticky: boolean)
  *  tap — disabled <select>s don't receive pointer events, so the parent
  *  .m-field owns the interaction. */
 function wireLobbySettingTips(): void {
-    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl]) {
+    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl]) {
         const field = sel.closest<HTMLElement>('.m-field');
         if (!field) continue;
         field.addEventListener('pointerenter', (e) => {
@@ -1610,13 +1635,14 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'strongholdMode'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode'
 > {
     return {
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
         commanderHpFactor: commanderHpFactorOption(Number(cgCommanderHpEl.value)),
+        moneyFactor: moneyFactorOption(Number(cgMoneyEl.value)),
         strongholdMode: strongholdModeOption(cgStrongholdEl.value),
     };
 }
@@ -2100,6 +2126,7 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null =
     cgHordeEl.addEventListener('change', onChange);
     cgRoundCardsEl.addEventListener('change', onChange);
     cgCommanderHpEl.addEventListener('change', onChange);
+    cgMoneyEl.addEventListener('change', onChange);
     cgResetEl.addEventListener('click', () => {
         if (!activeLobbyHost) return;
         Object.assign(activeLobbyHost.config, defaultLobbySettings());
@@ -2128,6 +2155,7 @@ function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () =
     cgHordeEl.disabled = false;
     cgRoundCardsEl.disabled = false;
     cgCommanderHpEl.disabled = false;
+    cgMoneyEl.disabled = false;
     cgResetEl.disabled = false;
     populateLobbySettingsForm(config);
 }
@@ -2150,6 +2178,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgHordeEl.disabled = true;
     cgRoundCardsEl.disabled = true;
     cgCommanderHpEl.disabled = true;
+    cgMoneyEl.disabled = true;
     cgResetEl.disabled = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
@@ -3159,6 +3188,11 @@ function rebuildStarGuestGame(
     // real race across ticks
     if (starResyncInFlight) return;
     starResyncInFlight = true;
+    // A resync that exists because this client's model geometry disagrees can
+    // only end if the model it missed finally loads — the rebuild below reuses
+    // the same page and would otherwise disagree again next round. The next
+    // battle-start barrier picks up whatever lands.
+    void retryFailedUnitModels();
     try {
         activeGame?.destroy({ keepStarSession: true });
         activeGame = null;
