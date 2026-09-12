@@ -19,6 +19,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { colorForUnit } from './colors';
+import type { BloomQuality } from './prefs';
 import { isSecondarySeat, type SeatDef } from './seats';
 import { actorSeat, actorTeam, type Actor } from './sim';
 import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
@@ -93,6 +94,9 @@ export class ConversionFx {
     private readonly coreMat: MeshBasicMaterial;
     private readonly glowMat: MeshBasicMaterial;
     private readonly texture: Texture;
+    /** >1 when selective bloom is on — push HDR so the beam feeds UnrealBloom. */
+    private bloomBoost = 1;
+    private glowWidthMul = 1.85;
     roster: SeatDef[] = [];
 
     constructor(scene: Scene) {
@@ -144,6 +148,30 @@ export class ConversionFx {
     }
 
     /**
+     * When bloom is on, raise beam HDR / widen the glow card so the ray gets a
+     * real screen-space halo (the soft look with bloom off is just additive cards).
+     */
+    setBloomComp(bloom: BloomQuality): void {
+        if (bloom === 'off') {
+            this.bloomBoost = 1;
+            this.glowWidthMul = 1.85;
+            this.coreMat.color.setRGB(1, 1, 1);
+            this.glowMat.color.setRGB(0.66, 0.97, 1);
+            return;
+        }
+        if (bloom === 'high') {
+            this.bloomBoost = 2.1;
+            this.glowWidthMul = 2.35;
+        } else {
+            this.bloomBoost = 2.6;
+            this.glowWidthMul = 2.55;
+        }
+        const b = this.bloomBoost;
+        this.coreMat.color.setRGB(b, b, b);
+        this.glowMat.color.setRGB(0.66 * b, 0.97 * b, 1 * b);
+    }
+
+    /**
      * Draw a beam from every living caster with an active convert ray.
      * Tip comes from the sim (`convertRayTip*`) so ward blocks clip the beam.
      * Origin prefers GLB `AttackNode` (else chest height); uses interpolated rx/rz.
@@ -155,7 +183,7 @@ export class ConversionFx {
 
         const pulse = 0.92 + 0.08 * Math.sin(simTime * 12);
         this.coreMat.opacity = pulse;
-        this.glowMat.opacity = 0.55 + 0.2 * pulse;
+        this.glowMat.opacity = (0.55 + 0.2 * pulse) * (this.bloomBoost > 1 ? 0.85 : 1);
 
         let n = 0;
         for (const caster of actors) {
@@ -202,7 +230,7 @@ export class ConversionFx {
             _mat.compose(_pos, _quat, _scale);
             this.core.setMatrixAt(n, _mat);
 
-            _scale.set(width * 1.85, len, width * 1.85);
+            _scale.set(width * this.glowWidthMul, len, width * this.glowWidthMul);
             _mat.compose(_pos, _quat, _scale);
             this.glow.setMatrixAt(n, _mat);
 

@@ -2,7 +2,7 @@ import { Color, PointLight, type Scene } from 'three';
 import { groundSupportAt } from './map';
 import { FIRE_TINT_DRAGON } from './fire';
 import type { HazardField } from './fire';
-import { prefs, type FireVfxQuality } from './prefs';
+import { prefs, type BloomQuality, type FireVfxQuality } from './prefs';
 import type { Particles } from './effects';
 import { boltTipWorldOffset } from './effects';
 import { FlameRenderer, type BreathTongueSample } from './flameRenderer';
@@ -12,6 +12,13 @@ export type { BreathTongueSample };
 
 function usesTongues(q: FireVfxQuality): boolean {
     return q === 'medium' || q === 'high';
+}
+
+/** Tongue / fire-light HDR scale when bloom is active (1 = authored look). */
+function bloomFireGain(bloom: BloomQuality): number {
+    if (bloom === 'high') return 0.4;
+    if (bloom === 'ultra') return 0.34;
+    return 1;
 }
 
 /** True when flame tongues are drawn (medium/high fire VFX). */
@@ -37,6 +44,7 @@ const LIGHT_AZURE = new Color(0xe07040);
  */
 export class FireFx {
     private quality: FireVfxQuality = prefs().fireVfx;
+    private bloomGain = 1;
     private emitAcc = 0;
     private smokeAcc = 0;
     private burnAcc = 0;
@@ -66,6 +74,12 @@ export class FireFx {
         this.quality = q;
         this.flames.setQuality(q);
         if (!usesTongues(q)) this.fireLight.intensity = 0;
+    }
+
+    /** Keep fire readable under selective bloom (tongues + shared point light). */
+    setBloomComp(bloom: BloomQuality): void {
+        this.bloomGain = bloomFireGain(bloom);
+        this.flames.setBloomGain(this.bloomGain);
     }
 
     /** drop continuous fire VFX (call when the battle ends — flames are battle-only) */
@@ -166,7 +180,8 @@ export class FireFx {
         const size = Math.min(1, total / 24); // small fires glow less
         this.fireLight.color.copy(LIGHT_ORANGE).lerp(LIGHT_AZURE, dragon / total);
         this.fireLight.position.set(bestX, groundSupportAt(bestX, bestZ) + 2.4, bestZ);
-        this.fireLight.intensity = (this.quality === 'high' ? 260 : 170) * size * flicker;
+        this.fireLight.intensity =
+            (this.quality === 'high' ? 260 : 170) * size * flicker * this.bloomGain;
         this.fireLight.distance = 30 + 26 * size;
     }
 

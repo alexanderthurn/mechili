@@ -87,6 +87,7 @@ const FLAME_VERT = /* glsl */ `
 
 const FLAME_FRAG_ADDITIVE = /* glsl */ `
     uniform float uTime;
+    uniform float uGain;
     varying vec2 vUv;
     varying float vPhase;
     varying float vTint;
@@ -118,7 +119,9 @@ const FLAME_FRAG_ADDITIVE = /* glsl */ `
         azure = mix(azure, vec3(1.0, 0.88, 0.5), core * core);
         azure = mix(azure, vec3(0.15, 0.2, 0.65), (1.0 - body) * 0.55);
         vec3 col = mix(orange, azure, vTint);
-        gl_FragColor = vec4(col * 1.65, a);
+        // uGain < 1 when selective bloom is on — tongues are authored hot/additive;
+        // without this, bloom turns big blazes into white sheets.
+        gl_FragColor = vec4(col * 1.65 * uGain, a);
     }
 `;
 
@@ -162,7 +165,7 @@ export class FlameRenderer {
         geometry.setAttribute('aSpeed', this.speeds);
 
         this.material = new ShaderMaterial({
-            uniforms: { uTime: { value: 0 } },
+            uniforms: { uTime: { value: 0 }, uGain: { value: 1 } },
             transparent: true,
             depthWrite: false,
             blending: AdditiveBlending,
@@ -185,7 +188,7 @@ export class FlameRenderer {
         breathGeo.setAttribute('aSpeed', this.breathSpeeds);
 
         this.breathMaterial = new ShaderMaterial({
-            uniforms: { uTime: { value: 0 } },
+            uniforms: { uTime: { value: 0 }, uGain: { value: 1 } },
             transparent: true,
             depthWrite: false,
             depthTest: true,
@@ -213,6 +216,16 @@ export class FlameRenderer {
             this.breathMesh.visible = false;
             this.breathMesh.count = 0;
         }
+    }
+
+    /**
+     * When selective bloom is on, pull tongue HDR gain down so stacked additives
+     * don't nuke the frame; bloom restores the soft halo.
+     */
+    setBloomGain(gain: number): void {
+        const g = Math.max(0.05, gain);
+        this.material.uniforms.uGain!.value = g;
+        this.breathMaterial.uniforms.uGain!.value = g;
     }
 
     /** Dragon breath column anchors for this frame (cleared when empty). */

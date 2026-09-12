@@ -1357,7 +1357,6 @@ export class Game {
         this.renderer.toneMappingExposure = touchFirstDevice() ? 1.0 : 1.08;
         this.renderer.setPixelRatio(effectiveDpr());
         this.postFx = new PostFx(this.renderer, this.scene, this.rig.camera);
-        this.syncPostFx();
 
         this.scene.background = new Color(THEME.sky);
         // scenery 'off' plays without any fog or weather
@@ -1420,6 +1419,7 @@ export class Game {
         this.cloudFx = new CloudFx(this.scene);
         this.dragonFx = new DragonFx(this.scene);
         this.conversionFx = new ConversionFx(this.scene);
+        this.syncPostFx();
         this.oilDripFx = new OilDripFx(this.scene);
         this.hordeMarkers = new HordeMarkers(this.scene);
         this.strongholdCommanders = new StrongholdCommanders(this.scene);
@@ -2756,15 +2756,24 @@ export class Game {
         this.renderer.dispose();
     }
 
-    /** Scene draw — composer when vignette is on, otherwise direct. */
+    /** Scene draw — composer when bloom/vignette are on, otherwise direct. */
     private renderFrame(): void {
         if (this.postFx.enabled) this.postFx.render();
         else this.renderer.render(this.scene, this.rig.camera);
     }
 
-    /** Vignette only during combat — build / HP-draw stay clean for placement UI. */
+    /** Vignette / bloom only during combat — build / HP-draw stay clean for placement UI. */
     private syncPostFx(): void {
-        this.postFx.setQuality(this.phase === 'battle' ? prefs().vignette : 'off');
+        if (this.phase === 'battle') {
+            const p = prefs();
+            this.postFx.setEffects(p.vignette, p.bloom);
+            this.fireFx.setBloomComp(p.bloom);
+            this.conversionFx.setBloomComp(p.bloom);
+        } else {
+            this.postFx.setEffects('off', 'off');
+            this.fireFx.setBloomComp('off');
+            this.conversionFx.setBloomComp('off');
+        }
     }
 
     /**

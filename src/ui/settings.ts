@@ -112,6 +112,8 @@ export function openSettings(parent: HTMLElement): void {
         setLabel('.s-aa-hint', 'settings:gfx.antialiasHint');
         setLabel('.s-vignette-label', 'settings:gfx.vignette');
         setLabel('.s-vignette-hint', 'settings:gfx.vignetteHint');
+        setLabel('.s-bloom-label', 'settings:gfx.bloom');
+        setLabel('.s-bloom-hint', 'settings:gfx.bloomHint');
         setLabel('.s-uiscale-label', 'settings:gfx.uiSize');
         setLabel('.s-uiscale-hint', 'settings:gfx.uiHint');
         const fillOpts = (selectSel: string, map: Record<string, string>) => {
@@ -137,7 +139,11 @@ export function openSettings(parent: HTMLElement): void {
         fillOpts('.s-vignette', {
             ultra: 'settings:gfx.presetUltra',
             high: 'settings:gfx.presetHigh',
-            medium: 'settings:gfx.presetMedium',
+            off: 'settings:gfx.presetOff',
+        });
+        fillOpts('.s-bloom', {
+            ultra: 'settings:gfx.presetUltra',
+            high: 'settings:gfx.presetHigh',
             off: 'settings:gfx.presetOff',
         });
         fillOpts('.s-stuck', {
@@ -285,9 +291,13 @@ export function openSettings(parent: HTMLElement): void {
         `<label class="s-row"><span class="s-vignette-label"></span> <select class="s-vignette">` +
         `<option value="ultra"></option>` +
         `<option value="high"></option>` +
-        `<option value="medium"></option>` +
         `<option value="off"></option>` +
         `</select> <span class="s-hint s-vignette-hint"></span></label>` +
+        `<label class="s-row"><span class="s-bloom-label"></span> <select class="s-bloom">` +
+        `<option value="ultra"></option>` +
+        `<option value="high"></option>` +
+        `<option value="off"></option>` +
+        `</select> <span class="s-hint s-bloom-hint"></span></label>` +
         `</details>` +
         `</section>` +
         `</div>` +
@@ -318,6 +328,7 @@ export function openSettings(parent: HTMLElement): void {
     const dead = overlay.querySelector<HTMLInputElement>('.s-dead')!;
     const aa = overlay.querySelector<HTMLInputElement>('.s-aa')!;
     const vignette = overlay.querySelector<HTMLSelectElement>('.s-vignette')!;
+    const bloom = overlay.querySelector<HTMLSelectElement>('.s-bloom')!;
     const presetButtons = [...overlay.querySelectorAll<HTMLButtonElement>('.s-preset[data-preset]')];
     const customChip = overlay.querySelector<HTMLElement>('.s-custom-chip')!;
     const advanced = overlay.querySelector<HTMLDetailsElement>('.s-advanced')!;
@@ -347,6 +358,7 @@ export function openSettings(parent: HTMLElement): void {
         dead.checked = p.renderDeadUnits;
         aa.checked = p.antialias;
         vignette.value = p.vignette;
+        bloom.value = p.bloom;
         const active = detectGraphicsPreset(p);
         for (const button of presetButtons) {
             button.classList.toggle(
@@ -476,6 +488,10 @@ export function openSettings(parent: HTMLElement): void {
     });
     vignette.addEventListener('change', () => {
         updatePrefs({ vignette: vignette.value as Prefs['vignette'] });
+        syncFromPrefs();
+    });
+    bloom.addEventListener('change', () => {
+        updatePrefs({ bloom: bloom.value as Prefs['bloom'] });
         syncFromPrefs();
     });
 

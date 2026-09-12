@@ -243,6 +243,8 @@
     "antialias": "Antialiasing",
     "antialiasHint": "smoother edges · next match",
     "vignette": "Vignette",
-    "vignetteHint": "darker edges in battle"
+    "vignetteHint": "darker edges in battle",
+    "bloom": "Bloom",
+    "bloomHint": "glow on fire & magic · battle"
   }
 }
