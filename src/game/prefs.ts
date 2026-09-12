@@ -772,17 +772,16 @@ export function prefs(): Prefs {
                     const legacy = legacyPresetOf(cached);
                     if (legacy) cached.antialias = GRAPHICS_PRESETS[legacy].antialias;
                 }
+                // Post passes (vignette / bloom / AO): DEFAULTS spreads the high
+                // preset, which turns them ON. A pref file that predates the keys
+                // must not inherit that silently — a recognisable preset tells us
+                // what the player picked, but a custom setup tells us nothing, and
+                // guessing "on" hands new passes to the machine most likely tuned
+                // down on purpose. Off, and they can opt in from Settings.
                 if (stored.vignette === undefined) {
                     const legacy = legacyPresetOf(cached);
-                    if (legacy) cached.vignette = GRAPHICS_PRESETS[legacy].vignette;
+                    cached.vignette = legacy ? GRAPHICS_PRESETS[legacy].vignette : 'off';
                 }
-                // Bloom and GTAO are the two most expensive passes in the
-                // stack, and DEFAULTS turns both ON (it spreads the high
-                // preset). A pref file that predates the keys must not inherit
-                // that silently: a recognisable preset tells us what the player
-                // picked, but a custom setup tells us nothing, and guessing
-                // "on" there hands two new passes to the machine most likely to
-                // have been tuned down on purpose. Off, and they can opt in.
                 if (stored.bloom === undefined) {
                     const legacy = legacyPresetOf(cached);
                     cached.bloom = legacy ? GRAPHICS_PRESETS[legacy].bloom : 'off';

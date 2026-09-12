@@ -258,8 +258,10 @@ export class FlameRenderer {
             uniforms: { uTime: { value: 0 }, uGain: { value: 1 }, uLean: { value: TIP_LEAN } },
             transparent: true,
             depthWrite: false,
-            // Trail leans along the bolt — without this the shaft depth-culls it.
-            depthTest: false,
+            // Same depth test as breath — tips must not punch through terrain /
+            // buildings. Lean in the vertex shader keeps them readable vs the
+            // bolt without disabling depth entirely.
+            depthTest: true,
             blending: AdditiveBlending,
             fog: false,
             vertexShader: TIP_FLAME_VERT,
