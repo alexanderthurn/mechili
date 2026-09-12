@@ -29,7 +29,7 @@ import {
     TACTICS,
     TUTOR_ID,
 } from './tactics';
-import { unitUnlockCost } from './units';
+import { isPlayerBuyable, UNIT_TYPES, unitUnlockCost } from './units';
 import { forgeIngredientIcons } from './forgeRecipes';
 
 export type SpecialityId =
@@ -318,20 +318,18 @@ export function roundCardIcon(c: RoundCard): string | null {
     return null;
 }
 
-/** buyable army types in the deployment shop (not board extras) */
-export const SHOP_UNIT_IDS = [
-    'dwarf',
-    'goblin',
-    'hammerer',
-    'ogre',
-    'archer',
-    'bat',
-    'crowRider',
-    'mortar',
-    'ballista',
-    'wizard',
-] as const;
-export type ShopUnitId = (typeof SHOP_UNIT_IDS)[number];
+/**
+ * Buyable army types in the deployment shop (not board extras), derived from
+ * the roster itself so this list can never drift from {@link UnitType.buyable}
+ * — a hand-written copy let the horde-only Bat leak into the unlock picker at
+ * an infinite price. Board extras (shield/rocket) and unbuyable horde types
+ * are filtered out; the order follows UNIT_TYPES, which is also the order the
+ * shop grid builds its tiles in.
+ */
+export const SHOP_UNIT_IDS: readonly string[] = UNIT_TYPES.filter(
+    (t) => !t.extra && !t.structure && isPlayerBuyable(t),
+).map((t) => t.id);
+export type ShopUnitId = string;
 
 /** the signature unit a specialist can buy even if it is not in the starter army */
 export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
