@@ -2378,6 +2378,7 @@ export class Game {
         this.fireFx.setQuality(prefs().fireVfx);
         this.acidFx.clear();
         this.acidFx.setQuality(prefs().fireVfx);
+        this.projectileRenderer.setQuality(prefs().fireVfx);
         this.map.setFireCharcoalGround(fireUsesTongues(prefs().fireVfx));
         if (this.sim && this.phase === 'battle') {
             this.fireFx.update(0, this.sim.hazards, this.sim.elapsed);
@@ -2435,6 +2436,7 @@ export class Game {
             this.appliedFireVfx = fireVfx;
             this.fireFx.setQuality(fireVfx);
             this.acidFx.setQuality(fireVfx);
+            this.projectileRenderer.setQuality(fireVfx);
             this.map.setFireCharcoalGround(fireUsesTongues(fireVfx));
         }
     }

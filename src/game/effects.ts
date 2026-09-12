@@ -42,7 +42,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import type { Projectile, SimEvent } from './sim';
 import { bloodParticleScale, bloodIntensityScale, stuckProjectileCap, prefs } from './prefs';
-import type { SceneryQuality } from './prefs';
+import type { FireVfxQuality, SceneryQuality } from './prefs';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import {
     getUnitInstanceAsset,
@@ -2309,9 +2309,15 @@ export class ProjectileRenderer {
     private readonly sharedBoltMat: MeshStandardMaterial | null;
     private readonly sharedRockGeo: BufferGeometry | null;
     private readonly sharedRockMat: MeshStandardMaterial | null;
-    /** Misty cloud ribbon behind mortar / Stormcaller stones. */
-    private readonly cloudTrail: SoftParticlePool;
+    /**
+     * Misty cloud ribbon behind mortar / Stormcaller stones. Built on first use
+     * and only above the `low` fire tier, so a machine that asked for cheap VFX
+     * never allocates the pool at all.
+     */
+    private cloudTrail: SoftParticlePool | null = null;
     private trailEmitAcc = 0;
+    private trailQuality: FireVfxQuality = prefs().fireVfx;
+    private readonly scene: Scene;
 
     constructor(scene: Scene) {
         const wood = new MeshLambertMaterial({ color: 0x8a6a3c, flatShading: true });
@@ -2356,23 +2362,7 @@ export class ProjectileRenderer {
             mesh.count = 0;
             scene.add(mesh);
         }
-        this.cloudTrail = new SoftParticlePool(scene, {
-            blending: NormalBlending,
-            size: 3.6,
-            opacity: 0.55,
-            maxParticles: 2048,
-            gravity: 0.9, // slight float — default GRAVITY is −14 (down)
-            sizeGrowth: 1.8,
-            sizeBirthScale: 0.35,
-            sizeBirthPhase: 0.25,
-            fadeStart: 0.55,
-            drag: 1.4,
-            billow: 0.85,
-            lateralDrag: 0.4,
-            dissolveSpread: 0.6,
-            depthWrite: false,
-            renderOrder: 4,
-        });
+        this.scene = scene;
         if (bolt) {
             console.info(
                 `[effects] projectile pools using bolt.glb (arrow×${ARROW_SCALE}, ballista×${LARGE_ARROW_SCALE}, cap ${MAX_PROJECTILES})`,
@@ -2381,6 +2371,55 @@ export class ProjectileRenderer {
         if (rock) {
             console.info('[effects] crow stones using rock.glb (shared tint shader)');
         }
+    }
+
+    /**
+     * Trail budget for the current fire tier, or null for no trail at all.
+     * `high` doubles the puffs and nearly doubles the cadence, and needs the
+     * bigger pool: one mortar volley is 20 stones, and at medium two packs
+     * firing together already recycle the ribbon out from under themselves.
+     */
+    private trailTier(): { puffs: number; pool: number; every: number } | null {
+        switch (this.trailQuality) {
+            case 'high':
+                return { puffs: 4, pool: 8192, every: 0.016 };
+            case 'medium':
+                return { puffs: 2, pool: 2048, every: 0.028 };
+            default:
+                return null; // off / low — no smoke
+        }
+    }
+
+    /** Live graphics-pref change: drop the pool so the next tier rebuilds it. */
+    setQuality(tier: FireVfxQuality = prefs().fireVfx): void {
+        if (tier === this.trailQuality) return;
+        this.trailQuality = tier;
+        this.cloudTrail?.dispose();
+        this.cloudTrail = null;
+        this.trailEmitAcc = 0;
+    }
+
+    private ensureTrail(maxParticles: number): SoftParticlePool {
+        if (!this.cloudTrail) {
+            this.cloudTrail = new SoftParticlePool(this.scene, {
+                blending: NormalBlending,
+                size: 3.6,
+                opacity: 0.55,
+                maxParticles,
+                gravity: 0.9, // slight float — default GRAVITY is −14 (down)
+                sizeGrowth: 1.8,
+                sizeBirthScale: 0.35,
+                sizeBirthPhase: 0.25,
+                fadeStart: 0.55,
+                drag: 1.4,
+                billow: 0.85,
+                lateralDrag: 0.4,
+                dissolveSpread: 0.6,
+                depthWrite: false,
+                renderOrder: 4,
+            });
+        }
+        return this.cloudTrail;
     }
 
     /** `alpha` interpolates between the last two sim steps for smooth flight */
@@ -2394,8 +2433,9 @@ export class ProjectileRenderer {
             orb: 0,
         };
         // Emit trail puffs on a short cadence so 20+ mortar stones stay readable
+        const trailTier = this.trailTier();
         this.trailEmitAcc += dt;
-        const emitTrail = this.trailEmitAcc >= 0.028;
+        const emitTrail = trailTier !== null && this.trailEmitAcc >= trailTier.every;
         if (emitTrail) this.trailEmitAcc = 0;
 
         const n = Math.min(projectiles.length, MAX_PROJECTILES);
@@ -2462,13 +2502,13 @@ export class ProjectileRenderer {
                     this.stoneTint.setXYZW(slot, 1, 1, 1, 1);
                 }
             }
-            if (emitTrail && p.trail === 'cloud') {
+            if (emitTrail && trailTier && p.trail === 'cloud') {
                 // puff slightly behind the stone so the head stays readable
                 const bx = this.pos.x - this.dir.x * 0.55;
                 const by = this.pos.y - this.dir.y * 0.55;
                 const bz = this.pos.z - this.dir.z * 0.55;
-                this.cloudTrail.burst(bx, by, bz, {
-                    count: 2,
+                this.ensureTrail(trailTier.pool).burst(bx, by, bz, {
+                    count: trailTier.puffs,
                     color: 0xd8dee8,
                     colorEnd: 0x9aa6b8,
                     speed: 0.55,
@@ -2485,13 +2525,13 @@ export class ProjectileRenderer {
             mesh.instanceMatrix.needsUpdate = true;
         }
         this.stoneTint.needsUpdate = true;
-        if (dt > 0) this.cloudTrail.update(dt);
+        if (dt > 0) this.cloudTrail?.update(dt);
     }
 
     clear(): void {
         for (const mesh of Object.values(this.pools)) mesh.count = 0;
         this.trailEmitAcc = 0;
-        this.cloudTrail.clear();
+        this.cloudTrail?.clear();
     }
 
     /** One instance per style so bolt/arrow/stone materials compile before combat. */
@@ -2530,6 +2570,6 @@ export class ProjectileRenderer {
                 else mat.dispose();
             }
         }
-        this.cloudTrail.dispose();
+        this.cloudTrail?.dispose();
     }
 }

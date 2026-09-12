@@ -1829,9 +1829,11 @@ export class BattleSim {
         stats: ResolvedStats,
         d: { speedMult: number },
         dt: number,
+        /** stop short rather than overshoot (route arrival). 0 = no cap. */
+        cap = 0,
     ): void {
         const speed = stats.speed * this.debuff(a, d.speedMult);
-        const move = speed * dt;
+        const move = cap > 0 ? Math.min(speed * dt, cap) : speed * dt;
         a.x += hx * move;
         a.z += hz * move;
         faceToward(a, detAtan2(-hx, -hz), dt);
@@ -3848,7 +3850,29 @@ export class BattleSim {
                 const isMelee = !a.unit.type.projectileSpeed && !a.unit.type.convertRay;
 
                 if (a.unit.type.freeFlight) {
-                    this.stepFreeFlightCombat(a, target, stats, d, dt, canAttack);
+                    // A pass already underway finishes — its heading is locked —
+                    // and a foe close enough to commit still wins over the route.
+                    // Otherwise fly the route like every other unit marching it.
+                    const touch = target ? stats.range + a.radius + target.radius : 0;
+                    const commit = touch + (a.unit.type.meleeLunge ?? 3);
+                    const engaged =
+                        a.flyPassPhase !== 0 ||
+                        (target != null && hypot(target.x - a.x, target.z - a.z) <= commit);
+                    if (engaged) {
+                        this.stepFreeFlightCombat(a, target, stats, d, dt, canAttack);
+                        continue;
+                    }
+                    const rdx = destX - a.x;
+                    const rdz = destZ - a.z;
+                    const rDist = hypot(rdx, rdz) || 1e-6;
+                    this.updateFreeFlight(a, dt, {
+                        x: destX,
+                        y: this.freeFlightCruiseY(a),
+                        z: destZ,
+                    });
+                    this.flyAlongHeading(a, rdx / rDist, rdz / rDist, stats, d, dt, rDist);
+                    // keep the clock running so the next dive is ready on arrival
+                    if (canAttack) a.cooldown -= dt;
                     continue;
                 }
 
