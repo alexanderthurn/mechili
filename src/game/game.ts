@@ -156,6 +156,7 @@ import {
     type SceneryQuality,
     type ShadowQuality,
 } from './prefs';
+import { PostFx } from './postFx';
 import { Particles, ProjectileRenderer, StuckBoltRenderer, StoneChipRenderer } from './effects';
 import {
     buildHpDrawSources,
@@ -373,6 +374,7 @@ export class Game {
     private readonly techTree: TechTree;
     private readonly scene = new Scene();
     private readonly renderer: WebGLRenderer;
+    private readonly postFx: PostFx;
     private readonly rig = new CameraRig();
     private readonly controls: CameraControls;
     private readonly gamepad: GamepadCursor;
@@ -1354,6 +1356,8 @@ export class Game {
         // Slightly above 1 so the denser grass normals/albedo still read under ACES
         this.renderer.toneMappingExposure = touchFirstDevice() ? 1.0 : 1.08;
         this.renderer.setPixelRatio(effectiveDpr());
+        this.postFx = new PostFx(this.renderer, this.scene, this.rig.camera);
+        this.syncPostFx();
 
         this.scene.background = new Color(THEME.sky);
         // scenery 'off' plays without any fog or weather
@@ -2370,7 +2374,7 @@ export class Game {
         this.weather?.primeForCompile();
 
         this.renderer.compile(this.scene, this.rig.camera);
-        this.renderer.render(this.scene, this.rig.camera);
+        this.renderFrame();
 
         // restore live combat VFX — clear would blank an in-progress battle frame
         this.fireFx.clear();
@@ -2394,7 +2398,7 @@ export class Game {
         }
         this.updateBlobShadows();
         // replace the primed frame so the player never sees a flash of rain/flames
-        this.renderer.render(this.scene, this.rig.camera);
+        this.renderFrame();
     }
 
     /**
@@ -2426,6 +2430,7 @@ export class Game {
             this.renderer.setPixelRatio(dpr);
             this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
         }
+        this.syncPostFx();
         this.unitInstances.applyShadowPref(prefs().shadows);
         this.meteorFx.applyShadowPref(prefs().shadows);
         this.unitInstances.applyDeadPref(prefs().renderDeadUnits);
@@ -2747,7 +2752,19 @@ export class Game {
             if (node instanceof HTMLElement) node.remove();
         }
         disposeScene(this.scene);
+        this.postFx.dispose();
         this.renderer.dispose();
+    }
+
+    /** Scene draw — composer when vignette is on, otherwise direct. */
+    private renderFrame(): void {
+        if (this.postFx.enabled) this.postFx.render();
+        else this.renderer.render(this.scene, this.rig.camera);
+    }
+
+    /** Vignette only during combat — build / HP-draw stay clean for placement UI. */
+    private syncPostFx(): void {
+        this.postFx.setQuality(this.phase === 'battle' ? prefs().vignette : 'off');
     }
 
     /**
@@ -2946,6 +2963,7 @@ export class Game {
         this.weather?.onRound(this.round, this.hydrating);
         this.phase = 'build';
         this.phaseRemaining = this.deploySeconds();
+        this.syncPostFx();
         // scars fade each round so the field heals over a few battles
         if (this.round > 1) this.map.fadeWear(0.68);
         this.stoneChips.clear(); // high-setting collapse rubble lives until here
@@ -8176,6 +8194,7 @@ export class Game {
         this.collapseEndedRound = false;
         this.placement.beginBattle();
         this.phase = 'battle';
+        this.syncPostFx();
         this.phaseRemaining = this.battleSeconds();
         this.placement.enabled = false;
         this.placement.hiddenPlacements = false;
@@ -8996,6 +9015,7 @@ export class Game {
             // flash down-then-up when beginHpDrawPhase sets its display values.
             const pre = this.pendingHpDrawPreHp!;
             this.phase = 'hpDraw';
+            this.syncPostFx();
             this.hpDrawDisplayPlayer = pre.player;
             this.hpDrawDisplayEnemy = pre.enemy;
             return;
@@ -9075,6 +9095,7 @@ export class Game {
         this.pendingHpDrawPlan = null;
         this.pendingHpDrawPreHp = null;
         this.phase = 'hpDraw';
+        this.syncPostFx();
         this.hpDrawElapsed = 0;
         this.hpDrawPrePlayer = pre.player;
         this.hpDrawPreEnemy = pre.enemy;
@@ -9600,6 +9621,7 @@ export class Game {
 
     private resize(width: number, height: number): void {
         this.renderer.setSize(width, height, false);
+        this.postFx.setSize(width, height);
         this.rig.resize(width, height);
     }
 
@@ -10012,7 +10034,7 @@ export class Game {
         if (profile) cpu.end('hud');
         if (profile) cpu.begin();
         updateScreenShake(dtSeconds);
-        this.renderer.render(this.scene, this.rig.camera);
+        this.renderFrame();
         if (profile) cpu.end('render');
         let mechs = 0;
         let mobile: number | undefined;

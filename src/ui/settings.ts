@@ -110,6 +110,8 @@ export function openSettings(parent: HTMLElement): void {
         setLabel('.s-dead-text', 'settings:gfx.showDead');
         setLabel('.s-aa-text', 'settings:gfx.antialias');
         setLabel('.s-aa-hint', 'settings:gfx.antialiasHint');
+        setLabel('.s-vignette-label', 'settings:gfx.vignette');
+        setLabel('.s-vignette-hint', 'settings:gfx.vignetteHint');
         setLabel('.s-uiscale-label', 'settings:gfx.uiSize');
         setLabel('.s-uiscale-hint', 'settings:gfx.uiHint');
         const fillOpts = (selectSel: string, map: Record<string, string>) => {
@@ -132,6 +134,12 @@ export function openSettings(parent: HTMLElement): void {
         fillOpts('.s-fire', quality);
         fillOpts('.s-blood', quality);
         fillOpts('.s-shadows', quality);
+        fillOpts('.s-vignette', {
+            ultra: 'settings:gfx.presetUltra',
+            high: 'settings:gfx.presetHigh',
+            medium: 'settings:gfx.presetMedium',
+            off: 'settings:gfx.presetOff',
+        });
         fillOpts('.s-stuck', {
             high: 'settings:gfx.stuckHigh',
             low: 'settings:gfx.stuckLow',
@@ -274,6 +282,12 @@ export function openSettings(parent: HTMLElement): void {
         `</select> <span class="s-hint s-shadows-hint"></span></label>` +
         `<label class="s-row"><input type="checkbox" class="s-dead" /> <span class="s-dead-text"></span></label>` +
         `<label class="s-row"><input type="checkbox" class="s-aa" /> <span class="s-aa-text"></span> <span class="s-hint s-aa-hint"></span></label>` +
+        `<label class="s-row"><span class="s-vignette-label"></span> <select class="s-vignette">` +
+        `<option value="ultra"></option>` +
+        `<option value="high"></option>` +
+        `<option value="medium"></option>` +
+        `<option value="off"></option>` +
+        `</select> <span class="s-hint s-vignette-hint"></span></label>` +
         `</details>` +
         `</section>` +
         `</div>` +
@@ -303,6 +317,7 @@ export function openSettings(parent: HTMLElement): void {
     const shadows = overlay.querySelector<HTMLSelectElement>('.s-shadows')!;
     const dead = overlay.querySelector<HTMLInputElement>('.s-dead')!;
     const aa = overlay.querySelector<HTMLInputElement>('.s-aa')!;
+    const vignette = overlay.querySelector<HTMLSelectElement>('.s-vignette')!;
     const presetButtons = [...overlay.querySelectorAll<HTMLButtonElement>('.s-preset[data-preset]')];
     const customChip = overlay.querySelector<HTMLElement>('.s-custom-chip')!;
     const advanced = overlay.querySelector<HTMLDetailsElement>('.s-advanced')!;
@@ -331,6 +346,7 @@ export function openSettings(parent: HTMLElement): void {
         shadows.value = p.shadows;
         dead.checked = p.renderDeadUnits;
         aa.checked = p.antialias;
+        vignette.value = p.vignette;
         const active = detectGraphicsPreset(p);
         for (const button of presetButtons) {
             button.classList.toggle(
@@ -456,6 +472,10 @@ export function openSettings(parent: HTMLElement): void {
     });
     aa.addEventListener('change', () => {
         updatePrefs({ antialias: aa.checked });
+        syncFromPrefs();
+    });
+    vignette.addEventListener('change', () => {
+        updatePrefs({ vignette: vignette.value as Prefs['vignette'] });
         syncFromPrefs();
     });
 
