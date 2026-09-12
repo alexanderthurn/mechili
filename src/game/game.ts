@@ -497,6 +497,13 @@ export class Game {
     private hpPeak: number[] = [];
     private matchOver = false;
     /**
+     * The player ended this match themselves — the pause menu's "Quit to
+     * menu", or "Give up" on a blocking notice. The result is still a
+     * defeat, but offering "Retry last round" for a round nobody lost reads
+     * as the game not having noticed you left, so the button is suppressed.
+     */
+    private endedByOwnChoice = false;
+    /**
      * Campaign climb: round wins so far. Restored from SP save / retry payload
      * (battle outcomes are not in the action log).
      */
@@ -5336,6 +5343,8 @@ export class Game {
 
     voluntaryQuit(): void {
         if (!this.matchOver && !this.disposed) {
+            // every branch below ends in a defeat the player asked for
+            this.endedByOwnChoice = true;
             if (this.star?.role === 'host') {
                 this.starForfeit(this.seats[this.humanSeat]!.team);
                 if (!this.matchOver) this.presentMatchEnd('defeat');
@@ -9402,7 +9411,11 @@ export class Game {
             // would restart it at zero wins while the board is staged for a
             // later round — a failed lesson is re-entered from the menu instead.
             const allowRetry =
-                result === 'defeat' && !this.star && !this.watching && !isTutorial(this.settings);
+                result === 'defeat' &&
+                !this.endedByOwnChoice &&
+                !this.star &&
+                !this.watching &&
+                !isTutorial(this.settings);
             // A finished lesson offers the one after it, so the set can be played
             // straight through; the last lesson only offers the menu.
             const allowNext =
