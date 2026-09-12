@@ -668,42 +668,6 @@ function scheduleModelRetry(): void {
  * Level tint is applied live per pack. `heights` gives each unit's procedural
  * local height. Failures fall back to the procedural mesh.
  */
-/**
- * Models that failed to load, and how to try them again.
- *
- * A failed GLB is not just a looks problem: its measured height, half-width
- * and AttackNode feed the sim and ride in {@link modelGeometryFingerprint}, so
- * the peer missing one disagrees with everyone at every battle-start barrier.
- * The host resyncs it — and a resync rebuilds the Game in the same page, where
- * the memoized preload never reloads anything, so it disagreed again, every
- * round, for the whole session. Failures now retry: in the background with a
- * backoff, and again whenever a star guest is resynced. The moment a retry
- * lands, the fingerprint matches and the loop ends.
- */
-const failedModels = new Set<string>();
-let lastHeights: Record<string, number> | null = null;
-let retryInFlight: Promise<void> | null = null;
-let retryAttempt = 0;
-const RETRY_DELAYS_MS = [3_000, 10_000, 30_000];
-
-/** Re-load every model that has failed so far. Joins an in-flight retry. */
-export function retryFailedUnitModels(): Promise<void> {
-    if (retryInFlight) return retryInFlight;
-    if (failedModels.size === 0 || !lastHeights) return Promise.resolve();
-    const ids = new Set(failedModels);
-    console.warn(`[unitModels] retrying ${[...ids].join(', ')}`);
-    retryInFlight = loadUnitModels(lastHeights, undefined, ids).finally(() => {
-        retryInFlight = null;
-    });
-    return retryInFlight;
-}
-
-function scheduleModelRetry(): void {
-    if (failedModels.size === 0 || retryAttempt >= RETRY_DELAYS_MS.length) return;
-    const delay = RETRY_DELAYS_MS[retryAttempt++]!;
-    setTimeout(() => void retryFailedUnitModels().then(scheduleModelRetry), delay);
-}
-
 export async function loadUnitModels(
     heights: Record<string, number>,
     onProgress?: (done: number, total: number) => void,
