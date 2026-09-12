@@ -1,59 +1,47 @@
 {
   "air": {
     "title": "Hechicero del cielo",
-    "description": "Las unidades aéreas obtienen un +12% de ataque y puntos de vida.",
-    "unitsLabel": "2 jinetes de cuervos · 1 enano"
+    "description": "Las unidades aéreas obtienen un +12% de ataque y puntos de vida."
   },
   "cost": {
     "title": "Príncipe codicioso",
-    "description": "Todas las unidades tienen un -12% de ataque y puntos de vida, pero +100 de suministro cada ronda.",
-    "unitsLabel": "2 arqueros · 1 jinete de cuervo · 1 enano"
+    "description": "Todas las unidades tienen un -12% de ataque y puntos de vida, pero +100 de suministro cada ronda."
   },
   "elite": {
     "title": "Príncipe de élite",
-    "description": "Reclutamiento en el nivel 2. +100 de suministro en la ronda 1.",
-    "unitsLabel": "1× Balista · 1× Enanos"
+    "description": "Reclutamiento en el nivel 2. +100 de suministro en la ronda 1."
   },
   "archer": {
     "title": "Comandante Arquero",
-    "description": "Un arquero de nivel 3 llega gratis en la ronda 2.",
-    "unitsLabel": "3 arqueros · 2 enanos"
+    "description": "Un arquero de nivel 3 llega gratis en la ronda 2."
   },
   "addi": {
     "title": "Guardián de las reliquias",
-    "description": "Obtiene 3 runas de Valor en la ronda 1.",
-    "unitsLabel": "1× Jinetes de cuervo · 3× Enanos"
+    "description": "Obtiene 3 runas de Valor en la ronda 1."
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Obtiene 2 cargas de Meteorito en la ronda 2.",
-    "unitsLabel": "1× Mago · 1× Enanos"
+    "description": "Obtiene 2 cargas de Meteorito en la ronda 2."
   },
   "speed": {
-    "title": "Speedy Widow",
-    "unitsLabel": "1× Jinetes de cuervo · 1× Arqueros · 2× Enanos"
+    "title": "Speedy Widow"
   },
   "giant": {
-    "title": "Countess Chonk",
-    "unitsLabel": "1× Balista · 1× Enanos"
+    "title": "Countess Chonk"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Comienza con una Lección de campo.",
-    "unitsLabel": "1× Jinetes de cuervo · 3× Arqueros"
+    "description": "Comienza con una Lección de campo."
   },
   "money": {
-    "title": "Money Queen",
-    "unitsLabel": "2 jinetes de cuervo · 1 arquero"
+    "title": "Money Queen"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Obtiene una araña de la Progenie negra gratis cada ronda.",
-    "unitsLabel": "2 enanos · 2 arqueros"
+    "description": "Obtiene una araña de la Progenie negra gratis cada ronda."
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "La primera aparición por el flanco tarda la mitad de tiempo.",
-    "unitsLabel": "2 enanos · 2 arqueros"
+    "description": "La primera aparición por el flanco tarda la mitad de tiempo."
   }
 }

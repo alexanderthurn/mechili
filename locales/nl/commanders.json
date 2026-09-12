@@ -1,59 +1,47 @@
 {
   "air": {
     "title": "Hemeltovenaar",
-    "description": "Luchteenheden krijgen +12% aanvalskracht en HP.",
-    "unitsLabel": "2 kraaienrijders · 1 dwerg"
+    "description": "Luchteenheden krijgen +12% aanvalskracht en HP."
   },
   "cost": {
     "title": "Gierige Prins",
-    "description": "Alle eenheden verliezen 12% aanvalskracht en HP, maar krijgen elke ronde 100 extra voorraden.",
-    "unitsLabel": "2 boogschutters · 1 kraaienrijder · 1 dwerg"
+    "description": "Alle eenheden verliezen 12% aanvalskracht en HP, maar krijgen elke ronde 100 extra voorraden."
   },
   "elite": {
     "title": "Elite Prins",
-    "description": "+100 voorraad in ronde 1. Werven op niveau 2.",
-    "unitsLabel": "1× Ballista · 1× Dwergen"
+    "description": "+100 voorraad in ronde 1. Werven op niveau 2."
   },
   "archer": {
     "title": "Boogschuttercommandant",
-    "description": "In ronde 2 ontvang je een gratis boogschutter van niveau 3.",
-    "unitsLabel": "3 boogschutters · 2 dwergen"
+    "description": "In ronde 2 ontvang je een gratis boogschutter van niveau 3."
   },
   "addi": {
     "title": "Relikwiehouder",
-    "description": "Krijgt 3× Moed-rune in ronde 1.",
-    "unitsLabel": "1× Kraaienrijders · 3× Dwergen"
+    "description": "Krijgt 3× Moed-rune in ronde 1."
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Krijgt 2 Meteor-ladingen in ronde 2.",
-    "unitsLabel": "1× Tovenaar · 1× Dwerg"
+    "description": "Krijgt 2 Meteor-ladingen in ronde 2."
   },
   "speed": {
-    "title": "Speedy Widow",
-    "unitsLabel": "1× Kraaienrijders · 1× Boogschutters · 2× Dwergen"
+    "title": "Speedy Widow"
   },
   "giant": {
-    "title": "Countess Chonk",
-    "unitsLabel": "1× Ballista · 1× Dwergen"
+    "title": "Countess Chonk"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Begint met één praktijkles.",
-    "unitsLabel": "1× Kraaienrijders · 3× Boogschutters"
+    "description": "Begint met één praktijkles."
   },
   "money": {
-    "title": "Money Queen",
-    "unitsLabel": "2× Kraaienrijders · 1× Boogschutters"
+    "title": "Money Queen"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Je krijgt elke ronde één gratis Zwarte Broedspin.",
-    "unitsLabel": "2 dwergen · 2 boogschutters"
+    "description": "Je krijgt elke ronde één gratis Zwarte Broedspin."
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Bij de eerste keer spawnen vanaf de flank duurt het de helft van de tijd.",
-    "unitsLabel": "2 dwergen · 2 boogschutters"
+    "description": "Bij de eerste keer spawnen vanaf de flank duurt het de helft van de tijd."
   }
 }

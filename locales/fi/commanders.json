@@ -1,59 +1,47 @@
 {
   "air": {
     "title": "Taivaanvelho",
-    "description": "Ilmayksiköt saavat +12 % hyökkäyspisteitä ja HP:tä.",
-    "unitsLabel": "2× Varisratsastajat · 1× Kääpiöt"
+    "description": "Ilmayksiköt saavat +12 % hyökkäyspisteitä ja HP:tä."
   },
   "cost": {
     "title": "Ahne prinssi",
-    "description": "Kaikki yksiköt −12 % hyökkäys- ja HP-pisteistä, mutta +100 syöttöpistettä joka kierroksella.",
-    "unitsLabel": "2× Jousimiehet · 1× Variksenratsastajat · 1× Kääpiöt"
+    "description": "Kaikki yksiköt −12 % hyökkäys- ja HP-pisteistä, mutta +100 syöttöpistettä joka kierroksella."
   },
   "elite": {
     "title": "Eliittiprinssi",
-    "description": "Rekrytointi tasolla 2. +100 tarviketta ensimmäisellä kierroksella.",
-    "unitsLabel": "1× Ballista · 1× Kääpiöt"
+    "description": "Rekrytointi tasolla 2. +100 tarviketta ensimmäisellä kierroksella."
   },
   "archer": {
     "title": "Jousiampujan komentaja",
-    "description": "Ilmainen tason 3 jousimies saapuu toisella kierroksella.",
-    "unitsLabel": "3× Jousimiehet · 2× Kääpiöt"
+    "description": "Ilmainen tason 3 jousimies saapuu toisella kierroksella."
   },
   "addi": {
     "title": "Muinaisjäänteiden säilyttäjä",
-    "description": "Saa 3× Urheusriimun ensimmäisellä kierroksella.",
-    "unitsLabel": "1× Variksenratsastajat · 3× Kääpiöt"
+    "description": "Saa 3× Urheusriimun ensimmäisellä kierroksella."
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Saa 2 meteorilatausta toisella kierroksella.",
-    "unitsLabel": "1× Velho · 1× Kääpiöt"
+    "description": "Saa 2 meteorilatausta toisella kierroksella."
   },
   "speed": {
-    "title": "Speedy Widow",
-    "unitsLabel": "1× Varisratsastajat · 1× Jousimiehet · 2× Kääpiöt"
+    "title": "Speedy Widow"
   },
   "giant": {
-    "title": "Countess Chonk",
-    "unitsLabel": "1× Ballista · 1× Kääpiöt"
+    "title": "Countess Chonk"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Alkaa yhdellä kenttätunnilla.",
-    "unitsLabel": "1× Variksenratsastajat · 3× Jousimiehet"
+    "description": "Alkaa yhdellä kenttätunnilla."
   },
   "money": {
-    "title": "Money Queen",
-    "unitsLabel": "2× Varisratsastajat · 1× Jousimiehet"
+    "title": "Money Queen"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Saat yhden ilmaisen mustan hautahämähäkin joka kierros.",
-    "unitsLabel": "2× Kääpiöt · 2× Jousimiehet"
+    "description": "Saat yhden ilmaisen mustan hautahämähäkin joka kierros."
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Ensimmäiset kylkikuten ilmestymiset vievät puolet ajasta.",
-    "unitsLabel": "2× Kääpiöt · 2× Jousimiehet"
+    "description": "Ensimmäiset kylkikuten ilmestymiset vievät puolet ajasta."
   }
 }
