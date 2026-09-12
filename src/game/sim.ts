@@ -3189,12 +3189,13 @@ export class BattleSim {
     }
 
     /** tower-destruction or storm-bolt debuff is active for this mech right now.
-     *  Seat tower loss affects the whole seat; storm bolts are personal.
-     *  Golden aura / debuff-immune items shrug both off. */
+     *  Seat tower loss affects the whole combat seat ({@link actorSeat} — so a
+     *  converted mech follows its new owner, not the deploy seat); storm bolts
+     *  are personal. Golden aura / debuff-immune items shrug both off. */
     private isDebuffed(actor: Actor): boolean {
         if (this.isGolden(actor)) return false;
         if (actor.stormDebuffUntil > this.elapsed + 1e-9) return true;
-        const until = this.debuffUntil.get(actor.unit.seat) ?? 0;
+        const until = this.debuffUntil.get(actorSeat(actor)) ?? 0;
         return this.elapsed < until - 1e-9;
     }
 
@@ -3274,7 +3275,7 @@ export class BattleSim {
             let tint: 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning' = 'normal';
             let spawnProgress = 0;
             if (this.isGolden(a)) tint = 'golden';
-            else if (this.isDebuffed(a) && (debuffTintAt?.(a.unit.seat, a.x, a.z) ?? true)) {
+            else if (this.isDebuffed(a) && (debuffTintAt?.(actorSeat(a), a.x, a.z) ?? true)) {
                 tint = 'debuff';
             } else if (a.corrodedUntil > this.elapsed) {
                 tint = 'acid';
@@ -5369,6 +5370,11 @@ export class BattleSim {
         target.convertProgress = 0;
         target.convertBy = null;
         target.convertTarget = null;
+        // Drop the old seat's golden aura; pick up the new team's if in range.
+        // (Tower debuffs already key off {@link actorSeat}, so allegiance alone
+        // stops the old seat's loss from crippling this mech.)
+        target.goldenUntil = 0;
+        if (this.goldenAuraApplied) this.applyBallistaGoldenAura(target);
         // brief pause before the next channel
         const recover = caster.unit.type.convertRay?.recover ?? 1.25;
         caster.convertCooldown = recover;

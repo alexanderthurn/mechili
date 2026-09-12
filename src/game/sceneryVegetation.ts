@@ -37,9 +37,6 @@ export interface VegetationAsset {
     height: number;
 }
 
-/** World units past the board edge that still get real 3D trees. */
-export const NEAR_TREE_DIST = 48;
-
 /** Far cards read thinner than volumetric trees — bump scale so the belt matches. */
 export const BILLBOARD_SCALE = 1.55;
 

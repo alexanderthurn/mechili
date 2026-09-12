@@ -20,7 +20,11 @@ export type BloodFxQuality = 'off' | 'low' | 'medium' | 'high' | 'ultra';
 /** Stuck arrow / ballista shafts left in units & dirt after hits (visual only). */
 export type StuckProjectilesQuality = 'off' | 'low' | 'high';
 /** Screen-edge vignette (post-process; visual only). */
-export type VignetteQuality = 'off' | 'medium' | 'high' | 'ultra';
+export type VignetteQuality = 'off' | 'high' | 'ultra';
+/** Selective bloom on bright emissives / fire (post-process; visual only). */
+export type BloomQuality = 'off' | 'high' | 'ultra';
+/** Screen-space AO — grounds units/buildings on the board (visual only). */
+export type AoQuality = 'off' | 'high' | 'ultra';
 
 /**
  * Fire VFX tiers (for tuning):
@@ -43,8 +47,8 @@ export interface Prefs {
     combatChat: boolean;
     /**
      * Outer world quality. Applies immediately (rebuilds scenery mid-match).
-     * - ultra: wall of trees just past the board edge (still instanced)
-     * - high: dense forests outside the board + Tripo near board
+     * - ultra: dense forest + Tripo on the board, billboards outside
+     * - high: dense forests outside the board + Tripo on the board
      * - medium: billboard forest (no low-poly cones; no tree blob shadows)
      * - low: flat board + flat green world, no decoration
      */
@@ -107,10 +111,21 @@ export interface Prefs {
     antialias: boolean;
     /**
      * Soft darkening toward screen edges (post-process). Battle only.
-     * - off: direct render, no composer cost
-     * - medium / high / ultra: mild → stronger rim
+     * - off: skip this pass
+     * - high / ultra: stronger rim
      */
     vignette: VignetteQuality;
+    /**
+     * Selective bloom on bright pixels (fire, magic, sun). Battle only.
+     * - off: skip this pass (and the composer when vignette/AO are also off)
+     * - high / ultra: tighter → wider glow
+     */
+    bloom: BloomQuality;
+    /**
+     * Screen-space ambient occlusion (post-process). Applies in build + battle.
+     * Soft contact shading so units/buildings read against the grass.
+     */
+    ao: AoQuality;
     /**
      * Player-chosen control scheme override.
      * 'auto' follows the live-detected input method (see game/inputCapabilities.ts);
@@ -164,6 +179,8 @@ export type GraphicsPresetValues = Pick<
     | 'renderDeadUnits'
     | 'antialias'
     | 'vignette'
+    | 'bloom'
+    | 'ao'
 >;
 
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
@@ -178,6 +195,8 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         renderDeadUnits: false,
         antialias: false,
         vignette: 'off',
+        bloom: 'off',
+        ao: 'off',
     },
     medium: {
         scenery: 'medium',
@@ -189,7 +208,9 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         shadows: 'medium',
         renderDeadUnits: false,
         antialias: false,
-        vignette: 'medium',
+        vignette: 'off',
+        bloom: 'off',
+        ao: 'off',
     },
     high: {
         scenery: 'high',
@@ -202,6 +223,8 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         renderDeadUnits: true,
         antialias: true,
         vignette: 'high',
+        bloom: 'high',
+        ao: 'high',
     },
     ultra: {
         scenery: 'ultra',
@@ -214,6 +237,8 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         renderDeadUnits: true,
         antialias: true,
         vignette: 'ultra',
+        bloom: 'ultra',
+        ao: 'ultra',
     },
 };
 
@@ -231,7 +256,9 @@ export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null 
             p.shadows === v.shadows &&
             p.renderDeadUnits === v.renderDeadUnits &&
             p.antialias === v.antialias &&
-            p.vignette === v.vignette
+            p.vignette === v.vignette &&
+            p.bloom === v.bloom &&
+            p.ao === v.ao
         ) {
             return id;
         }
@@ -253,8 +280,6 @@ export function applyGraphicsPreset(preset: GraphicsPreset): void {
 }
 
 const KEY = 'mechili-prefs';
-/** One-shot: old vignette low/medium/high → medium/high/ultra. */
-const VIGNETTE_LADDER_KEY = 'mechili-prefs-vignette-mhu';
 
 /** What the first-run probe decided, or null when prefs were already stored.
  *  Surfaced for the debug overlay and for answering "why does it look like
@@ -329,19 +354,25 @@ function migrateShadowQuality(raw: unknown): ShadowQuality {
     return DEFAULTS.shadows;
 }
 
-/** Former off/low/medium/high → off/medium/high/ultra (same strengths, renamed). */
-function migrateVignette(raw: unknown, ladderMigrated: boolean): VignetteQuality {
-    if (!ladderMigrated) {
-        if (raw === 'off') return 'off';
-        if (raw === 'low') return 'medium';
-        if (raw === 'medium') return 'high';
-        if (raw === 'high') return 'ultra';
-        if (raw === 'ultra') return 'ultra';
-        return DEFAULTS.vignette;
-    }
-    if (raw === 'off' || raw === 'medium' || raw === 'high' || raw === 'ultra') return raw;
-    if (raw === 'low') return 'medium';
-    return DEFAULTS.vignette;
+/** Collapse former low/medium tiers onto high (current ladder: off / high / ultra). */
+function migratePostTier(raw: unknown, fallback: VignetteQuality | BloomQuality): VignetteQuality | BloomQuality {
+    if (raw === 'off' || raw === 'high' || raw === 'ultra') return raw;
+    if (raw === 'low' || raw === 'medium') return 'high';
+    return fallback;
+}
+
+function migrateVignette(raw: unknown): VignetteQuality {
+    return migratePostTier(raw, DEFAULTS.vignette) as VignetteQuality;
+}
+
+function migrateBloom(raw: unknown): BloomQuality {
+    return migratePostTier(raw, DEFAULTS.bloom) as BloomQuality;
+}
+
+function migrateAo(raw: unknown): AoQuality {
+    if (raw === 'off' || raw === 'high' || raw === 'ultra') return raw;
+    if (raw === 'low' || raw === 'medium') return 'high';
+    return DEFAULTS.ao;
 }
 
 function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
@@ -349,7 +380,9 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     p.groundEffects = migrateGroundEffects(p.groundEffects);
     p.fireVfx = migrateFireVfx(p.fireVfx);
     p.bloodFx = migrateBloodFx(p.bloodFx);
-    p.vignette = migrateVignette(p.vignette, true);
+    p.vignette = migrateVignette(p.vignette);
+    p.bloom = migrateBloom(p.bloom);
+    p.ao = migrateAo(p.ao);
     if (p.stuckProjectiles !== 'off' && p.stuckProjectiles !== 'low' && p.stuckProjectiles !== 'high') {
         p.stuckProjectiles = DEFAULTS.stuckProjectiles;
     }
@@ -389,13 +422,14 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     }
     if (typeof p.renderDeadUnits !== 'boolean') p.renderDeadUnits = true;
     if (typeof p.antialias !== 'boolean') p.antialias = DEFAULTS.antialias;
-    if (
-        p.vignette !== 'off' &&
-        p.vignette !== 'medium' &&
-        p.vignette !== 'high' &&
-        p.vignette !== 'ultra'
-    ) {
+    if (p.vignette !== 'off' && p.vignette !== 'high' && p.vignette !== 'ultra') {
         p.vignette = DEFAULTS.vignette;
+    }
+    if (p.bloom !== 'off' && p.bloom !== 'high' && p.bloom !== 'ultra') {
+        p.bloom = DEFAULTS.bloom;
+    }
+    if (p.ao !== 'off' && p.ao !== 'high' && p.ao !== 'ultra') {
+        p.ao = DEFAULTS.ao;
     }
     if (typeof p.mobileTuned !== 'boolean') p.mobileTuned = false;
     if (
@@ -628,7 +662,9 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     debugOverlay: asBool,
     renderDeadUnits: asBool,
     antialias: asBool,
-    vignette: asWord(['off', 'medium', 'high', 'ultra']),
+    vignette: asWord(['off', 'high', 'ultra']),
+    bloom: asWord(['off', 'high', 'ultra']),
+    ao: asWord(['off', 'high', 'ultra']),
     transportChosen: asBool,
     mobileTuned: asBool,
     renderScale: asNearest([1, 0.75, 0.5, 0.33]),
@@ -709,10 +745,14 @@ export function prefs(): Prefs {
                 candidate.scenery = migrateScenery(stored.scenery);
                 candidate.groundEffects = migrateGroundEffects(stored.groundEffects);
                 candidate.fireVfx = migrateFireVfx(stored.fireVfx);
-                const vignetteLadderDone = localStorage.getItem(VIGNETTE_LADDER_KEY) === '1';
                 if (stored.vignette !== undefined) {
-                    candidate.vignette = migrateVignette(stored.vignette, vignetteLadderDone);
-                    if (!vignetteLadderDone) localStorage.setItem(VIGNETTE_LADDER_KEY, '1');
+                    candidate.vignette = migrateVignette(stored.vignette);
+                }
+                if (stored.bloom !== undefined) {
+                    candidate.bloom = migrateBloom(stored.bloom);
+                }
+                if (stored.ao !== undefined) {
+                    candidate.ao = migrateAo(stored.ao);
                 }
                 if (stored.shadows === undefined && stored.unitShadows !== undefined) {
                     candidate.shadows = migrateShadowQuality(stored.unitShadows);
@@ -734,6 +774,14 @@ export function prefs(): Prefs {
                 if (stored.vignette === undefined) {
                     const legacy = legacyPresetOf(cached);
                     if (legacy) cached.vignette = GRAPHICS_PRESETS[legacy].vignette;
+                }
+                if (stored.bloom === undefined) {
+                    const legacy = legacyPresetOf(cached);
+                    if (legacy) cached.bloom = GRAPHICS_PRESETS[legacy].bloom;
+                }
+                if (stored.ao === undefined) {
+                    const legacy = legacyPresetOf(cached);
+                    if (legacy) cached.ao = GRAPHICS_PRESETS[legacy].ao;
                 }
             }
         } catch {

@@ -141,6 +141,7 @@ import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } f
 import {
     onPrefsChange,
     prefs,
+    updatePrefs,
     debugEnabled,
     effectiveDpr,
     sceneryCameraFar,
@@ -955,6 +956,22 @@ export class Game {
             this.cycleMaterialDebug();
             return;
         }
+        if (e.code === 'KeyO' && e.shiftKey) {
+            // Shift+O cycles ambient occlusion: off → high → ultra
+            // (not Shift+A — A is camera strafe)
+            this.cycleAoQuality();
+            return;
+        }
+        if (e.code === 'KeyB' && e.shiftKey) {
+            // Shift+B cycles bloom: off → high → ultra
+            this.cycleBloomQuality();
+            return;
+        }
+        if (e.code === 'KeyG' && e.shiftKey) {
+            // Shift+G cycles vignette: off → high → ultra
+            this.cycleVignetteQuality();
+            return;
+        }
         if (e.shiftKey && e.code.startsWith('Digit')) {
             const digit = parseInt(e.code.slice(5), 10);
             if (digit === 0) {
@@ -1053,6 +1070,36 @@ export class Game {
             : next === 'wire' ? this.wireOverride
             : next === 'normals' ? this.normalsOverride
             : null;
+    }
+
+    /** Shift+O: live A/B ambient occlusion tiers. */
+    private cycleAoQuality(): void {
+        const order = ['off', 'high', 'ultra'] as const;
+        const i = Math.max(0, order.indexOf(prefs().ao));
+        const next = order[(i + 1) % order.length]!;
+        updatePrefs({ ao: next });
+        console.info(`[fx] Shift+O ambient occlusion: ${next}`);
+        this.hud.flashCinemaHint(`AO · ${next}`, 1400);
+    }
+
+    /** Shift+B: live A/B bloom tiers (battle only). */
+    private cycleBloomQuality(): void {
+        const order = ['off', 'high', 'ultra'] as const;
+        const i = Math.max(0, order.indexOf(prefs().bloom));
+        const next = order[(i + 1) % order.length]!;
+        updatePrefs({ bloom: next });
+        console.info(`[fx] Shift+B bloom: ${next}`);
+        this.hud.flashCinemaHint(`Bloom · ${next}`, 1400);
+    }
+
+    /** Shift+G: live A/B vignette tiers (battle only). */
+    private cycleVignetteQuality(): void {
+        const order = ['off', 'high', 'ultra'] as const;
+        const i = Math.max(0, order.indexOf(prefs().vignette));
+        const next = order[(i + 1) % order.length]!;
+        updatePrefs({ vignette: next });
+        console.info(`[fx] Shift+G vignette: ${next}`);
+        this.hud.flashCinemaHint(`Vignette · ${next}`, 1400);
     }
 
     /** Re-bake height-mist shader strength and recompile fogged materials (Shift+3). */
@@ -1364,7 +1411,6 @@ export class Game {
         this.renderer.toneMappingExposure = touchFirstDevice() ? 1.0 : 1.08;
         this.renderer.setPixelRatio(effectiveDpr());
         this.postFx = new PostFx(this.renderer, this.scene, this.rig.camera);
-        this.syncPostFx();
 
         this.scene.background = new Color(THEME.sky);
         // scenery 'off' plays without any fog or weather
@@ -1427,6 +1473,7 @@ export class Game {
         this.cloudFx = new CloudFx(this.scene);
         this.dragonFx = new DragonFx(this.scene);
         this.conversionFx = new ConversionFx(this.scene);
+        this.syncPostFx();
         this.oilDripFx = new OilDripFx(this.scene);
         this.hordeMarkers = new HordeMarkers(this.scene);
         this.strongholdCommanders = new StrongholdCommanders(this.scene);
@@ -2763,15 +2810,24 @@ export class Game {
         this.renderer.dispose();
     }
 
-    /** Scene draw — composer when vignette is on, otherwise direct. */
+    /** Scene draw — composer when bloom/vignette are on, otherwise direct. */
     private renderFrame(): void {
         if (this.postFx.enabled) this.postFx.render();
         else this.renderer.render(this.scene, this.rig.camera);
     }
 
-    /** Vignette only during combat — build / HP-draw stay clean for placement UI. */
+    /** Vignette / bloom in combat; AO also in build so placement stays readable. */
     private syncPostFx(): void {
-        this.postFx.setQuality(this.phase === 'battle' ? prefs().vignette : 'off');
+        const p = prefs();
+        if (this.phase === 'battle') {
+            this.postFx.setEffects(p.vignette, p.bloom, p.ao);
+            this.fireFx.setBloomComp(p.bloom);
+            this.conversionFx.setBloomComp(p.bloom);
+        } else {
+            this.postFx.setEffects('off', 'off', p.ao);
+            this.fireFx.setBloomComp('off');
+            this.conversionFx.setBloomComp('off');
+        }
     }
 
     /**
