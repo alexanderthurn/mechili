@@ -3156,7 +3156,9 @@ export class Game {
             eco.startingSupply + (this.round - 1) * climb.playerSupplyGrowthPerRound;
         for (let seat = 0; seat < this.seats.length; seat++) {
             const amount = this.seats[seat]!.team === 'player' ? playerIncome : aiIncome;
-            this.economy.credit(seat, amount);
+            // the campaign's own round income — same money dial as the normal
+            // path, or the setting would silently do nothing in climb
+            this.economy.creditRoundIncome(seat, amount);
         }
     }
 

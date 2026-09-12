@@ -717,6 +717,16 @@ export class Economy {
         this.balances[seat] = this.balance(seat) + amount;
     }
 
+    /**
+     * Round income for the campaign, which grants per-team amounts instead of
+     * one shared figure and so cannot go through {@link grantRoundIncome}.
+     * Same {@link GameSettings.moneyFactor} scaling and same rounding — this
+     * is the per-round money, just the climb variant of it.
+     */
+    creditRoundIncome(seat: SeatId, amount: number): void {
+        this.credit(seat, Math.round(amount * this.moneyFactor));
+    }
+
     /** always deducts (Credit debt); may leave a negative balance */
     debit(seat: SeatId, amount: number): void {
         this.balances[seat] = this.balance(seat) - amount;
