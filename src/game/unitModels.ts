@@ -17,6 +17,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
+import { touchFirstDevice } from './inputCapabilities';
 import {
     attachBuildingSnow,
     attachBuildingSnowToObject,
@@ -772,8 +773,8 @@ export async function loadUnitModels(
             onProgress?.(done, total);
         }
     };
-    if (textureBudget) {
-        // budgeted devices decode one model at a time — 15 parallel 2K–4K
+    if (touchFirstDevice()) {
+        // small devices decode one model at a time — 15 parallel 2K–4K
         // texture decodes is exactly the boot spike that kills mobile tabs
         for (const entry of entries) await loadEntry(entry);
     } else {

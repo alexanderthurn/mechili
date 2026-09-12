@@ -9,6 +9,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { loadSpellTemplate } from './spellMeshes';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
+import { touchFirstDevice } from './inputCapabilities';
 
 const URLS = {
     hammer: new URL('../../assets/models/spells/hammer-of-gods.glb', import.meta.url).href,
@@ -103,7 +104,7 @@ export async function ensureSpellTemplate(id: SpellAssetId): Promise<Group | nul
 /** Load every spell GLB once at boot. Safe to call repeatedly. */
 export function preloadSpellAssets(onProgress?: SpellProgress): Promise<void> {
     if (preloadPromise) return preloadPromise;
-    if (modelTextureBudget() !== null) {
+    if (touchFirstDevice()) {
         // budgeted devices skip the boot warm-up: every FX system already
         // awaits ensureSpellTemplate() on demand, and preloading all six
         // spell GLBs is boot memory a phone doesn't have
