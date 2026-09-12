@@ -103,6 +103,8 @@ export const FIRE_TINT_NORMAL = 0;
  *   capsule: fill 0x121828, line 0x8aa8d8
  */
 export const FIRE_TINT_DRAGON = 1;
+/** Looks like normal orange fire, but does not bake a permanent wear scorch. */
+export const FIRE_TINT_NOSCAR = 2;
 
 /**
  * How much an unlit oil slick slows what walks through it: ground units on an

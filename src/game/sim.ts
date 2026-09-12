@@ -3,6 +3,7 @@ import {
     ACID_DPS_PERCENT,
     applyBurnStatus,
     FIRE_TINT_NORMAL,
+    FIRE_TINT_NOSCAR,
     HAZARD_DRIP_FALL_SEC,
     HazardField,
     OIL_DIRECTED_BACK,
@@ -28,6 +29,7 @@ import {
     HAMMER_ID,
     HAMMER_ZONE,
     METEOR_SHARD_FALL_SEC,
+    METEOR_SHOWER_ID,
     RALLY_ROUTE_RADIUS,
     RALLY_ROUTE_REACH,
     RALLY_ROUTE_STUCK_SEC,
@@ -672,6 +674,8 @@ export type SimEvent =
           oilCells: number;
           /** {@link FIRE_TINT_NORMAL} or {@link FIRE_TINT_DRAGON} */
           tint?: number;
+          /** Permanent wear scorch seed. Omit/true = stamp on low fire VFX; false = skip. */
+          scar?: boolean;
       }
     | { kind: 'summon'; x: number; y: number; z: number; flying: boolean }
     /** meteor-shower shard cue — visual falls until `at`, then sim resolves hit */
@@ -2841,6 +2845,7 @@ export class BattleSim {
             radius: m.radius,
             damage: m.damage,
             delaySeconds: 0,
+            tacticId: METEOR_SHOWER_ID,
         });
         const shields = livingShieldDisks(this.actors.map((a) => a.unit));
         if (insideAnyShield(m.x, m.z, shields)) return;
@@ -2853,6 +2858,7 @@ export class BattleSim {
                 3,
                 12,
                 shields,
+                FIRE_TINT_NOSCAR,
             );
             this.events.push({
                 kind: 'groundFire',
@@ -2861,6 +2867,8 @@ export class BattleSim {
                 z: m.z,
                 radius: m.igniteRadius,
                 oilCells,
+                tint: FIRE_TINT_NOSCAR,
+                scar: false,
             });
         }
     }
@@ -2889,7 +2897,8 @@ export class BattleSim {
         }
         const y = simGroundHeightAt(s.x, s.z);
         const hammer = s.tacticId === HAMMER_ID;
-        const meteor = s.tacticId === BIG_METEOR_ID;
+        const bigMeteor = s.tacticId === BIG_METEOR_ID;
+        const meteorShower = s.tacticId === METEOR_SHOWER_ID;
         // particles: cover the hammer footprint (approx half-diagonal)
         const visualRadius = hammer
             ? Math.sqrt(HAMMER_ZONE.halfWidth * HAMMER_ZONE.halfWidth + HAMMER_ZONE.halfDepth * HAMMER_ZONE.halfDepth)
@@ -2900,10 +2909,12 @@ export class BattleSim {
             y: y + 0.6,
             z: s.z,
             radius: visualRadius,
-            // both big stamps throw the heavier dust; only the meteor burns
-            heavy: hammer || meteor,
-            fire: meteor,
-            shake: meteor ? 1 : 0,
+            // both big stamps throw the heavier dust; only the big meteor burns
+            heavy: hammer || bigMeteor,
+            fire: bigMeteor,
+            shake: bigMeteor ? 1 : 0,
+            // Meteors: VFX only — no permanent wear scorch (hammer still scars).
+            scar: bigMeteor || meteorShower ? false : undefined,
             rect: hammer
                 ? {
                       // scar = hit zone (HAMMER_ZONE) — ground + air damage use the same rect
@@ -2929,7 +2940,7 @@ export class BattleSim {
             // outside the scar while blood stayed at the kill seat.
         } else {
             this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
-            this.applyBlastImpulse(s.x, s.z, visualRadius, meteor ? 2.6 : 1.5);
+            this.applyBlastImpulse(s.x, s.z, visualRadius, bigMeteor ? 2.6 : 1.5);
         }
     }
 

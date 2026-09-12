@@ -10159,7 +10159,7 @@ export class Game {
             } else if (e.kind === 'groundFire') {
                 // Orange-tier only: permanent scar seed. Tongues tier uses live charcoal
                 // from the hazard mask (clears when the blaze dies).
-                if (prefs().fireVfx === 'low') {
+                if (e.scar !== false && prefs().fireVfx === 'low') {
                     this.map.stampScorch(e.x, e.z, Math.max(e.radius * 0.55, 1.4), 0.22);
                 }
             } else if (e.kind === 'towerDebuff') {
