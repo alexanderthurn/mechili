@@ -1506,7 +1506,7 @@ export const UNIT_TYPES: UnitType[] = [
         splashScar: false, // no ground crater stamp per stone
         sandWeight: 1.05,
         deathWear: 'ash',
-        deathAshScorch: { radius: 3.5, strength: 0.28 },
+        deathAshScorch: { radius: 1, strength: 0.2 },
         burn: { takenMult: 3.2 }, // timber siege frame
         hp: 260, // fragile — dies if crawlers/ogres close the gap
         damage: 24, // per stone; ×5 ≈ 120 / volley / tube
@@ -1539,7 +1539,7 @@ export const UNIT_TYPES: UnitType[] = [
         // heavy chassis would stamp hard from cost/bulk — keep a light track
         sandWeight: 1.1,
         deathWear: 'ash', // wood/iron siege — burns, no blood
-        deathAshScorch: { radius: 5, strength: 0.35 }, // half the default big-unit ash scar
+        deathAshScorch: { radius: 1, strength: 0.2 },
         burn: { takenMult: 4.0 }, // timber siege — burns hard once lit
         hp: 500,
         damage: 500,
