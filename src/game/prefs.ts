@@ -24,7 +24,7 @@ export type VignetteQuality = 'off' | 'high' | 'ultra';
 /** Selective bloom on bright emissives / fire (post-process; visual only). */
 export type BloomQuality = 'off' | 'high' | 'ultra';
 /** Screen-space AO — grounds units/buildings on the board (visual only). */
-export type AoQuality = 'off' | 'high' | 'ultra';
+export type AoQuality = 'off' | 'medium' | 'high' | 'ultra';
 
 /**
  * Fire VFX tiers (for tuning):
@@ -224,7 +224,8 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         antialias: true,
         vignette: 'high',
         bloom: 'high',
-        ao: 'high',
+        // half-resolution AO: the grounding without the full-res pass cost
+        ao: 'medium',
     },
     ultra: {
         scenery: 'ultra',
@@ -370,8 +371,8 @@ function migrateBloom(raw: unknown): BloomQuality {
 }
 
 function migrateAo(raw: unknown): AoQuality {
-    if (raw === 'off' || raw === 'high' || raw === 'ultra') return raw;
-    if (raw === 'low' || raw === 'medium') return 'high';
+    if (raw === 'off' || raw === 'medium' || raw === 'high' || raw === 'ultra') return raw;
+    if (raw === 'low') return 'medium';
     return DEFAULTS.ao;
 }
 
@@ -428,7 +429,7 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     if (p.bloom !== 'off' && p.bloom !== 'high' && p.bloom !== 'ultra') {
         p.bloom = DEFAULTS.bloom;
     }
-    if (p.ao !== 'off' && p.ao !== 'high' && p.ao !== 'ultra') {
+    if (p.ao !== 'off' && p.ao !== 'medium' && p.ao !== 'high' && p.ao !== 'ultra') {
         p.ao = DEFAULTS.ao;
     }
     if (typeof p.mobileTuned !== 'boolean') p.mobileTuned = false;
@@ -664,7 +665,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     antialias: asBool,
     vignette: asWord(['off', 'high', 'ultra']),
     bloom: asWord(['off', 'high', 'ultra']),
-    ao: asWord(['off', 'high', 'ultra']),
+    ao: asWord(['off', 'medium', 'high', 'ultra']),
     transportChosen: asBool,
     mobileTuned: asBool,
     renderScale: asNearest([1, 0.75, 0.5, 0.33]),
@@ -775,13 +776,20 @@ export function prefs(): Prefs {
                     const legacy = legacyPresetOf(cached);
                     if (legacy) cached.vignette = GRAPHICS_PRESETS[legacy].vignette;
                 }
+                // Bloom and GTAO are the two most expensive passes in the
+                // stack, and DEFAULTS turns both ON (it spreads the high
+                // preset). A pref file that predates the keys must not inherit
+                // that silently: a recognisable preset tells us what the player
+                // picked, but a custom setup tells us nothing, and guessing
+                // "on" there hands two new passes to the machine most likely to
+                // have been tuned down on purpose. Off, and they can opt in.
                 if (stored.bloom === undefined) {
                     const legacy = legacyPresetOf(cached);
-                    if (legacy) cached.bloom = GRAPHICS_PRESETS[legacy].bloom;
+                    cached.bloom = legacy ? GRAPHICS_PRESETS[legacy].bloom : 'off';
                 }
                 if (stored.ao === undefined) {
                     const legacy = legacyPresetOf(cached);
-                    if (legacy) cached.ao = GRAPHICS_PRESETS[legacy].ao;
+                    cached.ao = legacy ? GRAPHICS_PRESETS[legacy].ao : 'off';
                 }
             }
         } catch {

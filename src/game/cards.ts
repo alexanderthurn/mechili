@@ -29,7 +29,7 @@ import {
     TACTICS,
     TUTOR_ID,
 } from './tactics';
-import { unitUnlockCost } from './units';
+import { isPlayerBuyable, UNIT_TYPES, unitUnlockCost } from './units';
 import { forgeIngredientIcons } from './forgeRecipes';
 
 export type SpecialityId =
@@ -318,20 +318,18 @@ export function roundCardIcon(c: RoundCard): string | null {
     return null;
 }
 
-/** buyable army types in the deployment shop (not board extras) */
-export const SHOP_UNIT_IDS = [
-    'dwarf',
-    'goblin',
-    'hammerer',
-    'ogre',
-    'archer',
-    'bat',
-    'crowRider',
-    'mortar',
-    'ballista',
-    'wizard',
-] as const;
-export type ShopUnitId = (typeof SHOP_UNIT_IDS)[number];
+/**
+ * Buyable army types in the deployment shop (not board extras), derived from
+ * the roster itself so this list can never drift from {@link UnitType.buyable}
+ * — a hand-written copy let the horde-only Bat leak into the unlock picker at
+ * an infinite price. Board extras (shield/rocket) and unbuyable horde types
+ * are filtered out; the order follows UNIT_TYPES, which is also the order the
+ * shop grid builds its tiles in.
+ */
+export const SHOP_UNIT_IDS: readonly string[] = UNIT_TYPES.filter(
+    (t) => !t.extra && !t.structure && isPlayerBuyable(t),
+).map((t) => t.id);
+export type ShopUnitId = string;
 
 /** the signature unit a specialist can buy even if it is not in the starter army */
 export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
@@ -487,9 +485,9 @@ export const START_CARDS: StartCard[] = [
         id: 'air',
         title: 'Sky Sorcerer',
         portrait: 'spec-air',
-        units: ['crowRider', 'crowRider', 'dwarf'],
-        unitsLabel: '2× Crow Riders · 1× Dwarves',
-        startingHp: 2700,
+        units: ['goblin', 'goblin', 'goblin', 'crowRider'],
+        unitsLabel: '3× Goblins · 1× Crow Riders',
+        startingHp: 5600,
         speciality: 'air',
         forgeSpells: [FIRE_SPILL_ID, SPAWN_CROWS_ID, DRAGON_ID],
         description: 'Air units get +12% attack and HP.',
@@ -498,9 +496,9 @@ export const START_CARDS: StartCard[] = [
         id: 'cost',
         title: 'Greedy Prince',
         portrait: 'spec-cost',
-        units: ['archer', 'archer', 'crowRider', 'dwarf'],
-        unitsLabel: '2× Archers · 1× Crow Riders · 1× Dwarves',
-        startingHp: 2600,
+        units: ['dwarf', 'dwarf', 'dwarf', 'crowRider'],
+        unitsLabel: '3× Dwarves · 1× Crow Riders',
+        startingHp: 5200,
         speciality: 'costControl',
         forgeSpells: [OIL_SPILL_ID, POISON_CLOUD_ID, DRAGON_ID],
         description: 'All units −12% attack and HP, but +100 supply every round.',
@@ -509,9 +507,9 @@ export const START_CARDS: StartCard[] = [
         id: 'elite',
         title: 'Elite Prince',
         portrait: 'spec-elite',
-        units: ['ballista', 'dwarf'],
-        unitsLabel: '1× Ballista · 1× Dwarves',
-        startingHp: 3600,
+        units: ['goblin', 'goblin', 'goblin', 'ogre'],
+        unitsLabel: '3× Goblins · 1× Ogre',
+        startingHp: 5200,
         speciality: 'elite',
         forgeSpells: [FIRE_SPILL_ID, SPAWN_CROWS_ID, HAMMER_ID],
         description:
@@ -521,9 +519,9 @@ export const START_CARDS: StartCard[] = [
         id: 'archer',
         title: 'Archer Commander',
         portrait: 'spec-archer',
-        units: ['archer', 'archer', 'archer', 'dwarf', 'dwarf'],
-        unitsLabel: '3× Archers · 2× Dwarves',
-        startingHp: 3000,
+        units: ['dwarf', 'dwarf', 'dwarf', 'archer', 'archer'],
+        unitsLabel: '3× Dwarves · 2× Archers',
+        startingHp: 6000,
         speciality: 'archer',
         forgeSpells: [FIRE_SPILL_ID, STORM_ID, METEOR_SHOWER_ID],
         description: 'A free level-3 Archer arrives in round 2.',
@@ -532,9 +530,9 @@ export const START_CARDS: StartCard[] = [
         id: 'addi',
         title: 'Relic Keeper',
         portrait: 'spec-addi',
-        units: ['crowRider', 'dwarf', 'dwarf', 'dwarf'],
-        unitsLabel: '1× Crow Riders · 3× Dwarves',
-        startingHp: 3000,
+        units: ['hammerer', 'hammerer', 'hammerer', 'dwarf', 'dwarf'],
+        unitsLabel: '3× Hammerers · 2× Dwarves',
+        startingHp: 6000,
         speciality: 'addi',
         items: ['addi', 'addi', 'addi'],
         forgeSpells: [OIL_SPILL_ID, ACID_ID, HAMMER_ID],
@@ -544,9 +542,9 @@ export const START_CARDS: StartCard[] = [
         id: 'meteor',
         title: 'Lord Hitzkopf',
         portrait: 'spec-meteor',
-        units: ['wizard', 'dwarf'],
-        unitsLabel: '1× Wizard · 1× Dwarves',
-        startingHp: 2500,
+        units: ['goblin', 'goblin', 'goblin', 'mortar'],
+        unitsLabel: '3× Goblins · 1× Mortars',
+        startingHp: 5200,
         speciality: 'meteor',
         tactics: [BIG_METEOR_ID, BIG_METEOR_ID],
         forgeSpells: [FIRE_SPILL_ID, BIG_METEOR_ID, METEOR_SHOWER_ID],
@@ -556,9 +554,9 @@ export const START_CARDS: StartCard[] = [
         id: 'speed',
         title: 'Speedy Widow',
         portrait: 'spec-speed',
-        units: ['crowRider', 'archer', 'dwarf', 'dwarf'],
-        unitsLabel: '1× Crow Riders · 1× Archers · 2× Dwarves',
-        startingHp: 3000,
+        units: ['dwarf', 'dwarf', 'dwarf', 'ogre'],
+        unitsLabel: '3× Dwarves · 1× Ogre',
+        startingHp: 5800,
         speciality: 'speed',
         forgeSpells: [OIL_SPILL_ID, SPAWN_CROWS_ID, DRAGON_ID],
         description: `All units move +${SPEED_COMMANDER_BONUS} faster.`,
@@ -567,9 +565,9 @@ export const START_CARDS: StartCard[] = [
         id: 'giant',
         title: 'Countess Chonk',
         portrait: 'spec-giant',
-        units: ['ballista', 'dwarf'],
-        unitsLabel: '1× Ballista · 1× Dwarves',
-        startingHp: 2600,
+        units: ['goblin', 'goblin', 'goblin', 'hammerer', 'hammerer'],
+        unitsLabel: '3× Goblins · 2× Hammerers',
+        startingHp: 6400,
         speciality: 'giant',
         forgeSpells: [SPAWN_DWARVES_ID, BIG_METEOR_ID, HAMMER_ID],
         description: `Shop unlocks of ${GIANT_UNLOCK_THRESHOLD}+ cost ${GIANT_UNLOCK_DISCOUNT} less.`,
@@ -578,9 +576,9 @@ export const START_CARDS: StartCard[] = [
         id: 'tutor',
         title: 'Lady Lecture',
         portrait: 'spec-tutor',
-        units: ['crowRider', 'archer', 'archer', 'archer'],
-        unitsLabel: '1× Crow Riders · 3× Archers',
-        startingHp: 3000,
+        units: ['goblin', 'goblin', 'goblin', 'archer', 'archer'],
+        unitsLabel: '3× Goblins · 2× Archers',
+        startingHp: 6000,
         speciality: 'tutor',
         tactics: [TUTOR_ID],
         tacticsRound: 1,
@@ -591,9 +589,9 @@ export const START_CARDS: StartCard[] = [
         id: 'money',
         title: 'Money Queen',
         portrait: 'spec-money',
-        units: ['crowRider', 'crowRider', 'archer'],
-        unitsLabel: '2× Crow Riders · 1× Archers',
-        startingHp: 2700,
+        units: ['dwarf', 'dwarf', 'dwarf', 'mortar'],
+        unitsLabel: '3× Dwarves · 1× Mortars',
+        startingHp: 5400,
         speciality: 'money',
         forgeSpells: [OIL_SPILL_ID, STORM_ID, DRAGON_ID],
         description: `+${MONEY_ROUND1_BONUS} supply in round 1.`,
@@ -602,9 +600,9 @@ export const START_CARDS: StartCard[] = [
         id: 'cursed',
         title: 'Cursed Christine',
         portrait: 'spec-cursed',
-        units: ['dwarf', 'dwarf', 'archer', 'archer'],
-        unitsLabel: '2× Dwarves · 2× Archers',
-        startingHp: 3000,
+        units: ['hammerer', 'hammerer', 'hammerer', 'goblin', 'goblin'],
+        unitsLabel: '3× Hammerers · 2× Goblins',
+        startingHp: 5800,
         speciality: 'cursed',
         forgeSpells: [SPAWN_DWARVES_ID, POISON_CLOUD_ID, HAMMER_ID],
         description: 'Gets one free Black Brood spider each round.',
@@ -613,9 +611,9 @@ export const START_CARDS: StartCard[] = [
         id: 'flanky',
         title: 'Flanky Shadow',
         portrait: 'spec-flanky',
-        units: ['dwarf', 'dwarf', 'archer', 'archer'],
-        unitsLabel: '2× Dwarves · 2× Archers',
-        startingHp: 3000,
+        units: ['dwarf', 'dwarf', 'dwarf', 'hammerer', 'hammerer'],
+        unitsLabel: '3× Dwarves · 2× Hammerers',
+        startingHp: 5800,
         speciality: 'flanky',
         forgeSpells: [SPAWN_DWARVES_ID, POISON_CLOUD_ID, METEOR_SHOWER_ID],
         description: 'First-time flank spawns take half the time.',

@@ -30,7 +30,19 @@ const BLOOM: Record<Exclude<BloomQuality, 'off'>, { threshold: number; strength:
         ultra: { threshold: 0.85, strength: 0.55, radius: 0.52 },
     };
 
-/** Mild GTAO — small radius so grass stays clean; scale/blend lift unit contact. */
+/**
+ * Mild GTAO — small radius so grass stays clean; scale/blend lift unit contact.
+ *
+ * `resScale` sizes the AO buffers as a fraction of the frame. AO is
+ * low-frequency, so half resolution is close to invisible while cutting the AO
+ * pixels to a quarter — that is what makes `medium` cheap enough to be the high
+ * preset's tier. It does NOT reduce GTAOPass's normal pre-pass, which re-renders
+ * the scene every frame and is the bigger cost; fixing that needs a shared
+ * depth/normal prepass.
+ *
+ * `high` and `ultra` keep their original full-resolution params so the cheaper
+ * tier can be compared against them directly (Shift+O).
+ */
 const AO: Record<
     Exclude<AoQuality, 'off'>,
     {
@@ -39,10 +51,43 @@ const AO: Record<
         samples: number;
         blendIntensity: number;
         thickness: number;
+        /** AO buffer size as a fraction of the effective frame (1 = full) */
+        resScale: number;
+        /** poisson-denoise radius / sample count */
+        pdRadius: number;
+        pdSamples: number;
     }
 > = {
-    high: { radius: 0.2, scale: 0.75, samples: 12, blendIntensity: 0.7, thickness: 1.0 },
-    ultra: { radius: 0.26, scale: 0.95, samples: 16, blendIntensity: 0.85, thickness: 1.1 },
+    medium: {
+        radius: 0.2,
+        scale: 0.75,
+        samples: 8,
+        blendIntensity: 0.7,
+        thickness: 1.0,
+        resScale: 0.5,
+        pdRadius: 6,
+        pdSamples: 8,
+    },
+    high: {
+        radius: 0.2,
+        scale: 0.75,
+        samples: 12,
+        blendIntensity: 0.7,
+        thickness: 1.0,
+        resScale: 1,
+        pdRadius: 6,
+        pdSamples: 10,
+    },
+    ultra: {
+        radius: 0.26,
+        scale: 0.95,
+        samples: 16,
+        blendIntensity: 0.85,
+        thickness: 1.1,
+        resScale: 1,
+        pdRadius: 8,
+        pdSamples: 12,
+    },
 };
 
 export class PostFx {
@@ -97,6 +142,20 @@ export class PostFx {
         this.resolution.set(Math.max(4, width), Math.max(4, height));
         this.composer.setPixelRatio(this.renderer.getPixelRatio());
         this.composer.setSize(this.resolution.x, this.resolution.y);
+        // composer.setSize resizes EVERY pass to the full effective frame, so a
+        // fractional AO buffer has to be re-applied after it, never before.
+        this.applyAoResolution();
+    }
+
+    /** Size the AO pass to its tier's fraction of the effective frame. */
+    private applyAoResolution(): void {
+        if (!this.aoPass || this.ao === 'off') return;
+        const s = AO[this.ao].resScale;
+        const pr = this.renderer.getPixelRatio();
+        this.aoPass.setSize(
+            Math.max(4, Math.floor(this.resolution.x * pr * s)),
+            Math.max(4, Math.floor(this.resolution.y * pr * s)),
+        );
     }
 
     render(): void {
@@ -124,11 +183,13 @@ export class PostFx {
                 lumaPhi: 10,
                 depthPhi: 2,
                 normalPhi: 3,
-                radius: this.ao === 'high' ? 6 : 8,
+                radius: a.pdRadius,
                 radiusExponent: 1,
                 rings: 2,
-                samples: this.ao === 'high' ? 10 : 12,
+                samples: a.pdSamples,
             });
+            // tier switch without a pass rebuild (Shift+O) changes resScale too
+            this.applyAoResolution();
         }
         if (this.bloom !== 'off' && this.bloomPass) {
             const b = BLOOM[this.bloom];
@@ -156,7 +217,13 @@ export class PostFx {
         composer.addPass(new RenderPass(this.scene, this.camera));
 
         if (this.ao !== 'off') {
-            const ao = new GTAOPass(this.scene, this.camera, bw, bh);
+            const s = AO[this.ao].resScale;
+            const ao = new GTAOPass(
+                this.scene,
+                this.camera,
+                Math.max(4, Math.floor(bw * s)),
+                Math.max(4, Math.floor(bh * s)),
+            );
             ao.output = GTAOPass.OUTPUT.Default;
             composer.addPass(ao);
             this.aoPass = ao;

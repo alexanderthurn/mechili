@@ -86,6 +86,15 @@ export interface GameSettings {
      * Team HP itself comes only from those card grants (summed in 2v2).
      */
     commanderHpFactor: number;
+    /**
+     * Multiplies the per-round supply income for every seat. 1 = normal;
+     * Custom Game can raise it for faster, richer matches. Applied in
+     * {@link Economy.grantRoundIncome} — not baked into EconomySettings, so
+     * the settings sheet still shows the unscaled base income and growth.
+     * Card-driven supply (cost control, elite, Money Queen) is NOT scaled:
+     * those are commander powers, not the economy dial.
+     */
+    moneyFactor: number;
     /** what the Stronghold is worth this match (see {@link StrongholdMode}) */
     strongholdMode: StrongholdMode;
     economy: EconomySettings;
@@ -424,6 +433,43 @@ export function formatCommanderHpFactorOption(o: CommanderHpFactorOption): strin
     });
 }
 
+/** Custom Game supply multiplier options — both teams share one factor. */
+export interface MoneyFactorOption {
+    factor: number;
+    label: string;
+}
+
+export const MONEY_FACTOR_OPTIONS: readonly MoneyFactorOption[] = [
+    { factor: 0.5, label: '0.5×' },
+    { factor: 1, label: '1×' },
+    { factor: 2, label: '2×' },
+    { factor: 5, label: '5×' },
+    { factor: 10, label: '10×' },
+];
+
+export const DEFAULT_MONEY_FACTOR = 1;
+
+/** Snap unknown / legacy values onto a known lobby option (default ×1). */
+export function moneyFactorOption(raw: unknown): number {
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (MONEY_FACTOR_OPTIONS.some((o) => o.factor === n)) return n;
+    return DEFAULT_MONEY_FACTOR;
+}
+
+/** Any positive finite factor for live GameSettings (wire / URL / saves). */
+export function resolveMoneyFactor(raw: unknown): number {
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (Number.isFinite(n) && n > 0) return n;
+    return DEFAULT_MONEY_FACTOR;
+}
+
+export function formatMoneyFactorOption(o: MoneyFactorOption): string {
+    return t('settings:sheet.moneyOption', {
+        label: o.label,
+        defaultValue: `${o.label} supply income (both teams)`,
+    });
+}
+
 export const DEFAULT_SETTINGS: GameSettings = {
     map: STANDARD_MAP,
     buildTimeSeconds: 90,
@@ -431,6 +477,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     specialistTimeSeconds: 15,
     cardTimeSeconds: 15,
     commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+    moneyFactor: DEFAULT_MONEY_FACTOR,
     strongholdMode: DEFAULT_STRONGHOLD_MODE,
     economy: {
         startingSupply: 200,
@@ -557,6 +604,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         roundCardPreset: resolveRoundCardPreset(legacy),
         hordePreset: resolveHordePreset(legacy),
         commanderHpFactor: resolveCommanderHpFactor(settings.commanderHpFactor),
+        moneyFactor: resolveMoneyFactor(settings.moneyFactor),
         strongholdMode: strongholdModeOption(settings.strongholdMode),
         climb: settings.climb
             ? {
@@ -614,6 +662,8 @@ export class Economy {
     constructor(
         private readonly settings: EconomySettings,
         seatCount = 2,
+        /** see {@link GameSettings.moneyFactor} — scales round income only */
+        private readonly moneyFactor = 1,
     ) {
         this.balances = new Array(seatCount).fill(0);
     }
@@ -637,8 +687,12 @@ export class Economy {
 
     /** escalating income: round 1 grants 200, round 2 grants 400, ... — every seat, full share */
     grantRoundIncome(round: number): void {
-        const income =
+        const base =
             this.settings.startingSupply + (round - 1) * this.settings.supplyGrowthPerRound;
+        // Rounded to a whole number: balances ride in the round hash, so every
+        // peer has to credit the identical integer, not a float that differs
+        // in the last bit.
+        const income = Math.round(base * this.moneyFactor);
         for (let s = 0; s < this.balances.length; s++) this.balances[s]! += income;
     }
 
@@ -661,6 +715,16 @@ export class Economy {
     /** pays an amount back (action undo refunds) */
     credit(seat: SeatId, amount: number): void {
         this.balances[seat] = this.balance(seat) + amount;
+    }
+
+    /**
+     * Round income for the campaign, which grants per-team amounts instead of
+     * one shared figure and so cannot go through {@link grantRoundIncome}.
+     * Same {@link GameSettings.moneyFactor} scaling and same rounding — this
+     * is the per-round money, just the climb variant of it.
+     */
+    creditRoundIncome(seat: SeatId, amount: number): void {
+        this.credit(seat, Math.round(amount * this.moneyFactor));
     }
 
     /** always deducts (Credit debt); may leave a negative balance */
@@ -801,6 +865,16 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     }),
                     note: t('settings:sheet.incomeGrowthNote', {
                         defaultValue: 'round N grants startingSupply + (N-1) × growth',
+                    }),
+                },
+                {
+                    label: t('settings:sheet.moneyFactor', { defaultValue: 'Supply factor' }),
+                    value: t('settings:sheet.moneyFactorValue', {
+                        factor: settings.moneyFactor,
+                        defaultValue: `×${settings.moneyFactor}`,
+                    }),
+                    note: t('settings:sheet.moneyFactorNote', {
+                        defaultValue: 'scales every round’s income for both teams',
                     }),
                 },
                 {

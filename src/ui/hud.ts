@@ -4579,13 +4579,7 @@ export class Hud {
             if (this.itemGhost) this.itemGhost.classList.toggle('mechili-cinema-hide', hidden);
         }
         if (hidden && showHint) {
-            if (!this.cinemaHint) {
-                const hint = document.createElement('div');
-                hint.className = 'mechili-cinema-hint';
-                this.overlayParent.appendChild(hint);
-                this.cinemaHint = hint;
-            }
-            this.cinemaHint.style.display = '';
+            this.ensureCinemaHint().style.display = '';
         } else if (this.cinemaHint) {
             if (this.cinemaHintTimer !== null) {
                 window.clearTimeout(this.cinemaHintTimer);
@@ -4596,15 +4590,32 @@ export class Hud {
         }
     }
 
+    /** The little mono chip in the bottom-left corner, created on first use. */
+    private ensureCinemaHint(): HTMLDivElement {
+        if (!this.cinemaHint) {
+            const hint = document.createElement('div');
+            hint.className = 'mechili-cinema-hint';
+            this.overlayParent.appendChild(hint);
+            this.cinemaHint = hint;
+        }
+        return this.cinemaHint;
+    }
+
     /**
      * Briefly show the cinema footer (e.g. `Shift+C — 1/11 Spring morning`),
      * then fade it back out. Called on cinema enter and on each season change,
      * so the scene label doesn't linger over the clean view.
+     *
+     * Also used by the render-tier hotkeys (Shift+O/B/G) with the HUD up, so it
+     * creates the chip on demand and unhides it: it used to exist only after a
+     * trip through cinema mode, and `setUiHidden(false)` leaves it display:none,
+     * which silently swallowed those messages.
      */
     flashCinemaHint(text: string, durationMs = 2600): void {
-        if (!this.cinemaHint) return;
-        this.cinemaHint.textContent = text;
-        this.cinemaHint.classList.add('is-visible');
+        const hint = this.ensureCinemaHint();
+        hint.style.display = '';
+        hint.textContent = text;
+        hint.classList.add('is-visible');
         if (this.cinemaHintTimer !== null) window.clearTimeout(this.cinemaHintTimer);
         this.cinemaHintTimer = window.setTimeout(() => {
             this.cinemaHint?.classList.remove('is-visible');

@@ -2,58 +2,58 @@
   "air": {
     "title": "Sky Sorcerer",
     "description": "Air units get +12% attack and HP.",
-    "unitsLabel": "2× Crow Riders · 1× Dwarves"
+    "unitsLabel": "3× Goblins · 1× Crow Riders"
   },
   "cost": {
     "title": "Greedy Prince",
     "description": "All units −12% attack and HP, but +100 supply every round.",
-    "unitsLabel": "2× Archers · 1× Crow Riders · 1× Dwarves"
+    "unitsLabel": "3× Dwarves · 1× Crow Riders"
   },
   "elite": {
     "title": "Elite Prince",
     "description": "Recruiting at level 2. +100 supply in round 1.",
-    "unitsLabel": "1× Ballista · 1× Dwarves"
+    "unitsLabel": "3× Goblins · 1× Ogre"
   },
   "archer": {
     "title": "Archer Commander",
     "description": "A free level-3 Archer arrives in round 2.",
-    "unitsLabel": "3× Archers · 2× Dwarves"
+    "unitsLabel": "3× Dwarves · 2× Archers"
   },
   "addi": {
     "title": "Relic Keeper",
     "description": "Gets 3× Valor rune in round 1.",
-    "unitsLabel": "1× Crow Riders · 3× Dwarves"
+    "unitsLabel": "3× Hammerers · 2× Dwarves"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
     "description": "Gets 2 Meteor charges in round 2.",
-    "unitsLabel": "1× Wizard · 1× Dwarves"
+    "unitsLabel": "3× Goblins · 1× Mortars"
   },
   "speed": {
     "title": "Speedy Widow",
-    "unitsLabel": "1× Crow Riders · 1× Archers · 2× Dwarves"
+    "unitsLabel": "3× Dwarves · 1× Ogre"
   },
   "giant": {
     "title": "Countess Chonk",
-    "unitsLabel": "1× Ballista · 1× Dwarves"
+    "unitsLabel": "3× Goblins · 2× Hammerers"
   },
   "tutor": {
     "title": "Lady Lecture",
     "description": "Starts with one Field Lesson.",
-    "unitsLabel": "1× Crow Riders · 3× Archers"
+    "unitsLabel": "3× Goblins · 2× Archers"
   },
   "money": {
     "title": "Money Queen",
-    "unitsLabel": "2× Crow Riders · 1× Archers"
+    "unitsLabel": "3× Dwarves · 1× Mortars"
   },
   "cursed": {
     "title": "Cursed Christine",
     "description": "Gets one free Black Brood spider each round.",
-    "unitsLabel": "2× Dwarves · 2× Archers"
+    "unitsLabel": "3× Hammerers · 2× Goblins"
   },
   "flanky": {
     "title": "Flanky Shadow",
     "description": "First-time flank spawns take half the time.",
-    "unitsLabel": "2× Dwarves · 2× Archers"
+    "unitsLabel": "3× Dwarves · 2× Hammerers"
   }
 }

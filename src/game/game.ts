@@ -498,6 +498,13 @@ export class Game {
     private hpPeak: number[] = [];
     private matchOver = false;
     /**
+     * The player ended this match themselves — the pause menu's "Quit to
+     * menu", or "Give up" on a blocking notice. The result is still a
+     * defeat, but offering "Retry last round" for a round nobody lost reads
+     * as the game not having noticed you left, so the button is suppressed.
+     */
+    private endedByOwnChoice = false;
+    /**
      * Campaign climb: round wins so far. Restored from SP save / retry payload
      * (battle outcomes are not in the action log).
      */
@@ -950,7 +957,7 @@ export class Game {
             return;
         }
         if (e.code === 'KeyO' && e.shiftKey) {
-            // Shift+O cycles ambient occlusion: off → high → ultra
+            // Shift+O cycles ambient occlusion: off → medium → high → ultra
             // (not Shift+A — A is camera strafe)
             this.cycleAoQuality();
             return;
@@ -1067,7 +1074,7 @@ export class Game {
 
     /** Shift+O: live A/B ambient occlusion tiers. */
     private cycleAoQuality(): void {
-        const order = ['off', 'high', 'ultra'] as const;
+        const order = ['off', 'medium', 'high', 'ultra'] as const;
         const i = Math.max(0, order.indexOf(prefs().ao));
         const next = order[(i + 1) % order.length]!;
         updatePrefs({ ao: next });
@@ -1359,7 +1366,7 @@ export class Game {
             this.rosterProfilesLoaded = true;
         }
         this.humanSeat = humanSeat;
-        this.economy = new Economy(settings.economy, this.seats.length);
+        this.economy = new Economy(settings.economy, this.seats.length, settings.moneyFactor);
         this.recruitLevel = this.seats.map(() => 1);
         this.creditUsed = this.seats.map(() => false);
         this.creditDebt = this.seats.map(() => false);
@@ -3212,7 +3219,9 @@ export class Game {
             eco.startingSupply + (this.round - 1) * climb.playerSupplyGrowthPerRound;
         for (let seat = 0; seat < this.seats.length; seat++) {
             const amount = this.seats[seat]!.team === 'player' ? playerIncome : aiIncome;
-            this.economy.credit(seat, amount);
+            // the campaign's own round income — same money dial as the normal
+            // path, or the setting would silently do nothing in climb
+            this.economy.creditRoundIncome(seat, amount);
         }
     }
 
@@ -5390,6 +5399,8 @@ export class Game {
 
     voluntaryQuit(): void {
         if (!this.matchOver && !this.disposed) {
+            // every branch below ends in a defeat the player asked for
+            this.endedByOwnChoice = true;
             if (this.star?.role === 'host') {
                 this.starForfeit(this.seats[this.humanSeat]!.team);
                 if (!this.matchOver) this.presentMatchEnd('defeat');
@@ -9456,7 +9467,11 @@ export class Game {
             // would restart it at zero wins while the board is staged for a
             // later round — a failed lesson is re-entered from the menu instead.
             const allowRetry =
-                result === 'defeat' && !this.star && !this.watching && !isTutorial(this.settings);
+                result === 'defeat' &&
+                !this.endedByOwnChoice &&
+                !this.star &&
+                !this.watching &&
+                !isTutorial(this.settings);
             // A finished lesson offers the one after it, so the set can be played
             // straight through; the last lesson only offers the menu.
             const allowNext =

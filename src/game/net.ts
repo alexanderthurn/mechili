@@ -270,6 +270,8 @@ export interface CustomGameConfig {
     roundCardPreset: string;
     /** multiplies each commander card’s starting HP (both teams); see GameSettings.commanderHpFactor */
     commanderHpFactor: number;
+    /** multiplies each round’s supply income (both teams); see GameSettings.moneyFactor */
+    moneyFactor: number;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
 }
