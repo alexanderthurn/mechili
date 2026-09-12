@@ -130,6 +130,10 @@ export class FireFx {
                 y: y + vy * tip,
                 z: z + vz * tip,
                 scale: p.style === 'largeArrow' ? 2 : 1,
+                // −velocity → tip lean mixes this with world-up (~45° back)
+                dx: -vx,
+                dy: -vy,
+                dz: -vz,
             });
         }
         this.flames.setProjectileTips(this.tipScratch);

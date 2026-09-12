@@ -24,12 +24,30 @@ const TIP_MAX = 96;
 /** Breath tongue billboard size vs ground tongues */
 const BREATH_SIZE_MUL = 2.1;
 /** Tip flame size vs ground tongues */
-const TIP_SIZE_MUL = 0.55;
+const TIP_SIZE_MUL = 1.1;
+/**
+ * Lean from camera-up toward −velocity in the billboard plane.
+ * 0 = upright (old look), 1 = fully trail-aligned; ~0.55 ≈ 45° lean.
+ */
+const TIP_LEAN = 0.55;
 /** Breath flicker / noise clock vs ground (1 = same) */
 const BREATH_ANIM_SPEED = 0.025;
 
-/** World-space flame anchors (dragon breath / projectile tips). */
-export type BreathTongueSample = { x: number; y: number; z: number; /** tip size vs base (ballista = 5) */ scale?: number };
+/**
+ * World-space flame anchors (dragon breath / projectile tips).
+ * Tip samples may include `dx/dy/dz` = unit −velocity for the lean axis.
+ */
+export type BreathTongueSample = {
+    x: number;
+    y: number;
+    z: number;
+    /** tip size vs base (ballista larger) */
+    scale?: number;
+    /** unit −velocity; omitted for upright breath anchors */
+    dx?: number;
+    dy?: number;
+    dz?: number;
+};
 
 type FlameTier = {
     /** hard cap on active tongue instances this frame */
@@ -85,6 +103,42 @@ const FLAME_VERT = /* glsl */ `
     }
 `;
 
+/** Tip streaks: same camera-facing billboard as ground fire, but lean `up`
+ *  toward −velocity projected into the camera plane (keeps tips visible in
+ *  top-down view — world-Y stretch was edge-on and vanished). */
+const TIP_FLAME_VERT = /* glsl */ `
+    attribute float aPhase;
+    attribute float aTint;
+    attribute float aSpeed;
+    attribute vec3 aAxis;
+    uniform float uLean;
+    varying vec2 vUv;
+    varying float vPhase;
+    varying float vTint;
+    varying float vSpeed;
+    void main() {
+        vUv = uv;
+        vPhase = aPhase;
+        vTint = aTint;
+        vSpeed = aSpeed;
+        vec4 origin = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        float sx = length(vec3(instanceMatrix[0]));
+        float sy = length(vec3(instanceMatrix[1]));
+        vec3 camRight = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+        vec3 camUp = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+        vec3 face = cross(camRight, camUp);
+        float faceLen2 = dot(face, face);
+        face = faceLen2 > 1e-8 ? face * inversesqrt(faceLen2) : vec3(0.0, 0.0, 1.0);
+        // Project trail into the billboard plane so we never go edge-on to the camera.
+        vec3 trail = aAxis - face * dot(aAxis, face);
+        float t2 = dot(trail, trail);
+        vec3 leanUp = t2 > 1e-8 ? trail * inversesqrt(t2) : camUp;
+        vec3 up = normalize(mix(camUp, leanUp, clamp(uLean, 0.0, 1.0)));
+        vec3 world = origin.xyz + camRight * position.x * sx + up * position.y * sy;
+        gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
+    }
+`;
+
 const FLAME_FRAG_ADDITIVE = /* glsl */ `
     uniform float uTime;
     uniform float uGain;
@@ -127,6 +181,7 @@ const FLAME_FRAG_ADDITIVE = /* glsl */ `
 
 /**
  * AAA ground fire + dragon-breath tongue pools (additive billboards).
+ * Lit projectile tips use a separate lean pool (depth-test off).
  */
 export class FlameRenderer {
     private readonly mesh: InstancedMesh;
@@ -134,6 +189,13 @@ export class FlameRenderer {
     private readonly phases: InstancedBufferAttribute;
     private readonly tints: InstancedBufferAttribute;
     private readonly speeds: InstancedBufferAttribute;
+
+    private readonly tipMesh: InstancedMesh;
+    private readonly tipMaterial: ShaderMaterial;
+    private readonly tipPhases: InstancedBufferAttribute;
+    private readonly tipTints: InstancedBufferAttribute;
+    private readonly tipSpeeds: InstancedBufferAttribute;
+    private readonly tipAxes: InstancedBufferAttribute;
 
     private readonly breathMesh: InstancedMesh;
     private readonly breathMaterial: ShaderMaterial;
@@ -153,6 +215,9 @@ export class FlameRenderer {
     private readonly tipY = new Float32Array(TIP_MAX);
     private readonly tipZ = new Float32Array(TIP_MAX);
     private readonly tipScale = new Float32Array(TIP_MAX);
+    private readonly tipDx = new Float32Array(TIP_MAX);
+    private readonly tipDy = new Float32Array(TIP_MAX);
+    private readonly tipDz = new Float32Array(TIP_MAX);
 
     constructor(scene: Scene) {
         // slightly larger base quad → softer silhouette when scaled up
@@ -178,6 +243,34 @@ export class FlameRenderer {
         this.mesh.frustumCulled = false;
         this.mesh.count = 0;
         scene.add(this.mesh);
+
+        const tipGeo = new PlaneGeometry(1.25, 1.25, 1, 1).translate(0, 0.55, 0);
+        this.tipPhases = new InstancedBufferAttribute(new Float32Array(TIP_MAX), 1);
+        this.tipTints = new InstancedBufferAttribute(new Float32Array(TIP_MAX), 1);
+        this.tipSpeeds = new InstancedBufferAttribute(new Float32Array(TIP_MAX), 1);
+        this.tipAxes = new InstancedBufferAttribute(new Float32Array(TIP_MAX * 3), 3);
+        tipGeo.setAttribute('aPhase', this.tipPhases);
+        tipGeo.setAttribute('aTint', this.tipTints);
+        tipGeo.setAttribute('aSpeed', this.tipSpeeds);
+        tipGeo.setAttribute('aAxis', this.tipAxes);
+
+        this.tipMaterial = new ShaderMaterial({
+            uniforms: { uTime: { value: 0 }, uGain: { value: 1 }, uLean: { value: TIP_LEAN } },
+            transparent: true,
+            depthWrite: false,
+            // Trail leans along the bolt — without this the shaft depth-culls it.
+            depthTest: false,
+            blending: AdditiveBlending,
+            fog: false,
+            vertexShader: TIP_FLAME_VERT,
+            fragmentShader: FLAME_FRAG_ADDITIVE,
+        });
+
+        this.tipMesh = new InstancedMesh(tipGeo, this.tipMaterial, TIP_MAX);
+        this.tipMesh.frustumCulled = false;
+        this.tipMesh.count = 0;
+        this.tipMesh.renderOrder = 4;
+        scene.add(this.tipMesh);
 
         const breathGeo = new PlaneGeometry(1.25, 1.25, 1, 1).translate(0, 0.55, 0);
         this.breathPhases = new InstancedBufferAttribute(new Float32Array(BREATH_POOL), 1);
@@ -209,10 +302,13 @@ export class FlameRenderer {
         if (q === 'high' || q === 'medium') {
             this.tier = TIER[q];
             this.mesh.visible = true;
+            this.tipMesh.visible = true;
             this.breathMesh.visible = true;
         } else {
             this.mesh.visible = false;
             this.mesh.count = 0;
+            this.tipMesh.visible = false;
+            this.tipMesh.count = 0;
             this.breathMesh.visible = false;
             this.breathMesh.count = 0;
         }
@@ -225,6 +321,7 @@ export class FlameRenderer {
     setBloomGain(gain: number): void {
         const g = Math.max(0.05, gain);
         this.material.uniforms.uGain!.value = g;
+        this.tipMaterial.uniforms.uGain!.value = g;
         this.breathMaterial.uniforms.uGain!.value = g;
     }
 
@@ -254,6 +351,9 @@ export class FlameRenderer {
             this.tipY[i] = s.y;
             this.tipZ[i] = s.z;
             this.tipScale[i] = s.scale ?? 1;
+            this.tipDx[i] = s.dx ?? 0;
+            this.tipDy[i] = s.dy ?? 0;
+            this.tipDz[i] = s.dz ?? 0;
         }
     }
 
@@ -264,38 +364,38 @@ export class FlameRenderer {
     update(dt: number, field: HazardField | null, now: number): void {
         this.time += dt;
         this.material.uniforms.uTime!.value = this.time;
+        this.tipMaterial.uniforms.uTime!.value = this.time;
         this.breathMaterial.uniforms.uTime!.value = this.time;
         if (!this.mesh.visible) {
             this.mesh.count = 0;
+            this.tipMesh.count = 0;
             this.breathMesh.count = 0;
             return;
         }
 
         const { maxTongues, lushCellCap, lushTongues, denseTongues, sizeScale } = this.tier;
-        const tipSlots = Math.min(this.tipCount, TIP_MAX);
-        const groundCap = Math.max(0, maxTongues - tipSlots);
         let n = 0;
 
-        if (field && groundCap > 0) {
+        if (field && maxTongues > 0) {
             let total = 0;
             field.forEachFireCell(now, () => total++);
             if (total > 0) {
                 const wantPerCell = total <= lushCellCap ? lushTongues : denseTongues;
                 let tonguesPerCell = 1;
                 let stride = 1;
-                if (total <= groundCap) {
-                    tonguesPerCell = Math.min(wantPerCell, Math.max(1, Math.floor(groundCap / total)));
+                if (total <= maxTongues) {
+                    tonguesPerCell = Math.min(wantPerCell, Math.max(1, Math.floor(maxTongues / total)));
                 } else {
-                    stride = Math.ceil(total / groundCap);
+                    stride = Math.ceil(total / maxTongues);
                 }
                 const fillBoost = stride > 1 ? stride * 1.15 : 1;
                 let i = 0;
                 field.forEachFireCell(now, (x, z, dps, until, tint) => {
-                    if (n >= groundCap) return;
+                    if (n >= maxTongues) return;
                     if (i++ % stride !== 0) return;
                     const dying = Math.min(1, (until - now) / 1.2);
                     const tintF = tint === FIRE_TINT_DRAGON ? 1 : 0;
-                    for (let t = 0; t < tonguesPerCell && n < groundCap; t++) {
+                    for (let t = 0; t < tonguesPerCell && n < maxTongues; t++) {
                         const h =
                             Math.abs(Math.sin(x * 12.9898 + z * 78.233 + t * 19.19) * 43758.5453) %
                             1;
@@ -323,36 +423,58 @@ export class FlameRenderer {
             }
         }
 
-        n = this.appendProjectileTips(n, maxTongues, sizeScale);
         this.mesh.count = n;
         this.mesh.instanceMatrix.needsUpdate = true;
         this.phases.needsUpdate = true;
         this.tints.needsUpdate = true;
         this.speeds.needsUpdate = true;
 
+        this.updateProjectileTips(sizeScale);
         this.updateBreathTongues(sizeScale);
     }
 
-    private appendProjectileTips(start: number, maxTongues: number, sizeScale: number): number {
-        let n = start;
-        for (let i = 0; i < this.tipCount && n < maxTongues; i++) {
+    private updateProjectileTips(sizeScale: number): void {
+        let n = 0;
+        for (let i = 0; i < this.tipCount && n < TIP_MAX; i++) {
             const x = this.tipX[i]!;
             const y = this.tipY[i]!;
             const z = this.tipZ[i]!;
             const tipMul = this.tipScale[i] ?? 1;
+            // Trail lean amount is applied in the tip vertex shader (camera-plane mix).
+            let ax = this.tipDx[i]!;
+            let ay = this.tipDy[i]!;
+            let az = this.tipDz[i]!;
+            const alen = Math.hypot(ax, ay, az);
+            if (alen > 1e-6) {
+                ax /= alen;
+                ay /= alen;
+                az /= alen;
+            } else {
+                // No velocity — upright in world space; shader falls back to camUp.
+                ax = 0;
+                ay = 1;
+                az = 0;
+            }
+
             const h =
                 Math.abs(Math.sin(x * 12.9898 + z * 78.233 + y * 3.1) * 43758.5453) % 1;
             const size = (1.15 + h * 0.55) * sizeScale * TIP_SIZE_MUL * tipMul;
             this.dummy.position.set(x, y, z);
             this.dummy.scale.set(size * 0.7, size * 0.42, 1);
             this.dummy.updateMatrix();
-            this.mesh.setMatrixAt(n, this.dummy.matrix);
-            this.phases.setX(n, h * 10 + 2);
-            this.tints.setX(n, 0);
-            this.speeds.setX(n, 1.15);
+            this.tipMesh.setMatrixAt(n, this.dummy.matrix);
+            this.tipPhases.setX(n, h * 10 + 2);
+            this.tipTints.setX(n, 0);
+            this.tipSpeeds.setX(n, 1.15);
+            this.tipAxes.setXYZ(n, ax, ay, az);
             n++;
         }
-        return n;
+        this.tipMesh.count = n;
+        this.tipMesh.instanceMatrix.needsUpdate = true;
+        this.tipPhases.needsUpdate = true;
+        this.tipTints.needsUpdate = true;
+        this.tipSpeeds.needsUpdate = true;
+        this.tipAxes.needsUpdate = true;
     }
 
     private updateBreathTongues(sizeScale: number): void {
@@ -392,6 +514,7 @@ export class FlameRenderer {
 
     clear(): void {
         this.mesh.count = 0;
+        this.tipMesh.count = 0;
         this.breathMesh.count = 0;
         this.breathCount = 0;
         this.tipCount = 0;
@@ -416,6 +539,20 @@ export class FlameRenderer {
         this.tints.needsUpdate = true;
         this.speeds.needsUpdate = true;
 
+        this.tipMesh.visible = true;
+        this.tipMesh.setMatrixAt(0, this.dummy.matrix);
+        this.tipPhases.setX(0, 0);
+        this.tipTints.setX(0, 0);
+        this.tipSpeeds.setX(0, 1.15);
+        // 45° lean sample for compile
+        this.tipAxes.setXYZ(0, 0, Math.SQRT1_2, -Math.SQRT1_2);
+        this.tipMesh.count = 1;
+        this.tipMesh.instanceMatrix.needsUpdate = true;
+        this.tipPhases.needsUpdate = true;
+        this.tipTints.needsUpdate = true;
+        this.tipSpeeds.needsUpdate = true;
+        this.tipAxes.needsUpdate = true;
+
         this.breathMesh.visible = true;
         this.breathMesh.setMatrixAt(0, this.dummy.matrix);
         this.breathPhases.setX(0, 0);
@@ -432,6 +569,9 @@ export class FlameRenderer {
         this.mesh.removeFromParent();
         this.mesh.geometry.dispose();
         this.material.dispose();
+        this.tipMesh.removeFromParent();
+        this.tipMesh.geometry.dispose();
+        this.tipMaterial.dispose();
         this.breathMesh.removeFromParent();
         this.breathMesh.geometry.dispose();
         this.breathMaterial.dispose();
