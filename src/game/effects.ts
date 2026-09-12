@@ -1914,7 +1914,8 @@ export class StoneChipRenderer {
         groundHeightAt: (x: number, z: number) => number,
     ): void {
         const terrain = groundHeightAt(e.x, e.z);
-        const s = 0.92 + Math.random() * 0.16;
+        // Keep proportion: flight scale × the usual crow size jitter.
+        const s = (e.dropStoneScale ?? 1) * (0.92 + Math.random() * 0.16);
         const dx = e.dx ?? 0;
         const dz = e.dz ?? 0;
         const hlen = Math.hypot(dx, dz) || 1;

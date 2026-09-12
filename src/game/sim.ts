@@ -572,6 +572,8 @@ export type SimEvent =
           sod?: boolean;
           /** Crow-rider (etc.) stone projectile — leave a brief grounded rock. */
           dropStone?: boolean;
+          /** Uniform scale for {@link dropStone} (matches flying stone). Omit = 1. */
+          dropStoneScale?: number;
           /** Victim {@link UnitType.bloodScale} — scales flesh spray (omit = 1). */
           bloodScale?: number;
           /** Ground wear stamp. Omit/true = stamp; false = VFX only. */
@@ -708,6 +710,16 @@ export type SimEvent =
 
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
+
+/** Grounded rock after a stone impact — inherits flying uniform scale. */
+function stoneDropFields(p: Projectile): { dropStone?: boolean; dropStoneScale?: number } {
+    if (p.style !== 'stone' || p.scaleEnd != null) return {};
+    return {
+        dropStone: true,
+        dropStoneScale: typeof p.scale === 'number' ? p.scale : undefined,
+    };
+}
+
 /** overkill fed to a lifeline death, as a multiple of the victim's own max hp —
  *  drives the tip-over flop and, for flyers, how far the wreck is thrown */
 const COLLAPSE_OVERKILL = 4;
@@ -800,6 +812,15 @@ const CROWD_EVERY_STEPS = 1;
 const CROWD_OVERLOAD_EVERY_STEPS = perSeconds(0.2);
 /** re-run closestEnemy only every 1s of sim time (staggered by actor index) */
 const TARGET_REFRESH_STEPS = perSeconds(1);
+
+/**
+ * Ground-only vs diving free-flyers (bats): opportunistic contact swat.
+ * No chase — target must already be inside {@link GROUND_SWAT_PAD} of the
+ * collision circles — and hits only connect some of the time (fast birds).
+ */
+const GROUND_SWAT_MAX_ALT = 3.25;
+const GROUND_SWAT_PAD = 0.85;
+const GROUND_SWAT_CATCH = 0.28;
 
 /**
  * The real-time battle: every mech acts individually — it walks toward the
@@ -1448,6 +1469,8 @@ export class BattleSim {
         dist: number,
     ): void {
         if (damage <= 0) return;
+        // Ground swat: swing still happens (caller burned cooldown); bird often escapes.
+        if (!this.groundSwatConnects(a, target)) return;
         const radius = this.cleaveRadiusByUnit.get(a.unit) ?? 0;
         if (radius > 0) {
             this.cleaveStrike(a, radius, damage, target);
@@ -1883,6 +1906,7 @@ export class BattleSim {
         for (const t of hits) {
             const dx = t.x - a.x;
             const dz = t.z - a.z;
+            if (!this.groundSwatConnects(a, t)) continue;
             this.applyDamage(a.unit, t, damage * this.damageTakenMult(t), { x: dx, z: dz }, 'direct');
         }
         const anyGround =
@@ -4335,6 +4359,8 @@ export class BattleSim {
 
     /** spawns one or more bullets from the shooter's muzzle (see {@link UnitType.projectileCount}) */
     private fireVolley(a: Actor, target: Actor, damage: number, speed: number): void {
+        // Same whiff rules as melee — cooldown already advanced by the caller.
+        if (!this.groundSwatConnects(a, target)) return;
         const n = Math.max(1, Math.floor(a.unit.type.projectileCount ?? 1));
         for (let i = 0; i < n; i++) {
             this.fire(a, target, damage, speed, i);
@@ -4755,7 +4781,7 @@ export class BattleSim {
                             dx: sx / slen,
                             dy: sy / slen,
                             dz: sz / slen,
-                            dropStone: p.style === 'stone' && p.scaleEnd == null,
+                            ...stoneDropFields(p),
                             scar: p.source.type.splashScar !== false,
                         });
                     }
@@ -4783,7 +4809,7 @@ export class BattleSim {
                         dx: sx / slen,
                         dy: sy / slen,
                         dz: sz / slen,
-                        dropStone: p.style === 'stone' && p.scaleEnd == null,
+                        ...stoneDropFields(p),
                         bloodScale: hit.unit.type.bloodScale,
                     });
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit, p.scale);
@@ -4819,7 +4845,7 @@ export class BattleSim {
                             dy: sy / slen,
                             dz: sz / slen,
                             sod: true,
-                            dropStone: p.scaleEnd == null,
+                            ...stoneDropFields(p),
                             scar: p.source.type.splashScar !== false,
                         });
                     }
@@ -4837,7 +4863,7 @@ export class BattleSim {
                         dy: sy / slen,
                         dz: sz / slen,
                         sod: bolt,
-                        dropStone: p.style === 'stone' && p.scaleEnd == null,
+                        ...stoneDropFields(p),
                     });
                     this.emitStuckAtImpact(p.style, nx, groundY + 0.12, nz, sx, sy, sz, undefined, p.scale);
                     this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source), {
@@ -4877,7 +4903,18 @@ export class BattleSim {
         for (const a of this.actors) {
             if (!a.alive || actorTeam(a) === p.team) continue;
             if (a.unit.type.extra) continue; // extras are immune to blasts too
-            if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
+            if (a.altitude > 0) {
+                if (!targets.air) {
+                    // Ground-only splash can clip diving free-flyers, rarely.
+                    if (!a.unit.type.freeFlight || a.altitude > GROUND_SWAT_MAX_ALT) continue;
+                    const shooter = this.actors.find((x) => x.unit === p.source);
+                    const seed =
+                        (shooter?.index ?? 0) * 100003 + a.index * 9176 + this.stepIndex * 131;
+                    if (detHash01(seed) >= GROUND_SWAT_CATCH) continue;
+                }
+            } else if (!targets.ground) {
+                continue;
+            }
             if (hypot(a.x - x, a.z - z) > radius + a.radius) continue;
             const dealt = p.damage * this.damageTakenMult(a);
             const knock =
@@ -5382,10 +5419,58 @@ export class BattleSim {
         return Math.abs(wrapPi(ang - fov)) <= STRONGHOLD_ARCHER_FOV_HALF;
     }
 
+    /**
+     * Ground-only vs a diving free-flyer already in contact. Used for acquire
+     * and for hit rolls — never a long-range chase target.
+     */
+    private isOpportunisticGroundSwat(
+        from: Actor,
+        target: Actor,
+        native: { ground: boolean; air: boolean },
+    ): boolean {
+        if (native.air || !native.ground) return false;
+        if (!target.unit.type.freeFlight) return false;
+        if (target.altitude <= 0 || target.altitude > GROUND_SWAT_MAX_ALT) return false;
+        const reach = from.radius + target.radius + GROUND_SWAT_PAD;
+        const dx = target.x - from.x;
+        const dz = target.z - from.z;
+        return dx * dx + dz * dz <= reach * reach;
+    }
+
+    /**
+     * Layer filter for {@link closestEnemy}: real AA uses `wantAir`; ground-only
+     * may swat low free-flyers in contact; movement fallback (`anyLayer`) must
+     * not path toward bats across the map.
+     */
+    private allowsEnemyLayer(
+        from: Actor,
+        target: Actor,
+        wantAir: boolean,
+        wantGround: boolean,
+        native: { ground: boolean; air: boolean },
+    ): boolean {
+        if (target.altitude > 0) {
+            if (native.air && wantAir) return true;
+            if (this.isOpportunisticGroundSwat(from, target, native)) return true;
+            // anyLayer chase of high air (crows) — never of free-flyers
+            if (wantAir && !native.air && !target.unit.type.freeFlight) return true;
+            return false;
+        }
+        return wantGround;
+    }
+
+    /** True unless this is a ground swat that misses (deterministic ~28%). */
+    private groundSwatConnects(from: Actor, target: Actor): boolean {
+        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech);
+        if (!this.isOpportunisticGroundSwat(from, target, native)) return true;
+        const seed = from.index * 100003 + target.index * 9176 + this.stepIndex * 131;
+        return detHash01(seed) < GROUND_SWAT_CATCH;
+    }
+
     private closestEnemy(from: Actor, anyLayer = false): Actor | null {
-        const layer = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech);
-        const wantAir = anyLayer || layer.air;
-        const wantGround = anyLayer || layer.ground;
+        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech);
+        const wantAir = anyLayer || native.air;
+        const wantGround = anyLayer || native.ground;
         if (!wantAir && !wantGround) return null;
 
         const cacheOk = (cached: Actor): boolean =>
@@ -5394,7 +5479,7 @@ export class BattleSim {
             !cached.unit.type.extra &&
             !cached.unit.type.notAcquired &&
             this.inFieldOfFire(from, cached) &&
-            (cached.altitude > 0 ? wantAir : wantGround);
+            this.allowsEnemyLayer(from, cached, wantAir, wantGround, native);
 
         const stats = this.resolved.get(from.unit)!;
         const minRange = stats.minRange;
@@ -5406,6 +5491,10 @@ export class BattleSim {
             return dx * dx + dz * dz < minReach * minReach;
         };
         const inWeaponRange = (cached: Actor): boolean => {
+            // Swat targets use contact reach only — never full weapon kite-in.
+            if (cached.altitude > 0 && !native.air) {
+                return this.isOpportunisticGroundSwat(from, cached, native);
+            }
             const reach = stats.range + from.radius + cached.radius;
             const dx = cached.x - from.x;
             const dz = cached.z - from.z;
@@ -5445,7 +5534,7 @@ export class BattleSim {
             if (!a.alive || actorTeam(a) === team) return;
             // in the hash so shots can cross him, but never picked to shoot at
             if (a.unit.type.notAcquired) return;
-            if (a.altitude > 0 ? !wantAir : !wantGround) return;
+            if (!this.allowsEnemyLayer(from, a, wantAir, wantGround, native)) return;
             if (!this.inFieldOfFire(from, a)) return;
             const ddx = a.x - from.x;
             const ddz = a.z - from.z;
