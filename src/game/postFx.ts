@@ -26,8 +26,8 @@ const VIGNETTE: Record<Exclude<VignetteQuality, 'off'>, { offset: number; darkne
  */
 const BLOOM: Record<Exclude<BloomQuality, 'off'>, { threshold: number; strength: number; radius: number }> =
     {
-        high: { threshold: 0.8, strength: 0.45, radius: 0.48 },
-        ultra: { threshold: 0.74, strength: 0.62, radius: 0.58 },
+        high: { threshold: 0.9, strength: 0.4, radius: 0.42 },
+        ultra: { threshold: 0.85, strength: 0.55, radius: 0.52 },
     };
 
 /** Mild GTAO — small radius so grass stays clean; scale/blend lift unit contact. */
@@ -41,7 +41,6 @@ const AO: Record<
         thickness: number;
     }
 > = {
-    medium: { radius: 0.14, scale: 0.55, samples: 8, blendIntensity: 0.5, thickness: 0.8 },
     high: { radius: 0.2, scale: 0.75, samples: 12, blendIntensity: 0.7, thickness: 1.0 },
     ultra: { radius: 0.26, scale: 0.95, samples: 16, blendIntensity: 0.85, thickness: 1.1 },
 };
@@ -125,10 +124,10 @@ export class PostFx {
                 lumaPhi: 10,
                 depthPhi: 2,
                 normalPhi: 3,
-                radius: this.ao === 'medium' ? 4 : this.ao === 'high' ? 6 : 8,
+                radius: this.ao === 'high' ? 6 : 8,
                 radiusExponent: 1,
                 rings: 2,
-                samples: this.ao === 'medium' ? 8 : 12,
+                samples: this.ao === 'high' ? 10 : 12,
             });
         }
         if (this.bloom !== 'off' && this.bloomPass) {

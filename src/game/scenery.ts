@@ -65,7 +65,6 @@ import {
     createVegetationInstances,
     loadSceneryBillboards,
     loadSceneryVegetation,
-    NEAR_TREE_DIST,
     placeVegetationInstance,
     sceneryHqVegetation,
     snapVegetationSeason,
@@ -1697,7 +1696,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const color = new Color();
         const white = new Color(0xffffff);
         const lighten = (c: Color) => c.lerp(white, 0.45);
-        // Ultra: Tripo owns all trees via addHqVegetation.
+        // Ultra: Tripo on the board, billboards outside (via addHqVegetation).
         // High: Tripo on the board, billboards outside (with blob shadows).
         // Medium: billboards everywhere (no low-poly cones, no blob shadows).
         const billboardMix = this.quality === 'high' || this.quality === 'medium';
@@ -2025,7 +2024,6 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 forestSpot,
                 fieldSpot,
                 groundY,
-                distOut,
             });
         }
 
@@ -2221,8 +2219,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
     }
 
     /**
-     * Ultra: near Tripo mid-poly + far billboards with blob shadows
-     * (same headcount as the dense procedural belt).
+     * Ultra: Tripo mid-poly on the board only; outer forest = billboards
+     * (same color language as high — no lit-PBR vs unlit-card seam outside).
      */
     private async addHqVegetation(
         map: BattleMap,
@@ -2231,12 +2229,11 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             forestSpot: (maxHeight: number) => { x: number; z: number };
             fieldSpot: (clearance: number) => { x: number; z: number };
             groundY: (x: number, z: number) => number;
-            distOut: (x: number, z: number) => number;
         },
     ): Promise<void> {
         await Promise.all([loadSceneryVegetation(), loadSceneryBillboards()]);
         const dens = this.density;
-        const { forestSpot, fieldSpot, groundY, distOut } = helpers;
+        const { forestSpot, fieldSpot, groundY } = helpers;
 
         const OAK = scaleCount(120, dens.outer);
         const PINE = scaleCount(200, dens.outer);
@@ -2258,7 +2255,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 x,
                 z,
                 sc,
-                near: onField || distOut(x, z) < NEAR_TREE_DIST,
+                near: onField,
             });
         }
         for (let i = 0; i < PINE + FIELD_PINE; i++) {
@@ -2270,7 +2267,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 x,
                 z,
                 sc,
-                near: onField || distOut(x, z) < NEAR_TREE_DIST,
+                near: onField,
             });
         }
         const bushRTotal = BUSH_R + Math.ceil(FIELD_BUSH / 2);
@@ -2282,7 +2279,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 x,
                 z,
                 sc: 0.75 + rng() * 0.55,
-                near: onField || distOut(x, z) < NEAR_TREE_DIST,
+                near: onField,
             });
         }
         const bushTTotal = BUSH_T + Math.floor(FIELD_BUSH / 2);
@@ -2294,7 +2291,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 x,
                 z,
                 sc: 0.7 + rng() * 0.5,
-                near: onField || distOut(x, z) < NEAR_TREE_DIST,
+                near: onField,
             });
         }
 
@@ -2359,9 +2356,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         }
 
         this.treeShadows.setSources(shadows);
-        console.info(
-            `[scenery] HQ vegetation: near3D=${nearN} farBillboards=${farN} (cut=${NEAR_TREE_DIST})`,
-        );
+        console.info(`[scenery] HQ vegetation: board3D=${nearN} outerBillboards=${farN}`);
     }
 
     /**
@@ -2564,14 +2559,16 @@ function makeFlowerTexture(): CanvasTexture {
     const ctx = canvas.getContext('2d')!;
     const rng = mulberry32(424242);
     const flower = (cx: number, cy: number, r: number) => {
-        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        // Soft cream, not pure white — pure white petals trip selective bloom
+        // under the sun (same luminance gate as fire/magic).
+        ctx.fillStyle = 'rgba(200, 190, 175, 0.9)';
         for (let p = 0; p < 5; p++) {
             const a = (p / 5) * Math.PI * 2 + rng();
             ctx.beginPath();
             ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, r * 0.75, 0, Math.PI * 2);
             ctx.fill();
         }
-        ctx.fillStyle = 'rgba(255,220,90,1)';
+        ctx.fillStyle = 'rgba(220, 170, 40, 1)';
         ctx.beginPath();
         ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
         ctx.fill();

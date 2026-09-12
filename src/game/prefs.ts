@@ -24,7 +24,7 @@ export type VignetteQuality = 'off' | 'high' | 'ultra';
 /** Selective bloom on bright emissives / fire (post-process; visual only). */
 export type BloomQuality = 'off' | 'high' | 'ultra';
 /** Screen-space AO — grounds units/buildings on the board (visual only). */
-export type AoQuality = 'off' | 'medium' | 'high' | 'ultra';
+export type AoQuality = 'off' | 'high' | 'ultra';
 
 /**
  * Fire VFX tiers (for tuning):
@@ -47,8 +47,8 @@ export interface Prefs {
     combatChat: boolean;
     /**
      * Outer world quality. Applies immediately (rebuilds scenery mid-match).
-     * - ultra: wall of trees just past the board edge (still instanced)
-     * - high: dense forests outside the board + Tripo near board
+     * - ultra: dense forest + Tripo on the board, billboards outside
+     * - high: dense forests outside the board + Tripo on the board
      * - medium: billboard forest (no low-poly cones; no tree blob shadows)
      * - low: flat board + flat green world, no decoration
      */
@@ -210,7 +210,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         antialias: false,
         vignette: 'off',
         bloom: 'off',
-        ao: 'medium',
+        ao: 'off',
     },
     high: {
         scenery: 'high',
@@ -370,8 +370,8 @@ function migrateBloom(raw: unknown): BloomQuality {
 }
 
 function migrateAo(raw: unknown): AoQuality {
-    if (raw === 'off' || raw === 'medium' || raw === 'high' || raw === 'ultra') return raw;
-    if (raw === 'low') return 'medium';
+    if (raw === 'off' || raw === 'high' || raw === 'ultra') return raw;
+    if (raw === 'low' || raw === 'medium') return 'high';
     return DEFAULTS.ao;
 }
 
@@ -428,12 +428,7 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     if (p.bloom !== 'off' && p.bloom !== 'high' && p.bloom !== 'ultra') {
         p.bloom = DEFAULTS.bloom;
     }
-    if (
-        p.ao !== 'off' &&
-        p.ao !== 'medium' &&
-        p.ao !== 'high' &&
-        p.ao !== 'ultra'
-    ) {
+    if (p.ao !== 'off' && p.ao !== 'high' && p.ao !== 'ultra') {
         p.ao = DEFAULTS.ao;
     }
     if (typeof p.mobileTuned !== 'boolean') p.mobileTuned = false;
@@ -669,7 +664,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     antialias: asBool,
     vignette: asWord(['off', 'high', 'ultra']),
     bloom: asWord(['off', 'high', 'ultra']),
-    ao: asWord(['off', 'medium', 'high', 'ultra']),
+    ao: asWord(['off', 'high', 'ultra']),
     transportChosen: asBool,
     mobileTuned: asBool,
     renderScale: asNearest([1, 0.75, 0.5, 0.33]),

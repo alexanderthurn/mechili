@@ -73,7 +73,7 @@ export const THEME = {
         bladeDark: '#3c7c30',
         bladeBright: '#8ad85e',
         // rare wildflower dots
-        flowers: ['#fff8f0', '#ffd84d', '#ffa8b8'],
+        flowers: ['#d2c4ae', '#e0b830', '#e898a8'],
         // faint worn-earth patches
         dirt: 'rgba(138, 122, 78, 0.5)',
         // edge darkening — kept very light so the field blends into the outer meadow

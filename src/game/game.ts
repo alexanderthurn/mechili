@@ -950,7 +950,7 @@ export class Game {
             return;
         }
         if (e.code === 'KeyO' && e.shiftKey) {
-            // Shift+O cycles ambient occlusion: off → medium → high → ultra
+            // Shift+O cycles ambient occlusion: off → high → ultra
             // (not Shift+A — A is camera strafe)
             this.cycleAoQuality();
             return;
@@ -1067,7 +1067,7 @@ export class Game {
 
     /** Shift+O: live A/B ambient occlusion tiers. */
     private cycleAoQuality(): void {
-        const order = ['off', 'medium', 'high', 'ultra'] as const;
+        const order = ['off', 'high', 'ultra'] as const;
         const i = Math.max(0, order.indexOf(prefs().ao));
         const next = order[(i + 1) % order.length]!;
         updatePrefs({ ao: next });
