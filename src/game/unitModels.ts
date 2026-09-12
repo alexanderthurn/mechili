@@ -627,11 +627,6 @@ function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
 }
 
 /**
- * Load every spec'd model and bake untinted, normalized templates.
- * Level tint is applied live per pack. `heights` gives each unit's procedural
- * local height. Failures fall back to the procedural mesh.
- */
-/**
  * Models that failed to load, and how to try them again.
  *
  * A failed GLB is not just a looks problem: its measured height, half-width
@@ -667,6 +662,11 @@ function scheduleModelRetry(): void {
     setTimeout(() => void retryFailedUnitModels().then(scheduleModelRetry), delay);
 }
 
+/**
+ * Load every spec'd model and bake untinted, normalized templates.
+ * Level tint is applied live per pack. `heights` gives each unit's procedural
+ * local height. Failures fall back to the procedural mesh.
+ */
 export async function loadUnitModels(
     heights: Record<string, number>,
     onProgress?: (done: number, total: number) => void,
