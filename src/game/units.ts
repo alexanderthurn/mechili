@@ -1451,7 +1451,7 @@ export const UNIT_TYPES: UnitType[] = [
         cost: 100,
         unlockCost: 0,
         // Neat lattice (1 bat per cell) — no formationSpread jitter
-        footprint: { cols: 6, rows: 3 },
+        footprint: { cols: 6, rows: 2 },
         formation: { cols: 6, rows: 3 }, // 18 ordered flock
         meshScale: 1.0,
         flying: 5.5, // low cruise — not crow-height
