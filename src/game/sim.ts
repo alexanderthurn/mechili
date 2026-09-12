@@ -480,11 +480,18 @@ export function actorSeat(a: Actor): number {
 /**
  * Does this pack get a {@link Actor.shieldHp} pool? Granted by the Bulwark
  * rune or the Aegis tech (which `hasTech` resolves including innate techs).
+ *
+ * Never to a summoned pack. Summons carry the caster's seat and a real type
+ * id, so the Aegis the seat researched for that type used to apply to them —
+ * Summon Crow Riders handed two free, battle-only, level-1 flocks a shield
+ * worth their whole HP bar. The Bulwark rune already never reached them (no
+ * spawn path copies `items`), so this only brings the tech into line.
  */
 export function hasShieldHp(
     unit: Unit,
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
 ): boolean {
+    if (unit.summoned) return false;
     for (const id of unit.items) {
         if (ITEMS[id]?.grantsShieldHp) return true;
     }
