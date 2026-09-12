@@ -8,9 +8,20 @@
 import type { Material, Mesh, Object3D, Texture } from 'three';
 import { touchFirstDevice } from './inputCapabilities';
 
-/** Longest texture edge allowed on this device (null = keep originals). */
+/**
+ * Longest texture edge allowed on this device.
+ *
+ * Desktop used to keep originals, which meant 4096² PBR sets stayed resident:
+ * the six spell GLBs alone decode to roughly a gigabyte of VRAM (12 MB of
+ * JPEG on disk becomes RGBA + mips on the GPU). 2048 cuts that ~4× and is
+ * still more texel than a unit gets on screen at this camera distance.
+ *
+ * NOTE: this is a size cap, not a device class. Anything branching on "is
+ * this a small device" must ask {@link touchFirstDevice} directly — see the
+ * spell preload and the serial model load.
+ */
 export function modelTextureBudget(): number | null {
-    return touchFirstDevice() ? 1024 : null;
+    return touchFirstDevice() ? 1024 : 2048;
 }
 
 const TEXTURE_SLOTS = [

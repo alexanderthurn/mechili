@@ -1099,7 +1099,9 @@ export class BattleMap {
         const MAX_STEPS = 12;
         const STEP = 0.18;
         const r = field.cellSize * 1.2; // only slightly larger than the orange fire glow
-        field.forEachFireCell(now, (x, z) => {
+        field.forEachFireCell(now, (x, z, _dps, _until, tint) => {
+            // tint 2 = FIRE_TINT_NOSCAR (meteor shower) — live fire only, no wear bake
+            if (tint === 2) return;
             const { cx, cz } = field.worldToCell(x, z);
             if (cx < 0 || cz < 0 || cx >= field.cellCols || cz >= field.cellRows) return;
             const i = field.index(cx, cz);

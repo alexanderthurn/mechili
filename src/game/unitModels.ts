@@ -17,12 +17,13 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
+import { touchFirstDevice } from './inputCapabilities';
 import {
     attachBuildingSnow,
     attachBuildingSnowToObject,
     BUILDING_SNOW_IDS,
 } from './buildingSnow';
-import { CROW_RIDER_MODEL_ID, markCrowWingFlapMaterial } from './crowWingFlap';
+import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
 import type { BattleTeam } from './units';
 
 /**
@@ -44,6 +45,11 @@ export interface ModelSpec {
     roll?: number;
     offset?: { x?: number; y?: number; z?: number };
     scale?: number;
+    /**
+     * Extra non-uniform scale after height normalize (local axes). Used to
+     * stretch bat / crow wings wider without growing body height.
+     */
+    stretch?: { x?: number; y?: number; z?: number };
     /** Rigged GLB — keep SkinnedMesh; battle anim is {@link unitAnimated}. */
     skinned?: boolean;
     /**
@@ -96,9 +102,25 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         skinned: true,
     },
+    ogre: {
+        url: new URL('../../assets/models/ogre.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        skinned: true,
+    },
     wizard: { url: new URL('../../assets/models/wizard.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
     ballista: { url: new URL('../../assets/models/ballista.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
+    // Mortar — tube siege; static Tripo mesh (cannon toward facing)
+    mortar: {
+        url: new URL('../../assets/models/mortar.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(180),
+    },
     crowRider: { url: new URL('../../assets/models/crow-rider.glb', import.meta.url).href, yaw: MODEL_FWD_YAW  },
+    // Air chaff (Wasp-like) — wing flap + stretched span for flock silhouette
+    bat: {
+        url: new URL('../../assets/models/bat.glb', import.meta.url).href,
+        yaw: MODEL_FWD_YAW,
+        stretch: { x: 1.45, z: 1.1 },
+    },
     goblin: {
         url: new URL('../../assets/models/goblin.glb', import.meta.url).href,
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
@@ -344,7 +366,7 @@ function prepareClone(scene: Object3D): Object3D {
     return clone;
 }
 
-/** Yaw, scale to `height`, center on x/z, and sit the base at y=0. */
+/** Yaw, scale to `height`, optional wing stretch, center on x/z, sit base at y=0. */
 function normalize(
     scene: Object3D,
     height: number,
@@ -352,6 +374,7 @@ function normalize(
     pitch?: number,
     roll?: number,
     offset?: { x?: number; y?: number; z?: number },
+    stretch?: { x?: number; y?: number; z?: number },
 ): Group {
     const holder = new Group();
     scene.rotation.y = yaw;
@@ -362,6 +385,11 @@ function normalize(
     const size = box.getSize(new Vector3());
     const s = size.y > 0 ? height / size.y : 1;
     scene.scale.multiplyScalar(s);
+    if (stretch) {
+        if (stretch.x !== undefined) scene.scale.x *= stretch.x;
+        if (stretch.y !== undefined) scene.scale.y *= stretch.y;
+        if (stretch.z !== undefined) scene.scale.z *= stretch.z;
+    }
     box = new Box3().setFromObject(holder);
     const center = box.getCenter(new Vector3());
     scene.position.x -= center.x;
@@ -600,6 +628,42 @@ function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
 }
 
 /**
+ * Models that failed to load, and how to try them again.
+ *
+ * A failed GLB is not just a looks problem: its measured height, half-width
+ * and AttackNode feed the sim and ride in {@link modelGeometryFingerprint}, so
+ * the peer missing one disagrees with everyone at every battle-start barrier.
+ * The host resyncs it — and a resync rebuilds the Game in the same page, where
+ * the memoized preload never reloads anything, so it disagreed again, every
+ * round, for the whole session. Failures now retry: in the background with a
+ * backoff, and again whenever a star guest is resynced. The moment a retry
+ * lands, the fingerprint matches and the loop ends.
+ */
+const failedModels = new Set<string>();
+let lastHeights: Record<string, number> | null = null;
+let retryInFlight: Promise<void> | null = null;
+let retryAttempt = 0;
+const RETRY_DELAYS_MS = [3_000, 10_000, 30_000];
+
+/** Re-load every model that has failed so far. Joins an in-flight retry. */
+export function retryFailedUnitModels(): Promise<void> {
+    if (retryInFlight) return retryInFlight;
+    if (failedModels.size === 0 || !lastHeights) return Promise.resolve();
+    const ids = new Set(failedModels);
+    console.warn(`[unitModels] retrying ${[...ids].join(', ')}`);
+    retryInFlight = loadUnitModels(lastHeights, undefined, ids).finally(() => {
+        retryInFlight = null;
+    });
+    return retryInFlight;
+}
+
+function scheduleModelRetry(): void {
+    if (failedModels.size === 0 || retryAttempt >= RETRY_DELAYS_MS.length) return;
+    const delay = RETRY_DELAYS_MS[retryAttempt++]!;
+    setTimeout(() => void retryFailedUnitModels().then(scheduleModelRetry), delay);
+}
+
+/**
  * Load every spec'd model and bake untinted, normalized templates.
  * Level tint is applied live per pack. `heights` gives each unit's procedural
  * local height. Failures fall back to the procedural mesh.
@@ -664,6 +728,7 @@ export async function loadUnitModels(
                 spec.pitch,
                 spec.roll,
                 spec.offset,
+                spec.stretch,
             );
             if (spec.bakePose && !spec.skinned) {
                 bakeSkinnedPose(root, gltf.animations ?? [], spec.bakePose);
@@ -723,7 +788,7 @@ export async function loadUnitModels(
                     attachBuildingSnowToObject(root);
                     for (const part of baked.parts) attachBuildingSnow(part.material);
                 }
-                if (id === CROW_RIDER_MODEL_ID) {
+                if (usesWingFlapModel(id)) {
                     for (const part of baked.parts) markCrowWingFlapMaterial(part.material);
                 }
                 instanceAssets.set(id, baked);
@@ -744,8 +809,8 @@ export async function loadUnitModels(
             onProgress?.(done, total);
         }
     };
-    if (textureBudget) {
-        // budgeted devices decode one model at a time — 15 parallel 2K–4K
+    if (touchFirstDevice()) {
+        // small devices decode one model at a time — 15 parallel 2K–4K
         // texture decodes is exactly the boot spike that kills mobile tabs
         for (const entry of entries) await loadEntry(entry);
     } else {

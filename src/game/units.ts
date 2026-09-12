@@ -79,14 +79,14 @@ import {
 } from './unitModels';
 import {
     computeCrowWingRate,
-    CROW_RIDER_MODEL_ID,
     setCrowWingRateOnProxy,
     setCrowWingRestOnProxy,
+    usesWingFlapModel,
 } from './crowWingFlap';
-import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels } from './unitAnimated';
+import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels, resetAnimatedUnit } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import { beginBuildingCollapse, beginHammerCrush, clearHammerCrush, groundTipAt, hammerCrushSpin, HAMMER_CRUSH_SEAT_Y } from './buildingCollapse';
-import { clearCorpsePose, clearDeathFall, clearDeathTip } from './deathFall';
+import { clearCorpsePose, clearDeathClip, clearDeathFall, clearDeathTip } from './deathFall';
 import { preserveBuildingSnow } from './buildingSnow';
 
 export type Team = 'player' | 'enemy';
@@ -319,6 +319,11 @@ export function isPlayerBuyable(type: UnitType): boolean {
     return type.buyable !== false;
 }
 
+/** The Komtur / forest wave roster — {@link UnitType.horde}. */
+export function isHordeUnit(type: UnitType): boolean {
+    return type.horde === true;
+}
+
 export interface UnitType {
     id: string;
     name: string;
@@ -373,15 +378,26 @@ export interface UnitType {
     /**
      * When `false`, players and the AI cannot buy or unlock this type from
      * the shop. Omit or `true` = eligible (still subject to unlock / extras).
-     * Horde / Der Komtur units set this false.
+     * Horde-only units set this false; a type may be both shop and horde.
      */
     buyable?: boolean;
+    /**
+     * When `true`, eligible for The Komtur wave plan / forest roster.
+     * Independent of {@link buyable} — set both for dual-use types.
+     */
+    horde?: boolean;
     /** shield extra: a dome that absorbs enemy projectiles crossing INTO it */
     shield?: { radius: number; height: number };
     /** rocket extra: waits armed, then homes onto the first enemy in range */
     rocket?: { range: number; speed: number; damage: number; splash: number };
     /** flight altitude in world units — air units collide with nothing on the ground */
     flying?: number;
+    /**
+     * Free-flight layer (bats): {@link flying} is a low cruise ceiling, not a
+     * fixed hover band. Altitude climbs/dives toward chase aims and the mesh
+     * pitches at the target. Omit = classic flat air layer (crow riders).
+     */
+    freeFlight?: boolean;
     /** the can-attack matrix: which layers this unit's weapon can hit */
     targets: { ground: boolean; air: boolean };
     /** ground-plane collision circle per mech, in world units — nothing walks through it */
@@ -401,6 +417,11 @@ export interface UnitType {
      * Hit detection still uses {@link colliders} — this only steers loft.
      */
     aimY?: number;
+    /**
+     * Multiplier on arrow aim scatter (1 = default archer wobble). Lower = tighter
+     * shots. Only applies when {@link projectileStyle} is `arrow` and not homing.
+     */
+    aimSpread?: number;
     /** ranged mechs fire visible projectiles at this speed (world units/s); melee when absent */
     projectileSpeed?: number;
     /**
@@ -422,6 +443,17 @@ export interface UnitType {
      */
     projectileScaleEnd?: number;
     /**
+     * How many projectiles leave the muzzle per attack (Stormcaller volley).
+     * Omit / 1 = single shot. Each shot deals full {@link damage} and uses
+     * {@link aimSpread} (or a default fan when count > 1).
+     */
+    projectileCount?: number;
+    /**
+     * Soft VFX ribbon behind flying shots. `cloud` = misty smoke puffs
+     * (mortar / Stormcaller stones).
+     */
+    projectileTrail?: 'cloud';
+    /**
      * spawn height above the unit's altitude (world units). When set, overrides
      * the default collider-mid muzzle for that shot.
      */
@@ -434,9 +466,23 @@ export interface UnitType {
     projectileLaunchHeightFrac?: number;
     /**
      * lobbed shot: aims upward and falls under gravity so long-range bolts arc.
-     * `projectileSpeed` is the horizontal speed toward the target.
+     * Without {@link projectileLaunchAngleDeg}, `projectileSpeed` is the fixed
+     * horizontal speed (arc height grows with range). With a launch angle set,
+     * elevation is fixed and muzzle speed is solved from distance (farther =
+     * faster shot, same angle).
      */
     projectileBallistic?: boolean;
+    /**
+     * Ballistic launch elevation in degrees (e.g. 40). When set, muzzle speed
+     * is derived from range so the lob angle stays constant.
+     */
+    projectileLaunchAngleDeg?: number;
+    /**
+     * Ballistic only: stretch the solved parabola in time (same path, longer
+     * hang). 1 = normal; 2 = twice as slow. When set ≠ 1, aim is the target's
+     * position at fire time (no lead) so movers walk out from under the lob.
+     */
+    projectileBallisticTimeScale?: number;
     /** homing shots re-aim mid-flight and hit ONLY their victim — a guaranteed hit (shields still block) */
     homing?: boolean;
     /**
@@ -470,6 +516,11 @@ export interface UnitType {
      */
     bloodColor?: number;
     /**
+     * Multiplier on flesh hit/death blood particles and ground stamps
+     * (1 = normal infantry). Small chaff (bats) use ~0.25–0.4.
+     */
+    bloodScale?: number;
+    /**
      * Burn / ground-fire inflicted by this unit's hits (projectiles, splash, rockets, melee).
      * Ground fire stamps the shared hazard layer; burn DoT uses refresh + strongest DPS.
      */
@@ -479,6 +530,16 @@ export interface UnitType {
      * Combined with {@link range} as the engagement distance.
      */
     cleave?: { radius: number };
+    /**
+     * When false, cleave swings skip the ground scorch stamp (still deal damage).
+     * Omit/true = stamp like a stomp crater.
+     */
+    cleaveScar?: boolean;
+    /**
+     * When false, splash projectile explosions skip the ground scorch stamp.
+     * Omit/true = stamp like other blasts.
+     */
+    splashScar?: boolean;
     /** Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake). */
     cleaveShake?: number;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
@@ -514,6 +575,36 @@ export interface UnitType {
     piercesShield?: boolean;
     /** seconds between shots */
     attackInterval: number;
+    /**
+     * Melee only: seconds after the swing starts (cooldown bump / fire anim)
+     * before damage applies. Omit / 0 = hit immediately. Use so long smash
+     * clips connect mid-animation instead of on frame 0.
+     */
+    meleeHitDelay?: number;
+    /**
+     * Melee only: start the swing this many world units before true
+     * contact range (extra surface gap). The unit keeps closing during the
+     * windup — reads as a charge / attack slide instead of plant-then-swing.
+     */
+    meleeLunge?: number;
+    /**
+     * Melee only: after hitting a ground target, back off until this many
+     * world units of surface gap remain, then dive again. Flyers use this for
+     * hit-and-run (Wasp-like); air-vs-air stays in contact. Omit / 0 = cling.
+     */
+    meleeRetreat?: number;
+    /**
+     * Melee only: how close this unit presses while swinging, as a fraction of
+     * its reach (range + both radii). Omit / 1 = plant where contact is made
+     * and swing from there, which is how every melee unit behaved before the
+     * ogre. Below 1 the unit keeps closing while it fights — and, if it has a
+     * {@link meleeHitDelay}, slides through the windup so a big smash reads as
+     * a charge rather than a stop-then-swing. 0.85 = press in to 85% of reach.
+     *
+     * Per-unit on purpose: a heavy breaker wants the slide, a line of dwarves
+     * does not, and the next melee unit may want its own number.
+     */
+    meleePress?: number;
     speed: number;
     /**
      * Procedural walk lean *height* for non-skinned ground units (omit = 1).
@@ -716,6 +807,16 @@ function buildHammerer(parts: PartFactory): void {
     parts.box(0.35, 0.35, 0.28, 0, 1.2, -1.45, 'accent'); // muzzle
 }
 
+function buildOgre(parts: PartFactory): void {
+    // Rhino-like breakthrough melee — procedural fallback if GLB missing
+    for (const side of [-1, 1]) {
+        parts.cylinder(0.14, 0.18, 0.95, side * 0.32, 0.48, 0.05, 'dark');
+    }
+    parts.box(1.2, 1.1, 0.9, 0, 1.35, 0, 'hull');
+    parts.sphere(0.35, 0, 2.05, -0.05, 'accent');
+    parts.box(0.35, 0.35, 1.4, 0.55, 1.4, -0.55, 'dark'); // cleaver
+}
+
 function buildArcher(parts: PartFactory): void {
     for (const side of [-1, 1]) {
         parts.cylinder(0.09, 0.13, 1.0, side * 0.5, 0.5, 0.15, 'dark'); // legs
@@ -758,6 +859,22 @@ function buildCrowRider(parts: PartFactory): void {
     rotor.scale.y = 0.6;
     parts.box(0.12, 0.35, 0.12, 0, 0.35, 0, 'light'); // rider mast
     parts.box(0.9, 0.1, 0.25, 0, -0.25, 0.15, 'accent'); // belly strip
+}
+
+function buildBat(parts: PartFactory): void {
+    parts.sphere(0.35, 0, 0.05, 0, 'dark'); // body
+    parts.sphere(0.18, 0, 0.12, -0.35, 'dark'); // head
+    const wings = parts.box(1.6, 0.06, 0.55, 0, 0.15, 0.05, 'dark');
+    wings.scale.y = 0.5;
+    parts.box(0.08, 0.25, 0.35, 0, -0.05, 0.25, 'dark'); // legs
+}
+
+function buildMortar(parts: PartFactory): void {
+    parts.box(1.4, 0.35, 1.6, 0, 0.25, 0, 'dark'); // base plate
+    parts.cylinder(0.55, 0.7, 0.45, 0, 0.55, 0.1, 'hull'); // turntable
+    const tube = parts.cylinder(0.28, 0.34, 2.1, 0, 1.35, -0.35, 'hull');
+    tube.rotation.x = -0.55; // lofted barrel
+    parts.sphere(0.22, 0, 0.95, 0.55, 'accent'); // breech
 }
 
 function buildShield(parts: PartFactory): void {
@@ -919,6 +1036,7 @@ export const HORDE_BRUT: UnitType = {
     cost: 80,
     hpWithdraw: 2,
     buyable: false,
+    horde: true,
     modelId: 'horde',
     // 2× terrain pack area vs original 10×6; same small mesh
     footprint: { cols: 20, rows: 12 },
@@ -954,6 +1072,7 @@ export const HORDE_WEBWEAVER: UnitType = {
     cost: 200,
     hpWithdraw: 12,
     buyable: false,
+    horde: true,
     modelId: 'horde',
     // 2× terrain pack area vs original 6×4; same mesh scale
     footprint: { cols: 12, rows: 8 },
@@ -989,6 +1108,7 @@ export const HORDE_BRUT_SPAWN: UnitType = {
     levelBasis: 100, // free to gain, but 50 per level and 100 xp per level
     hpWithdraw: 2,
     buyable: false,
+    horde: true,
     modelId: 'horde',
     footprint: { cols: 2, rows: 2 },
     formation: { cols: 1, rows: 1 },
@@ -1019,6 +1139,7 @@ export const HORDE_SPINNE: UnitType = {
     cost: 500,
     hpWithdraw: 70,
     buyable: false,
+    horde: true,
     modelId: 'horde',
     footprint: { cols: 4, rows: 3 },
     formation: { cols: 1, rows: 1 },
@@ -1057,6 +1178,7 @@ export const HORDE_FARMER: UnitType = {
     cost: 175,
     hpWithdraw: 7,
     buyable: false,
+    horde: true,
     modelId: 'horde2',
     footprint: { cols: 10, rows: 6 },
     formation: { cols: 6, rows: 2 }, // 12 — fewer than Brut swarm
@@ -1089,6 +1211,7 @@ export const HORDE_FARMER_SPAWN: UnitType = {
     levelBasis: 100, // free to gain, but 50 per level and 100 xp per level
     hpWithdraw: 4,
     buyable: false,
+    horde: true,
     modelId: 'horde2',
     footprint: { cols: 2, rows: 2 },
     formation: { cols: 1, rows: 1 },
@@ -1118,6 +1241,7 @@ export const HORDE_KOMTUR: UnitType = {
     cost: 600,
     hpWithdraw: 800,
     buyable: false,
+    horde: true,
     modelId: 'horde3',
     footprint: { cols: 4, rows: 3 },
     formation: { cols: 1, rows: 1 },
@@ -1144,6 +1268,44 @@ export const HORDE_KOMTUR: UnitType = {
     turnRate: 2.2,
     turnMove: 'cruise',
     build: buildDwarf,
+};
+
+/**
+ * Low free-flight dive flock — Komtur wave air chaff. Not shop-buyable for
+ * now; flip {@link UnitType.buyable} when dual-use is wanted.
+ */
+export const BAT: UnitType = {
+    id: 'bat',
+    name: 'Bat',
+    cost: 100,
+    hpWithdraw: 2,
+    buyable: false,
+    horde: true,
+    // Neat lattice (1 bat per cell) — no formationSpread jitter
+    footprint: { cols: 6, rows: 2 },
+    formation: { cols: 6, rows: 3 }, // 18 ordered flock
+    meshScale: 1.0,
+    flying: 5.5, // low cruise — not crow-height
+    freeFlight: true, // climb/dive toward foes; pitch at aim
+    burn: { takenMult: 1 }, // air: burn status ignored while aloft
+    targets: { ground: true, air: true },
+    collisionRadius: 0.9, // unused for soft push (ghost), kept for broadphase
+    blobShadowScale: 0.55,
+    // Generous AA volumes — wings + body so goblin/archer volleys can connect
+    colliders: [
+        { y: 0.4, r: 0.85 },
+        { y: 0.5, r: 1.35 },
+    ],
+    hp: 10,
+    bloodScale: 0.28, // tiny body — don't fountain like a dwarf
+    damage: 3, // chip — pressure from numbers, not punches
+    range: 2.2, // touch radius while piercing
+    meleeLunge: 5, // commit the pass from a bit out
+    attackInterval: 1.05,
+    speed: 12,
+    turnRate: 3.2, // slow bank — points then flies along facing
+    turnMove: 'cruise',
+    build: buildBat,
 };
 
 export const UNIT_TYPES: UnitType[] = [
@@ -1188,6 +1350,7 @@ export const UNIT_TYPES: UnitType[] = [
         projectileScale: { length: 0.55, thickness: 1.35 }, // short shaft, thicker girth
         projectileBallistic: true,
         projectileLaunchHeightFrac: 0.7,
+        aimSpread: 0.35, // tighter still — AA vs fast free-flight bats needs to land
         hp: 18,
         damage: 4,
         range: 16,
@@ -1226,6 +1389,40 @@ export const UNIT_TYPES: UnitType[] = [
         speed: 4.5,
         turnRate: 5,
         build: buildHammerer,
+    },
+    {
+        // Fantasy Rhino — single fast melee tank; small cleave, breakthrough / aggro soak
+        id: 'ogre',
+        name: 'Ogre',
+        cost: 200,
+        unlockCost: 50,
+        footprint: { cols: 2, rows: 2 },
+        formation: { cols: 1, rows: 1 },
+        meshScale: 3.48, // 1.2× base 2.9
+        burn: { takenMult: 0.65 },
+        targets: { ground: true, air: false },
+        collisionRadius: 1.62,
+        colliders: [
+            { y: 1.2, r: 1.2 },
+            { y: 2.4, r: 0.9 },
+        ],
+        // innate disk like Rhino splash — Whirlwind tech widens it
+        cleave: { radius: 2 },
+        cleaveScar: false, // no ground crater stamp on swings
+        hp: 1620,
+        damage: 195,
+        range: 3.4, // short melee reach
+        // Match cadence to the long pitch (~1.27s visual @ fireSpeed 3)
+        attackInterval: 1.35,
+        // Hit late in the throw (visual ~1.27s)
+        meleeHitDelay: 0.7,
+        // commit early at speed 8.5 → slide into the smash
+        meleeLunge: 5,
+        meleePress: 0.85, // keep closing while swinging (the charge feel)
+        speed: 8.5, // faster than dwarf (6) — Rhino closes gaps
+        turnRate: 4, // heavy body — was 9 (too snappy for a big melee)
+        sandWeight: 1.5,
+        build: buildOgre,
     },
     {
         id: 'archer',
@@ -1302,6 +1499,48 @@ export const UNIT_TYPES: UnitType[] = [
         build: buildCrowRider,
     },
     {
+        // Fragile long-range mortar pack; volley of unguided splash stones
+        // with a min-range dead zone (no AA).
+        id: 'mortar',
+        name: 'Mortar',
+        cost: 200,
+        unlockCost: 50,
+        footprint: { cols: 5, rows: 2 }, // same pack pad as dwarves
+        formation: { cols: 4, rows: 1 }, // 4 tubes in a single line
+        meshScale: 1.2, // half of prior 2.4
+        targets: { ground: true, air: false },
+        collisionRadius: 1.5,
+        colliders: [
+            { y: 0.7, r: 0.95 },
+            { y: 1.5, r: 0.55 },
+        ],
+        projectileSpeed: 27, // fallback if fixed-angle solve fails
+        projectileStyle: 'stone',
+        projectileScale: 0.5,
+        projectileBallistic: true,
+        projectileLaunchAngleDeg: 35, // fixed lob; speed scales with range
+        projectileBallisticTimeScale: 2, // same arc, 2× hang — movers can dodge
+        projectileLaunchHeightFrac: 0.82,
+        projectileCount: 5, // barrage per tube
+        projectileTrail: 'cloud',
+        aimSpread: 6.5, // unguided scatter — higher = worse aim (try 4–10)
+        splashRadius: 5.5,
+        splashScar: false, // no ground crater stamp per stone
+        sandWeight: 1.05,
+        deathWear: 'ash',
+        deathAshScorch: { radius: 1, strength: 0.2 },
+        burn: { takenMult: 3.2 }, // timber siege frame
+        hp: 260, // fragile — dies if crawlers/ogres close the gap
+        damage: 24, // per stone; ×5 ≈ 120 / volley / tube
+        range: 92, // longer than ballista — artillery king
+        minRange: 42, // larger dead zone than ballista
+        attackInterval: 5.8,
+        speed: 2.3,
+        turnRate: 1.35,
+        turnMove: 'pivot',
+        build: buildMortar,
+    },
+    {
         id: 'ballista',
         name: 'Ballista',
         cost: 400,
@@ -1322,7 +1561,7 @@ export const UNIT_TYPES: UnitType[] = [
         // heavy chassis would stamp hard from cost/bulk — keep a light track
         sandWeight: 1.1,
         deathWear: 'ash', // wood/iron siege — burns, no blood
-        deathAshScorch: { radius: 5, strength: 0.35 }, // half the default big-unit ash scar
+        deathAshScorch: { radius: 1, strength: 0.2 },
         burn: { takenMult: 4.0 }, // timber siege — burns hard once lit
         hp: 500,
         damage: 500,
@@ -1391,6 +1630,7 @@ export const UNIT_TYPES: UnitType[] = [
     HORDE_FARMER,
     HORDE_FARMER_SPAWN,
     HORDE_KOMTUR,
+    BAT,
 ];
 
 /** Mechs in a pack — used for default hpWithdraw derivation. */
@@ -1813,9 +2053,11 @@ export class Unit {
             m.mesh.userData.dead = false;
             clearDeathFall(m.mesh);
             clearDeathTip(m.mesh);
+            clearDeathClip(m.mesh);
             clearCorpsePose(m.mesh);
             clearHammerCrush(m.mesh);
-            if ((this.type.modelId ?? this.type.id) === CROW_RIDER_MODEL_ID) {
+            if (m.mesh.userData.animated) resetAnimatedUnit(m.mesh);
+            if (usesWingFlapModel(this.type.modelId ?? this.type.id)) {
                 setCrowWingRateOnProxy(m.mesh, 0);
                 setCrowWingRestOnProxy(m.mesh, 0);
             }
@@ -1888,9 +2130,9 @@ export class Unit {
         this.wingLastOz = oz;
     }
 
-    /** Instanced crow-rider wing flap speed from deployment pose / movement. */
+    /** Instanced wing flap speed from deployment pose / movement. */
     private updateCrowWingRates(moving: number, altitude = 0): void {
-        if ((this.type.modelId ?? this.type.id) !== CROW_RIDER_MODEL_ID) return;
+        if (!usesWingFlapModel(this.type.modelId ?? this.type.id)) return;
         for (const m of this.members) {
             if (!m.mesh.userData.instanced) continue;
             setCrowWingRateOnProxy(

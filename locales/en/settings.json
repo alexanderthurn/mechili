@@ -241,6 +241,8 @@
     "shadowsHint": "blobs / sun map",
     "showDead": "Show dead units",
     "antialias": "Antialiasing",
-    "antialiasHint": "smoother edges · next match"
+    "antialiasHint": "smoother edges · next match",
+    "vignette": "Vignette",
+    "vignetteHint": "darker edges in battle"
   }
 }

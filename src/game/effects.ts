@@ -1,6 +1,7 @@
 import { screenShake } from './screenShake';
 import {
     AdditiveBlending,
+    Bone,
     Box3,
     BoxGeometry,
     BufferAttribute,
@@ -27,6 +28,7 @@ import {
     Ray,
     Raycaster,
     ShaderMaterial,
+    SkinnedMesh,
     SphereGeometry,
     Vector2,
     Vector3,
@@ -40,7 +42,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import type { Projectile, SimEvent } from './sim';
 import { bloodParticleScale, bloodIntensityScale, stuckProjectileCap, prefs } from './prefs';
-import type { SceneryQuality } from './prefs';
+import type { FireVfxQuality, SceneryQuality } from './prefs';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import {
     getUnitInstanceAsset,
@@ -860,7 +862,7 @@ export class Particles {
                         break;
                     }
                     this.burst(e.x, e.y, e.z, {
-                        count: 12,
+                        count: Math.max(2, Math.round(12 * (e.bloodScale ?? 1))),
                         color: e.blood ?? THEME.impact,
                         speed: 11,
                         life: 0.5,
@@ -870,7 +872,7 @@ export class Particles {
                     });
                     // a couple of fast gouts that shoot out ahead of the hit
                     this.burst(e.x, e.y, e.z, {
-                        count: 4,
+                        count: Math.max(1, Math.round(4 * (e.bloodScale ?? 1))),
                         color: e.blood ?? THEME.impact,
                         speed: 18,
                         life: 0.65,
@@ -1187,6 +1189,7 @@ export class SoftParticlePool {
     private readonly dissolveSpread: number;
     private readonly spreadDirX: Float32Array | null;
     private readonly spreadDirZ: Float32Array | null;
+    private readonly points: Points;
 
     constructor(scene: Scene, opts: SoftParticlePoolOptions) {
         this.maxParticles = opts.maxParticles ?? MAX_PARTICLES;
@@ -1276,8 +1279,26 @@ export class SoftParticlePool {
             renderer.getDrawingBufferSize(bufSize);
             material.uniforms.uScale!.value = bufSize.y * 0.5;
         };
+        this.points = points;
         scene.add(points);
         for (let i = 0; i < this.maxParticles; i++) this.positions[i * 3 + 1] = -9999;
+    }
+
+    /** Hide every live particle (battle end / pool recycle). */
+    clear(): void {
+        for (let i = 0; i < this.maxParticles; i++) {
+            this.life[i] = 0;
+            this.aOpacity[i] = 0;
+            this.positions[i * 3 + 1] = -9999;
+        }
+        this.geometry.attributes.position!.needsUpdate = true;
+        this.geometry.attributes.aOpacity!.needsUpdate = true;
+    }
+
+    dispose(): void {
+        this.points.removeFromParent();
+        this.geometry.dispose();
+        (this.points.material as ShaderMaterial).dispose();
     }
 
     burst(
@@ -1480,13 +1501,17 @@ const _seatBoxHit = new Vector3();
 const _seatRayLocal = new Ray();
 const _seatCenter = new Vector3();
 const _seatPull = new Vector3();
+const _seatWorldScale = new Vector3();
 
 /** Torso-ish radius in world units — ignores wingspan so crow bolts don't sit on wing AABB. */
 function stuckBodyRadius(modelId: string, attach: Object3D): number {
     const h = getUnitVisualHeight(modelId);
     const hw = getUnitVisualHalfWidth(modelId) || h * 0.35;
-    // Local visual extents × mesh scale (proxy scale is usually uniform meshScale)
-    const sx = Math.abs(attach.scale.x) || 1;
+    // Full chain scale (proxy meshScale × animated normalize), not just attach.scale
+    attach.getWorldScale(_seatWorldScale);
+    const sx =
+        (Math.abs(_seatWorldScale.x) + Math.abs(_seatWorldScale.y) + Math.abs(_seatWorldScale.z)) / 3 ||
+        1;
     const worldH = h * sx;
     const worldHw = hw * sx;
     // Prefer height-based torso; cap so wide flyers don't use full wingspan
@@ -1544,15 +1569,24 @@ function visualSeatDistance(
             }
         }
         if (bestDist < Infinity) return bestDist;
-    } else if (attach.children.length > 0) {
-        const hits = _seatRay.intersectObject(attach, true);
-        for (const h of hits) {
-            if (h.point) consider(h.distance, h.point);
+    } else {
+        // SkinnedMesh.raycast uses undeformed bind buffers — seats float beside a
+        // posed ogre. Skip that path and fall through to the torso AABB.
+        let skinned = false;
+        attach.traverse((o) => {
+            if ((o as SkinnedMesh).isSkinnedMesh) skinned = true;
+        });
+        if (!skinned && attach.children.length > 0) {
+            const hits = _seatRay.intersectObject(attach, true);
+            for (const h of hits) {
+                if (h.point) consider(h.distance, h.point);
+            }
+            if (bestDist < Infinity) return bestDist;
         }
-        if (bestDist < Infinity) return bestDist;
     }
 
     // AABB fallback — full visual box for buildings; tight torso for units
+    // (also the primary seat path for skinned / animated units).
     const h = getUnitVisualHeight(modelId);
     if (h <= 0.05) return null;
     const hw = getUnitVisualHalfWidth(modelId) || h * 0.35;
@@ -1561,8 +1595,11 @@ function visualSeatDistance(
         _seatBox.max.set(hw, h, hw);
     } else {
         const bodyHw = Math.min(h * 0.4, hw * 0.4);
-        _seatBox.min.set(-bodyHw, h * 0.12, -bodyHw);
-        _seatBox.max.set(bodyHw, h * 0.88, bodyHw);
+        // Rest forward is −Z; posed chests sit ahead of the holder origin, so
+        // bias the box forward or shafts plant in the empty space behind the mesh.
+        const forwardBias = h * 0.22;
+        _seatBox.min.set(-bodyHw, h * 0.12, -bodyHw - forwardBias);
+        _seatBox.max.set(bodyHw, h * 0.88, bodyHw - forwardBias * 0.25);
     }
     _seatInv.copy(attach.matrixWorld).invert();
     _seatLocalO.copy(origin).applyMatrix4(_seatInv);
@@ -1573,6 +1610,33 @@ function visualSeatDistance(
     _seatBoxHit.applyMatrix4(attach.matrixWorld);
     const dist = origin.distanceTo(_seatBoxHit);
     return dist > 1e-4 && dist <= far ? dist : null;
+}
+
+/**
+ * World-space chest/hip of a skinned attach (posed), or false if none.
+ * Used so stuck shafts aim at the drawn torso instead of the holder origin.
+ */
+function skinnedTorsoWorld(attach: Object3D, visualH: number, out: Vector3): boolean {
+    let skinned: SkinnedMesh | undefined;
+    let hip: Bone | undefined;
+    let chest: Bone | undefined;
+    attach.traverse((o) => {
+        if ((o as SkinnedMesh).isSkinnedMesh) skinned = o as SkinnedMesh;
+        if (!(o instanceof Bone)) return;
+        if (/^hip$/i.test(o.name)) hip = o;
+        if (/^(spine02|spine2|chest)$/i.test(o.name)) chest = o;
+    });
+    const bone = chest ?? hip;
+    if (!skinned || !bone) return false;
+    attach.updateMatrixWorld(true);
+    skinned.skeleton.update();
+    bone.getWorldPosition(out);
+    // Hip alone is low — nudge toward mid-chest in world up
+    if (!chest && hip) {
+        attach.getWorldScale(_seatWorldScale);
+        out.y += visualH * 0.22 * (Math.abs(_seatWorldScale.y) || 1);
+    }
+    return true;
 }
 
 /**
@@ -1620,8 +1684,15 @@ function seatStuckBoltCenter(
         return;
     }
 
-    _seatCenter.set(0, Math.max(0.25, h * 0.48), 0).applyMatrix4(attach.matrixWorld);
+    // Posed skinned units: chest/hip bone is the real torso. Holder-local (0,y,0)
+    // sits behind the drawn mesh (ogre run/pitch), so shafts looked stuck in air.
+    const skinnedCenter = skinnedTorsoWorld(attach, h, _seatCenter);
+    if (!skinnedCenter) {
+        _seatCenter.set(0, Math.max(0.25, h * 0.48), 0).applyMatrix4(attach.matrixWorld);
+    }
     const bodyR = stuckBodyRadius(modelId, attach);
+    // Dig a bit deeper into flesh when we only have an approximate torso sphere
+    const embed = dig + (skinnedCenter ? 0.12 : 0);
     const t = visualSeatDistance(
         attach,
         modelId,
@@ -1633,10 +1704,10 @@ function seatStuckBoltCenter(
         'torso',
     );
     if (t != null) {
-        _seatOrigin.addScaledVector(_seatDir, t + dig);
+        _seatOrigin.addScaledVector(_seatDir, t + embed);
     } else {
         // No surface along the shot — plant on the near side of the torso
-        _seatOrigin.copy(_seatCenter).addScaledVector(_seatDir, -(bodyR * 0.72));
+        _seatOrigin.copy(_seatCenter).addScaledVector(_seatDir, -(bodyR * 0.55));
     }
 
     // Pull wingtip / oversized-hitbox seats onto the torso shell
@@ -1645,7 +1716,7 @@ function seatStuckBoltCenter(
     if (dist > bodyR * 1.05) {
         if (dist < 1e-6) _seatPull.copy(_seatDir).multiplyScalar(-1);
         else _seatPull.multiplyScalar(1 / dist);
-        _seatOrigin.copy(_seatCenter).addScaledVector(_seatPull, bodyR * 0.78);
+        _seatOrigin.copy(_seatCenter).addScaledVector(_seatPull, bodyR * 0.65);
     }
 }
 
@@ -1843,7 +1914,8 @@ export class StoneChipRenderer {
         groundHeightAt: (x: number, z: number) => number,
     ): void {
         const terrain = groundHeightAt(e.x, e.z);
-        const s = 0.92 + Math.random() * 0.16;
+        // Keep proportion: flight scale × the usual crow size jitter.
+        const s = (e.dropStoneScale ?? 1) * (0.92 + Math.random() * 0.16);
         const dx = e.dx ?? 0;
         const dz = e.dz ?? 0;
         const hlen = Math.hypot(dx, dz) || 1;
@@ -2238,6 +2310,15 @@ export class ProjectileRenderer {
     private readonly sharedBoltMat: MeshStandardMaterial | null;
     private readonly sharedRockGeo: BufferGeometry | null;
     private readonly sharedRockMat: MeshStandardMaterial | null;
+    /**
+     * Misty cloud ribbon behind mortar / Stormcaller stones. Built on first use
+     * and only above the `low` fire tier, so a machine that asked for cheap VFX
+     * never allocates the pool at all.
+     */
+    private cloudTrail: SoftParticlePool | null = null;
+    private trailEmitAcc = 0;
+    private trailQuality: FireVfxQuality = prefs().fireVfx;
+    private readonly scene: Scene;
 
     constructor(scene: Scene) {
         const wood = new MeshLambertMaterial({ color: 0x8a6a3c, flatShading: true });
@@ -2282,6 +2363,7 @@ export class ProjectileRenderer {
             mesh.count = 0;
             scene.add(mesh);
         }
+        this.scene = scene;
         if (bolt) {
             console.info(
                 `[effects] projectile pools using bolt.glb (arrow×${ARROW_SCALE}, ballista×${LARGE_ARROW_SCALE}, cap ${MAX_PROJECTILES})`,
@@ -2292,8 +2374,67 @@ export class ProjectileRenderer {
         }
     }
 
+    /**
+     * Trail budget for the current fire tier, or null for no trail at all.
+     *
+     * The graphics presets map High → `medium` and Ultra → `high`, so this
+     * reads as: High keeps the density it already had but stops running out
+     * when the board fills with mortars; Ultra is denser on top of that.
+     *
+     * The POOL is what decides whether trails survive a crowd — one 4-tube
+     * volley is 20 stones ≈ 1.2k live puffs at this density, so 8192 covers
+     * roughly six packs firing at once where 2048 covered two. Ultra's denser
+     * stream is ≈ 4.3k per volley, hence the much larger ceiling.
+     *
+     * Sized per tier rather than one big pool for everyone because a pool is
+     * not free while idle: every frame the whole attribute set is re-uploaded
+     * and every point is drawn, live or not.
+     */
+    private trailTier(): { puffs: number; pool: number; every: number } | null {
+        switch (this.trailQuality) {
+            case 'high':
+                return { puffs: 4, pool: 20480, every: 0.016 };
+            case 'medium':
+                return { puffs: 2, pool: 8192, every: 0.028 };
+            default:
+                return null; // off / low — no smoke
+        }
+    }
+
+    /** Live graphics-pref change: drop the pool so the next tier rebuilds it. */
+    setQuality(tier: FireVfxQuality = prefs().fireVfx): void {
+        if (tier === this.trailQuality) return;
+        this.trailQuality = tier;
+        this.cloudTrail?.dispose();
+        this.cloudTrail = null;
+        this.trailEmitAcc = 0;
+    }
+
+    private ensureTrail(maxParticles: number): SoftParticlePool {
+        if (!this.cloudTrail) {
+            this.cloudTrail = new SoftParticlePool(this.scene, {
+                blending: NormalBlending,
+                size: 3.6,
+                opacity: 0.55,
+                maxParticles,
+                gravity: 0.9, // slight float — default GRAVITY is −14 (down)
+                sizeGrowth: 1.8,
+                sizeBirthScale: 0.35,
+                sizeBirthPhase: 0.25,
+                fadeStart: 0.55,
+                drag: 1.4,
+                billow: 0.85,
+                lateralDrag: 0.4,
+                dissolveSpread: 0.6,
+                depthWrite: false,
+                renderOrder: 4,
+            });
+        }
+        return this.cloudTrail;
+    }
+
     /** `alpha` interpolates between the last two sim steps for smooth flight */
-    update(projectiles: readonly Projectile[], alpha = 1): void {
+    update(projectiles: readonly Projectile[], alpha = 1, dt = 0): void {
         this.orbMaterial.uniforms.uTime!.value = (performance.now() - this.t0) * 0.001;
         const counts: Record<ProjectileStyle, number> = {
             bolt: 0,
@@ -2302,6 +2443,12 @@ export class ProjectileRenderer {
             stone: 0,
             orb: 0,
         };
+        // Emit trail puffs on a short cadence so 20+ mortar stones stay readable
+        const trailTier = this.trailTier();
+        this.trailEmitAcc += dt;
+        const emitTrail = trailTier !== null && this.trailEmitAcc >= trailTier.every;
+        if (emitTrail) this.trailEmitAcc = 0;
+
         const n = Math.min(projectiles.length, MAX_PROJECTILES);
         for (let i = 0; i < n; i++) {
             const p = projectiles[i]!;
@@ -2366,6 +2513,22 @@ export class ProjectileRenderer {
                     this.stoneTint.setXYZW(slot, 1, 1, 1, 1);
                 }
             }
+            if (emitTrail && trailTier && p.trail === 'cloud') {
+                // puff slightly behind the stone so the head stays readable
+                const bx = this.pos.x - this.dir.x * 0.55;
+                const by = this.pos.y - this.dir.y * 0.55;
+                const bz = this.pos.z - this.dir.z * 0.55;
+                this.ensureTrail(trailTier.pool).burst(bx, by, bz, {
+                    count: trailTier.puffs,
+                    color: 0xd8dee8,
+                    colorEnd: 0x9aa6b8,
+                    speed: 0.55,
+                    life: 0.85,
+                    up: 0.35,
+                    spread: 0.7,
+                    dir: { x: -this.dir.x, y: -this.dir.y * 0.4, z: -this.dir.z },
+                });
+            }
         }
         for (const style of Object.keys(this.pools) as ProjectileStyle[]) {
             const mesh = this.pools[style];
@@ -2373,10 +2536,13 @@ export class ProjectileRenderer {
             mesh.instanceMatrix.needsUpdate = true;
         }
         this.stoneTint.needsUpdate = true;
+        if (dt > 0) this.cloudTrail?.update(dt);
     }
 
     clear(): void {
         for (const mesh of Object.values(this.pools)) mesh.count = 0;
+        this.trailEmitAcc = 0;
+        this.cloudTrail?.clear();
     }
 
     /** One instance per style so bolt/arrow/stone materials compile before combat. */
@@ -2415,5 +2581,6 @@ export class ProjectileRenderer {
                 else mat.dispose();
             }
         }
+        this.cloudTrail?.dispose();
     }
 }

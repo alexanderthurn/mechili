@@ -19,6 +19,7 @@ import {
     STRONGHOLD,
     UNIT_TYPES,
     isPlayerBuyable,
+    isHordeUnit,
     preloadUnitVisuals,
     techDescription,
     techIcon,
@@ -97,9 +98,9 @@ function showcaseModelKey(t: UnitType): string {
     return t.modelId ?? t.id;
 }
 
-/** Distinct The Komtur packs — skip spawn-only brood duplicate. */
+/** Distinct The Komtur packs — skip spawn-only brood / farmhand duplicates. */
 function isHordeShowcaseUnit(t: UnitType): boolean {
-    return !t.structure && !isPlayerBuyable(t) && t.id.startsWith('horde') && t.id !== 'hordeBrutSpawn';
+    return isHordeUnit(t) && t.id !== 'hordeBrutSpawn' && t.id !== 'hordeFarmerSpawn';
 }
 
 const SHOWCASE_UNITS: UnitType[] = [

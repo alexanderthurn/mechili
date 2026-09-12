@@ -36,6 +36,20 @@ export type DeathTipState = {
     groundY: number;
 };
 
+/**
+ * Skinned death clip playing — seat on the lawn while the mixer tips them.
+ * Yaw eases from combat facing toward the knock-aligned fall direction.
+ */
+export type DeathClipState = {
+    startAt: number;
+    dur: number;
+    groundY: number;
+    startYaw: number;
+    endYaw: number;
+    /** Share of {@link dur} used to ease yaw (0 = snap, 1 = whole clip). */
+    yawBlend: number;
+};
+
 const MIN_DUR = 0.45;
 const MAX_DUR = 0.9;
 const DEATH_TIP_DUR = 0.48;
@@ -91,6 +105,28 @@ export function deathTipFromKnock(
         tipX: amount * lz,
         tipZ: amount * -lx,
     };
+}
+
+/**
+ * Yaw so an authored fall direction in holder XZ (rest forward −Z) lines up
+ * with the world knock. Three.js Ry: (x,z) → (c x + s z, −s x + c z).
+ */
+export function deathYawFromKnock(
+    knockX: number,
+    knockZ: number,
+    fallLocalX: number,
+    fallLocalZ: number,
+    fallbackYaw: number,
+): number {
+    const kLen = Math.hypot(knockX, knockZ);
+    const fLen = Math.hypot(fallLocalX, fallLocalZ);
+    if (kLen < 1e-6 || fLen < 1e-6) return fallbackYaw;
+    const nx = knockX / kLen;
+    const nz = knockZ / kLen;
+    const fx = fallLocalX / fLen;
+    const fz = fallLocalZ / fLen;
+    // Want Ry(yaw) * fallLocal = knock  → yaw = atan2(knock) − atan2(fallLocal)
+    return Math.atan2(nx, nz) - Math.atan2(fx, fz);
 }
 
 export function beginDeathFall(
@@ -208,6 +244,58 @@ export function tickDeathTip(mesh: Group, state: DeathTipState, renderTime: numb
 
 export function clearDeathTip(mesh: Group): void {
     delete mesh.userData.deathTip;
+}
+
+/** Seat a skinned death clip on the lawn for `dur` seconds (no Rx/Rz tip). */
+export function beginDeathClip(
+    mesh: Group,
+    groundY: number,
+    dur: number,
+    startAt: number,
+    endYaw?: number,
+    /** 0..1 of clip duration spent easing yaw toward knock alignment */
+    yawBlend = 0.4,
+): DeathClipState {
+    const state: DeathClipState = {
+        startAt,
+        dur: Math.max(0.2, dur),
+        groundY,
+        startYaw: mesh.rotation.y,
+        endYaw: endYaw ?? mesh.rotation.y,
+        yawBlend: Math.min(1, Math.max(0, yawBlend)),
+    };
+    mesh.userData.deathClip = state;
+    // Clip owns the tip — clear any leftover procedural lean from walk.
+    mesh.rotation.x = 0;
+    mesh.rotation.z = 0;
+    mesh.position.y = groundY;
+    return state;
+}
+
+function lerpYaw(from: number, to: number, t: number): number {
+    const tau = Math.PI * 2;
+    let d = ((to - from) % tau + tau) % tau;
+    if (d > Math.PI) d -= tau;
+    return from + d * t;
+}
+
+/** Seat while the death clip plays. Returns false when finished. */
+export function tickDeathClip(mesh: Group, state: DeathClipState, renderTime: number): boolean {
+    if (state.startAt < 0) state.startAt = renderTime;
+    mesh.position.y = state.groundY;
+    mesh.rotation.x = 0;
+    mesh.rotation.z = 0;
+    const u = Math.min(1, Math.max(0, (renderTime - state.startAt) / state.dur));
+    // Ease yaw early in the fall so the side-lay lines up without a hard snap.
+    const yawU =
+        state.yawBlend <= 1e-6 ? 1 : Math.min(1, u / Math.max(1e-6, state.yawBlend));
+    const e = yawU * yawU * (3 - 2 * yawU);
+    mesh.rotation.y = lerpYaw(state.startYaw, state.endYaw, e);
+    return u < 1;
+}
+
+export function clearDeathClip(mesh: Group): void {
+    delete mesh.userData.deathClip;
 }
 
 /** Bake the finished tip pose so later frames can add terrain slope. */

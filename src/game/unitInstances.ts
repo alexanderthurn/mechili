@@ -3,15 +3,13 @@ import {
     DynamicDrawUsage,
     InstancedMesh,
     Matrix4,
-    MeshStandardMaterial,
     type Group,
     type Object3D,
     type Scene,
 } from 'three';
-import { HORDE_COLOR, LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
+import { HORDE_COLOR, LEVEL_TINT_COLORS, applyLevelTintColor, levelTintMultiplier } from './colors';
 import {
-    attachCrowWingFlap,
-    CROW_RIDER_MODEL_ID,
+    attachWingFlapForModel,
     preserveCrowWingFlap,
     randomWingPhase,
     setCrowWingPhase,
@@ -24,6 +22,7 @@ import {
     swapCrowWingRest,
     swapCrowWingBodyRoll,
     updateCrowWingFlap,
+    usesWingFlapModel,
 } from './crowWingFlap';
 import { getUnitInstanceAsset, hasUnitInstanceAsset, type InstancePart } from './unitModels';
 import { attachBuildingSnow } from './buildingSnow';
@@ -39,15 +38,16 @@ const STRUCTURE_IDS = new Set([
     'rocket',
 ]);
 
-/** Max mechs per (type × team × level × alive|dead) pool — cheat spam still fits. */
+/** Max mechs per (type × team × alive|dead) pool — cheat spam still fits. */
 const POOL_CAPACITY = 4096;
 
 const HIDE = new Matrix4().makeScale(0, 0, 0);
 const _matrix = new Matrix4();
 const _color = new Color();
 const _base = new Color();
+const _levelMul = new Color();
 
-type PoolKey = string; // `${typeId}:${team}:${level}:alive|dead`
+type PoolKey = string; // `${typeId}:${team}:alive|dead`
 
 interface Pool {
     parts: InstancedMesh[];
@@ -60,7 +60,6 @@ interface PoolMeta {
     index: number;
     typeId: string;
     team: BattleTeam;
-    level: number;
     life: 'alive' | 'dead';
 }
 
@@ -69,8 +68,10 @@ interface PoolMeta {
  * Groups so the sim can keep writing transforms; this layer mirrors them into
  * shared draw calls each frame.
  *
- * Level tint is baked into each pool's materials (keyed by level) so textured
- * models read the hue clearly — instanceColor is only used for battle FX.
+ * Level tint rides `instanceColor` per mech, NOT a material per level: one
+ * pool serves every veterancy, so pools stay at (type × team × alive|dead)
+ * instead of multiplying by nine levels. Battle FX tints multiply on top of
+ * the level hue in the same channel — see {@link UnitInstanceRenderer.setTint}.
  */
 export class UnitInstanceRenderer {
     private readonly pools = new Map<PoolKey, Pool>();
@@ -91,7 +92,7 @@ export class UnitInstanceRenderer {
         if (this.ownerPool.has(proxy)) return;
         proxy.userData.instanced = true;
         proxy.userData.levelTintLevel = 1;
-        this.moveTo(proxy, typeId, team, 'alive', 1);
+        this.moveTo(proxy, typeId, team, 'alive');
     }
 
     /** Tip / rubble: leave the alive pool and park the current pose in dead. */
@@ -99,7 +100,7 @@ export class UnitInstanceRenderer {
         const meta = this.ownerPool.get(proxy);
         if (!meta || meta.life === 'dead') return;
         this.removeFromPool(proxy, meta);
-        this.moveTo(proxy, meta.typeId, meta.team, 'dead', meta.level);
+        this.moveTo(proxy, meta.typeId, meta.team, 'dead');
         // Hammer pancakes stay drawn even when the "render dead units" pref is off
         proxy.visible = prefs().renderDeadUnits || !!proxy.userData.hammerCrushed;
         const next = this.ownerPool.get(proxy);
@@ -112,7 +113,7 @@ export class UnitInstanceRenderer {
         if (!meta || meta.life === 'alive') return;
         this.removeFromPool(proxy, meta);
         proxy.visible = true;
-        this.moveTo(proxy, meta.typeId, meta.team, 'alive', meta.level);
+        this.moveTo(proxy, meta.typeId, meta.team, 'alive');
     }
 
     unregister(proxy: Group): void {
@@ -135,7 +136,7 @@ export class UnitInstanceRenderer {
         const meta = this.ownerPool.get(proxy);
         if (!meta || meta.team === team) return;
         this.removeFromPool(proxy, meta);
-        this.moveTo(proxy, meta.typeId, team, meta.life, meta.level);
+        this.moveTo(proxy, meta.typeId, team, meta.life);
         const next = this.ownerPool.get(proxy);
         if (next) this.writeMatrix(proxy, this.pools.get(next.key)!, next.index);
     }
@@ -189,6 +190,13 @@ export class UnitInstanceRenderer {
             _color.setRGB(1, 1, 1);
         }
 
+        // Level hue and battle FX share one per-instance colour, so the FX
+        // multiplies the veterancy tint rather than erasing it.
+        levelTintMultiplier(_levelMul, levelOf(proxy));
+        _color.r *= _levelMul.r;
+        _color.g *= _levelMul.g;
+        _color.b *= _levelMul.b;
+
         for (const mesh of pool.parts) {
             mesh.setColorAt(meta.index, _color);
             if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -196,17 +204,28 @@ export class UnitInstanceRenderer {
         this.needsColor = true;
     }
 
-    /** Move the proxy into the InstancedMesh pool for this pack level (bakes hue). */
+    /** Veterancy hue for one mech — a colour write, no pool move. */
     setLevelTint(proxy: Group, level: number): void {
         const clamped = Math.max(1, Math.min(LEVEL_TINT_COLORS.length - 1, level | 0));
+        if (proxy.userData.levelTintLevel === clamped) return;
         proxy.userData.levelTintLevel = clamped;
         const meta = this.ownerPool.get(proxy);
         if (!meta) return;
-        if (meta.level === clamped) return;
-        this.removeFromPool(proxy, meta);
-        this.moveTo(proxy, meta.typeId, meta.team, meta.life, clamped);
-        const next = this.ownerPool.get(proxy);
-        if (next) this.writeMatrix(proxy, this.pools.get(next.key)!, next.index);
+        const pool = this.pools.get(meta.key);
+        if (pool) this.writeLevelColor(proxy, pool, meta.index);
+    }
+
+    /**
+     * Write the level hue into this instance's colour. Battle FX overwrite it
+     * within the frame (setTint runs every frame in combat) and fold it back in.
+     */
+    private writeLevelColor(proxy: Group, pool: Pool, index: number): void {
+        levelTintMultiplier(_color, levelOf(proxy));
+        for (const mesh of pool.parts) {
+            mesh.setColorAt(index, _color);
+            if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        }
+        this.needsColor = true;
     }
 
     /** Push proxy world matrices into every alive/dead InstancedMesh. */
@@ -306,16 +325,15 @@ export class UnitInstanceRenderer {
         typeId: string,
         team: BattleTeam,
         life: 'alive' | 'dead',
-        level: number,
     ): void {
-        const pool = this.pool(typeId, team, life, level);
+        const pool = this.pool(typeId, team, life);
         if (pool.owners.length >= POOL_CAPACITY) {
-            console.warn(`[unitInstances] pool full for ${typeId}/${team}/L${level}/${life}`);
+            console.warn(`[unitInstances] pool full for ${typeId}/${team}/${life}`);
             return;
         }
         const index = pool.owners.length;
         pool.owners.push(proxy);
-        if (typeId === CROW_RIDER_MODEL_ID) {
+        if (usesWingFlapModel(typeId)) {
             const phase =
                 typeof proxy.userData.wingPhase === 'number'
                     ? proxy.userData.wingPhase
@@ -331,18 +349,14 @@ export class UnitInstanceRenderer {
             }
         }
         this.ownerPool.set(proxy, {
-            key: poolKey(typeId, team, level, life),
+            key: poolKey(typeId, team, life),
             index,
             typeId,
             team,
-            level,
             life,
         });
-        for (const mesh of pool.parts) {
-            mesh.count = pool.owners.length;
-            mesh.setColorAt(index, _color.setRGB(1, 1, 1));
-        }
-        this.needsColor = true;
+        for (const mesh of pool.parts) mesh.count = pool.owners.length;
+        this.writeLevelColor(proxy, pool, index);
     }
 
     private removeFromPool(proxy: Group, meta: PoolMeta): void {
@@ -364,7 +378,7 @@ export class UnitInstanceRenderer {
                     mesh.getColorAt(last, _color);
                     mesh.setColorAt(meta.index, _color);
                 }
-                if (meta.typeId === CROW_RIDER_MODEL_ID) {
+                if (usesWingFlapModel(meta.typeId)) {
                     swapCrowWingPhase(mesh, last, meta.index);
                     swapCrowWingRate(mesh, last, meta.index);
                     swapCrowWingRest(mesh, last, meta.index);
@@ -387,7 +401,7 @@ export class UnitInstanceRenderer {
         }
         proxy.updateWorldMatrix(true, false);
         for (const mesh of pool.parts) mesh.setMatrixAt(index, proxy.matrixWorld);
-        if (typeId === CROW_RIDER_MODEL_ID) {
+        if (typeId && usesWingFlapModel(typeId)) {
             const rate = typeof proxy.userData.wingFlapRate === 'number' ? proxy.userData.wingFlapRate : 0;
             const rest = typeof proxy.userData.wingRest === 'number' ? proxy.userData.wingRest : 0;
             const roll = proxy.rotation.z;
@@ -399,15 +413,15 @@ export class UnitInstanceRenderer {
         }
     }
 
-    private pool(typeId: string, team: BattleTeam, life: 'alive' | 'dead', level: number): Pool {
-        const key = poolKey(typeId, team, level, life);
+    private pool(typeId: string, team: BattleTeam, life: 'alive' | 'dead'): Pool {
+        const key = poolKey(typeId, team, life);
         let pool = this.pools.get(key);
         if (pool) return pool;
 
         const asset = getUnitInstanceAsset(typeId);
         if (!asset) throw new Error(`[unitInstances] no asset for ${typeId}`);
 
-        const parts = asset.parts.map((part) => makeInstanced(part, typeId, level, team));
+        const parts = asset.parts.map((part) => makeInstanced(part, typeId, team));
         for (const mesh of parts) this.scene.add(mesh);
         pool = { parts, owners: [] };
         this.pools.set(key, pool);
@@ -415,8 +429,14 @@ export class UnitInstanceRenderer {
     }
 }
 
-function poolKey(typeId: string, team: BattleTeam, level: number, life: 'alive' | 'dead'): PoolKey {
-    return `${typeId}:${team}:${level}:${life}`;
+function poolKey(typeId: string, team: BattleTeam, life: 'alive' | 'dead'): PoolKey {
+    return `${typeId}:${team}:${life}`;
+}
+
+/** Veterancy this proxy draws at (1 = untinted). */
+function levelOf(proxy: Group): number {
+    const v = proxy.userData.levelTintLevel;
+    return typeof v === 'number' ? v : 1;
 }
 
 function unitShadowCast(typeId: string, tier: Prefs['shadows']): boolean {
@@ -425,27 +445,21 @@ function unitShadowCast(typeId: string, tier: Prefs['shadows']): boolean {
     return true;
 }
 
-function makeInstanced(part: InstancePart, typeId: string, level: number, team: BattleTeam): InstancedMesh {
+function makeInstanced(part: InstancePart, typeId: string, team: BattleTeam): InstancedMesh {
     const mat = part.material.clone();
     if (part.material.userData.wantsBuildingSnow) attachBuildingSnow(mat);
     if (part.material.userData.wantsCrowWingFlap) {
         preserveCrowWingFlap(part.material, mat);
-        attachCrowWingFlap(mat, part.geometry);
+        attachWingFlapForModel(typeId, mat, part.geometry);
     }
-    const hex = level >= 2 && level < LEVEL_TINT_COLORS.length ? LEVEL_TINT_COLORS[level] : null;
-    if (hex != null) {
-        _base.copy(mat.color);
-        applyLevelTintColor(mat, _base, hex);
-        mat.emissive.setRGB(0, 0, 0);
-        mat.emissiveIntensity = 0;
-    }
+    // Level hue is per-instance now (see levelTintMultiplier) — nothing here.
     // the neutral horde reads as its own faction: dye its pools pink
     if (team === 'horde') {
         _base.copy(mat.color);
         applyLevelTintColor(mat, _base, HORDE_COLOR.hex, 0.55);
     }
     const mesh = new InstancedMesh(part.geometry.clone(), mat, POOL_CAPACITY);
-    if (typeId === CROW_RIDER_MODEL_ID) setupCrowWingInstanceAttributes(mesh, POOL_CAPACITY);
+    if (usesWingFlapModel(typeId)) setupCrowWingInstanceAttributes(mesh, POOL_CAPACITY);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.frustumCulled = false;
     mesh.castShadow = unitShadowCast(typeId, prefs().shadows);
