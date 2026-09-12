@@ -2375,16 +2375,26 @@ export class ProjectileRenderer {
 
     /**
      * Trail budget for the current fire tier, or null for no trail at all.
-     * `high` doubles the puffs and nearly doubles the cadence, and needs the
-     * bigger pool: one mortar volley is 20 stones, and at medium two packs
-     * firing together already recycle the ribbon out from under themselves.
+     *
+     * The graphics presets map High → `medium` and Ultra → `high`, so this
+     * reads as: High keeps the density it already had but stops running out
+     * when the board fills with mortars; Ultra is denser on top of that.
+     *
+     * The POOL is what decides whether trails survive a crowd — one 4-tube
+     * volley is 20 stones ≈ 1.2k live puffs at this density, so 8192 covers
+     * roughly six packs firing at once where 2048 covered two. Ultra's denser
+     * stream is ≈ 4.3k per volley, hence the much larger ceiling.
+     *
+     * Sized per tier rather than one big pool for everyone because a pool is
+     * not free while idle: every frame the whole attribute set is re-uploaded
+     * and every point is drawn, live or not.
      */
     private trailTier(): { puffs: number; pool: number; every: number } | null {
         switch (this.trailQuality) {
             case 'high':
-                return { puffs: 4, pool: 8192, every: 0.016 };
+                return { puffs: 4, pool: 20480, every: 0.016 };
             case 'medium':
-                return { puffs: 2, pool: 2048, every: 0.028 };
+                return { puffs: 2, pool: 8192, every: 0.028 };
             default:
                 return null; // off / low — no smoke
         }
