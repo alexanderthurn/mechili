@@ -23,6 +23,8 @@ export type StuckProjectilesQuality = 'off' | 'low' | 'high';
 export type VignetteQuality = 'off' | 'high' | 'ultra';
 /** Selective bloom on bright emissives / fire (post-process; visual only). */
 export type BloomQuality = 'off' | 'high' | 'ultra';
+/** Screen-space AO — grounds units/buildings on the board (visual only). */
+export type AoQuality = 'off' | 'medium' | 'high' | 'ultra';
 
 /**
  * Fire VFX tiers (for tuning):
@@ -115,10 +117,15 @@ export interface Prefs {
     vignette: VignetteQuality;
     /**
      * Selective bloom on bright pixels (fire, magic, sun). Battle only.
-     * - off: skip this pass (and the composer when vignette is also off)
+     * - off: skip this pass (and the composer when vignette/AO are also off)
      * - high / ultra: tighter → wider glow
      */
     bloom: BloomQuality;
+    /**
+     * Screen-space ambient occlusion (post-process). Applies in build + battle.
+     * Soft contact shading so units/buildings read against the grass.
+     */
+    ao: AoQuality;
     /**
      * Player-chosen control scheme override.
      * 'auto' follows the live-detected input method (see game/inputCapabilities.ts);
@@ -173,6 +180,7 @@ export type GraphicsPresetValues = Pick<
     | 'antialias'
     | 'vignette'
     | 'bloom'
+    | 'ao'
 >;
 
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
@@ -188,6 +196,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         antialias: false,
         vignette: 'off',
         bloom: 'off',
+        ao: 'off',
     },
     medium: {
         scenery: 'medium',
@@ -201,6 +210,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         antialias: false,
         vignette: 'off',
         bloom: 'off',
+        ao: 'medium',
     },
     high: {
         scenery: 'high',
@@ -214,6 +224,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         antialias: true,
         vignette: 'high',
         bloom: 'high',
+        ao: 'high',
     },
     ultra: {
         scenery: 'ultra',
@@ -227,6 +238,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         antialias: true,
         vignette: 'ultra',
         bloom: 'ultra',
+        ao: 'ultra',
     },
 };
 
@@ -245,7 +257,8 @@ export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null 
             p.renderDeadUnits === v.renderDeadUnits &&
             p.antialias === v.antialias &&
             p.vignette === v.vignette &&
-            p.bloom === v.bloom
+            p.bloom === v.bloom &&
+            p.ao === v.ao
         ) {
             return id;
         }
@@ -356,6 +369,12 @@ function migrateBloom(raw: unknown): BloomQuality {
     return migratePostTier(raw, DEFAULTS.bloom) as BloomQuality;
 }
 
+function migrateAo(raw: unknown): AoQuality {
+    if (raw === 'off' || raw === 'medium' || raw === 'high' || raw === 'ultra') return raw;
+    if (raw === 'low') return 'medium';
+    return DEFAULTS.ao;
+}
+
 function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     p.scenery = migrateScenery(p.scenery);
     p.groundEffects = migrateGroundEffects(p.groundEffects);
@@ -363,6 +382,7 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     p.bloodFx = migrateBloodFx(p.bloodFx);
     p.vignette = migrateVignette(p.vignette);
     p.bloom = migrateBloom(p.bloom);
+    p.ao = migrateAo(p.ao);
     if (p.stuckProjectiles !== 'off' && p.stuckProjectiles !== 'low' && p.stuckProjectiles !== 'high') {
         p.stuckProjectiles = DEFAULTS.stuckProjectiles;
     }
@@ -407,6 +427,14 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     }
     if (p.bloom !== 'off' && p.bloom !== 'high' && p.bloom !== 'ultra') {
         p.bloom = DEFAULTS.bloom;
+    }
+    if (
+        p.ao !== 'off' &&
+        p.ao !== 'medium' &&
+        p.ao !== 'high' &&
+        p.ao !== 'ultra'
+    ) {
+        p.ao = DEFAULTS.ao;
     }
     if (typeof p.mobileTuned !== 'boolean') p.mobileTuned = false;
     if (
@@ -641,6 +669,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     antialias: asBool,
     vignette: asWord(['off', 'high', 'ultra']),
     bloom: asWord(['off', 'high', 'ultra']),
+    ao: asWord(['off', 'medium', 'high', 'ultra']),
     transportChosen: asBool,
     mobileTuned: asBool,
     renderScale: asNearest([1, 0.75, 0.5, 0.33]),
@@ -727,6 +756,9 @@ export function prefs(): Prefs {
                 if (stored.bloom !== undefined) {
                     candidate.bloom = migrateBloom(stored.bloom);
                 }
+                if (stored.ao !== undefined) {
+                    candidate.ao = migrateAo(stored.ao);
+                }
                 if (stored.shadows === undefined && stored.unitShadows !== undefined) {
                     candidate.shadows = migrateShadowQuality(stored.unitShadows);
                 }
@@ -751,6 +783,10 @@ export function prefs(): Prefs {
                 if (stored.bloom === undefined) {
                     const legacy = legacyPresetOf(cached);
                     if (legacy) cached.bloom = GRAPHICS_PRESETS[legacy].bloom;
+                }
+                if (stored.ao === undefined) {
+                    const legacy = legacyPresetOf(cached);
+                    if (legacy) cached.ao = GRAPHICS_PRESETS[legacy].ao;
                 }
             }
         } catch {

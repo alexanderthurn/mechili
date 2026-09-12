@@ -141,6 +141,7 @@ import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } f
 import {
     onPrefsChange,
     prefs,
+    updatePrefs,
     debugEnabled,
     effectiveDpr,
     sceneryCameraFar,
@@ -948,6 +949,22 @@ export class Game {
             this.cycleMaterialDebug();
             return;
         }
+        if (e.code === 'KeyO' && e.shiftKey) {
+            // Shift+O cycles ambient occlusion: off → medium → high → ultra
+            // (not Shift+A — A is camera strafe)
+            this.cycleAoQuality();
+            return;
+        }
+        if (e.code === 'KeyB' && e.shiftKey) {
+            // Shift+B cycles bloom: off → high → ultra
+            this.cycleBloomQuality();
+            return;
+        }
+        if (e.code === 'KeyG' && e.shiftKey) {
+            // Shift+G cycles vignette: off → high → ultra
+            this.cycleVignetteQuality();
+            return;
+        }
         if (e.shiftKey && e.code.startsWith('Digit')) {
             const digit = parseInt(e.code.slice(5), 10);
             if (digit === 0) {
@@ -1046,6 +1063,36 @@ export class Game {
             : next === 'wire' ? this.wireOverride
             : next === 'normals' ? this.normalsOverride
             : null;
+    }
+
+    /** Shift+O: live A/B ambient occlusion tiers. */
+    private cycleAoQuality(): void {
+        const order = ['off', 'medium', 'high', 'ultra'] as const;
+        const i = Math.max(0, order.indexOf(prefs().ao));
+        const next = order[(i + 1) % order.length]!;
+        updatePrefs({ ao: next });
+        console.info(`[fx] Shift+O ambient occlusion: ${next}`);
+        this.hud.flashCinemaHint(`AO · ${next}`, 1400);
+    }
+
+    /** Shift+B: live A/B bloom tiers (battle only). */
+    private cycleBloomQuality(): void {
+        const order = ['off', 'high', 'ultra'] as const;
+        const i = Math.max(0, order.indexOf(prefs().bloom));
+        const next = order[(i + 1) % order.length]!;
+        updatePrefs({ bloom: next });
+        console.info(`[fx] Shift+B bloom: ${next}`);
+        this.hud.flashCinemaHint(`Bloom · ${next}`, 1400);
+    }
+
+    /** Shift+G: live A/B vignette tiers (battle only). */
+    private cycleVignetteQuality(): void {
+        const order = ['off', 'high', 'ultra'] as const;
+        const i = Math.max(0, order.indexOf(prefs().vignette));
+        const next = order[(i + 1) % order.length]!;
+        updatePrefs({ vignette: next });
+        console.info(`[fx] Shift+G vignette: ${next}`);
+        this.hud.flashCinemaHint(`Vignette · ${next}`, 1400);
     }
 
     /** Re-bake height-mist shader strength and recompile fogged materials (Shift+3). */
@@ -2762,15 +2809,15 @@ export class Game {
         else this.renderer.render(this.scene, this.rig.camera);
     }
 
-    /** Vignette / bloom only during combat — build / HP-draw stay clean for placement UI. */
+    /** Vignette / bloom in combat; AO also in build so placement stays readable. */
     private syncPostFx(): void {
+        const p = prefs();
         if (this.phase === 'battle') {
-            const p = prefs();
-            this.postFx.setEffects(p.vignette, p.bloom);
+            this.postFx.setEffects(p.vignette, p.bloom, p.ao);
             this.fireFx.setBloomComp(p.bloom);
             this.conversionFx.setBloomComp(p.bloom);
         } else {
-            this.postFx.setEffects('off', 'off');
+            this.postFx.setEffects('off', 'off', p.ao);
             this.fireFx.setBloomComp('off');
             this.conversionFx.setBloomComp('off');
         }
