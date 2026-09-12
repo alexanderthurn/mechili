@@ -48,7 +48,6 @@ import {
     type PeerServerConfig,
     type SinglePlayerSave,
     type SpectatorLink,
-    type StarGuestSession,
     type StarRole,
 } from './game/net';
 import * as sebNative from 'steam-electron-build/native';
@@ -117,7 +116,7 @@ import {
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
 } from './game/roundCardAlgorithms';
-import { duoSeats, localizeRoster, canonicalClassicSeats, type CanonicalSeatDef, type SeatId } from './game/seats';
+import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { initI18n, onLanguageChange, t } from './i18n';
 import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
 

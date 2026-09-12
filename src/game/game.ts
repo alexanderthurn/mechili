@@ -236,7 +236,6 @@ import {
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
-    SPAWN_DWARVES_ID,
     TACTICS,
     clampTacticEnd,
     clampTacticPoint,
