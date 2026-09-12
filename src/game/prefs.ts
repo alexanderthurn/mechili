@@ -253,6 +253,8 @@ export function applyGraphicsPreset(preset: GraphicsPreset): void {
 }
 
 const KEY = 'mechili-prefs';
+/** One-shot: old vignette low/medium/high → medium/high/ultra. */
+const VIGNETTE_LADDER_KEY = 'mechili-prefs-vignette-mhu';
 
 /** What the first-run probe decided, or null when prefs were already stored.
  *  Surfaced for the debug overlay and for answering "why does it look like
@@ -327,8 +329,16 @@ function migrateShadowQuality(raw: unknown): ShadowQuality {
     return DEFAULTS.shadows;
 }
 
-/** Former low/medium/high → medium/high/ultra (same strengths, renamed). */
-function migrateVignette(raw: unknown): VignetteQuality {
+/** Former off/low/medium/high → off/medium/high/ultra (same strengths, renamed). */
+function migrateVignette(raw: unknown, ladderMigrated: boolean): VignetteQuality {
+    if (!ladderMigrated) {
+        if (raw === 'off') return 'off';
+        if (raw === 'low') return 'medium';
+        if (raw === 'medium') return 'high';
+        if (raw === 'high') return 'ultra';
+        if (raw === 'ultra') return 'ultra';
+        return DEFAULTS.vignette;
+    }
     if (raw === 'off' || raw === 'medium' || raw === 'high' || raw === 'ultra') return raw;
     if (raw === 'low') return 'medium';
     return DEFAULTS.vignette;
@@ -339,7 +349,7 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     p.groundEffects = migrateGroundEffects(p.groundEffects);
     p.fireVfx = migrateFireVfx(p.fireVfx);
     p.bloodFx = migrateBloodFx(p.bloodFx);
-    p.vignette = migrateVignette(p.vignette);
+    p.vignette = migrateVignette(p.vignette, true);
     if (p.stuckProjectiles !== 'off' && p.stuckProjectiles !== 'low' && p.stuckProjectiles !== 'high') {
         p.stuckProjectiles = DEFAULTS.stuckProjectiles;
     }
@@ -699,7 +709,11 @@ export function prefs(): Prefs {
                 candidate.scenery = migrateScenery(stored.scenery);
                 candidate.groundEffects = migrateGroundEffects(stored.groundEffects);
                 candidate.fireVfx = migrateFireVfx(stored.fireVfx);
-                candidate.vignette = migrateVignette(stored.vignette);
+                const vignetteLadderDone = localStorage.getItem(VIGNETTE_LADDER_KEY) === '1';
+                if (stored.vignette !== undefined) {
+                    candidate.vignette = migrateVignette(stored.vignette, vignetteLadderDone);
+                    if (!vignetteLadderDone) localStorage.setItem(VIGNETTE_LADDER_KEY, '1');
+                }
                 if (stored.shadows === undefined && stored.unitShadows !== undefined) {
                     candidate.shadows = migrateShadowQuality(stored.unitShadows);
                 }
