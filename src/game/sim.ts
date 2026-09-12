@@ -755,6 +755,13 @@ const BIG_RADIUS = 2.5; // actors at least this wide are steered around (towers,
 const APPROACH_OFFSET_HOLD = 0.85;
 /** max world offset from target center while lane-holding */
 const APPROACH_OFFSET_MAX = 4.0;
+/**
+ * Hysteresis for {@link UnitType.meleePress}: start closing this much beyond
+ * the press distance, stop at it. Without a band a unit flips between "close"
+ * and "hold" every frame at the boundary, which the walk blend reads as a
+ * stutter.
+ */
+const MELEE_PRESS_BAND = 0.07;
 /** Free-flight: how far past the target counts as "behind" before coasting. */
 const FLY_PASS_CLEAR = 5.2;
 /** Free-flight: brief pause behind the foe before a det-random turn. */
@@ -1538,8 +1545,13 @@ export class BattleSim {
         }
 
         // Keep closing through the windup (and while still shy of contact) so
-        // a lunging smash reads as a slide instead of a hard stop.
-        const sliding = a.meleePendingDamage > 0 || tDist > reach * 0.92;
+        // a lunging smash reads as a slide instead of a hard stop. Opt-in per
+        // unit: `meleePress` omitted (1) means plant at contact and swing.
+        const press = a.unit.type.meleePress ?? 1;
+        const sliding =
+            press < 1 &&
+            (a.meleePendingDamage > 0 ||
+                tDist > reach * Math.min(1, press + MELEE_PRESS_BAND));
         if (sliding) {
             this.steerToward(
                 a,
@@ -1551,7 +1563,7 @@ export class BattleSim {
                 d,
                 target,
                 bigs,
-                reach * 0.85,
+                reach * press,
                 { aimYaw: detAtan2(-tdx, -tdz) },
             );
         } else {

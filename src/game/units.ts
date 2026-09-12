@@ -583,6 +583,18 @@ export interface UnitType {
      * hit-and-run (Wasp-like); air-vs-air stays in contact. Omit / 0 = cling.
      */
     meleeRetreat?: number;
+    /**
+     * Melee only: how close this unit presses while swinging, as a fraction of
+     * its reach (range + both radii). Omit / 1 = plant where contact is made
+     * and swing from there, which is how every melee unit behaved before the
+     * ogre. Below 1 the unit keeps closing while it fights — and, if it has a
+     * {@link meleeHitDelay}, slides through the windup so a big smash reads as
+     * a charge rather than a stop-then-swing. 0.85 = press in to 85% of reach.
+     *
+     * Per-unit on purpose: a heavy breaker wants the slide, a line of dwarves
+     * does not, and the next melee unit may want its own number.
+     */
+    meleePress?: number;
     speed: number;
     /**
      * Procedural walk lean *height* for non-skinned ground units (omit = 1).
@@ -1351,6 +1363,7 @@ export const UNIT_TYPES: UnitType[] = [
         meleeHitDelay: 0.7,
         // commit early at speed 8.5 → slide into the smash
         meleeLunge: 5,
+        meleePress: 0.85, // keep closing while swinging (the charge feel)
         speed: 8.5, // faster than dwarf (6) — Rhino closes gaps
         turnRate: 4, // heavy body — was 9 (too snappy for a big melee)
         sandWeight: 1.5,
