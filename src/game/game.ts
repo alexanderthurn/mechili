@@ -2828,6 +2828,8 @@ export class Game {
             this.fireFx.setBloomComp('off');
             this.conversionFx.setBloomComp('off');
         }
+        // Winter snow sits above the default bloom floor — lift threshold with cover.
+        this.postFx.setSnowCover(this.scenery.groundSnowCover);
     }
 
     /**
@@ -9991,6 +9993,7 @@ export class Game {
             }
         }
         this.map.setSnowCover(this.scenery.groundSnowCover);
+        this.postFx.setSnowCover(this.scenery.groundSnowCover);
         this.map.setHazardTime(this.time);
         // Battle already advanced mixers before stuckBolts.sync above.
         if (this.phase !== 'battle') {

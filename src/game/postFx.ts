@@ -23,12 +23,19 @@ const VIGNETTE: Record<Exclude<VignetteQuality, 'off'>, { offset: number; darkne
 /**
  * Selective bloom — high threshold so grass/sky stay clean; strength/radius
  * lift magic beams / sun / (compensated) fire.
+ *
+ * Winter snow albedo (~0.92–1.0) sits on top of these floors once lit, so
+ * {@link PostFx.setSnowCover} raises threshold / eases strength with cover.
  */
 const BLOOM: Record<Exclude<BloomQuality, 'off'>, { threshold: number; strength: number; radius: number }> =
     {
         high: { threshold: 0.9, strength: 0.4, radius: 0.42 },
         ultra: { threshold: 0.85, strength: 0.55, radius: 0.52 },
     };
+
+/** At full snow cover: add to threshold / multiply strength (keeps fire/magic above). */
+const BLOOM_SNOW_THRESHOLD_LIFT = 0.38;
+const BLOOM_SNOW_STRENGTH_SCALE = 0.7;
 
 /**
  * Mild GTAO — small radius so grass stays clean; scale/blend lift unit contact.
@@ -98,6 +105,8 @@ export class PostFx {
     private vignette: VignetteQuality = 'off';
     private bloom: BloomQuality = 'off';
     private ao: AoQuality = 'off';
+    /** 0..1 visual ground snow (same source as the board / outer meadow). */
+    private snowCover = 0;
     private readonly resolution = new Vector2(4, 4);
 
     constructor(
@@ -134,6 +143,17 @@ export class PostFx {
             this.teardown();
             this.build();
         }
+        this.applyParams();
+    }
+
+    /**
+     * Bias bloom away from lit snow. Same 0..1 cover the board uses; cheap to
+     * call every frame while cover eases in/out.
+     */
+    setSnowCover(cover: number): void {
+        const next = Math.min(1, Math.max(0, cover));
+        if (Math.abs(next - this.snowCover) < 1e-4) return;
+        this.snowCover = next;
         this.applyParams();
     }
 
@@ -193,8 +213,10 @@ export class PostFx {
         }
         if (this.bloom !== 'off' && this.bloomPass) {
             const b = BLOOM[this.bloom];
-            this.bloomPass.threshold = b.threshold;
-            this.bloomPass.strength = b.strength;
+            const snow = this.snowCover;
+            this.bloomPass.threshold = b.threshold + snow * BLOOM_SNOW_THRESHOLD_LIFT;
+            this.bloomPass.strength =
+                b.strength * (1 - snow * (1 - BLOOM_SNOW_STRENGTH_SCALE));
             this.bloomPass.radius = b.radius;
         }
         if (this.vignette !== 'off' && this.vignettePass) {
