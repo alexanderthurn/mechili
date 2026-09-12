@@ -319,6 +319,11 @@ export function isPlayerBuyable(type: UnitType): boolean {
     return type.buyable !== false;
 }
 
+/** The Komtur / forest wave roster — {@link UnitType.horde}. */
+export function isHordeUnit(type: UnitType): boolean {
+    return type.horde === true;
+}
+
 export interface UnitType {
     id: string;
     name: string;
@@ -373,9 +378,14 @@ export interface UnitType {
     /**
      * When `false`, players and the AI cannot buy or unlock this type from
      * the shop. Omit or `true` = eligible (still subject to unlock / extras).
-     * Horde / Der Komtur units set this false.
+     * Horde-only units set this false; a type may be both shop and horde.
      */
     buyable?: boolean;
+    /**
+     * When `true`, eligible for The Komtur wave plan / forest roster.
+     * Independent of {@link buyable} — set both for dual-use types.
+     */
+    horde?: boolean;
     /** shield extra: a dome that absorbs enemy projectiles crossing INTO it */
     shield?: { radius: number; height: number };
     /** rocket extra: waits armed, then homes onto the first enemy in range */
@@ -1026,6 +1036,7 @@ export const HORDE_BRUT: UnitType = {
     cost: 80,
     hpWithdraw: 2,
     buyable: false,
+    horde: true,
     modelId: 'horde',
     // 2× terrain pack area vs original 10×6; same small mesh
     footprint: { cols: 20, rows: 12 },
@@ -1061,6 +1072,7 @@ export const HORDE_WEBWEAVER: UnitType = {
     cost: 200,
     hpWithdraw: 12,
     buyable: false,
+    horde: true,
     modelId: 'horde',
     // 2× terrain pack area vs original 6×4; same mesh scale
     footprint: { cols: 12, rows: 8 },
@@ -1096,6 +1108,7 @@ export const HORDE_BRUT_SPAWN: UnitType = {
     levelBasis: 100, // free to gain, but 50 per level and 100 xp per level
     hpWithdraw: 2,
     buyable: false,
+    horde: true,
     modelId: 'horde',
     footprint: { cols: 2, rows: 2 },
     formation: { cols: 1, rows: 1 },
@@ -1126,6 +1139,7 @@ export const HORDE_SPINNE: UnitType = {
     cost: 500,
     hpWithdraw: 70,
     buyable: false,
+    horde: true,
     modelId: 'horde',
     footprint: { cols: 4, rows: 3 },
     formation: { cols: 1, rows: 1 },
@@ -1164,6 +1178,7 @@ export const HORDE_FARMER: UnitType = {
     cost: 175,
     hpWithdraw: 7,
     buyable: false,
+    horde: true,
     modelId: 'horde2',
     footprint: { cols: 10, rows: 6 },
     formation: { cols: 6, rows: 2 }, // 12 — fewer than Brut swarm
@@ -1196,6 +1211,7 @@ export const HORDE_FARMER_SPAWN: UnitType = {
     levelBasis: 100, // free to gain, but 50 per level and 100 xp per level
     hpWithdraw: 4,
     buyable: false,
+    horde: true,
     modelId: 'horde2',
     footprint: { cols: 2, rows: 2 },
     formation: { cols: 1, rows: 1 },
@@ -1225,6 +1241,7 @@ export const HORDE_KOMTUR: UnitType = {
     cost: 600,
     hpWithdraw: 800,
     buyable: false,
+    horde: true,
     modelId: 'horde3',
     footprint: { cols: 4, rows: 3 },
     formation: { cols: 1, rows: 1 },
@@ -1251,6 +1268,44 @@ export const HORDE_KOMTUR: UnitType = {
     turnRate: 2.2,
     turnMove: 'cruise',
     build: buildDwarf,
+};
+
+/**
+ * Low free-flight dive flock — Komtur wave air chaff. Not shop-buyable for
+ * now; flip {@link UnitType.buyable} when dual-use is wanted.
+ */
+export const BAT: UnitType = {
+    id: 'bat',
+    name: 'Bat',
+    cost: 100,
+    hpWithdraw: 2,
+    buyable: false,
+    horde: true,
+    // Neat lattice (1 bat per cell) — no formationSpread jitter
+    footprint: { cols: 6, rows: 2 },
+    formation: { cols: 6, rows: 3 }, // 18 ordered flock
+    meshScale: 1.0,
+    flying: 5.5, // low cruise — not crow-height
+    freeFlight: true, // climb/dive toward foes; pitch at aim
+    burn: { takenMult: 1 }, // air: burn status ignored while aloft
+    targets: { ground: true, air: true },
+    collisionRadius: 0.9, // unused for soft push (ghost), kept for broadphase
+    blobShadowScale: 0.55,
+    // Generous AA volumes — wings + body so goblin/archer volleys can connect
+    colliders: [
+        { y: 0.4, r: 0.85 },
+        { y: 0.5, r: 1.35 },
+    ],
+    hp: 10,
+    bloodScale: 0.28, // tiny body — don't fountain like a dwarf
+    damage: 3, // chip — pressure from numbers, not punches
+    range: 2.2, // touch radius while piercing
+    meleeLunge: 5, // commit the pass from a bit out
+    attackInterval: 1.05,
+    speed: 12,
+    turnRate: 3.2, // slow bank — points then flies along facing
+    turnMove: 'cruise',
+    build: buildBat,
 };
 
 export const UNIT_TYPES: UnitType[] = [
@@ -1444,39 +1499,6 @@ export const UNIT_TYPES: UnitType[] = [
         build: buildCrowRider,
     },
     {
-        // Fantasy Wasp — low free-flight dive melee; chip + peel vs ground.
-        // Shop-testable for now; later likely a horde wave flavor.
-        id: 'bat',
-        name: 'Bat',
-        cost: 100,
-        unlockCost: 0,
-        // Neat lattice (1 bat per cell) — no formationSpread jitter
-        footprint: { cols: 6, rows: 2 },
-        formation: { cols: 6, rows: 3 }, // 18 ordered flock
-        meshScale: 1.0,
-        flying: 5.5, // low cruise — not crow-height
-        freeFlight: true, // climb/dive toward foes; pitch at aim
-        burn: { takenMult: 1 }, // air: burn status ignored while aloft
-        targets: { ground: true, air: true },
-        collisionRadius: 0.9, // unused for soft push (ghost), kept for broadphase
-        blobShadowScale: 0.55,
-        // Generous AA volumes — wings + body so goblin/archer volleys can connect
-        colliders: [
-            { y: 0.4, r: 0.85 },
-            { y: 0.5, r: 1.35 },
-        ],
-        hp: 10,
-        bloodScale: 0.28, // tiny body — don't fountain like a dwarf
-        damage: 3, // chip — pressure from numbers, not punches
-        range: 2.2, // touch radius while piercing
-        meleeLunge: 5, // commit the pass from a bit out
-        attackInterval: 1.05,
-        speed: 12,
-        turnRate: 3.2, // slow bank — points then flies along facing
-        turnMove: 'cruise',
-        build: buildBat,
-    },
-    {
         // Fragile long-range mortar pack; volley of unguided splash stones
         // with a min-range dead zone (no AA).
         id: 'mortar',
@@ -1608,6 +1630,7 @@ export const UNIT_TYPES: UnitType[] = [
     HORDE_FARMER,
     HORDE_FARMER_SPAWN,
     HORDE_KOMTUR,
+    BAT,
 ];
 
 /** Mechs in a pack — used for default hpWithdraw derivation. */
