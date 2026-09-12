@@ -1312,7 +1312,7 @@ export class Game {
             this.rosterProfilesLoaded = true;
         }
         this.humanSeat = humanSeat;
-        this.economy = new Economy(settings.economy, this.seats.length);
+        this.economy = new Economy(settings.economy, this.seats.length, settings.moneyFactor);
         this.recruitLevel = this.seats.map(() => 1);
         this.creditUsed = this.seats.map(() => false);
         this.creditDebt = this.seats.map(() => false);

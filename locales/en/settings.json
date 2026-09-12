@@ -35,6 +35,7 @@
   "cardsFull": "Full — rounds 2–4 runes, 5–7 unit packs, 8–10 spells",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (both teams)",
+    "moneyOption": "{{label}} supply income (both teams)",
     "timersTitle": "Timers & HP",
     "deploymentPhase": "Deployment phase",
     "battlePhase": "Battle phase",
@@ -56,6 +57,9 @@
     "incomeGrowth": "Income growth",
     "incomeGrowthValue": "+{{amount}}/round",
     "incomeGrowthNote": "round N grants startingSupply + (N-1) × growth",
+    "moneyFactor": "Supply factor",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyFactorNote": "scales every round’s income for both teams",
     "techCostEscalation": "{{tech}} cost escalation",
     "techCostEscalationValue": "+{{amount}}",
     "techCostEscalationNote": "added to a {{tech}}’s price per {{tech}} already owned of that unit type",
