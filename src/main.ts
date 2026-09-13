@@ -88,6 +88,7 @@ import { bootGameAssets } from './game/bootAssets';
 import {
     activeLevelRef,
     isLevelActive,
+    ensureLevel,
     isLevelAvailable,
     knownLevels,
     levelFiles,
@@ -4223,6 +4224,14 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             activateLevel(seq, level);
             return;
         }
+        // kept from an earlier session? then there is nothing to download
+        void ensureLevel(level).then((have) => {
+            if (seq !== levelOfferSeq || cancelled) return;
+            if (have) activateLevel(seq, level);
+            else downloadLevel(seq, level, chunks);
+        });
+    };
+    const downloadLevel = (seq: number, level: LevelRef, chunks: number): void => {
         try {
             levelReceiver = new LevelReceiver(level, chunks);
         } catch (e) {
@@ -5362,10 +5371,16 @@ if (bulkVerify) {
         beginStarJoin(starMpMarker.hostName);
     }
 } else if (spSave) {
-    if (!isSameBuild(spSave)) {
-        clearSinglePlayer();
-        setMenuChromeVisible(true);
-    } else resumeSinglePlayer(spSave);
+    // a save of a scenario match resumes once that scenario is back (scenario cache)
+    const saveLevel = spSave.settings.level;
+    const sameBuild = spSave.version === GAME_VERSION && spSave.contentHash === contentHashFor(saveLevel);
+    void (sameBuild ? ensureLevel(saveLevel) : Promise.resolve(false)).then((available) => {
+        if (available) resumeSinglePlayer(spSave);
+        else {
+            clearSinglePlayer();
+            setMenuChromeVisible(true);
+        }
+    });
 } else {
     setMenuChromeVisible(true);
     // ?room=mangoo — join that host's room directly. Every room is

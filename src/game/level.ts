@@ -29,6 +29,7 @@ import {
     type OverlayReport,
 } from './assets';
 import { BASE_PACK, loadPackWithOverlay } from './content/basePack';
+import { cacheLevel, cachedLevel } from './levelCache';
 import { TypeRegistry } from './content/typeRegistry';
 import { BASE_TYPES, proceduralHeightsOf } from './units';
 import { setModelSpecData, setModelTypes, setProceduralModelHeights } from './unitModels';
@@ -121,6 +122,7 @@ export async function loadLevel(
     }
     known.set(overlay.hash, overlay);
     knownFiles.set(overlay.hash, [...files]);
+    void cacheLevel({ id: overlay.id, hash: overlay.hash }, files);
     return { ref: { id: overlay.id, hash: overlay.hash }, report: overlay.report };
 }
 
@@ -129,7 +131,25 @@ export function knownLevels(): LevelRef[] {
     return [...known.values()].map((o) => ({ id: o.id, hash: o.hash }));
 }
 
-/** Can a match naming `ref` start right now (undefined = base game, always)? */
+/**
+ * Make sure `ref` is known this session: already loaded, or restored from the
+ * scenario cache (a previous session loaded or received it). False when this
+ * client has never had that content.
+ */
+export async function ensureLevel(ref: LevelRef | undefined): Promise<boolean> {
+    if (ref === undefined || known.has(ref.hash)) return true;
+    const cached = await cachedLevel(ref.hash);
+    if (!cached) return false;
+    try {
+        const { ref: loaded } = await loadLevel(cached.id, cached.files);
+        return loaded.hash === ref.hash;
+    } catch (e) {
+        console.warn(`[level] cached scenario "${ref.id}" no longer loads`, e);
+        return false;
+    }
+}
+
+/** Can a match naming `ref` start right now without loading anything (undefined = base game, always)? */
 export function isLevelAvailable(ref: LevelRef | undefined): boolean {
     return ref === undefined || known.has(ref.hash);
 }
@@ -141,10 +161,12 @@ export function isLevelActive(ref: LevelRef | undefined): boolean {
 
 /**
  * Make the level a match names active (undefined = base game) and wait for
- * its files to load. Throws when that level isn't known this session.
+ * its files to load — from the scenario cache if this session hasn't loaded
+ * it. Throws when this client doesn't have that content.
  */
 export async function prepareLevel(ref: LevelRef | undefined): Promise<ActiveLevel> {
     if (ref === undefined) return switchLevel(null);
+    await ensureLevel(ref);
     const overlay = known.get(ref.hash);
     if (!overlay) throw new Error(`[level] scenario "${ref.id}" (${ref.hash.slice(0, 8)}) is not loaded`);
     return switchLevel(overlay);
