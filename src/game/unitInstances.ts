@@ -24,19 +24,10 @@ import {
     updateCrowWingFlap,
     usesWingFlapModel,
 } from './crowWingFlap';
-import { getUnitInstanceAsset, hasUnitInstanceAsset, type InstancePart } from './unitModels';
+import { getUnitInstanceAsset, hasUnitInstanceAsset, isStructureModel, type InstancePart } from './unitModels';
 import { attachBuildingSnow } from './buildingSnow';
 import { prefs, type Prefs } from './prefs';
 import type { BattleTeam } from './units';
-
-/** Unit type ids that use `structure: true` — kept here to avoid a units↔instances cycle. */
-const STRUCTURE_IDS = new Set([
-    'command-tower',
-    'research-center',
-    'stronghold',
-    'shield',
-    'rocket',
-]);
 
 /** Max mechs per (type × team × alive|dead) pool — cheat spam still fits. */
 const POOL_CAPACITY = 4096;
@@ -441,7 +432,7 @@ function levelOf(proxy: Group): number {
 
 function unitShadowCast(typeId: string, tier: Prefs['shadows']): boolean {
     if (tier === 'off' || tier === 'low') return false;
-    if (tier === 'medium') return STRUCTURE_IDS.has(typeId);
+    if (tier === 'medium') return isStructureModel(typeId);
     return true;
 }
 

@@ -18,13 +18,9 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import { touchFirstDevice } from './inputCapabilities';
-import {
-    attachBuildingSnow,
-    attachBuildingSnowToObject,
-    wantsBuildingSnow,
-} from './buildingSnow';
+import { attachBuildingSnow, attachBuildingSnowToObject } from './buildingSnow';
 import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
-import type { BattleTeam } from './units';
+import type { BattleTeam, UnitType } from './units';
 import type { ModelAnimation } from './unitAnimated';
 import { assetUrl, hasAsset, onAssetOverlaySwitch } from './assets';
 import { disposeScene } from '../engine/disposeScene';
@@ -113,6 +109,34 @@ export function setModelSpecData(data: Readonly<Record<string, ModelSpecData>>):
         if (!(id in data)) delete MODEL_SPECS[id];
     }
     for (const [id, d] of Object.entries(data)) MODEL_SPECS[id] = resolveModelSpec(d);
+}
+
+function structureModelsOf(types: Iterable<UnitType>): Set<string> {
+    const ids = new Set<string>();
+    for (const type of types) {
+        if (type.structure) ids.add(type.modelId ?? type.id);
+    }
+    return ids;
+}
+
+/** model ids a `structure: true` type uses — the base game's until a level switch */
+let structureModelIds: ReadonlySet<string> = structureModelsOf([
+    ...BASE_PACK.roster,
+    ...BASE_PACK.offRoster,
+    ...BASE_PACK.buildings,
+]);
+
+/**
+ * Buildings are the types with `structure: true` — nothing else decides it.
+ * Their models get roof snow and keep shadows on the medium shadow tier.
+ */
+export function isStructureModel(modelId: string): boolean {
+    return structureModelIds.has(modelId);
+}
+
+/** The types the loaded models belong to (a level's, or the base game's again). */
+export function setModelTypes(types: Iterable<UnitType>): void {
+    structureModelIds = structureModelsOf(types);
 }
 
 /**
@@ -334,7 +358,7 @@ export function cloneUnitModel(id: string, _team?: BattleTeam): Group | null {
     const clone = skeletonClone(t) as Group;
     uniquifyMaterials(clone);
     // Three.js Material.clone() drops onBeforeCompile — re-attach after uniquify
-    if (wantsBuildingSnow(id)) attachBuildingSnowToObject(clone);
+    if (isStructureModel(id)) attachBuildingSnowToObject(clone);
     return clone;
 }
 
@@ -706,7 +730,7 @@ async function loadUnitModelsNow(
     const textureBudget = modelTextureBudget();
     let done = 0;
     const loadEntry = async ([id, spec]: (typeof entries)[number]): Promise<void> => {
-        loadedKeys.set(id, modelBuildKey(spec, heights[id]));
+        loadedKeys.set(id, staticModelKey(id, spec, heights));
         try {
             if (!spec.url) throw new Error('model file is not in the asset manifest or the level');
             const gltf = await loader.loadAsync(spec.url);
@@ -776,7 +800,7 @@ async function loadUnitModelsNow(
             // bakePose models are static after bakeSkinnedPose and use InstancedMesh.
             if (!spec.skinned) {
                 const baked = bakeInstanceAsset(root);
-                if (wantsBuildingSnow(id)) {
+                if (isStructureModel(id)) {
                     attachBuildingSnowToObject(root);
                     for (const part of baked.parts) attachBuildingSnow(part.material);
                 }
@@ -784,7 +808,7 @@ async function loadUnitModelsNow(
                     for (const part of baked.parts) markCrowWingFlapMaterial(part.material);
                 }
                 instanceAssets.set(id, baked);
-            } else if (wantsBuildingSnow(id)) {
+            } else if (isStructureModel(id)) {
                 attachBuildingSnowToObject(root);
             }
             console.info(
@@ -810,6 +834,11 @@ async function loadUnitModelsNow(
     }
     console.info(`[unitModels] ready: ${[...templates.keys()].join(', ') || '(none)'}`);
     if (!only) scheduleModelRetry();
+}
+
+/** {@link modelBuildKey} plus roof snow, which is baked into the materials at load */
+function staticModelKey(id: string, spec: ModelSpec, heights: Readonly<Record<string, number>>): string {
+    return `${modelBuildKey(spec, heights[id])}${isStructureModel(id) ? '#structure' : ''}`;
 }
 
 /** Forget a loaded model: it renders procedurally until loaded again. */
@@ -846,7 +875,7 @@ onAssetOverlaySwitch('unit models', async () => {
     }
     const stale = new Set(
         Object.entries(MODEL_SPECS)
-            .filter(([id, spec]) => loadedKeys.get(id) !== modelBuildKey(spec, heights[id]))
+            .filter(([id, spec]) => loadedKeys.get(id) !== staticModelKey(id, spec, heights))
             .map(([id]) => id),
     );
     if (stale.size === 0) return;

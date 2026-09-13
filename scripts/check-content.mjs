@@ -156,18 +156,23 @@ try {
         { path: 'models/units/ogre.glb', bytes: enc('glb bytes') },
         { path: 'data/models/ogre.jsonc', bytes: enc(ogreText.replace('"speed": 0.5', '"speed": 0.75')) },
         { path: 'data/models/ice-wall.jsonc', bytes: enc('{ "file": "models/units/ogre.glb" }') },
+        { path: 'data/buildings/ice-wall.jsonc', bytes: enc(iceWall) },
+        { path: 'data/pack.jsonc', bytes: enc(packWithWall) },
     ]);
     let sw = true;
+    sw = expect(models.isStructureModel('stronghold') && models.isStructureModel('shield') && !models.isStructureModel('archer'), 'structure models not taken from the structure flag') && sw;
     const on = await levels.switchLevel(ogreMod);
     sw = expect(on === levels.activeLevel() && on.overlay === ogreMod, 'switchLevel does not report the active level') && sw;
     sw = expect(hookSaw !== '' && hookSaw !== baseOgreUrl, 'reload hooks did not run with the level installed') && sw;
     sw = expect(anim.ANIM_SPECS.ogre?.animation.walk.speed === 0.75, "rigged model data does not follow the level") && sw;
     sw = expect('ice-wall' in models.MODEL_SPECS, "level's added model missing from MODEL_SPECS") && sw;
+    sw = expect(models.isStructureModel('ice-wall') && on.types.byId('ice-wall')?.structure === true, "level's building is not a structure model") && sw;
     const off = await levels.switchLevel(null);
     sw = expect(off.overlay === null && off.types === units.BASE_TYPES, 'switching back does not restore the base registry') && sw;
     sw = expect(models.MODEL_SPECS.ogre.url === baseOgreUrl && hookSaw === baseOgreUrl, 'switching back does not restore base files') && sw;
     sw = expect(anim.ANIM_SPECS.ogre?.animation.walk.speed === 0.5, 'switching back does not restore rigged model data') && sw;
     sw = expect(!('ice-wall' in models.MODEL_SPECS), "level's model stays after switching back") && sw;
+    sw = expect(!models.isStructureModel('ice-wall'), "level's building stays a structure model after switching back") && sw;
     const broken = await resolver.buildAssetOverlay('broken', [
         { path: 'data/models/ogre.jsonc', bytes: enc(ogreText.replace('"skinned": true,', '')) },
     ]);
@@ -176,7 +181,7 @@ try {
     sw = expect(brokenError.includes('"animation" needs "skinned": true'), `invalid level not rejected (${brokenError.split('\n')[0]})`) && sw;
     sw = expect(levels.activeLevel().overlay === null && resolver.activeAssetOverlay() === null, 'a rejected level changed the active files') && sw;
     sw = expect(models.MODEL_SPECS.ogre.skinned === true, 'a rejected level changed model data') && sw;
-    if (sw) console.log('ok   level switch: reload hooks after install, model + animation data follow, base restored, invalid level rejected');
+    if (sw) console.log('ok   level switch: reload hooks after install, model + animation data and structure flags follow, base restored, invalid level rejected');
 } catch (e) {
     failed = true;
     console.error(`FAIL ${e instanceof Error ? e.message : e}`);

@@ -1,22 +1,4 @@
 import { Mesh, MeshStandardMaterial, type Object3D } from 'three';
-import { BASE_PACK } from './content/basePack';
-
-/**
- * Model ids used by base buildings (`structure` and not `extra`).
- * Derived from the content pack so new buildings get roof snow without an id list.
- */
-const BUILDING_SNOW_MODEL_IDS: ReadonlySet<string> = (() => {
-    const ids = new Set<string>();
-    for (const type of [...BASE_PACK.buildings, ...BASE_PACK.roster, ...BASE_PACK.offRoster]) {
-        if (type.structure && !type.extra) ids.add(type.modelId ?? type.id);
-    }
-    return ids;
-})();
-
-/** True when this model asset is used by a non-extra structure (roof snow). */
-export function wantsBuildingSnow(modelId: string): boolean {
-    return BUILDING_SNOW_MODEL_IDS.has(modelId);
-}
 
 /** Shared 0..1 cover for building roof snow (lags ground on the way up, clears fast). */
 const buildingSnowUniform = { value: 0 };
