@@ -2583,6 +2583,9 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-test-battle .tb-side { border-inline-start: 4px solid var(--se-team); padding-inline-start: 6px; }
 .mechili-test-battle:not(.done) .tb-result { display: none; }
 .mechili-test-battle.done .tb-skip { display: none; }
+.mechili-test-battle .tb-earlier-head { margin-top: 4px; font-size: 11px; color: ${u.textMuted}; }
+.mechili-test-battle .tb-earlier { font-size: 12px; color: ${u.text}; }
+.mechili-test-battle .tb-earlier.other { color: ${u.textMuted}; font-style: italic; }
 
 /* suggest chip, inline-start of the main menu (same feel as username) */
 .mechili-suggest-btn {

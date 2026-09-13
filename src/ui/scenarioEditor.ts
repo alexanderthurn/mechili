@@ -1008,11 +1008,20 @@ export interface TestBattleSummary {
     damage: { player: number; enemy: number };
 }
 
+/** earlier test results this tab, newest first — to compare tweaks of a board */
+const testResults: { line: string; board: string }[] = [];
+const TEST_RESULTS_KEPT = 6;
+
 /** The strip over a test battle: back to the editor any time, the result at the end. */
 export class TestBattleBar {
     private readonly root: HTMLDivElement;
 
-    constructor(wrapper: HTMLElement, cb: { onBack(): void; onAgain(): void; onSkip(): void }) {
+    constructor(
+        wrapper: HTMLElement,
+        cb: { onBack(): void; onAgain(): void; onSkip(): void },
+        /** the board being tested (to mark results of other boards) */
+        private readonly board: string = '',
+    ) {
         this.root = document.createElement('div');
         this.root.className = 'mechili-test-battle';
         this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -1045,11 +1054,18 @@ export class TestBattleBar {
             const damage = team === 'horde' ? '' : ` · ${t('editor:damageTaken', { defaultValue: 'takes' })} ${Math.round(summary.damage[team])}`;
             return `<div class="tb-side" style="--se-team:${colorForBattleTeam(team).css}"><b>${label}</b> ${p.standing}/${p.total} packs · ${m.alive}/${m.total} units${damage}</div>`;
         };
+        const earlier = testResults
+            .map((r) => `<div class="tb-earlier${r.board === this.board ? '' : ' other'}" title="${r.board === this.board ? 'same board' : 'a different board'}">${esc(r.line)}</div>`)
+            .join('');
+        const short = `${headline} · ${summary.seconds.toFixed(1)}s · ${summary.packs.player.standing}/${summary.packs.player.total} vs ${summary.packs.enemy.standing}/${summary.packs.enemy.total}`;
+        testResults.unshift({ line: short, board: this.board });
+        testResults.length = Math.min(testResults.length, TEST_RESULTS_KEPT);
         el.innerHTML =
             `<div class="tb-headline">${headline} · ${summary.seconds.toFixed(1)}s</div>` +
             line('player', t('editor:teamPlayer', { defaultValue: 'Player' })) +
             line('enemy', t('editor:teamEnemy', { defaultValue: 'Enemy' })) +
-            line('horde', t('editor:teamHorde', { defaultValue: 'Horde' }));
+            line('horde', t('editor:teamHorde', { defaultValue: 'Horde' })) +
+            (earlier ? `<div class="tb-earlier-head">${t('editor:earlierTests', { defaultValue: 'Earlier tests' })}</div>${earlier}` : '');
         this.root.classList.add('done');
     }
 

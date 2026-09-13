@@ -2978,7 +2978,7 @@ export class Game {
                 onBack: () => this.onScenarioEditor?.('author', draft),
                 onAgain: () => this.onScenarioEditor?.('test', draft),
                 onSkip: () => this.skipTestBattle(),
-            });
+            }, JSON.stringify(draft.scene) + JSON.stringify(draft.rules));
             return;
         }
         // a sandbox deployment: every buyable unit, free purchases (the settings
