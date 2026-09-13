@@ -25,6 +25,7 @@ import {
 } from './buildingSnow';
 import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
 import type { BattleTeam } from './units';
+import { assetUrl, isBaseAsset } from './assets';
 import { BASE_PACK } from './content/basePack';
 
 /**
@@ -78,21 +79,15 @@ export interface ModelSpec {
 /** Model specs by model id, from `assets/data/models/*.jsonc`. */
 const MODEL_SPEC_DATA: Record<string, ModelSpecData> = BASE_PACK.models;
 
-/** GLB files under `assets/models/`, resolved to built asset URLs by Vite. */
-const MODEL_FILE_URLS = import.meta.glob('../../assets/models/units/*.glb', {
-    query: '?url',
-    import: 'default',
-    eager: true,
-}) as Record<string, string>;
-
 function resolveModelSpec(id: string, data: ModelSpecData): ModelSpec {
     const { file, yawDeg, ...rest } = data;
-    const url = MODEL_FILE_URLS[`../../assets/${file}`];
-    if (!url) console.error(`[unitModels] '${id}': no model file 'assets/${file}'`);
+    if (!isBaseAsset(file)) console.error(`[unitModels] '${id}': no model file 'assets/${file}' in the asset manifest`);
     return {
         ...rest,
-        // an unknown file loads nothing and falls back to the procedural mesh
-        url: url ?? '',
+        // resolved when the model is loaded, so a level overlay can replace the file
+        get url() {
+            return isBaseAsset(file) ? assetUrl(file) : '';
+        },
         // same expression the old table used, so the result is bit-identical
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(yawDeg ?? 0),
     };

@@ -19,8 +19,9 @@ import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import { attachVegetationSnow } from './sceneryVegetation';
 import type { SceneryQuality } from './prefs';
 import { prefs } from './prefs';
+import { assetUrl } from './assets';
 
-const FLOOR_PIECES_URL = new URL('../../assets/models/floorpieces.glb', import.meta.url).href;
+const FLOOR_PIECES_URL = (): string => assetUrl('models/floorpieces.glb');
 
 /** Exact names always skipped (legacy names kept for safety). */
 const EXCLUDED = new Set(['nail', 'rank1', 'mushroom3', 'mushroom6', 'wood3']);
@@ -183,7 +184,7 @@ export async function loadFloorPieces(): Promise<void> {
     if (loadPromise) return loadPromise;
     loadPromise = (async () => {
         try {
-            const gltf = await loader.loadAsync(FLOOR_PIECES_URL);
+            const gltf = await loader.loadAsync(FLOOR_PIECES_URL());
             const budget = modelTextureBudget();
             if (budget) applyTextureBudget(gltf.scene, budget);
 

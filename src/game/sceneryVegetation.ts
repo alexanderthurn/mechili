@@ -27,6 +27,7 @@ import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import type { SceneryQuality } from './prefs';
 import { TRANSITION_TAU, type Season } from './weather';
+import { assetUrl } from './assets';
 
 export type VegetationKind = 'oak' | 'pine' | 'bushRound' | 'bushTall';
 
@@ -75,70 +76,76 @@ const SPECS: Record<
     }
 > = {
     oak: {
-        url: new URL('../../assets/models/scenery/tree-oak.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/scenery/tree-oak.glb');
+        },
         height: 10,
-        billboard: new URL('../../assets/textures/scenery/billboard-oak.png', import.meta.url).href,
-        billboardSnow: new URL('../../assets/textures/scenery/billboard-oak-snow.png', import.meta.url)
-            .href,
-        billboardSpring: new URL(
-            '../../assets/textures/scenery/billboard-oak-spring.png',
-            import.meta.url,
-        ).href,
-        billboardAutumn: new URL(
-            '../../assets/textures/scenery/billboard-oak-autumn.png',
-            import.meta.url,
-        ).href,
+        get billboard() {
+            return assetUrl('textures/scenery/billboard-oak.png');
+        },
+        get billboardSnow() {
+            return assetUrl('textures/scenery/billboard-oak-snow.png');
+        },
+        get billboardSpring() {
+            return assetUrl('textures/scenery/billboard-oak-spring.png');
+        },
+        get billboardAutumn() {
+            return assetUrl('textures/scenery/billboard-oak-autumn.png');
+        },
     },
     pine: {
-        url: new URL('../../assets/models/scenery/tree-pine.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/scenery/tree-pine.glb');
+        },
         height: 12,
-        billboard: new URL('../../assets/textures/scenery/billboard-pine.png', import.meta.url).href,
-        billboardSnow: new URL('../../assets/textures/scenery/billboard-pine-snow.png', import.meta.url)
-            .href,
-        billboardSpring: new URL(
-            '../../assets/textures/scenery/billboard-pine-spring.png',
-            import.meta.url,
-        ).href,
-        billboardAutumn: new URL(
-            '../../assets/textures/scenery/billboard-pine-autumn.png',
-            import.meta.url,
-        ).href,
+        get billboard() {
+            return assetUrl('textures/scenery/billboard-pine.png');
+        },
+        get billboardSnow() {
+            return assetUrl('textures/scenery/billboard-pine-snow.png');
+        },
+        get billboardSpring() {
+            return assetUrl('textures/scenery/billboard-pine-spring.png');
+        },
+        get billboardAutumn() {
+            return assetUrl('textures/scenery/billboard-pine-autumn.png');
+        },
     },
     bushRound: {
-        url: new URL('../../assets/models/scenery/bush-round.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/scenery/bush-round.glb');
+        },
         height: 2.4,
-        billboard: new URL('../../assets/textures/scenery/billboard-bush-round.png', import.meta.url)
-            .href,
-        billboardSnow: new URL(
-            '../../assets/textures/scenery/billboard-bush-round-snow.png',
-            import.meta.url,
-        ).href,
-        billboardSpring: new URL(
-            '../../assets/textures/scenery/billboard-bush-round-spring.png',
-            import.meta.url,
-        ).href,
-        billboardAutumn: new URL(
-            '../../assets/textures/scenery/billboard-bush-round-autumn.png',
-            import.meta.url,
-        ).href,
+        get billboard() {
+            return assetUrl('textures/scenery/billboard-bush-round.png');
+        },
+        get billboardSnow() {
+            return assetUrl('textures/scenery/billboard-bush-round-snow.png');
+        },
+        get billboardSpring() {
+            return assetUrl('textures/scenery/billboard-bush-round-spring.png');
+        },
+        get billboardAutumn() {
+            return assetUrl('textures/scenery/billboard-bush-round-autumn.png');
+        },
     },
     bushTall: {
-        url: new URL('../../assets/models/scenery/bush-tall.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/scenery/bush-tall.glb');
+        },
         height: 3.2,
-        billboard: new URL('../../assets/textures/scenery/billboard-bush-tall.png', import.meta.url)
-            .href,
-        billboardSnow: new URL(
-            '../../assets/textures/scenery/billboard-bush-tall-snow.png',
-            import.meta.url,
-        ).href,
-        billboardSpring: new URL(
-            '../../assets/textures/scenery/billboard-bush-tall-spring.png',
-            import.meta.url,
-        ).href,
-        billboardAutumn: new URL(
-            '../../assets/textures/scenery/billboard-bush-tall-autumn.png',
-            import.meta.url,
-        ).href,
+        get billboard() {
+            return assetUrl('textures/scenery/billboard-bush-tall.png');
+        },
+        get billboardSnow() {
+            return assetUrl('textures/scenery/billboard-bush-tall-snow.png');
+        },
+        get billboardSpring() {
+            return assetUrl('textures/scenery/billboard-bush-tall-spring.png');
+        },
+        get billboardAutumn() {
+            return assetUrl('textures/scenery/billboard-bush-tall-autumn.png');
+        },
     },
 };
 

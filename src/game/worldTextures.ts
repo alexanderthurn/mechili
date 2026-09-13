@@ -1,71 +1,104 @@
 import { Cache, SRGBColorSpace, Texture, TextureLoader } from 'three';
 
 import { groundMaterialProfile } from './groundQuality';
+import { assetUrl } from './assets';
 
 /** Enable Three's URL cache so map/scenery/weather reloads are free after boot. */
 Cache.enabled = true;
 
 // Vite only rewrites `new URL('literal', import.meta.url)` — a helper hides the
 // path from static analysis, so production would request /assets/textures/... and 404.
-const grassAlbedoUrl = new URL('../../assets/textures/grass-albedo.webp', import.meta.url).href;
-const grassNormalUrl = new URL('../../assets/textures/grass-normal.webp', import.meta.url).href;
-const grassAlbedoHqUrl = new URL('../../assets/textures/grass-albedo-hq.webp', import.meta.url).href;
-const grassNormalHqUrl = new URL('../../assets/textures/grass-normal-hq.webp', import.meta.url).href;
-const sandAlbedoUrl = new URL('../../assets/textures/sand-albedo.webp', import.meta.url).href;
-const sandNormalUrl = new URL('../../assets/textures/sand-normal.webp', import.meta.url).href;
+const grassAlbedoUrl = (): string => assetUrl('textures/grass-albedo.webp');
+const grassNormalUrl = (): string => assetUrl('textures/grass-normal.webp');
+const grassAlbedoHqUrl = (): string => assetUrl('textures/grass-albedo-hq.webp');
+const grassNormalHqUrl = (): string => assetUrl('textures/grass-normal-hq.webp');
+const sandAlbedoUrl = (): string => assetUrl('textures/sand-albedo.webp');
+const sandNormalUrl = (): string => assetUrl('textures/sand-normal.webp');
 /** Lake-shore gravel (from misc/photos/water/wsc_s.png) — outer meadow beaches. */
-const shoreAlbedoUrl = new URL('../../assets/textures/shore-albedo.webp', import.meta.url).href;
-const shoreNormalUrl = new URL('../../assets/textures/shore-normal.webp', import.meta.url).href;
+const shoreAlbedoUrl = (): string => assetUrl('textures/shore-albedo.webp');
+const shoreNormalUrl = (): string => assetUrl('textures/shore-normal.webp');
 /** Board wear / footprints (from misc/photos/grass/IMG_4881.JPG). */
-const wearAlbedoUrl = new URL('../../assets/textures/wear-albedo.webp', import.meta.url).href;
-const wearNormalUrl = new URL('../../assets/textures/wear-normal.webp', import.meta.url).href;
-const dirtAlbedoHqUrl = new URL('../../assets/textures/dirt-albedo-hq.webp', import.meta.url).href;
-const dirtNormalHqUrl = new URL('../../assets/textures/dirt-normal-hq.webp', import.meta.url).href;
-const barkUrl = new URL('../../assets/textures/bark.webp', import.meta.url).href;
-const foliageUrl = new URL('../../assets/textures/foliage.webp', import.meta.url).href;
-const rockUrl = new URL('../../assets/textures/rock.webp', import.meta.url).href;
-const moonUrl = new URL('../../assets/textures/moon.webp', import.meta.url).href;
-const iceAlbedoUrl = new URL('../../assets/textures/ice-albedo.webp', import.meta.url).href;
+const wearAlbedoUrl = (): string => assetUrl('textures/wear-albedo.webp');
+const wearNormalUrl = (): string => assetUrl('textures/wear-normal.webp');
+const dirtAlbedoHqUrl = (): string => assetUrl('textures/dirt-albedo-hq.webp');
+const dirtNormalHqUrl = (): string => assetUrl('textures/dirt-normal-hq.webp');
+const barkUrl = (): string => assetUrl('textures/bark.webp');
+const foliageUrl = (): string => assetUrl('textures/foliage.webp');
+const rockUrl = (): string => assetUrl('textures/rock.webp');
+const moonUrl = (): string => assetUrl('textures/moon.webp');
+const iceAlbedoUrl = (): string => assetUrl('textures/ice-albedo.webp');
 
 /** Field-photo tiles (processed from misc/photos/ via process-ground-photos.py). */
 const GRASS_PHOTO = [
     {
-        albedo: new URL('../../assets/textures/grass-photo-0.webp', import.meta.url).href,
-        normal: new URL('../../assets/textures/grass-photo-0-normal.webp', import.meta.url).href,
+        get albedo() {
+            return assetUrl('textures/grass-photo-0.webp');
+        },
+        get normal() {
+            return assetUrl('textures/grass-photo-0-normal.webp');
+        },
     },
     {
-        albedo: new URL('../../assets/textures/grass-photo-1.webp', import.meta.url).href,
-        normal: new URL('../../assets/textures/grass-photo-1-normal.webp', import.meta.url).href,
+        get albedo() {
+            return assetUrl('textures/grass-photo-1.webp');
+        },
+        get normal() {
+            return assetUrl('textures/grass-photo-1-normal.webp');
+        },
     },
     {
-        albedo: new URL('../../assets/textures/grass-photo-2.webp', import.meta.url).href,
-        normal: new URL('../../assets/textures/grass-photo-2-normal.webp', import.meta.url).href,
+        get albedo() {
+            return assetUrl('textures/grass-photo-2.webp');
+        },
+        get normal() {
+            return assetUrl('textures/grass-photo-2-normal.webp');
+        },
     },
 ] as const;
 
 const DIRT_PHOTO = [
     {
-        albedo: new URL('../../assets/textures/dirt-photo-0.webp', import.meta.url).href,
-        normal: new URL('../../assets/textures/dirt-photo-0-normal.webp', import.meta.url).href,
+        get albedo() {
+            return assetUrl('textures/dirt-photo-0.webp');
+        },
+        get normal() {
+            return assetUrl('textures/dirt-photo-0-normal.webp');
+        },
     },
     {
-        albedo: new URL('../../assets/textures/dirt-photo-1.webp', import.meta.url).href,
-        normal: new URL('../../assets/textures/dirt-photo-1-normal.webp', import.meta.url).href,
+        get albedo() {
+            return assetUrl('textures/dirt-photo-1.webp');
+        },
+        get normal() {
+            return assetUrl('textures/dirt-photo-1-normal.webp');
+        },
     },
     {
-        albedo: new URL('../../assets/textures/dirt-photo-2.webp', import.meta.url).href,
-        normal: new URL('../../assets/textures/dirt-photo-2-normal.webp', import.meta.url).href,
+        get albedo() {
+            return assetUrl('textures/dirt-photo-2.webp');
+        },
+        get normal() {
+            return assetUrl('textures/dirt-photo-2-normal.webp');
+        },
     },
 ] as const;
 
 const ROCK_PHOTO = [
     {
-        albedo: new URL('../../assets/textures/rock-photo-0.webp', import.meta.url).href,
-        normal: new URL('../../assets/textures/rock-photo-0-normal.webp', import.meta.url).href,
+        get albedo() {
+            return assetUrl('textures/rock-photo-0.webp');
+        },
+        get normal() {
+            return assetUrl('textures/rock-photo-0-normal.webp');
+        },
     },
     {
-        albedo: new URL('../../assets/textures/rock-photo-1.webp', import.meta.url).href,
-        normal: new URL('../../assets/textures/rock-photo-1-normal.webp', import.meta.url).href,
+        get albedo() {
+            return assetUrl('textures/rock-photo-1.webp');
+        },
+        get normal() {
+            return assetUrl('textures/rock-photo-1-normal.webp');
+        },
     },
 ] as const;
 
@@ -98,17 +131,17 @@ export interface PhotoTextureSet {
 
 /** Color (sRGB) maps — normals stay linear. */
 const SRGB_URLS = new Set<string>([
-    grassAlbedoUrl,
-    grassAlbedoHqUrl,
-    sandAlbedoUrl,
-    shoreAlbedoUrl,
-    wearAlbedoUrl,
-    dirtAlbedoHqUrl,
-    barkUrl,
-    foliageUrl,
-    rockUrl,
-    moonUrl,
-    iceAlbedoUrl,
+    grassAlbedoUrl(),
+    grassAlbedoHqUrl(),
+    sandAlbedoUrl(),
+    shoreAlbedoUrl(),
+    wearAlbedoUrl(),
+    dirtAlbedoHqUrl(),
+    barkUrl(),
+    foliageUrl(),
+    rockUrl(),
+    moonUrl(),
+    iceAlbedoUrl(),
     ...GRASS_PHOTO.map((p) => p.albedo),
     ...DIRT_PHOTO.map((p) => p.albedo),
     ...ROCK_PHOTO.map((p) => p.albedo),
@@ -116,30 +149,30 @@ const SRGB_URLS = new Set<string>([
 
 /** Every world texture the single map needs — warm at boot. */
 export const WORLD_TEXTURE_URLS: readonly string[] = [
-    grassAlbedoUrl,
-    grassNormalUrl,
-    sandAlbedoUrl,
-    shoreAlbedoUrl,
-    wearAlbedoUrl,
-    barkUrl,
-    foliageUrl,
-    rockUrl,
-    moonUrl,
-    iceAlbedoUrl,
+    grassAlbedoUrl(),
+    grassNormalUrl(),
+    sandAlbedoUrl(),
+    shoreAlbedoUrl(),
+    wearAlbedoUrl(),
+    barkUrl(),
+    foliageUrl(),
+    rockUrl(),
+    moonUrl(),
+    iceAlbedoUrl(),
 ];
 
 /** HQ + field-photo set — only preloaded when the active tier wants it. */
 export function hqGrassUrlsForBoot(): readonly string[] {
     if (!groundMaterialProfile().useHqTextures) return [];
     return [
-        grassAlbedoHqUrl,
-        grassNormalHqUrl,
-        dirtAlbedoHqUrl,
-        dirtNormalHqUrl,
+        grassAlbedoHqUrl(),
+        grassNormalHqUrl(),
+        dirtAlbedoHqUrl(),
+        dirtNormalHqUrl(),
         // Grass photos only as sparse accents (dirt photos kept on disk, unused for now)
         ...GRASS_PHOTO.map((p) => p.albedo),
         ...ROCK_PHOTO.flatMap((p) => [p.albedo, p.normal]),
-        sandNormalUrl,
+        sandNormalUrl(),
     ];
 }
 
@@ -192,8 +225,8 @@ async function loadPhotoSet(
 export async function loadGrassTextures(): Promise<PhotoTextureSet | null> {
     if (groundMaterialProfile().useHqTextures) {
         const [albedo, normal, grassVars] = await Promise.all([
-            loadWorldTexture(grassAlbedoHqUrl),
-            loadWorldTexture(grassNormalHqUrl),
+            loadWorldTexture(grassAlbedoHqUrl()),
+            loadWorldTexture(grassNormalHqUrl()),
             Promise.all(GRASS_PHOTO.map((p) => loadWorldTexture(p.albedo))),
         ]);
         if (albedo) {
@@ -202,8 +235,8 @@ export async function loadGrassTextures(): Promise<PhotoTextureSet | null> {
         }
     }
     const [albedo, normal] = await Promise.all([
-        loadWorldTexture(grassAlbedoUrl),
-        loadWorldTexture(grassNormalUrl),
+        loadWorldTexture(grassAlbedoUrl()),
+        loadWorldTexture(grassNormalUrl()),
     ]);
     if (!albedo) return null;
     return { albedo, normal, variants: [] };
@@ -217,14 +250,14 @@ export async function loadGrassTextures(): Promise<PhotoTextureSet | null> {
 export async function loadWearGroundTextures(): Promise<PhotoTextureSet | null> {
     if (groundMaterialProfile().useHqTextures) {
         const [albedo, normal] = await Promise.all([
-            loadWorldTexture(dirtAlbedoHqUrl),
-            loadWorldTexture(dirtNormalHqUrl),
+            loadWorldTexture(dirtAlbedoHqUrl()),
+            loadWorldTexture(dirtNormalHqUrl()),
         ]);
         if (albedo) return { albedo, normal, variants: [] };
     }
     const [albedo, normal] = await Promise.all([
-        loadWorldTexture(sandAlbedoUrl),
-        loadWorldTexture(sandNormalUrl),
+        loadWorldTexture(sandAlbedoUrl()),
+        loadWorldTexture(sandNormalUrl()),
     ]);
     if (!albedo) return null;
     return { albedo, normal, variants: [] };
@@ -232,7 +265,7 @@ export async function loadWearGroundTextures(): Promise<PhotoTextureSet | null> 
 
 /** Mountain rock: legacy albedo as base; field photos soft-multiply as accents. */
 export async function loadRockTextures(): Promise<PhotoTextureSet | null> {
-    const albedo = await loadWorldTexture(rockUrl);
+    const albedo = await loadWorldTexture(rockUrl());
     if (!albedo) return null;
     if (groundMaterialProfile().useHqTextures) {
         const photos = await Promise.all(ROCK_PHOTO.map((p) => loadWorldTexture(p.albedo)));

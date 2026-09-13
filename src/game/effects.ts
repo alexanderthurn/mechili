@@ -50,6 +50,7 @@ import {
     getUnitVisualHeight,
 } from './unitModels';
 import { THEME } from '../theme';
+import { assetUrl } from './assets';
 
 /** Per-style flight pool — plenty for rapid-fire archers later. */
 const MAX_PROJECTILES = 1024;
@@ -150,7 +151,7 @@ function getCrowStoneGeometry(): IcosahedronGeometry {
     return crowStoneGeometry;
 }
 
-const BOLT_URL = new URL('../../assets/models/bolt.glb', import.meta.url).href;
+const BOLT_URL = (): string => assetUrl('models/bolt.glb');
 
 interface BoltAsset {
     geometry: BufferGeometry;
@@ -380,7 +381,7 @@ export async function preloadProjectileBolt(): Promise<void> {
     if (!boltLoad) {
         boltLoad = (async () => {
             try {
-                const gltf = await getGltfLoader().loadAsync(BOLT_URL);
+                const gltf = await getGltfLoader().loadAsync(BOLT_URL());
                 const prepared = prepareBoltFromScene(gltf.scene);
                 if (!prepared) throw new Error('no meshes in bolt.glb');
                 boltAsset = prepared;
@@ -408,7 +409,7 @@ export function boltTipWorldOffset(style: 'arrow' | 'largeArrow'): number {
     return tipZ * scale;
 }
 
-const BRICK_URL = new URL('../../assets/models/brick.glb', import.meta.url).href;
+const BRICK_URL = (): string => assetUrl('models/brick.glb');
 
 interface BrickAsset {
     geometry: BufferGeometry;
@@ -495,7 +496,7 @@ export async function preloadDebrisBrick(): Promise<void> {
     if (!brickLoad) {
         brickLoad = (async () => {
             try {
-                const gltf = await getGltfLoader().loadAsync(BRICK_URL);
+                const gltf = await getGltfLoader().loadAsync(BRICK_URL());
                 const prepared = prepareBrickFromScene(gltf.scene);
                 if (!prepared) throw new Error('no meshes in brick.glb');
                 brickAsset = prepared;
@@ -517,7 +518,7 @@ export function getDebrisBrickAsset(): BrickAsset | null {
     return brickAsset;
 }
 
-const ROCK_URL = new URL('../../assets/models/rock.glb', import.meta.url).href;
+const ROCK_URL = (): string => assetUrl('models/rock.glb');
 
 interface RockAsset {
     geometry: BufferGeometry;
@@ -611,7 +612,7 @@ export async function preloadCrowRock(): Promise<void> {
     if (!rockLoad) {
         rockLoad = (async () => {
             try {
-                const gltf = await getGltfLoader().loadAsync(ROCK_URL);
+                const gltf = await getGltfLoader().loadAsync(ROCK_URL());
                 const prepared = prepareRockFromScene(gltf.scene);
                 if (!prepared) throw new Error('no meshes in rock.glb');
                 rockAsset = prepared;

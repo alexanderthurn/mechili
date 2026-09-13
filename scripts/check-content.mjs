@@ -37,6 +37,18 @@ const server = await createServer({
 let failed = false;
 try {
     const { readFileSync } = await import('node:fs');
+    const { collectAssetPaths, renderManifest } = await import('./gen-asset-manifest.mjs');
+    const assets = collectAssetPaths();
+    for (const p of assets.problems) {
+        failed = true;
+        console.error(`FAIL ${p}`);
+    }
+    if (readFileSync('src/game/assetManifest.ts', 'utf8') !== renderManifest(assets.paths)) {
+        failed = true;
+        console.error('FAIL src/game/assetManifest.ts is stale — run: npm run assets:manifest');
+    } else if (!assets.problems.length) {
+        console.log(`ok   asset manifest is current (${assets.paths.length} files, no hard-coded asset URLs)`);
+    }
     const { generateContentSchemas } = await import('./gen-content-schema.mjs');
     const stale = generateContentSchemas().filter(({ file, text }) => {
         try {

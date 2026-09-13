@@ -11,11 +11,18 @@ import type { Group } from 'three';
 import type { SpecialityId } from './cards';
 import { loadSpellTemplate } from './spellMeshes';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
+import { assetUrl } from './assets';
 
 const URLS: Partial<Record<SpecialityId, string>> = {
-    giant: new URL('../../assets/models/specs/spec-giant-512.glb', import.meta.url).href,
-    speed: new URL('../../assets/models/specs/spec-speed-512.glb', import.meta.url).href,
-    tutor: new URL('../../assets/models/specs/spec-tutor-4k.glb', import.meta.url).href,
+    get giant() {
+        return assetUrl('models/specs/spec-giant-512.glb');
+    },
+    get speed() {
+        return assetUrl('models/specs/spec-speed-512.glb');
+    },
+    get tutor() {
+        return assetUrl('models/specs/spec-tutor-4k.glb');
+    },
 };
 
 /**
