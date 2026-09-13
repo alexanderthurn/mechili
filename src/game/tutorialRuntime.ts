@@ -20,7 +20,6 @@ import { BASE_ANCHORS } from './map';
 import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID } from './tactics';
 import {
     COMMAND_TOWER,
-    STRONGHOLD_ARCHER_SLOTS,
     RESEARCH_CENTER,
     STRONGHOLD,
     unitTypeById,
@@ -284,11 +283,6 @@ export class TutorialRuntime {
     }
 
     // ------------------------------------------------------------- per-round
-
-    /** Battlement pads available this match (all five are archer posts). */
-    strongholdArcherSlots(): readonly number[] {
-        return STRONGHOLD_ARCHER_SLOTS;
-    }
 
     /**
      * Tutorial 1: empty map. Tutorial 2: player Stronghold only (forward).

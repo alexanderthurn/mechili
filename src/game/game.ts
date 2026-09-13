@@ -255,11 +255,9 @@ import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     COMMAND_TOWER,
     RESEARCH_CENTER,
-    STRONGHOLD_ARCHER,
     STRONGHOLD_ARCHER_FOV_HALF,
+    garrisonPostCost,
     strongholdArcherSlotWorld,
-    STRONGHOLD_ARCHER_SLOTS,
-    STRONGHOLD_ARCHER_STEP_COST,
     STRONGHOLD,
     UNIT_TYPES,
     formationHeadcount,
@@ -1666,7 +1664,6 @@ export class Game {
             commanderHpFactor: settings.commanderHpFactor,
             climbSideHp: settings.climb?.sideHp ?? settings.tutorial?.sideHp ?? null,
             climbMode: !!settings.climb,
-            strongholdArcherSlots: this.strongholdArcherSlots(),
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -4100,11 +4097,6 @@ export class Game {
             cancelTacticPlacement: () => this.cancelTacticPlacement(),
             restoreSideHp: (hp) => this.restoreTutorialHp(hp),
         };
-    }
-
-    /** Battlement pads available this match (all five are archer posts). */
-    private strongholdArcherSlots(): readonly number[] {
-        return this.tutorial?.strongholdArcherSlots() ?? STRONGHOLD_ARCHER_SLOTS;
     }
 
     /** the specialist overlay (also re-shown after a resume that predates the pick) */
@@ -10997,11 +10989,11 @@ export class Game {
         }
     }
 
-    /** archers this side has posted on its keep — the wall is shared per side */
+    /** units this side has posted on its garrison building — shared per side */
     private strongholdArcherCount(team: Team): number {
         let n = 0;
         for (const u of this.placement.allUnits()) {
-            if (u.type === STRONGHOLD_ARCHER && u.team === team && !u.consumed) n++;
+            if (u.hostUnitId !== null && u.team === team && !u.consumed) n++;
         }
         return n;
     }
@@ -11029,21 +11021,24 @@ export class Game {
         // count follows the same fog window the forge and the spells do: an
         // archer the enemy posted THIS round is not on their wall yet as far
         // as you know, and the panel must not be the one place that says so.
-        const manned =
-            fogged && this.buildingIntelSnapshot
-                ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
-                : this.strongholdArcherCount(team);
-        const nextCost = STRONGHOLD_ARCHER.cost + STRONGHOLD_ARCHER_STEP_COST * manned;
-        const slotMax = this.strongholdArcherSlots().length;
-        out.strongholdArchers = {
-            cost: nextCost,
-            owned: manned,
-            max: slotMax,
-            affordable:
-                canBuy &&
-                manned < slotMax &&
-                this.economy.balance(this.humanSeat) >= nextCost,
-        };
+        const garrison = u.type.garrison;
+        if (garrison) {
+            const manned =
+                fogged && this.buildingIntelSnapshot
+                    ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
+                    : this.strongholdArcherCount(team);
+            const nextCost = garrisonPostCost(u.type, manned);
+            const slotMax = garrison.slots.length;
+            out.strongholdArchers = {
+                cost: nextCost,
+                owned: manned,
+                max: slotMax,
+                affordable:
+                    canBuy &&
+                    manned < slotMax &&
+                    this.economy.balance(this.humanSeat) >= nextCost,
+            };
+        }
 
         // Commander forge spells: own seat can buy; enemy seats show owned /
         // last-round intel (same fog window as Research Center / Command Tower).

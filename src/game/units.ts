@@ -402,6 +402,19 @@ export interface UnitType {
      */
     diesWithHost?: boolean;
     /**
+     * Units can be posted onto this building's authored `UnitN` pads, one at a
+     * time, from its panel. The first post costs the posted type's own `cost`;
+     * each further post adds `priceStep`. Posted units get
+     * {@link Unit.hostUnitId} = this building.
+     */
+    garrison?: {
+        /** `UnitN` pad numbers on the model, in fill order */
+        slots: readonly number[];
+        /** type posted on each pad (looked up with {@link unitTypeById}) */
+        unitTypeId: string;
+        priceStep: number;
+    };
+    /**
      * When `false`, players and the AI cannot buy or unlock this type from
      * the shop. Omit or `true` = eligible (still subject to unlock / extras).
      * Horde-only units set this false; a type may be both shop and horde.
@@ -975,6 +988,8 @@ export const STRONGHOLD: UnitType = {
     ...makeTower('stronghold', 'Stronghold', 5, 4.2, 3000),
     // lifeline matches only — see UnitType.onDestroyed
     onDestroyed: { collapseOwnArmy: true },
+    // all five authored battlement pads; 100, 150, 200, 250, 300
+    garrison: { slots: [1, 2, 3, 4, 5], unitTypeId: 'stronghold-archer', priceStep: 50 },
 };
 
 /**
@@ -1044,8 +1059,6 @@ export function strongholdArcherSlotWorld(keep: Unit, slot: number): { x: number
     );
 }
 
-/** All authored battlement pads (`Unit1`…`Unit5`) — every slot is an archer post. */
-export const STRONGHOLD_ARCHER_SLOTS = [1, 2, 3, 4, 5] as const;
 /**
  * A Stronghold archer's field of fire, in degrees. He covers this much centred on
  * outward, and the rest — pointing back into his own keep — is dead. Written in
@@ -1054,8 +1067,6 @@ export const STRONGHOLD_ARCHER_SLOTS = [1, 2, 3, 4, 5] as const;
  */
 export const STRONGHOLD_ARCHER_FOV_DEGREES = 240;
 export const STRONGHOLD_ARCHER_FOV_HALF = (STRONGHOLD_ARCHER_FOV_DEGREES * Math.PI) / 360;
-/** first archer 100; each further post +50 (150, 200, …) */
-export const STRONGHOLD_ARCHER_STEP_COST = 50;
 
 /** shield dome coverage, world units — the top stays below the air layer (18) */
 export const SHIELD_RADIUS = 20;
@@ -2473,6 +2484,18 @@ export function unitTypeById(id: string): UnitType | null {
     if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
     if (id === STRONGHOLD.id) return STRONGHOLD;
     return UNIT_TYPES.find((t) => t.id === id) ?? null;
+}
+
+/**
+ * Price of the next post on a garrison building that already has `manned`
+ * units posted — the posted type's cost plus one `priceStep` per earlier post.
+ * Shared by the action and the panel so they can never quote different prices.
+ */
+export function garrisonPostCost(host: UnitType, manned: number): number {
+    const g = host.garrison;
+    if (!g) return Number.POSITIVE_INFINITY;
+    const posted = unitTypeById(g.unitTypeId);
+    return (posted?.cost ?? 0) + g.priceStep * manned;
 }
 
 /** once-per-deployment shop unlock fee — {@link UnitType.unlockCost} */
