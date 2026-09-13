@@ -8,5 +8,6 @@
     "unitsLabel": "3× Dwarves · 1× Ogre",
     "startingHp": 5800,
     "forgeSpells": ["oilSpill", "spawnCrows", "dragonAttack"],
+    "effects": { "speedBonus": 3 },
     "description": "All units move +3 faster.",
 }

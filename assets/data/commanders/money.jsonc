@@ -8,5 +8,6 @@
     "unitsLabel": "3× Dwarves · 1× Mortars",
     "startingHp": 5400,
     "forgeSpells": ["oilSpill", "storm", "dragonAttack"],
+    "effects": { "roundOneSupply": 200 },
     "description": "+200 supply in round 1.",
 }

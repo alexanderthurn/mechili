@@ -1,4 +1,4 @@
-import { FLANK_SPAWN_HALF_MULT, SKIP_CARD_REWARD, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostForSpeciality, type SpecialityId, type ShopUnitId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, SKIP_CARD_REWARD, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostFor, type SpecialityId, type ShopUnitId } from './cards';
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
@@ -526,8 +526,10 @@ export interface ActionContext {
     creditUsed: boolean[];
     /** Command Tower Credit (per SEAT): debt still owed at the next deployment start */
     creditDebt: boolean[];
-    /** each SEAT's own chosen card speciality (null until its pick) — own effect, own units */
+    /** each SEAT's own chosen card speciality (null until its pick) — its identity */
     speciality: (SpecialityId | null)[];
+    /** each SEAT's own chosen commander card id (null until its pick) — its effects */
+    commander: (string | null)[];
     /** per-SEAT multiplier on flank spawn duration (Flanky card → 0.5) */
     flankSpawnMult: number[];
     /**
@@ -946,7 +948,10 @@ export class ActionDispatcher {
                 return true;
             }
             case 'recruitLevel': {
-                if (this.ctx.speciality[seat] === 'elite') return false; // already permanent
+                // a commander that already recruits at a higher level has nothing to buy
+                if ((this.ctx.types.commander(this.ctx.commander[seat] ?? '')?.effects?.recruitLevel ?? 1) > 1) {
+                    return false;
+                }
                 if (recruitLevel[seat]! > 1) return false; // once per round
                 if (!economy.spend(seat, leveling.recruitLevel2Cost)) return false;
                 entry.paid = leveling.recruitLevel2Cost;
@@ -1140,8 +1145,9 @@ export class ActionDispatcher {
                 if (!card) return false;
                 this.ctx.starterPicked[seat] = true;
                 this.ctx.speciality[seat] = card.speciality;
-                if (card.speciality === 'flanky') {
-                    this.ctx.flankSpawnMult[seat] = FLANK_SPAWN_HALF_MULT;
+                this.ctx.commander[seat] = card.id;
+                if (card.effects?.flankSpawnMult !== undefined) {
+                    this.ctx.flankSpawnMult[seat] = card.effects.flankSpawnMult;
                 }
                 entry.prevHp = this.ctx.hp.get(action.team);
                 if (this.ctx.climbSideHp != null) {
@@ -1392,7 +1398,11 @@ export class ActionDispatcher {
             case 'unlockUnit': {
                 if (this.ctx.unlockUsedThisRound[seat]) return false;
                 if (this.ctx.unlockedUnits[seat]!.includes(action.typeId)) return false;
-                const cost = unlockCostForSpeciality(action.typeId, this.ctx.speciality[seat] ?? null, this.ctx.types);
+                const cost = unlockCostFor(
+                    action.typeId,
+                    this.ctx.types.commander(this.ctx.commander[seat] ?? ''),
+                    this.ctx.types,
+                );
                 if (!Number.isFinite(cost)) return false;
                 if (cost > 0 && !economy.spend(seat, cost)) return false;
                 this.ctx.unlockedUnits[seat]!.push(action.typeId);

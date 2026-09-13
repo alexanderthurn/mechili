@@ -135,6 +135,16 @@ try {
             ok = false;
             console.error('FAIL commander unlocks: signature unit missing or a tutorial commander unlocks units');
         }
+        const giant = T.commander('giant');
+        const ballistaUnlock = T.unlockCost('ballista');
+        if (cards.unlockCostFor('ballista', giant, T) !== Math.max(0, ballistaUnlock - 200) || cards.unlockCostFor('ballista', air, T) !== ballistaUnlock) {
+            ok = false;
+            console.error('FAIL commander unlock discount does not follow effects.unlockDiscount');
+        }
+        if (T.commander('archer')?.effects?.giftUnit?.typeId !== 'archer' || T.commander('cost')?.effects?.unitStatsBonus !== -0.12) {
+            ok = false;
+            console.error('FAIL commander effects missing from data');
+        }
         if (!ok) failed = true;
         else console.log(`ok   commanders: ${T.commanders.length} offered + ${hidden.length} tutorial; ${T.roundCards.length} round cards; spell ids exist`);
     }
@@ -239,6 +249,8 @@ try {
     ok = expect(badIngredient.includes('forge ingredient "eart" is no rune'), `unknown forge ingredient not reported (${badIngredient.split('\n')[0]})`) && ok;
     const badArmy = runeErrorOf([['data/commanders/air.jsonc', readBase('data/commanders/air.jsonc').replace('"goblin", "goblin", "goblin"', '"goblin", "gobiln", "goblin"')]]);
     ok = expect(badArmy.includes('names unit "gobiln"'), `unknown commander unit not reported (${badArmy.split('\n')[0]})`) && ok;
+    const badGift = runeErrorOf([['data/commanders/archer.jsonc', readBase('data/commanders/archer.jsonc').replace('"typeId": "archer"', '"typeId": "archr"')]]);
+    ok = expect(badGift.includes('names unit "archr"'), `unknown gift unit not reported (${badGift.split('\n')[0]})`) && ok;
     const badSpell = runeErrorOf([['data/commanders/air.jsonc', readBase('data/commanders/air.jsonc').replace('"fireSpill"', '"fireSpil"')]]);
     ok = expect(badSpell.includes('names spell "fireSpil"'), `unknown commander spell not reported (${badSpell.split('\n')[0]})`) && ok;
     const badSummon = runeErrorOf([['data/spells/spawnDwarves.jsonc', readBase('data/spells/spawnDwarves.jsonc').replace('"typeId": "dwarf"', '"typeId": "dwraf"')]]);

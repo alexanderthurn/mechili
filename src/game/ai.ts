@@ -1,5 +1,5 @@
 import { quantizeWorld, quantizeYaw, type Action } from './actions';
-import { unlockCostForSpeciality } from './cards';
+import { unlockCostFor } from './cards';
 import type { RoundCard, SpecialityId, StartCard } from './cards';
 import type { PlacementController } from './placement';
 import type { DeploySettings, Economy } from './settings';
@@ -64,6 +64,7 @@ export class AiOpponent implements Opponent {
             tactics: string[][];
             /** per-SEAT chosen commander — prices its own shop unlocks */
             speciality: (SpecialityId | null)[];
+            commander: (string | null)[];
             /** the AI's own seeded stream — nothing else may consume it */
             rng: () => number;
             /** per-SEAT talent picks; AI seats normally have none and get
@@ -247,7 +248,7 @@ export class AiOpponent implements Opponent {
      * affordable type (same diversity).
      */
     private pickFirstBuyType(rng: () => number = this.ctx.rng): UnitType | null {
-        const { economy, unlockedUnits, unlockUsedThisRound, speciality } = this.ctx;
+        const { economy, unlockedUnits, unlockUsedThisRound, commander } = this.ctx;
         const unlocked = unlockedUnits[this.seat]!;
 
         const allCheap: UnitType[] = [];
@@ -260,7 +261,7 @@ export class AiOpponent implements Opponent {
             preferred &&
             !unlocked.includes(preferred.id) &&
             !unlockUsedThisRound[this.seat] &&
-            unlockCostForSpeciality(preferred.id, speciality[this.seat] ?? null, this.ctx.types) <=
+            unlockCostFor(preferred.id, this.ctx.types.commander(commander[this.seat] ?? ''), this.ctx.types) <=
                 economy.balance(this.seat)
         ) {
             this.ctx.dispatch({

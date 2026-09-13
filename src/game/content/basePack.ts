@@ -270,7 +270,9 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
         for (const card of cards) {
             const where = `${label}/data/${folder}/${card.id}.jsonc`;
             const unlock = 'unlock' in card ? card.unlock : undefined;
-            for (const id of [...(card.units ?? []), ...(unlock !== undefined ? [unlock] : [])]) {
+            const effects = 'effects' in card ? card.effects : undefined;
+            const effectUnits = [effects?.giftUnit?.typeId, effects?.unitEachRound].filter((id): id is string => id !== undefined);
+            for (const id of [...(card.units ?? []), ...(unlock !== undefined ? [unlock] : []), ...effectUnits]) {
                 if (!roster.some((t) => t.id === id) && !offRoster.some((t) => t.id === id)) {
                     errors.push(`${where}: names unit "${id}", which is not in the roster`);
                 }
