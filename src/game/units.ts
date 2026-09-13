@@ -632,9 +632,9 @@ export interface UnitType {
     /** seconds between shots */
     attackInterval: number;
     /**
-     * Melee only: seconds after the swing starts (cooldown bump / fire anim)
-     * before damage applies. Omit / 0 = hit immediately. Use so long smash
-     * clips connect mid-animation instead of on frame 0.
+     * Seconds after the attack starts (cooldown bump / fire anim) before the
+     * hit lands (melee) or the projectile leaves (ranged). Omit / 0 = immediate.
+     * Same field for both — ogre smash windup and hammerer pistol draw share it.
      */
     meleeHitDelay?: number;
     /**

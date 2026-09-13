@@ -474,7 +474,7 @@
         },
         "meleeHitDelay": {
           "type": "number",
-          "description": "Melee only: seconds after the swing starts (cooldown bump / fire anim) before damage applies. Omit / 0 = hit immediately. Use so long smash clips connect mid-animation instead of on frame 0."
+          "description": "Seconds after the attack starts (cooldown bump / fire anim) before the hit lands (melee) or the projectile leaves (ranged). Omit / 0 = immediate. Shared by ogre smash windup and hammerer pistol draw."
         },
         "meleeLunge": {
           "type": "number",

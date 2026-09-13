@@ -187,6 +187,11 @@ const visualHalfWidths = new Map<string, number>();
 /**
  * Optional muzzle / ray origins from GLB empties named `AttackNode`, in
  * normalized model space (feet at y=0, rest forward −Z, before meshScale).
+ *
+ * When the empty is parented under a hand bone and the model has a fire clip,
+ * we sample that clip (not bind/T-pose) so the baked muzzle matches the shoot
+ * pose. The live mesh still carries the empty on the bone for any view-side
+ * reads — the sim deliberately uses this baked sample for lockstep.
  */
 const attackNodes = new Map<string, { x: number; y: number; z: number }>();
 /**
@@ -317,6 +322,62 @@ export function attackNodeWorld(
         y: footY + ly,
         z: originZ - lx * s + lz * c,
     };
+}
+
+const _liveAttack = new Vector3();
+
+/**
+ * Live world position of an `AttackNode` on a spawned mesh (follows bones if
+ * parented under the skeleton). View / VFX only — do not feed the sim; peers
+ * would disagree whenever mixers drift.
+ */
+export function liveAttackNodeWorld(root: Object3D): { x: number; y: number; z: number } | null {
+    const node = root.getObjectByName('AttackNode');
+    if (!node) return null;
+    root.updateMatrixWorld(true);
+    node.getWorldPosition(_liveAttack);
+    return { x: _liveAttack.x, y: _liveAttack.y, z: _liveAttack.z };
+}
+
+/**
+ * Read AttackNode after optionally posing a fire clip. Restores bind pose so
+ * the template is not left mid-swing. Fraction 0.85 ≈ late release (matches
+ * units that use {@link UnitType.meleeHitDelay} for a drawn-weapon windup).
+ */
+function measureAttackNode(
+    root: Object3D,
+    clips: AnimationClip[],
+    fireClipPick: NonNullable<ModelSpec['bakePose']>['clip'] | string | undefined,
+): { x: number; y: number; z: number } | null {
+    const attack = root.getObjectByName('AttackNode');
+    if (!attack) return null;
+
+    let mixer: AnimationMixer | null = null;
+    if (fireClipPick && clips.length > 0) {
+        const clip = pickBakeClip(clips, fireClipPick);
+        if (clip) {
+            mixer = new AnimationMixer(root);
+            const action = mixer.clipAction(clip);
+            action.play();
+            action.paused = true;
+            action.time = Math.min(clip.duration * 0.85, Math.max(clip.duration - 1e-4, 0));
+            mixer.update(0);
+        }
+    }
+    root.updateMatrixWorld(true);
+    const p = new Vector3();
+    attack.getWorldPosition(p);
+
+    if (mixer) {
+        mixer.stopAllAction();
+        mixer.uncacheRoot(root);
+        root.traverse((o) => {
+            const sm = o as SkinnedMesh;
+            if (sm.isSkinnedMesh) sm.skeleton.pose();
+        });
+        root.updateMatrixWorld(true);
+    }
+    return { x: p.x, y: p.y, z: p.z };
 }
 
 /** Record a provisional or measured local height (GLB load overwrites with bbox). */
@@ -776,13 +837,17 @@ async function loadUnitModelsNow(
                 ),
             );
             root.updateMatrixWorld(true);
-            const attack = root.getObjectByName('AttackNode');
-            if (attack) {
-                const p = new Vector3();
-                attack.getWorldPosition(p);
-                attackNodes.set(id, { x: p.x, y: p.y, z: p.z });
+            const firePick = spec.animation?.fire?.clip;
+            const attackLocal = measureAttackNode(
+                root,
+                gltf.animations ?? [],
+                typeof firePick === 'number' ? undefined : firePick,
+            );
+            if (attackLocal) {
+                attackNodes.set(id, attackLocal);
                 console.info(
-                    `[unitModels] AttackNode '${id}' @ (${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`,
+                    `[unitModels] AttackNode '${id}' @ (${attackLocal.x.toFixed(3)}, ${attackLocal.y.toFixed(3)}, ${attackLocal.z.toFixed(3)})` +
+                        (spec.animation?.fire?.clip ? ' (fire-pose sample)' : ''),
                 );
             }
             // Unit1, Unit2, … — consecutive from 1, stop at the first gap

@@ -401,13 +401,14 @@ export interface Actor {
     /** true this sim step while the convert beam is on (incl. shield-blocked) */
     convertRayActive: boolean;
     /**
-     * Melee windup: damage waiting to land ({@link UnitType.meleeHitDelay}).
-     * 0 = none pending. Anim starts on cooldown bump; hit resolves later.
+     * Attack windup: damage (melee) or volley (ranged) waiting to resolve
+     * ({@link UnitType.meleeHitDelay}). 0 = none pending. Anim starts on
+     * cooldown bump; the hit / shot resolves later.
      */
     meleePendingDamage: number;
     /** sim {@link elapsed} when {@link meleePendingDamage} should apply */
     meleePendingAt: number;
-    /** {@link Actor.index} of the swing's focus target (FX / cleave focus) */
+    /** {@link Actor.index} of the swing's / shot's focus target */
     meleePendingFocus: number;
     /**
      * Center distance to hold while peeling after a ground melee hit
@@ -1540,7 +1541,23 @@ export class BattleSim {
             return;
         }
         // Don't stack windups if attackInterval < delay (Blood Rage, etc.)
-        if (a.meleePendingDamage > 0) this.resolveMeleePending(a);
+        if (a.meleePendingDamage > 0) this.resolveAttackPending(a);
+        a.meleePendingDamage = damage;
+        a.meleePendingAt = this.elapsed + delay;
+        a.meleePendingFocus = target.index;
+    }
+
+    /**
+     * Start a ranged volley. Instant by default; {@link UnitType.meleeHitDelay}
+     * queues the shot so the fire anim can draw (same windup field as melee).
+     */
+    private beginRangedFire(a: Actor, target: Actor, damage: number, speed: number): void {
+        const delay = a.unit.type.meleeHitDelay ?? 0;
+        if (delay <= 0) {
+            this.fireVolley(a, target, damage, speed);
+            return;
+        }
+        if (a.meleePendingDamage > 0) this.resolveAttackPending(a);
         a.meleePendingDamage = damage;
         a.meleePendingAt = this.elapsed + delay;
         a.meleePendingFocus = target.index;
@@ -1603,17 +1620,17 @@ export class BattleSim {
         return true;
     }
 
-    /** Land any queued melee swings whose windup has elapsed. */
+    /** Land any queued attack windups whose delay has elapsed. */
     private stepMeleePending(): void {
         for (const a of this.actors) {
             if (!a.alive || a.meleePendingDamage <= 0) continue;
             if (this.elapsed + 1e-9 < a.meleePendingAt) continue;
-            this.resolveMeleePending(a);
+            this.resolveAttackPending(a);
         }
     }
 
-    /** Apply a pending melee hit at the attacker's current pose / targets. */
-    private resolveMeleePending(a: Actor): void {
+    /** Apply a pending melee hit or ranged volley at the attacker's current pose. */
+    private resolveAttackPending(a: Actor): void {
         const damage = a.meleePendingDamage;
         if (damage <= 0) return;
         a.meleePendingDamage = 0;
@@ -1621,6 +1638,13 @@ export class BattleSim {
         const focus = this.actors[a.meleePendingFocus];
         let target = focus && focus.alive ? focus : this.closestEnemy(a);
         if (!target) return; // whiff — nothing in range
+
+        const speed = a.unit.type.projectileSpeed;
+        if (speed) {
+            this.fireVolley(a, target, damage, speed);
+            return;
+        }
+
         const tdx = target.x - a.x;
         const tdz = target.z - a.z;
         const tDist = hypot(tdx, tdz) || 1e-6;
@@ -3992,7 +4016,7 @@ export class BattleSim {
                                 a.cooldown += stats.attackInterval;
                                 const damage =
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                                this.fireVolley(a, target, damage, a.unit.type.projectileSpeed);
+                                this.beginRangedFire(a, target, damage, a.unit.type.projectileSpeed);
                             }
                         }
                     }
@@ -4072,7 +4096,7 @@ export class BattleSim {
                         a.cooldown += stats.attackInterval;
                         const damage =
                             stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                        this.fireVolley(a, target, damage, a.unit.type.projectileSpeed);
+                        this.beginRangedFire(a, target, damage, a.unit.type.projectileSpeed);
                     }
                 }
                 // convert-ray handled elsewhere; melee already returned above

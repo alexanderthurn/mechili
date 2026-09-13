@@ -23,6 +23,8 @@
     "damage": 40, // a bare L1 dwarf's 40 HP exactly — dwarf veterancy, golden aura or costControl all break the one-shot
     "range": 32,
     "attackInterval": 0.7,
+    // pistol draw windup — same field as ogre smash; shot leaves ~0.5s into the fire anim
+    "meleeHitDelay": 1,
     "speed": 4.5,
     "turnRate": 5,
     "proceduralModel": "hammerer",
