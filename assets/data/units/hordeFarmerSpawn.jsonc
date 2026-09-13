@@ -1,0 +1,30 @@
+/**
+ * On-kill spawn from Dark Harvest — half the Dead Farmer in size and combat
+ * weight, 1×1 so each kill raises one body. No Dark Harvest (no chain).
+ */
+{
+    "id": "hordeFarmerSpawn",
+    "name": "Dead Farmhand",
+    "cost": 0,
+    "levelBasis": 100, // free to gain, but 50 per level and 100 xp per level
+    "hpWithdraw": 4,
+    "buyable": false,
+    "horde": true,
+    "modelId": "horde2",
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 0.85,
+    "burn": { "takenMult": 0.5 },
+    "bloodColor": 9236248 /* 0x8cef18 */,
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 0.45,
+    "colliders": [{ "y": 0.28, "r": 0.48 }],
+    "sandWeight": 0.125,
+    "hp": 100,
+    "damage": 50,
+    "range": 2,
+    "attackInterval": 0.7,
+    "speed": 12,
+    "turnRate": 5,
+    "proceduralModel": "dwarf",
+}

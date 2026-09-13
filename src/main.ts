@@ -27,7 +27,10 @@ import {
     type RoomAd,
     type RoomRosterEntry,
     GAME_VERSION,
-    formatGameVersion,
+    isSameBuild,
+    formatBuild,
+    ourBuild,
+    currentContentHash,
     hostStarRoom,
     isMelodanPlayHost,
     joinAsSpectator,
@@ -124,6 +127,7 @@ import {
 import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { initI18n, onLanguageChange, t } from './i18n';
 import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
+import { assetUrl } from './game/assets';
 
 const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
 /**
@@ -542,10 +546,10 @@ void resolveStartupTransport(prefs().multiplayerTransport, prefs().transportChos
     });
 
 const wrapper = document.createElement('div');
-const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
+const menuBgUrl = (): string => assetUrl('ui/menu-bg.webp');
 wrapper.style.cssText =
     `position:fixed;inset:0;overflow:hidden;` +
-    `background:#b8d4c8 ${cssUrl(menuBgUrl)} center/cover no-repeat;`;
+    `background:#b8d4c8 ${cssUrl(menuBgUrl())} center/cover no-repeat;`;
 
 function createThreeCanvas(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
@@ -697,10 +701,10 @@ void refreshVersionLabel();
 window.addEventListener('online', () => void refreshVersionLabel());
 window.addEventListener('offline', () => void refreshVersionLabel());
 
-const feuerwareLogoUrl = new URL('../assets/marketing/feuerware_melodan.webp', import.meta.url).href;
+const feuerwareLogoUrl = (): string => assetUrl('marketing/feuerware_melodan.webp');
 const feuerwareEl = document.createElement('img');
 feuerwareEl.className = 'mechili-feuerware';
-feuerwareEl.src = feuerwareLogoUrl;
+feuerwareEl.src = feuerwareLogoUrl();
 feuerwareEl.alt = 'Feuerware';
 feuerwareEl.width = 82;
 feuerwareEl.height = 82;
@@ -804,7 +808,7 @@ function showIntroCover(deferDive = false): void {
     applyRandomMenuZoomOrigin(bg);
     const logoImg = document.createElement('img');
     logoImg.className = 'mechili-intro-logo';
-    logoImg.src = logoUrl;
+    logoImg.src = logoUrl();
     logoImg.alt = 'MELODAN';
     logoImg.width = 600;
     logoImg.height = 327;
@@ -840,7 +844,7 @@ function showOutroCover(): void {
     bg.style.transform = 'translate3d(0, 0, 0) scale3d(3.5, 3.5, 1)';
     const logoImg = document.createElement('img');
     logoImg.className = 'mechili-intro-logo';
-    logoImg.src = logoUrl;
+    logoImg.src = logoUrl();
     logoImg.alt = 'MELODAN';
     logoImg.width = 600;
     logoImg.height = 327;
@@ -853,8 +857,8 @@ function showOutroCover(): void {
 }
 
 const title = new Container();
-const logoUrl = new URL('../assets/ui/logo.webp', import.meta.url).href;
-const logoTex = await Assets.load(logoUrl);
+const logoUrl = (): string => assetUrl('ui/logo.webp');
+const logoTex = await Assets.load(logoUrl());
 const logo = new Sprite(logoTex);
 logo.anchor.set(0.5);
 // the logo art is on a black background (alpha isn't supported in this pipeline);
@@ -3728,10 +3732,10 @@ function wireHostedHub(
         if (entry) hub.setRosterEntry(seat, { ...entry, ready: msg.ready });
         refresh();
     };
-    hub.listen((name, version, avatar, loadout) => {
-        if (version !== GAME_VERSION) {
+    hub.listen((name, build, avatar, loadout) => {
+        if (!isSameBuild(build)) {
             return {
-                reject: `Version mismatch — this room runs ${formatGameVersion(GAME_VERSION)}, you have ${formatGameVersion(version)}.`,
+                reject: `Version mismatch — this room runs ${formatBuild(ourBuild(), build)}, you have ${formatBuild(build, ourBuild())}.`,
             };
         }
         const seat = hub.nextOpenSeat();
@@ -3888,6 +3892,7 @@ function startHostedMatch(): void {
         hub.send(seat, {
             type: 'starSetup',
             version: GAME_VERSION,
+            contentHash: currentContentHash(),
             seed: settings.seed,
             settings,
             roster: finalRoster,
@@ -4101,14 +4106,14 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             // SpectatorHub connection, see joinAsSpectator) — defensive
             // only, should never actually fire
             if (msg.viewer.kind !== 'seat') return;
-            if (msg.version !== GAME_VERSION) {
+            if (!isSameBuild(msg)) {
                 clearStarResumeMarker();
                 clearRosterTable();
                 clearLobbySettings();
                 setStatus(
                     t('menu:versionMismatch', {
-                        host: formatGameVersion(msg.version),
-                        you: formatGameVersion(GAME_VERSION),
+                        host: formatBuild(msg, ourBuild()),
+                        you: formatBuild(ourBuild(), msg),
                     }),
                     5000,
                 );
@@ -4139,14 +4144,14 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             return;
         }
         // only 'starSetup' can reach here (see the guard above)
-        if (msg.version !== GAME_VERSION) {
+        if (!isSameBuild(msg)) {
             clearStarResumeMarker();
             clearRosterTable();
             clearLobbySettings();
             setStatus(
                 t('menu:versionMismatch', {
-                    host: formatGameVersion(msg.version),
-                    you: formatGameVersion(GAME_VERSION),
+                    host: formatBuild(msg, ourBuild()),
+                    you: formatBuild(ourBuild(), msg),
                 }),
                 5000,
             );
@@ -5122,7 +5127,7 @@ if (bulkVerify) {
         beginStarJoin(starMpMarker.hostName);
     }
 } else if (spSave) {
-    if (spSave.version !== GAME_VERSION) {
+    if (!isSameBuild(spSave)) {
         clearSinglePlayer();
         setMenuChromeVisible(true);
     } else resumeSinglePlayer(spSave);

@@ -29,7 +29,7 @@ import {
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
 import { drapeDiskGeometry, setDrapedMeshPosition, DRAPE_RENDER_ORDER } from './groundMarkers';
-import { STRONGHOLD_ARCHER, STRONGHOLD_ARCHER_FOV_HALF, Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+import { hasAbility, STRONGHOLD_ARCHER_FOV_HALF, Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { effectiveTargets, effectiveFlying } from './tech';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
@@ -832,9 +832,9 @@ export class PlacementController {
 
     /** repositioning is allowed only in the round the pack was deployed (extras included) */
     canReposition(unit: Unit): boolean {
-        // a Stronghold archer is bolted to his battlement slot — he is not on the
-        // grid at all, so there is nowhere for a drag to put him down
-        if (unit.type === STRONGHOLD_ARCHER) return false;
+        // a fixture (e.g. a battlement archer) is bolted to its building — not
+        // on the grid at all, so there is nowhere for a drag to put it down
+        if (unit.type.fixture) return false;
         return (
             (!unit.type.structure || !!unit.type.extra) &&
             unit.deployedRound === this.currentRound
@@ -1154,8 +1154,7 @@ export class PlacementController {
         if (!t.structure || t.extra || t.flying) return;
         const fp = this.footprintOf(t, unit.rotated);
         const w = this.map.sandStampWeight(t);
-        const scale =
-            t.id === 'stronghold' ? 1.55 : t.id === 'command-tower' || t.id === 'research-center' ? 1.35 : 1;
+        const scale = t.sandPadScale ?? 1;
         this.map.stampSandFootprint(unit.world.x, unit.world.z, fp.cols, fp.rows, 0.2 * w, scale);
     }
 
@@ -2511,7 +2510,7 @@ export class PlacementController {
             const over = this.pickUnitAt(this.pointer.x, this.pointer.y);
             if (over && !over.destroyed && this.itemDropValid(over)) {
                 this.itemDropHovering = true;
-                this.itemDropOnForge = over.type.id === 'stronghold';
+                this.itemDropOnForge = hasAbility(over.type, 'forge');
                 this.targetPreview.clear();
                 this.paintPackHoverPlate(over, timeSeconds);
                 return;

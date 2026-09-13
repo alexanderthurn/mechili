@@ -5,6 +5,9 @@ import { getPlayerName } from './player';
 import {
     CONNECT_TIMEOUT_MS,
     GAME_VERSION,
+    isSameBuild,
+    currentContentHash,
+    type BuildStamp,
     STAR_RECONNECT_GRACE_MS,
     isRevealable,
     seatVisionPolicy,
@@ -321,6 +324,7 @@ export class SteamGuestSession implements GuestSession {
                     seat: mySeat,
                     name: getPlayerName(),
                     version: GAME_VERSION,
+                    contentHash: currentContentHash(),
                 });
                 return next;
             } catch (e) {
@@ -459,7 +463,7 @@ export class SteamStarHub implements HostHub {
     listen(
         onJoin: (
             name: string,
-            version: number,
+            build: BuildStamp,
             avatar?: string | null,
             loadout?: Loadout,
         ) => SeatId | { reject: string },
@@ -510,7 +514,7 @@ export class SteamStarHub implements HostHub {
         steamId64: string,
         onJoin: (
             name: string,
-            version: number,
+            build: BuildStamp,
             avatar?: string | null,
             loadout?: Loadout,
         ) => SeatId | { reject: string },
@@ -541,7 +545,7 @@ export class SteamStarHub implements HostHub {
         if (msg.type === 'starRejoin') {
             const holding = this.bySeat.get(msg.seat);
             if (
-                msg.version === GAME_VERSION &&
+                isSameBuild(msg) &&
                 holding?.channel === null &&
                 this.roster[msg.seat]?.name === msg.name &&
                 this.reclaimSeat(msg.seat, channel, steamId64)
@@ -565,7 +569,7 @@ export class SteamStarHub implements HostHub {
         // reopened link) sends a plain starJoin — match it against a held seat
         // before treating them as a newcomer, or they are told the room is
         // full while their own seat sits waiting for them.
-        if (msg.version === GAME_VERSION) {
+        if (isSameBuild(msg)) {
             const held = this.findDroppedSeatByName(msg.name);
             if (held !== null && this.reclaimSeat(held, channel, steamId64)) return;
 
@@ -588,7 +592,7 @@ export class SteamStarHub implements HostHub {
             }
         }
 
-        const result = onJoin(msg.name, msg.version, msg.avatar, msg.loadout);
+        const result = onJoin(msg.name, msg, msg.avatar, msg.loadout);
         if (typeof result !== 'number') {
             channel.send({ type: 'starRejected', reason: result.reject });
             channel.dispose();
@@ -893,7 +897,7 @@ export class SteamSpectatorTransport implements SpectatorTransport {
     private acceptor: ((steamId64: string, msg: NetMessage) => void) | null = null;
 
     listen(handlers: {
-        onSpectate: (name: string, version: number, link: SpectatorViewerLink) => void;
+        onSpectate: (name: string, build: BuildStamp, link: SpectatorViewerLink) => void;
         onData: (link: SpectatorViewerLink, msg: NetMessage) => void;
         onDrop: (link: SpectatorViewerLink) => void;
     }): void {
@@ -911,7 +915,7 @@ export class SteamSpectatorTransport implements SpectatorTransport {
                 channel.dispose();
                 handlers.onDrop(channel);
             };
-            handlers.onSpectate(msg.name, msg.version, channel);
+            handlers.onSpectate(msg.name, msg, channel);
         };
         onUnrouted = this.acceptor;
     }
@@ -960,7 +964,7 @@ export async function joinSteamAsSpectator(
 ): Promise<SpectateResult> {
     const channel = new SteamChannel(hostSteamId);
     try {
-        channel.send({ type: 'spectate', name, version: GAME_VERSION });
+        channel.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: currentContentHash() });
         const msg = await new Promise<NetMessage>((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
             const onAbort = () => {
@@ -982,7 +986,7 @@ export async function joinSteamAsSpectator(
         if (msg.type !== 'matchCatchUp' || msg.viewer.kind !== 'spectator') {
             throw new Error('Unexpected reply from host');
         }
-        if (msg.version !== GAME_VERSION) throw new Error(t('menu:versionMismatchShort'));
+        if (!isSameBuild(msg)) throw new Error(t('menu:versionMismatchShort'));
         return {
             session: new SteamSpectatorSession(channel),
             seed: msg.seed,
@@ -1009,6 +1013,7 @@ export async function joinSteamStarRoom(lobbyId: string): Promise<SteamGuestSess
         type: 'starJoin',
         name: getPlayerName(),
         version: GAME_VERSION,
+        contentHash: currentContentHash(),
         avatar: getAvatarDataUrl(),
         loadout: activeLoadout(),
     });
@@ -1037,6 +1042,7 @@ export async function joinSteamLobby(lobbySteamId: string): Promise<{
         type: 'starJoin',
         name: getPlayerName(),
         version: GAME_VERSION,
+        contentHash: currentContentHash(),
         avatar: getAvatarDataUrl(),
         loadout: activeLoadout(),
     });

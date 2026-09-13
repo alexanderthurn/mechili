@@ -1,0 +1,29 @@
+{
+    "id": "goblin",
+    "name": "Goblin",
+    "cost": 100,
+    "unlockCost": 0,
+    "footprint": { "cols": 4, "rows": 2 },
+    "formation": { "cols": 8, "rows": 3 }, // 24 — same headcount as dwarf, denser in the 4×2 pad
+    "meshScale": 1,
+    "burn": { "takenMult": 1.05 },
+    "targets": { "ground": true, "air": true },
+    "collisionRadius": 0.55,
+    "blobShadowScale": 0.5, // small chaff — half the default blob disc
+    "colliders": [{ "y": 0.32, "r": 0.5 }],
+    "projectileSpeed": 85,
+    "projectileStyle": "arrow",
+    "projectileScale": { "length": 0.55, "thickness": 1.35 }, // short shaft, thicker girth
+    "projectileBallistic": true,
+    "projectileLaunchHeightFrac": 0.7,
+    "aimSpread": 0.35, // tighter still — AA vs fast free-flight bats needs to land
+    "hp": 18,
+    "damage": 4,
+    "range": 16,
+    "attackInterval": 1.45,
+    "speed": 4.2, // slower than dwarf rush
+    "walkLean": 1,
+    "walkCadence": 1.45,
+    "turnRate": 11,
+    "proceduralModel": "goblin",
+}

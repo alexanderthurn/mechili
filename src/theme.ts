@@ -575,6 +575,7 @@ export interface BarAssets {
 }
 
 import { EXO2_LANGUAGE_IDS, LANGUAGE_IDS, type LanguageId } from './i18n/languages';
+import { assetUrl } from './game/assets';
 
 /** Brand Latin serif; Exo 2 only fills rare missing glyphs (e.g. Romanian ș/ț). */
 const MARCELLUS_STACK = '"Marcellus", "Exo 2", "Palatino Linotype", Palatino, Georgia, serif';
@@ -627,15 +628,15 @@ for (const id of LANGUAGE_IDS) {
 /** Default stack (English / Marcellus). */
 export const FONT_UI = FONT_STACKS.en;
 
-const EXO2_URL = new URL('../assets/fonts/Exo2-Variable.ttf', import.meta.url).href;
-const MARCELLUS_URL = new URL('../assets/fonts/Marcellus-Regular.ttf', import.meta.url).href;
-const NOTO_SC_URL = new URL('../assets/fonts/NotoSerifSC-Regular.otf', import.meta.url).href;
-const NOTO_TC_URL = new URL('../assets/fonts/NotoSerifTC-Regular.otf', import.meta.url).href;
-const NOTO_KR_URL = new URL('../assets/fonts/NotoSerifKR-Regular.otf', import.meta.url).href;
-const NOTO_JP_URL = new URL('../assets/fonts/NotoSerifJP-Regular.otf', import.meta.url).href;
-const NOTO_THAI_URL = new URL('../assets/fonts/NotoSerifThai-Regular.ttf', import.meta.url).href;
-const NOTO_ARABIC_URL = new URL('../assets/fonts/NotoNaskhArabic-Regular.ttf', import.meta.url).href;
-const NOTO_SERIF_URL = new URL('../assets/fonts/NotoSerif-Regular.ttf', import.meta.url).href;
+const EXO2_URL = (): string => assetUrl('fonts/Exo2-Variable.ttf');
+const MARCELLUS_URL = (): string => assetUrl('fonts/Marcellus-Regular.ttf');
+const NOTO_SC_URL = (): string => assetUrl('fonts/NotoSerifSC-Regular.otf');
+const NOTO_TC_URL = (): string => assetUrl('fonts/NotoSerifTC-Regular.otf');
+const NOTO_KR_URL = (): string => assetUrl('fonts/NotoSerifKR-Regular.otf');
+const NOTO_JP_URL = (): string => assetUrl('fonts/NotoSerifJP-Regular.otf');
+const NOTO_THAI_URL = (): string => assetUrl('fonts/NotoSerifThai-Regular.ttf');
+const NOTO_ARABIC_URL = (): string => assetUrl('fonts/NotoNaskhArabic-Regular.ttf');
+const NOTO_SERIF_URL = (): string => assetUrl('fonts/NotoSerif-Regular.ttf');
 
 const injectedFaces = new Set<string>();
 
@@ -670,49 +671,49 @@ export async function applyLanguageFont(language: LanguageId): Promise<void> {
         await ensureLazyFace({
             id: 'noto-serif-sc',
             family: 'Noto Serif SC',
-            url: NOTO_SC_URL,
+            url: NOTO_SC_URL(),
             format: 'opentype',
         });
     } else if (language === 'zh-Hant') {
         await ensureLazyFace({
             id: 'noto-serif-tc',
             family: 'Noto Serif TC',
-            url: NOTO_TC_URL,
+            url: NOTO_TC_URL(),
             format: 'opentype',
         });
     } else if (language === 'ko') {
         await ensureLazyFace({
             id: 'noto-serif-kr',
             family: 'Noto Serif KR',
-            url: NOTO_KR_URL,
+            url: NOTO_KR_URL(),
             format: 'opentype',
         });
     } else if (language === 'ja') {
         await ensureLazyFace({
             id: 'noto-serif-jp',
             family: 'Noto Serif JP',
-            url: NOTO_JP_URL,
+            url: NOTO_JP_URL(),
             format: 'opentype',
         });
     } else if (language === 'th') {
         await ensureLazyFace({
             id: 'noto-serif-thai',
             family: 'Noto Serif Thai',
-            url: NOTO_THAI_URL,
+            url: NOTO_THAI_URL(),
             format: 'truetype',
         });
     } else if (language === 'ar') {
         await ensureLazyFace({
             id: 'noto-naskh-arabic',
             family: 'Noto Naskh Arabic',
-            url: NOTO_ARABIC_URL,
+            url: NOTO_ARABIC_URL(),
             format: 'truetype',
         });
     } else if (language === 'el') {
         await ensureLazyFace({
             id: 'noto-serif',
             family: 'Noto Serif',
-            url: NOTO_SERIF_URL,
+            url: NOTO_SERIF_URL(),
             format: 'truetype',
         });
     }
@@ -734,14 +735,14 @@ export function fontFaceCss(): string {
     font-style: normal;
     font-weight: 100 900;
     font-display: swap;
-    src: url('${EXO2_URL}') format('truetype');
+    src: url('${EXO2_URL()}') format('truetype');
 }
 @font-face {
     font-family: 'Marcellus';
     font-style: normal;
     font-weight: 400;
     font-display: swap;
-    src: url('${MARCELLUS_URL}') format('truetype');
+    src: url('${MARCELLUS_URL()}') format('truetype');
 }
 :root { --font-ui: ${FONT_UI}; }
 html, body { font-family: var(--font-ui); }

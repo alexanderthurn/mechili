@@ -38,12 +38,8 @@ import {
 import { effectiveFlying, effectiveTargets, type ResolvedStats } from './tech';
 import { ownedCleaveTechs, ownedOnKillTechs, ownedProduceTechs, type Loadout } from './techCatalog';
 import {
-    COMMAND_TOWER,
     DEPLOY_AIR_Y,
-    RESEARCH_CENTER,
-    STRONGHOLD_ARCHER,
     STRONGHOLD_ARCHER_FOV_HALF,
-    STRONGHOLD,
     bloodColorOf,
     resolveDeathWear,
     projectileAimY,
@@ -95,13 +91,9 @@ import {
 } from './buildingCollapse';
 import type { CpuTimings } from '../ui/debug';
 
-/** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
-export const GOLDEN_AURA_DURATION = 30;
-/** how far around a golden ballista allies get the buff (world units) */
-export const GOLDEN_AURA_RADIUS = 40;
 /** golden units take 30% less damage on top of debuff immunity */
 export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
-/** battle clock time when ballista Golden Aura is applied once (after other pre-battle effects) */
+/** battle clock time when golden auras ({@link UnitType.aura}) are applied once (after other pre-battle effects) */
 export const GOLDEN_AURA_APPLY_AT = 0.1;
 /** storm bolt: personal tower-like debuff duration (refreshed on each hit) */
 export const STORM_DEBUFF_SEC = 5;
@@ -877,7 +869,7 @@ export class BattleSim {
     private readonly resolved = new Map<Unit, ResolvedStats>();
     /** damage dealt per `${team}:${typeId}` — the post-battle report data */
     readonly damageByType = new Map<string, number>();
-    /** ballista Golden Aura is a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
+    /** golden auras ({@link UnitType.aura}) are a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
     private goldenAuraApplied = false;
     /** duration of the previous sim step — converts actor.mv* into velocity for lead aim */
     private prevStepDt = 1 / SIM_HZ;
@@ -1271,7 +1263,7 @@ export class BattleSim {
             (a) =>
                 actorTeam(a) === team &&
                 !a.unit.type.structure &&
-                a.unit.type !== STRONGHOLD_ARCHER &&
+                !a.unit.type.fixture &&
                 (a.alive || (a.appearAt > 0 && !a.appeared)),
         );
     }
@@ -2459,9 +2451,9 @@ export class BattleSim {
         if (this.goldenAuraApplied) {
             for (let i = firstActorIdx; i < this.actors.length; i++) {
                 const na = this.actors[i]!;
-                this.applyBallistaGoldenAura(na);
-                if (na.unit.type.id === 'ballista') {
-                    this.applyBallistaGoldenAura(undefined, na);
+                this.applyGoldenAura(na);
+                if (na.unit.type.aura) {
+                    this.applyGoldenAura(undefined, na);
                 }
             }
         }
@@ -3167,7 +3159,7 @@ export class BattleSim {
      *  tower-destruction debuff; Stronghold loss is a separate, currently
      *  undecided penalty (deliberately no debuff of its own for now). */
     private isDebuffBuilding(unit: Unit): boolean {
-        return unit.type === COMMAND_TOWER || unit.type === RESEARCH_CENTER;
+        return unit.type.onDestroyed?.seatDebuff === true;
     }
 
     /** seconds of debuff from losing a command tower at the given level */
@@ -3236,18 +3228,33 @@ export class BattleSim {
         return actor.goldenUntil > this.elapsed + 1e-9;
     }
 
-    /** one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies in range of a golden ballista get 30s immunity */
-    private applyBallistaGoldenAura(recipient?: Actor, caster?: Actor): void {
-        const r2 = GOLDEN_AURA_RADIUS * GOLDEN_AURA_RADIUS;
-        // duration runs from NOW, so a flank unit that arrives late still gets
-        // its full buff instead of the remainder of the opening window
-        const expires = this.elapsed + GOLDEN_AURA_DURATION;
+    /**
+     * one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies within a source's `aura.radius` turn golden for `aura.duration`.
+     *
+     * `windowOnly` caps the buff at the opening window instead of running a
+     * fresh 30s from now. Conversion uses it: a mech that switches sides
+     * mid-battle joins a team whose aura is (or soon will be) spent, and a full
+     * new window made it the only debuff-immune, −30%-damage unit on the field.
+     */
+    private applyGoldenAura(recipient?: Actor, caster?: Actor, windowOnly = false): void {
         for (const f of this.actors) {
             if (caster && f !== caster) continue;
-            if (!f.alive || f.unit.type.id !== 'ballista') continue;
-            // a ballista still riding in grants nothing until it has landed
+            const aura = f.unit.type.aura;
+            if (!f.alive || aura?.effect !== 'golden') continue;
+            // a source still riding in grants nothing until it has landed
             if (this.isSpawning(f)) continue;
-            if (!this.config.hasTech(f.unit.seat, 'ballista', 'golden')) continue;
+            // the tech of whoever commands the source NOW (a converted one
+            // follows its new owner, like the tower debuffs do)
+            if (aura.requiresTech && !this.config.hasTech(actorSeat(f), f.unit.type.id, aura.requiresTech)) {
+                continue;
+            }
+            // duration runs from NOW, so a flank unit that arrives late still gets
+            // its full buff instead of the remainder of the opening window
+            const expires = windowOnly
+                ? Math.min(this.elapsed + aura.duration, GOLDEN_AURA_APPLY_AT + aura.duration)
+                : this.elapsed + aura.duration;
+            if (expires <= this.elapsed) continue;
+            const r2 = aura.radius * aura.radius;
             for (const a of this.actors) {
                 if (recipient && a !== recipient) continue;
                 if (!a.alive || actorTeam(a) !== actorTeam(f) || a.unit.type.structure) continue;
@@ -3572,8 +3579,8 @@ export class BattleSim {
                 // it can receive the golden aura, and — if it IS a golden
                 // ballista — it starts granting to allies around it.
                 if (this.goldenAuraApplied && a.alive) {
-                    this.applyBallistaGoldenAura(a);
-                    this.applyBallistaGoldenAura(undefined, a);
+                    this.applyGoldenAura(a);
+                    this.applyGoldenAura(undefined, a);
                 }
                 continue;
             }
@@ -3672,15 +3679,13 @@ export class BattleSim {
             target.unit.markDestroyed(knockDir ?? undefined, {
                 crush: this.crushingHammer,
             });
-            // The wall archers cannot be shot at — the keep under them is the only
-            // way in, so when the keep goes the wall goes with it. Killed with
-            // no killer: the besieger earned the Stronghold, not four archers.
-            if (target.unit.type === STRONGHOLD) {
-                for (const a of this.actors) {
-                    if (!a.alive || a.unit.type !== STRONGHOLD_ARCHER) continue;
-                    if (a.unit.seat !== target.unit.seat) continue;
-                    this.kill(a, null, a.maxHp, undefined, true);
-                }
+            // Units mounted on this building go down with it. Killed with no
+            // killer: the besieger earned the building, not its garrison. Linked
+            // by id, not by seat — an ally's archer on a shared keep falls too.
+            for (const a of this.actors) {
+                if (!a.alive || !a.unit.type.diesWithHost) continue;
+                if (a.unit.hostUnitId !== target.unit.id) continue;
+                this.kill(a, null, a.maxHp, undefined, true);
             }
             if (this.isDebuffBuilding(target.unit) && !razed) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
@@ -3791,7 +3796,7 @@ export class BattleSim {
         // with no killer, so this grants no XP and triggers no on-kill spawns —
         // the Stronghold's slayer earns the siege, not a dozen extra kills. The
         // round then ends on its own, with nothing mobile left on that side.
-        if (this.config.strongholdLifeline && target.unit.type === STRONGHOLD) {
+        if (this.config.strongholdLifeline && target.unit.type.onDestroyed?.collapseOwnArmy) {
             const towerTop = Math.max(1, ...t.colliders.map((c) => c.y)) * t.meshScale;
             const maxRadius = this.collapseReach(target.x, target.z);
             this.collapseFronts.push({
@@ -3842,7 +3847,7 @@ export class BattleSim {
         }
 
         if (!this.goldenAuraApplied && this.elapsed >= GOLDEN_AURA_APPLY_AT) {
-            this.applyBallistaGoldenAura();
+            this.applyGoldenAura();
             this.goldenAuraApplied = true;
         }
 
@@ -5374,7 +5379,7 @@ export class BattleSim {
         // (Tower debuffs already key off {@link actorSeat}, so allegiance alone
         // stops the old seat's loss from crippling this mech.)
         target.goldenUntil = 0;
-        if (this.goldenAuraApplied) this.applyBallistaGoldenAura(target);
+        if (this.goldenAuraApplied) this.applyGoldenAura(target, undefined, true);
         // brief pause before the next channel
         const recover = caster.unit.type.convertRay?.recover ?? 1.25;
         caster.convertCooldown = recover;

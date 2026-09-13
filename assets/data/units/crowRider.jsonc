@@ -1,0 +1,26 @@
+{
+    "id": "crowRider",
+    "name": "Crow Rider",
+    "cost": 200,
+    "unlockCost": 50,
+    "footprint": { "cols": 5, "rows": 2 }, // same pack size as dwarves
+    "formation": { "cols": 4, "rows": 1 }, // a flock of 12 riders, two wide rows
+    "meshScale": 4.35, // slightly smaller so the tighter columns don't touch
+    "flying": 18,
+    "burn": { "takenMult": 1 }, // air: burn status ignored while aloft
+    "targets": { "ground": true, "air": true },
+    "collisionRadius": 3,
+    "colliders": [{ "y": 0.1, "r": 0.75 }],
+    "projectileSpeed": 70,
+    "projectileStyle": "stone",
+    // wide blast vs packed dwarves (3× the ballista's old splash radius of 3)
+    "splashRadius": 3,
+    "hp": 45,
+    "damage": 35,
+    "range": 12,
+    "attackInterval": 1.1,
+    "speed": 8,
+    "turnRate": 0.5,
+    "turnMove": "cruise",
+    "proceduralModel": "crowRider",
+}

@@ -1,0 +1,22 @@
+{
+    "id": "shield",
+    "name": "Ward Stone",
+    "cost": 100,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 1,
+    "structure": true,
+    "extra": true,
+    "burn": { "takenMult": 0 },
+    // dome coverage, world units — the top stays below the air layer (18)
+    "shield": { "radius": 20, "height": 17 },
+    "targets": { "ground": false, "air": false },
+    "collisionRadius": 1.3, // only the emitter pylon blocks walking
+    "colliders": [], // nothing can shoot it — it only absorbs crossings
+    "hp": 3000, // the absorb pool; refills between rounds if it survives
+    "damage": 0,
+    "range": 0,
+    "attackInterval": 1,
+    "speed": 0,
+    "proceduralModel": "shield",
+}

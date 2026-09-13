@@ -21,6 +21,7 @@ import {
 import type { HpDrawScheduledParticle } from './hpDraw';
 import type { HpDrawWaveTier } from './units';
 import { cloneUnitModel, hasUnitModel } from './unitModels';
+import { assetUrl } from './assets';
 
 const MAX_HP_DRAW = 256;
 /** Distance along the view ray for the HP-portrait anchor in world space. */
@@ -93,7 +94,7 @@ function ensureSoulTexture(): Texture | null {
     if (sharedSoulTexture) return sharedSoulTexture;
     if (soulTextureLoading) return null;
     soulTextureLoading = true;
-    const url = new URL('../../assets/textures/vfx/soul-ghost.png', import.meta.url).href;
+    const url = assetUrl('textures/vfx/soul-ghost.png');
     new TextureLoader().load(
         url,
         (tex) => {

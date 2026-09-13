@@ -819,7 +819,7 @@ export class Scenery {
 	}`,
                 );
         };
-        void loadWorldTexture(iceAlbedoUrl).then((ice) => {
+        void loadWorldTexture(iceAlbedoUrl()).then((ice) => {
             if (!ice) return;
             ice.wrapS = ice.wrapT = RepeatWrapping;
             ice.repeat.set(90, 90);
@@ -1355,7 +1355,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         const [grass, rockPack, shore] = await Promise.all([
             loadGrassTextures(),
             loadRockTextures(),
-            loadWorldTexture(shoreAlbedoUrl),
+            loadWorldTexture(shoreAlbedoUrl()),
         ]);
         if (!grass?.albedo) return;
         const { albedo, normal } = grass;
@@ -2369,8 +2369,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         leafMats: MeshStandardMaterial[],
     ): Promise<void> {
         const [bark, foliage] = await Promise.all([
-            loadWorldTexture(barkUrl),
-            loadWorldTexture(foliageUrl),
+            loadWorldTexture(barkUrl()),
+            loadWorldTexture(foliageUrl()),
         ]);
         console.info(`[scenery] forest textures: bark=${!!bark} foliage=${!!foliage}`);
         if (bark) {

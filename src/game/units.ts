@@ -15,6 +15,8 @@ import {
 } from 'three';
 import { techBlurb, techName, unitName, t } from '../i18n';
 import { THEME } from '../theme';
+import { BASE_PACK } from './content/basePack';
+import type { BurnAffinity, FireProfile } from './fire';
 import { detAtan2 } from './detMath';
 
 /**
@@ -145,7 +147,7 @@ export interface TechDef {
         splashRadius: number;
     }>;
     /** optional fire / oil on hit — applied when this tech is owned */
-    fire?: import('./fire').FireProfile;
+    fire?: FireProfile;
     /**
      * Battle production: while this pack lives, spawn `typeId` units on a
      * timer (shared machinery for spider mothers, future dwarf forges, etc.).
@@ -324,6 +326,27 @@ export function isHordeUnit(type: UnitType): boolean {
     return type.horde === true;
 }
 
+/**
+ * Panel actions a building can offer. Each is implemented once (HUD + action
+ * dispatcher); a building lists the ones it offers in {@link UnitType.abilities}.
+ */
+export type BuildingAbilityId =
+    // round services (normally the Research Center)
+    | 'recruitLevel'
+    | 'deploySlot'
+    | 'rangeBoost'
+    | 'speedBoost'
+    | 'credit'
+    // permanent tracks (normally the Command Tower)
+    | 'armyBoosts'
+    | 'selling'
+    | 'rallyRoute'
+    | 'movePack'
+    // the keep (normally the Stronghold)
+    | 'forge'
+    | 'forgeSpells'
+    | 'sendSupply';
+
 export interface UnitType {
     id: string;
     name: string;
@@ -361,6 +384,11 @@ export interface UnitType {
     formation: GridExtent;
     /** uniform scale applied to each mech mesh */
     meshScale: number;
+    /**
+     * Soft sand pad stamped under a structure, as a multiple of its footprint
+     * (default 1). Visual only.
+     */
+    sandPadScale?: number;
     /** structures don't bob and never rotate to face anything (but are valid facing targets) */
     structure?: boolean;
     /**
@@ -376,6 +404,64 @@ export interface UnitType {
      * the keep, and he takes what lands near him.
      */
     notAcquired?: boolean;
+    /**
+     * What this type's destruction does to the rest of the board. Each effect
+     * is implemented once in the sim; a type only switches it on, so a custom
+     * building gets the behaviour by setting the attribute — never by id.
+     */
+    onDestroyed?: {
+        /**
+         * Its side's whole army collapses with it. Only while the match's
+         * `strongholdMode` is `'lifeline'` — the attribute says what the
+         * building can do, the match decides whether that is in play.
+         */
+        collapseOwnArmy?: boolean;
+        /** The owning seat takes the tower-destruction debuff (window shrinks with level). */
+        seatDebuff?: boolean;
+    };
+    /**
+     * Part of a building rather than a pack: cannot be sold, repositioned or
+     * refunded, and never counts as field army.
+     */
+    fixture?: boolean;
+    /**
+     * Dies — with no killer — when the unit it is mounted on
+     * ({@link Unit.hostUnitId}) is destroyed.
+     */
+    diesWithHost?: boolean;
+    /**
+     * Units can be posted onto this building's authored `UnitN` pads, one at a
+     * time, from its panel. The first post costs the posted type's own `cost`;
+     * each further post adds `priceStep`. Posted units get
+     * {@link Unit.hostUnitId} = this building.
+     */
+    /**
+     * An aura this type projects onto allies around it. The effect is
+     * implemented once in the sim; a type chooses it and sets the numbers.
+     * Applied once shortly after battle start and to units that arrive later.
+     */
+    aura?: {
+        /** `golden`: immune to tower/storm debuffs and takes reduced damage */
+        effect: 'golden';
+        /** tech on this type that switches the aura on; omit = always on */
+        requiresTech?: string;
+        /** world units around the source */
+        radius: number;
+        /** seconds the buff lasts on a recipient */
+        duration: number;
+    };
+    /**
+     * Panel actions this building offers. `forge` also makes it the side's rune
+     * forge: runes are dropped on it, it can be lit, and its chimney smokes.
+     */
+    abilities?: readonly BuildingAbilityId[];
+    garrison?: {
+        /** `UnitN` pad numbers on the model, in fill order */
+        slots: readonly number[];
+        /** type posted on each pad (looked up with {@link unitTypeById}) */
+        unitTypeId: string;
+        priceStep: number;
+    };
     /**
      * When `false`, players and the AI cannot buy or unlock this type from
      * the shop. Omit or `true` = eligible (still subject to unlock / extras).
@@ -525,7 +611,7 @@ export interface UnitType {
      * Burn / ground-fire inflicted by this unit's hits (projectiles, splash, rockets, melee).
      * Ground fire stamps the shared hazard layer; burn DoT uses refresh + strongest DPS.
      */
-    fire?: import('./fire').FireProfile;
+    fire?: FireProfile;
     /**
      * Melee disk: each swing hits every enemy in this XZ radius (no projectile).
      * Combined with {@link range} as the engagement distance.
@@ -544,7 +630,7 @@ export interface UnitType {
     /** Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake). */
     cleaveShake?: number;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
-    burn?: import('./fire').BurnAffinity;
+    burn?: BurnAffinity;
     /**
      * On projectile/splash hit: apply the corroded (acid) debuff to non-horde
      * victims for this many seconds (refreshes).
@@ -630,8 +716,13 @@ export interface UnitType {
      * - `cruise` — keep moving along current facing while yaw eases (flyers)
      */
     turnMove?: 'track' | 'pivot' | 'cruise';
-    /** builds ONE mech's meshes around the origin in world units, facing -z (toward the enemy) */
-    build: (parts: PartFactory) => void;
+    /**
+     * Named procedural mesh builder ({@link PROCEDURAL_MODELS}): ONE mech's
+     * meshes around the origin, facing -z. Used for the provisional height
+     * probe, previews, and wherever no GLB is loaded. A name, not a function,
+     * so a type definition stays plain data.
+     */
+    proceduralModel: ProceduralModelId;
     /**
      * Scatters each member off its grid slot by up to this fraction of the
      * slot spacing (0 = the usual tight rectangle). Deterministic — a pure
@@ -904,86 +995,95 @@ function buildTower(parts: PartFactory): void {
     parts.cylinder(0.06, 0.06, 2.0, 0.9, 4.0, 0.9, 'dark'); // antenna
 }
 
-/** each side's two command towers — not buyable, so not part of UNIT_TYPES */
 /**
- * The two base buildings share stats and mesh but are independent types:
- * each carries its own role (and upgrade level). The Research Center hosts the
- * recruit-level switch; the Command Tower's role is still open.
+ * Procedural mesh builders by name. Type definitions refer to these by
+ * {@link UnitType.proceduralModel}, so the definitions themselves hold no code.
  */
-function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 800): UnitType {
-    return {
-        id,
-        name,
-        cost: 0,
-        // grid collision footprint; the mesh is a bit bigger and overlaps it visually
-        footprint: { cols: tiles, rows: tiles },
-        formation: { cols: 1, rows: 1 },
-        meshScale,
-        structure: true,
-        burn: { takenMult: 0.35 }, // stone / masonry resists
-        targets: { ground: false, air: false }, // towers don't shoot
-        collisionRadius: tiles * CELL * 0.57,
-        colliders: [
-            { y: 0.5, r: 1.6 },
-            { y: 1.9, r: 1.1 },
-            { y: 3.5, r: 0.8 },
-        ],
-        hp,
-        damage: 0,
-        range: 0,
-        attackInterval: 1,
-        speed: 0,
-        build: buildTower,
-    };
+const PROCEDURAL_MODELS: Record<ProceduralModelId, (parts: PartFactory) => void> = {
+    dwarf: buildDwarf,
+    goblin: buildGoblin,
+    hammerer: buildHammerer,
+    ogre: buildOgre,
+    archer: buildArcher,
+    wizard: buildWizard,
+    ballista: buildBallista,
+    crowRider: buildCrowRider,
+    bat: buildBat,
+    mortar: buildMortar,
+    shield: buildShield,
+    rocket: buildRocket,
+    tower: buildTower,
+};
+
+/** Names of the procedural mesh builders ({@link PROCEDURAL_MODELS} must cover exactly these). */
+export type ProceduralModelId =
+    | 'dwarf'
+    | 'goblin'
+    | 'hammerer'
+    | 'ogre'
+    | 'archer'
+    | 'wizard'
+    | 'ballista'
+    | 'crowRider'
+    | 'bat'
+    | 'mortar'
+    | 'shield'
+    | 'rocket'
+    | 'tower';
+
+/** Is `id` a known procedural model? (for validating loaded definitions) */
+export function isProceduralModelId(id: string): id is ProceduralModelId {
+    return Object.prototype.hasOwnProperty.call(PROCEDURAL_MODELS, id);
 }
 
-export const COMMAND_TOWER = makeTower('command-tower', 'Vanguard', 3.0, 3);
-export const RESEARCH_CENTER = makeTower('research-center', 'Garrison');
-/** each side's main castle at the back of its territory — bigger and sturdier */
-export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 3000);
+/** Build ONE mech of `type` with its named procedural builder. */
+function buildProcedural(type: UnitType, parts: PartFactory): void {
+    PROCEDURAL_MODELS[type.proceduralModel](parts);
+}
 
 /**
- * An archer bought onto the keep's battlements. Shoots exactly like the pack
- * archer — same bow, same numbers — and differs in three ways only: he cannot
- * move (`speed: 0`), nothing can shoot him (`colliders: []`, the Ward Stone's
- * trick), and he stands on an authored `UnitN` slot rather than the grid, via
- * {@link Unit.pinnedY}. He is deliberately not in UNIT_TYPES: the shop must
- * never offer him, he is bought from the Stronghold panel one at a time.
+ * Unit and building definitions come from the base content pack
+ * (`assets/data/**.jsonc`, see src/game/content/basePack.ts). These constants
+ * are lookups into it, kept for the code that refers to a specific base type.
+ * The design notes that used to sit on each literal live in its .jsonc file.
  */
-export const STRONGHOLD_ARCHER: UnitType = {
-    id: 'stronghold-archer',
-    name: 'Stronghold Archer',
-    // reuses the archer GLB — no second model, and no new fingerprint entry
-    modelId: 'archer',
-    cost: 100,
-    hpWithdraw: 50,
-    footprint: { cols: 1, rows: 1 },
-    formation: { cols: 1, rows: 1 },
-    meshScale: 2.2,
-    burn: { takenMult: 1.1 },
-    targets: { ground: true, air: true },
-    collisionRadius: 1.0,
-    /**
-     * Nobody AIMS at him — an army besieging a keep shoots the keep — but he
-     * is otherwise as real as anything else on the board: arrows that cross
-     * his collider on the way past hit him, and splash, blast and dragonfire
-     * all reach him. `extra` would have made him immune to all of it, and it
-     * also keeps a unit out of the target hash the projectile sweep reads.
-     */
-    notAcquired: true,
-    colliders: [{ y: 1.1, r: 0.75 }],
-    projectileSpeed: 100,
-    projectileStyle: 'arrow',
-    projectileBallistic: true,
-    projectileLaunchHeightFrac: 0.75,
-    hp: 130,
-    damage: 65,
-    range: 45,
-    attackInterval: 1.4,
-    speed: 0,
-    turnRate: 6,
-    build: buildArcher,
-};
+const PACK_TYPES = new Map<string, UnitType>(
+    [...BASE_PACK.roster, ...BASE_PACK.offRoster, ...BASE_PACK.buildings].map((t) => [t.id, t]),
+);
+
+function packType(id: string): UnitType {
+    const type = PACK_TYPES.get(id);
+    if (!type) throw new Error(`[units] the base content pack has no type "${id}"`);
+    return type;
+}
+
+{
+    const bad = [...PACK_TYPES.values()].filter((t) => !isProceduralModelId(t.proceduralModel));
+    if (bad.length > 0) {
+        throw new Error(
+            `[units] unknown proceduralModel: ${bad.map((t) => `${t.id} → "${t.proceduralModel}"`).join(', ')}`,
+        );
+    }
+}
+
+export const COMMAND_TOWER = packType('command-tower');
+export const RESEARCH_CENTER = packType('research-center');
+/** each side's main castle at the back of its territory */
+export const STRONGHOLD = packType('stronghold');
+/** posted onto a Stronghold's battlement pads — off-roster, never offered in the shop */
+export const STRONGHOLD_ARCHER = packType('stronghold-archer');
+export const HORDE_BRUT = packType('hordeZombie');
+export const HORDE_WEBWEAVER = packType('hordeWebweaver');
+export const HORDE_BRUT_SPAWN = packType('hordeBrutSpawn');
+export const HORDE_SPINNE = packType('hordeSpinne');
+export const HORDE_FARMER = packType('hordeFarmer');
+export const HORDE_FARMER_SPAWN = packType('hordeFarmerSpawn');
+export const HORDE_KOMTUR = packType('hordeKomtur');
+export const BAT = packType('bat');
+
+/** The roster: shop grid, AI and every roster loop, in pack.jsonc order. */
+export const UNIT_TYPES: UnitType[] = BASE_PACK.roster;
+
 
 /**
  * World position of one of a keep's authored standing spots.
@@ -1007,8 +1107,6 @@ export function strongholdArcherSlotWorld(keep: Unit, slot: number): { x: number
     );
 }
 
-/** All authored battlement pads (`Unit1`…`Unit5`) — every slot is an archer post. */
-export const STRONGHOLD_ARCHER_SLOTS = [1, 2, 3, 4, 5] as const;
 /**
  * A Stronghold archer's field of fire, in degrees. He covers this much centred on
  * outward, and the rest — pointing back into his own keep — is dead. Written in
@@ -1017,619 +1115,17 @@ export const STRONGHOLD_ARCHER_SLOTS = [1, 2, 3, 4, 5] as const;
  */
 export const STRONGHOLD_ARCHER_FOV_DEGREES = 240;
 export const STRONGHOLD_ARCHER_FOV_HALF = (STRONGHOLD_ARCHER_FOV_DEGREES * Math.PI) / 360;
-/** first archer 100; each further post +50 (150, 200, …) */
-export const STRONGHOLD_ARCHER_STEP_COST = 50;
 
-/** shield dome coverage, world units — the top stays below the air layer (18) */
-export const SHIELD_RADIUS = 20;
-export const SHIELD_HEIGHT = 17;
-
-/**
- * Der Komtur's light spider swarm — `horde.glb` at base scale. Cheap melee
- * fodder. `buyable: false`.
- */
-export const HORDE_BRUT: UnitType = {
-    id: 'hordeZombie', // keep legacy id for hydrate/replay
-    name: 'Black Brood',
-    cost: 80,
-    hpWithdraw: 2,
-    buyable: false,
-    horde: true,
-    modelId: 'horde',
-    // 2× terrain pack area vs original 10×6; same small mesh
-    footprint: { cols: 20, rows: 12 },
-    formation: { cols: 8, rows: 6 }, // 48 — 2× prior 8×3 headcount
-    formationSpread: 0.95,
-    meshScale: 0.5,
-    burn: { takenMult: 0.5 },
-    bloodColor: 0x8cef18,
-    targets: { ground: true, air: false },
-    collisionRadius: 0.6,
-    colliders: [{ y: 0.3, r: 0.5 }],
-    sandWeight: 0.15,
-    hp: 42,
-    xpValue: 1,
-    damage: 10,
-    range: 2,
-    attackInterval: 0.65,
-    speed: 12,
-    turnRate: 10,
-    build: buildDwarf,
-};
 
 /** @deprecated use {@link HORDE_BRUT} */
 export const HORDE_ZOMBIE = HORDE_BRUT;
 
-/**
- * Mid spider pack — `horde.glb` at 2×. Distant fighters (special attacks later).
- * Smaller packs than Brut. `buyable: false`.
- */
-export const HORDE_WEBWEAVER: UnitType = {
-    id: 'hordeWebweaver',
-    name: 'Webweaver',
-    cost: 200,
-    hpWithdraw: 12,
-    buyable: false,
-    horde: true,
-    modelId: 'horde',
-    // 2× terrain pack area vs original 6×4; same mesh scale
-    footprint: { cols: 12, rows: 8 },
-    formation: { cols: 4, rows: 2 }, // 8 mechs, more spread out
-    formationSpread: 1.0,
-    meshScale: 1.0,
-    burn: { takenMult: 0.5 },
-    bloodColor: 0x8cef18,
-    targets: { ground: true, air: false },
-    collisionRadius: 0.7,
-    colliders: [{ y: 0.5, r: 0.75 }],
-    sandWeight: 0.2,
-    projectileSpeed: 55,
-    projectileStyle: 'bolt',
-    corrodeOnHit: { seconds: 5 },
-    hp: 210,
-    damage: 100,
-    range: 16,
-    attackInterval: 0.9,
-    speed: 12,
-    turnRate: 5,
-    build: buildDwarf,
-};
 
-/**
- * Single Schwarze Brut spawned by the mother Spinne — same stats as the swarm
- * mech, 1×1 formation so brood doesn't dump full packs. `buyable: false`.
- */
-export const HORDE_BRUT_SPAWN: UnitType = {
-    id: 'hordeBrutSpawn',
-    name: 'Black Brood',
-    cost: 0,
-    levelBasis: 100, // free to gain, but 50 per level and 100 xp per level
-    hpWithdraw: 2,
-    buyable: false,
-    horde: true,
-    modelId: 'horde',
-    footprint: { cols: 2, rows: 2 },
-    formation: { cols: 1, rows: 1 },
-    meshScale: 0.5,
-    burn: { takenMult: 0.5 },
-    bloodColor: 0x8cef18,
-    targets: { ground: true, air: false },
-    collisionRadius: 0.45,
-    colliders: [{ y: 0.3, r: 0.5 }],
-    sandWeight: 0.15,
-    hp: 42,
-    xpValue: 1,
-    damage: 10,
-    range: 2,
-    attackInterval: 0.65,
-    speed: 12,
-    turnRate: 10,
-    build: buildDwarf,
-};
+/** Ward Stone dome size — read from its type so the definition is the only copy. */
+const WARD_DOME = UNIT_TYPES.find((t) => t.shield)!.shield!;
+export const SHIELD_RADIUS = WARD_DOME.radius;
+export const SHIELD_HEIGHT = WARD_DOME.height;
 
-/**
- * The one Schwarze Spinne — `horde.glb` at large scale. Mother of spiders via
- * innate `spiderMother` produce tech + acid shots. `buyable: false`.
- */
-export const HORDE_SPINNE: UnitType = {
-    id: 'hordeSpinne',
-    name: 'Black Spider',
-    cost: 500,
-    hpWithdraw: 70,
-    buyable: false,
-    horde: true,
-    modelId: 'horde',
-    footprint: { cols: 4, rows: 3 },
-    formation: { cols: 1, rows: 1 },
-    meshScale: 6.0, // 12× Brood — showcase boss presence
-    burn: { takenMult: 0.4 },
-    bloodColor: 0x8cef18,
-    targets: { ground: true, air: true },
-    collisionRadius: 3.2,
-    colliders: [
-        { y: 0.7, r: 1.5 },
-        { y: 2.0, r: 1.1 },
-    ],
-    sandWeight: 0.135, // 10% of prior 1.35
-    projectileSpeed: 70,
-    projectileStyle: 'orb',
-    corrodeOnHit: { seconds: 6 },
-    innateTechs: ['spiderMother'],
-    hp: 4500, // 5× prior
-    damage: 200,
-    range: 44,
-    attackInterval: 0.4,
-    speed: 12,
-    turnRate: 1.0,
-    turnMove: 'pivot',
-    build: buildDwarf,
-    walkCadence: 1.5,
-    walkLean: 1.5,
-};
-
-/**
- * Der Komtur's forest levy — `horde2.glb` farmer. `buyable: false`.
- */
-export const HORDE_FARMER: UnitType = {
-    id: 'hordeFarmer',
-    name: 'Dead Farmer',
-    cost: 175,
-    hpWithdraw: 7,
-    buyable: false,
-    horde: true,
-    modelId: 'horde2',
-    footprint: { cols: 10, rows: 6 },
-    formation: { cols: 6, rows: 2 }, // 12 — fewer than Brut swarm
-    formationSpread: 0.75,
-    meshScale: 1.7, // 2× prior 0.85
-    burn: { takenMult: 0.5 },
-    bloodColor: 0x8cef18,
-    targets: { ground: true, air: false },
-    collisionRadius: 0.9,
-    colliders: [{ y: 0.55, r: 0.95 }],
-    sandWeight: 0.25,
-    innateTechs: ['darkHarvest'],
-    hp: 200,
-    damage: 100,
-    range: 2,
-    attackInterval: 0.7,
-    speed: 12,
-    turnRate: 4,
-    build: buildDwarf,
-};
-
-/**
- * On-kill spawn from Dark Harvest — half the Dead Farmer in size and combat
- * weight, 1×1 so each kill raises one body. No Dark Harvest (no chain).
- */
-export const HORDE_FARMER_SPAWN: UnitType = {
-    id: 'hordeFarmerSpawn',
-    name: 'Dead Farmhand',
-    cost: 0,
-    levelBasis: 100, // free to gain, but 50 per level and 100 xp per level
-    hpWithdraw: 4,
-    buyable: false,
-    horde: true,
-    modelId: 'horde2',
-    footprint: { cols: 2, rows: 2 },
-    formation: { cols: 1, rows: 1 },
-    meshScale: 0.85,
-    burn: { takenMult: 0.5 },
-    bloodColor: 0x8cef18,
-    targets: { ground: true, air: false },
-    collisionRadius: 0.45,
-    colliders: [{ y: 0.28, r: 0.48 }],
-    sandWeight: 0.125,
-    hp: 100,
-    damage: 50,
-    range: 2,
-    attackInterval: 0.7,
-    speed: 12,
-    turnRate: 5,
-    build: buildDwarf,
-};
-
-/**
- * Der Komtur himself — mounted knight on `horde3.glb`. Flying melee boss:
- * each swing slams a short disk and lights the lawn. `buyable: false`.
- */
-export const HORDE_KOMTUR: UnitType = {
-    id: 'hordeKomtur',
-    name: 'Hans von Stoffeln',
-    cost: 600,
-    hpWithdraw: 800,
-    buyable: false,
-    horde: true,
-    modelId: 'horde3',
-    footprint: { cols: 4, rows: 3 },
-    formation: { cols: 1, rows: 1 },
-    meshScale: 4.2, // half of prior 8.4
-    flying: 22,
-    burn: { takenMult: 0.35 },
-    bloodColor: 0x8cef18,
-    targets: { ground: true, air: true },
-    collisionRadius: 1.1,
-    colliders: [
-        { y: 0.8, r: 2.0 },
-        { y: 2.4, r: 1.5 },
-    ],
-    cleave: { radius: 8 },
-    cleaveShake: 1,
-    fire: {
-        ground: { radius: 8, duration: 8, intensity: 21 },
-    },
-    hp: 12000, // 10× prior boss weight
-    damage: 550,
-    range: 8,
-    attackInterval: 0.85,
-    speed: 12,
-    turnRate: 2.2,
-    turnMove: 'cruise',
-    build: buildDwarf,
-};
-
-/**
- * Low free-flight dive flock — Komtur wave air chaff. Not shop-buyable for
- * now; flip {@link UnitType.buyable} when dual-use is wanted.
- */
-export const BAT: UnitType = {
-    id: 'bat',
-    name: 'Bat',
-    cost: 100,
-    hpWithdraw: 2,
-    buyable: false,
-    horde: true,
-    // Neat lattice (1 bat per cell) — no formationSpread jitter
-    footprint: { cols: 6, rows: 2 },
-    formation: { cols: 6, rows: 3 }, // 18 ordered flock
-    meshScale: 1.0,
-    flying: 5.5, // low cruise — not crow-height
-    freeFlight: true, // climb/dive toward foes; pitch at aim
-    burn: { takenMult: 1 }, // air: burn status ignored while aloft
-    targets: { ground: true, air: true },
-    collisionRadius: 0.9, // unused for soft push (ghost), kept for broadphase
-    blobShadowScale: 0.55,
-    // Generous AA volumes — wings + body so goblin/archer volleys can connect
-    colliders: [
-        { y: 0.4, r: 0.85 },
-        { y: 0.5, r: 1.35 },
-    ],
-    hp: 10,
-    bloodScale: 0.28, // tiny body — don't fountain like a dwarf
-    damage: 3, // chip — pressure from numbers, not punches
-    range: 2.2, // touch radius while piercing
-    meleeLunge: 5, // commit the pass from a bit out
-    attackInterval: 1.05,
-    speed: 12,
-    turnRate: 3.2, // slow bank — points then flies along facing
-    turnMove: 'cruise',
-    build: buildBat,
-};
-
-export const UNIT_TYPES: UnitType[] = [
-    {
-        id: 'dwarf',
-        name: 'Dwarf',
-        cost: 100,
-        unlockCost: 0,
-        footprint: { cols: 5, rows: 2 },
-        formation: { cols: 8, rows: 3 }, // a pack of 24 fighters
-        meshScale: 1,
-        burn: { takenMult: 0.5 }, // tough infantry — resists fire better
-        targets: { ground: true, air: false }, // can't reach the sky
-        collisionRadius: 0.6,
-        colliders: [{ y: 0.35, r: 0.55 }],
-        hp: 40,
-        damage: 8,
-        range: 2,
-        attackInterval: 0.7,
-        speed: 6,
-        // short legs — taller lean + quicker steps than other walkers
-        walkLean: 1,
-        walkCadence: 1.5,
-        turnRate: 12,
-        build: buildDwarf,
-    },
-    {
-        id: 'goblin',
-        name: 'Goblin',
-        cost: 100,
-        unlockCost: 0,
-        footprint: { cols: 4, rows: 2 },
-        formation: { cols: 8, rows: 3 }, // 24 — same headcount as dwarf, denser in the 4×2 pad
-        meshScale: 1,
-        burn: { takenMult: 1.05 },
-        targets: { ground: true, air: true },
-        collisionRadius: 0.55,
-        blobShadowScale: 0.5, // small chaff — half the default blob disc
-        colliders: [{ y: 0.32, r: 0.5 }],
-        projectileSpeed: 85,
-        projectileStyle: 'arrow',
-        projectileScale: { length: 0.55, thickness: 1.35 }, // short shaft, thicker girth
-        projectileBallistic: true,
-        projectileLaunchHeightFrac: 0.7,
-        aimSpread: 0.35, // tighter still — AA vs fast free-flight bats needs to land
-        hp: 18,
-        damage: 4,
-        range: 16,
-        attackInterval: 1.45,
-        speed: 4.2, // slower than dwarf rush
-        walkLean: 1,
-        walkCadence: 1.45,
-        turnRate: 11,
-        build: buildGoblin,
-    },
-    {
-        // Fantasy Arclight — single pack, medium-range splash vs chaff (dwarfs / goblins)
-        id: 'hammerer',
-        name: 'Hammerer',
-        cost: 100,
-        unlockCost: 0,
-        footprint: { cols: 2, rows: 2 },
-        formation: { cols: 1, rows: 1 },
-        meshScale: 2.4,
-        burn: { takenMult: 0.85 },
-        targets: { ground: true, air: false }, // AA is a later tech (like Arclight)
-        collisionRadius: 1.1,
-        colliders: [{ y: 1.0, r: 0.85 }],
-        projectileSpeed: 75,
-        projectileStyle: 'stone', // crow rock pool — InstancedMesh
-        // grow in flight: pebble → ~splash disk radius (stone mesh r≈0.84)
-        projectileScale: 0.28,
-        projectileScaleEnd: (4 / 0.84) * 0.9, // ~90% of splash disk radius
-        projectileBallistic: true,
-        projectileLaunchHeightFrac: 0.7,
-        splashRadius: 4, // Arclight-like blast vs packed chaff
-        hp: 240,
-        damage: 40, // a bare L1 dwarf's 40 HP exactly — dwarf veterancy, golden aura or costControl all break the one-shot
-        range: 32,
-        attackInterval: 0.7,
-        speed: 4.5,
-        turnRate: 5,
-        build: buildHammerer,
-    },
-    {
-        // Fantasy Rhino — single fast melee tank; small cleave, breakthrough / aggro soak
-        id: 'ogre',
-        name: 'Ogre',
-        cost: 200,
-        unlockCost: 50,
-        footprint: { cols: 2, rows: 2 },
-        formation: { cols: 1, rows: 1 },
-        meshScale: 3.48, // 1.2× base 2.9
-        burn: { takenMult: 0.65 },
-        targets: { ground: true, air: false },
-        collisionRadius: 1.62,
-        colliders: [
-            { y: 1.2, r: 1.2 },
-            { y: 2.4, r: 0.9 },
-        ],
-        // innate disk like Rhino splash — Whirlwind tech widens it
-        cleave: { radius: 2 },
-        cleaveScar: false, // no ground crater stamp on swings
-        hp: 1620,
-        damage: 195,
-        range: 3.4, // short melee reach
-        // Match cadence to the long pitch (~1.27s visual @ fireSpeed 3)
-        attackInterval: 1.35,
-        // Hit late in the throw (visual ~1.27s)
-        meleeHitDelay: 0.6,
-        // commit early at speed 8.5 → slide into the smash
-        meleeLunge: 5,
-        meleePress: 0.85, // keep closing while swinging (the charge feel)
-        speed: 8.5, // faster than dwarf (6) — Rhino closes gaps
-        turnRate: 4, // heavy body — was 9 (too snappy for a big melee)
-        sandWeight: 1.5,
-        build: buildOgre,
-    },
-    {
-        id: 'archer',
-        name: 'Archer',
-        cost: 100,
-        unlockCost: 0,
-        footprint: { cols: 2, rows: 2 },
-        formation: { cols: 1, rows: 1 },
-        meshScale: 2.2,
-        burn: { takenMult: 1.1 },
-        targets: { ground: true, air: true }, // picks off anything
-        collisionRadius: 1.0,
-        colliders: [{ y: 1.1, r: 0.75 }],
-        projectileSpeed: 100,
-        projectileStyle: 'arrow',
-        projectileBallistic: true, // bow lob — lead-aimed so moving targets still get clipped
-        projectileLaunchHeightFrac: 0.75,
-        hp: 130,
-        damage: 65,
-        range: 45,
-        attackInterval: 1.4,
-        speed: 3.5,
-        turnRate: 6,
-        build: buildArcher,
-    },
-    {
-        id: 'wizard',
-        name: 'Wizard',
-        cost: 400,
-        unlockCost: 200,
-        footprint: { cols: 2, rows: 2 },
-        formation: { cols: 1, rows: 1 },
-        meshScale: 2.2,
-        burn: { takenMult: 1.15 },
-        // convert ray is the only attack — ground by default; Sky Bind unlocks air.
-        // Buildings / golden aura / wards take HP damage from the same ray.
-        targets: { ground: true, air: false },
-        collisionRadius: 1.0,
-        colliders: [{ y: 1.1, r: 0.75 }],
-        convertRay: { range: 80, recover: 1.25 },
-        hp: 160,
-        // attack = convert intensity / ray DPS (HP progress or damage per second)
-        damage: 45,
-        range: 80,
-        attackInterval: 1.6,
-        speed: 3.2,
-        turnRate: 5,
-        build: buildWizard,
-    },
-    {
-        id: 'crowRider',
-        name: 'Crow Rider',
-        cost: 200,
-        unlockCost: 50,
-        footprint: { cols: 5, rows: 2 }, // same pack size as dwarves
-        formation: { cols: 4, rows: 1 }, // a flock of 12 riders, two wide rows
-        meshScale: 4.35, // slightly smaller so the tighter columns don't touch
-        flying: 18,
-        burn: { takenMult: 1 }, // air: burn status ignored while aloft
-        targets: { ground: true, air: true },
-        collisionRadius: 3,
-        colliders: [{ y: 0.1, r: 0.75 }],
-        projectileSpeed: 70,
-        projectileStyle: 'stone',
-        // wide blast vs packed dwarves (3× the ballista's old splash radius of 3)
-        splashRadius: 3,
-        hp: 45,
-        damage: 35,
-        range: 12,
-        attackInterval: 1.1,
-        speed: 8,
-        turnRate: 0.5,
-        turnMove: 'cruise',
-        build: buildCrowRider,
-    },
-    {
-        // Fragile long-range mortar pack; volley of unguided splash stones
-        // with a min-range dead zone (no AA).
-        id: 'mortar',
-        name: 'Mortar',
-        cost: 200,
-        unlockCost: 50,
-        footprint: { cols: 5, rows: 2 }, // same pack pad as dwarves
-        formation: { cols: 4, rows: 1 }, // 4 tubes in a single line
-        meshScale: 1.2, // half of prior 2.4
-        targets: { ground: true, air: false },
-        collisionRadius: 1.5,
-        colliders: [
-            { y: 0.7, r: 0.95 },
-            { y: 1.5, r: 0.55 },
-        ],
-        projectileSpeed: 27, // fallback if fixed-angle solve fails
-        projectileStyle: 'stone',
-        projectileScale: 0.5,
-        projectileBallistic: true,
-        projectileLaunchAngleDeg: 35, // fixed lob; speed scales with range
-        projectileBallisticTimeScale: 2, // same arc, 2× hang — movers can dodge
-        projectileLaunchHeightFrac: 0.82,
-        projectileCount: 5, // barrage per tube
-        projectileTrail: 'cloud',
-        aimSpread: 6.5, // unguided scatter — higher = worse aim (try 4–10)
-        splashRadius: 5.5,
-        splashScar: false, // no ground crater stamp per stone
-        sandWeight: 1.05,
-        deathWear: 'ash',
-        deathAshScorch: { radius: 1, strength: 0.2 },
-        burn: { takenMult: 3.2 }, // timber siege frame
-        hp: 260, // fragile — dies if crawlers/ogres close the gap
-        damage: 24, // per stone; ×5 ≈ 120 / volley / tube
-        range: 92, // longer than ballista — artillery king
-        minRange: 42, // larger dead zone than ballista
-        attackInterval: 5.8,
-        speed: 2.3,
-        turnRate: 1.35,
-        turnMove: 'pivot',
-        build: buildMortar,
-    },
-    {
-        id: 'ballista',
-        name: 'Ballista',
-        cost: 400,
-        unlockCost: 200,
-        hpWithdraw: 400,
-        footprint: { cols: 4, rows: 4 },
-        formation: { cols: 1, rows: 1 },
-        meshScale: 3.2,
-        targets: { ground: true, air: false }, // Sky Bind baked in — bolts can elevate
-        collisionRadius: 2.8,
-        colliders: [{ y: 0.9, r: 1.1 }],
-        projectileSpeed: 50,
-        projectileStyle: 'largeArrow',
-        // cradle sits high on the siege frame — not at the chassis collider mid
-        projectileLaunchHeight: 5.8,
-        projectileBallistic: true,
-        splashRadius: 5, // bolts shatter — everything near the impact takes the hit
-        // heavy chassis would stamp hard from cost/bulk — keep a light track
-        sandWeight: 1.1,
-        deathWear: 'ash', // wood/iron siege — burns, no blood
-        deathAshScorch: { radius: 1, strength: 0.2 },
-        burn: { takenMult: 4.0 }, // timber siege — burns hard once lit
-        hp: 500,
-        damage: 500,
-        range: 84,
-        minRange: 30, // siege dead zone — can't hit foes that close in
-        attackInterval: 3.8,
-        speed: 2.2,
-        turnRate: 1.2,
-        turnMove: 'pivot',
-        build: buildBallista,
-    },
-    {
-        id: 'shield',
-        name: 'Ward Stone',
-        cost: 100,
-        footprint: { cols: 2, rows: 2 },
-        formation: { cols: 1, rows: 1 },
-        meshScale: 1,
-        structure: true,
-        extra: true,
-        burn: { takenMult: 0 },
-        shield: { radius: SHIELD_RADIUS, height: SHIELD_HEIGHT },
-        targets: { ground: false, air: false },
-        collisionRadius: 1.3, // only the emitter pylon blocks walking
-        colliders: [], // nothing can shoot it — it only absorbs crossings
-        hp: 3000, // the absorb pool; refills between rounds if it survives
-        damage: 0,
-        range: 0,
-        attackInterval: 1,
-        speed: 0,
-        build: buildShield,
-    },
-    {
-        id: 'rocket',
-        name: 'Fire Bolt',
-        cost: 50,
-        footprint: { cols: 1, rows: 1 },
-        formation: { cols: 1, rows: 1 },
-        meshScale: 1,
-        structure: true,
-        extra: true,
-        flying: 36, // always at combat altitude (unlike crow riders)
-        rocket: { range: 35, speed: 30, damage: 5000, splash: 8 }, // wipes a close-packed swarm
-        splashRadius: 8, // display only — the blast itself comes from `rocket.splash`
-        // splash + lingering burn + ground fire (oil connected to this ignites)
-        fire: {
-            burn: { dps: 28, duration: 12 },
-            ground: { radius: 8, duration: 20, intensity: 27 },
-        },
-        burn: { takenMult: 0 }, // the bolt itself doesn't cook
-        targets: { ground: true, air: true }, // what it may home onto / hurt
-        collisionRadius: 0.8,
-        colliders: [],
-        hp: 100,
-        damage: 5000,
-        range: 35,
-        attackInterval: 1,
-        speed: 0,
-        build: buildRocket,
-    },
-    // Der Komtur's forest roster — in the catalog for lookup/preload, not shop
-    HORDE_BRUT,
-    HORDE_BRUT_SPAWN,
-    HORDE_WEBWEAVER,
-    HORDE_SPINNE,
-    HORDE_FARMER,
-    HORDE_FARMER_SPAWN,
-    HORDE_KOMTUR,
-    BAT,
-];
 
 /** Mechs in a pack — used for default hpWithdraw derivation. */
 export function formationHeadcount(type: UnitType): number {
@@ -1698,6 +1194,12 @@ export class Unit {
      * leaves him buried in the masonry the moment the keep is upgraded.
      */
     strongholdArcherSlot: number | null = null;
+    /**
+     * The unit this one is mounted on (a battlement archer's keep), by id.
+     * Set when it is placed from the log, so every peer agrees; read by
+     * {@link UnitType.diesWithHost} and by re-seating.
+     */
+    hostUnitId: number | null = null;
     /** towers: down for the rest of the CURRENT battle — no longer a target, debuffs its owner's side */
     destroyed = false;
     /**
@@ -1816,7 +1318,7 @@ export class Unit {
                             );
                         }
                     } else {
-                        type.build(new PartFactory(mesh, team));
+                        buildProcedural(type, new PartFactory(mesh, team));
                     }
                 }
                 mesh.scale.setScalar(type.meshScale);
@@ -1978,8 +1480,9 @@ export class Unit {
             return;
         }
         const klen = knock ? Math.hypot(knock.x, knock.z) : 0;
-        // Wide bases (Stronghold) tip very little — a big lean lifts one side into the air
-        const wide = this.type.collisionRadius >= 4 || this.type.id === 'stronghold';
+        // Wide bases (e.g. the Stronghold, radius 11.4) tip very little — a big
+        // lean lifts one side into the air
+        const wide = this.type.collisionRadius >= 4;
         const tipAmp = wide ? 0.045 : 0.09;
         const tipZ = klen > 1e-6 ? Math.sign(knock!.z || 1) * tipAmp : tipAmp * 0.85;
         const tipX = klen > 1e-6 ? Math.sign(knock!.x || 1) * tipAmp * 0.35 : tipAmp * 0.3;
@@ -2045,7 +1548,10 @@ export class Unit {
             clearBattleTint(m.mesh);
             m.mesh.position.copy(m.home);
             m.mesh.visible = true;
-            if (!this.type.structure) m.mesh.rotation.y = this.facing;
+            // Buildings never turn, but a Hammer of the Gods crush spins the rubble
+            // to a random yaw — without this a hammered tower stood back up still
+            // twisted. Only the rocket extra keeps its own aim.
+            if (!this.type.rocket) m.mesh.rotation.y = this.facing;
             m.mesh.rotation.z = 0; // stand wrecks back up
             m.mesh.rotation.x = 0;
             m.mesh.scale.setScalar(this.visualMeshScale()); // un-squash tower rubble (+ level size)
@@ -2402,7 +1908,7 @@ export function preloadUnitVisuals(
             const heights: Record<string, number> = {};
             for (const type of [...UNIT_TYPES, COMMAND_TOWER, RESEARCH_CENTER, STRONGHOLD]) {
                 const probe = new Group();
-                type.build(new PartFactory(probe, 'player'));
+                buildProcedural(type, new PartFactory(probe, 'player'));
                 const h = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;
                 heights[type.id] = h;
                 // provisional — GLB load overwrites with measured post-normalize height
@@ -2418,7 +1924,7 @@ export function preloadUnitVisuals(
 /** one mech mesh for UI thumbnails — same builders as in-game, preview-sized */
 export function buildUnitPreviewMesh(type: UnitType, team: BattleTeam = 'player'): Group {
     const group = new Group();
-    type.build(new PartFactory(group, team, true));
+    buildProcedural(type, new PartFactory(group, team, true));
     group.scale.setScalar(type.meshScale);
     return group;
 }
@@ -2430,6 +1936,23 @@ export function unitTypeById(id: string): UnitType | null {
     if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
     if (id === STRONGHOLD.id) return STRONGHOLD;
     return UNIT_TYPES.find((t) => t.id === id) ?? null;
+}
+
+/** Does this type offer the given panel action? */
+export function hasAbility(type: UnitType, ability: BuildingAbilityId): boolean {
+    return type.abilities?.includes(ability) === true;
+}
+
+/**
+ * Price of the next post on a garrison building that already has `manned`
+ * units posted — the posted type's cost plus one `priceStep` per earlier post.
+ * Shared by the action and the panel so they can never quote different prices.
+ */
+export function garrisonPostCost(host: UnitType, manned: number): number {
+    const g = host.garrison;
+    if (!g) return Number.POSITIVE_INFINITY;
+    const posted = unitTypeById(g.unitTypeId);
+    return (posted?.cost ?? 0) + g.priceStep * manned;
 }
 
 /** once-per-deployment shop unlock fee — {@link UnitType.unlockCost} */

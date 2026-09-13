@@ -25,12 +25,13 @@ import { actorSeat, actorTeam, type Actor } from './sim';
 import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
 import { projectileAimY } from './units';
 import { THEME } from '../theme';
+import { assetUrl } from './assets';
 
 const MAX_RAYS = 64;
 /** half-width of each lightning card (world units before instance scale) */
 const CORE_HALF_W = 0.28;
 const GLOW_HALF_W = 0.55;
-const TEX_URL = new URL('../../assets/textures/fx/convert-ray-lightning.png', import.meta.url).href;
+const TEX_URL = (): string => assetUrl('textures/fx/convert-ray-lightning.png');
 
 const _pos = new Vector3();
 const _dir = new Vector3();
@@ -100,7 +101,7 @@ export class ConversionFx {
     roster: SeatDef[] = [];
 
     constructor(scene: Scene) {
-        this.texture = new TextureLoader().load(TEX_URL);
+        this.texture = new TextureLoader().load(TEX_URL());
         this.texture.colorSpace = SRGBColorSpace;
         this.texture.wrapS = RepeatWrapping;
         this.texture.wrapT = RepeatWrapping;

@@ -1,0 +1,34 @@
+/**
+ * Mid spider pack — `horde.glb` at 2×. Distant fighters (special attacks later).
+ * Smaller packs than Brut. `buyable: false`.
+ */
+{
+    "id": "hordeWebweaver",
+    "name": "Webweaver",
+    "cost": 200,
+    "hpWithdraw": 12,
+    "buyable": false,
+    "horde": true,
+    "modelId": "horde",
+    // 2× terrain pack area vs original 6×4; same mesh scale
+    "footprint": { "cols": 12, "rows": 8 },
+    "formation": { "cols": 4, "rows": 2 }, // 8 mechs, more spread out
+    "formationSpread": 1.0,
+    "meshScale": 1.0,
+    "burn": { "takenMult": 0.5 },
+    "bloodColor": 9236248 /* 0x8cef18 */,
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 0.7,
+    "colliders": [{ "y": 0.5, "r": 0.75 }],
+    "sandWeight": 0.2,
+    "projectileSpeed": 55,
+    "projectileStyle": "bolt",
+    "corrodeOnHit": { "seconds": 5 },
+    "hp": 210,
+    "damage": 100,
+    "range": 16,
+    "attackInterval": 0.9,
+    "speed": 12,
+    "turnRate": 5,
+    "proceduralModel": "dwarf",
+}

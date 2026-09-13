@@ -1,0 +1,18 @@
+{
+    // Content files (units, buildings, models, packs): autocomplete, hover docs
+    // and inline errors from the schemas generated off the TypeScript types.
+    "json.schemas": [
+        {
+            "fileMatch": ["**/assets/data/units/*.jsonc", "**/assets/data/buildings/*.jsonc", "**/levels/*/data/units/*.jsonc", "**/levels/*/data/buildings/*.jsonc"],
+            "url": "./assets/data/schema/unit.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/models/*.jsonc", "**/levels/*/data/models/*.jsonc"],
+            "url": "./assets/data/schema/model.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/pack.jsonc", "**/levels/*/data/pack.jsonc"],
+            "url": "./assets/data/schema/pack.schema.json"
+        }
+    ]
+}

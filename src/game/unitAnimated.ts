@@ -19,6 +19,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import type { BattleTeam } from './units';
+import { assetUrl } from './assets';
 
 /** Same rest-forward bake as Tripo models in unitModels ( +X → −Z ). */
 const MODEL_FWD_YAW = Math.PI / 2;
@@ -73,18 +74,22 @@ export interface AnimSpec {
 
 /**
  * Melodan rigged units. Clip picks tolerate Tripo/Cascadeur-style `NlaTrack` names.
- * Walk = longer swagger loop; fire = shorter shoot (see archera.glb).
+ * Walk = longer swagger loop; fire = shorter shoot (see archer.glb).
  */
 export const ANIM_SPECS: Record<string, AnimSpec> = {
     archer: {
-        url: new URL('../../assets/models/archera.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/units/archer.glb');
+        },
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         walk: 'longest',
         walkSpeed: 1.5,
         fire: 'shortest',
     },
     hammerer: {
-        url: new URL('../../assets/models/hammerer.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/units/hammerer.glb');
+        },
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         // named clips: preset:biped:walk / preset:biped:fire
         walk: 'walk',
@@ -92,7 +97,9 @@ export const ANIM_SPECS: Record<string, AnimSpec> = {
         fire: 'fire',
     },
     ogre: {
-        url: new URL('../../assets/models/ogre.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/units/ogre.glb');
+        },
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         // Foot align is measured from the walk clip (see footAlign on template) —
         // blended by anim weight so T-pose deploy and run both sit on the marker.

@@ -5,7 +5,7 @@
 import { AdditiveBlending, NormalBlending, type Scene } from 'three';
 import { SoftParticlePool } from './effects';
 import { strongholdFlagAnchorWorld } from './strongholdFlags';
-import { STRONGHOLD, type Unit } from './units';
+import { hasAbility, type Unit } from './units';
 
 export type ForgeGlowMode = 'off' | 'ready';
 
@@ -178,7 +178,7 @@ export class ForgeFx {
 
         const seen = new Set<number>();
         for (const { unit, mode } of targets) {
-            if (unit.type !== STRONGHOLD || unit.destroyed) continue;
+            if (!hasAbility(unit.type, 'forge') || unit.destroyed) continue;
             seen.add(unit.id);
 
             if (mode === 'off') {

@@ -10,14 +10,27 @@ import { getGltfLoader } from '../engine/gltfLoader';
 import { loadSpellTemplate } from './spellMeshes';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import { touchFirstDevice } from './inputCapabilities';
+import { assetUrl } from './assets';
 
 const URLS = {
-    hammer: new URL('../../assets/models/spells/hammer-of-gods.glb', import.meta.url).href,
-    'meteor-great': new URL('../../assets/models/spells/meteor-great.glb', import.meta.url).href,
-    'meteor-shard': new URL('../../assets/models/spells/meteor-shard.glb', import.meta.url).href,
-    storm: new URL('../../assets/models/spells/storm-cloud.glb', import.meta.url).href,
-    poison: new URL('../../assets/models/spells/poison-cloud.glb', import.meta.url).href,
-    dragon: new URL('../../assets/models/spells/dragon.glb', import.meta.url).href,
+    get hammer() {
+        return assetUrl('models/spells/hammer-of-gods.glb');
+    },
+    get 'meteor-great'() {
+        return assetUrl('models/spells/meteor-great.glb');
+    },
+    get 'meteor-shard'() {
+        return assetUrl('models/spells/meteor-shard.glb');
+    },
+    get storm() {
+        return assetUrl('models/spells/storm-cloud.glb');
+    },
+    get poison() {
+        return assetUrl('models/spells/poison-cloud.glb');
+    },
+    get dragon() {
+        return assetUrl('models/spells/dragon.glb');
+    },
 } as const;
 
 export type SpellAssetId = keyof typeof URLS;
