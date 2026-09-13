@@ -19,7 +19,7 @@ import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import { touchFirstDevice } from './inputCapabilities';
 import { attachBuildingSnow, attachBuildingSnowToObject } from './buildingSnow';
-import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
+import { markCrowWingFlapMaterial, type WingFlapData } from './crowWingFlap';
 import type { BattleTeam, UnitType } from './units';
 import type { ModelAnimation } from './unitAnimated';
 import { assetUrl, hasAsset, onAssetOverlaySwitch } from './assets';
@@ -74,6 +74,8 @@ export interface ModelSpec {
     };
     /** Battle animation clips for a rigged model (needs `skinned`). */
     animation?: ModelAnimation;
+    /** Wing-flap shader stroke for a winged model (crow rider, bat, …), defined per model. */
+    wingFlap?: WingFlapData;
 }
 
 function resolveModelSpec(data: ModelSpecData): ModelSpec {
@@ -125,6 +127,16 @@ let structureModelIds: ReadonlySet<string> = structureModelsOf([
     ...BASE_PACK.offRoster,
     ...BASE_PACK.buildings,
 ]);
+
+/** The model's wing-flap stroke, or null for a model without wings. */
+export function wingFlapOf(modelId: string): WingFlapData | null {
+    return MODEL_SPECS[modelId]?.wingFlap ?? null;
+}
+
+/** Does this model flap its wings (has a `wingFlap` stroke)? */
+export function usesWingFlapModel(modelId: string): boolean {
+    return MODEL_SPECS[modelId]?.wingFlap !== undefined;
+}
 
 /**
  * Buildings are the types with `structure: true` — nothing else decides it.

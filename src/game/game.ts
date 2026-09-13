@@ -186,9 +186,9 @@ import {
     tickBuildingCollapse,
     type BuildingCollapseState,
 } from './buildingCollapse';
-import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay, usesWingFlapModel } from './crowWingFlap';
+import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay } from './crowWingFlap';
 import { GROUND_UNIT_Y, setCloseCameraY } from './groundQuality';
-import { modelGeometryFingerprint } from './unitModels';
+import { modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import type { Weather } from './weather';
@@ -9012,7 +9012,7 @@ export class Game {
             // flames die with the battle; remaining oil (unburned) carries over
             this.oilField.adoptOilFrom(this.sim.hazards);
             this.applyBattleResult(this.sim);
-            freezeAllCrowWingRates(this.placement.allUnits());
+            freezeAllCrowWingRates(this.placement.allUnits(), usesWingFlapModel);
             if (
                 !this.hydrating &&
                 built.sources.length > 0 &&

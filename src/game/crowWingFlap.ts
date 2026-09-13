@@ -8,16 +8,6 @@ import {
     MeshStandardMaterial,
 } from 'three';
 
-export const CROW_RIDER_MODEL_ID = 'crowRider';
-export const BAT_MODEL_ID = 'bat';
-
-/** Instanced / showcase units that use the crow-style wing-flap shader. */
-const WING_FLAP_MODEL_IDS = new Set<string>([CROW_RIDER_MODEL_ID, BAT_MODEL_ID]);
-
-export function usesWingFlapModel(modelId: string): boolean {
-    return WING_FLAP_MODEL_IDS.has(modelId);
-}
-
 /** Shared clock for all crow-rider wing pools. */
 const wingTimeUniform = { value: 0 };
 
@@ -95,6 +85,36 @@ export interface WingParams {
     softYFrac?: number;
 }
 
+/**
+ * A winged model's flap stroke (`"wingFlap"` in `assets/data/models/<id>.jsonc`).
+ * Defined per model — each bird type gets its own stroke. Wing radii and
+ * heights are measured from the mesh; these shape the motion on top.
+ */
+export interface WingFlapData {
+    /** Wings along ±X flap around Z (default); wings along ±Z flap around X. */
+    axis?: WingFlapAxis;
+    /** Stroke amplitude in radians at the tip (default 0.88). */
+    flapAmp?: number;
+    /** Flap speed at full rate, radians of phase per second (default 10.5). */
+    flapSpeed?: number;
+    /** Negative centers the stroke below the model's rest pose (default -0.28). */
+    flapBias?: number;
+    /** Shoulder motion as a fraction of tip motion (default 0.36). */
+    tipFloor?: number;
+    /** Curve exponent: lower moves mid-wing more, higher is tip-only whip (default 1.32). */
+    tipPower?: number;
+    /** Hinge as a fraction of the wing's outer radius (default 0.22). */
+    innerRFrac?: number;
+    /** Wing mask starts this fraction up from the model's floor (default 0.22). */
+    minYFrac?: number;
+    /** Wing mask cuts this fraction off the model's top (default 0.04). */
+    maxYCutFrac?: number;
+    /** Scale on the measured outer radius; >1 includes drooping tips (default 0.98). */
+    outerRScale?: number;
+    /** Soft fade outside the height band, as a fraction of model height (default 0.03). */
+    softYFrac?: number;
+}
+
 export interface WingFlapAttachOpts {
     /** Instanced units vs a single Mesh (spell FX). Default `instanced`. */
     mode?: 'instanced' | 'mesh';
@@ -122,39 +142,11 @@ export const DRAGON_WING_FLAP: WingFlapAttachOpts = {
     },
 };
 
-/** Homepage / non-instanced crow preview — same stroke as battle crow defaults. */
-export const CROW_SHOWCASE_WING_FLAP: WingFlapAttachOpts = {
-    mode: 'mesh',
-    flapAxis: 'z',
-};
-
-/**
- * Bats: ~3× flap rate vs crow, hinge closer to the body so more of the torso
- * rides the stroke (crow riders keep the tip-heavy defaults above).
- */
-export const BAT_WING_FLAP: WingFlapAttachOpts = {
-    mode: 'instanced',
-    flapAxis: 'z',
-    params: {
-        flapSpeed: 10.5 * 3, // 3× crow default
-        flapAmp: 0.95,
-        flapBias: -0.32,
-        tipFloor: 0.55, // more shoulder / body motion
-        tipPower: 0.95, // less tip-only whip
-        innerRFrac: 0.08, // hinge near center — body flexes with the wings
-        minYFrac: 0.06, // include more of the torso in the wing mask
-        maxYCutFrac: 0.02,
-        softYFrac: 0.05,
-        outerRScale: 1.02,
-    },
-};
-
-/** Showcase / model-viewer bat — same stroke as battle bats. */
-export const BAT_SHOWCASE_WING_FLAP: WingFlapAttachOpts = {
-    mode: 'mesh',
-    flapAxis: 'z',
-    params: BAT_WING_FLAP.params,
-};
+/** Attach options for a model's data stroke: instanced battle pools or a single showcase mesh. */
+function wingFlapOpts(data: WingFlapData, mode: 'instanced' | 'mesh'): WingFlapAttachOpts {
+    const { axis, ...params } = data;
+    return { mode, flapAxis: axis ?? 'z', params };
+}
 
 /** Hovering in air — fraction of full {@link CROW_WING_FLY_RATE}. */
 export const CROW_WING_HOVER_RATE = 0.25;
@@ -223,9 +215,10 @@ export function setCrowWingDeathSplay(proxy: { userData: Record<string, unknown>
 /** Stop all winged-unit flap motion (battle end, souls phase — like deployment). */
 export function freezeAllCrowWingRates(
     units: Iterable<{ members: { mesh: Group }[]; type: { modelId?: string; id: string } }>,
+    isWinged: (modelId: string) => boolean,
 ): void {
     for (const unit of units) {
-        if (!usesWingFlapModel(unit.type.modelId ?? unit.type.id)) continue;
+        if (!isWinged(unit.type.modelId ?? unit.type.id)) continue;
         for (const m of unit.members) {
             if (m.mesh.userData.dead) continue;
             setCrowWingRateOnProxy(m.mesh, 0);
@@ -253,7 +246,7 @@ export function preserveCrowWingFlap(src: MeshStandardMaterial, dst: MeshStandar
 /**
  * Inject a vertex-shader wing flap into MeshStandardMaterial. Uses radial
  * distance + height to mask wing verts in baked model space.
- * Crow riders: {@link attachCrowWingFlap}. Dragon spell: {@link DRAGON_WING_FLAP}.
+ * Winged units: {@link attachInstancedWingFlap}. Dragon spell: {@link DRAGON_WING_FLAP}.
  */
 export function attachWingFlap(
     material: MeshStandardMaterial,
@@ -408,22 +401,13 @@ ${wrapEnd}`,
     material.needsUpdate = true;
 }
 
-/** Crow-rider instanced path (unchanged call sites). */
-export function attachCrowWingFlap(material: MeshStandardMaterial, geometry: BufferGeometry): void {
-    attachWingFlap(material, geometry, { mode: 'instanced', flapAxis: 'z' });
-}
-
-/** Instanced flap for a winged model id — bats get {@link BAT_WING_FLAP}, else crow. */
-export function attachWingFlapForModel(
-    modelId: string,
+/** Instanced battle flap with a model's own stroke. */
+export function attachInstancedWingFlap(
+    data: WingFlapData,
     material: MeshStandardMaterial,
     geometry: BufferGeometry,
 ): void {
-    if (modelId === BAT_MODEL_ID) {
-        attachWingFlap(material, geometry, BAT_WING_FLAP);
-        return;
-    }
-    attachCrowWingFlap(material, geometry);
+    attachWingFlap(material, geometry, wingFlapOpts(data, 'instanced'));
 }
 
 /** Drive non-instanced flap (dragon). No-op if material was not attached in mesh mode. */
@@ -453,54 +437,24 @@ export function attachDragonWingFlap(root: Group, phase = randomWingPhase()): vo
     });
 }
 
-/** Non-instanced crow (homepage showcase) — flaps at full fly rate. */
-export function attachCrowShowcaseWingFlap(
+/** Non-instanced winged model (model viewer / showcase) with its own stroke, at fly rate. */
+export function attachShowcaseWingFlap(
+    data: WingFlapData,
     root: Group,
     rate = CROW_WING_FLY_RATE,
     phase = randomWingPhase(),
 ): void {
+    const opts = wingFlapOpts(data, 'mesh');
     root.traverse((o) => {
         const mesh = o as Mesh;
         if (!mesh.isMesh || !mesh.geometry) return;
         const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         for (const m of mats) {
             if (!(m instanceof MeshStandardMaterial)) continue;
-            attachWingFlap(m, mesh.geometry, CROW_SHOWCASE_WING_FLAP);
+            attachWingFlap(m, mesh.geometry, opts);
             setMeshWingFlap(m, { phase, rate, rest: 0 });
         }
     });
-}
-
-/** Non-instanced bat showcase — fast body-inclusive stroke. */
-export function attachBatShowcaseWingFlap(
-    root: Group,
-    rate = CROW_WING_FLY_RATE,
-    phase = randomWingPhase(),
-): void {
-    root.traverse((o) => {
-        const mesh = o as Mesh;
-        if (!mesh.isMesh || !mesh.geometry) return;
-        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        for (const m of mats) {
-            if (!(m instanceof MeshStandardMaterial)) continue;
-            attachWingFlap(m, mesh.geometry, BAT_SHOWCASE_WING_FLAP);
-            setMeshWingFlap(m, { phase, rate, rest: 0 });
-        }
-    });
-}
-
-/** Showcase flap for any winged model id. */
-export function attachShowcaseWingFlapForModel(
-    modelId: string,
-    root: Group,
-    rate = CROW_WING_FLY_RATE,
-    phase = randomWingPhase(),
-): void {
-    if (modelId === BAT_MODEL_ID) {
-        attachBatShowcaseWingFlap(root, rate, phase);
-        return;
-    }
-    attachCrowShowcaseWingFlap(root, rate, phase);
 }
 
 /** Add per-instance wing phase + rate attributes to a crow-rider InstancedMesh. */

@@ -79,7 +79,8 @@ try {
     console.log(
         `ok   units.ts resolves ${units.BASE_TYPES.roster.length} roster types; ` +
             `unitModels.ts resolves ${Object.keys(models.MODEL_SPECS).length} model specs; ` +
-            `unitAnimated.ts rigs ${Object.keys(anim.ANIM_SPECS).sort().join(', ')}`,
+            `unitAnimated.ts rigs ${Object.keys(anim.ANIM_SPECS).sort().join(', ')}; ` +
+            `wings flap on ${Object.keys(models.MODEL_SPECS).filter(models.usesWingFlapModel).sort().join(', ')}`,
     );
 
     // ---- level overlays: replacement by path, report, hash, data validation

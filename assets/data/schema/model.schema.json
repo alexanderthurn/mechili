@@ -74,6 +74,10 @@
         "animation": {
           "$ref": "#/definitions/ModelAnimation",
           "description": "Battle animation clips for a rigged model (needs `skinned`)."
+        },
+        "wingFlap": {
+          "$ref": "#/definitions/WingFlapData",
+          "description": "Wing-flap shader stroke for a winged model (crow rider, bat, …), defined per model."
         }
       },
       "required": [
@@ -209,6 +213,65 @@
         }
       ],
       "description": "Pick a clip when the exporter names them uselessly (NlaTrack / NlaTrack.001). `longest` / `shortest` by duration; or a substring of the clip name; or index."
+    },
+    "WingFlapData": {
+      "type": "object",
+      "properties": {
+        "axis": {
+          "$ref": "#/definitions/WingFlapAxis",
+          "description": "Wings along ±X flap around Z (default); wings along ±Z flap around X."
+        },
+        "flapAmp": {
+          "type": "number",
+          "description": "Stroke amplitude in radians at the tip (default 0.88)."
+        },
+        "flapSpeed": {
+          "type": "number",
+          "description": "Flap speed at full rate, radians of phase per second (default 10.5)."
+        },
+        "flapBias": {
+          "type": "number",
+          "description": "Negative centers the stroke below the model's rest pose (default -0.28)."
+        },
+        "tipFloor": {
+          "type": "number",
+          "description": "Shoulder motion as a fraction of tip motion (default 0.36)."
+        },
+        "tipPower": {
+          "type": "number",
+          "description": "Curve exponent: lower moves mid-wing more, higher is tip-only whip (default 1.32)."
+        },
+        "innerRFrac": {
+          "type": "number",
+          "description": "Hinge as a fraction of the wing's outer radius (default 0.22)."
+        },
+        "minYFrac": {
+          "type": "number",
+          "description": "Wing mask starts this fraction up from the model's floor (default 0.22)."
+        },
+        "maxYCutFrac": {
+          "type": "number",
+          "description": "Wing mask cuts this fraction off the model's top (default 0.04)."
+        },
+        "outerRScale": {
+          "type": "number",
+          "description": "Scale on the measured outer radius; >1 includes drooping tips (default 0.98)."
+        },
+        "softYFrac": {
+          "type": "number",
+          "description": "Soft fade outside the height band, as a fraction of model height (default 0.03)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "A winged model's flap stroke (`\"wingFlap\"` in `assets/data/models/<id>.jsonc`). Defined per model — each bird type gets its own stroke. Wing radii and heights are measured from the mesh; these shape the motion on top."
+    },
+    "WingFlapAxis": {
+      "type": "string",
+      "enum": [
+        "z",
+        "x"
+      ],
+      "description": "Wings along ±X → flap with local Z rotation (crow). Wings along ±Z → X rotation (dragon, +X forward)."
     }
   },
   "allowComments": true,

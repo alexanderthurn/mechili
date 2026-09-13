@@ -1,1 +1,16 @@
-{ "file": "models/units/crow-rider.glb" }
+{
+    "file": "models/units/crow-rider.glb",
+    // tip-heavy stroke: wings whip at the ends, the rider's body stays steady
+    "wingFlap": {
+        "flapAmp": 0.88,
+        "flapSpeed": 10.5,
+        "flapBias": -0.28, // rest pose is already high — dip about as far as it rises
+        "tipFloor": 0.36,
+        "tipPower": 1.32,
+        "innerRFrac": 0.22,
+        "minYFrac": 0.22,
+        "maxYCutFrac": 0.04,
+        "outerRScale": 0.98,
+        "softYFrac": 0.03,
+    },
+}

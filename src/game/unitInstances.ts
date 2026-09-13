@@ -9,7 +9,7 @@ import {
 } from 'three';
 import { HORDE_COLOR, LEVEL_TINT_COLORS, applyLevelTintColor, levelTintMultiplier } from './colors';
 import {
-    attachWingFlapForModel,
+    attachInstancedWingFlap,
     preserveCrowWingFlap,
     randomWingPhase,
     setCrowWingPhase,
@@ -22,9 +22,15 @@ import {
     swapCrowWingRest,
     swapCrowWingBodyRoll,
     updateCrowWingFlap,
-    usesWingFlapModel,
 } from './crowWingFlap';
-import { getUnitInstanceAsset, hasUnitInstanceAsset, isStructureModel, type InstancePart } from './unitModels';
+import {
+    getUnitInstanceAsset,
+    hasUnitInstanceAsset,
+    isStructureModel,
+    usesWingFlapModel,
+    wingFlapOf,
+    type InstancePart,
+} from './unitModels';
 import { attachBuildingSnow } from './buildingSnow';
 import { prefs, type Prefs } from './prefs';
 import type { BattleTeam } from './units';
@@ -439,9 +445,10 @@ function unitShadowCast(typeId: string, tier: Prefs['shadows']): boolean {
 function makeInstanced(part: InstancePart, typeId: string, team: BattleTeam): InstancedMesh {
     const mat = part.material.clone();
     if (part.material.userData.wantsBuildingSnow) attachBuildingSnow(mat);
-    if (part.material.userData.wantsCrowWingFlap) {
+    const wingFlap = part.material.userData.wantsCrowWingFlap ? wingFlapOf(typeId) : null;
+    if (wingFlap) {
         preserveCrowWingFlap(part.material, mat);
-        attachWingFlapForModel(typeId, mat, part.geometry);
+        attachInstancedWingFlap(wingFlap, mat, part.geometry);
     }
     // Level hue is per-instance now (see levelTintMultiplier) — nothing here.
     // the neutral horde reads as its own faction: dye its pools pink

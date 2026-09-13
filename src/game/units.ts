@@ -80,12 +80,12 @@ import {
     loadUnitModels,
     proceduralModelHeights,
     setProceduralModelHeights,
+    usesWingFlapModel,
 } from './unitModels';
 import {
     computeCrowWingRate,
     setCrowWingRateOnProxy,
     setCrowWingRestOnProxy,
-    usesWingFlapModel,
 } from './crowWingFlap';
 import { cloneAnimatedModel, hasAnimatedModel, loadAnimatedModels, resetAnimatedUnit } from './unitAnimated';
 import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
