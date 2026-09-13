@@ -2582,6 +2582,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-test-battle .tb-headline { font-size: 16px; font-weight: 700; }
 .mechili-test-battle .tb-side { border-inline-start: 4px solid var(--se-team); padding-inline-start: 6px; }
 .mechili-test-battle:not(.done) .tb-result { display: none; }
+.mechili-test-battle.done .tb-skip { display: none; }
 
 /* suggest chip, inline-start of the main menu (same feel as username) */
 .mechili-suggest-btn {

@@ -2977,6 +2977,7 @@ export class Game {
             this.testBattleBar = new TestBattleBar(wrapper, {
                 onBack: () => this.onScenarioEditor?.('author', draft),
                 onAgain: () => this.onScenarioEditor?.('test', draft),
+                onSkip: () => this.skipTestBattle(),
             });
             return;
         }
@@ -3022,6 +3023,17 @@ export class Game {
             },
             draft,
         );
+    }
+
+    /** a test battle straight to its result (the sim runs headless, then the board shows how it ended) */
+    private skipTestBattle(): void {
+        if (this.editorMode !== 'test' || this.phase !== 'battle' || !this.sim) return;
+        while (!this.sim.finished) {
+            this.sim.update(0.25);
+            this.sim.consumeEvents();
+        }
+        this.sim.syncMeshes();
+        this.endBattlePhase();
     }
 
     /** author mode: the board again from a draft — everything placed goes, the draft's scene comes back */

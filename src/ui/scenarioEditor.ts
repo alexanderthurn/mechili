@@ -1004,17 +1004,19 @@ export interface TestBattleSummary {
 export class TestBattleBar {
     private readonly root: HTMLDivElement;
 
-    constructor(wrapper: HTMLElement, cb: { onBack(): void; onAgain(): void }) {
+    constructor(wrapper: HTMLElement, cb: { onBack(): void; onAgain(): void; onSkip(): void }) {
         this.root = document.createElement('div');
         this.root.className = 'mechili-test-battle';
         this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
         this.root.innerHTML =
             `<div class="tb-row"><span class="tb-title">${t('editor:testBattle', { defaultValue: 'Test battle' })}</span>` +
+            `<button type="button" class="tb-skip">${t('editor:skipToResult', { defaultValue: 'Skip to result' })}</button>` +
             `<button type="button" class="tb-again">${t('editor:runAgain', { defaultValue: 'Run again' })}</button>` +
             `<button type="button" class="tb-back">${t('editor:backToEditor', { defaultValue: 'Back to editor' })}</button></div>` +
             `<div class="tb-result"></div>`;
         this.root.querySelector('.tb-back')!.addEventListener('click', () => cb.onBack());
         this.root.querySelector('.tb-again')!.addEventListener('click', () => cb.onAgain());
+        this.root.querySelector('.tb-skip')!.addEventListener('click', () => cb.onSkip());
         wrapper.appendChild(this.root);
     }
 
