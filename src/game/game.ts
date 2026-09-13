@@ -11047,7 +11047,11 @@ export class Game {
         }
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const selected = techsForUnit(u.type, this.types, this.loadoutOf(u.seat));
-        const slotsN = techSlotLimit(u.type);
+        // the editor's sandbox shows every talent the type has, not only the slot count
+        const slotsN =
+            this.editorMode === 'author' && u.seat === this.humanSeat
+                ? Math.max(techSlotLimit(u.type), selected.length)
+                : techSlotLimit(u.type);
         const owned = this.intelTechOwned(u);
         const ownedCount = owned.size;
         const bal = this.economy.balance(u.seat);

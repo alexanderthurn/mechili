@@ -131,10 +131,10 @@ validation runs against the match's registry. See §14.2.
 
 Under **Single Player**:
 
-1. **Editor** — opens the last draft (or an empty board).
-2. **Scenarios** — the scenarios this client has (bundled, saved from the
-   editor, received from a host, kept in the scenario cache) → **Play**.
-   Import from a share code or, in web builds only, a zip.
+1. **Scenarios** — the scenarios this client has (saved from the editor or
+   a replay, received from a host, kept in the scenario cache) → **Play**,
+   **Edit**, **Delete**. Later: bundled scenarios, share codes.
+2. **Editor** — opens the last draft (or an empty board).
 
 A future **Campaign** entry loads bundled scenarios in order through the same
 play path.
@@ -776,22 +776,49 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
    optional `meta.jsonc` (validated, not played); a lone root
    `scenario.jsonc` still works. Kept
    scenarios are listed in the Custom Game test row.
-3. **Editor core:** author mode, place / move / erase, team brush, placing
-   any unit or building type for player / enemy / horde (incl. horde-owned
-   buildings), draft autosave, restart on map change.
-   *First pass implemented* (web: Custom Game → "Scenario editor"): author
-   mode rebuilds the board from the draft on every edit (select / drag to
-   move, place with footprint preview, erase, rotate, level −/+ for packs and
-   base buildings, team brush, base buildings per side, clear team, map
-   presets with restart, undo/redo that survives restarts, autosave in
-   `localStorage`, zip download). **Test battle** pulled forward from phase 5:
-   both sides lock in, one fight, a result strip (outcome, packs / units
-   standing) with Run again and Back to editor. In editor matches commanders
-   `pick` become `none`, opponents only lock in, intel is visible. Not yet:
-   copy/paste, mirror, horde-owned building behaviour checks.
-4. **Inspector:** levels, runes, side talents, buildings.
-5. **Test Battle + win-rate runs** (local only) — the unit-testing use case.
-6. **Scenario panel + library:** rules UI, presets, share codes.
+3. **Editor core — implemented as a sandbox deployment** (decision
+   2026-09-14, after the first pass): the editor is a normal build phase in
+   the normal game UI, the way Mechabellum's editor works, plus a floating
+   editor window for what a player can't do.
+   - Entry: **Single Player → Editor** (web and desktop); opens the autosaved
+     draft on the level it was made on.
+   - Author mode: every buyable unit unlocked, purchases free
+     (`Economy.free` + a 99 999 purse), no deploy caps, flanks and middle
+     strip open, every talent a type has teachable (open loadout, all talent
+     tiles shown), no clock (∞), no horde waves / round cards / AI turns.
+   - The board is read back into the draft after every game-UI action
+     (`captureScene`); the window's own edits change the draft and rebuild
+     the board (`rebuildScenarioBoard`). Undo/redo are draft snapshots and
+     survive restarts (test battle, board size).
+   - Window tools: **Game UI** (default), **Move** (drag anything: enemy,
+     horde, earlier placements), **Place** (any unit or building type for
+     player / enemy / horde, footprint preview), **Erase**; level −/+ and
+     delete for the selection (`[` `]`, Del), rotate (R).
+   - **Switch side** (Tab): the enemy side is built with the same game UI on
+     a turned-around view (`swapSides`); the draft stays canonical and the
+     match always runs as the player.
+   - **Copy army to the other side** (`mirrorSide`), clear side / horde,
+     board presets, base buildings per side.
+   - **Rules** section: side HP, commander (none / pick / fixed + army),
+     computer (fights as placed / builds), income, deploy caps, strip opening
+     rounds, round cards, horde waves, stronghold mode, enemy intel,
+     atmosphere, shop units, round unlock, seed, description.
+   - Horde packs may stand in the forest ring (`HORDE_MARGIN_CELLS` = 32
+     tiles past the board).
+   - **Test battle** (or End Deployment): both sides fight as placed, one
+     battle, a strip with the outcome, packs / units standing and HP damage,
+     Run again / Back to editor. **Play**: the draft as a real scenario (you
+     build under its rules), back to the editor afterwards. **Save** keeps a
+     package in the scenario cache; **Download zip** in web builds.
+   - Not yet: copy/paste, horde-owned building behaviour checks, tags and
+     objectives, share codes.
+4. **Inspector:** covered by the game UI (levels via the window, runes,
+   talents, tower upgrades and garrison posts through the normal panels).
+5. **Test battle — done** (above). Win-rate runs dropped: battles are fully
+   deterministic, the same board always gives the same result.
+6. **Scenario library — first pass done:** **Single Player → Scenarios**
+   lists every package with scenarios (session + cache, `meta.jsonc` order)
+   with Play / Edit / Delete. Not yet: share codes, bundled scenarios.
 7. **Regression-test harness** (§9.3).
 8. Later: objectives (§6.7), campaign mode (§9.4).
 
