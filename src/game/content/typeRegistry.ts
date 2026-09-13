@@ -11,7 +11,7 @@
  * Only type imports from the game here: units.ts builds `BASE_TYPES` from this
  * module.
  */
-import type { UnitType } from '../units';
+import type { TechDef, UnitType } from '../units';
 import type { ModelSpecData } from '../unitModels';
 import type { BasePack } from './basePack';
 
@@ -29,8 +29,11 @@ export class TypeRegistry {
      * extras, no structures, nothing marked `buyable: false`.
      */
     readonly shopUnitIds: readonly string[];
+    /** talent catalog by id */
+    readonly talents: ReadonlyMap<string, TechDef>;
 
     private readonly index: ReadonlyMap<string, UnitType>;
+    private readonly talentsByType = new Map<string, readonly TechDef[]>();
 
     constructor(pack: BasePack) {
         this.roster = pack.roster;
@@ -41,6 +44,27 @@ export class TypeRegistry {
         this.shopUnitIds = pack.roster
             .filter((t) => !t.extra && !t.structure && t.buyable !== false)
             .map((t) => t.id);
+        this.talents = new Map(Object.entries(pack.talents));
+    }
+
+    /** a talent by id — null for an unknown id (a stale loadout, a peer's typo) */
+    talent(id: string): TechDef | null {
+        return this.talents.get(id) ?? null;
+    }
+
+    /**
+     * Every talent this type can ever own: innate first, then its pickable
+     * `talents`, deduplicated. Combat effects scan this list and ask the seat
+     * which of them it owns.
+     */
+    talentsOf(type: UnitType): readonly TechDef[] {
+        let list = this.talentsByType.get(type.id);
+        if (!list) {
+            const ids = new Set([...(type.innateTechs ?? []), ...(type.talents ?? [])]);
+            list = [...ids].map((id) => this.talents.get(id)).filter((t): t is TechDef => t !== undefined);
+            this.talentsByType.set(type.id, list);
+        }
+        return list;
     }
 
     /** every type: roster, off-roster and buildings */

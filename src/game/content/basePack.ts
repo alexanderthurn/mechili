@@ -1,5 +1,5 @@
 /**
- * The base game's definitions: units, buildings and model specs loaded from
+ * The base game's definitions: units, buildings, model specs and talents loaded from
  * `assets/data/**.jsonc` (plan §17). Bundled by Vite — read once, synchronously,
  * when this module loads.
  *
@@ -11,7 +11,7 @@
  * Only type imports from the game here: `units.ts` builds its tables from this
  * module, so a runtime import back into it would be a cycle.
  */
-import type { UnitType } from '../units';
+import type { TechDef, UnitType } from '../units';
 import type { ModelSpecData } from '../unitModels';
 import { parseJsonc } from './jsonc';
 import { validateSchema, type JsonSchema } from './schema';
@@ -23,10 +23,12 @@ import { validateSchema, type JsonSchema } from './schema';
 import unitSchemaJson from '../../../assets/data/schema/unit.schema.json';
 import modelSchemaJson from '../../../assets/data/schema/model.schema.json';
 import packSchemaJson from '../../../assets/data/schema/pack.schema.json';
+import talentSchemaJson from '../../../assets/data/schema/talent.schema.json';
 
 const UNIT_SCHEMA = unitSchemaJson as unknown as JsonSchema;
 const MODEL_SCHEMA = modelSchemaJson as unknown as JsonSchema;
 const PACK_SCHEMA = packSchemaJson as unknown as JsonSchema;
+const TALENT_SCHEMA = talentSchemaJson as unknown as JsonSchema;
 
 // ------------------------------------------------------------------ files
 
@@ -52,6 +54,8 @@ export interface BasePack {
     buildings: UnitType[];
     /** keyed by model id (the file name) */
     models: Record<string, ModelSpecData>;
+    /** talent catalog, keyed by id (the file name) */
+    talents: Record<string, TechDef>;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -61,7 +65,12 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 /** Parse and validate a whole pack from `path → raw text`. Throws one error listing every problem. */
 export function loadPack(files: Record<string, string>, label: string): BasePack {
     const errors: string[] = [];
-    const byFolder = { units: new Map<string, unknown>(), buildings: new Map<string, unknown>(), models: new Map<string, unknown>() };
+    const byFolder = {
+        units: new Map<string, unknown>(),
+        buildings: new Map<string, unknown>(),
+        models: new Map<string, unknown>(),
+        talents: new Map<string, unknown>(),
+    };
     let manifest: PackManifest | null = null;
 
     for (const [path, text] of Object.entries(files)) {
@@ -84,7 +93,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
         const folder = parts[2] as keyof typeof byFolder;
         const name = parts[3]?.replace(/\.jsonc$/, '');
         if (parts.length !== 4 || !(folder in byFolder) || !name) {
-            errors.push(`${rel}: unexpected file (expected data/units, data/buildings or data/models/<id>.jsonc)`);
+            errors.push(`${rel}: unexpected file (expected data/<units|buildings|models|talents>/<id>.jsonc)`);
             continue;
         }
         byFolder[folder].set(name, data);
@@ -157,10 +166,53 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
         models[id] = data as unknown as ModelSpecData;
     }
 
+    // catalogs: every file in the folder is an entry, its id is the file name
+    const catalog = <T>(folder: 'talents', schema: JsonSchema): Record<string, T> => {
+        const out: Record<string, T> = {};
+        for (const [id, data] of [...byFolder[folder]].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+            const where = `${label}/data/${folder}/${id}.jsonc`;
+            if (!isRecord(data)) {
+                errors.push(`${where}: must be an object`);
+                continue;
+            }
+            for (const e of validateSchema(schema, data)) errors.push(`${where}: ${e}`);
+            if (data.id !== id) errors.push(`${where}: "id" is ${JSON.stringify(data.id)} but the file is named "${id}"`);
+            out[id] = data as unknown as T;
+        }
+        return out;
+    };
+    const talents = catalog<TechDef>('talents', TALENT_SCHEMA);
+
+    // references between files: a typo in an id must fail here, not in a match
+    const typeIds = new Set([...roster, ...offRoster, ...buildings].map((t) => t.id));
+    for (const type of [...roster, ...offRoster, ...buildings]) {
+        const folder = buildings.includes(type) ? 'buildings' : 'units';
+        const where = `${label}/data/${folder}/${type.id}.jsonc`;
+        for (const [field, ids] of [
+            ['talents', type.talents],
+            ['innateTechs', type.innateTechs],
+        ] as const) {
+            for (const id of ids ?? []) {
+                if (!(id in talents)) errors.push(`${where}: "${field}" names "${id}" but data/talents/${id}.jsonc does not exist`);
+            }
+        }
+        const auraTalent = type.aura?.requiresTech;
+        if (auraTalent !== undefined && !(auraTalent in talents)) {
+            errors.push(`${where}: "aura.requiresTech" names "${auraTalent}" but data/talents/${auraTalent}.jsonc does not exist`);
+        }
+    }
+    for (const [id, talent] of Object.entries(talents)) {
+        for (const spawn of [talent.produce?.typeId, talent.onKill?.typeId]) {
+            if (spawn !== undefined && !typeIds.has(spawn)) {
+                errors.push(`${label}/data/talents/${id}.jsonc: spawns "${spawn}", which is no unit or building`);
+            }
+        }
+    }
+
     if (errors.length > 0) {
         throw new Error(`[content:${label}] ${errors.length} problem(s):\n  ${errors.join('\n  ')}`);
     }
-    return { roster, offRoster, buildings, models };
+    return { roster, offRoster, buildings, models, talents };
 }
 
 /** The bundled base game. */

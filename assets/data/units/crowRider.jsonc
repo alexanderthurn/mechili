@@ -23,4 +23,6 @@
     "turnRate": 0.5,
     "turnMove": "cruise",
     "proceduralModel": "crowRider",
+    "talents": ["engines", "stingers", "aegis"],
+    "talentSlots": 3, // engines + stingers + aegis (slots must cover the list)
 }

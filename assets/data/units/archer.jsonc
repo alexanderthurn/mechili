@@ -21,4 +21,6 @@
     "speed": 3.5,
     "turnRate": 6,
     "proceduralModel": "archer",
+    "talents": ["barrel", "ap", "fireArrows"],
+    "talentSlots": 3,
 }

@@ -48,7 +48,8 @@ already ~70% present — this is mostly wiring plus a picker.
 ### 1a. What already exists
 
 `src/game/techCatalog.ts` already has the whole catalog and the shape of
-the feature:
+the feature (since moved to data: talents are `assets/data/talents/<id>.jsonc`,
+the allowlist and slot caps are `talents` / `talentSlots` on each unit type):
 
 - `TECHS` — every talent, with cost/mods/icon/fire/produce/onKill/cleave.
 - `UNIT_TECH_ALLOWLIST` — which talent ids each unit type may take.

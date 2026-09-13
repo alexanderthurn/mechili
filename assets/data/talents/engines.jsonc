@@ -1,0 +1,7 @@
+{
+    "id": "engines",
+    "name": "Gale Wings",
+    "cost": 150,
+    "mods": { "speed": 1.3 },
+    "icon": "tech-gale-wings",
+}

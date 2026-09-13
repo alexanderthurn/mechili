@@ -1,0 +1,10 @@
+// Fantasy Rhino Whirlwind — widens melee cleave disk.
+{
+    "id": "whirlwind",
+    "name": "Whirlwind",
+    "cost": 150,
+    "mods": {},
+    "cleave": { "radius": 7 },
+    "icon": "tech-wide-blast",
+    "description": "Wider cleave — hits every enemy in a large disk around this unit.",
+}

@@ -31,4 +31,7 @@
     "turnRate": 4, // heavy body — was 9 (too snappy for a big melee)
     "sandWeight": 1.5,
     "proceduralModel": "ogre",
+    // Rhino pivots
+    "talents": ["whirlwind", "bloodRage", "carapace"],
+    "talentSlots": 2,
 }

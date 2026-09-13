@@ -252,7 +252,7 @@ import {
 } from './tactics';
 import { TechTree, effectiveTargets, effectiveFlying } from './tech';
 import { activeLoadout, randomLoadout } from './loadouts';
-import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById, type Loadout } from './techCatalog';
+import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
     BASE_TYPES,
@@ -1396,7 +1396,7 @@ export class Game {
         this.roundCardTaken = this.seats.map(() => false);
         this.speciality = this.seats.map(() => null);
         this.flankSpawnMult = this.seats.map(() => 1);
-        this.techTree = new TechTree(this.seats.length);
+        this.techTree = new TechTree(this.seats.length, this.types);
         this.forgeSlots.player = emptyForgeSlots(
             forgeTeamCapacity(seatIdsOf(this.seats, 'player').length),
         );
@@ -1789,7 +1789,7 @@ export class Game {
         // world tech icons — phase-start intel while fogged, live after reveal
         this.placement.ownedTechIcons = (unit) => {
             if (unit.type.structure) return [];
-            const selected = techsForUnit(unit.type.id, this.loadoutOf(unit.seat));
+            const selected = techsForUnit(unit.type, this.types, this.loadoutOf(unit.seat));
             if (selected.length === 0) return [];
             const owned = this.intelTechOwned(unit);
             return selected.filter((t) => owned.has(t.id)).map((t) => techIcon(t));
@@ -1851,7 +1851,7 @@ export class Game {
             new Map(
                 this.types.roster.filter((t) => !t.extra && isPlayerBuyable(t)).map((t) => [
                     t.id,
-                    techsForUnit(t.id, this.loadoutOf(this.humanSeat)).map((tech) => ({
+                    techsForUnit(t, this.types, this.loadoutOf(this.humanSeat)).map((tech) => ({
                         icon: techIcon(tech),
                         label: techName(tech.id, tech.name),
                         cost: tech.cost,
@@ -3344,7 +3344,7 @@ export class Game {
         let granted = 0;
         for (const type of this.types.roster) {
             if (type.structure || type.extra) continue;
-            for (const tech of techsForUnit(type.id, this.loadoutOf(seat))) {
+            for (const tech of techsForUnit(type, this.types, this.loadoutOf(seat))) {
                 if (granted >= maxPerPress) return;
                 if (this.techTree.has(seat, type.id, tech.id)) continue;
                 this.techTree.add(seat, type.id, tech.id);
@@ -3584,7 +3584,7 @@ export class Game {
                 u.techFlying = null;
                 continue;
             }
-            const alt = effectiveFlying(u.type, u.seat, has);
+            const alt = effectiveFlying(u.type, u.seat, has, this.types);
             u.techFlying = alt;
             if (alt <= 0) u.flightLift = 0;
             else if (u.type.rocket) u.flightLift = 1;
@@ -6073,8 +6073,11 @@ export class Game {
             // so a peer disagreeing about Whirlwind would pass every row above
             // and only show up a round later through hp. Same derivation as
             // the sim's own, so both sides compute the identical radius.
-            const cleaveTechs = ownedCleaveTechs(a.unit.type, a.unit.seat, (seat, typeId, techId) =>
-                this.unitHasTech(seat, typeId, techId),
+            const cleaveTechs = ownedCleaveTechs(
+                a.unit.type,
+                a.unit.seat,
+                (seat, typeId, techId) => this.unitHasTech(seat, typeId, techId),
+                this.types,
             );
             mix(
                 Math.max(
@@ -6840,12 +6843,12 @@ export class Game {
                 splashRadius: type.splashRadius ?? 0,
             };
         }
-        const stats = TechTree.statsWithOwned(type, opts.ownedTechs);
+        const stats = TechTree.statsWithOwned(type, opts.ownedTechs, this.types);
         const b = this.settings.boosts;
         if (opts.attackTiers > 0) stats.damage *= 1 + b.attackTiers[opts.attackTiers - 1]!;
         if (opts.hpTiers > 0) stats.hp *= 1 + b.hpTiers[opts.hpTiers - 1]!;
         const spec = this.speciality[unit.seat];
-        if (spec === 'air' && effectiveFlying(type, unit.seat, opts.hasTech) > 0) {
+        if (spec === 'air' && effectiveFlying(type, unit.seat, opts.hasTech, this.types) > 0) {
             stats.damage *= 1 + AIR_BONUS;
             stats.hp *= 1 + AIR_BONUS;
         }
@@ -8634,6 +8637,7 @@ export class Game {
             boardHalfW: this.map.halfW,
             boardHalfZ: this.map.halfH,
             loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
+            types: this.types,
             strongholdLifeline: this.settings.strongholdMode === 'lifeline',
         });
         const hashParts = this.stateHashParts();
@@ -8850,8 +8854,11 @@ export class Game {
             .filter((u) => !u.destroyed && !u.productionHeld)
             .sort((a, b) => a.id - b.id);
         for (const parent of parents) {
-            const lanes = ownedProduceTechs(parent.type, parent.seat, (s, t, id) =>
-                this.unitHasTech(s, t, id),
+            const lanes = ownedProduceTechs(
+                parent.type,
+                parent.seat,
+                (s, t, id) => this.unitHasTech(s, t, id),
+                this.types,
             );
             for (const { tech, produce } of lanes) {
                 const childType = this.types.byId(produce.typeId);
@@ -10555,8 +10562,11 @@ export class Game {
             team,
             owner: this.ownerName(team, seat),
             hits: targetsLabel(
-                effectiveTargets(u.type, seat, (s, typeId, techId) =>
-                    this.techTree.has(s, typeId, techId),
+                effectiveTargets(
+                    u.type,
+                    seat,
+                    (s, typeId, techId) => this.techTree.has(s, typeId, techId),
+                    this.types,
                 ),
             ),
             hp: a.hp,
@@ -10599,8 +10609,11 @@ export class Game {
             team: u.team,
             owner: this.ownerName(u.team, u.seat),
             hits: targetsLabel(
-                effectiveTargets(u.type, u.seat, (s, typeId, techId) =>
-                    this.techTree.has(s, typeId, techId),
+                effectiveTargets(
+                    u.type,
+                    u.seat,
+                    (s, typeId, techId) => this.techTree.has(s, typeId, techId),
+                    this.types,
                 ),
             ),
             hp: rs.hp * lv.statMult,
@@ -10707,11 +10720,11 @@ export class Game {
         if (u.type.structure || u.type.extra) return undefined;
         const isHorde = u.team === 'horde' || u.seat < 0;
         if (isHorde) {
-            const ids = new Set<string>([...(u.type.innateTechs ?? []), ...allowedTechIds(u.type.id)]);
+            const ids = new Set<string>([...(u.type.innateTechs ?? []), ...allowedTechIds(u.type)]);
             const slots: NonNullable<SelectionInfo['techs']> = [];
             for (const id of ids) {
                 if (!this.unitHasTech(u.seat, u.type.id, id)) continue;
-                const t = techById(id);
+                const t = this.types.talent(id);
                 if (!t) continue;
                 slots.push({
                     id: t.id,
@@ -10727,8 +10740,8 @@ export class Game {
             return slots.length ? slots : undefined;
         }
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-        const selected = techsForUnit(u.type.id, this.loadoutOf(u.seat));
-        const slotsN = techSlotLimit(u.type.id);
+        const selected = techsForUnit(u.type, this.types, this.loadoutOf(u.seat));
+        const slotsN = techSlotLimit(u.type);
         const owned = this.intelTechOwned(u);
         const ownedCount = owned.size;
         const bal = this.economy.balance(u.seat);
@@ -10736,7 +10749,7 @@ export class Game {
         // A lesson can narrow this pack's talent list to a single entry.
         const soleTechId = this.tutorial?.soleTechFor(u) ?? null;
         if (soleTechId) {
-            const only = techById(soleTechId);
+            const only = this.types.talent(soleTechId);
             if (!only) return undefined;
             const isOwned = owned.has(only.id) || !!u.type.innateTechs?.includes(only.id);
             const cost = this.economy.techCostOf(only, ownedCount);

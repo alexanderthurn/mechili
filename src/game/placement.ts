@@ -2645,11 +2645,7 @@ export class PlacementController {
         fromCenter: { x: number; z: number },
         timeSeconds: number,
     ): void {
-        const layer = effectiveTargets(
-            sel.type,
-            sel.seat,
-            this.hasTech ?? (() => false),
-        );
+        const layer = effectiveTargets(sel.type, sel.seat, this.hasTech ?? (() => false), this.types);
         const wantAir = layer.air;
         const wantGround = layer.ground;
         if (!wantAir && !wantGround) {
@@ -2737,7 +2733,7 @@ export class PlacementController {
             }
 
             const isAir =
-                effectiveFlying(u.type, u.seat, this.hasTech ?? (() => false)) > 0;
+                effectiveFlying(u.type, u.seat, this.hasTech ?? (() => false), this.types) > 0;
             for (const m of u.members) {
                 out.push({
                     packId: u.id,
@@ -2759,7 +2755,7 @@ export class PlacementController {
                 if (!ghost || ghost.type.extra) continue;
                 const world = snap.world;
                 const isAir =
-                    effectiveFlying(ghost.type, ghost.seat, this.hasTech ?? (() => false)) > 0;
+                    effectiveFlying(ghost.type, ghost.seat, this.hasTech ?? (() => false), this.types) > 0;
                 for (const m of ghost.members) {
                     out.push({
                         packId: id,

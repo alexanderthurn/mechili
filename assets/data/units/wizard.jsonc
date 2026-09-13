@@ -21,4 +21,6 @@
     "speed": 3.2,
     "turnRate": 5,
     "proceduralModel": "wizard",
+    "talents": ["skyBind", "skyLift"],
+    "talentSlots": 2,
 }

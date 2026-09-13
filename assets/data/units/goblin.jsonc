@@ -26,4 +26,7 @@
     "walkCadence": 1.45,
     "turnRate": 11,
     "proceduralModel": "goblin",
+    // Longbow — same range talent as the archer
+    "talents": ["barrel"],
+    "talentSlots": 1,
 }

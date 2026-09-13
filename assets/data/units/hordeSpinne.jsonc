@@ -36,4 +36,6 @@
     "proceduralModel": "dwarf",
     "walkCadence": 1.5,
     "walkLean": 1.5,
+    // innate on the type; listed so tooling / future research UI can see it
+    "talents": ["spiderMother"],
 }

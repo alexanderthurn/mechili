@@ -204,7 +204,7 @@ function statsHtml(type: UnitType): string {
     const flags = unitFlags(type)
         .map((f) => `<span class="mh-flag">${esc(f)}</span>`)
         .join('');
-    const unitTechs = techsForUnit(type.id);
+    const unitTechs = techsForUnit(type, BASE_TYPES);
     const techs =
         unitTechs.length > 0
             ? `<div class="mh-techs">

@@ -32,4 +32,22 @@
     "turnRate": 1.2,
     "turnMove": "pivot",
     "proceduralModel": "ballista",
+    // fat talent list for UI testing — siege-fitting first, then other useful mods
+    "talents": [
+        "skyBind",
+        "armor",
+        "autoloader",
+        "golden",
+        "pitchBolts",
+        "barrel", // range
+        "ap", // damage
+        "fireArrows", // burn/ground fire on bolts
+        "carapace", // HP
+        "legs", // move speed
+        "stingers", // damage
+        "engines", // move speed
+    ],
+    // 4 of 12 — the widest talent list in the game, and now a real choice:
+    // pick a siege, anti-air or fire build rather than taking everything.
+    "talentSlots": 4,
 }

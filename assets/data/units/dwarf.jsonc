@@ -20,4 +20,6 @@
     "walkCadence": 1.5,
     "turnRate": 12,
     "proceduralModel": "dwarf",
+    "talents": ["legs", "carapace"],
+    "talentSlots": 2,
 }

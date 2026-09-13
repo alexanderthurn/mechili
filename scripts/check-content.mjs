@@ -83,6 +83,34 @@ try {
             `wings flap on ${Object.keys(models.MODEL_SPECS).filter(models.usesWingFlapModel).sort().join(', ')}`,
     );
 
+    // ---- talents: behaviour comes from attributes, lookups go through the registry
+    {
+        const tech = await server.ssrLoadModule('/src/game/tech.ts');
+        const sim = await server.ssrLoadModule('/src/game/sim.ts');
+        const T = units.BASE_TYPES;
+        const owns = (...ids) => (seat, typeId, techId) => ids.includes(techId);
+        const wizard = T.require('wizard');
+        const crow = T.require('crowRider');
+        let ok = true;
+        const expect = (cond, what) => {
+            if (!cond) {
+                ok = false;
+                failed = true;
+                console.error(`FAIL talents: ${what}`);
+            }
+        };
+        const wizardTargets = tech.effectiveTargets(wizard, 0, owns('skyBind'), T);
+        expect(wizardTargets.ground && wizardTargets.air, 'Sky Bind does not add both attack layers');
+        expect(tech.effectiveTargets(wizard, 0, owns(), T) === wizard.targets, 'no talent changed the attack layers');
+        expect(tech.effectiveFlying(wizard, 0, owns('skyLift'), T) === tech.SKY_LIFT_ALTITUDE, 'Sky Lift does not lift');
+        expect(tech.effectiveFlying(wizard, -1, owns('skyLift'), T) === (wizard.flying ?? 0), 'a seatless pack got lifted');
+        const unit = { summoned: false, items: [], seat: 0, type: crow };
+        expect(sim.hasShieldHp(unit, owns('aegis'), T), 'Aegis grants no shield');
+        expect(!sim.hasShieldHp(unit, owns('engines'), T), 'a shield without Aegis');
+        expect(T.talent('nope') === null && T.talentsOf(T.require('hordeSpinne')).some((t) => t.id === 'spiderMother'), 'talent lookups');
+        if (ok) console.log(`ok   talents: ${T.talents.size} from data; Sky Bind / Sky Lift / Aegis act through attributes`);
+    }
+
     // ---- level overlays: replacement by path, report, hash, data validation
     const resolver = await server.ssrLoadModule('/src/game/assets.ts');
     const pack = await server.ssrLoadModule('/src/game/content/basePack.ts');
@@ -143,6 +171,13 @@ try {
     ok = expect(levelPack.buildings.find((b) => b.id === 'stronghold')?.hp === 5000, "level's stronghold replacement not applied") && ok;
     ok = expect(levelPack.buildings.some((b) => b.id === 'ice-wall'), 'added building missing') && ok;
     ok = expect(BASE_PACK.buildings.find((b) => b.id === 'stronghold')?.hp === 3000, 'overlay validation changed the base game') && ok;
+    let talentError = '';
+    try {
+        pack.loadPackWithOverlay(new Map([['data/units/dwarf.jsonc', readBase('data/units/dwarf.jsonc').replace('"legs"', '"legz"')]]), 'typo');
+    } catch (e) {
+        talentError = String(e.message);
+    }
+    ok = expect(talentError.includes('"talents" names "legz"'), `unknown talent id not reported (${talentError.split('\n')[0]})`) && ok;
     if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation, multiplayer hash');
 
     // ---- switching levels: caches told after the files switch, model data follows, bad data changes nothing

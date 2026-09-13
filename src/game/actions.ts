@@ -21,7 +21,7 @@ import {
     type ForgeSlot,
     type ForgeSpellPool,
 } from './forgeRecipes';
-import { isTechSelectedForUnit, techById } from './techCatalog';
+import { isTechSelectedForUnit } from './techCatalog';
 import {
     DRAGON_POUR_DURATION_SEC,
     OIL_SPILL_ID,
@@ -844,9 +844,10 @@ export class ActionDispatcher {
                 // gate on THIS seat's own picks — a talent outside your
                 // loadout is unbuyable, which is also what keeps every
                 // downstream `hasTech` consumer implicitly loadout-correct
-                const tech = type && isTechSelectedForUnit(type.id, action.techId, this.ctx.seats[seat]?.loadout)
-                    ? techById(action.techId)
-                    : null;
+                const tech =
+                    type && isTechSelectedForUnit(type, action.techId, this.ctx.types, this.ctx.seats[seat]?.loadout)
+                        ? this.ctx.types.talent(action.techId)
+                        : null;
                 if (!type || !tech) return false;
                 if (techTree.has(seat, type.id, tech.id)) return false;
                 // every owned tech of the type makes the remaining ones pricier
@@ -1602,7 +1603,7 @@ export class ActionDispatcher {
                         const ids = [...set];
                         for (let i = ids.length - 1; i >= 0; i--) {
                             const techId = ids[i]!;
-                            const tech = techById(techId);
+                            const tech = this.ctx.types.talent(techId);
                             const paid = tech ? economy.techCostOf(tech, i) : 0;
                             techTree.remove(seat, typeId, techId);
                             if (paid > 0) economy.credit(seat, paid);
@@ -1649,7 +1650,7 @@ export class ActionDispatcher {
             for (const [, set] of ownedSnap) {
                 const ids = [...set];
                 for (let i = 0; i < ids.length; i++) {
-                    const tech = techById(ids[i]!);
+                    const tech = this.ctx.types.talent(ids[i]!);
                     if (tech) total += economy.techCostOf(tech, i);
                 }
             }

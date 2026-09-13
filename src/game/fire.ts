@@ -15,6 +15,8 @@ import { hypot } from './detMath';
 import { CELL, STANDARD_MAP, type MapSize } from './map';
 import type { SeatId } from './seats';
 import { techsForUnit, type Loadout } from './techCatalog';
+import type { TypeRegistry } from './content/typeRegistry';
+import type { UnitType } from './units';
 
 /** world units per hazard cell — finer than board tiles for splat connectivity */
 export const HAZARD_CELL = 2;
@@ -196,9 +198,10 @@ export interface FireProfile {
  * (tech oil/ground/burn replace missing base fields; both present → tech wins).
  */
 export function resolveFireProfile(
-    type: { id: string; fire?: FireProfile },
+    type: UnitType,
     seat: SeatId,
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+    types: TypeRegistry,
     loadout?: Loadout,
 ): FireProfile | undefined {
     let profile: FireProfile | undefined = type.fire
@@ -208,7 +211,7 @@ export function resolveFireProfile(
               oil: type.fire.oil ? { ...type.fire.oil } : undefined,
           }
         : undefined;
-    for (const tech of techsForUnit(type.id, loadout)) {
+    for (const tech of techsForUnit(type, types, loadout)) {
         if (!tech.fire || !hasTech(seat, type.id, tech.id)) continue;
         if (!profile) profile = {};
         if (tech.fire.burn) profile.burn = { ...tech.fire.burn };

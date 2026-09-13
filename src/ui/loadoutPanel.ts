@@ -19,10 +19,10 @@ import {
     toggleTech,
     type Loadout,
 } from '../game/loadouts';
-import { allowedTechIds, techById, techSlotLimit } from '../game/techCatalog';
+import { allowedTechIds, techSlotLimit } from '../game/techCatalog';
 import { hasAnimatedModel } from '../game/unitAnimated';
 import { hasUnitModel } from '../game/unitModels';
-import { techDescription, techIcon, type UnitType } from '../game/units';
+import { BASE_TYPES, techDescription, techIcon, type UnitType } from '../game/units';
 import { t, techName, unitName as localizedUnitName } from '../i18n';
 import { CardSpellTips } from './cardSpellTip';
 import { iconHtml } from './iconAtlas';
@@ -264,7 +264,7 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
      * cannot break the markup.
      */
     function attachTechTip(btn: HTMLElement, techId: string): void {
-        const tech = techById(techId);
+        const tech = BASE_TYPES.talent(techId);
         if (!tech) return;
         btn.dataset.spellTip = '1';
         // both lists hug a screen edge, so the tip flips onto the cursor
@@ -278,8 +278,8 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
     function renderTechs(type: UnitType): void {
         const picks = picksFor(type.id);
         techList.textContent = '';
-        for (const id of allowedTechIds(type.id)) {
-            const tech = techById(id);
+        for (const id of allowedTechIds(type)) {
+            const tech = BASE_TYPES.talent(id);
             if (!tech) continue;
             const on = picks.includes(id);
             const btn = document.createElement('button');
@@ -299,11 +299,11 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
 
         // Slot row: one box per allowed slot, so the limit is visible without
         // a label spelling it out. Filled boxes clear on click.
-        const limit = techSlotLimit(type.id);
+        const limit = techSlotLimit(type);
         slots.textContent = '';
         for (let i = 0; i < limit; i++) {
             const id = picks[i];
-            const tech = id ? techById(id) : null;
+            const tech = id ? BASE_TYPES.talent(id) : null;
             if (!tech) {
                 const empty = document.createElement('div');
                 empty.className = 'lo-slot is-empty';

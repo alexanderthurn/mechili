@@ -165,6 +165,16 @@ export interface TechDef {
      * around the attacker takes this pack's damage (no projectile).
      */
     cleave?: { radius: number };
+    /** Owning it replaces the pack's attack layers (Sky Bind: ground and air). */
+    targets?: { ground: boolean; air: boolean };
+    /**
+     * Owning it changes flight: `lift` makes a ground unit a combat flyer,
+     * `ground` keeps it on the ground — `ground` wins over `lift` and natural flight.
+     * Structures and board extras are never affected.
+     */
+    flight?: 'lift' | 'ground';
+    /** Owning it gives every mech of the pack a shield pool equal to its max HP (Aegis). */
+    grantsShieldHp?: boolean;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
     /** atlas glyph; omit to show `tech-default` (question mark — missing icon) */
@@ -643,6 +653,13 @@ export interface UnitType {
      * innate battle abilities like Schwarze Spinne's brood production.
      */
     innateTechs?: string[];
+    /**
+     * Talents (`data/talents/<id>.jsonc`) a player may pick for this type, in
+     * auto-pick order: without a loadout the first {@link talentSlots} are taken.
+     */
+    talents?: string[];
+    /** how many talents a player may pick for this type (default 4) */
+    talentSlots?: number;
     /** immune to poison-cloud spells (default: affected) */
     poisonImmune?: boolean;
     /** combat stats, per individual mech */

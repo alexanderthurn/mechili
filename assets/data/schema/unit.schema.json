@@ -431,6 +431,17 @@
           },
           "description": "Tech ids always owned by this type (even horde / seat −1). Used for innate battle abilities like Schwarze Spinne's brood production."
         },
+        "talents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Talents (`data/talents/<id>.jsonc`) a player may pick for this type, in auto-pick order: without a loadout the first talentSlots are taken."
+        },
+        "talentSlots": {
+          "type": "number",
+          "description": "how many talents a player may pick for this type (default 4)"
+        },
         "poisonImmune": {
           "type": "boolean",
           "description": "immune to poison-cloud spells (default: affected)"

@@ -39,4 +39,7 @@
     "turnRate": 1.35,
     "turnMove": "pivot",
     "proceduralModel": "mortar",
+    // range / fire rate / damage — Stormcaller pivots
+    "talents": ["barrel", "autoloader", "ap"],
+    "talentSlots": 2,
 }

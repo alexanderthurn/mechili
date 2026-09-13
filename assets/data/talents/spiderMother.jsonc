@@ -1,0 +1,10 @@
+// Schwarze Spinne innate (also a template for future produce talents —
+// dwarven forges, etc.). Spawns match the parent's level.
+{
+    "id": "spiderMother",
+    "name": "Mother of Spiders",
+    "cost": 0,
+    "mods": {},
+    "produce": { "typeId": "hordeBrutSpawn", "interval": 0.4, "max": 70 },
+    "icon": "tech-default",
+}

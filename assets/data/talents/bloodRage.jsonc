@@ -1,0 +1,9 @@
+// Fantasy Rhino Mechanical Rage — close the gap and swing faster.
+{
+    "id": "bloodRage",
+    "name": "Blood Rage",
+    "cost": 100,
+    "mods": { "speed": 1.3, "attackInterval": 0.75 },
+    "icon": "tech-fleet-feet",
+    "description": "+30% move speed and +33% attack speed.",
+}

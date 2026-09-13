@@ -486,7 +486,7 @@ export class AiOpponent implements Opponent {
             bought = false;
             for (const typeId of ownedTypeIds) {
                 const type = this.ctx.types.byId(typeId);
-                const techs = type ? techsForUnit(type.id, this.ctx.loadoutOf(this.seat)) : [];
+                const techs = type ? techsForUnit(type, this.ctx.types, this.ctx.loadoutOf(this.seat)) : [];
                 if (!type || techs.length === 0) continue;
                 const owned = techTree.ownedFor(this.seat, type.id);
                 for (const tech of techs) {

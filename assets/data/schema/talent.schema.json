@@ -1,0 +1,229 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/TechDef",
+  "definitions": {
+    "TechDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "cost": {
+          "type": "number"
+        },
+        "mods": {
+          "type": "object",
+          "properties": {
+            "hp": {
+              "type": "number"
+            },
+            "damage": {
+              "type": "number"
+            },
+            "range": {
+              "type": "number"
+            },
+            "rangeAdd": {
+              "type": "number",
+              "description": "flat range bonus (same units as type.range)"
+            },
+            "speed": {
+              "type": "number"
+            },
+            "attackInterval": {
+              "type": "number"
+            },
+            "splashRadius": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Stat changes. Multipliers (attackInterval < 1 = faster) unless noted. `rangeAdd` is a flat bonus applied after any `range` multiplier."
+        },
+        "fire": {
+          "$ref": "#/definitions/FireProfile",
+          "description": "optional fire / oil on hit — applied when this tech is owned"
+        },
+        "produce": {
+          "$ref": "#/definitions/TechProduce",
+          "description": "Battle production: while this pack lives, spawn `typeId` units on a timer (shared machinery for spider mothers, future dwarf forges, etc.)."
+        },
+        "onKill": {
+          "$ref": "#/definitions/TechOnKill",
+          "description": "On-kill spawn: each enemy this pack kills raises one `typeId` pack (no cap). Spawn type should not itself own this tech."
+        },
+        "cleave": {
+          "type": "object",
+          "properties": {
+            "radius": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "additionalProperties": false,
+          "description": "Point-blank disk attack: on each swing, every enemy in this XZ radius around the attacker takes this pack's damage (no projectile)."
+        },
+        "targets": {
+          "type": "object",
+          "properties": {
+            "ground": {
+              "type": "boolean"
+            },
+            "air": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "ground",
+            "air"
+          ],
+          "additionalProperties": false,
+          "description": "Owning it replaces the pack's attack layers (Sky Bind: ground and air)."
+        },
+        "flight": {
+          "type": "string",
+          "enum": [
+            "lift",
+            "ground"
+          ],
+          "description": "Owning it changes flight: `lift` makes a ground unit a combat flyer, `ground` keeps it on the ground — `ground` wins over `lift` and natural flight. Structures and board extras are never affected."
+        },
+        "grantsShieldHp": {
+          "type": "boolean",
+          "description": "Owning it gives every mech of the pack a shield pool equal to its max HP (Aegis)."
+        },
+        "description": {
+          "type": "string",
+          "description": "shown on hover; auto-derived from `mods` when omitted (see techDescription)"
+        },
+        "icon": {
+          "type": "string",
+          "description": "atlas glyph; omit to show `tech-default` (question mark — missing icon)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "cost",
+        "mods"
+      ],
+      "additionalProperties": false
+    },
+    "FireProfile": {
+      "type": "object",
+      "properties": {
+        "burn": {
+          "$ref": "#/definitions/FireBurnSpec"
+        },
+        "ground": {
+          "$ref": "#/definitions/FireGroundSpec"
+        },
+        "oil": {
+          "type": "object",
+          "properties": {
+            "radius": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "additionalProperties": false,
+          "description": "splash oil onto the shared hazard layer at impact (shield discs stay clear)"
+        }
+      },
+      "additionalProperties": false,
+      "description": "weapon / rocket profile — burn victims, ignite ground, and/or stamp oil"
+    },
+    "FireBurnSpec": {
+      "type": "object",
+      "properties": {
+        "dps": {
+          "type": "number",
+          "description": "damage per second while burning"
+        },
+        "duration": {
+          "type": "number",
+          "description": "seconds; re-hit refreshes the timer"
+        }
+      },
+      "required": [
+        "dps",
+        "duration"
+      ],
+      "additionalProperties": false
+    },
+    "FireGroundSpec": {
+      "type": "object",
+      "properties": {
+        "radius": {
+          "type": "number",
+          "description": "how much ground lights up around the impact"
+        },
+        "duration": {
+          "type": "number",
+          "description": "active flame lifetime (battle seconds)"
+        },
+        "intensity": {
+          "type": "number",
+          "description": "DPS applied each step to ground units standing in the fire"
+        }
+      },
+      "required": [
+        "radius",
+        "duration",
+        "intensity"
+      ],
+      "additionalProperties": false
+    },
+    "TechProduce": {
+      "type": "object",
+      "properties": {
+        "typeId": {
+          "type": "string",
+          "description": "unit type id to spawn"
+        },
+        "interval": {
+          "type": "number",
+          "description": "seconds between each completed spawn (\"how often\" / time to produce one)"
+        },
+        "max": {
+          "type": "number",
+          "description": "max spawns per battle from this tech on one pack"
+        },
+        "delay": {
+          "type": "number",
+          "description": "Seconds after the opening freeze before the first spawn. Omit = use `interval` (first unit after one production cycle)."
+        }
+      },
+      "required": [
+        "typeId",
+        "interval",
+        "max"
+      ],
+      "additionalProperties": false,
+      "description": "a purchasable upgrade for a unit type — mostly multipliers; see `rangeAdd`"
+    },
+    "TechOnKill": {
+      "type": "object",
+      "properties": {
+        "typeId": {
+          "type": "string",
+          "description": "unit type id to spawn (typically a 1×1 spawn clone)"
+        }
+      },
+      "required": [
+        "typeId"
+      ],
+      "additionalProperties": false,
+      "description": "Battle spawn on kill: each enemy this pack slays raises one `typeId` pack."
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

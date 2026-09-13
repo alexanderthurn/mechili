@@ -27,4 +27,6 @@
     "speed": 12,
     "turnRate": 4,
     "proceduralModel": "dwarf",
+    // innate on the type; listed so tooling / future research UI can see it
+    "talents": ["darkHarvest"],
 }

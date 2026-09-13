@@ -53,6 +53,7 @@ import {
     levelBasisOf,
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
+import type { TypeRegistry } from './content/typeRegistry';
 import { computeCrowWingRate, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
 import { hasUnitDeathAnim, playUnitDeathAnim, playUnitFireAnim, unitDeathFallLocal } from './unitAnimated';
 import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight, usesWingFlapModel } from './unitModels';
@@ -118,6 +119,8 @@ export interface SimConfig {
     statsOf: (unit: Unit) => ResolvedStats;
     /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean;
+    /** the match's unit types and talents */
+    types: TypeRegistry;
     /** a seat's talent picks — only fire profiles need the SELECTION itself
      *  (everything else filters through hasTech, which already reflects it) */
     loadoutOf: (seat: SeatId) => Loadout | undefined;
@@ -482,12 +485,13 @@ export function actorSeat(a: Actor): number {
 export function hasShieldHp(
     unit: Unit,
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+    types: TypeRegistry,
 ): boolean {
     if (unit.summoned) return false;
     for (const id of unit.items) {
         if (ITEMS[id]?.grantsShieldHp) return true;
     }
-    return hasTech(unit.seat, unit.type.id, 'aegis');
+    return types.talentsOf(unit.type).some((t) => t.grantsShieldHp && hasTech(unit.seat, unit.type.id, t.id));
 }
 
 /**
@@ -984,7 +988,7 @@ export class BattleSim {
             const stats = config.statsOf(unit);
             this.resolved.set(unit, stats);
             // shield pool mirrors the leveled max HP (0 when the pack has none)
-            const shieldMax = hasShieldHp(unit, config.hasTech)
+            const shieldMax = hasShieldHp(unit, config.hasTech, config.types)
                 ? stats.hp * this.levelMult(unit)
                 : 0;
             for (const m of unit.members) {
@@ -1011,10 +1015,10 @@ export class BattleSim {
                     // a pinned pack (Stronghold archer on his battlement) owns
                     // its own absolute Y — feetY already returns altitude
                     // verbatim whenever it is above zero
-                    altitude: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                    altitude: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech, this.config.types),
                     prevAltitude:
-                        unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
-                    footY: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                        unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech, this.config.types),
+                    footY: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech, this.config.types),
                     rocketTarget: null,
                     goldenUntil: 0,
                     stormDebuffUntil: 0,
@@ -1452,7 +1456,7 @@ export class BattleSim {
     }
 
     private fireProfileOf(source: Unit): FireProfile | undefined {
-        return resolveFireProfile(source.type, source.seat, this.config.hasTech, this.config.loadoutOf(source.seat));
+        return resolveFireProfile(source.type, source.seat, this.config.hasTech, this.config.types, this.config.loadoutOf(source.seat));
     }
 
     /**
@@ -2239,7 +2243,7 @@ export class BattleSim {
             list.push(u);
         }
         for (const [parent, byTech] of lanesByParent) {
-            const owned = ownedProduceTechs(parent.type, parent.seat, this.config.hasTech);
+            const owned = ownedProduceTechs(parent.type, parent.seat, this.config.hasTech, this.config.types);
             const lanes: {
                 techId: string;
                 interval: number;
@@ -2267,7 +2271,7 @@ export class BattleSim {
         // parents that own produce techs but got no children still track (noop)
         for (const a of this.actors) {
             if (a.unit.productionHeld || this.productionLanes.has(a.unit)) continue;
-            const owned = ownedProduceTechs(a.unit.type, a.unit.seat, this.config.hasTech);
+            const owned = ownedProduceTechs(a.unit.type, a.unit.seat, this.config.hasTech, this.config.types);
             if (owned.length === 0) continue;
             this.productionLanes.set(
                 a.unit,
@@ -2299,7 +2303,7 @@ export class BattleSim {
     }
 
     private cacheCleaveFor(unit: Unit): void {
-        const owned = ownedCleaveTechs(unit.type, unit.seat, this.config.hasTech);
+        const owned = ownedCleaveTechs(unit.type, unit.seat, this.config.hasTech, this.config.types);
         const fromType = unit.type.cleave?.radius ?? 0;
         const fromTech = owned.length === 0 ? 0 : Math.max(...owned.map(({ cleave }) => cleave.radius));
         const radius = Math.max(fromType, fromTech);
@@ -2318,7 +2322,7 @@ export class BattleSim {
     }
 
     private cacheOnKillFor(unit: Unit): void {
-        const owned = ownedOnKillTechs(unit.type, unit.seat, this.config.hasTech);
+        const owned = ownedOnKillTechs(unit.type, unit.seat, this.config.hasTech, this.config.types);
         if (owned.length === 0) return;
         this.onKillByUnit.set(
             unit,
@@ -2356,8 +2360,8 @@ export class BattleSim {
         this.resolved.set(child, stats);
         const levelMult = this.levelMult(child);
         const maxHp = stats.hp * levelMult;
-        const shieldMax = hasShieldHp(child, this.config.hasTech) ? maxHp : 0;
-        const alt = child.pinnedY ?? effectiveFlying(child.type, child.seat, this.config.hasTech);
+        const shieldMax = hasShieldHp(child, this.config.hasTech, this.config.types) ? maxHp : 0;
+        const alt = child.pinnedY ?? effectiveFlying(child.type, child.seat, this.config.hasTech, this.config.types);
         let nth = 0;
         const firstActorIdx = this.actors.length;
         for (const m of child.members) {
@@ -4908,11 +4912,7 @@ export class BattleSim {
         radius: number,
         shotDir?: { x: number; z: number },
     ): void {
-        const targets = effectiveTargets(
-            p.source.type,
-            p.source.seat,
-            this.config.hasTech,
-        );
+        const targets = effectiveTargets(p.source.type, p.source.seat, this.config.hasTech, this.config.types);
         for (const a of this.actors) {
             if (!a.alive || actorTeam(a) === p.team) continue;
             if (a.unit.type.extra) continue; // extras are immune to blasts too
@@ -5226,7 +5226,7 @@ export class BattleSim {
             }
 
             const team = actorTeam(caster);
-            const targets = effectiveTargets(caster.unit.type, actorSeat(caster), this.config.hasTech);
+            const targets = effectiveTargets(caster.unit.type, actorSeat(caster), this.config.hasTech, this.config.types);
             let target = caster.convertTarget;
             const stillOk =
                 target &&
@@ -5479,14 +5479,14 @@ export class BattleSim {
 
     /** True unless this is a ground swat that misses (deterministic ~28%). */
     private groundSwatConnects(from: Actor, target: Actor): boolean {
-        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech);
+        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech, this.config.types);
         if (!this.isOpportunisticGroundSwat(from, target, native)) return true;
         const seed = from.index * 100003 + target.index * 9176 + this.stepIndex * 131;
         return detHash01(seed) < GROUND_SWAT_CATCH;
     }
 
     private closestEnemy(from: Actor, anyLayer = false): Actor | null {
-        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech);
+        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech, this.config.types);
         const wantAir = anyLayer || native.air;
         const wantGround = anyLayer || native.ground;
         if (!wantAir && !wantGround) return null;
