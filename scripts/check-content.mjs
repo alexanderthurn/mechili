@@ -368,6 +368,54 @@ try {
             .loadLevel('bad', [{ path: 'data/units/archer.jsonc', bytes: enc(archerText.replace('"hp": 999', '"hp": "lots"')) }])
             .catch((e) => (badError = String(e.message)));
         zexpect(badError.includes('hp') && !levels.knownLevels().some((l) => l.id === 'bad'), 'invalid scenario was accepted');
+        // ---- transfer: host packs + chunks, guest requests batches, reassembles, same hash
+        {
+            const transfer = await server.ssrLoadModule('/src/game/levelTransfer.ts');
+            const big = new Uint8Array(3 * 1024 * 1024 + 123);
+            for (let i = 0; i < big.length; i++) big[i] = (i * 2654435761) >>> 24;
+            const hostFiles = [...files, { path: 'textures/moon.webp', bytes: big }];
+            const { ref: hostRef } = await levels.loadLevel('frost-keep-big', hostFiles);
+            const sender = new transfer.LevelSender(levels.levelFiles(hostRef.hash));
+            const receiver = new transfer.LevelReceiver(hostRef, sender.count);
+            let requests = 0;
+            let from = 0;
+            while (from !== null && !receiver.complete()) {
+                requests++;
+                let next = null;
+                for (const index of sender.batch(from)) next = receiver.add(index, sender.chunk(index)) ?? next;
+                from = next;
+                if (requests > sender.count + 2) break;
+            }
+            zexpect(receiver.complete(), `transfer incomplete after ${requests} requests (${sender.count} chunks)`);
+            zexpect(requests === Math.ceil(sender.count / transfer.LEVEL_CHUNK_BATCH), `expected one request per batch, got ${requests}`);
+            const received = receiver.complete() ? receiver.files() : [];
+            const rebuilt = await server.ssrLoadModule('/src/game/assets.ts').then((a) => a.buildAssetOverlay('guest', received));
+            zexpect(rebuilt.hash === hostRef.hash, 'received scenario hashes differently than the offer');
+            let tamperError = '';
+            try {
+                const tiny = new transfer.LevelReceiver(hostRef, 1);
+                tiny.add(0, btoa('x'.repeat(10)));
+                tiny.files();
+            } catch (e) {
+                tamperError = String(e.message);
+            }
+            zexpect(tamperError.includes('truncated'), `a garbage package was not rejected (${tamperError})`);
+            let hugeError = '';
+            try {
+                new transfer.LevelReceiver(hostRef, 100000);
+            } catch (e) {
+                hugeError = String(e.message);
+            }
+            zexpect(hugeError.includes('refusing'), 'an oversized scenario offer was accepted');
+            const net = await server.ssrLoadModule('/src/game/net.ts');
+            zexpect(
+                net.isSameBaseBuild({ version: net.ourBuild().version, contentHash: `${net.BASE_CONTENT_HASH}+${hostRef.hash}` }) &&
+                    !net.isSameBaseBuild({ version: net.ourBuild().version, contentHash: 'other+x' }),
+                'base-build check for joining scenario rooms',
+            );
+            zexpect(net.contentHashFor(hostRef) === `${net.BASE_CONTENT_HASH}+${hostRef.hash}` && net.contentHashFor(undefined) === net.BASE_CONTENT_HASH, 'contentHashFor');
+            if (zk) console.log(`ok   scenario transfer: ${sender.count} chunks in ${requests} batched requests, same hash on arrival, garbage/oversized refused`);
+        }
         if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected');
     }
 } catch (e) {

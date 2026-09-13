@@ -27,6 +27,8 @@ import {
     type RoomAd,
     type RoomRosterEntry,
     GAME_VERSION,
+    contentHashFor,
+    isSameBaseBuild,
     isSameBuild,
     formatBuild,
     ourBuild,
@@ -86,13 +88,16 @@ import { bootGameAssets } from './game/bootAssets';
 import {
     activeLevelRef,
     isLevelActive,
+    isLevelAvailable,
     knownLevels,
+    levelFiles,
     levelFilesFromArchive,
     loadLevel,
     prepareLevel,
     type LevelRef,
 } from './game/level';
 import { readZip } from './game/content/zip';
+import { LevelReceiver, LevelSender } from './game/levelTransfer';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
@@ -1312,6 +1317,8 @@ async function switchScenarioTo(ref: LevelRef | undefined): Promise<void> {
         cgScenarioEl.disabled = false;
         refreshScenarioSelect();
     }
+    // guests get the new scenario offered (and un-ready) like any settings edit
+    activeLobbyHost?.onChange();
 }
 
 cgScenarioEl.addEventListener('change', () => {
@@ -3704,10 +3711,46 @@ function wireHostedHub(
         lastPresent = present;
     };
 
+    // ---- the room's scenario: every joined guest must have it active before Start.
+    // Only a Custom Game room plays one; any other room offers the base game.
+    const roomLevel = (): LevelRef | null => (customConfig ? (activeLevelRef() ?? null) : null);
+    const levelBySeat = new Map<SeatId, { name: string; offered: string | null; ready: string | null | undefined }>();
+    let levelSender: { hash: string; sender: LevelSender } | null = null;
+    const senderFor = (level: LevelRef): LevelSender | null => {
+        if (levelSender?.hash !== level.hash) {
+            const files = levelFiles(level.hash);
+            levelSender = files ? { hash: level.hash, sender: new LevelSender(files) } : null;
+        }
+        return levelSender?.sender ?? null;
+    };
+    /** offer the room's scenario to guests that haven't had this one offered; true when all have it active */
+    const syncGuestLevels = (roster: CanonicalSeatDef[]): boolean => {
+        const level = roomLevel();
+        const hash = level?.hash ?? null;
+        const connected = hub.connectedSeats();
+        for (const seat of [...levelBySeat.keys()]) {
+            if (!connected.includes(seat)) levelBySeat.delete(seat);
+        }
+        let allReady = true;
+        for (const seat of connected) {
+            const name = roster[seat]?.name ?? '';
+            let state = levelBySeat.get(seat);
+            if (!state || state.name !== name || state.offered !== hash) {
+                state = { name, offered: hash, ready: undefined };
+                levelBySeat.set(seat, state);
+                hub.send(seat, { type: 'levelOffer', level, chunks: level ? (senderFor(level)?.count ?? 0) : 0 });
+            }
+            if (state.ready !== hash) allReady = false;
+        }
+        // the base game needs no wait: a guest switches back when its match starts
+        return hash === null || allReady;
+    };
+
     const refresh = () => {
         if (!hosting) return;
         const roster = hub.currentRoster();
         announceRosterChanges(roster);
+        const levelsReady = syncGuestLevels(roster);
         const joined = hub.connectedSeats().length + 1;
         const names = roster
             .map((s, i) => (i === 0 ? `${s.name}${t('menu:rosterYou')}` : s.name))
@@ -3748,8 +3791,10 @@ function wireHostedHub(
         // already on screen in the roster table, so naming it here too said
         // nothing — what the player cannot otherwise see is whether pressing
         // this fills the empty seats with bots.
-        startStarBtn.disabled = !!customConfig && !allReady;
-        startStarBtn.textContent = startStarBtn.disabled
+        startStarBtn.disabled = (!!customConfig && !allReady) || !levelsReady;
+        startStarBtn.textContent = !levelsReady
+            ? t('menu:waitingScenario', { defaultValue: 'Waiting for scenario…' })
+            : startStarBtn.disabled
             ? t('menu:waitingReady')
             : joined < roster.length
               ? t('menu:startWithAi')
@@ -3759,7 +3804,7 @@ function wireHostedHub(
         // actually be here (joined > 1) — a room the host is alone in trivially
         // satisfies "all ready", and glowing at them to start a solo match
         // against bots would be telling them the wrong thing.
-        startStarBtn.classList.toggle('is-go', !!customConfig && allReady && joined > 1);
+        startStarBtn.classList.toggle('is-go', !!customConfig && allReady && levelsReady && joined > 1);
         // auto-start once `waitForJoined` have joined — EXCEPT for a Custom
         // Game room (customConfig set), which always waits for the host's
         // own explicit Start click instead. Matchmaking/quick-match rooms
@@ -3829,13 +3874,33 @@ function wireHostedHub(
             hub.broadcast({ type: 'chat', item: msg.item, from }, seat);
             return;
         }
+        if (msg.type === 'levelRequest') {
+            const level = roomLevel();
+            const sender = level && msg.hash === level.hash ? senderFor(level) : null;
+            if (!sender) return;
+            for (const index of sender.batch(msg.from)) {
+                hub.send(seat, { type: 'levelChunk', hash: msg.hash, index, data: sender.chunk(index) });
+            }
+            return;
+        }
+        if (msg.type === 'levelReady') {
+            const state = levelBySeat.get(seat);
+            if (!state) return;
+            state.ready = msg.error ? undefined : msg.hash;
+            if (msg.error) {
+                announceLobbySystem(`${state.name} could not load the scenario: ${msg.error}`, hub);
+            }
+            refresh();
+            return;
+        }
         if (msg.type !== 'lobbyReady') return;
         const entry = hub.currentRoster()[seat];
         if (entry) hub.setRosterEntry(seat, { ...entry, ready: msg.ready });
         refresh();
     };
     hub.listen((name, build, avatar, loadout) => {
-        if (!isSameBuild(build)) {
+        // base content only: the room's scenario is handed over after joining (levelOffer)
+        if (!isSameBaseBuild(build)) {
             return {
                 reject: `Version mismatch — this room runs ${formatBuild(ourBuild(), build)}, you have ${formatBuild(build, ourBuild())}.`,
             };
@@ -3994,7 +4059,8 @@ function startHostedMatch(): void {
         hub.send(seat, {
             type: 'starSetup',
             version: GAME_VERSION,
-            contentHash: currentContentHash(),
+            // the content of the match about to start, not whatever the lobby had active
+            contentHash: contentHashFor(settings.level),
             seed: settings.seed,
             settings,
             roster: finalRoster,
@@ -4133,8 +4199,70 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
      * player chose.
      */
     let pendingReady: boolean | null = null;
+    // The room's scenario, as the host offers it: made active here (downloaded
+    // first when this client doesn't have that content) and confirmed with
+    // levelReady. A newer offer supersedes an older one still in progress.
+    let levelOfferSeq = 0;
+    let levelReceiver: LevelReceiver | null = null;
+    const reportLevel = (seq: number, hash: string | null, error?: unknown): void => {
+        if (cancelled || seq !== levelOfferSeq) return;
+        const reason = error === undefined ? undefined : error instanceof Error ? error.message : String(error);
+        if (reason) console.error('[scenario] could not load the room scenario', error);
+        session.send({ type: 'levelReady', hash, error: reason });
+    };
+    const activateLevel = (seq: number, level: LevelRef | null): void => {
+        void prepareLevel(level ?? undefined).then(
+            () => reportLevel(seq, level?.hash ?? null),
+            (e: unknown) => reportLevel(seq, level?.hash ?? null, e),
+        );
+    };
+    const onLevelOffer = (level: LevelRef | null, chunks: number): void => {
+        const seq = ++levelOfferSeq;
+        levelReceiver = null;
+        if (!level || isLevelAvailable(level)) {
+            activateLevel(seq, level);
+            return;
+        }
+        try {
+            levelReceiver = new LevelReceiver(level, chunks);
+        } catch (e) {
+            reportLevel(seq, level.hash, e);
+            return;
+        }
+        appendLobbyChat('', { kind: 'text', text: `Loading scenario “${level.id}”…` }, 'system');
+        session.send({ type: 'levelRequest', hash: level.hash, from: 0 });
+    };
+    const onLevelChunk = (hash: string, index: number, data: string): void => {
+        const receiver = levelReceiver;
+        if (!receiver || receiver.level.hash !== hash) return;
+        const seq = levelOfferSeq;
+        try {
+            const next = receiver.add(index, data);
+            if (next !== null) session.send({ type: 'levelRequest', hash, from: next });
+            if (!receiver.complete()) return;
+            levelReceiver = null;
+            void loadLevel(receiver.level.id, receiver.files()).then(
+                ({ ref }) => {
+                    if (ref.hash !== hash) throw new Error('the received scenario does not match the offer');
+                    activateLevel(seq, ref);
+                },
+                (e: unknown) => reportLevel(seq, hash, e),
+            ).catch((e: unknown) => reportLevel(seq, hash, e));
+        } catch (e) {
+            levelReceiver = null;
+            reportLevel(seq, hash, e);
+        }
+    };
     const handle = (msg: NetMessage): void => {
         if (cancelled) return;
+        if (msg.type === 'levelOffer') {
+            onLevelOffer(msg.level, msg.chunks);
+            return;
+        }
+        if (msg.type === 'levelChunk') {
+            onLevelChunk(msg.hash, msg.index, msg.data);
+            return;
+        }
         if (msg.type === 'starRoster') {
             showLobbyChat((item) =>
                 // `from` is required by the message, but the host re-stamps the
@@ -4245,8 +4373,11 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             );
             return;
         }
-        // only 'starSetup' can reach here (see the guard above)
-        if (!isSameBuild(msg)) {
+        // only 'starSetup' can reach here (see the guard above). The match's
+        // content must be ours: same base, and its scenario (if any) loaded here —
+        // startGame then makes that scenario active.
+        const setupBuild = { version: GAME_VERSION, contentHash: contentHashFor(msg.settings.level) };
+        if (msg.version !== setupBuild.version || msg.contentHash !== setupBuild.contentHash || !isLevelAvailable(msg.settings.level)) {
             clearStarResumeMarker();
             clearRosterTable();
             clearLobbySettings();

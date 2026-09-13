@@ -9,6 +9,7 @@ import { getAvatarDataUrl } from './avatar';
 import { activeLoadout } from './loadouts';
 import type { Loadout } from './techCatalog';
 import type { CanonicalSeatDef, SeatId } from './seats';
+import type { LevelRef } from './level';
 import type { GameSettings, StrongholdMode } from './settings';
 import type { Team } from './units';
 import { t } from '../i18n';
@@ -102,6 +103,11 @@ export function currentContentHash(): string {
     return level ? `${BASE_CONTENT_HASH}+${level.hash}` : BASE_CONTENT_HASH;
 }
 
+/** The content hash of a match playing `level` (undefined = base game), whatever is active right now. */
+export function contentHashFor(level: LevelRef | undefined): string {
+    return level ? `${BASE_CONTENT_HASH}+${level.hash}` : BASE_CONTENT_HASH;
+}
+
 /** What a peer must share with us to play: the simulation version AND the content. */
 export interface BuildStamp {
     version: number;
@@ -111,6 +117,15 @@ export interface BuildStamp {
 
 export function isSameBuild(peer: BuildStamp): boolean {
     return peer.version === GAME_VERSION && peer.contentHash === currentContentHash();
+}
+
+/**
+ * Same simulation version and base content, whatever level either side has
+ * active — enough to join a lobby, which then hands the guest the room's
+ * scenario (`levelOffer`). A match itself still requires {@link isSameBuild}.
+ */
+export function isSameBaseBuild(peer: BuildStamp): boolean {
+    return peer.version === GAME_VERSION && peer.contentHash?.split('+')[0] === BASE_CONTENT_HASH;
 }
 
 /**
@@ -467,6 +482,19 @@ export type NetMessage =
      *  CanonicalSeatDef.ready) — re-broadcasts as part of the next
      *  starRoster, same as any other roster change. */
     | { type: 'lobbyReady'; ready: boolean }
+    /**
+     * host → guest: the scenario this room plays (null = base game). Sent on
+     * join and whenever the host changes it; the guest answers `levelReady`
+     * once it is active, fetching the files with `levelRequest` if it doesn't
+     * have that content yet (see levelTransfer.ts).
+     */
+    | { type: 'levelOffer'; level: LevelRef | null; chunks: number }
+    /** guest → host: send chunks `from`… of the offered scenario (a batch at a time) */
+    | { type: 'levelRequest'; hash: string; from: number }
+    /** host → guest: one piece of the scenario package (base64) */
+    | { type: 'levelChunk'; hash: string; index: number; data: string }
+    /** guest → host: this scenario is active here (`hash` null = base game), or it could not be loaded */
+    | { type: 'levelReady'; hash: string | null; error?: string }
     /** host declines a join (room full, version mismatch) */
     | { type: 'starRejected'; reason: string }
     /** host → each guest once every seat has locked in for the round and the

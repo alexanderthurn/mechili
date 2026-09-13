@@ -82,8 +82,14 @@ export function levelFilesFromArchive(files: readonly OverlayFile[]): OverlayFil
     return files.map((f) => ({ path: f.path.slice(only.length + 1), bytes: f.bytes }));
 }
 
-/** levels loaded this session, by content hash */
+/** levels loaded this session, by content hash — with their files, to hand to peers */
 const known = new Map<string, AssetOverlay>();
+const knownFiles = new Map<string, readonly OverlayFile[]>();
+
+/** The files of a level loaded this session (for sending it to a peer), or null. */
+export function levelFiles(hash: string): readonly OverlayFile[] | null {
+    return knownFiles.get(hash) ?? null;
+}
 
 /**
  * Take a level's files (from any source), validate its data and remember it.
@@ -114,6 +120,7 @@ export async function loadLevel(
         throw e;
     }
     known.set(overlay.hash, overlay);
+    knownFiles.set(overlay.hash, [...files]);
     return { ref: { id: overlay.id, hash: overlay.hash }, report: overlay.report };
 }
 
