@@ -60,6 +60,7 @@ const AIM_AHEAD_HEIGHT_FRAC = 0.72;
 
 const MESH_SCALE = 36;
 /** Match dragon ground-fire disc (~tactic radius), visually ~75%. */
+/** size of the dragon effect preset — tuned to the base game's Dragon Attack path radius */
 const DRAGON_FIRE_R = BASE_TYPES.tactic(DRAGON_ID)?.radius ?? 5 * CELL;
 /** Former outer sheath radius — kept as reference for the inner-core fraction. */
 const OUTER_RADIUS_GROUND = DRAGON_FIRE_R * 0.75;

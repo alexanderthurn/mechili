@@ -17,5 +17,10 @@
             "impactRadius": 7,
         },
     },
+    "marker": {
+        "glow": "rgba(20, 20, 48, 0.55)",
+        "circle": "#6a6ab0",
+        "zoneRing": { "color": "#6a6ab0", "fill": 0, "line": 0.55 },
+    },
     "description": "Mark a wide circle anywhere. Small storm clouds gather high above and hurl lightning at random spots — bolts deal no damage but shock units in a wide splash with a tower-like debuff unless they have golden aura. Ward domes still block the strikes.",
 }

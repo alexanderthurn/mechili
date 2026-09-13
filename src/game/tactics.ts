@@ -3,15 +3,8 @@ import { OIL_SPEED_MULT } from './fire';
 import { BASE_TYPES } from './units';
 import { t, unitName } from '../i18n';
 
-/** tactical orders (not pack items) — granted by round cards, consumed per placement */
-export const RALLY_ROUTE_ID = 'rallyRoute';
-export const OIL_SPILL_ID = 'oilSpill';
-/** selling a pack — charges come from the Research Center's sell ability, not cards */
-export const SELL_UNIT_ID = 'sellUnit';
-/** re-opens ONE older pack for dragging this round (see Placement.canReposition) */
-export const MOVE_UNIT_ID = 'moveUnit';
-/** tops one pack's XP bar up to its next-level threshold (Lady Lecture) */
-export const TUTOR_ID = 'tutor';
+/** the spells the game names itself (own actions, stored in logs) — see content/coreIds.ts */
+export { MOVE_UNIT_ID, OIL_SPILL_ID, RALLY_ROUTE_ID, SELL_UNIT_ID, TUTOR_ID } from './content/coreIds';
 /** battle spells: point-targeted stamps that fire seconds into the battle */
 export const SPAWN_DWARVES_ID = 'spawnDwarves';
 export const BIG_METEOR_ID = 'bigMeteor';
@@ -32,17 +25,6 @@ export const DRAGON_ID = 'dragonAttack';
 export const DRAGON_APPROACH_SEC = 0.38;
 /** start→end breath / ground-fire pour while strafing */
 export const DRAGON_POUR_DURATION_SEC = 1.55;
-
-/**
- * Hammer of the Gods footprint (world units), centered on the stamp.
- * Shared by aim marker, ground scar, scenery crush, and strike damage
- * (ground + air). halfWidth → X (across the head) · halfDepth → Z (thickness).
- * Sized to the wear scar (formerly 17×34 aim box × 0.855).
- */
-export const HAMMER_ZONE = {
-    halfWidth: 14.535,
-    halfDepth: 29.07,
-};
 
 /**
  * Max center-to-center distance per leg for two-/three-point tactics
@@ -94,6 +76,23 @@ export const TACTIC_SAFE_ZONE_MARGIN = 4 * CELL;
  *    click commits (hammer footprint);
  *  - 'own-unit': click one of your packs (sell / move / tutor).
  */
+/** Colours are `#rrggbb`; anything left out uses the team colour. */
+export interface TacticMarker {
+    /** glow behind the spell's icon decal (css colour, e.g. `rgba(48, 36, 12, 0.55)`) — no glow, no decal */
+    glow?: string;
+    /** two-point capsules: fill and outline */
+    capsule?: { fill: string; line: string };
+    /** circle stamps and charges */
+    circle?: string;
+    /** pulsing ring while its zone runs in battle (fill 0 = outline only) */
+    zoneRing?: { color: string; fill: number; line: number };
+}
+
+/** `#rrggbb` → 0xrrggbb */
+export function markerColor(hex: string): number {
+    return Number.parseInt(hex.replace('#', ''), 16);
+}
+
 export interface TacticDef {
     id: string;
     name: string;
@@ -116,8 +115,24 @@ export interface TacticDef {
      */
     spell?: {
         delaySeconds: number;
+        /**
+         * Which effect the battle plays for it (code-side presets): 'hammer'
+         * drops the divine hammer and crushes what it hits, 'meteor' drops a
+         * great burning meteor, 'dragon' flies the dragon along a two-point
+         * path. Omit for the plain blast / pour.
+         */
+        fx?: 'hammer' | 'meteor' | 'dragon';
         /** one strike: damage to everything in the circle not under a ward */
-        strike?: { damage: number; radius: number };
+        strike?: {
+            damage: number;
+            radius: number;
+            /**
+             * Rectangular footprint instead of the circle, oriented by the
+             * placement's yaw (hammer): hit zone, ground scar and marker. A
+             * unit is hit when its center lies inside — no radius padding.
+             */
+            rect?: { halfWidth: number; halfDepth: number };
+        };
         /** battle-only summons scattered in the circle */
         spawn?: { typeId: string; count: number };
         /**
@@ -158,6 +173,8 @@ export interface TacticDef {
      * = not sold there at all, so a new spell has to opt in on purpose.
      */
     strongholdCost?: number;
+    /** How its ground markers look (deploy stamp, battle charge, running zone). */
+    marker?: TacticMarker;
     /** oil spill only */
     oilRadius?: number;
     oilDurationRounds?: number;
@@ -528,17 +545,3 @@ export function clampTacticPoint(
     };
 }
 
-/** Short glyphs for emoji ground markers (see spellMarkerIcons ATLAS_MARKER_TACTICS). */
-const TACTIC_WORLD_GLYPH: Record<string, string> = {
-    [RALLY_ROUTE_ID]: '⚑',
-    [SELL_UNIT_ID]: '💰',
-    [MOVE_UNIT_ID]: '🏃',
-    [TUTOR_ID]: '📖',
-    [HAMMER_ID]: '🔨',
-    [STORM_ID]: '🌩',
-    [DRAGON_ID]: '🐉',
-};
-
-export function tacticWorldGlyph(tacticId: string): string {
-    return TACTIC_WORLD_GLYPH[tacticId] ?? '✦';
-}

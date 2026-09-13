@@ -19,5 +19,10 @@
             "dropsPerTick": 3,
         },
     },
+    "marker": {
+        "glow": "rgba(16, 40, 12, 0.55)",
+        "circle": "#7ec850",
+        "zoneRing": { "color": "#7ec850", "fill": 0.26, "line": 0.9 },
+    },
     "description": "Mark a huge circle. Toxic clouds gather overhead and rain small acid drops across the area — sparse puddles that corrode ground and air units like Acid Spill, but over a much wider field.",
 }

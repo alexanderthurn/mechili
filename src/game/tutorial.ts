@@ -178,6 +178,15 @@ export function tutorialContentProblems(types: TypeRegistry): string[] {
     for (const id of [TUTORIAL_START_CARD_ID, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID]) {
         if (!types.commander(id)) problems.push(`tutorials need hidden commander "${id}"`);
     }
+    // tutorial 2 walks through these three spells step by step
+    const dragon = types.tactic(DRAGON_ID);
+    if (dragon?.targeting !== 'two-point' || dragon.spell?.fx !== 'dragon') {
+        problems.push(`tutorial 2 needs "${DRAGON_ID}" as a two-point dragon spell`);
+    }
+    if (types.tactic(SPAWN_DWARVES_ID)?.spell?.spawn?.typeId !== TUTORIAL_DWARF_ID) {
+        problems.push(`tutorial 2 needs "${SPAWN_DWARVES_ID}" to summon "${TUTORIAL_DWARF_ID}"`);
+    }
+    if (!types.tactic(OIL_SPILL_ID)) problems.push(`tutorial 2 needs "${OIL_SPILL_ID}"`);
     return problems;
 }
 

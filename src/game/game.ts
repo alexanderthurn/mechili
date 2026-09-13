@@ -228,11 +228,8 @@ import {
     SOFT_CROWD_LIMIT,
 } from './sim';
 import {
-    BIG_METEOR_ID,
     DRAGON_APPROACH_SEC,
-    DRAGON_ID,
     DRAGON_POUR_DURATION_SEC,
-    HAMMER_ID,
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
     RALLY_ROUTE_RADIUS,
@@ -8371,31 +8368,30 @@ export class Game {
                           damage: spell.strike.damage,
                           delaySeconds: spell.delaySeconds,
                           yaw: s.yaw,
+                          ...(spell.strike.rect ? { rect: { ...spell.strike.rect } } : {}),
+                          ...(spell.fx === 'hammer' || spell.fx === 'meteor' ? { fx: spell.fx } : {}),
                       },
                   ]
                 : [];
         });
         // visual-only: hammer drop anticipates the sim strike so impact coincides
+        const spellOf = (s: SpellStamp) => this.types.tactic(s.tacticId)?.spell;
         const hammerCues = pendingSpells
-            .filter((s) => s.tacticId === HAMMER_ID)
+            .filter((s) => spellOf(s)?.fx === 'hammer')
             .map((s) => {
-                const spell = this.types.tactic(HAMMER_ID)!.spell!;
-                const at = BATTLE_START_FREEZE + spell.delaySeconds;
+                const at = BATTLE_START_FREEZE + spellOf(s)!.delaySeconds;
                 return { x: s.x, z: s.z, at, yaw: s.yaw ?? 0 };
             });
         this.hammerFx.schedule(hammerCues);
         // Meteor drop
         this.meteorFx.scheduleGreat(
             pendingSpells
-                .filter((s) => s.tacticId === BIG_METEOR_ID)
-                .map((s) => {
-                    const spell = this.types.tactic(BIG_METEOR_ID)!.spell!;
-                    return {
-                        x: s.x,
-                        z: s.z,
-                        at: BATTLE_START_FREEZE + spell.delaySeconds,
-                    };
-                }),
+                .filter((s) => spellOf(s)?.fx === 'meteor')
+                .map((s) => ({
+                    x: s.x,
+                    z: s.z,
+                    at: BATTLE_START_FREEZE + spellOf(s)!.delaySeconds,
+                })),
         );
         // Storm / poison hovering clouds for the zone lifetime
         this.cloudFx.schedule(
@@ -8445,10 +8441,10 @@ export class Game {
         // Dragon flyover: breath starts at delay; pour paints start→end with the strafe
         this.dragonFx.schedule(
             pendingSpells.flatMap((s) => {
-                if (s.tacticId !== DRAGON_ID || s.endX === undefined || s.endZ === undefined) {
+                const spell = spellOf(s);
+                if (spell?.fx !== 'dragon' || s.endX === undefined || s.endZ === undefined) {
                     return [];
                 }
-                const spell = this.types.tactic(DRAGON_ID)!.spell!;
                 return [
                     {
                         x: s.x,
@@ -8499,10 +8495,10 @@ export class Game {
                 if (!spell) return [];
                 const at = BATTLE_START_FREEZE + spell.delaySeconds;
                 const radius = tactic!.radius ?? 8;
-                if (s.tacticId === HAMMER_ID) {
+                if (spell.fx === 'hammer') {
                     return [
                         {
-                            tacticId: HAMMER_ID,
+                            tacticId: s.tacticId,
                             x: s.x,
                             z: s.z,
                             radius,
@@ -8512,10 +8508,10 @@ export class Game {
                         },
                     ];
                 }
-                if (s.tacticId === BIG_METEOR_ID) {
+                if (spell.fx === 'meteor') {
                     return [
                         {
-                            tacticId: BIG_METEOR_ID,
+                            tacticId: s.tacticId,
                             x: s.x,
                             z: s.z,
                             radius,
@@ -8524,10 +8520,10 @@ export class Game {
                         },
                     ];
                 }
-                if (s.tacticId === DRAGON_ID && s.endX !== undefined && s.endZ !== undefined) {
+                if (spell.fx === 'dragon' && s.endX !== undefined && s.endZ !== undefined) {
                     return [
                         {
-                            tacticId: DRAGON_ID,
+                            tacticId: s.tacticId,
                             x: s.x,
                             z: s.z,
                             radius,
@@ -8541,7 +8537,7 @@ export class Game {
                 // igniteCapsule (dragon) uses progressive pour — charge handled above
                 if (
                     spell.igniteCapsule &&
-                    s.tacticId !== DRAGON_ID &&
+                    spell.fx !== 'dragon' &&
                     s.endX !== undefined &&
                     s.endZ !== undefined
                 ) {
@@ -10312,7 +10308,7 @@ export class Game {
                 if (e.scar === false) {
                     // VFX-only blast (e.g. ogre cleave) — no ground wear stamp
                 } else if (e.rect) {
-                    // Hammer: rectangular scar = hit zone (HAMMER_ZONE + yaw)
+                    // rectangular scar = hit zone (the strike's rect + yaw)
                     this.map.stampWearOrientedRect(
                         e.x,
                         e.z,

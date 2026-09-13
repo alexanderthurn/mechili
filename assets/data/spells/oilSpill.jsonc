@@ -9,5 +9,9 @@
     "strongholdCost": 100,
     "oilRadius": 16, // 4 cells
     "oilDurationRounds": 1,
+    "marker": {
+        "glow": "rgba(40, 28, 8, 0.55)",
+        "capsule": { "fill": "#2a1c0a", "line": "#8a6a28" },
+    },
     "description": "Place two oil circles — outline during deploy; shortly after battle starts oil drips left-to-right onto the path (ward discs stay clear). Connected oil ignites as one field when fire touches it.",
 }

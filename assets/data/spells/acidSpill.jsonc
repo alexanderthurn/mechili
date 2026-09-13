@@ -9,5 +9,9 @@
     "strongholdCost": 200,
     // pours left→right shortly after battle start (same drip timing as oil)
     "acidCapsule": { "durationRounds": 1, "dpsPercent": 3 },
+    "marker": {
+        "glow": "rgba(28, 36, 8, 0.55)",
+        "capsule": { "fill": "#2e3a08", "line": "#c9e34a" },
+    },
     "description": "Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Ground and air units over the puddle sizzle and turn corroded — taking extra damage from everything.",
 }

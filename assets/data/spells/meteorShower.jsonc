@@ -18,5 +18,10 @@
             "igniteRadius": 4,
         },
     },
+    "marker": {
+        "glow": "rgba(48, 24, 8, 0.55)",
+        "circle": "#e0762e",
+        "zoneRing": { "color": "#e0762e", "fill": 0, "line": 0.55 },
+    },
     "description": "Mark a wide circle anywhere. Meteors rain onto random spots inside for a while, each blast burning the ground it hits.",
 }

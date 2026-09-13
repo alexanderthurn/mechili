@@ -56,6 +56,15 @@
             "delaySeconds": {
               "type": "number"
             },
+            "fx": {
+              "type": "string",
+              "enum": [
+                "hammer",
+                "meteor",
+                "dragon"
+              ],
+              "description": "Which effect the battle plays for it (code-side presets): 'hammer' drops the divine hammer and crushes what it hits, 'meteor' drops a great burning meteor, 'dragon' flies the dragon along a two-point path. Omit for the plain blast / pour."
+            },
             "strike": {
               "type": "object",
               "properties": {
@@ -64,6 +73,23 @@
                 },
                 "radius": {
                   "type": "number"
+                },
+                "rect": {
+                  "type": "object",
+                  "properties": {
+                    "halfWidth": {
+                      "type": "number"
+                    },
+                    "halfDepth": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "halfWidth",
+                    "halfDepth"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Rectangular footprint instead of the circle, oriented by the placement's yaw (hammer): hit zone, ground scar and marker. A unit is hit when its center lies inside — no radius padding."
                 }
               },
               "required": [
@@ -197,6 +223,10 @@
           "type": "number",
           "description": "Price to buy one charge outright at the Stronghold. Per spell, not per tier — a commander is free to carry three expensive ones. Absent = not sold there at all, so a new spell has to opt in on purpose."
         },
+        "marker": {
+          "$ref": "#/definitions/TacticMarker",
+          "description": "How its ground markers look (deploy stamp, battle charge, running zone)."
+        },
         "oilRadius": {
           "type": "number",
           "description": "oil spill only"
@@ -214,8 +244,60 @@
         "targeting",
         "cooldownRounds"
       ],
+      "additionalProperties": false
+    },
+    "TacticMarker": {
+      "type": "object",
+      "properties": {
+        "glow": {
+          "type": "string",
+          "description": "glow behind the spell's icon decal (css colour, e.g. `rgba(48, 36, 12, 0.55)`) — no glow, no decal"
+        },
+        "capsule": {
+          "type": "object",
+          "properties": {
+            "fill": {
+              "type": "string"
+            },
+            "line": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "fill",
+            "line"
+          ],
+          "additionalProperties": false,
+          "description": "two-point capsules: fill and outline"
+        },
+        "circle": {
+          "type": "string",
+          "description": "circle stamps and charges"
+        },
+        "zoneRing": {
+          "type": "object",
+          "properties": {
+            "color": {
+              "type": "string"
+            },
+            "fill": {
+              "type": "number"
+            },
+            "line": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "color",
+            "fill",
+            "line"
+          ],
+          "additionalProperties": false,
+          "description": "pulsing ring while its zone runs in battle (fill 0 = outline only)"
+        }
+      },
       "additionalProperties": false,
-      "description": "HOW TO ADD A TACTIC — the whole system in one checklist: 1. Add `assets/data/spells/<id>.jsonc` (a TacticDef) and list it in pack.jsonc \"spells\"; code that needs to name it gets an id constant here. `kind`, `targeting` and `cooldownRounds` drive the strip, the armed-click flow and the charge accounting generically — no HUD work needed. 2. Give it an action in actions.ts. Validate + consume charges there: 'placement' kinds count their standing placements against the inventory total; 'oneShot' kinds call consumeTacticCharge() so cooldown, undo, save/reload and the greyed-out strip entry all work automatically. NEW ACTION KINDS THAT CARRY UNIT IDS MUST BE ADDED TO Game.swapPerspective (peer desync!). 3. Add the action payload to Game.dispatchTacticUse (one switch case) plus any draft/preview visuals. The targeting flow itself is generic. 4. Grant charges through a round card (`tactics: [id]` in cards.ts) — cards are logged actions, so replay/reload handles them for free. For the SP cheat's free-testing top-up, add the id to CHEAT_TACTIC_GRANTS in game.ts too.\n\n`kind` (charge accounting): - 'placement': the charge stays bound to a standing placement (rally route, oil stamp) that the player can right-click in the strip to reset. Available = charges − standing placements; the charge frees up when the placement expires/clears (that IS its cooldown). - 'oneShot': the charge stays in the inventory forever; using it in round R makes it unavailable until round R + 1 + cooldownRounds. The uses are derived from the ACTION LOG, so undo, reload and multiplayer replay restore availability with zero extra state.\n\n`targeting` (armed-click flow, all generic in Game): - 'point': one ground click (validated against the safe zone when `respectsSafeZone`); 'two-point': start + end capsule like oil; - 'three-point': start → mid → end path (rally); each leg clamps to maxSpan; - 'point-yaw': first click locks position, move mouse to rotate, second click commits (hammer footprint); - 'own-unit': click one of your packs (sell / move / tutor)."
+      "description": "Colours are `#rrggbb`; anything left out uses the team colour."
     }
   },
   "allowComments": true,

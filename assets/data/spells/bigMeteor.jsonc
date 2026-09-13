@@ -9,7 +9,12 @@
     "strongholdCost": 200,
     "spell": {
         "delaySeconds": 4,
+        "fx": "meteor",
         "strike": { "damage": 200, "radius": 12 },
+    },
+    "marker": {
+        "glow": "rgba(48, 20, 8, 0.55)",
+        "circle": "#e0762e",
     },
     "description": "Mark a small circle anywhere. Seconds into the battle a meteor obliterates everything there — only ward domes protect (and pay for it).",
 }

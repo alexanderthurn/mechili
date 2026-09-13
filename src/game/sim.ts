@@ -24,11 +24,7 @@ import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from
 import { GROUND_UNIT_Y } from './groundQuality';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
-    BIG_METEOR_ID,
-    HAMMER_ID,
-    HAMMER_ZONE,
     METEOR_SHARD_FALL_SEC,
-    METEOR_SHOWER_ID,
     RALLY_ROUTE_RADIUS,
     RALLY_ROUTE_REACH,
     RALLY_ROUTE_STUCK_SEC,
@@ -178,9 +174,13 @@ export interface SpellStrike {
     radius: number;
     damage: number;
     delaySeconds: number;
-    /** which TACTICS entry — drives strike VFX (hammer ground bloom, …) */
+    /** which spell it came from (debug / events) */
     tacticId?: string;
-    /** hammer footprint orientation (radians) */
+    /** rectangular footprint instead of the circle (see TacticDef strike.rect) */
+    rect?: { halfWidth: number; halfDepth: number };
+    /** impact preset: the hammer crushes, the great meteor burns and shakes, a shower meteor leaves no scorch */
+    fx?: 'hammer' | 'meteor' | 'shower';
+    /** footprint orientation (radians) */
     yaw?: number;
 }
 
@@ -746,11 +746,11 @@ function detHash01(n: number): number {
     return ((x >>> 0) % 1_000_000) / 1_000_000;
 }
 
-/** circle (default) or hammer rectangle footprint.
- *  Hammer: center must lie in HAMMER_ZONE (no radius pad) so damage matches the scar.
+/** circle (default) or rectangle footprint.
+ *  Rectangle: center must lie in `rect` (no radius pad) so damage matches the scar.
  *  Circles: include actor radius as padding. */
 function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean {
-    if (s.tacticId === HAMMER_ID) {
+    if (s.rect) {
         const yaw = s.yaw ?? 0;
         const c = detCos(yaw);
         const sn = detSin(yaw);
@@ -759,7 +759,7 @@ function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean 
         const lx = dx * c + dz * sn;
         const lz = -dx * sn + dz * c;
         // pad ignored — scar ↔ kill must match what you see on the ground
-        return Math.abs(lx) <= HAMMER_ZONE.halfWidth && Math.abs(lz) <= HAMMER_ZONE.halfDepth;
+        return Math.abs(lx) <= s.rect.halfWidth && Math.abs(lz) <= s.rect.halfDepth;
     }
     return hypot(x - s.x, z - s.z) <= s.radius + pad;
 }
@@ -2880,7 +2880,7 @@ export class BattleSim {
             radius: m.radius,
             damage: m.damage,
             delaySeconds: 0,
-            tacticId: METEOR_SHOWER_ID,
+            fx: 'shower',
         });
         const shields = livingShieldDisks(this.actors.map((a) => a.unit));
         if (insideAnyShield(m.x, m.z, shields)) return;
@@ -2912,8 +2912,8 @@ export class BattleSim {
      * One area strike: everything in the blast takes environmental damage
      * (both teams, air included) — except targets under a living ward dome.
      * Each dome involved eats the strike damage ONCE and can break.
-     * Hammer uses the HAMMER_ZONE rectangle (same as ground scar) for both
-     * ground and air; other strikes use a circle.
+     * A strike with a `rect` (hammer) uses that rectangle (same as the ground
+     * scar) for both ground and air; other strikes use a circle.
      * Strikes whose impact point lies inside a ward disc are absorbed at the
      * roof (meteors / hammers do not pass through).
      */
@@ -2938,12 +2938,13 @@ export class BattleSim {
             return;
         }
         const y = simGroundHeightAt(s.x, s.z);
-        const hammer = s.tacticId === HAMMER_ID;
-        const bigMeteor = s.tacticId === BIG_METEOR_ID;
-        const meteorShower = s.tacticId === METEOR_SHOWER_ID;
-        // particles: cover the hammer footprint (approx half-diagonal)
-        const visualRadius = hammer
-            ? Math.sqrt(HAMMER_ZONE.halfWidth * HAMMER_ZONE.halfWidth + HAMMER_ZONE.halfDepth * HAMMER_ZONE.halfDepth)
+        const hammer = s.fx === 'hammer';
+        const bigMeteor = s.fx === 'meteor';
+        const meteorShower = s.fx === 'shower';
+        const rect = s.rect;
+        // particles: cover a rectangular footprint (approx half-diagonal)
+        const visualRadius = rect
+            ? Math.sqrt(rect.halfWidth * rect.halfWidth + rect.halfDepth * rect.halfDepth)
             : s.radius;
         this.events.push({
             kind: 'explosion',
@@ -2957,11 +2958,11 @@ export class BattleSim {
             shake: bigMeteor ? 1 : 0,
             // Meteors: VFX only — no permanent wear scorch (hammer still scars).
             scar: bigMeteor || meteorShower ? false : undefined,
-            rect: hammer
+            rect: rect
                 ? {
-                      // scar = hit zone (HAMMER_ZONE) — ground + air damage use the same rect
-                      halfWidth: HAMMER_ZONE.halfWidth,
-                      halfDepth: HAMMER_ZONE.halfDepth,
+                      // scar = hit zone — ground + air damage use the same rect
+                      halfWidth: rect.halfWidth,
+                      halfDepth: rect.halfDepth,
                       yaw: s.yaw ?? 0,
                   }
                 : undefined,
@@ -2974,8 +2975,8 @@ export class BattleSim {
                 kind: 'hammerCrush',
                 x: s.x,
                 z: s.z,
-                halfWidth: HAMMER_ZONE.halfWidth,
-                halfDepth: HAMMER_ZONE.halfDepth,
+                halfWidth: rect?.halfWidth ?? s.radius,
+                halfDepth: rect?.halfDepth ?? s.radius,
                 yaw: s.yaw ?? 0,
             });
             // No blast shove — impulse was sliding pancakes (and their meshes)

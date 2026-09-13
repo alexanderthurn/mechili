@@ -243,6 +243,8 @@ try {
     ok = expect(badSpell.includes('names spell "fireSpil"'), `unknown commander spell not reported (${badSpell.split('\n')[0]})`) && ok;
     const badSummon = runeErrorOf([['data/spells/spawnDwarves.jsonc', readBase('data/spells/spawnDwarves.jsonc').replace('"typeId": "dwarf"', '"typeId": "dwraf"')]]);
     ok = expect(badSummon.includes('spawns "dwraf"'), `unknown summon type not reported (${badSummon.split('\n')[0]})`) && ok;
+    const badCore = runeErrorOf([['data/spells/oilSpill.jsonc', readBase('data/spells/oilSpill.jsonc').replace('"two-point"', '"point"')]]);
+    ok = expect(badCore.includes('"targeting" must be "two-point"'), `core spell targeting change not reported (${badCore.split('\n')[0]})`) && ok;
     const unlistedRune = runeErrorOf([['data/runes/ice.jsonc', addi.replace('"id": "addi"', '"id": "ice"').replace(/"forge": \{[^}]*\},/, '')]]);
     ok = expect(unlistedRune.includes('ice.jsonc: not listed in pack.jsonc "runes"'), `unlisted rune not reported (${unlistedRune.split('\n')[0]})`) && ok;
     if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation (talents, runes, recipes, commanders, spells), multiplayer hash');

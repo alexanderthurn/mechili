@@ -10,7 +10,12 @@
     "strongholdCost": 300,
     "spell": {
         "delaySeconds": 4,
-        "strike": { "damage": 1000, "radius": 24 },
+        "fx": "hammer",
+        // the damage zone is the hammer's footprint, also its ground scar and marker
+        "strike": { "damage": 1000, "radius": 24, "rect": { "halfWidth": 14.535, "halfDepth": 29.07 } },
+    },
+    "marker": {
+        "glow": "rgba(40, 28, 8, 0.55)",
     },
     "description": "Click to place, move to rotate, click again to lock. A divine hammer drops onto the zone seconds into the battle.",
 }

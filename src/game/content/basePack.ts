@@ -16,6 +16,7 @@ import type { ItemDef } from '../items';
 import type { TacticDef } from '../tactics';
 import type { TechDef, UnitType } from '../units';
 import type { ModelSpecData } from '../unitModels';
+import { CORE_SPELL_TARGETING } from './coreIds';
 import { parseJsonc } from './jsonc';
 import { validateSchema, type JsonSchema } from './schema';
 
@@ -249,6 +250,13 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
     ]) as [RoundCard[]];
     const spellCatalog = catalog<TacticDef>('spells', SPELL_SCHEMA);
     const [spells] = ordered('spells', spellCatalog, [['spells', listed(manifest.spells)]]) as [TacticDef[]];
+    for (const [id, targeting] of Object.entries(CORE_SPELL_TARGETING)) {
+        const spell = spellCatalog[id];
+        if (!spell) errors.push(`${label}/data/spells/${id}.jsonc: missing — the game's own "${id}" action needs it`);
+        else if (spell.targeting !== targeting) {
+            errors.push(`${label}/data/spells/${id}.jsonc: "targeting" must be "${targeting}" for the game's own "${id}" action`);
+        }
+    }
     for (const spell of spells) {
         const spawn = spell.spell?.spawn?.typeId;
         if (spawn !== undefined && ![...roster, ...offRoster, ...buildings].some((t) => t.id === spawn)) {

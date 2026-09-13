@@ -13,5 +13,8 @@
         "delaySeconds": 2,
         "spawn": { "typeId": "dwarf", "count": 2 },
     },
+    "marker": {
+        "glow": "rgba(48, 36, 12, 0.55)",
+    },
     "description": "Mark a circle anywhere outside the enemy base. Shortly after battle start, a war band of dwarves bursts from the ground there, one by one — they fight this battle only.",
 }

@@ -21,20 +21,7 @@ import {
 import { addCapsuleOutline } from './oilVisuals';
 import { SpellIconTextures } from './spellMarkerIcons';
 import type { TypeRegistry } from './content/typeRegistry';
-import {
-    ACID_ID,
-    BIG_METEOR_ID,
-    DRAGON_ID,
-    FIRE_SPILL_ID,
-    HAMMER_ID,
-    HAMMER_ZONE,
-    METEOR_SHOWER_ID,
-    OIL_SPILL_ID,
-    POISON_CLOUD_ID,
-    STORM_ID,
-    type SafeZoneDisk,
-    type SpellStamp,
-} from './tactics';
+import { markerColor, type SafeZoneDisk, type SpellStamp } from './tactics';
 
 /** the aim preview riding the cursor while a spell is armed; two-point drafts
  *  additionally carry the already-placed start */
@@ -67,24 +54,7 @@ export type SpellChargeMarker = {
 };
 
 const BLOCKED_COLOR = 0xff3b30;
-const HAMMER_MARK_COLOR = 0xc9a227;
-
-/** capsule tints per tactic — the oil deploy look, recolored */
-const CAPSULE_TINTS: Record<string, { fill: number; line: number }> = {
-    [OIL_SPILL_ID]: { fill: 0x2a1c0a, line: 0x8a6a28 },
-    [ACID_ID]: { fill: 0x2e3a08, line: 0xc9e34a },
-    [FIRE_SPILL_ID]: { fill: 0x3a140a, line: 0xe0762e },
-    // dragon: orange path, deep-blue line accent (icea: fill 0x121828, line 0x8aa8d8)
-    [DRAGON_ID]: { fill: 0x2a1008, line: 0x4050c0 },
-};
-
-/** circle marker colors (deploy + charge + zones); summons use team tint */
-const CIRCLE_COLORS: Record<string, number> = {
-    [POISON_CLOUD_ID]: 0x7ec850,
-    [STORM_ID]: 0x6a6ab0,
-    [METEOR_SHOWER_ID]: 0xe0762e,
-    [BIG_METEOR_ID]: 0xe0762e,
-};
+const RECT_MARK_COLOR = 0xc9a227;
 
 type ZonePulse = {
     fill?: MeshBasicMaterial;
@@ -132,6 +102,23 @@ export class SpellVisuals {
         this.group.add(this.zoneGroup);
         this.group.add(this.chargeGroup);
         this.group.add(this.safeZoneGroup);
+    }
+
+    /** the spell's capsule colours from its marker data, else the team colour */
+    private capsuleTint(tacticId: string, fallback: number): { fill: number; line: number } {
+        const capsule = this.types.tactic(tacticId)?.marker?.capsule;
+        return capsule ? { fill: markerColor(capsule.fill), line: markerColor(capsule.line) } : { fill: fallback, line: fallback };
+    }
+
+    /** the spell's circle colour from its marker data, else the team colour */
+    private circleColor(tacticId: string, fallback: number): number {
+        const circle = this.types.tactic(tacticId)?.marker?.circle;
+        return circle ? markerColor(circle) : fallback;
+    }
+
+    /** rectangular strike footprint (hammer), if the spell has one */
+    private strikeRect(tacticId: string): { halfWidth: number; halfDepth: number } | null {
+        return this.types.tactic(tacticId)?.spell?.strike?.rect ?? null;
     }
 
     dispose(): void {
@@ -182,32 +169,31 @@ export class SpellVisuals {
         for (const s of stamps) {
             const radius = this.types.tactic(s.tacticId)?.radius ?? 8;
             if (s.endX !== undefined && s.endZ !== undefined) {
-                const tint = CAPSULE_TINTS[s.tacticId] ?? {
-                    fill: s.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex,
-                    line: s.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex,
-                };
+                const tint = this.capsuleTint(
+                    s.tacticId,
+                    s.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex,
+                );
                 this.addCapsuleSpellMarker(
                     s.tacticId, s.x, s.z, s.endX, s.endZ, radius, tint.fill, tint.line, false,
                 );
                 continue;
             }
-            if (s.tacticId === HAMMER_ID) {
-                this.addHammerMarker(s.x, s.z, null, s.yaw ?? 0);
+            const rect = this.strikeRect(s.tacticId);
+            if (rect) {
+                this.addRectMarker(s.tacticId, rect, s.x, s.z, null, s.yaw ?? 0);
                 continue;
             }
-            const color =
-                CIRCLE_COLORS[s.tacticId] ??
-                (s.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex);
+            const color = this.circleColor(
+                s.tacticId,
+                s.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex,
+            );
             this.addCircleSpellMarker(s.tacticId, s.x, s.z, radius, color, 0.24, 0.9);
         }
         if (!draft) return;
         if (draft.startX !== undefined && draft.startZ !== undefined) {
             const tint = draft.blocked
                 ? { fill: BLOCKED_COLOR, line: BLOCKED_COLOR }
-                : (CAPSULE_TINTS[draft.tacticId] ?? {
-                      fill: teamColors.player.hex,
-                      line: teamColors.player.hex,
-                  });
+                : this.capsuleTint(draft.tacticId, teamColors.player.hex);
             const dx = draft.x - draft.startX;
             const dz = draft.z - draft.startZ;
             if (dx * dx + dz * dz > 0.25) {
@@ -225,21 +211,22 @@ export class SpellVisuals {
                 draft.tacticId, draft.startX, draft.startZ, draft.x, draft.z,
                 draft.radius, tint.fill, tint.line, true,
             );
-        } else if (draft.tacticId === HAMMER_ID) {
+        } else if (this.strikeRect(draft.tacticId)) {
+            const rect = this.strikeRect(draft.tacticId)!;
             const yaw = draft.yaw ?? 0;
             if (draft.blocked) {
                 addDrapedRect(
                     this.group, draft.x, draft.z,
-                    HAMMER_ZONE.halfWidth, HAMMER_ZONE.halfDepth, yaw,
+                    rect.halfWidth, rect.halfDepth, yaw,
                     BLOCKED_COLOR, 0.18, 0.75,
                 );
             } else {
-                this.addHammerMarker(draft.x, draft.z, 0.5, yaw);
+                this.addRectMarker(draft.tacticId, rect, draft.x, draft.z, 0.5, yaw);
             }
         } else {
             const color = draft.blocked
                 ? BLOCKED_COLOR
-                : (CIRCLE_COLORS[draft.tacticId] ?? teamColors.player.hex);
+                : this.circleColor(draft.tacticId, teamColors.player.hex);
             this.addCircleSpellMarker(
                 draft.tacticId, draft.x, draft.z, draft.radius, color,
                 draft.blocked ? 0.18 : 0.18, draft.blocked ? 0.55 : 0.75,
@@ -268,12 +255,9 @@ export class SpellVisuals {
             this.zonePulse = [];
             this.zoneKey = zKey;
             for (const m of zones) {
-                if (m.tacticId === POISON_CLOUD_ID) {
-                    this.zonePulse.push(this.addZoneRing(m.x, m.z, m.radius, 0x7ec850, 0.26, 0.9));
-                } else if (m.tacticId === STORM_ID) {
-                    this.zonePulse.push(this.addZoneRing(m.x, m.z, m.radius, 0x6a6ab0, 0, 0.55));
-                } else if (m.tacticId === METEOR_SHOWER_ID) {
-                    this.zonePulse.push(this.addZoneRing(m.x, m.z, m.radius, 0xe0762e, 0, 0.55));
+                const ring = this.types.tactic(m.tacticId)?.marker?.zoneRing;
+                if (ring) {
+                    this.zonePulse.push(this.addZoneRing(m.x, m.z, m.radius, markerColor(ring.color), ring.fill, ring.line));
                 }
             }
         }
@@ -343,11 +327,12 @@ export class SpellVisuals {
     }
 
     private spawnChargeMarker(c: SpellChargeMarker): void {
-        if (c.tacticId === HAMMER_ID) {
+        const chargeRect = this.strikeRect(c.tacticId);
+        if (chargeRect) {
             const yaw = c.yaw ?? 0;
-            const { halfWidth: hw, halfDepth: hd } = HAMMER_ZONE;
-            addDrapedRect(this.chargeGroup, c.x, c.z, hw, hd, yaw, HAMMER_MARK_COLOR, 0.16, 0.95);
-            this.addHammerDecal(c.x, c.z, Math.max(hw, hd), yaw, this.chargeGroup);
+            const { halfWidth: hw, halfDepth: hd } = chargeRect;
+            addDrapedRect(this.chargeGroup, c.x, c.z, hw, hd, yaw, RECT_MARK_COLOR, 0.16, 0.95);
+            this.addRectDecal(c.tacticId, c.x, c.z, Math.max(hw, hd), yaw, this.chargeGroup);
             const fill = addDrapedRectFill(
                 this.chargeGroup, c.x, c.z, hw, hd, yaw, 0xffe08a, 0.12,
             );
@@ -364,10 +349,7 @@ export class SpellVisuals {
             return;
         }
         if (c.endX !== undefined && c.endZ !== undefined) {
-            const tint = CAPSULE_TINTS[c.tacticId] ?? {
-                fill: teamColors.player.hex,
-                line: teamColors.player.hex,
-            };
+            const tint = this.capsuleTint(c.tacticId, teamColors.player.hex);
             addDrapedCapsule(
                 this.chargeGroup, c.x, c.z, c.endX, c.endZ, c.radius,
                 tint.fill, tint.line, 0.16, 0.9,
@@ -387,7 +369,7 @@ export class SpellVisuals {
             });
             return;
         }
-        const color = CIRCLE_COLORS[c.tacticId] ?? teamColors.player.hex;
+        const color = this.circleColor(c.tacticId, teamColors.player.hex);
         addDrapedCircle(this.chargeGroup, c.x, c.z, c.radius, color, 0.16, 0.9);
         this.addCircleIcon(c.tacticId, c.x, c.z, c.radius, this.chargeGroup);
         const fill = addDrapedCircleFill(this.chargeGroup, c.x, c.z, c.radius, 0xffe08a, 0.12);
@@ -504,33 +486,36 @@ export class SpellVisuals {
     }
 
     /**
-     * Hammer target = rectangle from HAMMER_ZONE (+ decal + optional inner charge).
-     * Tune halfWidth / halfDepth in tactics.ts → HAMMER_ZONE; yaw comes from placement.
+     * Rectangular strike target (hammer): the spell's `strike.rect` (+ decal +
+     * optional inner charge); yaw comes from placement.
      */
-    private addHammerMarker(
+    private addRectMarker(
+        tacticId: string,
+        rect: { halfWidth: number; halfDepth: number },
         x: number,
         z: number,
         innerFrac: number | null,
         yaw: number,
         target: Group = this.group,
     ): void {
-        const { halfWidth: hw, halfDepth: hd } = HAMMER_ZONE;
-        addDrapedRect(target, x, z, hw, hd, yaw, HAMMER_MARK_COLOR, 0.16, 0.95);
-        this.addHammerDecal(x, z, Math.max(hw, hd), yaw, target);
+        const { halfWidth: hw, halfDepth: hd } = rect;
+        addDrapedRect(target, x, z, hw, hd, yaw, RECT_MARK_COLOR, 0.16, 0.95);
+        this.addRectDecal(tacticId, x, z, Math.max(hw, hd), yaw, target);
         if (innerFrac !== null) {
             const f = MathUtils.clamp(innerFrac, 0.5, 1);
             addDrapedRect(target, x, z, hw * f, hd * f, yaw, 0xffe08a, 0.12, 1);
         }
     }
 
-    private addHammerDecal(
+    private addRectDecal(
+        tacticId: string,
         x: number,
         z: number,
         size: number,
         yaw: number,
         target: Group = this.group,
     ): void {
-        const tex = this.icons.textureFor(HAMMER_ID);
+        const tex = this.icons.textureFor(tacticId);
         if (!tex) return;
         addDrapedIconDecal(target, tex, x, z, size * 0.5, yaw);
     }

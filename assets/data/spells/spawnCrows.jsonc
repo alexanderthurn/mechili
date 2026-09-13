@@ -13,5 +13,8 @@
         "delaySeconds": 2,
         "spawn": { "typeId": "crowRider", "count": 2 },
     },
+    "marker": {
+        "glow": "rgba(12, 28, 48, 0.55)",
+    },
     "description": "Mark a circle anywhere outside the enemy base. Shortly after battle start, crow riders dive in from the sky, one after another — they fight this battle only.",
 }
