@@ -494,8 +494,20 @@ try {
             zexpect(act.scenario?.def?.name === 'Archer vs Ogre' && act.scenario.issues.length === 0, 'the active level does not expose its scenario');
             await levels.prepareLevel(undefined);
             zexpect(levels.activeLevel().scenario === null, 'the base game has a scenario');
+            // match rules: normal matches keep today's behaviour; a scenario supplies its own
+            const mr = await server.ssrLoadModule('/src/game/matchRules.ts');
+            const setMod = await server.ssrLoadModule('/src/game/settings.ts');
+            const ss = await server.ssrLoadModule('/src/game/scenario/scenarioSettings.ts');
+            const normal = mr.resolveMatchRules(structuredClone(setMod.DEFAULT_SETTINGS), null);
+            zexpect(normal.flanksOpenFromRound === 2 && normal.neutralOpenFromRound === 2 && normal.fixedSideHp === null && normal.enemyIntel === 'fogged' && normal.opponents === 'build' && normal.commander.mode === 'pick' && normal.fixedAtmosphere === null, `normal rules changed: ${JSON.stringify(normal)}`);
+            const climb = mr.resolveMatchRules({ ...structuredClone(setMod.DEFAULT_SETTINGS), climb: { sideHp: 1 } }, null);
+            zexpect(climb.fixedSideHp?.player === 1 && climb.fixedSideHp?.enemy === 1 && climb.enemyIntel === 'visible' && climb.flanksOpenFromRound === 2, `climb rules changed: ${JSON.stringify(climb)}`);
+            const scenRules = mr.resolveMatchRules(structuredClone(setMod.DEFAULT_SETTINGS), clean.def);
+            zexpect(scenRules.flanksOpenFromRound === null && scenRules.fixedSideHp?.enemy === 1000 && scenRules.opponents === 'lockInOnly' && scenRules.fixedAtmosphere?.season === 'autumn' && scenRules.playerUnlocks?.join() === 'archer', `scenario rules: ${JSON.stringify(scenRules)}`);
+            const scenSettings = ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), clean.def, scenRef, 'play');
+            zexpect(scenSettings.map.zoneCols === 24 && scenSettings.seed === 1234 && scenSettings.economy.startingSupply === 300 && scenSettings.deploy.unitsPerRound === 2 && scenSettings.strongholdMode === 'none' && scenSettings.hordePreset === 'off' && scenSettings.level?.hash === scenRef.hash && scenSettings.scenario?.mode === 'play' && !scenSettings.scenario.draft, `scenario settings: ${JSON.stringify({ map: scenSettings.map, scenario: scenSettings.scenario })}`);
         }
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated');
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario)');
     }
 } catch (e) {
     failed = true;

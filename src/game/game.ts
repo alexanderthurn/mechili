@@ -277,6 +277,9 @@ import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
 import { activeLevel, isLevelActive } from './level';
+import { resolveMatchRules, stripOpen, type MatchRules } from './matchRules';
+import { hasErrors, normalizeScenario } from './scenario/normalize';
+import type { ScenarioDef } from './scenario/scenarioDef';
 
 /** menu→match camera fly-in (fresh starts only) */
 const MATCH_INTRO_SEC = 1.0;
@@ -1185,6 +1188,10 @@ export class Game {
     private battleDown: { x: number; y: number } | null = null;
 
     private readonly settings: GameSettings;
+    /** the board + rules this match starts from (plan §4), null for a normal match */
+    private readonly scenario: ScenarioDef | null;
+    /** what this match does each round (plan §5) */
+    private readonly rules: MatchRules;
     /** the match roster; localized so MY side always reads 'player' locally */
     private readonly seats: SeatDef[];
     /** the local human's seat id — 0 for every local/classic-net mode; a star
@@ -1314,6 +1321,8 @@ export class Game {
             debugWindow.mechiliDebugClear = () => this.debugLog.clear();
         }
         this.settings = normalizeGameSettings(settingsInput);
+        this.scenario = this.resolveScenario();
+        this.rules = resolveMatchRules(this.settings, this.scenario);
         const settings = this.settings;
         this.wrapper = wrapper;
         this.threeCanvas = threeCanvas;
@@ -1664,7 +1673,9 @@ export class Game {
                 },
             },
             commanderHpFactor: settings.commanderHpFactor,
-            climbSideHp: settings.climb?.sideHp ?? settings.tutorial?.sideHp ?? null,
+            fixedSideHp: this.rules.fixedSideHp,
+            starterArmy: this.rules.commander.mode !== 'fixed' || this.rules.commander.starterArmy,
+            playerUnlocks: this.rules.playerUnlocks,
             climbMode: !!settings.climb,
             clock: () => ({
                 round: this.round,
@@ -3045,7 +3056,20 @@ export class Game {
         // of snapping back to 1x every round — nothing live to reset for
         if (!this.watching) this.resetSpeed();
         this.round++;
-        this.weather?.onRound(this.round, this.hydrating);
+        const atmosphere = this.rules.fixedAtmosphere;
+        if (!atmosphere) this.weather?.onRound(this.round, this.hydrating);
+        else if (this.round === 1) {
+            this.weather?.setScene(
+                {
+                    season: atmosphere.season,
+                    weatherKind: atmosphere.weather ?? 'clear',
+                    weatherIntensity: (atmosphere.weather ?? 'clear') === 'clear' ? 0 : 0.7,
+                    timeOfDay: atmosphere.time ?? 'day',
+                },
+                undefined,
+                true,
+            );
+        }
         this.phase = 'build';
         this.phaseRemaining = this.deploySeconds();
         this.syncPostFx();
@@ -3073,11 +3097,10 @@ export class Game {
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], true);
         this.syncTacticVisuals();
-        // flanks and the middle strip open up after the first round; the outer
-        // rim stays undeployable forever. Tutorials never open flanks (Tutorial 1
-        // also uses flankCols: 0 so those strips aren't on the board at all).
-        const wantFlanks = this.round >= 2 && !isTutorial(this.settings);
-        const wantNeutral = this.round >= 2;
+        // flanks and the middle strip open when the rules say (normally round 2);
+        // the outer rim stays undeployable forever.
+        const wantFlanks = stripOpen(this.rules.flanksOpenFromRound, this.round);
+        const wantNeutral = stripOpen(this.rules.neutralOpenFromRound, this.round);
         if (
             wantFlanks !== this.map.flanksUnlocked ||
             wantNeutral !== this.map.neutralUnlocked
@@ -3193,7 +3216,7 @@ export class Game {
         }
         this.placement.captureIntelSnapshot();
         // Campaign / Tutorial: no fog of war — player sees live AI deploys this round
-        this.placement.setIntelFog(!this.settings.climb && !isTutorial(this.settings));
+        this.placement.setIntelFog(this.rules.enemyIntel === 'fogged');
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
         this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
@@ -3714,6 +3737,7 @@ export class Game {
         forgeSpellOwned: string[][];
         forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
         climb?: boolean;
+        opponents?: 'build' | 'lockInOnly';
         rngForRound?: (round: number) => () => number;
     } {
         return {
@@ -3757,6 +3781,7 @@ export class Game {
             forgeSpellOwned: this.forgeSpellOwned,
             forgeSpellsOf: (s: SeatId) => this.forgeSpellsOf(s),
             climb: !!this.settings.climb,
+            opponents: this.rules.opponents,
             rngForRound: (round: number) =>
                 mulberry32(seedFrom(this.seed, `ai-climb-${seat}-${round}`)),
         };
@@ -3939,6 +3964,25 @@ export class Game {
         if (!this.deployReady.player || !this.deployReady.enemy) return;
         this.spectatorHub?.flushBuildBuffers();
         this.startBattlePhase();
+    }
+
+    /**
+     * The scenario this match plays: the editor draft for author / test, the
+     * level package's `scenario.jsonc` for play. Refuses one with errors.
+     */
+    private resolveScenario(): ScenarioDef | null {
+        const request = this.settings.scenario;
+        if (!request) return null;
+        const normalized = request.draft
+            ? normalizeScenario(request.draft, this.types)
+            : activeLevel().scenario;
+        if (!normalized?.def) {
+            throw new Error(`[game] scenario match without a scenario (${normalized?.issues[0]?.message ?? 'the level has no scenario.jsonc'})`);
+        }
+        if (request.mode === 'play' && hasErrors(normalized.issues)) {
+            throw new Error(`[game] scenario has errors: ${normalized.issues.filter((i) => i.level === 'error').map((i) => i.message).join('; ')}`);
+        }
+        return normalized.def;
     }
 
     /** a specific seat's own chosen commander card (null until picked) — tutorial cards included */

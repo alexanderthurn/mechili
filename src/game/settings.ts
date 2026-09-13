@@ -1,5 +1,6 @@
 import { BASE_TYPES } from './units';
 import type { LevelRef } from './level';
+import type { ScenarioDef } from './scenario/scenarioDef';
 import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
 import { t } from '../i18n';
@@ -118,6 +119,12 @@ export interface GameSettings {
      * level must be active before the Game is built (`prepareLevel`).
      */
     level?: LevelRef;
+    /**
+     * A scenario match (plan §2.2): 'play' reads the board and rules from the
+     * level's `scenario.jsonc`; 'author' / 'test' carry the editor draft here
+     * instead (single player only, never sent to peers).
+     */
+    scenario?: { mode: 'play' | 'author' | 'test'; draft?: ScenarioDef };
     /**
      * Horde algorithm id (see {@link HORDE_ALGORITHMS}).
      * Owns spawn schedule, pack-count multiplier, and leader bias.

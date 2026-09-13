@@ -81,6 +81,8 @@ export class AiOpponent implements Opponent {
              * Practice / MP leave this unset/false.
              */
             climb?: boolean;
+            /** 'lockInOnly': skip every purchase and just lock in (scenario opponents) */
+            opponents?: 'build' | 'lockInOnly';
             /** Campaign: deterministic per-round stream (seed + round) */
             rngForRound?: (round: number) => () => number;
         },
@@ -106,7 +108,9 @@ export class AiOpponent implements Opponent {
     }
 
     onBuildPhase(round: number): void {
-        if (this.ctx.climb) {
+        if (this.ctx.opponents === 'lockInOnly') {
+            // a scenario's authored army fights as placed — lock in, nothing else
+        } else if (this.ctx.climb) {
             this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
             this.runBuildActions({
                 climb: true,

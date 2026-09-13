@@ -590,10 +590,14 @@ export interface ActionContext {
      */
     commanderHpFactor: number;
     /**
-     * Campaign climb: when set, chooseCard sets that side's HP to this value
-     * instead of adding commander startingHp (see GameSettings.climb).
+     * Fixed side HP (campaign climb, tutorials, scenarios): when set, chooseCard
+     * sets the side's HP to its value instead of adding commander startingHp.
      */
-    climbSideHp: number | null;
+    fixedSideHp: { player: number; enemy: number } | null;
+    /** false = chooseCard grants no starting army (a scenario's fixed commander without its troops) */
+    starterArmy: boolean;
+    /** replaces the player side's shop unlocks after its commander pick (scenario); null = the commander's */
+    playerUnlocks: string[] | null;
     /**
      * Campaign climb active — gates {@link ClearArmyAction} (AI fresh rebuild).
      */
@@ -1150,9 +1154,9 @@ export class ActionDispatcher {
                     this.ctx.flankSpawnMult[seat] = card.effects.flankSpawnMult;
                 }
                 entry.prevHp = this.ctx.hp.get(action.team);
-                if (this.ctx.climbSideHp != null) {
-                    // Campaign: fixed sudden-death HP — commander startingHp ignored
-                    this.ctx.hp.set(action.team, this.ctx.climbSideHp);
+                if (this.ctx.fixedSideHp != null) {
+                    // campaign / tutorial / scenario: fixed side HP — commander startingHp ignored
+                    this.ctx.hp.set(action.team, this.ctx.fixedSideHp[action.team]);
                 } else {
                     const grantedHp = Math.round(card.startingHp * this.ctx.commanderHpFactor);
                     this.ctx.hp.set(action.team, this.ctx.hp.get(action.team) + grantedHp);
@@ -1175,6 +1179,9 @@ export class ActionDispatcher {
                           : card.id === TUTORIAL_2_START_CARD_ID
                             ? []
                             : starterUnlockedUnits(card, this.ctx.types);
+                if (this.ctx.playerUnlocks && action.team === 'player') {
+                    this.ctx.unlockedUnits[seat] = [...this.ctx.playerUnlocks];
+                }
                 // items (tactics) are additive per CARD, not an overwrite like
                 // speciality/HP/unlocks above — every seat's own pick grants
                 // its own items into ITS OWN pool (items are per-seat, never
@@ -1186,7 +1193,7 @@ export class ActionDispatcher {
                 }
                 // the starting army — free, placed ring-wise from THIS SEAT's lane
                 entry.units = [];
-                for (const typeId of card.units) {
+                for (const typeId of this.ctx.starterArmy ? card.units : []) {
                     const type = this.ctx.types.byId(typeId);
                     if (!type) continue;
                     const anchor = placement.findStartSpot(action.team, type, seat);
