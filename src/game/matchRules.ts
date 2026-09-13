@@ -25,6 +25,8 @@ export interface MatchRules {
     enemyIntel: ScenarioRules['enemyIntel'];
     /** the player side's shop unlocks, replacing the commander's; null = the commander's */
     playerUnlocks: string[] | null;
+    /** what the player side's round unlock may add; null = any buyable unit */
+    playerUnlockable: string[] | null;
     loadout: LoadoutRule;
 }
 
@@ -40,6 +42,7 @@ export function resolveMatchRules(settings: GameSettings, scenario: ScenarioDef 
             opponents: r.opponents,
             enemyIntel: r.enemyIntel,
             playerUnlocks: r.unlockedUnits ?? null,
+            playerUnlockable: r.unlockable ?? null,
             loadout: r.loadout ?? { mode: 'player' },
         };
     }
@@ -55,6 +58,7 @@ export function resolveMatchRules(settings: GameSettings, scenario: ScenarioDef 
         opponents: 'build',
         enemyIntel: settings.climb || tutorial ? 'visible' : 'fogged',
         playerUnlocks: null,
+        playerUnlockable: null,
         loadout: { mode: 'player' },
     };
 }

@@ -503,7 +503,7 @@ try {
             const climb = mr.resolveMatchRules({ ...structuredClone(setMod.DEFAULT_SETTINGS), climb: { sideHp: 1 } }, null);
             zexpect(climb.fixedSideHp?.player === 1 && climb.fixedSideHp?.enemy === 1 && climb.enemyIntel === 'visible' && climb.flanksOpenFromRound === 2, `climb rules changed: ${JSON.stringify(climb)}`);
             const scenRules = mr.resolveMatchRules(structuredClone(setMod.DEFAULT_SETTINGS), clean.def);
-            zexpect(scenRules.flanksOpenFromRound === null && scenRules.fixedSideHp?.enemy === 1000 && scenRules.opponents === 'lockInOnly' && scenRules.fixedAtmosphere?.season === 'autumn' && scenRules.playerUnlocks?.join() === 'archer', `scenario rules: ${JSON.stringify(scenRules)}`);
+            zexpect(scenRules.flanksOpenFromRound === null && scenRules.fixedSideHp?.enemy === 1000 && scenRules.opponents === 'lockInOnly' && scenRules.fixedAtmosphere?.season === 'autumn' && scenRules.playerUnlocks?.join() === 'archer' && scenRules.playerUnlockable?.length === 0 && normal.playerUnlockable === null, `scenario rules: ${JSON.stringify(scenRules)}`);
             const scenSettings = ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), clean.def, scenRef, 'play');
             zexpect(scenSettings.map.zoneCols === 24 && scenSettings.seed === 1234 && scenSettings.economy.startingSupply === 300 && scenSettings.deploy.unitsPerRound === 2 && scenSettings.strongholdMode === 'none' && scenSettings.hordePreset === 'off' && scenSettings.level?.hash === scenRef.hash && scenSettings.scenario?.mode === 'play' && !scenSettings.scenario.draft, `scenario settings: ${JSON.stringify({ map: scenSettings.map, scenario: scenSettings.scenario })}`);
         }

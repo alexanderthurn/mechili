@@ -598,6 +598,8 @@ export interface ActionContext {
     starterArmy: boolean;
     /** replaces the player side's shop unlocks after its commander pick (scenario); null = the commander's */
     playerUnlocks: string[] | null;
+    /** what the player side's round unlock may add (scenario); null = any buyable unit */
+    playerUnlockable: string[] | null;
     /**
      * Campaign climb active — gates {@link ClearArmyAction} (AI fresh rebuild).
      */
@@ -1391,6 +1393,9 @@ export class ActionDispatcher {
             case 'unlockUnit': {
                 if (this.ctx.unlockUsedThisRound[seat]) return false;
                 if (this.ctx.unlockedUnits[seat]!.includes(action.typeId)) return false;
+                if (action.team === 'player' && this.ctx.playerUnlockable && !this.ctx.playerUnlockable.includes(action.typeId)) {
+                    return false;
+                }
                 const cost = unlockCostFor(
                     action.typeId,
                     this.ctx.types.commander(this.ctx.commander[seat] ?? ''),

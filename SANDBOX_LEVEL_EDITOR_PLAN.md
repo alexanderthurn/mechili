@@ -343,6 +343,8 @@ interface ScenarioRules {
 
   /** human seat: shop unlocks (omit = normal) */
   unlockedUnits?: string[];
+  /** what the human seat's round unlock may add (omit = any buyable unit, [] = none) */
+  unlockable?: string[];
   /** how the human seat's talent loadout applies (omit = the player's own loadout, normal rules) */
   loadout?: LoadoutRule;
 }
@@ -430,6 +432,9 @@ mechanic and is listed in §11, not assumed.
 - Income is the normal round grant driven by `rules.income` — no separate
   “starting balance” rule.
 - `unlockedUnits` replaces the human seat's unlock list at start.
+- `unlockable` limits the once-per-round unlock: omitted = any buyable unit
+  (normal), `[]` = no unlocking, a list = only those; shop, action and picker
+  all follow it.
 - **Loadout:** the player plays with their own saved loadout, exactly as in a
   normal match, unless `rules.loadout` says otherwise:
   - `restrict` keeps the player's picks but drops talents not in `allow`

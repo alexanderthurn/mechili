@@ -627,6 +627,7 @@ export class Hud {
     private extrasBudgetLeft = Infinity;
     /** Campaign: hide Ward Stone / Fire Bolt row (any `UnitType.extra`) */
     private boardExtrasAllowed = true;
+    private readonly unlockable: readonly string[] | null;
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
     private readonly boardExtraButtons: HTMLButtonElement[] = [];
@@ -702,9 +703,15 @@ export class Hud {
         overlayParent: HTMLElement,
         costOf: (type: UnitType) => number,
         onBuy: (type: UnitType) => boolean,
-        opts: { types: TypeRegistry; boardExtrasAllowed?: boolean },
+        opts: {
+            types: TypeRegistry;
+            boardExtrasAllowed?: boolean;
+            /** what the round unlock may add (match rules); null / omitted = any buyable unit */
+            unlockable?: readonly string[] | null;
+        },
     ) {
         this.types = opts.types;
+        this.unlockable = opts.unlockable ?? null;
         this.overlayParent = overlayParent;
         this.costOf = costOf;
         // Explicit false hides Ward Stone / Fire Bolt / any future board extras.
@@ -2623,7 +2630,7 @@ export class Hud {
             }
         }
         const specialistChosen = unlocked.length > 0;
-        const hasLocked = this.types.shopUnitIds.some((id) => !unlocked.includes(id));
+        const hasLocked = this.unlockableIds().length > 0;
         const showUnlock = specialistChosen && unlockAvailable && hasLocked;
         this.unlockTile.style.display = showUnlock ? '' : 'none';
         this.unlockTile.classList.toggle('available', showUnlock);
@@ -2639,7 +2646,7 @@ export class Hud {
 
     private openUnlockPicker(): void {
         if (!this.shopUnlockAvailable || this.shopUnlocked.length === 0) return;
-        const locked = this.types.shopUnitIds.filter((id) => !this.shopUnlocked.includes(id)).map((id) => {
+        const locked = this.unlockableIds().map((id) => {
             const type = this.types.roster.find((t) => t.id === id)!;
             const unlockCost = this.unlockCostOf(id);
             return {
@@ -2652,6 +2659,13 @@ export class Hud {
         });
         if (locked.length === 0) return;
         this.showUnlockPicker(locked);
+    }
+
+    /** units the round unlock may still add: not yet unlocked, and allowed by the match rules */
+    private unlockableIds(): string[] {
+        return this.types.shopUnitIds.filter(
+            (id) => !this.shopUnlocked.includes(id) && (this.unlockable === null || this.unlockable.includes(id)),
+        );
     }
 
     private unlockTierLabel(unlockCost: number): string {

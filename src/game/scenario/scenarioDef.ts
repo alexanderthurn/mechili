@@ -86,6 +86,11 @@ export interface ScenarioRules {
     enemyIntel: 'fogged' | 'visible';
     /** the player's shop unlocks (omit = what the commander gives) */
     unlockedUnits?: string[];
+    /**
+     * What the player's once-per-round unlock may add: omit = any buyable
+     * unit (normal), `[]` = no unlocking, a list = only these.
+     */
+    unlockable?: string[];
     /** how the player's talent loadout applies (omit = the player's own) */
     loadout?: LoadoutRule;
 }

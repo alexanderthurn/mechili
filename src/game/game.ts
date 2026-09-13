@@ -1678,6 +1678,7 @@ export class Game {
             fixedSideHp: this.rules.fixedSideHp,
             starterArmy: this.rules.commander.mode !== 'fixed' || this.rules.commander.starterArmy,
             playerUnlocks: this.rules.playerUnlocks,
+            playerUnlockable: this.rules.playerUnlockable,
             climbMode: !!settings.climb,
             clock: () => ({
                 round: this.round,
@@ -1851,7 +1852,11 @@ export class Game {
             wrapper,
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
-            { types: this.types, boardExtrasAllowed: !this.settings.climb && !isTutorial(this.settings) },
+            {
+                types: this.types,
+                boardExtrasAllowed: !this.settings.climb && !isTutorial(this.settings),
+                unlockable: this.rules.playerUnlockable,
+            },
         );
         // Shop hover windows list this player's own talent picks. Fixed for
         // the whole match, so once here is enough.

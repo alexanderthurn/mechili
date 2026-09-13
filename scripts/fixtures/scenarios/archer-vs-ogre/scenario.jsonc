@@ -22,6 +22,7 @@
         "opponents": "lockInOnly",
         "enemyIntel": "visible",
         "unlockedUnits": ["archer"],
+        "unlockable": [], // no round unlocks: archers only
     },
     "scene": {
         "units": [

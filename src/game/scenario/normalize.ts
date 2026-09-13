@@ -81,6 +81,13 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
     if (rules.loadout && rules.loadout.mode !== 'player') {
         warn(`rules.loadout: "${rules.loadout.mode}" is not applied yet — the player's own loadout is used`);
     }
+    if (rules.unlockable) {
+        const known = rules.unlockable.filter((id) => types.shopUnitIds.includes(id));
+        for (const id of rules.unlockable) {
+            if (!known.includes(id)) warn(`rules.unlockable: "${id}" is not a buyable unit — dropped`);
+        }
+        rules.unlockable = known;
+    }
     if (rules.unlockedUnits) {
         const known = rules.unlockedUnits.filter((id) => types.shopUnitIds.includes(id));
         for (const id of rules.unlockedUnits) {

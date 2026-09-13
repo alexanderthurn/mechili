@@ -338,6 +338,13 @@
           },
           "description": "the player's shop unlocks (omit = what the commander gives)"
         },
+        "unlockable": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "What the player's once-per-round unlock may add: omit = any buyable unit (normal), `[]` = no unlocking, a list = only these."
+        },
         "loadout": {
           "$ref": "#/definitions/LoadoutRule",
           "description": "how the player's talent loadout applies (omit = the player's own)"
