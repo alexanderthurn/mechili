@@ -99,6 +99,7 @@ import {
     type LevelRef,
 } from './game/level';
 import { readZip } from './game/content/zip';
+import { listCachedLevels } from './game/levelCache';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
@@ -1299,9 +1300,13 @@ const cgScenarioPlayEl = menu.querySelector<HTMLButtonElement>('.cg-scenario-pla
  */
 const SCENARIO_ZIP_TESTING = !isElectron();
 
+/** option value (content hash) → level, for the scenario row */
+const scenarioRowLevels = new Map<string, LevelRef>();
+
 function refreshScenarioSelect(): void {
     const active = activeLevelRef();
     cgScenarioEl.textContent = '';
+    scenarioRowLevels.clear();
     const add = (value: string, label: string) => {
         const opt = document.createElement('option');
         opt.value = value;
@@ -1309,11 +1314,27 @@ function refreshScenarioSelect(): void {
         cgScenarioEl.appendChild(opt);
     };
     add('', 'Base game');
-    for (const level of knownLevels()) add(level.hash, `${level.id} · ${level.hash.slice(0, 6)}`);
+    for (const level of knownLevels()) {
+        scenarioRowLevels.set(level.hash, level);
+        add(level.hash, `${level.id} · ${level.hash.slice(0, 6)}`);
+    }
     add('zip', 'Load zip…');
     cgScenarioEl.value = active?.hash ?? '';
     // a level with scenario.jsonc can be played as a single-player scenario
     cgScenarioPlayEl.hidden = !(SCENARIO_ZIP_TESTING && !cgScenarioFieldEl.hidden && activeLevel().scenario);
+    // scenarios kept from earlier sessions (saved from replays, received, loaded)
+    void listCachedLevels().then((cached) => {
+        const zip = cgScenarioEl.querySelector('option[value="zip"]');
+        for (const { ref, scenario } of cached) {
+            if (scenarioRowLevels.has(ref.hash)) continue;
+            scenarioRowLevels.set(ref.hash, ref);
+            const opt = document.createElement('option');
+            opt.value = ref.hash;
+            opt.textContent = `${ref.id} · ${ref.hash.slice(0, 6)}${scenario ? ' · scenario' : ''} (kept)`;
+            cgScenarioEl.insertBefore(opt, zip);
+        }
+        cgScenarioEl.value = activeLevelRef()?.hash ?? '';
+    });
 }
 
 cgScenarioPlayEl.addEventListener('click', () => {
@@ -1350,7 +1371,7 @@ cgScenarioEl.addEventListener('change', () => {
         cgScenarioFileEl.click();
         return;
     }
-    const ref = knownLevels().find((l) => l.hash === cgScenarioEl.value);
+    const ref = scenarioRowLevels.get(cgScenarioEl.value);
     void switchScenarioTo(ref).catch((e: unknown) => console.error('[scenario]', e));
 });
 
@@ -3224,6 +3245,30 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
     });
 }
 
+/**
+ * Replay viewer → scenario (plan §9.1): the board as it stands becomes a
+ * scenario package in the scenario cache. Web builds also download its
+ * scenario.jsonc for editing.
+ */
+async function saveReplayScenario(): Promise<string> {
+    const game = activeGame;
+    if (!game) return '';
+    // Electron has no window.prompt — the desktop build uses the default name
+    const name = isElectron() ? 'Replay situation' : window.prompt('Scenario name', 'Replay situation');
+    if (name === null) return '';
+    const saved = await game.saveReplayAsScenario(name.trim() || 'Replay situation');
+    if (!saved) return 'Nothing to save yet — wait for round 1.';
+    if (!isElectron()) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([saved.text], { type: 'application/json' }));
+        link.download = 'scenario.jsonc';
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+    }
+    console.info(`[scenario] saved "${saved.ref.id}" (${saved.ref.hash.slice(0, 12)})`);
+    return `Saved “${saved.ref.id}” — play it from Custom Game → Scenario (test).`;
+}
+
 /** kept around so rebuildReplayAt (round jump / skip to end) can
  *  reconstruct without re-fetching; cleared on return to menu */
 let currentReplayRecord: MatchTelemetry | null = null;
@@ -3266,6 +3311,7 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
             onSkipDeployment: () => activeGame?.skipReplayDeployment(),
             onSkipBattle: () => activeGame?.skipReplayBattle(),
             onSpeedChange: (index) => activeGame?.setReplaySpeedIndex(index),
+            onSaveScenario: () => saveReplayScenario(),
         },
     );
 }

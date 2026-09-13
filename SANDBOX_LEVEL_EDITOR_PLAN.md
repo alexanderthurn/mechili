@@ -573,8 +573,8 @@ destruction for them are checked (and fixed where needed) in phase 3. Cover
 
 ### 9.1 Capture situation (high value)
 
-“Save as scenario” from any SP match, spectated match or replay **at the start
-of a build phase**: current board, levels, runes, side talents, buildings
+“Save as scenario” from the **replay viewer** (live matches and spectating
+left out for now): current board, levels, runes, side talents, buildings
 (incl. garrison posts), side HP and map flags become a draft
 (`flanksOpenFromRound` = 1 if already open). A match that played a level keeps
 that level's content in the new package.
@@ -739,6 +739,12 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
    button. Not yet: `rules.loadout` modes other than `player` (warned),
    minimum board size (§7.2).
 2. **Capture situation** (§9.1) — immediate value, and it exercises apply.
+   *Implemented for the replay viewer only* (decision 2026-09-13): "Save as
+   scenario" in the replay controls captures the board as it stands (watched
+   side = player; opponents lock in only; the player's commander fixed
+   without its army), keeps the package in the scenario cache with the replay
+   level's content, and downloads `scenario.jsonc` in web builds. Kept
+   scenarios are listed in the Custom Game test row.
 3. **Editor core:** author mode, place / move / erase, team brush, placing
    any unit or building type for player / enemy / horde (incl. horde-owned
    buildings), draft autosave, restart on map change.

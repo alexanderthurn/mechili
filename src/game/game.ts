@@ -57,6 +57,7 @@ import {
     clearSinglePlayer,
     clearStarResumeMarker,
     GAME_VERSION,
+    formatGameVersion,
     isSameBuild,
     formatBuild,
     ourBuild,
@@ -277,7 +278,9 @@ import { renderAllUnitIcons } from '../ui/unitIcons';
 import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
-import { activeLevel, isLevelActive } from './level';
+import { activeLevel, activeLevelRef, isLevelActive, levelFiles, loadLevel, type LevelRef } from './level';
+import { captureScenario } from './scenario/capture';
+import { scenarioFileText, scenarioPackageFiles } from './scenario/package';
 import { resolveMatchRules, stripOpen, type MatchRules } from './matchRules';
 import { hasErrors, normalizeScenario } from './scenario/normalize';
 import type { ScenarioDef } from './scenario/scenarioDef';
@@ -6313,6 +6316,42 @@ export class Game {
     skipReplayBattle(): void {
         if (!this.watching || this.phase !== 'battle') return;
         this.fastForwardBattle();
+    }
+
+    /**
+     * Replay viewer: save the board as it stands as a scenario package (plan
+     * §9.1) — kept in the scenario cache, together with the content of the
+     * level the replay played. The watched side becomes `player`. Null outside
+     * replay watching or before both commanders are picked.
+     */
+    async saveReplayAsScenario(name: string): Promise<{ ref: LevelRef; text: string } | null> {
+        if (!this.watching || this.replayLog === null || this.round < 1) return null;
+        const game = this;
+        const def = captureScenario(
+            {
+                types: this.types,
+                settings: this.settings,
+                rules: this.rules,
+                placement: this.placement,
+                techTree: this.techTree,
+                round: this.round,
+                hp: { player: this.playerHp, enemy: this.enemyHp },
+                flanksOpen: this.map.flanksUnlocked,
+                neutralOpen: this.map.neutralUnlocked,
+                atmosphere: this.weather?.snapshot.atmosphere ?? null,
+                playerCommanderId: this.commander[this.humanSeat] ?? null,
+                playerUnlocks: this.unlockedUnits[this.humanSeat] ?? [],
+                gameVersion: formatGameVersion(GAME_VERSION),
+                primarySeat(team) {
+                    return primarySeatOf(game.seats, team);
+                },
+            },
+            name,
+        );
+        const level = activeLevelRef();
+        const files = scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []);
+        const { ref } = await loadLevel(def.id, files);
+        return { ref, text: scenarioFileText(def) };
     }
 
     /** verify mode's recomputed outcome once the match has ended, for a

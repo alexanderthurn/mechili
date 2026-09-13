@@ -18,7 +18,16 @@ interface CachedLevel {
     hash: string;
     id: string;
     usedAt: number;
+    /** the package has a scenario.jsonc (older entries: unknown) */
+    scenario?: boolean;
     pkg: Uint8Array;
+}
+
+/** what the cache holds, without the packages */
+export interface CachedLevelInfo {
+    ref: LevelRef;
+    usedAt: number;
+    scenario: boolean;
 }
 
 let dbPromise: Promise<IDBDatabase | null> | null = null;
@@ -53,7 +62,13 @@ export async function cacheLevel(ref: LevelRef, files: readonly OverlayFile[]): 
         const db = await openDb();
         if (!db) return;
         const store = db.transaction(STORE, 'readwrite').objectStore(STORE);
-        const entry: CachedLevel = { hash: ref.hash, id: ref.id, usedAt: Date.now(), pkg: encodeLevelPackage(files) };
+        const entry: CachedLevel = {
+            hash: ref.hash,
+            id: ref.id,
+            usedAt: Date.now(),
+            scenario: files.some((f) => f.path === 'scenario.jsonc'),
+            pkg: encodeLevelPackage(files),
+        };
         await request(store.put(entry));
         const all = (await request(db.transaction(STORE, 'readonly').objectStore(STORE).getAll())) as CachedLevel[];
         const stale = all.sort((a, b) => b.usedAt - a.usedAt).slice(MAX_LEVELS);
@@ -63,6 +78,21 @@ export async function cacheLevel(ref: LevelRef, files: readonly OverlayFile[]): 
         }
     } catch (e) {
         console.warn('[levelCache] could not keep scenario', e);
+    }
+}
+
+/** Every kept level, most recently used first. */
+export async function listCachedLevels(): Promise<CachedLevelInfo[]> {
+    try {
+        const db = await openDb();
+        if (!db) return [];
+        const all = (await request(db.transaction(STORE, 'readonly').objectStore(STORE).getAll())) as CachedLevel[];
+        return all
+            .sort((a, b) => b.usedAt - a.usedAt)
+            .map((e) => ({ ref: { id: e.id, hash: e.hash }, usedAt: e.usedAt, scenario: e.scenario === true }));
+    } catch (e) {
+        console.warn('[levelCache] could not list scenarios', e);
+        return [];
     }
 }
 

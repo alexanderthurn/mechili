@@ -15,6 +15,8 @@ export interface ReplayControlsCallbacks {
     onSkipDeployment(): void;
     onSkipBattle(): void;
     onSpeedChange(index: number): void;
+    /** save the board as it stands as a scenario; resolves to a short status line */
+    onSaveScenario(): Promise<string>;
 }
 
 export class ReplayControls {
@@ -55,6 +57,10 @@ export class ReplayControls {
                 .join('') +
             `</select></label>` +
             `<span class="rc-speed-hint">${speedKeyHint(speedSteps)}</span>` +
+            `</div>` +
+            `<div class="rc-row">` +
+            `<button type="button" class="rc-save-scenario">${t('hud:replaySaveScenario', { defaultValue: 'Save as scenario' })}</button>` +
+            `<span class="rc-save-status"></span>` +
             `</div>`;
 
         this.roundSelect = this.root.querySelector<HTMLSelectElement>('.rc-round')!;
@@ -70,6 +76,16 @@ export class ReplayControls {
         this.root.querySelector('.rc-skip-battle')!.addEventListener('click', () => cb.onSkipBattle());
         this.root.querySelector('.rc-end')!.addEventListener('click', () => cb.onSkipToEnd());
         this.speedSelect.addEventListener('change', () => cb.onSpeedChange(Number(this.speedSelect.value)));
+        const saveButton = this.root.querySelector<HTMLButtonElement>('.rc-save-scenario')!;
+        const saveStatus = this.root.querySelector<HTMLSpanElement>('.rc-save-status')!;
+        saveButton.addEventListener('click', () => {
+            saveButton.disabled = true;
+            void cb
+                .onSaveScenario()
+                .then((status) => (saveStatus.textContent = status))
+                .catch((e: unknown) => (saveStatus.textContent = e instanceof Error ? e.message : String(e)))
+                .finally(() => (saveButton.disabled = false));
+        });
 
         wrapper.appendChild(this.root);
     }

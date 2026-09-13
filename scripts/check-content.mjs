@@ -507,7 +507,54 @@ try {
             const scenSettings = ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), clean.def, scenRef, 'play');
             zexpect(scenSettings.map.zoneCols === 24 && scenSettings.seed === 1234 && scenSettings.economy.startingSupply === 300 && scenSettings.deploy.unitsPerRound === 2 && scenSettings.strongholdMode === 'none' && scenSettings.hordePreset === 'off' && scenSettings.level?.hash === scenRef.hash && scenSettings.scenario?.mode === 'play' && !scenSettings.scenario.draft, `scenario settings: ${JSON.stringify({ map: scenSettings.map, scenario: scenSettings.scenario })}`);
         }
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario)');
+        // ---- capture: a replay board → scenario → package → the same board back
+        {
+            const cap = await server.ssrLoadModule('/src/game/scenario/capture.ts');
+            const pkgMod = await server.ssrLoadModule('/src/game/scenario/package.ts');
+            const scen = await server.ssrLoadModule('/src/game/scenario/normalize.ts');
+            const techMod = await server.ssrLoadModule('/src/game/tech.ts');
+            const mr = await server.ssrLoadModule('/src/game/matchRules.ts');
+            const setMod = await server.ssrLoadModule('/src/game/settings.ts');
+            const T = units.BASE_TYPES;
+            const settings = structuredClone(setMod.DEFAULT_SETTINGS);
+            settings.seed = 77;
+            const tree = new techMod.TechTree(2, T);
+            tree.add(1, 'ogre', 'carapace');
+            const fake = (id, typeId, team, col, row, extra = {}) => ({
+                id, type: T.require(typeId), team, cell: { col, row }, rotated: false, level: 1, items: [],
+                consumed: false, summoned: false, hostUnitId: null, gridless: false, world: { x: 0, z: 0 }, ...extra,
+            });
+            const board = [
+                fake(1, 'stronghold', 'enemy', 40, 60, { level: 2 }),
+                fake(2, 'stronghold-archer', 'enemy', 0, 0, { hostUnitId: 1, gridless: true }),
+                fake(3, 'archer', 'player', 10, 20, { level: 3, items: ['fire'] }),
+                fake(4, 'ogre', 'enemy', 30, 70, { rotated: true }),
+                fake(5, 'hordeZombie', 'horde', 0, 0, { summoned: true }),
+            ];
+            const def = cap.captureScenario(
+                {
+                    types: T, settings, rules: mr.resolveMatchRules(settings, null),
+                    placement: { allUnits: () => board, map: { halfW: 160, halfH: 170 } },
+                    techTree: tree, round: 3, hp: { player: 2500, enemy: 0 },
+                    flanksOpen: true, neutralOpen: true,
+                    atmosphere: { season: 'winter', weatherKind: 'snow', weatherIntensity: 0.9, timeOfDay: 'day' },
+                    playerCommanderId: 'air', playerUnlocks: ['goblin', 'crowRider'], gameVersion: '0.9.0',
+                    primarySeat: (team) => (team === 'player' ? 0 : 1),
+                },
+                'Weird fight',
+            );
+            const checked = scen.normalizeScenario(def, T);
+            zexpect(checked.def !== null && !scen.hasErrors(checked.issues), `captured scenario has errors: ${checked.issues.map((i) => i.message).join('; ')}`);
+            zexpect(def.scene.units.length === 2 && def.scene.units[0].team === 'player' && def.scene.units[0].items?.join() === 'fire' && def.scene.units[1].at.rotated === true, `captured units: ${JSON.stringify(def.scene.units)}`);
+            zexpect(def.scene.buildings.enemy.stronghold?.level === 2 && def.scene.buildings.enemy.stronghold.garrison === 1 && def.scene.buildings.player.stronghold === false, `captured buildings: ${JSON.stringify(def.scene.buildings)}`);
+            zexpect(def.scene.techs.enemy.ogre?.join() === 'carapace' && def.rules.sideHp.enemy === 1 && def.rules.commander.mode === 'fixed' && def.rules.flanksOpenFromRound === 1 && def.rules.atmosphere.weather === 'snow' && def.rules.income.round1 === settings.economy.startingSupply + 2 * settings.economy.supplyGrowthPerRound, `captured rules: ${JSON.stringify(def.rules)}`);
+            const files = pkgMod.scenarioPackageFiles(def);
+            const { ref: capRef } = await levels.loadLevel(def.id, files);
+            const act = await levels.prepareLevel(capRef);
+            zexpect(act.scenario?.def?.scene.units.length === 2 && act.scenario.issues.every((i) => i.level !== 'error'), 'a captured package does not load back as the same scenario');
+            await levels.prepareLevel(undefined);
+        }
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); replay capture round-trips');
     }
 } catch (e) {
     failed = true;
