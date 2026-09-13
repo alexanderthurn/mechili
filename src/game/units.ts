@@ -20,17 +20,20 @@ import type { BurnAffinity, FireProfile } from './fire';
 import { detAtan2 } from './detMath';
 
 /**
- * The ward dome's skin: a faint violet film with a band of golden runes
+ * The ward dome's skin: a faint team-colored film with a band of golden runes
  * floating near the base and a double arcane circle. RGB carries the hue,
  * alpha carries how solid each texel is (film ~0.2, runes ~1).
  */
-function makeWardRuneTexture(): CanvasTexture {
+function makeWardRuneTexture(filmHex: number): CanvasTexture {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 128;
     const ctx = canvas.getContext('2d')!;
-    // violet film
-    ctx.fillStyle = 'rgba(150, 105, 235, 0.2)';
+    const fr = (filmHex >> 16) & 0xff;
+    const fg = (filmHex >> 8) & 0xff;
+    const fb = filmHex & 0xff;
+    // team-colored film
+    ctx.fillStyle = `rgba(${fr}, ${fg}, ${fb}, 0.2)`;
     ctx.fillRect(0, 0, 512, 128);
     // double arcane circle near the dome base (bottom of the texture)
     ctx.strokeStyle = 'rgba(255, 205, 120, 0.85)';
@@ -67,7 +70,7 @@ function makeWardRuneTexture(): CanvasTexture {
     texture.wrapS = RepeatWrapping;
     return texture;
 }
-import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
+import { LEVEL_TINT_COLORS, applyLevelTintColor, colorForBattleTeam } from './colors';
 import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
 import {
@@ -827,13 +830,17 @@ class PartFactory {
 
     /** translucent arcane ward dome (shield extra) — casts no shadow */
     dome(r: number, heightScale: number): Mesh {
+        const side = colorForBattleTeam(this.team);
+        const fr = ((side.hex >> 16) & 0xff) / 255;
+        const fg = ((side.hex >> 8) & 0xff) / 255;
+        const fb = (side.hex & 0xff) / 255;
         const mesh = new Mesh(
             new SphereGeometry(r, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2),
-            material('shield-dome-arcane', () => {
-                const runes = makeWardRuneTexture();
+            material(`shield-dome-${this.team}`, () => {
+                const runes = makeWardRuneTexture(side.hex);
                 const m = new MeshStandardMaterial({
                     color: 0xffffff,
-                    map: runes, // violet film + golden rune band (alpha carries both)
+                    map: runes, // team film + golden rune band (alpha carries both)
                     emissive: 0xffffff,
                     emissiveMap: runes,
                     emissiveIntensity: 0.85,
@@ -843,18 +850,17 @@ class PartFactory {
                     side: DoubleSide,
                     depthWrite: false,
                 });
-                // arcane fresnel rim: the dome edge glows violet like a soap
-                // bubble of magic instead of a flat sci-fi tint
+                // arcane fresnel rim in the owner's team color
                 m.onBeforeCompile = (shader) => {
                     shader.fragmentShader = shader.fragmentShader.replace(
                         '#include <emissivemap_fragment>',
                         `#include <emissivemap_fragment>
     float wardFres = pow(1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition))), 2.2);
-    totalEmissiveRadiance += vec3(0.62, 0.38, 1.0) * wardFres * 1.4;
+    totalEmissiveRadiance += vec3(${fr.toFixed(4)}, ${fg.toFixed(4)}, ${fb.toFixed(4)}) * wardFres * 1.4;
     diffuseColor.a = clamp(diffuseColor.a + wardFres * 0.5, 0.0, 1.0);`,
                     );
                 };
-                m.customProgramCacheKey = () => 'shield-dome-arcane';
+                m.customProgramCacheKey = () => `shield-dome-${this.team}`;
                 return m;
             }),
         );
