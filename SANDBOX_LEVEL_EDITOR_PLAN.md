@@ -58,6 +58,12 @@ one rules object. See §14.
     primitives** (useful to any caller) and **rule reads**, never editor
     branches. See §12.
 
+11. **Requirement — behaviour comes from attributes, not ids.** Before the
+    editor is built, core stops branching on specific unit or building types
+    (`type === STRONGHOLD`, `id === 'ballista'`). Every such behaviour becomes
+    an attribute on the type, and unit/building definitions become plain data
+    that can later be loaded from JSON content packs. See §17.
+
 ---
 
 ## 1. Goals and non-goals
@@ -614,6 +620,9 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
 
 ## 13. Delivery phases
 
+0. **Content preparation (§17), before any editor work:** attributes instead of
+   id checks, definitions made serializable, JSON loader for the base game
+   with an equality check against the TypeScript tables.
 1. **Rules + scenario play:** `matchRules.ts`, `ScenarioDef`, normalize,
    `applyScenario`, play a hand-written JSON, resume + replay verification.
 2. **Capture situation** (§9.1) — immediate value, and it exercises apply.
@@ -708,9 +717,103 @@ Each phase is playable and reviewable on its own.
 
 ---
 
+## 17. Content packs & unit attributes (requirement)
+
+Custom maps will need buildings and units that don't exist in the normal game
+(a different Stronghold, walls that shield one side). Those must be possible
+**without touching game code**, and ideally without a programmer. That needs
+two things, delivered before the editor:
+
+1. core code that reacts to **attributes** of a type, never to its identity;
+2. unit and building definitions that are **plain data** and can live in JSON.
+
+### 17.1 Attribute rules
+
+1. **Name by effect, not by owner.** `collapseOwnArmy`, not `isStronghold`.
+2. **Attribute = capability; match rules decide whether it is active.**
+   `collapseOwnArmy` only fires when `strongholdMode` is `lifeline`.
+3. **Group what always goes together.** `fixture: true` means “part of a
+   building”: not sellable, not movable, no refund, not field army. No sets of
+   booleans that must be kept in sync by hand.
+4. **Relationships by reference, not by type.** A mounted archer dies with
+   *its* host building, not with any building of a given type.
+5. **Values in data, effects in code.** JSON switches effects on and sets
+   numbers; each effect is implemented once in TypeScript.
+6. **Unknown attributes are load errors.** A typo must never silently do
+   nothing.
+7. **Scripted content may use ids.** Tutorial lessons (“select the archer”)
+   and cheats refer to specific content on purpose.
+
+### 17.2 Current id checks → attributes
+
+| Behaviour today | Attribute |
+|---|---|
+| Stronghold destroyed → own army collapses (lifeline) | `onDestroyed.collapseOwnArmy` |
+| Command Tower / Research Center destroyed → seat debuff | `onDestroyed.seatDebuff` |
+| Stronghold destroyed → its battlement archers die | `diesWithHost` on the mounted unit |
+| Battlement archer: no sell / move / refund / field army | `fixture` |
+| Buy archers onto `Unit1…5` with a climbing price | `garrison { slots, unitTypeId, price { base, step } }` on the host |
+| Rune drop onto the building, forge FX, forge spells | `forge` |
+| Building shop buttons (recruit level, deploy slot, boosts, credit, upgrade, archers) | `abilities: [...]` |
+| Ballista golden aura | `aura { effect, requiresTech, radius, duration }` |
+| Sand pad scale under buildings | `visual.sandScale` |
+| Banners | driven by the model's flag nodes |
+
+### 17.3 Definitions as data
+
+- A type definition may contain only JSON-representable values. Code
+  references (today: the procedural `build` mesh function) become **named
+  references** resolved at load time (`"proceduralModel": "dwarf"`).
+- Model specs (GLB path, yaw, scale, offset) move next to the type they
+  belong to.
+- Ids are namespaced once packs exist (`base:archer`, `fortress:wall`); a
+  level pack may `extends` a base type and override fields.
+
+### 17.4 Pack layout (units and buildings first)
+
+```text
+content/
+  base/
+    pack.json
+    units/*.json
+    buildings/*.json
+    models/*.glb
+  scenarios/<id>/
+    scenario.json
+    units/*.json        # new or extended types for this level only
+    buildings/*.json
+    models/*.glb
+```
+
+The base pack is bundled by Vite (no runtime fetch). Scenario packs load at
+runtime. Techs, runes and commanders follow the same pattern later.
+
+### 17.5 Determinism
+
+- Anything the sim reads from a pack (stats, attributes, GLB-derived slots and
+  heights) must be identical on every peer: the multiplayer join check compares
+  a content hash of the loaded packs, and pack GLBs feed
+  `modelGeometryFingerprint`.
+- Every conversion step must leave a recorded replay's state hashes unchanged.
+
+### 17.6 Order
+
+1. Attributes replace id checks in the current TypeScript tables, one
+   behaviour per commit.
+2. Definitions become serializable (named procedural model refs, model specs
+   on the type).
+3. A one-time export writes the base pack as JSON; a loader builds the same
+   objects; a check proves loaded == TypeScript tables.
+4. Level packs (`extends`, new GLBs, new buildings from existing attributes).
+5. Engine features that unlock new content, e.g. walls (movement + projectile
+   blocking needs real pathing — today the sim only has local avoidance).
+
+---
+
 ## Document history
 
 | Date | Change |
 |------|--------|
 | 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
+| 2026-09-13 | §17 requirement: attributes instead of id checks; definitions as data; JSON content packs (units/buildings first); phase 0 before the editor |
 | 2026-09-13 | v2: verified against the engine. Scenario embedded in settings (replay/resume), `MatchRules`, restart-only editor, side-level techs, commander modes, opponents always lock in, revive semantics, capture situation, share codes, regression tests, campaign carry-over, resolved-issues table (§14) |
