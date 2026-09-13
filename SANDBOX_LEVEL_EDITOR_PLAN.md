@@ -851,7 +851,7 @@ levels/frost-keep/
 | 4. `assetUrl()` resolver + generated manifest (`npm run assets:manifest`); every game file load goes through it, lazily | done |
 | 5. Build-time content hash in every multiplayer handshake (`isSameBuild`) | done |
 | 6. Overlay layer: `buildAssetOverlay` / `installAssetOverlay`, report, overlay hash in `currentContentHash()`, level data validated via `loadPackWithOverlay` | done (no loading UI) |
-| 7. **Per-match type registry** — see 17.8 | next |
+| 7. Per-match type registry (`TypeRegistry`, `game.types`) — see 17.8 | done (model specs still global) |
 | 8. Level loading (Electron folder / browser zip) + scenario boot | with scenarios |
 | 9. Walls and other engine features that unlock new content | later |
 
@@ -860,20 +860,33 @@ hand-built asset URLs, schema freshness, base data validation, and a sample
 level overlay (replace/add by path, report, hash stability and line-ending
 invariance, data validation, multiplayer hash).
 
-### 17.8 Known gap: per-match type registry
+### 17.8 Per-match type registry
 
 A level's **media** overlay applies to a match as-is: files resolve when they
-load. A level's **data** (a replaced Stronghold, a new wall) is validated
-today but can't be used yet, because the unit and building tables are
-module-level constants loaded once at startup (`UNIT_TYPES`, `STRONGHOLD`,
-`unitTypeById`, …) and imported across the codebase.
+load. A level's **data** (a replaced Stronghold, a new wall) needs the match
+to play with its own unit and building definitions, not module constants.
 
-Needed before a level can change definitions:
-- a type registry owned by the match (built from `loadPackWithOverlay`),
-  reachable from the sim, placement, HUD and AI instead of module constants;
-- the remaining named constants (`STRONGHOLD`, `COMMAND_TOWER`, …) resolved
-  through it, which the attribute work (17.2) already made mostly unnecessary;
-- model specs re-resolved per match (`MODEL_SPECS` is built once today).
+Done:
+- `TypeRegistry` (`src/game/content/typeRegistry.ts`) holds roster,
+  off-roster, buildings, model data, the shop filter (`shopUnitIds`: roster
+  types that aren't extras, structures or `buyable: false`), `byId`/`require`,
+  `unlockCost` and `garrisonPostCost`.
+- `BASE_TYPES` (units.ts) is the base game's registry. The old module
+  constants (`UNIT_TYPES`, `STRONGHOLD`, `COMMAND_TOWER`, `unitTypeById`,
+  `SHOP_UNIT_IDS`, …) are gone.
+- `Game.types` is the match's registry and is handed to placement, the action
+  dispatcher, AI and tutorial contexts, horde waves, the HUD and commander
+  unlock pricing. Menu code (loadout picker, unit icons, homepage, spell
+  labels) reads `BASE_TYPES` on purpose.
+
+Still open:
+- `Game.types` is always `BASE_TYPES`; scenario boot will build one with
+  `new TypeRegistry(loadPackWithOverlay(…))` and pass it in the settings.
+- Model specs are resolved once (`MODEL_SPECS`); a level that changes a
+  model's data (scale, yaw) needs them re-resolved per match. Replacing the
+  GLB file itself already works through the overlay.
+- Shared caches keyed by type id (unit icons, preloaded visuals) would need a
+  refresh for a level that adds or restyles types.
 
 Multiplayer is already safe for this: the overlay hash covers data files, so
 peers can only play a level whose definitions match.
@@ -885,6 +898,7 @@ peers can only play a level whose definitions match.
 | Date | Change |
 |------|--------|
 | 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
+| 2026-09-13 | §17 step 7: per-match `TypeRegistry` (`game.types`); module type constants removed |
 | 2026-09-13 | §17 steps 3–6 implemented; status table and the per-match type registry gap (17.8) |
 | 2026-09-13 | §17 → content, assets & overlays: one `assets/` tree (data + media), `assetUrl` resolver + manifest, level overlays by path, content hash in handshakes. Loadout fixed: the player's own loadout is the default; `rules.loadout` can restrict, fix or open it |
 | 2026-09-13 | §17 requirement: attributes instead of id checks; definitions as data; JSON content packs (units/buildings first); phase 0 before the editor |

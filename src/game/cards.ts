@@ -29,7 +29,7 @@ import {
     TACTICS,
     TUTOR_ID,
 } from './tactics';
-import { isPlayerBuyable, UNIT_TYPES, unitUnlockCost } from './units';
+import type { TypeRegistry } from './content/typeRegistry';
 import { forgeIngredientIcons } from './forgeRecipes';
 
 export type SpecialityId =
@@ -78,8 +78,9 @@ export const GIANT_UNLOCK_DISCOUNT = 200;
 export function unlockCostForSpeciality(
     typeId: string,
     speciality: SpecialityId | null,
+    types: TypeRegistry,
 ): number {
-    const base = unitUnlockCost(typeId);
+    const base = types.unlockCost(typeId);
     if (!Number.isFinite(base)) return base;
     if (speciality === 'giant' && base >= GIANT_UNLOCK_THRESHOLD) {
         return Math.max(0, base - GIANT_UNLOCK_DISCOUNT);
@@ -318,17 +319,7 @@ export function roundCardIcon(c: RoundCard): string | null {
     return null;
 }
 
-/**
- * Buyable army types in the deployment shop (not board extras), derived from
- * the roster itself so this list can never drift from {@link UnitType.buyable}
- * — a hand-written copy let the horde-only Bat leak into the unlock picker at
- * an infinite price. Board extras (shield/rocket) and unbuyable horde types
- * are filtered out; the order follows UNIT_TYPES, which is also the order the
- * shop grid builds its tiles in.
- */
-export const SHOP_UNIT_IDS: readonly string[] = UNIT_TYPES.filter(
-    (t) => !t.extra && !t.structure && isPlayerBuyable(t),
-).map((t) => t.id);
+/** A buyable army type id — see {@link TypeRegistry.shopUnitIds} for the match's list. */
 export type ShopUnitId = string;
 
 /** the signature unit a specialist can buy even if it is not in the starter army */
@@ -410,7 +401,7 @@ export const TUTORIAL_2_START_CARD_ID = 'tutorial2';
 export const TUTORIAL_3_START_CARD_ID = 'tutorial3';
 
 /** starter packs + the specialist's signature unit */
-export function starterUnlockedUnits(card: StartCard): ShopUnitId[] {
+export function starterUnlockedUnits(card: StartCard, types: TypeRegistry): ShopUnitId[] {
     // Tutorial commanders grant no shop roster — the mode assigns unlocks itself.
     if (
         card.id === TUTORIAL_START_CARD_ID ||
@@ -421,10 +412,10 @@ export function starterUnlockedUnits(card: StartCard): ShopUnitId[] {
     }
     const ids = new Set<ShopUnitId>();
     for (const id of card.units) {
-        if ((SHOP_UNIT_IDS as readonly string[]).includes(id)) ids.add(id as ShopUnitId);
+        if (types.shopUnitIds.includes(id)) ids.add(id);
     }
     ids.add(SPECIALITY_UNLOCK[card.speciality]);
-    return SHOP_UNIT_IDS.filter((id) => ids.has(id));
+    return types.shopUnitIds.filter((id) => ids.has(id));
 }
 
 /**

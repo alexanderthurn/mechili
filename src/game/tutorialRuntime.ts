@@ -19,10 +19,6 @@ import { TUTORIAL_2_START_CARD, TUTORIAL_3_START_CARD, TUTORIAL_START_CARD } fro
 import { BASE_ANCHORS } from './map';
 import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID } from './tactics';
 import {
-    COMMAND_TOWER,
-    RESEARCH_CENTER,
-    STRONGHOLD,
-    unitTypeById,
     type Team,
     type Unit,
     type UnitType,
@@ -59,6 +55,7 @@ import {
     type TutorialPlaceSlot,
     type TutorialWorldZone,
 } from './tutorial';
+import type { TypeRegistry } from './content/typeRegistry';
 
 /**
  * The slice of {@link Game} the tutorial lessons are allowed to touch. Kept
@@ -66,6 +63,8 @@ import {
  * to decide which step the player is on, or a seam they drive to stage a round.
  */
 export interface TutorialHost {
+    /** the unit and building definitions this match plays with */
+    readonly types: TypeRegistry;
     readonly settings: GameSettings;
     readonly map: BattleMap;
     readonly placement: PlacementController;
@@ -119,6 +118,18 @@ export type TutorialRoundResult = 'continue' | 'roundWon' | 'victory' | 'defeat'
  * seams and holds no lesson state of its own.
  */
 export class TutorialRuntime {
+    // Lessons name specific base buildings on purpose (plan §17.1 rule 7) —
+    // resolved through the match's registry, never module constants.
+    private get STRONGHOLD() {
+        return this.host.types.require('stronghold');
+    }
+    private get COMMAND_TOWER() {
+        return this.host.types.require('command-tower');
+    }
+    private get RESEARCH_CENTER() {
+        return this.host.types.require('research-center');
+    }
+
     private readonly host: TutorialHost;
     private readonly lesson: number | null;
     /** Soft-hint overlay for Tutorial 1; null outside that lesson. */
@@ -358,7 +369,7 @@ export class TutorialRuntime {
     private playerStronghold(): Unit | undefined {
         return this.host.placement
             .allUnits()
-            .find((u) => u.type === STRONGHOLD && u.team === 'player' && !u.destroyed);
+            .find((u) => u.type === this.STRONGHOLD && u.team === 'player' && !u.destroyed);
     }
 
     private ensurePlayerStrongholdSelected(): void {
@@ -373,7 +384,7 @@ export class TutorialRuntime {
     private playerCommandTower(): Unit | undefined {
         return this.host.placement
             .allUnits()
-            .find((u) => u.type === COMMAND_TOWER && u.team === 'player' && !u.destroyed);
+            .find((u) => u.type === this.COMMAND_TOWER && u.team === 'player' && !u.destroyed);
     }
 
     private ensurePlayerCommandTowerSelected(): void {
@@ -517,11 +528,11 @@ export class TutorialRuntime {
             host.map,
             BASE_ANCHORS.stronghold.xFrac,
             TUTORIAL_2_STRONGHOLD_ROW_FRAC,
-            STRONGHOLD.footprint,
+            this.STRONGHOLD.footprint,
             'player',
         );
         host.placement.spawn(
-            STRONGHOLD,
+            this.STRONGHOLD,
             cell,
             'player',
             false,
@@ -534,18 +545,18 @@ export class TutorialRuntime {
         const host = this.host;
         const exists = host.placement
             .allUnits()
-            .some((u) => u.type === STRONGHOLD && u.team === 'enemy' && !u.destroyed);
+            .some((u) => u.type === this.STRONGHOLD && u.team === 'enemy' && !u.destroyed);
         if (exists) return;
         // Same anchors as a normal match — back of the enemy zone, centered.
         const cell = tutorialBaseCell(
             host.map,
             BASE_ANCHORS.stronghold.xFrac,
             BASE_ANCHORS.stronghold.rowFrac,
-            STRONGHOLD.footprint,
+            this.STRONGHOLD.footprint,
             'enemy',
         );
         host.placement.spawn(
-            STRONGHOLD,
+            this.STRONGHOLD,
             cell,
             'enemy',
             false,
@@ -677,7 +688,7 @@ export class TutorialRuntime {
         const host = this.host;
         const enemyKeep = host.placement
             .allUnits()
-            .find((u) => u.type === STRONGHOLD && u.team === 'enemy' && !u.destroyed);
+            .find((u) => u.type === this.STRONGHOLD && u.team === 'enemy' && !u.destroyed);
         if (!enemyKeep) return null;
         const mid = tutorial2OilCorridor(host.map);
         return tutorial2SummonNearKeep(
@@ -864,19 +875,19 @@ export class TutorialRuntime {
                 host.placement
                     .allUnits()
                     .some((u) => u.type === type && u.team === side && !u.destroyed);
-            if (!standing(RESEARCH_CENTER)) {
+            if (!standing(this.RESEARCH_CENTER)) {
                 spawnBuilding(
                     BASE_ANCHORS.research.xFrac,
                     BASE_ANCHORS.research.rowFrac,
-                    RESEARCH_CENTER,
+                    this.RESEARCH_CENTER,
                     side,
                 );
             }
-            if (!standing(COMMAND_TOWER)) {
+            if (!standing(this.COMMAND_TOWER)) {
                 spawnBuilding(
                     BASE_ANCHORS.command.xFrac,
                     BASE_ANCHORS.command.rowFrac,
-                    COMMAND_TOWER,
+                    this.COMMAND_TOWER,
                     side,
                 );
             }
@@ -887,7 +898,7 @@ export class TutorialRuntime {
     private spawnPlayerArmy3(): void {
         const seat = this.host.humanSeat;
         for (const pack of tutorial3MirroredArmy(this.host.map, 'player')) {
-            const type = unitTypeById(pack.typeId);
+            const type = this.host.types.byId(pack.typeId);
             if (!type) continue;
             this.host.placement.spawn(type, pack.cell, 'player', false, true, seat);
         }
@@ -896,7 +907,7 @@ export class TutorialRuntime {
     /** Round 4: five archers across the player's zone center. */
     private spawnPlayerArchers3(): void {
         const seat = this.host.humanSeat;
-        const type = unitTypeById('archer');
+        const type = this.host.types.byId('archer');
         if (!type) return;
         for (const cell of tutorial3CenterArcherCells(
             this.host.map,
@@ -958,7 +969,7 @@ export class TutorialRuntime {
         } else if (round === 2) {
             this.spawnTowers3('both');
             // One pack a side, nose to nose — the boosts are the only difference.
-            const dwarf = unitTypeById('dwarf');
+            const dwarf = this.host.types.byId('dwarf');
             if (dwarf) {
                 host.placement.spawn(
                     dwarf,

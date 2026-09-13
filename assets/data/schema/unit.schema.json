@@ -129,7 +129,7 @@
             },
             "unitTypeId": {
               "type": "string",
-              "description": "type posted on each pad (looked up with unitTypeById)"
+              "description": "type posted on each pad (looked up in the match's type registry)"
             },
             "priceStep": {
               "type": "number"

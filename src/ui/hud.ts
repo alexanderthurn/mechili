@@ -1,5 +1,6 @@
 import type { Application } from 'pixi.js';
-import { SHOP_UNIT_IDS, type RoundCard, type StartCard } from '../game/cards';
+import type { RoundCard, StartCard } from '../game/cards';
+import type { TypeRegistry } from '../game/content/typeRegistry';
 import { formatMmrDelta } from '../game/mmr';
 import { DISPLAY } from '../game/displayNames';
 import {
@@ -14,7 +15,7 @@ import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
 import { TACTICS } from '../game/tactics';
-import { UNIT_TYPES, isPlayerBuyable, unitUnlockCost, type UnitType } from '../game/units';
+import { isPlayerBuyable, type UnitType } from '../game/units';
 import {
     t,
     unitName,
@@ -317,7 +318,7 @@ export class Hud {
      * Game overwrites it with a seat-aware pricer; the raw fee is the fallback
      * so the picker never shows a price the dispatcher would reject.
      */
-    unlockCostOf: (typeId: string) => number = (typeId) => unitUnlockCost(typeId);
+    unlockCostOf: (typeId: string) => number = (typeId) => this.types.unlockCost(typeId);
     onBuyDeploySlot: (() => void) | null = null;
     onBuyRoundRangeBoost: (() => void) | null = null;
     onBuyRoundSpeedBoost: (() => void) | null = null;
@@ -695,25 +696,29 @@ export class Hud {
         window.addEventListener('pointercancel', this.onUnequipDragEnd, true);
     }
 
+    /** the unit and building definitions this match plays with (shop, unlocks) */
+    private readonly types: TypeRegistry;
+
     constructor(
         _app: Application,
         overlayParent: HTMLElement,
         costOf: (type: UnitType) => number,
         onBuy: (type: UnitType) => boolean,
-        opts?: { boardExtrasAllowed?: boolean },
+        opts: { types: TypeRegistry; boardExtrasAllowed?: boolean },
     ) {
+        this.types = opts.types;
         this.overlayParent = overlayParent;
         this.costOf = costOf;
         // Explicit false hides Ward Stone / Fire Bolt / any future board extras.
-        this.boardExtrasAllowed = opts?.boardExtrasAllowed ?? true;
+        this.boardExtrasAllowed = opts.boardExtrasAllowed ?? true;
 
         // Permanent shared sheet (also seeded from menu boot) — refresh team
         // colors for this match, never tear down so orphans stay laid out.
         ensureHudStyleSheet();
 
-        const shopUnits = UNIT_TYPES.filter((t) => !t.extra && isPlayerBuyable(t));
+        const shopUnits = this.types.roster.filter((t) => !t.extra && isPlayerBuyable(t));
         const extraTypes = this.boardExtrasAllowed
-            ? UNIT_TYPES.filter((t) => t.extra && isPlayerBuyable(t))
+            ? this.types.roster.filter((t) => t.extra && isPlayerBuyable(t))
             : [];
 
         const makeShopTile = (type: UnitType, index: number): HTMLButtonElement => {
@@ -744,7 +749,7 @@ export class Hud {
                 // hoverable while unaffordable (see the .unaffordable CSS), so
                 // the refusal has to happen here rather than via pointer-events
                 if (button.classList.contains('unaffordable')) return;
-                const bought = UNIT_TYPES[index]!;
+                const bought = this.types.roster[index]!;
                 if (bought.extra && !this.boardExtrasAllowed) return;
                 // extras need the field for the place-ghost; regular packs only
                 // dismiss the sheet when this buy fills the last deploy slot
@@ -792,7 +797,7 @@ export class Hud {
         // Level-all stays in this row even when Campaign hides Ward Stone / Fire Bolt.
         this.extrasRow.append(this.levelAllGlobalBtn);
         for (const type of extraTypes) {
-            const i = UNIT_TYPES.indexOf(type);
+            const i = this.types.roster.indexOf(type);
             const tile = makeShopTile(type, i);
             this.boardExtraButtons.push(tile);
             this.extrasRow.appendChild(tile);
@@ -835,7 +840,7 @@ export class Hud {
         shopGrid.className = 'shop-grid';
         this.shopGrid = shopGrid;
         for (const type of shopUnits) {
-            const i = UNIT_TYPES.indexOf(type);
+            const i = this.types.roster.indexOf(type);
             const tile = makeShopTile(type, i);
             tile.style.display = 'none';
             this.shopUnitTiles.set(type.id, tile);
@@ -2607,20 +2612,20 @@ export class Hud {
                 tile.style.display = '';
                 this.shopGrid.appendChild(tile);
             }
-            for (const id of SHOP_UNIT_IDS) {
+            for (const id of this.types.shopUnitIds) {
                 if (unlocked.includes(id)) continue;
                 const tile = this.shopUnitTiles.get(id);
                 if (tile) tile.style.display = 'none';
             }
             this.shopGrid.appendChild(this.unlockTile);
         } else {
-            for (const id of SHOP_UNIT_IDS) {
+            for (const id of this.types.shopUnitIds) {
                 const tile = this.shopUnitTiles.get(id);
                 if (tile) tile.style.display = unlocked.includes(id) ? '' : 'none';
             }
         }
         const specialistChosen = unlocked.length > 0;
-        const hasLocked = SHOP_UNIT_IDS.some((id) => !unlocked.includes(id));
+        const hasLocked = this.types.shopUnitIds.some((id) => !unlocked.includes(id));
         const showUnlock = specialistChosen && unlockAvailable && hasLocked;
         this.unlockTile.style.display = showUnlock ? '' : 'none';
         this.unlockTile.classList.toggle('available', showUnlock);
@@ -2636,8 +2641,8 @@ export class Hud {
 
     private openUnlockPicker(): void {
         if (!this.shopUnlockAvailable || this.shopUnlocked.length === 0) return;
-        const locked = SHOP_UNIT_IDS.filter((id) => !this.shopUnlocked.includes(id)).map((id) => {
-            const type = UNIT_TYPES.find((t) => t.id === id)!;
+        const locked = this.types.shopUnitIds.filter((id) => !this.shopUnlocked.includes(id)).map((id) => {
+            const type = this.types.roster.find((t) => t.id === id)!;
             const unlockCost = this.unlockCostOf(id);
             return {
                 id,

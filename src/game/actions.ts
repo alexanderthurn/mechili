@@ -55,13 +55,12 @@ import { detAtan2 } from './detMath';
 import {
     strongholdArcherSlotWorld,
     levelBasisOf,
-    garrisonPostCost,
-    unitTypeById,
     isPlayerBuyable,
     type Team,
     type Unit,
     type UnitType,
 } from './units';
+import type { TypeRegistry } from './content/typeRegistry';
 
 /**
  * Every way a player (or the enemy AI) can affect the game, as plain data.
@@ -480,6 +479,8 @@ interface LogEntry extends LoggedAction {
 }
 
 export interface ActionContext {
+    /** the unit and building definitions this match plays with */
+    types: TypeRegistry;
     placement: PlacementController;
     economy: Economy;
     techTree: TechTree;
@@ -756,7 +757,7 @@ export class ActionDispatcher {
         const seat = this.actorSeat(action);
         switch (action.kind) {
             case 'buy': {
-                const type = unitTypeById(action.typeId);
+                const type = this.ctx.types.byId(action.typeId);
                 // structures aren't buyable — except the board extras
                 if (!type || (type.structure && !type.extra)) return false;
                 if (!isPlayerBuyable(type)) return false;
@@ -839,7 +840,7 @@ export class ActionDispatcher {
                 return placement.rotateUnit(unit, action.anchor);
             }
             case 'buyTech': {
-                const type = unitTypeById(action.typeId);
+                const type = this.ctx.types.byId(action.typeId);
                 // gate on THIS seat's own picks — a talent outside your
                 // loadout is unbuyable, which is also what keeps every
                 // downstream `hasTech` consumer implicitly loadout-correct
@@ -897,14 +898,14 @@ export class ActionDispatcher {
                     .find((u) => u.type.garrison && u.team === action.team && !u.destroyed);
                 if (!keep) return false;
                 const garrison = keep.type.garrison!;
-                const postedType = unitTypeById(garrison.unitTypeId);
+                const postedType = this.ctx.types.byId(garrison.unitTypeId);
                 if (!postedType) return false;
                 const slots = garrison.slots;
                 const taken = placement.allUnits().filter((u) => u.hostUnitId === keep.id).length;
                 if (taken >= slots.length) return false;
                 const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
                 if (!spot) return false; // keep model has no authored slots
-                const cost = garrisonPostCost(keep.type, taken);
+                const cost = this.ctx.types.garrisonPostCost(keep.type, taken);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 const archer = placement.spawnAtWorld(
@@ -1167,7 +1168,7 @@ export class ActionDispatcher {
                               : (['dwarf', 'archer'] as ShopUnitId[])
                           : card.id === TUTORIAL_2_START_CARD_ID
                             ? []
-                            : starterUnlockedUnits(card);
+                            : starterUnlockedUnits(card, this.ctx.types);
                 // items (tactics) are additive per CARD, not an overwrite like
                 // speciality/HP/unlocks above — every seat's own pick grants
                 // its own items into ITS OWN pool (items are per-seat, never
@@ -1180,7 +1181,7 @@ export class ActionDispatcher {
                 // the starting army — free, placed ring-wise from THIS SEAT's lane
                 entry.units = [];
                 for (const typeId of card.units) {
-                    const type = unitTypeById(typeId);
+                    const type = this.ctx.types.byId(typeId);
                     if (!type) continue;
                     const anchor = placement.findStartSpot(action.team, type, seat);
                     if (!anchor) continue;
@@ -1343,7 +1344,7 @@ export class ActionDispatcher {
                 entry.paid = card.cost;
                 entry.units = [];
                 for (const typeId of card.units ?? []) {
-                    const type = unitTypeById(typeId);
+                    const type = this.ctx.types.byId(typeId);
                     if (!type) continue;
                     const anchor = placement.findStartSpot(action.team, type, seat);
                     if (!anchor) continue;
@@ -1391,7 +1392,7 @@ export class ActionDispatcher {
             case 'unlockUnit': {
                 if (this.ctx.unlockUsedThisRound[seat]) return false;
                 if (this.ctx.unlockedUnits[seat]!.includes(action.typeId)) return false;
-                const cost = unlockCostForSpeciality(action.typeId, this.ctx.speciality[seat] ?? null);
+                const cost = unlockCostForSpeciality(action.typeId, this.ctx.speciality[seat] ?? null, this.ctx.types);
                 if (!Number.isFinite(cost)) return false;
                 if (cost > 0 && !economy.spend(seat, cost)) return false;
                 this.ctx.unlockedUnits[seat]!.push(action.typeId);

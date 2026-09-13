@@ -1,5 +1,4 @@
 import { quantizeWorld, quantizeYaw, type Action } from './actions';
-import { SHOP_UNIT_IDS } from './cards';
 import { unlockCostForSpeciality } from './cards';
 import type { RoundCard, SpecialityId, StartCard } from './cards';
 import type { PlacementController } from './placement';
@@ -16,7 +15,8 @@ import {
 } from './tactics';
 import type { TechTree } from './tech';
 import { techsForUnit, type Loadout } from './techCatalog';
-import { UNIT_TYPES, isPlayerBuyable, unitTypeById, type Team, type UnitType } from './units';
+import { isPlayerBuyable, type Team, type UnitType } from './units';
+import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { BASE_RUNE_IDS, itemSlotLimit } from './items';
 
@@ -49,6 +49,8 @@ export class AiOpponent implements Opponent {
         /** the seat this brain commands — its purse, its lane, its packs */
         private readonly seat: SeatId,
         private readonly ctx: {
+            /** the unit and building definitions this match plays with */
+            types: TypeRegistry;
             dispatch: (action: Action) => boolean;
             placement: PlacementController;
             economy: Economy;
@@ -195,7 +197,7 @@ export class AiOpponent implements Opponent {
     /** unlocked, buyable army types this seat can afford right now */
     private affordableArmyTypes(pred?: (t: UnitType) => boolean): UnitType[] {
         const { economy, unlockedUnits } = this.ctx;
-        return UNIT_TYPES.filter(
+        return this.ctx.types.roster.filter(
             (t) =>
                 !t.extra &&
                 isPlayerBuyable(t) &&
@@ -250,8 +252,8 @@ export class AiOpponent implements Opponent {
         const unlocked = unlockedUnits[this.seat]!;
 
         const allCheap: UnitType[] = [];
-        for (const id of SHOP_UNIT_IDS) {
-            const t = unitTypeById(id);
+        for (const id of this.ctx.types.shopUnitIds) {
+            const t = this.ctx.types.byId(id);
             if (t && t.cost < CHEAP_UNIT_COST) allCheap.push(t);
         }
         const preferred = this.preferLesserOwned(allCheap, rng);
@@ -259,7 +261,7 @@ export class AiOpponent implements Opponent {
             preferred &&
             !unlocked.includes(preferred.id) &&
             !unlockUsedThisRound[this.seat] &&
-            unlockCostForSpeciality(preferred.id, speciality[this.seat] ?? null) <=
+            unlockCostForSpeciality(preferred.id, speciality[this.seat] ?? null, this.ctx.types) <=
                 economy.balance(this.seat)
         ) {
             this.ctx.dispatch({
@@ -483,7 +485,7 @@ export class AiOpponent implements Opponent {
         while (bought) {
             bought = false;
             for (const typeId of ownedTypeIds) {
-                const type = unitTypeById(typeId);
+                const type = this.ctx.types.byId(typeId);
                 const techs = type ? techsForUnit(type.id, this.ctx.loadoutOf(this.seat)) : [];
                 if (!type || techs.length === 0) continue;
                 const owned = techTree.ownedFor(this.seat, type.id);

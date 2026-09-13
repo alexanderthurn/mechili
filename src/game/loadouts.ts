@@ -19,7 +19,7 @@
  */
 
 import { allowedTechIds, techSlotLimit, techById, type Loadout } from './techCatalog';
-import { UNIT_TYPES, isPlayerBuyable } from './units';
+import { BASE_TYPES, isPlayerBuyable } from './units';
 import { USER_STORAGE_PREFIX } from './userStorage';
 
 export type { Loadout };
@@ -37,7 +37,7 @@ export const LOADOUT_KEY = `${USER_STORAGE_PREFIX}loadout`;
 
 /** Unit types a player picks talents for — no structures, extras or horde. */
 export function loadoutUnitTypes() {
-    return UNIT_TYPES.filter(
+    return BASE_TYPES.roster.filter(
         (t) => !t.structure && !t.extra && isPlayerBuyable(t) && allowedTechIds(t.id).length > 0,
     );
 }

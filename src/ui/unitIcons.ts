@@ -17,7 +17,7 @@ import {
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { THEME } from '../theme';
-import { UNIT_TYPES, buildUnitPreviewMesh, type UnitType } from '../game/units';
+import { BASE_TYPES, buildUnitPreviewMesh, type UnitType } from '../game/units';
 import { cloneUnitModel } from '../game/unitModels';
 
 /** Final PNG edge length (shop tiles are ~80 CSS px; 256 covers 3× retina). */
@@ -158,7 +158,7 @@ export function renderAllUnitIcons(renderer: WebGLRenderer): Map<string, string>
     pmrem.dispose();
 
     const icons = new Map<string, string>();
-    for (const type of UNIT_TYPES) icons.set(type.id, renderUnitIcon(renderer, type, envMap));
+    for (const type of BASE_TYPES.roster) icons.set(type.id, renderUnitIcon(renderer, type, envMap));
 
     envMap.dispose();
     return icons;

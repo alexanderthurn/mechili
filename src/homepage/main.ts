@@ -14,10 +14,7 @@ import {
 } from '../game/tactics';
 import { techsForUnit } from '../game/techCatalog';
 import {
-    COMMAND_TOWER,
-    RESEARCH_CENTER,
-    STRONGHOLD,
-    UNIT_TYPES,
+    BASE_TYPES,
     isPlayerBuyable,
     isHordeUnit,
     preloadUnitVisuals,
@@ -103,12 +100,11 @@ function isHordeShowcaseUnit(t: UnitType): boolean {
     return isHordeUnit(t) && t.id !== 'hordeBrutSpawn' && t.id !== 'hordeFarmerSpawn';
 }
 
-const SHOWCASE_UNITS: UnitType[] = [
-    ...UNIT_TYPES,
-    COMMAND_TOWER,
-    RESEARCH_CENTER,
-    STRONGHOLD,
-].filter(
+// the homepage shows the base game
+const STRONGHOLD = BASE_TYPES.require('stronghold');
+const COMMAND_TOWER = BASE_TYPES.require('command-tower');
+
+const SHOWCASE_UNITS: UnitType[] = [...BASE_TYPES.roster, ...BASE_TYPES.buildings].filter(
     (t) =>
         showcaseModelKey(t) in MODEL_SPECS &&
         (t.structure || isPlayerBuyable(t) || isHordeShowcaseUnit(t)),

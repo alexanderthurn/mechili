@@ -29,7 +29,7 @@ import {
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
 import { drapeDiskGeometry, setDrapedMeshPosition, DRAPE_RENDER_ORDER } from './groundMarkers';
-import { hasAbility, STRONGHOLD_ARCHER_FOV_HALF, Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+import { hasAbility, STRONGHOLD_ARCHER_FOV_HALF, Unit, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { effectiveTargets, effectiveFlying } from './tech';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
@@ -38,6 +38,7 @@ import { drawIcon } from '../ui/iconAtlas';
 /** horde unit ids start here — far above anything the parity counters reach */
 const HORDE_ID_BASE = 1_000_000;
 import { getUnitInstanceRenderer } from './unitInstances';
+import type { TypeRegistry } from './content/typeRegistry';
 
 /** frozen enemy intel captured at deployment-phase start */
 interface IntelEntry {
@@ -456,6 +457,8 @@ export class PlacementController {
         private readonly economy: Economy,
         private readonly scene: Scene,
         private readonly surface: HTMLElement,
+        /** the unit and building definitions this match plays with */
+        private readonly types: TypeRegistry,
     ) {
         const makeMarker = (color: number, opacity: number) => {
             const geo = new PlaneGeometry(1, 1); // rebuilt per footprint by placeFootprintPlate
@@ -1904,7 +1907,7 @@ export class PlacementController {
     private ensureSoldGhost(entry: IntelEntry): Unit {
         let ghost = this.intelGhosts.get(entry.unitId);
         if (ghost) return ghost;
-        const type = unitTypeById(entry.typeId)!;
+        const type = this.types.byId(entry.typeId)!;
         ghost = new Unit(type, entry.cell, entry.team, entry.world.clone(), entry.rotated);
         ghost.id = entry.unitId;
         ghost.seat = entry.seat;
@@ -2133,7 +2136,7 @@ export class PlacementController {
     private enemyAtIntelCell(cell: Cell): Unit | undefined {
         for (const [id, snap] of this.intelSnapshot) {
             if (!this.isFoggedSnapshot(snap)) continue;
-            const type = unitTypeById(snap.typeId);
+            const type = this.types.byId(snap.typeId);
             if (!type) continue;
             const fp = this.footprintOf(type, snap.rotated);
             if (

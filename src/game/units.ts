@@ -16,6 +16,7 @@ import {
 import { techBlurb, techName, unitName, t } from '../i18n';
 import { THEME } from '../theme';
 import { BASE_PACK } from './content/basePack';
+import { TypeRegistry } from './content/typeRegistry';
 import type { BurnAffinity, FireProfile } from './fire';
 import { detAtan2 } from './detMath';
 
@@ -229,7 +230,7 @@ export function techDescription(tech: TechDef): string {
     }
     if (tech.produce) {
         const p = tech.produce;
-        const child = unitName(p.typeId, unitTypeById(p.typeId)?.name ?? p.typeId);
+        const child = unitName(p.typeId, BASE_TYPES.byId(p.typeId)?.name ?? p.typeId);
         const every = formatTechSeconds(p.interval);
         let line = t('tech:_auto.produce', {
             child,
@@ -253,7 +254,7 @@ export function techDescription(tech: TechDef): string {
     if (tech.onKill) {
         const child = unitName(
             tech.onKill.typeId,
-            unitTypeById(tech.onKill.typeId)?.name ?? tech.onKill.typeId,
+            BASE_TYPES.byId(tech.onKill.typeId)?.name ?? tech.onKill.typeId,
         );
         parts.push(
             t('tech:_auto.onKill', {
@@ -458,7 +459,7 @@ export interface UnitType {
     garrison?: {
         /** `UnitN` pad numbers on the model, in fill order */
         slots: readonly number[];
-        /** type posted on each pad (looked up with {@link unitTypeById}) */
+        /** type posted on each pad (looked up in the match's type registry) */
         unitTypeId: string;
         priceStep: number;
     };
@@ -1042,47 +1043,22 @@ function buildProcedural(type: UnitType, parts: PartFactory): void {
 }
 
 /**
- * Unit and building definitions come from the base content pack
- * (`assets/data/**.jsonc`, see src/game/content/basePack.ts). These constants
- * are lookups into it, kept for the code that refers to a specific base type.
- * The design notes that used to sit on each literal live in its .jsonc file.
+ * The base game's unit and building definitions, from `assets/data/**.jsonc`
+ * (see src/game/content/basePack.ts). Code that runs inside a match asks the
+ * match's own registry (`Game.types`) instead, so a level's definitions can
+ * differ; `BASE_TYPES` is for everything outside a match — menus, the
+ * homepage, icons, model preload, the player's loadout profile.
  */
-const PACK_TYPES = new Map<string, UnitType>(
-    [...BASE_PACK.roster, ...BASE_PACK.offRoster, ...BASE_PACK.buildings].map((t) => [t.id, t]),
-);
-
-function packType(id: string): UnitType {
-    const type = PACK_TYPES.get(id);
-    if (!type) throw new Error(`[units] the base content pack has no type "${id}"`);
-    return type;
-}
+export const BASE_TYPES = new TypeRegistry(BASE_PACK);
 
 {
-    const bad = [...PACK_TYPES.values()].filter((t) => !isProceduralModelId(t.proceduralModel));
+    const bad = [...BASE_TYPES.all()].filter((t) => !isProceduralModelId(t.proceduralModel));
     if (bad.length > 0) {
         throw new Error(
             `[units] unknown proceduralModel: ${bad.map((t) => `${t.id} → "${t.proceduralModel}"`).join(', ')}`,
         );
     }
 }
-
-export const COMMAND_TOWER = packType('command-tower');
-export const RESEARCH_CENTER = packType('research-center');
-/** each side's main castle at the back of its territory */
-export const STRONGHOLD = packType('stronghold');
-/** posted onto a Stronghold's battlement pads — off-roster, never offered in the shop */
-export const STRONGHOLD_ARCHER = packType('stronghold-archer');
-export const HORDE_BRUT = packType('hordeZombie');
-export const HORDE_WEBWEAVER = packType('hordeWebweaver');
-export const HORDE_BRUT_SPAWN = packType('hordeBrutSpawn');
-export const HORDE_SPINNE = packType('hordeSpinne');
-export const HORDE_FARMER = packType('hordeFarmer');
-export const HORDE_FARMER_SPAWN = packType('hordeFarmerSpawn');
-export const HORDE_KOMTUR = packType('hordeKomtur');
-export const BAT = packType('bat');
-
-/** The roster: shop grid, AI and every roster loop, in pack.jsonc order. */
-export const UNIT_TYPES: UnitType[] = BASE_PACK.roster;
 
 
 /**
@@ -1117,12 +1093,8 @@ export const STRONGHOLD_ARCHER_FOV_DEGREES = 240;
 export const STRONGHOLD_ARCHER_FOV_HALF = (STRONGHOLD_ARCHER_FOV_DEGREES * Math.PI) / 360;
 
 
-/** @deprecated use {@link HORDE_BRUT} */
-export const HORDE_ZOMBIE = HORDE_BRUT;
-
-
 /** Ward Stone dome size — read from its type so the definition is the only copy. */
-const WARD_DOME = UNIT_TYPES.find((t) => t.shield)!.shield!;
+const WARD_DOME = BASE_TYPES.roster.find((t) => t.shield)!.shield!;
 export const SHIELD_RADIUS = WARD_DOME.radius;
 export const SHIELD_HEIGHT = WARD_DOME.height;
 
@@ -1906,7 +1878,7 @@ export function preloadUnitVisuals(
     visualsPromise = (async () => {
         try {
             const heights: Record<string, number> = {};
-            for (const type of [...UNIT_TYPES, COMMAND_TOWER, RESEARCH_CENTER, STRONGHOLD]) {
+            for (const type of [...BASE_TYPES.roster, ...BASE_TYPES.buildings]) {
                 const probe = new Group();
                 buildProcedural(type, new PartFactory(probe, 'player'));
                 const h = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;
@@ -1929,41 +1901,15 @@ export function buildUnitPreviewMesh(type: UnitType, team: BattleTeam = 'player'
     return group;
 }
 
-/** type lookup by id — actions and replays store unit types as strings */
-export function unitTypeById(id: string): UnitType | null {
-    if (id === STRONGHOLD_ARCHER.id) return STRONGHOLD_ARCHER;
-    if (id === COMMAND_TOWER.id) return COMMAND_TOWER;
-    if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
-    if (id === STRONGHOLD.id) return STRONGHOLD;
-    return UNIT_TYPES.find((t) => t.id === id) ?? null;
-}
 
 /** Does this type offer the given panel action? */
 export function hasAbility(type: UnitType, ability: BuildingAbilityId): boolean {
     return type.abilities?.includes(ability) === true;
 }
 
-/**
- * Price of the next post on a garrison building that already has `manned`
- * units posted — the posted type's cost plus one `priceStep` per earlier post.
- * Shared by the action and the panel so they can never quote different prices.
- */
-export function garrisonPostCost(host: UnitType, manned: number): number {
-    const g = host.garrison;
-    if (!g) return Number.POSITIVE_INFINITY;
-    const posted = unitTypeById(g.unitTypeId);
-    return (posted?.cost ?? 0) + g.priceStep * manned;
-}
 
-/** once-per-deployment shop unlock fee — {@link UnitType.unlockCost} */
 /** what one level costs / how much XP it needs, in supply terms */
 export function levelBasisOf(type: UnitType): number {
     return type.levelBasis ?? type.cost;
 }
 
-export function unitUnlockCost(typeId: string): number {
-    const type = unitTypeById(typeId);
-    if (!type || !isPlayerBuyable(type)) return Number.POSITIVE_INFINITY;
-    const cost = type.unlockCost;
-    return cost !== undefined ? cost : Number.POSITIVE_INFINITY;
-}

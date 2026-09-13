@@ -45,7 +45,7 @@ export interface PackManifest {
 }
 
 export interface BasePack {
-    /** UNIT_TYPES, in roster order */
+    /** shop / AI roster, in pack.jsonc order */
     roster: UnitType[];
     /** addressable by id, never part of the roster */
     offRoster: UnitType[];

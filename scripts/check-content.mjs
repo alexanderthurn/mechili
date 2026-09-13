@@ -74,7 +74,7 @@ try {
     const units = await server.ssrLoadModule('/src/game/units.ts');
     const models = await server.ssrLoadModule('/src/game/unitModels.ts');
     console.log(
-        `ok   units.ts resolves ${units.UNIT_TYPES.length} roster types; ` +
+        `ok   units.ts resolves ${units.BASE_TYPES.roster.length} roster types; ` +
             `unitModels.ts resolves ${Object.keys(models.MODEL_SPECS).length} model specs`,
     );
 

@@ -255,20 +255,15 @@ import { activeLoadout, randomLoadout } from './loadouts';
 import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, techById, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
-    COMMAND_TOWER,
-    RESEARCH_CENTER,
+    BASE_TYPES,
     STRONGHOLD_ARCHER_FOV_HALF,
-    garrisonPostCost,
     hasAbility,
     type BuildingAbilityId,
     strongholdArcherSlotWorld,
-    STRONGHOLD,
-    UNIT_TYPES,
     formationHeadcount,
     isPlayerBuyable,
     techDescription,
     techIcon,
-    unitTypeById,
     type BattleTeam,
     type Team,
     type Unit,
@@ -295,6 +290,7 @@ import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionI
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
+import type { TypeRegistry } from './content/typeRegistry';
 
 /** menu→match camera fly-in (fresh starts only) */
 const MATCH_INTRO_SEC = 1.0;
@@ -381,6 +377,12 @@ export class Game {
     private readonly rig = new CameraRig();
     private readonly controls: CameraControls;
     private readonly gamepad: GamepadCursor;
+    /**
+     * The unit and building definitions this match plays with (plan §17.8).
+     * Always the base game today; a scenario will supply its own through the
+     * match settings. Every type lookup inside the match goes through this.
+     */
+    readonly types: TypeRegistry = BASE_TYPES;
     private readonly placement: PlacementController;
     private readonly hud: Hud;
     /** the lesson driver (overlays, forced pads, round staging); null outside a tutorial */
@@ -1543,7 +1545,7 @@ export class Game {
         this.rig.floorAt = worldHeightAt; // camera never dives into terrain
         installScreenShake(this.rig.camera, () => this.rig.target);
         this.hpDrawFx = new HpDrawFx(this.scene);
-        this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface);
+        this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface, this.types);
         this.placement.hasTech = (seat, typeId, techId) => this.unitHasTech(seat, typeId, techId);
         // spectator watching a LIVE match (not a replay, which has no
         // "vision" concept — it's a neutral post-hoc view of everything):
@@ -1615,6 +1617,7 @@ export class Game {
         // per lesson round, so the runtime has to exist by the time it runs.
         this.tutorial = isTutorial(settings) ? new TutorialRuntime(this.tutorialHost()) : null;
         this.dispatcher = new ActionDispatcher({
+            types: this.types,
             placement: this.placement,
             economy: this.economy,
             seats: this.seats,
@@ -1840,13 +1843,13 @@ export class Game {
             wrapper,
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
-            { boardExtrasAllowed: !this.settings.climb && !isTutorial(this.settings) },
+            { types: this.types, boardExtrasAllowed: !this.settings.climb && !isTutorial(this.settings) },
         );
         // Shop hover windows list this player's own talent picks. Fixed for
         // the whole match, so once here is enough.
         this.hud.setUnitTalents(
             new Map(
-                UNIT_TYPES.filter((t) => !t.extra && isPlayerBuyable(t)).map((t) => [
+                this.types.roster.filter((t) => !t.extra && isPlayerBuyable(t)).map((t) => [
                     t.id,
                     techsForUnit(t.id, this.loadoutOf(this.humanSeat)).map((tech) => ({
                         icon: techIcon(tech),
@@ -1879,7 +1882,7 @@ export class Game {
         this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
         this.hud.unlockCostOf = (typeId) =>
-            unlockCostForSpeciality(typeId, this.speciality[this.humanSeat] ?? null);
+            unlockCostForSpeciality(typeId, this.speciality[this.humanSeat] ?? null, this.types);
         this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         this.hud.onRetryLastRound = () => this.requestRetryLastRound();
@@ -2900,7 +2903,7 @@ export class Game {
                 spawnBuilding(
                     BASE_ANCHORS.stronghold.xFrac,
                     BASE_ANCHORS.stronghold.rowFrac,
-                    STRONGHOLD,
+                    this.types.require('stronghold'),
                     'player',
                     primarySeatOf(this.seats, 'player'),
                 );
@@ -2908,7 +2911,7 @@ export class Game {
             spawnBuilding(
                 BASE_ANCHORS.stronghold.xFrac,
                 BASE_ANCHORS.stronghold.rowFrac,
-                STRONGHOLD,
+                this.types.require('stronghold'),
                 'enemy',
                 primarySeatOf(this.seats, 'enemy'),
             );
@@ -2943,14 +2946,14 @@ export class Game {
                 spawnBuilding(
                     resX,
                     resRow,
-                    RESEARCH_CENTER,
+                    this.types.require('research-center'),
                     team,
                     seat,
                 );
                 spawnBuilding(
                     cmdX,
                     cmdRow,
-                    COMMAND_TOWER,
+                    this.types.require('command-tower'),
                     team,
                     seat,
                 );
@@ -2988,7 +2991,7 @@ export class Game {
         );
 
         for (const team of ['player', 'enemy'] as const) {
-            for (const type of UNIT_TYPES) {
+            for (const type of this.types.roster) {
                 if (type.id === 'shield' || type.id === 'rocket') continue; // extras clutter the test field
                 if (!opts.includeHorde && !isPlayerBuyable(type)) continue; // horde roster only on Ctrl+Shift+U
                 const copies = type.id === 'dwarf' ? 3 : 1;
@@ -3157,7 +3160,7 @@ export class Game {
             // — a peer that skipped the spawn would rebuild a different board
             // with shifted unit ids.
             if (this.speciality[seat] === 'cursed') {
-                const brood = unitTypeById(CURSED_BROOD_TYPE_ID);
+                const brood = this.types.byId(CURSED_BROOD_TYPE_ID);
                 const anchor = brood ? this.placement.findStartSpot(team, brood, seat) : null;
                 if (brood && anchor) {
                     this.placement.spawn(brood, anchor, team, false, true, seat);
@@ -3175,7 +3178,7 @@ export class Game {
             // action log, so a rebuild that skipped it would produce a
             // different board (and shifted unit ids → guaranteed desync)
             if (this.speciality[seat] === 'archer' && this.round === FREE_ARCHER_ROUND) {
-                const type = unitTypeById('archer')!;
+                const type = this.types.byId('archer')!;
                 const anchor = this.placement.findStartSpot(team, type, seat);
                 const unit = anchor ? this.placement.spawn(type, anchor, team, false, true, seat) : null;
                 if (unit) {
@@ -3339,7 +3342,7 @@ export class Game {
     private cheatGrantTechs(maxPerPress = 3): void {
         const seat = this.humanSeat;
         let granted = 0;
-        for (const type of UNIT_TYPES) {
+        for (const type of this.types.roster) {
             if (type.structure || type.extra) continue;
             for (const tech of techsForUnit(type.id, this.loadoutOf(seat))) {
                 if (granted >= maxPerPress) return;
@@ -3362,7 +3365,7 @@ export class Game {
         // Reuse the real wave spawner path by temporarily ensuring the round
         // plan runs even if the preset would skip — spawnHordeWave gates on
         // isHordeRoundActive, so duplicate the camp logic here lightly.
-        const plan = hordeWavePlan(Math.max(1, this.round), hordeCountMult(this.settings));
+        const plan = hordeWavePlan(Math.max(1, this.round), hordeCountMult(this.settings), this.types);
         if (plan.length === 0) return;
         const rng = mulberry32(seedFrom(this.seed, `horde-cheat:${this.round}:${Date.now()}`));
         const leader: Team | null =
@@ -3420,8 +3423,9 @@ export class Game {
      */
     private cheatKillEnemyStronghold(): void {
         if (!this.sim || this.phase !== 'battle' || this.matchOver) return;
+        const stronghold = this.types.require('stronghold');
         this.sim.cheatDestroy(
-            (u) => u.type === STRONGHOLD && u.team === 'enemy',
+            (u) => u.type === stronghold && u.team === 'enemy',
         );
     }
 
@@ -3557,7 +3561,7 @@ export class Game {
      * own tech X?".
      */
     private unitHasTech(seat: SeatId, typeId: string, techId: string): boolean {
-        const type = unitTypeById(typeId);
+        const type = this.types.byId(typeId);
         if (type?.innateTechs?.includes(techId)) return true;
         return seat >= 0 && this.techTree.has(seat, typeId, techId);
     }
@@ -3700,6 +3704,7 @@ export class Game {
         rng: () => number,
         seat: SeatId,
     ): {
+        types: TypeRegistry;
         dispatch: (action: Action) => boolean;
         placement: PlacementController;
         economy: Economy;
@@ -3721,6 +3726,7 @@ export class Game {
         rngForRound?: (round: number) => () => number;
     } {
         return {
+            types: this.types,
             dispatch: (action: Action) => {
                 const ok = this.dispatcher.dispatch(action);
                 if (
@@ -4005,6 +4011,9 @@ export class Game {
     private tutorialHost(): TutorialHost {
         const game = this;
         return {
+            get types() {
+                return game.types;
+            },
             get settings() {
                 return game.settings;
             },
@@ -8747,7 +8756,7 @@ export class Game {
         stamp: SpellStamp,
         spawn: { typeId: string; count: number },
     ): void {
-        const type = unitTypeById(spawn.typeId);
+        const type = this.types.byId(spawn.typeId);
         if (!type) return;
         const tactic = TACTICS[stamp.tacticId]!;
         const scatter = tactic.radius ?? 4 * CELL;
@@ -8816,7 +8825,7 @@ export class Game {
      * so both peers agree.
      */
     private spawnOnKillChild(parent: Unit, typeId: string, x: number, z: number): Unit | null {
-        const type = unitTypeById(typeId);
+        const type = this.types.byId(typeId);
         if (!type) return null;
         const child = this.placement.spawnAtWorld(type, x, z, parent.team, parent.seat);
         child.summoned = true;
@@ -8845,7 +8854,7 @@ export class Game {
                 this.unitHasTech(s, t, id),
             );
             for (const { tech, produce } of lanes) {
-                const childType = unitTypeById(produce.typeId);
+                const childType = this.types.byId(produce.typeId);
                 if (!childType) continue;
                 for (let i = 0; i < produce.max; i++) {
                     // park off to the side — sim relocates to the parent on release
@@ -8884,7 +8893,7 @@ export class Game {
      */
     private spawnHordeWave(): void {
         if (!isHordeRoundActive(this.settings, this.round)) return;
-        const plan = hordeWavePlan(this.round, hordeCountMult(this.settings));
+        const plan = hordeWavePlan(this.round, hordeCountMult(this.settings), this.types);
         if (plan.length === 0) return;
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
         const leader: Team | null =
@@ -11049,7 +11058,7 @@ export class Game {
                 fogged && this.buildingIntelSnapshot
                     ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
                     : this.strongholdArcherCount(team);
-            const nextCost = garrisonPostCost(u.type, manned);
+            const nextCost = this.types.garrisonPostCost(u.type, manned);
             const slotMax = garrison.slots.length;
             out.strongholdArchers = {
                 cost: nextCost,

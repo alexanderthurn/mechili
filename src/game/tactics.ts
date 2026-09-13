@@ -10,7 +10,7 @@ import {
     OIL_SPILL_DURATION_ROUNDS,
     OIL_SPILL_RADIUS,
 } from './fire';
-import { UNIT_TYPES } from './units';
+import { BASE_TYPES } from './units';
 import { t, unitName } from '../i18n';
 
 /** tactical orders (not pack items) — granted by round cards, consumed per placement */
@@ -484,7 +484,7 @@ export function formatTacticStats(tactic: (typeof TACTICS)[string]): string[] {
             );
         }
         if (spell.spawn) {
-            const unit = UNIT_TYPES.find((u) => u.id === spell.spawn!.typeId);
+            const unit = BASE_TYPES.byId(spell.spawn.typeId);
             const label = unitName(spell.spawn.typeId, unit?.name ?? spell.spawn.typeId);
             lines.push(
                 t('hud:tacticSummon', {
