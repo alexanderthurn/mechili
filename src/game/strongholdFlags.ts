@@ -28,8 +28,13 @@ import {
     getUnitFlagNodeLocal,
     getUnitVisualHeight,
 } from './unitModels';
-import { STRONGHOLD, type Team, type Unit } from './units';
+import { type Team, type Unit } from './units';
 import type { WindInfo } from './weather';
+
+/** Banners stand on any building whose model authors a `Flag` node. */
+export function hasFlagNode(unit: Unit): boolean {
+    return getUnitFlagNodeLocal(unit.type.modelId ?? unit.type.id) !== null;
+}
 
 /** Compile-time on/off for rooftop stronghold flags (off until we ship them). */
 export const STRONGHOLD_FLAGS_ENABLED = false;
@@ -213,7 +218,8 @@ export function strongholdFlagAnchorWorld(unit: Unit): { x: number; y: number; z
         }
     }
 
-    const local = getUnitFlagNodeLocal(STRONGHOLD.id);
+    const modelId = unit.type.modelId ?? unit.type.id;
+    const local = getUnitFlagNodeLocal(modelId);
     if (local) {
         const footY = worldHeightAt(unit.world.x, unit.world.z) + unit.memberBaseY();
         return attackNodeWorld(
@@ -226,7 +232,7 @@ export function strongholdFlagAnchorWorld(unit: Unit): { x: number; y: number; z
         );
     }
 
-    const meshTop = getUnitVisualHeight(STRONGHOLD.id) * unit.visualMeshScale();
+    const meshTop = getUnitVisualHeight(modelId) * unit.visualMeshScale();
     return {
         x: unit.world.x,
         y: worldHeightAt(unit.world.x, unit.world.z) + unit.memberBaseY() + meshTop,
@@ -277,7 +283,7 @@ export class StrongholdFlags {
         const strength = Math.min(1, Math.max(0, wind.strength));
 
         for (const unit of strongholds) {
-            if (unit.type !== STRONGHOLD || unit.destroyed || unit.team === 'horde') continue;
+            if (!hasFlagNode(unit) || unit.destroyed || unit.team === 'horde') continue;
             seen.add(unit.id);
             const team: Team = unit.team;
             let stand = this.stands.get(unit.id);

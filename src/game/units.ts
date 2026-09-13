@@ -382,6 +382,11 @@ export interface UnitType {
     formation: GridExtent;
     /** uniform scale applied to each mech mesh */
     meshScale: number;
+    /**
+     * Soft sand pad stamped under a structure, as a multiple of its footprint
+     * (default 1). Visual only.
+     */
+    sandPadScale?: number;
     /** structures don't bob and never rotate to face anything (but are valid facing targets) */
     structure?: boolean;
     /**
@@ -1018,17 +1023,20 @@ function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 80
 
 export const COMMAND_TOWER: UnitType = {
     ...makeTower('command-tower', 'Vanguard', 3.0, 3),
+    sandPadScale: 1.35,
     onDestroyed: { seatDebuff: true },
     abilities: ['armyBoosts', 'selling', 'rallyRoute', 'movePack'],
 };
 export const RESEARCH_CENTER: UnitType = {
     ...makeTower('research-center', 'Garrison'),
+    sandPadScale: 1.35,
     onDestroyed: { seatDebuff: true },
     abilities: ['recruitLevel', 'deploySlot', 'rangeBoost', 'speedBoost', 'credit'],
 };
 /** each side's main castle at the back of its territory — bigger and sturdier */
 export const STRONGHOLD: UnitType = {
     ...makeTower('stronghold', 'Stronghold', 5, 4.2, 3000),
+    sandPadScale: 1.55,
     // lifeline matches only — see UnitType.onDestroyed
     onDestroyed: { collapseOwnArmy: true },
     abilities: ['forge', 'forgeSpells', 'sendSupply'],
@@ -2078,8 +2086,9 @@ export class Unit {
             return;
         }
         const klen = knock ? Math.hypot(knock.x, knock.z) : 0;
-        // Wide bases (Stronghold) tip very little — a big lean lifts one side into the air
-        const wide = this.type.collisionRadius >= 4 || this.type.id === 'stronghold';
+        // Wide bases (e.g. the Stronghold, radius 11.4) tip very little — a big
+        // lean lifts one side into the air
+        const wide = this.type.collisionRadius >= 4;
         const tipAmp = wide ? 0.045 : 0.09;
         const tipZ = klen > 1e-6 ? Math.sign(knock!.z || 1) * tipAmp : tipAmp * 0.85;
         const tipX = klen > 1e-6 ? Math.sign(knock!.x || 1) * tipAmp * 0.35 : tipAmp * 0.3;

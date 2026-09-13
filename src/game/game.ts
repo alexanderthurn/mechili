@@ -123,7 +123,7 @@ import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { AcidFx } from './acidFx';
 import { FireFx, fireUsesTongues } from './fireFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
-import { StrongholdFlags } from './strongholdFlags';
+import { hasFlagNode, StrongholdFlags } from './strongholdFlags';
 import { StrongholdCommanders } from './strongholdCommander';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
@@ -7925,7 +7925,7 @@ export class Game {
         const keeps: Unit[] = [];
         if (!this.hud.isUiHidden) {
             for (const unit of this.placement.allUnits()) {
-                if (unit.type === STRONGHOLD && !unit.destroyed) keeps.push(unit);
+                if (hasFlagNode(unit) && !unit.destroyed) keeps.push(unit);
             }
         }
         // Rooftop commander decoration is off for now — all five pads are

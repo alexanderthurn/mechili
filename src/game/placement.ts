@@ -1154,8 +1154,7 @@ export class PlacementController {
         if (!t.structure || t.extra || t.flying) return;
         const fp = this.footprintOf(t, unit.rotated);
         const w = this.map.sandStampWeight(t);
-        const scale =
-            t.id === 'stronghold' ? 1.55 : t.id === 'command-tower' || t.id === 'research-center' ? 1.35 : 1;
+        const scale = t.sandPadScale ?? 1;
         this.map.stampSandFootprint(unit.world.x, unit.world.z, fp.cols, fp.rows, 0.2 * w, scale);
     }
 
