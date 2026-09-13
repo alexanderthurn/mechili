@@ -329,9 +329,9 @@ export interface UnitType {
     name: string;
     cost: number;
     /**
-     * End-of-battle HP-withdraw weight for this type (per mech in the sim).
-     * Drives post-battle particle wave tier (low / medium / high). Omit to
-     * derive from {@link hpWithdrawOf}.
+     * End-of-battle HP withdrawn per living mech of this type (fixed; not
+     * leveled). Also feeds particle wave grouping via {@link hpDrawWaveTier}.
+     * Omit to derive from {@link hpWithdrawOf} (`cost / formation headcount`).
      */
     hpWithdraw?: number;
     /**
@@ -955,6 +955,7 @@ export const STRONGHOLD_ARCHER: UnitType = {
     // reuses the archer GLB — no second model, and no new fingerprint entry
     modelId: 'archer',
     cost: 100,
+    hpWithdraw: 50,
     footprint: { cols: 1, rows: 1 },
     formation: { cols: 1, rows: 1 },
     meshScale: 2.2,
@@ -1424,6 +1425,7 @@ export const UNIT_TYPES: UnitType[] = [
         id: 'archer',
         name: 'Archer',
         cost: 100,
+        hpWithdraw: 100,
         unlockCost: 0,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
@@ -1635,9 +1637,9 @@ export function formationHeadcount(type: UnitType): number {
 }
 
 /**
- * Per-mech HP-withdraw weight for wave grouping. Explicit `hpWithdraw` on the
- * type wins; otherwise `cost / formation headcount` (same basis as battle-end
- * damage per sim actor).
+ * Per-mech HP withdrawn at battle end. Explicit `hpWithdraw` on the type wins;
+ * otherwise `cost / formation headcount`. Wave tier is derived from this value
+ * ({@link hpDrawWaveTier}) — not authored separately.
  */
 export function hpWithdrawOf(type: UnitType): number {
     if (type.hpWithdraw !== undefined) return type.hpWithdraw;
@@ -1646,7 +1648,7 @@ export function hpWithdrawOf(type: UnitType): number {
 
 export type HpDrawWaveTier = 'low' | 'medium' | 'high';
 
-/** Post-battle particle wave from hpWithdraw: low < 100, medium < 300, high otherwise. */
+/** Particle wave from withdraw amount: low < 100, medium < 300, high otherwise. */
 export function hpDrawWaveTier(withdraw: number): HpDrawWaveTier {
     if (withdraw < 100) return 'low';
     if (withdraw < 300) return 'medium';

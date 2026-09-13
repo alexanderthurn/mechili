@@ -8999,7 +8999,7 @@ export class Game {
         this.pendingHpDrawPreHp = null;
         if (this.sim) {
             const preHp = { player: this.playerHp, enemy: this.enemyHp };
-            const built = buildHpDrawSources(this.sim, this.economy);
+            const built = buildHpDrawSources(this.sim);
             this.postBattleDeathElapsed = this.sim.elapsed;
             this.postBattleDeathTimeBase = this.time;
             // flames die with the battle; remaining oil (unburned) carries over
@@ -9676,20 +9676,18 @@ export class Game {
     }
 
     /**
-     * Every surviving PLAYER-owned unit deals its value as damage to the
-     * other side: the unit's base price scaled by how much of it survived
-     * (half the dwarf pack alive = half its cost), always a whole number. On
-     * a timeout both sides usually still have some survivors and both take
-     * some damage. Horde survivors deal no HP damage while EITHER player
-     * still has forces standing — the horde thins out packs (and therefore
-     * score) without being a third scoring party of its own. Only once a
-     * side is fully wiped (no survivors of its own) does it also take the
-     * horde's surviving value on top of the opposing player's: nothing of
-     * its own was left to stop either force.
+     * Every surviving PLAYER-owned unit deals its {@link hpWithdrawOf} value as
+     * damage to the other side (fixed per type, not leveled). On a timeout both
+     * sides usually still have some survivors and both take some damage. Horde
+     * survivors deal no HP damage while EITHER player still has forces standing
+     * — the horde thins out packs (and therefore score) without being a third
+     * scoring party of its own. Only once a side is fully wiped (no survivors
+     * of its own) does it also take the horde's surviving value on top of the
+     * opposing player's: nothing of its own was left to stop either force.
      */
     private applyBattleResult(sim: BattleSim): void {
         accumulateBattleDamage(this.matchDamageByType, sim.damageByType);
-        const built = buildHpDrawSources(sim, this.economy);
+        const built = buildHpDrawSources(sim);
         const damageToPlayer = built.damageToPlayer;
         const damageToEnemy = built.damageToEnemy;
         this.playerHp = this.playerHp - damageToPlayer;
