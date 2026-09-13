@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/RoundCard",
+  "definitions": {
+    "RoundCard": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "cost": {
+          "type": "number",
+          "description": "supply price (0 = free)"
+        },
+        "units": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "free units spawned on pick (movable that round)"
+        },
+        "unitsLabel": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "items granted into the inventory"
+        },
+        "tactics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "tactical order charges granted into the tactics strip"
+        },
+        "flankSpawnHalf": {
+          "type": "boolean",
+          "description": "halves flank spawn time for the rest of the match"
+        },
+        "pool": {
+          "$ref": "#/definitions/RoundCardDrawPool",
+          "description": "which offer pool deals it: `units` / `spells` from data/roundCards, `runes` from data/runes"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "cost",
+        "pool",
+        "description"
+      ],
+      "additionalProperties": false,
+      "description": "a between-round card: picked from a random 4 at each round start (round 2+)"
+    },
+    "RoundCardDrawPool": {
+      "type": "string",
+      "enum": [
+        "runes",
+        "units",
+        "spells"
+      ],
+      "description": "Which catalog slice a between-round offer draws from."
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

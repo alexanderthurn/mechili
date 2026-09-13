@@ -1,0 +1,8 @@
+{
+    "id": "flanky",
+    "title": "Flanky",
+    "pool": "spells",
+    "cost": 50,
+    "flankSpawnHalf": true,
+    "description": "First-time flank spawns take half the time (2.5s).",
+}

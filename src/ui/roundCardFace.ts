@@ -108,7 +108,7 @@ function forgeRowsHtml(rows: readonly RuneCardForgeRow[], cardRuneId: string | n
  * Same markup in-game and on the homepage.
  */
 export function roundCardFaceHtml(c: RoundCard, opts: RoundCardFaceOpts = {}): string {
-    const icon = roundCardIcon(c);
+    const icon = roundCardIcon(c, BASE_TYPES);
     const runeId = c.items?.length === 1 ? c.items[0]! : null;
     const forgeRows = runeId
         ? forgeRecipesForRuneCard(BASE_TYPES, runeId, opts.ownedItemIds ?? [], opts.forgePool ?? 'all')

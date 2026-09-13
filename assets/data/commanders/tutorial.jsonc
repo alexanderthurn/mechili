@@ -1,0 +1,13 @@
+// Hidden tutorial-only commander (Tutorial 1): empty army, no forge spells, no shop roster.
+// Both seats auto-pick it; never offered in normal pools.
+{
+    "id": "tutorial",
+    "title": "Tutorial Commander",
+    "portrait": "spec-speed",
+    "speciality": "tutorial",
+    "units": [],
+    "unitsLabel": "",
+    "startingHp": 1,
+    "forgeSpells": [],
+    "description": "",
+}

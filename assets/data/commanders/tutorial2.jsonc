@@ -1,0 +1,12 @@
+// Hidden tutorial commander (Tutorial 2): Stronghold forge spells only — no field shop.
+{
+    "id": "tutorial2",
+    "title": "Tutorial Commander",
+    "portrait": "spec-cost",
+    "speciality": "tutorial",
+    "units": [],
+    "unitsLabel": "",
+    "startingHp": 1,
+    "forgeSpells": ["oilSpill", "dragonAttack", "spawnDwarves"],
+    "description": "",
+}

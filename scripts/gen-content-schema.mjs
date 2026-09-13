@@ -16,6 +16,8 @@ const SCHEMAS = [
     { file: 'assets/data/schema/pack.schema.json', path: 'src/game/content/basePack.ts', type: 'PackManifest' },
     { file: 'assets/data/schema/talent.schema.json', path: 'src/game/units.ts', type: 'TechDef' },
     { file: 'assets/data/schema/rune.schema.json', path: 'src/game/items.ts', type: 'ItemDef' },
+    { file: 'assets/data/schema/commander.schema.json', path: 'src/game/cards.ts', type: 'StartCard' },
+    { file: 'assets/data/schema/roundCard.schema.json', path: 'src/game/cards.ts', type: 'RoundCard' },
 ];
 
 /** `{@link Foo}` / `{@link Foo.bar}` → `Foo` / `Foo.bar` — readable hover text */

@@ -105,12 +105,10 @@ import {
     SPECIALITY_TACTIC_ROUND,
     SPEED_COMMANDER_BONUS,
     unlockCostForSpeciality,
-    ROUND_CARDS,
     SKIP_CARD_REWARD,
-    START_CARDS,
-    TUTORIAL_2_START_CARD,
-    TUTORIAL_3_START_CARD,
-    TUTORIAL_START_CARD,
+    TUTORIAL_2_START_CARD_ID,
+    TUTORIAL_3_START_CARD_ID,
+    TUTORIAL_START_CARD_ID,
     roundOfferTitle,
     type RoundCard,
     type SpecialityId,
@@ -2221,11 +2219,11 @@ export class Game {
             // Tutorial: skip the offer — auto commander is applied after intro.
             this.deferredStarterOffer = isTutorial(this.settings)
                 ? null
-                : this.draw(START_CARDS, 4, this.rngCards.player);
+                : this.draw(this.types.commanders, 4, this.rngCards.player);
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         } else {
             if (this.tutorial) this.tutorial.applyStarters();
-            else this.showStarterPick(this.draw(START_CARDS, 4, this.rngCards.player));
+            else this.showStarterPick(this.draw(this.types.commanders, 4, this.rngCards.player));
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         }
         if (this.star?.role === 'host') this.startSpectatorHub();
@@ -3953,16 +3951,16 @@ export class Game {
     private starterCardOfSeat(seat: SeatId): StartCard | null {
         const spec = this.speciality[seat];
         if (!spec) return null;
-        // Tutorial cards share speciality id and live outside START_CARDS —
+        // Tutorial cards share speciality id and are hidden commanders —
         // resolve by lesson so forge spells / buy gates still work.
         if (spec === 'tutorial') {
             const lesson = tutorialId(this.settings);
-            if (lesson === TUTORIAL_2_ID) return TUTORIAL_2_START_CARD;
-            if (lesson === TUTORIAL_3_ID) return TUTORIAL_3_START_CARD;
-            if (lesson === TUTORIAL_1_ID) return TUTORIAL_START_CARD;
+            if (lesson === TUTORIAL_2_ID) return this.types.commander(TUTORIAL_2_START_CARD_ID);
+            if (lesson === TUTORIAL_3_ID) return this.types.commander(TUTORIAL_3_START_CARD_ID);
+            if (lesson === TUTORIAL_1_ID) return this.types.commander(TUTORIAL_START_CARD_ID);
             return null;
         }
-        return START_CARDS.find((c) => c.speciality === spec) ?? null;
+        return this.types.commanders.find((c) => c.speciality === spec) ?? null;
     }
 
     /** Forge spells buyable this round (a tutorial lesson narrows them per round). */
@@ -4136,7 +4134,7 @@ export class Game {
             this.playerStarterOffer = null;
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.broadcast({ type: 'starter', cardId, side: this.localSeat() });
-            this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
+            this.opponent.chooseStarter(this.draw(this.types.commanders, 4, this.rngCards.enemy));
             this.triggerExtraStarters('player');
             this.triggerExtraStarters('enemy');
             this.afterStarterPick();
@@ -4153,7 +4151,7 @@ export class Game {
     private triggerExtraStarters(team: Team): void {
         for (const e of this.extraAis) {
             if (e.team !== team) continue;
-            e.ai.chooseStarter(this.draw(START_CARDS, 4, e.rng));
+            e.ai.chooseStarter(this.draw(this.types.commanders, 4, e.rng));
         }
     }
 
@@ -4171,7 +4169,7 @@ export class Game {
         this.playerStarterOffer = null;
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
         this.broadcast({ type: 'starter', cardId: pick.id, side: this.localSeat() });
-        this.opponent.chooseStarter(this.draw(START_CARDS, 4, this.rngCards.enemy));
+        this.opponent.chooseStarter(this.draw(this.types.commanders, 4, this.rngCards.enemy));
         this.triggerExtraStarters('player');
         this.triggerExtraStarters('enemy');
         this.afterStarterPick();
@@ -5147,7 +5145,7 @@ export class Game {
             // forever, freezing every player at the specialist screen (same
             // follow-up triggerExtraStarters' own caller runs after a human
             // pick — see afterStarterPick).
-            ai.chooseStarter(this.draw(START_CARDS, 4, rng));
+            ai.chooseStarter(this.draw(this.types.commanders, 4, rng));
             this.afterStarterPick();
         } else if (this.phase === 'build' && !this.seatReady[seat]) {
             ai.onBuildPhase(this.round);
@@ -5809,8 +5807,8 @@ export class Game {
                 unitId: (e.action as { unitId?: number }).unitId,
             })),
         });
-        const starterOffer = this.draw(START_CARDS, 4, this.rngCards.player);
-        this.draw(START_CARDS, 4, this.rngCards.enemy);
+        const starterOffer = this.draw(this.types.commanders, 4, this.rngCards.player);
+        this.draw(this.types.commanders, 4, this.rngCards.enemy);
 
         this.replayLogFrom(log, liveBattleElapsed);
         this.hydrating = false;
@@ -6699,7 +6697,7 @@ export class Game {
         this.roundCardTaken.fill(false);
 
         const draw = (rng: () => number) =>
-            roundCardAlgorithmById(this.settings.roundCardPreset).drawOffer(this.round, rng);
+            roundCardAlgorithmById(this.settings.roundCardPreset).drawOffer(this.round, rng, this.types);
         const myOffer = draw(this.rngRoundCards[this.humanSeat]!);
         // the classic single opponent's own seat-scoped draw (vestigial no-op
         // on a star guest, since NetworkOpponent.onRoundCards does nothing —
@@ -6720,6 +6718,7 @@ export class Game {
                 roundCardAlgorithmById(this.settings.roundCardPreset).drawOffer(
                     this.round,
                     this.rngRoundCards[e.seat]!,
+                    this.types,
                 );
             }
             this.pendingOffer = myOffer;
@@ -6740,6 +6739,7 @@ export class Game {
                 roundCardAlgorithmById(this.settings.roundCardPreset).drawOffer(
                     this.round,
                     this.rngRoundCards[e.seat]!,
+                    this.types,
                 ),
             );
         }
@@ -10703,7 +10703,7 @@ export class Game {
                     body: `+${SKIP_CARD_REWARD} supply`,
                 };
             }
-            const card = ROUND_CARDS.find((c) => c.id === p.cardId);
+            const card = this.types.roundCard(p.cardId);
             return {
                 round: p.round,
                 title: card?.title ?? p.cardId,

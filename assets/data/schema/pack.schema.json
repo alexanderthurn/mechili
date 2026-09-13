@@ -35,6 +35,27 @@
             "type": "string"
           },
           "description": "every rune in data/runes, in catalog order (inventories and card lists sort by it)"
+        },
+        "commanders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "commanders offered to players, in draw order"
+        },
+        "hiddenCommanders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "commanders loaded but never offered (tutorial lessons)"
+        },
+        "roundCards": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "between-round unit / spell cards, in draw order"
         }
       },
       "required": [
@@ -43,7 +64,10 @@
         "roster",
         "offRoster",
         "buildings",
-        "runes"
+        "runes",
+        "commanders",
+        "hiddenCommanders",
+        "roundCards"
       ],
       "additionalProperties": false
     }

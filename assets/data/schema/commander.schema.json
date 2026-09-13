@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/StartCard",
+  "definitions": {
+    "StartCard": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "portrait": {
+          "type": "string",
+          "description": "atlas portrait for the specialist card face (`spec-*`)"
+        },
+        "units": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "starting army as unit type ids — every card totals 500 supply"
+        },
+        "unitsLabel": {
+          "type": "string",
+          "description": "the army, human-readable, for the card face"
+        },
+        "startingHp": {
+          "type": "number"
+        },
+        "speciality": {
+          "$ref": "#/definitions/SpecialityId",
+          "description": "what this commander does — a behaviour the game code implements"
+        },
+        "unlock": {
+          "type": "string",
+          "description": "the signature unit this commander can buy even if it is not in the starting army"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "pack items granted into the player's inventory"
+        },
+        "tactics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tactic charges this commander is gifted — NOT at pick time: they arrive at the start of a round, like the archer's free unit."
+        },
+        "tacticsRound": {
+          "type": "number",
+          "description": "which round tactics lands in (default SPECIALITY_TACTIC_ROUND)"
+        },
+        "forgeSpells": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Stronghold forge spells this specialist unlocks (tactic ids). Teammates share the union. One 1-rune, one 2-rune, one 3-rune spell."
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "portrait",
+        "units",
+        "unitsLabel",
+        "startingHp",
+        "speciality",
+        "forgeSpells",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "SpecialityId": {
+      "type": "string",
+      "enum": [
+        "air",
+        "costControl",
+        "elite",
+        "archer",
+        "addi",
+        "flanky",
+        "meteor",
+        "speed",
+        "giant",
+        "tutor",
+        "money",
+        "cursed",
+        "tutorial"
+      ]
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

@@ -1,0 +1,12 @@
+{
+    "id": "archer",
+    "title": "Archer Commander",
+    "portrait": "spec-archer",
+    "speciality": "archer",
+    "unlock": "archer",
+    "units": ["dwarf", "dwarf", "dwarf", "archer", "archer"],
+    "unitsLabel": "3× Dwarves · 2× Archers",
+    "startingHp": 6000,
+    "forgeSpells": ["fireSpill", "storm", "meteorShower"],
+    "description": "A free level-3 Archer arrives in round 2.",
+}

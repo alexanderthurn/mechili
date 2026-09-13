@@ -1,5 +1,5 @@
 // The base game's definitions. Every file under data/units, data/buildings, data/models,
-// data/talents and data/runes is loaded; ids must match file names.
+// data/talents, data/runes, data/commanders and data/roundCards is loaded; ids must match file names.
 {
     "id": "base",
     "version": 1,
@@ -32,4 +32,10 @@
     "buildings": ["command-tower", "research-center", "stronghold"],
     // Runes in catalog order: inventories, shop and round-card lists sort by it.
     "runes": ["earth", "fire", "water", "wind", "addi", "power", "vigor", "colossus", "wrath", "golden", "bulwark"],
+    // Commanders a player can be offered, in draw order (offers are dealt from this list by seed).
+    "commanders": ["air", "cost", "elite", "archer", "addi", "meteor", "speed", "giant", "tutor", "money", "cursed", "flanky"],
+    // Loaded and addressable by id, never offered (tutorial lessons pick them).
+    "hiddenCommanders": ["tutorial", "tutorial2", "tutorial3"],
+    // Between-round unit and spell cards, in draw order. Rune cards come from data/runes.
+    "roundCards": ["dwarves4", "archers4", "crowRiders2", "ballista1", "flanky", "rallyRoute", "sellPack", "movePack"],
 }

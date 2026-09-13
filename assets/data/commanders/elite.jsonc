@@ -1,0 +1,12 @@
+{
+    "id": "elite",
+    "title": "Elite Prince",
+    "portrait": "spec-elite",
+    "speciality": "elite",
+    "unlock": "ballista",
+    "units": ["goblin", "goblin", "goblin", "ogre"],
+    "unitsLabel": "3× Goblins · 1× Ogre",
+    "startingHp": 5200,
+    "forgeSpells": ["fireSpill", "spawnCrows", "hammerOfGods"],
+    "description": "Recruiting at level 2. +100 supply in round 1.",
+}

@@ -11,6 +11,7 @@
  * Only type imports from the game here: `units.ts` builds its tables from this
  * module, so a runtime import back into it would be a cycle.
  */
+import type { RoundCard, StartCard } from '../cards';
 import type { ItemDef } from '../items';
 import type { TechDef, UnitType } from '../units';
 import type { ModelSpecData } from '../unitModels';
@@ -26,12 +27,16 @@ import modelSchemaJson from '../../../assets/data/schema/model.schema.json';
 import packSchemaJson from '../../../assets/data/schema/pack.schema.json';
 import talentSchemaJson from '../../../assets/data/schema/talent.schema.json';
 import runeSchemaJson from '../../../assets/data/schema/rune.schema.json';
+import commanderSchemaJson from '../../../assets/data/schema/commander.schema.json';
+import roundCardSchemaJson from '../../../assets/data/schema/roundCard.schema.json';
 
 const UNIT_SCHEMA = unitSchemaJson as unknown as JsonSchema;
 const MODEL_SCHEMA = modelSchemaJson as unknown as JsonSchema;
 const PACK_SCHEMA = packSchemaJson as unknown as JsonSchema;
 const TALENT_SCHEMA = talentSchemaJson as unknown as JsonSchema;
 const RUNE_SCHEMA = runeSchemaJson as unknown as JsonSchema;
+const COMMANDER_SCHEMA = commanderSchemaJson as unknown as JsonSchema;
+const ROUND_CARD_SCHEMA = roundCardSchemaJson as unknown as JsonSchema;
 
 // ------------------------------------------------------------------ files
 
@@ -49,6 +54,12 @@ export interface PackManifest {
     buildings: string[];
     /** every rune in data/runes, in catalog order (inventories and card lists sort by it) */
     runes: string[];
+    /** commanders offered to players, in draw order */
+    commanders: string[];
+    /** commanders loaded but never offered (tutorial lessons) */
+    hiddenCommanders: string[];
+    /** between-round unit / spell cards, in draw order */
+    roundCards: string[];
 }
 
 export interface BasePack {
@@ -63,6 +74,12 @@ export interface BasePack {
     talents: Record<string, TechDef>;
     /** rune catalog, in pack.jsonc order */
     runes: ItemDef[];
+    /** offered commanders, in draw order */
+    commanders: StartCard[];
+    /** tutorial-only commanders */
+    hiddenCommanders: StartCard[];
+    /** between-round unit / spell cards, in draw order */
+    roundCards: RoundCard[];
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -78,6 +95,8 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
         models: new Map<string, unknown>(),
         talents: new Map<string, unknown>(),
         runes: new Map<string, unknown>(),
+        commanders: new Map<string, unknown>(),
+        roundCards: new Map<string, unknown>(),
     };
     let manifest: PackManifest | null = null;
 
@@ -101,7 +120,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
         const folder = parts[2] as keyof typeof byFolder;
         const name = parts[3]?.replace(/\.jsonc$/, '');
         if (parts.length !== 4 || !(folder in byFolder) || !name) {
-            errors.push(`${rel}: unexpected file (expected data/<units|buildings|models|talents|runes>/<id>.jsonc)`);
+            errors.push(`${rel}: unexpected file (expected data/<units|buildings|models|talents|runes|commanders|roundCards>/<id>.jsonc)`);
             continue;
         }
         byFolder[folder].set(name, data);
@@ -176,7 +195,10 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
     }
 
     // catalogs: every file in the folder is an entry, its id is the file name
-    const catalog = <T>(folder: 'talents' | 'runes', schema: JsonSchema): Record<string, T> => {
+    const catalog = <T>(
+        folder: 'talents' | 'runes' | 'commanders' | 'roundCards',
+        schema: JsonSchema,
+    ): Record<string, T> => {
         const out: Record<string, T> = {};
         for (const [id, data] of [...byFolder[folder]].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
             const where = `${label}/data/${folder}/${id}.jsonc`;
@@ -191,15 +213,53 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
         return out;
     };
     const talents = catalog<TechDef>('talents', TALENT_SCHEMA);
+    // ordered catalogs: pack.jsonc lists (draw / display order) must cover every file exactly
+    const ordered = <T>(folder: 'runes' | 'commanders' | 'roundCards', entries: Record<string, T>, lists: [string, string[]][]): T[][] => {
+        const all = lists.flatMap(([, ids]) => ids);
+        for (const id of Object.keys(entries)) {
+            if (!all.includes(id)) {
+                errors.push(`${label}/data/${folder}/${id}.jsonc: not listed in pack.jsonc ${lists.map(([n]) => `"${n}"`).join(' or ')}`);
+            }
+        }
+        return lists.map(([name, ids]) =>
+            ids.flatMap((id) => {
+                const entry = entries[id];
+                if (entry) return [entry];
+                errors.push(`${label}/data/pack.jsonc: "${name}" lists "${id}" but data/${folder}/${id}.jsonc does not exist`);
+                return [];
+            }),
+        );
+    };
     const runeCatalog = catalog<ItemDef>('runes', RUNE_SCHEMA);
-    const runes: ItemDef[] = [];
-    for (const id of runeIds) {
-        const rune = runeCatalog[id];
-        if (rune) runes.push(rune);
-        else errors.push(`${label}/data/pack.jsonc: "runes" lists "${id}" but data/runes/${id}.jsonc does not exist`);
+    const [runes] = ordered('runes', runeCatalog, [['runes', runeIds]]) as [ItemDef[]];
+    const [commanders, hiddenCommanders] = ordered('commanders', catalog<StartCard>('commanders', COMMANDER_SCHEMA), [
+        ['commanders', listed(manifest.commanders)],
+        ['hiddenCommanders', listed(manifest.hiddenCommanders)],
+    ]) as [StartCard[], StartCard[]];
+    const [roundCards] = ordered('roundCards', catalog<RoundCard>('roundCards', ROUND_CARD_SCHEMA), [
+        ['roundCards', listed(manifest.roundCards)],
+    ]) as [RoundCard[]];
+    for (const [folder, cards] of [
+        ['commanders', [...commanders, ...hiddenCommanders]],
+        ['roundCards', roundCards],
+    ] as const) {
+        for (const card of cards) {
+            const where = `${label}/data/${folder}/${card.id}.jsonc`;
+            const unlock = 'unlock' in card ? card.unlock : undefined;
+            for (const id of [...(card.units ?? []), ...(unlock !== undefined ? [unlock] : [])]) {
+                if (!roster.some((t) => t.id === id) && !offRoster.some((t) => t.id === id)) {
+                    errors.push(`${where}: names unit "${id}", which is not in the roster`);
+                }
+            }
+            for (const id of card.items ?? []) {
+                if (!(id in runeCatalog)) errors.push(`${where}: names rune "${id}", which does not exist`);
+            }
+        }
     }
-    for (const id of Object.keys(runeCatalog)) {
-        if (!runeIds.includes(id)) errors.push(`${label}/data/runes/${id}.jsonc: not listed in pack.jsonc "runes"`);
+    for (const card of roundCards) {
+        if (card.pool === 'runes') {
+            errors.push(`${label}/data/roundCards/${card.id}.jsonc: rune cards come from data/runes — use pool "units" or "spells"`);
+        }
     }
     const recipeOwner = new Map<string, string>();
     for (const rune of runes) {
@@ -243,7 +303,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
     if (errors.length > 0) {
         throw new Error(`[content:${label}] ${errors.length} problem(s):\n  ${errors.join('\n  ')}`);
     }
-    return { roster, offRoster, buildings, models, talents, runes };
+    return { roster, offRoster, buildings, models, talents, runes, commanders, hiddenCommanders, roundCards };
 }
 
 /** The bundled base game. */

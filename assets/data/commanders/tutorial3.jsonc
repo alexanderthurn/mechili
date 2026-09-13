@@ -1,0 +1,12 @@
+// Hidden tutorial commander (Tutorial 3): base towers only — no Stronghold, no forge spells.
+{
+    "id": "tutorial3",
+    "title": "Tutorial Commander",
+    "portrait": "spec-elite",
+    "speciality": "tutorial",
+    "units": [],
+    "unitsLabel": "",
+    "startingHp": 1,
+    "forgeSpells": [],
+    "description": "",
+}

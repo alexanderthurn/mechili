@@ -1,0 +1,12 @@
+{
+    "id": "giant",
+    "title": "Countess Chonk",
+    "portrait": "spec-giant",
+    "speciality": "giant",
+    "unlock": "ballista",
+    "units": ["goblin", "goblin", "goblin", "hammerer", "hammerer"],
+    "unitsLabel": "3× Goblins · 2× Hammerers",
+    "startingHp": 6400,
+    "forgeSpells": ["spawnDwarves", "bigMeteor", "hammerOfGods"],
+    "description": "Shop unlocks of 200+ cost 200 less.",
+}

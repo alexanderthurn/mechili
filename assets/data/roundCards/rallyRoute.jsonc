@@ -1,0 +1,8 @@
+{
+    "id": "rallyRoute",
+    "title": "Rally Route",
+    "pool": "spells",
+    "cost": 50,
+    "tactics": ["rallyRoute"],
+    "description": "Place a march route: units in the start zone head to the end zone, fighting along the way.",
+}

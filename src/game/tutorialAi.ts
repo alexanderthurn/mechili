@@ -1,5 +1,5 @@
 import type { Action } from './actions';
-import { TUTORIAL_2_START_CARD, TUTORIAL_3_START_CARD, TUTORIAL_START_CARD, type RoundCard, type SpecialityId, type StartCard } from './cards';
+import { TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, type RoundCard, type SpecialityId, type StartCard } from './cards';
 import type { Opponent } from './ai';
 import type { PlacementController } from './placement';
 import type { DeploySettings, Economy } from './settings';
@@ -45,10 +45,10 @@ export class TutorialAi implements Opponent {
     chooseStarter(_offer: readonly StartCard[]): void {
         const cardId =
             this.tutorialLessonId === TUTORIAL_2_ID
-                ? TUTORIAL_2_START_CARD.id
+                ? TUTORIAL_2_START_CARD_ID
                 : this.tutorialLessonId === TUTORIAL_3_ID
-                  ? TUTORIAL_3_START_CARD.id
-                  : TUTORIAL_START_CARD.id;
+                  ? TUTORIAL_3_START_CARD_ID
+                  : TUTORIAL_START_CARD_ID;
         this.ctx.dispatch({
             kind: 'chooseCard',
             team: this.team,

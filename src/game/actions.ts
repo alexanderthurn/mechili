@@ -1,4 +1,4 @@
-import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, startCardById, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostForSpeciality, type SpecialityId, type ShopUnitId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, SKIP_CARD_REWARD, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostForSpeciality, type SpecialityId, type ShopUnitId } from './cards';
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
@@ -1137,7 +1137,7 @@ export class ActionDispatcher {
                 // race with a teammate's slot either. commanderHpFactor
                 // scales both teams the same (Custom Game / GameSettings).
                 if (this.ctx.starterPicked[seat]) return false;
-                const card = startCardById(action.cardId);
+                const card = this.ctx.types.commander(action.cardId);
                 if (!card) return false;
                 this.ctx.starterPicked[seat] = true;
                 this.ctx.speciality[seat] = card.speciality;
@@ -1339,7 +1339,7 @@ export class ActionDispatcher {
                     this.ctx.roundCardTaken[seat] = true;
                     return true;
                 }
-                const card = ROUND_CARDS.find((c) => c.id === action.cardId);
+                const card = this.ctx.types.roundCard(action.cardId);
                 if (!card) return false;
                 if (!economy.spend(seat, card.cost)) return false;
                 entry.paid = card.cost;

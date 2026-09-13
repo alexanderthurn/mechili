@@ -1,0 +1,12 @@
+{
+    "id": "speed",
+    "title": "Speedy Widow",
+    "portrait": "spec-speed",
+    "speciality": "speed",
+    "unlock": "crowRider",
+    "units": ["dwarf", "dwarf", "dwarf", "ogre"],
+    "unitsLabel": "3× Dwarves · 1× Ogre",
+    "startingHp": 5800,
+    "forgeSpells": ["oilSpill", "spawnCrows", "dragonAttack"],
+    "description": "All units move +3 faster.",
+}

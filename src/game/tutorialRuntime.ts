@@ -15,7 +15,7 @@ import { t } from '../i18n';
 import { TutorialGuide } from '../ui/tutorialGuide';
 import { TutorialGuide2 } from '../ui/tutorialGuide2';
 import { TutorialGuide3 } from '../ui/tutorialGuide3';
-import { TUTORIAL_2_START_CARD, TUTORIAL_3_START_CARD, TUTORIAL_START_CARD } from './cards';
+import { TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID } from './cards';
 import { BASE_ANCHORS } from './map';
 import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID } from './tactics';
 import {
@@ -174,20 +174,21 @@ export class TutorialRuntime {
             this.maybeStartGuide();
             return;
         }
-        const starterCard =
+        const starterCardId =
             this.lesson === TUTORIAL_2_ID
-                ? TUTORIAL_2_START_CARD
+                ? TUTORIAL_2_START_CARD_ID
                 : this.lesson === TUTORIAL_3_ID
-                  ? TUTORIAL_3_START_CARD
-                  : TUTORIAL_START_CARD;
+                  ? TUTORIAL_3_START_CARD_ID
+                  : TUTORIAL_START_CARD_ID;
         host.dispatchPlayer({
             kind: 'chooseCard',
             team: 'player',
-            cardId: starterCard.id,
+            cardId: starterCardId,
         });
         // Block the unlock picker for this stripped lesson.
         host.unlockUsedThisRound[host.humanSeat] = true;
-        host.opponent.chooseStarter([starterCard]);
+        const starterCard = host.types.commander(starterCardId);
+        host.opponent.chooseStarter(starterCard ? [starterCard] : []);
         host.afterStarterPick();
         this.maybeStartGuide();
     }

@@ -1,0 +1,8 @@
+{
+    "id": "movePack",
+    "title": "Marching Orders",
+    "pool": "spells",
+    "cost": 50,
+    "tactics": ["moveUnit"],
+    "description": "One-shot spell: one pack from an earlier round may be repositioned again this round.",
+}

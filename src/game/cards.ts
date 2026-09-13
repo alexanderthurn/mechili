@@ -1,8 +1,13 @@
 /**
  * The specialist system: before round 1 each player picks a SPECIALIST card
  * — a starting army (equal total value), a starting HP pool, a permanent
- * speciality, and possibly pack items. Between rounds, {@link ROUND_CARDS}
- * hold the full catalog; the live offer currently draws runes only.
+ * speciality, and possibly pack items. Between rounds, round cards are
+ * offered; the live offer currently draws runes only.
+ *
+ * Commanders and round cards are data (`assets/data/commanders`,
+ * `assets/data/roundCards`, rune cards from `assets/data/runes`), served by the
+ * match's {@link TypeRegistry}. What a speciality DOES stays code here and in
+ * the game — `speciality` in the data names one.
  *
  * Each specialist also unlocks a small set of Stronghold forge spells
  * ({@link StartCard.forgeSpells}); teammates share the union of those lists.
@@ -10,25 +15,7 @@
 
 import { DISPLAY } from './displayNames';
 import { t, tacticDescription, tacticName } from '../i18n';
-import { BASE_PACK } from './content/basePack';
-import {
-    ACID_ID,
-    DRAGON_ID,
-    FIRE_SPILL_ID,
-    HAMMER_ID,
-    METEOR_SHOWER_ID,
-    OIL_SPILL_ID,
-    POISON_CLOUD_ID,
-    RALLY_ROUTE_ID,
-    BIG_METEOR_ID,
-    MOVE_UNIT_ID,
-    SELL_UNIT_ID,
-    SPAWN_CROWS_ID,
-    SPAWN_DWARVES_ID,
-    STORM_ID,
-    TACTICS,
-    TUTOR_ID,
-} from './tactics';
+import { TACTICS } from './tactics';
 import type { TypeRegistry } from './content/typeRegistry';
 import { forgeIngredientIcons } from './forgeRecipes';
 
@@ -119,111 +106,10 @@ export interface RoundCard {
     tactics?: string[];
     /** halves flank spawn time for the rest of the match */
     flankSpawnHalf?: boolean;
+    /** which offer pool deals it: `units` / `spells` from data/roundCards, `runes` from data/runes */
+    pool: RoundCardDrawPool;
     description: string;
 }
-
-/** Rune cards in the between-round catalog: every base-game rune, base tier first, at its `cardCost`. */
-export const ROUND_RUNE_CARDS: RoundCard[] = [
-    ...BASE_PACK.runes.filter((r) => r.tier === 'base'),
-    ...BASE_PACK.runes.filter((r) => r.tier === 'advanced'),
-].map((rune) => ({
-    id: rune.id,
-    title: rune.name,
-    cost: rune.cardCost ?? 50,
-    items: [rune.id],
-    description: rune.description,
-}));
-
-/**
- * Default match offer pool: the base runes only.
- * Advanced runes come from the forge (and later modes/shop).
- */
-export const ROUND_RUNE_ITEM_IDS: string[] = BASE_PACK.runes.filter((r) => r.tier === 'base').map((r) => r.id);
-
-/**
- * Unit-pack between-round cards (kept for later; not in the live offer).
- */
-export const ROUND_UNIT_CARDS: RoundCard[] = [
-    {
-        id: 'dwarves4',
-        title: 'Dwarf Band',
-        cost: 150,
-        units: ['dwarf', 'dwarf', 'dwarf', 'dwarf'],
-        unitsLabel: '4× Dwarves',
-        description: 'Four Dwarf packs join your army.',
-    },
-    {
-        id: 'archers4',
-        title: 'Archer Company',
-        cost: 150,
-        units: ['archer', 'archer', 'archer', 'archer'],
-        unitsLabel: '4× Archers',
-        description: 'Four Archers join your army.',
-    },
-    {
-        id: 'crowRiders2',
-        title: 'Crow Wing',
-        cost: 150,
-        units: ['crowRider', 'crowRider'],
-        unitsLabel: '2× Crow Riders',
-        description: 'Two Crow Rider flocks join your army.',
-    },
-    {
-        id: 'ballista1',
-        title: 'Siege Ballista',
-        cost: 150,
-        units: ['ballista'],
-        unitsLabel: '1× Ballista',
-        description: 'A Ballista joins your army.',
-    },
-];
-
-/**
- * Non-rune between-round cards (Rally, Buyback, Flanky).
- * Kept for later; not in the live offer for now.
- */
-export const ROUND_EXTRA_CARDS: RoundCard[] = [
-    {
-        id: 'flanky',
-        title: 'Flanky',
-        cost: 50,
-        flankSpawnHalf: true,
-        description: 'First-time flank spawns take half the time (2.5s).',
-    },
-    {
-        id: 'rallyRoute',
-        title: 'Rally Route',
-        cost: 50,
-        tactics: [RALLY_ROUTE_ID],
-        description:
-            'Place a march route: units in the start zone head to the end zone, fighting along the way.',
-    },
-    {
-        id: 'sellPack',
-        title: 'Buyback',
-        cost: 50,
-        tactics: [SELL_UNIT_ID],
-        description: 'One-shot spell: sell one of your packs for a supply refund.',
-    },
-    {
-        id: 'movePack',
-        title: 'Marching Orders',
-        cost: 50,
-        tactics: [MOVE_UNIT_ID],
-        description:
-            'One-shot spell: one pack from an earlier round may be repositioned again this round.',
-    },
-];
-
-/**
- * Full between-round catalog (lookup by id). Live offers use
- * {@link drawRoundCardOffer} via {@link RoundCardAlgorithm} presets.
- */
-export const ROUND_CARDS: RoundCard[] = [
-    ...ROUND_RUNE_CARDS,
-    ...ROUND_UNIT_CARDS,
-    ...ROUND_EXTRA_CARDS,
-];
 
 /** shuffle in place with the given rng */
 function shuffleInPlace<T>(deck: T[], rng: () => number): void {
@@ -236,21 +122,12 @@ function shuffleInPlace<T>(deck: T[], rng: () => number): void {
 /** Which catalog slice a between-round offer draws from. */
 export type RoundCardDrawPool = 'runes' | 'units' | 'spells';
 
-function cardsForDrawPool(
-    pool: RoundCardDrawPool,
-    itemIds?: readonly string[],
-): RoundCard[] {
-    if (pool === 'units') return [...ROUND_UNIT_CARDS];
-    if (pool === 'spells') return [...ROUND_EXTRA_CARDS];
-    const allowed = itemIds?.length ? new Set(itemIds) : new Set(ROUND_RUNE_ITEM_IDS);
-    return ROUND_RUNE_CARDS.filter((c) => allowed.has(c.id));
-}
-
 /**
  * Between-round offer: shuffle the configured pool and take up to `offerCount`.
- * Default pool is runes (filtered by `itemIds` / base runes).
+ * The rune pool is narrowed to `itemIds` (default: the base runes).
  */
 export function drawRoundCardOffer(
+    types: TypeRegistry,
     rng: () => number,
     opts?: {
         itemIds?: readonly string[];
@@ -258,7 +135,12 @@ export function drawRoundCardOffer(
         pool?: RoundCardDrawPool;
     },
 ): RoundCard[] {
-    const deck = cardsForDrawPool(opts?.pool ?? 'runes', opts?.itemIds);
+    const pool = opts?.pool ?? 'runes';
+    let deck = types.roundCardsInPool(pool);
+    if (pool === 'runes') {
+        const allowed = new Set(opts?.itemIds?.length ? opts.itemIds : types.baseRuneIds);
+        deck = deck.filter((c) => allowed.has(c.id));
+    }
     if (deck.length === 0) return [];
     const shuffled = [...deck];
     shuffleInPlace(shuffled, rng);
@@ -295,9 +177,9 @@ export function roundOfferTitle(cards: readonly RoundCard[]): string {
     }
 }
 /** atlas icon for a round-card face (rune / tactic / Flanky) */
-export function roundCardIcon(c: RoundCard): string | null {
+export function roundCardIcon(c: RoundCard, types: TypeRegistry): string | null {
     const itemId = c.items?.[0];
-    if (itemId) return BASE_PACK.runes.find((r) => r.id === itemId)?.icon ?? null;
+    if (itemId) return types.rune(itemId)?.icon ?? null;
     const tacticId = c.tactics?.[0];
     if (tacticId) return TACTICS[tacticId]?.icon ?? null;
     if (c.flankSpawnHalf) return 'spec-flanky';
@@ -306,24 +188,6 @@ export function roundCardIcon(c: RoundCard): string | null {
 
 /** A buyable army type id — see {@link TypeRegistry.shopUnitIds} for the match's list. */
 export type ShopUnitId = string;
-
-/** the signature unit a specialist can buy even if it is not in the starter army */
-export const SPECIALITY_UNLOCK: Record<SpecialityId, ShopUnitId> = {
-    air: 'crowRider',
-    costControl: 'archer',
-    elite: 'ballista',
-    archer: 'archer',
-    addi: 'crowRider',
-    flanky: 'dwarf',
-    meteor: 'wizard',
-    speed: 'crowRider',
-    giant: 'ballista',
-    tutor: 'wizard',
-    money: 'ballista',
-    cursed: 'dwarf',
-    // unused — tutorial card returns no unlocks via {@link starterUnlockedUnits}
-    tutorial: 'dwarf',
-};
 
 export interface StartCard {
     id: string;
@@ -335,7 +199,10 @@ export interface StartCard {
     /** the army, human-readable, for the card face */
     unitsLabel: string;
     startingHp: number;
+    /** what this commander does — a behaviour the game code implements */
     speciality: SpecialityId;
+    /** the signature unit this commander can buy even if it is not in the starting army */
+    unlock?: string;
     /** pack items granted into the player's inventory */
     items?: string[];
     /**
@@ -381,218 +248,14 @@ export function startCardForgeIcons(
     return out;
 }
 
-/** Not in {@link START_CARDS} — never drawn into normal specialist offers. */
+/** Hidden tutorial commanders (`hiddenCommanders` in pack.jsonc), picked by the lessons. */
 export const TUTORIAL_START_CARD_ID = 'tutorial';
 export const TUTORIAL_2_START_CARD_ID = 'tutorial2';
 export const TUTORIAL_3_START_CARD_ID = 'tutorial3';
 
-/** starter packs + the specialist's signature unit */
+/** starter packs + the commander's signature unit (tutorial commanders have neither) */
 export function starterUnlockedUnits(card: StartCard, types: TypeRegistry): ShopUnitId[] {
-    // Tutorial commanders grant no shop roster — the mode assigns unlocks itself.
-    if (
-        card.id === TUTORIAL_START_CARD_ID ||
-        card.id === TUTORIAL_2_START_CARD_ID ||
-        card.id === TUTORIAL_3_START_CARD_ID
-    ) {
-        return [];
-    }
-    const ids = new Set<ShopUnitId>();
-    for (const id of card.units) {
-        if (types.shopUnitIds.includes(id)) ids.add(id);
-    }
-    ids.add(SPECIALITY_UNLOCK[card.speciality]);
+    const ids = new Set<ShopUnitId>(card.units);
+    if (card.unlock !== undefined) ids.add(card.unlock);
     return types.shopUnitIds.filter((id) => ids.has(id));
 }
-
-/**
- * Invisible tutorial-only commander: empty army, no forge spells, no pool
- * presence. Both seats auto-pick this in Tutorial 1.
- */
-export const TUTORIAL_START_CARD: StartCard = {
-    id: TUTORIAL_START_CARD_ID,
-    title: 'Tutorial Commander',
-    portrait: 'spec-speed',
-    units: [],
-    unitsLabel: '',
-    startingHp: 1,
-    speciality: 'tutorial',
-    forgeSpells: [],
-    description: '',
-};
-
-/** Tutorial 2: Stronghold forge spells only — no field shop. */
-export const TUTORIAL_2_START_CARD: StartCard = {
-    id: TUTORIAL_2_START_CARD_ID,
-    title: 'Tutorial Commander',
-    portrait: 'spec-cost',
-    units: [],
-    unitsLabel: '',
-    startingHp: 1,
-    speciality: 'tutorial',
-    forgeSpells: [OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID],
-    description: '',
-};
-
-/** Tutorial 3: base towers only — no Stronghold, no forge spells. */
-export const TUTORIAL_3_START_CARD: StartCard = {
-    id: TUTORIAL_3_START_CARD_ID,
-    title: 'Tutorial Commander',
-    portrait: 'spec-elite',
-    units: [],
-    unitsLabel: '',
-    startingHp: 1,
-    speciality: 'tutorial',
-    forgeSpells: [],
-    description: '',
-};
-
-const TUTORIAL_START_CARDS_BY_ID: Record<string, StartCard> = {
-    [TUTORIAL_START_CARD_ID]: TUTORIAL_START_CARD,
-    [TUTORIAL_2_START_CARD_ID]: TUTORIAL_2_START_CARD,
-    [TUTORIAL_3_START_CARD_ID]: TUTORIAL_3_START_CARD,
-};
-
-/** Resolve a starter card id from the live pool or the hidden tutorial cards. */
-export function startCardById(cardId: string): StartCard | undefined {
-    return START_CARDS.find((c) => c.id === cardId) ?? TUTORIAL_START_CARDS_BY_ID[cardId];
-}
-
-export const START_CARDS: StartCard[] = [
-    {
-        id: 'air',
-        title: 'Sky Sorcerer',
-        portrait: 'spec-air',
-        units: ['goblin', 'goblin', 'goblin', 'crowRider'],
-        unitsLabel: '3× Goblins · 1× Crow Riders',
-        startingHp: 5600,
-        speciality: 'air',
-        forgeSpells: [FIRE_SPILL_ID, SPAWN_CROWS_ID, DRAGON_ID],
-        description: 'Air units get +12% attack and HP.',
-    },
-    {
-        id: 'cost',
-        title: 'Greedy Prince',
-        portrait: 'spec-cost',
-        units: ['dwarf', 'dwarf', 'dwarf', 'crowRider'],
-        unitsLabel: '3× Dwarves · 1× Crow Riders',
-        startingHp: 5200,
-        speciality: 'costControl',
-        forgeSpells: [OIL_SPILL_ID, POISON_CLOUD_ID, DRAGON_ID],
-        description: 'All units −12% attack and HP, but +100 supply every round.',
-    },
-    {
-        id: 'elite',
-        title: 'Elite Prince',
-        portrait: 'spec-elite',
-        units: ['goblin', 'goblin', 'goblin', 'ogre'],
-        unitsLabel: '3× Goblins · 1× Ogre',
-        startingHp: 5200,
-        speciality: 'elite',
-        forgeSpells: [FIRE_SPILL_ID, SPAWN_CROWS_ID, HAMMER_ID],
-        description:
-            'Recruiting at level 2. +100 supply in round 1.',
-    },
-    {
-        id: 'archer',
-        title: 'Archer Commander',
-        portrait: 'spec-archer',
-        units: ['dwarf', 'dwarf', 'dwarf', 'archer', 'archer'],
-        unitsLabel: '3× Dwarves · 2× Archers',
-        startingHp: 6000,
-        speciality: 'archer',
-        forgeSpells: [FIRE_SPILL_ID, STORM_ID, METEOR_SHOWER_ID],
-        description: 'A free level-3 Archer arrives in round 2.',
-    },
-    {
-        id: 'addi',
-        title: 'Relic Keeper',
-        portrait: 'spec-addi',
-        units: ['hammerer', 'hammerer', 'hammerer', 'dwarf', 'dwarf'],
-        unitsLabel: '3× Hammerers · 2× Dwarves',
-        startingHp: 6000,
-        speciality: 'addi',
-        items: ['addi', 'addi', 'addi'],
-        forgeSpells: [OIL_SPILL_ID, ACID_ID, HAMMER_ID],
-        description: 'Gets 3× Valor rune in round 1.',
-    },
-    {
-        id: 'meteor',
-        title: 'Lord Hitzkopf',
-        portrait: 'spec-meteor',
-        units: ['goblin', 'goblin', 'goblin', 'mortar'],
-        unitsLabel: '3× Goblins · 1× Mortars',
-        startingHp: 5200,
-        speciality: 'meteor',
-        tactics: [BIG_METEOR_ID, BIG_METEOR_ID],
-        forgeSpells: [FIRE_SPILL_ID, BIG_METEOR_ID, METEOR_SHOWER_ID],
-        description: 'Gets 2 Meteor charges in round 2.',
-    },
-    {
-        id: 'speed',
-        title: 'Speedy Widow',
-        portrait: 'spec-speed',
-        units: ['dwarf', 'dwarf', 'dwarf', 'ogre'],
-        unitsLabel: '3× Dwarves · 1× Ogre',
-        startingHp: 5800,
-        speciality: 'speed',
-        forgeSpells: [OIL_SPILL_ID, SPAWN_CROWS_ID, DRAGON_ID],
-        description: `All units move +${SPEED_COMMANDER_BONUS} faster.`,
-    },
-    {
-        id: 'giant',
-        title: 'Countess Chonk',
-        portrait: 'spec-giant',
-        units: ['goblin', 'goblin', 'goblin', 'hammerer', 'hammerer'],
-        unitsLabel: '3× Goblins · 2× Hammerers',
-        startingHp: 6400,
-        speciality: 'giant',
-        forgeSpells: [SPAWN_DWARVES_ID, BIG_METEOR_ID, HAMMER_ID],
-        description: `Shop unlocks of ${GIANT_UNLOCK_THRESHOLD}+ cost ${GIANT_UNLOCK_DISCOUNT} less.`,
-    },
-    {
-        id: 'tutor',
-        title: 'Lady Lecture',
-        portrait: 'spec-tutor',
-        units: ['goblin', 'goblin', 'goblin', 'archer', 'archer'],
-        unitsLabel: '3× Goblins · 2× Archers',
-        startingHp: 6000,
-        speciality: 'tutor',
-        tactics: [TUTOR_ID],
-        tacticsRound: 1,
-        forgeSpells: [FIRE_SPILL_ID, STORM_ID, METEOR_SHOWER_ID],
-        description: 'Starts with one Field Lesson.',
-    },
-    {
-        id: 'money',
-        title: 'Money Queen',
-        portrait: 'spec-money',
-        units: ['dwarf', 'dwarf', 'dwarf', 'mortar'],
-        unitsLabel: '3× Dwarves · 1× Mortars',
-        startingHp: 5400,
-        speciality: 'money',
-        forgeSpells: [OIL_SPILL_ID, STORM_ID, DRAGON_ID],
-        description: `+${MONEY_ROUND1_BONUS} supply in round 1.`,
-    },
-    {
-        id: 'cursed',
-        title: 'Cursed Christine',
-        portrait: 'spec-cursed',
-        units: ['hammerer', 'hammerer', 'hammerer', 'goblin', 'goblin'],
-        unitsLabel: '3× Hammerers · 2× Goblins',
-        startingHp: 5800,
-        speciality: 'cursed',
-        forgeSpells: [SPAWN_DWARVES_ID, POISON_CLOUD_ID, HAMMER_ID],
-        description: 'Gets one free Black Brood spider each round.',
-    },
-    {
-        id: 'flanky',
-        title: 'Flanky Shadow',
-        portrait: 'spec-flanky',
-        units: ['dwarf', 'dwarf', 'dwarf', 'hammerer', 'hammerer'],
-        unitsLabel: '3× Dwarves · 2× Hammerers',
-        startingHp: 5800,
-        speciality: 'flanky',
-        forgeSpells: [SPAWN_DWARVES_ID, POISON_CLOUD_ID, METEOR_SHOWER_ID],
-        description: 'First-time flank spawns take half the time.',
-    },
-];

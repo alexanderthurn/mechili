@@ -1,0 +1,12 @@
+{
+    "id": "cursed",
+    "title": "Cursed Christine",
+    "portrait": "spec-cursed",
+    "speciality": "cursed",
+    "unlock": "dwarf",
+    "units": ["hammerer", "hammerer", "hammerer", "goblin", "goblin"],
+    "unitsLabel": "3× Hammerers · 2× Goblins",
+    "startingHp": 5800,
+    "forgeSpells": ["spawnDwarves", "poisonCloud", "hammerOfGods"],
+    "description": "Gets one free Black Brood spider each round.",
+}

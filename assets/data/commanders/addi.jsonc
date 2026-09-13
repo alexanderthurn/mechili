@@ -1,0 +1,13 @@
+{
+    "id": "addi",
+    "title": "Relic Keeper",
+    "portrait": "spec-addi",
+    "speciality": "addi",
+    "unlock": "crowRider",
+    "units": ["hammerer", "hammerer", "hammerer", "dwarf", "dwarf"],
+    "unitsLabel": "3× Hammerers · 2× Dwarves",
+    "startingHp": 6000,
+    "items": ["addi", "addi", "addi"],
+    "forgeSpells": ["oilSpill", "acidSpill", "hammerOfGods"],
+    "description": "Gets 3× Valor rune in round 1.",
+}

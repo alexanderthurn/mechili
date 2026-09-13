@@ -1,5 +1,5 @@
 import { buildingAbilities } from '../game/buildingAbilities';
-import { START_CARDS, ROUND_RUNE_CARDS, type RoundCard, type StartCard } from '../game/cards';
+import type { RoundCard, StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import { DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
 import { itemSlotLimit, type ItemDef } from '../game/items';
@@ -516,11 +516,11 @@ app.innerHTML = `
     <select class="mh-card-select" id="mh-specialists-select" aria-label="${esc(
         t('homepage:commanders.select', { commander: midTerm(DISPLAY.commander) }),
     )}">
-      ${START_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(commanderTitle(c.id, c.title))}</option>`).join('')}
+      ${BASE_TYPES.commanders.map((c) => `<option value="${esc(c.id)}">${esc(commanderTitle(c.id, c.title))}</option>`).join('')}
     </select>
     <div class="mechili-cards">
       <div class="cards-row" id="mh-specialists-row">
-        ${START_CARDS.map(
+        ${BASE_TYPES.commanders.map(
             (c, i) =>
                 `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${startCardFace(c)}</div>`,
         ).join('')}
@@ -565,11 +565,11 @@ app.innerHTML = `
     <h2>${esc(t('homepage:roundCards.title'))}</h2>
     <p class="mh-sub">${esc(t('homepage:roundCards.sub', { items: midTerm(DISPLAY.items) }))}</p>
     <select class="mh-card-select" id="mh-round-cards-select" aria-label="${esc(t('homepage:roundCards.select'))}">
-      ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(roundCardTitle(c.id, c.title))}</option>`).join('')}
+      ${BASE_TYPES.roundCardsInPool('runes').map((c) => `<option value="${esc(c.id)}">${esc(roundCardTitle(c.id, c.title))}</option>`).join('')}
     </select>
     <div class="mechili-cards">
       <div class="cards-row" id="mh-round-cards-row">
-        ${ROUND_RUNE_CARDS.map(
+        ${BASE_TYPES.roundCardsInPool('runes').map(
             (c, i) =>
                 `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
         ).join('')}

@@ -1,0 +1,12 @@
+{
+    "id": "money",
+    "title": "Money Queen",
+    "portrait": "spec-money",
+    "speciality": "money",
+    "unlock": "ballista",
+    "units": ["dwarf", "dwarf", "dwarf", "mortar"],
+    "unitsLabel": "3× Dwarves · 1× Mortars",
+    "startingHp": 5400,
+    "forgeSpells": ["oilSpill", "storm", "dragonAttack"],
+    "description": "+200 supply in round 1.",
+}

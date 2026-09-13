@@ -11,6 +11,7 @@
  * Only type imports from the game here: units.ts builds `BASE_TYPES` from this
  * module.
  */
+import type { RoundCard, RoundCardDrawPool, StartCard } from '../cards';
 import type { ForgeRecipe } from '../forgeRecipes';
 import type { ItemDef } from '../items';
 import type { TechDef, UnitType } from '../units';
@@ -41,6 +42,15 @@ export class TypeRegistry {
     readonly advancedRuneIds: readonly string[];
     /** oven recipes from the runes' `forge`: fewer ingredients first, then catalog order */
     readonly forgeRecipes: readonly ForgeRecipe[];
+    /** commanders offered to players, in draw order */
+    readonly commanders: readonly StartCard[];
+    /**
+     * Every between-round card: one per rune (base tier first, at its
+     * `cardCost`), then the unit and spell cards from data/roundCards.
+     */
+    readonly roundCards: readonly RoundCard[];
+
+    private readonly commanderIndex: ReadonlyMap<string, StartCard>;
 
     private readonly index: ReadonlyMap<string, UnitType>;
     private readonly talentsByType = new Map<string, readonly TechDef[]>();
@@ -66,6 +76,35 @@ export class TypeRegistry {
                 priority: r.forge!.priority ?? 1,
             }))
             .sort((a, b) => a.ingredients.length - b.ingredients.length);
+        this.commanders = pack.commanders;
+        this.commanderIndex = new Map([...pack.commanders, ...pack.hiddenCommanders].map((c) => [c.id, c]));
+        const runeCards: RoundCard[] = [
+            ...pack.runes.filter((r) => r.tier === 'base'),
+            ...pack.runes.filter((r) => r.tier === 'advanced'),
+        ].map((rune) => ({
+            id: rune.id,
+            title: rune.name,
+            cost: rune.cardCost ?? 50,
+            items: [rune.id],
+            pool: 'runes',
+            description: rune.description,
+        }));
+        this.roundCards = [...runeCards, ...pack.roundCards];
+    }
+
+    /** a commander by id, including hidden tutorial ones */
+    commander(id: string): StartCard | null {
+        return this.commanderIndex.get(id) ?? null;
+    }
+
+    /** a between-round card by id */
+    roundCard(id: string): RoundCard | null {
+        return this.roundCards.find((c) => c.id === id) ?? null;
+    }
+
+    /** the cards an offer from `pool` deals from, in draw order */
+    roundCardsInPool(pool: RoundCardDrawPool): RoundCard[] {
+        return this.roundCards.filter((c) => c.pool === pool);
     }
 
     /** a rune by id — null for an unknown id */

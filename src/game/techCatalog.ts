@@ -32,7 +32,7 @@ export interface Loadout {
     //   spells?:     Record<commanderId, tacticId[]>  — per-commander forge
     //                spells, today fixed on the StartCard (`forgeSpells`,
     //                read in exactly one place: Game's forge-spell lookup)
-    //   commanders?: string[]  — which of START_CARDS the seat's 4-card
+    //   commanders?: string[]  — which commanders (pack.jsonc) the seat's 4-card
     //                offer may draw from (a BAN list, not a pick list — see
     //                PROGRESSION_PLAN.md §1h for why)
     // Neither is implemented. Adding one means a new optional field here, a

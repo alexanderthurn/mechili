@@ -111,6 +111,35 @@ try {
         if (ok) console.log(`ok   talents: ${T.talents.size} from data; Sky Bind / Sky Lift / Aegis act through attributes`);
     }
 
+    // ---- commanders & round cards: spell ids name real tactics (tactics are still code)
+    {
+        const { TACTICS } = await server.ssrLoadModule('/src/game/tactics.ts');
+        const cards = await server.ssrLoadModule('/src/game/cards.ts');
+        const T = units.BASE_TYPES;
+        let ok = true;
+        const hidden = ['tutorial', 'tutorial2', 'tutorial3'].map((id) => T.commander(id));
+        for (const card of [...T.commanders, ...hidden, ...T.roundCards]) {
+            if (!card) {
+                ok = false;
+                continue;
+            }
+            for (const id of [...(card.forgeSpells ?? []), ...(card.tactics ?? [])]) {
+                if (!TACTICS[id]) {
+                    ok = false;
+                    console.error(`FAIL ${card.id}: spell "${id}" is not a tactic`);
+                }
+            }
+        }
+        if (hidden.includes(null)) console.error('FAIL a tutorial commander is missing (tutorial, tutorial2, tutorial3)');
+        const air = T.commander('air');
+        if (!air || !cards.starterUnlockedUnits(air, T).includes('crowRider') || cards.starterUnlockedUnits(hidden[0], T).length !== 0) {
+            ok = false;
+            console.error('FAIL commander unlocks: signature unit missing or a tutorial commander unlocks units');
+        }
+        if (!ok) failed = true;
+        else console.log(`ok   commanders: ${T.commanders.length} offered + ${hidden.length} tutorial; ${T.roundCards.length} round cards; spell ids exist`);
+    }
+
     // ---- level overlays: replacement by path, report, hash, data validation
     const resolver = await server.ssrLoadModule('/src/game/assets.ts');
     const pack = await server.ssrLoadModule('/src/game/content/basePack.ts');
@@ -191,9 +220,11 @@ try {
     ok = expect(dupRecipe.includes('already make "'), `duplicate forge recipe not reported (${dupRecipe.split('\n')[0]})`) && ok;
     const badIngredient = runeErrorOf([['data/runes/addi.jsonc', addi.replace('["earth", "earth"]', '["earth", "eart"]')]]);
     ok = expect(badIngredient.includes('forge ingredient "eart" is no rune'), `unknown forge ingredient not reported (${badIngredient.split('\n')[0]})`) && ok;
+    const badArmy = runeErrorOf([['data/commanders/air.jsonc', readBase('data/commanders/air.jsonc').replace('"goblin", "goblin", "goblin"', '"goblin", "gobiln", "goblin"')]]);
+    ok = expect(badArmy.includes('names unit "gobiln"'), `unknown commander unit not reported (${badArmy.split('\n')[0]})`) && ok;
     const unlistedRune = runeErrorOf([['data/runes/ice.jsonc', addi.replace('"id": "addi"', '"id": "ice"').replace(/"forge": \{[^}]*\},/, '')]]);
     ok = expect(unlistedRune.includes('ice.jsonc: not listed in pack.jsonc "runes"'), `unlisted rune not reported (${unlistedRune.split('\n')[0]})`) && ok;
-    if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation (talents, runes, recipes), multiplayer hash');
+    if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation (talents, runes, recipes, commanders), multiplayer hash');
 
     // ---- switching levels: caches told after the files switch, model data follows, bad data changes nothing
     const levels = await server.ssrLoadModule('/src/game/level.ts');

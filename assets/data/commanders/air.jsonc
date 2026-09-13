@@ -1,0 +1,14 @@
+{
+    "id": "air",
+    "title": "Sky Sorcerer",
+    "portrait": "spec-air",
+    "speciality": "air",
+    // the signature unit this commander can buy even if it is not in the starting army
+    "unlock": "crowRider",
+    // starting army as unit type ids — every card totals 500 supply
+    "units": ["goblin", "goblin", "goblin", "crowRider"],
+    "unitsLabel": "3× Goblins · 1× Crow Riders",
+    "startingHp": 5600,
+    "forgeSpells": ["fireSpill", "spawnCrows", "dragonAttack"],
+    "description": "Air units get +12% attack and HP.",
+}

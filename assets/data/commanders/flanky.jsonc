@@ -1,0 +1,12 @@
+{
+    "id": "flanky",
+    "title": "Flanky Shadow",
+    "portrait": "spec-flanky",
+    "speciality": "flanky",
+    "unlock": "dwarf",
+    "units": ["dwarf", "dwarf", "dwarf", "hammerer", "hammerer"],
+    "unitsLabel": "3× Dwarves · 2× Hammerers",
+    "startingHp": 5800,
+    "forgeSpells": ["spawnDwarves", "poisonCloud", "meteorShower"],
+    "description": "First-time flank spawns take half the time.",
+}
