@@ -714,8 +714,13 @@ export interface UnitType {
      * - `cruise` — keep moving along current facing while yaw eases (flyers)
      */
     turnMove?: 'track' | 'pivot' | 'cruise';
-    /** builds ONE mech's meshes around the origin in world units, facing -z (toward the enemy) */
-    build: (parts: PartFactory) => void;
+    /**
+     * Named procedural mesh builder ({@link PROCEDURAL_MODELS}): ONE mech's
+     * meshes around the origin, facing -z. Used for the provisional height
+     * probe, previews, and wherever no GLB is loaded. A name, not a function,
+     * so a type definition stays plain data.
+     */
+    proceduralModel: ProceduralModelId;
     /**
      * Scatters each member off its grid slot by up to this fraction of the
      * slot spacing (0 = the usual tight rectangle). Deterministic — a pure
@@ -988,54 +993,121 @@ function buildTower(parts: PartFactory): void {
     parts.cylinder(0.06, 0.06, 2.0, 0.9, 4.0, 0.9, 'dark'); // antenna
 }
 
-/** each side's two command towers — not buyable, so not part of UNIT_TYPES */
 /**
- * The two base buildings share stats and mesh but are independent types:
- * each carries its own role (and upgrade level). The Research Center hosts the
- * recruit-level switch; the Command Tower's role is still open.
+ * Procedural mesh builders by name. Type definitions refer to these by
+ * {@link UnitType.proceduralModel}, so the definitions themselves hold no code.
  */
-function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 800): UnitType {
-    return {
-        id,
-        name,
-        cost: 0,
-        // grid collision footprint; the mesh is a bit bigger and overlaps it visually
-        footprint: { cols: tiles, rows: tiles },
-        formation: { cols: 1, rows: 1 },
-        meshScale,
-        structure: true,
-        burn: { takenMult: 0.35 }, // stone / masonry resists
-        targets: { ground: false, air: false }, // towers don't shoot
-        collisionRadius: tiles * CELL * 0.57,
-        colliders: [
-            { y: 0.5, r: 1.6 },
-            { y: 1.9, r: 1.1 },
-            { y: 3.5, r: 0.8 },
-        ],
-        hp,
-        damage: 0,
-        range: 0,
-        attackInterval: 1,
-        speed: 0,
-        build: buildTower,
-    };
+const PROCEDURAL_MODELS = {
+    dwarf: buildDwarf,
+    goblin: buildGoblin,
+    hammerer: buildHammerer,
+    ogre: buildOgre,
+    archer: buildArcher,
+    wizard: buildWizard,
+    ballista: buildBallista,
+    crowRider: buildCrowRider,
+    bat: buildBat,
+    mortar: buildMortar,
+    shield: buildShield,
+    rocket: buildRocket,
+    tower: buildTower,
+} satisfies Record<string, (parts: PartFactory) => void>;
+
+export type ProceduralModelId = keyof typeof PROCEDURAL_MODELS;
+
+/** Is `id` a known procedural model? (for validating loaded definitions) */
+export function isProceduralModelId(id: string): id is ProceduralModelId {
+    return Object.prototype.hasOwnProperty.call(PROCEDURAL_MODELS, id);
 }
 
+/** Build ONE mech of `type` with its named procedural builder. */
+function buildProcedural(type: UnitType, parts: PartFactory): void {
+    PROCEDURAL_MODELS[type.proceduralModel](parts);
+}
+
+/**
+ * Base buildings — not buyable, so not part of UNIT_TYPES. Plain data like every
+ * other type: what each one does comes from its attributes (onDestroyed,
+ * abilities, garrison), not from which constant it is.
+ */
 export const COMMAND_TOWER: UnitType = {
-    ...makeTower('command-tower', 'Vanguard', 3.0, 3),
+    id: 'command-tower',
+    name: 'Vanguard',
+    cost: 0,
+    // grid collision footprint; the mesh is a bit bigger and overlaps it visually
+    footprint: { cols: 3, rows: 3 },
+    formation: { cols: 1, rows: 1 },
+    meshScale: 3,
+    structure: true,
+    burn: { takenMult: 0.35 }, // stone / masonry resists
+    targets: { ground: false, air: false }, // towers don't shoot
+    collisionRadius: 6.84, // footprint tiles × CELL × 0.57
+    colliders: [
+        { y: 0.5, r: 1.6 },
+        { y: 1.9, r: 1.1 },
+        { y: 3.5, r: 0.8 },
+    ],
+    hp: 800,
+    damage: 0,
+    range: 0,
+    attackInterval: 1,
+    speed: 0,
+    proceduralModel: 'tower',
     sandPadScale: 1.35,
     onDestroyed: { seatDebuff: true },
     abilities: ['armyBoosts', 'selling', 'rallyRoute', 'movePack'],
 };
 export const RESEARCH_CENTER: UnitType = {
-    ...makeTower('research-center', 'Garrison'),
+    id: 'research-center',
+    name: 'Garrison',
+    cost: 0,
+    // grid collision footprint; the mesh is a bit bigger and overlaps it visually
+    footprint: { cols: 3, rows: 3 },
+    formation: { cols: 1, rows: 1 },
+    meshScale: 3.6,
+    structure: true,
+    burn: { takenMult: 0.35 }, // stone / masonry resists
+    targets: { ground: false, air: false }, // towers don't shoot
+    collisionRadius: 6.84, // footprint tiles × CELL × 0.57
+    colliders: [
+        { y: 0.5, r: 1.6 },
+        { y: 1.9, r: 1.1 },
+        { y: 3.5, r: 0.8 },
+    ],
+    hp: 800,
+    damage: 0,
+    range: 0,
+    attackInterval: 1,
+    speed: 0,
+    proceduralModel: 'tower',
     sandPadScale: 1.35,
     onDestroyed: { seatDebuff: true },
     abilities: ['recruitLevel', 'deploySlot', 'rangeBoost', 'speedBoost', 'credit'],
 };
 /** each side's main castle at the back of its territory — bigger and sturdier */
 export const STRONGHOLD: UnitType = {
-    ...makeTower('stronghold', 'Stronghold', 5, 4.2, 3000),
+    id: 'stronghold',
+    name: 'Stronghold',
+    cost: 0,
+    // grid collision footprint; the mesh is a bit bigger and overlaps it visually
+    footprint: { cols: 5, rows: 5 },
+    formation: { cols: 1, rows: 1 },
+    meshScale: 4.2,
+    structure: true,
+    burn: { takenMult: 0.35 }, // stone / masonry resists
+    targets: { ground: false, air: false }, // towers don't shoot
+    collisionRadius: 11.399999999999999, // footprint tiles × CELL × 0.57
+    colliders: [
+        { y: 0.5, r: 1.6 },
+        { y: 1.9, r: 1.1 },
+        { y: 3.5, r: 0.8 },
+    ],
+    hp: 3000,
+    damage: 0,
+    range: 0,
+    attackInterval: 1,
+    speed: 0,
+    proceduralModel: 'tower',
     sandPadScale: 1.55,
     // lifeline matches only — see UnitType.onDestroyed
     onDestroyed: { collapseOwnArmy: true },
@@ -1086,7 +1158,7 @@ export const STRONGHOLD_ARCHER: UnitType = {
     attackInterval: 1.4,
     speed: 0,
     turnRate: 6,
-    build: buildArcher,
+    proceduralModel: 'archer',
 };
 
 /**
@@ -1120,9 +1192,6 @@ export function strongholdArcherSlotWorld(keep: Unit, slot: number): { x: number
 export const STRONGHOLD_ARCHER_FOV_DEGREES = 240;
 export const STRONGHOLD_ARCHER_FOV_HALF = (STRONGHOLD_ARCHER_FOV_DEGREES * Math.PI) / 360;
 
-/** shield dome coverage, world units — the top stays below the air layer (18) */
-export const SHIELD_RADIUS = 20;
-export const SHIELD_HEIGHT = 17;
 
 /**
  * Der Komtur's light spider swarm — `horde.glb` at base scale. Cheap melee
@@ -1154,7 +1223,7 @@ export const HORDE_BRUT: UnitType = {
     attackInterval: 0.65,
     speed: 12,
     turnRate: 10,
-    build: buildDwarf,
+    proceduralModel: 'dwarf',
 };
 
 /** @deprecated use {@link HORDE_BRUT} */
@@ -1192,7 +1261,7 @@ export const HORDE_WEBWEAVER: UnitType = {
     attackInterval: 0.9,
     speed: 12,
     turnRate: 5,
-    build: buildDwarf,
+    proceduralModel: 'dwarf',
 };
 
 /**
@@ -1224,7 +1293,7 @@ export const HORDE_BRUT_SPAWN: UnitType = {
     attackInterval: 0.65,
     speed: 12,
     turnRate: 10,
-    build: buildDwarf,
+    proceduralModel: 'dwarf',
 };
 
 /**
@@ -1262,7 +1331,7 @@ export const HORDE_SPINNE: UnitType = {
     speed: 12,
     turnRate: 1.0,
     turnMove: 'pivot',
-    build: buildDwarf,
+    proceduralModel: 'dwarf',
     walkCadence: 1.5,
     walkLean: 1.5,
 };
@@ -1295,7 +1364,7 @@ export const HORDE_FARMER: UnitType = {
     attackInterval: 0.7,
     speed: 12,
     turnRate: 4,
-    build: buildDwarf,
+    proceduralModel: 'dwarf',
 };
 
 /**
@@ -1326,7 +1395,7 @@ export const HORDE_FARMER_SPAWN: UnitType = {
     attackInterval: 0.7,
     speed: 12,
     turnRate: 5,
-    build: buildDwarf,
+    proceduralModel: 'dwarf',
 };
 
 /**
@@ -1365,7 +1434,7 @@ export const HORDE_KOMTUR: UnitType = {
     speed: 12,
     turnRate: 2.2,
     turnMove: 'cruise',
-    build: buildDwarf,
+    proceduralModel: 'dwarf',
 };
 
 /**
@@ -1403,7 +1472,7 @@ export const BAT: UnitType = {
     speed: 12,
     turnRate: 3.2, // slow bank — points then flies along facing
     turnMove: 'cruise',
-    build: buildBat,
+    proceduralModel: 'bat',
 };
 
 export const UNIT_TYPES: UnitType[] = [
@@ -1428,7 +1497,7 @@ export const UNIT_TYPES: UnitType[] = [
         walkLean: 1,
         walkCadence: 1.5,
         turnRate: 12,
-        build: buildDwarf,
+        proceduralModel: 'dwarf',
     },
     {
         id: 'goblin',
@@ -1457,7 +1526,7 @@ export const UNIT_TYPES: UnitType[] = [
         walkLean: 1,
         walkCadence: 1.45,
         turnRate: 11,
-        build: buildGoblin,
+        proceduralModel: 'goblin',
     },
     {
         // Fantasy Arclight — single pack, medium-range splash vs chaff (dwarfs / goblins)
@@ -1476,7 +1545,7 @@ export const UNIT_TYPES: UnitType[] = [
         projectileStyle: 'stone', // crow rock pool — InstancedMesh
         // grow in flight: pebble → ~splash disk radius (stone mesh r≈0.84)
         projectileScale: 0.28,
-        projectileScaleEnd: (4 / 0.84) * 0.9, // ~90% of splash disk radius
+        projectileScaleEnd: 4.285714285714286, // (4 / 0.84) × 0.9 — ~90% of splash disk radius
         projectileBallistic: true,
         projectileLaunchHeightFrac: 0.7,
         splashRadius: 4, // Arclight-like blast vs packed chaff
@@ -1486,7 +1555,7 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 0.7,
         speed: 4.5,
         turnRate: 5,
-        build: buildHammerer,
+        proceduralModel: 'hammerer',
     },
     {
         // Fantasy Rhino — single fast melee tank; small cleave, breakthrough / aggro soak
@@ -1520,7 +1589,7 @@ export const UNIT_TYPES: UnitType[] = [
         speed: 8.5, // faster than dwarf (6) — Rhino closes gaps
         turnRate: 4, // heavy body — was 9 (too snappy for a big melee)
         sandWeight: 1.5,
-        build: buildOgre,
+        proceduralModel: 'ogre',
     },
     {
         id: 'archer',
@@ -1544,7 +1613,7 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 1.4,
         speed: 3.5,
         turnRate: 6,
-        build: buildArcher,
+        proceduralModel: 'archer',
     },
     {
         id: 'wizard',
@@ -1568,7 +1637,7 @@ export const UNIT_TYPES: UnitType[] = [
         attackInterval: 1.6,
         speed: 3.2,
         turnRate: 5,
-        build: buildWizard,
+        proceduralModel: 'wizard',
     },
     {
         id: 'crowRider',
@@ -1594,7 +1663,7 @@ export const UNIT_TYPES: UnitType[] = [
         speed: 8,
         turnRate: 0.5,
         turnMove: 'cruise',
-        build: buildCrowRider,
+        proceduralModel: 'crowRider',
     },
     {
         // Fragile long-range mortar pack; volley of unguided splash stones
@@ -1636,7 +1705,7 @@ export const UNIT_TYPES: UnitType[] = [
         speed: 2.3,
         turnRate: 1.35,
         turnMove: 'pivot',
-        build: buildMortar,
+        proceduralModel: 'mortar',
     },
     {
         id: 'ballista',
@@ -1671,7 +1740,7 @@ export const UNIT_TYPES: UnitType[] = [
         speed: 2.2,
         turnRate: 1.2,
         turnMove: 'pivot',
-        build: buildBallista,
+        proceduralModel: 'ballista',
     },
     {
         id: 'shield',
@@ -1683,7 +1752,8 @@ export const UNIT_TYPES: UnitType[] = [
         structure: true,
         extra: true,
         burn: { takenMult: 0 },
-        shield: { radius: SHIELD_RADIUS, height: SHIELD_HEIGHT },
+        // dome coverage, world units — the top stays below the air layer (18)
+        shield: { radius: 20, height: 17 },
         targets: { ground: false, air: false },
         collisionRadius: 1.3, // only the emitter pylon blocks walking
         colliders: [], // nothing can shoot it — it only absorbs crossings
@@ -1692,7 +1762,7 @@ export const UNIT_TYPES: UnitType[] = [
         range: 0,
         attackInterval: 1,
         speed: 0,
-        build: buildShield,
+        proceduralModel: 'shield',
     },
     {
         id: 'rocket',
@@ -1720,7 +1790,7 @@ export const UNIT_TYPES: UnitType[] = [
         range: 35,
         attackInterval: 1,
         speed: 0,
-        build: buildRocket,
+        proceduralModel: 'rocket',
     },
     // Der Komtur's forest roster — in the catalog for lookup/preload, not shop
     HORDE_BRUT,
@@ -1732,6 +1802,12 @@ export const UNIT_TYPES: UnitType[] = [
     HORDE_KOMTUR,
     BAT,
 ];
+
+/** Ward Stone dome size — read from its type so the definition is the only copy. */
+const WARD_DOME = UNIT_TYPES.find((t) => t.shield)!.shield!;
+export const SHIELD_RADIUS = WARD_DOME.radius;
+export const SHIELD_HEIGHT = WARD_DOME.height;
+
 
 /** Mechs in a pack — used for default hpWithdraw derivation. */
 export function formationHeadcount(type: UnitType): number {
@@ -1924,7 +2000,7 @@ export class Unit {
                             );
                         }
                     } else {
-                        type.build(new PartFactory(mesh, team));
+                        buildProcedural(type, new PartFactory(mesh, team));
                     }
                 }
                 mesh.scale.setScalar(type.meshScale);
@@ -2511,7 +2587,7 @@ export function preloadUnitVisuals(
             const heights: Record<string, number> = {};
             for (const type of [...UNIT_TYPES, COMMAND_TOWER, RESEARCH_CENTER, STRONGHOLD]) {
                 const probe = new Group();
-                type.build(new PartFactory(probe, 'player'));
+                buildProcedural(type, new PartFactory(probe, 'player'));
                 const h = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;
                 heights[type.id] = h;
                 // provisional — GLB load overwrites with measured post-normalize height
@@ -2527,7 +2603,7 @@ export function preloadUnitVisuals(
 /** one mech mesh for UI thumbnails — same builders as in-game, preview-sized */
 export function buildUnitPreviewMesh(type: UnitType, team: BattleTeam = 'player'): Group {
     const group = new Group();
-    type.build(new PartFactory(group, team, true));
+    buildProcedural(type, new PartFactory(group, team, true));
     group.scale.setScalar(type.meshScale);
     return group;
 }
