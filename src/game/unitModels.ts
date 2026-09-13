@@ -25,6 +25,7 @@ import {
 } from './buildingSnow';
 import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
 import type { BattleTeam } from './units';
+import { BASE_PACK } from './content/basePack';
 
 /**
  * Units backed by a generated GLB model instead of procedural primitives.
@@ -74,77 +75,8 @@ export interface ModelSpec {
     };
 }
 
-const MODEL_SPEC_DATA: Record<string, ModelSpecData> = {
-    // fantasy conversion (Melodan): P1 super-low-poly, static + procedural.
-    // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
-    dwarf: {
-        file: 'dwarf.glb',
-        yawDeg: 90,
-        scale: 3,
-        // soles sit a hair above the bbox floor — nudge feet into the lawn
-        offset: { y: -0.04 },
-    },
-    horde: {
-        file: 'horde.glb',
-        scale: 3,
-        offset: { y: -0.04 },
-    },
-    horde2: {
-        file: 'horde2.glb',
-        scale: 3,
-        offset: { y: -0.04 },
-    },
-    horde3: {
-        file: 'horde3.glb',
-        scale: 3,
-        offset: { y: -0.04 },
-    },
-    // Static bind-pose template for icons / fallback. Battle uses mixer via unitAnimated.
-    archer: {
-        file: 'archer.glb',
-        yawDeg: 90,
-        skinned: true,
-    },
-    hammerer: {
-        file: 'hammerer.glb',
-        yawDeg: 90,
-        skinned: true,
-    },
-    ogre: {
-        file: 'ogre.glb',
-        yawDeg: 90,
-        skinned: true,
-    },
-    wizard: { file: 'wizard.glb' },
-    ballista: { file: 'ballista.glb', yawDeg: 180 },
-    // Mortar — tube siege; static Tripo mesh (cannon toward facing)
-    mortar: {
-        file: 'mortar.glb',
-        yawDeg: 180,
-    },
-    crowRider: { file: 'crow-rider.glb' },
-    // Air chaff (Wasp-like) — wing flap + stretched span for flock silhouette
-    bat: {
-        file: 'bat.glb',
-        stretch: { x: 1.45, z: 1.1 },
-    },
-    goblin: {
-        file: 'goblin.glb',
-        yawDeg: 90,
-        scale: 2.85,
-        offset: { y: -0.04 },
-        // skinned walk clip → bake frame 0 into InstancedMesh (no runtime mixer)
-        bakePose: { clip: 'walk', time: 0 },
-    },
-    shield: { file: 'shield.glb', scale: 0.5 }, // ward stone
-    rocket: { file: 'rocket.glb' }, // fire bolt
-    // the two base buildings — distinct castles instead of the shared procedural tower
-    'command-tower': { file: 'command-tower.glb' }, // stone watchtower
-    stronghold: { file: 'stronghold.glb' }, // castle keep + Flag empty for the mast
-    // wizard tower. Was `MODEL_FWD_YAW-70` — 70 RADIANS, probably meant as degrees;
-    // this value reproduces that orientation bit-exactly.
-    'research-center': { file: 'research-center.glb', yawDeg: -4010.7045659157625, scale: 1.0 },
-};
+/** Model specs by model id, from `content/base/models/*.jsonc`. */
+const MODEL_SPEC_DATA: Record<string, ModelSpecData> = BASE_PACK.models;
 
 /** GLB files under `assets/models/`, resolved to built asset URLs by Vite. */
 const MODEL_FILE_URLS = import.meta.glob('../../assets/models/*.glb', {
