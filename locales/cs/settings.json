@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "Celá obrazovka",
     "fullscreenHint": "F11 / Alt+Enter",
+    "presetMinimal": "Minimální",
     "presetLow": "Nízký",
     "presetMedium": "Střední",
     "presetHigh": "Vysoký",

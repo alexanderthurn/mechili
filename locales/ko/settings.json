@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "전체 화면",
     "fullscreenHint": "F11 / Alt+Enter",
+    "presetMinimal": "최소",
     "presetLow": "낮음",
     "presetMedium": "중간",
     "presetHigh": "높음",

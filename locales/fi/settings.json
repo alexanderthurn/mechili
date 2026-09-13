@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "Koko näyttö",
     "fullscreenHint": "F11 / Alt+Enter",
+    "presetMinimal": "Minimaalinen",
     "presetLow": "Matala",
     "presetMedium": "Keskikokoinen",
     "presetHigh": "Korkea",

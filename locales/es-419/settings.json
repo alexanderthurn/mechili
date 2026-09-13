@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "Pantalla completa",
     "fullscreenHint": "F11 / Alt+Intro",
+    "presetMinimal": "Mínimo",
     "presetLow": "Bajo",
     "presetMedium": "Medio",
     "presetHigh": "Alto",
