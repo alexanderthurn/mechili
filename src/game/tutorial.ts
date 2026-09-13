@@ -39,7 +39,7 @@ export const TUTORIAL_3_R4_ARCHERS = 5;
 /** Round-2/3 forge spells: oil + dragon in R2, summon unlocked in R3. */
 export const TUTORIAL_2_SPELL_IDS = [OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID] as const;
 
-/** Tutorial 2 fills every battlement pad (no rooftop commander figure). */
+/** Tutorial 2 fills every battlement pad. */
 export const TUTORIAL_2_ARCHER_COUNT = 5;
 
 export function isTutorial(settings: GameSettings): boolean {

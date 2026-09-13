@@ -4102,7 +4102,7 @@ export class Game {
         };
     }
 
-    /** Battlement pads available this match (Tutorial 2 opens pad 5). */
+    /** Battlement pads available this match (all five are archer posts). */
     private strongholdArcherSlots(): readonly number[] {
         return this.tutorial?.strongholdArcherSlots() ?? STRONGHOLD_ARCHER_SLOTS;
     }
@@ -7935,18 +7935,9 @@ export class Game {
                 if (unit.type === STRONGHOLD && !unit.destroyed) keeps.push(unit);
             }
         }
-        // The commander is world, not chrome: he stays for cinema shots, so
-        // he gets his own walk rather than riding the UI-hidden list above.
-        const livingKeeps: Unit[] = [];
-        for (const unit of this.placement.allUnits()) {
-            if (unit.type === STRONGHOLD && !unit.destroyed) livingKeeps.push(unit);
-        }
-        this.strongholdCommanders.sync(
-            livingKeeps,
-            (seat) => this.speciality[seat] ?? null,
-            this.settings.strongholdMode === 'lifeline' &&
-                !this.tutorial?.suppressesRooftopCommander,
-        );
+        // Rooftop commander decoration is off for now — all five pads are
+        // archer slots. Re-enable later when the commander returns as a unit.
+        this.strongholdCommanders.sync([], () => null, false);
         this.strongholdFlags.update(
             this.time,
             keeps,

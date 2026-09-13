@@ -598,10 +598,7 @@ export interface ActionContext {
      * Campaign climb active — gates {@link ClearArmyAction} (AI fresh rebuild).
      */
     climbMode: boolean;
-    /**
-     * Battlement archer pads on a Stronghold (default 4; Tutorial 2 uses 5 and
-     * hides the rooftop commander so pad 5 is free).
-     */
+    /** Battlement archer pads on a Stronghold (`Unit1`…`Unit5`). */
     strongholdArcherSlots: readonly number[];
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };

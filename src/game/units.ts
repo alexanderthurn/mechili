@@ -1005,12 +1005,8 @@ export function strongholdArcherSlotWorld(keep: Unit, slot: number): { x: number
     );
 }
 
-/** How many archers a keep's battlements hold — `Unit5` is normally the commander's. */
-export const STRONGHOLD_ARCHER_SLOTS = [1, 2, 3, 4] as const;
-/**
- * Tutorial 2: no rooftop commander — the fifth battlement pad is an archer slot.
- */
-export const STRONGHOLD_ARCHER_SLOTS_NO_COMMANDER = [1, 2, 3, 4, 5] as const;
+/** All authored battlement pads (`Unit1`…`Unit5`) — every slot is an archer post. */
+export const STRONGHOLD_ARCHER_SLOTS = [1, 2, 3, 4, 5] as const;
 /**
  * A Stronghold archer's field of fire, in degrees. He covers this much centred on
  * outward, and the rest — pointing back into his own keep — is dead. Written in
