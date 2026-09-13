@@ -3,9 +3,10 @@
  * `content/base/**.jsonc` (plan §17). Bundled by Vite — read once, synchronously,
  * when this module loads.
  *
- * Validation is strict on purpose: an unknown field is an error, not a warning,
- * because a typo in a data file must never silently do nothing. All problems are
- * collected and reported together.
+ * Every file is validated against a JSON Schema generated from the TypeScript
+ * type it becomes (`content/schema/`): unknown fields at any depth, wrong value
+ * types, bad enum values and missing required fields are errors — a typo in a
+ * data file must never silently do nothing. All problems are reported together.
  *
  * Only type imports from the game here: `units.ts` builds its tables from this
  * module, so a runtime import back into it would be a cycle.
@@ -13,53 +14,19 @@
 import type { UnitType } from '../units';
 import type { ModelSpecData } from '../unitModels';
 import { parseJsonc } from './jsonc';
+import { validateSchema, type JsonSchema } from './schema';
 
-// ------------------------------------------------------------------ field lists
+// ------------------------------------------------------------------ schemas
 
-/**
- * Every top-level `UnitType` field. The two type checks below fail to compile
- * if a field is added to `UnitType` and not listed here (or listed but gone),
- * so this list can't drift from the interface.
- */
-const UNIT_TYPE_KEYS = [
-    'id', 'name', 'cost', 'hpWithdraw', 'unlockCost', 'levelBasis', 'xpValue',
-    'footprint', 'formation', 'meshScale', 'sandPadScale', 'structure', 'extra',
-    'notAcquired', 'onDestroyed', 'fixture', 'diesWithHost', 'aura', 'abilities',
-    'garrison', 'buyable', 'horde', 'shield', 'rocket', 'flying', 'freeFlight',
-    'targets', 'collisionRadius', 'blobShadowScale', 'colliders', 'aimY',
-    'aimSpread', 'projectileSpeed', 'projectileStyle', 'projectileScale',
-    'projectileScaleEnd', 'projectileCount', 'projectileTrail',
-    'projectileLaunchHeight', 'projectileLaunchHeightFrac', 'projectileBallistic',
-    'projectileLaunchAngleDeg', 'projectileBallisticTimeScale', 'homing',
-    'splashRadius', 'convertRay', 'sandWeight', 'deathWear', 'deathAshScorch',
-    'bloodColor', 'bloodScale', 'fire', 'cleave', 'cleaveScar', 'splashScar',
-    'cleaveShake', 'burn', 'corrodeOnHit', 'innateTechs', 'poisonImmune', 'hp',
-    'damage', 'range', 'minRange', 'piercesShield', 'attackInterval',
-    'meleeHitDelay', 'meleeLunge', 'meleeRetreat', 'meleePress', 'speed',
-    'walkLean', 'walkCadence', 'turnRate', 'turnMove', 'proceduralModel',
-    'formationSpread', 'modelId',
-] as const satisfies readonly (keyof UnitType)[];
+// Generated from the TypeScript types by `npm run content:schema`
+// (npm run check:content fails when they are stale).
+import unitSchemaJson from '../../../content/schema/unit.schema.json';
+import modelSchemaJson from '../../../content/schema/model.schema.json';
+import packSchemaJson from '../../../content/schema/pack.schema.json';
 
-type RequiredKeys<T> = { [K in keyof T]-?: object extends Pick<T, K> ? never : K }[keyof T];
-
-const REQUIRED_UNIT_TYPE_KEYS = [
-    'id', 'name', 'cost', 'footprint', 'formation', 'meshScale', 'targets',
-    'collisionRadius', 'colliders', 'hp', 'damage', 'range', 'attackInterval',
-    'speed', 'proceduralModel',
-] as const satisfies readonly RequiredKeys<UnitType>[];
-
-const MODEL_SPEC_KEYS = [
-    'file', 'yawDeg', 'pitch', 'roll', 'offset', 'scale', 'stretch', 'skinned', 'bakePose',
-] as const satisfies readonly (keyof ModelSpecData)[];
-
-// compile-time exhaustiveness: each resolves to `true` only when the lists are complete
-type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-const unitKeysComplete: Exact<(typeof UNIT_TYPE_KEYS)[number], keyof UnitType> = true;
-const requiredKeysComplete: Exact<(typeof REQUIRED_UNIT_TYPE_KEYS)[number], RequiredKeys<UnitType>> = true;
-const modelKeysComplete: Exact<(typeof MODEL_SPEC_KEYS)[number], keyof ModelSpecData> = true;
-void unitKeysComplete;
-void requiredKeysComplete;
-void modelKeysComplete;
+const UNIT_SCHEMA = unitSchemaJson as unknown as JsonSchema;
+const MODEL_SCHEMA = modelSchemaJson as unknown as JsonSchema;
+const PACK_SCHEMA = packSchemaJson as unknown as JsonSchema;
 
 // ------------------------------------------------------------------ files
 
@@ -69,7 +36,7 @@ const RAW_FILES = import.meta.glob('../../../content/base/**/*.jsonc', {
     eager: true,
 }) as Record<string, string>;
 
-interface PackManifest {
+export interface PackManifest {
     id: string;
     version: number;
     roster: string[];
@@ -121,6 +88,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
     }
 
     if (!manifest) throw new Error(`[content:${label}] pack.jsonc is missing`);
+    for (const e of validateSchema(PACK_SCHEMA, manifest)) errors.push(`content/${label}/pack.jsonc: ${e}`);
 
     const checkType = (folder: string, id: string, data: unknown): UnitType | null => {
         const where = `content/${label}/${folder}/${id}.jsonc`;
@@ -128,13 +96,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
             errors.push(`${where}: must be an object`);
             return null;
         }
-        const known = new Set<string>(UNIT_TYPE_KEYS);
-        for (const key of Object.keys(data)) {
-            if (!known.has(key)) errors.push(`${where}: unknown field "${key}"`);
-        }
-        for (const key of REQUIRED_UNIT_TYPE_KEYS) {
-            if (!(key in data)) errors.push(`${where}: missing required field "${key}"`);
-        }
+        for (const e of validateSchema(UNIT_SCHEMA, data)) errors.push(`${where}: ${e}`);
         if (data.id !== id) errors.push(`${where}: "id" is ${JSON.stringify(data.id)} but the file is named "${id}"`);
         return data as unknown as UnitType;
     };
@@ -179,17 +141,13 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
     const buildings = take('buildings', buildingIds, 'buildings');
 
     const models: Record<string, ModelSpecData> = {};
-    const modelKeys = new Set<string>(MODEL_SPEC_KEYS);
     for (const [id, data] of byFolder.models) {
         const where = `content/${label}/models/${id}.jsonc`;
         if (!isRecord(data)) {
             errors.push(`${where}: must be an object`);
             continue;
         }
-        for (const key of Object.keys(data)) {
-            if (!modelKeys.has(key)) errors.push(`${where}: unknown field "${key}"`);
-        }
-        if (typeof data.file !== 'string') errors.push(`${where}: missing required field "file"`);
+        for (const e of validateSchema(MODEL_SCHEMA, data)) errors.push(`${where}: ${e}`);
         models[id] = data as unknown as ModelSpecData;
     }
 

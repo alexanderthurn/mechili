@@ -1,6 +1,7 @@
-// Validates content/base with the same loader the game runs: JSONC syntax,
-// unknown / missing fields, ids vs file names, pack.jsonc listings, and that
-// units.ts / unitModels.ts accept the result.
+// Validates content/base with the same loader the game runs — JSONC syntax, the
+// generated JSON Schemas (fields and value types at every depth), ids vs file
+// names, pack.jsonc listings — checks the schemas aren't stale against the
+// TypeScript types, and that units.ts / unitModels.ts accept the result.
 //
 //   npm run check:content
 //
@@ -30,11 +31,27 @@ const { createServer } = await import('vite');
 const server = await createServer({
     server: { middlewareMode: true },
     appType: 'custom',
-    logLevel: 'error',
+    logLevel: 'silent',
 });
 
 let failed = false;
 try {
+    const { readFileSync } = await import('node:fs');
+    const { generateContentSchemas } = await import('./gen-content-schema.mjs');
+    const stale = generateContentSchemas().filter(({ file, text }) => {
+        try {
+            return readFileSync(file, 'utf8') !== text;
+        } catch {
+            return true;
+        }
+    });
+    if (stale.length) {
+        failed = true;
+        console.error(`FAIL stale schema(s): ${stale.map((s) => s.file).join(', ')} — run: npm run content:schema`);
+    } else {
+        console.log('ok   content schemas match the TypeScript types');
+    }
+
     const { BASE_PACK } = await server.ssrLoadModule('/src/game/content/basePack.ts');
     console.log(
         `ok   content/base loads: ${BASE_PACK.roster.length} roster, ${BASE_PACK.offRoster.length} off-roster, ` +

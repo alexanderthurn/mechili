@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/PackManifest",
+  "definitions": {
+    "PackManifest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number"
+        },
+        "roster": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "offRoster": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "buildings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "roster",
+        "offRoster",
+        "buildings"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

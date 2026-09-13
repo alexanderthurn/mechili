@@ -16,6 +16,7 @@ import {
 import { techBlurb, techName, unitName, t } from '../i18n';
 import { THEME } from '../theme';
 import { BASE_PACK } from './content/basePack';
+import type { BurnAffinity, FireProfile } from './fire';
 import { detAtan2 } from './detMath';
 
 /**
@@ -146,7 +147,7 @@ export interface TechDef {
         splashRadius: number;
     }>;
     /** optional fire / oil on hit — applied when this tech is owned */
-    fire?: import('./fire').FireProfile;
+    fire?: FireProfile;
     /**
      * Battle production: while this pack lives, spawn `typeId` units on a
      * timer (shared machinery for spider mothers, future dwarf forges, etc.).
@@ -610,7 +611,7 @@ export interface UnitType {
      * Burn / ground-fire inflicted by this unit's hits (projectiles, splash, rockets, melee).
      * Ground fire stamps the shared hazard layer; burn DoT uses refresh + strongest DPS.
      */
-    fire?: import('./fire').FireProfile;
+    fire?: FireProfile;
     /**
      * Melee disk: each swing hits every enemy in this XZ radius (no projectile).
      * Combined with {@link range} as the engagement distance.
@@ -629,7 +630,7 @@ export interface UnitType {
     /** Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake). */
     cleaveShake?: number;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
-    burn?: import('./fire').BurnAffinity;
+    burn?: BurnAffinity;
     /**
      * On projectile/splash hit: apply the corroded (acid) debuff to non-horde
      * victims for this many seconds (refreshes).
@@ -998,7 +999,7 @@ function buildTower(parts: PartFactory): void {
  * Procedural mesh builders by name. Type definitions refer to these by
  * {@link UnitType.proceduralModel}, so the definitions themselves hold no code.
  */
-const PROCEDURAL_MODELS = {
+const PROCEDURAL_MODELS: Record<ProceduralModelId, (parts: PartFactory) => void> = {
     dwarf: buildDwarf,
     goblin: buildGoblin,
     hammerer: buildHammerer,
@@ -1012,9 +1013,23 @@ const PROCEDURAL_MODELS = {
     shield: buildShield,
     rocket: buildRocket,
     tower: buildTower,
-} satisfies Record<string, (parts: PartFactory) => void>;
+};
 
-export type ProceduralModelId = keyof typeof PROCEDURAL_MODELS;
+/** Names of the procedural mesh builders ({@link PROCEDURAL_MODELS} must cover exactly these). */
+export type ProceduralModelId =
+    | 'dwarf'
+    | 'goblin'
+    | 'hammerer'
+    | 'ogre'
+    | 'archer'
+    | 'wizard'
+    | 'ballista'
+    | 'crowRider'
+    | 'bat'
+    | 'mortar'
+    | 'shield'
+    | 'rocket'
+    | 'tower';
 
 /** Is `id` a known procedural model? (for validating loaded definitions) */
 export function isProceduralModelId(id: string): id is ProceduralModelId {

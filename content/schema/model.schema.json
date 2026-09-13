@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ModelSpecData",
+  "definitions": {
+    "ModelSpecData": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "GLB file name under `assets/models/`"
+        },
+        "yawDeg": {
+          "type": "number",
+          "description": "extra yaw in degrees on top of the forward convention (MODEL_FWD_YAW)"
+        },
+        "pitch": {
+          "type": "number"
+        },
+        "roll": {
+          "type": "number"
+        },
+        "offset": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            },
+            "z": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        },
+        "scale": {
+          "type": "number"
+        },
+        "stretch": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            },
+            "z": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Extra non-uniform scale after height normalize (local axes). Used to stretch bat / crow wings wider without growing body height."
+        },
+        "skinned": {
+          "type": "boolean",
+          "description": "Rigged GLB — keep SkinnedMesh; battle anim is unitAnimated ."
+        },
+        "bakePose": {
+          "type": "object",
+          "properties": {
+            "clip": {
+              "type": "string"
+            },
+            "time": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Pose a skinned clip then bake to static meshes for InstancedMesh. `clip`: substring of clip name, or `first` / `longest` / `shortest`. Default time `0` = first frame."
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "description": "A model as authored data — the shape a JSON content file will hold: a file name and degrees instead of a built URL and radians."
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}
