@@ -98,7 +98,7 @@ export function withMap(types: TypeRegistry, def: ScenarioDef, map: MapSize): { 
 export function withBaseBuildings(types: TypeRegistry, def: ScenarioDef, side: 'player' | 'enemy', on: boolean): ScenarioDef {
     const next = structuredClone(def);
     const buildings = next.scene.buildings[side];
-    for (const b of types.buildings) {
+    for (const b of types.baseBuildings) {
         if (on) delete buildings[b.id];
         else buildings[b.id] = false;
     }
@@ -107,7 +107,7 @@ export function withBaseBuildings(types: TypeRegistry, def: ScenarioDef, side: '
 
 /** does any base building of the side stand? */
 export function hasBaseBuildings(types: TypeRegistry, def: ScenarioDef, side: 'player' | 'enemy'): boolean {
-    return types.buildings.some((b) => def.scene.buildings[side][b.id] !== false);
+    return types.baseBuildings.some((b) => def.scene.buildings[side][b.id] !== false);
 }
 
 export function withoutTeam(def: ScenarioDef, team: SceneTeam): ScenarioDef {

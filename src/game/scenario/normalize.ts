@@ -186,7 +186,7 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
     }
 
     // ---- base buildings
-    const buildingIds = new Set(types.buildings.map((b) => b.id));
+    const buildingIds = new Set(types.baseBuildings.map((b) => b.id));
     for (const side of ['player', 'enemy'] as const) {
         const buildings: SceneBuildings = scene.buildings[side];
         for (const [id, state] of Object.entries(buildings)) {

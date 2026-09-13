@@ -49,6 +49,8 @@ export interface CaptureHost {
      * where they aren't board state. Null otherwise.
      */
     readonly baseRules: ScenarioRules | null;
+    /** the base buildings the match put at their anchors (others of a base type were placed) */
+    readonly baseBuildings?: ReadonlySet<Unit>;
     primarySeat(team: Team): SeatId;
 }
 
@@ -83,7 +85,7 @@ export function captureScene(
     baseBuildings: ReadonlySet<Unit> | null = null,
 ): CapturedScene {
     const { types } = host;
-    const baseBuildingIds = new Set(types.buildings.map((b) => b.id));
+    const baseBuildingIds = new Set(types.baseBuildings.map((b) => b.id));
     const units: SceneUnit[] = [];
     const unitOf: Unit[] = [];
     const baseUnits: Unit[] = [];
@@ -138,7 +140,7 @@ export function captureScene(
 
 export function captureScenario(host: CaptureHost, name: string): ScenarioDef {
     const { settings, types, rules, round } = host;
-    const { scene } = captureScene(host);
+    const { scene } = captureScene(host, host.baseBuildings ?? null);
 
     const commanderId = host.playerCommanderId;
     const commander: ScenarioDef['rules']['commander'] =

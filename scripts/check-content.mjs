@@ -175,7 +175,9 @@ try {
     const stronghold = readBase('data/buildings/stronghold.jsonc').replace('"hp": 3000', '"hp": 5000');
     const iceWall = readBase('data/buildings/command-tower.jsonc')
         .replace('"id": "command-tower"', '"id": "ice-wall"')
-        .replace('"name": "Vanguard"', '"name": "Ice Wall"');
+        .replace('"name": "Vanguard"', '"name": "Ice Wall"')
+        // a wall stands where a scenario puts it — no base anchor
+        .replace('\n    "baseAnchor": "command",', '');
     const packWithWall = readBase('data/pack.jsonc').replace('"buildings": [', '"buildings": ["ice-wall", ');
     const levelFiles = (strongholdText) => [
         { path: 'textures/moon.webp', bytes: enc('a different moon') },
@@ -226,6 +228,21 @@ try {
     );
     ok = expect(levelPack.buildings.find((b) => b.id === 'stronghold')?.hp === 5000, "level's stronghold replacement not applied") && ok;
     ok = expect(levelPack.buildings.some((b) => b.id === 'ice-wall'), 'added building missing') && ok;
+    {
+        const { TypeRegistry } = await server.ssrLoadModule('/src/game/content/typeRegistry.ts');
+        const levelTypes = new TypeRegistry(levelPack);
+        ok = expect(levelTypes.baseBuildings.map((b) => b.id).join() === BASE_PACK.buildings.filter((b) => b.baseAnchor).map((b) => b.id).join() && levelTypes.baseBuilding('command')?.id === 'command-tower', 'an added building counts as a base building') && ok;
+        let anchorError = '';
+        try {
+            pack.loadPackWithOverlay(
+                new Map([...level.dataFiles, ['data/buildings/ice-wall.jsonc', iceWall.replace('"structure": true,', '"structure": true,\n    "baseAnchor": "command",')], ['data/pack.jsonc', packWithWall]]),
+                'frost-keep',
+            );
+        } catch (e) {
+            anchorError = String(e.message);
+        }
+        ok = expect(anchorError.includes('both stand at baseAnchor "command"'), `two buildings at one anchor not reported (${anchorError.split('\n')[0]})`) && ok;
+    }
     ok = expect(BASE_PACK.buildings.find((b) => b.id === 'stronghold')?.hp === 3000, 'overlay validation changed the base game') && ok;
     let talentError = '';
     try {

@@ -188,6 +188,15 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
     const roster = take('units', rosterIds, 'roster');
     const offRoster = take('units', offRosterIds, 'offRoster');
     const buildings = take('buildings', buildingIds, 'buildings');
+    // one base building per anchor, and only buildings stand at one
+    const anchors = new Map<string, string>();
+    for (const b of [...roster, ...offRoster, ...buildings]) {
+        if (b.baseAnchor === undefined) continue;
+        if (!buildings.includes(b)) errors.push(`${label}: "${b.id}" has a baseAnchor but is not a building`);
+        const other = anchors.get(b.baseAnchor);
+        if (other) errors.push(`${label}: "${b.id}" and "${other}" both stand at baseAnchor "${b.baseAnchor}"`);
+        anchors.set(b.baseAnchor, b.id);
+    }
 
     const models: Record<string, ModelSpecData> = {};
     for (const [id, data] of byFolder.models) {

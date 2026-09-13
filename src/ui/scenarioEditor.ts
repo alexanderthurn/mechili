@@ -679,7 +679,7 @@ export class ScenarioEditor {
         const types = this.host.types;
         const draft = this.draft;
         const all = [...types.all()];
-        const baseIds = new Set(types.buildings.map((b) => b.id));
+        const baseIds = new Set(types.baseBuildings.map((b) => b.id));
         const issues = this.host.issues(draft);
         const errors = issues.filter((i) => i.level === 'error');
         const warnings = issues.filter((i) => i.level === 'warning');

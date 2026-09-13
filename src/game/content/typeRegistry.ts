@@ -24,8 +24,10 @@ export class TypeRegistry {
     readonly roster: readonly UnitType[];
     /** addressable by id, never in the roster (e.g. posted from a building panel) */
     readonly offRoster: readonly UnitType[];
-    /** base buildings, in construction / preload order */
+    /** every building type the pack lists, in construction / preload order */
     readonly buildings: readonly UnitType[];
+    /** the buildings every side starts with (those with a `baseAnchor`), in the same order */
+    readonly baseBuildings: readonly UnitType[];
     /** model specs by model id */
     readonly models: Readonly<Record<string, ModelSpecData>>;
     /**
@@ -64,6 +66,7 @@ export class TypeRegistry {
         this.roster = pack.roster;
         this.offRoster = pack.offRoster;
         this.buildings = pack.buildings;
+        this.baseBuildings = pack.buildings.filter((b) => b.baseAnchor !== undefined);
         this.models = pack.models;
         this.index = new Map([...pack.roster, ...pack.offRoster, ...pack.buildings].map((t) => [t.id, t]));
         this.shopUnitIds = pack.roster
@@ -142,6 +145,11 @@ export class TypeRegistry {
             this.talentsByType.set(type.id, list);
         }
         return list;
+    }
+
+    /** the base building standing at an anchor, if the pack has one */
+    baseBuilding(anchor: NonNullable<UnitType['baseAnchor']>): UnitType | null {
+        return this.baseBuildings.find((b) => b.baseAnchor === anchor) ?? null;
     }
 
     /** every type: roster, off-roster and buildings */

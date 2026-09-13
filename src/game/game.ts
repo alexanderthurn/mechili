@@ -1217,6 +1217,8 @@ export class Game {
     private scenarioEditor: ScenarioEditor | null = null;
     /** 3D thumbnails by type id (the roster; the editor adds everything else it lists) */
     private unitIconUrls: Map<string, string> = new Map();
+    /** the base buildings standing at their anchors (placed ones of the same types aren't) */
+    private readonly baseBuildingUnits = new Set<Unit>();
     private testBattleBar: TestBattleBar | null = null;
     /** what this match does each round (plan §5) */
     private readonly rules: MatchRules;
@@ -3012,6 +3014,7 @@ export class Game {
             this.placement.removeUnit(unit);
         }
         this.techTree.clear();
+        this.baseBuildingUnits.clear();
         this.hpBars.clear();
         this.selectedActor = null;
         const applied = applyScenario(this.scenarioHost(), def);
@@ -3069,10 +3072,12 @@ export class Game {
         const spawnBuilding = (
             xFrac: number,
             rowFrac: number,
-            type: UnitType,
+            type: UnitType | null,
             team: Team,
             seat: SeatId,
         ) => {
+            // a pack without a building for this anchor simply has none there
+            if (!type) return;
             const fp = type.footprint;
             const centerRow = Math.round(rimCells + zoneRows * rowFrac - fp.rows / 2);
             const col = rimCells + flankCols + Math.round(zoneCols * xFrac) - Math.floor(fp.cols / 2);
@@ -3086,15 +3091,21 @@ export class Game {
             const useFar = (team === 'enemy') !== ownFar;
             if (!want(team, type.id)) return;
             const unit = this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
-            if (unit) placed.push(unit);
+            if (unit) {
+                placed.push(unit);
+                this.baseBuildingUnits.add(unit);
+            }
         };
 
+        const strongholdType = this.types.baseBuilding('stronghold');
+        const researchType = this.types.baseBuilding('research');
+        const commandType = this.types.baseBuilding('command');
         if (this.settings.strongholdMode !== 'none') {
             if (!skipPlayerBuildings) {
                 spawnBuilding(
                     BASE_ANCHORS.stronghold.xFrac,
                     BASE_ANCHORS.stronghold.rowFrac,
-                    this.types.require('stronghold'),
+                    strongholdType,
                     'player',
                     primarySeatOf(this.seats, 'player'),
                 );
@@ -3102,7 +3113,7 @@ export class Game {
             spawnBuilding(
                 BASE_ANCHORS.stronghold.xFrac,
                 BASE_ANCHORS.stronghold.rowFrac,
-                this.types.require('stronghold'),
+                strongholdType,
                 'enemy',
                 primarySeatOf(this.seats, 'enemy'),
             );
@@ -3137,14 +3148,14 @@ export class Game {
                 spawnBuilding(
                     resX,
                     resRow,
-                    this.types.require('research-center'),
+                    researchType,
                     team,
                     seat,
                 );
                 spawnBuilding(
                     cmdX,
                     cmdRow,
-                    this.types.require('command-tower'),
+                    commandType,
                     team,
                     seat,
                 );
@@ -6513,6 +6524,7 @@ export class Game {
                 gameVersion: formatGameVersion(GAME_VERSION),
                 // a scenario's player rules belong to side a — only then do they carry over
                 baseRules: this.scenario && this.side === 'a' ? this.scenario.rules : null,
+                baseBuildings: this.baseBuildingUnits,
                 primarySeat(team) {
                     return primarySeatOf(game.seats, team);
                 },
