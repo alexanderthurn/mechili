@@ -688,6 +688,17 @@ try {
             const enemies = mirrored.scene.units.filter((u) => u.team === 'enemy');
             zexpect(enemies.length === 1 && enemies[0].typeId === 'archer' && mirrored.scene.techs.enemy.archer?.join() === 'barrel' && mirrored.scene.units.some((u) => u.team === 'horde'), `mirrorSide: ${JSON.stringify(mirrored.scene.units)}`);
             zexpect(!scen.hasErrors(scen.normalizeScenario(mirrored, T).issues), 'a mirrored board has errors');
+            // army value: packs + levels + runes + talents with escalation
+            {
+                const prices = { levelCostFactor: 0.5, techCostEscalation: 200 };
+                const v = ed.armyValue(T, tidyBusy, prices);
+                const archer = T.byId('archer');
+                const expectPlayer = archer.cost + 2 * Math.round((archer.levelBasis ?? archer.cost) * 0.5) + (T.rune('wind')?.cardCost ?? 0) + T.talent('barrel').cost;
+                zexpect(v.player === expectPlayer && v.enemy === T.byId('ogre').cost && v.horde === T.byId('ogre').cost, `army value: ${JSON.stringify(v)} expected player ${expectPlayer}`);
+                const two = structuredClone(tidyBusy);
+                two.scene.techs.player.archer = ['barrel', 'ap'];
+                zexpect(ed.armyValue(T, two, prices).player === expectPlayer + T.talent('ap').cost + 200, 'talent escalation not counted');
+            }
             // the player's loadout under a scenario's rule
             const lo = await server.ssrLoadModule('/src/game/loadouts.ts');
             const own = { techs: { ogre: ['whirlwind', 'bloodRage'], mortar: ['barrel', 'autoloader'] } };

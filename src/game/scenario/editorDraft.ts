@@ -185,6 +185,34 @@ export function mirrorSide(types: TypeRegistry, def: ScenarioDef, from: 'player'
     return tidyDraft(next);
 }
 
+/**
+ * What each side's army costs in supply, as a player would pay for it: packs
+ * (with their levels and runes) plus talents at their escalating prices. Base
+ * buildings and their upgrades are not counted. A quick balance readout.
+ */
+export function armyValue(
+    types: TypeRegistry,
+    def: ScenarioDef,
+    prices: { levelCostFactor: number; techCostEscalation: number },
+): Record<SceneTeam, number> {
+    const value: Record<SceneTeam, number> = { player: 0, enemy: 0, horde: 0 };
+    for (const u of def.scene.units) {
+        const type = types.byId(u.typeId);
+        if (!type) continue;
+        const levels = Math.max(0, u.level - 1) * Math.round((type.levelBasis ?? type.cost) * prices.levelCostFactor);
+        const runes = (u.items ?? []).reduce((sum, id) => sum + (types.rune(id)?.cardCost ?? 0), 0);
+        value[u.team] += type.cost + levels + runes;
+    }
+    for (const side of ['player', 'enemy'] as const) {
+        for (const ids of Object.values(def.scene.techs[side])) {
+            const costs = ids.map((id) => types.talent(id)?.cost ?? 0);
+            // the n-th talent of a type costs n × escalation more — the total doesn't depend on order
+            value[side] += costs.reduce((a, b) => a + b, 0) + (prices.techCostEscalation * costs.length * (costs.length - 1)) / 2;
+        }
+    }
+    return value;
+}
+
 /** Undo/redo over whole draft snapshots — editor-local, separate from match undo. */
 export class DraftHistory {
     private readonly past: string[] = [];

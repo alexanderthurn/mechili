@@ -2997,6 +2997,10 @@ export class Game {
                 wrapper,
                 maxUnitLevel: this.settings.leveling.maxLevel,
                 maxBuildingLevel: this.settings.towers.upgrade.maxLevel,
+                prices: {
+                    levelCostFactor: this.settings.leveling.levelCostFactor,
+                    techCostEscalation: this.settings.economy.techCostEscalation,
+                },
                 levelLabel: level ? level.id : 'Base game',
                 gameVersion: formatGameVersion(GAME_VERSION),
                 // main wires the download right after construction

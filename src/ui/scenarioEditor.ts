@@ -20,6 +20,7 @@ import type { PlacementController } from '../game/placement';
 import type { AppliedScene } from '../game/scenario/applyScenario';
 import type { CapturedScene } from '../game/scenario/capture';
 import {
+    armyValue,
     DraftHistory,
     hasBaseBuildings,
     MAP_PRESETS,
@@ -48,6 +49,7 @@ export interface ScenarioEditorHost {
     readonly wrapper: HTMLElement;
     readonly maxUnitLevel: number;
     readonly maxBuildingLevel: number;
+    readonly prices: { levelCostFactor: number; techCostEscalation: number };
     /** 'Base game' or the level package's id */
     readonly levelLabel: string;
     readonly gameVersion: string;
@@ -714,6 +716,7 @@ export class ScenarioEditor {
         const counts = { player: 0, enemy: 0, horde: 0 };
         for (const u of draft.scene.units) counts[u.team]++;
         const sideColor = colorForBattleTeam(this.side).css;
+        const value = armyValue(types, draft, this.host.prices);
 
         this.root.classList.toggle('collapsed', this.collapsed);
         this.root.innerHTML =
@@ -776,7 +779,12 @@ export class ScenarioEditor {
         rest.innerHTML =
             `<div class="se-section">` +
             `<div class="se-row">` +
-            `<span class="se-muted">${this.teamName('player')} ${counts.player} · ${this.teamName('enemy')} ${counts.enemy} · ${this.teamName('horde')} ${counts.horde}</span>` +
+            `<span class="se-muted" title="${esc(t('editor:armyValueTip', { defaultValue: 'Packs · army value in supply (units, levels, runes, talents)' }))}">` +
+            (['player', 'enemy', 'horde'] as const)
+                .filter((team) => team !== 'horde' || counts.horde > 0)
+                .map((team) => `${this.teamName(team)} ${counts[team]} · ${Math.round(value[team])}`)
+                .join(' — ') +
+            `</span>` +
             `</div>` +
             `<div class="se-row">` +
             btn('se-mirror', t('editor:mirror', { defaultValue: 'Copy army to the other side' }), {
