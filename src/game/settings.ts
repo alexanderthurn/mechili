@@ -1,8 +1,8 @@
+import { BASE_TYPES } from './units';
 import type { LevelRef } from './level';
 import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
 import { t } from '../i18n';
-import { TACTICS } from './tactics';
 import {
     DEFAULT_ROUND_CARD_PRESET_ID,
     ROUND_CARD_ALGORITHMS,
@@ -1129,7 +1129,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
         },
         {
             title: t('settings:sheet.commanderSpellsTitle', { defaultValue: 'Commander Spells' }),
-            rows: Object.values(TACTICS)
+            rows: BASE_TYPES.tactics
                 .filter((spell) => spell.strongholdCost !== undefined)
                 .sort(
                     (a, b) =>

@@ -10,5 +10,6 @@
     "unitsLabel": "3× Goblins · 1× Crow Riders",
     "startingHp": 5600,
     "forgeSpells": ["fireSpill", "spawnCrows", "dragonAttack"],
+    "effects": { "flyingBonus": 0.12 },
     "description": "Air units get +12% attack and HP.",
 }

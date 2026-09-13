@@ -1,5 +1,5 @@
 import { quantizeWorld, quantizeYaw, type Action } from './actions';
-import { unlockCostForSpeciality } from './cards';
+import { unlockCostFor } from './cards';
 import type { RoundCard, SpecialityId, StartCard } from './cards';
 import type { PlacementController } from './placement';
 import type { DeploySettings, Economy } from './settings';
@@ -10,7 +10,6 @@ import {
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
-    TACTICS,
     usesSpellPlacement,
 } from './tactics';
 import type { TechTree } from './tech';
@@ -65,6 +64,7 @@ export class AiOpponent implements Opponent {
             tactics: string[][];
             /** per-SEAT chosen commander — prices its own shop unlocks */
             speciality: (SpecialityId | null)[];
+            commander: (string | null)[];
             /** the AI's own seeded stream — nothing else may consume it */
             rng: () => number;
             /** per-SEAT talent picks; AI seats normally have none and get
@@ -248,7 +248,7 @@ export class AiOpponent implements Opponent {
      * affordable type (same diversity).
      */
     private pickFirstBuyType(rng: () => number = this.ctx.rng): UnitType | null {
-        const { economy, unlockedUnits, unlockUsedThisRound, speciality } = this.ctx;
+        const { economy, unlockedUnits, unlockUsedThisRound, commander } = this.ctx;
         const unlocked = unlockedUnits[this.seat]!;
 
         const allCheap: UnitType[] = [];
@@ -261,7 +261,7 @@ export class AiOpponent implements Opponent {
             preferred &&
             !unlocked.includes(preferred.id) &&
             !unlockUsedThisRound[this.seat] &&
-            unlockCostForSpeciality(preferred.id, speciality[this.seat] ?? null, this.ctx.types) <=
+            unlockCostFor(preferred.id, this.ctx.types.commander(commander[this.seat] ?? ''), this.ctx.types) <=
                 economy.balance(this.seat)
         ) {
             this.ctx.dispatch({
@@ -371,7 +371,7 @@ export class AiOpponent implements Opponent {
         let placed = 0;
         for (const tacticId of pool) {
             if (placed >= MAX_TACTICS) break;
-            const tactic = TACTICS[tacticId];
+            const tactic = this.ctx.types.tactic(tacticId);
             if (!tactic) continue;
 
             let ok = false;
@@ -463,7 +463,7 @@ export class AiOpponent implements Opponent {
                 const pool = forgeSpellsOf(this.seat) ?? [];
                 for (const tacticId of pool) {
                     if (ownedSpells.includes(tacticId)) continue;
-                    const cost = TACTICS[tacticId]?.strongholdCost;
+                    const cost = this.ctx.types.tactic(tacticId)?.strongholdCost;
                     if (cost === undefined || economy.balance(this.seat) < cost) continue;
                     if (dispatch({ kind: 'buyForgeSpell', team, seat: this.seat, tacticId })) {
                         boughtSpell = true;

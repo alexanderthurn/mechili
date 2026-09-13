@@ -113,7 +113,6 @@ try {
 
     // ---- commanders & round cards: spell ids name real tactics (tactics are still code)
     {
-        const { TACTICS } = await server.ssrLoadModule('/src/game/tactics.ts');
         const cards = await server.ssrLoadModule('/src/game/cards.ts');
         const T = units.BASE_TYPES;
         let ok = true;
@@ -124,7 +123,7 @@ try {
                 continue;
             }
             for (const id of [...(card.forgeSpells ?? []), ...(card.tactics ?? [])]) {
-                if (!TACTICS[id]) {
+                if (!T.tactic(id)) {
                     ok = false;
                     console.error(`FAIL ${card.id}: spell "${id}" is not a tactic`);
                 }
@@ -135,6 +134,16 @@ try {
         if (!air || !cards.starterUnlockedUnits(air, T).includes('crowRider') || cards.starterUnlockedUnits(hidden[0], T).length !== 0) {
             ok = false;
             console.error('FAIL commander unlocks: signature unit missing or a tutorial commander unlocks units');
+        }
+        const giant = T.commander('giant');
+        const ballistaUnlock = T.unlockCost('ballista');
+        if (cards.unlockCostFor('ballista', giant, T) !== Math.max(0, ballistaUnlock - 200) || cards.unlockCostFor('ballista', air, T) !== ballistaUnlock) {
+            ok = false;
+            console.error('FAIL commander unlock discount does not follow effects.unlockDiscount');
+        }
+        if (T.commander('archer')?.effects?.giftUnit?.typeId !== 'archer' || T.commander('cost')?.effects?.unitStatsBonus !== -0.12) {
+            ok = false;
+            console.error('FAIL commander effects missing from data');
         }
         if (!ok) failed = true;
         else console.log(`ok   commanders: ${T.commanders.length} offered + ${hidden.length} tutorial; ${T.roundCards.length} round cards; spell ids exist`);
@@ -240,9 +249,17 @@ try {
     ok = expect(badIngredient.includes('forge ingredient "eart" is no rune'), `unknown forge ingredient not reported (${badIngredient.split('\n')[0]})`) && ok;
     const badArmy = runeErrorOf([['data/commanders/air.jsonc', readBase('data/commanders/air.jsonc').replace('"goblin", "goblin", "goblin"', '"goblin", "gobiln", "goblin"')]]);
     ok = expect(badArmy.includes('names unit "gobiln"'), `unknown commander unit not reported (${badArmy.split('\n')[0]})`) && ok;
+    const badGift = runeErrorOf([['data/commanders/archer.jsonc', readBase('data/commanders/archer.jsonc').replace('"typeId": "archer"', '"typeId": "archr"')]]);
+    ok = expect(badGift.includes('names unit "archr"'), `unknown gift unit not reported (${badGift.split('\n')[0]})`) && ok;
+    const badSpell = runeErrorOf([['data/commanders/air.jsonc', readBase('data/commanders/air.jsonc').replace('"fireSpill"', '"fireSpil"')]]);
+    ok = expect(badSpell.includes('names spell "fireSpil"'), `unknown commander spell not reported (${badSpell.split('\n')[0]})`) && ok;
+    const badSummon = runeErrorOf([['data/spells/spawnDwarves.jsonc', readBase('data/spells/spawnDwarves.jsonc').replace('"typeId": "dwarf"', '"typeId": "dwraf"')]]);
+    ok = expect(badSummon.includes('spawns "dwraf"'), `unknown summon type not reported (${badSummon.split('\n')[0]})`) && ok;
+    const badCore = runeErrorOf([['data/spells/oilSpill.jsonc', readBase('data/spells/oilSpill.jsonc').replace('"two-point"', '"point"')]]);
+    ok = expect(badCore.includes('"targeting" must be "two-point"'), `core spell targeting change not reported (${badCore.split('\n')[0]})`) && ok;
     const unlistedRune = runeErrorOf([['data/runes/ice.jsonc', addi.replace('"id": "addi"', '"id": "ice"').replace(/"forge": \{[^}]*\},/, '')]]);
     ok = expect(unlistedRune.includes('ice.jsonc: not listed in pack.jsonc "runes"'), `unlisted rune not reported (${unlistedRune.split('\n')[0]})`) && ok;
-    if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation (talents, runes, recipes, commanders), multiplayer hash');
+    if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation (talents, runes, recipes, commanders, spells), multiplayer hash');
 
     // ---- switching levels: caches told after the files switch, model data follows, bad data changes nothing
     const levels = await server.ssrLoadModule('/src/game/level.ts');
@@ -414,7 +431,34 @@ try {
                 'base-build check for joining scenario rooms',
             );
             zexpect(net.contentHashFor(hostRef) === `${net.BASE_CONTENT_HASH}+${hostRef.hash}` && net.contentHashFor(undefined) === net.BASE_CONTENT_HASH, 'contentHashFor');
-            if (zk) console.log(`ok   scenario transfer: ${sender.count} chunks in ${requests} batched requests, same hash on arrival, garbage/oversized refused`);
+            // ---- a spectator of a scenario match: gated offer → chunks → resent handshake → admitted
+            {
+                await levels.prepareLevel(hostRef);
+                const sync = await server.ssrLoadModule('/src/game/levelSync.ts');
+                let handlers = null;
+                const hub = net.SpectatorHub.openWith({ managesLiveness: true, listen: (h) => (handlers = h) }, () => {});
+                const joins = [];
+                hub.listen((name, build, link) => joins.push({ name, build, link }));
+                const outbox = [];
+                const link = { send: (m) => outbox.push(m), close: () => {} };
+                handlers.onSpectate('watcher', { version: net.ourBuild().version, contentHash: net.BASE_CONTENT_HASH }, link);
+                const offer = outbox.find((m) => m.type === 'levelOffer');
+                zexpect(joins.length === 0 && offer?.gate === true && offer.level?.hash === hostRef.hash, 'a spectator without the scenario was not gated');
+                handlers.onData(link, { type: 'levelRequest', hash: hostRef.hash, from: 0 });
+                const chunks = outbox.filter((m) => m.type === 'levelChunk');
+                zexpect(chunks.length === Math.min(transfer.LEVEL_CHUNK_BATCH, offer.chunks), `gated spectator got ${chunks.length} chunks`);
+                // the joining side (same process here, so it already has the level): LevelDownload resolves at once
+                const download = new sync.LevelDownload(offer.level, offer.chunks, () => {});
+                const got = await download.done;
+                zexpect(got?.hash === hostRef.hash, 'LevelDownload did not activate the offered level');
+                handlers.onData(link, { type: 'spectate', name: 'watcher', version: net.ourBuild().version, contentHash: net.currentContentHash() });
+                zexpect(joins.length === 1 && joins[0].name === 'watcher', 'the resent spectate handshake was not admitted');
+                const otherBase = { version: net.ourBuild().version, contentHash: 'deadbeef' };
+                handlers.onSpectate('stranger', otherBase, { send: (m) => outbox.push({ stranger: m }), close: () => {} });
+                zexpect(joins.length === 2, 'a different base build must go to the version check, not the scenario gate');
+                await levels.prepareLevel(undefined);
+            }
+            if (zk) console.log(`ok   scenario transfer: ${sender.count} chunks in ${requests} batched requests, same hash on arrival, garbage/oversized refused; spectators gated, served, admitted on resend`);
         }
         if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected');
     }

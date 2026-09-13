@@ -1,0 +1,305 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/TacticDef",
+  "definitions": {
+    "TacticDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "placement",
+            "oneShot"
+          ]
+        },
+        "targeting": {
+          "type": "string",
+          "enum": [
+            "point",
+            "two-point",
+            "three-point",
+            "point-yaw",
+            "own-unit"
+          ]
+        },
+        "cooldownRounds": {
+          "type": "number",
+          "description": "rounds to wait after use before a oneShot charge returns (0 = next round)"
+        },
+        "radius": {
+          "type": "number",
+          "description": "aim radius (point circle / capsule margin); board clamp + previews"
+        },
+        "maxSpan": {
+          "type": "number",
+          "description": "two-/three-point: max center distance per leg (default TACTIC_MAX_SPAN)"
+        },
+        "respectsSafeZone": {
+          "type": "boolean",
+          "description": "true = may not land inside the enemy-base safe zone (spawn-likes)"
+        },
+        "spell": {
+          "type": "object",
+          "properties": {
+            "delaySeconds": {
+              "type": "number"
+            },
+            "fx": {
+              "type": "string",
+              "enum": [
+                "hammer",
+                "meteor",
+                "dragon"
+              ],
+              "description": "Which effect the battle plays for it (code-side presets): 'hammer' drops the divine hammer and crushes what it hits, 'meteor' drops a great burning meteor, 'dragon' flies the dragon along a two-point path. Omit for the plain blast / pour."
+            },
+            "strike": {
+              "type": "object",
+              "properties": {
+                "damage": {
+                  "type": "number"
+                },
+                "radius": {
+                  "type": "number"
+                },
+                "rect": {
+                  "type": "object",
+                  "properties": {
+                    "halfWidth": {
+                      "type": "number"
+                    },
+                    "halfDepth": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "halfWidth",
+                    "halfDepth"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Rectangular footprint instead of the circle, oriented by the placement's yaw (hammer): hit zone, ground scar and marker. A unit is hit when its center lies inside — no radius padding."
+                }
+              },
+              "required": [
+                "damage",
+                "radius"
+              ],
+              "additionalProperties": false,
+              "description": "one strike: damage to everything in the circle not under a ward"
+            },
+            "spawn": {
+              "type": "object",
+              "properties": {
+                "typeId": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "typeId",
+                "count"
+              ],
+              "additionalProperties": false,
+              "description": "battle-only summons scattered in the circle"
+            },
+            "zone": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "storm",
+                    "meteorShower",
+                    "acidRain"
+                  ]
+                },
+                "duration": {
+                  "type": "number"
+                },
+                "interval": {
+                  "type": "number"
+                },
+                "damage": {
+                  "type": "number",
+                  "description": "flat damage per tick (storm / meteor); unused for acidRain"
+                },
+                "impactRadius": {
+                  "type": "number",
+                  "description": "meteorShower / acidRain: splash or puddle radius per impact"
+                },
+                "igniteRadius": {
+                  "type": "number",
+                  "description": "meteorShower: ground-fire radius per impact"
+                },
+                "dropsPerTick": {
+                  "type": "number",
+                  "description": "acidRain: how many drips spawn each tick"
+                }
+              },
+              "required": [
+                "mode",
+                "duration",
+                "interval",
+                "damage"
+              ],
+              "additionalProperties": false,
+              "description": "Ticking area effect running `duration` seconds after the delay, point-targeted only: 'storm' zaps one random unit per tick (wards absorb per bolt); 'meteorShower' drops a small strike on a random spot per tick (+ ignites fire); 'acidRain' rains small acid drips that stamp sparse ground acid (same rules as Acid Spill)."
+            },
+            "igniteCapsule": {
+              "type": "object",
+              "properties": {
+                "burnSeconds": {
+                  "type": "number"
+                },
+                "intensity": {
+                  "type": "number"
+                },
+                "damage": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "burnSeconds",
+                "intensity"
+              ],
+              "additionalProperties": false,
+              "description": "two-point: progressive fire pour along the capsule (dragon breath) — stamped left→right over DRAGON_POUR_DURATION_SEC , not a one-shot. `damage` is direct breath hit per pour disc (wards absorb like strikes)."
+            }
+          },
+          "required": [
+            "delaySeconds"
+          ],
+          "additionalProperties": false,
+          "description": "Battle-spell payload: the stamp is intent during deploy and fires `delaySeconds` after the opening freeze — the battle runs normally until then (marching out of the marked area IS the counterplay)."
+        },
+        "acidCapsule": {
+          "type": "object",
+          "properties": {
+            "durationRounds": {
+              "type": "number"
+            },
+            "dpsPercent": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "durationRounds",
+            "dpsPercent"
+          ],
+          "additionalProperties": false,
+          "description": "Acid / Fire Spill: two-point capsules that pour left→right as drips shortly after battle start (same pour timing as oil). Acid persists by ROUND; fire is battle-seconds only."
+        },
+        "fireCapsule": {
+          "type": "object",
+          "properties": {
+            "burnSeconds": {
+              "type": "number"
+            },
+            "intensity": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "burnSeconds",
+            "intensity"
+          ],
+          "additionalProperties": false
+        },
+        "strongholdCost": {
+          "type": "number",
+          "description": "Price to buy one charge outright at the Stronghold. Per spell, not per tier — a commander is free to carry three expensive ones. Absent = not sold there at all, so a new spell has to opt in on purpose."
+        },
+        "marker": {
+          "$ref": "#/definitions/TacticMarker",
+          "description": "How its ground markers look (deploy stamp, battle charge, running zone)."
+        },
+        "oilRadius": {
+          "type": "number",
+          "description": "oil spill only"
+        },
+        "oilDurationRounds": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "icon",
+        "description",
+        "kind",
+        "targeting",
+        "cooldownRounds"
+      ],
+      "additionalProperties": false
+    },
+    "TacticMarker": {
+      "type": "object",
+      "properties": {
+        "glow": {
+          "type": "string",
+          "description": "glow behind the spell's icon decal (css colour, e.g. `rgba(48, 36, 12, 0.55)`) — no glow, no decal"
+        },
+        "capsule": {
+          "type": "object",
+          "properties": {
+            "fill": {
+              "type": "string"
+            },
+            "line": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "fill",
+            "line"
+          ],
+          "additionalProperties": false,
+          "description": "two-point capsules: fill and outline"
+        },
+        "circle": {
+          "type": "string",
+          "description": "circle stamps and charges"
+        },
+        "zoneRing": {
+          "type": "object",
+          "properties": {
+            "color": {
+              "type": "string"
+            },
+            "fill": {
+              "type": "number"
+            },
+            "line": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "color",
+            "fill",
+            "line"
+          ],
+          "additionalProperties": false,
+          "description": "pulsing ring while its zone runs in battle (fill 0 = outline only)"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Colours are `#rrggbb`; anything left out uses the team colour."
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

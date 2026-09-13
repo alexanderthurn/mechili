@@ -8,5 +8,6 @@
     "unitsLabel": "3× Goblins · 2× Hammerers",
     "startingHp": 6400,
     "forgeSpells": ["spawnDwarves", "bigMeteor", "hammerOfGods"],
+    "effects": { "unlockDiscount": { "from": 200, "amount": 200 } },
     "description": "Shop unlocks of 200+ cost 200 less.",
 }

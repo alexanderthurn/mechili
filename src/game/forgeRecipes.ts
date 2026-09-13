@@ -17,7 +17,6 @@ import {
     SELL_UNIT_ID,
     TUTOR_ID,
     RALLY_ROUTE_ID,
-    TACTICS,
 } from './tactics';
 import type { TypeRegistry } from './content/typeRegistry';
 import { DISPLAY } from './displayNames';
@@ -94,7 +93,7 @@ export function forgeProductInfo(
     product: ForgeProduct,
 ): { icon: string; name: string; desc: string } | null {
     if (product.kind === 'tactic') {
-        const def = TACTICS[product.id];
+        const def = types.tactic(product.id);
         if (!def) return null;
         return {
             icon: def.icon,

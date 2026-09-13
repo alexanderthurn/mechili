@@ -15,10 +15,13 @@
 
 import { DISPLAY } from './displayNames';
 import { t, tacticDescription, tacticName } from '../i18n';
-import { TACTICS } from './tactics';
 import type { TypeRegistry } from './content/typeRegistry';
 import { forgeIngredientIcons } from './forgeRecipes';
 
+/**
+ * A commander's identity (portrait art, telemetry, the hidden tutorial
+ * commanders). What a commander DOES is its `effects`.
+ */
 export type SpecialityId =
     | 'air'
     | 'costControl'
@@ -35,57 +38,23 @@ export type SpecialityId =
     /** Hidden tutorial-only commander — never offered in normal pools. */
     | 'tutorial';
 
-/** speciality tuning */
-export const AIR_BONUS = 0.12; // air units: +12% attack & hp
-export const COST_CONTROL_PENALTY = 0.12; // all units: −12% attack & hp ...
-export const COST_CONTROL_INCOME = 100; // ... but +100 supply every round
-export const FREE_ARCHER_ROUND = 2; // the archer specialist's gift arrives here
-/** round a commander's gifted tactic charges (StartCard.tactics) land in */
+/** round a commander's gifted tactic charges (StartCard.tactics) land in, unless the card says otherwise */
 export const SPECIALITY_TACTIC_ROUND = 2;
-/**
- * Speedy Widow: flat movement bonus for every non-structure pack, permanently.
- * Same magnitude as the Vanguard's one-round speed boost
- * ({@link DeploySettings.speedBoost}) and applied the same way — added at the
- * very end, so runes cannot multiply it.
- */
-export const SPEED_COMMANDER_BONUS = 3;
-/**
- * Countess Chonk: shop unlocks priced at or above this threshold are cut by
- * {@link GIANT_UNLOCK_DISCOUNT}. Today that is exactly the two 200-cost
- * giants (Wizard, Ballista) — she unlocks them for nothing.
- */
-export const GIANT_UNLOCK_THRESHOLD = 200;
-export const GIANT_UNLOCK_DISCOUNT = 200;
 
 /**
- * Shop unlock fee for a seat, after commander discounts. The dispatcher, the
- * shop UI and the AI all price through this — they must agree or a seat sees
- * a price it cannot pay (or the AI hoards for a fee it no longer owes).
+ * Shop unlock fee for a seat, after its commander's discount. The dispatcher,
+ * the shop UI and the AI all price through this — they must agree or a seat
+ * sees a price it cannot pay (or the AI hoards for a fee it no longer owes).
  */
-export function unlockCostForSpeciality(
-    typeId: string,
-    speciality: SpecialityId | null,
-    types: TypeRegistry,
-): number {
+export function unlockCostFor(typeId: string, commander: StartCard | null, types: TypeRegistry): number {
     const base = types.unlockCost(typeId);
     if (!Number.isFinite(base)) return base;
-    if (speciality === 'giant' && base >= GIANT_UNLOCK_THRESHOLD) {
-        return Math.max(0, base - GIANT_UNLOCK_DISCOUNT);
-    }
+    const discount = commander?.effects?.unlockDiscount;
+    if (discount && base >= discount.from) return Math.max(0, base - discount.amount);
     return base;
 }
-export const FREE_ARCHER_LEVEL = 3;
-export const ELITE_ROUND1_BONUS = 100; // lets the elite afford two 150-supply level-2 units
-/** Money Queen's one-off round-1 purse (see the round-1 hook in game.ts) */
-export const MONEY_ROUND1_BONUS = 200;
 
-/**
- * Cursed Christine — the curse hands her one of The Komtur's own spiders each
- * round. This is the SINGLE-spider brood ({@link HORDE_BRUT_SPAWN}, 1x1
- * formation), not the 48-strong swarm pack that shares the "Black Brood" name.
- */
-export const CURSED_BROOD_TYPE_ID = 'hordeBrutSpawn';
-/** flank spawn duration multiplier when the Flanky card/speciality is owned */
+/** flank spawn duration multiplier of the Flanky round card */
 export const FLANK_SPAWN_HALF_MULT = 0.5;
 
 /** skipping the between-round card pays this instead */
@@ -181,13 +150,37 @@ export function roundCardIcon(c: RoundCard, types: TypeRegistry): string | null 
     const itemId = c.items?.[0];
     if (itemId) return types.rune(itemId)?.icon ?? null;
     const tacticId = c.tactics?.[0];
-    if (tacticId) return TACTICS[tacticId]?.icon ?? null;
+    if (tacticId) return types.tactic(tacticId)?.icon ?? null;
     if (c.flankSpawnHalf) return 'spec-flanky';
     return null;
 }
 
 /** A buyable army type id — see {@link TypeRegistry.shopUnitIds} for the match's list. */
 export type ShopUnitId = string;
+
+/** Commander effects; any combination works. Numbers here are what the card face text promises. */
+export interface CommanderEffects {
+    /** flying units: attack and HP × (1 + this) — Sky Sorcerer 0.12 */
+    flyingBonus?: number;
+    /** every non-structure unit: attack and HP × (1 + this) — Greedy Prince −0.12 */
+    unitStatsBonus?: number;
+    /** supply credited at the start of every round — Greedy Prince 100 */
+    incomePerRound?: number;
+    /** extra supply at the start of round 1 — Elite Prince 100, Money Queen 200 */
+    roundOneSupply?: number;
+    /** level new units are recruited at, permanently — Elite Prince 2 */
+    recruitLevel?: number;
+    /** one free unit arriving in a round — Archer Commander: a level-3 archer in round 2 */
+    giftUnit?: { typeId: string; level: number; round: number };
+    /** one free unit of this type every round — Cursed Christine's Black Brood spider */
+    unitEachRound?: string;
+    /** flat movement bonus for every moving non-structure unit, after runes — Speedy Widow 3 */
+    speedBonus?: number;
+    /** shop unlocks costing at least `from` are `amount` cheaper — Countess Chonk 200 / 200 */
+    unlockDiscount?: { from: number; amount: number };
+    /** multiplier on first-time flank spawn duration — Flanky Shadow 0.5 */
+    flankSpawnMult?: number;
+}
 
 export interface StartCard {
     id: string;
@@ -203,6 +196,8 @@ export interface StartCard {
     speciality: SpecialityId;
     /** the signature unit this commander can buy even if it is not in the starting army */
     unlock?: string;
+    /** what the commander does in a match — each effect is code, the numbers are the commander's */
+    effects?: CommanderEffects;
     /** pack items granted into the player's inventory */
     items?: string[];
     /**
@@ -233,7 +228,7 @@ export function startCardForgeIcons(
         ingredientIcons: string[];
     }[] = [];
     for (const id of card.forgeSpells) {
-        const def = TACTICS[id];
+        const def = types.tactic(id);
         if (def) {
             out.push({
                 icon: def.icon,

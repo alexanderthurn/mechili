@@ -37,6 +37,10 @@
           "type": "string",
           "description": "the signature unit this commander can buy even if it is not in the starting army"
         },
+        "effects": {
+          "$ref": "#/definitions/CommanderEffects",
+          "description": "what the commander does in a match — each effect is code, the numbers are the commander's"
+        },
         "items": {
           "type": "array",
           "items": {
@@ -95,7 +99,85 @@
         "money",
         "cursed",
         "tutorial"
-      ]
+      ],
+      "description": "A commander's identity (portrait art, telemetry, the hidden tutorial commanders). What a commander DOES is its `effects`."
+    },
+    "CommanderEffects": {
+      "type": "object",
+      "properties": {
+        "flyingBonus": {
+          "type": "number",
+          "description": "flying units: attack and HP × (1 + this) — Sky Sorcerer 0.12"
+        },
+        "unitStatsBonus": {
+          "type": "number",
+          "description": "every non-structure unit: attack and HP × (1 + this) — Greedy Prince −0.12"
+        },
+        "incomePerRound": {
+          "type": "number",
+          "description": "supply credited at the start of every round — Greedy Prince 100"
+        },
+        "roundOneSupply": {
+          "type": "number",
+          "description": "extra supply at the start of round 1 — Elite Prince 100, Money Queen 200"
+        },
+        "recruitLevel": {
+          "type": "number",
+          "description": "level new units are recruited at, permanently — Elite Prince 2"
+        },
+        "giftUnit": {
+          "type": "object",
+          "properties": {
+            "typeId": {
+              "type": "string"
+            },
+            "level": {
+              "type": "number"
+            },
+            "round": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "typeId",
+            "level",
+            "round"
+          ],
+          "additionalProperties": false,
+          "description": "one free unit arriving in a round — Archer Commander: a level-3 archer in round 2"
+        },
+        "unitEachRound": {
+          "type": "string",
+          "description": "one free unit of this type every round — Cursed Christine's Black Brood spider"
+        },
+        "speedBonus": {
+          "type": "number",
+          "description": "flat movement bonus for every moving non-structure unit, after runes — Speedy Widow 3"
+        },
+        "unlockDiscount": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "number"
+            },
+            "amount": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "from",
+            "amount"
+          ],
+          "additionalProperties": false,
+          "description": "shop unlocks costing at least `from` are `amount` cheaper — Countess Chonk 200 / 200"
+        },
+        "flankSpawnMult": {
+          "type": "number",
+          "description": "multiplier on first-time flank spawn duration — Flanky Shadow 0.5"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Commander effects; any combination works. Numbers here are what the card face text promises."
     }
   },
   "allowComments": true,

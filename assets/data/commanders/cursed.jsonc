@@ -8,5 +8,6 @@
     "unitsLabel": "3× Hammerers · 2× Goblins",
     "startingHp": 5800,
     "forgeSpells": ["spawnDwarves", "poisonCloud", "hammerOfGods"],
+    "effects": { "unitEachRound": "hordeBrutSpawn" },
     "description": "Gets one free Black Brood spider each round.",
 }

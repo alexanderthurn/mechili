@@ -1,4 +1,4 @@
-import { FLANK_SPAWN_HALF_MULT, SKIP_CARD_REWARD, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostForSpeciality, type SpecialityId, type ShopUnitId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, SKIP_CARD_REWARD, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostFor, type SpecialityId, type ShopUnitId } from './cards';
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
@@ -29,7 +29,6 @@ import {
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
-    TACTICS,
     clampTacticEnd,
     pointInSafeZone,
     usesSpellPlacement,
@@ -527,8 +526,10 @@ export interface ActionContext {
     creditUsed: boolean[];
     /** Command Tower Credit (per SEAT): debt still owed at the next deployment start */
     creditDebt: boolean[];
-    /** each SEAT's own chosen card speciality (null until its pick) — own effect, own units */
+    /** each SEAT's own chosen card speciality (null until its pick) — its identity */
     speciality: (SpecialityId | null)[];
+    /** each SEAT's own chosen commander card id (null until its pick) — its effects */
+    commander: (string | null)[];
     /** per-SEAT multiplier on flank spawn duration (Flanky card → 0.5) */
     flankSpawnMult: number[];
     /**
@@ -703,7 +704,7 @@ export class ActionDispatcher {
 
     /** free one-shot charges of `tacticId` in `round`: inventory − cooling uses */
     availableTacticCharges(seat: SeatId, tacticId: string, round: number): number {
-        const cooldown = TACTICS[tacticId]?.cooldownRounds ?? 0;
+        const cooldown = this.ctx.types.tactic(tacticId)?.cooldownRounds ?? 0;
         const inventory = this.ctx.tactics[seat]!.filter((id) => id === tacticId).length;
         const cooling = this.tacticUseRounds(seat, tacticId, round - cooldown).length;
         return inventory - cooling;
@@ -947,7 +948,10 @@ export class ActionDispatcher {
                 return true;
             }
             case 'recruitLevel': {
-                if (this.ctx.speciality[seat] === 'elite') return false; // already permanent
+                // a commander that already recruits at a higher level has nothing to buy
+                if ((this.ctx.types.commander(this.ctx.commander[seat] ?? '')?.effects?.recruitLevel ?? 1) > 1) {
+                    return false;
+                }
                 if (recruitLevel[seat]! > 1) return false; // once per round
                 if (!economy.spend(seat, leveling.recruitLevel2Cost)) return false;
                 entry.paid = leveling.recruitLevel2Cost;
@@ -1004,7 +1008,7 @@ export class ActionDispatcher {
                 const pool = this.ctx.forgeSpellsOf(seat);
                 if (!pool?.includes(action.tacticId)) return false;
                 // price rides on the spell; no price means it is not sold here
-                const cost = TACTICS[action.tacticId]?.strongholdCost;
+                const cost = this.ctx.types.tactic(action.tacticId)?.strongholdCost;
                 if (cost === undefined) return false;
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
@@ -1141,8 +1145,9 @@ export class ActionDispatcher {
                 if (!card) return false;
                 this.ctx.starterPicked[seat] = true;
                 this.ctx.speciality[seat] = card.speciality;
-                if (card.speciality === 'flanky') {
-                    this.ctx.flankSpawnMult[seat] = FLANK_SPAWN_HALF_MULT;
+                this.ctx.commander[seat] = card.id;
+                if (card.effects?.flankSpawnMult !== undefined) {
+                    this.ctx.flankSpawnMult[seat] = card.effects.flankSpawnMult;
                 }
                 entry.prevHp = this.ctx.hp.get(action.team);
                 if (this.ctx.climbSideHp != null) {
@@ -1393,7 +1398,11 @@ export class ActionDispatcher {
             case 'unlockUnit': {
                 if (this.ctx.unlockUsedThisRound[seat]) return false;
                 if (this.ctx.unlockedUnits[seat]!.includes(action.typeId)) return false;
-                const cost = unlockCostForSpeciality(action.typeId, this.ctx.speciality[seat] ?? null, this.ctx.types);
+                const cost = unlockCostFor(
+                    action.typeId,
+                    this.ctx.types.commander(this.ctx.commander[seat] ?? ''),
+                    this.ctx.types,
+                );
                 if (!Number.isFinite(cost)) return false;
                 if (cost > 0 && !economy.spend(seat, cost)) return false;
                 this.ctx.unlockedUnits[seat]!.push(action.typeId);
@@ -1402,13 +1411,13 @@ export class ActionDispatcher {
                 return true;
             }
             case 'placeRallyRoute': {
-                if (!TACTICS[RALLY_ROUTE_ID]) return false;
+                if (!this.ctx.types.tactic(RALLY_ROUTE_ID)) return false;
                 // per-seat charge pool and per-seat placement count — your
                 // own routes draw only from your own charges, never an ally's
                 const max = this.ctx.tactics[seat]!.filter((id) => id === RALLY_ROUTE_ID).length;
                 const placed = this.ctx.rallyRoutes.filter((r) => r.seat === seat).length;
                 if (max < 1 || placed >= max) return false;
-                const maxSpan = TACTICS[RALLY_ROUTE_ID]!.maxSpan;
+                const maxSpan = this.ctx.types.tactic(RALLY_ROUTE_ID)!.maxSpan;
                 const mid = clampTacticEnd(
                     action.startX,
                     action.startZ,
@@ -1443,15 +1452,15 @@ export class ActionDispatcher {
                 return true;
             }
             case 'placeOilSpill': {
-                if (!TACTICS[OIL_SPILL_ID]) return false;
+                if (!this.ctx.types.tactic(OIL_SPILL_ID)) return false;
                 // per-seat charge pool and per-seat placement count
                 const max = this.ctx.tactics[seat]!.filter((id) => id === OIL_SPILL_ID).length;
                 const placed = this.ctx.oilStamps.filter((s) => s.seat === seat).length;
                 if (max < 1 || placed >= max) return false;
                 const { round } = this.ctx.clock();
                 const duration =
-                    TACTICS[OIL_SPILL_ID]!.oilDurationRounds ?? OIL_SPILL_DURATION_ROUNDS;
-                const radius = TACTICS[OIL_SPILL_ID]!.oilRadius ?? OIL_SPILL_RADIUS;
+                    this.ctx.types.tactic(OIL_SPILL_ID)!.oilDurationRounds ?? OIL_SPILL_DURATION_ROUNDS;
+                const radius = this.ctx.types.tactic(OIL_SPILL_ID)!.oilRadius ?? OIL_SPILL_RADIUS;
                 const end = clampTacticEnd(
                     action.startX,
                     action.startZ,
@@ -1488,7 +1497,7 @@ export class ActionDispatcher {
                 return true;
             }
             case 'placeSpell': {
-                const tactic = TACTICS[action.tacticId];
+                const tactic = this.ctx.types.tactic(action.tacticId);
                 if (!tactic || !usesSpellPlacement(tactic)) return false;
                 if (
                     tactic.targeting !== 'point' &&
@@ -1991,7 +2000,7 @@ export function resetOilFieldToBaseline(
 export function prepareHazardPours(
     ctx: Pick<
         ActionContext,
-        'oilStamps' | 'spellStamps' | 'oilField' | 'oilBaseline' | 'placement'
+        'oilStamps' | 'spellStamps' | 'oilField' | 'oilBaseline' | 'placement' | 'types'
     >,
     round: number,
 ): HazardPour[] {
@@ -2016,10 +2025,10 @@ export function prepareHazardPours(
         });
     }
     const acids = ctx.spellStamps
-        .filter((s) => s.placedRound === round && TACTICS[s.tacticId]?.acidCapsule)
+        .filter((s) => s.placedRound === round && ctx.types.tactic(s.tacticId)?.acidCapsule)
         .sort((a, b) => a.id - b.id);
     for (const s of acids) {
-        const tactic = TACTICS[s.tacticId]!;
+        const tactic = ctx.types.tactic(s.tacticId)!;
         const radius = tactic.radius ?? ACID_SPILL_RADIUS;
         const durationRounds = tactic.acidCapsule!.durationRounds;
         pours.push({
@@ -2035,10 +2044,10 @@ export function prepareHazardPours(
         });
     }
     const fires = ctx.spellStamps
-        .filter((s) => s.placedRound === round && TACTICS[s.tacticId]?.fireCapsule)
+        .filter((s) => s.placedRound === round && ctx.types.tactic(s.tacticId)?.fireCapsule)
         .sort((a, b) => a.id - b.id);
     for (const s of fires) {
-        const tactic = TACTICS[s.tacticId]!;
+        const tactic = ctx.types.tactic(s.tacticId)!;
         const radius = tactic.radius ?? FIRE_SPILL_RADIUS;
         const fire = tactic.fireCapsule!;
         pours.push({
@@ -2060,13 +2069,13 @@ export function prepareHazardPours(
         .filter(
             (s) =>
                 s.placedRound === round &&
-                TACTICS[s.tacticId]?.spell?.igniteCapsule &&
+                ctx.types.tactic(s.tacticId)?.spell?.igniteCapsule &&
                 s.endX !== undefined &&
                 s.endZ !== undefined,
         )
         .sort((a, b) => a.id - b.id);
     for (const s of dragons) {
-        const tactic = TACTICS[s.tacticId]!;
+        const tactic = ctx.types.tactic(s.tacticId)!;
         const spell = tactic.spell!;
         const ignite = spell.igniteCapsule!;
         pours.push({

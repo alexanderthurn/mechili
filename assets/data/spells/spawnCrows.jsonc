@@ -1,0 +1,20 @@
+{
+    "id": "spawnCrows",
+    "name": "Summon Crow Riders",
+    "icon": "tactic-summon-crows",
+    "kind": "placement",
+    "targeting": "point",
+    "cooldownRounds": 1,
+    "radius": 16, // 4 cells
+    "respectsSafeZone": true,
+    "strongholdCost": 200,
+    // count = PACKS (a crow-rider flock is 12 riders)
+    "spell": {
+        "delaySeconds": 2,
+        "spawn": { "typeId": "crowRider", "count": 2 },
+    },
+    "marker": {
+        "glow": "rgba(12, 28, 48, 0.55)",
+    },
+    "description": "Mark a circle anywhere outside the enemy base. Shortly after battle start, crow riders dive in from the sky, one after another — they fight this battle only.",
+}

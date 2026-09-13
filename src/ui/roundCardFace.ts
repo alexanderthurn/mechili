@@ -16,7 +16,6 @@ import {
     t,
     tacticName,
 } from '../i18n';
-import { TACTICS } from '../game/tactics';
 import { iconHtml, moneyHtml } from './iconAtlas';
 
 function escapeAttr(s: string): string {
@@ -54,7 +53,7 @@ function catalogExtras(c: RoundCard): string[] {
         extras.push(c.items.map((id) => itemName(id, BASE_TYPES.rune(id)?.name ?? id)).join(', '));
     }
     if (c.tactics?.length) {
-        extras.push(c.tactics.map((id) => tacticName(id, TACTICS[id]?.name ?? id)).join(', '));
+        extras.push(c.tactics.map((id) => tacticName(id, BASE_TYPES.tactic(id)?.name ?? id)).join(', '));
     }
     if (c.flankSpawnHalf) {
         extras.push(t('hud:flankHalf', { defaultValue: 'Flank spawn half-time' }));

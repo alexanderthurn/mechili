@@ -94,17 +94,8 @@ import {
 import { matchResultId, reportMatchResult, fetchPlayerPublic, getCachedProfile } from './account';
 import { DEFAULT_MMR, mmrDelta } from './mmr';
 import {
-    AIR_BONUS,
-    COST_CONTROL_INCOME,
-    COST_CONTROL_PENALTY,
-    ELITE_ROUND1_BONUS,
-    MONEY_ROUND1_BONUS,
-    CURSED_BROOD_TYPE_ID,
-    FREE_ARCHER_LEVEL,
-    FREE_ARCHER_ROUND,
     SPECIALITY_TACTIC_ROUND,
-    SPEED_COMMANDER_BONUS,
-    unlockCostForSpeciality,
+    unlockCostFor,
     SKIP_CARD_REWARD,
     TUTORIAL_2_START_CARD_ID,
     TUTORIAL_3_START_CARD_ID,
@@ -228,18 +219,14 @@ import {
     SOFT_CROWD_LIMIT,
 } from './sim';
 import {
-    BIG_METEOR_ID,
     DRAGON_APPROACH_SEC,
-    DRAGON_ID,
     DRAGON_POUR_DURATION_SEC,
-    HAMMER_ID,
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
     RALLY_ROUTE_RADIUS,
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
-    TACTICS,
     clampTacticEnd,
     clampTacticPoint,
     pointInSafeZone,
@@ -732,6 +719,8 @@ export class Game {
     private readonly creditDebt: boolean[];
     /** each SEAT's own chosen starting-card speciality (null until picked) */
     private readonly speciality: (SpecialityId | null)[];
+    /** each seat's chosen commander card id — where its effects come from */
+    private readonly commander: (string | null)[];
     /** per-SEAT multiplier on flank spawn duration (Flanky card/specialist → 0.5) */
     private readonly flankSpawnMult: number[];
     /** each SEAT's own unequipped pack items — per seat, never shared (sized in the constructor, once `seats` is known) */
@@ -1399,6 +1388,7 @@ export class Game {
         this.tacticInventory = this.seats.map(() => []);
         this.roundCardTaken = this.seats.map(() => false);
         this.speciality = this.seats.map(() => null);
+        this.commander = this.seats.map(() => null);
         this.flankSpawnMult = this.seats.map(() => 1);
         this.techTree = new TechTree(this.seats.length, this.types);
         this.forgeSlots.player = emptyForgeSlots(
@@ -1479,7 +1469,7 @@ export class Game {
         this.scene.add(this.scenery.group);
         this.inputDisposers.push(onPrefsChange(() => this.applyPrefs()));
         this.rallyVisuals = new RallyVisuals(this.scene, this.map);
-        this.spellVisuals = new SpellVisuals(this.scene);
+        this.spellVisuals = new SpellVisuals(this.scene, this.types);
         this.gridOverlay = this.map.createOverlayMesh(seatLane(this.seats, this.humanSeat));
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
@@ -1645,6 +1635,7 @@ export class Game {
             creditUsed: this.creditUsed,
             creditDebt: this.creditDebt,
             speciality: this.speciality,
+            commander: this.commander,
             flankSpawnMult: this.flankSpawnMult,
             items: this.itemInventory,
             tactics: this.tacticInventory,
@@ -1825,7 +1816,7 @@ export class Game {
         this.placement.itemDropStripIcons = (unit) => this.armedItemWorldStrip(unit);
         this.placement.tacticTargetValid = (unit) => {
             const armed = this.armedTactic;
-            if (!armed || TACTICS[armed]?.targeting !== 'own-unit') return false;
+            if (!armed || this.types.tactic(armed)?.targeting !== 'own-unit') return false;
             return this.canTargetOwnUnit(armed, unit);
         };
         this.placement.groundClickInterceptor = (x, y) => this.handleTacticGroundClick(x, y);
@@ -1886,7 +1877,7 @@ export class Game {
         this.hud.onTouchPickUp = () => this.placement.pickUpSelected();
         this.hud.onUnlockPick = (typeId) => this.unlockUnit(typeId);
         this.hud.unlockCostOf = (typeId) =>
-            unlockCostForSpeciality(typeId, this.speciality[this.humanSeat] ?? null, this.types);
+            unlockCostFor(typeId, this.starterCardOfSeat(this.humanSeat), this.types);
         this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         this.hud.onRetryLastRound = () => this.requestRetryLastRound();
@@ -2032,7 +2023,7 @@ export class Game {
         };
         this.hud.onResetPlacedTactic = (tacticId, routeId) => {
             // ids come from per-tactic counters — the tactic id disambiguates
-            const tactic = TACTICS[tacticId];
+            const tactic = this.types.tactic(tacticId);
             if (tactic && usesSpellPlacement(tactic)) this.resetPlacedSpell(routeId);
             else if (tacticId === OIL_SPILL_ID) this.resetPlacedOilSpill(routeId);
             else this.resetPlacedRallyRoute(routeId);
@@ -3099,9 +3090,9 @@ export class Game {
         // the horde stands on the board from deployment start — both players
         // see the wave and place against it
         this.spawnHordeWave();
-        // elite specialists recruit at level 2 permanently (and free of premium)
+        // a commander's recruit level (Elite Prince: 2) is permanent and free of premium
         for (let seat = 0; seat < this.seats.length; seat++) {
-            this.recruitLevel[seat] = this.speciality[seat] === 'elite' ? 2 : 1;
+            this.recruitLevel[seat] = this.starterCardOfSeat(seat)?.effects?.recruitLevel ?? 1;
         }
         this.sellState.used.fill(0);
         this.deployState.extra.fill(0);
@@ -3149,45 +3140,39 @@ export class Game {
         // card speciality income and gifts — per SEAT now, own pick, own reward
         for (let seat = 0; seat < this.seats.length; seat++) {
             const team = this.seats[seat]!.team;
-            if (this.speciality[seat] === 'costControl') {
-                this.economy.credit(seat, COST_CONTROL_INCOME);
-            }
-            // the elite's round-1 top-up: exactly two level-2 units at 150
-            if (this.speciality[seat] === 'elite' && this.round === 1) {
-                this.economy.credit(seat, ELITE_ROUND1_BONUS);
-            }
-            // Money Queen's one-off purse — same log-free round-1 hook
-            if (this.speciality[seat] === 'money' && this.round === 1) {
-                this.economy.credit(seat, MONEY_ROUND1_BONUS);
-            }
+            const card = this.starterCardOfSeat(seat);
+            const effects = card?.effects;
+            if (effects?.incomePerRound) this.economy.credit(seat, effects.incomePerRound);
+            // one-off round-1 purse (Elite Prince: two level-2 units at 150; Money Queen)
+            if (effects?.roundOneSupply && this.round === 1) this.economy.credit(seat, effects.roundOneSupply);
             // Cursed Christine: one Komtur spider a round. Log-free, so it
-            // must run while hydrating too (see the archer gift's NOTE below)
+            // must run while hydrating too (see the gift unit's NOTE below)
             // — a peer that skipped the spawn would rebuild a different board
             // with shifted unit ids.
-            if (this.speciality[seat] === 'cursed') {
-                const brood = this.types.byId(CURSED_BROOD_TYPE_ID);
+            if (effects?.unitEachRound) {
+                const brood = this.types.byId(effects.unitEachRound);
                 const anchor = brood ? this.placement.findStartSpot(team, brood, seat) : null;
                 if (brood && anchor) {
                     this.placement.spawn(brood, anchor, team, false, true, seat);
                 }
             }
             // a commander's gifted spell charges (Lord Hitzkopf's meteors).
-            // Same log-free reasoning as the archer gift below: it must run on
+            // Same log-free reasoning as the gift unit below: it must run on
             // every peer, hydrating included, or the two sides disagree about
             // how many charges exist and one accepts a cast the other rejects
-            const card = this.starterCardOfSeat(seat);
             if (card?.tactics && this.round === (card.tacticsRound ?? SPECIALITY_TACTIC_ROUND)) {
                 this.tacticInventory[seat]!.push(...card.tactics);
             }
             // NOTE: must also run while hydrating — the gift is never in the
             // action log, so a rebuild that skipped it would produce a
             // different board (and shifted unit ids → guaranteed desync)
-            if (this.speciality[seat] === 'archer' && this.round === FREE_ARCHER_ROUND) {
-                const type = this.types.byId('archer')!;
-                const anchor = this.placement.findStartSpot(team, type, seat);
-                const unit = anchor ? this.placement.spawn(type, anchor, team, false, true, seat) : null;
+            const gift = effects?.giftUnit;
+            if (gift && this.round === gift.round) {
+                const type = this.types.byId(gift.typeId);
+                const anchor = type ? this.placement.findStartSpot(team, type, seat) : null;
+                const unit = type && anchor ? this.placement.spawn(type, anchor, team, false, true, seat) : null;
                 if (unit) {
-                    unit.level = FREE_ARCHER_LEVEL;
+                    unit.level = gift.level;
                     unit.refreshLevelBadge();
                 }
             }
@@ -3273,7 +3258,7 @@ export class Game {
             }
             // one-shot cooling is derived from the action log — pad so avail
             // still lands at CHEAT_TACTIC_COPIES without rewriting history
-            const tactic = TACTICS[id];
+            const tactic = this.types.tactic(id);
             if (!tactic || tactic.kind !== 'oneShot') continue;
             const cooling = this.dispatcher.tacticUseRounds(
                 seat,
@@ -3717,6 +3702,7 @@ export class Game {
         unlockedUnits: string[][];
         unlockUsedThisRound: boolean[];
         speciality: (SpecialityId | null)[];
+        commander: (string | null)[];
         items: string[][];
         tactics: string[][];
         rng: () => number;
@@ -3762,6 +3748,7 @@ export class Game {
             unlockedUnits: this.unlockedUnits,
             unlockUsedThisRound: this.unlockUsedThisRound,
             speciality: this.speciality,
+            commander: this.commander,
             items: this.itemInventory,
             tactics: this.tacticInventory,
             rng,
@@ -3954,20 +3941,10 @@ export class Game {
         this.startBattlePhase();
     }
 
-    /** a specific seat's own chosen specialist card (null until picked) */
+    /** a specific seat's own chosen commander card (null until picked) — tutorial cards included */
     private starterCardOfSeat(seat: SeatId): StartCard | null {
-        const spec = this.speciality[seat];
-        if (!spec) return null;
-        // Tutorial cards share speciality id and are hidden commanders —
-        // resolve by lesson so forge spells / buy gates still work.
-        if (spec === 'tutorial') {
-            const lesson = tutorialId(this.settings);
-            if (lesson === TUTORIAL_2_ID) return this.types.commander(TUTORIAL_2_START_CARD_ID);
-            if (lesson === TUTORIAL_3_ID) return this.types.commander(TUTORIAL_3_START_CARD_ID);
-            if (lesson === TUTORIAL_1_ID) return this.types.commander(TUTORIAL_START_CARD_ID);
-            return null;
-        }
-        return this.types.commanders.find((c) => c.speciality === spec) ?? null;
+        const id = this.commander[seat];
+        return id ? this.types.commander(id) : null;
     }
 
     /** Forge spells buyable this round (a tutorial lesson narrows them per round). */
@@ -6854,14 +6831,14 @@ export class Game {
         const b = this.settings.boosts;
         if (opts.attackTiers > 0) stats.damage *= 1 + b.attackTiers[opts.attackTiers - 1]!;
         if (opts.hpTiers > 0) stats.hp *= 1 + b.hpTiers[opts.hpTiers - 1]!;
-        const spec = this.speciality[unit.seat];
-        if (spec === 'air' && effectiveFlying(type, unit.seat, opts.hasTech, this.types) > 0) {
-            stats.damage *= 1 + AIR_BONUS;
-            stats.hp *= 1 + AIR_BONUS;
+        const effects = this.starterCardOfSeat(unit.seat)?.effects;
+        if (effects?.flyingBonus && effects.flyingBonus !== 0 && effectiveFlying(type, unit.seat, opts.hasTech, this.types) > 0) {
+            stats.damage *= 1 + effects.flyingBonus;
+            stats.hp *= 1 + effects.flyingBonus;
         }
-        if (spec === 'costControl' && !type.structure) {
-            stats.damage *= 1 - COST_CONTROL_PENALTY;
-            stats.hp *= 1 - COST_CONTROL_PENALTY;
+        if (effects?.unitStatsBonus && !type.structure) {
+            stats.damage *= 1 + effects.unitStatsBonus;
+            stats.hp *= 1 + effects.unitStatsBonus;
         }
         for (const id of opts.items) {
             const mods = this.types.rune(id)?.mods;
@@ -6883,8 +6860,8 @@ export class Game {
         // leave: he walks off the wall toward the enemy, still pinned at
         // battlement height, which is a man strolling through the air.
         const mobile = type.speed > 0;
-        if (spec === 'speed' && !type.structure && mobile) {
-            stats.speed += SPEED_COMMANDER_BONUS;
+        if (effects?.speedBonus && !type.structure && mobile) {
+            stats.speed += effects.speedBonus;
         }
         if (opts.speedBoost && mobile) stats.speed += rb.speedBoost;
         if (opts.rangeBoost && type.projectileSpeed) stats.range += rb.rangeBoost;
@@ -6977,7 +6954,7 @@ export class Game {
             return { max, used: Math.min(this.sellState.used[this.humanSeat]!, max) };
         };
 
-        for (const tactic of Object.values(TACTICS)) {
+        for (const tactic of this.types.tactics) {
             if (this.tutorial?.hidesTacticCharge(tactic.id)) continue;
             const inventory = this.tacticInventory[this.humanSeat]!.filter(
                 (id) => id === tactic.id,
@@ -7167,7 +7144,7 @@ export class Game {
             };
         };
         const mapTactic = (id: string) => {
-            const tactic = TACTICS[id];
+            const tactic = this.types.tactic(id);
             return {
                 icon: tactic?.icon ?? '?',
                 name: tactic ? `${tactic.name} — ${tactic.description}` : id,
@@ -7243,7 +7220,7 @@ export class Game {
         // an armed tactic is "picked up": the pointer becomes the spell's own
         // icon (and its strip entry hides — see tacticsView)
         this.pixiApp.canvas.style.cursor = this.armedTactic
-            ? iconCursorCss(TACTICS[this.armedTactic]?.icon ?? 'ui-unknown')
+            ? iconCursorCss(this.types.tactic(this.armedTactic)?.icon ?? 'ui-unknown')
             : '';
         this.syncRallyVisuals();
         this.syncSpellVisuals();
@@ -7277,7 +7254,7 @@ export class Game {
         if (this.armedTactic === RALLY_ROUTE_ID && pointer) {
             const pos = this.groundAtLocal(pointer.x, pointer.y, RALLY_ROUTE_RADIUS);
             if (pos) {
-                const maxSpan = TACTICS[RALLY_ROUTE_ID]?.maxSpan;
+                const maxSpan = this.types.tactic(RALLY_ROUTE_ID)?.maxSpan;
                 if (this.tacticDraftStart && this.tacticDraftMid) {
                     const end = clampTacticEnd(
                         this.tacticDraftMid.x,
@@ -7329,7 +7306,7 @@ export class Game {
     /** the aim preview while a spell is armed + this round's placed markers */
     private syncSpellVisuals(): void {
         const pointer = this.placement.lastPointer;
-        const armed = this.armedTactic ? TACTICS[this.armedTactic] : null;
+        const armed = this.armedTactic ? this.types.tactic(this.armedTactic) : null;
         let draft: SpellDraft | null = null;
         if (
             armed &&
@@ -7530,7 +7507,7 @@ export class Game {
             default: {
                 // every battle spell AND acid (ground-hazard commit) share
                 // the placeSpell action for placement/aim/cooldown tracking
-                const tactic = TACTICS[tacticId];
+                const tactic = this.types.tactic(tacticId);
                 if (!tactic || !usesSpellPlacement(tactic)) return false;
                 if (target.point) {
                     return this.dispatchPlayer({
@@ -7587,7 +7564,7 @@ export class Game {
     /** swallows map clicks while a tactic is armed; targeting is data-driven */
     private handleTacticGroundClick(x: number, y: number): boolean {
         if (!this.playerCanAct || !this.armedTactic) return false;
-        const tactic = TACTICS[this.armedTactic];
+        const tactic = this.types.tactic(this.armedTactic);
         if (!tactic) return false;
 
         if (tactic.targeting === 'own-unit') {
@@ -7905,7 +7882,7 @@ export class Game {
         const result = resolveForge(this.types, slots, this.teamForgePool(team));
         const info = result.product
             ? (result.product.kind === 'tactic'
-                  ? TACTICS[result.product.id]
+                  ? this.types.tactic(result.product.id)
                   : this.types.rune(result.product.id))
             : null;
         const spellIcon = info?.icon ?? null;
@@ -8338,6 +8315,7 @@ export class Game {
             {
                 oilStamps: this.oilStamps,
                 spellStamps: this.spellStamps,
+                types: this.types,
                 oilField: this.oilField,
                 oilBaseline: this.oilBaseline,
                 placement: this.placement,
@@ -8355,12 +8333,12 @@ export class Game {
             .filter((s) => s.placedRound === this.round)
             .sort((a, b) => a.id - b.id);
         for (const stamp of pendingSpells) {
-            const spawn = TACTICS[stamp.tacticId]?.spell?.spawn;
+            const spawn = this.types.tactic(stamp.tacticId)?.spell?.spawn;
             if (spawn) this.spawnSummons(stamp, spawn);
         }
         this.prepareProductionReserves();
         const spellStrikes = pendingSpells.flatMap((s) => {
-            const spell = TACTICS[s.tacticId]?.spell;
+            const spell = this.types.tactic(s.tacticId)?.spell;
             return spell?.strike
                 ? [
                       {
@@ -8371,41 +8349,40 @@ export class Game {
                           damage: spell.strike.damage,
                           delaySeconds: spell.delaySeconds,
                           yaw: s.yaw,
+                          ...(spell.strike.rect ? { rect: { ...spell.strike.rect } } : {}),
+                          ...(spell.fx === 'hammer' || spell.fx === 'meteor' ? { fx: spell.fx } : {}),
                       },
                   ]
                 : [];
         });
         // visual-only: hammer drop anticipates the sim strike so impact coincides
+        const spellOf = (s: SpellStamp) => this.types.tactic(s.tacticId)?.spell;
         const hammerCues = pendingSpells
-            .filter((s) => s.tacticId === HAMMER_ID)
+            .filter((s) => spellOf(s)?.fx === 'hammer')
             .map((s) => {
-                const spell = TACTICS[HAMMER_ID]!.spell!;
-                const at = BATTLE_START_FREEZE + spell.delaySeconds;
+                const at = BATTLE_START_FREEZE + spellOf(s)!.delaySeconds;
                 return { x: s.x, z: s.z, at, yaw: s.yaw ?? 0 };
             });
         this.hammerFx.schedule(hammerCues);
         // Meteor drop
         this.meteorFx.scheduleGreat(
             pendingSpells
-                .filter((s) => s.tacticId === BIG_METEOR_ID)
-                .map((s) => {
-                    const spell = TACTICS[BIG_METEOR_ID]!.spell!;
-                    return {
-                        x: s.x,
-                        z: s.z,
-                        at: BATTLE_START_FREEZE + spell.delaySeconds,
-                    };
-                }),
+                .filter((s) => spellOf(s)?.fx === 'meteor')
+                .map((s) => ({
+                    x: s.x,
+                    z: s.z,
+                    at: BATTLE_START_FREEZE + spellOf(s)!.delaySeconds,
+                })),
         );
         // Storm / poison hovering clouds for the zone lifetime
         this.cloudFx.schedule(
             pendingSpells.flatMap((s): CloudCue[] => {
-                const spell = TACTICS[s.tacticId]?.spell;
+                const spell = this.types.tactic(s.tacticId)?.spell;
                 const zone = spell?.zone;
                 if (!zone) return [];
                 const startAt = BATTLE_START_FREEZE + spell.delaySeconds;
                 const endAt = startAt + zone.duration;
-                const zoneR = TACTICS[s.tacticId]?.radius ?? 28;
+                const zoneR = this.types.tactic(s.tacticId)?.radius ?? 28;
                 if (zone.mode === 'storm') {
                     // storm clouds spawn per lightning flash (see CloudFx.spawnLightning)
                     return [];
@@ -8445,10 +8422,10 @@ export class Game {
         // Dragon flyover: breath starts at delay; pour paints start→end with the strafe
         this.dragonFx.schedule(
             pendingSpells.flatMap((s) => {
-                if (s.tacticId !== DRAGON_ID || s.endX === undefined || s.endZ === undefined) {
+                const spell = spellOf(s);
+                if (spell?.fx !== 'dragon' || s.endX === undefined || s.endZ === undefined) {
                     return [];
                 }
-                const spell = TACTICS[DRAGON_ID]!.spell!;
                 return [
                     {
                         x: s.x,
@@ -8476,7 +8453,7 @@ export class Game {
                 endZ: s.endZ,
             })),
             ...pendingSpells.flatMap((s) => {
-                const tactic = TACTICS[s.tacticId];
+                const tactic = this.types.tactic(s.tacticId);
                 const spell = tactic?.spell;
                 if (
                     (tactic?.acidCapsule || tactic?.fireCapsule) &&
@@ -8499,10 +8476,10 @@ export class Game {
                 if (!spell) return [];
                 const at = BATTLE_START_FREEZE + spell.delaySeconds;
                 const radius = tactic!.radius ?? 8;
-                if (s.tacticId === HAMMER_ID) {
+                if (spell.fx === 'hammer') {
                     return [
                         {
-                            tacticId: HAMMER_ID,
+                            tacticId: s.tacticId,
                             x: s.x,
                             z: s.z,
                             radius,
@@ -8512,10 +8489,10 @@ export class Game {
                         },
                     ];
                 }
-                if (s.tacticId === BIG_METEOR_ID) {
+                if (spell.fx === 'meteor') {
                     return [
                         {
-                            tacticId: BIG_METEOR_ID,
+                            tacticId: s.tacticId,
                             x: s.x,
                             z: s.z,
                             radius,
@@ -8524,10 +8501,10 @@ export class Game {
                         },
                     ];
                 }
-                if (s.tacticId === DRAGON_ID && s.endX !== undefined && s.endZ !== undefined) {
+                if (spell.fx === 'dragon' && s.endX !== undefined && s.endZ !== undefined) {
                     return [
                         {
-                            tacticId: DRAGON_ID,
+                            tacticId: s.tacticId,
                             x: s.x,
                             z: s.z,
                             radius,
@@ -8541,7 +8518,7 @@ export class Game {
                 // igniteCapsule (dragon) uses progressive pour — charge handled above
                 if (
                     spell.igniteCapsule &&
-                    s.tacticId !== DRAGON_ID &&
+                    spell.fx !== 'dragon' &&
                     s.endX !== undefined &&
                     s.endZ !== undefined
                 ) {
@@ -8575,7 +8552,7 @@ export class Game {
             }),
         ];
         const spellZones = pendingSpells.flatMap((s) => {
-            const spell = TACTICS[s.tacticId]?.spell;
+            const spell = this.types.tactic(s.tacticId)?.spell;
             const zone = spell?.zone;
             return zone
                 ? [
@@ -8585,7 +8562,7 @@ export class Game {
                           z: s.z,
                           x2: s.endX,
                           z2: s.endZ,
-                          radius: TACTICS[s.tacticId]?.radius ?? 4 * CELL,
+                          radius: this.types.tactic(s.tacticId)?.radius ?? 4 * CELL,
                           delaySeconds: spell.delaySeconds,
                           duration: zone.duration,
                           interval: zone.interval,
@@ -8769,7 +8746,7 @@ export class Game {
     ): void {
         const type = this.types.byId(spawn.typeId);
         if (!type) return;
-        const tactic = TACTICS[stamp.tacticId]!;
+        const tactic = this.types.tactic(stamp.tacticId)!;
         const scatter = tactic.radius ?? 4 * CELL;
         const rng = mulberry32(seedFrom(this.seed, `spell:${stamp.id}`));
         const perPack = formationHeadcount(type);
@@ -10312,7 +10289,7 @@ export class Game {
                 if (e.scar === false) {
                     // VFX-only blast (e.g. ogre cleave) — no ground wear stamp
                 } else if (e.rect) {
-                    // Hammer: rectangular scar = hit zone (HAMMER_ZONE + yaw)
+                    // rectangular scar = hit zone (the strike's rect + yaw)
                     this.map.stampWearOrientedRect(
                         e.x,
                         e.z,
@@ -11119,7 +11096,7 @@ export class Game {
                   const seatCanBuy = canBuy && seat === this.humanSeat;
                   return (this.forgeSpellsOf(seat) ?? [])
                       .map((tacticId) => {
-                          const t = TACTICS[tacticId];
+                          const t = this.types.tactic(tacticId);
                           // no strongholdCost = this spell isn't sold here
                           if (!t || t.strongholdCost === undefined) return null;
                           const cost = t.strongholdCost;

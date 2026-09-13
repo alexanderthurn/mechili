@@ -1,0 +1,9 @@
+{
+    "id": "sellUnit",
+    "name": "Sell Pack",
+    "icon": "tactic-sell",
+    "kind": "oneShot",
+    "targeting": "own-unit",
+    "cooldownRounds": 0,
+    "description": "Click to arm, then click one of your packs to sell it for a supply refund.",
+}

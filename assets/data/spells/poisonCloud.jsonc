@@ -1,0 +1,28 @@
+{
+    "id": "poisonCloud",
+    "name": "Poison Cloud",
+    "icon": "tactic-poison",
+    "kind": "placement",
+    "targeting": "point",
+    "cooldownRounds": 2,
+    // same footprint as Meteor Shower — sparse acid rain fills it gradually
+    "radius": 42, // 10.5 cells
+    "strongholdCost": 300,
+    "spell": {
+        "delaySeconds": 2,
+        "zone": {
+            "mode": "acidRain",
+            "duration": 14,
+            "interval": 0.28,
+            "damage": 0,
+            "impactRadius": 2.2,
+            "dropsPerTick": 3,
+        },
+    },
+    "marker": {
+        "glow": "rgba(16, 40, 12, 0.55)",
+        "circle": "#7ec850",
+        "zoneRing": { "color": "#7ec850", "fill": 0.26, "line": 0.9 },
+    },
+    "description": "Mark a huge circle. Toxic clouds gather overhead and rain small acid drops across the area — sparse puddles that corrode ground and air units like Acid Spill, but over a much wider field.",
+}

@@ -1,9 +1,10 @@
+import { BASE_TYPES } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import { TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID } from './cards';
 import type { GameSettings, TutorialSettings } from './settings';
 import type { BattleMap, Cell } from './map';
 import { CELL } from './map';
-import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, TACTICS, clampTacticPoint } from './tactics';
+import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, clampTacticPoint } from './tactics';
 
 /** Tutorial 1: empty board, auto commander, soft UI lesson, 4 enemy archers. */
 export const TUTORIAL_1_ID = 1;
@@ -177,6 +178,15 @@ export function tutorialContentProblems(types: TypeRegistry): string[] {
     for (const id of [TUTORIAL_START_CARD_ID, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID]) {
         if (!types.commander(id)) problems.push(`tutorials need hidden commander "${id}"`);
     }
+    // tutorial 2 walks through these three spells step by step
+    const dragon = types.tactic(DRAGON_ID);
+    if (dragon?.targeting !== 'two-point' || dragon.spell?.fx !== 'dragon') {
+        problems.push(`tutorial 2 needs "${DRAGON_ID}" as a two-point dragon spell`);
+    }
+    if (types.tactic(SPAWN_DWARVES_ID)?.spell?.spawn?.typeId !== TUTORIAL_DWARF_ID) {
+        problems.push(`tutorial 2 needs "${SPAWN_DWARVES_ID}" to summon "${TUTORIAL_DWARF_ID}"`);
+    }
+    if (!types.tactic(OIL_SPILL_ID)) problems.push(`tutorial 2 needs "${OIL_SPILL_ID}"`);
     return problems;
 }
 
@@ -379,7 +389,7 @@ export function tutorial2OilCorridor(map: BattleMap): TutorialCorridorZone {
  */
 export function tutorial2DragonCorridor(map: BattleMap): TutorialCorridorZone {
     const { midCol, midRow } = tutorial2MidField(map);
-    const maxSpan = TACTICS[DRAGON_ID]?.maxSpan ?? 24 * CELL;
+    const maxSpan = BASE_TYPES.tactic(DRAGON_ID)?.maxSpan ?? 24 * CELL;
     const halfCells = Math.floor(maxSpan / (2 * CELL));
     const start = map.cellCenter(midCol + halfCells, midRow);
     const end = map.cellCenter(midCol - halfCells, midRow);

@@ -853,8 +853,8 @@ levels/frost-keep/
 | 6. Overlay layer: `buildAssetOverlay` / `installAssetOverlay`, report, overlay hash in `currentContentHash()`, level data validated via `loadPackWithOverlay` | done (no loading UI) |
 | 7. Per-match type registry (`TypeRegistry`, `game.types`) — see 17.8 | done |
 | 7b. Level switch reloads cached files and model data (`switchLevel`) — see 17.9 | done (dev console only) |
-| 7c. More content as data: talents (`data/talents`, `talents`/`talentSlots` on units), runes + forge recipes (`data/runes`, `itemSlots`), commanders + round cards (`data/commanders`, `data/roundCards`); all served by the match's `TypeRegistry`. Tutorials stay code, guarded by `tutorialContentProblems` | done |
-| 8. Scenario boot: `settings.level` names the level, `startGame` runs `prepareLevel`, the Game plays `activeLevel().types` and refuses a mismatch; level store (`loadLevel`, known by hash, any source); zip reader; web-only Custom Game "Scenario (test)" row. No user-facing picker in Steam — scenarios arrive with the game context (joining, list, campaign) | done: base, multiplayer transfer (host → guests in lobbies), scenario cache (IndexedDB); open: guests joining a running match, spectators, real scenario sources |
+| 7c. More content as data: talents (`data/talents`, `talents`/`talentSlots` on units), runes + forge recipes (`data/runes`, `itemSlots`), commanders + round cards (`data/commanders`, `data/roundCards`, commander `effects` instead of speciality ids), spells (`data/spells`, `fx` / `strike.rect` / `marker` attributes; the five spells with own actions are core ids checked on load); all served by the match's `TypeRegistry`. Tutorials stay code, guarded by `tutorialContentProblems` | done |
+| 8. Scenario boot: `settings.level` names the level, `startGame` runs `prepareLevel`, the Game plays `activeLevel().types` and refuses a mismatch; level store (`loadLevel`, known by hash, any source); zip reader; web-only Custom Game "Scenario (test)" row. No user-facing picker in Steam — scenarios arrive with the game context (joining, list, campaign) | done: base, multiplayer transfer (host → guests in lobbies), scenario cache (IndexedDB); seat reclaims mid-match and spectators fetch the scenario through a gated offer; open: real scenario sources |
 | 9. Walls and other engine features that unlock new content | later |
 
 `npm run check:content` covers steps 2–7b: manifest freshness and no
@@ -932,6 +932,7 @@ the Game (step 8).
 | Date | Change |
 |------|--------|
 | 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
+| 2026-09-13 | §17 step 7c+: spells as data with behaviour attributes, commander effects; step 8: scenario gate for mid-match rejoins and spectators |
 | 2026-09-13 | §17 step 8: multiplayer scenario transfer, scenario cache |
 | 2026-09-13 | §17 step 8 base: scenario boot via settings.level, level store, zip reader, web test row |
 | 2026-09-13 | §17 step 7c: talents, runes/recipes, commanders/round cards as data; tutorial content guard |

@@ -847,7 +847,7 @@ export class BattleMap {
 
     /**
      * Oriented soft rectangle wear (Hammer of the Gods footprint).
-     * Matches HAMMER_ZONE + placement yaw — not a circumscribed disc.
+     * Matches the strike's `rect` + placement yaw — not a circumscribed disc.
      */
     stampWearOrientedRect(
         x: number,

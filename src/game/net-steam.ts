@@ -1,11 +1,12 @@
 import { lobby, net, steam, type SteamLobbyInfo } from 'steam-electron-build/native';
-import { getAvatarDataUrl } from './avatar';
-import { activeLoadout } from './loadouts';
 import { getPlayerName } from './player';
 import {
     CONNECT_TIMEOUT_MS,
     GAME_VERSION,
+    isSameBaseBuild,
+    LEVEL_GATE_TIMEOUT_MS,
     isSameBuild,
+    starJoinMessage,
     currentContentHash,
     type BuildStamp,
     STAR_RECONNECT_GRACE_MS,
@@ -24,6 +25,7 @@ import {
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { Loadout } from './techCatalog';
 import { t } from '../i18n';
+import { answerLevelMessage, LevelDownload, matchLevelOffer } from './levelSync';
 
 /**
  * Steam-backed transport, parallel to `net.ts`'s PeerJS+PHP one — chosen at
@@ -533,7 +535,22 @@ export class SteamStarHub implements HostHub {
             this.pending.delete(steamId64);
             channel.dispose();
         };
-        const msg = await channel.once();
+        let msg = await channel.once();
+        // A player coming back into the running match with our base content but
+        // not its scenario (a reload): hand the scenario over and wait for the
+        // handshake again. The liveness watchdog closes a joiner that goes quiet.
+        while (!settled) {
+            if (answerLevelMessage(msg, (m) => channel.send(m))) {
+                msg = await channel.once();
+                continue;
+            }
+            if (this.needsMatchLevel(msg)) {
+                channel.send(matchLevelOffer());
+                msg = await channel.once();
+                continue;
+            }
+            break;
+        }
         if (settled) return;
         settled = true;
         this.pending.delete(steamId64);
@@ -603,6 +620,17 @@ export class SteamStarHub implements HostHub {
         channel.onClose = () => this.dropSeat(seat, channel);
         this.bySeat.set(seat, { steamId64, channel, buffer: [] });
         this.onRosterChange?.();
+    }
+
+    /** see `StarHub.needsMatchLevel` (net.ts) — a seat reclaim that needs the match's scenario first */
+    private needsMatchLevel(msg: NetMessage): boolean {
+        if (msg.type !== 'starRejoin' && msg.type !== 'starJoin') return false;
+        if (isSameBuild(msg) || !isSameBaseBuild(msg)) return false;
+        return (
+            msg.type === 'starRejoin' ||
+            this.findDroppedSeatByName(msg.name) !== null ||
+            this.findReclaimableSeatByName(msg.name) !== null
+        );
     }
 
     /**
@@ -964,23 +992,47 @@ export async function joinSteamAsSpectator(
 ): Promise<SpectateResult> {
     const channel = new SteamChannel(hostSteamId);
     try {
-        channel.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: currentContentHash() });
+        // rebuilt per send: after fetching the match's scenario the hash includes it
+        const hello = () =>
+            channel.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: currentContentHash() });
+        hello();
         const msg = await new Promise<NetMessage>((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
-            const onAbort = () => {
+            let timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
+            let settled = false;
+            let download: LevelDownload | null = null;
+            const finish = (outcome: () => void) => {
+                if (settled) return;
+                settled = true;
                 clearTimeout(timer);
-                reject(new DOMException('Aborted', 'AbortError'));
+                signal?.removeEventListener('abort', onAbort);
+                outcome();
             };
+            const onAbort = () => finish(() => reject(new DOMException('Aborted', 'AbortError')));
             if (signal?.aborted) {
                 onAbort();
                 return;
             }
             signal?.addEventListener('abort', onAbort, { once: true });
-            void channel.once().then((m) => {
-                clearTimeout(timer);
-                signal?.removeEventListener('abort', onAbort);
-                resolve(m);
-            });
+            const next = (): void => {
+                void channel.once().then((m) => {
+                    if (settled) return;
+                    // the match plays a scenario we don't have active: fetch it, then ask again
+                    if (m.type === 'levelOffer' && m.gate) {
+                        clearTimeout(timer);
+                        timer = setTimeout(
+                            () => finish(() => reject(new Error('Loading the scenario took too long'))),
+                            LEVEL_GATE_TIMEOUT_MS,
+                        );
+                        download?.cancel();
+                        download = new LevelDownload(m.level, m.chunks, (x) => channel.send(x));
+                        download.done.then(hello, (e: unknown) => finish(() => reject(e)));
+                        return next();
+                    }
+                    if (download?.handle(m)) return next();
+                    finish(() => resolve(m));
+                });
+            };
+            next();
         });
         if (msg.type === 'spectateRejected') throw new Error(msg.reason);
         if (msg.type !== 'matchCatchUp' || msg.viewer.kind !== 'spectator') {
@@ -1009,14 +1061,7 @@ export async function joinSteamStarRoom(lobbyId: string): Promise<SteamGuestSess
     const room = await lobby.join(lobbyId);
     if (!room) throw new Error('Could not join the Steam lobby.');
     const session = new SteamGuestSession(room.owner, lobbyId);
-    session.send({
-        type: 'starJoin',
-        name: getPlayerName(),
-        version: GAME_VERSION,
-        contentHash: currentContentHash(),
-        avatar: getAvatarDataUrl(),
-        loadout: activeLoadout(),
-    });
+    session.send(starJoinMessage());
     return session;
 }
 
@@ -1038,14 +1083,7 @@ export async function joinSteamLobby(lobbySteamId: string): Promise<{
     const room = await lobby.join(lobbySteamId);
     if (!room) throw new Error('Could not join the Steam lobby.');
     const session = new SteamGuestSession(room.owner, room.id);
-    session.send({
-        type: 'starJoin',
-        name: getPlayerName(),
-        version: GAME_VERSION,
-        contentHash: currentContentHash(),
-        avatar: getAvatarDataUrl(),
-        loadout: activeLoadout(),
-    });
+    session.send(starJoinMessage());
     return {
         mode: room.data.mode === '1v1' ? '1v1' : '2v2',
         session,

@@ -1,0 +1,26 @@
+{
+    "id": "storm",
+    "name": "Storm Call",
+    "icon": "tactic-storm",
+    "kind": "placement",
+    "targeting": "point",
+    "cooldownRounds": 2,
+    "radius": 44.1, // 11.025 cells
+    "strongholdCost": 200,
+    "spell": {
+        "delaySeconds": 3,
+        "zone": {
+            "mode": "storm",
+            "duration": 7,
+            "interval": 0.7,
+            "damage": 0,
+            "impactRadius": 7,
+        },
+    },
+    "marker": {
+        "glow": "rgba(20, 20, 48, 0.55)",
+        "circle": "#6a6ab0",
+        "zoneRing": { "color": "#6a6ab0", "fill": 0, "line": 0.55 },
+    },
+    "description": "Mark a wide circle anywhere. Small storm clouds gather high above and hurl lightning at random spots — bolts deal no damage but shock units in a wide splash with a tower-like debuff unless they have golden aura. Ward domes still block the strikes.",
+}
