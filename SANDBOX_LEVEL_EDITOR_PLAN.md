@@ -107,8 +107,9 @@ validation runs against the match's registry. See §14.2.
 - Objective evaluation (schema only)
 - Cell-painted zones, blockers, height editing, irregular boards
 - Multiplayer editor, Steam Workshop
-- 2v2 scenarios (v1 is 1v1 + horde)
+- 2v2 and co-op scenarios (v1 is single player: 1v1 + horde)
 - A multiplayer room that offers scenarios (the level hand-over already works)
+- Campaign mode itself (menu, progress, next level) — after the editor
 - Where scenarios are listed (scenario list, campaign, mods) — undecided
 
 ### 1.3 Success criteria
@@ -506,7 +507,7 @@ listed in a toast and removed from the draft (undoable in the editor).
 | Tool | Behaviour |
 |------|-----------|
 | Select | click a pack or building; drag to move |
-| Place | palette of every type incl. horde; team brush Player / Enemy / Horde |
+| Place | palette of every unit **and building** type the match has (base game + package), incl. horde; team brush Player / Enemy / Horde |
 | Erase | click to remove |
 | Copy / paste | selection or box selection |
 | Mirror | copy one side onto the other (mirrored rows) |
@@ -514,6 +515,14 @@ listed in a toast and removed from the draft (undoable in the editor).
 
 Placement uses `placement.spawn(..., free)` for grid packs and
 `spawnAtWorld` for gridless ones — no zone checks, no slots, no cost.
+
+**Buildings as scene objects.** Besides the base buildings at their anchors,
+any building type — base or added by the package (a wall piece, a farm house)
+— can be placed like a unit, for player, enemy or horde. A building blocks
+movement as a round obstacle (like today's buildings); a long wall is several
+pieces. Horde-owned buildings have never existed, so targeting, HP bars and
+destruction for them are checked (and fixed where needed) in phase 3. Cover
+(stopping shots) is not planned.
 
 ### 8.2 Inspector (selection)
 
@@ -548,7 +557,9 @@ Placement uses `placement.spawn(..., free)` for grid packs and
   report). **Back to editor** restarts `mode: 'author'` from the same draft.
 - **Speed:** the normal speed control; pause/step frame in test mode.
 - **Win-rate run:** repeat Test Battle over N seeds at max speed and show the
-  win split. Uses the same restart path, no new sim code.
+  win split. Uses the same restart path, no new sim code. A local testing tool:
+  results are shown, never submitted as match telemetry or stored on the
+  server.
 
 ---
 
@@ -715,11 +726,14 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
    normalize against the registry, `applyScenario`, play a hand-written
    package (zip in web), resume + replay verification.
 2. **Capture situation** (§9.1) — immediate value, and it exercises apply.
-3. **Editor core:** author mode, place / move / erase, team brush, draft
-   autosave, restart on map change.
-4. **Inspector:** levels, runes, side techs, buildings.
-5. **Scenario panel + library:** rules UI, presets, files, share codes.
-6. **Test Battle + unit lab**, then regression-test harness (§9.3).
+3. **Editor core:** author mode, place / move / erase, team brush, placing
+   any unit or building type for player / enemy / horde (incl. horde-owned
+   buildings), draft autosave, restart on map change.
+4. **Inspector:** levels, runes, side talents, buildings.
+5. **Test Battle + win-rate runs** (local only) — the unit-testing use case.
+6. **Scenario panel + library:** rules UI, presets, share codes.
+7. **Regression-test harness** (§9.3).
+8. Later: objectives (§6.7), campaign mode (§9.4).
 
 Each phase is playable and reviewable on its own.
 
@@ -1015,6 +1029,7 @@ the Game (step 8).
 
 | Date | Change |
 |------|--------|
+| 2026-09-13 | v3.1: phase order — Test Battle and win-rate runs (local only) right after the inspector; placing any building type for any side incl. horde; co-op and campaign mode out of this pass |
 | 2026-09-13 | v3: scenarios as level packages on `settings.level`; generic buildings with garrison posts; commander `effects`; talents and validation through the registry; storage, sharing and multiplayer statements updated; phase 0 marked done |
 | 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
 | 2026-09-13 | §17 step 7c+: spells as data with behaviour attributes, commander effects; step 8: scenario gate for mid-match rejoins and spectators |
