@@ -1015,8 +1015,8 @@ export const STRONGHOLD_ARCHER_SLOTS = [1, 2, 3, 4, 5] as const;
  */
 export const STRONGHOLD_ARCHER_FOV_DEGREES = 240;
 export const STRONGHOLD_ARCHER_FOV_HALF = (STRONGHOLD_ARCHER_FOV_DEGREES * Math.PI) / 360;
-/** first archer 100, second 200, third 300, fourth 400 */
-export const STRONGHOLD_ARCHER_STEP_COST = 100;
+/** first archer 100; each further post +50 (150, 200, …) */
+export const STRONGHOLD_ARCHER_STEP_COST = 50;
 
 /** shield dome coverage, world units — the top stays below the air layer (18) */
 export const SHIELD_RADIUS = 20;

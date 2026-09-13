@@ -11033,7 +11033,7 @@ export class Game {
             fogged && this.buildingIntelSnapshot
                 ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
                 : this.strongholdArcherCount(team);
-        const nextCost = STRONGHOLD_ARCHER_STEP_COST * (manned + 1);
+        const nextCost = STRONGHOLD_ARCHER.cost + STRONGHOLD_ARCHER_STEP_COST * manned;
         const slotMax = this.strongholdArcherSlots().length;
         out.strongholdArchers = {
             cost: nextCost,

@@ -907,7 +907,7 @@ export class ActionDispatcher {
                 if (taken >= slots.length) return false;
                 const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
                 if (!spot) return false; // keep model has no authored slots
-                const cost = STRONGHOLD_ARCHER_STEP_COST * (taken + 1);
+                const cost = STRONGHOLD_ARCHER.cost + STRONGHOLD_ARCHER_STEP_COST * taken;
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 const archer = placement.spawnAtWorld(
