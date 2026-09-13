@@ -1548,7 +1548,10 @@ export class Unit {
             clearBattleTint(m.mesh);
             m.mesh.position.copy(m.home);
             m.mesh.visible = true;
-            if (!this.type.structure) m.mesh.rotation.y = this.facing;
+            // Buildings never turn, but a Hammer of the Gods crush spins the rubble
+            // to a random yaw — without this a hammered tower stood back up still
+            // twisted. Only the rocket extra keeps its own aim.
+            if (!this.type.rocket) m.mesh.rotation.y = this.facing;
             m.mesh.rotation.z = 0; // stand wrecks back up
             m.mesh.rotation.x = 0;
             m.mesh.scale.setScalar(this.visualMeshScale()); // un-squash tower rubble (+ level size)
