@@ -38,6 +38,17 @@ import type { BattleTeam } from './units';
  */
 export const MODEL_FWD_YAW = Math.PI / 2;
 
+/**
+ * A model as authored data — the shape a JSON content file will hold: a file
+ * name and degrees instead of a built URL and radians.
+ */
+export type ModelSpecData = Omit<ModelSpec, 'url' | 'yaw'> & {
+    /** GLB file name under `assets/models/` */
+    file: string;
+    /** extra yaw in degrees on top of the forward convention ({@link MODEL_FWD_YAW}) */
+    yawDeg?: number;
+};
+
 export interface ModelSpec {
     url: string;
     yaw: number;
@@ -63,79 +74,103 @@ export interface ModelSpec {
     };
 }
 
-export const MODEL_SPECS: Record<string, ModelSpec> = {
+const MODEL_SPEC_DATA: Record<string, ModelSpecData> = {
     // fantasy conversion (Melodan): P1 super-low-poly, static + procedural.
     // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
     dwarf: {
-        url: new URL('../../assets/models/dwarf.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW+ MathUtils.degToRad(90),
+        file: 'dwarf.glb',
+        yawDeg: 90,
         scale: 3,
         // soles sit a hair above the bbox floor — nudge feet into the lawn
         offset: { y: -0.04 },
     },
     horde: {
-        url: new URL('../../assets/models/horde.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW,
+        file: 'horde.glb',
         scale: 3,
         offset: { y: -0.04 },
     },
     horde2: {
-        url: new URL('../../assets/models/horde2.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW,
+        file: 'horde2.glb',
         scale: 3,
         offset: { y: -0.04 },
     },
     horde3: {
-        url: new URL('../../assets/models/horde3.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW,
+        file: 'horde3.glb',
         scale: 3,
         offset: { y: -0.04 },
     },
     // Static bind-pose template for icons / fallback. Battle uses mixer via unitAnimated.
     archer: {
-        url: new URL('../../assets/models/archera.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        file: 'archera.glb',
+        yawDeg: 90,
         skinned: true,
     },
     hammerer: {
-        url: new URL('../../assets/models/hammerer.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        file: 'hammerer.glb',
+        yawDeg: 90,
         skinned: true,
     },
     ogre: {
-        url: new URL('../../assets/models/ogre.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        file: 'ogre.glb',
+        yawDeg: 90,
         skinned: true,
     },
-    wizard: { url: new URL('../../assets/models/wizard.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
-    ballista: { url: new URL('../../assets/models/ballista.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
+    wizard: { file: 'wizard.glb' },
+    ballista: { file: 'ballista.glb', yawDeg: 180 },
     // Mortar — tube siege; static Tripo mesh (cannon toward facing)
     mortar: {
-        url: new URL('../../assets/models/mortar.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(180),
+        file: 'mortar.glb',
+        yawDeg: 180,
     },
-    crowRider: { url: new URL('../../assets/models/crow-rider.glb', import.meta.url).href, yaw: MODEL_FWD_YAW  },
+    crowRider: { file: 'crow-rider.glb' },
     // Air chaff (Wasp-like) — wing flap + stretched span for flock silhouette
     bat: {
-        url: new URL('../../assets/models/bat.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW,
+        file: 'bat.glb',
         stretch: { x: 1.45, z: 1.1 },
     },
     goblin: {
-        url: new URL('../../assets/models/goblin.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
+        file: 'goblin.glb',
+        yawDeg: 90,
         scale: 2.85,
         offset: { y: -0.04 },
         // skinned walk clip → bake frame 0 into InstancedMesh (no runtime mixer)
         bakePose: { clip: 'walk', time: 0 },
     },
-    shield: { url: new URL('../../assets/models/shield.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 0.5 }, // ward stone
-    rocket: { url: new URL('../../assets/models/rocket.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
+    shield: { file: 'shield.glb', scale: 0.5 }, // ward stone
+    rocket: { file: 'rocket.glb' }, // fire bolt
     // the two base buildings — distinct castles instead of the shared procedural tower
-    'command-tower': { url: new URL('../../assets/models/command-tower.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // stone watchtower
-    stronghold: { url: new URL('../../assets/models/stronghold.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // castle keep + Flag empty for the mast
-    'research-center': { url: new URL('../../assets/models/research-center.glb', import.meta.url).href, yaw: MODEL_FWD_YAW-70, scale: 1.0 }, // wizard tower
+    'command-tower': { file: 'command-tower.glb' }, // stone watchtower
+    stronghold: { file: 'stronghold.glb' }, // castle keep + Flag empty for the mast
+    // wizard tower. Was `MODEL_FWD_YAW-70` — 70 RADIANS, probably meant as degrees;
+    // this value reproduces that orientation bit-exactly.
+    'research-center': { file: 'research-center.glb', yawDeg: -4010.7045659157625, scale: 1.0 },
 };
+
+/** GLB files under `assets/models/`, resolved to built asset URLs by Vite. */
+const MODEL_FILE_URLS = import.meta.glob('../../assets/models/*.glb', {
+    query: '?url',
+    import: 'default',
+    eager: true,
+}) as Record<string, string>;
+
+function resolveModelSpec(id: string, data: ModelSpecData): ModelSpec {
+    const { file, yawDeg, ...rest } = data;
+    const url = MODEL_FILE_URLS[`../../assets/models/${file}`];
+    if (!url) console.error(`[unitModels] '${id}': no model file '${file}' in assets/models`);
+    return {
+        ...rest,
+        // an unknown file loads nothing and falls back to the procedural mesh
+        url: url ?? '',
+        // same expression the old table used, so the result is bit-identical
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(yawDeg ?? 0),
+    };
+}
+
+/** Runtime model specs (built asset URL + radians), derived from the data above. */
+export const MODEL_SPECS: Record<string, ModelSpec> = Object.fromEntries(
+    Object.entries(MODEL_SPEC_DATA).map(([id, data]) => [id, resolveModelSpec(id, data)]),
+);
+
 
 type Template = Group;
 const templates = new Map<string, Template>();
