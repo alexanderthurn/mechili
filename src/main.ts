@@ -1323,11 +1323,11 @@ function refreshScenarioSelect(): void {
     add('zip', 'Load zip…');
     cgScenarioEl.value = active?.hash ?? '';
     // a level with scenarios can play one as a single-player match; a picker when it has several
-    const { scenarios, campaign } = activeLevel();
+    const { scenarios, meta } = activeLevel();
     const playable = SCENARIO_ZIP_TESTING && !cgScenarioFieldEl.hidden && scenarios.size > 0;
     cgScenarioPlayEl.hidden = !playable;
     cgScenarioPickEl.textContent = '';
-    const order = campaign?.def?.levels.map((l) => l.scenario).filter((id) => scenarios.has(id)) ?? [];
+    const order = meta?.def?.levels.map((l) => l.scenario).filter((id) => scenarios.has(id)) ?? [];
     for (const id of [...order, ...[...scenarios.keys()].filter((id) => !order.includes(id))]) {
         const opt = document.createElement('option');
         opt.value = id;

@@ -494,24 +494,24 @@ try {
             const root = act.scenarios.get('scenario');
             zexpect(act.scenarios.size === 1 && root?.def?.name === 'Archer vs Ogre' && root.issues.length === 0, 'a lone root scenario.jsonc is not exposed as scenario "scenario"');
             await levels.prepareLevel(undefined);
-            zexpect(levels.activeLevel().scenarios.size === 0 && levels.activeLevel().campaign === null, 'the base game has scenarios');
-            // several levels under scenarios/ + campaign.jsonc naming them in order
+            zexpect(levels.activeLevel().scenarios.size === 0 && levels.activeLevel().meta === null, 'the base game has scenarios');
+            // several levels under scenarios/ + meta.jsonc naming them in order
             const second = fixture.replace('"id": "archer-vs-ogre"', '"id": "rematch"').replace('"name": "Archer vs Ogre"', '"name": "Rematch"');
-            const campaignText = JSON.stringify({
+            const metaText = JSON.stringify({
                 version: 1, id: 'duel-series', name: 'Duel Series',
                 levels: [{ scenario: 'first', title: 'First Duel', briefing: 'Hold the line.' }, { scenario: 'rematch', carryOver: 'army', unlocks: ['dwarf'] }],
             });
             const { ref: seriesRef } = await levels.loadLevel('duel-series', [
                 { path: 'scenarios/first.jsonc', bytes: enc(fixture) },
                 { path: 'scenarios/rematch.jsonc', bytes: enc(second) },
-                { path: 'campaign.jsonc', bytes: enc(campaignText) },
+                { path: 'meta.jsonc', bytes: enc(metaText) },
             ]);
             const series = await levels.prepareLevel(seriesRef);
             zexpect(series.scenarios.size === 2 && series.scenarios.get('rematch')?.def?.name === 'Rematch', 'package scenarios not read from scenarios/');
-            zexpect(series.campaign?.def?.levels.length === 2 && series.campaign.issues.length === 0, `campaign not read: ${JSON.stringify(series.campaign?.issues)}`);
+            zexpect(series.meta?.def?.levels.length === 2 && series.meta.issues.length === 0, `meta.jsonc not read: ${JSON.stringify(series.meta?.issues)}`);
             await levels.prepareLevel(undefined);
-            const badCampaign = scen.parseCampaign(campaignText.replace('"rematch"', '"remtach"'), new Set(['first', 'rematch']), T);
-            zexpect(scen.hasErrors(badCampaign.issues) && badCampaign.issues[0].message.includes('no scenarios/remtach.jsonc'), 'a campaign level naming a missing scenario is not an error');
+            const badMeta = scen.parseMeta(metaText.replace('"rematch"', '"remtach"'), new Set(['first', 'rematch']), T);
+            zexpect(scen.hasErrors(badMeta.issues) && badMeta.issues[0].message.includes('no scenarios/remtach.jsonc'), 'a meta.jsonc level naming a missing scenario is not an error');
             // zip writer → reader round trip
             const zipped = zipMod.writeZip([{ path: 'scenarios/first.jsonc', bytes: enc(fixture) }, { path: 'models/x.bin', bytes: new Uint8Array([0, 1, 2, 255]) }]);
             const unzipped = await zipMod.readZip(zipped);
@@ -578,7 +578,7 @@ try {
             zexpect(withBase.rules.unlockable?.join() === 'dwarf' && withBase.rules.loadout?.mode === 'open' && def.rules.unlockable === undefined, 'capture does not inherit the original scenario rules');
             await levels.prepareLevel(undefined);
         }
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + campaign.jsonc; zip write/read; replay capture round-trips and inherits rules');
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; replay capture round-trips and inherits rules');
     }
 } catch (e) {
     failed = true;

@@ -30,7 +30,7 @@ import {
 } from './assets';
 import { BASE_PACK, loadPackWithOverlay } from './content/basePack';
 import { cacheLevel, cachedLevel } from './levelCache';
-import { parseCampaign, parseScenario, type NormalizedCampaign, type NormalizedScenario } from './scenario/normalize';
+import { parseMeta, parseScenario, type NormalizedMeta, type NormalizedScenario } from './scenario/normalize';
 import { TypeRegistry } from './content/typeRegistry';
 import { BASE_TYPES, proceduralHeightsOf } from './units';
 import { setModelSpecData, setModelTypes, setProceduralModelHeights } from './unitModels';
@@ -50,11 +50,11 @@ export interface ActiveLevel {
     types: TypeRegistry;
     /** the package's scenarios by id, each normalized against `types` (empty for plain content) */
     scenarios: ReadonlyMap<string, NormalizedScenario>;
-    /** the package's `campaign.jsonc`, if any */
-    campaign: NormalizedCampaign | null;
+    /** the package's `meta.jsonc`, if any */
+    meta: NormalizedMeta | null;
 }
 
-let active: ActiveLevel = { overlay: null, types: BASE_TYPES, scenarios: new Map(), campaign: null };
+let active: ActiveLevel = { overlay: null, types: BASE_TYPES, scenarios: new Map(), meta: null };
 let queue: Promise<unknown> = Promise.resolve();
 
 /** The level whose files and model data are loaded right now. */
@@ -114,7 +114,7 @@ export async function loadLevel(
     }
     try {
         const { replaced, added } = overlay.report;
-        const definesPlay = overlay.scenarioTexts.size > 0 || overlay.campaignText !== null;
+        const definesPlay = overlay.scenarioTexts.size > 0 || overlay.metaText !== null;
         if (replaced.length === 0 && !definesPlay && !added.some((p) => p.startsWith('data/'))) {
             throw new Error(
                 `[level] "${id}" changes nothing — expected files like data/units/dwarf.jsonc or ` +
@@ -190,13 +190,12 @@ export function switchLevel(overlay: AssetOverlay | null): Promise<ActiveLevel> 
         const scenarios = new Map(
             [...(overlay?.scenarioTexts ?? [])].map(([id, text]) => [id, parseScenario(text, types, `scenarios/${id}.jsonc`)] as const),
         );
-        const campaign =
-            overlay?.campaignText != null ? parseCampaign(overlay.campaignText, new Set(scenarios.keys()), types) : null;
+        const meta = overlay?.metaText != null ? parseMeta(overlay.metaText, new Set(scenarios.keys()), types) : null;
         setModelSpecData(pack.models);
         setModelTypes(types.all());
         setProceduralModelHeights(proceduralHeightsOf(types));
         await switchAssetOverlay(overlay);
-        active = { overlay, types, scenarios, campaign };
+        active = { overlay, types, scenarios, meta };
         return active;
     });
     queue = run.catch(() => {});

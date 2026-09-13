@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/CampaignDef",
+  "$ref": "#/definitions/PackageMeta",
   "definitions": {
-    "CampaignDef": {
+    "PackageMeta": {
       "type": "object",
       "properties": {
         "version": {
@@ -23,12 +23,12 @@
         },
         "cover": {
           "type": "string",
-          "description": "image path inside the package, e.g. `ui/campaign-cover.webp`"
+          "description": "image path inside the package, e.g. `ui/cover.webp`"
         },
         "levels": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/CampaignLevel"
+            "$ref": "#/definitions/PackageMetaLevel"
           },
           "description": "played in this order"
         }
@@ -41,7 +41,7 @@
       ],
       "additionalProperties": false
     },
-    "CampaignLevel": {
+    "PackageMetaLevel": {
       "type": "object",
       "properties": {
         "scenario": {
@@ -76,7 +76,7 @@
         "scenario"
       ],
       "additionalProperties": false,
-      "description": "`campaign.jsonc` — the optional order and progression over a package's scenarios (plan §9.4). A package without it is simply a collection of scenarios; one with it is also a campaign. Campaign mode itself comes later: today the file is validated, and the fields below are reserved for it."
+      "description": "`meta.jsonc` — optional information about a package: its name, author, cover, and the order and progression of its scenarios (plan §4.1, §9.4). A package without it is simply a collection of scenarios, listed by file. Campaign play comes later: today the file is validated, and the progression fields are reserved for it."
     }
   },
   "allowComments": true,

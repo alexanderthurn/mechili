@@ -84,8 +84,8 @@ export interface AssetOverlay {
      * `scenario.jsonc` (id `scenario`) as the simple one-level form.
      */
     scenarioTexts: ReadonlyMap<string, string>;
-    /** `campaign.jsonc` at the package root, if any (order and progression of its scenarios) */
-    campaignText: string | null;
+    /** `meta.jsonc` at the package root, if any (name, author, order of its scenarios) */
+    metaText: string | null;
     report: OverlayReport;
 }
 
@@ -94,12 +94,12 @@ const TEXT_FILE = /\.(jsonc?|txt|csv|svg)$/i;
 export const SCENARIO_FILE = 'scenario.jsonc';
 /** levels of a package: `scenarios/<id>.jsonc` */
 export const SCENARIOS_DIR = 'scenarios/';
-/** optional campaign definition over a package's scenarios */
-export const CAMPAIGN_FILE = 'campaign.jsonc';
+/** optional package information: name, author, cover, order of its scenarios */
+export const META_FILE = 'meta.jsonc';
 
-/** a scenario / campaign definition file (text, never a URL) */
+/** a scenario or package meta file (text, never a URL) */
 export function isScenarioPackageFile(path: string): boolean {
-    return path === SCENARIO_FILE || path === CAMPAIGN_FILE || (path.startsWith(SCENARIOS_DIR) && path.endsWith('.jsonc'));
+    return path === SCENARIO_FILE || path === META_FILE || (path.startsWith(SCENARIOS_DIR) && path.endsWith('.jsonc'));
 }
 
 /** a copy on a plain ArrayBuffer — Blob and digest won't take SharedArrayBuffer views */
@@ -139,11 +139,11 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
     const dataFiles = new Map<string, string>();
     const referenced = new Set<string>();
     const scenarioTexts = new Map<string, string>();
-    let campaignText: string | null = null;
+    let metaText: string | null = null;
     for (const f of valid) {
         if (isScenarioPackageFile(f.path)) {
             const text = new TextDecoder().decode(toBytes(f.bytes));
-            if (f.path === CAMPAIGN_FILE) campaignText = text;
+            if (f.path === META_FILE) metaText = text;
             else if (f.path === SCENARIO_FILE) scenarioTexts.set('scenario', text);
             else scenarioTexts.set(f.path.slice(SCENARIOS_DIR.length, -'.jsonc'.length), text);
         }
@@ -178,7 +178,7 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
         at += p.length;
     }
     const hash = hex(await crypto.subtle.digest('SHA-256', joined));
-    return { id, hash, urls, dataFiles, scenarioTexts, campaignText, report };
+    return { id, hash, urls, dataFiles, scenarioTexts, metaText, report };
 }
 
 /**

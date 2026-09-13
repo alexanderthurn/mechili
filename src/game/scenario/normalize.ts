@@ -11,39 +11,39 @@ import type { TypeRegistry } from '../content/typeRegistry';
 import { parseJsonc } from '../content/jsonc';
 import { validateSchema, type JsonSchema } from '../content/schema';
 import scenarioSchemaJson from '../../../assets/data/schema/scenario.schema.json';
-import campaignSchemaJson from '../../../assets/data/schema/campaign.schema.json';
-import type { CampaignDef } from './campaignDef';
+import metaSchemaJson from '../../../assets/data/schema/meta.schema.json';
+import type { PackageMeta } from './packageMeta';
 import { SCENARIO_VERSION, type ScenarioDef, type SceneBuildings } from './scenarioDef';
 
 const SCENARIO_SCHEMA = scenarioSchemaJson as unknown as JsonSchema;
-const CAMPAIGN_SCHEMA = campaignSchemaJson as unknown as JsonSchema;
+const META_SCHEMA = metaSchemaJson as unknown as JsonSchema;
 
-export interface NormalizedCampaign {
-    def: CampaignDef | null;
+export interface NormalizedMeta {
+    def: PackageMeta | null;
     issues: ScenarioIssue[];
 }
 
 /**
- * Parse `campaign.jsonc` against its schema and the package's scenario ids.
+ * Parse `meta.jsonc` against its schema and the package's scenario ids.
  * A level naming a missing scenario is an error; reserved progression fields
  * are accepted but not applied yet.
  */
-export function parseCampaign(text: string, scenarioIds: ReadonlySet<string>, types: TypeRegistry): NormalizedCampaign {
+export function parseMeta(text: string, scenarioIds: ReadonlySet<string>, types: TypeRegistry): NormalizedMeta {
     const issues: ScenarioIssue[] = [];
     let raw: unknown;
     try {
-        raw = parseJsonc(text, 'campaign.jsonc');
+        raw = parseJsonc(text, 'meta.jsonc');
     } catch (e) {
         return { def: null, issues: [{ level: 'error', message: e instanceof Error ? e.message : String(e) }] };
     }
-    const schemaErrors = validateSchema(CAMPAIGN_SCHEMA, raw);
+    const schemaErrors = validateSchema(META_SCHEMA, raw);
     if (schemaErrors.length > 0) {
-        return { def: null, issues: schemaErrors.map((message) => ({ level: 'error' as const, message: `campaign.jsonc: ${message}` })) };
+        return { def: null, issues: schemaErrors.map((message) => ({ level: 'error' as const, message: `meta.jsonc: ${message}` })) };
     }
-    const def = raw as CampaignDef;
+    const def = raw as PackageMeta;
     const seen = new Set<string>();
     def.levels.forEach((level, i) => {
-        const where = `campaign.jsonc levels[${i}]`;
+        const where = `meta.jsonc levels[${i}]`;
         if (!scenarioIds.has(level.scenario)) {
             issues.push({ level: 'error', message: `${where}: no scenarios/${level.scenario}.jsonc in this package` });
         }
@@ -53,7 +53,7 @@ export function parseCampaign(text: string, scenarioIds: ReadonlySet<string>, ty
             if (!types.shopUnitIds.includes(id)) issues.push({ level: 'warning', message: `${where}: unlocks "${id}", which is not a buyable unit` });
         }
     });
-    if (def.levels.length === 0) issues.push({ level: 'warning', message: 'campaign.jsonc: no levels' });
+    if (def.levels.length === 0) issues.push({ level: 'warning', message: 'meta.jsonc: no levels' });
     return { def, issues };
 }
 

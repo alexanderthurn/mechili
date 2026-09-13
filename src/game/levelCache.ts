@@ -5,7 +5,7 @@
  * with the same scenario doesn't need it again. Best effort: without
  * IndexedDB (private windows, Node) nothing is kept and nothing fails.
  */
-import { isScenarioPackageFile, type OverlayFile } from './assets';
+import { isScenarioPackageFile, META_FILE, type OverlayFile } from './assets';
 import type { LevelRef } from './level';
 import { decodeLevelPackage, encodeLevelPackage } from './levelTransfer';
 
@@ -66,7 +66,7 @@ export async function cacheLevel(ref: LevelRef, files: readonly OverlayFile[]): 
             hash: ref.hash,
             id: ref.id,
             usedAt: Date.now(),
-            scenario: files.some((f) => isScenarioPackageFile(f.path) && f.path !== 'campaign.jsonc'),
+            scenario: files.some((f) => isScenarioPackageFile(f.path) && f.path !== META_FILE),
             pkg: encodeLevelPackage(files),
         };
         await request(store.put(entry));

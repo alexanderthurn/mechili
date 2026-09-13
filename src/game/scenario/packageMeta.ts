@@ -1,10 +1,11 @@
 /**
- * `campaign.jsonc` — the optional order and progression over a package's
- * scenarios (plan §9.4). A package without it is simply a collection of
- * scenarios; one with it is also a campaign. Campaign mode itself comes later:
- * today the file is validated, and the fields below are reserved for it.
+ * `meta.jsonc` — optional information about a package: its name, author,
+ * cover, and the order and progression of its scenarios (plan §4.1, §9.4).
+ * A package without it is simply a collection of scenarios, listed by file.
+ * Campaign play comes later: today the file is validated, and the
+ * progression fields are reserved for it.
  */
-export interface CampaignLevel {
+export interface PackageMetaLevel {
     /** id of `scenarios/<id>.jsonc` in the same package */
     scenario: string;
     title?: string;
@@ -16,14 +17,14 @@ export interface CampaignLevel {
     unlocks?: string[];
 }
 
-export interface CampaignDef {
+export interface PackageMeta {
     version: 1;
     id: string;
     name: string;
     description?: string;
     author?: string;
-    /** image path inside the package, e.g. `ui/campaign-cover.webp` */
+    /** image path inside the package, e.g. `ui/cover.webp` */
     cover?: string;
     /** played in this order */
-    levels: CampaignLevel[];
+    levels: PackageMetaLevel[];
 }

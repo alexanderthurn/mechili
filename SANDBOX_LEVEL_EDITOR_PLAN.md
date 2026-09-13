@@ -262,21 +262,21 @@ cannot play (two enemy archers, one with a talent and one without).
 ```text
 <package>/                one zip / one level
   scenarios/<id>.jsonc    one ScenarioDef per level (this section); the file name is its id
-  campaign.jsonc          optional: order, titles, briefings, progression (§9.4)
+  meta.jsonc              optional: name, author, cover, level order, titles, briefings, progression (§9.4)
   data/…                  optional content overrides (units, buildings, spells…)
   models/… textures/…     optional media overrides
 ```
 
 The simple fallback stays valid: a package with a lone root `scenario.jsonc`
-(no `scenarios/` folder, no campaign) is one level with the id `scenario`.
+(no `scenarios/` folder, no meta) is one level with the id `scenario`.
 A package may hold several levels sharing the same content overrides; the
 match names the one it plays in `settings.scenario.id` (omitted = the only
-one). Without a campaign, a picker lists the levels by file; with one, in the
-campaign's order.
+one). Without `meta.jsonc`, a picker lists the levels by file; with it, in its
+`levels` order.
 
 `loadLevel` validates the content as for any level; each scenario is validated
-by its own generated schema plus `normalizeScenario` (§4.3), `campaign.jsonc`
-by `campaign.schema.json` plus `parseCampaign` (a level naming a missing
+by its own generated schema plus `normalizeScenario` (§4.3), `meta.jsonc`
+by `meta.schema.json` plus `parseMeta` (a level naming a missing
 scenario is an error). The package's content hash identifies it everywhere
 (settings, saves, replays, multiplayer).
 
@@ -587,7 +587,7 @@ left out for now): current board, levels, runes, side talents, buildings
 (incl. garrison posts), side HP and map flags become a draft
 (`flanksOpenFromRound` = 1 if already open). A match that played a level keeps
 that level's content in the new package (without that level's other
-scenarios or campaign) as `scenarios/<id>.jsonc`, downloaded as a zip in web
+scenarios or meta) as `scenarios/<id>.jsonc`, downloaded as a zip in web
 builds. When the replay played a scenario and the watched side is the side
 its rules were written for, the rules the board doesn't show (`unlockable`,
 `loadout`) are inherited; otherwise they're left at their defaults.
@@ -608,11 +608,12 @@ can run before each release.
 
 ### 9.4 Campaign (later)
 
-`campaign.jsonc` inside a package (format parsed and validated already, not
-played yet — `src/game/scenario/campaignDef.ts`):
+A campaign is a package whose `meta.jsonc` orders its levels (format parsed
+and validated already, not played yet — `src/game/scenario/packageMeta.ts`).
+The same file names and describes any package, campaign or not:
 
 ```ts
-interface CampaignDef {
+interface PackageMeta {
   version: 1;
   id: string;
   name: string;
@@ -772,7 +773,7 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
    level's content, and downloads a zip (`scenarios/<id>.jsonc` + content) in
    web builds; inherits `unlockable`/`loadout` from the replayed scenario
    for its own side. Packages hold several levels under `scenarios/` plus an
-   optional `campaign.jsonc` (validated, not played); a lone root
+   optional `meta.jsonc` (validated, not played); a lone root
    `scenario.jsonc` still works. Kept
    scenarios are listed in the Custom Game test row.
 3. **Editor core:** author mode, place / move / erase, team brush, placing

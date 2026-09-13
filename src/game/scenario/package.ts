@@ -1,6 +1,6 @@
 /**
  * Scenarios as a level package (plan §4.1): levels under `scenarios/<id>.jsonc`
- * (or a lone root `scenario.jsonc`), an optional `campaign.jsonc`, next to the
+ * (or a lone root `scenario.jsonc`), an optional `meta.jsonc`, next to the
  * content overrides (data, models, textures) they play with.
  */
 import { isScenarioPackageFile, SCENARIOS_DIR, type OverlayFile } from '../assets';
@@ -18,7 +18,7 @@ export function scenarioFileText(def: ScenarioDef): string {
 
 /**
  * A one-level package: `scenarios/<def.id>.jsonc` plus the content files of
- * the level it was made on — without that level's own scenarios or campaign.
+ * the level it was made on — without that level's own scenarios or meta.
  */
 export function scenarioPackageFiles(def: ScenarioDef, contentFiles: readonly OverlayFile[] = []): OverlayFile[] {
     return [
