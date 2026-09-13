@@ -1,0 +1,28 @@
+{
+    "id": "rocket",
+    "name": "Fire Bolt",
+    "cost": 50,
+    "footprint": { "cols": 1, "rows": 1 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 1,
+    "structure": true,
+    "extra": true,
+    "flying": 36, // always at combat altitude (unlike crow riders)
+    "rocket": { "range": 35, "speed": 30, "damage": 5000, "splash": 8 }, // wipes a close-packed swarm
+    "splashRadius": 8, // display only — the blast itself comes from `rocket.splash`
+    // splash + lingering burn + ground fire (oil connected to this ignites)
+    "fire": {
+        "burn": { "dps": 28, "duration": 12 },
+        "ground": { "radius": 8, "duration": 20, "intensity": 27 },
+    },
+    "burn": { "takenMult": 0 }, // the bolt itself doesn't cook
+    "targets": { "ground": true, "air": true }, // what it may home onto / hurt
+    "collisionRadius": 0.8,
+    "colliders": [],
+    "hp": 100,
+    "damage": 5000,
+    "range": 35,
+    "attackInterval": 1,
+    "speed": 0,
+    "proceduralModel": "rocket",
+}

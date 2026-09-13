@@ -1,0 +1,29 @@
+{
+    // Fantasy Arclight — single pack, medium-range splash vs chaff (dwarfs / goblins)
+    "id": "hammerer",
+    "name": "Hammerer",
+    "cost": 100,
+    "unlockCost": 0,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 2.4,
+    "burn": { "takenMult": 0.85 },
+    "targets": { "ground": true, "air": false }, // AA is a later tech (like Arclight)
+    "collisionRadius": 1.1,
+    "colliders": [{ "y": 1.0, "r": 0.85 }],
+    "projectileSpeed": 75,
+    "projectileStyle": "stone", // crow rock pool — InstancedMesh
+    // grow in flight: pebble → ~splash disk radius (stone mesh r≈0.84)
+    "projectileScale": 0.28,
+    "projectileScaleEnd": 4.285714285714286, // (4 / 0.84) × 0.9 — ~90% of splash disk radius
+    "projectileBallistic": true,
+    "projectileLaunchHeightFrac": 0.7,
+    "splashRadius": 4, // Arclight-like blast vs packed chaff
+    "hp": 240,
+    "damage": 40, // a bare L1 dwarf's 40 HP exactly — dwarf veterancy, golden aura or costControl all break the one-shot
+    "range": 32,
+    "attackInterval": 0.7,
+    "speed": 4.5,
+    "turnRate": 5,
+    "proceduralModel": "hammerer",
+}

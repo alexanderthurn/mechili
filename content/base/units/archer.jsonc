@@ -1,0 +1,24 @@
+{
+    "id": "archer",
+    "name": "Archer",
+    "cost": 100,
+    "unlockCost": 0,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 2.2,
+    "burn": { "takenMult": 1.1 },
+    "targets": { "ground": true, "air": true }, // picks off anything
+    "collisionRadius": 1.0,
+    "colliders": [{ "y": 1.1, "r": 0.75 }],
+    "projectileSpeed": 100,
+    "projectileStyle": "arrow",
+    "projectileBallistic": true, // bow lob — lead-aimed so moving targets still get clipped
+    "projectileLaunchHeightFrac": 0.75,
+    "hp": 130,
+    "damage": 65,
+    "range": 45,
+    "attackInterval": 1.4,
+    "speed": 3.5,
+    "turnRate": 6,
+    "proceduralModel": "archer",
+}

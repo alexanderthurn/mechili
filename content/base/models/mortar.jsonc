@@ -1,0 +1,5 @@
+// Mortar — tube siege; static Tripo mesh (cannon toward facing)
+{
+    "file": "mortar.glb",
+    "yawDeg": 180,
+}

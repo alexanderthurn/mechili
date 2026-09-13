@@ -1,0 +1,5 @@
+// Air chaff (Wasp-like) — wing flap + stretched span for flock silhouette
+{
+    "file": "bat.glb",
+    "stretch": { "x": 1.45, "z": 1.1 },
+}

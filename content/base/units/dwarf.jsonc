@@ -1,0 +1,23 @@
+{
+    "id": "dwarf",
+    "name": "Dwarf",
+    "cost": 100,
+    "unlockCost": 0,
+    "footprint": { "cols": 5, "rows": 2 },
+    "formation": { "cols": 8, "rows": 3 }, // a pack of 24 fighters
+    "meshScale": 1,
+    "burn": { "takenMult": 0.5 }, // tough infantry — resists fire better
+    "targets": { "ground": true, "air": false }, // can't reach the sky
+    "collisionRadius": 0.6,
+    "colliders": [{ "y": 0.35, "r": 0.55 }],
+    "hp": 40,
+    "damage": 8,
+    "range": 2,
+    "attackInterval": 0.7,
+    "speed": 6,
+    // short legs — taller lean + quicker steps than other walkers
+    "walkLean": 1,
+    "walkCadence": 1.5,
+    "turnRate": 12,
+    "proceduralModel": "dwarf",
+}

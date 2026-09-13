@@ -1,0 +1,35 @@
+{
+    "id": "ballista",
+    "name": "Ballista",
+    // Golden Aura tech: allies within 40 are golden for 30s
+    "aura": { "effect": "golden", "requiresTech": "golden", "radius": 40, "duration": 30 },
+    "cost": 400,
+    "unlockCost": 200,
+    "hpWithdraw": 400,
+    "footprint": { "cols": 4, "rows": 4 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 3.2,
+    "targets": { "ground": true, "air": false }, // Sky Bind baked in — bolts can elevate
+    "collisionRadius": 2.8,
+    "colliders": [{ "y": 0.9, "r": 1.1 }],
+    "projectileSpeed": 50,
+    "projectileStyle": "largeArrow",
+    // cradle sits high on the siege frame — not at the chassis collider mid
+    "projectileLaunchHeight": 5.8,
+    "projectileBallistic": true,
+    "splashRadius": 5, // bolts shatter — everything near the impact takes the hit
+    // heavy chassis would stamp hard from cost/bulk — keep a light track
+    "sandWeight": 1.1,
+    "deathWear": "ash", // wood/iron siege — burns, no blood
+    "deathAshScorch": { "radius": 1, "strength": 0.2 },
+    "burn": { "takenMult": 4.0 }, // timber siege — burns hard once lit
+    "hp": 500,
+    "damage": 500,
+    "range": 84,
+    "minRange": 30, // siege dead zone — can't hit foes that close in
+    "attackInterval": 3.8,
+    "speed": 2.2,
+    "turnRate": 1.2,
+    "turnMove": "pivot",
+    "proceduralModel": "ballista",
+}

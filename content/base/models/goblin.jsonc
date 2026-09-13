@@ -1,0 +1,8 @@
+{
+    "file": "goblin.glb",
+    "yawDeg": 90,
+    "scale": 2.85,
+    "offset": { "y": -0.04 },
+    // skinned walk clip → bake frame 0 into InstancedMesh (no runtime mixer)
+    "bakePose": { "clip": "walk", "time": 0 },
+}

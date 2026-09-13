@@ -1,0 +1,33 @@
+// The base game content pack. Every file under units/, buildings/ and models/
+// is loaded; ids must match file names.
+{
+    "id": "base",
+    "version": 1,
+    // Roster order = UNIT_TYPES order: shop grid, AI and every roster loop use it.
+    "roster": [
+        "dwarf",
+        "goblin",
+        "hammerer",
+        "ogre",
+        "archer",
+        "wizard",
+        "crowRider",
+        "mortar",
+        "ballista",
+        "shield",
+        "rocket",
+        "hordeZombie",
+        "hordeBrutSpawn",
+        "hordeWebweaver",
+        "hordeSpinne",
+        "hordeFarmer",
+        "hordeFarmerSpawn",
+        "hordeKomtur",
+        "bat",
+    ],
+    // Loaded and addressable by id, but never part of the roster
+    // (e.g. posted from a building panel instead of bought in the shop).
+    "offRoster": ["stronghold-archer"],
+    // Base buildings, in construction / preload order.
+    "buildings": ["command-tower", "research-center", "stronghold"],
+}
