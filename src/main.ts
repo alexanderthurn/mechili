@@ -2896,6 +2896,7 @@ function runStopHostDiscovery(): void {
 
 /** tear down an active match and bring back the pre-game menu (no page reload) */
 function finishReturnToMenu(): void {
+    markEditorOpen(false);
     if (returnToEditorAfterMatch) {
         returnToEditorAfterMatch = false;
         // after the menu is back in place, go straight on to the editor
@@ -3241,6 +3242,7 @@ function startGame(
     const useIntro = !replay && !spectate && !editorMatch;
     // only a scenario played from the editor goes back to it
     if (settings.scenario?.mode !== 'play') returnToEditorAfterMatch = false;
+    markEditorOpen(editorMatch);
 
     // Strip menu chrome immediately. For the intro path we MUST yield a paint
     // with logo-only before `new Game()` — otherwise the main thread freezes
@@ -3397,6 +3399,26 @@ function startGame(
             startIntroCoverDive();
         }
         runBootHandoff();
+    }
+}
+
+/** this tab is in the scenario editor (or its test battle) — a reload goes back to it */
+const EDITOR_OPEN_KEY = 'melodan-editor-open';
+
+function markEditorOpen(open: boolean): void {
+    try {
+        if (open) sessionStorage.setItem(EDITOR_OPEN_KEY, '1');
+        else sessionStorage.removeItem(EDITOR_OPEN_KEY);
+    } catch {
+        /* no session storage: a reload lands in the menu */
+    }
+}
+
+function editorWasOpen(): boolean {
+    try {
+        return sessionStorage.getItem(EDITOR_OPEN_KEY) === '1';
+    } catch {
+        return false;
     }
 }
 
@@ -5711,6 +5733,9 @@ if (bulkVerify) {
     } else {
         beginStarJoin(starMpMarker.hostName);
     }
+} else if (editorWasOpen()) {
+    // reloaded while editing: back into the editor with the autosaved draft
+    openStoredScenarioEditor();
 } else if (spSave) {
     // a save of a scenario match resumes once that scenario is back (scenario cache)
     const saveLevel = spSave.settings.level;
