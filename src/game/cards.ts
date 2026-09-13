@@ -15,7 +15,6 @@
 
 import { DISPLAY } from './displayNames';
 import { t, tacticDescription, tacticName } from '../i18n';
-import { TACTICS } from './tactics';
 import type { TypeRegistry } from './content/typeRegistry';
 import { forgeIngredientIcons } from './forgeRecipes';
 
@@ -181,7 +180,7 @@ export function roundCardIcon(c: RoundCard, types: TypeRegistry): string | null 
     const itemId = c.items?.[0];
     if (itemId) return types.rune(itemId)?.icon ?? null;
     const tacticId = c.tactics?.[0];
-    if (tacticId) return TACTICS[tacticId]?.icon ?? null;
+    if (tacticId) return types.tactic(tacticId)?.icon ?? null;
     if (c.flankSpawnHalf) return 'spec-flanky';
     return null;
 }
@@ -233,7 +232,7 @@ export function startCardForgeIcons(
         ingredientIcons: string[];
     }[] = [];
     for (const id of card.forgeSpells) {
-        const def = TACTICS[id];
+        const def = types.tactic(id);
         if (def) {
             out.push({
                 icon: def.icon,

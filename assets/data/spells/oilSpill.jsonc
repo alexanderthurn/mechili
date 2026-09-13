@@ -1,0 +1,13 @@
+{
+    "id": "oilSpill",
+    "name": "Oil Spill",
+    "icon": "tactic-oil",
+    "kind": "placement",
+    "targeting": "two-point",
+    "cooldownRounds": 1,
+    "radius": 16, // 4 cells
+    "strongholdCost": 100,
+    "oilRadius": 16, // 4 cells
+    "oilDurationRounds": 1,
+    "description": "Place two oil circles — outline during deploy; shortly after battle starts oil drips left-to-right onto the path (ward discs stay clear). Connected oil ignites as one field when fire touches it.",
+}

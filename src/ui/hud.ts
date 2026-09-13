@@ -13,7 +13,6 @@ import { emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
 import type { SettingGroup } from '../game/settings';
-import { TACTICS } from '../game/tactics';
 import { isPlayerBuyable, type UnitType } from '../game/units';
 import {
     t,
@@ -1807,7 +1806,7 @@ export class Hud {
                           (tac.armed ? ' armed' : '') +
                           (cancel ? ' cancelable' : '') +
                           (waitRounds !== null ? ' cooling' : '');
-                      const def = TACTICS[tac.id];
+                      const def = this.types.tactic(tac.id);
                       const usage =
                           tac.placed || cancel
                               ? t('hud:clearAndPlaceAgain')

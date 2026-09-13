@@ -56,6 +56,13 @@
             "type": "string"
           },
           "description": "between-round unit / spell cards, in draw order"
+        },
+        "spells": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "every spell in data/spells, in catalog order"
         }
       },
       "required": [
@@ -67,7 +74,8 @@
         "runes",
         "commanders",
         "hiddenCommanders",
-        "roundCards"
+        "roundCards",
+        "spells"
       ],
       "additionalProperties": false
     }

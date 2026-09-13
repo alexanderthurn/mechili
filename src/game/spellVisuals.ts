@@ -20,6 +20,7 @@ import {
 } from './groundMarkers';
 import { addCapsuleOutline } from './oilVisuals';
 import { SpellIconTextures } from './spellMarkerIcons';
+import type { TypeRegistry } from './content/typeRegistry';
 import {
     ACID_ID,
     BIG_METEOR_ID,
@@ -31,7 +32,6 @@ import {
     OIL_SPILL_ID,
     POISON_CLOUD_ID,
     STORM_ID,
-    TACTICS,
     type SafeZoneDisk,
     type SpellStamp,
 } from './tactics';
@@ -116,14 +116,18 @@ export class SpellVisuals {
     private readonly chargeGroup = new Group();
     /** keep-out disks while a respectsSafeZone tactic is armed */
     private readonly safeZoneGroup = new Group();
-    private readonly icons = new SpellIconTextures();
+    private readonly icons: SpellIconTextures;
     private zoneKey = '';
     private zonePulse: ZonePulse[] = [];
     private chargeKey = '';
     private chargeInners: ChargeInner[] = [];
     private safeZoneKey = '';
 
-    constructor(private readonly scene: Scene) {
+    constructor(
+        private readonly scene: Scene,
+        private readonly types: TypeRegistry,
+    ) {
+        this.icons = new SpellIconTextures(types);
         scene.add(this.group);
         this.group.add(this.zoneGroup);
         this.group.add(this.chargeGroup);
@@ -176,7 +180,7 @@ export class SpellVisuals {
         // deploy markers only — safe-zone disks are owned by syncSafeZones
         this.clearDeployMarkers();
         for (const s of stamps) {
-            const radius = TACTICS[s.tacticId]?.radius ?? 8;
+            const radius = this.types.tactic(s.tacticId)?.radius ?? 8;
             if (s.endX !== undefined && s.endZ !== undefined) {
                 const tint = CAPSULE_TINTS[s.tacticId] ?? {
                     fill: s.team === 'player' ? teamColors.player.hex : teamColors.enemy.hex,

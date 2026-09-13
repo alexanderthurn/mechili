@@ -1,9 +1,10 @@
+import { BASE_TYPES } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import { TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID } from './cards';
 import type { GameSettings, TutorialSettings } from './settings';
 import type { BattleMap, Cell } from './map';
 import { CELL } from './map';
-import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, TACTICS, clampTacticPoint } from './tactics';
+import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, clampTacticPoint } from './tactics';
 
 /** Tutorial 1: empty board, auto commander, soft UI lesson, 4 enemy archers. */
 export const TUTORIAL_1_ID = 1;
@@ -379,7 +380,7 @@ export function tutorial2OilCorridor(map: BattleMap): TutorialCorridorZone {
  */
 export function tutorial2DragonCorridor(map: BattleMap): TutorialCorridorZone {
     const { midCol, midRow } = tutorial2MidField(map);
-    const maxSpan = TACTICS[DRAGON_ID]?.maxSpan ?? 24 * CELL;
+    const maxSpan = BASE_TYPES.tactic(DRAGON_ID)?.maxSpan ?? 24 * CELL;
     const halfCells = Math.floor(maxSpan / (2 * CELL));
     const start = map.cellCenter(midCol + halfCells, midRow);
     const end = map.cellCenter(midCol - halfCells, midRow);

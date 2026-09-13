@@ -13,6 +13,7 @@
  */
 import type { RoundCard, StartCard } from '../cards';
 import type { ItemDef } from '../items';
+import type { TacticDef } from '../tactics';
 import type { TechDef, UnitType } from '../units';
 import type { ModelSpecData } from '../unitModels';
 import { parseJsonc } from './jsonc';
@@ -29,6 +30,7 @@ import talentSchemaJson from '../../../assets/data/schema/talent.schema.json';
 import runeSchemaJson from '../../../assets/data/schema/rune.schema.json';
 import commanderSchemaJson from '../../../assets/data/schema/commander.schema.json';
 import roundCardSchemaJson from '../../../assets/data/schema/roundCard.schema.json';
+import spellSchemaJson from '../../../assets/data/schema/spell.schema.json';
 
 const UNIT_SCHEMA = unitSchemaJson as unknown as JsonSchema;
 const MODEL_SCHEMA = modelSchemaJson as unknown as JsonSchema;
@@ -37,6 +39,7 @@ const TALENT_SCHEMA = talentSchemaJson as unknown as JsonSchema;
 const RUNE_SCHEMA = runeSchemaJson as unknown as JsonSchema;
 const COMMANDER_SCHEMA = commanderSchemaJson as unknown as JsonSchema;
 const ROUND_CARD_SCHEMA = roundCardSchemaJson as unknown as JsonSchema;
+const SPELL_SCHEMA = spellSchemaJson as unknown as JsonSchema;
 
 // ------------------------------------------------------------------ files
 
@@ -60,6 +63,8 @@ export interface PackManifest {
     hiddenCommanders: string[];
     /** between-round unit / spell cards, in draw order */
     roundCards: string[];
+    /** every spell in data/spells, in catalog order */
+    spells: string[];
 }
 
 export interface BasePack {
@@ -80,6 +85,8 @@ export interface BasePack {
     hiddenCommanders: StartCard[];
     /** between-round unit / spell cards, in draw order */
     roundCards: RoundCard[];
+    /** spells (tactics), in catalog order */
+    spells: TacticDef[];
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -97,6 +104,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
         runes: new Map<string, unknown>(),
         commanders: new Map<string, unknown>(),
         roundCards: new Map<string, unknown>(),
+        spells: new Map<string, unknown>(),
     };
     let manifest: PackManifest | null = null;
 
@@ -120,7 +128,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
         const folder = parts[2] as keyof typeof byFolder;
         const name = parts[3]?.replace(/\.jsonc$/, '');
         if (parts.length !== 4 || !(folder in byFolder) || !name) {
-            errors.push(`${rel}: unexpected file (expected data/<units|buildings|models|talents|runes|commanders|roundCards>/<id>.jsonc)`);
+            errors.push(`${rel}: unexpected file (expected data/<units|buildings|models|talents|runes|commanders|roundCards|spells>/<id>.jsonc)`);
             continue;
         }
         byFolder[folder].set(name, data);
@@ -196,7 +204,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
 
     // catalogs: every file in the folder is an entry, its id is the file name
     const catalog = <T>(
-        folder: 'talents' | 'runes' | 'commanders' | 'roundCards',
+        folder: 'talents' | 'runes' | 'commanders' | 'roundCards' | 'spells',
         schema: JsonSchema,
     ): Record<string, T> => {
         const out: Record<string, T> = {};
@@ -214,7 +222,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
     };
     const talents = catalog<TechDef>('talents', TALENT_SCHEMA);
     // ordered catalogs: pack.jsonc lists (draw / display order) must cover every file exactly
-    const ordered = <T>(folder: 'runes' | 'commanders' | 'roundCards', entries: Record<string, T>, lists: [string, string[]][]): T[][] => {
+    const ordered = <T>(folder: 'runes' | 'commanders' | 'roundCards' | 'spells', entries: Record<string, T>, lists: [string, string[]][]): T[][] => {
         const all = lists.flatMap(([, ids]) => ids);
         for (const id of Object.keys(entries)) {
             if (!all.includes(id)) {
@@ -239,6 +247,14 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
     const [roundCards] = ordered('roundCards', catalog<RoundCard>('roundCards', ROUND_CARD_SCHEMA), [
         ['roundCards', listed(manifest.roundCards)],
     ]) as [RoundCard[]];
+    const spellCatalog = catalog<TacticDef>('spells', SPELL_SCHEMA);
+    const [spells] = ordered('spells', spellCatalog, [['spells', listed(manifest.spells)]]) as [TacticDef[]];
+    for (const spell of spells) {
+        const spawn = spell.spell?.spawn?.typeId;
+        if (spawn !== undefined && ![...roster, ...offRoster, ...buildings].some((t) => t.id === spawn)) {
+            errors.push(`${label}/data/spells/${spell.id}.jsonc: spawns "${spawn}", which is no unit or building`);
+        }
+    }
     for (const [folder, cards] of [
         ['commanders', [...commanders, ...hiddenCommanders]],
         ['roundCards', roundCards],
@@ -253,6 +269,10 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
             }
             for (const id of card.items ?? []) {
                 if (!(id in runeCatalog)) errors.push(`${where}: names rune "${id}", which does not exist`);
+            }
+            const spellIds = [...(card.tactics ?? []), ...('forgeSpells' in card ? card.forgeSpells : [])];
+            for (const id of spellIds) {
+                if (!(id in spellCatalog)) errors.push(`${where}: names spell "${id}", which does not exist`);
             }
         }
     }
@@ -303,7 +323,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
     if (errors.length > 0) {
         throw new Error(`[content:${label}] ${errors.length} problem(s):\n  ${errors.join('\n  ')}`);
     }
-    return { roster, offRoster, buildings, models, talents, runes, commanders, hiddenCommanders, roundCards };
+    return { roster, offRoster, buildings, models, talents, runes, commanders, hiddenCommanders, roundCards, spells };
 }
 
 /** The bundled base game. */

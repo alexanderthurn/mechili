@@ -1,0 +1,12 @@
+{
+    "id": "fireSpill",
+    "name": "Fire Spill",
+    "icon": "tactic-fire",
+    "kind": "placement",
+    "targeting": "two-point",
+    "cooldownRounds": 1,
+    "radius": 16, // 4 cells
+    "strongholdCost": 100,
+    "fireCapsule": { "burnSeconds": 12, "intensity": 21 },
+    "description": "Pour a fire capsule like oil — it drips left-to-right shortly after battle starts and sets the path ablaze (ward discs stay clear). Connected oil ignites with it. Flame lasts this battle only.",
+}

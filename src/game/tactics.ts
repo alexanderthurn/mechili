@@ -1,15 +1,5 @@
 import { CELL } from './map';
-import {
-    ACID_DPS_PERCENT,
-    ACID_SPILL_DURATION_ROUNDS,
-    ACID_SPILL_RADIUS,
-    FIRE_SPILL_BURN_SEC,
-    FIRE_SPILL_INTENSITY,
-    FIRE_SPILL_RADIUS,
-    OIL_SPEED_MULT,
-    OIL_SPILL_DURATION_ROUNDS,
-    OIL_SPILL_RADIUS,
-} from './fire';
+import { OIL_SPEED_MULT } from './fire';
 import { BASE_TYPES } from './units';
 import { t, unitName } from '../i18n';
 
@@ -69,7 +59,8 @@ export const TACTIC_SAFE_ZONE_MARGIN = 4 * CELL;
 
 /**
  * HOW TO ADD A TACTIC — the whole system in one checklist:
- *  1. Register it here: an id constant + a TACTICS entry. `kind`, `targeting`
+ *  1. Add `assets/data/spells/<id>.jsonc` (a TacticDef) and list it in
+ *     pack.jsonc "spells"; code that needs to name it gets an id constant here. `kind`, `targeting`
  *     and `cooldownRounds` drive the strip, the armed-click flow and the
  *     charge accounting generically — no HUD work needed.
  *  2. Give it an action in actions.ts. Validate + consume charges there:
@@ -103,307 +94,74 @@ export const TACTIC_SAFE_ZONE_MARGIN = 4 * CELL;
  *    click commits (hammer footprint);
  *  - 'own-unit': click one of your packs (sell / move / tutor).
  */
-export const TACTICS: Record<
-    string,
-    {
-        id: string;
-        name: string;
-        icon: string;
-        description: string;
-        kind: 'placement' | 'oneShot';
-        targeting: 'point' | 'two-point' | 'three-point' | 'point-yaw' | 'own-unit';
-        /** rounds to wait after use before a oneShot charge returns (0 = next round) */
-        cooldownRounds: number;
-        /** aim radius (point circle / capsule margin); board clamp + previews */
-        radius?: number;
-        /** two-/three-point: max center distance per leg (default TACTIC_MAX_SPAN) */
-        maxSpan?: number;
-        /** true = may not land inside the enemy-base safe zone (spawn-likes) */
-        respectsSafeZone?: boolean;
+export interface TacticDef {
+    id: string;
+    name: string;
+    icon: string;
+    description: string;
+    kind: 'placement' | 'oneShot';
+    targeting: 'point' | 'two-point' | 'three-point' | 'point-yaw' | 'own-unit';
+    /** rounds to wait after use before a oneShot charge returns (0 = next round) */
+    cooldownRounds: number;
+    /** aim radius (point circle / capsule margin); board clamp + previews */
+    radius?: number;
+    /** two-/three-point: max center distance per leg (default TACTIC_MAX_SPAN) */
+    maxSpan?: number;
+    /** true = may not land inside the enemy-base safe zone (spawn-likes) */
+    respectsSafeZone?: boolean;
+    /**
+     * Battle-spell payload: the stamp is intent during deploy and fires
+     * `delaySeconds` after the opening freeze — the battle runs normally
+     * until then (marching out of the marked area IS the counterplay).
+     */
+    spell?: {
+        delaySeconds: number;
+        /** one strike: damage to everything in the circle not under a ward */
+        strike?: { damage: number; radius: number };
+        /** battle-only summons scattered in the circle */
+        spawn?: { typeId: string; count: number };
         /**
-         * Battle-spell payload: the stamp is intent during deploy and fires
-         * `delaySeconds` after the opening freeze — the battle runs normally
-         * until then (marching out of the marked area IS the counterplay).
+         * Ticking area effect running `duration` seconds after the delay,
+         * point-targeted only: 'storm' zaps one random unit per tick
+         * (wards absorb per bolt); 'meteorShower' drops a small strike on
+         * a random spot per tick (+ ignites fire); 'acidRain' rains small
+         * acid drips that stamp sparse ground acid (same rules as Acid Spill).
          */
-        spell?: {
-            delaySeconds: number;
-            /** one strike: damage to everything in the circle not under a ward */
-            strike?: { damage: number; radius: number };
-            /** battle-only summons scattered in the circle */
-            spawn?: { typeId: string; count: number };
-            /**
-             * Ticking area effect running `duration` seconds after the delay,
-             * point-targeted only: 'storm' zaps one random unit per tick
-             * (wards absorb per bolt); 'meteorShower' drops a small strike on
-             * a random spot per tick (+ ignites fire); 'acidRain' rains small
-             * acid drips that stamp sparse ground acid (same rules as Acid Spill).
-             */
-            zone?: {
-                mode: 'storm' | 'meteorShower' | 'acidRain';
-                duration: number;
-                interval: number;
-                /** flat damage per tick (storm / meteor); unused for acidRain */
-                damage: number;
-                /** meteorShower / acidRain: splash or puddle radius per impact */
-                impactRadius?: number;
-                /** meteorShower: ground-fire radius per impact */
-                igniteRadius?: number;
-                /** acidRain: how many drips spawn each tick */
-                dropsPerTick?: number;
-            };
-            /** two-point: progressive fire pour along the capsule (dragon breath) —
-             *  stamped left→right over {@link DRAGON_POUR_DURATION_SEC}, not a one-shot.
-             *  `damage` is direct breath hit per pour disc (wards absorb like strikes). */
-            igniteCapsule?: { burnSeconds: number; intensity: number; damage?: number };
+        zone?: {
+            mode: 'storm' | 'meteorShower' | 'acidRain';
+            duration: number;
+            interval: number;
+            /** flat damage per tick (storm / meteor); unused for acidRain */
+            damage: number;
+            /** meteorShower / acidRain: splash or puddle radius per impact */
+            impactRadius?: number;
+            /** meteorShower: ground-fire radius per impact */
+            igniteRadius?: number;
+            /** acidRain: how many drips spawn each tick */
+            dropsPerTick?: number;
         };
-        /**
-         * Acid / Fire Spill: two-point capsules that pour left→right as drips
-         * shortly after battle start (same pour timing as oil). Acid persists
-         * by ROUND; fire is battle-seconds only.
-         */
-        acidCapsule?: { durationRounds: number; dpsPercent: number };
-        fireCapsule?: { burnSeconds: number; intensity: number };
-        /**
-         * Price to buy one charge outright at the Stronghold. Per spell, not
-         * per tier — a commander is free to carry three expensive ones. Absent
-         * = not sold there at all, so a new spell has to opt in on purpose.
-         */
-        strongholdCost?: number;
-        /** oil spill only */
-        oilRadius?: number;
-        oilDurationRounds?: number;
-    }
-> = {
-    [RALLY_ROUTE_ID]: {
-        id: RALLY_ROUTE_ID,
-        name: 'Rally Route',
-        icon: 'tactic-rally',
-        kind: 'placement',
-        targeting: 'three-point',
-        cooldownRounds: 0,
-        radius: RALLY_ROUTE_RADIUS,
-        description:
-            'Place start, middle, and end zones. Units in the start circle march through matching offsets at the middle, then the end, fighting along the way.',
-    },
-    [OIL_SPILL_ID]: {
-        id: OIL_SPILL_ID,
-        strongholdCost: 100,
-        name: 'Oil Spill',
-        icon: 'tactic-oil',
-        kind: 'placement',
-        targeting: 'two-point',
-        cooldownRounds: 1,
-        radius: OIL_SPILL_RADIUS,
-        description:
-            'Place two oil circles — outline during deploy; shortly after battle starts oil drips left-to-right onto the path (ward discs stay clear). Connected oil ignites as one field when fire touches it.',
-        oilRadius: OIL_SPILL_RADIUS,
-        oilDurationRounds: OIL_SPILL_DURATION_ROUNDS,
-    },
-    [SELL_UNIT_ID]: {
-        id: SELL_UNIT_ID,
-        name: 'Sell Pack',
-        icon: 'tactic-sell',
-        kind: 'oneShot',
-        targeting: 'own-unit',
-        cooldownRounds: 0,
-        description:
-            'Click to arm, then click one of your packs to sell it for a supply refund.',
-    },
-    [MOVE_UNIT_ID]: {
-        id: MOVE_UNIT_ID,
-        name: 'Move Pack',
-        icon: 'ui-move',
-        kind: 'oneShot',
-        targeting: 'own-unit',
-        cooldownRounds: 0,
-        description:
-            'Click to arm, then click one of your packs from an earlier round — it may be dragged and rotated again for the rest of this round.',
-    },
-    [TUTOR_ID]: {
-        id: TUTOR_ID,
-        name: 'Field Lesson',
-        icon: 'ability-plus-l2',
-        kind: 'oneShot',
-        targeting: 'own-unit',
-        // used this round -> badge reads cooldownRounds + 1, so 1 here shows "2"
-        cooldownRounds: 1,
-        description:
-            'Click to arm, then click one of your packs — its XP bar fills to the next level. Buying the level still costs supply.',
-    },
-    [SPAWN_DWARVES_ID]: {
-        id: SPAWN_DWARVES_ID,
-        strongholdCost: 100,
-        name: 'Summon Dwarves',
-        icon: 'tactic-summon-dwarves',
-        kind: 'placement',
-        targeting: 'point',
-        cooldownRounds: 1,
-        radius: 4 * CELL,
-        respectsSafeZone: true,
-        // count = PACKS (a dwarf pack is 24 fighters — 2 packs ≈ 48 dwarves)
-        spell: { delaySeconds: 2, spawn: { typeId: 'dwarf', count: 2 } },
-        description:
-            'Mark a circle anywhere outside the enemy base. Shortly after battle start, a war band of dwarves bursts from the ground there, one by one — they fight this battle only.',
-    },
-    [BIG_METEOR_ID]: {
-        id: BIG_METEOR_ID,
-        strongholdCost: 200,
-        name: 'Meteor',
-        icon: 'tactic-meteor',
-        kind: 'placement',
-        targeting: 'point',
-        cooldownRounds: 2,
-        radius: 3 * CELL,
-        spell: { delaySeconds: 4, strike: { damage: 200, radius: 3 * CELL } },
-        description:
-            'Mark a small circle anywhere. Seconds into the battle a meteor obliterates everything there — only ward domes protect (and pay for it).',
-    },
-    [SPAWN_CROWS_ID]: {
-        id: SPAWN_CROWS_ID,
-        strongholdCost: 200,
-        name: 'Summon Crow Riders',
-        icon: 'tactic-summon-crows',
-        kind: 'placement',
-        targeting: 'point',
-        cooldownRounds: 1,
-        radius: 4 * CELL,
-        respectsSafeZone: true,
-        // count = PACKS (a crow-rider flock is 12 riders)
-        spell: { delaySeconds: 2, spawn: { typeId: 'crowRider', count: 2 } },
-        description:
-            'Mark a circle anywhere outside the enemy base. Shortly after battle start, crow riders dive in from the sky, one after another — they fight this battle only.',
-    },
-    [HAMMER_ID]: {
-        id: HAMMER_ID,
-        strongholdCost: 300,
-        name: 'Hammer of the Gods',
-        icon: 'tactic-hammer',
-        kind: 'placement',
-        targeting: 'point-yaw',
-        cooldownRounds: 2,
-        // aim clamp approx — visual/damage zone is HAMMER_ZONE
-        radius: 18,
-        spell: { delaySeconds: 4, strike: { damage: 1000, radius: 6 * CELL } },
-        description:
-            'Click to place, move to rotate, click again to lock. A divine hammer drops onto the zone seconds into the battle.',
-    },
-    [STORM_ID]: {
-        id: STORM_ID,
-        strongholdCost: 200,
-        name: 'Storm Call',
-        icon: 'tactic-storm',
-        kind: 'placement',
-        targeting: 'point',
-        cooldownRounds: 2,
-        radius: 11.025 * CELL,
-        spell: {
-            delaySeconds: 3,
-            zone: {
-                mode: 'storm',
-                // 70% area + 70% bolt count vs prior; same flash cadence
-                duration: 7,
-                interval: 0.7,
-                damage: 0,
-                /** splash around each bolt — debuffs nearby units */
-                impactRadius: 1.75 * CELL,
-            },
-        },
-        description:
-            'Mark a wide circle anywhere. Small storm clouds gather high above and hurl lightning at random spots — bolts deal no damage but shock units in a wide splash with a tower-like debuff unless they have golden aura. Ward domes still block the strikes.',
-    },
-    [METEOR_SHOWER_ID]: {
-        id: METEOR_SHOWER_ID,
-        strongholdCost: 300,
-        name: 'Meteor Shower',
-        icon: 'tactic-shower',
-        kind: 'placement',
-        targeting: 'point',
-        cooldownRounds: 2,
-        radius: 15.75 * CELL,
-        spell: {
-            delaySeconds: 3,
-            zone: {
-                mode: 'meteorShower',
-                duration: 24,
-                // half interval → ~2× meteors over the same window
-                interval: 0.9,
-                damage: 140,
-                impactRadius: 1.5 * CELL,
-                igniteRadius: 1 * CELL,
-            },
-        },
-        description:
-            'Mark a wide circle anywhere. Meteors rain onto random spots inside for a while, each blast burning the ground it hits.',
-    },
-    [ACID_ID]: {
-        id: ACID_ID,
-        strongholdCost: 200,
-        name: 'Acid Spill',
-        icon: 'tactic-acid',
-        kind: 'placement',
-        targeting: 'two-point',
-        cooldownRounds: ACID_SPILL_DURATION_ROUNDS,
-        radius: ACID_SPILL_RADIUS,
-        // pours left→right shortly after battle start (same drip timing as oil)
-        acidCapsule: { durationRounds: ACID_SPILL_DURATION_ROUNDS, dpsPercent: ACID_DPS_PERCENT },
-        description:
-            'Pour an acid capsule like an oil spill — it drips left-to-right onto the ground shortly after battle starts. Ground and air units over the puddle sizzle and turn corroded — taking extra damage from everything.',
-    },
-    [FIRE_SPILL_ID]: {
-        id: FIRE_SPILL_ID,
-        strongholdCost: 100,
-        name: 'Fire Spill',
-        icon: 'tactic-fire',
-        kind: 'placement',
-        targeting: 'two-point',
-        cooldownRounds: 1,
-        radius: FIRE_SPILL_RADIUS,
-        fireCapsule: { burnSeconds: FIRE_SPILL_BURN_SEC, intensity: FIRE_SPILL_INTENSITY },
-        description:
-            'Pour a fire capsule like oil — it drips left-to-right shortly after battle starts and sets the path ablaze (ward discs stay clear). Connected oil ignites with it. Flame lasts this battle only.',
-    },
-    [DRAGON_ID]: {
-        id: DRAGON_ID,
-        strongholdCost: 300,
-        name: 'Dragon Attack',
-        icon: 'tactic-dragon',
-        kind: 'placement',
-        targeting: 'two-point',
-        cooldownRounds: 3,
-        radius: 5 * CELL,
-        maxSpan: 24 * CELL,
-        spell: {
-            delaySeconds: 5,
-            igniteCapsule: { burnSeconds: 4, intensity: 48, damage: 1400 },
-        },
-        description:
-            'Draw the dragon’s strafing path (wider and longer than oil). It dives in and breathes fire along the corridor — the beam scorches units as it passes and paints the ground ablaze. Ward domes absorb the breath (and pay for it).',
-    },
-    [POISON_CLOUD_ID]: {
-        id: POISON_CLOUD_ID,
-        strongholdCost: 300,
-        name: 'Poison Cloud',
-        icon: 'tactic-poison',
-        kind: 'placement',
-        targeting: 'point',
-        cooldownRounds: 2,
-        // Same footprint as Meteor Shower — sparse acid rain fills it gradually.
-        radius: 10.5 * CELL,
-        spell: {
-            delaySeconds: 2,
-            zone: {
-                mode: 'acidRain',
-                duration: 14,
-                interval: 0.28,
-                damage: 0,
-                impactRadius: 0.55 * CELL,
-                dropsPerTick: 3,
-            },
-        },
-        description:
-            'Mark a huge circle. Toxic clouds gather overhead and rain small acid drops across the area — sparse puddles that corrode ground and air units like Acid Spill, but over a much wider field.',
-    },
-};
+        /** two-point: progressive fire pour along the capsule (dragon breath) —
+         *  stamped left→right over {@link DRAGON_POUR_DURATION_SEC}, not a one-shot.
+         *  `damage` is direct breath hit per pour disc (wards absorb like strikes). */
+        igniteCapsule?: { burnSeconds: number; intensity: number; damage?: number };
+    };
+    /**
+     * Acid / Fire Spill: two-point capsules that pour left→right as drips
+     * shortly after battle start (same pour timing as oil). Acid persists
+     * by ROUND; fire is battle-seconds only.
+     */
+    acidCapsule?: { durationRounds: number; dpsPercent: number };
+    fireCapsule?: { burnSeconds: number; intensity: number };
+    /**
+     * Price to buy one charge outright at the Stronghold. Per spell, not
+     * per tier — a commander is free to carry three expensive ones. Absent
+     * = not sold there at all, so a new spell has to opt in on purpose.
+     */
+    strongholdCost?: number;
+    /** oil spill only */
+    oilRadius?: number;
+    oilDurationRounds?: number;
+}
 
 /**
  * True for any tactic whose placement/aim/cooldown flows through the generic
@@ -411,7 +169,7 @@ export const TACTICS: Record<
  * ground-hazard pours (`acidCapsule` / `fireCapsule`) alike. Oil and rally have
  * their own dedicated actions and are NOT included.
  */
-export function usesSpellPlacement(tactic: (typeof TACTICS)[string]): boolean {
+export function usesSpellPlacement(tactic: TacticDef): boolean {
     return !!(tactic.spell || tactic.acidCapsule || tactic.fireCapsule);
 }
 
@@ -429,7 +187,7 @@ function roundsLabel(n: number): string {
  * Numeric / rule stats derived from the tactic payload (single source of truth).
  * Flavor `description` should stay number-free; UIs render these lines instead.
  */
-export function formatTacticStats(tactic: (typeof TACTICS)[string]): string[] {
+export function formatTacticStats(tactic: TacticDef): string[] {
     const lines: string[] = [];
 
     // +1, and never hidden: `cooldownRounds` counts rounds to WAIT, so 0 means

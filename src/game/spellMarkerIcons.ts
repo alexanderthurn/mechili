@@ -1,5 +1,7 @@
 import { CanvasTexture, type Texture } from 'three';
 import { drawIcon } from '../ui/iconAtlas';
+import type { TypeRegistry } from './content/typeRegistry';
+import { BASE_TYPES } from './units';
 import {
     ACID_ID,
     BIG_METEOR_ID,
@@ -12,7 +14,6 @@ import {
     SPAWN_CROWS_ID,
     SPAWN_DWARVES_ID,
     STORM_ID,
-    TACTICS,
     tacticWorldGlyph,
 } from './tactics';
 
@@ -51,11 +52,11 @@ const ATLAS_MARKER_TACTICS = new Set([
 const atlasMarkerTex = new Map<string, CanvasTexture>();
 
 /** Cached atlas decal for a tactic (deploy + battle charge markers). */
-export function getAtlasMarkerTexture(tacticId: string): CanvasTexture | null {
+export function getAtlasMarkerTexture(tacticId: string, types: TypeRegistry = BASE_TYPES): CanvasTexture | null {
     if (!ATLAS_MARKER_TACTICS.has(tacticId)) return null;
     let tex = atlasMarkerTex.get(tacticId);
     if (tex) return tex;
-    const tactic = TACTICS[tacticId];
+    const tactic = types.tactic(tacticId);
     const glow = MARKER_GLOW[tacticId];
     if (!tactic?.icon || !glow) return null;
     tex = makeAtlasMarkerTexture(tactic.icon, glow);
@@ -85,16 +86,16 @@ export function ownsOilBarrelMarkerTexture(tex: Texture | null | undefined): boo
 export class SpellIconTextures {
     private readonly emoji = new Map<string, Texture>();
 
-    constructor() {
+    constructor(private readonly types: TypeRegistry) {
         for (const id of MARKER_TACTIC_IDS) {
             if (ATLAS_MARKER_TACTICS.has(id)) continue;
             const icon = tacticWorldGlyph(id);
-            if (TACTICS[id]) this.emoji.set(id, makeEmojiSpellTexture(icon, MARKER_GLOW[id]!));
+            if (types.tactic(id)) this.emoji.set(id, makeEmojiSpellTexture(icon, MARKER_GLOW[id]!));
         }
     }
 
     textureFor(tacticId: string): Texture | null {
-        const atlas = getAtlasMarkerTexture(tacticId);
+        const atlas = getAtlasMarkerTexture(tacticId, this.types);
         if (atlas) return atlas;
         return this.emoji.get(tacticId) ?? null;
     }

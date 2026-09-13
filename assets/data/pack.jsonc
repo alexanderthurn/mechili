@@ -1,5 +1,5 @@
 // The base game's definitions. Every file under data/units, data/buildings, data/models,
-// data/talents, data/runes, data/commanders and data/roundCards is loaded; ids must match file names.
+// data/talents, data/runes, data/commanders, data/roundCards and data/spells is loaded; ids must match file names.
 {
     "id": "base",
     "version": 1,
@@ -38,4 +38,22 @@
     "hiddenCommanders": ["tutorial", "tutorial2", "tutorial3"],
     // Between-round unit and spell cards, in draw order. Rune cards come from data/runes.
     "roundCards": ["dwarves4", "archers4", "crowRiders2", "ballista1", "flanky", "rallyRoute", "sellPack", "movePack"],
+    // Spells (tactics) in catalog order: settings sheet and homepage lists follow it.
+    "spells": [
+        "rallyRoute",
+        "oilSpill",
+        "sellUnit",
+        "moveUnit",
+        "tutor",
+        "spawnDwarves",
+        "bigMeteor",
+        "spawnCrows",
+        "hammerOfGods",
+        "storm",
+        "meteorShower",
+        "acidSpill",
+        "fireSpill",
+        "dragonAttack",
+        "poisonCloud",
+    ],
 }

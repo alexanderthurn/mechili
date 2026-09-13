@@ -14,6 +14,7 @@
 import type { RoundCard, RoundCardDrawPool, StartCard } from '../cards';
 import type { ForgeRecipe } from '../forgeRecipes';
 import type { ItemDef } from '../items';
+import type { TacticDef } from '../tactics';
 import type { TechDef, UnitType } from '../units';
 import type { ModelSpecData } from '../unitModels';
 import type { BasePack } from './basePack';
@@ -50,7 +51,11 @@ export class TypeRegistry {
      */
     readonly roundCards: readonly RoundCard[];
 
+    /** spells (tactics), in catalog order */
+    readonly tactics: readonly TacticDef[];
+
     private readonly commanderIndex: ReadonlyMap<string, StartCard>;
+    private readonly tacticIndex: ReadonlyMap<string, TacticDef>;
 
     private readonly index: ReadonlyMap<string, UnitType>;
     private readonly talentsByType = new Map<string, readonly TechDef[]>();
@@ -90,6 +95,13 @@ export class TypeRegistry {
             description: rune.description,
         }));
         this.roundCards = [...runeCards, ...pack.roundCards];
+        this.tactics = pack.spells;
+        this.tacticIndex = new Map(pack.spells.map((s) => [s.id, s]));
+    }
+
+    /** a spell by id — null for an unknown id */
+    tactic(id: string): TacticDef | null {
+        return this.tacticIndex.get(id) ?? null;
     }
 
     /** a commander by id, including hidden tutorial ones */

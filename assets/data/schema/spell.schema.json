@@ -1,0 +1,223 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/TacticDef",
+  "definitions": {
+    "TacticDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "placement",
+            "oneShot"
+          ]
+        },
+        "targeting": {
+          "type": "string",
+          "enum": [
+            "point",
+            "two-point",
+            "three-point",
+            "point-yaw",
+            "own-unit"
+          ]
+        },
+        "cooldownRounds": {
+          "type": "number",
+          "description": "rounds to wait after use before a oneShot charge returns (0 = next round)"
+        },
+        "radius": {
+          "type": "number",
+          "description": "aim radius (point circle / capsule margin); board clamp + previews"
+        },
+        "maxSpan": {
+          "type": "number",
+          "description": "two-/three-point: max center distance per leg (default TACTIC_MAX_SPAN)"
+        },
+        "respectsSafeZone": {
+          "type": "boolean",
+          "description": "true = may not land inside the enemy-base safe zone (spawn-likes)"
+        },
+        "spell": {
+          "type": "object",
+          "properties": {
+            "delaySeconds": {
+              "type": "number"
+            },
+            "strike": {
+              "type": "object",
+              "properties": {
+                "damage": {
+                  "type": "number"
+                },
+                "radius": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "damage",
+                "radius"
+              ],
+              "additionalProperties": false,
+              "description": "one strike: damage to everything in the circle not under a ward"
+            },
+            "spawn": {
+              "type": "object",
+              "properties": {
+                "typeId": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "typeId",
+                "count"
+              ],
+              "additionalProperties": false,
+              "description": "battle-only summons scattered in the circle"
+            },
+            "zone": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "storm",
+                    "meteorShower",
+                    "acidRain"
+                  ]
+                },
+                "duration": {
+                  "type": "number"
+                },
+                "interval": {
+                  "type": "number"
+                },
+                "damage": {
+                  "type": "number",
+                  "description": "flat damage per tick (storm / meteor); unused for acidRain"
+                },
+                "impactRadius": {
+                  "type": "number",
+                  "description": "meteorShower / acidRain: splash or puddle radius per impact"
+                },
+                "igniteRadius": {
+                  "type": "number",
+                  "description": "meteorShower: ground-fire radius per impact"
+                },
+                "dropsPerTick": {
+                  "type": "number",
+                  "description": "acidRain: how many drips spawn each tick"
+                }
+              },
+              "required": [
+                "mode",
+                "duration",
+                "interval",
+                "damage"
+              ],
+              "additionalProperties": false,
+              "description": "Ticking area effect running `duration` seconds after the delay, point-targeted only: 'storm' zaps one random unit per tick (wards absorb per bolt); 'meteorShower' drops a small strike on a random spot per tick (+ ignites fire); 'acidRain' rains small acid drips that stamp sparse ground acid (same rules as Acid Spill)."
+            },
+            "igniteCapsule": {
+              "type": "object",
+              "properties": {
+                "burnSeconds": {
+                  "type": "number"
+                },
+                "intensity": {
+                  "type": "number"
+                },
+                "damage": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "burnSeconds",
+                "intensity"
+              ],
+              "additionalProperties": false,
+              "description": "two-point: progressive fire pour along the capsule (dragon breath) — stamped left→right over DRAGON_POUR_DURATION_SEC , not a one-shot. `damage` is direct breath hit per pour disc (wards absorb like strikes)."
+            }
+          },
+          "required": [
+            "delaySeconds"
+          ],
+          "additionalProperties": false,
+          "description": "Battle-spell payload: the stamp is intent during deploy and fires `delaySeconds` after the opening freeze — the battle runs normally until then (marching out of the marked area IS the counterplay)."
+        },
+        "acidCapsule": {
+          "type": "object",
+          "properties": {
+            "durationRounds": {
+              "type": "number"
+            },
+            "dpsPercent": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "durationRounds",
+            "dpsPercent"
+          ],
+          "additionalProperties": false,
+          "description": "Acid / Fire Spill: two-point capsules that pour left→right as drips shortly after battle start (same pour timing as oil). Acid persists by ROUND; fire is battle-seconds only."
+        },
+        "fireCapsule": {
+          "type": "object",
+          "properties": {
+            "burnSeconds": {
+              "type": "number"
+            },
+            "intensity": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "burnSeconds",
+            "intensity"
+          ],
+          "additionalProperties": false
+        },
+        "strongholdCost": {
+          "type": "number",
+          "description": "Price to buy one charge outright at the Stronghold. Per spell, not per tier — a commander is free to carry three expensive ones. Absent = not sold there at all, so a new spell has to opt in on purpose."
+        },
+        "oilRadius": {
+          "type": "number",
+          "description": "oil spill only"
+        },
+        "oilDurationRounds": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "icon",
+        "description",
+        "kind",
+        "targeting",
+        "cooldownRounds"
+      ],
+      "additionalProperties": false,
+      "description": "HOW TO ADD A TACTIC — the whole system in one checklist: 1. Add `assets/data/spells/<id>.jsonc` (a TacticDef) and list it in pack.jsonc \"spells\"; code that needs to name it gets an id constant here. `kind`, `targeting` and `cooldownRounds` drive the strip, the armed-click flow and the charge accounting generically — no HUD work needed. 2. Give it an action in actions.ts. Validate + consume charges there: 'placement' kinds count their standing placements against the inventory total; 'oneShot' kinds call consumeTacticCharge() so cooldown, undo, save/reload and the greyed-out strip entry all work automatically. NEW ACTION KINDS THAT CARRY UNIT IDS MUST BE ADDED TO Game.swapPerspective (peer desync!). 3. Add the action payload to Game.dispatchTacticUse (one switch case) plus any draft/preview visuals. The targeting flow itself is generic. 4. Grant charges through a round card (`tactics: [id]` in cards.ts) — cards are logged actions, so replay/reload handles them for free. For the SP cheat's free-testing top-up, add the id to CHEAT_TACTIC_GRANTS in game.ts too.\n\n`kind` (charge accounting): - 'placement': the charge stays bound to a standing placement (rally route, oil stamp) that the player can right-click in the strip to reset. Available = charges − standing placements; the charge frees up when the placement expires/clears (that IS its cooldown). - 'oneShot': the charge stays in the inventory forever; using it in round R makes it unavailable until round R + 1 + cooldownRounds. The uses are derived from the ACTION LOG, so undo, reload and multiplayer replay restore availability with zero extra state.\n\n`targeting` (armed-click flow, all generic in Game): - 'point': one ground click (validated against the safe zone when `respectsSafeZone`); 'two-point': start + end capsule like oil; - 'three-point': start → mid → end path (rally); each leg clamps to maxSpan; - 'point-yaw': first click locks position, move mouse to rotate, second click commits (hammer footprint); - 'own-unit': click one of your packs (sell / move / tutor)."
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

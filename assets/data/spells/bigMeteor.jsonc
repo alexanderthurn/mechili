@@ -1,0 +1,15 @@
+{
+    "id": "bigMeteor",
+    "name": "Meteor",
+    "icon": "tactic-meteor",
+    "kind": "placement",
+    "targeting": "point",
+    "cooldownRounds": 2,
+    "radius": 12, // 3 cells
+    "strongholdCost": 200,
+    "spell": {
+        "delaySeconds": 4,
+        "strike": { "damage": 200, "radius": 12 },
+    },
+    "description": "Mark a small circle anywhere. Seconds into the battle a meteor obliterates everything there — only ward domes protect (and pay for it).",
+}

@@ -7,9 +7,9 @@ import {
     MOVE_UNIT_ID,
     RALLY_ROUTE_ID,
     SELL_UNIT_ID,
-    TACTICS,
     TUTOR_ID,
     formatTacticStats,
+    type TacticDef,
 } from '../game/tactics';
 import { techsForUnit } from '../game/techCatalog';
 import {
@@ -277,7 +277,7 @@ const VANGUARD_TACTIC_COST: Record<string, number> = {
     [TUTOR_ID]: 100,
 };
 
-function tacticPrice(tactic: (typeof TACTICS)[string]): { cost: number; where: string } | null {
+function tacticPrice(tactic: TacticDef): { cost: number; where: string } | null {
     if (tactic.strongholdCost !== undefined) {
         return { cost: tactic.strongholdCost, where: unitName(STRONGHOLD.id, STRONGHOLD.name) };
     }
@@ -321,7 +321,7 @@ function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
 </article>`;
 }
 
-function tacticCard(tactic: (typeof TACTICS)[string], isFirst: boolean): string {
+function tacticCard(tactic: TacticDef, isFirst: boolean): string {
     const kindLabel = t(
         tactic.kind === 'placement' ? 'homepage:tactics.placement' : 'homepage:tactics.oneShot',
     );
@@ -383,7 +383,7 @@ const ALL_RUNES: { item: ItemDef; isBase: boolean }[] = [
     ...BASE_TYPES.advancedRuneIds.map((id) => ({ item: BASE_TYPES.rune(id)!, isBase: false })),
 ].filter((e) => !!e.item);
 
-const ALL_TACTICS = Object.values(TACTICS);
+const ALL_TACTICS = BASE_TYPES.tactics;
 
 /** The hex divider that breaks a lead paragraph in two — passed into copy so
  *  translators keep one whole sentence per key instead of two halves. */

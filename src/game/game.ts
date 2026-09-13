@@ -239,7 +239,6 @@ import {
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
-    TACTICS,
     clampTacticEnd,
     clampTacticPoint,
     pointInSafeZone,
@@ -1479,7 +1478,7 @@ export class Game {
         this.scene.add(this.scenery.group);
         this.inputDisposers.push(onPrefsChange(() => this.applyPrefs()));
         this.rallyVisuals = new RallyVisuals(this.scene, this.map);
-        this.spellVisuals = new SpellVisuals(this.scene);
+        this.spellVisuals = new SpellVisuals(this.scene, this.types);
         this.gridOverlay = this.map.createOverlayMesh(seatLane(this.seats, this.humanSeat));
         this.scene.add(this.gridOverlay);
         this.projectileRenderer = new ProjectileRenderer(this.scene);
@@ -1825,7 +1824,7 @@ export class Game {
         this.placement.itemDropStripIcons = (unit) => this.armedItemWorldStrip(unit);
         this.placement.tacticTargetValid = (unit) => {
             const armed = this.armedTactic;
-            if (!armed || TACTICS[armed]?.targeting !== 'own-unit') return false;
+            if (!armed || this.types.tactic(armed)?.targeting !== 'own-unit') return false;
             return this.canTargetOwnUnit(armed, unit);
         };
         this.placement.groundClickInterceptor = (x, y) => this.handleTacticGroundClick(x, y);
@@ -2032,7 +2031,7 @@ export class Game {
         };
         this.hud.onResetPlacedTactic = (tacticId, routeId) => {
             // ids come from per-tactic counters — the tactic id disambiguates
-            const tactic = TACTICS[tacticId];
+            const tactic = this.types.tactic(tacticId);
             if (tactic && usesSpellPlacement(tactic)) this.resetPlacedSpell(routeId);
             else if (tacticId === OIL_SPILL_ID) this.resetPlacedOilSpill(routeId);
             else this.resetPlacedRallyRoute(routeId);
@@ -3273,7 +3272,7 @@ export class Game {
             }
             // one-shot cooling is derived from the action log — pad so avail
             // still lands at CHEAT_TACTIC_COPIES without rewriting history
-            const tactic = TACTICS[id];
+            const tactic = this.types.tactic(id);
             if (!tactic || tactic.kind !== 'oneShot') continue;
             const cooling = this.dispatcher.tacticUseRounds(
                 seat,
@@ -6977,7 +6976,7 @@ export class Game {
             return { max, used: Math.min(this.sellState.used[this.humanSeat]!, max) };
         };
 
-        for (const tactic of Object.values(TACTICS)) {
+        for (const tactic of this.types.tactics) {
             if (this.tutorial?.hidesTacticCharge(tactic.id)) continue;
             const inventory = this.tacticInventory[this.humanSeat]!.filter(
                 (id) => id === tactic.id,
@@ -7167,7 +7166,7 @@ export class Game {
             };
         };
         const mapTactic = (id: string) => {
-            const tactic = TACTICS[id];
+            const tactic = this.types.tactic(id);
             return {
                 icon: tactic?.icon ?? '?',
                 name: tactic ? `${tactic.name} — ${tactic.description}` : id,
@@ -7243,7 +7242,7 @@ export class Game {
         // an armed tactic is "picked up": the pointer becomes the spell's own
         // icon (and its strip entry hides — see tacticsView)
         this.pixiApp.canvas.style.cursor = this.armedTactic
-            ? iconCursorCss(TACTICS[this.armedTactic]?.icon ?? 'ui-unknown')
+            ? iconCursorCss(this.types.tactic(this.armedTactic)?.icon ?? 'ui-unknown')
             : '';
         this.syncRallyVisuals();
         this.syncSpellVisuals();
@@ -7277,7 +7276,7 @@ export class Game {
         if (this.armedTactic === RALLY_ROUTE_ID && pointer) {
             const pos = this.groundAtLocal(pointer.x, pointer.y, RALLY_ROUTE_RADIUS);
             if (pos) {
-                const maxSpan = TACTICS[RALLY_ROUTE_ID]?.maxSpan;
+                const maxSpan = this.types.tactic(RALLY_ROUTE_ID)?.maxSpan;
                 if (this.tacticDraftStart && this.tacticDraftMid) {
                     const end = clampTacticEnd(
                         this.tacticDraftMid.x,
@@ -7329,7 +7328,7 @@ export class Game {
     /** the aim preview while a spell is armed + this round's placed markers */
     private syncSpellVisuals(): void {
         const pointer = this.placement.lastPointer;
-        const armed = this.armedTactic ? TACTICS[this.armedTactic] : null;
+        const armed = this.armedTactic ? this.types.tactic(this.armedTactic) : null;
         let draft: SpellDraft | null = null;
         if (
             armed &&
@@ -7530,7 +7529,7 @@ export class Game {
             default: {
                 // every battle spell AND acid (ground-hazard commit) share
                 // the placeSpell action for placement/aim/cooldown tracking
-                const tactic = TACTICS[tacticId];
+                const tactic = this.types.tactic(tacticId);
                 if (!tactic || !usesSpellPlacement(tactic)) return false;
                 if (target.point) {
                     return this.dispatchPlayer({
@@ -7587,7 +7586,7 @@ export class Game {
     /** swallows map clicks while a tactic is armed; targeting is data-driven */
     private handleTacticGroundClick(x: number, y: number): boolean {
         if (!this.playerCanAct || !this.armedTactic) return false;
-        const tactic = TACTICS[this.armedTactic];
+        const tactic = this.types.tactic(this.armedTactic);
         if (!tactic) return false;
 
         if (tactic.targeting === 'own-unit') {
@@ -7905,7 +7904,7 @@ export class Game {
         const result = resolveForge(this.types, slots, this.teamForgePool(team));
         const info = result.product
             ? (result.product.kind === 'tactic'
-                  ? TACTICS[result.product.id]
+                  ? this.types.tactic(result.product.id)
                   : this.types.rune(result.product.id))
             : null;
         const spellIcon = info?.icon ?? null;
@@ -8338,6 +8337,7 @@ export class Game {
             {
                 oilStamps: this.oilStamps,
                 spellStamps: this.spellStamps,
+                types: this.types,
                 oilField: this.oilField,
                 oilBaseline: this.oilBaseline,
                 placement: this.placement,
@@ -8355,12 +8355,12 @@ export class Game {
             .filter((s) => s.placedRound === this.round)
             .sort((a, b) => a.id - b.id);
         for (const stamp of pendingSpells) {
-            const spawn = TACTICS[stamp.tacticId]?.spell?.spawn;
+            const spawn = this.types.tactic(stamp.tacticId)?.spell?.spawn;
             if (spawn) this.spawnSummons(stamp, spawn);
         }
         this.prepareProductionReserves();
         const spellStrikes = pendingSpells.flatMap((s) => {
-            const spell = TACTICS[s.tacticId]?.spell;
+            const spell = this.types.tactic(s.tacticId)?.spell;
             return spell?.strike
                 ? [
                       {
@@ -8379,7 +8379,7 @@ export class Game {
         const hammerCues = pendingSpells
             .filter((s) => s.tacticId === HAMMER_ID)
             .map((s) => {
-                const spell = TACTICS[HAMMER_ID]!.spell!;
+                const spell = this.types.tactic(HAMMER_ID)!.spell!;
                 const at = BATTLE_START_FREEZE + spell.delaySeconds;
                 return { x: s.x, z: s.z, at, yaw: s.yaw ?? 0 };
             });
@@ -8389,7 +8389,7 @@ export class Game {
             pendingSpells
                 .filter((s) => s.tacticId === BIG_METEOR_ID)
                 .map((s) => {
-                    const spell = TACTICS[BIG_METEOR_ID]!.spell!;
+                    const spell = this.types.tactic(BIG_METEOR_ID)!.spell!;
                     return {
                         x: s.x,
                         z: s.z,
@@ -8400,12 +8400,12 @@ export class Game {
         // Storm / poison hovering clouds for the zone lifetime
         this.cloudFx.schedule(
             pendingSpells.flatMap((s): CloudCue[] => {
-                const spell = TACTICS[s.tacticId]?.spell;
+                const spell = this.types.tactic(s.tacticId)?.spell;
                 const zone = spell?.zone;
                 if (!zone) return [];
                 const startAt = BATTLE_START_FREEZE + spell.delaySeconds;
                 const endAt = startAt + zone.duration;
-                const zoneR = TACTICS[s.tacticId]?.radius ?? 28;
+                const zoneR = this.types.tactic(s.tacticId)?.radius ?? 28;
                 if (zone.mode === 'storm') {
                     // storm clouds spawn per lightning flash (see CloudFx.spawnLightning)
                     return [];
@@ -8448,7 +8448,7 @@ export class Game {
                 if (s.tacticId !== DRAGON_ID || s.endX === undefined || s.endZ === undefined) {
                     return [];
                 }
-                const spell = TACTICS[DRAGON_ID]!.spell!;
+                const spell = this.types.tactic(DRAGON_ID)!.spell!;
                 return [
                     {
                         x: s.x,
@@ -8476,7 +8476,7 @@ export class Game {
                 endZ: s.endZ,
             })),
             ...pendingSpells.flatMap((s) => {
-                const tactic = TACTICS[s.tacticId];
+                const tactic = this.types.tactic(s.tacticId);
                 const spell = tactic?.spell;
                 if (
                     (tactic?.acidCapsule || tactic?.fireCapsule) &&
@@ -8575,7 +8575,7 @@ export class Game {
             }),
         ];
         const spellZones = pendingSpells.flatMap((s) => {
-            const spell = TACTICS[s.tacticId]?.spell;
+            const spell = this.types.tactic(s.tacticId)?.spell;
             const zone = spell?.zone;
             return zone
                 ? [
@@ -8585,7 +8585,7 @@ export class Game {
                           z: s.z,
                           x2: s.endX,
                           z2: s.endZ,
-                          radius: TACTICS[s.tacticId]?.radius ?? 4 * CELL,
+                          radius: this.types.tactic(s.tacticId)?.radius ?? 4 * CELL,
                           delaySeconds: spell.delaySeconds,
                           duration: zone.duration,
                           interval: zone.interval,
@@ -8769,7 +8769,7 @@ export class Game {
     ): void {
         const type = this.types.byId(spawn.typeId);
         if (!type) return;
-        const tactic = TACTICS[stamp.tacticId]!;
+        const tactic = this.types.tactic(stamp.tacticId)!;
         const scatter = tactic.radius ?? 4 * CELL;
         const rng = mulberry32(seedFrom(this.seed, `spell:${stamp.id}`));
         const perPack = formationHeadcount(type);
@@ -11119,7 +11119,7 @@ export class Game {
                   const seatCanBuy = canBuy && seat === this.humanSeat;
                   return (this.forgeSpellsOf(seat) ?? [])
                       .map((tacticId) => {
-                          const t = TACTICS[tacticId];
+                          const t = this.types.tactic(tacticId);
                           // no strongholdCost = this spell isn't sold here
                           if (!t || t.strongholdCost === undefined) return null;
                           const cost = t.strongholdCost;

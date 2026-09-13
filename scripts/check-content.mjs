@@ -113,7 +113,6 @@ try {
 
     // ---- commanders & round cards: spell ids name real tactics (tactics are still code)
     {
-        const { TACTICS } = await server.ssrLoadModule('/src/game/tactics.ts');
         const cards = await server.ssrLoadModule('/src/game/cards.ts');
         const T = units.BASE_TYPES;
         let ok = true;
@@ -124,7 +123,7 @@ try {
                 continue;
             }
             for (const id of [...(card.forgeSpells ?? []), ...(card.tactics ?? [])]) {
-                if (!TACTICS[id]) {
+                if (!T.tactic(id)) {
                     ok = false;
                     console.error(`FAIL ${card.id}: spell "${id}" is not a tactic`);
                 }
@@ -240,9 +239,13 @@ try {
     ok = expect(badIngredient.includes('forge ingredient "eart" is no rune'), `unknown forge ingredient not reported (${badIngredient.split('\n')[0]})`) && ok;
     const badArmy = runeErrorOf([['data/commanders/air.jsonc', readBase('data/commanders/air.jsonc').replace('"goblin", "goblin", "goblin"', '"goblin", "gobiln", "goblin"')]]);
     ok = expect(badArmy.includes('names unit "gobiln"'), `unknown commander unit not reported (${badArmy.split('\n')[0]})`) && ok;
+    const badSpell = runeErrorOf([['data/commanders/air.jsonc', readBase('data/commanders/air.jsonc').replace('"fireSpill"', '"fireSpil"')]]);
+    ok = expect(badSpell.includes('names spell "fireSpil"'), `unknown commander spell not reported (${badSpell.split('\n')[0]})`) && ok;
+    const badSummon = runeErrorOf([['data/spells/spawnDwarves.jsonc', readBase('data/spells/spawnDwarves.jsonc').replace('"typeId": "dwarf"', '"typeId": "dwraf"')]]);
+    ok = expect(badSummon.includes('spawns "dwraf"'), `unknown summon type not reported (${badSummon.split('\n')[0]})`) && ok;
     const unlistedRune = runeErrorOf([['data/runes/ice.jsonc', addi.replace('"id": "addi"', '"id": "ice"').replace(/"forge": \{[^}]*\},/, '')]]);
     ok = expect(unlistedRune.includes('ice.jsonc: not listed in pack.jsonc "runes"'), `unlisted rune not reported (${unlistedRune.split('\n')[0]})`) && ok;
-    if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation (talents, runes, recipes, commanders), multiplayer hash');
+    if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation (talents, runes, recipes, commanders, spells), multiplayer hash');
 
     // ---- switching levels: caches told after the files switch, model data follows, bad data changes nothing
     const levels = await server.ssrLoadModule('/src/game/level.ts');

@@ -1,5 +1,5 @@
 {
-    // Content files (units, buildings, models, talents, runes, commanders, round cards, packs): autocomplete, hover docs
+    // Content files (units, buildings, models, talents, runes, commanders, round cards, spells, packs): autocomplete, hover docs
     // and inline errors from the schemas generated off the TypeScript types.
     "json.schemas": [
         {
@@ -25,6 +25,10 @@
         {
             "fileMatch": ["**/assets/data/roundCards/*.jsonc", "**/levels/*/data/roundCards/*.jsonc"],
             "url": "./assets/data/schema/roundCard.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/spells/*.jsonc", "**/levels/*/data/spells/*.jsonc"],
+            "url": "./assets/data/schema/spell.schema.json"
         },
         {
             "fileMatch": ["**/assets/data/pack.jsonc", "**/levels/*/data/pack.jsonc"],

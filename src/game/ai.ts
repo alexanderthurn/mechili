@@ -10,7 +10,6 @@ import {
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
-    TACTICS,
     usesSpellPlacement,
 } from './tactics';
 import type { TechTree } from './tech';
@@ -371,7 +370,7 @@ export class AiOpponent implements Opponent {
         let placed = 0;
         for (const tacticId of pool) {
             if (placed >= MAX_TACTICS) break;
-            const tactic = TACTICS[tacticId];
+            const tactic = this.ctx.types.tactic(tacticId);
             if (!tactic) continue;
 
             let ok = false;
@@ -463,7 +462,7 @@ export class AiOpponent implements Opponent {
                 const pool = forgeSpellsOf(this.seat) ?? [];
                 for (const tacticId of pool) {
                     if (ownedSpells.includes(tacticId)) continue;
-                    const cost = TACTICS[tacticId]?.strongholdCost;
+                    const cost = this.ctx.types.tactic(tacticId)?.strongholdCost;
                     if (cost === undefined || economy.balance(this.seat) < cost) continue;
                     if (dispatch({ kind: 'buyForgeSpell', team, seat: this.seat, tacticId })) {
                         boughtSpell = true;

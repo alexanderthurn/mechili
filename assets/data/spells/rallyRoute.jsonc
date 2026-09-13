@@ -1,0 +1,10 @@
+{
+    "id": "rallyRoute",
+    "name": "Rally Route",
+    "icon": "tactic-rally",
+    "kind": "placement",
+    "targeting": "three-point",
+    "cooldownRounds": 0,
+    "radius": 20, // 5 cells
+    "description": "Place start, middle, and end zones. Units in the start circle march through matching offsets at the middle, then the end, fighting along the way.",
+}

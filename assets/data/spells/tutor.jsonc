@@ -1,0 +1,10 @@
+{
+    "id": "tutor",
+    "name": "Field Lesson",
+    "icon": "ability-plus-l2",
+    "kind": "oneShot",
+    "targeting": "own-unit",
+    // used this round -> badge reads cooldownRounds + 1, so 1 here shows "2"
+    "cooldownRounds": 1,
+    "description": "Click to arm, then click one of your packs — its XP bar fills to the next level. Buying the level still costs supply.",
+}

@@ -1,3 +1,4 @@
+import { BASE_TYPES } from './units';
 import {
     AdditiveBlending,
     CanvasTexture,
@@ -27,7 +28,7 @@ import {
 } from './crowWingFlap';
 import { prefs, type SceneryQuality } from './prefs';
 import type { BreathTongueSample } from './flameRenderer';
-import { DRAGON_APPROACH_SEC, DRAGON_POUR_DURATION_SEC, DRAGON_ID, TACTICS } from './tactics';
+import { DRAGON_APPROACH_SEC, DRAGON_POUR_DURATION_SEC, DRAGON_ID } from './tactics';
 
 /** authored empty in dragon.glb — fire tube origin in the mouth */
 const MOUTH_SPAWN_NAME = 'MouthFireSpawn';
@@ -59,7 +60,7 @@ const AIM_AHEAD_HEIGHT_FRAC = 0.72;
 
 const MESH_SCALE = 36;
 /** Match dragon ground-fire disc (~tactic radius), visually ~75%. */
-const DRAGON_FIRE_R = TACTICS[DRAGON_ID]?.radius ?? 5 * CELL;
+const DRAGON_FIRE_R = BASE_TYPES.tactic(DRAGON_ID)?.radius ?? 5 * CELL;
 /** Former outer sheath radius — kept as reference for the inner-core fraction. */
 const OUTER_RADIUS_GROUND = DRAGON_FIRE_R * 0.75;
 /** Single tube = former bright core (~38% of the outer sheath). */
