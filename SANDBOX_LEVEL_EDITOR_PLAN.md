@@ -595,6 +595,11 @@ Every “that fight was weird” and every bug report becomes reproducible.
 
 ### 9.2 Share codes
 
+*Implemented:* `MELODAN1:` + base64url(deflate-raw(JSON)) of a package's text
+files (`scenario/shareCode.ts`); models and textures are left out and
+reported. Copy from the editor or the Scenarios list, paste into the
+Scenarios screen.
+
 Compressed, URL-safe string of a package without media (its `scenario.jsonc`
 and data overrides) for chat and Discord. Import shows the validation report
 before playing; the result is a normal package with a content hash.
@@ -822,9 +827,17 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
    talents, tower upgrades and garrison posts through the normal panels).
 5. **Test battle — done** (above). Win-rate runs dropped: battles are fully
    deterministic, the same board always gives the same result.
-6. **Scenario library — first pass done:** **Single Player → Scenarios**
-   lists every package with scenarios (session + cache, `meta.jsonc` order)
-   with Play / Edit / Delete. Not yet: share codes, bundled scenarios.
+6. **Scenario library — done (first pass):** **Single Player → Scenarios**
+   lists every package with scenarios (session + cache, `meta.jsonc` order;
+   a package with several levels gets one header) with Play / Edit / Code /
+   Delete, and imports share codes (§9.2). The editor's **Save into package**
+   (when editing a scenario of a package) replaces that scenario or appends a
+   new level to the package's order, so a chain is built in-game; a victory
+   in such a package offers **Continue** to the next level (§9.4). Also done:
+   army value per side in the editor, Skip to result and earlier results in
+   the test strip, scenario intro card (title + briefing), reopening the
+   editor after a tab reload. Not yet: bundled scenarios, editing package
+   metadata (name, level titles) in-game.
 7. **Regression-test harness** (§9.3).
 8. Later: objectives (§6.7), campaign mode (§9.4).
 
