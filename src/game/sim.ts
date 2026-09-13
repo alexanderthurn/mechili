@@ -38,12 +38,8 @@ import {
 import { effectiveFlying, effectiveTargets, type ResolvedStats } from './tech';
 import { ownedCleaveTechs, ownedOnKillTechs, ownedProduceTechs, type Loadout } from './techCatalog';
 import {
-    COMMAND_TOWER,
     DEPLOY_AIR_Y,
-    RESEARCH_CENTER,
-    STRONGHOLD_ARCHER,
     STRONGHOLD_ARCHER_FOV_HALF,
-    STRONGHOLD,
     bloodColorOf,
     resolveDeathWear,
     projectileAimY,
@@ -1271,7 +1267,7 @@ export class BattleSim {
             (a) =>
                 actorTeam(a) === team &&
                 !a.unit.type.structure &&
-                a.unit.type !== STRONGHOLD_ARCHER &&
+                !a.unit.type.fixture &&
                 (a.alive || (a.appearAt > 0 && !a.appeared)),
         );
     }
@@ -3167,7 +3163,7 @@ export class BattleSim {
      *  tower-destruction debuff; Stronghold loss is a separate, currently
      *  undecided penalty (deliberately no debuff of its own for now). */
     private isDebuffBuilding(unit: Unit): boolean {
-        return unit.type === COMMAND_TOWER || unit.type === RESEARCH_CENTER;
+        return unit.type.onDestroyed?.seatDebuff === true;
     }
 
     /** seconds of debuff from losing a command tower at the given level */
@@ -3684,15 +3680,13 @@ export class BattleSim {
             target.unit.markDestroyed(knockDir ?? undefined, {
                 crush: this.crushingHammer,
             });
-            // The wall archers cannot be shot at — the keep under them is the only
-            // way in, so when the keep goes the wall goes with it. Killed with
-            // no killer: the besieger earned the Stronghold, not four archers.
-            if (target.unit.type === STRONGHOLD) {
-                for (const a of this.actors) {
-                    if (!a.alive || a.unit.type !== STRONGHOLD_ARCHER) continue;
-                    if (a.unit.seat !== target.unit.seat) continue;
-                    this.kill(a, null, a.maxHp, undefined, true);
-                }
+            // Units mounted on this building go down with it. Killed with no
+            // killer: the besieger earned the building, not its garrison. Linked
+            // by id, not by seat — an ally's archer on a shared keep falls too.
+            for (const a of this.actors) {
+                if (!a.alive || !a.unit.type.diesWithHost) continue;
+                if (a.unit.hostUnitId !== target.unit.id) continue;
+                this.kill(a, null, a.maxHp, undefined, true);
             }
             if (this.isDebuffBuilding(target.unit) && !razed) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
@@ -3803,7 +3797,7 @@ export class BattleSim {
         // with no killer, so this grants no XP and triggers no on-kill spawns —
         // the Stronghold's slayer earns the siege, not a dozen extra kills. The
         // round then ends on its own, with nothing mobile left on that side.
-        if (this.config.strongholdLifeline && target.unit.type === STRONGHOLD) {
+        if (this.config.strongholdLifeline && target.unit.type.onDestroyed?.collapseOwnArmy) {
             const towerTop = Math.max(1, ...t.colliders.map((c) => c.y)) * t.meshScale;
             const maxRadius = this.collapseReach(target.x, target.z);
             this.collapseFronts.push({

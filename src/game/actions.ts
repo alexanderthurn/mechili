@@ -918,6 +918,7 @@ export class ActionDispatcher {
                     seat,
                 );
                 archer.strongholdArcherSlot = slots[taken]!;
+                archer.hostUnitId = keep.id;
                 archer.pinnedY = spot.y;
                 // outward from the keep's middle — the wedge behind him is the
                 // keep itself, and he does not shoot through his own walls
@@ -1023,8 +1024,8 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
                     return false;
                 }
-                // a battlement archer is part of the keep, not a pack you trade
-                if (unit.type === STRONGHOLD_ARCHER) return false;
+                // a fixture is part of its building, not a pack you trade
+                if (unit.type.fixture) return false;
                 if (useAbility) sell.used[seat]!++;
                 else if (!this.consumeTacticCharge(entry, seat, SELL_UNIT_ID)) {
                     return false;
@@ -1578,7 +1579,7 @@ export class ActionDispatcher {
                 for (const unit of [...placement.allUnits()]) {
                     if (unit.seat !== seat || unit.team !== action.team) continue;
                     if (unit.type.structure || unit.type.extra) continue;
-                    if (unit.type === STRONGHOLD_ARCHER) continue;
+                    if (unit.type.fixture) continue;
                     const items = [...unit.items];
                     const itemRounds = [...unit.itemAppliedRound];
                     for (const itemId of items) this.ctx.items[seat]!.push(itemId);
@@ -1639,7 +1640,7 @@ export class ActionDispatcher {
         for (const unit of placement.allUnits()) {
             if (unit.seat !== seat) continue;
             if (unit.type.structure || unit.type.extra) continue;
-            if (unit.type === STRONGHOLD_ARCHER) continue;
+            if (unit.type.fixture) continue;
             total += Math.round(economy.costOf(unit.type) * sellSettings.refundFactor);
             if (unit.level > 1) {
                 total += levelCost(unit.type, economy, leveling) * (unit.level - 1);

@@ -10955,10 +10955,11 @@ export class Game {
      */
     private destructionNote(u: Unit): string | undefined {
         if (!u.type.structure) return undefined;
-        if (u.type === STRONGHOLD) {
+        const onDestroyed = u.type.onDestroyed;
+        if (onDestroyed?.collapseOwnArmy) {
             return this.settings.strongholdMode === 'lifeline' ? t('hud:instantLoss') : t('hud:noEffect');
         }
-        if (u.type !== COMMAND_TOWER && u.type !== RESEARCH_CENTER) return undefined;
+        if (!onDestroyed?.seatDebuff) return undefined;
         // the window shrinks as the building levels, so read it off THIS one —
         // and a fully upgraded tower reaches 0, where the sim applies nothing
         const dur = this.settings.towers.debuffDuration;
@@ -10983,10 +10984,8 @@ export class Game {
      */
     private reseatStrongholdArchers(): void {
         for (const u of this.placement.allUnits()) {
-            if (u.type !== STRONGHOLD_ARCHER || u.strongholdArcherSlot === null) continue;
-            const keep = this.placement
-                .allUnits()
-                .find((k) => k.type === STRONGHOLD && k.team === u.team);
+            if (u.hostUnitId === null || u.strongholdArcherSlot === null) continue;
+            const keep = this.placement.unitById(u.hostUnitId);
             if (!keep) continue;
             const spot = strongholdArcherSlotWorld(keep, u.strongholdArcherSlot);
             if (!spot) continue;

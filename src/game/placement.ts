@@ -29,7 +29,7 @@ import {
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
 import { drapeDiskGeometry, setDrapedMeshPosition, DRAPE_RENDER_ORDER } from './groundMarkers';
-import { STRONGHOLD_ARCHER, STRONGHOLD_ARCHER_FOV_HALF, Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+import { STRONGHOLD_ARCHER_FOV_HALF, Unit, unitTypeById, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { effectiveTargets, effectiveFlying } from './tech';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
@@ -832,9 +832,9 @@ export class PlacementController {
 
     /** repositioning is allowed only in the round the pack was deployed (extras included) */
     canReposition(unit: Unit): boolean {
-        // a Stronghold archer is bolted to his battlement slot — he is not on the
-        // grid at all, so there is nowhere for a drag to put him down
-        if (unit.type === STRONGHOLD_ARCHER) return false;
+        // a fixture (e.g. a battlement archer) is bolted to its building — not
+        // on the grid at all, so there is nowhere for a drag to put it down
+        if (unit.type.fixture) return false;
         return (
             (!unit.type.structure || !!unit.type.extra) &&
             unit.deployedRound === this.currentRound

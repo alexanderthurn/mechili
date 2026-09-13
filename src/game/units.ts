@@ -377,6 +377,31 @@ export interface UnitType {
      */
     notAcquired?: boolean;
     /**
+     * What this type's destruction does to the rest of the board. Each effect
+     * is implemented once in the sim; a type only switches it on, so a custom
+     * building gets the behaviour by setting the attribute — never by id.
+     */
+    onDestroyed?: {
+        /**
+         * Its side's whole army collapses with it. Only while the match's
+         * `strongholdMode` is `'lifeline'` — the attribute says what the
+         * building can do, the match decides whether that is in play.
+         */
+        collapseOwnArmy?: boolean;
+        /** The owning seat takes the tower-destruction debuff (window shrinks with level). */
+        seatDebuff?: boolean;
+    };
+    /**
+     * Part of a building rather than a pack: cannot be sold, repositioned or
+     * refunded, and never counts as field army.
+     */
+    fixture?: boolean;
+    /**
+     * Dies — with no killer — when the unit it is mounted on
+     * ({@link Unit.hostUnitId}) is destroyed.
+     */
+    diesWithHost?: boolean;
+    /**
      * When `false`, players and the AI cannot buy or unlock this type from
      * the shop. Omit or `true` = eligible (still subject to unlock / extras).
      * Horde-only units set this false; a type may be both shop and horde.
@@ -937,10 +962,20 @@ function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 80
     };
 }
 
-export const COMMAND_TOWER = makeTower('command-tower', 'Vanguard', 3.0, 3);
-export const RESEARCH_CENTER = makeTower('research-center', 'Garrison');
+export const COMMAND_TOWER: UnitType = {
+    ...makeTower('command-tower', 'Vanguard', 3.0, 3),
+    onDestroyed: { seatDebuff: true },
+};
+export const RESEARCH_CENTER: UnitType = {
+    ...makeTower('research-center', 'Garrison'),
+    onDestroyed: { seatDebuff: true },
+};
 /** each side's main castle at the back of its territory — bigger and sturdier */
-export const STRONGHOLD = makeTower('stronghold', 'Stronghold', 5, 4.2, 3000);
+export const STRONGHOLD: UnitType = {
+    ...makeTower('stronghold', 'Stronghold', 5, 4.2, 3000),
+    // lifeline matches only — see UnitType.onDestroyed
+    onDestroyed: { collapseOwnArmy: true },
+};
 
 /**
  * An archer bought onto the keep's battlements. Shoots exactly like the pack
@@ -971,6 +1006,8 @@ export const STRONGHOLD_ARCHER: UnitType = {
      * also keeps a unit out of the target hash the projectile sweep reads.
      */
     notAcquired: true,
+    fixture: true,
+    diesWithHost: true,
     colliders: [{ y: 1.1, r: 0.75 }],
     projectileSpeed: 100,
     projectileStyle: 'arrow',
@@ -1698,6 +1735,12 @@ export class Unit {
      * leaves him buried in the masonry the moment the keep is upgraded.
      */
     strongholdArcherSlot: number | null = null;
+    /**
+     * The unit this one is mounted on (a battlement archer's keep), by id.
+     * Set when it is placed from the log, so every peer agrees; read by
+     * {@link UnitType.diesWithHost} and by re-seating.
+     */
+    hostUnitId: number | null = null;
     /** towers: down for the rest of the CURRENT battle — no longer a target, debuffs its owner's side */
     destroyed = false;
     /**

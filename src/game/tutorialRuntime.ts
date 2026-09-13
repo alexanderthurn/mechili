@@ -20,7 +20,6 @@ import { BASE_ANCHORS } from './map';
 import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID } from './tactics';
 import {
     COMMAND_TOWER,
-    STRONGHOLD_ARCHER,
     STRONGHOLD_ARCHER_SLOTS,
     RESEARCH_CENTER,
     STRONGHOLD,
@@ -339,14 +338,14 @@ export class TutorialRuntime {
         // Mark field packs as prior-round so drag-reposition is denied
         // (runes / techs still work).
         for (const u of this.host.placement.allUnits()) {
-            if (u.type.structure || u.type === STRONGHOLD_ARCHER) continue;
+            if (u.type.structure || u.type.fixture) continue;
             u.deployedRound = 0;
         }
     }
 
     private clearFieldUnits(): void {
         for (const u of [...this.host.placement.allUnits()]) {
-            if (u.type.structure || u.type === STRONGHOLD_ARCHER) continue;
+            if (u.type.structure || u.type.fixture) continue;
             this.host.placement.removeUnit(u);
         }
     }
@@ -354,7 +353,7 @@ export class TutorialRuntime {
     /** Round 3 opens on a bare field — every building comes down first. */
     private clearStructures(): void {
         for (const u of [...this.host.placement.allUnits()]) {
-            if (u.type.structure || u.type === STRONGHOLD_ARCHER) {
+            if (u.type.structure || u.type.fixture) {
                 this.host.placement.removeUnit(u);
             }
         }
