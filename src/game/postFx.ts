@@ -253,6 +253,28 @@ export class PostFx {
                 Math.max(4, Math.floor(bh * s)),
             );
             ao.output = GTAOPass.OUTPUT.Default;
+            // GTAO's normal pass uses an opaque override. Ward domes are huge
+            // transparent shells — leaving them in writes a full-screen depth
+            // wall and has shown one-frame clear/sky flashes. Hide them for
+            // the G-buffer only (same cache restore path as points/lines).
+            // Runtime fields are underscored; @types/three names differ.
+            type GtaoVis = {
+                _overrideVisibility: () => void;
+                _visibilityCache: { visible: boolean }[];
+            };
+            const gtao = ao as unknown as GtaoVis;
+            const hideDefault = gtao._overrideVisibility.bind(ao);
+            gtao._overrideVisibility = () => {
+                hideDefault();
+                const cache = gtao._visibilityCache;
+                this.scene.traverse((object) => {
+                    const o = object as { visible?: boolean; userData?: { wardDome?: boolean } };
+                    if (o.userData?.wardDome && o.visible) {
+                        o.visible = false;
+                        cache.push(o as { visible: boolean });
+                    }
+                });
+            };
             composer.addPass(ao);
             this.aoPass = ao;
         } else {

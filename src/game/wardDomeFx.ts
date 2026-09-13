@@ -9,7 +9,7 @@
 import {
     CanvasTexture,
     Color,
-    DoubleSide,
+    FrontSide,
     Mesh,
     type Object3D,
     RepeatWrapping,
@@ -142,7 +142,7 @@ varying vec2 vUv;
 // Hemisphere roof Y at xz for a dome with base/radius/height.
 float roofY(vec3 base, float rr, float hh, vec2 xz) {
   float d = length(xz - base.xz);
-  if (d >= rr) return base.y;
+  if (rr < 1e-3 || d >= rr) return base.y;
   float t = sqrt(max(1.0 - (d / rr) * (d / rr), 0.0));
   return base.y + hh * t;
 }
@@ -155,15 +155,14 @@ void main() {
   float alpha = uOpacity * (0.35 + fres * 0.55);
   alpha = max(alpha, rune.a * 0.85);
 
-  // Overlap: keep only the outer roof. If another same-team dome's shell is
-  // above us at this xz, we're under it — hide. Avoids mutual-fade holes and
-  // the "one full sphere wins the lens" look.
+  // Overlap: keep only the outer roof.
   float fade = 1.0;
   for (int i = 0; i < 4; i++) {
     if (float(i) >= uOtherCount) break;
     vec3 ob = uOthers[i].xyz;
     float rr = uOthers[i].w;
     float hh = max(uOtherH[i], 0.01);
+    if (rr < 1e-3) continue;
     float d = length(vWorldPos.xz - ob.xz);
     if (d < rr) {
       float otherRoof = roofY(ob, rr, hh, vWorldPos.xz);
@@ -173,10 +172,9 @@ void main() {
       }
     }
   }
-  if (fade < 0.05) discard;
   alpha *= fade;
 
-  // Hit ripples.
+  // Hit ripples — keep HDR modest so bloom doesn't spike a full-frame flash.
   float glow = 0.0;
   for (int i = 0; i < 4; i++) {
     if (float(i) >= uRippleCount) break;
@@ -185,11 +183,12 @@ void main() {
     float dist = distance(vWorldPos, uRipples[i].xyz);
     float ring = exp(-abs(dist - age * 16.0) * 2.2);
     float wave = 0.5 + 0.5 * sin(dist * 8.0 - age * 20.0);
-    glow += ring * wave * exp(-age * 1.6) * 2.8;
+    glow += ring * wave * exp(-age * 1.6) * 1.4;
   }
-  col = mix(col, vec3(1.0), clamp(glow * 0.55, 0.0, 0.9));
-  col += uTeamColor * (fres * 0.45 + glow);
-  alpha = clamp(alpha + glow * 0.5, 0.0, 1.0);
+  col = mix(col, vec3(1.0), clamp(glow * 0.45, 0.0, 0.7));
+  col += uTeamColor * (fres * 0.35 + glow * 0.65);
+  col = min(col, vec3(1.15));
+  alpha = clamp(alpha + glow * 0.35, 0.0, 1.0);
 
   gl_FragColor = vec4(col, alpha);
 }
@@ -221,7 +220,12 @@ function makeWardMaterial(team: WardTeam): ShaderMaterial {
         fragmentShader: FRAGMENT,
         transparent: true,
         depthWrite: false,
-        side: DoubleSide,
+        // FrontSide only: DoubleSide painted the entire view whenever the
+        // camera sat under the r≈20 shell, so any hitch looked like a
+        // half/full-window sky flash. Outside, outward normals still read.
+        side: FrontSide,
+        toneMapped: true,
+        fog: false,
     });
 }
 
@@ -336,6 +340,7 @@ export function updateWardDomes(dt: number, roots: Iterable<Object3D>): void {
         for (const O of live) {
             if (O.mesh === L.mesh || O.data.wardTeam !== L.data.wardTeam) continue;
             if (oi >= MAX_OTHERS) break;
+            if (O.radius < 1e-3) continue;
             (u.uOthers!.value as Vector4[])[oi]!.set(O.x, O.y, O.z, O.radius);
             (u.uOtherH!.value as number[])[oi] = O.height;
             oi++;
