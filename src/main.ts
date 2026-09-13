@@ -93,6 +93,7 @@ import {
     ensureLevel,
     isLevelAvailable,
     knownLevels,
+    levelFiles,
     levelFilesFromArchive,
     loadLevel,
     prepareLevel,
@@ -101,6 +102,9 @@ import {
 import { readZip, writeZip } from './game/content/zip';
 import { listCachedLevels } from './game/levelCache';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
+import { loadStoredDraft, newDraft } from './game/scenario/editorDraft';
+import { scenarioPackageFiles } from './game/scenario/package';
+import type { ScenarioDef } from './game/scenario/scenarioDef';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -1135,6 +1139,7 @@ menu.innerHTML = `
                 <input type="file" class="cg-scenario-file" accept=".zip,application/zip" hidden>
                 <select class="cg-scenario-pick" hidden></select>
                 <button type="button" class="m-btn m-small cg-scenario-play" hidden>Play scenario (single player)</button>
+                <button type="button" class="m-btn m-small cg-scenario-editor" hidden>Scenario editor</button>
                 <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
             </div>
         </div>
@@ -1293,6 +1298,7 @@ const cgScenarioEl = menu.querySelector<HTMLSelectElement>('.cg-scenario')!;
 const cgScenarioFileEl = menu.querySelector<HTMLInputElement>('.cg-scenario-file')!;
 const cgScenarioPlayEl = menu.querySelector<HTMLButtonElement>('.cg-scenario-play')!;
 const cgScenarioPickEl = menu.querySelector<HTMLSelectElement>('.cg-scenario-pick')!;
+const cgScenarioEditorEl = menu.querySelector<HTMLButtonElement>('.cg-scenario-editor')!;
 
 /**
  * Web testing only: play a Custom Game on a scenario from a zip. The Steam game
@@ -1326,6 +1332,7 @@ function refreshScenarioSelect(): void {
     const { scenarios, meta } = activeLevel();
     const playable = SCENARIO_ZIP_TESTING && !cgScenarioFieldEl.hidden && scenarios.size > 0;
     cgScenarioPlayEl.hidden = !playable;
+    cgScenarioEditorEl.hidden = !SCENARIO_ZIP_TESTING || cgScenarioFieldEl.hidden;
     cgScenarioPickEl.textContent = '';
     const order = meta?.def?.levels.map((l) => l.scenario).filter((id) => scenarios.has(id)) ?? [];
     for (const id of [...order, ...[...scenarios.keys()].filter((id) => !order.includes(id))]) {
@@ -1364,6 +1371,13 @@ cgScenarioPlayEl.addEventListener('click', () => {
     // leave the room we were hosting — a scenario is a single-player match
     cancelHost();
     startGame(applyScenarioToSettings(localMatchSettings(), scenario.def, level, 'play', id));
+});
+
+// the editor opens the last draft (autosaved) on the level selected in the row
+cgScenarioEditorEl.addEventListener('click', () => {
+    const draft = loadStoredDraft()?.def ?? newDraft(`v${__APP_VERSION__}`);
+    cancelHost();
+    void openScenarioEditor('author', draft, activeLevelRef());
 });
 
 async function switchScenarioTo(ref: LevelRef | undefined): Promise<void> {
@@ -2334,6 +2348,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgScenarioFieldEl.hidden = true;
     cgScenarioPlayEl.hidden = true;
     cgScenarioPickEl.hidden = true;
+    cgScenarioEditorEl.hidden = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
 }
@@ -2985,8 +3000,13 @@ function constructGame(
     wireGameMenuReturn(game);
     // Tutorials are not resumable (the lesson's own progress is not in the save),
     // and must never overwrite the Campaign run held in that slot.
-    if (!star && !replay && !spectate && !settings.tutorial) {
+    const editorMatch = settings.scenario?.mode === 'author' || settings.scenario?.mode === 'test';
+    if (!star && !replay && !spectate && !settings.tutorial && !editorMatch) {
         stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    }
+    if (editorMatch) {
+        game.onScenarioEditor = (mode, draft) => void openScenarioEditor(mode, draft, settings.level);
+        if (SCENARIO_ZIP_TESTING) game.onScenarioDownload = (draft) => downloadScenarioDraft(draft, settings.level);
     }
     if (replayControlsPanel) {
         game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
@@ -3064,7 +3084,8 @@ function startGame(
     hideResumeOverlay();
     // Cinematic handoff for any live match entry (fresh, resume, lobby join).
     // Skip for replay/spectate — those jump straight into playback/viewing.
-    const useIntro = !replay && !spectate;
+    const editorMatch = settings.scenario?.mode === 'author' || settings.scenario?.mode === 'test';
+    const useIntro = !replay && !spectate && !editorMatch;
 
     // Strip menu chrome immediately. For the intro path we MUST yield a paint
     // with logo-only before `new Game()` — otherwise the main thread freezes
@@ -3106,7 +3127,7 @@ function startGame(
                 stopStarResumeHeartbeat = null;
             };
         }
-    } else if (!replay && !spectate) {
+    } else if (!replay && !spectate && !editorMatch) {
         // watching a replay/spectating a live match touches neither marker —
         // it isn't a new match of ours, and clearing either here would wipe
         // out the player's real, unrelated saved game just because they
@@ -3265,6 +3286,29 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
  * scenario package in the scenario cache. Web builds also download the
  * package as a zip (loadable again with "Load zip…").
  */
+/**
+ * Scenario editor: start editing a draft, or its test battle — from the menu,
+ * or from the editor / test match that is running (which is torn down first).
+ */
+async function openScenarioEditor(mode: 'author' | 'test', draft: ScenarioDef, level: LevelRef | undefined): Promise<void> {
+    if (activeGame) await teardownForNextMatch();
+    startGame(applyScenarioToSettings(localMatchSettings(), draft, level, mode));
+}
+
+/** web: the draft as a one-level package zip, with the content of the level it was made on */
+async function downloadScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
+    // the file (and the scenario's id inside the package) is named after the draft
+    const id = draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || draft.id;
+    const def = { ...draft, id, updatedAt: new Date().toISOString() };
+    const files = scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []);
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([writeZip(files)], { type: 'application/zip' }));
+    link.download = `${id}.zip`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+    return `Downloaded ${id}.zip`;
+}
+
 async function saveReplayScenario(): Promise<string> {
     const game = activeGame;
     if (!game) return '';

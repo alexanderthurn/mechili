@@ -779,6 +779,16 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
 3. **Editor core:** author mode, place / move / erase, team brush, placing
    any unit or building type for player / enemy / horde (incl. horde-owned
    buildings), draft autosave, restart on map change.
+   *First pass implemented* (web: Custom Game → "Scenario editor"): author
+   mode rebuilds the board from the draft on every edit (select / drag to
+   move, place with footprint preview, erase, rotate, level −/+ for packs and
+   base buildings, team brush, base buildings per side, clear team, map
+   presets with restart, undo/redo that survives restarts, autosave in
+   `localStorage`, zip download). **Test battle** pulled forward from phase 5:
+   both sides lock in, one fight, a result strip (outcome, packs / units
+   standing) with Run again and Back to editor. In editor matches commanders
+   `pick` become `none`, opponents only lock in, intel is visible. Not yet:
+   copy/paste, mirror, horde-owned building behaviour checks.
 4. **Inspector:** levels, runes, side talents, buildings.
 5. **Test Battle + win-rate runs** (local only) — the unit-testing use case.
 6. **Scenario panel + library:** rules UI, presets, share codes.

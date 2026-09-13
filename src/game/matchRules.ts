@@ -33,14 +33,17 @@ export interface MatchRules {
 export function resolveMatchRules(settings: GameSettings, scenario: ScenarioDef | null): MatchRules {
     if (scenario) {
         const r = scenario.rules;
+        // editing and test battles never stop for a commander offer, and the
+        // computer only locks in: the board is exactly what was placed
+        const editing = settings.scenario?.mode === 'author' || settings.scenario?.mode === 'test';
         return {
             flanksOpenFromRound: r.flanksOpenFromRound,
             neutralOpenFromRound: r.neutralOpenFromRound,
             fixedSideHp: r.sideHp === 'commander' ? null : { ...r.sideHp },
-            commander: r.commander,
+            commander: editing && r.commander.mode === 'pick' ? { mode: 'none' } : r.commander,
             fixedAtmosphere: r.atmosphere.rotate ? null : r.atmosphere,
-            opponents: r.opponents,
-            enemyIntel: r.enemyIntel,
+            opponents: editing ? 'lockInOnly' : r.opponents,
+            enemyIntel: editing ? 'visible' : r.enemyIntel,
             playerUnlocks: r.unlockedUnits ?? null,
             playerUnlockable: r.unlockable ?? null,
             loadout: r.loadout ?? { mode: 'player' },

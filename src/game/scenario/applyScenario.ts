@@ -29,11 +29,19 @@ function setLevel(unit: Unit, level: number): void {
     unit.refreshLevelBadge();
 }
 
-export function applyScenario(host: ScenarioHost, def: ScenarioDef): void {
+/** what a scenario put on the board — `units[i]` is `scene.units[i]` (null when it didn't fit) */
+export interface AppliedScene {
+    units: (Unit | null)[];
+    buildings: Unit[];
+}
+
+export function applyScenario(host: ScenarioHost, def: ScenarioDef): AppliedScene {
     const { scene } = def;
+    const applied: AppliedScene = { units: scene.units.map(() => null), buildings: [] };
 
     // 1. base buildings: omitted = normal, false = not on the board
     const buildings = host.spawnBaseBuildings((team, typeId) => scene.buildings[team][typeId] !== false);
+    applied.buildings = buildings;
     for (const building of buildings) {
         if (building.team === 'horde') continue;
         const state = scene.buildings[building.team][building.type.id];
@@ -56,7 +64,7 @@ export function applyScenario(host: ScenarioHost, def: ScenarioDef): void {
     // 3. units, canonical order
     const order: SceneTeam[] = ['player', 'enemy', 'horde'];
     for (const team of order) {
-        for (const placed of scene.units) {
+        for (const [index, placed] of scene.units.entries()) {
             if (placed.team !== team) continue;
             const type = host.types.byId(placed.typeId);
             if (!type) continue;
@@ -79,6 +87,7 @@ export function applyScenario(host: ScenarioHost, def: ScenarioDef): void {
                 );
             }
             if (!unit) continue;
+            applied.units[index] = unit;
             // authored packs count as deployed before round 1 — placed, not this round's buys
             unit.deployedRound = 0;
             if (placed.level > 1) setLevel(unit, placed.level);
@@ -90,4 +99,5 @@ export function applyScenario(host: ScenarioHost, def: ScenarioDef): void {
             }
         }
     }
+    return applied;
 }

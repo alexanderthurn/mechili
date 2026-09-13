@@ -2432,6 +2432,96 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-replay-controls button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-replay-controls .rc-speed-hint { font-size: 11px; color: ${u.textMuted}; white-space: nowrap; }
 
+/* scenario editor (author mode) — tools panel on the inline-start edge */
+.mechili-scenario-editor {
+    position: absolute;
+    top: calc(10px + env(safe-area-inset-top));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    inset-inline-start: calc(12px + env(safe-area-inset-left));
+    z-index: 30;
+    width: min(290px, calc(100vw - 24px));
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    font-size: 13px;
+    color: ${u.text};
+    pointer-events: auto;
+}
+.mechili-scenario-editor .se-title { font-size: 15px; font-weight: 700; color: ${u.brassLight}; }
+.mechili-scenario-editor .se-muted, .mechili-scenario-editor .se-hint { color: ${u.textMuted}; font-size: 11px; }
+.mechili-scenario-editor .se-label { color: ${u.textMuted}; font-size: 11px; margin-top: 4px; }
+.mechili-scenario-editor .se-section { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid rgba(138, 109, 74, 0.35); padding-top: 8px; }
+.mechili-scenario-editor .se-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mechili-scenario-editor .se-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.mechili-scenario-editor .se-palette { max-height: 34vh; overflow-y: auto; }
+.mechili-scenario-editor input, .mechili-scenario-editor select {
+    font: inherit;
+    padding: 3px 6px;
+    border: 1px solid ${u.border};
+    border-radius: 4px;
+    background: #1e1b15;
+    color: ${u.text};
+}
+.mechili-scenario-editor input[type='checkbox'] { padding: 0; }
+.mechili-scenario-editor .se-name { width: 100%; box-sizing: border-box; margin-top: 4px; }
+.mechili-scenario-editor label { display: inline-flex; align-items: center; gap: 4px; }
+.mechili-scenario-editor button, .mechili-test-battle button {
+    font: inherit;
+    padding: 4px 9px;
+    border: 1.5px solid ${u.border};
+    border-radius: 6px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    cursor: pointer;
+    text-align: start;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mechili-scenario-editor button:hover:not(:disabled), .mechili-test-battle button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-scenario-editor button:disabled { opacity: 0.45; cursor: default; }
+.mechili-scenario-editor button.active { border-color: ${u.brassLight}; background: rgba(212, 184, 120, 0.18); color: ${u.brassLight}; }
+.mechili-scenario-editor .se-team { border-inline-start: 5px solid var(--se-team); }
+.mechili-scenario-editor .se-count { color: ${u.textMuted}; font-size: 11px; }
+.mechili-scenario-editor .se-sel-name { font-weight: 600; }
+.mechili-scenario-editor .se-level { min-width: 1.6em; text-align: center; font-weight: 700; }
+.mechili-scenario-editor .se-test { text-align: center; font-weight: 700; padding: 7px 10px; border-color: ${u.brassLight}; }
+.mechili-scenario-editor .se-issues { font-size: 12px; color: #e8b04a; cursor: help; }
+.mechili-scenario-editor .se-issues.error { color: #ff7a60; }
+.mechili-scenario-editor .se-status { min-height: 1.2em; color: ${u.brassLight}; }
+
+/* scenario editor test battle strip */
+.mechili-test-battle {
+    position: absolute;
+    top: calc(10px + env(safe-area-inset-top));
+    inset-inline-start: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: calc(100vw - 32px);
+    padding: 8px 12px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    font-size: 13px;
+    color: ${u.text};
+    pointer-events: auto;
+}
+.mechili-test-battle .tb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mechili-test-battle .tb-title { font-weight: 700; color: ${u.brassLight}; }
+.mechili-test-battle .tb-headline { font-size: 16px; font-weight: 700; }
+.mechili-test-battle .tb-side { border-inline-start: 4px solid var(--se-team); padding-inline-start: 6px; }
+.mechili-test-battle:not(.done) .tb-result { display: none; }
+
 /* suggest chip, inline-start of the main menu (same feel as username) */
 .mechili-suggest-btn {
     position: absolute;

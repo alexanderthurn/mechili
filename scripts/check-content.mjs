@@ -578,7 +578,38 @@ try {
             zexpect(withBase.rules.unlockable?.join() === 'dwarf' && withBase.rules.loadout?.mode === 'open' && def.rules.unlockable === undefined, 'capture does not inherit the original scenario rules');
             await levels.prepareLevel(undefined);
         }
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; replay capture round-trips and inherits rules');
+        // ---- editor draft: a new board is valid, edits undo/redo, map change drops what no longer fits
+        {
+            const ed = await server.ssrLoadModule('/src/game/scenario/editorDraft.ts');
+            const scen = await server.ssrLoadModule('/src/game/scenario/normalize.ts');
+            const mr = await server.ssrLoadModule('/src/game/matchRules.ts');
+            const setMod = await server.ssrLoadModule('/src/game/settings.ts');
+            const ss = await server.ssrLoadModule('/src/game/scenario/scenarioSettings.ts');
+            const T = units.BASE_TYPES;
+            const blank = ed.newDraft('v0.0.0');
+            const blankCheck = scen.normalizeScenario(blank, T);
+            zexpect(blankCheck.def !== null && !scen.hasErrors(blankCheck.issues), `a new draft has errors: ${blankCheck.issues.map((i) => i.message).join('; ')}`);
+            zexpect(ed.mapPresetOf(blank.map) === 'standard' && ed.hasBaseBuildings(T, blank, 'enemy'), 'a new draft is not the standard board with base buildings');
+            const history = new ed.DraftHistory(blank);
+            const withOgre = structuredClone(blank);
+            withOgre.scene.units.push({ typeId: 'ogre', team: 'enemy', at: { col: 60, row: 60 }, level: 1 });
+            zexpect(history.push(withOgre) && !history.push(structuredClone(withOgre)) && history.canUndo, 'draft history records no-ops or misses edits');
+            zexpect(history.undo()?.scene.units.length === 0 && history.redo()?.scene.units.length === 1 && !history.canRedo, 'draft undo/redo broken');
+            const tiny = ed.withMap(T, withOgre, ed.MAP_PRESETS.tiny);
+            zexpect(tiny.removed.length === 1 && tiny.def.scene.units.length === 0 && ed.mapPresetOf(tiny.def.map) === 'tiny', 'a smaller board keeps units that no longer fit');
+            const bare = ed.withBaseBuildings(T, blank, 'player', false);
+            zexpect(!ed.hasBaseBuildings(T, bare, 'player') && ed.hasBaseBuildings(T, ed.withBaseBuildings(T, bare, 'player', true), 'player'), 'base building toggle broken');
+            // editing / testing: no commander offer, the computer only locks in, nothing fogged
+            const picky = structuredClone(blank);
+            picky.rules.commander = { mode: 'pick' };
+            picky.rules.opponents = 'build';
+            picky.rules.enemyIntel = 'fogged';
+            const authorRules = mr.resolveMatchRules(ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), picky, undefined, 'author'), picky);
+            const playRules = mr.resolveMatchRules(ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), picky, undefined, 'play'), picky);
+            zexpect(authorRules.commander.mode === 'none' && authorRules.opponents === 'lockInOnly' && authorRules.enemyIntel === 'visible', `editor rules: ${JSON.stringify(authorRules)}`);
+            zexpect(playRules.commander.mode === 'pick' && playRules.opponents === 'build' && playRules.enemyIntel === 'fogged', 'play mode takes the editor overrides');
+        }
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rule overrides)');
     }
 } catch (e) {
     failed = true;

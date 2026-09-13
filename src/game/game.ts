@@ -285,7 +285,10 @@ import type { OverlayFile } from './assets';
 import { resolveMatchRules, stripOpen, type MatchRules } from './matchRules';
 import { hasErrors, normalizeScenario } from './scenario/normalize';
 import type { ScenarioDef } from './scenario/scenarioDef';
-import { applyScenario, type ScenarioHost } from './scenario/applyScenario';
+import { applyScenario, type AppliedScene, type ScenarioHost } from './scenario/applyScenario';
+import { ScenarioEditor, TestBattleBar, type TestBattleSummary } from '../ui/scenarioEditor';
+import { getUnitInstanceRenderer } from './unitInstances';
+import { storeDraft } from './scenario/editorDraft';
 
 /** menu→match camera fly-in (fresh starts only) */
 const MATCH_INTRO_SEC = 1.0;
@@ -362,6 +365,9 @@ function seedFrom(seed: number, label: string): number {
  * The battlefield scene: a real three.js world (ground, lights, shadows,
  * unit meshes) rendered below the transparent Pixi UI overlay.
  */
+/** how long a test battle shows its board before it locks in */
+const TEST_BATTLE_LOOK_MS = 700;
+
 export class Game {
     private readonly map: BattleMap;
     private readonly economy: Economy;
@@ -834,6 +840,10 @@ export class Game {
      * tear this match down and boot that tutorial from scratch.
      */
     onStartTutorial: ((lesson: number) => void) | null = null;
+    /** scenario editor: start the editor ('author') or a test battle from a draft */
+    onScenarioEditor: ((mode: 'author' | 'test', draft: ScenarioDef) => void) | null = null;
+    /** scenario editor: package the draft for download; resolves to a status line */
+    onScenarioDownload: ((draft: ScenarioDef) => Promise<string>) | null = null;
     onRetryLastRound:
         | ((payload: {
               seed: number;
@@ -1196,6 +1206,10 @@ export class Game {
     private readonly settings: GameSettings;
     /** the board + rules this match starts from (plan §4), null for a normal match */
     private readonly scenario: ScenarioDef | null;
+    /** the scenario editor's own matches: editing a draft, or its test battle */
+    private readonly editorMode: 'author' | 'test' | null;
+    private scenarioEditor: ScenarioEditor | null = null;
+    private testBattleBar: TestBattleBar | null = null;
     /** what this match does each round (plan §5) */
     private readonly rules: MatchRules;
     /** the match roster; localized so MY side always reads 'player' locally */
@@ -1329,6 +1343,8 @@ export class Game {
         this.settings = normalizeGameSettings(settingsInput);
         this.scenario = this.resolveScenario();
         this.rules = resolveMatchRules(this.settings, this.scenario);
+        const scenarioMode = this.settings.scenario?.mode;
+        this.editorMode = scenarioMode === 'author' || scenarioMode === 'test' ? scenarioMode : null;
         const settings = this.settings;
         this.wrapper = wrapper;
         this.threeCanvas = threeCanvas;
@@ -2247,6 +2263,7 @@ export class Game {
             else this.showStarterPick(this.draw(this.types.commanders, 4, this.rngCards.player));
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         }
+        if (this.editorMode) this.startScenarioEditing(wrapper, surface);
         if (this.star?.role === 'host') this.startSpectatorHub();
         if (this.star) this.wireStar(this.star);
         if (resume && this.star?.role === 'guest' && !resume.local) {
@@ -2780,6 +2797,12 @@ export class Game {
         this.onReturnToMenu = null;
         this.onRetryLastRound = null;
         this.onStartTutorial = null;
+        this.onScenarioEditor = null;
+        this.onScenarioDownload = null;
+        this.scenarioEditor?.destroy();
+        this.scenarioEditor = null;
+        this.testBattleBar?.remove();
+        this.testBattleBar = null;
         this.onConnectionLost = null;
         // network/backend teardown FIRST, before any rendering/HUD disposal
         // below — those touch three.js/pixi resources and a stray exception
@@ -2900,6 +2923,83 @@ export class Game {
             return;
         }
         this.spawnBaseBuildings(() => true);
+    }
+
+    /**
+     * The scenario editor's matches (plan §8): author mode mounts the editor
+     * over a board that never leaves the build phase; a test battle gets the
+     * strip that leads back to it.
+     */
+    private startScenarioEditing(wrapper: HTMLElement, surface: HTMLElement): void {
+        const draft = this.settings.scenario?.draft;
+        if (!draft) return;
+        if (this.editorMode === 'test') {
+            this.testBattleBar = new TestBattleBar(wrapper, {
+                onBack: () => this.onScenarioEditor?.('author', draft),
+                onAgain: () => this.onScenarioEditor?.('test', draft),
+            });
+            return;
+        }
+        this.hud.setUiHidden(true, { hint: false });
+        this.hpBars.view.visible = false;
+        const level = activeLevel().overlay;
+        this.scenarioEditor = new ScenarioEditor(
+            {
+                types: this.types,
+                placement: this.placement,
+                surface,
+                wrapper,
+                maxUnitLevel: this.settings.leveling.maxLevel,
+                maxBuildingLevel: this.settings.towers.upgrade.maxLevel,
+                levelLabel: level ? level.id : 'Base game',
+                gameVersion: formatGameVersion(GAME_VERSION),
+                // main wires the download right after construction
+                canDownload: () => this.onScenarioDownload !== null,
+                rebuild: (def) => this.rebuildScenarioBoard(def),
+                issues: (def) => normalizeScenario(def, this.types).issues,
+                autosave: (def) => storeDraft(def, this.settings.level),
+                restart: (def) => this.onScenarioEditor?.('author', def),
+                test: (def) => this.onScenarioEditor?.('test', def),
+                download: (def) => this.onScenarioDownload?.(def) ?? Promise.resolve(''),
+                exit: () => this.quitToMenu(),
+            },
+            draft,
+        );
+    }
+
+    /** author mode: the board again from a draft — everything placed goes, the draft's scene comes back */
+    private rebuildScenarioBoard(def: ScenarioDef): AppliedScene {
+        const instances = getUnitInstanceRenderer();
+        for (const unit of [...this.placement.allUnits()]) {
+            instances?.unregisterUnit(unit);
+            this.placement.removeUnit(unit);
+        }
+        this.techTree.clear();
+        this.hpBars.clear();
+        this.selectedActor = null;
+        const applied = applyScenario(this.scenarioHost(), def);
+        this.placement.refaceAll();
+        this.refreshFlightAlts();
+        return applied;
+    }
+
+    /** a finished test battle, counted from the sim before it is torn down */
+    private testBattleSummary(sim: BattleSim): TestBattleSummary {
+        const zero = () => ({ player: { standing: 0, total: 0 }, enemy: { standing: 0, total: 0 }, horde: { standing: 0, total: 0 } });
+        const packs = zero();
+        const members = { player: { alive: 0, total: 0 }, enemy: { alive: 0, total: 0 }, horde: { alive: 0, total: 0 } };
+        for (const [unit, count] of sim.unitSurvivors()) {
+            if (unit.summoned) continue;
+            const team = unit.team;
+            packs[team].total++;
+            if (count.alive > 0) packs[team].standing++;
+            members[team].total += count.total;
+            members[team].alive += count.alive;
+        }
+        const playerLeft = packs.player.standing > 0;
+        const enemyLeft = packs.enemy.standing > 0;
+        const outcome = playerLeft && enemyLeft ? 'timeout' : playerLeft ? 'player' : enemyLeft ? 'enemy' : 'draw';
+        return { outcome, seconds: sim.elapsed, packs, members };
     }
 
     /** the narrow view of this match a scenario's board is applied through (plan §12.2) */
@@ -3112,7 +3212,8 @@ export class Game {
             );
         }
         this.phase = 'build';
-        this.phaseRemaining = this.deploySeconds();
+        // editing has no clock
+        this.phaseRemaining = this.editorMode === 'author' ? Infinity : this.deploySeconds();
         this.syncPostFx();
         // scars fade each round so the field heals over a few battles
         if (this.round > 1) this.map.fadeWear(0.68);
@@ -3152,8 +3253,8 @@ export class Game {
         }
         this.gridOverlay.visible = true;
         // the horde stands on the board from deployment start — both players
-        // see the wave and place against it
-        this.spawnHordeWave();
+        // see the wave and place against it (not while editing the board)
+        if (this.editorMode !== 'author') this.spawnHordeWave();
         // a commander's recruit level (Elite Prince: 2) is permanent and free of premium
         for (let seat = 0; seat < this.seats.length; seat++) {
             this.recruitLevel[seat] = this.starterCardOfSeat(seat)?.effects?.recruitLevel ?? 1;
@@ -3266,7 +3367,7 @@ export class Game {
         this.tutorial?.onBuildPhase(this.round);
 
         // replay applies every action from the log — only run live AI when not rebuilding
-        if (!this.hydrating) {
+        if (!this.hydrating && this.editorMode !== 'author') {
             this.opponent.onBuildPhase(this.round);
             for (const e of this.extraAis) e.ai.onBuildPhase(this.round);
             // Campaign: AI places oil/spells before the player acts — refresh
@@ -3276,9 +3377,18 @@ export class Game {
         }
 
         // between-round cards (schedule owned by roundCardPreset algorithm)
-        if (shouldOfferRoundCards(this.settings, this.round)) this.offerRoundCards();
+        if (!this.editorMode && shouldOfferRoundCards(this.settings, this.round)) this.offerRoundCards();
         // cinema mode: startBuildPhase re-shows grid / deploy chrome — put it back away
         this.enforceCinemaWorld();
+        // a test battle fights the board as placed: the player locks in after a
+        // short look at it (never from inside the constructor)
+        if (this.editorMode === 'test' && !this.hydrating) {
+            const round = this.round;
+            setTimeout(() => {
+                if (this.disposed || this.phase !== 'build' || this.round !== round) return;
+                this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
+            }, TEST_BATTLE_LOOK_MS);
+        }
     }
 
     /**
@@ -3564,6 +3674,8 @@ export class Game {
         // not just hidden/disabled UI.
         if (this.watching) return false;
         if (this.seatReady[this.humanSeat] || this.suspended) return false;
+        // editing: the board changes through the editor's draft, never through match actions
+        if (this.editorMode === 'author' && this.round >= 1) return false;
         // stamp explicitly: actorSeat's fallback (primarySeatOf(team)) only
         // equals humanSeat when the human is their side's FIRST seat — false
         // for a star guest assigned to seat 1/2/3
@@ -5521,6 +5633,11 @@ export class Game {
     }
 
     voluntaryQuit(): void {
+        // the editor and its test battles are not matches anyone loses
+        if (this.editorMode && !this.disposed) {
+            this.quitToMenu();
+            return;
+        }
         if (!this.matchOver && !this.disposed) {
             // every branch below ends in a defeat the player asked for
             this.endedByOwnChoice = true;
@@ -8384,6 +8501,7 @@ export class Game {
 
     private canUndo(): boolean {
         return (
+            this.editorMode !== 'author' &&
             this.phase === 'build' &&
             !this.matchOver &&
             // THIS SEAT locked in, not the whole side — undoLast() below
@@ -9144,6 +9262,7 @@ export class Game {
         let hash: number | undefined;
         this.pendingHpDrawPlan = null;
         this.pendingHpDrawPreHp = null;
+        const testSummary = this.editorMode === 'test' && this.sim ? this.testBattleSummary(this.sim) : null;
         if (this.sim) {
             const preHp = { player: this.playerHp, enemy: this.enemyHp };
             const built = buildHpDrawSources(this.sim);
@@ -9194,6 +9313,13 @@ export class Game {
         this.oilVisuals.sync(this.oilField, 0, [], false);
         this.spellVisuals.clear(); // active zone markers are battle-only
         this.rallyVisuals.sync([], null); // battle-only follower markers
+        if (testSummary) {
+            // a test battle is one fight: the board stays as it ended, the strip shows the result
+            this.phase = 'hpDraw';
+            this.syncPostFx();
+            this.testBattleBar?.showResult(testSummary);
+            return;
+        }
         if (hash !== undefined && this.star) {
             // Star mode's battle-end / pre-match-end sync barrier: gates
             // BOTH of what used to run immediately below (finishMatch(), or
