@@ -8,6 +8,7 @@ import { FriendsPanel } from './ui/friendsPanel';
 import {
     introRosterEntries,
     mountClimbIntro,
+    mountScenarioIntro,
     mountTutorialIntro,
     mountIntroRoster,
     prefetchIntroRosterMmrs,
@@ -3314,7 +3315,8 @@ function startGame(
     // Normal resume/reconnect skips the VS roster (cover may already be animating).
     const useClimbIntro = !!settings.climb;
     const useTutorialIntro = settings.tutorial != null;
-    const showCoverPanel = useClimbIntro || useTutorialIntro || !resume;
+    const scenarioIntro = scenarioIntroText(settings);
+    const showCoverPanel = useClimbIntro || useTutorialIntro || scenarioIntro !== null || !resume;
 
     if (!coverActive) {
         showIntroCover(showCoverPanel);
@@ -3365,6 +3367,13 @@ function startGame(
             startIntroCoverDive();
             runBootHandoff();
         });
+    } else if (showCoverPanel && introCoverEl && scenarioIntro) {
+        mountScenarioIntro(introCoverEl, scenarioIntro.title, scenarioIntro.briefing);
+        void introRosterHold().then(() => {
+            if (gen !== introGen || !started) return;
+            startIntroCoverDive();
+            runBootHandoff();
+        });
     } else if (showCoverPanel && introCoverEl && useTutorialIntro && settings.tutorial) {
         mountTutorialIntro(introCoverEl, settings.tutorial.id);
         void introRosterHold().then(() => {
@@ -3389,6 +3398,20 @@ function startGame(
         }
         runBootHandoff();
     }
+}
+
+/** a played scenario's intro card: the package's level title and briefing, else its name and description */
+function scenarioIntroText(settings: GameSettings): { title: string; briefing?: string } | null {
+    if (settings.scenario?.mode !== 'play' || !isLevelActive(settings.level)) return null;
+    const { scenarios, meta } = activeLevel();
+    const id = settings.scenario.id ?? (scenarios.size === 1 ? [...scenarios.keys()][0] : undefined);
+    const def = id !== undefined ? scenarios.get(id)?.def : undefined;
+    if (!def) return null;
+    const level = meta?.def?.levels.find((l) => l.scenario === id);
+    const order = meta?.def?.levels.findIndex((l) => l.scenario === id) ?? -1;
+    const title = level?.title ?? def.name;
+    const briefing = level?.briefing ?? def.description;
+    return { title: order >= 0 && (meta?.def?.levels.length ?? 0) > 1 ? `${order + 1}. ${title}` : title, ...(briefing ? { briefing } : {}) };
 }
 
 /** checkpoints the action log so a browser reload can resume solo play */

@@ -2777,6 +2777,15 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     z-index: 1;
     text-align: center;
 }
+.mechili-climb-intro .ci-subtitle {
+    margin-top: 14px;
+    max-width: min(640px, 86vw);
+    margin-inline: auto;
+    font-size: clamp(15px, 2vw, 20px);
+    line-height: 1.4;
+    color: ${u.cream};
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);
+}
 .mechili-climb-intro .ci-title {
     font-size: clamp(28px, 5vw, 48px);
     font-weight: 800;

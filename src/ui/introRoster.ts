@@ -159,7 +159,12 @@ export function mountTutorialIntro(cover: HTMLElement, lessonId: number): void {
     mountSimpleIntro(cover, raw.replace(/\s*\n\s*/g, ' · '));
 }
 
-function mountSimpleIntro(cover: HTMLElement, title: string): void {
+/** Scenario card — its title (or the package's level title) and briefing. */
+export function mountScenarioIntro(cover: HTMLElement, title: string, briefing?: string): void {
+    mountSimpleIntro(cover, title, briefing);
+}
+
+function mountSimpleIntro(cover: HTMLElement, title: string, subtitle?: string): void {
     unmountIntroRoster(cover);
     unmountClimbIntro(cover);
     const el = withDialogFade(document.createElement('div'));
@@ -167,6 +172,7 @@ function mountSimpleIntro(cover: HTMLElement, title: string): void {
     el.innerHTML =
         `<div class="ci-frame">` +
         `<div class="ci-title">${escapeHtml(title)}</div>` +
+        (subtitle ? `<div class="ci-subtitle">${escapeHtml(subtitle)}</div>` : '') +
         `</div>`;
     cover.appendChild(el);
 }
