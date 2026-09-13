@@ -67,6 +67,8 @@ export interface ScenarioEditorHost {
     /** keep the draft as a scenario package; resolves to a status line */
     save(def: ScenarioDef): Promise<string>;
     download(def: ScenarioDef): Promise<string>;
+    /** copy the draft as a share code; resolves to a status line */
+    shareCode(def: ScenarioDef): Promise<string>;
     exit(): void;
 }
 
@@ -799,6 +801,10 @@ export class ScenarioEditor {
                 disabled: errors.length > 0,
                 title: t('editor:saveTip', { defaultValue: 'Keep it as a scenario (with this level’s content)' }),
             }) +
+            btn('se-code', t('editor:shareCode', { defaultValue: 'Copy code' }), {
+                disabled: errors.length > 0,
+                title: t('editor:shareCodeTip', { defaultValue: 'A text code for chat — import it under Single Player → Scenarios' }),
+            }) +
             (this.host.canDownload() ? btn('se-download', t('editor:downloadZip', { defaultValue: 'Download zip' })) : '') +
             btn('se-exit', t('editor:exit', { defaultValue: 'Exit' })) +
             `</div>` +
@@ -876,6 +882,7 @@ export class ScenarioEditor {
         };
         on('.se-save', (el) => busy(el, () => this.host.save(this.draft)));
         on('.se-download', (el) => busy(el, () => this.host.download(this.draft)));
+        on('.se-code', (el) => busy(el, () => this.host.shareCode(this.draft)));
         on('.se-exit', () => this.host.exit());
         const rules = this.bodyEl.querySelector<HTMLDetailsElement>('.se-rules');
         if (rules) {

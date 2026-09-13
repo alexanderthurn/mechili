@@ -524,6 +524,18 @@ try {
             const zipped = zipMod.writeZip([{ path: 'scenarios/first.jsonc', bytes: enc(fixture) }, { path: 'models/x.bin', bytes: new Uint8Array([0, 1, 2, 255]) }]);
             const unzipped = await zipMod.readZip(zipped);
             zexpect(unzipped.length === 2 && new TextDecoder().decode(unzipped[0].bytes) === fixture && unzipped[1].bytes[3] === 255, 'writeZip output does not read back');
+            // share code: text files through a chat line and back, media left out
+            const shareMod = await server.ssrLoadModule('/src/game/scenario/shareCode.ts');
+            const shared = await shareMod.encodeShareCode('duel series!', [
+                { path: 'scenarios/first.jsonc', bytes: enc(fixture) },
+                { path: 'meta.jsonc', bytes: enc(metaText) },
+                { path: 'models/x.bin', bytes: new Uint8Array([0, 1, 2]) },
+            ]);
+            const back = await shareMod.decodeShareCode(`  ${shared.code}\n`);
+            zexpect(shareMod.isShareCode(shared.code) && shared.skipped.join() === 'models/x.bin' && back.id === 'duel-series-' && back.files.length === 2 && new TextDecoder().decode(back.files[0].bytes) === fixture, `share code round trip: ${JSON.stringify({ skipped: shared.skipped, id: back.id, n: back.files.length })}`);
+            let damaged = false;
+            await shareMod.decodeShareCode(shared.code.slice(0, 30) + 'xx' + shared.code.slice(32)).catch(() => (damaged = true));
+            zexpect(damaged, 'a damaged share code decodes');
             // match rules: normal matches keep today's behaviour; a scenario supplies its own
             const mr = await server.ssrLoadModule('/src/game/matchRules.ts');
             const setMod = await server.ssrLoadModule('/src/game/settings.ts');
@@ -647,7 +659,7 @@ try {
             zexpect(enemies.length === 1 && enemies[0].typeId === 'archer' && mirrored.scene.techs.enemy.archer?.join() === 'barrel' && mirrored.scene.units.some((u) => u.team === 'horde'), `mirrorSide: ${JSON.stringify(mirrored.scene.units)}`);
             zexpect(!scen.hasErrors(scen.normalizeScenario(mirrored, T).issues), 'a mirrored board has errors');
         }
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rules and purse, horde ring, side swap, mirror)');
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; share codes; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rules and purse, horde ring, side swap, mirror)');
     }
 } catch (e) {
     failed = true;

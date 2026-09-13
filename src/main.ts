@@ -107,6 +107,7 @@ import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { loadStoredDraft, newDraft } from './game/scenario/editorDraft';
 import { scenarioPackageFiles } from './game/scenario/package';
 import type { ScenarioDef } from './game/scenario/scenarioDef';
+import { decodeShareCode, encodeShareCode } from './game/scenario/shareCode';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -1044,6 +1045,11 @@ menu.innerHTML = `
     <div class="m-view m-spmode" data-view="sp-scenarios">
         <div class="m-spmode-title" data-i18n="menu:scenarios"></div>
         <div class="m-room-list m-scenario-list empty"></div>
+        <div class="m-scenario-import">
+            <input type="text" class="m-scenario-code" placeholder="MELODAN1:…" spellcheck="false" autocomplete="off">
+            <button type="button" class="m-scenario-btn m-scenario-import-btn">Import code</button>
+        </div>
+        <div class="m-scenario-status"></div>
         <button class="m-btn m-small" data-mode="sp-scenarios-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-spmode" data-view="sp-practice">
@@ -1286,6 +1292,22 @@ const spModeEl = menu.querySelector<HTMLDivElement>('[data-view="sp"]')!;
 const spPracticeEl = menu.querySelector<HTMLDivElement>('[data-view="sp-practice"]')!;
 const spScenariosEl = menu.querySelector<HTMLDivElement>('[data-view="sp-scenarios"]')!;
 const spScenarioListEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-list')!;
+const spScenarioCodeEl = spScenariosEl.querySelector<HTMLInputElement>('.m-scenario-code')!;
+const spScenarioStatusEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-status')!;
+spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-import-btn')!.addEventListener('click', () => {
+    const text = spScenarioCodeEl.value;
+    if (!text.trim()) return;
+    void decodeShareCode(text)
+        .then(({ id, files }) => loadLevel(id, files))
+        .then(({ ref }) => {
+            spScenarioCodeEl.value = '';
+            spScenarioStatusEl.textContent = `Imported “${ref.id}”`;
+            return renderScenarioList();
+        })
+        .catch((e: unknown) => {
+            spScenarioStatusEl.textContent = `Import failed: ${e instanceof Error ? e.message : String(e)}`;
+        });
+});
 const tutorialEl = menu.querySelector<HTMLDivElement>('[data-view="tutorial"]')!;
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
 const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
@@ -1416,6 +1438,12 @@ async function renderScenarioList(): Promise<void> {
                 label,
                 button(t('menu:scenarioPlay', { defaultValue: 'Play' }), () => void playSavedScenario(level.ref, scenario.id)),
                 button(t('menu:scenarioEdit', { defaultValue: 'Edit' }), () => void editSavedScenario(level.ref, scenario.id)),
+                button(t('menu:scenarioCode', { defaultValue: 'Code' }), () => {
+                    void (async () => {
+                        const files = levelFiles(level.ref.hash) ?? (await ensureLevel(level.ref).then(() => levelFiles(level.ref.hash)));
+                        spScenarioStatusEl.textContent = files ? await copyShareCode(level.ref.id, files) : 'This scenario is not available';
+                    })();
+                }),
                 button('✕', () => {
                     const what = level.scenarios.length > 1 ? `“${level.name}” (${level.scenarios.length} scenarios)` : `“${scenario.name}”`;
                     if (!window.confirm(t('menu:scenarioDeleteConfirm', { defaultValue: 'Delete {{what}}?', what }))) return;
@@ -3110,6 +3138,10 @@ function constructGame(
         if (SCENARIO_ZIP_TESTING) game.onScenarioDownload = (draft) => downloadScenarioDraft(draft, settings.level);
         game.onScenarioSave = (draft) => saveScenarioDraft(draft, settings.level);
         game.onScenarioPlay = (draft) => void playScenarioDraft(draft, settings.level);
+        game.onScenarioShareCode = async (draft) => {
+            const { id, files } = scenarioDraftPackage(draft, settings.level);
+            return copyShareCode(id, files);
+        };
     }
     if (replayControlsPanel) {
         game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
@@ -3405,6 +3437,19 @@ function scenarioDraftPackage(draft: ScenarioDef, level: LevelRef | undefined): 
     const id = draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || draft.id;
     const def = { ...draft, id, updatedAt: new Date().toISOString() };
     return { id, files: scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []) };
+}
+
+/** a package as a share code on the clipboard; resolves to a status line */
+async function copyShareCode(id: string, files: readonly OverlayFile[]): Promise<string> {
+    const { code, skipped } = await encodeShareCode(id, files);
+    try {
+        await navigator.clipboard.writeText(code);
+    } catch {
+        console.info('[scenario] share code:', code);
+        return 'Could not reach the clipboard — the code is in the console';
+    }
+    const note = skipped.length > 0 ? ` (without ${skipped.length} model/texture files)` : '';
+    return `Code copied — ${Math.ceil(code.length / 1024)} KB${note}`;
 }
 
 /** keep the draft as a scenario package (scenario cache, like a saved replay situation) */

@@ -1481,6 +1481,19 @@ ${chatFloatStyles(u, pc, ec)}
     cursor: pointer;
 }
 .mechili-menu .m-scenario-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-menu .m-scenario-import { display: flex; gap: 6px; width: 100%; }
+.mechili-menu .m-scenario-code {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 8px;
+    border: 1.5px solid ${u.border};
+    border-radius: 3px;
+    background: #1e1b15;
+    color: ${u.text};
+}
+.mechili-menu .m-scenario-status { min-height: 1.2em; font-size: 13px; color: ${u.brassLight}; text-align: center; }
 .mechili-menu .m-room-row .m-btn { flex: 1; width: auto; }
 .mechili-menu .m-main {
     gap: 12px;

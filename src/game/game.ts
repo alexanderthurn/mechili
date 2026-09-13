@@ -844,6 +844,8 @@ export class Game {
     onScenarioEditor: ((mode: 'author' | 'test', draft: ScenarioDef) => void) | null = null;
     /** scenario editor: package the draft for download; resolves to a status line */
     onScenarioDownload: ((draft: ScenarioDef) => Promise<string>) | null = null;
+    /** scenario editor: copy the draft as a share code; resolves to a status line */
+    onScenarioShareCode: ((draft: ScenarioDef) => Promise<string>) | null = null;
     /** scenario editor: play the draft as a scenario */
     onScenarioPlay: ((draft: ScenarioDef) => void) | null = null;
     /** scenario editor: keep the draft as a scenario package; resolves to a status line */
@@ -2816,6 +2818,7 @@ export class Game {
         this.onScenarioDownload = null;
         this.onScenarioSave = null;
         this.onScenarioPlay = null;
+        this.onScenarioShareCode = null;
         this.scenarioEditor?.destroy();
         this.scenarioEditor = null;
         this.testBattleBar?.remove();
@@ -2982,6 +2985,7 @@ export class Game {
                         baseBuildings,
                     ),
                 save: (def) => this.onScenarioSave?.(def) ?? Promise.resolve(''),
+                shareCode: (def) => this.onScenarioShareCode?.(def) ?? Promise.resolve(''),
                 issues: (def) => normalizeScenario(def, this.types).issues,
                 autosave: (def) => storeDraft(def, this.settings.level),
                 restart: (def) => this.onScenarioEditor?.('author', def),
