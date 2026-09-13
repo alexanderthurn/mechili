@@ -27,7 +27,10 @@ import {
     type RoomAd,
     type RoomRosterEntry,
     GAME_VERSION,
-    formatGameVersion,
+    isSameBuild,
+    formatBuild,
+    OUR_BUILD,
+    CONTENT_HASH,
     hostStarRoom,
     isMelodanPlayHost,
     joinAsSpectator,
@@ -3729,10 +3732,10 @@ function wireHostedHub(
         if (entry) hub.setRosterEntry(seat, { ...entry, ready: msg.ready });
         refresh();
     };
-    hub.listen((name, version, avatar, loadout) => {
-        if (version !== GAME_VERSION) {
+    hub.listen((name, build, avatar, loadout) => {
+        if (!isSameBuild(build)) {
             return {
-                reject: `Version mismatch — this room runs ${formatGameVersion(GAME_VERSION)}, you have ${formatGameVersion(version)}.`,
+                reject: `Version mismatch — this room runs ${formatBuild(OUR_BUILD, build)}, you have ${formatBuild(build, OUR_BUILD)}.`,
             };
         }
         const seat = hub.nextOpenSeat();
@@ -3889,6 +3892,7 @@ function startHostedMatch(): void {
         hub.send(seat, {
             type: 'starSetup',
             version: GAME_VERSION,
+            contentHash: CONTENT_HASH,
             seed: settings.seed,
             settings,
             roster: finalRoster,
@@ -4102,14 +4106,14 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             // SpectatorHub connection, see joinAsSpectator) — defensive
             // only, should never actually fire
             if (msg.viewer.kind !== 'seat') return;
-            if (msg.version !== GAME_VERSION) {
+            if (!isSameBuild(msg)) {
                 clearStarResumeMarker();
                 clearRosterTable();
                 clearLobbySettings();
                 setStatus(
                     t('menu:versionMismatch', {
-                        host: formatGameVersion(msg.version),
-                        you: formatGameVersion(GAME_VERSION),
+                        host: formatBuild(msg, OUR_BUILD),
+                        you: formatBuild(OUR_BUILD, msg),
                     }),
                     5000,
                 );
@@ -4140,14 +4144,14 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             return;
         }
         // only 'starSetup' can reach here (see the guard above)
-        if (msg.version !== GAME_VERSION) {
+        if (!isSameBuild(msg)) {
             clearStarResumeMarker();
             clearRosterTable();
             clearLobbySettings();
             setStatus(
                 t('menu:versionMismatch', {
-                    host: formatGameVersion(msg.version),
-                    you: formatGameVersion(GAME_VERSION),
+                    host: formatBuild(msg, OUR_BUILD),
+                    you: formatBuild(OUR_BUILD, msg),
                 }),
                 5000,
             );
@@ -5123,7 +5127,7 @@ if (bulkVerify) {
         beginStarJoin(starMpMarker.hostName);
     }
 } else if (spSave) {
-    if (spSave.version !== GAME_VERSION) {
+    if (!isSameBuild(spSave)) {
         clearSinglePlayer();
         setMenuChromeVisible(true);
     } else resumeSinglePlayer(spSave);

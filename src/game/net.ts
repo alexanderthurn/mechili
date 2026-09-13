@@ -88,6 +88,36 @@ export function formatGameVersion(encoded: number): string {
 
 export const GAME_VERSION = encodeGameVersion(__APP_VERSION__);
 
+/**
+ * SHA-256 of every file the game loads (plan §17.6), computed at build time.
+ * A level overlay will extend it; nothing is hashed during a match.
+ */
+export const CONTENT_HASH: string = __CONTENT_HASH__;
+
+/** What a peer must share with us to play: the simulation version AND the content. */
+export interface BuildStamp {
+    version: number;
+    /** absent from peers that predate content hashing — never a match */
+    contentHash?: string;
+}
+
+export function isSameBuild(peer: BuildStamp): boolean {
+    return peer.version === GAME_VERSION && peer.contentHash === CONTENT_HASH;
+}
+
+/**
+ * A build for a mismatch message. Adds the content hash only when the versions
+ * agree, so the player sees WHY two identical-looking versions were refused.
+ */
+export function formatBuild(build: BuildStamp, other: BuildStamp): string {
+    const version = formatGameVersion(build.version);
+    if (build.version !== other.version || build.contentHash === other.contentHash) return version;
+    return `${version} · content ${(build.contentHash ?? 'unknown').slice(0, 8)}`;
+}
+
+/** our own stamp, for the side of a comparison that is us */
+export const OUR_BUILD: BuildStamp = { version: GAME_VERSION, contentHash: CONTENT_HASH };
+
 export const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
 /** how long a star seat's connection may stay dropped before the host gives
@@ -288,6 +318,7 @@ export type NetMessage =
     | {
           type: 'setup';
           version: number;
+          contentHash?: string;
           seed: number;
           settings: GameSettings;
           hostName: string;
@@ -366,7 +397,7 @@ export type NetMessage =
     | { type: 'quit' }
     /** spectator's opening handshake, sent immediately on connecting to the
      *  host's dedicated broadcast Peer (never the player link) */
-    | { type: 'spectate'; name: string; version: number }
+    | { type: 'spectate'; name: string; version: number; contentHash?: string }
     /** host's reply admitting a spectator: everything needed to catch up to
      *  the CURRENT visible state for this spectator's vision policy — see
      *  the unified `matchCatchUp` message below (Phase C,
@@ -390,6 +421,7 @@ export type NetMessage =
           type: 'starJoin';
           name: string;
           version: number;
+          contentHash?: string;
           avatar?: string | null;
           loadout?: Loadout;
       }
@@ -399,6 +431,7 @@ export type NetMessage =
     | {
           type: 'starSetup';
           version: number;
+          contentHash?: string;
           seed: number;
           settings: GameSettings;
           roster: CanonicalSeatDef[];
@@ -503,7 +536,7 @@ export type NetMessage =
      * was otherwise a strictly weaker, unauthenticated path to the exact
      * same seat hijack.
      */
-    | { type: 'starRejoin'; seat: SeatId; name: string; version: number }
+    | { type: 'starRejoin'; seat: SeatId; name: string; version: number; contentHash?: string }
     /**
      * Phase C (TEAM_MODES_PLAN.md §3c): the ONE catch-up payload for any
      * viewer of this match — a reconnecting/resyncing seat OR a freshly-
@@ -534,6 +567,7 @@ export type NetMessage =
     | {
           type: 'matchCatchUp';
           version: number;
+          contentHash?: string;
           seed: number;
           settings: GameSettings;
           roster: CanonicalSeatDef[];
@@ -810,7 +844,7 @@ export interface HostHub {
     /** accept joiners; see StarHub.listen for the onJoin contract */
     listen(onJoin: (
             name: string,
-            version: number,
+            build: BuildStamp,
             avatar?: string | null,
             loadout?: Loadout,
         ) => SeatId | { reject: string }): void;
@@ -940,7 +974,7 @@ export class StarHub implements HostHub {
      */
     listen(onJoin: (
             name: string,
-            version: number,
+            build: BuildStamp,
             avatar?: string | null,
             loadout?: Loadout,
         ) => SeatId | { reject: string }): void {
@@ -970,13 +1004,14 @@ export class StarHub implements HostHub {
                         // entry, the same identity check the name-matched
                         // starJoin reclaim path below already requires.
                         const accepted =
-                            msg.version === GAME_VERSION &&
+                            isSameBuild(msg) &&
                             this.roster[msg.seat]?.name === msg.name &&
                             this.reclaimSeat(msg.seat, conn);
                         this.onDebugEvent?.('star.rejoinAttempt', {
                             seat: msg.seat,
                             name: msg.name,
                             theirVersion: msg.version,
+                            theirContent: msg.contentHash,
                             ourVersion: GAME_VERSION,
                             accepted,
                         });
@@ -1004,11 +1039,12 @@ export class StarHub implements HostHub {
                     // starRejoin.
                     const droppedSeat = this.findDroppedSeatByName(msg.name);
                     if (droppedSeat !== null) {
-                        const accepted = msg.version === GAME_VERSION && this.reclaimSeat(droppedSeat, conn);
+                        const accepted = isSameBuild(msg) && this.reclaimSeat(droppedSeat, conn);
                         this.onDebugEvent?.('star.nameMatchedRejoinAttempt', {
                             name: msg.name,
                             seat: droppedSeat,
                             theirVersion: msg.version,
+                            theirContent: msg.contentHash,
                             ourVersion: GAME_VERSION,
                             accepted,
                         });
@@ -1036,11 +1072,12 @@ export class StarHub implements HostHub {
                     // never claim an AI-controlled seat.
                     const reclaimableSeat = this.findReclaimableSeatByName(msg.name);
                     if (reclaimableSeat !== null) {
-                        if (msg.version !== GAME_VERSION) {
+                        if (!isSameBuild(msg)) {
                             this.onDebugEvent?.('star.aiReclaimAttempt', {
                                 name: msg.name,
                                 seat: reclaimableSeat,
                                 theirVersion: msg.version,
+                            theirContent: msg.contentHash,
                                 ourVersion: GAME_VERSION,
                                 accepted: false,
                             });
@@ -1057,6 +1094,7 @@ export class StarHub implements HostHub {
                             name: msg.name,
                             seat: reclaimableSeat,
                             theirVersion: msg.version,
+                            theirContent: msg.contentHash,
                             ourVersion: GAME_VERSION,
                             accepted: true,
                         });
@@ -1064,7 +1102,7 @@ export class StarHub implements HostHub {
                         this.onRosterChange?.();
                         return;
                     }
-                    const decision = onJoin(msg.name, msg.version, msg.avatar, msg.loadout);
+                    const decision = onJoin(msg.name, msg, msg.avatar, msg.loadout);
                     if (typeof decision !== 'number') {
                         conn.send({ type: 'starRejected', reason: decision.reject });
                         conn.close();
@@ -1518,7 +1556,7 @@ export class StarGuestSession implements GuestSession {
             if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
             try {
                 const conn = await connectRawTo(this.peer, hostId, signal);
-                conn.send({ type: 'starRejoin', seat: mySeat, name: getPlayerName(), version: GAME_VERSION });
+                conn.send({ type: 'starRejoin', seat: mySeat, name: getPlayerName(), version: GAME_VERSION, contentHash: CONTENT_HASH });
                 return new StarGuestSession(this.peer, conn);
             } catch (e) {
                 if (e instanceof DOMException && e.name === 'AbortError') throw e;
@@ -1791,6 +1829,7 @@ export function joinStarRoom(
             type: 'starJoin',
             name: localName,
             version: GAME_VERSION,
+            contentHash: CONTENT_HASH,
             avatar: getAvatarDataUrl(),
             loadout: activeLoadout(),
         });
@@ -1854,7 +1893,7 @@ export interface SpectatorTransport {
     readonly managesLiveness?: boolean;
     listen(handlers: {
         /** a connection that has sent a valid `spectate` handshake */
-        onSpectate: (name: string, version: number, link: SpectatorViewerLink) => void;
+        onSpectate: (name: string, build: BuildStamp, link: SpectatorViewerLink) => void;
         onData: (link: SpectatorViewerLink, msg: NetMessage) => void;
         onDrop: (link: SpectatorViewerLink) => void;
     }): void;
@@ -1871,7 +1910,7 @@ export class PeerSpectatorTransport implements SpectatorTransport {
     }
 
     listen(handlers: {
-        onSpectate: (name: string, version: number, link: SpectatorViewerLink) => void;
+        onSpectate: (name: string, build: BuildStamp, link: SpectatorViewerLink) => void;
         onData: (link: SpectatorViewerLink, msg: NetMessage) => void;
         onDrop: (link: SpectatorViewerLink) => void;
     }): void {
@@ -1895,7 +1934,7 @@ export class PeerSpectatorTransport implements SpectatorTransport {
                     }
                     conn.off('data', onData);
                     conn.on('data', (d) => handlers.onData(conn, d as NetMessage));
-                    handlers.onSpectate(msg.name, msg.version, conn);
+                    handlers.onSpectate(msg.name, msg, conn);
                 };
                 conn.on('data', onData);
                 conn.on('close', () => handlers.onDrop(conn));
@@ -1983,7 +2022,7 @@ export class SpectatorHub {
      * (viewer `{kind:'spectator'}`) (or `spectateRejected` + closing the
      * connection).
      */
-    listen(onJoin: (name: string, version: number, link: SpectatorViewerLink) => void): void {
+    listen(onJoin: (name: string, build: BuildStamp, link: SpectatorViewerLink) => void): void {
         this.transport.listen({
             onSpectate: onJoin,
             onData: (link, msg) => this.onData(link, msg),
@@ -2294,6 +2333,8 @@ const SINGLE_KEY = 'mechili-single';
 
 export interface SinglePlayerSave {
     version: number;
+    /** content the save was made with — a different build can't replay its log */
+    contentHash?: string;
     seed: number;
     settings: GameSettings;
     actions: LoggedAction[];
@@ -2309,7 +2350,7 @@ export interface SinglePlayerSave {
 
 export function saveSinglePlayer(state: Omit<SinglePlayerSave, 'version'>): void {
     try {
-        sessionStorage.setItem(SINGLE_KEY, JSON.stringify({ version: GAME_VERSION, ...state }));
+        sessionStorage.setItem(SINGLE_KEY, JSON.stringify({ version: GAME_VERSION, contentHash: CONTENT_HASH, ...state }));
     } catch {
         /* private browsing / quota */
     }
@@ -2603,7 +2644,7 @@ export async function joinAsSpectator(
                 reject(e);
             });
         });
-        conn.send({ type: 'spectate', name, version: GAME_VERSION });
+        conn.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: CONTENT_HASH });
         const msg = await new Promise<NetMessage>((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
             const onData = (data: unknown) => {
@@ -2617,7 +2658,7 @@ export async function joinAsSpectator(
         if (msg.type !== 'matchCatchUp' || msg.viewer.kind !== 'spectator') {
             throw new Error('Unexpected reply from host');
         }
-        if (msg.version !== GAME_VERSION) throw new Error(t('menu:versionMismatchShort'));
+        if (!isSameBuild(msg)) throw new Error(t('menu:versionMismatchShort'));
         return {
             session: new SpectatorSession(peer, conn),
             seed: msg.seed,
