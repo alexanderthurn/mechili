@@ -21,7 +21,7 @@ import { touchFirstDevice } from './inputCapabilities';
 import {
     attachBuildingSnow,
     attachBuildingSnowToObject,
-    BUILDING_SNOW_IDS,
+    wantsBuildingSnow,
 } from './buildingSnow';
 import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
 import type { BattleTeam } from './units';
@@ -334,7 +334,7 @@ export function cloneUnitModel(id: string, _team?: BattleTeam): Group | null {
     const clone = skeletonClone(t) as Group;
     uniquifyMaterials(clone);
     // Three.js Material.clone() drops onBeforeCompile — re-attach after uniquify
-    if (BUILDING_SNOW_IDS.has(id)) attachBuildingSnowToObject(clone);
+    if (wantsBuildingSnow(id)) attachBuildingSnowToObject(clone);
     return clone;
 }
 
@@ -776,7 +776,7 @@ async function loadUnitModelsNow(
             // bakePose models are static after bakeSkinnedPose and use InstancedMesh.
             if (!spec.skinned) {
                 const baked = bakeInstanceAsset(root);
-                if (BUILDING_SNOW_IDS.has(id)) {
+                if (wantsBuildingSnow(id)) {
                     attachBuildingSnowToObject(root);
                     for (const part of baked.parts) attachBuildingSnow(part.material);
                 }
@@ -784,7 +784,7 @@ async function loadUnitModelsNow(
                     for (const part of baked.parts) markCrowWingFlapMaterial(part.material);
                 }
                 instanceAssets.set(id, baked);
-            } else if (BUILDING_SNOW_IDS.has(id)) {
+            } else if (wantsBuildingSnow(id)) {
                 attachBuildingSnowToObject(root);
             }
             console.info(
