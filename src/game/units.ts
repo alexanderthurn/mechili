@@ -1415,7 +1415,7 @@ export const UNIT_TYPES: UnitType[] = [
         // Match cadence to the long pitch (~1.27s visual @ fireSpeed 3)
         attackInterval: 1.35,
         // Hit late in the throw (visual ~1.27s)
-        meleeHitDelay: 0.7,
+        meleeHitDelay: 0.6,
         // commit early at speed 8.5 → slide into the smash
         meleeLunge: 5,
         meleePress: 0.85, // keep closing while swinging (the charge feel)
