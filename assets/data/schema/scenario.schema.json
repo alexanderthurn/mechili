@@ -1,0 +1,650 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ScenarioDef",
+  "definitions": {
+    "ScenarioDef": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "gameVersion": {
+          "type": "string",
+          "description": "game version at save time (for migrations)"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "seed": {
+          "type": "number"
+        },
+        "map": {
+          "$ref": "#/definitions/MapSize"
+        },
+        "rules": {
+          "$ref": "#/definitions/ScenarioRules"
+        },
+        "scene": {
+          "type": "object",
+          "properties": {
+            "units": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/SceneUnit"
+              }
+            },
+            "techs": {
+              "type": "object",
+              "properties": {
+                "player": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "enemy": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "required": [
+                "player",
+                "enemy"
+              ],
+              "additionalProperties": false,
+              "description": "talents owned per side, per unit type (innate talents are implicit)"
+            },
+            "buildings": {
+              "type": "object",
+              "properties": {
+                "player": {
+                  "$ref": "#/definitions/SceneBuildings"
+                },
+                "enemy": {
+                  "$ref": "#/definitions/SceneBuildings"
+                }
+              },
+              "required": [
+                "player",
+                "enemy"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "units",
+            "techs",
+            "buildings"
+          ],
+          "additionalProperties": false
+        },
+        "objectives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScenarioObjective"
+          }
+        }
+      },
+      "required": [
+        "version",
+        "gameVersion",
+        "id",
+        "name",
+        "seed",
+        "map",
+        "rules",
+        "scene"
+      ],
+      "additionalProperties": false
+    },
+    "MapSize": {
+      "type": "object",
+      "properties": {
+        "zoneCols": {
+          "type": "number",
+          "description": "each player's main territory width"
+        },
+        "zoneRows": {
+          "type": "number",
+          "description": "each player's main territory depth"
+        },
+        "neutralRows": {
+          "type": "number",
+          "description": "no-placement strip between the two territories (split evenly)"
+        },
+        "flankCols": {
+          "type": "number",
+          "description": "width of the flank strips beside the opponent's half"
+        },
+        "rimCells": {
+          "type": "number",
+          "description": "always-neutral band around the whole board (never deployable)"
+        }
+      },
+      "required": [
+        "zoneCols",
+        "zoneRows",
+        "neutralRows",
+        "flankCols",
+        "rimCells"
+      ],
+      "additionalProperties": false,
+      "description": "The composable dimensions of a battlefield, all in tiles."
+    },
+    "ScenarioRules": {
+      "type": "object",
+      "properties": {
+        "income": {
+          "type": "object",
+          "properties": {
+            "round1": {
+              "type": "number"
+            },
+            "growth": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "round1",
+            "growth"
+          ],
+          "additionalProperties": false,
+          "description": "round N grants round1 + (N-1) × growth (× the moneyFactor setting)"
+        },
+        "deploy": {
+          "type": "object",
+          "properties": {
+            "unitsPerRound": {
+              "type": "number"
+            },
+            "extrasBudgetPerRound": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "unitsPerRound",
+            "extrasBudgetPerRound"
+          ],
+          "additionalProperties": false
+        },
+        "sideHp": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "commander"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "player": {
+                  "type": "number"
+                },
+                "enemy": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "player",
+                "enemy"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "'commander' = normal card HP; numbers = fixed per side, card HP ignored"
+        },
+        "commander": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "const": "pick"
+                }
+              },
+              "required": [
+                "mode"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "const": "fixed"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "starterArmy": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "mode",
+                "id",
+                "starterArmy"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "const": "none"
+                }
+              },
+              "required": [
+                "mode"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "'pick': the normal commander offer. 'fixed': the player gets this commander (the opponent none); `starterArmy` decides whether its army spawns. 'none': no commander anywhere — no army, no effects."
+        },
+        "roundCards": {
+          "type": "string",
+          "description": "round-card preset id, or 'off'"
+        },
+        "hordeWaves": {
+          "type": "string",
+          "description": "horde preset id, or 'off' (placed horde units fight either way)"
+        },
+        "flanksOpenFromRound": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "round the flank strips open (normal: 2); null = never"
+        },
+        "neutralOpenFromRound": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "round the middle strip opens (normal: 2); null = never"
+        },
+        "atmosphere": {
+          "type": "object",
+          "properties": {
+            "season": {
+              "$ref": "#/definitions/Season"
+            },
+            "weather": {
+              "$ref": "#/definitions/WeatherKind"
+            },
+            "time": {
+              "$ref": "#/definitions/TimeOfDay"
+            },
+            "rotate": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "season",
+            "rotate"
+          ],
+          "additionalProperties": false
+        },
+        "strongholdMode": {
+          "$ref": "#/definitions/StrongholdMode"
+        },
+        "opponents": {
+          "type": "string",
+          "enum": [
+            "build",
+            "lockInOnly"
+          ],
+          "description": "what computer seats do in the build phase — they always lock in"
+        },
+        "enemyIntel": {
+          "type": "string",
+          "enum": [
+            "fogged",
+            "visible"
+          ],
+          "description": "fog on enemy deployment intel"
+        },
+        "unlockedUnits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "the player's shop unlocks (omit = what the commander gives)"
+        },
+        "loadout": {
+          "$ref": "#/definitions/LoadoutRule",
+          "description": "how the player's talent loadout applies (omit = the player's own)"
+        }
+      },
+      "required": [
+        "income",
+        "deploy",
+        "sideHp",
+        "commander",
+        "roundCards",
+        "hordeWaves",
+        "flanksOpenFromRound",
+        "neutralOpenFromRound",
+        "atmosphere",
+        "strongholdMode",
+        "opponents",
+        "enemyIntel"
+      ],
+      "additionalProperties": false
+    },
+    "Season": {
+      "type": "string",
+      "enum": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "description": "slow seasonal look — biases the sky tint and drives vegetation via `onSeasonChange`"
+    },
+    "WeatherKind": {
+      "type": "string",
+      "enum": [
+        "clear",
+        "rain",
+        "snow"
+      ],
+      "description": "precipitation, independent of time of day and season"
+    },
+    "TimeOfDay": {
+      "type": "string",
+      "enum": [
+        "dawn",
+        "day",
+        "golden",
+        "dusk",
+        "night"
+      ],
+      "description": "where the sun/moon sits — owns the base sky, sun, stars, exposure, sun direction"
+    },
+    "StrongholdMode": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "lifeline",
+        "none"
+      ],
+      "description": "What the Stronghold is worth in a match.\n\n- `lifeline` — the default. The side's army lives only while it stands: break one and every pack on that side drops, ending the round on the spot. A siege win instead of a grind.\n- `standard` — a building like any other; losing it only costs you the forge.\n- `none` — no Stronghold on the board at all, so no forge either.\n\nThe id `standard` predates the default moving to `lifeline`; it is kept so saved Custom Game configs and anything already on the wire still resolve."
+    },
+    "LoadoutRule": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "player"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "restrict"
+            },
+            "allow": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": [
+            "mode",
+            "allow"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "fixed"
+            },
+            "techs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": [
+            "mode",
+            "techs"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "open"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "The player's own loadout is the default; a scenario may be stricter or looser."
+    },
+    "SceneUnit": {
+      "type": "object",
+      "properties": {
+        "typeId": {
+          "type": "string",
+          "description": "any unit or building type the match has (base game + package)"
+        },
+        "team": {
+          "$ref": "#/definitions/SceneTeam"
+        },
+        "at": {
+          "type": "object",
+          "properties": {
+            "col": {
+              "type": "number"
+            },
+            "row": {
+              "type": "number"
+            },
+            "rotated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "col",
+            "row"
+          ],
+          "additionalProperties": false,
+          "description": "grid anchor (placement convention: top-left cell of the footprint)"
+        },
+        "level": {
+          "type": "number",
+          "description": "1 = recruit level"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "runes on this pack"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "hooks for objectives"
+        }
+      },
+      "required": [
+        "typeId",
+        "team",
+        "at",
+        "level"
+      ],
+      "additionalProperties": false,
+      "description": "A pack or building placed on the board at the start."
+    },
+    "SceneTeam": {
+      "type": "string",
+      "enum": [
+        "player",
+        "enemy",
+        "horde"
+      ]
+    },
+    "SceneBuildings": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/SceneBuilding"
+      },
+      "description": "base building type id → state"
+    },
+    "SceneBuilding": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "number"
+            },
+            "destroyed": {
+              "type": "boolean"
+            },
+            "garrison": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "level"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "boolean",
+          "const": false
+        }
+      ],
+      "description": "A base building at its anchor: omitted = normal level 1; `false` = not on the board. `garrison` = manned posts for a type with a `garrison` attribute."
+    },
+    "ScenarioObjective": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "destroySide"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "surviveRounds"
+            },
+            "rounds": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "rounds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "killTagged"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "tag"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "protectTagged"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "tag"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "Reserved for the campaign; parsed, not evaluated yet."
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

@@ -31,6 +31,10 @@
             "url": "./assets/data/schema/spell.schema.json"
         },
         {
+            "fileMatch": ["**/scenario.jsonc"],
+            "url": "./assets/data/schema/scenario.schema.json"
+        },
+        {
             "fileMatch": ["**/assets/data/pack.jsonc", "**/levels/*/data/pack.jsonc"],
             "url": "./assets/data/schema/pack.schema.json"
         }

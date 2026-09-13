@@ -1,0 +1,38 @@
+// A tiny duel: one archer against one ogre, no commanders, one battle decides.
+// Zip this folder (or its contents) and load it in Custom Game → Scenario (test).
+{
+    "version": 1,
+    "gameVersion": "0.9.0",
+    "id": "archer-vs-ogre",
+    "name": "Archer vs Ogre",
+    "description": "Can two archers with Longbow stop a charging ogre?",
+    "seed": 1234,
+    "map": { "zoneCols": 24, "zoneRows": 14, "neutralRows": 4, "flankCols": 0, "rimCells": 4 },
+    "rules": {
+        "income": { "round1": 300, "growth": 0 },
+        "deploy": { "unitsPerRound": 2, "extrasBudgetPerRound": 0 },
+        "sideHp": { "player": 1000, "enemy": 1000 },
+        "commander": { "mode": "none" },
+        "roundCards": "off",
+        "hordeWaves": "off",
+        "flanksOpenFromRound": null,
+        "neutralOpenFromRound": null,
+        "atmosphere": { "season": "autumn", "time": "day", "rotate": false },
+        "strongholdMode": "none",
+        "opponents": "lockInOnly",
+        "enemyIntel": "visible",
+        "unlockedUnits": ["archer"],
+    },
+    "scene": {
+        "units": [
+            { "typeId": "archer", "team": "player", "at": { "col": 14, "row": 10 }, "level": 2 },
+            { "typeId": "archer", "team": "player", "at": { "col": 18, "row": 10 }, "level": 2, "items": ["wind"] },
+            { "typeId": "ogre", "team": "enemy", "at": { "col": 15, "row": 24 }, "level": 3 },
+        ],
+        "techs": { "player": { "archer": ["barrel"] }, "enemy": {} },
+        "buildings": {
+            "player": { "command-tower": false, "research-center": false },
+            "enemy": { "command-tower": false, "research-center": false },
+        },
+    },
+}

@@ -30,6 +30,7 @@ import {
 } from './assets';
 import { BASE_PACK, loadPackWithOverlay } from './content/basePack';
 import { cacheLevel, cachedLevel } from './levelCache';
+import { parseScenario, type NormalizedScenario } from './scenario/normalize';
 import { TypeRegistry } from './content/typeRegistry';
 import { BASE_TYPES, proceduralHeightsOf } from './units';
 import { setModelSpecData, setModelTypes, setProceduralModelHeights } from './unitModels';
@@ -47,9 +48,11 @@ export interface ActiveLevel {
     /** null = the base game */
     overlay: AssetOverlay | null;
     types: TypeRegistry;
+    /** the package's `scenario.jsonc`, normalized against `types` — null when it has none */
+    scenario: NormalizedScenario | null;
 }
 
-let active: ActiveLevel = { overlay: null, types: BASE_TYPES };
+let active: ActiveLevel = { overlay: null, types: BASE_TYPES, scenario: null };
 let queue: Promise<unknown> = Promise.resolve();
 
 /** The level whose files and model data are loaded right now. */
@@ -109,7 +112,7 @@ export async function loadLevel(
     }
     try {
         const { replaced, added } = overlay.report;
-        if (replaced.length === 0 && !added.some((p) => p.startsWith('data/'))) {
+        if (replaced.length === 0 && overlay.scenarioText === null && !added.some((p) => p.startsWith('data/'))) {
             throw new Error(
                 `[level] "${id}" changes nothing — expected files like data/units/dwarf.jsonc or ` +
                     `models/units/dwarf.glb, got: ${added.slice(0, 5).join(', ') || '(no files)'}`,
@@ -181,11 +184,12 @@ export function switchLevel(overlay: AssetOverlay | null): Promise<ActiveLevel> 
         if (active.overlay === overlay) return active;
         const pack = overlay ? loadPackWithOverlay(overlay.dataFiles, overlay.id) : BASE_PACK;
         const types = overlay ? new TypeRegistry(pack) : BASE_TYPES;
+        const scenario = overlay?.scenarioText != null ? parseScenario(overlay.scenarioText, types) : null;
         setModelSpecData(pack.models);
         setModelTypes(types.all());
         setProceduralModelHeights(proceduralHeightsOf(types));
         await switchAssetOverlay(overlay);
-        active = { overlay, types };
+        active = { overlay, types, scenario };
         return active;
     });
     queue = run.catch(() => {});

@@ -460,7 +460,42 @@ try {
             }
             if (zk) console.log(`ok   scenario transfer: ${sender.count} chunks in ${requests} batched requests, same hash on arrival, garbage/oversized refused; spectators gated, served, admitted on resend`);
         }
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected');
+        // ---- scenario format: fixture normalizes cleanly; errors and warnings are reported
+        {
+            const scen = await server.ssrLoadModule('/src/game/scenario/normalize.ts');
+            const fixture = readFileSync('scripts/fixtures/scenarios/archer-vs-ogre/scenario.jsonc', 'utf8');
+            const T = units.BASE_TYPES;
+            const clean = scen.parseScenario(fixture, T);
+            zexpect(clean.def !== null && clean.issues.length === 0, `fixture scenario has issues: ${clean.issues.map((i) => i.message).join('; ')}`);
+            const variant = (edit) => {
+                const raw = JSON.parse(JSON.stringify(clean.def));
+                edit(raw);
+                return scen.normalizeScenario(raw, T);
+            };
+            const messages = (r) => r.issues.map((i) => `${i.level}:${i.message}`).join(' | ');
+            const unknownUnit = variant((d) => (d.scene.units[0].typeId = 'archr'));
+            zexpect(scen.hasErrors(unknownUnit.issues) && messages(unknownUnit).includes('no unit or building type "archr"'), `unknown unit: ${messages(unknownUnit)}`);
+            const offBoard = variant((d) => (d.scene.units[2].at.row = 999));
+            zexpect(messages(offBoard).includes('outside the'), `off board: ${messages(offBoard)}`);
+            const garrison = variant((d) => (d.scene.buildings.enemy.stronghold = { level: 1, garrison: 9 }));
+            zexpect(messages(garrison).includes('garrison 9 but it has 5 posts'), `garrison: ${messages(garrison)}`);
+            const dropped = variant((d) => {
+                d.scene.units[1].items = ['wind', 'nope'];
+                d.scene.techs.player.archer = ['barrel', 'aegis'];
+            });
+            zexpect(!scen.hasErrors(dropped.issues) && dropped.def.scene.units[1].items.join() === 'wind' && dropped.def.scene.techs.player.archer.join() === 'barrel', `dropped warnings: ${messages(dropped)}`);
+            const badShape = variant((d) => (d.rules.opponents = 'sleep'));
+            zexpect(badShape.def === null && scen.hasErrors(badShape.issues), 'a schema violation must leave no def');
+            const badVersion = variant((d) => (d.version = 2));
+            zexpect(badVersion.def === null && messages(badVersion).includes('unsupported scenario version'), `version: ${messages(badVersion)}`);
+            // a package holding only scenario.jsonc is a valid level, and the active level exposes the scenario
+            const { ref: scenRef } = await levels.loadLevel('archer-vs-ogre', [{ path: 'scenario.jsonc', bytes: enc(fixture) }]);
+            const act = await levels.prepareLevel(scenRef);
+            zexpect(act.scenario?.def?.name === 'Archer vs Ogre' && act.scenario.issues.length === 0, 'the active level does not expose its scenario');
+            await levels.prepareLevel(undefined);
+            zexpect(levels.activeLevel().scenario === null, 'the base game has a scenario');
+        }
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated');
     }
 } catch (e) {
     failed = true;

@@ -79,10 +79,14 @@ export interface AssetOverlay {
     urls: ReadonlyMap<string, string>;
     /** data files (`data/**.jsonc`) as text, for the level's definition loader */
     dataFiles: ReadonlyMap<string, string>;
+    /** `scenario.jsonc` at the package root, when the level is a scenario */
+    scenarioText: string | null;
     report: OverlayReport;
 }
 
 const TEXT_FILE = /\.(jsonc?|txt|csv|svg)$/i;
+/** a level package that is a scenario carries its board + rules here (plan §4.1) */
+export const SCENARIO_FILE = 'scenario.jsonc';
 
 /** a copy on a plain ArrayBuffer — Blob and digest won't take SharedArrayBuffer views */
 function toBytes(b: ArrayBuffer | Uint8Array): Uint8Array<ArrayBuffer> {
@@ -120,7 +124,9 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
 
     const dataFiles = new Map<string, string>();
     const referenced = new Set<string>();
+    let scenarioText: string | null = null;
     for (const f of valid) {
+        if (f.path === SCENARIO_FILE) scenarioText = new TextDecoder().decode(toBytes(f.bytes));
         if (!f.path.startsWith('data/') || !TEXT_FILE.test(f.path)) continue;
         const text = new TextDecoder().decode(toBytes(f.bytes));
         dataFiles.set(f.path, text);
@@ -135,10 +141,12 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
         if (BASE_ASSET_URLS.has(f.path) || BASE_DATA_PATHS.has(f.path)) report.replaced.push(f.path);
         else {
             report.added.push(f.path);
-            if (!f.path.startsWith('data/') && !referenced.has(f.path)) report.unreferenced.push(f.path);
+            if (!f.path.startsWith('data/') && f.path !== SCENARIO_FILE && !referenced.has(f.path)) {
+                report.unreferenced.push(f.path);
+            }
         }
         parts.push(enc.encode(f.path), new Uint8Array([0]), normalizedBytes(f.path, bytes), new Uint8Array([0]));
-        if (!f.path.startsWith('data/')) {
+        if (!f.path.startsWith('data/') && f.path !== SCENARIO_FILE) {
             urls.set(f.path, URL.createObjectURL(new Blob([bytes])));
         }
     }
@@ -150,7 +158,7 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
         at += p.length;
     }
     const hash = hex(await crypto.subtle.digest('SHA-256', joined));
-    return { id, hash, urls, dataFiles, report };
+    return { id, hash, urls, dataFiles, scenarioText, report };
 }
 
 /**
