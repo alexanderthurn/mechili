@@ -1,6 +1,6 @@
 // Static bind-pose template for icons / fallback. Battle uses mixer via unitAnimated.
 {
-    "file": "archer.glb",
+    "file": "models/units/archer.glb",
     "yawDeg": 90,
     "skinned": true,
 }

@@ -1043,7 +1043,7 @@ function buildProcedural(type: UnitType, parts: PartFactory): void {
 
 /**
  * Unit and building definitions come from the base content pack
- * (`content/base/**.jsonc`, see src/game/content/basePack.ts). These constants
+ * (`assets/data/**.jsonc`, see src/game/content/basePack.ts). These constants
  * are lookups into it, kept for the code that refers to a specific base type.
  * The design notes that used to sit on each literal live in its .jsonc file.
  */

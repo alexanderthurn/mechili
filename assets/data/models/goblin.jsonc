@@ -1,5 +1,5 @@
 {
-    "file": "goblin.glb",
+    "file": "models/units/goblin.glb",
     "yawDeg": 90,
     "scale": 2.85,
     "offset": { "y": -0.04 },

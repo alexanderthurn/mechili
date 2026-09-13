@@ -1,4 +1,4 @@
-// Validates content/base with the same loader the game runs — JSONC syntax, the
+// Validates assets/data with the same loader the game runs — JSONC syntax, the
 // generated JSON Schemas (fields and value types at every depth), ids vs file
 // names, pack.jsonc listings — checks the schemas aren't stale against the
 // TypeScript types, and that units.ts / unitModels.ts accept the result.
@@ -54,7 +54,7 @@ try {
 
     const { BASE_PACK } = await server.ssrLoadModule('/src/game/content/basePack.ts');
     console.log(
-        `ok   content/base loads: ${BASE_PACK.roster.length} roster, ${BASE_PACK.offRoster.length} off-roster, ` +
+        `ok   assets/data loads: ${BASE_PACK.roster.length} roster, ${BASE_PACK.offRoster.length} off-roster, ` +
             `${BASE_PACK.buildings.length} buildings, ${Object.keys(BASE_PACK.models).length} models`,
     );
 

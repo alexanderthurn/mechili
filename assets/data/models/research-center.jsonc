@@ -1,3 +1,3 @@
 // wizard tower. Was `MODEL_FWD_YAW-70` — 70 RADIANS, probably meant as degrees;
 // this value reproduces that orientation bit-exactly.
-{ "file": "research-center.glb", "yawDeg": -4010.7045659157625, "scale": 1.0 }
+{ "file": "models/units/research-center.glb", "yawDeg": -4010.7045659157625, "scale": 1.0 }

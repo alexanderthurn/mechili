@@ -77,14 +77,14 @@ export interface AnimSpec {
  */
 export const ANIM_SPECS: Record<string, AnimSpec> = {
     archer: {
-        url: new URL('../../assets/models/archer.glb', import.meta.url).href,
+        url: new URL('../../assets/models/units/archer.glb', import.meta.url).href,
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         walk: 'longest',
         walkSpeed: 1.5,
         fire: 'shortest',
     },
     hammerer: {
-        url: new URL('../../assets/models/hammerer.glb', import.meta.url).href,
+        url: new URL('../../assets/models/units/hammerer.glb', import.meta.url).href,
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         // named clips: preset:biped:walk / preset:biped:fire
         walk: 'walk',
@@ -92,7 +92,7 @@ export const ANIM_SPECS: Record<string, AnimSpec> = {
         fire: 'fire',
     },
     ogre: {
-        url: new URL('../../assets/models/ogre.glb', import.meta.url).href,
+        url: new URL('../../assets/models/units/ogre.glb', import.meta.url).href,
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         // Foot align is measured from the walk clip (see footAlign on template) —
         // blended by anim weight so T-pose deploy and run both sit on the marker.

@@ -1,7 +1,7 @@
 // Generates the JSON Schemas for content files straight from the TypeScript
 // types, so the data format can never drift from what the game reads.
 //
-//   npm run content:schema          write content/schema/*.schema.json
+//   npm run content:schema          write assets/data/schema/*.schema.json
 //   node scripts/gen-content-schema.mjs --check   exit 1 if they are stale
 //
 // The schemas drive VS Code autocomplete / hover docs for every .jsonc file
@@ -11,9 +11,9 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createGenerator } from 'ts-json-schema-generator';
 
 const SCHEMAS = [
-    { file: 'content/schema/unit.schema.json', path: 'src/game/units.ts', type: 'UnitType' },
-    { file: 'content/schema/model.schema.json', path: 'src/game/unitModels.ts', type: 'ModelSpecData' },
-    { file: 'content/schema/pack.schema.json', path: 'src/game/content/basePack.ts', type: 'PackManifest' },
+    { file: 'assets/data/schema/unit.schema.json', path: 'src/game/units.ts', type: 'UnitType' },
+    { file: 'assets/data/schema/model.schema.json', path: 'src/game/unitModels.ts', type: 'ModelSpecData' },
+    { file: 'assets/data/schema/pack.schema.json', path: 'src/game/content/basePack.ts', type: 'PackManifest' },
 ];
 
 /** `{@link Foo}` / `{@link Foo.bar}` → `Foo` / `Foo.bar` — readable hover text */
@@ -72,7 +72,7 @@ if (isMain) {
                 console.error(`FAIL ${file} is stale — run: npm run content:schema`);
             }
         } else {
-            mkdirSync('content/schema', { recursive: true });
+            mkdirSync('assets/data/schema', { recursive: true });
             writeFileSync(file, text);
             console.log(`wrote ${file}`);
         }

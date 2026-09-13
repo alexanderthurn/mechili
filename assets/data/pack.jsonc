@@ -1,4 +1,4 @@
-// The base game content pack. Every file under units/, buildings/ and models/
+// The base game's definitions. Every file under data/units, data/buildings and data/models
 // is loaded; ids must match file names.
 {
     "id": "base",

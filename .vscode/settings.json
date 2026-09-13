@@ -3,16 +3,16 @@
     // and inline errors from the schemas generated off the TypeScript types.
     "json.schemas": [
         {
-            "fileMatch": ["**/content/*/units/*.jsonc", "**/content/*/buildings/*.jsonc"],
-            "url": "./content/schema/unit.schema.json"
+            "fileMatch": ["**/assets/data/units/*.jsonc", "**/assets/data/buildings/*.jsonc", "**/levels/*/data/units/*.jsonc", "**/levels/*/data/buildings/*.jsonc"],
+            "url": "./assets/data/schema/unit.schema.json"
         },
         {
-            "fileMatch": ["**/content/*/models/*.jsonc"],
-            "url": "./content/schema/model.schema.json"
+            "fileMatch": ["**/assets/data/models/*.jsonc", "**/levels/*/data/models/*.jsonc"],
+            "url": "./assets/data/schema/model.schema.json"
         },
         {
-            "fileMatch": ["**/content/*/pack.jsonc"],
-            "url": "./content/schema/pack.schema.json"
+            "fileMatch": ["**/assets/data/pack.jsonc"],
+            "url": "./assets/data/schema/pack.schema.json"
         }
     ]
 }

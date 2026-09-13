@@ -8,7 +8,7 @@
       "properties": {
         "file": {
           "type": "string",
-          "description": "GLB file name under `assets/models/`"
+          "description": "GLB path under `assets/`, e.g. `models/units/dwarf.glb`"
         },
         "yawDeg": {
           "type": "number",
