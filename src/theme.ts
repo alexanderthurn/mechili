@@ -2536,6 +2536,9 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-scenario-editor button.active { border-color: ${u.brassLight}; background: rgba(212, 184, 120, 0.18); color: ${u.brassLight}; }
 .mechili-scenario-editor .se-collapse { padding: 0 6px; border: none; background: none; font-size: 14px; }
 .mechili-scenario-editor .se-team { border-inline-start: 5px solid var(--se-team); }
+.mechili-scenario-editor .se-type { display: flex; align-items: center; gap: 5px; padding: 2px 6px 2px 2px; }
+.mechili-scenario-editor .se-ico { flex: none; width: 26px; height: 26px; background-size: cover; background-position: center; border-radius: 3px; }
+.mechili-scenario-editor .se-type-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mechili-scenario-editor .se-sel-name { font-weight: 600; }
 .mechili-scenario-editor .se-level { min-width: 1.6em; text-align: center; font-weight: 700; }
 .mechili-scenario-editor .se-run button { flex: 1; text-align: center; font-weight: 700; padding: 6px 10px; border-color: ${u.brassLight}; }

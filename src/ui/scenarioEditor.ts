@@ -53,6 +53,8 @@ export interface ScenarioEditorHost {
     readonly gameVersion: string;
     /** whether a zip download is offered (web builds) */
     canDownload(): boolean;
+    /** a type's thumbnail (data URL), if rendered */
+    unitIcon(typeId: string): string | null;
     /** put a board on the running match */
     rebuild(def: ScenarioDef): AppliedScene;
     /** read the running match's board back */
@@ -675,13 +677,15 @@ export class ScenarioEditor {
             `<button type="button" class="${cls}${opts.active ? ' active' : ''}"${opts.disabled ? ' disabled' : ''}${opts.data ? ` ${opts.data}` : ''}${opts.title ? ` title="${esc(opts.title)}"` : ''}${opts.style ? ` style="${opts.style}"` : ''}>${label}</button>`;
         const palette = (list: UnitType[]) =>
             list
-                .map((ty) =>
-                    btn('se-type', esc(ty.name), {
+                .map((ty) => {
+                    const icon = this.host.unitIcon(ty.id);
+                    const art = icon ? `<span class="se-ico" style="background-image:url('${icon}')"></span>` : '';
+                    return btn('se-type', `${art}<span class="se-type-name">${esc(ty.name)}</span>`, {
                         active: this.tool === 'place' && this.placeTypeId === ty.id,
                         data: `data-type="${esc(ty.id)}"`,
-                        title: `${ty.id}${baseIds.has(ty.id) ? ' · base building' : ''} · ${ty.footprint.cols}×${ty.footprint.rows}`,
-                    }),
-                )
+                        title: `${ty.name} · ${ty.id}${baseIds.has(ty.id) ? ' · base building' : ''} · ${ty.footprint.cols}×${ty.footprint.rows}`,
+                    });
+                })
                 .join('');
         // counts as the scenario means them (player = the real player)
         const counts = { player: 0, enemy: 0, horde: 0 };

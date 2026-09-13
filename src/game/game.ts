@@ -1215,6 +1215,8 @@ export class Game {
     /** the scenario editor's own matches: editing a draft, or its test battle */
     private readonly editorMode: 'author' | 'test' | null;
     private scenarioEditor: ScenarioEditor | null = null;
+    /** 3D thumbnails by type id (the roster; the editor adds everything else it lists) */
+    private unitIconUrls: Map<string, string> = new Map();
     private testBattleBar: TestBattleBar | null = null;
     /** what this match does each round (plan §5) */
     private readonly rules: MatchRules;
@@ -1910,7 +1912,8 @@ export class Game {
             this.hpBars.view.visible = false;
             this.introActive = true;
         }
-        this.hud.setUnitIcons(renderAllUnitIcons(this.renderer, this.types.roster));
+        this.unitIconUrls = renderAllUnitIcons(this.renderer, this.types.roster);
+        this.hud.setUnitIcons(this.unitIconUrls);
         this.hud.setBoardExtrasAllowed(!this.settings.climb && !isTutorial(this.settings));
         this.tutorial?.applyInitialChrome();
         // this match's real settings (including any ?hordeFactor= override) —
@@ -2965,6 +2968,8 @@ export class Game {
         this.economy.free = true;
         this.unlockedUnits[this.humanSeat] = [...this.types.shopUnitIds];
         this.refreshShopHud();
+        const missing = [...this.types.all()].filter((type) => !this.unitIconUrls.has(type.id));
+        for (const [id, url] of renderAllUnitIcons(this.renderer, missing)) this.unitIconUrls.set(id, url);
         const level = activeLevel().overlay;
         this.scenarioEditor = new ScenarioEditor(
             {
@@ -2978,6 +2983,7 @@ export class Game {
                 gameVersion: formatGameVersion(GAME_VERSION),
                 // main wires the download right after construction
                 canDownload: () => this.onScenarioDownload !== null,
+                unitIcon: (typeId) => this.unitIconUrls.get(typeId) ?? null,
                 rebuild: (def) => this.rebuildScenarioBoard(def),
                 capture: (baseBuildings) =>
                     captureScene(
