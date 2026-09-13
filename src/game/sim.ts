@@ -3236,18 +3236,30 @@ export class BattleSim {
         return actor.goldenUntil > this.elapsed + 1e-9;
     }
 
-    /** one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies in range of a golden ballista get 30s immunity */
-    private applyBallistaGoldenAura(recipient?: Actor, caster?: Actor): void {
+    /**
+     * one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies in range of a golden ballista get 30s immunity.
+     *
+     * `windowOnly` caps the buff at the opening window instead of running a
+     * fresh 30s from now. Conversion uses it: a mech that switches sides
+     * mid-battle joins a team whose aura is (or soon will be) spent, and a full
+     * new window made it the only debuff-immune, −30%-damage unit on the field.
+     */
+    private applyBallistaGoldenAura(recipient?: Actor, caster?: Actor, windowOnly = false): void {
         const r2 = GOLDEN_AURA_RADIUS * GOLDEN_AURA_RADIUS;
         // duration runs from NOW, so a flank unit that arrives late still gets
         // its full buff instead of the remainder of the opening window
-        const expires = this.elapsed + GOLDEN_AURA_DURATION;
+        const expires = windowOnly
+            ? Math.min(this.elapsed + GOLDEN_AURA_DURATION, GOLDEN_AURA_APPLY_AT + GOLDEN_AURA_DURATION)
+            : this.elapsed + GOLDEN_AURA_DURATION;
+        if (expires <= this.elapsed) return;
         for (const f of this.actors) {
             if (caster && f !== caster) continue;
             if (!f.alive || f.unit.type.id !== 'ballista') continue;
             // a ballista still riding in grants nothing until it has landed
             if (this.isSpawning(f)) continue;
-            if (!this.config.hasTech(f.unit.seat, 'ballista', 'golden')) continue;
+            // the tech of whoever commands the ballista NOW (a converted one
+            // follows its new owner, like the tower debuffs do)
+            if (!this.config.hasTech(actorSeat(f), 'ballista', 'golden')) continue;
             for (const a of this.actors) {
                 if (recipient && a !== recipient) continue;
                 if (!a.alive || actorTeam(a) !== actorTeam(f) || a.unit.type.structure) continue;
@@ -5374,7 +5386,7 @@ export class BattleSim {
         // (Tower debuffs already key off {@link actorSeat}, so allegiance alone
         // stops the old seat's loss from crippling this mech.)
         target.goldenUntil = 0;
-        if (this.goldenAuraApplied) this.applyBallistaGoldenAura(target);
+        if (this.goldenAuraApplied) this.applyBallistaGoldenAura(target, undefined, true);
         // brief pause before the next channel
         const recover = caster.unit.type.convertRay?.recover ?? 1.25;
         caster.convertCooldown = recover;
