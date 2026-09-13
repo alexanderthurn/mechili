@@ -841,18 +841,42 @@ levels/frost-keep/
   `GAME_VERSION`; a mismatch refuses to join with a clear message.
 - Nothing is hashed during a match; the per-round model fingerprint stays.
 
-### 17.7 Order
+### 17.7 Order and status
 
-1. Attributes replace id checks (done).
-2. Definitions as data, JSONC + generated schemas (done).
-3. One asset tree: `content/base` → `assets/data`, unit GLBs →
-   `assets/models/units`.
-4. Resolver + generated manifest; all game file loads go through it, lazily.
-5. Build-time base hash in the bundle and the handshakes.
-6. Overlay layer in the resolver + validation + overlay hash (no loading UI
-   yet — that arrives with scenarios).
-7. Later: walls and other engine features that unlock new content (movement +
-   projectile blocking needs real pathing — the sim only has local avoidance).
+| Step | Status |
+|---|---|
+| 1. Attributes replace id checks | done |
+| 2. Definitions as data (JSONC, generated schemas, `npm run check:content`) | done |
+| 3. One asset tree: `assets/data`, `assets/models/units` | done |
+| 4. `assetUrl()` resolver + generated manifest (`npm run assets:manifest`); every game file load goes through it, lazily | done |
+| 5. Build-time content hash in every multiplayer handshake (`isSameBuild`) | done |
+| 6. Overlay layer: `buildAssetOverlay` / `installAssetOverlay`, report, overlay hash in `currentContentHash()`, level data validated via `loadPackWithOverlay` | done (no loading UI) |
+| 7. **Per-match type registry** — see 17.8 | next |
+| 8. Level loading (Electron folder / browser zip) + scenario boot | with scenarios |
+| 9. Walls and other engine features that unlock new content | later |
+
+`npm run check:content` covers steps 2–6: manifest freshness and no
+hand-built asset URLs, schema freshness, base data validation, and a sample
+level overlay (replace/add by path, report, hash stability and line-ending
+invariance, data validation, multiplayer hash).
+
+### 17.8 Known gap: per-match type registry
+
+A level's **media** overlay applies to a match as-is: files resolve when they
+load. A level's **data** (a replaced Stronghold, a new wall) is validated
+today but can't be used yet, because the unit and building tables are
+module-level constants loaded once at startup (`UNIT_TYPES`, `STRONGHOLD`,
+`unitTypeById`, …) and imported across the codebase.
+
+Needed before a level can change definitions:
+- a type registry owned by the match (built from `loadPackWithOverlay`),
+  reachable from the sim, placement, HUD and AI instead of module constants;
+- the remaining named constants (`STRONGHOLD`, `COMMAND_TOWER`, …) resolved
+  through it, which the attribute work (17.2) already made mostly unnecessary;
+- model specs re-resolved per match (`MODEL_SPECS` is built once today).
+
+Multiplayer is already safe for this: the overlay hash covers data files, so
+peers can only play a level whose definitions match.
 
 ---
 
@@ -861,6 +885,7 @@ levels/frost-keep/
 | Date | Change |
 |------|--------|
 | 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
+| 2026-09-13 | §17 steps 3–6 implemented; status table and the per-match type registry gap (17.8) |
 | 2026-09-13 | §17 → content, assets & overlays: one `assets/` tree (data + media), `assetUrl` resolver + manifest, level overlays by path, content hash in handshakes. Loadout fixed: the player's own loadout is the default; `rules.loadout` can restrict, fix or open it |
 | 2026-09-13 | §17 requirement: attributes instead of id checks; definitions as data; JSON content packs (units/buildings first); phase 0 before the editor |
 | 2026-09-13 | v2: verified against the engine. Scenario embedded in settings (replay/resume), `MatchRules`, restart-only editor, side-level techs, commander modes, opponents always lock in, revive semantics, capture situation, share codes, regression tests, campaign carry-over, resolved-issues table (§14) |

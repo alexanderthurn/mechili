@@ -11,7 +11,7 @@
             "url": "./assets/data/schema/model.schema.json"
         },
         {
-            "fileMatch": ["**/assets/data/pack.jsonc"],
+            "fileMatch": ["**/assets/data/pack.jsonc", "**/levels/*/data/pack.jsonc"],
             "url": "./assets/data/schema/pack.schema.json"
         }
     ]
