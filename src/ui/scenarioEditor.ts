@@ -68,6 +68,14 @@ export interface ScenarioEditorHost {
     play(def: ScenarioDef): void;
     /** keep the draft as a scenario package; resolves to a status line */
     save(def: ScenarioDef): Promise<string>;
+    /** the package this board is made on holds scenarios — saving into it is offered */
+    readonly packageName: string | null;
+    /**
+     * Put the draft into that package (replacing the scenario of its id, or
+     * adding it at the end of the order). `id` is the scenario's id in the
+     * package; `reopen` restarts the editor on the updated package.
+     */
+    saveInto(def: ScenarioDef): Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }>;
     download(def: ScenarioDef): Promise<string>;
     /** copy the draft as a share code; resolves to a status line */
     shareCode(def: ScenarioDef): Promise<string>;
@@ -816,10 +824,19 @@ export class ScenarioEditor {
             }) +
             `</div>` +
             `<div class="se-row">` +
-            btn('se-save', t('editor:save', { defaultValue: 'Save' }), {
+            btn('se-save', this.host.packageName ? t('editor:saveNew', { defaultValue: 'Save as new' }) : t('editor:save', { defaultValue: 'Save' }), {
                 disabled: errors.length > 0,
                 title: t('editor:saveTip', { defaultValue: 'Keep it as a scenario (with this level’s content)' }),
             }) +
+            (this.host.packageName
+                ? btn('se-save-into', t('editor:saveInto', { defaultValue: 'Save into package' }), {
+                      disabled: errors.length > 0,
+                      title: t('editor:saveIntoTip', {
+                          defaultValue: 'Into “{{name}}”: replaces this scenario, or adds it as the next level',
+                          name: this.host.packageName,
+                      }),
+                  })
+                : '') +
             btn('se-code', t('editor:shareCode', { defaultValue: 'Copy code' }), {
                 disabled: errors.length > 0,
                 title: t('editor:shareCodeTip', { defaultValue: 'A text code for chat — import it under Single Player → Scenarios' }),
@@ -900,6 +917,22 @@ export class ScenarioEditor {
                 .finally(() => ((el as HTMLButtonElement).disabled = false));
         };
         on('.se-save', (el) => busy(el, () => this.host.save(this.draft)));
+        on('.se-save-into', (el) =>
+            busy(el, async () => {
+                const result = await this.host.saveInto(this.draft);
+                if (result.id !== this.draft.id) {
+                    const next = structuredClone(this.draft);
+                    next.id = result.id;
+                    this.history.push(next);
+                }
+                this.host.autosave(this.draft);
+                if (result.reopen) {
+                    this.carry();
+                    result.reopen(this.draft);
+                }
+                return result.status;
+            }),
+        );
         on('.se-download', (el) => busy(el, () => this.host.download(this.draft)));
         on('.se-code', (el) => busy(el, () => this.host.shareCode(this.draft)));
         on('.se-exit', () => this.host.exit());

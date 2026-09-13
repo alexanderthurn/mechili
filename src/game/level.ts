@@ -95,6 +95,8 @@ export function levelFilesFromArchive(files: readonly OverlayFile[]): OverlayFil
 /** levels loaded this session, by content hash — with their files, to hand to peers */
 const known = new Map<string, AssetOverlay>();
 const knownFiles = new Map<string, readonly OverlayFile[]>();
+/** packages the player deleted or replaced — still loadable while in use, no longer listed */
+const forgotten = new Set<string>();
 
 /** The files of a level loaded this session (for sending it to a peer), or null. */
 export function levelFiles(hash: string): readonly OverlayFile[] | null {
@@ -111,9 +113,12 @@ export async function loadLevel(
     files: readonly OverlayFile[],
 ): Promise<{ ref: LevelRef; report: OverlayReport }> {
     const overlay = await buildAssetOverlay(id, files);
+    const wasForgotten = forgotten.delete(overlay.hash);
     const existing = known.get(overlay.hash);
     if (existing) {
         disposeAssetOverlay(overlay);
+        // saved again after being deleted: keep it again
+        if (wasForgotten) void cacheLevel({ id: existing.id, hash: existing.hash }, files);
         return { ref: { id: existing.id, hash: existing.hash }, report: existing.report };
     }
     try {
@@ -257,11 +262,12 @@ export function summarizeLevel(ref: LevelRef, files: readonly OverlayFile[]): Le
 export async function scenarioLevels(): Promise<LevelSummary[]> {
     const out = new Map<string, LevelSummary>();
     for (const ref of knownLevels()) {
+        if (forgotten.has(ref.hash)) continue;
         const summary = summarizeLevel(ref, knownFiles.get(ref.hash) ?? []);
         if (summary.scenarios.length > 0) out.set(ref.hash, summary);
     }
     for (const { ref, scenario } of await listCachedLevels()) {
-        if (out.has(ref.hash) || !scenario) continue;
+        if (out.has(ref.hash) || !scenario || forgotten.has(ref.hash)) continue;
         const cached = await cachedLevel(ref.hash, false);
         if (!cached) continue;
         const summary = summarizeLevel(ref, cached.files);
@@ -276,6 +282,7 @@ export async function scenarioLevels(): Promise<LevelSummary[]> {
  */
 export async function forgetLevel(ref: LevelRef): Promise<void> {
     await deleteCachedLevel(ref.hash);
+    forgotten.add(ref.hash);
     const overlay = known.get(ref.hash);
     if (overlay && active.overlay !== overlay) {
         known.delete(ref.hash);

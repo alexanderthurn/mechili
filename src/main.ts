@@ -105,7 +105,7 @@ import { readZip, writeZip } from './game/content/zip';
 import { listCachedLevels } from './game/levelCache';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { loadStoredDraft, newDraft } from './game/scenario/editorDraft';
-import { scenarioPackageFiles } from './game/scenario/package';
+import { packageScenarioIds, scenarioPackageFiles, scenarioSlug, withScenarioInPackage } from './game/scenario/package';
 import type { ScenarioDef } from './game/scenario/scenarioDef';
 import { decodeShareCode, encodeShareCode } from './game/scenario/shareCode';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
@@ -1478,7 +1478,8 @@ async function editSavedScenario(ref: LevelRef, id: string): Promise<void> {
     const def = await savedScenarioDef(ref, id).catch(() => null);
     if (!def) return;
     showMenuView('main');
-    await openScenarioEditor('author', def, ref);
+    // the scenario keeps its id in the package, so "Save into package" replaces it
+    await openScenarioEditor('author', { ...def, id }, ref);
 }
 
 /**
@@ -3138,6 +3139,7 @@ function constructGame(
         game.onScenarioEditor = (mode, draft) => void openScenarioEditor(mode, draft, settings.level);
         if (SCENARIO_ZIP_TESTING) game.onScenarioDownload = (draft) => downloadScenarioDraft(draft, settings.level);
         game.onScenarioSave = (draft) => saveScenarioDraft(draft, settings.level);
+        game.onScenarioSaveInto = (draft) => saveScenarioIntoLevel(draft, settings.level);
         game.onScenarioPlay = (draft) => void playScenarioDraft(draft, settings.level);
         game.onScenarioShareCode = async (draft) => {
             const { id, files } = scenarioDraftPackage(draft, settings.level);
@@ -3443,9 +3445,33 @@ async function playNextScenario(level: LevelRef | undefined, id: string): Promis
 
 /** the draft as a one-level package: named after the draft, with the content of the level it was made on */
 function scenarioDraftPackage(draft: ScenarioDef, level: LevelRef | undefined): { id: string; files: OverlayFile[] } {
-    const id = draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || draft.id;
+    const id = scenarioSlug(draft.name, draft.id);
     const def = { ...draft, id, updatedAt: new Date().toISOString() };
     return { id, files: scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []) };
+}
+
+/**
+ * The editor's "Save into package": the draft goes into the package the board
+ * is made on. The updated package replaces the old one (cache and list), and
+ * the editor reopens on it so the next save builds on this one.
+ */
+async function saveScenarioIntoLevel(
+    draft: ScenarioDef,
+    level: LevelRef | undefined,
+): Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }> {
+    if (!level || !(await ensureLevel(level))) throw new Error('the package this board is made on is not available');
+    const files = levelFiles(level.hash);
+    if (!files) throw new Error('the package this board is made on is not available');
+    const { files: merged, id } = withScenarioInPackage(files, { ...draft, updatedAt: new Date().toISOString() }, level.id);
+    const { ref } = await loadLevel(level.id, merged);
+    if (ref.hash === level.hash) return { status: 'Nothing changed', id, reopen: null };
+    await forgetLevel(level);
+    const replaced = packageScenarioIds(files).includes(id);
+    return {
+        status: replaced ? `Saved into “${level.id}”` : `Added to “${level.id}” as the next level`,
+        id,
+        reopen: (def) => void openScenarioEditor('author', def, ref),
+    };
 }
 
 /** a package as a share code on the clipboard; resolves to a status line */

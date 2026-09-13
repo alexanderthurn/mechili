@@ -611,6 +611,19 @@ try {
             const act = await levels.prepareLevel(capRef);
             const back = act.scenarios.get(def.id);
             zexpect(files.some((f) => f.path === `scenarios/${def.id}.jsonc`) && back?.def?.scene.units.length === 2 && back.issues.every((i) => i.level !== 'error'), 'a captured package does not load back as the same scenario');
+            // saving into a package: replace by id, add under a free id at the end of the order
+            {
+                const intoA = pkgMod.withScenarioInPackage(files, { ...def, name: 'Rematch', id: 'draft-1' }, def.id);
+                const intoB = pkgMod.withScenarioInPackage(intoA.files, { ...def, name: 'Rematch', id: 'draft-2' }, def.id);
+                const replaced = pkgMod.withScenarioInPackage(intoB.files, { ...def, seed: 77 }, def.id);
+                const metaOf = (fs) => JSON.parse(new TextDecoder().decode(fs.find((f) => f.path === 'meta.jsonc').bytes));
+                zexpect(intoA.id === 'rematch' && intoB.id === 'rematch-2' && replaced.id === def.id, `package ids: ${intoA.id} ${intoB.id} ${replaced.id}`);
+                zexpect(metaOf(replaced.files).levels.map((l) => l.scenario).join() === `${def.id},rematch,rematch-2` && pkgMod.packageScenarioIds(replaced.files).length === 3, `package order: ${JSON.stringify(metaOf(replaced.files))}`);
+                const { ref: chainRef } = await levels.loadLevel('chain', replaced.files);
+                const chain = await levels.prepareLevel(chainRef);
+                zexpect(chain.scenarios.size === 3 && chain.scenarios.get(def.id)?.def?.seed === 77 && chain.meta?.issues.length === 0, `saved-into package loads: ${JSON.stringify(chain.meta?.issues)}`);
+                await levels.prepareLevel(undefined);
+            }
             const withBase = cap.captureScenario({ ...host, baseRules: { ...def.rules, unlockable: ['dwarf'], loadout: { mode: 'open' } } }, 'Inherited');
             zexpect(withBase.rules.unlockable?.join() === 'dwarf' && withBase.rules.loadout?.mode === 'open' && def.rules.unlockable === undefined, 'capture does not inherit the original scenario rules');
             await levels.prepareLevel(undefined);
