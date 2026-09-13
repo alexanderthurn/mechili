@@ -73,11 +73,11 @@ export interface AnimSpec {
 
 /**
  * Melodan rigged units. Clip picks tolerate Tripo/Cascadeur-style `NlaTrack` names.
- * Walk = longer swagger loop; fire = shorter shoot (see archera.glb).
+ * Walk = longer swagger loop; fire = shorter shoot (see archer.glb).
  */
 export const ANIM_SPECS: Record<string, AnimSpec> = {
     archer: {
-        url: new URL('../../assets/models/archera.glb', import.meta.url).href,
+        url: new URL('../../assets/models/archer.glb', import.meta.url).href,
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
         walk: 'longest',
         walkSpeed: 1.5,

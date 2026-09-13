@@ -101,7 +101,7 @@ const MODEL_SPEC_DATA: Record<string, ModelSpecData> = {
     },
     // Static bind-pose template for icons / fallback. Battle uses mixer via unitAnimated.
     archer: {
-        file: 'archera.glb',
+        file: 'archer.glb',
         yawDeg: 90,
         skinned: true,
     },
