@@ -990,6 +990,7 @@ export async function joinSteamAsSpectator(
             actions: msg.actions,
             battleElapsed: msg.battleElapsed,
             phaseRemaining: msg.phaseRemaining,
+            speedMultiplier: msg.speedMultiplier,
             roster: msg.roster,
             vision: msg.viewer.vision,
         };

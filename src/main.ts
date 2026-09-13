@@ -1709,6 +1709,7 @@ type MatchResume = {
     battleElapsed: number | null;
     local?: boolean;
     phaseRemaining?: number;
+    speedMultiplier?: number;
     climbWins?: number;
 };
 
@@ -2773,7 +2774,12 @@ function constructGame(
     spectate: {
         session: SpectatorLink;
         watcherName: string;
-        initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
+        initial: {
+            actions: LoggedAction[];
+            battleElapsed: number | null;
+            phaseRemaining: number;
+            speedMultiplier: number;
+        };
     } | null,
     useIntro: boolean,
 ): Game {
@@ -2865,7 +2871,12 @@ function startGame(
     spectate: {
         session: SpectatorLink;
         watcherName: string;
-        initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
+        initial: {
+            actions: LoggedAction[];
+            battleElapsed: number | null;
+            phaseRemaining: number;
+            speedMultiplier: number;
+        };
     } | null = null,
 ): void {
     if (started) return;
@@ -3045,6 +3056,7 @@ function wireSinglePlayerPersist(game: Game): () => void {
             actions: data.actions,
             battleElapsed: data.battleElapsed,
             phaseRemaining: data.phaseRemaining,
+            speedMultiplier: data.speedMultiplier,
             climbWins: data.climbWins,
             localName: getPlayerName(),
         });
@@ -3070,6 +3082,7 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
         actions: save.actions,
         battleElapsed: save.battleElapsed,
         phaseRemaining: save.phaseRemaining,
+        speedMultiplier: save.speedMultiplier,
         climbWins: save.climbWins ?? 0,
         local: true,
     });
@@ -3211,6 +3224,7 @@ function rebuildStarGuestGame(
                 actions: msg.actions,
                 battleElapsed: msg.battleElapsed,
                 phaseRemaining: msg.phaseRemaining,
+                speedMultiplier: msg.speedMultiplier,
                 local: false,
             },
             { role: 'guest', session, mySeat },
@@ -4117,6 +4131,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                     actions: msg.actions,
                     battleElapsed: msg.battleElapsed,
                     phaseRemaining: msg.phaseRemaining,
+                    speedMultiplier: msg.speedMultiplier,
                     local: false,
                 },
                 { role: 'guest', session, mySeat },
@@ -4668,6 +4683,7 @@ function startSpectateGame(
                     actions: result.actions,
                     battleElapsed: result.battleElapsed,
                     phaseRemaining: result.phaseRemaining,
+                    speedMultiplier: result.speedMultiplier,
                 },
             });
         } catch (e) {

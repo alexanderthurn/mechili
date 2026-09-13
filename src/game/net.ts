@@ -510,7 +510,7 @@ export type NetMessage =
      * admitted spectator. Previously two near-identical messages
      * (`starResumeState` for a seat, `spectateAccepted` for a spectator)
      * that happened to carry the exact same envelope (seed/settings/
-     * roster/actions/battleElapsed/phaseRemaining) with only the
+     * roster/actions/battleElapsed/phaseRemaining/speedMultiplier) with only the
      * viewer-identifying field differing; `viewer` now carries that one
      * real difference explicitly instead of via the message's own type tag.
      * `actions` is vision-filtered by `isRevealable` for the viewer's own
@@ -540,6 +540,10 @@ export type NetMessage =
           actions: LoggedAction[];
           battleElapsed: number | null;
           phaseRemaining: number;
+          /** battle playback multiplier (same values as `{ type: 'speed' }`) —
+           *  rebuilds default to 1× otherwise, so a mid-8× reconnect would
+           *  drift from peers that kept the live rate */
+          speedMultiplier: number;
           viewer: { kind: 'seat'; seat: SeatId } | { kind: 'spectator'; vision: SpectatorVision };
       }
     /** host declines a starRejoin (seat not actually pending, version
@@ -2296,6 +2300,8 @@ export interface SinglePlayerSave {
     battleElapsed: number | null;
     /** optional: older saves predate this field, hydrate falls back to a full timer */
     phaseRemaining?: number;
+    /** battle playback multiplier; older saves omit this (treated as 1×) */
+    speedMultiplier?: number;
     /** Campaign climb wins; older saves omit this (treated as 0) */
     climbWins?: number;
     localName: string;
@@ -2548,6 +2554,7 @@ export interface SpectateResult {
     actions: LoggedAction[];
     battleElapsed: number | null;
     phaseRemaining: number;
+    speedMultiplier: number;
     /** the match's actual seat/side roster (see `matchCatchUp`'s doc
      *  comment) — NOT the social "who's watching" list, which is the
      *  separate, ongoing `'roster'` broadcast (`RosterEntry[]`). */
@@ -2618,6 +2625,7 @@ export async function joinAsSpectator(
             actions: msg.actions,
             battleElapsed: msg.battleElapsed,
             phaseRemaining: msg.phaseRemaining,
+            speedMultiplier: msg.speedMultiplier,
             roster: msg.roster,
             vision: msg.viewer.vision,
         };
