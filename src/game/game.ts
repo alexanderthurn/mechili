@@ -239,7 +239,7 @@ import {
     type SpellStamp,
 } from './tactics';
 import { TechTree, effectiveTargets, effectiveFlying } from './tech';
-import { activeLoadout, openLoadout, randomLoadout } from './loadouts';
+import { activeLoadout, loadoutShowsAll, openLoadout, randomLoadout, scenarioLoadout } from './loadouts';
 import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
@@ -1407,8 +1407,10 @@ export class Game {
                 let out = s;
                 if (!out.avatar && localAvatar) out = { ...out, avatar: localAvatar };
                 if (!out.loadout) out = { ...out, loadout: localLoadout };
-                // the sandbox teaches any talent a unit has, not only the player's picks
+                // the sandbox teaches any talent a unit has, not only the player's picks;
+                // a scenario may open, fix or narrow the player's loadout
                 if (this.editorMode === 'author') out = { ...out, loadout: openLoadout(this.types) };
+                else if (this.scenario) out = { ...out, loadout: scenarioLoadout(this.rules.loadout, out.loadout, this.types) };
                 return out;
             }
             // Every OTHER seat must already carry a loadout by now — a
@@ -11109,7 +11111,7 @@ export class Game {
         const selected = techsForUnit(u.type, this.types, this.loadoutOf(u.seat));
         // the editor's sandbox shows every talent the type has, not only the slot count
         const slotsN =
-            this.editorMode === 'author' && u.seat === this.humanSeat
+            (this.editorMode === 'author' || loadoutShowsAll(this.rules.loadout)) && u.seat === this.humanSeat
                 ? Math.max(techSlotLimit(u.type), selected.length)
                 : techSlotLimit(u.type);
         const owned = this.intelTechOwned(u);

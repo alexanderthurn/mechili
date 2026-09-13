@@ -99,6 +99,13 @@ export function rulesHtml(def: ScenarioDef, types: TypeRegistry): string {
             { value: 'list', label: t('editor:unlockList', { defaultValue: 'only these' }) },
         ], unlockableMode)) +
         (unlockableMode === 'list' ? unitChecks('unlockable', types, r.unlockable ?? []) : '') +
+        row(t('editor:ruleLoadout', { defaultValue: 'Player talents' }), sel('loadout', [
+            { value: 'player', label: t('editor:loadoutPlayer', { defaultValue: 'own loadout' }) },
+            { value: 'open', label: t('editor:loadoutOpen', { defaultValue: 'every talent' }) },
+            ...(r.loadout?.mode === 'fixed' || r.loadout?.mode === 'restrict'
+                ? [{ value: r.loadout.mode, label: r.loadout.mode === 'fixed' ? 'fixed (from the file)' : 'restricted (from the file)' }]
+                : []),
+        ], r.loadout?.mode ?? 'player')) +
         row(t('editor:ruleSeed', { defaultValue: 'Seed' }), num('seed', def.seed, { min: 0 })) +
         row(t('editor:ruleDescription', { defaultValue: 'Description' }), `<input type="text" data-rule="description" maxlength="200" value="${esc(def.description ?? '')}">`) +
         `</div>`
@@ -187,6 +194,11 @@ function withRule(def: ScenarioDef, rule: string, el: HTMLInputElement | HTMLSel
             if (value === 'any') delete r.unlockable;
             else if (value === 'none') r.unlockable = [];
             else r.unlockable = r.unlockable?.length ? r.unlockable : [...types.shopUnitIds];
+            break;
+        case 'loadout':
+            if (value === 'player') delete r.loadout;
+            else if (value === 'open') r.loadout = { mode: 'open' };
+            else return null;
             break;
         case 'seed': {
             const n = int(0);

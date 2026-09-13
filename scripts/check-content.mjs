@@ -688,8 +688,21 @@ try {
             const enemies = mirrored.scene.units.filter((u) => u.team === 'enemy');
             zexpect(enemies.length === 1 && enemies[0].typeId === 'archer' && mirrored.scene.techs.enemy.archer?.join() === 'barrel' && mirrored.scene.units.some((u) => u.team === 'horde'), `mirrorSide: ${JSON.stringify(mirrored.scene.units)}`);
             zexpect(!scen.hasErrors(scen.normalizeScenario(mirrored, T).issues), 'a mirrored board has errors');
+            // the player's loadout under a scenario's rule
+            const lo = await server.ssrLoadModule('/src/game/loadouts.ts');
+            const own = { techs: { ogre: ['whirlwind', 'bloodRage'], mortar: ['barrel', 'autoloader'] } };
+            const opened = lo.scenarioLoadout({ mode: 'open' }, own, T);
+            const fixed = lo.scenarioLoadout({ mode: 'fixed', techs: { ogre: ['carapace', 'nope'] } }, own, T);
+            const narrowed = lo.scenarioLoadout({ mode: 'restrict', allow: { ogre: ['bloodRage', 'carapace'], mortar: ['ap'] } }, own, T);
+            zexpect(lo.scenarioLoadout({ mode: 'player' }, own, T) === own && opened.techs.ogre.length === 3 && opened.techs.mortar.length === 3, `open loadout: ${JSON.stringify(opened.techs.ogre)}`);
+            zexpect(fixed.techs.ogre.join() === 'carapace' && fixed.techs.mortar.join() === 'barrel,autoloader', `fixed loadout: ${JSON.stringify(fixed.techs)}`);
+            zexpect(narrowed.techs.ogre.join() === 'bloodRage' && narrowed.techs.mortar.join() === 'ap', `restricted loadout: ${JSON.stringify(narrowed.techs)}`);
+            const fixedRule = structuredClone(blank);
+            fixedRule.rules.loadout = { mode: 'fixed', techs: { ogre: ['carapace', 'legs'], nobody: ['x'] } };
+            const fixedCheck = scen.normalizeScenario(fixedRule, T);
+            zexpect(!scen.hasErrors(fixedCheck.issues) && fixedCheck.def.rules.loadout.techs.ogre.join() === 'carapace' && !('nobody' in fixedCheck.def.rules.loadout.techs), `loadout rule normalize: ${JSON.stringify(fixedCheck.def?.rules.loadout)}`);
         }
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; share codes; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rules and purse, horde ring, side swap, mirror)');
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; share codes; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rules and purse, horde ring, side swap, mirror, loadout rules)');
     }
 } catch (e) {
     failed = true;

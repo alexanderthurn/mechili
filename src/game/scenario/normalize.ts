@@ -126,8 +126,20 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
     if (rules.commander.mode === 'none' && !types.commander('none')) {
         error('rules.commander: this pack has no hidden "none" commander');
     }
-    if (rules.loadout && rules.loadout.mode !== 'player') {
-        warn(`rules.loadout: "${rules.loadout.mode}" is not applied yet — the player's own loadout is used`);
+    const loadout = rules.loadout;
+    if (loadout && (loadout.mode === 'fixed' || loadout.mode === 'restrict')) {
+        const lists = loadout.mode === 'fixed' ? loadout.techs : loadout.allow;
+        for (const [typeId, ids] of Object.entries(lists)) {
+            const type = types.byId(typeId);
+            if (!type) {
+                warn(`rules.loadout: no unit type "${typeId}" — dropped`);
+                delete lists[typeId];
+                continue;
+            }
+            const kept = ids.filter((id) => (type.talents ?? []).includes(id));
+            for (const id of ids) if (!kept.includes(id)) warn(`rules.loadout.${typeId}: "${id}" is not one of its talents — dropped`);
+            lists[typeId] = kept;
+        }
     }
     if (rules.unlockable) {
         const known = rules.unlockable.filter((id) => types.shopUnitIds.includes(id));

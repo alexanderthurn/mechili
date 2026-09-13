@@ -767,8 +767,10 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
    `scenarioSettings.ts`, `applyScenario.ts` (base buildings with level and
    garrison, side talents, units in canonical order, horde packs standing),
    rule-driven commanders via the hidden `none` card, web "Play scenario"
-   button. Not yet: `rules.loadout` modes other than `player` (warned),
-   minimum board size (§7.2).
+   button. `rules.loadout` modes apply to the player's seat (`open` every
+   talent, `fixed` the scenario's picks, `restrict` own picks narrowed to allow
+   lists); the editor's Rules offer player / open. Not yet: minimum board size
+   (§7.2).
 2. **Capture situation** (§9.1) — immediate value, and it exercises apply.
    *Implemented for the replay viewer only* (decision 2026-09-13): "Save as
    scenario" in the replay controls captures the board as it stands (watched
