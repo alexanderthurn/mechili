@@ -83,7 +83,15 @@ import {
     migrateUserStorage,
 } from './game/userStorage';
 import { bootGameAssets } from './game/bootAssets';
-import { activeLevelRef, isLevelActive, knownLevels, loadLevel, prepareLevel, type LevelRef } from './game/level';
+import {
+    activeLevelRef,
+    isLevelActive,
+    knownLevels,
+    levelFilesFromArchive,
+    loadLevel,
+    prepareLevel,
+    type LevelRef,
+} from './game/level';
 import { readZip } from './game/content/zip';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -1322,7 +1330,7 @@ cgScenarioFileEl.addEventListener('change', () => {
     if (!file) return;
     void (async () => {
         try {
-            const files = await readZip(await file.arrayBuffer());
+            const files = levelFilesFromArchive(await readZip(await file.arrayBuffer()));
             const { ref, report } = await loadLevel(file.name.replace(/\.zip$/i, ''), files);
             console.info(`[scenario] loaded "${ref.id}" (${files.length} files, ${ref.hash.slice(0, 12)})`, report);
             await switchScenarioTo(ref);

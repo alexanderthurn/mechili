@@ -17,9 +17,8 @@ async function inflateRaw(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array<Arr
 
 /**
  * Every file in the archive, by its path inside it. Folders, macOS resource
- * forks (`__MACOSX/`) and dotfiles are skipped. When everything sits in one
- * top folder (zipping the level folder itself), that folder is stripped, so
- * both `data/…` and `frost-keep/data/…` layouts work.
+ * forks (`__MACOSX/`) and dotfiles are skipped. Paths are returned as stored —
+ * see `levelFilesFromArchive` (level.ts) for a level's folder layout.
  */
 export async function readZip(bytes: ArrayBuffer | Uint8Array): Promise<OverlayFile[]> {
     const buf = bytes instanceof Uint8Array ? new Uint8Array(bytes) : new Uint8Array(bytes);
@@ -61,13 +60,6 @@ export async function readZip(bytes: ArrayBuffer | Uint8Array): Promise<OverlayF
         if (method === 0) files.push({ path, bytes: raw });
         else if (method === 8) files.push({ path, bytes: await inflateRaw(raw) });
         else throw new Error(`[zip] ${path}: compression method ${method} is not supported`);
-    }
-
-    // one shared top folder and nothing at the root → strip it
-    const tops = new Set(files.map((f) => f.path.split('/')[0]));
-    if (tops.size === 1 && files.every((f) => f.path.includes('/'))) {
-        const top = `${[...tops][0]}/`;
-        return files.map((f) => ({ path: f.path.slice(top.length), bytes: f.bytes }));
     }
     return files;
 }

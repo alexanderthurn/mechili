@@ -337,7 +337,17 @@ try {
             { path: 'frost-keep/.DS_Store', text: 'junk', deflate: false },
             { path: '__MACOSX/frost-keep/._moon.webp', text: 'junk', deflate: false },
         ]);
-        const files = await zipMod.readZip(zipped);
+        const files = levels.levelFilesFromArchive(await zipMod.readZip(zipped));
+        // a flat archive whose only folder is data/ keeps its paths (the wrapper rule must not eat it)
+        const flatDataOnly = levels.levelFilesFromArchive(
+            await zipMod.readZip(await makeZip([{ path: 'data/units/archer.jsonc', text: archerText, deflate: true }])),
+        );
+        zexpect(flatDataOnly.map((f) => f.path).join() === 'data/units/archer.jsonc', `flat data-only zip lost its data folder: ${flatDataOnly.map((f) => f.path)}`);
+        let nothingError = '';
+        await levels
+            .loadLevel('misplaced', [{ path: 'units/archer.jsonc', bytes: enc(archerText) }])
+            .catch((e) => (nothingError = String(e.message)));
+        zexpect(nothingError.includes('changes nothing'), 'a level that changes nothing was accepted');
         zexpect(files.map((f) => f.path).sort().join() === 'data/units/archer.jsonc,textures/moon.webp', `zip paths ${files.map((f) => f.path)}`);
         zexpect(new TextDecoder().decode(files.find((f) => f.path.endsWith('archer.jsonc'))?.bytes) === archerText, 'deflated entry does not round-trip');
         const { ref } = await levels.loadLevel('frost-keep', files);
@@ -358,7 +368,7 @@ try {
             .loadLevel('bad', [{ path: 'data/units/archer.jsonc', bytes: enc(archerText.replace('"hp": 999', '"hp": "lots"')) }])
             .catch((e) => (badError = String(e.message)));
         zexpect(badError.includes('hp') && !levels.knownLevels().some((l) => l.id === 'bad'), 'invalid scenario was accepted');
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, top folder, junk skipped) → known level → prepareLevel plays it, base restored, invalid/unknown rejected');
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected');
     }
 } catch (e) {
     failed = true;

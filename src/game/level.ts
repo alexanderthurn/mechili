@@ -20,6 +20,7 @@
  * before the match is built.
  */
 import {
+    baseAssetPaths,
     buildAssetOverlay,
     disposeAssetOverlay,
     switchAssetOverlay,
@@ -63,6 +64,24 @@ export function activeLevelRef(): LevelRef | undefined {
 
 // ------------------------------------------------------------------ known levels
 
+/** top folders a level's files live in: `data` and every folder of the base asset tree */
+function levelRootFolders(): Set<string> {
+    return new Set(['data', ...baseAssetPaths().map((p) => p.split('/')[0]!)]);
+}
+
+/**
+ * An archive's files as a level's files. A level may be archived flat
+ * (`data/…`, `models/…`) or as its folder (`frost-keep/data/…`): when every
+ * file sits under one folder that is not itself a level folder, that wrapper
+ * is removed.
+ */
+export function levelFilesFromArchive(files: readonly OverlayFile[]): OverlayFile[] {
+    const tops = new Set(files.map((f) => (f.path.includes('/') ? f.path.split('/')[0]! : '')));
+    const [only] = tops;
+    if (tops.size !== 1 || !only || levelRootFolders().has(only)) return [...files];
+    return files.map((f) => ({ path: f.path.slice(only.length + 1), bytes: f.bytes }));
+}
+
 /** levels loaded this session, by content hash */
 const known = new Map<string, AssetOverlay>();
 
@@ -82,6 +101,13 @@ export async function loadLevel(
         return { ref: { id: existing.id, hash: existing.hash }, report: existing.report };
     }
     try {
+        const { replaced, added } = overlay.report;
+        if (replaced.length === 0 && !added.some((p) => p.startsWith('data/'))) {
+            throw new Error(
+                `[level] "${id}" changes nothing — expected files like data/units/dwarf.jsonc or ` +
+                    `models/units/dwarf.glb, got: ${added.slice(0, 5).join(', ') || '(no files)'}`,
+            );
+        }
         loadPackWithOverlay(overlay.dataFiles, id);
     } catch (e) {
         disposeAssetOverlay(overlay);
