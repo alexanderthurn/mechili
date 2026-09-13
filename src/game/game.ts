@@ -257,6 +257,8 @@ import {
     RESEARCH_CENTER,
     STRONGHOLD_ARCHER_FOV_HALF,
     garrisonPostCost,
+    hasAbility,
+    type BuildingAbilityId,
     strongholdArcherSlotWorld,
     STRONGHOLD,
     UNIT_TYPES,
@@ -1793,7 +1795,7 @@ export class Game {
         this.placement.onSelect = (unit, previous) => {
             if (this.armedItem) {
                 const applied =
-                    unit.type === STRONGHOLD && unit.team === 'player'
+                    hasAbility(unit.type, 'forge') && unit.team === 'player'
                         ? this.forgeInsertItem(this.armedItem)
                         : this.applyItemTo(unit, this.armedItem);
                 if (applied) {
@@ -1931,7 +1933,7 @@ export class Game {
         this.hud.onApplyArmedItem = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || !this.armedItem) return;
-            if (unit.type === STRONGHOLD) {
+            if (hasAbility(unit.type, 'forge')) {
                 if (this.forgeInsertItem(this.armedItem)) {
                     this.armedItem = null;
                     this.armedItemIndex = null;
@@ -1973,7 +1975,7 @@ export class Game {
                     target?.closest?.('.item-sq.empty') || target?.closest?.('.mechili-panel');
                 if (overDetails) {
                     const unit = this.placement.selectedUnit;
-                    if (unit?.type === STRONGHOLD && this.canDropForgeOn(unit) && this.forgeInsertItem(this.armedItem)) {
+                    if (unit && this.canDropForgeOn(unit) && this.forgeInsertItem(this.armedItem)) {
                         this.armedItem = null;
                         this.armedItemIndex = null;
                         return;
@@ -2029,7 +2031,7 @@ export class Game {
         this.hud.onRecruitLevel = () => {
             // offered in the Command Tower's menu
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'recruitLevel') || unit.team !== 'player') return;
             if (this.dispatchPlayer({ kind: 'recruitLevel', team: 'player' })) {
                 this.hud.refreshCosts(); // unit buttons now show the level-2 price
             }
@@ -2041,71 +2043,71 @@ export class Game {
         };
         this.hud.onBuyBoost = (boost) => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'armyBoosts') || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyBoost', team: 'player', boost });
         };
         this.hud.onBuySellAbility = () => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'selling') || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buySellAbility', team: 'player' });
         };
         this.hud.onBuyRallyRouteAbility = () => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'rallyRoute') || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyRallyRouteAbility', team: 'player' });
         };
         this.hud.onBuyMovePackAbility = () => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== COMMAND_TOWER || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'movePack') || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyMovePackAbility', team: 'player' });
         };
         this.hud.onBuyDeploySlot = () => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'deploySlot') || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyDeploySlot', team: 'player' });
         };
         this.hud.onBuyRoundRangeBoost = () => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'rangeBoost') || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyRoundRangeBoost', team: 'player' });
         };
         this.hud.onBuyRoundSpeedBoost = () => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'speedBoost') || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyRoundSpeedBoost', team: 'player' });
         };
         this.hud.onBuyCredit = () => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== RESEARCH_CENTER || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'credit') || unit.team !== 'player') return;
             this.dispatchPlayer({ kind: 'buyCredit', team: 'player' });
         };
         this.hud.onForgeLight = () => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'forge') || unit.team !== 'player') return;
             if (!this.playerCanAct) return;
             this.dispatchPlayer({ kind: 'forgeLight', team: 'player' });
         };
         this.hud.onForgeUnlight = () => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'forge') || unit.team !== 'player') return;
             if (!this.playerCanAct) return;
             this.dispatchPlayer({ kind: 'forgeUnlight', team: 'player' });
         };
         this.hud.onBuyStrongholdArcher = () => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit?.type.garrison || unit.team !== 'player') return;
             if (!this.playerCanAct) return;
             this.dispatchPlayer({ kind: 'buyStrongholdArcher', team: 'player' });
         };
         this.hud.onBuyForgeSpell = (tacticId) => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'forgeSpells') || unit.team !== 'player') return;
             if (!this.playerCanAct) return;
             this.dispatchPlayer({ kind: 'buyForgeSpell', team: 'player', tacticId });
         };
         this.hud.onSendSupply = (amount) => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || unit?.type !== STRONGHOLD || unit.team !== 'player') return;
+            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'sendSupply') || unit.team !== 'player') return;
             if (!this.playerCanAct) return;
             const ally = seatIdsOf(this.seats, 'player').find((s) => s !== this.humanSeat);
             if (ally === undefined) return; // no ally seat (1v1/solo) — tile never shows anyway
@@ -7722,7 +7724,7 @@ export class Game {
     /** armed rune → shared Stronghold forge (any seat on this side) */
     private canDropForgeOn(unit: Unit): boolean {
         if (!this.armedItem || !this.playerCanAct) return false;
-        if (unit.type !== STRONGHOLD || unit.team !== 'player') return false;
+        if (!hasAbility(unit.type, 'forge') || unit.team !== 'player') return false;
         if (!ITEMS[this.armedItem]) return false;
         return forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat);
     }
@@ -7857,7 +7859,7 @@ export class Game {
     private forgeWorldBadges(
         unit: Unit,
     ): { runes: string[]; spellIcon: string | null } | null {
-        if (unit.type !== STRONGHOLD) return null;
+        if (!hasAbility(unit.type, 'forge')) return null;
         // battle: chimney sparks only — spell badge is deploy intel / loading UI
         if (this.phase !== 'build') return null;
         const team: Team = unit.team === 'horde' ? 'player' : unit.team;
@@ -7895,7 +7897,7 @@ export class Game {
     private updateForgeFx(dt: number): void {
         const targets: { unit: Unit; mode: ReturnType<typeof forgeGlowMode> }[] = [];
         for (const unit of this.placement.allUnits()) {
-            if (unit.type !== STRONGHOLD || unit.destroyed) continue;
+            if (!hasAbility(unit.type, 'forge') || unit.destroyed) continue;
             const team: Team = unit.team === 'horde' ? 'player' : unit.team;
             const fogged = this.placement.isIntelFogged(unit);
             const snapIds =
@@ -10790,12 +10792,14 @@ export class Game {
         SelectionInfo,
         'recruit' | 'deploySlot' | 'rangeBoost' | 'speedBoost' | 'credit'
     > {
-        if (u.type !== RESEARCH_CENTER || this.tutorial?.boostLessonOnly) return {};
+        const has = (a: BuildingAbilityId) => hasAbility(u.type, a);
+        const offers = (['recruitLevel', 'deploySlot', 'rangeBoost', 'speedBoost', 'credit'] as const).some(has);
+        if (!offers || this.tutorial?.boostLessonOnly) return {};
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const seat = u.seat;
         const bal = this.economy.balance(seat);
         const intel = this.intelBuildingSeat(u);
-        return {
+        const all = {
             recruit: {
                 cost: this.settings.leveling.recruitLevel2Cost,
                 active: intel.recruitLevel > 1,
@@ -10825,6 +10829,13 @@ export class Game {
                 affordable: canBuy,
             },
         };
+        return {
+            recruit: has('recruitLevel') ? all.recruit : undefined,
+            deploySlot: has('deploySlot') ? all.deploySlot : undefined,
+            rangeBoost: has('rangeBoost') ? all.rangeBoost : undefined,
+            speedBoost: has('speedBoost') ? all.speedBoost : undefined,
+            credit: has('credit') ? all.credit : undefined,
+        };
     }
 
     /**
@@ -10834,7 +10845,8 @@ export class Game {
     private commandTowerSelection(
         u: Unit,
     ): Pick<SelectionInfo, 'boosts' | 'sellAbility' | 'rallyRouteAbility' | 'movePackAbility'> {
-        if (u.type !== COMMAND_TOWER) return {};
+        const has = (a: BuildingAbilityId) => hasAbility(u.type, a);
+        if (!(['armyBoosts', 'selling', 'rallyRoute', 'movePack'] as const).some(has)) return {};
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const seat = u.seat;
         const bal = this.economy.balance(seat);
@@ -10859,9 +10871,8 @@ export class Game {
         });
         // Tutorial 3 round 2 is the boost lesson — the other tracks would only
         // drain the supply its End Deployment gate needs.
-        if (this.tutorial?.boostLessonOnly) return { boosts };
-        return {
-            boosts,
+        if (this.tutorial?.boostLessonOnly) return { boosts: has('armyBoosts') ? boosts : undefined };
+        const all = {
             sellAbility: {
                 cost: this.settings.sell.abilityCost,
                 owned: intel.sellOwned,
@@ -10877,6 +10888,12 @@ export class Game {
                 owned: intel.movePackOwned,
                 affordable: canBuy && bal >= this.settings.movePack.abilityCost,
             },
+        };
+        return {
+            boosts: has('armyBoosts') ? boosts : undefined,
+            sellAbility: has('selling') ? all.sellAbility : undefined,
+            rallyRouteAbility: has('rallyRoute') ? all.rallyRouteAbility : undefined,
+            movePackAbility: has('movePack') ? all.movePackAbility : undefined,
         };
     }
 
@@ -11001,7 +11018,8 @@ export class Game {
     private strongholdSelection(
         u: Unit,
     ): Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells' | 'strongholdArchers'> {
-        if (u.type !== STRONGHOLD) return {};
+        const has = (a: BuildingAbilityId) => hasAbility(u.type, a);
+        if (!(['forge', 'forgeSpells', 'sendSupply'] as const).some(has) && !u.type.garrison) return {};
         const out: Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells' | 'strongholdArchers'> = {};
         const team: Team = u.team === 'horde' ? 'player' : u.team;
         const teamSeats = seatIdsOf(this.seats, team);
@@ -11009,7 +11027,7 @@ export class Game {
         const fogged = this.placement.isIntelFogged(u);
 
         // Ally supply gift — only when this side has two seats
-        if (teamSeats.length >= 2) {
+        if (teamSeats.length >= 2 && has('sendSupply')) {
             const amount = 100;
             out.sendSupply = {
                 amount,
@@ -11044,7 +11062,7 @@ export class Game {
         // last-round intel (same fog window as Research Center / Command Tower).
         const spellSeats = u.team === 'player' ? [this.humanSeat] : teamSeats;
         // Tutorial 2 round 1 teaches the wall only — the forge shelf stays empty.
-        const forgeShelfOpen = !this.tutorial?.forgeSpellsHidden;
+        const forgeShelfOpen = has('forgeSpells') && !this.tutorial?.forgeSpellsHidden;
         out.forgeSpells = forgeShelfOpen
             ? spellSeats.flatMap((seat) => {
                   const bought =
@@ -11073,6 +11091,8 @@ export class Game {
                       .filter((e): e is NonNullable<typeof e> => e !== null);
               })
             : [];
+
+        if (!has('forge')) return out;
 
         const snapIds =
             fogged && this.buildingIntelSnapshot

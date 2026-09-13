@@ -324,6 +324,27 @@ export function isHordeUnit(type: UnitType): boolean {
     return type.horde === true;
 }
 
+/**
+ * Panel actions a building can offer. Each is implemented once (HUD + action
+ * dispatcher); a building lists the ones it offers in {@link UnitType.abilities}.
+ */
+export type BuildingAbilityId =
+    // round services (normally the Research Center)
+    | 'recruitLevel'
+    | 'deploySlot'
+    | 'rangeBoost'
+    | 'speedBoost'
+    | 'credit'
+    // permanent tracks (normally the Command Tower)
+    | 'armyBoosts'
+    | 'selling'
+    | 'rallyRoute'
+    | 'movePack'
+    // the keep (normally the Stronghold)
+    | 'forge'
+    | 'forgeSpells'
+    | 'sendSupply';
+
 export interface UnitType {
     id: string;
     name: string;
@@ -407,6 +428,11 @@ export interface UnitType {
      * each further post adds `priceStep`. Posted units get
      * {@link Unit.hostUnitId} = this building.
      */
+    /**
+     * Panel actions this building offers. `forge` also makes it the side's rune
+     * forge: runes are dropped on it, it can be lit, and its chimney smokes.
+     */
+    abilities?: readonly BuildingAbilityId[];
     garrison?: {
         /** `UnitN` pad numbers on the model, in fill order */
         slots: readonly number[];
@@ -978,16 +1004,19 @@ function makeTower(id: string, name: string, tiles = 3, meshScale = 3.6, hp = 80
 export const COMMAND_TOWER: UnitType = {
     ...makeTower('command-tower', 'Vanguard', 3.0, 3),
     onDestroyed: { seatDebuff: true },
+    abilities: ['armyBoosts', 'selling', 'rallyRoute', 'movePack'],
 };
 export const RESEARCH_CENTER: UnitType = {
     ...makeTower('research-center', 'Garrison'),
     onDestroyed: { seatDebuff: true },
+    abilities: ['recruitLevel', 'deploySlot', 'rangeBoost', 'speedBoost', 'credit'],
 };
 /** each side's main castle at the back of its territory — bigger and sturdier */
 export const STRONGHOLD: UnitType = {
     ...makeTower('stronghold', 'Stronghold', 5, 4.2, 3000),
     // lifeline matches only — see UnitType.onDestroyed
     onDestroyed: { collapseOwnArmy: true },
+    abilities: ['forge', 'forgeSpells', 'sendSupply'],
     // all five authored battlement pads; 100, 150, 200, 250, 300
     garrison: { slots: [1, 2, 3, 4, 5], unitTypeId: 'stronghold-archer', priceStep: 50 },
 };
@@ -2484,6 +2513,11 @@ export function unitTypeById(id: string): UnitType | null {
     if (id === RESEARCH_CENTER.id) return RESEARCH_CENTER;
     if (id === STRONGHOLD.id) return STRONGHOLD;
     return UNIT_TYPES.find((t) => t.id === id) ?? null;
+}
+
+/** Does this type offer the given panel action? */
+export function hasAbility(type: UnitType, ability: BuildingAbilityId): boolean {
+    return type.abilities?.includes(ability) === true;
 }
 
 /**

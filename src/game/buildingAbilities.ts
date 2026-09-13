@@ -1,10 +1,5 @@
 import { DEFAULT_SETTINGS } from './settings';
-import {
-    COMMAND_TOWER,
-    RESEARCH_CENTER,
-    STRONGHOLD,
-    type UnitType,
-} from './units';
+import { hasAbility, type UnitType } from './units';
 import { buildingAbilityDescription, buildingAbilityName } from '../i18n';
 
 /** Marketing / panel copy for a building action — numbers come from DEFAULT_SETTINGS. */
@@ -40,24 +35,27 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
         });
     }
 
-    if (type.id === COMMAND_TOWER.id) {
+    if (hasAbility(type, 'selling')) {
+        out.push({
+            icon: 'ability-selling',
+            name: buildingAbilityName('selling', 'Selling'),
+            cost: s.sell.abilityCost,
+            description: buildingAbilityDescription(
+                'selling',
+                `Permanently unlock selling packs (up to ${s.sell.maxPerRound} per deployment phase). Refund is ${Math.round(s.sell.refundFactor * 100)}% of base cost.`,
+                {
+                    maxPerRound: s.sell.maxPerRound,
+                    refundPct: Math.round(s.sell.refundFactor * 100),
+                },
+            ),
+        });
+    }
+
+    if (hasAbility(type, 'armyBoosts')) {
         const attackPct = Math.round(s.boosts.attackTiers[0]! * 100);
         const hpPct = Math.round(s.boosts.hpTiers[0]! * 100);
         const costs = s.boosts.costs.join(', ');
         out.push(
-            {
-                icon: 'ability-selling',
-                name: buildingAbilityName('selling', 'Selling'),
-                cost: s.sell.abilityCost,
-                description: buildingAbilityDescription(
-                    'selling',
-                    `Permanently unlock selling packs (up to ${s.sell.maxPerRound} per deployment phase). Refund is ${Math.round(s.sell.refundFactor * 100)}% of base cost.`,
-                    {
-                        maxPerRound: s.sell.maxPerRound,
-                        refundPct: Math.round(s.sell.refundFactor * 100),
-                    },
-                ),
-            },
             {
                 icon: 'ability-atk-boost',
                 name: buildingAbilityName('attack_boost', 'Attack Boost'),
@@ -78,80 +76,96 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
                     { hpPct, costs },
                 ),
             },
-            {
-                icon: 'tactic-rally',
-                name: buildingAbilityName('rally_route', 'Rally Route'),
-                cost: s.rallyRoute.abilityCost,
-                description: buildingAbilityDescription(
-                    'rally_route',
-                    'Add one rally-route charge to your spells strip. Once per match.',
-                ),
-            },
-            {
-                icon: 'ui-move',
-                name: buildingAbilityName('move_pack', 'Move Pack'),
-                cost: s.movePack.abilityCost,
-                description: buildingAbilityDescription(
-                    'move_pack',
-                    'Add one move-pack charge to your spells strip: one pack from an earlier round becomes movable again. Once per match.',
-                ),
-            },
         );
     }
 
-    if (type.id === RESEARCH_CENTER.id) {
-        out.push(
-            {
-                icon: 'ability-plus-deploy',
-                name: buildingAbilityName('1_deployment', '+1 Deployment'),
-                cost: s.deploy.extraSlotCost,
-                description: buildingAbilityDescription(
-                    '1_deployment',
-                    'One extra unit purchase this round only.',
-                ),
-            },
-            {
-                icon: 'ability-plus-l2',
-                name: buildingAbilityName('veteran_training', 'Veteran Training'),
-                cost: s.leveling.recruitLevel2Cost,
-                description: buildingAbilityDescription(
-                    'veteran_training',
-                    'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
-                ),
-            },
-            {
-                icon: 'ability-range',
-                name: buildingAbilityName('range_boost', 'Range Boost'),
-                cost: s.deploy.rangedRangeBoostCost,
-                description: buildingAbilityDescription(
-                    'range_boost',
-                    `+${s.deploy.rangeBoost} range for all ranged units, this round only.`,
-                    { amount: s.deploy.rangeBoost },
-                ),
-            },
-            {
-                icon: 'ability-speed',
-                name: buildingAbilityName('speed_boost', 'Speed Boost'),
-                cost: s.deploy.armySpeedBoostCost,
-                description: buildingAbilityDescription(
-                    'speed_boost',
-                    `+${s.deploy.speedBoost} speed for all units, this round only.`,
-                    { amount: s.deploy.speedBoost },
-                ),
-            },
-            {
-                icon: 'ability-credit',
-                name: buildingAbilityName('loan', 'Loan'),
-                description: buildingAbilityDescription(
-                    'loan',
-                    `+${s.deploy.creditGain} supply now. Next deployment: −${s.deploy.creditDebt}. Once per round.`,
-                    { gain: s.deploy.creditGain, debt: s.deploy.creditDebt },
-                ),
-            },
-        );
+    if (hasAbility(type, 'rallyRoute')) {
+        out.push({
+            icon: 'tactic-rally',
+            name: buildingAbilityName('rally_route', 'Rally Route'),
+            cost: s.rallyRoute.abilityCost,
+            description: buildingAbilityDescription(
+                'rally_route',
+                'Add one rally-route charge to your spells strip. Once per match.',
+            ),
+        });
     }
 
-    if (type.id === STRONGHOLD.id) {
+    if (hasAbility(type, 'movePack')) {
+        out.push({
+            icon: 'ui-move',
+            name: buildingAbilityName('move_pack', 'Move Pack'),
+            cost: s.movePack.abilityCost,
+            description: buildingAbilityDescription(
+                'move_pack',
+                'Add one move-pack charge to your spells strip: one pack from an earlier round becomes movable again. Once per match.',
+            ),
+        });
+    }
+
+    if (hasAbility(type, 'deploySlot')) {
+        out.push({
+            icon: 'ability-plus-deploy',
+            name: buildingAbilityName('1_deployment', '+1 Deployment'),
+            cost: s.deploy.extraSlotCost,
+            description: buildingAbilityDescription(
+                '1_deployment',
+                'One extra unit purchase this round only.',
+            ),
+        });
+    }
+
+    if (hasAbility(type, 'recruitLevel')) {
+        out.push({
+            icon: 'ability-plus-l2',
+            name: buildingAbilityName('veteran_training', 'Veteran Training'),
+            cost: s.leveling.recruitLevel2Cost,
+            description: buildingAbilityDescription(
+                'veteran_training',
+                'For the rest of this round, units you buy arrive at level 2 (they still pay the level premium).',
+            ),
+        });
+    }
+
+    if (hasAbility(type, 'rangeBoost')) {
+        out.push({
+            icon: 'ability-range',
+            name: buildingAbilityName('range_boost', 'Range Boost'),
+            cost: s.deploy.rangedRangeBoostCost,
+            description: buildingAbilityDescription(
+                'range_boost',
+                `+${s.deploy.rangeBoost} range for all ranged units, this round only.`,
+                { amount: s.deploy.rangeBoost },
+            ),
+        });
+    }
+
+    if (hasAbility(type, 'speedBoost')) {
+        out.push({
+            icon: 'ability-speed',
+            name: buildingAbilityName('speed_boost', 'Speed Boost'),
+            cost: s.deploy.armySpeedBoostCost,
+            description: buildingAbilityDescription(
+                'speed_boost',
+                `+${s.deploy.speedBoost} speed for all units, this round only.`,
+                { amount: s.deploy.speedBoost },
+            ),
+        });
+    }
+
+    if (hasAbility(type, 'credit')) {
+        out.push({
+            icon: 'ability-credit',
+            name: buildingAbilityName('loan', 'Loan'),
+            description: buildingAbilityDescription(
+                'loan',
+                `+${s.deploy.creditGain} supply now. Next deployment: −${s.deploy.creditDebt}. Once per round.`,
+                { gain: s.deploy.creditGain, debt: s.deploy.creditDebt },
+            ),
+        });
+    }
+
+    if (hasAbility(type, 'sendSupply')) {
         out.push({
             icon: 'ability-gift-supply',
             name: buildingAbilityName('send_supply_to_ally', 'Send supply to ally'),
