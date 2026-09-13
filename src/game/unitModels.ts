@@ -25,6 +25,7 @@ import {
 } from './buildingSnow';
 import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
 import type { BattleTeam } from './units';
+import type { ModelAnimation } from './unitAnimated';
 import { assetUrl, isBaseAsset } from './assets';
 import { BASE_PACK } from './content/basePack';
 
@@ -74,6 +75,8 @@ export interface ModelSpec {
         clip?: string | 'first' | 'longest' | 'shortest';
         time?: number;
     };
+    /** Battle animation clips for a rigged model (needs `skinned`). */
+    animation?: ModelAnimation;
 }
 
 /** Model specs by model id, from `assets/data/models/*.jsonc`. */

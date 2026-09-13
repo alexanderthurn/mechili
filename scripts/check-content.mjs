@@ -73,9 +73,11 @@ try {
     // the game's own consumers accept it: lookups resolve, procedural models exist
     const units = await server.ssrLoadModule('/src/game/units.ts');
     const models = await server.ssrLoadModule('/src/game/unitModels.ts');
+    const anim = await server.ssrLoadModule('/src/game/unitAnimated.ts');
     console.log(
         `ok   units.ts resolves ${units.BASE_TYPES.roster.length} roster types; ` +
-            `unitModels.ts resolves ${Object.keys(models.MODEL_SPECS).length} model specs`,
+            `unitModels.ts resolves ${Object.keys(models.MODEL_SPECS).length} model specs; ` +
+            `unitAnimated.ts rigs ${Object.keys(anim.ANIM_SPECS).sort().join(', ')}`,
     );
 
     // ---- level overlays: replacement by path, report, hash, data validation

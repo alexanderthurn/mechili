@@ -70,12 +70,145 @@
           },
           "additionalProperties": false,
           "description": "Pose a skinned clip then bake to static meshes for InstancedMesh. `clip`: substring of clip name, or `first` / `longest` / `shortest`. Default time `0` = first frame."
+        },
+        "animation": {
+          "$ref": "#/definitions/ModelAnimation",
+          "description": "Battle animation clips for a rigged model (needs `skinned`)."
         }
       },
       "required": [
         "file"
       ],
       "description": "A model as authored data — the shape a JSON content file will hold: a file name and degrees instead of a built URL and radians."
+    },
+    "ModelAnimation": {
+      "type": "object",
+      "properties": {
+        "walk": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "range": {
+              "$ref": "#/definitions/ClipTimeRange",
+              "description": "Keep only this time window of the clip (seconds)."
+            },
+            "clip": {
+              "$ref": "#/definitions/ClipPick",
+              "description": "Which clip: a substring of its name (`\"walk\"`, `\"pitch_baseball\"`), `\"longest\"` / `\"shortest\"` by duration, or an index."
+            },
+            "speed": {
+              "type": "number",
+              "description": "Playback rate (default 1). Higher = less slide on walks, faster long swings."
+            }
+          },
+          "required": [
+            "clip"
+          ],
+          "description": "Locomotion loop (swagger / walk / run)."
+        },
+        "fire": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "range": {
+              "$ref": "#/definitions/ClipTimeRange",
+              "description": "Keep only this time window of the clip (seconds)."
+            },
+            "hold": {
+              "type": "boolean",
+              "description": "Keep the attack playing even if the mesh moves (crowd jostle / turn). Melee windups need this — by default the attack is dropped as soon as the unit relocates so long attack poses don't stick after the swing."
+            },
+            "clip": {
+              "$ref": "#/definitions/ClipPick",
+              "description": "Which clip: a substring of its name (`\"walk\"`, `\"pitch_baseball\"`), `\"longest\"` / `\"shortest\"` by duration, or an index."
+            },
+            "speed": {
+              "type": "number",
+              "description": "Playback rate (default 1). Higher = less slide on walks, faster long swings."
+            }
+          },
+          "required": [
+            "clip"
+          ],
+          "description": "One-shot attack; omit if the asset has none."
+        },
+        "death": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fallLocal": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "z": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "x",
+                "z"
+              ],
+              "additionalProperties": false,
+              "description": "Where the clip lays the body in model XZ (rest forward −Z). Used to turn the body so the fall lines up with the killing blow (ogre `fall`: head travels toward −X, the character's left)."
+            },
+            "clip": {
+              "$ref": "#/definitions/ClipPick",
+              "description": "Which clip: a substring of its name (`\"walk\"`, `\"pitch_baseball\"`), `\"longest\"` / `\"shortest\"` by duration, or an index."
+            },
+            "speed": {
+              "type": "number",
+              "description": "Playback rate (default 1). Higher = less slide on walks, faster long swings."
+            }
+          },
+          "required": [
+            "clip"
+          ],
+          "description": "One-shot death / tip-over clip; omit to keep the procedural death tip."
+        }
+      },
+      "required": [
+        "walk"
+      ],
+      "additionalProperties": false,
+      "description": "Battle animation of a rigged GLB (`\"animation\"` in `assets/data/models/<id>.jsonc`). A model with this block is driven by an AnimationMixer instead of an InstancedMesh; it needs `\"skinned\": true`."
+    },
+    "ClipTimeRange": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "number"
+        },
+        "end": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "additionalProperties": false,
+      "description": "Seconds window inside an authored clip (inclusive start, exclusive-ish end via subclip)."
+    },
+    "ClipPick": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "longest"
+        },
+        {
+          "type": "string",
+          "const": "shortest"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "description": "Pick a clip when the exporter names them uselessly (NlaTrack / NlaTrack.001). `longest` / `shortest` by duration; or a substring of the clip name; or index."
     }
   },
   "allowComments": true,

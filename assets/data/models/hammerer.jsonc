@@ -2,4 +2,9 @@
     "file": "models/units/hammerer.glb",
     "yawDeg": 90,
     "skinned": true,
+    // named clips: preset:biped:walk / preset:biped:fire
+    "animation": {
+        "walk": { "clip": "walk", "speed": 1.35 },
+        "fire": { "clip": "fire" },
+    },
 }

@@ -19,10 +19,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import type { BattleTeam } from './units';
-import { assetUrl } from './assets';
-
-/** Same rest-forward bake as Tripo models in unitModels ( +X → −Z ). */
-const MODEL_FWD_YAW = Math.PI / 2;
+import { MODEL_SPECS, type ModelSpec } from './unitModels';
 
 /**
  * Pick a clip when the exporter names them uselessly (NlaTrack / NlaTrack.001).
@@ -33,92 +30,60 @@ export type ClipPick = 'longest' | 'shortest' | number | string;
 /** Seconds window inside an authored clip (inclusive start, exclusive-ish end via subclip). */
 export type ClipTimeRange = { start: number; end: number };
 
-/** Units driven by a rigged GLB (walk/swagger + optional fire) instead of InstancedMesh. */
-export interface AnimSpec {
-    url: string;
-    /** Orient model to facing=0 (−Z). Same convention as {@link MODEL_SPECS}. */
-    yaw: number;
-    pitch?: number;
-    roll?: number;
-    offset?: { x?: number; y?: number; z?: number };
-    scale?: number;
-    /** Locomotion loop (swagger / walk). */
-    walk: ClipPick;
-    /** Keep only this time window of the walk clip (seconds). */
-    walkRange?: ClipTimeRange;
-    /** Playback rate for the walk clip (default 1). Higher = less slide/surf. */
-    walkSpeed?: number;
-    /** One-shot attack; omit if the asset has none. */
-    fire?: ClipPick;
-    /** Keep only this time window of the fire clip (seconds). */
-    fireRange?: ClipTimeRange;
-    /** Playback rate for the fire clip (default 1). Speed up long authored swings. */
-    fireSpeed?: number;
+/** One clip role of a rigged model. */
+export interface AnimClip {
     /**
-     * Keep the fire one-shot playing even if the mesh moves (crowd jostle /
-     * turn). Melee windups need this — default aborts fire as soon as they
-     * relocate so long attack poses don't stick after the swing.
+     * Which clip: a substring of its name (`"walk"`, `"pitch_baseball"`),
+     * `"longest"` / `"shortest"` by duration, or an index.
      */
-    fireHold?: boolean;
-    /** One-shot death / tip-over clip; omit to keep procedural death tip. */
-    death?: ClipPick;
-    /** Playback rate for the death clip (default 1). */
-    deathSpeed?: number;
-    /**
-     * Where the authored death clip lays the body in holder XZ (rest forward −Z).
-     * Used to yaw the proxy so the fall lines up with the killing blow.
-     * Ogre `fall`: head travels ≈ local −X (character's left).
-     */
-    deathFallLocal?: { x: number; z: number };
+    clip: ClipPick;
+    /** Playback rate (default 1). Higher = less slide on walks, faster long swings. */
+    speed?: number;
 }
 
 /**
- * Melodan rigged units. Clip picks tolerate Tripo/Cascadeur-style `NlaTrack` names.
- * Walk = longer swagger loop; fire = shorter shoot (see archer.glb).
+ * Battle animation of a rigged GLB (`"animation"` in `assets/data/models/<id>.jsonc`).
+ * A model with this block is driven by an AnimationMixer instead of an
+ * InstancedMesh; it needs `"skinned": true`.
  */
-export const ANIM_SPECS: Record<string, AnimSpec> = {
-    archer: {
-        get url() {
-            return assetUrl('models/units/archer.glb');
-        },
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
-        walk: 'longest',
-        walkSpeed: 1.5,
-        fire: 'shortest',
-    },
-    hammerer: {
-        get url() {
-            return assetUrl('models/units/hammerer.glb');
-        },
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
-        // named clips: preset:biped:walk / preset:biped:fire
-        walk: 'walk',
-        walkSpeed: 1.35,
-        fire: 'fire',
-    },
-    ogre: {
-        get url() {
-            return assetUrl('models/units/ogre.glb');
-        },
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
-        // Foot align is measured from the walk clip (see footAlign on template) —
-        // blended by anim weight so T-pose deploy and run both sit on the marker.
-        walk: 'run',
-        walkSpeed: 0.5,
-        fire: 'pitch_baseball',
-        // authored ~3.8s — speed up so the swing fits combat cadence
-        fireSpeed: 3,
-        // melee stands in a scrum; micro-pushes must not cancel the pitch
-        fireHold: true,
-        death: 'fall',
-        deathSpeed: 2.2, // ~3.0s authored → ~1.4s tip
-        deathFallLocal: { x: -1, z: 0 },
-    },
-};
-
-export function isAnimatedUnitId(id: string): boolean {
-    return id in ANIM_SPECS;
+export interface ModelAnimation {
+    /** Locomotion loop (swagger / walk / run). */
+    walk: AnimClip & {
+        /** Keep only this time window of the clip (seconds). */
+        range?: ClipTimeRange;
+    };
+    /** One-shot attack; omit if the asset has none. */
+    fire?: AnimClip & {
+        /** Keep only this time window of the clip (seconds). */
+        range?: ClipTimeRange;
+        /**
+         * Keep the attack playing even if the mesh moves (crowd jostle / turn).
+         * Melee windups need this — by default the attack is dropped as soon
+         * as the unit relocates so long attack poses don't stick after the swing.
+         */
+        hold?: boolean;
+    };
+    /** One-shot death / tip-over clip; omit to keep the procedural death tip. */
+    death?: AnimClip & {
+        /**
+         * Where the clip lays the body in model XZ (rest forward −Z). Used to
+         * turn the body so the fall lines up with the killing blow
+         * (ogre `fall`: head travels toward −X, the character's left).
+         */
+        fallLocal?: { x: number; z: number };
+    };
 }
+
+/** A model spec that has battle animation — orientation, scale and file come from the spec. */
+type AnimSpec = ModelSpec & { animation: ModelAnimation };
+
+/**
+ * Rigged units: every model in `assets/data/models` with an `"animation"`
+ * block. Clip picks tolerate Tripo/Cascadeur-style `NlaTrack` names.
+ */
+export const ANIM_SPECS: Record<string, AnimSpec> = Object.fromEntries(
+    Object.entries(MODEL_SPECS).flatMap(([id, spec]) => (spec.animation ? [[id, spec as AnimSpec]] : [])),
+);
 
 interface Template {
     root: Object3D;
@@ -411,6 +376,7 @@ export async function loadAnimatedModels(heights: Record<string, number>): Promi
     const textureBudget = modelTextureBudget();
     await Promise.all(
         Object.entries(ANIM_SPECS).map(async ([id, spec]) => {
+            const anim = spec.animation;
             try {
                 const gltf = await loader.loadAsync(spec.url);
                 if (textureBudget) applyTextureBudget(gltf.scene, textureBudget);
@@ -418,12 +384,12 @@ export async function loadAnimatedModels(heights: Record<string, number>): Promi
                 if (clips.length === 0) {
                     throw new Error('GLB has no animations');
                 }
-                const walkSrc = pickClip(clips, spec.walk, 'walk');
-                const fireSrc = spec.fire != null ? pickClip(clips, spec.fire, 'fire') : null;
-                const deathSrc = spec.death != null ? pickClip(clips, spec.death, 'death') : null;
+                const walkSrc = pickClip(clips, anim.walk.clip, 'walk');
+                const fireSrc = anim.fire ? pickClip(clips, anim.fire.clip, 'fire') : null;
+                const deathSrc = anim.death ? pickClip(clips, anim.death.clip, 'death') : null;
                 // Clone/trim so pinSharedRootPositions doesn't mutate the loader cache.
-                const walk = trimClipRange(walkSrc, 'walk', spec.walkRange);
-                const fire = fireSrc ? trimClipRange(fireSrc, 'fire', spec.fireRange) : null;
+                const walk = trimClipRange(walkSrc, 'walk', anim.walk.range);
+                const fire = fireSrc ? trimClipRange(fireSrc, 'fire', anim.fire?.range) : null;
                 const death = deathSrc ? trimClipRange(deathSrc, 'death') : null;
 
                 const prepared = skeletonClone(gltf.scene);
@@ -439,16 +405,16 @@ export async function loadAnimatedModels(heights: Record<string, number>): Promi
                 // No static offset — footAlign blends bind vs walk seats at runtime.
                 const root = normalize(prepared, h, spec.yaw, spec.pitch, spec.roll, spec.offset);
                 const footAlign = measureFootAlign(root, walk);
-                const fallLocal = spec.deathFallLocal ?? { x: 0, z: -1 };
+                const fallLocal = anim.death?.fallLocal ?? { x: 0, z: -1 };
                 templates.set(id, {
                     root,
                     walk,
                     fire,
                     death,
-                    walkSpeed: spec.walkSpeed ?? 1,
-                    fireSpeed: spec.fireSpeed ?? 1,
-                    deathSpeed: spec.deathSpeed ?? 1,
-                    fireHold: !!spec.fireHold,
+                    walkSpeed: anim.walk.speed ?? 1,
+                    fireSpeed: anim.fire?.speed ?? 1,
+                    deathSpeed: anim.death?.speed ?? 1,
+                    fireHold: !!anim.fire?.hold,
                     deathFallLocalX: fallLocal.x,
                     deathFallLocalZ: fallLocal.z,
                     footAlignX: footAlign.x,
@@ -457,18 +423,18 @@ export async function loadAnimatedModels(heights: Record<string, number>): Promi
                 console.info(
                     `[unitAnimated] '${id}' ready (root='${bone}', pin=[${locoBones.join(',')}],` +
                         ` footAlign=(${footAlign.x.toFixed(2)},${footAlign.z.toFixed(2)}), walk=${walk.duration.toFixed(2)}s` +
-                        `@${(spec.walkSpeed ?? 1).toFixed(2)}x` +
-                        (spec.walkRange
-                            ? ` trim=${spec.walkRange.start.toFixed(2)}-${spec.walkRange.end.toFixed(2)}`
+                        `@${(anim.walk.speed ?? 1).toFixed(2)}x` +
+                        (anim.walk.range
+                            ? ` trim=${anim.walk.range.start.toFixed(2)}-${anim.walk.range.end.toFixed(2)}`
                             : '') +
                         (fire
-                            ? `, fire=${fire.duration.toFixed(2)}s@${(spec.fireSpeed ?? 1).toFixed(2)}x` +
-                              (spec.fireRange
-                                  ? ` trim=${spec.fireRange.start.toFixed(2)}-${spec.fireRange.end.toFixed(2)}`
+                            ? `, fire=${fire.duration.toFixed(2)}s@${(anim.fire?.speed ?? 1).toFixed(2)}x` +
+                              (anim.fire?.range
+                                  ? ` trim=${anim.fire.range.start.toFixed(2)}-${anim.fire.range.end.toFixed(2)}`
                                   : '')
                             : '') +
                         (death
-                            ? `, death=${death.duration.toFixed(2)}s@${(spec.deathSpeed ?? 1).toFixed(2)}x`
+                            ? `, death=${death.duration.toFixed(2)}s@${(anim.death?.speed ?? 1).toFixed(2)}x`
                             : '') +
                         `; clips: ${clips.map((c) => `${c.name}:${c.duration.toFixed(2)}`).join(', ')})`,
                 );

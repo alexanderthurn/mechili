@@ -882,9 +882,10 @@ Done:
 Still open:
 - `Game.types` is always `BASE_TYPES`; scenario boot will build one with
   `new TypeRegistry(loadPackWithOverlay(…))` and pass it in the settings.
-- Model specs are resolved once (`MODEL_SPECS`); a level that changes a
-  model's data (scale, yaw) needs them re-resolved per match. Replacing the
-  GLB file itself already works through the overlay.
+- Model specs are resolved once (`MODEL_SPECS`, and `ANIM_SPECS` from their
+  `"animation"` blocks); a level that changes a model's data (scale, yaw,
+  animation clips) needs them re-resolved per match. Replacing the GLB file
+  itself already works through the overlay.
 - Shared caches keyed by type id (unit icons, preloaded visuals) would need a
   refresh for a level that adds or restyles types.
 
@@ -898,6 +899,7 @@ peers can only play a level whose definitions match.
 | Date | Change |
 |------|--------|
 | 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
+| 2026-09-13 | Rigged-unit animation clips moved into model data (`"animation"`) |
 | 2026-09-13 | §17 step 7: per-match `TypeRegistry` (`game.types`); module type constants removed |
 | 2026-09-13 | §17 steps 3–6 implemented; status table and the per-match type registry gap (17.8) |
 | 2026-09-13 | §17 → content, assets & overlays: one `assets/` tree (data + media), `assetUrl` resolver + manifest, level overlays by path, content hash in handshakes. Loadout fixed: the player's own loadout is the default; `rules.loadout` can restrict, fix or open it |

@@ -151,6 +151,9 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
             continue;
         }
         for (const e of validateSchema(MODEL_SCHEMA, data)) errors.push(`${where}: ${e}`);
+        if (data.animation !== undefined && data.skinned !== true) {
+            errors.push(`${where}: "animation" needs "skinned": true (a rigged model)`);
+        }
         models[id] = data as unknown as ModelSpecData;
     }
 
