@@ -1,4 +1,3 @@
-import type { Economy } from './settings';
 import { actorTeam, type Actor, type BattleSim } from './sim';
 import { hpDrawWaveTier, hpWithdrawOf, type HpDrawWaveTier, type Team } from './units';
 
@@ -73,9 +72,10 @@ const FLIGHT_FRACTION = 0.75;
 
 /**
  * Collect surviving mech damage sources and horde lump metadata using the
- * same rules as {@link Game.applyBattleResult}.
+ * same rules as {@link Game.applyBattleResult}. Each living non-structure
+ * mech withdraws {@link hpWithdrawOf} HP; wave tier is computed from that.
  */
-export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
+export function buildHpDrawSources(sim: BattleSim): {
     sources: HpDrawSource[];
     damageToPlayer: number;
     damageToEnemy: number;
@@ -97,10 +97,9 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
         // fighting force, and a Stronghold-only defense must still be able to
         // win (or chip) the opponent's life bar.
         if (a.unit.type.structure || !a.alive) continue;
-        const headcount = Math.max(1, a.unit.members.length);
-        const value = economy.costOf(a.unit.type) / headcount;
+        const value = hpWithdrawOf(a.unit.type);
         const team = actorTeam(a);
-        const withdraw = hpWithdrawOf(a.unit.type);
+        const withdraw = value;
         const tier = hpDrawWaveTier(withdraw);
         const { x, y, z } = hpDrawOrigin(a);
         const modelId = a.unit.type.modelId ?? a.unit.type.id;
@@ -157,9 +156,8 @@ export function buildHpDrawSources(sim: BattleSim, economy: Economy): {
         for (const a of sim.actors) {
             if (a.unit.type.structure || !a.alive) continue;
             if (actorTeam(a) !== null) continue;
-            const headcount = Math.max(1, a.unit.members.length);
-            const value = economy.costOf(a.unit.type) / headcount;
-            const withdraw = hpWithdrawOf(a.unit.type);
+            const value = hpWithdrawOf(a.unit.type);
+            const withdraw = value;
             const tier = hpDrawWaveTier(withdraw);
             const { x, y, z } = hpDrawOrigin(a);
             const modelId = a.unit.type.modelId ?? a.unit.type.id;

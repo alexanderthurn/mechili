@@ -1,10 +1,9 @@
 /**
  * The commander, standing on his own keep.
  *
- * Shown only when the Stronghold is a lifeline — the mode where losing the
- * keep loses the army. That is the whole reason he is up there: the thing the
- * siege is actually for is a person, and you can see him from across the
- * board. In the other modes the keep is just a building and nobody is home.
+ * Currently unused: all five battlement pads are archer slots. Kept so a
+ * future commander-as-unit can reuse the slot / scale helpers. When that
+ * lands, do not reserve a pad for a decoration — place him as a real unit.
  *
  * Visual only. Nothing here is ever read by the sim, so nothing here can move
  * a state hash.

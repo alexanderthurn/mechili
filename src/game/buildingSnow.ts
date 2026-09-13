@@ -7,8 +7,9 @@ export const BUILDING_SNOW_IDS = new Set(['command-tower', 'research-center', 's
 const buildingSnowUniform = { value: 0 };
 let buildingCover = 0;
 
-/** Roofs wait until the field is already whitening, then ease in. */
-const BUILDING_SNOW_GROUND_START = 0.4;
+/** Roofs wait until the field is already whitening, then ease in.
+ *  Board snow at y≈0 only starts around cover ~0.77 (snow-line in map.ts). */
+const BUILDING_SNOW_GROUND_START = 0.7;
 const BUILDING_SNOW_GROUND_FULL = 0.92;
 /** Slower than ground wash so grass reads first. */
 const BUILDING_SNOW_GROW_TAU = 12;

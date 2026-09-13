@@ -172,8 +172,8 @@ const attackNodes = new Map<string, { x: number; y: number; z: number }>();
 const flagNodes = new Map<string, { x: number; y: number; z: number }>();
 /**
  * `Unit1`, `Unit2`, … empties: standing spots authored into a building (the
- * Stronghold's battlements carry five). Stronghold archers stand and SHOOT from
- * these, so the sim reads them and they ride in {@link
+ * Stronghold's battlements carry five archer posts). Stronghold archers stand
+ * and SHOOT from these, so the sim reads them and they ride in {@link
  * modelGeometryFingerprint} — a peer whose stronghold GLB failed would
  * otherwise stand somewhere else and fight a different battle.
  */
