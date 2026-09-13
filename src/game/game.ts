@@ -1176,6 +1176,15 @@ export class Game {
             this.cancelTacticPlacement();
         }
     }
+
+    /**
+     * Solo Escape/☰ menu freezes match clocks (deploy timer, battle sim, FX).
+     * Multiplayer and live spectate keep running — peers / host timers don't wait.
+     */
+    private get soloPaused(): boolean {
+        return !this.star && !this.watching && this.hud.isPauseMenuOpen();
+    }
+
     private readonly onWindowResize = () => this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
     private readonly wrapper: HTMLElement;
     private readonly threeCanvas: HTMLCanvasElement;
@@ -2239,7 +2248,7 @@ export class Game {
         // catch-up is fully done, not before
         this.seedSeqTracking();
 
-        // Escape toggles the in-game menu (the match keeps running underneath)
+        // Escape toggles the in-game menu (solo: freezes clocks; multiplayer: live)
         window.addEventListener('keydown', this.onEscapeKey);
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
@@ -9783,7 +9792,13 @@ export class Game {
         // it AGAIN, double-advancing the sim past where it should be — reset
         // to null whenever we're not sim-active so the next active tick
         // starts fresh, exactly like the very first tick ever does.
-        const simTimingActive = !this.matchOver && !this.suspended && !this.introActive && !this.outroActive;
+        const soloPaused = this.soloPaused;
+        const simTimingActive =
+            !this.matchOver &&
+            !this.suspended &&
+            !soloPaused &&
+            !this.introActive &&
+            !this.outroActive;
         const trueDtSeconds =
             this.lastSimRealTimeMs === null ? dtSeconds : (nowMs - this.lastSimRealTimeMs) / 1000;
         this.lastSimRealTimeMs = simTimingActive ? nowMs : null;
@@ -9810,23 +9825,25 @@ export class Game {
 
         // battle can be fast-forwarded (or slowed); build always runs at 1x
         // — except when watching a replay, where the same speed control
-        // scales build-phase pacing too (nothing live to keep at real time)
-        const gameDt =
-            this.phase === 'battle' || this.watching
-                ? dtSeconds * this.speedSteps[this.speedIndex]!
-                : dtSeconds;
-        // same speed-multiplier scaling as gameDt, just built on the TRUE
-        // dt — this is what actually reaches sim.update() below
-        const trueGameDt =
-            this.phase === 'battle' || this.watching
-                ? trueDtSeconds * this.speedSteps[this.speedIndex]!
-                : trueDtSeconds;
+        // scales build-phase pacing too (nothing live to keep at real time).
+        // Solo pause zeros both so deploy timers, sim, and FX all freeze
+        // (multiplayer reconnect `suspended` still only gates simTimingActive).
+        const gameDt = soloPaused
+            ? 0
+            : this.phase === 'battle' || this.watching
+              ? dtSeconds * this.speedSteps[this.speedIndex]!
+              : dtSeconds;
+        const trueGameDt = soloPaused
+            ? 0
+            : this.phase === 'battle' || this.watching
+              ? trueDtSeconds * this.speedSteps[this.speedIndex]!
+              : trueDtSeconds;
         this.time += gameDt;
 
         if (this.hpDrawSettleRemaining > 0 || this.hasPendingDeathVisuals()) {
             this.tickPlacementDeathVisuals();
         }
-        if (this.hpDrawSettleRemaining > 0) {
+        if (this.hpDrawSettleRemaining > 0 && !soloPaused) {
             this.hpDrawSettleRemaining -= dtSeconds;
             if (this.hpDrawSettleRemaining <= 0 && this.pendingHpDrawPlan) {
                 this.beginHpDrawPhase();
@@ -10003,14 +10020,17 @@ export class Game {
         this.updateStrongholdFlags();
         this.updateHordeMarkers();
 
-        if (!this.introActive && !this.outroActive) {
+        if (!this.introActive && !this.outroActive && !soloPaused) {
             this.controls.update(dtSeconds);
             this.gamepad.update(dtSeconds);
             this.rig.update(dtSeconds);
             this.tutorial?.tickCamera();
         }
         // ambient motion runs on real time, unaffected by battle fast-forward
-        this.scenery.update(dtSeconds, this.rig.camera.position);
+        // (solo pause freezes it with the rest of the match)
+        if (!soloPaused) {
+            this.scenery.update(dtSeconds, this.rig.camera.position);
+        }
         setCloseCameraY(this.rig.camera.position.y);
         // Flash the cinema scene label whenever the season turns over (manual N/X
         // keys or the automatic per-round scene) — only while cinema mode is on.
