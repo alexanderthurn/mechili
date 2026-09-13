@@ -329,9 +329,10 @@ export interface UnitType {
     name: string;
     cost: number;
     /**
-     * End-of-battle HP withdrawn per living mech of this type (fixed; not
-     * leveled). Also feeds particle wave grouping via {@link hpDrawWaveTier}.
-     * Omit to derive from {@link hpWithdrawOf} (`cost / formation headcount`).
+     * End-of-battle HP withdrawn per living mech of this type (fixed; ignores
+     * pack level and purchase premium). Also feeds particle wave grouping via
+     * {@link hpDrawWaveTier}. Omit to use {@link UnitType.cost} /
+     * formation headcount.
      */
     hpWithdraw?: number;
     /**
@@ -1425,7 +1426,6 @@ export const UNIT_TYPES: UnitType[] = [
         id: 'archer',
         name: 'Archer',
         cost: 100,
-        hpWithdraw: 100,
         unlockCost: 0,
         footprint: { cols: 2, rows: 2 },
         formation: { cols: 1, rows: 1 },
@@ -1638,8 +1638,9 @@ export function formationHeadcount(type: UnitType): number {
 
 /**
  * Per-mech HP withdrawn at battle end. Explicit `hpWithdraw` on the type wins;
- * otherwise `cost / formation headcount`. Wave tier is derived from this value
- * ({@link hpDrawWaveTier}) — not authored separately.
+ * otherwise {@link UnitType.cost} / formation headcount — always the type's
+ * base cost, never what was paid to buy or level the pack (a level-2 archer
+ * still withdraws 100). Wave tier is derived from this ({@link hpDrawWaveTier}).
  */
 export function hpWithdrawOf(type: UnitType): number {
     if (type.hpWithdraw !== undefined) return type.hpWithdraw;
