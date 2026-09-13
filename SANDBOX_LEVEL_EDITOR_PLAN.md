@@ -851,14 +851,17 @@ levels/frost-keep/
 | 4. `assetUrl()` resolver + generated manifest (`npm run assets:manifest`); every game file load goes through it, lazily | done |
 | 5. Build-time content hash in every multiplayer handshake (`isSameBuild`) | done |
 | 6. Overlay layer: `buildAssetOverlay` / `installAssetOverlay`, report, overlay hash in `currentContentHash()`, level data validated via `loadPackWithOverlay` | done (no loading UI) |
-| 7. Per-match type registry (`TypeRegistry`, `game.types`) — see 17.8 | done (model specs still global) |
+| 7. Per-match type registry (`TypeRegistry`, `game.types`) — see 17.8 | done |
+| 7b. Level switch reloads cached files and model data (`switchLevel`) — see 17.9 | done (dev console only) |
 | 8. Level loading (Electron folder / browser zip) + scenario boot | with scenarios |
 | 9. Walls and other engine features that unlock new content | later |
 
-`npm run check:content` covers steps 2–6: manifest freshness and no
-hand-built asset URLs, schema freshness, base data validation, and a sample
+`npm run check:content` covers steps 2–7b: manifest freshness and no
+hand-built asset URLs, schema freshness, base data validation, a sample
 level overlay (replace/add by path, report, hash stability and line-ending
-invariance, data validation, multiplayer hash).
+invariance, data validation, multiplayer hash) and a level switch (reload
+hooks run with the level installed, model and animation data follow, the
+base game comes back, an invalid level changes nothing).
 
 ### 17.8 Per-match type registry
 
@@ -882,15 +885,44 @@ Done:
 Still open:
 - `Game.types` is always `BASE_TYPES`; scenario boot will build one with
   `new TypeRegistry(loadPackWithOverlay(…))` and pass it in the settings.
-- Model specs are resolved once (`MODEL_SPECS`, and `ANIM_SPECS` from their
-  `"animation"` blocks); a level that changes a model's data (scale, yaw,
-  animation clips) needs them re-resolved per match. Replacing the GLB file
-  itself already works through the overlay.
-- Shared caches keyed by type id (unit icons, preloaded visuals) would need a
-  refresh for a level that adds or restyles types.
+- Unit icons are drawn from the procedural models of `BASE_TYPES`; a level
+  that adds a type has no icon for it yet.
 
 Multiplayer is already safe for this: the overlay hash covers data files, so
 peers can only play a level whose definitions match.
+
+### 17.9 Switching levels: cached files and model data
+
+Most files are not loaded per match but once, at boot, and kept: unit and
+building models, rigged units, spells, commander figures, trees and
+billboards, floor pieces, bolt / brick / rock, the soul sprite. Installing an
+overlay alone would leave all of those on the base files.
+
+`switchLevel(overlay | null)` (`src/game/level.ts`) is the entry point:
+1. validates the level's data (`loadPackWithOverlay`) — an invalid level
+   throws and nothing changes;
+2. sets the model data (`setModelSpecData`; `ANIM_SPECS` follows) and the
+   procedural heights of the level's types;
+3. switches the overlay (`switchAssetOverlay`) and runs every cache's reload
+   hook (`onAssetOverlaySwitch`). Each cache remembers the file URL — for unit
+   models the whole spec plus height — it loaded from, waits for its own
+   in-flight loads, and reloads only what now resolves differently. Replaced
+   templates are disposed, and ids the level no longer has are dropped, so a
+   level played earlier leaves nothing in `modelGeometryFingerprint`.
+
+Switch between matches only. Calls are queued. Before boot has loaded
+anything, a switch only changes data; the boot load then reads the level.
+
+Loaded per match by URL, so no hook needed: ground and rock textures, acid
+and conversion effect textures. **Not level-replaceable**: fonts, the icon
+atlas, menu images and logos — they belong to the menu, which is up before any
+level is chosen.
+
+Dev builds: `await melodanLevel.pick()` in the console picks a folder laid out
+like `assets/` and switches to it; `melodanLevel.clear()` goes back. Files and
+model data apply; unit and building definitions are validated, but matches
+still play `BASE_TYPES` until the scenario boot hands `activeLevel().types` to
+the Game (step 8).
 
 ---
 
@@ -899,6 +931,7 @@ peers can only play a level whose definitions match.
 | Date | Change |
 |------|--------|
 | 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
+| 2026-09-13 | §17.9 level switch: cached files and model data reload per level (`switchLevel`, reload hooks, dev console helper) |
 | 2026-09-13 | Rigged-unit animation clips moved into model data (`"animation"`) |
 | 2026-09-13 | §17 step 7: per-match `TypeRegistry` (`game.types`); module type constants removed |
 | 2026-09-13 | §17 steps 3–6 implemented; status table and the per-match type registry gap (17.8) |

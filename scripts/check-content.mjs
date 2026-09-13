@@ -20,8 +20,10 @@ globalThis.localStorage = {
 globalThis.sessionStorage = globalThis.localStorage;
 if (!globalThis.navigator) globalThis.navigator = { userAgent: 'node', language: 'en', languages: ['en'] };
 globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+// a 2D context that accepts every call — procedural unit meshes paint canvas textures
+const canvas2d = new Proxy(function () {}, { get: () => canvas2d, apply: () => canvas2d, set: () => true });
 globalThis.document = {
-    createElement: () => ({ getContext: () => null, style: {} }),
+    createElement: () => ({ getContext: () => canvas2d, style: {}, width: 0, height: 0 }),
     documentElement: { style: {} },
     addEventListener() {},
 };
@@ -141,6 +143,40 @@ try {
     ok = expect(levelPack.buildings.some((b) => b.id === 'ice-wall'), 'added building missing') && ok;
     ok = expect(BASE_PACK.buildings.find((b) => b.id === 'stronghold')?.hp === 3000, 'overlay validation changed the base game') && ok;
     if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation, multiplayer hash');
+
+    // ---- switching levels: caches told after the files switch, model data follows, bad data changes nothing
+    const levels = await server.ssrLoadModule('/src/game/level.ts');
+    const ogreText = readFileSync('assets/data/models/ogre.jsonc', 'utf8');
+    const baseOgreUrl = models.MODEL_SPECS.ogre.url;
+    let hookSaw = '';
+    resolver.onAssetOverlaySwitch('check', () => {
+        hookSaw = models.MODEL_SPECS.ogre.url;
+    });
+    const ogreMod = await resolver.buildAssetOverlay('ogre-mod', [
+        { path: 'models/units/ogre.glb', bytes: enc('glb bytes') },
+        { path: 'data/models/ogre.jsonc', bytes: enc(ogreText.replace('"speed": 0.5', '"speed": 0.75')) },
+        { path: 'data/models/ice-wall.jsonc', bytes: enc('{ "file": "models/units/ogre.glb" }') },
+    ]);
+    let sw = true;
+    const on = await levels.switchLevel(ogreMod);
+    sw = expect(on === levels.activeLevel() && on.overlay === ogreMod, 'switchLevel does not report the active level') && sw;
+    sw = expect(hookSaw !== '' && hookSaw !== baseOgreUrl, 'reload hooks did not run with the level installed') && sw;
+    sw = expect(anim.ANIM_SPECS.ogre?.animation.walk.speed === 0.75, "rigged model data does not follow the level") && sw;
+    sw = expect('ice-wall' in models.MODEL_SPECS, "level's added model missing from MODEL_SPECS") && sw;
+    const off = await levels.switchLevel(null);
+    sw = expect(off.overlay === null && off.types === units.BASE_TYPES, 'switching back does not restore the base registry') && sw;
+    sw = expect(models.MODEL_SPECS.ogre.url === baseOgreUrl && hookSaw === baseOgreUrl, 'switching back does not restore base files') && sw;
+    sw = expect(anim.ANIM_SPECS.ogre?.animation.walk.speed === 0.5, 'switching back does not restore rigged model data') && sw;
+    sw = expect(!('ice-wall' in models.MODEL_SPECS), "level's model stays after switching back") && sw;
+    const broken = await resolver.buildAssetOverlay('broken', [
+        { path: 'data/models/ogre.jsonc', bytes: enc(ogreText.replace('"skinned": true,', '')) },
+    ]);
+    let brokenError = '';
+    await levels.switchLevel(broken).catch((e) => (brokenError = String(e.message)));
+    sw = expect(brokenError.includes('"animation" needs "skinned": true'), `invalid level not rejected (${brokenError.split('\n')[0]})`) && sw;
+    sw = expect(levels.activeLevel().overlay === null && resolver.activeAssetOverlay() === null, 'a rejected level changed the active files') && sw;
+    sw = expect(models.MODEL_SPECS.ogre.skinned === true, 'a rejected level changed model data') && sw;
+    if (sw) console.log('ok   level switch: reload hooks after install, model + animation data follow, base restored, invalid level rejected');
 } catch (e) {
     failed = true;
     console.error(`FAIL ${e instanceof Error ? e.message : e}`);

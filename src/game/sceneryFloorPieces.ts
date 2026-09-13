@@ -19,7 +19,7 @@ import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import { attachVegetationSnow } from './sceneryVegetation';
 import type { SceneryQuality } from './prefs';
 import { prefs } from './prefs';
-import { assetUrl } from './assets';
+import { assetUrl, onAssetOverlaySwitch } from './assets';
 
 const FLOOR_PIECES_URL = (): string => assetUrl('models/floorpieces.glb');
 
@@ -63,6 +63,8 @@ const loader = getGltfLoader();
 const assets = new Map<FloorPieceId, FloorPieceAsset>();
 let sharedMaterial: MeshStandardMaterial | null = null;
 let loadPromise: Promise<void> | null = null;
+/** file URL the pieces were loaded from */
+let loadedFrom = '';
 let pickIds: FloorPieceId[] = [];
 let pickWeights: number[] = [];
 let pickTotal = 0;
@@ -184,7 +186,8 @@ export async function loadFloorPieces(): Promise<void> {
     if (loadPromise) return loadPromise;
     loadPromise = (async () => {
         try {
-            const gltf = await loader.loadAsync(FLOOR_PIECES_URL());
+            loadedFrom = FLOOR_PIECES_URL();
+            const gltf = await loader.loadAsync(loadedFrom);
             const budget = modelTextureBudget();
             if (budget) applyTextureBudget(gltf.scene, budget);
 
@@ -303,3 +306,14 @@ export function buildFloorPieceMeshes(placements: FloorPiecePlacement[]): Instan
     }
     return meshes;
 }
+
+// A level replaced floorpieces.glb: reload if the pieces came from another file.
+onAssetOverlaySwitch('floor pieces', async () => {
+    if (!loadPromise) return; // never requested; the first load reads the current file
+    await loadPromise;
+    if (loadedFrom === FLOOR_PIECES_URL()) return;
+    for (const piece of assets.values()) piece.geometry.dispose();
+    assets.clear();
+    loadPromise = null;
+    await loadFloorPieces();
+});

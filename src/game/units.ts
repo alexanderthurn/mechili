@@ -78,7 +78,8 @@ import {
     getUnitVisualHeight,
     hasUnitModel,
     loadUnitModels,
-    seedUnitVisualHeight,
+    proceduralModelHeights,
+    setProceduralModelHeights,
 } from './unitModels';
 import {
     computeCrowWingRate,
@@ -1877,15 +1878,10 @@ export function preloadUnitVisuals(
     if (visualsPromise) return visualsPromise;
     visualsPromise = (async () => {
         try {
-            const heights: Record<string, number> = {};
-            for (const type of [...BASE_TYPES.roster, ...BASE_TYPES.buildings]) {
-                const probe = new Group();
-                buildProcedural(type, new PartFactory(probe, 'player'));
-                const h = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;
-                heights[type.id] = h;
-                // provisional — GLB load overwrites with measured post-normalize height
-                seedUnitVisualHeight(type.id, h);
-            }
+            // a level switched before the first load already set its types' heights
+            const heights = { ...(proceduralModelHeights() ?? proceduralHeightsOf(BASE_TYPES)) };
+            // provisional — GLB load overwrites with measured post-normalize height
+            setProceduralModelHeights(heights);
             await Promise.all([loadUnitModels(heights, onProgress), loadAnimatedModels(heights)]);
         } catch (e) {
             console.error('[unitModels] preloadUnitVisuals failed', e);
@@ -1893,6 +1889,20 @@ export function preloadUnitVisuals(
     })();
     return visualsPromise;
 }
+/**
+ * Each type's procedural model height (type id → local height) — what a GLB
+ * is sized to, and the visual height of a type without one.
+ */
+export function proceduralHeightsOf(types: TypeRegistry): Record<string, number> {
+    const heights: Record<string, number> = {};
+    for (const type of [...types.roster, ...types.buildings]) {
+        const probe = new Group();
+        buildProcedural(type, new PartFactory(probe, 'player'));
+        heights[type.id] = new Box3().setFromObject(probe).getSize(new Vector3()).y || 1;
+    }
+    return heights;
+}
+
 /** one mech mesh for UI thumbnails — same builders as in-game, preview-sized */
 export function buildUnitPreviewMesh(type: UnitType, team: BattleTeam = 'player'): Group {
     const group = new Group();

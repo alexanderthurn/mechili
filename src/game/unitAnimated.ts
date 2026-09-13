@@ -19,7 +19,9 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import type { BattleTeam } from './units';
-import { MODEL_SPECS, type ModelSpec } from './unitModels';
+import { MODEL_SPECS, modelBuildKey, proceduralModelHeights, type ModelSpec } from './unitModels';
+import { onAssetOverlaySwitch } from './assets';
+import { disposeScene } from '../engine/disposeScene';
 
 /**
  * Pick a clip when the exporter names them uselessly (NlaTrack / NlaTrack.001).
@@ -78,12 +80,19 @@ export interface ModelAnimation {
 type AnimSpec = ModelSpec & { animation: ModelAnimation };
 
 /**
- * Rigged units: every model in `assets/data/models` with an `"animation"`
+ * Rigged units: every model in {@link MODEL_SPECS} with an `"animation"`
  * block. Clip picks tolerate Tripo/Cascadeur-style `NlaTrack` names.
+ * Mutated in place when a level changes the model data.
  */
-export const ANIM_SPECS: Record<string, AnimSpec> = Object.fromEntries(
-    Object.entries(MODEL_SPECS).flatMap(([id, spec]) => (spec.animation ? [[id, spec as AnimSpec]] : [])),
-);
+export const ANIM_SPECS: Record<string, AnimSpec> = {};
+
+function syncAnimSpecs(): void {
+    for (const id of Object.keys(ANIM_SPECS)) delete ANIM_SPECS[id];
+    for (const [id, spec] of Object.entries(MODEL_SPECS)) {
+        if (spec.animation) ANIM_SPECS[id] = spec as AnimSpec;
+    }
+}
+syncAnimSpecs();
 
 interface Template {
     root: Object3D;
@@ -372,76 +381,101 @@ function trimClipRange(clip: AnimationClip, name: string, range?: ClipTimeRange)
     return trimmed;
 }
 
-export async function loadAnimatedModels(heights: Record<string, number>): Promise<void> {
+/** {@link modelBuildKey} each rigged model was last loaded (or attempted) with */
+const loadedKeys = new Map<string, string>();
+const loadsInFlight = new Set<Promise<void>>();
+/** the full load has run (boot) — until then there is nothing to reload */
+let modelsRequested = false;
+
+export function loadAnimatedModels(
+    heights: Readonly<Record<string, number>>,
+    /** reload pass: only these ids (default: every rigged model) */
+    only?: ReadonlySet<string>,
+): Promise<void> {
+    if (!only) modelsRequested = true;
+    const load = loadAnimatedModelsNow(heights, only);
+    loadsInFlight.add(load);
+    void load.finally(() => loadsInFlight.delete(load));
+    return load;
+}
+
+async function loadAnimatedModelsNow(
+    heights: Readonly<Record<string, number>>,
+    only: ReadonlySet<string> | undefined,
+): Promise<void> {
     const textureBudget = modelTextureBudget();
     await Promise.all(
-        Object.entries(ANIM_SPECS).map(async ([id, spec]) => {
-            const anim = spec.animation;
-            try {
-                const gltf = await loader.loadAsync(spec.url);
-                if (textureBudget) applyTextureBudget(gltf.scene, textureBudget);
-                const clips = gltf.animations.slice();
-                if (clips.length === 0) {
-                    throw new Error('GLB has no animations');
+        Object.entries(ANIM_SPECS)
+            .filter(([id]) => !only || only.has(id))
+            .map(async ([id, spec]) => {
+                const anim = spec.animation;
+                loadedKeys.set(id, modelBuildKey(spec, heights[id]));
+                try {
+                    if (!spec.url) throw new Error('model file is not in the asset manifest or the level');
+                    const gltf = await loader.loadAsync(spec.url);
+                    if (textureBudget) applyTextureBudget(gltf.scene, textureBudget);
+                    const clips = gltf.animations.slice();
+                    if (clips.length === 0) {
+                        throw new Error('GLB has no animations');
+                    }
+                    const walkSrc = pickClip(clips, anim.walk.clip, 'walk');
+                    const fireSrc = anim.fire ? pickClip(clips, anim.fire.clip, 'fire') : null;
+                    const deathSrc = anim.death ? pickClip(clips, anim.death.clip, 'death') : null;
+                    // Clone/trim so pinSharedRootPositions doesn't mutate the loader cache.
+                    const walk = trimClipRange(walkSrc, 'walk', anim.walk.range);
+                    const fire = fireSrc ? trimClipRange(fireSrc, 'fire', anim.fire?.range) : null;
+                    const death = deathSrc ? trimClipRange(deathSrc, 'death') : null;
+
+                    const prepared = skeletonClone(gltf.scene);
+                    prepareMaterials(prepared);
+                    const bone = rootBoneName(prepared);
+                    const locoBones = locomotionBoneNames(prepared);
+                    const clipsToPin = fire ? [walk, fire] : [walk];
+                    pinSharedRootPositions(clipsToPin, locoBones);
+                    // Death keeps Hip Y collapse so the body settles onto the lawn.
+                    if (death) pinSharedRootPositions([walk, death], locoBones, { preserveY: true });
+
+                    const h = (heights[id] || 1) * (spec.scale ?? 1);
+                    // No static offset — footAlign blends bind vs walk seats at runtime.
+                    const root = normalize(prepared, h, spec.yaw, spec.pitch, spec.roll, spec.offset);
+                    const footAlign = measureFootAlign(root, walk);
+                    const fallLocal = anim.death?.fallLocal ?? { x: 0, z: -1 };
+                    templates.set(id, {
+                        root,
+                        walk,
+                        fire,
+                        death,
+                        walkSpeed: anim.walk.speed ?? 1,
+                        fireSpeed: anim.fire?.speed ?? 1,
+                        deathSpeed: anim.death?.speed ?? 1,
+                        fireHold: !!anim.fire?.hold,
+                        deathFallLocalX: fallLocal.x,
+                        deathFallLocalZ: fallLocal.z,
+                        footAlignX: footAlign.x,
+                        footAlignZ: footAlign.z,
+                    });
+                    console.info(
+                        `[unitAnimated] '${id}' ready (root='${bone}', pin=[${locoBones.join(',')}],` +
+                            ` footAlign=(${footAlign.x.toFixed(2)},${footAlign.z.toFixed(2)}), walk=${walk.duration.toFixed(2)}s` +
+                            `@${(anim.walk.speed ?? 1).toFixed(2)}x` +
+                            (anim.walk.range
+                                ? ` trim=${anim.walk.range.start.toFixed(2)}-${anim.walk.range.end.toFixed(2)}`
+                                : '') +
+                            (fire
+                                ? `, fire=${fire.duration.toFixed(2)}s@${(anim.fire?.speed ?? 1).toFixed(2)}x` +
+                                  (anim.fire?.range
+                                      ? ` trim=${anim.fire.range.start.toFixed(2)}-${anim.fire.range.end.toFixed(2)}`
+                                      : '')
+                                : '') +
+                            (death
+                                ? `, death=${death.duration.toFixed(2)}s@${(anim.death?.speed ?? 1).toFixed(2)}x`
+                                : '') +
+                            `; clips: ${clips.map((c) => `${c.name}:${c.duration.toFixed(2)}`).join(', ')})`,
+                    );
+                } catch (e) {
+                    console.error(`[unitAnimated] '${id}' FAILED; will fall back to static/procedural`, e);
                 }
-                const walkSrc = pickClip(clips, anim.walk.clip, 'walk');
-                const fireSrc = anim.fire ? pickClip(clips, anim.fire.clip, 'fire') : null;
-                const deathSrc = anim.death ? pickClip(clips, anim.death.clip, 'death') : null;
-                // Clone/trim so pinSharedRootPositions doesn't mutate the loader cache.
-                const walk = trimClipRange(walkSrc, 'walk', anim.walk.range);
-                const fire = fireSrc ? trimClipRange(fireSrc, 'fire', anim.fire?.range) : null;
-                const death = deathSrc ? trimClipRange(deathSrc, 'death') : null;
-
-                const prepared = skeletonClone(gltf.scene);
-                prepareMaterials(prepared);
-                const bone = rootBoneName(prepared);
-                const locoBones = locomotionBoneNames(prepared);
-                const clipsToPin = fire ? [walk, fire] : [walk];
-                pinSharedRootPositions(clipsToPin, locoBones);
-                // Death keeps Hip Y collapse so the body settles onto the lawn.
-                if (death) pinSharedRootPositions([walk, death], locoBones, { preserveY: true });
-
-                const h = (heights[id] || 1) * (spec.scale ?? 1);
-                // No static offset — footAlign blends bind vs walk seats at runtime.
-                const root = normalize(prepared, h, spec.yaw, spec.pitch, spec.roll, spec.offset);
-                const footAlign = measureFootAlign(root, walk);
-                const fallLocal = anim.death?.fallLocal ?? { x: 0, z: -1 };
-                templates.set(id, {
-                    root,
-                    walk,
-                    fire,
-                    death,
-                    walkSpeed: anim.walk.speed ?? 1,
-                    fireSpeed: anim.fire?.speed ?? 1,
-                    deathSpeed: anim.death?.speed ?? 1,
-                    fireHold: !!anim.fire?.hold,
-                    deathFallLocalX: fallLocal.x,
-                    deathFallLocalZ: fallLocal.z,
-                    footAlignX: footAlign.x,
-                    footAlignZ: footAlign.z,
-                });
-                console.info(
-                    `[unitAnimated] '${id}' ready (root='${bone}', pin=[${locoBones.join(',')}],` +
-                        ` footAlign=(${footAlign.x.toFixed(2)},${footAlign.z.toFixed(2)}), walk=${walk.duration.toFixed(2)}s` +
-                        `@${(anim.walk.speed ?? 1).toFixed(2)}x` +
-                        (anim.walk.range
-                            ? ` trim=${anim.walk.range.start.toFixed(2)}-${anim.walk.range.end.toFixed(2)}`
-                            : '') +
-                        (fire
-                            ? `, fire=${fire.duration.toFixed(2)}s@${(anim.fire?.speed ?? 1).toFixed(2)}x` +
-                              (anim.fire?.range
-                                  ? ` trim=${anim.fire.range.start.toFixed(2)}-${anim.fire.range.end.toFixed(2)}`
-                                  : '')
-                            : '') +
-                        (death
-                            ? `, death=${death.duration.toFixed(2)}s@${(anim.death?.speed ?? 1).toFixed(2)}x`
-                            : '') +
-                        `; clips: ${clips.map((c) => `${c.name}:${c.duration.toFixed(2)}`).join(', ')})`,
-                );
-            } catch (e) {
-                console.error(`[unitAnimated] '${id}' FAILED; will fall back to static/procedural`, e);
-            }
-        }),
+            }),
     );
 }
 
@@ -712,3 +746,32 @@ export function updateAnimatedUnits(dt: number): void {
         inst.mixer.update(dt);
     }
 }
+
+/** Forget a rigged template: new units fall back to static / procedural until reloaded. */
+function unloadAnimatedModel(id: string): void {
+    const t = templates.get(id);
+    templates.delete(id);
+    loadedKeys.delete(id);
+    if (t) disposeScene(t.root);
+}
+
+// A level switched files or model data: rebuild the rigged set and reload the
+// templates built from something else.
+onAssetOverlaySwitch('animated unit models', async () => {
+    await Promise.allSettled([...loadsInFlight]);
+    syncAnimSpecs();
+    const heights = proceduralModelHeights();
+    if (!modelsRequested || !heights) return; // the boot load will read the current files
+    for (const id of [...loadedKeys.keys()]) {
+        if (!(id in ANIM_SPECS)) unloadAnimatedModel(id);
+    }
+    const stale = new Set(
+        Object.entries(ANIM_SPECS)
+            .filter(([id, spec]) => loadedKeys.get(id) !== modelBuildKey(spec, heights[id]))
+            .map(([id]) => id),
+    );
+    if (stale.size === 0) return;
+    console.info(`[unitAnimated] reloading for the new level: ${[...stale].join(', ')}`);
+    for (const id of stale) unloadAnimatedModel(id);
+    await loadAnimatedModels(heights, stale);
+});

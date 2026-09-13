@@ -5066,6 +5066,8 @@ menu.addEventListener('click', (e) => {
 // full-screen boot splash (logo + bar + Feuerware) until assets are ready —
 // only then does the main menu chrome appear (unless we resume a match)
 await bootGameAssets((p) => setBootProgress(p.fraction, p.label));
+// dev builds: melodanLevel.pick() in the console tries a level folder (plan §17)
+if (import.meta.env.DEV) void import('./game/levelDevTools').then((m) => m.installLevelDevTools());
 // Compile cold VFX programs on the 3D canvas while the loader is still up.
 // The warmed WebGLRenderer is handed to the first Game (programs are per-context).
 await prewarmGpu(threeCanvas, (label) => setBootProgress(1, label));

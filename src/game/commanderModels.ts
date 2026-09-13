@@ -11,7 +11,8 @@ import type { Group } from 'three';
 import type { SpecialityId } from './cards';
 import { loadSpellTemplate } from './spellMeshes';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
-import { assetUrl } from './assets';
+import { assetUrl, onAssetOverlaySwitch } from './assets';
+import { disposeScene } from '../engine/disposeScene';
 
 const URLS: Partial<Record<SpecialityId, string>> = {
     get giant() {
@@ -35,6 +36,8 @@ const URLS: Partial<Record<SpecialityId, string>> = {
 const FALLBACK_COMMANDER: SpecialityId = 'speed';
 
 const templates = new Map<SpecialityId, Group>();
+/** file URL each template was loaded from */
+const loadedFrom = new Map<SpecialityId, string>();
 const inFlight = new Map<SpecialityId, Promise<Group | null>>();
 
 /** Which figure actually represents this speciality (its own, or the stand-in). */
@@ -65,6 +68,7 @@ export function ensureCommanderTemplate(id: SpecialityId): Promise<Group | null>
             const tpl = await loadSpellTemplate(url);
             const budget = modelTextureBudget();
             if (budget) applyTextureBudget(tpl, budget);
+            loadedFrom.set(id, url);
             templates.set(id, tpl);
             console.info(`[commanderModels] '${id}' ready`);
             return tpl;
@@ -78,3 +82,16 @@ export function ensureCommanderTemplate(id: SpecialityId): Promise<Group | null>
     inFlight.set(id, load);
     return load;
 }
+
+// A level replaced a commander figure: reload the ones loaded from another file.
+onAssetOverlaySwitch('commander models', async () => {
+    await Promise.allSettled([...inFlight.values()]);
+    const stale = [...templates.keys()].filter((id) => loadedFrom.get(id) !== URLS[id]);
+    for (const id of stale) {
+        const tpl = templates.get(id)!;
+        templates.delete(id);
+        loadedFrom.delete(id);
+        disposeScene(tpl);
+    }
+    await Promise.all(stale.map((id) => ensureCommanderTemplate(id)));
+});

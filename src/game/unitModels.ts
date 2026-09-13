@@ -26,7 +26,8 @@ import {
 import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
 import type { BattleTeam } from './units';
 import type { ModelAnimation } from './unitAnimated';
-import { assetUrl, isBaseAsset } from './assets';
+import { assetUrl, hasAsset, onAssetOverlaySwitch } from './assets';
+import { disposeScene } from '../engine/disposeScene';
 import { BASE_PACK } from './content/basePack';
 
 /**
@@ -79,27 +80,49 @@ export interface ModelSpec {
     animation?: ModelAnimation;
 }
 
-/** Model specs by model id, from `assets/data/models/*.jsonc`. */
-const MODEL_SPEC_DATA: Record<string, ModelSpecData> = BASE_PACK.models;
-
-function resolveModelSpec(id: string, data: ModelSpecData): ModelSpec {
+function resolveModelSpec(data: ModelSpecData): ModelSpec {
     const { file, yawDeg, ...rest } = data;
-    if (!isBaseAsset(file)) console.error(`[unitModels] '${id}': no model file 'assets/${file}' in the asset manifest`);
     return {
         ...rest,
         // resolved when the model is loaded, so a level overlay can replace the file
+        // ('' = no such file: the load fails and the unit keeps its procedural mesh)
         get url() {
-            return isBaseAsset(file) ? assetUrl(file) : '';
+            return hasAsset(file) ? assetUrl(file) : '';
         },
         // same expression the old table used, so the result is bit-identical
         yaw: MODEL_FWD_YAW + MathUtils.degToRad(yawDeg ?? 0),
     };
 }
 
-/** Runtime model specs (built asset URL + radians), derived from the data above. */
+/**
+ * Runtime model specs (built asset URL + radians) by model id, from
+ * `assets/data/models/*.jsonc` — or a level's models after
+ * {@link setModelSpecData}. Mutated in place, never reassigned.
+ */
 export const MODEL_SPECS: Record<string, ModelSpec> = Object.fromEntries(
-    Object.entries(MODEL_SPEC_DATA).map(([id, data]) => [id, resolveModelSpec(id, data)]),
+    Object.entries(BASE_PACK.models).map(([id, data]) => [id, resolveModelSpec(data)]),
 );
+
+/**
+ * Play with these model definitions (a level's pack, or the base pack again).
+ * Loaded models follow on the next overlay switch: the reload hook compares
+ * what each was loaded from with the new spec.
+ */
+export function setModelSpecData(data: Readonly<Record<string, ModelSpecData>>): void {
+    for (const id of Object.keys(MODEL_SPECS)) {
+        if (!(id in data)) delete MODEL_SPECS[id];
+    }
+    for (const [id, d] of Object.entries(data)) MODEL_SPECS[id] = resolveModelSpec(d);
+}
+
+/**
+ * What a model was built from: its spec (the getter puts the resolved file URL
+ * in) and the procedural height it was sized to. A different key after an
+ * overlay switch means the loaded model is stale.
+ */
+export function modelBuildKey(spec: ModelSpec, height: number | undefined): string {
+    return `${JSON.stringify(spec)}@${height ?? 1}`;
+}
 
 
 type Template = Group;
@@ -263,6 +286,27 @@ export function attackNodeWorld(
 /** Record a provisional or measured local height (GLB load overwrites with bbox). */
 export function seedUnitVisualHeight(id: string, height: number): void {
     visualHeights.set(id, Math.max(height, 0.05));
+}
+
+/**
+ * The procedural heights of the types a match plays with (type id → local
+ * height). Types without a loaded model get it as their visual height; ids no
+ * type or model uses any more are dropped, so a level played earlier can't
+ * leave entries in {@link modelGeometryFingerprint} that a peer doesn't have.
+ */
+export function setProceduralModelHeights(heights: Readonly<Record<string, number>>): void {
+    lastHeights = { ...heights };
+    for (const id of [...visualHeights.keys()]) {
+        if (!(id in heights) && !templates.has(id)) visualHeights.delete(id);
+    }
+    for (const [id, h] of Object.entries(heights)) {
+        if (!templates.has(id)) seedUnitVisualHeight(id, h);
+    }
+}
+
+/** Heights the models were (or will be) sized to; null before the first load. */
+export function proceduralModelHeights(): Readonly<Record<string, number>> | null {
+    return lastHeights;
 }
 
 export function hasUnitModel(id: string): boolean {
@@ -606,6 +650,11 @@ function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
  */
 const failedModels = new Set<string>();
 let lastHeights: Record<string, number> | null = null;
+/** {@link modelBuildKey} each model was last loaded (or attempted) with */
+const loadedKeys = new Map<string, string>();
+const loadsInFlight = new Set<Promise<void>>();
+/** the full load has run (boot) — until then there is nothing to reload */
+let modelsRequested = false;
 let retryInFlight: Promise<void> | null = null;
 let retryAttempt = 0;
 const RETRY_DELAYS_MS = [3_000, 10_000, 30_000];
@@ -633,11 +682,23 @@ function scheduleModelRetry(): void {
  * Level tint is applied live per pack. `heights` gives each unit's procedural
  * local height. Failures fall back to the procedural mesh.
  */
-export async function loadUnitModels(
+export function loadUnitModels(
     heights: Record<string, number>,
     onProgress?: (done: number, total: number) => void,
-    /** retry pass: load only these ids (default: every spec) */
+    /** retry / reload pass: load only these ids (default: every spec) */
     only?: ReadonlySet<string>,
+): Promise<void> {
+    if (!only) modelsRequested = true;
+    const load = loadUnitModelsNow(heights, onProgress, only);
+    loadsInFlight.add(load);
+    void load.finally(() => loadsInFlight.delete(load));
+    return load;
+}
+
+async function loadUnitModelsNow(
+    heights: Record<string, number>,
+    onProgress: ((done: number, total: number) => void) | undefined,
+    only: ReadonlySet<string> | undefined,
 ): Promise<void> {
     lastHeights = heights;
     const entries = Object.entries(MODEL_SPECS).filter(([id]) => !only || only.has(id));
@@ -645,7 +706,9 @@ export async function loadUnitModels(
     const textureBudget = modelTextureBudget();
     let done = 0;
     const loadEntry = async ([id, spec]: (typeof entries)[number]): Promise<void> => {
+        loadedKeys.set(id, modelBuildKey(spec, heights[id]));
         try {
+            if (!spec.url) throw new Error('model file is not in the asset manifest or the level');
             const gltf = await loader.loadAsync(spec.url);
             // shrink BEFORE cloning: clones share texture instances
             if (textureBudget) applyTextureBudget(gltf.scene, textureBudget);
@@ -748,3 +811,46 @@ export async function loadUnitModels(
     console.info(`[unitModels] ready: ${[...templates.keys()].join(', ') || '(none)'}`);
     if (!only) scheduleModelRetry();
 }
+
+/** Forget a loaded model: it renders procedurally until loaded again. */
+function unloadUnitModel(id: string): void {
+    const template = templates.get(id);
+    const baked = instanceAssets.get(id);
+    templates.delete(id);
+    instanceAssets.delete(id);
+    // GPU buffers only — anything still showing a clone re-uploads on its next frame
+    if (template) disposeScene(template);
+    for (const part of baked?.parts ?? []) {
+        part.geometry.dispose();
+        part.material.dispose();
+    }
+    visualHalfWidths.delete(id);
+    attackNodes.delete(id);
+    flagNodes.delete(id);
+    slotNodes.delete(id);
+    failedModels.delete(id);
+    loadedKeys.delete(id);
+    const seed = lastHeights?.[id];
+    if (seed === undefined) visualHeights.delete(id);
+    else seedUnitVisualHeight(id, seed);
+}
+
+// A level switched files or model data: reload exactly the models built from
+// something else, drop the ones the level no longer has.
+onAssetOverlaySwitch('unit models', async () => {
+    await Promise.allSettled([...loadsInFlight]);
+    const heights = lastHeights;
+    if (!modelsRequested || !heights) return; // the boot load will read the current files
+    for (const id of [...loadedKeys.keys()]) {
+        if (!(id in MODEL_SPECS)) unloadUnitModel(id);
+    }
+    const stale = new Set(
+        Object.entries(MODEL_SPECS)
+            .filter(([id, spec]) => loadedKeys.get(id) !== modelBuildKey(spec, heights[id]))
+            .map(([id]) => id),
+    );
+    if (stale.size === 0) return;
+    console.info(`[unitModels] reloading for the new level: ${[...stale].join(', ')}`);
+    for (const id of stale) unloadUnitModel(id);
+    await loadUnitModels(heights, undefined, stale);
+});

@@ -8,9 +8,12 @@
  *
  * A level can install an **overlay**: a set of files keyed by the same paths.
  * A file at a base path replaces the base file; a new path adds one. Lookups
- * happen when a file is loaded, so an overlay installed before a match applies
- * to everything loaded for it.
+ * happen when a file is loaded — but much is loaded once at boot and kept
+ * (unit models, spells, scenery), so switch overlays with
+ * {@link switchAssetOverlay}: it tells every such cache to reload what now
+ * resolves to a different file.
  */
+import { Cache } from 'three';
 import { BASE_ASSET_URLS } from './assetManifest';
 import { BASE_DATA_PATHS } from './content/basePack';
 
@@ -150,19 +153,74 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
     return { id, hash, urls, dataFiles, report };
 }
 
-/** Make `next` the active overlay (replacing and releasing any previous one). */
+/**
+ * Make `next` the active overlay (replacing and releasing any previous one).
+ * Only swaps the lookup — caches keep what they loaded; use
+ * {@link switchAssetOverlay} outside of tests.
+ */
 export function installAssetOverlay(next: AssetOverlay): void {
     if (overlay === next) return;
     clearAssetOverlay();
     overlay = next;
 }
 
-/** Back to the base game's files only. */
+/** Back to the base game's files only (lookup only, like {@link installAssetOverlay}). */
 export function clearAssetOverlay(): void {
     if (overlay) {
-        for (const url of overlay.urls.values()) URL.revokeObjectURL(url);
+        for (const url of overlay.urls.values()) {
+            URL.revokeObjectURL(url);
+            // three's file cache is keyed by URL; a revoked blob URL is never requested again
+            Cache.remove(url);
+        }
     }
     overlay = null;
+}
+
+// ------------------------------------------------------------------ reloading
+
+/**
+ * Called after the overlay switched. A cache that keeps loaded files compares
+ * the URL (or data) it loaded from with what resolves now and reloads the
+ * entries that differ — and waits for its own in-flight loads first, so a load
+ * that started before the switch is checked too.
+ */
+export type AssetReloadHook = () => void | Promise<void>;
+
+const reloadHooks: { name: string; hook: AssetReloadHook }[] = [];
+let switching: Promise<void> = Promise.resolve();
+
+/** Register a cache's reload hook (module scope, once). */
+export function onAssetOverlaySwitch(name: string, hook: AssetReloadHook): void {
+    reloadHooks.push({ name, hook });
+}
+
+/**
+ * Switch to `next` (null = base game) and bring every registered cache up to
+ * date. Resolves when the reloads are done — call it before building a match.
+ * Calls are queued, so two quick switches can't interleave.
+ */
+export function switchAssetOverlay(next: AssetOverlay | null): Promise<void> {
+    const run = switching.then(async () => {
+        if (overlay === next) return;
+        if (next) installAssetOverlay(next);
+        else clearAssetOverlay();
+        await runAssetReloadHooks();
+    });
+    switching = run.catch(() => {});
+    return run;
+}
+
+/** Run every reload hook; a failing cache logs and keeps its fallback. */
+async function runAssetReloadHooks(): Promise<void> {
+    await Promise.all(
+        reloadHooks.map(async ({ name, hook }) => {
+            try {
+                await hook();
+            } catch (e) {
+                console.error(`[assets] reloading ${name} after an overlay switch failed`, e);
+            }
+        }),
+    );
 }
 
 /** The active overlay, or null for the base game. */
