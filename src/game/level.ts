@@ -23,13 +23,17 @@ import {
     baseAssetPaths,
     buildAssetOverlay,
     disposeAssetOverlay,
+    META_FILE,
+    SCENARIO_FILE,
+    SCENARIOS_DIR,
     switchAssetOverlay,
     type AssetOverlay,
     type OverlayFile,
     type OverlayReport,
 } from './assets';
 import { BASE_PACK, loadPackWithOverlay } from './content/basePack';
-import { cacheLevel, cachedLevel } from './levelCache';
+import { cacheLevel, cachedLevel, deleteCachedLevel, listCachedLevels } from './levelCache';
+import { parseJsonc } from './content/jsonc';
 import { parseMeta, parseScenario, type NormalizedMeta, type NormalizedScenario } from './scenario/normalize';
 import { TypeRegistry } from './content/typeRegistry';
 import { BASE_TYPES, proceduralHeightsOf } from './units';
@@ -200,4 +204,82 @@ export function switchLevel(overlay: AssetOverlay | null): Promise<ActiveLevel> 
     });
     queue = run.catch(() => {});
     return run;
+}
+
+/** A level package as a list shows it — names only, nothing validated or loaded. */
+export interface LevelSummary {
+    ref: LevelRef;
+    /** meta.jsonc's name, else the package id */
+    name: string;
+    /** in meta.jsonc's order when it has one */
+    scenarios: { id: string; name: string }[];
+}
+
+function nameIn(text: string, file: string): string | null {
+    try {
+        const raw = parseJsonc(text, file) as { name?: unknown };
+        return typeof raw?.name === 'string' ? raw.name : null;
+    } catch {
+        return null;
+    }
+}
+
+/** What a package's files say about its scenarios (no registry, no validation). */
+export function summarizeLevel(ref: LevelRef, files: readonly OverlayFile[]): LevelSummary {
+    const decoder = new TextDecoder();
+    const scenarios: { id: string; name: string }[] = [];
+    let name = ref.id;
+    let order: string[] = [];
+    for (const f of files) {
+        const text = () => decoder.decode(f.bytes);
+        if (f.path === META_FILE) {
+            const t = text();
+            name = nameIn(t, f.path) ?? name;
+            try {
+                const levels = (parseJsonc(t, f.path) as { levels?: { scenario?: unknown }[] })?.levels;
+                order = Array.isArray(levels) ? levels.map((l) => String(l?.scenario)) : [];
+            } catch {
+                order = [];
+            }
+        } else if (f.path === SCENARIO_FILE) {
+            scenarios.push({ id: 'scenario', name: nameIn(text(), f.path) ?? ref.id });
+        } else if (f.path.startsWith(SCENARIOS_DIR) && f.path.endsWith('.jsonc')) {
+            const id = f.path.slice(SCENARIOS_DIR.length, -'.jsonc'.length);
+            scenarios.push({ id, name: nameIn(text(), f.path) ?? id });
+        }
+    }
+    const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
+    scenarios.sort((a, b) => rank(a.id) - rank(b.id));
+    return { ref, name, scenarios };
+}
+
+/** Every package with scenarios this client has — loaded this session or kept from earlier ones. */
+export async function scenarioLevels(): Promise<LevelSummary[]> {
+    const out = new Map<string, LevelSummary>();
+    for (const ref of knownLevels()) {
+        const summary = summarizeLevel(ref, knownFiles.get(ref.hash) ?? []);
+        if (summary.scenarios.length > 0) out.set(ref.hash, summary);
+    }
+    for (const { ref, scenario } of await listCachedLevels()) {
+        if (out.has(ref.hash) || !scenario) continue;
+        const cached = await cachedLevel(ref.hash, false);
+        if (!cached) continue;
+        const summary = summarizeLevel(ref, cached.files);
+        if (summary.scenarios.length > 0) out.set(ref.hash, summary);
+    }
+    return [...out.values()];
+}
+
+/**
+ * Forget a package: out of the scenario cache, and out of this session unless
+ * it is the level being played.
+ */
+export async function forgetLevel(ref: LevelRef): Promise<void> {
+    await deleteCachedLevel(ref.hash);
+    const overlay = known.get(ref.hash);
+    if (overlay && active.overlay !== overlay) {
+        known.delete(ref.hash);
+        knownFiles.delete(ref.hash);
+        disposeAssetOverlay(overlay);
+    }
 }

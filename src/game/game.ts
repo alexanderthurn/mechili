@@ -844,6 +844,8 @@ export class Game {
     onScenarioEditor: ((mode: 'author' | 'test', draft: ScenarioDef) => void) | null = null;
     /** scenario editor: package the draft for download; resolves to a status line */
     onScenarioDownload: ((draft: ScenarioDef) => Promise<string>) | null = null;
+    /** scenario editor: play the draft as a scenario */
+    onScenarioPlay: ((draft: ScenarioDef) => void) | null = null;
     /** scenario editor: keep the draft as a scenario package; resolves to a status line */
     onScenarioSave: ((draft: ScenarioDef) => Promise<string>) | null = null;
     onRetryLastRound:
@@ -2813,6 +2815,7 @@ export class Game {
         this.onScenarioEditor = null;
         this.onScenarioDownload = null;
         this.onScenarioSave = null;
+        this.onScenarioPlay = null;
         this.scenarioEditor?.destroy();
         this.scenarioEditor = null;
         this.testBattleBar?.remove();
@@ -2983,6 +2986,7 @@ export class Game {
                 autosave: (def) => storeDraft(def, this.settings.level),
                 restart: (def) => this.onScenarioEditor?.('author', def),
                 test: (def) => this.onScenarioEditor?.('test', def),
+                play: (def) => this.onScenarioPlay?.(def),
                 download: (def) => this.onScenarioDownload?.(def) ?? Promise.resolve(''),
                 exit: () => this.quitToMenu(),
             },
@@ -3004,6 +3008,10 @@ export class Game {
         // the sandbox may move everything on the board, as if placed this round
         for (const unit of this.placement.allUnits()) unit.deployedRound = this.round;
         this.placement.refaceAll();
+        // enemy intel panels read phase-start snapshots — the rebuilt board is the new start
+        this.placement.captureIntelSnapshot();
+        this.techIntelSnapshot = this.techTree.snapshotOwned();
+        this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
         this.refreshFlightAlts();
         return applied;
     }

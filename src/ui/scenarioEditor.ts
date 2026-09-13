@@ -61,6 +61,8 @@ export interface ScenarioEditorHost {
     /** a new match from the draft (board size changed) */
     restart(def: ScenarioDef): void;
     test(def: ScenarioDef): void;
+    /** play the draft as the scenario it is (the player builds, the rules apply); back to the editor after */
+    play(def: ScenarioDef): void;
     /** keep the draft as a scenario package; resolves to a status line */
     save(def: ScenarioDef): Promise<string>;
     download(def: ScenarioDef): Promise<string>;
@@ -773,10 +775,16 @@ export class ScenarioEditor {
             btn('se-redo', t('editor:redo', { defaultValue: 'Redo' }), { disabled: !this.history.canRedo, title: 'Ctrl+Shift+Z' }) +
             btn('se-new', t('editor:new', { defaultValue: 'New' })) +
             `</div>` +
+            `<div class="se-row se-run">` +
             btn('se-test', `▶ ${t('editor:testBattle', { defaultValue: 'Test battle' })}`, {
                 disabled: errors.length > 0,
-                title: errors.length > 0 ? errors.map((i) => i.message).join('\n') : t('editor:testTip', { defaultValue: 'End Deployment does the same' }),
+                title: errors.length > 0 ? errors.map((i) => i.message).join('\n') : t('editor:testTip', { defaultValue: 'Both sides fight as placed — End Deployment does the same' }),
             }) +
+            btn('se-play', `⚔ ${t('editor:play', { defaultValue: 'Play' })}`, {
+                disabled: errors.length > 0,
+                title: t('editor:playTip', { defaultValue: 'Play it as a scenario: you build with its rules, the computer plays its side' }),
+            }) +
+            `</div>` +
             `<div class="se-row">` +
             btn('se-save', t('editor:save', { defaultValue: 'Save' }), {
                 disabled: errors.length > 0,
@@ -845,6 +853,11 @@ export class ScenarioEditor {
             } else if (this.history.push(next)) this.apply(null);
         });
         on('.se-test', () => this.startTest());
+        on('.se-play', () => {
+            this.carry();
+            this.host.autosave(this.draft);
+            this.host.play(this.draft);
+        });
         const busy = (el: HTMLElement, run: () => Promise<string>) => {
             (el as HTMLButtonElement).disabled = true;
             void run()

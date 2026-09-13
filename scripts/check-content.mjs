@@ -501,6 +501,14 @@ try {
                 version: 1, id: 'duel-series', name: 'Duel Series',
                 levels: [{ scenario: 'first', title: 'First Duel', briefing: 'Hold the line.' }, { scenario: 'rematch', carryOver: 'army', unlocks: ['dwarf'] }],
             });
+            // a list names a package's scenarios in meta.jsonc's order
+            const reversedMeta = JSON.stringify({ ...JSON.parse(metaText), levels: [{ scenario: 'rematch' }, { scenario: 'first' }] });
+            const summary = levels.summarizeLevel({ id: 'duel-series', hash: 'x' }, [
+                { path: 'scenarios/first.jsonc', bytes: enc(fixture) },
+                { path: 'scenarios/rematch.jsonc', bytes: enc(second) },
+                { path: 'meta.jsonc', bytes: enc(reversedMeta) },
+            ]);
+            zexpect(summary.name === 'Duel Series' && summary.scenarios.map((sc) => `${sc.id}:${sc.name}`).join() === 'rematch:Rematch,first:Archer vs Ogre', `summarizeLevel: ${JSON.stringify(summary)}`);
             const { ref: seriesRef } = await levels.loadLevel('duel-series', [
                 { path: 'scenarios/first.jsonc', bytes: enc(fixture) },
                 { path: 'scenarios/rematch.jsonc', bytes: enc(second) },

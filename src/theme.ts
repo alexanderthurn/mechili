@@ -1459,6 +1459,28 @@ ${chatFloatStyles(u, pc, ec)}
 /* a running match with OUR OWN seat currently disconnected — resume it
    instead of spectating */
 .mechili-menu .m-room-row { display: flex; gap: 8px; width: 100%; }
+.mechili-menu .m-scenario-list { max-height: min(46vh, 420px); }
+.mechili-menu .m-scenario-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 3px;
+}
+.mechili-menu .m-scenario-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold; color: ${u.text}; }
+.mechili-menu .m-scenario-btn {
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 10px;
+    border: 1.5px solid ${u.border};
+    border-radius: 3px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    cursor: pointer;
+}
+.mechili-menu .m-scenario-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-menu .m-room-row .m-btn { flex: 1; width: auto; }
 .mechili-menu .m-main {
     gap: 12px;
@@ -2503,7 +2525,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-scenario-editor .se-team { border-inline-start: 5px solid var(--se-team); }
 .mechili-scenario-editor .se-sel-name { font-weight: 600; }
 .mechili-scenario-editor .se-level { min-width: 1.6em; text-align: center; font-weight: 700; }
-.mechili-scenario-editor .se-test { text-align: center; font-weight: 700; padding: 6px 10px; border-color: ${u.brassLight}; }
+.mechili-scenario-editor .se-run button { flex: 1; text-align: center; font-weight: 700; padding: 6px 10px; border-color: ${u.brassLight}; }
 .mechili-scenario-editor .se-issues { font-size: 12px; color: #e8b04a; cursor: help; }
 .mechili-scenario-editor .se-issues.error { color: #ff7a60; }
 .mechili-scenario-editor .se-status { min-height: 1.2em; color: ${u.brassLight}; }

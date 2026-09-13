@@ -96,19 +96,32 @@ export async function listCachedLevels(): Promise<CachedLevelInfo[]> {
     }
 }
 
-/** A kept level's id and files, or null. */
-export async function cachedLevel(hash: string): Promise<{ id: string; files: OverlayFile[] } | null> {
+/** A kept level's id and files, or null. `touch` counts it as used (listing doesn't). */
+export async function cachedLevel(hash: string, touch = true): Promise<{ id: string; files: OverlayFile[] } | null> {
     try {
         const db = await openDb();
         if (!db) return null;
         const store = db.transaction(STORE, 'readwrite').objectStore(STORE);
         const entry = (await request(store.get(hash))) as CachedLevel | undefined;
         if (!entry) return null;
-        entry.usedAt = Date.now();
-        store.put(entry);
+        if (touch) {
+            entry.usedAt = Date.now();
+            store.put(entry);
+        }
         return { id: entry.id, files: decodeLevelPackage(entry.pkg) };
     } catch (e) {
         console.warn('[levelCache] could not read scenario', e);
         return null;
+    }
+}
+
+/** Drop a kept level (the player deleted a saved scenario). */
+export async function deleteCachedLevel(hash: string): Promise<void> {
+    try {
+        const db = await openDb();
+        if (!db) return;
+        await request(db.transaction(STORE, 'readwrite').objectStore(STORE).delete(hash));
+    } catch (e) {
+        console.warn('[levelCache] could not delete scenario', e);
     }
 }

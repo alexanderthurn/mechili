@@ -97,6 +97,8 @@ import {
     levelFilesFromArchive,
     loadLevel,
     prepareLevel,
+    forgetLevel,
+    scenarioLevels,
     type LevelRef,
 } from './game/level';
 import { readZip, writeZip } from './game/content/zip';
@@ -1034,9 +1036,15 @@ menu.innerHTML = `
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="sp-campaign">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:campaign"></span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-practice">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:practice"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-scenarios">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:scenarios"></span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-editor">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:editor"></span></button>
         </div>
         <button class="m-btn m-small" data-mode="sp-back" data-i18n="menu:back"></button>
+    </div>
+    <div class="m-view m-spmode" data-view="sp-scenarios">
+        <div class="m-spmode-title" data-i18n="menu:scenarios"></div>
+        <div class="m-room-list m-scenario-list empty"></div>
+        <button class="m-btn m-small" data-mode="sp-scenarios-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-spmode" data-view="sp-practice">
         <div class="m-spmode-title" data-i18n="menu:practice"></div>
@@ -1276,6 +1284,8 @@ const rosterTableEl = menu.querySelector<HTMLDivElement>('.m-roster-table')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('[data-view="sp"]')!;
 const spPracticeEl = menu.querySelector<HTMLDivElement>('[data-view="sp-practice"]')!;
+const spScenariosEl = menu.querySelector<HTMLDivElement>('[data-view="sp-scenarios"]')!;
+const spScenarioListEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-list')!;
 const tutorialEl = menu.querySelector<HTMLDivElement>('[data-view="tutorial"]')!;
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
 const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
@@ -1370,6 +1380,78 @@ cgScenarioPlayEl.addEventListener('click', () => {
     cancelHost();
     startGame(applyScenarioToSettings(localMatchSettings(), scenario.def, level, 'play', id));
 });
+
+/**
+ * Single Player → Scenarios: every package with scenarios this client has
+ * (saved from the editor or a replay, received from a host, loaded from a
+ * zip) — play one, open it in the editor, or delete the package.
+ */
+async function renderScenarioList(): Promise<void> {
+    const levels = await scenarioLevels();
+    spScenarioListEl.textContent = '';
+    spScenarioListEl.classList.toggle('empty', levels.length === 0);
+    if (levels.length === 0) {
+        spScenarioListEl.textContent = t('menu:noScenarios', {
+            defaultValue: 'No scenarios yet — build one in the Editor and press Save.',
+        });
+        return;
+    }
+    for (const level of levels) {
+        for (const scenario of level.scenarios) {
+            const row = document.createElement('div');
+            row.className = 'm-scenario-row';
+            const label = document.createElement('span');
+            label.className = 'm-scenario-name';
+            label.textContent = level.scenarios.length > 1 ? `${level.name} · ${scenario.name}` : scenario.name;
+            label.title = `${level.ref.id} · ${level.ref.hash.slice(0, 8)}`;
+            const button = (text: string, run: () => void) => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'm-scenario-btn';
+                b.textContent = text;
+                b.addEventListener('click', run);
+                return b;
+            };
+            row.append(
+                label,
+                button(t('menu:scenarioPlay', { defaultValue: 'Play' }), () => void playSavedScenario(level.ref, scenario.id)),
+                button(t('menu:scenarioEdit', { defaultValue: 'Edit' }), () => void editSavedScenario(level.ref, scenario.id)),
+                button('✕', () => {
+                    const what = level.scenarios.length > 1 ? `“${level.name}” (${level.scenarios.length} scenarios)` : `“${scenario.name}”`;
+                    if (!window.confirm(t('menu:scenarioDeleteConfirm', { defaultValue: 'Delete {{what}}?', what }))) return;
+                    void forgetLevel(level.ref).then(() => renderScenarioList());
+                }),
+            );
+            spScenarioListEl.appendChild(row);
+        }
+    }
+}
+
+/** a saved scenario, validated against its own package */
+async function savedScenarioDef(ref: LevelRef, id: string): Promise<ScenarioDef | null> {
+    await prepareLevel(ref);
+    const scenario = activeLevel().scenarios.get(id);
+    const errors = scenario?.issues.filter((i) => i.level === 'error') ?? [];
+    if (!scenario?.def || errors.length > 0) {
+        window.alert(`This scenario can't be played:\n${errors.map((i) => `• ${i.message}`).join('\n') || 'not found'}`);
+        return null;
+    }
+    return scenario.def;
+}
+
+async function playSavedScenario(ref: LevelRef, id: string): Promise<void> {
+    const def = await savedScenarioDef(ref, id).catch(() => null);
+    if (!def) return;
+    showMenuView('main');
+    startGame(applyScenarioToSettings(localMatchSettings(), def, ref, 'play', id));
+}
+
+async function editSavedScenario(ref: LevelRef, id: string): Promise<void> {
+    const def = await savedScenarioDef(ref, id).catch(() => null);
+    if (!def) return;
+    showMenuView('main');
+    await openScenarioEditor('author', def, ref);
+}
 
 /**
  * Single Player → Editor: the last draft (autosaved) on the level it was made
@@ -1487,11 +1569,12 @@ wrapper.appendChild(loadoutPanel.el);
 
 /** Exclusive menu screens — only one is active at a time. Session owns
  *  connecting / lobby / waiting UI so main never stacks under it. */
-type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
+type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'sp-scenarios' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
 const menuViews: Record<MenuViewId, HTMLElement> = {
     main: mainButtonsEl,
     sp: spModeEl,
     'sp-practice': spPracticeEl,
+    'sp-scenarios': spScenariosEl,
     tutorial: tutorialEl,
     custom: customEl,
     matchmaking: mmModeEl,
@@ -1865,6 +1948,8 @@ function hostCustomGame(mode: CustomGameMode): void {
 }
 
 let started = false;
+/** set while a scenario started from the editor runs: the menu hands back to the editor */
+let returnToEditorAfterMatch = false;
 /** true after 3D assets finish loading — match starts wait for this */
 let bootReady = false;
 let roomPoll: ReturnType<typeof setTimeout> | null = null;
@@ -2767,6 +2852,11 @@ function runStopHostDiscovery(): void {
 
 /** tear down an active match and bring back the pre-game menu (no page reload) */
 function finishReturnToMenu(): void {
+    if (returnToEditorAfterMatch) {
+        returnToEditorAfterMatch = false;
+        // after the menu is back in place, go straight on to the editor
+        setTimeout(() => openStoredScenarioEditor(), 0);
+    }
     friendsPanel.hide();
     takeLobbyChatCarry();   // nothing pending can belong to a future match
     stopSinglePlayerPersist?.();
@@ -3019,6 +3109,7 @@ function constructGame(
         game.onScenarioEditor = (mode, draft) => void openScenarioEditor(mode, draft, settings.level);
         if (SCENARIO_ZIP_TESTING) game.onScenarioDownload = (draft) => downloadScenarioDraft(draft, settings.level);
         game.onScenarioSave = (draft) => saveScenarioDraft(draft, settings.level);
+        game.onScenarioPlay = (draft) => void playScenarioDraft(draft, settings.level);
     }
     if (replayControlsPanel) {
         game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
@@ -3098,6 +3189,8 @@ function startGame(
     // Skip for replay/spectate — those jump straight into playback/viewing.
     const editorMatch = settings.scenario?.mode === 'author' || settings.scenario?.mode === 'test';
     const useIntro = !replay && !spectate && !editorMatch;
+    // only a scenario played from the editor goes back to it
+    if (settings.scenario?.mode !== 'play') returnToEditorAfterMatch = false;
 
     // Strip menu chrome immediately. For the intro path we MUST yield a paint
     // with logo-only before `new Game()` — otherwise the main thread freezes
@@ -3320,6 +3413,16 @@ async function saveScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined
     const { ref } = await loadLevel(id, files);
     console.info(`[scenario] saved "${ref.id}" (${ref.hash.slice(0, 12)})`);
     return SCENARIO_ZIP_TESTING ? `Saved “${ref.id}” — play it from Custom Game → Scenario (test)` : `Saved “${ref.id}”`;
+}
+
+/** the editor's Play: keep the draft as a package, then play it as a single-player scenario */
+async function playScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<void> {
+    const { id, files } = scenarioDraftPackage(draft, level);
+    const { ref } = await loadLevel(id, files);
+    const def = { ...draft, id };
+    returnToEditorAfterMatch = true;
+    if (activeGame) await teardownForNextMatch();
+    startGame(applyScenarioToSettings(localMatchSettings(), def, ref, 'play', id));
 }
 
 /** web: the draft as a one-level package zip */
@@ -5168,6 +5271,7 @@ menu.addEventListener('click', (e) => {
             mode === 'sp-campaign' ||
             mode === 'sp-practice' ||
             mode === 'sp-editor' ||
+            mode === 'sp-scenarios' ||
             mode === 'sp-1v1' ||
             mode === 'sp-2v2' ||
             mode === 'sp-horde' ||
@@ -5216,6 +5320,13 @@ menu.addEventListener('click', (e) => {
         case 'sp-editor':
             showMenuView('main');
             openStoredScenarioEditor();
+            break;
+        case 'sp-scenarios':
+            showMenuView('sp-scenarios');
+            void renderScenarioList();
+            break;
+        case 'sp-scenarios-back':
+            showMenuView('sp');
             break;
         case 'sp-practice-back':
             showMenuView('sp');
