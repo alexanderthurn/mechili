@@ -12,6 +12,7 @@ import type { CanonicalSeatDef, SeatId } from './seats';
 import type { GameSettings, StrongholdMode } from './settings';
 import type { Team } from './units';
 import { t } from '../i18n';
+import { activeAssetOverlay } from './assets';
 
 /** PeerJS signaling target — null means the public PeerJS cloud. */
 export interface PeerServerConfig {
@@ -88,11 +89,18 @@ export function formatGameVersion(encoded: number): string {
 
 export const GAME_VERSION = encodeGameVersion(__APP_VERSION__);
 
+/** SHA-256 of every file the base game loads (plan §17.6), computed at build time. */
+export const BASE_CONTENT_HASH: string = __CONTENT_HASH__;
+
 /**
- * SHA-256 of every file the game loads (plan §17.6), computed at build time.
- * A level overlay will extend it; nothing is hashed during a match.
+ * What peers must match right now: the base content, plus the installed level
+ * overlay's hash when one is active. Nothing is hashed during a match — the
+ * overlay hash is computed once when the overlay is built.
  */
-export const CONTENT_HASH: string = __CONTENT_HASH__;
+export function currentContentHash(): string {
+    const level = activeAssetOverlay();
+    return level ? `${BASE_CONTENT_HASH}+${level.hash}` : BASE_CONTENT_HASH;
+}
 
 /** What a peer must share with us to play: the simulation version AND the content. */
 export interface BuildStamp {
@@ -102,7 +110,7 @@ export interface BuildStamp {
 }
 
 export function isSameBuild(peer: BuildStamp): boolean {
-    return peer.version === GAME_VERSION && peer.contentHash === CONTENT_HASH;
+    return peer.version === GAME_VERSION && peer.contentHash === currentContentHash();
 }
 
 /**
@@ -116,7 +124,9 @@ export function formatBuild(build: BuildStamp, other: BuildStamp): string {
 }
 
 /** our own stamp, for the side of a comparison that is us */
-export const OUR_BUILD: BuildStamp = { version: GAME_VERSION, contentHash: CONTENT_HASH };
+export function ourBuild(): BuildStamp {
+    return { version: GAME_VERSION, contentHash: currentContentHash() };
+}
 
 export const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -1556,7 +1566,7 @@ export class StarGuestSession implements GuestSession {
             if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
             try {
                 const conn = await connectRawTo(this.peer, hostId, signal);
-                conn.send({ type: 'starRejoin', seat: mySeat, name: getPlayerName(), version: GAME_VERSION, contentHash: CONTENT_HASH });
+                conn.send({ type: 'starRejoin', seat: mySeat, name: getPlayerName(), version: GAME_VERSION, contentHash: currentContentHash() });
                 return new StarGuestSession(this.peer, conn);
             } catch (e) {
                 if (e instanceof DOMException && e.name === 'AbortError') throw e;
@@ -1829,7 +1839,7 @@ export function joinStarRoom(
             type: 'starJoin',
             name: localName,
             version: GAME_VERSION,
-            contentHash: CONTENT_HASH,
+            contentHash: currentContentHash(),
             avatar: getAvatarDataUrl(),
             loadout: activeLoadout(),
         });
@@ -2350,7 +2360,7 @@ export interface SinglePlayerSave {
 
 export function saveSinglePlayer(state: Omit<SinglePlayerSave, 'version'>): void {
     try {
-        sessionStorage.setItem(SINGLE_KEY, JSON.stringify({ version: GAME_VERSION, contentHash: CONTENT_HASH, ...state }));
+        sessionStorage.setItem(SINGLE_KEY, JSON.stringify({ version: GAME_VERSION, contentHash: currentContentHash(), ...state }));
     } catch {
         /* private browsing / quota */
     }
@@ -2644,7 +2654,7 @@ export async function joinAsSpectator(
                 reject(e);
             });
         });
-        conn.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: CONTENT_HASH });
+        conn.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: currentContentHash() });
         const msg = await new Promise<NetMessage>((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
             const onData = (data: unknown) => {

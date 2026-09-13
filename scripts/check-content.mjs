@@ -77,6 +77,68 @@ try {
         `ok   units.ts resolves ${units.UNIT_TYPES.length} roster types; ` +
             `unitModels.ts resolves ${Object.keys(models.MODEL_SPECS).length} model specs`,
     );
+
+    // ---- level overlays: replacement by path, report, hash, data validation
+    const resolver = await server.ssrLoadModule('/src/game/assets.ts');
+    const pack = await server.ssrLoadModule('/src/game/content/basePack.ts');
+    const enc = (text) => new TextEncoder().encode(text);
+    const readBase = (rel) => readFileSync(`assets/${rel}`, 'utf8');
+    const stronghold = readBase('data/buildings/stronghold.jsonc').replace('"hp": 3000', '"hp": 5000');
+    const iceWall = readBase('data/buildings/command-tower.jsonc')
+        .replace('"id": "command-tower"', '"id": "ice-wall"')
+        .replace('"name": "Vanguard"', '"name": "Ice Wall"');
+    const packWithWall = readBase('data/pack.jsonc').replace('"buildings": [', '"buildings": ["ice-wall", ');
+    const levelFiles = (strongholdText) => [
+        { path: 'textures/moon.webp', bytes: enc('a different moon') },
+        { path: 'data/models/ice-wall.jsonc', bytes: enc('{ "file": "models/units/ice-wall.glb" }') },
+        { path: 'models/units/ice-wall.glb', bytes: enc('glb bytes') },
+        { path: 'textures/tpyo.webp', bytes: enc('nobody references me') },
+        { path: '../escape.txt', bytes: enc('no') },
+        { path: 'data/buildings/stronghold.jsonc', bytes: enc(strongholdText) },
+    ];
+    const expect = (cond, what) => {
+        if (!cond) {
+            failed = true;
+            console.error(`FAIL overlay: ${what}`);
+        }
+        return cond;
+    };
+    const baseMoon = resolver.assetUrl('textures/moon.webp');
+    const level = await resolver.buildAssetOverlay('frost-keep', levelFiles(stronghold));
+    const again = await resolver.buildAssetOverlay('frost-keep', levelFiles(stronghold));
+    const crlf = await resolver.buildAssetOverlay('frost-keep', levelFiles(stronghold.replace(/\n/g, '\r\n')));
+    const changed = await resolver.buildAssetOverlay('frost-keep', levelFiles(stronghold.replace('5000', '5001')));
+    let ok = true;
+    ok = expect(JSON.stringify(level.report.replaced) === JSON.stringify(['data/buildings/stronghold.jsonc', 'textures/moon.webp']), `replaced = ${level.report.replaced}`) && ok;
+    ok = expect(level.report.unreferenced.join() === 'textures/tpyo.webp', `unreferenced = ${level.report.unreferenced}`) && ok;
+    ok = expect(level.report.invalid.join() === '../escape.txt', `invalid = ${level.report.invalid}`) && ok;
+    ok = expect(level.hash === again.hash, 'hash is not stable') && ok;
+    ok = expect(level.hash === crlf.hash, 'hash depends on line endings') && ok;
+    ok = expect(level.hash !== changed.hash, 'hash ignores a changed value') && ok;
+    resolver.installAssetOverlay(level);
+    const net = await server.ssrLoadModule('/src/game/net.ts');
+    ok = expect(resolver.assetUrl('textures/moon.webp') !== baseMoon, 'installed overlay does not replace the file') && ok;
+    ok = expect(resolver.assetUrl('models/units/ogre.glb').length > 0, 'base files stop resolving under an overlay') && ok;
+    ok = expect(net.currentContentHash() === `${net.BASE_CONTENT_HASH}+${level.hash}`, 'multiplayer hash ignores the overlay') && ok;
+    resolver.clearAssetOverlay();
+    ok = expect(resolver.assetUrl('textures/moon.webp') === baseMoon, 'clearing the overlay does not restore the base file') && ok;
+    ok = expect(net.currentContentHash() === net.BASE_CONTENT_HASH, 'multiplayer hash keeps the cleared overlay') && ok;
+    // data: an unlisted new building is an error; listing it in the level's pack.jsonc makes it valid
+    let unlistedError = '';
+    try {
+        pack.loadPackWithOverlay(new Map([...level.dataFiles, ['data/buildings/ice-wall.jsonc', iceWall]]), 'frost-keep');
+    } catch (e) {
+        unlistedError = String(e.message);
+    }
+    ok = expect(unlistedError.includes('ice-wall.jsonc: not listed in pack.jsonc'), `unlisted building not reported (${unlistedError.split('\n')[0]})`) && ok;
+    const levelPack = pack.loadPackWithOverlay(
+        new Map([...level.dataFiles, ['data/buildings/ice-wall.jsonc', iceWall], ['data/pack.jsonc', packWithWall]]),
+        'frost-keep',
+    );
+    ok = expect(levelPack.buildings.find((b) => b.id === 'stronghold')?.hp === 5000, "level's stronghold replacement not applied") && ok;
+    ok = expect(levelPack.buildings.some((b) => b.id === 'ice-wall'), 'added building missing') && ok;
+    ok = expect(BASE_PACK.buildings.find((b) => b.id === 'stronghold')?.hp === 3000, 'overlay validation changed the base game') && ok;
+    if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation, multiplayer hash');
 } catch (e) {
     failed = true;
     console.error(`FAIL ${e instanceof Error ? e.message : e}`);

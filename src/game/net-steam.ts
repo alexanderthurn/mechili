@@ -6,7 +6,7 @@ import {
     CONNECT_TIMEOUT_MS,
     GAME_VERSION,
     isSameBuild,
-    CONTENT_HASH,
+    currentContentHash,
     type BuildStamp,
     STAR_RECONNECT_GRACE_MS,
     isRevealable,
@@ -324,7 +324,7 @@ export class SteamGuestSession implements GuestSession {
                     seat: mySeat,
                     name: getPlayerName(),
                     version: GAME_VERSION,
-                    contentHash: CONTENT_HASH,
+                    contentHash: currentContentHash(),
                 });
                 return next;
             } catch (e) {
@@ -964,7 +964,7 @@ export async function joinSteamAsSpectator(
 ): Promise<SpectateResult> {
     const channel = new SteamChannel(hostSteamId);
     try {
-        channel.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: CONTENT_HASH });
+        channel.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: currentContentHash() });
         const msg = await new Promise<NetMessage>((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
             const onAbort = () => {
@@ -1013,7 +1013,7 @@ export async function joinSteamStarRoom(lobbyId: string): Promise<SteamGuestSess
         type: 'starJoin',
         name: getPlayerName(),
         version: GAME_VERSION,
-        contentHash: CONTENT_HASH,
+        contentHash: currentContentHash(),
         avatar: getAvatarDataUrl(),
         loadout: activeLoadout(),
     });
@@ -1042,7 +1042,7 @@ export async function joinSteamLobby(lobbySteamId: string): Promise<{
         type: 'starJoin',
         name: getPlayerName(),
         version: GAME_VERSION,
-        contentHash: CONTENT_HASH,
+        contentHash: currentContentHash(),
         avatar: getAvatarDataUrl(),
         loadout: activeLoadout(),
     });

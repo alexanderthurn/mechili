@@ -59,8 +59,8 @@ import {
     GAME_VERSION,
     isSameBuild,
     formatBuild,
-    OUR_BUILD,
-    CONTENT_HASH,
+    ourBuild,
+    currentContentHash,
     isRevealable,
     NetworkOpponent,
     registerSpectateEndpoint,
@@ -4445,8 +4445,8 @@ export class Game {
                     conn.send({
                         type: 'spectateRejected',
                         reason: t('hud:noticeVersionMismatch', {
-                            host: formatBuild(OUR_BUILD, build),
-                            you: formatBuild(build, OUR_BUILD),
+                            host: formatBuild(ourBuild(), build),
+                            you: formatBuild(build, ourBuild()),
                         }),
                     });
                     conn.close();
@@ -4480,7 +4480,7 @@ export class Game {
                 conn.send({
                     type: 'matchCatchUp',
                     version: GAME_VERSION,
-                    contentHash: CONTENT_HASH,
+                    contentHash: currentContentHash(),
                     ...resume,
                     viewer: { kind: 'spectator', vision },
                 });
@@ -4898,7 +4898,7 @@ export class Game {
         hub.send(seat, {
             type: 'matchCatchUp',
             version: GAME_VERSION,
-            contentHash: CONTENT_HASH,
+            contentHash: currentContentHash(),
             // seed/settings/roster: only load-bearing for a COLD reconnect
             // (see the message's own doc comment) — cheap to always
             // include, an in-session redial just ignores the repeats

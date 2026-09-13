@@ -29,8 +29,8 @@ import {
     GAME_VERSION,
     isSameBuild,
     formatBuild,
-    OUR_BUILD,
-    CONTENT_HASH,
+    ourBuild,
+    currentContentHash,
     hostStarRoom,
     isMelodanPlayHost,
     joinAsSpectator,
@@ -3735,7 +3735,7 @@ function wireHostedHub(
     hub.listen((name, build, avatar, loadout) => {
         if (!isSameBuild(build)) {
             return {
-                reject: `Version mismatch — this room runs ${formatBuild(OUR_BUILD, build)}, you have ${formatBuild(build, OUR_BUILD)}.`,
+                reject: `Version mismatch — this room runs ${formatBuild(ourBuild(), build)}, you have ${formatBuild(build, ourBuild())}.`,
             };
         }
         const seat = hub.nextOpenSeat();
@@ -3892,7 +3892,7 @@ function startHostedMatch(): void {
         hub.send(seat, {
             type: 'starSetup',
             version: GAME_VERSION,
-            contentHash: CONTENT_HASH,
+            contentHash: currentContentHash(),
             seed: settings.seed,
             settings,
             roster: finalRoster,
@@ -4112,8 +4112,8 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                 clearLobbySettings();
                 setStatus(
                     t('menu:versionMismatch', {
-                        host: formatBuild(msg, OUR_BUILD),
-                        you: formatBuild(OUR_BUILD, msg),
+                        host: formatBuild(msg, ourBuild()),
+                        you: formatBuild(ourBuild(), msg),
                     }),
                     5000,
                 );
@@ -4150,8 +4150,8 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             clearLobbySettings();
             setStatus(
                 t('menu:versionMismatch', {
-                    host: formatBuild(msg, OUR_BUILD),
-                    you: formatBuild(OUR_BUILD, msg),
+                    host: formatBuild(msg, ourBuild()),
+                    you: formatBuild(ourBuild(), msg),
                 }),
                 5000,
             );

@@ -162,3 +162,26 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
 
 /** The bundled base game. */
 export const BASE_PACK: BasePack = loadPack(RAW_FILES, 'assets');
+
+/** Base data files by path under assets/ (`data/units/archer.jsonc`, …). */
+export const BASE_DATA_PATHS: ReadonlySet<string> = new Set(
+    Object.keys(RAW_FILES).map((key) => key.slice(key.lastIndexOf('/data/') + 1)),
+);
+
+/**
+ * The definitions a level would play with: base data files, with the overlay's
+ * `data/…` files replacing or adding by path (plan §17.5), validated exactly
+ * like the base game. Throws one error listing every problem.
+ *
+ * Validation only for now: the game's type tables are loaded once at startup,
+ * so applying a level's definitions in a match needs a per-match type registry
+ * (arrives with scenarios).
+ */
+export function loadPackWithOverlay(overlayData: ReadonlyMap<string, string>, levelId: string): BasePack {
+    const merged = new Map<string, string>();
+    for (const [key, text] of Object.entries(RAW_FILES)) merged.set(key.slice(key.lastIndexOf('/data/') + 1), text);
+    for (const [path, text] of overlayData) merged.set(path, text);
+    const files: Record<string, string> = {};
+    for (const [path, text] of merged) files[`${levelId}/${path}`] = text;
+    return loadPack(files, levelId);
+}
