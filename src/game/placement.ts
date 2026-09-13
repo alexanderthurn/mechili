@@ -20,7 +20,6 @@ import {
 import type { CameraRig } from '../engine/cameraRig';
 import { THEME } from '../theme';
 import type { Action } from './actions';
-import { itemIcon } from './items';
 import { getUnitVisualHeight } from './unitModels';
 import { CELL, cellKey, groundHeightAt, worldHeightAt, type BattleMap, type Cell } from './map';
 import type { Economy } from './settings';
@@ -1619,7 +1618,7 @@ export class PlacementController {
                     continue;
                 }
                 const itemIcons = snap.items
-                    .map((id) => itemIcon(id))
+                    .map((id) => (this.types.rune(id)?.icon ?? null))
                     .filter((id): id is string => id !== null);
                 placeStrip(ghost, snap.world, itemIcons, this.ownedTechIcons?.(ghost) ?? []);
             }
@@ -1953,7 +1952,7 @@ export class PlacementController {
             }
             return unit.items;
         })();
-        return ids.map((id) => itemIcon(id)).filter((id): id is string => id !== null);
+        return ids.map((id) => (this.types.rune(id)?.icon ?? null)).filter((id): id is string => id !== null);
     }
 
     private memberPositionsAt(world: Vector3, unit: Unit): Vector3[] {

@@ -18,7 +18,6 @@ import {
     type FireProfile,
     type HazardPour,
 } from './fire';
-import { ITEMS } from './items';
 import type { SeatId } from './seats';
 import { detAtan2, detCos, detSin, hypot, wrapPi } from './detMath';
 import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
@@ -489,7 +488,7 @@ export function hasShieldHp(
 ): boolean {
     if (unit.summoned) return false;
     for (const id of unit.items) {
-        if (ITEMS[id]?.grantsShieldHp) return true;
+        if (types.rune(id)?.grantsShieldHp) return true;
     }
     return types.talentsOf(unit.type).some((t) => t.grantsShieldHp && hasTech(unit.seat, unit.type.id, t.id));
 }
@@ -3227,7 +3226,7 @@ export class BattleSim {
     /** golden item on the pack, or a recent ballista aura buff */
     isGolden(actor: Actor): boolean {
         for (const id of actor.unit.items) {
-            if (ITEMS[id]?.debuffImmune) return true;
+            if (this.config.types.rune(id)?.debuffImmune) return true;
         }
         return actor.goldenUntil > this.elapsed + 1e-9;
     }

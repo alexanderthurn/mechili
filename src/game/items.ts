@@ -11,34 +11,29 @@
  * Economy: four weak base runes (earth/fire/water/wind) are offered on round
  * cards and always buyable in the unit shop (sharing the per-round buy limit);
  * advanced runes are forged from them at the Stronghold.
+ *
+ * The catalog is data: `assets/data/runes/<id>.jsonc`, in the order
+ * `pack.jsonc` lists them. Look runes up through the match's
+ * {@link TypeRegistry} (`types.rune(id)`, `types.baseRuneIds`).
  */
+import type { UnitType } from './units';
 
-/** Default item slots when a unit has no entry in {@link UNIT_ITEM_SLOTS}. */
+/** Item slots of a type that doesn't set `itemSlots`. */
 export const DEFAULT_PACK_ITEM_SLOTS = 2;
 
-/** @deprecated use {@link itemSlotLimit} — default slot count */
-export const MAX_PACK_ITEMS = DEFAULT_PACK_ITEM_SLOTS;
-
-/**
- * Per-unit item slot caps. Omit a type to use {@link DEFAULT_PACK_ITEM_SLOTS}.
- * Strong packs can go higher (e.g. 4).
- */
-export const UNIT_ITEM_SLOTS: Record<string, number> = {
-    dwarf: 2,
-    archer: 2,
-    crowRider: 2,
-    ballista: 4, // UI stress-test: extra item circles
-};
-
 /** How many item slots this unit type has. */
-export function itemSlotLimit(typeId: string): number {
-    const n = UNIT_ITEM_SLOTS[typeId] ?? DEFAULT_PACK_ITEM_SLOTS;
-    return Math.max(0, Math.floor(n));
+export function itemSlotLimit(type: Pick<UnitType, 'itemSlots'>): number {
+    return Math.max(0, Math.floor(type.itemSlots ?? DEFAULT_PACK_ITEM_SLOTS));
 }
 
 export interface ItemDef {
     id: string;
     name: string;
+    /**
+     * `base`: weak elemental rune — round-card pool, always in the shop, forge fuel.
+     * `advanced`: forged in the Stronghold oven or granted by a commander.
+     */
+    tier: 'base' | 'advanced';
     /** atlas id for HUD and world badges (`item-*`) */
     icon: string;
     /** stat multipliers for every mech of the equipped pack */
@@ -48,136 +43,20 @@ export interface ItemDef {
     /** grants every mech in the pack a shield pool equal to its max HP */
     grantsShieldHp?: boolean;
     /**
+     * Forge recipe producing this rune: the exact multiset of rune ids the oven
+     * must hold. No two recipes may share the same ingredients.
+     */
+    forge?: {
+        ingredients: string[];
+        /** tie-break among same-size matches, higher wins (default 1) */
+        priority?: number;
+    };
+    /**
      * Supply the Stronghold charges to fire the oven for this rune, on top of
      * the ingredients. Omit = free. Only advanced (forged) runes have one.
      */
     forgeCost?: number;
+    /** supply price as a between-round card (default 50) */
+    cardCost?: number;
     description: string;
-}
-
-/** Weak elemental runes — round-card pool + always-on shop; forge fuel for advanced runes + spells. */
-export const BASE_RUNE_IDS = ['earth', 'fire', 'water', 'wind'] as const;
-export type BaseRuneId = (typeof BASE_RUNE_IDS)[number];
-
-/** Stronger runes — forged from base runes (not offered on cards by default). */
-export const ADVANCED_RUNE_IDS = [
-    'addi',
-    'power',
-    'vigor',
-    'colossus',
-    'wrath',
-    'golden',
-    'bulwark',
-] as const;
-
-export const ITEMS: Record<string, ItemDef> = {
-    // --- base (minor) ---
-    earth: {
-        id: 'earth',
-        name: 'Earth',
-        icon: 'item-earth',
-        mods: { hp: 1.1 },
-        description: '+10% HP.',
-    },
-    fire: {
-        id: 'fire',
-        name: 'Fire',
-        icon: 'item-fire',
-        mods: { damage: 1.1 },
-        description: '+10% attack.',
-    },
-    water: {
-        id: 'water',
-        name: 'Water',
-        icon: 'item-water',
-        mods: { hp: 1.05, damage: 1.05 },
-        description: '+5% attack and HP.',
-    },
-    wind: {
-        id: 'wind',
-        name: 'Wind',
-        icon: 'item-wind',
-        mods: { range: 1.1 },
-        description: '+10% range.',
-    },
-
-    // --- advanced (forged / specialist starts) ---
-    addi: {
-        id: 'addi',
-        name: 'Valor',
-        icon: 'item-addi',
-        mods: { damage: 1.15, hp: 1.15 },
-        description: '+15% attack and HP.',
-    },
-    power: {
-        id: 'power',
-        name: 'Carnage',
-        icon: 'item-power',
-        mods: { damage: 1.75 },
-        forgeCost: 100,
-        description: '+75% attack.',
-    },
-    vigor: {
-        id: 'vigor',
-        name: 'Giant Blood',
-        icon: 'item-vigor',
-        mods: { hp: 2 },
-        description: '+100% HP.',
-    },
-    colossus: {
-        id: 'colossus',
-        name: 'Mithril Cuirass',
-        icon: 'item-colossus',
-        mods: { hp: 3.5 },
-        description: '+250% HP.',
-    },
-    wrath: {
-        id: 'wrath',
-        name: 'Berserk',
-        icon: 'item-wrath',
-        mods: { damage: 4 },
-        description: '+300% attack.',
-    },
-    golden: {
-        id: 'golden',
-        name: 'Sunstone',
-        icon: 'item-golden',
-        mods: {},
-        debuffImmune: true,
-        description:
-            'Immune to tower debuffs and takes 30% less damage. Wizards cannot convert — the ray deals damage instead.',
-    },
-    bulwark: {
-        id: 'bulwark',
-        name: 'Bulwark',
-        // TODO: placeholder art — wants its own carved shield rune icon
-        icon: 'ability-ward',
-        mods: {},
-        grantsShieldHp: true,
-        description:
-            'Shield: every unit gains a second health pool equal to its HP. Ranged hits drain the shield first; melee, fire and acid ignore it.',
-    },
-};
-
-/** Short glyphs for canvas / world badges (atlas sprites are HUD-only). */
-const WORLD_GLYPH: Record<string, string> = {
-    earth: '?',
-    fire: '?',
-    water: '?',
-    wind: '?',
-    addi: '?',
-    power: '?',
-    vigor: '?',
-    colossus: '?',
-    wrath: '?',
-    golden: '?',
-};
-
-export function itemIcon(itemId: string): string | null {
-    return ITEMS[itemId]?.icon ?? null;
-}
-
-/** @deprecated Unicode fallback — world badges use {@link itemIcon} + atlas. */
-export function itemWorldGlyph(itemId: string): string {
-    return WORLD_GLYPH[itemId] ?? '?';
 }

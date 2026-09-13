@@ -137,7 +137,7 @@ import { HammerFx, HAMMER_SWING_SEC } from './hammerFx';
 import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
-import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
+import { itemSlotLimit } from './items';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
@@ -3327,8 +3327,8 @@ export class Game {
      */
     private cheatGrantAllItems(): void {
         const bag = this.itemInventory[this.humanSeat]!;
-        const base = new Set<string>(BASE_RUNE_IDS);
-        for (const id of Object.keys(ITEMS)) {
+        const base = new Set<string>(this.types.baseRuneIds);
+        for (const id of this.types.runes.keys()) {
             const max = base.has(id) ? CHEAT_BASE_RUNE_COPIES : CHEAT_ADVANCED_RUNE_COPIES;
             const have = bag.filter((x) => x === id).length;
             for (let i = have; i < max; i++) bag.push(id);
@@ -6857,7 +6857,7 @@ export class Game {
             stats.hp *= 1 - COST_CONTROL_PENALTY;
         }
         for (const id of opts.items) {
-            const mods = ITEMS[id]?.mods;
+            const mods = this.types.rune(id)?.mods;
             if (!mods) continue;
             stats.hp *= mods.hp ?? 1;
             stats.damage *= mods.damage ?? 1;
@@ -6898,7 +6898,7 @@ export class Game {
         const bag = this.itemInventory[this.humanSeat]!;
         return this.sortedItemIndices(bag).map((index) => {
             const id = bag[index]!;
-            const item = ITEMS[id];
+            const item = this.types.rune(id);
             return {
                 id,
                 icon: item?.icon ?? '?',
@@ -6910,9 +6910,9 @@ export class Game {
         });
     }
 
-    /** stable indices into `bag` grouped by {@link ITEMS} catalog order */
+    /** stable indices into `bag` grouped by rune catalog order (`pack.jsonc` "runes") */
     private sortedItemIndices(bag: readonly string[]): number[] {
-        const order = Object.keys(ITEMS);
+        const order = [...this.types.runes.keys()];
         const rank = (id: string) => {
             const i = order.indexOf(id);
             return i < 0 ? order.length : i;
@@ -7152,7 +7152,7 @@ export class Game {
             ? this.sellAbilityOwnedForTeam('enemy')
             : (this.enemyIntelSnapshot?.sellAbilityOwned ?? false);
         const mapItem = (id: string) => {
-            const item = ITEMS[id];
+            const item = this.types.rune(id);
             return {
                 id,
                 icon: item?.icon ?? '?',
@@ -7710,8 +7710,8 @@ export class Game {
     private canDropArmedItemOn(unit: Unit): boolean {
         if (!this.armedItem || !this.playerCanAct) return false;
         if (unit.seat !== this.humanSeat || unit.type.structure) return false;
-        if (unit.items.length >= itemSlotLimit(unit.type.id)) return false;
-        return !!ITEMS[this.armedItem];
+        if (unit.items.length >= itemSlotLimit(unit.type)) return false;
+        return !!this.types.rune(this.armedItem);
     }
 
     /**
@@ -7721,17 +7721,17 @@ export class Game {
     private armedItemWorldStrip(unit: Unit): readonly (string | null)[] | null {
         if (!this.armedItem || !this.playerCanAct || this.phase !== 'build') return null;
         if (this.canDropArmedItemOn(unit)) {
-            const limit = itemSlotLimit(unit.type.id);
+            const limit = itemSlotLimit(unit.type);
             const out: (string | null)[] = [];
             for (let i = 0; i < limit; i++) {
                 const id = unit.items[i];
-                out.push(id ? (ITEMS[id]?.icon ?? null) : null);
+                out.push(id ? (this.types.rune(id)?.icon ?? null) : null);
             }
             return out;
         }
         if (this.canDropForgeOn(unit)) {
             return this.forgeSlots.player!.map((s) =>
-                s ? (ITEMS[s.itemId]?.icon ?? null) : null,
+                s ? (this.types.rune(s.itemId)?.icon ?? null) : null,
             );
         }
         return null;
@@ -7741,7 +7741,7 @@ export class Game {
     private canDropForgeOn(unit: Unit): boolean {
         if (!this.armedItem || !this.playerCanAct) return false;
         if (!hasAbility(unit.type, 'forge') || unit.team !== 'player') return false;
-        if (!ITEMS[this.armedItem]) return false;
+        if (!this.types.rune(this.armedItem)) return false;
         return forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat);
     }
 
@@ -7773,7 +7773,7 @@ export class Game {
     /** equips an inventory item onto a pack (dispatch + feedback burst) */
     private applyItemTo(unit: Unit, itemId: string): boolean {
         if (!this.playerCanAct || unit.seat !== this.humanSeat || unit.type.structure) return false;
-        if (unit.items.length >= itemSlotLimit(unit.type.id) || !ITEMS[itemId]) return false;
+        if (unit.items.length >= itemSlotLimit(unit.type) || !this.types.rune(itemId)) return false;
         if (!this.dispatchPlayer({ kind: 'applyItem', team: 'player', unitId: unit.id, itemId })) {
             return false;
         }
@@ -7803,7 +7803,7 @@ export class Game {
 
     /** slot a rune into the shared Stronghold forge */
     private forgeInsertItem(itemId: string): boolean {
-        if (!this.playerCanAct || !ITEMS[itemId]) return false;
+        if (!this.playerCanAct || !this.types.rune(itemId)) return false;
         if (!forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat)) return false;
         return this.dispatchPlayer({ kind: 'forgeInsert', team: 'player', itemId });
     }
@@ -7840,7 +7840,7 @@ export class Game {
                     if (slot) this.itemInventory[slot.seat]!.push(slot.itemId);
                 }
             } else {
-                const result = resolveForge(oven, pool);
+                const result = resolveForge(this.types, oven, pool);
                 if (result.product?.kind === 'tactic') {
                     for (const seat of seatIdsOf(this.seats, team)) {
                         this.tacticInventory[seat]!.push(result.product.id);
@@ -7895,11 +7895,11 @@ export class Game {
             }
         }
         if (!filled) return null;
-        const result = resolveForge(slots, this.teamForgePool(team));
+        const result = resolveForge(this.types, slots, this.teamForgePool(team));
         const info = result.product
             ? (result.product.kind === 'tactic'
                   ? TACTICS[result.product.id]
-                  : ITEMS[result.product.id])
+                  : this.types.rune(result.product.id))
             : null;
         const spellIcon = info?.icon ?? null;
         if (!spellIcon) return null;
@@ -10132,7 +10132,7 @@ export class Game {
             this.hud.setForgeRecipeContext(
                 pool,
                 oven.filter((s): s is ForgeSlot => !!s).map((s) => s.itemId),
-                resolveForge(oven, pool).product !== null,
+                resolveForge(this.types, oven, pool).product !== null,
             );
         }
         this.hud.setInventory(this.inventoryView(), this.tacticsView());
@@ -10582,7 +10582,7 @@ export class Game {
             unitId: u.id,
             items: this.selectionItems(u, false),
             itemSlotCount:
-                u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type.id),
+                u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type),
             itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
             record: u.type.structure
                 ? undefined
@@ -10634,7 +10634,7 @@ export class Game {
             unitId: u.id,
             items: this.selectionItems(u, ownInteractive && !fogItems, fogItems),
             itemSlotCount:
-                u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type.id),
+                u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type),
             itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
@@ -10668,9 +10668,9 @@ export class Game {
         if (!itemIds.length) return undefined;
         return itemIds.map((id, i) => ({
             id,
-            icon: ITEMS[id]?.icon ?? '?',
-            name: itemName(id, ITEMS[id]?.name ?? id),
-            desc: itemDescription(id, ITEMS[id]?.description ?? ''),
+            icon: this.types.rune(id)?.icon ?? '?',
+            name: itemName(id, this.types.rune(id)?.name ?? id),
+            desc: itemDescription(id, this.types.rune(id)?.description ?? ''),
             removable:
                 allowRemove &&
                 u.seat === this.humanSeat &&
@@ -11135,6 +11135,7 @@ export class Game {
             // TEMP: one-click forge-fill shortcuts disabled
             false && ovenEmpty && canBuy && !this.armedItem
                 ? forgeRecipesCraftableFromBag(
+                      this.types,
                       this.itemInventory[this.humanSeat] ?? [],
                       pool,
                   ).map((r) => ({
@@ -11145,22 +11146,22 @@ export class Game {
                       itemIds: r.ingredients,
                   }))
                 : [];
-        const bakeResult = resolveForge(hintSlots, pool);
+        const bakeResult = resolveForge(this.types, hintSlots, pool);
         const bakeInfo = bakeResult.product
-            ? forgeProductInfo(bakeResult.product)
+            ? forgeProductInfo(this.types, bakeResult.product)
             : null;
         const lit =
             fogged && this.buildingIntelSnapshot
                 ? (this.buildingIntelSnapshot.forgeLit[team] ?? false)
                 : this.forgeLitBy[team] !== null;
-        const bakeCost = bakeResult.product ? forgeProductCost(bakeResult.product) : 0;
+        const bakeCost = bakeResult.product ? forgeProductCost(this.types, bakeResult.product) : 0;
         out.forge = {
             slotCount,
             lit,
             canUnlight: canBuy && this.forgeLitBy[team] === this.humanSeat,
             bakeAffordable: canBuy && !lit && this.economy.balance(this.humanSeat) >= bakeCost,
             dropReady: !fogged && !lit && this.canDropForgeOn(u),
-            hint: forgeHintText(hintSlots, fogged ? 'this' : 'next', pool, lit),
+            hint: forgeHintText(this.types, hintSlots, fogged ? 'this' : 'next', pool, lit),
             suggestions,
             spellPool: pool,
             bake: bakeInfo
@@ -11169,11 +11170,11 @@ export class Game {
                       name: bakeInfo.name,
                       desc: bakeInfo.desc,
                       forgeCost: bakeResult.product
-                          ? forgeProductCost(bakeResult.product)
+                          ? forgeProductCost(this.types, bakeResult.product)
                           : 0,
                       ingredientIcons:
                           bakeResult.product?.kind === 'tactic'
-                              ? forgeIngredientIcons(bakeResult.product.id)
+                              ? forgeIngredientIcons(this.types, bakeResult.product.id)
                               : [],
                   }
                 : undefined,
@@ -11183,9 +11184,9 @@ export class Game {
                     if (!id) return null;
                     return {
                         id,
-                        icon: ITEMS[id]?.icon ?? '?',
-                        name: itemName(id, ITEMS[id]?.name ?? id),
-                        desc: itemDescription(id, ITEMS[id]?.description ?? ''),
+                        icon: this.types.rune(id)?.icon ?? '?',
+                        name: itemName(id, this.types.rune(id)?.name ?? id),
+                        desc: itemDescription(id, this.types.rune(id)?.description ?? ''),
                         removable: false,
                     };
                 }
@@ -11193,9 +11194,9 @@ export class Game {
                 if (!s) return null;
                 return {
                     id: s.itemId,
-                    icon: ITEMS[s.itemId]?.icon ?? '?',
-                    name: itemName(s.itemId, ITEMS[s.itemId]?.name ?? s.itemId),
-                    desc: itemDescription(s.itemId, ITEMS[s.itemId]?.description ?? ''),
+                    icon: this.types.rune(s.itemId)?.icon ?? '?',
+                    name: itemName(s.itemId, this.types.rune(s.itemId)?.name ?? s.itemId),
+                    desc: itemDescription(s.itemId, this.types.rune(s.itemId)?.description ?? ''),
                     removable:
                         canBuy && s.seat === this.humanSeat && s.round === this.round,
                 };

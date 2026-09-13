@@ -15,6 +15,7 @@ const SCHEMAS = [
     { file: 'assets/data/schema/model.schema.json', path: 'src/game/unitModels.ts', type: 'ModelSpecData' },
     { file: 'assets/data/schema/pack.schema.json', path: 'src/game/content/basePack.ts', type: 'PackManifest' },
     { file: 'assets/data/schema/talent.schema.json', path: 'src/game/units.ts', type: 'TechDef' },
+    { file: 'assets/data/schema/rune.schema.json', path: 'src/game/items.ts', type: 'ItemDef' },
 ];
 
 /** `{@link Foo}` / `{@link Foo.bar}` → `Foo` / `Foo.bar` — readable hover text */

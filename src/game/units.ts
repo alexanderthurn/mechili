@@ -660,6 +660,8 @@ export interface UnitType {
     talents?: string[];
     /** how many talents a player may pick for this type (default 4) */
     talentSlots?: number;
+    /** how many runes a pack of this type can carry (default 2) */
+    itemSlots?: number;
     /** immune to poison-cloud spells (default: affected) */
     poisonImmune?: boolean;
     /** combat stats, per individual mech */

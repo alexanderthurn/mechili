@@ -9,7 +9,6 @@ import {
     type ForgeSpellPool,
 } from '../game/forgeRecipes';
 import { buildingAbilities } from '../game/buildingAbilities';
-import { BASE_RUNE_IDS, ITEMS } from '../game/items';
 import { emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
 import { onPrefsChange, prefs } from '../game/prefs';
@@ -815,8 +814,8 @@ export class Hud {
             `${iconHtml('ui-settings', 'btn-ico mask-ico')}<span class="unit-cap-label"></span>`;
         this.shopRuneRow = document.createElement('div');
         this.shopRuneRow.className = 'shop-runes';
-        for (const itemId of BASE_RUNE_IDS) {
-            const def = ITEMS[itemId]!;
+        for (const itemId of this.types.baseRuneIds) {
+            const def = this.types.rune(itemId)!;
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'shop-rune';
@@ -1314,7 +1313,7 @@ export class Hud {
 
     /** framed rune/spell tip (same window as commander spell hover) */
     private writeRuneTip(el: HTMLElement, itemId: string, extra?: string): void {
-        const def = ITEMS[itemId];
+        const def = this.types.rune(itemId);
         if (!def) return;
         el.dataset.spellTip = '1';
         el.dataset.ttitle = itemName(itemId, def.name);
@@ -1771,7 +1770,7 @@ export class Hud {
             ? this.invSectionTitle(DISPLAY.items, items.length, total) +
               items
                   .map((i) => {
-                      const def = ITEMS[i.id];
+                      const def = this.types.rune(i.id);
                       const extra = t('hud:invItemUse', {
                           item: DISPLAY.item,
                           defaultValue:
@@ -3041,7 +3040,7 @@ export class Hud {
                       const suggest = forge.suggestions?.[i];
                       if (suggest) {
                           const ingIcons = suggest.itemIds
-                              .map((id) => ITEMS[id]?.icon)
+                              .map((id) => this.types.rune(id)?.icon)
                               .filter((id): id is string => !!id);
                           return (
                               `<span class="item-sq m-icon forge-suggest" style="${iconCss(suggest.icon)}" ` +
@@ -4008,7 +4007,7 @@ export class Hud {
         forgeIds: readonly string[],
         highlightRuneId: string | null = null,
     ): string {
-        const rows = forgeHelpRows(pool);
+        const rows = forgeHelpRows(this.types, pool);
         if (rows.length === 0) return '';
         const bagCounts = this.countIds(bagIds);
         const forgeCounts = this.countIds(forgeIds);
@@ -4040,7 +4039,7 @@ export class Hud {
             const forgeLeft = markOwned ? new Map(forgeCounts) : null;
             const ings = r.ingredients
                 .map((id, i) => {
-                    const ico = r.ingredientIcons[i] ?? ITEMS[id]?.icon ?? '?';
+                    const ico = r.ingredientIcons[i] ?? this.types.rune(id)?.icon ?? '?';
                     let cls = 'forge-ing';
                     if (forgeLeft && (forgeLeft.get(id) ?? 0) > 0) {
                         cls += ' in-forge';

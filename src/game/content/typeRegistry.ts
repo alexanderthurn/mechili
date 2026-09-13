@@ -11,6 +11,8 @@
  * Only type imports from the game here: units.ts builds `BASE_TYPES` from this
  * module.
  */
+import type { ForgeRecipe } from '../forgeRecipes';
+import type { ItemDef } from '../items';
 import type { TechDef, UnitType } from '../units';
 import type { ModelSpecData } from '../unitModels';
 import type { BasePack } from './basePack';
@@ -31,6 +33,14 @@ export class TypeRegistry {
     readonly shopUnitIds: readonly string[];
     /** talent catalog by id */
     readonly talents: ReadonlyMap<string, TechDef>;
+    /** rune catalog by id, in catalog order */
+    readonly runes: ReadonlyMap<string, ItemDef>;
+    /** weak elemental runes (round cards, shop, forge fuel), in catalog order */
+    readonly baseRuneIds: readonly string[];
+    /** forged / granted runes, in catalog order */
+    readonly advancedRuneIds: readonly string[];
+    /** oven recipes from the runes' `forge`: fewer ingredients first, then catalog order */
+    readonly forgeRecipes: readonly ForgeRecipe[];
 
     private readonly index: ReadonlyMap<string, UnitType>;
     private readonly talentsByType = new Map<string, readonly TechDef[]>();
@@ -45,6 +55,22 @@ export class TypeRegistry {
             .filter((t) => !t.extra && !t.structure && t.buyable !== false)
             .map((t) => t.id);
         this.talents = new Map(Object.entries(pack.talents));
+        this.runes = new Map(pack.runes.map((r) => [r.id, r]));
+        this.baseRuneIds = pack.runes.filter((r) => r.tier === 'base').map((r) => r.id);
+        this.advancedRuneIds = pack.runes.filter((r) => r.tier === 'advanced').map((r) => r.id);
+        this.forgeRecipes = pack.runes
+            .filter((r) => r.forge)
+            .map((r) => ({
+                ingredients: [...r.forge!.ingredients],
+                product: { kind: 'item' as const, id: r.id },
+                priority: r.forge!.priority ?? 1,
+            }))
+            .sort((a, b) => a.ingredients.length - b.ingredients.length);
+    }
+
+    /** a rune by id — null for an unknown id */
+    rune(id: string): ItemDef | null {
+        return this.runes.get(id) ?? null;
     }
 
     /** a talent by id — null for an unknown id (a stale loadout, a peer's typo) */

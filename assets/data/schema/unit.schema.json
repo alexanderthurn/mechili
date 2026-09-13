@@ -442,6 +442,10 @@
           "type": "number",
           "description": "how many talents a player may pick for this type (default 4)"
         },
+        "itemSlots": {
+          "type": "number",
+          "description": "how many runes a pack of this type can carry (default 2)"
+        },
         "poisonImmune": {
           "type": "boolean",
           "description": "immune to poison-cloud spells (default: affected)"

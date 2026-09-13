@@ -1,5 +1,5 @@
 {
-    // Content files (units, buildings, models, talents, packs): autocomplete, hover docs
+    // Content files (units, buildings, models, talents, runes, packs): autocomplete, hover docs
     // and inline errors from the schemas generated off the TypeScript types.
     "json.schemas": [
         {
@@ -13,6 +13,10 @@
         {
             "fileMatch": ["**/assets/data/talents/*.jsonc", "**/levels/*/data/talents/*.jsonc"],
             "url": "./assets/data/schema/talent.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/runes/*.jsonc", "**/levels/*/data/runes/*.jsonc"],
+            "url": "./assets/data/schema/rune.schema.json"
         },
         {
             "fileMatch": ["**/assets/data/pack.jsonc", "**/levels/*/data/pack.jsonc"],

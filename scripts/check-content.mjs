@@ -178,7 +178,22 @@ try {
         talentError = String(e.message);
     }
     ok = expect(talentError.includes('"talents" names "legz"'), `unknown talent id not reported (${talentError.split('\n')[0]})`) && ok;
-    if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation, multiplayer hash');
+    const runeErrorOf = (files) => {
+        try {
+            pack.loadPackWithOverlay(new Map(files), 'runes');
+        } catch (e) {
+            return String(e.message);
+        }
+        return '';
+    };
+    const addi = readBase('data/runes/addi.jsonc');
+    const dupRecipe = runeErrorOf([['data/runes/addi.jsonc', addi.replace('["earth", "earth"]', '["fire", "fire"]')]]);
+    ok = expect(dupRecipe.includes('already make "'), `duplicate forge recipe not reported (${dupRecipe.split('\n')[0]})`) && ok;
+    const badIngredient = runeErrorOf([['data/runes/addi.jsonc', addi.replace('["earth", "earth"]', '["earth", "eart"]')]]);
+    ok = expect(badIngredient.includes('forge ingredient "eart" is no rune'), `unknown forge ingredient not reported (${badIngredient.split('\n')[0]})`) && ok;
+    const unlistedRune = runeErrorOf([['data/runes/ice.jsonc', addi.replace('"id": "addi"', '"id": "ice"').replace(/"forge": \{[^}]*\},/, '')]]);
+    ok = expect(unlistedRune.includes('ice.jsonc: not listed in pack.jsonc "runes"'), `unlisted rune not reported (${unlistedRune.split('\n')[0]})`) && ok;
+    if (ok) console.log('ok   level overlays: replace/add by path, report, hash, data validation (talents, runes, recipes), multiplayer hash');
 
     // ---- switching levels: caches told after the files switch, model data follows, bad data changes nothing
     const levels = await server.ssrLoadModule('/src/game/level.ts');

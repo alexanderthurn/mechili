@@ -28,6 +28,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "runes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "every rune in data/runes, in catalog order (inventories and card lists sort by it)"
         }
       },
       "required": [
@@ -35,7 +42,8 @@
         "version",
         "roster",
         "offRoster",
-        "buildings"
+        "buildings",
+        "runes"
       ],
       "additionalProperties": false
     }

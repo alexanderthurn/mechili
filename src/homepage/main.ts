@@ -2,8 +2,7 @@ import { buildingAbilities } from '../game/buildingAbilities';
 import { START_CARDS, ROUND_RUNE_CARDS, type RoundCard, type StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import { DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
-import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS, ITEMS, itemSlotLimit, type ItemDef } from '../game/items';
-import { FORGE_RECIPES } from '../game/forgeRecipes';
+import { itemSlotLimit, type ItemDef } from '../game/items';
 import {
     MOVE_UNIT_ID,
     RALLY_ROUTE_ID,
@@ -290,12 +289,12 @@ function tacticPrice(tactic: (typeof TACTICS)[string]): { cost: number; where: s
 
 /** Base runes the forge turns into this one, in recipe order. */
 function runeRecipeIcons(runeId: string): string[] {
-    const recipe = FORGE_RECIPES.find(
+    const recipe = BASE_TYPES.forgeRecipes.find(
         (r) => r.product.kind === 'item' && r.product.id === runeId,
     );
     if (!recipe) return [];
     return recipe.ingredients
-        .map((id) => ITEMS[id]?.icon)
+        .map((id) => BASE_TYPES.rune(id)?.icon)
         .filter((ico): ico is string => !!ico);
 }
 
@@ -380,8 +379,8 @@ function settingsGroupHtml(g: SettingGroup): string {
 
 /** Base runes first, then the forged ones — the order a player meets them. */
 const ALL_RUNES: { item: ItemDef; isBase: boolean }[] = [
-    ...BASE_RUNE_IDS.map((id) => ({ item: ITEMS[id]!, isBase: true })),
-    ...ADVANCED_RUNE_IDS.map((id) => ({ item: ITEMS[id]!, isBase: false })),
+    ...BASE_TYPES.baseRuneIds.map((id) => ({ item: BASE_TYPES.rune(id)!, isBase: true })),
+    ...BASE_TYPES.advancedRuneIds.map((id) => ({ item: BASE_TYPES.rune(id)!, isBase: false })),
 ].filter((e) => !!e.item);
 
 const ALL_TACTICS = Object.values(TACTICS);
@@ -533,8 +532,8 @@ app.innerHTML = `
     <h2>${esc(DISPLAY.items)}</h2>
     <p class="mh-sub">${t('homepage:runes.sub', {
         sep: SEP,
-        packLimit: itemSlotLimit('dwarf'),
-        ballistaLimit: itemSlotLimit('ballista'),
+        packLimit: itemSlotLimit(BASE_TYPES.require('dwarf')),
+        ballistaLimit: itemSlotLimit(BASE_TYPES.require('ballista')),
     })}</p>
     <select class="mh-card-select" id="mh-runes-select" aria-label="${esc(
         t('homepage:runes.select', { item: midTerm(DISPLAY.item) }),

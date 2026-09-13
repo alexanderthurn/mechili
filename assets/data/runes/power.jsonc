@@ -1,0 +1,13 @@
+// Advanced rune — forged in the Stronghold oven or granted by a commander.
+{
+    "id": "power",
+    "name": "Carnage",
+    "tier": "advanced",
+    "icon": "item-power",
+    "mods": { "damage": 1.75 },
+    // forged from 2 base runes in the Stronghold oven
+    "forge": { "ingredients": ["fire", "fire"] },
+    "forgeCost": 100,
+    "cardCost": 50,
+    "description": "+75% attack.",
+}

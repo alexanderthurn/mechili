@@ -22,4 +22,5 @@
     "proceduralModel": "dwarf",
     "talents": ["legs", "carapace"],
     "talentSlots": 2,
+    "itemSlots": 2,
 }

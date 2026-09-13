@@ -18,7 +18,7 @@ import { techsForUnit, type Loadout } from './techCatalog';
 import { isPlayerBuyable, type Team, type UnitType } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
-import { BASE_RUNE_IDS, itemSlotLimit } from './items';
+import { itemSlotLimit } from './items';
 
 /** army packs cheaper than this are preferred for the AI's first buy each round */
 const CHEAP_UNIT_COST = 200;
@@ -301,7 +301,7 @@ export class AiOpponent implements Opponent {
         const need = deploySettings.extraSlotCost + deploySettings.baseRuneCost;
         if (economy.balance(this.seat) < need) return;
         if (!dispatch({ kind: 'buyDeploySlot', team: this.team, seat: this.seat })) return;
-        const itemId = BASE_RUNE_IDS[Math.floor(rng() * BASE_RUNE_IDS.length)]!;
+        const itemId = this.ctx.types.baseRuneIds[Math.floor(rng() * this.ctx.types.baseRuneIds.length)]!;
         dispatch({ kind: 'buyRune', team: this.team, seat: this.seat, itemId });
     }
 
@@ -319,7 +319,7 @@ export class AiOpponent implements Opponent {
                         u.seat === this.seat &&
                         !u.type.structure &&
                         !u.type.extra &&
-                        u.items.length < itemSlotLimit(u.type.id),
+                        u.items.length < itemSlotLimit(u.type),
                 )
                 .sort((a, b) => a.items.length - b.items.length);
             if (packs.length === 0) break;

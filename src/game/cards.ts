@@ -10,7 +10,7 @@
 
 import { DISPLAY } from './displayNames';
 import { t, tacticDescription, tacticName } from '../i18n';
-import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS, ITEMS } from './items';
+import { BASE_PACK } from './content/basePack';
 import {
     ACID_ID,
     DRAGON_ID,
@@ -122,38 +122,23 @@ export interface RoundCard {
     description: string;
 }
 
-/** rune ids offered as between-round cards (catalog = base + advanced) */
-const RUNE_ROUND_CARD_IDS = [...BASE_RUNE_IDS, ...ADVANCED_RUNE_IDS] as const;
-
-/** supply cost overrides (default 50; base runes are free on round cards) */
-const RUNE_ROUND_CARD_COST: Partial<Record<(typeof RUNE_ROUND_CARD_IDS)[number], number>> = {
-    earth: 0,
-    fire: 0,
-    water: 0,
-    wind: 0,
-    colossus: 100, // Mithril Cuirass
-    wrath: 100, // Berserk
-};
-
-function runeRoundCard(itemId: (typeof RUNE_ROUND_CARD_IDS)[number]): RoundCard {
-    const item = ITEMS[itemId]!;
-    return {
-        id: itemId,
-        title: item.name,
-        cost: RUNE_ROUND_CARD_COST[itemId] ?? 50,
-        items: [itemId],
-        description: item.description,
-    };
-}
-
-/** Rune cards in the between-round catalog (base + advanced). */
-export const ROUND_RUNE_CARDS: RoundCard[] = RUNE_ROUND_CARD_IDS.map(runeRoundCard);
+/** Rune cards in the between-round catalog: every base-game rune, base tier first, at its `cardCost`. */
+export const ROUND_RUNE_CARDS: RoundCard[] = [
+    ...BASE_PACK.runes.filter((r) => r.tier === 'base'),
+    ...BASE_PACK.runes.filter((r) => r.tier === 'advanced'),
+].map((rune) => ({
+    id: rune.id,
+    title: rune.name,
+    cost: rune.cardCost ?? 50,
+    items: [rune.id],
+    description: rune.description,
+}));
 
 /**
- * Default match offer pool: the four base runes only.
+ * Default match offer pool: the base runes only.
  * Advanced runes come from the forge (and later modes/shop).
  */
-export const ROUND_RUNE_ITEM_IDS: string[] = [...BASE_RUNE_IDS];
+export const ROUND_RUNE_ITEM_IDS: string[] = BASE_PACK.runes.filter((r) => r.tier === 'base').map((r) => r.id);
 
 /**
  * Unit-pack between-round cards (kept for later; not in the live offer).
@@ -312,7 +297,7 @@ export function roundOfferTitle(cards: readonly RoundCard[]): string {
 /** atlas icon for a round-card face (rune / tactic / Flanky) */
 export function roundCardIcon(c: RoundCard): string | null {
     const itemId = c.items?.[0];
-    if (itemId) return ITEMS[itemId]?.icon ?? null;
+    if (itemId) return BASE_PACK.runes.find((r) => r.id === itemId)?.icon ?? null;
     const tacticId = c.tactics?.[0];
     if (tacticId) return TACTICS[tacticId]?.icon ?? null;
     if (c.flankSpawnHalf) return 'spec-flanky';
@@ -371,6 +356,7 @@ export interface StartCard {
 /** atlas icons for a specialist's forge spell row */
 export function startCardForgeIcons(
     card: StartCard,
+    types: TypeRegistry,
 ): { icon: string; name: string; desc: string; cost?: number; ingredientIcons: string[] }[] {
     const out: {
         icon: string;
@@ -388,7 +374,7 @@ export function startCardForgeIcons(
                 desc: tacticDescription(id, def.description),
                 // what this commander's own Stronghold charges for it
                 cost: def.strongholdCost,
-                ingredientIcons: forgeIngredientIcons(id),
+                ingredientIcons: forgeIngredientIcons(types, id),
             });
         }
     }

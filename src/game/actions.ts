@@ -11,7 +11,7 @@ import {
     livingShieldDisks,
     type HazardPour,
 } from './fire';
-import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
+import { itemSlotLimit } from './items';
 import {
     FORGE_SLOTS_PER_PLAYER,
     forgeProductCost,
@@ -805,8 +805,8 @@ export class ActionDispatcher {
                 return true;
             }
             case 'buyRune': {
-                if (!(BASE_RUNE_IDS as readonly string[]).includes(action.itemId)) return false;
-                if (!ITEMS[action.itemId]) return false;
+                if (!this.ctx.types.baseRuneIds.includes(action.itemId)) return false;
+                if (!this.ctx.types.rune(action.itemId)) return false;
                 const deploy = this.ctx.deployState;
                 if (deploy.used[seat]! >= deploy.limit[seat]! + deploy.extra[seat]!) return false;
                 const ds = this.ctx.deploySettings;
@@ -1203,8 +1203,8 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
                     return false;
                 }
-                if (unit.items.length >= itemSlotLimit(unit.type.id)) return false;
-                if (!ITEMS[action.itemId]) return false;
+                if (unit.items.length >= itemSlotLimit(unit.type)) return false;
+                if (!this.ctx.types.rune(action.itemId)) return false;
                 const inventory = this.ctx.items[seat]!;
                 const held = inventory.indexOf(action.itemId);
                 if (held < 0) return false;
@@ -1236,9 +1236,9 @@ export class ActionDispatcher {
             case 'forgeLight': {
                 if (this.ctx.forgeLitBy[action.team] !== null) return false; // already paid
                 const oven = this.ctx.forgeSlots[action.team]!;
-                const product = resolveForge(oven, this.ctx.forgePoolOf(action.team)).product;
+                const product = resolveForge(this.ctx.types, oven, this.ctx.forgePoolOf(action.team)).product;
                 if (!product) return false; // nothing complete to pay for
-                const cost = forgeProductCost(product);
+                const cost = forgeProductCost(this.ctx.types, product);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 this.ctx.forgeLitBy[action.team] = seat;
@@ -1250,16 +1250,16 @@ export class ActionDispatcher {
                 // burn and pocket the supply.
                 if (this.ctx.forgeLitBy[action.team] !== seat) return false;
                 const oven = this.ctx.forgeSlots[action.team]!;
-                const product = resolveForge(oven, this.ctx.forgePoolOf(action.team)).product;
+                const product = resolveForge(this.ctx.types, oven, this.ctx.forgePoolOf(action.team)).product;
                 // the oven was sealed while lit, so this is what was paid for
-                const cost = product ? forgeProductCost(product) : 0;
+                const cost = product ? forgeProductCost(this.ctx.types, product) : 0;
                 economy.credit(seat, cost);
                 entry.paid = cost;
                 this.ctx.forgeLitBy[action.team] = null;
                 return true;
             }
             case 'forgeInsert': {
-                if (!ITEMS[action.itemId]) return false;
+                if (!this.ctx.types.rune(action.itemId)) return false;
                 // a lit oven is paid for: changing its runes would change what
                 // was bought, so it is sealed until it resolves
                 if (this.ctx.forgeLitBy[action.team] !== null) return false;
@@ -1283,7 +1283,7 @@ export class ActionDispatcher {
                 const ids = action.itemIds;
                 if (ids.length === 0 || ids.length > FORGE_SLOTS_PER_PLAYER) return false;
                 for (const id of ids) {
-                    if (!ITEMS[id]) return false;
+                    if (!this.ctx.types.rune(id)) return false;
                 }
                 const oven = this.ctx.forgeSlots[action.team]!;
                 if (forgeSeatFilledCount(oven, seat) + ids.length > FORGE_SLOTS_PER_PLAYER) {

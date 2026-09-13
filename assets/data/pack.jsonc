@@ -1,5 +1,5 @@
-// The base game's definitions. Every file under data/units, data/buildings and data/models
-// is loaded; ids must match file names.
+// The base game's definitions. Every file under data/units, data/buildings, data/models,
+// data/talents and data/runes is loaded; ids must match file names.
 {
     "id": "base",
     "version": 1,
@@ -30,4 +30,6 @@
     "offRoster": ["stronghold-archer"],
     // Base buildings, in construction / preload order.
     "buildings": ["command-tower", "research-center", "stronghold"],
+    // Runes in catalog order: inventories, shop and round-card lists sort by it.
+    "runes": ["earth", "fire", "water", "wind", "addi", "power", "vigor", "colossus", "wrath", "golden", "bulwark"],
 }

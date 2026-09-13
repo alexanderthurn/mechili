@@ -50,4 +50,5 @@
     // 4 of 12 — the widest talent list in the game, and now a real choice:
     // pick a siege, anti-air or fire build rather than taking everything.
     "talentSlots": 4,
+    "itemSlots": 4, // UI stress-test: extra item circles
 }
