@@ -232,9 +232,15 @@ export class ScenarioEditor {
         return this.history.draft;
     }
 
-    /** the draft as the board shows it (turned around while editing the enemy) */
+    private viewCache: { draft: ScenarioDef; side: Side; view: ScenarioDef } | null = null;
+
+    /** the draft as the board shows it (turned around while editing the enemy) — treat as read-only */
     private get view(): ScenarioDef {
-        return this.side === 'enemy' ? swapSides(this.host.types, this.draft) : this.draft;
+        const draft = this.draft;
+        if (this.viewCache?.draft !== draft || this.viewCache.side !== this.side) {
+            this.viewCache = { draft, side: this.side, view: this.side === 'enemy' ? swapSides(this.host.types, draft) : draft };
+        }
+        return this.viewCache.view;
     }
 
     private toCanonical(view: ScenarioDef): ScenarioDef {
