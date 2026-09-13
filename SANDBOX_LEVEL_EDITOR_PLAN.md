@@ -391,8 +391,9 @@ removes branches from core instead of adding a third special case.
 1. `Game` is constructed with `settings.scenario` (map from `def.map`, seed from
    `def.seed`); its registry is the package's (`activeLevel().types`).
 2. Bases are built from anchors, then adjusted by `scene.buildings`
-   (remove, set levels, man garrison posts). `destroyed: true` is the state of a
-   building destroyed in an earlier round — rubble, with its normal effects.
+   (remove, set levels, man garrison posts). `destroyed` is reserved: every
+   building stands again each round (like units), so a building destroyed in an
+   earlier round has no state to restore — validation warns and ignores it.
    `rules.strongholdMode` decides what a Stronghold is worth;
    `scene.buildings` only decides whether one stands.
 3. `scene.techs` (talents) are added to each side's `TechTree`.
@@ -725,6 +726,13 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
 1. **Rules + scenario play:** `matchRules.ts`, `ScenarioDef` + schema,
    normalize against the registry, `applyScenario`, play a hand-written
    package (zip in web), resume + replay verification.
+   *Implemented:* `scenario/scenarioDef.ts` + schema, `normalize.ts`,
+   `matchRules.ts` (normal / climb / tutorial resolve to today's behaviour),
+   `scenarioSettings.ts`, `applyScenario.ts` (base buildings with level and
+   garrison, side talents, units in canonical order, horde packs standing),
+   rule-driven commanders via the hidden `none` card, web "Play scenario"
+   button. Not yet: `rules.loadout` modes other than `player` (warned),
+   minimum board size (§7.2).
 2. **Capture situation** (§9.1) — immediate value, and it exercises apply.
 3. **Editor core:** author mode, place / move / erase, team brush, placing
    any unit or building type for player / enemy / horde (incl. horde-owned

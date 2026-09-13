@@ -87,6 +87,7 @@ import {
 } from './game/userStorage';
 import { bootGameAssets } from './game/bootAssets';
 import {
+    activeLevel,
     activeLevelRef,
     isLevelActive,
     ensureLevel,
@@ -98,6 +99,7 @@ import {
     type LevelRef,
 } from './game/level';
 import { readZip } from './game/content/zip';
+import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
@@ -1130,6 +1132,7 @@ menu.innerHTML = `
                     <select class="cg-scenario"></select>
                 </label>
                 <input type="file" class="cg-scenario-file" accept=".zip,application/zip" hidden>
+                <button type="button" class="m-btn m-small cg-scenario-play" hidden>Play scenario (single player)</button>
                 <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
             </div>
         </div>
@@ -1286,6 +1289,7 @@ const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset
 const cgScenarioFieldEl = menu.querySelector<HTMLLabelElement>('.cg-scenario-field')!;
 const cgScenarioEl = menu.querySelector<HTMLSelectElement>('.cg-scenario')!;
 const cgScenarioFileEl = menu.querySelector<HTMLInputElement>('.cg-scenario-file')!;
+const cgScenarioPlayEl = menu.querySelector<HTMLButtonElement>('.cg-scenario-play')!;
 
 /**
  * Web testing only: play a Custom Game on a scenario from a zip. The Steam game
@@ -1308,7 +1312,24 @@ function refreshScenarioSelect(): void {
     for (const level of knownLevels()) add(level.hash, `${level.id} · ${level.hash.slice(0, 6)}`);
     add('zip', 'Load zip…');
     cgScenarioEl.value = active?.hash ?? '';
+    // a level with scenario.jsonc can be played as a single-player scenario
+    cgScenarioPlayEl.hidden = !(SCENARIO_ZIP_TESTING && !cgScenarioFieldEl.hidden && activeLevel().scenario);
 }
+
+cgScenarioPlayEl.addEventListener('click', () => {
+    const level = activeLevelRef();
+    const scenario = activeLevel().scenario;
+    if (!level || !scenario) return;
+    const errors = scenario.issues.filter((i) => i.level === 'error');
+    for (const issue of scenario.issues) console[issue.level === 'error' ? 'error' : 'warn']('[scenario]', issue.message);
+    if (!scenario.def || errors.length > 0) {
+        window.alert(`This scenario has errors:\n${errors.map((i) => `• ${i.message}`).join('\n')}`);
+        return;
+    }
+    // leave the room we were hosting — a scenario is a single-player match
+    cancelHost();
+    startGame(applyScenarioToSettings(localMatchSettings(), scenario.def, level, 'play'));
+});
 
 async function switchScenarioTo(ref: LevelRef | undefined): Promise<void> {
     cgScenarioEl.disabled = true;
@@ -2276,6 +2297,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgMoneyEl.disabled = true;
     cgResetEl.disabled = true;
     cgScenarioFieldEl.hidden = true;
+    cgScenarioPlayEl.hidden = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
 }

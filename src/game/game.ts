@@ -97,6 +97,7 @@ import {
     SPECIALITY_TACTIC_ROUND,
     unlockCostFor,
     SKIP_CARD_REWARD,
+    NO_COMMANDER_CARD_ID,
     TUTORIAL_2_START_CARD_ID,
     TUTORIAL_3_START_CARD_ID,
     TUTORIAL_START_CARD_ID,
@@ -280,6 +281,7 @@ import { activeLevel, isLevelActive } from './level';
 import { resolveMatchRules, stripOpen, type MatchRules } from './matchRules';
 import { hasErrors, normalizeScenario } from './scenario/normalize';
 import type { ScenarioDef } from './scenario/scenarioDef';
+import { applyScenario, type ScenarioHost } from './scenario/applyScenario';
 
 /** menu→match camera fly-in (fresh starts only) */
 const MATCH_INTRO_SEC = 1.0;
@@ -2225,12 +2227,14 @@ export class Game {
         } else if (matchIntro) {
             // hold the specialist overlay until the camera fly-in finishes
             // Tutorial: skip the offer — auto commander is applied after intro.
-            this.deferredStarterOffer = isTutorial(this.settings)
-                ? null
-                : this.draw(this.types.commanders, 4, this.rngCards.player);
+            this.deferredStarterOffer =
+                isTutorial(this.settings) || this.rules.commander.mode !== 'pick'
+                    ? null
+                    : this.draw(this.types.commanders, 4, this.rngCards.player);
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         } else {
             if (this.tutorial) this.tutorial.applyStarters();
+            else if (this.rules.commander.mode !== 'pick') this.applyRuleCommanders();
             else this.showStarterPick(this.draw(this.types.commanders, 4, this.rngCards.player));
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         }
@@ -2370,6 +2374,7 @@ export class Game {
         this.hud.setMatchChromeVisible(true);
         if (!this.introCardsRevealed) {
             if (this.tutorial) this.tutorial.applyStarters();
+            else if (this.rules.commander.mode !== 'pick') this.applyRuleCommanders();
             else if (offer) this.showStarterPick(offer);
             else if (pendingRound) this.showRoundOffer(pendingRound);
         } else {
@@ -2881,6 +2886,30 @@ export class Game {
             this.tutorial.spawnBaseTowers();
             return;
         }
+        if (this.scenario) {
+            applyScenario(this.scenarioHost(), this.scenario);
+            return;
+        }
+        this.spawnBaseBuildings(() => true);
+    }
+
+    /** the narrow view of this match a scenario's board is applied through (plan §12.2) */
+    private scenarioHost(): ScenarioHost {
+        return {
+            types: this.types,
+            placement: this.placement,
+            techTree: this.techTree,
+            primarySeat: (team) => primarySeatOf(this.seats, team),
+            spawnBaseBuildings: (want) => this.spawnBaseBuildings(want),
+        };
+    }
+
+    /**
+     * The base buildings at their anchors — every one `want` accepts — in the
+     * fixed order unit ids depend on. Returns what was placed.
+     */
+    private spawnBaseBuildings(want: (team: Team, typeId: string) => boolean): Unit[] {
+        const placed: Unit[] = [];
         const { rimCells, flankCols, zoneCols, zoneRows } = this.map.size;
         const ownFar = this.map.ownAtFar;
         const skipPlayerBuildings = !!this.settings.climb;
@@ -2902,7 +2931,9 @@ export class Game {
                 row: this.map.rows - centerRow - fp.rows,
             };
             const useFar = (team === 'enemy') !== ownFar;
-            this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
+            if (!want(team, type.id)) return;
+            const unit = this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
+            if (unit) placed.push(unit);
         };
 
         if (this.settings.strongholdMode !== 'none') {
@@ -2966,6 +2997,7 @@ export class Game {
                 );
             }
         }
+        return placed;
     }
 
     /**
@@ -4023,6 +4055,25 @@ export class Game {
     }
 
     /** local specialist is locked in — start match once every seat has picked */
+    /**
+     * Commanders decided by the rules instead of an offer (scenario 'fixed' /
+     * 'none'): the player gets the fixed commander or none, every computer seat
+     * none. Logged like any pick, so resume and replay rebuild it.
+     */
+    private applyRuleCommanders(): void {
+        if (this.starterPicked[this.humanSeat]) {
+            this.afterStarterPick(); // resumed — the picks are already in the log
+            return;
+        }
+        const rule = this.rules.commander;
+        const playerCard = rule.mode === 'fixed' ? rule.id : NO_COMMANDER_CARD_ID;
+        this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: playerCard });
+        const none = this.types.commander(NO_COMMANDER_CARD_ID);
+        this.opponent.chooseStarter(none ? [none] : []);
+        for (const e of this.extraAis) e.ai.chooseStarter(none ? [none] : []);
+        this.afterStarterPick();
+    }
+
     private afterStarterPick(): void {
         this.refreshShopHud();
         this.syncSpecialities();

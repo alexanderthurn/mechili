@@ -72,6 +72,15 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
     if (rules.commander.mode === 'fixed' && !types.commander(rules.commander.id)) {
         error(`rules.commander: no commander "${rules.commander.id}"`);
     }
+    if (rules.commander.mode === 'none' && rules.sideHp === 'commander') {
+        error('rules.sideHp: without commanders the sides need fixed HP');
+    }
+    if (rules.commander.mode === 'none' && !types.commander('none')) {
+        error('rules.commander: this pack has no hidden "none" commander');
+    }
+    if (rules.loadout && rules.loadout.mode !== 'player') {
+        warn(`rules.loadout: "${rules.loadout.mode}" is not applied yet — the player's own loadout is used`);
+    }
     if (rules.unlockedUnits) {
         const known = rules.unlockedUnits.filter((id) => types.shopUnitIds.includes(id));
         for (const id of rules.unlockedUnits) {
@@ -131,6 +140,9 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
             }
             if (state === false) continue;
             if (state.level < 1) error(`scene.buildings.${side}.${id}: level must be at least 1`);
+            if (state.destroyed) {
+                warn(`scene.buildings.${side}.${id}: "destroyed" is ignored — buildings stand again every round`);
+            }
             if (state.garrison !== undefined) {
                 const slots = types.byId(id)?.garrison?.slots.length ?? 0;
                 if (state.garrison < 0 || state.garrison > slots) {

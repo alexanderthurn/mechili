@@ -909,25 +909,11 @@ export class ActionDispatcher {
                 const slots = garrison.slots;
                 const taken = placement.allUnits().filter((u) => u.hostUnitId === keep.id).length;
                 if (taken >= slots.length) return false;
-                const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
-                if (!spot) return false; // keep model has no authored slots
+                if (!strongholdArcherSlotWorld(keep, slots[taken]!)) return false; // keep model has no authored slots
                 const cost = this.ctx.types.garrisonPostCost(keep.type, taken);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
-                const archer = placement.spawnAtWorld(
-                    postedType,
-                    spot.x,
-                    spot.z,
-                    action.team,
-                    seat,
-                );
-                archer.strongholdArcherSlot = slots[taken]!;
-                archer.hostUnitId = keep.id;
-                archer.pinnedY = spot.y;
-                // outward from the keep's middle — the wedge behind him is the
-                // keep itself, and he does not shoot through his own walls
-                archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
-                archer.seatMembers();
+                const archer = spawnGarrisonPost(placement, postedType, keep, action.team, seat)!;
                 entry.strongholdArcherUnit = archer;
                 return true;
             }
@@ -2106,6 +2092,35 @@ export function prepareHazardPours(
 }
 
 /** quantize world coords so peers never disagree on float noise */
+/**
+ * Man the next free post of a garrisoned building (`garrison` attribute):
+ * the posted type stands on the model's next `UnitN` pad, pinned to it, facing
+ * out. Shared by the purchase action and scenario setup. Null when every post
+ * is taken or the model has no pad for the next one.
+ */
+export function spawnGarrisonPost(
+    placement: PlacementController,
+    postedType: UnitType,
+    keep: Unit,
+    team: Team,
+    seat: SeatId,
+): Unit | null {
+    const slots = keep.type.garrison?.slots ?? [];
+    const taken = placement.allUnits().filter((u) => u.hostUnitId === keep.id).length;
+    if (taken >= slots.length) return null;
+    const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
+    if (!spot) return null;
+    const archer = placement.spawnAtWorld(postedType, spot.x, spot.z, team, seat);
+    archer.strongholdArcherSlot = slots[taken]!;
+    archer.hostUnitId = keep.id;
+    archer.pinnedY = spot.y;
+    // outward from the keep's middle — the wedge behind him is the
+    // keep itself, and he does not shoot through his own walls
+    archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
+    archer.seatMembers();
+    return archer;
+}
+
 export function quantizeWorld(v: number): number {
     return Math.round(v * 20) / 20;
 }
