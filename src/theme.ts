@@ -2529,6 +2529,15 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-scenario-editor .se-issues { font-size: 12px; color: #e8b04a; cursor: help; }
 .mechili-scenario-editor .se-issues.error { color: #ff7a60; }
 .mechili-scenario-editor .se-status { min-height: 1.2em; color: ${u.brassLight}; }
+.mechili-scenario-editor .se-rules > summary { cursor: pointer; font-weight: 600; color: ${u.brassLight}; }
+.mechili-scenario-editor .se-rules-grid { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.mechili-scenario-editor .se-rule { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px; }
+.mechili-scenario-editor .se-rule > span { flex: 1 1 100%; color: ${u.textMuted}; font-size: 11px; }
+.mechili-scenario-editor .se-rule input[type='number'] { width: 5.5em; }
+.mechili-scenario-editor .se-rule input[type='text'] { flex: 1; min-width: 0; }
+.mechili-scenario-editor .se-rule select { flex: 1; min-width: 0; }
+.mechili-scenario-editor .se-rule input[type='checkbox'] { margin-inline-start: auto; }
+.mechili-scenario-editor .se-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 6px; font-size: 12px; }
 
 /* scenario editor test battle strip */
 .mechili-test-battle {

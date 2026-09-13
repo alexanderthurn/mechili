@@ -37,6 +37,7 @@ import {
 import type { ScenarioIssue } from '../game/scenario/normalize';
 import type { ScenarioDef, SceneTeam, SceneUnit } from '../game/scenario/scenarioDef';
 import type { Unit, UnitType } from '../game/units';
+import { rulesHtml, wireRules } from './scenarioRulesPanel';
 
 export interface ScenarioEditorHost {
     readonly types: TypeRegistry;
@@ -84,6 +85,7 @@ interface Carried {
     placeTypeId: string | null;
     side: Side;
     collapsed: boolean;
+    rulesOpen: boolean;
 }
 
 /** the editor's state across the restarts it causes (test battle, board size) */
@@ -113,6 +115,7 @@ export class ScenarioEditor {
     /** which side the normal game UI builds */
     private side: Side = 'player';
     private collapsed = false;
+    private rulesOpen = false;
     private press: { x: number; y: number; unit: Unit | null; index: number | null; dragging: boolean } | null = null;
     private readonly root: HTMLDivElement;
     private readonly selectionEl: HTMLDivElement;
@@ -135,6 +138,7 @@ export class ScenarioEditor {
             this.placeTypeId = carried.placeTypeId;
             this.side = carried.side;
             this.collapsed = carried.collapsed;
+            this.rulesOpen = carried.rulesOpen;
         } else {
             this.history = new DraftHistory(tidy);
         }
@@ -246,6 +250,7 @@ export class ScenarioEditor {
             placeTypeId: this.placeTypeId,
             side: this.side,
             collapsed: this.collapsed,
+            rulesOpen: this.rulesOpen,
         };
     }
 
@@ -769,6 +774,10 @@ export class ScenarioEditor {
                 .join('') +
             `</div>` +
             `</div>` +
+            `<details class="se-section se-rules"${this.rulesOpen ? ' open' : ''}>` +
+            `<summary>${t('editor:rules', { defaultValue: 'Rules' })}</summary>` +
+            rulesHtml(draft, types) +
+            `</details>` +
             `<div class="se-section">` +
             `<div class="se-row">` +
             btn('se-undo', t('editor:undo', { defaultValue: 'Undo' }), { disabled: !this.history.canUndo, title: 'Ctrl+Z' }) +
@@ -868,6 +877,17 @@ export class ScenarioEditor {
         on('.se-save', (el) => busy(el, () => this.host.save(this.draft)));
         on('.se-download', (el) => busy(el, () => this.host.download(this.draft)));
         on('.se-exit', () => this.host.exit());
+        const rules = this.bodyEl.querySelector<HTMLDetailsElement>('.se-rules');
+        if (rules) {
+            rules.addEventListener('toggle', () => (this.rulesOpen = rules.open));
+            wireRules(rules, () => this.draft, this.host.types, (next) => {
+                // rules don't touch the board: record, keep, redraw
+                if (this.history.push(next)) {
+                    this.host.autosave(this.draft);
+                    this.render();
+                }
+            });
+        }
 
         const name = this.bodyEl.querySelector<HTMLInputElement>('.se-name');
         name?.addEventListener('change', () => {
