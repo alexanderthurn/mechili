@@ -8893,6 +8893,12 @@ export class Game {
         }[] = [];
         // dragon breath is a progressive fire pour (hazardPours), not a one-shot ignite
         this.refreshFlightAlts();
+        // a horde pack standing out in the forest ring (a scenario placed it
+        // there) walks in like a wave does — derived from positions, same everywhere
+        for (const unit of this.placement.allUnits()) {
+            if (unit.team !== 'horde' || unit.type.structure) continue;
+            if (Math.abs(unit.world.x) > this.map.halfW || Math.abs(unit.world.z) > this.map.halfH) unit.marchIn = true;
+        }
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
