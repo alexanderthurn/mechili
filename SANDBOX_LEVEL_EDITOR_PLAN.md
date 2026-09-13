@@ -1,65 +1,62 @@
-# Sandbox & Level Editor — Design Document (Review Draft)
+# Scenario Editor & Campaign — Design Document (Review Draft v2)
 
-Plan for a **Single Player Sandbox / Level Editor** that authors board setups
-and exports them as playable **challenge levels**. The same `LevelDef` format
-is the intended atom for a future **Campaign**.
+Plan for a **Single Player scenario editor** that authors board setups, tests
+them, and saves them as playable **scenarios**. The same `ScenarioDef` format
+is the atom of a future **Campaign** (one scenario after another).
 
-**Status:** design only — not implemented. Written for review after a code
-survey of Melodan’s match boot, placement, tech, economy, HP, and save/replay
-paths (2026-09-13).
+**Status:** design only — not implemented.
 
 **Read first:** [ARCHITECTURE.md](ARCHITECTURE.md) (action log, determinism),
 [TEAM_MODES_PLAN.md](TEAM_MODES_PLAN.md) (seats), [PROGRESSION_PLAN.md](PROGRESSION_PLAN.md)
-(loadouts = choice, not unlock). This document must not violate those
-contracts without an explicit exception section.
+(loadouts = choice, not unlock).
+
+**v2 changes (review of v1 against the engine):** v1 assumed dead enemies stay
+dead (the engine revives every unit each round), a shared fixed-HP path that is
+actually symmetric, a commander force that would spawn a starter army into the
+scene, an AI freeze that would never lock in, and per-unit techs the engine
+cannot represent. v2 fixes those and replaces the pile of special flags with
+one rules object. See §14.
 
 ---
 
 ## 0. Locked design decisions
 
-Settled in the planning session. Do not re-open without a written reason.
+1. **One format for editor, play and campaign: `ScenarioDef`.** A cheat-only
+   sandbox would be throwaway work.
 
-1. **Build author mode and playable export together.**  
-   Campaign will need the same format soon; a cheat-only sandbox would be
-   throwaway work.
+2. **The scenario lives inside `GameSettings`.** `settings.scenario = { def, mode }`.
+   Settings already travel with every replay, resume and retry
+   (`Game.exportReplay()` stores them), so applying a scenario is part of the
+   deterministic starting state. Replay, resume, retry-last-round and replay
+   verification work for scenarios without a separate save shape.
 
-2. **Play mode = fresh build phase against an authored scene.**  
-   Not “instant battle from a frozen player army.” The player receives
-   challenge money / slots / unlocks / tech filters and builds (and may keep
-   pre-placed player units — see §6.4).
+3. **One boot path, three modes.** `mode: 'author' | 'play' | 'test'`. Author
+   mode is a scenario with editor tools attached. There is no hot remount:
+   every heavy edit (map size, Test Battle, Reset) restarts the `Game` from the
+   draft.
 
-3. **Board editing = `MapSize` + presets only.**  
-   No cell-by-cell zone painting, no height sculpting, no on-grid blocker
-   painting. Authors set how large zones are (e.g. tiny duel pad vs standard).
+4. **Match behaviour is described by one `MatchRules` object**, resolved once
+   from settings. Core code reads rules (`rules.hordeWaves`,
+   `rules.flanksOpenFromRound`, …) instead of asking “is this a scenario?”.
+   Normal matches resolve to today's behaviour.
 
-4. **Per-side match HP is authored and may be asymmetric.**  
-   `{ player: 1, enemy: 1 }` ≈ short decisive match; `{ player: 1, enemy: 1000 }`
-   ≈ multi-round siege via existing withdraw chip damage. Not a separate
-   “lives per lost round” system.
+5. **Play = a normal build phase against an authored board.** The player gets
+   the scenario's income, slots, unlocks and tech allowlist and builds as usual.
 
-5. **Win condition for v1 = normal match end** (side HP ≤ 0 / stronghold
-   paths as today). Special goals (kill tagged unit, survive N rounds) are
-   **schema-reserved only**.
+6. **Board editing = `MapSize` + presets.** No cell painting, no height
+   sculpting, no blockers.
 
-6. **Play mode freezes enemy seat buys.**  
-   The challenge is the authored enemy/horde setup; the AI must not rebuild
-   or shop on the enemy side during play.
+7. **Side HP is authored per side** and may be asymmetric. Chip damage stays
+   the existing `applyBattleResult` + `hpWithdrawOf` rule.
 
-7. **Scene snapshot, not action-log replay, is the level format.**  
-   Editor god-mode mutations do not map cleanly onto a fair challenge log.
-   Closest precedents: tutorial free-spawn (`tutorialRuntime.ts`), SP cheats
-   (`game.ts`).
+8. **Win condition v1 = normal match end.** Objectives are schema-reserved.
 
-8. **Sandbox author tools are SP-only** and never part of multiplayer wire
-   protocol.
+9. **Editor tools are SP-only** and never part of the multiplayer protocol.
 
-9. **Strict code separation — editor must not bloat core game code.**  
-   Author/editor complexity lives in dedicated modules (`src/game/levels/` for
-   the shared LevelDef pipeline, `src/game/sandbox/` + `src/ui/sandbox/` for
-   author tools). Core files (`game.ts`, `actions.ts`, `placement.ts`, `hud.ts`,
-   …) may gain only **thin hooks / host interfaces / tiny play-mode gates**
-   (same spirit as `TutorialHost` + `tutorialRuntime.ts`). No large editor
-   branches inside the normal match loop. See §17.
+10. **Strict separation.** Scenario pipeline in `src/game/scenario/`, editor
+    in `src/game/editor/` + `src/ui/editor/`. Core files gain **generic
+    primitives** (useful to any caller) and **rule reads**, never editor
+    branches. See §12.
 
 ---
 
@@ -69,861 +66,645 @@ Settled in the planning session. Do not re-open without a written reason.
 
 | Goal | Why |
 |------|-----|
-| Freely place **player, enemy, and horde** units/buildings/towers/Black Brood | Balance tests (“1 archer vs 1 ogre”), set-piece Campaign boards |
-| Infinite (or huge) money, HP, build time in **author** mode | Remove friction while staging |
-| Every unit pack exposes **all** techs in its allowlist; toggle **on and off** | Normal matches only buy selected loadout techs; sandbox needs full control |
-| Free **upgrade and downgrade** (packs, towers, etc.) | Fast iteration; left/right mouse (or equivalent) |
-| Change **board size** via presets + numeric zone knobs | Tiny boards for unit duels; larger boards for Campaign set pieces |
-| Export a **LevelDef** and play it as a challenge | Campaign pipeline; shareable playtests |
-| Challenge knobs: season, money, deploy slots, unlock filter, tech availability, side HP | Authored difficulty without code changes |
-| Prepare for future **objectives** without implementing them | Avoid format break when Campaign needs “kill the boss” |
+| Place **player, enemy and horde** packs, buildings and Black Brood freely | Balance tests (“1 archer vs 1 ogre”), campaign set pieces |
+| Toggle every tech in a type's allowlist on and off per side | Normal matches only buy selected loadout techs |
+| Raise and lower pack and building levels freely | Fast iteration |
+| Equip runes on packs | Rune tests (Bulwark, Berserk, …) |
+| Board size via presets + numeric knobs | Tiny duel boards, large set pieces |
+| Save, share and play scenarios | Campaign pipeline, shareable tests |
+| Capture a live situation as a scenario | Bug repro, “play that fight again” |
+| Scenario regression tests | Balance and determinism guard rails |
 
 ### 1.2 Non-goals (this pass)
 
-- Full Campaign map UI, chapter select, progression rewards
-- Implementing special win objectives (stub schema only)
-- Cell-painted deploy zones / asymmetric masks
-- On-grid pathing blockers / scenery editor
-- Heightmap / irregular board shapes
-- Multiplayer shared editor / Workshop upload
-- Replacing Shift+U and other SP cheats (they can remain; Sandbox is the intentional tool)
-- Auto balance lab (N seeded runs → winrate) — nice later
-- Alternate scoring where each lost *round* costs exactly 1 life
+- Campaign map UI, chapter select, rewards
+- Objective evaluation (schema only)
+- Cell-painted zones, blockers, height editing, irregular boards
+- Multiplayer editor, Steam Workshop
+- 2v2 scenarios (v1 is 1v1 + horde)
 
-### 1.3 Success criteria (review / later QA)
+### 1.3 Success criteria
 
-- Author can stage a 1v1 unit matchup on a tiny board, toggle techs, run Test
-  Battle, reset, export JSON, and reload it as a playable challenge.
-- Play challenge: player gets a build phase with authored money/slots/unlocks;
-  enemy composition matches export; enemy does not AI-shop.
-- Asymmetric HP behaves as expected under existing `applyBattleResult` chip
-  rules.
-- `LevelDef` validates; corrupt/old versions fail closed with a clear message.
-- No MP desync surface: sandbox actions never appear on the wire.
+- Author stages a 1v1 matchup on a tiny board, toggles techs, runs Test
+  Battle, returns to the editor unchanged, saves, and plays it as a scenario.
+- A played scenario can be resumed after a reload and replayed from its
+  replay export with the ✓ verification result.
+- Asymmetric side HP behaves as described in §6.2.
+- Corrupt or unknown-version scenarios fail with a clear message.
+- No scenario or editor data ever appears in the multiplayer protocol.
 
 ---
 
 ## 2. Product surfaces
 
-### 2.1 Menu entry points
+### 2.1 Menu
 
-Under **Single Player** (see `main.ts` menu views):
+Under **Single Player**:
 
-1. **Sandbox** — opens author mode (empty or last-edited draft).
-2. **Custom Levels** — list of saved `LevelDef`s + Import (clipboard / file) →
-   **Play**.
+1. **Editor** — opens the last draft (or an empty board).
+2. **Scenarios** — library of saved scenarios, Import (file / share code) → **Play**.
 
-Future Campaign will load registry ids / bundled JSON rather than the
-player’s local library, but the **apply path is identical**.
+A future **Campaign** entry loads bundled scenarios in order through the same
+play path.
 
-### 2.2 Two runtime modes
+### 2.2 Modes
 
 ```text
-┌─────────────────────┐         export          ┌─────────────────────┐
-│  AUTHOR (Sandbox)   │ ──────────────────────► │  LevelDef (JSON)    │
-│  god place/tech/HP  │                         │  scene + challenge   │
-│  Test Battle/Reset  │ ◄── reload draft ───────│  map + flags        │
-└─────────────────────┘                         └──────────┬──────────┘
-                                                           │ play
-                                                           ▼
-                                                ┌─────────────────────┐
-                                                │  PLAY (Challenge)   │
-                                                │  fresh build phase  │
-                                                │  frozen enemy buys  │
-                                                │  normal win (HP)    │
-                                                └─────────────────────┘
+          ┌──────────────── settings.scenario = { def, mode } ────────────────┐
+          │                                                                   │
+  mode: 'author'                    mode: 'test'                     mode: 'play'
+  editor tools on                   restart from draft,              normal HUD,
+  god placement                     both sides auto lock-in,         player builds,
+  draft autosave                    battle, result strip,            opponents lock in,
+          │                         “Back to editor” restarts        normal match end
+          │ Test Battle ───────────► 'author' from the same draft
+          │ Play ───────────────────────────────────────────────────►
 ```
 
-Wiring proposal (names flexible at implement time):
+All three construct a `Game` the same way; only `mode` and the resolved
+`MatchRules` differ.
 
-- `GameSettings.sandbox = { author: true }` — author mode.
-- `GameSettings.level = LevelDef` — play mode (and Campaign later).
-- Mutually exclusive in practice: author may hold an in-memory draft that
-  becomes `level` when playing a Test Battle from editor.
+### 2.3 Relationship to existing modes
 
-### 2.3 Relationship to existing SP modes
-
-| Mode | Role after Sandbox ships |
-|------|---------------------------|
-| Practice | Unchanged casual 1v1/2v2/Horde |
-| Campaign (climb) | Later consumes `LevelDef`s; today’s climb can stay until migrated |
-| Tutorial | Stays scripted; may eventually be LevelDefs + tutorial overlay |
-| Cheats (Shift+U, …) | Dev shortcuts; Sandbox is the supported authoring path |
+| Mode | After scenarios ship |
+|------|---------------------|
+| Practice | Unchanged |
+| Campaign (climb) | Keeps working; can later become an ordered scenario list |
+| Tutorial | Stays scripted; can later become scenarios + a script layer |
+| SP cheats (Shift+U, …) | Stay as dev shortcuts |
 
 ---
 
-## 3. Current engine facts (constraints)
+## 3. Engine facts this design relies on
 
-These are **as-built** facts that shape the design.
+Verified against the code (2026-09-13).
 
-### 3.1 Modes are settings + seats, not separate engines
-
-- Match shape: `GameSettings` (`src/game/settings.ts`) + optional `seats`
-  (`src/game/seats.ts`).
-- SP local matches use `localMatchSettings()` in `main.ts` (very long build /
-  specialist / card timers).
-- Campaign adds `settings.climb`; tutorial adds `settings.tutorial`.
-
-### 3.2 Mutations go through `ActionDispatcher`
-
-- Buy/place/tech/level: `src/game/actions.ts`.
-- Placement: `src/game/placement.ts` — zone checks, slots, occupancy.
-- Bypasses already used by tutorial/horde/cheats:
-  - `placement.spawn(..., free=true)` — skip economy
-  - `placement.spawnAtWorld(...)` — gridless (horde ring, produce, etc.)
-
-### 3.3 Tech is loadout-gated, buy-only, no revoke
-
-- Catalog / allowlist: `src/game/techCatalog.ts` (`UNIT_TECH_ALLOWLIST`,
-  `UNIT_TECH_SLOTS`).
-- In-match: `TechTree` (`src/game/tech.ts`); `buyTech` requires selection via
-  `isTechSelectedForUnit`, pays cost, no first-class “remove tech”.
-- Innate techs always on.
-
-**Sandbox implication:** author mode must (a) treat loadout as full allowlist,
-(b) add grant/revoke, (c) ignore cost/slot caps while authoring.
-
-### 3.4 Levels go up via actions; down only via undo (today)
-
-- Pack level: `buyLevel` / `buyLevelBatch` (XP + supply).
-- Towers: `upgradeTower`.
-- Downgrade today: undo only; cheats can mutate `unit.level` off-log.
-
-**Sandbox implication:** explicit `sandboxSetLevel` (or equivalent) that can
-raise and lower without XP/supply.
-
-### 3.5 Economy, timers, HP
-
-- Economy per **seat** (`Economy` in `settings.ts`): round grant from
-  `startingSupply` + growth, × `moneyFactor`.
-- Match HP per **side** (`playerHp` / `enemyHp` in `game.ts`): normally
-  granted from commander cards’ `startingHp`; climb/tutorial force fixed
-  `sideHp` after pick.
-- Battle result HP chip: `applyBattleResult` → survivors deal `hpWithdrawOf`
-  (`units.ts`) to the opposing side (`hpDraw.ts` / `buildHpDrawSources`).
-  Horde scoring rules already documented on `applyBattleResult`.
-
-### 3.6 Map is parametric `MapSize`
-
-```ts
-interface MapSize {
-  zoneCols: number;   // each side’s main territory width
-  zoneRows: number;   // each side’s main territory depth
-  neutralRows: number;
-  flankCols: number;
-  rimCells: number;
-}
-```
-
-- `STANDARD_MAP` ≈ 60×30 zones, 4 neutral, 6 flank, 4 rim (`map.ts`).
-- Full grid: `cols = zoneCols + 2*flankCols + 2*rimCells`,
-  `rows = 2*zoneRows + neutralRows + 2*rimCells`.
-- Deploy ownership: `isPlayerCell` / `isEnemyCell` from formulas +
-  `flanksUnlocked` / `neutralUnlocked` flags.
-- Relief height: seeded noise (sim-visible); **not** editable per cell.
-- Scenery/forest scales to board size.
-
-**Author “5×10 board”** means setting `zoneCols`/`zoneRows` (and possibly
-shrinking flanks/rim/neutral), **not** painting 50 cells.
-
-### 3.7 Black Brood / off-map
-
-| Id | Role |
-|----|------|
-| `hordeZombie` | Black Brood swarm pack; horde fodder; not player-buyable |
-| `hordeBrutSpawn` | Single spider; produce / Cursed Christine gift |
-| `hordeSpinne` | Mother; innate produce |
-
-Horde waves use forest-ring `spawnAtWorld` (`team: 'horde'`, seat `-1`).
-Author mode must place brood on-grid and/or in the ring.
-
-### 3.8 Save / replay today
-
-- SP resume: `sessionStorage` action log (`net.ts` `SinglePlayerSave`).
-- Replay: `Game.exportReplay()` → seed + settings + `LoggedAction[]`.
-- **No** board-snapshot level format yet.
-
-Cheats that mutate off-log diverge from resume/replay — Sandbox author
-sessions should either (a) not promise resume fidelity, or (b) use
-logged sandbox actions / periodic draft serialization to `LevelDef`.
-
-**Recommendation:** Author mode autosaves a `LevelDef` draft to
-`localStorage`; do not rely on the SP action-log resume for editor
-fidelity. Test Battle / Play hydrate from `LevelDef`.
+| Fact | Where | Consequence for scenarios |
+|------|-------|---------------------------|
+| Every unit **revives** each round (`resetFormation()` sets `destroyed = false`) | `units.ts` | Authored armies come back every round, like a real match. No “stays dead” default |
+| Tech ownership is **per seat and type**, not per pack | `TechTree` (`tech.ts`), `add` / `remove` exist | Scenario techs are a side-level map (§4.1) |
+| `placement.spawn(...)` does no zone validation; `free` skips economy | `placement.ts` | Editor placement needs no new placement flag |
+| Unit ids come from a per-seat counter in spawn order | `placement.ts` | Scene apply must use a fixed order |
+| `chooseCard` spawns the card's starter army and sets speciality, HP, spells | `actions.ts` | Commander handling is an explicit rule (§6.4) |
+| AI build = `runBuildActions()` then `endDeployment` | `ai.ts` | An opponent can skip buying but must still lock in |
+| Fixed HP in climb/tutorial is one shared number | `settings.ts` (`sideHp: number`) | Per-side HP needs a small new path |
+| `startBuildPhase` runs log-free per-round systems: atmosphere rotation, flank/neutral unlock, horde wave, income, credit debt, commander income and gifts, Cursed spider, free archer | `game.ts` | Each is a `MatchRules` field (§5) |
+| Atmosphere (season/weather/time) rotates per round via `weather.onRound` | `weather.ts` | Rule: start atmosphere + rotate on/off |
+| Relief height is seeded and read by the sim (`simGroundHeightAt`) | `map.ts`, `sim.ts` | Map size change = new relief; part of the deterministic start |
+| Replay verification compares result / rounds / HP | `game.ts` (`replayVerify`, `replayExpected`) | Basis for scenario regression tests (§9.3) |
+| Base buildings are placed from `BASE_ANCHORS` fractions of the zone | `map.ts`, `game.ts` | Minimum board size is derived from anchor radii (§7.2) |
 
 ---
 
-## 4. Core data model: `LevelDef`
+## 4. Data model
 
-New module group: `src/game/levels/`  
-(`levelDef.ts` schema + validate/normalize, `applyLevel.ts` boot apply,
-`levelLibrary.ts` localStorage I/O, `mapPresets.ts` named sizes).
-
-### 4.1 Conceptual schema (version 1)
+### 4.1 `ScenarioDef` (version 1)
 
 ```ts
-/** Discriminated union reserved for Campaign; ignored in v1 play. */
-type LevelObjective =
-  | { kind: 'destroySide' } // default implicit behavior — may omit
+type Team3 = 'player' | 'enemy' | 'horde';
+
+/** Reserved for Campaign; not evaluated in v1. */
+type ScenarioObjective =
+  | { kind: 'destroySide' }
   | { kind: 'surviveRounds'; rounds: number }
   | { kind: 'killTagged'; tag: string }
   | { kind: 'protectTagged'; tag: string };
 
-interface LevelUnit {
+interface SceneUnit {
   typeId: string;
-  team: 'player' | 'enemy' | 'horde';
-  seat?: number;           // default primary seat for team; horde → -1
-  /** Grid anchor (top-left style consistent with placement); omit if gridless */
-  col?: number;
-  row?: number;
-  /** World placement for ring/brood gridless spawns */
-  x?: number;
-  z?: number;
-  rotated?: boolean;
-  level: number;           // pack level or tower level as appropriate
-  xp?: number;
-  techs: string[];         // researched / toggled on at apply (non-innate)
-  tags?: string[];         // for future objectives
-  gridless?: boolean;
+  team: Team3;
+  /** grid anchor (same convention as placement) — or world position for gridless packs */
+  at: { col: number; row: number; rotated?: boolean } | { x: number; z: number };
+  level: number;
+  items?: string[];          // runes on this pack
+  tags?: string[];           // for objectives
 }
 
-interface LevelDef {
+/** a base building: omitted = normal level 1; false = not on the board */
+type SceneBuilding = { level: number; destroyed?: boolean } | false;
+
+interface SceneBuildings {
+  stronghold?: SceneBuilding;
+  strongholdArchers?: number;          // 0..5 battlement posts manned
+  commandTower?: SceneBuilding;
+  researchCenter?: SceneBuilding;
+}
+
+interface ScenarioDef {
   version: 1;
-  id: string;              // stable uuid
+  gameVersion: string;       // GAME_VERSION at save time (for migrations)
+  id: string;                // stable uuid
   name: string;
-  createdAt?: string;      // ISO
+  description?: string;
+  author?: string;
+  createdAt?: string;
   updatedAt?: string;
-  seed?: number;           // AI/random; optional
+  seed: number;
 
-  /** Drives GameSettings.map / BattleMap construction */
   map: MapSize;
-  mapFlags?: {
-    flanksUnlockedAtStart?: boolean;
-    neutralUnlockedAtStart?: boolean;
-  };
-
-  /**
-   * Sparse overrides merged onto localMatchSettings()/DEFAULT_SETTINGS.
-   * Prefer challenge.* for player-facing knobs; use this for hordePreset,
-   * strongholdMode, battleTimeSeconds, etc.
-   */
-  settingsPatch?: Partial<GameSettings>;
-
-  challenge: {
-    season: 'spring' | 'summer' | 'autumn' | 'winter';
-    startingSupply: number;
-    /** Deploy slot baseline (DeploySettings.unitsPerRound) */
-    unitsPerRound: number;
-    extrasBudgetPerRound?: number;
-    /** Fixed match HP — commander startingHp ignored (climb/tutorial pattern) */
-    sideHp: { player: number; enemy: number };
-    /**
-     * Shop unlock filter for the human seat.
-     * Empty array = “no unlocks” (must be explicit).
-     * Omit field = use normal round-1 unlock behavior (document exact default
-     * in normalizeLevelDef).
-     */
-    unlockedUnitIds?: string[];
-    /**
-     * Per typeId: which techs may be researched in play.
-     * Omit type = full UNIT_TECH_ALLOWLIST for that type.
-     * Empty array for a type = no researchable techs.
-     */
-    techAllowlist?: Record<string, string[]>;
-    /**
-     * fullAllowlist: seat loadout = allowlist (or challenge override).
-     * fixed: loadout exactly challenge.techAllowlist / authored picks;
-     *        player cannot expand mid-match via cards if we also gate unlocks.
-     */
-    loadoutMode: 'fullAllowlist' | 'fixed';
-    /** If true, wipe team:player mobile army from scene before build (Campaign). Default false. */
-    clearPlayerArmy?: boolean;
-    /** Optional forced commander / skip card pick (tutorial-like). */
-    forceCommanderId?: string;
-    skipCardPick?: boolean;
-  };
+  rules: ScenarioRules;      // §5
 
   scene: {
-    units: LevelUnit[];
-    // reserved: items, spells, rally points, oil baseline, …
+    units: SceneUnit[];
+    /** side-level researched techs per type (innates are implicit) */
+    techs: { player: Record<string, string[]>; enemy: Record<string, string[]> };
+    buildings: { player: SceneBuildings; enemy: SceneBuildings };
   };
 
-  /** v1: present but not evaluated */
-  objectives?: LevelObjective[];
+  objectives?: ScenarioObjective[];
 }
 ```
 
-### 4.2 Why snapshot beats action log for levels
+Why side-level techs: the engine applies a tech to every pack of that type on
+that seat. Per-unit techs would let the format describe states the game cannot
+play (two enemy archers, one with a tech and one without).
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| Action log replay | Matches MP determinism story | Editor god actions ≠ fair play; hard to “fresh build for player only” |
-| **Scene snapshot** | Exact enemy board; clean challenge apply; Campaign-friendly | Must version schema; remount map carefully |
+### 4.2 Why a scene snapshot (plus settings embedding)
 
-Play boot algorithm (high level):
+| Approach | Verdict |
+|----------|---------|
+| Action-log replay as the level format | Editor god actions are not fair play actions; no clean “fresh build for the player” |
+| **Scene snapshot inside settings** | Exact board, clean challenge start, and — because it sits in settings — replay/resume still work through the normal action log |
 
-1. Build `GameSettings` from `localMatchSettings` + `def.map` + `settingsPatch`
-   + level/play flags (enemy buy freeze, fixed HP path).
-2. `constructGame` / `new Game(...)` as today.
-3. After bases exist: optionally clear default armies if any; `applyLevelScene`.
-4. Apply challenge: season snap, supply, deploy, unlocks, loadouts, `sideHp`.
-5. Start build phase for human; enemy AI buy path no-ops.
+The player's moves during play are ordinary logged actions. The scenario is
+the starting state those actions apply to.
 
-### 4.3 Normalization & validation
+### 4.3 Normalize & validate
 
-`normalizeLevelDef(raw): LevelDef | { error: string }`:
+`normalizeScenario(raw): { def: ScenarioDef; report: Issue[] }`
 
-- Reject unknown `version` (forward-compatible: accept v1 only for now).
-- Clamp `MapSize` to sane mins/maxes (prevent 0-size or GPU-melting boards).
-- Drop unknown `typeId`s with warning, or fail hard — **recommend fail hard
-  on play**, warn-and-strip in author import.
-- Tech ids not in allowlist stripped.
-- Units with missing grid coords and not `gridless` rejected.
-- `sideHp.player/enemy` must be ≥ 1 (or ≥ 0 if we allow already-dead debug —
-  recommend ≥ 1).
+- One rule for every problem: **normalize, and record an issue**
+  (`warning` or `error`). Import always succeeds into the editor so the author
+  can fix it; **Play refuses a scenario whose report contains errors**.
+- Errors: unknown `version`, `MapSize` below the minimum (§7.2), unknown unit
+  type, unit outside the board, side HP < 1.
+- Warnings: tech not in the type's allowlist (dropped), rune id unknown
+  (dropped), empty enemy side, no unlocked units for the player.
+- `gameVersion` older than current → run the id migration table
+  (e.g. renamed unit ids) before validating.
 
-### 4.4 Storage
+### 4.4 Storage and sharing
 
-| Store | Key / form | Contents |
-|-------|------------|----------|
-| Local library | `localStorage` e.g. `mechili-levels` | Array of `LevelDef` |
-| Editor draft | `localStorage` e.g. `mechili-level-draft` | In-progress author `LevelDef` |
-| Clipboard | JSON text | Share / review |
-| File download | `*.melodan.json` or `*.level.json` | Backup |
-| Bundled Campaign (later) | repo / build assets | Read-only registry |
-
-Do **not** put LevelDefs in the MP replay stream.
+| Store | Form |
+|-------|------|
+| Library | `localStorage` `mechili-scenarios` |
+| Editor draft | `localStorage` `mechili-scenario-draft` (autosave) |
+| File | `*.scenario.json` download / file import |
+| Share code | deflate + base64url string (clipboard) |
+| Campaign | bundled JSON in the build |
 
 ---
 
-## 5. Board layout (author + level)
-
-### 5.1 Presets (proposed starting set)
-
-Exact integers are **tunable at implement time**; document intent:
-
-| Preset id | Intent | Rough zone feel |
-|-----------|--------|-----------------|
-| `tiny` | 1–2 packs per side duel | Very small `zoneCols`×`zoneRows` (order of ~8–16 × ~6–10) |
-| `compact` | Small skirmish | Between tiny and standard |
-| `standard` | Current live feel | `STANDARD_MAP` (60×30, …) |
-| `wide` | More flank play | Larger `zoneCols` / `flankCols` |
-| `deep` | Longer approach | Larger `zoneRows` |
-
-UI shows: preset buttons + advanced disclosure for the five numeric fields +
-live readout of **derived full grid** (`cols×rows` and world size).
-
-### 5.2 Remount policy
-
-Changing `MapSize` in author mode:
-
-1. Serialize current scene to `LevelUnit[]` (world or cell).
-2. Tear down / rebuild `BattleMap`, overlay, hazard field sizing, scenery
-   bound to map (implementation detail in `game.ts` — may be “soft restart
-   Game with same draft” if hot remount is too invasive).
-3. Re-apply units still in-bounds; list dropped OOB units in a toast.
-
-**Prefer “restart match with draft”** if hot remount risks dangling GPU
-resources — document choice in implementation PR.
-
-### 5.3 Map flags
-
-- `flanksUnlockedAtStart` → set `map.flanksUnlocked = true` before first
-  build (normally round 2+).
-- `neutralUnlockedAtStart` → same for neutral strip split.
-
----
-
-## 6. Challenge rules (play)
-
-### 6.1 Side HP (match length)
-
-- On play boot, set `playerHp` / `enemyHp` (and peaks used by HUD) from
-  `challenge.sideHp`, using the same fixed-HP path as tutorial/climb
-  (`climbSideHp` / `restoreSideHp` patterns in `game.ts` / `actions.ts`).
-- Commander card `startingHp` must **not** stack on top.
-- Round chip remains `applyBattleResult` + `hpWithdrawOf`.
-
-**Author education in UI (one line):**  
-“HP is chipped by surviving units’ withdraw values each battle — 1 HP is
-usually one fight; large HP means multiple rounds.”
-
-Quick presets:
-
-| Preset | player | enemy |
-|--------|--------|-------|
-| Sudden | 1 | 1 |
-| Standard | ~commander-scale or mid (tune) | same |
-| Siege | 1 (or low) | 1000+ |
-
-### 6.2 Economy & deploy
-
-- `startingSupply` → set liquid supply for human seat at challenge start
-  (and define whether round grant still runs on later rounds — **commit:
-  yes**, growth from `economy` / patch unless `settingsPatch` zeros growth).
-- `unitsPerRound` → `deploy.unitsPerRound`.
-- `extrasBudgetPerRound` optional override.
-
-### 6.3 Unlocks & techs
-
-- `unlockedUnitIds`: replaces human `unlockedUnits[seat]` at start.
-- `techAllowlist` + `loadoutMode`: builds seat `loadout` so `buyTech` only
-  sees allowed ids; costs remain unless we add a challenge flag
-  `freeTech: true` (optional later).
-- Authored enemy units’ `techs[]` applied into enemy `TechTree` (and/or
-  per-unit ownership if the engine is seat-wide — **today techs are seat-wide
-  per type**). Document: enemy techs in scene are granted to that seat’s
-  tree for those type ids so all packs of that type benefit — consistent
-  with live game. If per-pack tech is ever needed, that is a larger engine
-  change (out of scope).
-
-### 6.4 Player units in the scene
-
-**Default (`clearPlayerArmy: false`):** authored `team: 'player'` units remain
-as starting board (fortifications / pre-placed army); player still spends
-challenge money/slots to add more.
-
-**Campaign flag (`clearPlayerArmy: true`):** strip player mobile army (define
-whether structures/towers stay — **recommend:** keep structures/towers,
-clear non-structure packs unless tagged `keep`).
-
-### 6.5 Enemy / horde in play
-
-- Spawn from scene as free placements.
-- **No AI buys, unlocks, or tech purchases** on enemy seats while
-  `settings.level` is set (guard in `AiOpponent` / dispatcher).
-- Horde: if scene includes horde units, ensure `hordePreset` enables horde
-  camera/systems as needed; optional `settingsPatch.hordePreset`.
-- Between rounds: **commit default** — enemy army that died stays dead
-  unless we add `enemyRebuild: true` later. Player gets normal rebuild/
-  income. (Authored static defense / wave-once feel.) Alternative
-  “restore enemy scene each round” is a future challenge flag.
-
-### 6.6 Season
-
-Snap weather/scenery to `challenge.season` at boot (`Scenery.setSeason` /
-Weather APIs). Author mode can change season live and persist into draft.
-
-### 6.7 Objectives (stub only)
-
-- Parser accepts `objectives` array.
-- Evaluator always falls through to normal HP win until implemented.
-- Scene `tags` on units support future `killTagged` / `protectTagged`.
-
----
-
-## 7. Author mode — detailed behavior
-
-### 7.1 Boot
-
-- `sandbox.author = true`, classic 1v1 seats, AI disabled or no-op.
-- Huge supply both seats; huge / ignored side HP for editing comfort (or
-  show challenge HP panel as “export values” without applying pressure).
-- Long timers (`localMatchSettings`).
-- Load draft from `mechili-level-draft` if present.
-- Full shop catalog including non-buyable horde types in a Sandbox palette.
-- Loadout = full allowlist for all types (author).
-
-### 7.2 Team brush
-
-Toolbar: **Player | Enemy | Horde**.  
-Next place/spawn uses that team (and default seat). Bypass:
-
-- Territory zone checks (or allow place anywhere on playable grid + rim ring)
-- Deploy slots / extras budget
-- Unlock list
-- Supply charges (`free` spawn)
-
-**Delete:** select + Delete/Backspace, or eraser tool.
-
-### 7.3 Tech panel
-
-With a pack selected:
-
-- List `UNIT_TECH_ALLOWLIST[typeId]` (and show innates as locked-on).
-- Click toggles membership in that seat’s researched set for the type
-  (engine today is seat-wide — UI should say “techs apply to all packs of
-  this type on this side”).
-- Persist into draft scene: when exporting, write `techs` onto each unit of
-  that type on that team **or** store a side-level tech map in scene
-  (`scene.techsByTeam?: Record<Team, Record<typeId, string[]>>`) to avoid
-  duplication — **recommend side-level tech map in v1.1**; for v1, duplicate
-  onto units at export for simplicity.
-
-### 7.4 Level up / down
-
-- **Left click** (or `[` / scroll) on selected: level + 1 (clamp to max).
-- **Right click** (or `]`): level − 1 (clamp to 1 or 0 per type rules).
-- Towers use tower max (5). No XP/supply.
-- Update draft continuously.
-
-### 7.5 Board & challenge panel
-
-Side panel sections:
-
-1. Map preset + advanced size + flank/neutral flags  
-2. Challenge export settings (season, money, slots, HP, unlocks, techs)  
-3. Library: Save / Save As / Export clipboard / Import  
-
-Changing challenge fields updates the draft only; they apply on Play / Test.
-
-### 7.6 Test Battle
-
-1. Freeze draft snapshot `S`.
-2. Enter play-like rules **or** start battle phase in-place with current
-   armies (for pure unit tests, in-place battle is faster).
-3. **Commit:** Test Battle = apply draft as temporary play settings but keep
-   editor chrome; on end or “Return to Editor”, restore scene from `S`
-   (full re-apply).
-
-Outcome strip (lightweight): time elapsed, surviving withdraw sums or HP
-remaining both sides — helps “archer vs ogre” iteration.
-
-### 7.7 Author mutations — keep out of `ActionDispatcher`
-
-**Do not** grow the multiplayer `Action` / `LoggedAction` union with a large
-set of `sandboxPlace` / `sandboxSetTech` / … kinds. That would couple editor
-complexity into the deterministic action log every mode shares.
-
-**Commit:**
-
-- Author edits are owned by `SandboxController` (see §17): call existing
-  placement/tech/economy **host APIs** (`spawn(..., free)`, direct level
-  set, tech grant/revoke helpers exposed on a narrow host), then update the
-  in-memory `LevelDef` draft.
-- Undo/redo (if wanted) is an **editor-local** stack of draft snapshots or
-  editor commands — not `ActionDispatcher` undo.
-- Play-mode challenge matches still use the normal action log for the
-  **player’s** legal buys/moves only.
-- Shift+U-style cheats stay as-is; Sandbox does not need to mimic them inside
-  `actions.ts`.
-
----
-
-## 8. Play mode — detailed behavior
-
-1. Menu → Custom Levels → select def → Play.  
-2. Skip or auto commander per `challenge.skipCardPick` /
-   `forceCommanderId`.  
-3. Apply map, scene, challenge (§4.2 / §6).  
-4. Human build phase; shop filtered; techs filtered.  
-5. Lock-in → battle → HP draw → next round until side HP ≤ 0 (or stronghold
-   loss rules).  
-6. Enemy never shops; enemy dead packs do not return (default).  
-7. Victory / defeat UI → back to level list.
-
-SP resume: optional. If enabled, resume must store `LevelDef` id + action log
-+ phase; first implement **without** resume to reduce scope.
-
----
-
-## 9. UI / UX outline
-
-### 9.1 Author chrome
-
-- Top or left toolbar: team brush, erase, select, duplicate, mirror side,
-  clear side, Test Battle, Save, Play Challenge.
-- Right inspector: selection (type, level, techs), challenge settings,
-  map settings.
-- Keep HUD familiar but replace economy with “Sandbox” badge + optional ∞.
-
-### 9.2 Play chrome
-
-- Normal HUD; show level name; optional “Challenge” badge.
-- Hide enemy shop fog concerns if enemy cannot act — fog rules can match
-  Campaign (live-visible) for clarity while testing.
-
-### 9.3 Accessibility / input
-
-- Mouse L/R for level; keyboard alternatives required.
-- Touch: long-press menu for level/tech if the game supports touch SP.
-
----
-
-## 10. Campaign readiness
-
-`LevelDef` is the campaign level atom.
-
-Future shapes (not building now):
+## 5. `MatchRules`
+
+One object that answers every “what does this match do each round?” question.
+`resolveMatchRules(settings)` builds it: normal matches reproduce today's
+behaviour exactly; a scenario supplies its own `ScenarioRules`, which map 1:1.
 
 ```ts
-// illustrative only
-interface CampaignChapter {
-  id: string;
-  levels: string[]; // LevelDef ids in registry
+interface ScenarioRules {
+  /** round N grants round1 + (N-1) × growth (× settings.moneyFactor) — the normal economy */
+  income: { round1: number; growth: number };
+  deploy: { unitsPerRound: number; extrasBudgetPerRound: number };
+
+  /** 'commander' = normal card HP; numbers = fixed per side, card HP ignored */
+  sideHp: 'commander' | { player: number; enemy: number };
+  commander: { mode: 'pick' } | { mode: 'fixed'; id: string; starterArmy: boolean } | { mode: 'none' };
+
+  roundCards: string;               // roundCardPreset id or 'off'
+  hordeWaves: string;               // hordePreset id or 'off' (authored horde units work either way)
+  flanksOpenFromRound: number | null;   // normal: 2; null = never
+  neutralOpenFromRound: number | null;  // normal: 2
+
+  atmosphere: { season: Season; weather?: string; time?: string; rotate: boolean };
+  strongholdMode: StrongholdMode;
+
+  /** what non-human seats do in the build phase (they always lock in) */
+  opponents: 'build' | 'lockInOnly';
+  /** fog on enemy deployment intel */
+  enemyIntel: 'fogged' | 'visible';
+
+  /** human seat: shop unlocks (omit = normal) and researchable techs per type (omit = full allowlist) */
+  unlockedUnits?: string[];
+  techAllowlist?: Record<string, string[]>;
 }
 ```
 
-Climb migration: replace or wrap today’s `ClimbSettings` with a list of
-level ids; between-level UI already has “Round n/total” patterns in HUD.
+Rule-by-rule mapping onto today's code:
 
-Objectives evaluator later plugs into match-end / mid-battle checks without
-changing scene format if `tags` exist.
+| Rule | Today's code it replaces a hard-coded decision in |
+|------|---------------------------------------------------|
+| `income` | `EconomySettings` / `grantClimbAwareRoundIncome` |
+| `sideHp` | `chooseCard` HP grant, `climbSideHp` |
+| `commander` | card offer + `chooseCard` starter army |
+| `roundCards`, `hordeWaves` | existing presets |
+| `flanksOpenFromRound`, `neutralOpenFromRound` | `startBuildPhase` `round >= 2` / tutorial checks |
+| `atmosphere` | `weather.onRound` |
+| `opponents` | `AiOpponent.onBuildPhase` (skip `runBuildActions`, keep `endDeployment`) |
 
----
+Commander income, gifts and the Cursed spider need no rule: with
+`commander.mode === 'none'` there is no speciality, so they do nothing.
 
-## 11. Extra ideas (prioritized)
-
-### 11.1 Include if cheap during MVP
-
-- Mirror / clear side  
-- Duplicate selection  
-- Clipboard JSON share  
-- Validation warnings (empty enemy, zero unlocks, OOB after resize)  
-- Outcome strip after Test Battle  
-- Map preset `tiny` for unit labs  
-
-### 11.2 Later
-
-- `enemyRebuild` / `restoreSceneEachRound`  
-- True objective kinds + UI  
-- Dialogue / scripting hooks  
-- Steam Workshop  
-- Offline balance harness (N seeds → winrate)  
-- Per-pack tech (engine change)  
-- Author multi-seat 2v2 scenes  
+**Migration path, not a big-bang refactor:** introduce `resolveMatchRules`
+returning today's behaviour, then convert each decision above as the scenario
+work needs it. Climb and tutorial can move onto the same object later, which
+removes branches from core instead of adding a third special case.
 
 ---
 
-## 12. Files likely to change (implementation map)
+## 6. Scenario semantics
 
-### 12.1 New modules (bulk of the work)
+### 6.1 Start of a scenario match
 
-| Module | Responsibility |
-|--------|----------------|
-| `src/game/levels/` | `LevelDef` schema, normalize/validate, `applyLevelScene` / `applyChallenge`, map presets, local library I/O — **shared by Play + future Campaign; no editor UI** |
-| `src/game/sandbox/` | Author session: `SandboxController`, draft autosave, team brush tools, Test Battle/Reset orchestration, editor undo stack |
-| `src/ui/sandbox/` | Author toolbar, map/challenge inspectors, tech toggle panel, level library UI — **not** folded into `hud.ts` |
+1. `Game` is constructed with `settings.scenario` (map from `def.map`, seed from `def.seed`).
+2. Bases are built from anchors, then adjusted by `scene.buildings`
+   (remove, set levels, man archer posts). `destroyed: true` is the state of a
+   building destroyed in an earlier round — rubble, with its normal effects.
+   `rules.strongholdMode` decides what a Stronghold is worth;
+   `scene.buildings` only decides whether one stands.
+3. `scene.techs` are added to each side's `TechTree`.
+4. Scene units are spawned **in canonical order** (player, enemy, horde; then
+   list order) with `free = true`, levels and runes applied.
+5. Rules take effect; round 1 build phase starts.
 
-### 12.2 Core touchpoints (keep tiny)
+Steps 2–4 run in the constructor path, before the first state hash and before
+any action is replayed, so resume and replay reproduce the same board with the
+same unit ids.
 
-| File | Allowed change |
-|------|----------------|
-| `src/game/settings.ts` | Optional `sandbox?` / `level?` fields + normalize |
-| `src/game/game.ts` | Construct/dispose sandbox or level applicator via host interface; **no** editor tool logic inline |
-| `src/game/ai.ts` | One gate: skip buys when playing a level / enemy frozen |
-| `src/game/actions.ts` | Prefer **no** new sandbox action kinds; at most tiny shared helpers if play needs a gate |
-| `src/game/placement.ts` | Prefer **no** editor branches; reuse `spawn` / `spawnAtWorld`; if a `free`/`ignoreZone` flag is missing, add a **generic** parameter — not `if (sandbox)` |
-| `src/game/tech.ts` | Small revoke/grant helper usable by sandbox host — not UI |
-| `src/main.ts` + menu HTML | Menu entries that call into levels/sandbox modules |
-| `src/ui/hud.ts` | At most “is sandbox chrome active?” hooks / hide a row — not panels |
+### 6.2 Side HP and rounds
 
-**Precedent:** `tutorialRuntime.ts` + `TutorialHost` — logic outside `Game`, host is a façade.
+- Fixed side HP replaces the commander grant; HP bars show authored values.
+- Each battle, surviving units chip the other side by their withdraw values.
+- All units revive for the next round (engine behaviour), so an authored enemy
+  army fights again every round.
 
-### 12.3 Hard rule for PRs
+| Preset | player | enemy | Plays like |
+|--------|--------|-------|-----------|
+| Sudden | 1 | 1 | one decisive battle |
+| Standard | 5000 | 5000 | a normal-length match |
+| Siege | 3000 | 20000 | the player must out-build a fixed fortress over many rounds |
 
-If a PR adds more than ~a screenful of sandbox/editor branching to `game.ts`,
-`actions.ts`, or `hud.ts`, it should be rejected in review and moved under
-`sandbox/` / `ui/sandbox/` / `levels/`.
+Editor hint (one line): “HP is chipped by surviving units each battle; units
+revive every round.”
+
+A future `units.reviveBetweenRounds: false` rule (true attrition) is a new
+mechanic and is listed in §11, not assumed.
+
+### 6.3 Economy, deploy, unlocks, techs
+
+- Income is the normal round grant driven by `rules.income` — no separate
+  “starting balance” rule.
+- `unlockedUnits` replaces the human seat's unlock list at start.
+- `techAllowlist` becomes the human seat's loadout; normal costs apply.
+- Enemy techs come only from `scene.techs`; enemies do not research in play
+  when `opponents: 'lockInOnly'`.
+
+### 6.4 Commander
+
+| `commander.mode` | Card offer | Starter army | Speciality |
+|------------------|-----------|--------------|------------|
+| `pick` | normal | yes | yes |
+| `fixed` | skipped | `starterArmy` decides | yes |
+| `none` | skipped | no | no |
+
+Authored scenarios default to `none`. Campaign levels that want a commander
+identity without extra units use `fixed` + `starterArmy: false`.
+
+### 6.5 Player units in the scene
+
+Authored player units are real player packs: they can be moved, levelled and
+sold like any pack deployed in an earlier round. They are **not** in the
+action log, so Undo never removes them (Undo only reverts this round's
+actions, same as today).
+
+### 6.6 Horde
+
+Authored horde units spawn as gridless packs (seat −1) like wave packs.
+`hordeWaves` independently decides whether preset waves also arrive.
+
+### 6.7 Objectives
+
+Parsed and stored; not evaluated in v1. `tags` on scene units are the hook.
 
 ---
 
-## 13. Suggested delivery phases
+## 7. Map
 
-1. **Schema + apply + play-from-JSON** (even with hand-written JSON)  
-2. **Author place/remove + team brush + draft autosave**  
-3. **Tech toggle + level L/R**  
-4. **Map presets + remount/restart + side HP + challenge panel**  
-5. **Test Battle / Reset + library UI + menu entries**  
-6. **Hardening:** enemy buy freeze, validation, outcome strip, objectives stub  
+### 7.1 Presets
 
-Each phase should be independently reviewable / playable.
+| Preset | Intent |
+|--------|--------|
+| `tiny` | one to two packs per side |
+| `compact` | small skirmish |
+| `standard` | `STANDARD_MAP` |
+| `wide` | more flank play |
+| `deep` | longer approach |
 
----
+UI: preset buttons, an advanced disclosure with the five `MapSize` numbers,
+and a live readout of the full grid (`cols × rows`) and world size.
 
-## 14. Risks and open implementation choices
+### 7.2 Minimum size
 
-| Risk / choice | Notes | Recommendation |
-|---------------|-------|----------------|
-| Editor bloat in `game.ts` / `actions.ts` | Feature will get complex | §17 separation; host façade; reject fat PRs |
-| Hot map remount complexity | Scenery, hazards, overlays, bases | Soft-restart Game with draft (orchestrated from `sandbox/`) |
-| Seat-wide techs vs per-unit scene techs | Engine is seat-wide today | Author UI honesty; duplicate onto units at export |
-| Enemy persistence across rounds | Dead enemy vs restore | Default: stay dead |
-| Resume during play challenges | Extra save shape | Defer |
-| Tiny maps vs `BASE_ANCHORS` | Bases may not fit | Clamp minimum map so anchors fit, or scale anchors for tiny (prefer clamp mins) |
-| Horde without horde preset | Camera/systems | Auto-enable light horde preset when scene has horde team |
-| Determinism / telemetry | Levels are SP | Mark matches as `level`/`sandbox` in telemetry |
+Computed, not guessed: the smallest `zoneCols` / `zoneRows` where every
+building that is **on the board** fits its `BASE_ANCHORS` spot (with its
+radius — Stronghold r = 14, towers r = 9). Buildings set to `false` in
+`scene.buildings` don't count, so a board with no buildings can be as small as
+a few packs. Validation reports an error below the minimum.
 
----
+### 7.3 Changing size in the editor
 
-## 15. Review checklist (for readers of this doc)
-
-- [ ] Agree snapshot `LevelDef` (not action-log) as Campaign atom  
-- [ ] Agree MapSize-only board editing + named presets  
-- [ ] Agree asymmetric `sideHp` + existing withdraw chip (no lives mode)  
-- [ ] Agree play = fresh build; enemy buys frozen; default keep authored player units  
-- [ ] Agree enemy army does not rebuild each round (v1)  
-- [ ] Agree objectives stub-only  
-- [ ] Confirm minimum map size policy vs stronghold anchors  
-- [ ] Confirm Test Battle = restore-from-snapshot editor loop  
-- [ ] Confirm localStorage library + clipboard as v1 sharing  
-- [ ] Agree **strict module separation** (§0.9 / §17): editor in `sandbox/` + `ui/sandbox/`, LevelDef pipeline in `levels/`, core only thin hooks  
+Restart from the draft with the new `MapSize`. Units outside the new board are
+listed in a toast and removed from the draft (undoable in the editor).
 
 ---
 
-## 16. Appendix — example LevelDef (illustrative)
+## 8. Editor (author mode)
+
+### 8.1 Tools
+
+| Tool | Behaviour |
+|------|-----------|
+| Select | click a pack or building; drag to move |
+| Place | palette of every type incl. horde; team brush Player / Enemy / Horde |
+| Erase | click to remove |
+| Copy / paste | selection or box selection |
+| Mirror | copy one side onto the other (mirrored rows) |
+| Clear side | remove all units of one team |
+
+Placement uses `placement.spawn(..., free)` for grid packs and
+`spawnAtWorld` for gridless ones — no zone checks, no slots, no cost.
+
+### 8.2 Inspector (selection)
+
+- Level: **− / +** buttons, hotkeys `[` `]`, mouse wheel over the field.
+  (Left click stays select/place; no mouse-button overloading.)
+- Runes: add / remove slots.
+- Techs: the type's allowlist as toggles, innates shown locked-on, with the
+  note “applies to all packs of this type on this side”.
+- Tags.
+- Buildings: on/off, level, destroyed, archer posts.
+
+### 8.3 Scenario panel
+
+1. Map preset and size
+2. Rules (§5) with presets for side HP and income
+3. Metadata (name, description)
+4. Library: Save, Save As, Export file, Copy share code, Import
+
+### 8.4 Draft and undo
+
+- Every edit updates the in-memory `ScenarioDef` and autosaves the draft.
+- Undo/redo is an editor-local stack of draft snapshots, separate from match
+  Undo and from `ActionDispatcher`.
+
+### 8.5 Test Battle and unit lab
+
+- **Test Battle:** restart with `mode: 'test'` from the current draft. Both
+  sides lock in automatically, the battle plays, a result strip shows winner,
+  battle time, HP chipped each side and per-pack damage (the existing battle
+  report). **Back to editor** restarts `mode: 'author'` from the same draft.
+- **Speed:** the normal speed control; pause/step frame in test mode.
+- **Win-rate run:** repeat Test Battle over N seeds at max speed and show the
+  win split. Uses the same restart path, no new sim code.
+
+---
+
+## 9. Extra features
+
+### 9.1 Capture situation (high value)
+
+“Save as scenario” from any SP match, spectated match or replay **at the start
+of a build phase**: current board, levels, runes, side techs, buildings, side
+HP and map flags become a draft (`flanksOpenFromRound` = 1 if already open).
+Every “that fight was weird” and every bug report becomes reproducible.
+
+### 9.2 Share codes
+
+Compressed, URL-safe string of a `ScenarioDef` for chat and Discord. Import
+shows the validation report before playing.
+
+### 9.3 Scenario regression tests
+
+A scenario + recorded player actions + expected `{ result, rounds, playerHp,
+enemyHp }` runs through the existing replay-verification path and prints ✓ or
+the mismatch. A folder of these becomes a balance and determinism check that
+can run before each release.
+
+### 9.4 Campaign (later)
+
+```ts
+interface CampaignDef {
+  id: string;
+  name: string;
+  levels: { scenarioId: string; carryOver?: 'none' | 'army' | 'army+supply' }[];
+}
+```
+
+- Next level unlocks on victory; optional star rating (HP left, rounds).
+- `carryOver` is decided per level transition, not hidden inside a scenario.
+
+### 9.5 Triggers (later)
+
+Declarative events, e.g. `roundStart 3 → spawn group "reinforcements"`,
+`tagged "boss" dies → victory`. Scripted tutorials and horde presets could
+eventually become triggers.
+
+---
+
+## 10. Play mode flow
+
+1. Scenarios → select → Play (validation must have no errors).
+2. Commander step per `rules.commander`.
+3. Scenario start (§6.1).
+4. Normal build → lock-in → battle → HP draw → next round.
+5. Victory / defeat screen → back to the library (campaign: next level).
+6. Resume, retry-last-round and replay export work through the normal SP
+   paths because the scenario is part of settings.
+
+---
+
+## 11. Deferred ideas
+
+- `reviveBetweenRounds: false` (true attrition — new mechanic)
+- Objective evaluation + UI
+- Per-side `strongholdMode`
+- 2v2 scenarios
+- Steam Workshop
+- Triggers (§9.5)
+- Per-pack techs (engine change)
+
+---
+
+## 12. Code architecture
+
+### 12.1 Modules
+
+```text
+src/game/matchRules.ts        # MatchRules type + resolveMatchRules(settings) — core, all modes
+
+src/game/scenario/            # ScenarioDef pipeline — play, test, campaign (no editor UI)
+  scenarioDef.ts              # types, version, migration table
+  normalize.ts                # normalizeScenario → { def, report }
+  applyScenario.ts            # bases, techs, units onto a Game via ScenarioHost
+  mapLimits.ts                # presets + minimum size from BASE_ANCHORS
+  capture.ts                  # live match → ScenarioDef (§9.1)
+  library.ts                  # localStorage, file, share codes
+
+src/game/editor/              # author session only
+  editorController.ts         # tools, selection, draft, restart orchestration
+  editorHistory.ts            # draft undo/redo
+  unitLab.ts                  # test battle, win-rate runs
+
+src/ui/editor/                # author DOM only
+  toolbar.ts
+  inspector.ts
+  scenarioPanel.ts
+  libraryPanel.ts
+```
+
+Dependencies: `scenario/` never imports `editor/` or `ui/editor/`.
+Campaign and play depend on `scenario/` only.
+
+### 12.2 Host interfaces (the only core surface)
+
+Same pattern as `TutorialHost` (`tutorialRuntime.ts`).
+
+```ts
+interface ScenarioHost {
+  readonly settings: GameSettings;
+  readonly map: BattleMap;
+  readonly placement: PlacementController;
+  readonly techTree: TechTree;
+  setSideHp(player: number, enemy: number): void;
+  setBuilding(team: Team, building: SceneBuildingKind, state: BuildingState): void;
+}
+
+interface EditorHost extends ScenarioHost {
+  restart(settings: GameSettings): void;      // author ⇄ test, map size change
+  setUnitLevel(unit: Unit, level: number): void;
+  setUnitItems(unit: Unit, items: string[]): void;
+  setTool(tool: BoardTool | null): void;      // pointer events go to the tool
+  setChrome(chrome: HudChrome): void;         // which match HUD parts are shown
+}
+```
+
+### 12.3 Core changes (all generic)
+
+| File | Change | Also useful for |
+|------|--------|-----------------|
+| `settings.ts` | `scenario?: { def; mode }` + normalize | — |
+| `matchRules.ts` (new) | rules type + resolver | climb, tutorial, custom games |
+| `game.ts` | read rules in `startBuildPhase` / card flow; implement hosts; construct `applyScenario` / `EditorController` | — |
+| `ai.ts` | `opponents` rule: skip buying, keep lock-in | future “passive AI” practice |
+| `units.ts` | `setLevel(level)` (replaces ad-hoc `level =` + `applyLevelLook`) | cheats, tutorial |
+| `placement.ts` | board tool hook: pointer events to an active tool | future spell/rally tools |
+| `hud.ts` | `setChrome({ shop, topbar, … })` visibility API (cinema mode already does this ad hoc) | cinema mode, tutorials |
+
+Not needed: placement zone flags (`spawn` already skips zones), tech
+grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
+
+### 12.4 Rules of thumb for review
+
+- A change in core must be expressible without the word “editor” or
+  “scenario” — a rule read, a host method, or a primitive.
+- Editor tool state lives in `editor/`; editor DOM lives in `ui/editor/`.
+- Nothing editor-related is logged, hashed or sent over the network.
+
+---
+
+## 13. Delivery phases
+
+1. **Rules + scenario play:** `matchRules.ts`, `ScenarioDef`, normalize,
+   `applyScenario`, play a hand-written JSON, resume + replay verification.
+2. **Capture situation** (§9.1) — immediate value, and it exercises apply.
+3. **Editor core:** author mode, place / move / erase, team brush, draft
+   autosave, restart on map change.
+4. **Inspector:** levels, runes, side techs, buildings.
+5. **Scenario panel + library:** rules UI, presets, files, share codes.
+6. **Test Battle + unit lab**, then regression-test harness (§9.3).
+
+Each phase is playable and reviewable on its own.
+
+---
+
+## 14. Resolved issues from v1
+
+| v1 rule | Problem | v2 |
+|---------|---------|----|
+| Enemy that died stays dead | Engine revives all units each round | Revive (engine behaviour); attrition deferred as a new mechanic |
+| Fixed HP via climb/tutorial path | That path is one shared number | `rules.sideHp` per side |
+| `forceCommanderId` / `skipCardPick` | Forced card would spawn a starter army into the scene | `rules.commander` with `starterArmy` |
+| “Freeze enemy buys” | Freezing the AI stops it locking in; battle never starts | `opponents: 'lockInOnly'` |
+| Per-unit `techs[]`, duplicated at export | Engine techs are side-wide; format allowed impossible states | `scene.techs` side-level map |
+| `sandbox.author` and `level` as two settings fields | Two modes that must be kept exclusive by hand | `settings.scenario = { def, mode }` |
+| No resume, LevelDef kept out of replays | Loses resume/retry/replay | Scenario in settings → all work |
+| Hot remount vs restart left open | Two code paths | Restart only |
+| Test Battle “in-place or restore” | Two code paths | `mode: 'test'` restart |
+| `startingSupply` set as liquid balance *and* round income | Double grant | Only the normal income rule |
+| `clearPlayerArmy` with keep-tag exceptions | Special case inside the format | Removed; campaign `carryOver` decides between levels |
+| `flanksUnlockedAtStart` booleans | Separate flags beside round logic | `flanksOpenFromRound` / `neutralOpenFromRound` |
+| Auto-enable horde preset when horde units exist | Hidden coupling | `hordeWaves` is explicit; authored horde works regardless |
+| Unknown type: warn in editor, fail in play (two policies) | Inconsistent | One normalizer with a report; Play refuses errors |
+| Left click = level up, right click = level down | Collides with select/place | −/+ buttons, `[` `]`, wheel |
+| “Reject PRs over a screenful” | Size is a poor proxy | §12.4 rules of thumb |
+| Scenario units spawned in any order | Unit ids depend on spawn order | Canonical apply order (§6.1) |
+
+---
+
+## 15. Review checklist
+
+- [ ] Scenario embedded in `GameSettings` with `mode: author | play | test`
+- [ ] `MatchRules` as the single place for per-round behaviour
+- [ ] Units revive each round; attrition deferred
+- [ ] Side-level techs; runes per pack
+- [ ] Commander modes `pick | fixed(+starterArmy) | none`
+- [ ] Opponents always lock in
+- [ ] Restart-only editor (no hot remount)
+- [ ] Minimum map size derived from base anchors
+- [ ] Capture situation in phase 2
+- [ ] Core changes limited to §12.3
+
+---
+
+## 16. Appendix — example scenario
 
 ```json
 {
   "version": 1,
-  "id": "example-archer-vs-ogre",
-  "name": "Archer vs Ogre (tiny)",
-  "map": {
-    "zoneCols": 12,
-    "zoneRows": 8,
-    "neutralRows": 2,
-    "flankCols": 2,
-    "rimCells": 2
-  },
-  "mapFlags": {
-    "flanksUnlockedAtStart": true,
-    "neutralUnlockedAtStart": true
-  },
-  "challenge": {
-    "season": "autumn",
-    "startingSupply": 500,
-    "unitsPerRound": 4,
+  "gameVersion": "0.9.0",
+  "id": "archer-vs-ogre-tiny",
+  "name": "Archer vs Ogre",
+  "seed": 1234,
+  "map": { "zoneCols": 12, "zoneRows": 8, "neutralRows": 2, "flankCols": 0, "rimCells": 2 },
+  "rules": {
+    "income": { "round1": 500, "growth": 0 },
+    "deploy": { "unitsPerRound": 4, "extrasBudgetPerRound": 0 },
     "sideHp": { "player": 1, "enemy": 1 },
-    "unlockedUnitIds": ["archer"],
-    "loadoutMode": "fullAllowlist",
-    "clearPlayerArmy": false,
-    "skipCardPick": true
+    "commander": { "mode": "none" },
+    "roundCards": "off",
+    "hordeWaves": "off",
+    "flanksOpenFromRound": null,
+    "neutralOpenFromRound": 1,
+    "atmosphere": { "season": "autumn", "rotate": false },
+    "strongholdMode": "none",
+    "opponents": "lockInOnly",
+    "enemyIntel": "visible",
+    "unlockedUnits": ["archer"]
   },
   "scene": {
     "units": [
-      {
-        "typeId": "archer",
-        "team": "player",
-        "col": 4,
-        "row": 3,
-        "level": 1,
-        "techs": []
-      },
-      {
-        "typeId": "ogre",
-        "team": "enemy",
-        "col": 4,
-        "row": 12,
-        "level": 1,
-        "techs": []
-      }
-    ]
+      { "typeId": "archer", "team": "player", "at": { "col": 5, "row": 3 }, "level": 1 },
+      { "typeId": "ogre", "team": "enemy", "at": { "col": 5, "row": 12 }, "level": 1 }
+    ],
+    "techs": { "player": {}, "enemy": { "ogre": [] } },
+    "buildings": {
+      "player": { "stronghold": false, "commandTower": false, "researchCenter": false },
+      "enemy": { "stronghold": false, "commandTower": false, "researchCenter": false }
+    }
   },
   "objectives": []
 }
 ```
-
-*(Type ids in the example are placeholders — use real catalog ids at
-authoring time.)*
-
----
-
-## 17. Code architecture & separation
-
-Editor/authoring will get large. **Normal match code must stay readable.**
-Follow the tutorial pattern: fat logic outside, thin host façade on `Game`.
-
-### 17.1 Package split
-
-```text
-src/game/levels/          # LevelDef — Play + Campaign (no editor chrome)
-  levelDef.ts             # types, version, normalize, validate
-  mapPresets.ts           # tiny/compact/standard/…
-  applyLevel.ts           # apply scene + challenge onto a live Game via host
-  levelLibrary.ts         # localStorage / import / export helpers
-
-src/game/sandbox/         # Author-only session logic
-  sandboxController.ts    # tools, draft, Test Battle, remount orchestration
-  sandboxCommands.ts      # editor undo stack (optional)
-  sandboxHost.ts          # SandboxHost interface (what Game must expose)
-
-src/ui/sandbox/           # Author-only DOM/UI
-  sandboxToolbar.ts
-  sandboxInspector.ts     # map, challenge, tech, selection
-  levelLibraryPanel.ts
-```
-
-Play mode and Campaign **only depend on `levels/`**, never on `sandbox/` or
-`ui/sandbox/`. Author mode depends on both.
-
-```mermaid
-flowchart TB
-  Menu[main.ts menu] --> AuthorBoot[sandbox boot]
-  Menu --> PlayBoot[levels apply]
-  AuthorBoot --> SC[SandboxController]
-  SC --> UI[ui/sandbox]
-  SC --> Levels[game/levels]
-  PlayBoot --> Levels
-  Levels --> Host[SandboxHost or LevelHost façade]
-  Host --> Game[Game / Placement / TechTree]
-  SC -.->|must not import| HudCore[hud.ts match UI]
-```
-
-### 17.2 Host façade (allowed core surface)
-
-`Game` implements a small interface (names illustrative), analogous to
-`TutorialHost`:
-
-```ts
-interface LevelPlayHost {
-  readonly settings: GameSettings;
-  readonly map: BattleMap;
-  readonly placement: PlacementController;
-  readonly economy: Economy;
-  // …only what applyLevel / challenge gates need
-  setSideHp(player: number, enemy: number): void;
-  setSeason(season: Season, immediate?: boolean): void;
-  freezeEnemyBuys(frozen: boolean): void;
-}
-
-interface SandboxHost extends LevelPlayHost {
-  /** Soft-restart or remount with a new MapSize while preserving draft apply */
-  restartWithDraft(def: LevelDef): void;
-  grantTech(seat: number, typeId: string, techId: string): void;
-  revokeTech(seat: number, typeId: string, techId: string): void;
-  setUnitLevel(unitId: number, level: number): void;
-  // selection / camera helpers as needed — still thin
-}
-```
-
-Wire-up in `game.ts` constructor/boot:
-
-```ts
-if (settings.sandbox?.author) {
-  this.sandbox = new SandboxController(this.asSandboxHost());
-} else if (settings.level) {
-  applyLevel(this.asLevelPlayHost(), settings.level);
-}
-```
-
-No tool state machines inside `Game`.
-
-### 17.3 What must not happen
-
-- Large `if (this.settings.sandbox)` blocks in the battle/build tick
-- Editor panels pasted into `hud.ts`
-- New `Action` variants for every editor tool (see §7.7)
-- Play/Campaign importing `src/game/sandbox/**`
-- Duplicating placement rules in the editor — call `placement.spawn` /
-  shared helpers with **generic** options (`free`, `ignoreDeployZone`) rather
-  than `sandbox: true` flags sprinkled through core
-
-### 17.4 Shared vs author-only
-
-| Concern | Lives in |
-|---------|----------|
-| `LevelDef` schema / validate / apply | `levels/` (shared) |
-| Challenge filters (unlocks, tech allowlist, side HP) | `levels/applyLevel.ts` |
-| Enemy buy freeze | one-liner in `ai.ts` reading `settings.level` (or a boolean set by apply) |
-| Team brush, L/R level, tech toggle UI, draft autosave, Test Battle | `sandbox/` + `ui/sandbox/` |
-| Map remount / soft restart | orchestrated by `SandboxController`, executed via host |
-
-### 17.5 Complexity budget
-
-Expect sandbox UI + tools to grow. That growth is **fine** inside
-`sandbox/` and `ui/sandbox/`. It is **not** fine if `game.ts` / `actions.ts`
-absorb it. Reviewers should treat core file churn as a red flag unless it is
-a reusable primitive (e.g. `spawn` ignoring zones for any caller).
 
 ---
 
@@ -931,5 +712,5 @@ a reusable primitive (e.g. `spawn` ignoring zones for any caller).
 
 | Date | Change |
 |------|--------|
-| 2026-09-13 | Initial review draft from planning session (sandbox + level export, MapSize boards, asymmetric side HP, Campaign-ready schema) |
-| 2026-09-13 | Locked strict code separation: `levels/` + `sandbox/` + `ui/sandbox/`; thin host façade; no ActionDispatcher editor bloat (§0.9, §7.7, §12, §17) |
+| 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
+| 2026-09-13 | v2: verified against the engine. Scenario embedded in settings (replay/resume), `MatchRules`, restart-only editor, side-level techs, commander modes, opponents always lock in, revive semantics, capture situation, share codes, regression tests, campaign carry-over, resolved-issues table (§14) |
