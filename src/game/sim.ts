@@ -580,6 +580,8 @@ export type SimEvent =
           bloodScale?: number;
           /** Ground wear stamp. Omit/true = stamp; false = VFX only. */
           scar?: boolean;
+          /** Ward dome absorb — hull ripple (render-only). */
+          ward?: boolean;
       }
     /** Arrow / ballista shaft planted at a hit (render-only stuck-bolt pool).
      *  `attachIndex` = actor whose mesh the shaft follows (tip/fall/walk). */
@@ -2757,7 +2759,14 @@ export class BattleSim {
             );
             if (dome) {
                 // wards block the strike — no unit debuff
-                this.events.push({ kind: 'impact', x: dome.x, y: 3, z: dome.z });
+                this.events.push({
+                    kind: 'impact',
+                    x: dome.x,
+                    y: 3,
+                    z: dome.z,
+                    ward: true,
+                    scar: false,
+                });
                 this.events.push({ kind: 'spellLightning', x: dome.x, y: 3, z: dome.z });
             } else {
                 const splash = z.impactRadius ?? 0;
@@ -2918,7 +2927,14 @@ export class BattleSim {
             intercept.hp -= s.damage;
             intercept.hurtTimer = HURT_BAR_SECONDS;
             if (intercept.hp <= 0) this.breakShield(intercept);
-            this.events.push({ kind: 'impact', x: intercept.x, y: 3, z: intercept.z });
+            this.events.push({
+                kind: 'impact',
+                x: intercept.x,
+                y: 3,
+                z: intercept.z,
+                ward: true,
+                scar: false,
+            });
             return;
         }
         const y = simGroundHeightAt(s.x, s.z);
@@ -4763,6 +4779,8 @@ export class BattleSim {
                     x: p.x + sx * crossing.t,
                     y: p.y + sy * crossing.t,
                     z: p.z + sz * crossing.t,
+                    ward: true,
+                    scar: false,
                 });
                 if (shield.hp <= 0) this.breakShield(shield);
                 continue; // bullet absorbed

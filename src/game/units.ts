@@ -1,16 +1,12 @@
 import {
     Box3,
     BoxGeometry,
-    CanvasTexture,
     Color,
     CylinderGeometry,
-    DoubleSide,
     Group,
     Mesh,
     MeshStandardMaterial,
-    RepeatWrapping,
     SphereGeometry,
-    SRGBColorSpace,
     Vector3,
 } from 'three';
 import { techBlurb, techName, unitName, t } from '../i18n';
@@ -19,55 +15,6 @@ import { BASE_PACK } from './content/basePack';
 import { TypeRegistry } from './content/typeRegistry';
 import type { BurnAffinity, FireProfile } from './fire';
 import { detAtan2 } from './detMath';
-
-/**
- * The ward dome's skin: a faint violet film with a band of golden runes
- * floating near the base and a double arcane circle. RGB carries the hue,
- * alpha carries how solid each texel is (film ~0.2, runes ~1).
- */
-function makeWardRuneTexture(): CanvasTexture {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 128;
-    const ctx = canvas.getContext('2d')!;
-    // violet film
-    ctx.fillStyle = 'rgba(150, 105, 235, 0.2)';
-    ctx.fillRect(0, 0, 512, 128);
-    // double arcane circle near the dome base (bottom of the texture)
-    ctx.strokeStyle = 'rgba(255, 205, 120, 0.85)';
-    ctx.lineWidth = 2.5;
-    for (const y of [104, 116]) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(512, y);
-        ctx.stroke();
-    }
-    // golden rune glyphs between the circles / floating just above them
-    const rng = mulberry32(4242);
-    ctx.strokeStyle = 'rgba(255, 210, 130, 0.95)';
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    for (let i = 0; i < 24; i++) {
-        const cx = 12 + i * 21 + rng() * 6;
-        const cy = 78 + rng() * 22;
-        const s = 6 + rng() * 4;
-        ctx.beginPath();
-        // each rune: a vertical stave plus 2-3 random branches
-        ctx.moveTo(cx, cy - s);
-        ctx.lineTo(cx, cy + s);
-        const branches = 2 + Math.floor(rng() * 2);
-        for (let b = 0; b < branches; b++) {
-            const by = cy - s + rng() * s * 2;
-            ctx.moveTo(cx, by);
-            ctx.lineTo(cx + (rng() < 0.5 ? -1 : 1) * (s * 0.9), by + (rng() - 0.5) * s);
-        }
-        ctx.stroke();
-    }
-    const texture = new CanvasTexture(canvas);
-    texture.colorSpace = SRGBColorSpace;
-    texture.wrapS = RepeatWrapping;
-    return texture;
-}
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
@@ -92,6 +39,7 @@ import { getUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import { beginBuildingCollapse, beginHammerCrush, clearHammerCrush, groundTipAt, hammerCrushSpin, HAMMER_CRUSH_SEAT_Y } from './buildingCollapse';
 import { clearCorpsePose, clearDeathClip, clearDeathFall, clearDeathTip } from './deathFall';
 import { preserveBuildingSnow } from './buildingSnow';
+import { createWardDomeMesh } from './wardDomeFx';
 
 export type Team = 'player' | 'enemy';
 
@@ -848,41 +796,7 @@ class PartFactory {
 
     /** translucent arcane ward dome (shield extra) — casts no shadow */
     dome(r: number, heightScale: number): Mesh {
-        const mesh = new Mesh(
-            new SphereGeometry(r, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2),
-            material('shield-dome-arcane', () => {
-                const runes = makeWardRuneTexture();
-                const m = new MeshStandardMaterial({
-                    color: 0xffffff,
-                    map: runes, // violet film + golden rune band (alpha carries both)
-                    emissive: 0xffffff,
-                    emissiveMap: runes,
-                    emissiveIntensity: 0.85,
-                    transparent: true,
-                    opacity: 0.6,
-                    roughness: 0.4,
-                    side: DoubleSide,
-                    depthWrite: false,
-                });
-                // arcane fresnel rim: the dome edge glows violet like a soap
-                // bubble of magic instead of a flat sci-fi tint
-                m.onBeforeCompile = (shader) => {
-                    shader.fragmentShader = shader.fragmentShader.replace(
-                        '#include <emissivemap_fragment>',
-                        `#include <emissivemap_fragment>
-    float wardFres = pow(1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition))), 2.2);
-    totalEmissiveRadiance += vec3(0.62, 0.38, 1.0) * wardFres * 1.4;
-    diffuseColor.a = clamp(diffuseColor.a + wardFres * 0.5, 0.0, 1.0);`,
-                    );
-                };
-                m.customProgramCacheKey = () => 'shield-dome-arcane';
-                return m;
-            }),
-        );
-        mesh.scale.y = heightScale;
-        // Visual-only: the hull must not steal unit picks (build or battle).
-        // Click the stone/pylon to select the ward; units under the dome stay clickable.
-        mesh.raycast = () => {};
+        const mesh = createWardDomeMesh(r, heightScale, this.team);
         this.group.add(mesh);
         return mesh;
     }
@@ -1663,20 +1577,23 @@ function applyMeshLevelTint(root: Group, level: number): void {
 
     root.traverse((child) => {
         if (!(child instanceof Mesh)) return;
+        // Ward dome is a ShaderMaterial — no MeshStandard color/emissive to tint.
+        if (child.userData.wardDome) return;
         if (!child.userData.levelTintReady) {
             const src = child.material;
             if (Array.isArray(src)) {
                 child.material = src.map((m) => {
-                    const c = (m as MeshStandardMaterial).clone();
-                    preserveBuildingSnow(m as MeshStandardMaterial, c);
+                    if (!(m instanceof MeshStandardMaterial)) return m;
+                    const c = m.clone();
+                    preserveBuildingSnow(m, c);
                     c.userData.levelBaseColor = c.color.clone();
                     c.userData.levelBaseEmissive = c.emissive.clone();
                     c.userData.levelBaseEmissiveIntensity = c.emissiveIntensity;
                     return c;
                 });
-            } else if (src) {
-                const c = (src as MeshStandardMaterial).clone();
-                preserveBuildingSnow(src as MeshStandardMaterial, c);
+            } else if (src instanceof MeshStandardMaterial) {
+                const c = src.clone();
+                preserveBuildingSnow(src, c);
                 c.userData.levelBaseColor = c.color.clone();
                 c.userData.levelBaseEmissive = c.emissive.clone();
                 c.userData.levelBaseEmissiveIntensity = c.emissiveIntensity;

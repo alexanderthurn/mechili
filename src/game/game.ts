@@ -123,6 +123,7 @@ import { OilDripFx } from './oilDripFx';
 import { BlobShadows, type BlobShadowSource } from './blobShadows';
 import { AcidFx } from './acidFx';
 import { FireFx, fireUsesTongues } from './fireFx';
+import { clearWardDomes, updateWardDomes, wardDomeSpawnFromEvents } from './wardDomeFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
 import { hasFlagNode, StrongholdFlags } from './strongholdFlags';
 import { StrongholdCommanders } from './strongholdCommander';
@@ -2816,6 +2817,7 @@ export class Game {
         this.towerDebuffFx.dispose();
         this.collapseFx.dispose();
         this.stoneChips.dispose();
+        clearWardDomes();
         this.controls.dispose();
         this.gamepad.dispose();
         this.tutorial?.dispose();
@@ -9914,6 +9916,7 @@ export class Game {
                 this.fireFx.spawnFromEvents(battleEvents);
                 this.towerDebuffFx.spawnFromEvents(battleEvents);
                 this.collapseFx.spawnFromEvents(battleEvents);
+                wardDomeSpawnFromEvents(battleEvents);
                 if (battleEvents.some((e) => e.kind === 'strongholdCollapse')) {
                     this.collapseEndedRound = true;
                 }
@@ -10022,6 +10025,18 @@ export class Game {
         this.collapseFx.update(gameDt);
         this.particles.update(gameDt);
         this.stoneChips.update(gameDt);
+        {
+            const wardRoots: import('three').Object3D[] = [];
+            for (const u of this.placement.allUnits()) {
+                if (u.type.shield) wardRoots.push(u.view);
+            }
+            if (this.sim) {
+                for (const a of this.sim.actors) {
+                    if (a.unit.type.shield) wardRoots.push(a.mesh);
+                }
+            }
+            updateWardDomes(gameDt, wardRoots);
+        }
         this.acidFx.update(
             gameDt,
             this.phase === 'battle' && this.sim ? this.sim.hazards : this.oilField,
