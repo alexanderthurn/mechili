@@ -164,16 +164,26 @@ export function installAssetOverlay(next: AssetOverlay): void {
     overlay = next;
 }
 
-/** Back to the base game's files only (lookup only, like {@link installAssetOverlay}). */
+/**
+ * Back to the base game's files only (lookup only, like {@link installAssetOverlay}).
+ * The overlay's file URLs stay valid, so it can be installed again later;
+ * {@link disposeAssetOverlay} releases them for good.
+ */
 export function clearAssetOverlay(): void {
     if (overlay) {
-        for (const url of overlay.urls.values()) {
-            URL.revokeObjectURL(url);
-            // three's file cache is keyed by URL; a revoked blob URL is never requested again
-            Cache.remove(url);
-        }
+        // three's file cache is keyed by URL — drop the bytes, the blob can be read again
+        for (const url of overlay.urls.values()) Cache.remove(url);
     }
     overlay = null;
+}
+
+/** Release an overlay that will never be installed again (it must not be the active one). */
+export function disposeAssetOverlay(dead: AssetOverlay): void {
+    if (dead === overlay) throw new Error('[assets] cannot dispose the active overlay');
+    for (const url of dead.urls.values()) {
+        Cache.remove(url);
+        URL.revokeObjectURL(url);
+    }
 }
 
 // ------------------------------------------------------------------ reloading

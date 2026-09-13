@@ -83,6 +83,8 @@ import {
     migrateUserStorage,
 } from './game/userStorage';
 import { bootGameAssets } from './game/bootAssets';
+import { activeLevelRef, isLevelActive, knownLevels, loadLevel, prepareLevel, type LevelRef } from './game/level';
+import { readZip } from './game/content/zip';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
@@ -288,6 +290,8 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
     settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
+    // the scenario chosen for this room (web testing), unset = base game
+    settings.level = activeLevelRef();
 }
 
 // dev override: tweak match settings from the URL, e.g. ?build=20&nocards
@@ -1108,6 +1112,10 @@ menu.innerHTML = `
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
                 </label>
+                <label class="m-field cg-scenario-field" hidden><span class="m-field-label">Scenario (test)</span>
+                    <select class="cg-scenario"></select>
+                </label>
+                <input type="file" class="cg-scenario-file" accept=".zip,application/zip" hidden>
                 <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
             </div>
         </div>
@@ -1261,6 +1269,70 @@ const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp'
 const cgMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-money')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
+const cgScenarioFieldEl = menu.querySelector<HTMLLabelElement>('.cg-scenario-field')!;
+const cgScenarioEl = menu.querySelector<HTMLSelectElement>('.cg-scenario')!;
+const cgScenarioFileEl = menu.querySelector<HTMLInputElement>('.cg-scenario-file')!;
+
+/**
+ * Web testing only: play a Custom Game on a scenario from a zip. The Steam game
+ * never shows a picker — there a scenario comes with what the player does
+ * (joining a match, a campaign, a scenario list), and `startGame` loads the
+ * level the match settings name.
+ */
+const SCENARIO_ZIP_TESTING = !isElectron();
+
+function refreshScenarioSelect(): void {
+    const active = activeLevelRef();
+    cgScenarioEl.textContent = '';
+    const add = (value: string, label: string) => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        cgScenarioEl.appendChild(opt);
+    };
+    add('', 'Base game');
+    for (const level of knownLevels()) add(level.hash, `${level.id} · ${level.hash.slice(0, 6)}`);
+    add('zip', 'Load zip…');
+    cgScenarioEl.value = active?.hash ?? '';
+}
+
+async function switchScenarioTo(ref: LevelRef | undefined): Promise<void> {
+    cgScenarioEl.disabled = true;
+    try {
+        await prepareLevel(ref);
+    } finally {
+        cgScenarioEl.disabled = false;
+        refreshScenarioSelect();
+    }
+}
+
+cgScenarioEl.addEventListener('change', () => {
+    if (cgScenarioEl.value === 'zip') {
+        refreshScenarioSelect(); // stays on the active entry until a zip is loaded
+        cgScenarioFileEl.value = '';
+        cgScenarioFileEl.click();
+        return;
+    }
+    const ref = knownLevels().find((l) => l.hash === cgScenarioEl.value);
+    void switchScenarioTo(ref).catch((e: unknown) => console.error('[scenario]', e));
+});
+
+cgScenarioFileEl.addEventListener('change', () => {
+    const file = cgScenarioFileEl.files?.[0];
+    if (!file) return;
+    void (async () => {
+        try {
+            const files = await readZip(await file.arrayBuffer());
+            const { ref, report } = await loadLevel(file.name.replace(/\.zip$/i, ''), files);
+            console.info(`[scenario] loaded "${ref.id}" (${files.length} files, ${ref.hash.slice(0, 12)})`, report);
+            await switchScenarioTo(ref);
+        } catch (e) {
+            console.error('[scenario] zip rejected', e);
+            window.alert(`Scenario zip rejected:\n${e instanceof Error ? e.message : String(e)}`);
+            refreshScenarioSelect();
+        }
+    })();
+});
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
 const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-toggle')!;
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
@@ -2162,6 +2234,8 @@ function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () =
     cgCommanderHpEl.disabled = false;
     cgMoneyEl.disabled = false;
     cgResetEl.disabled = false;
+    cgScenarioFieldEl.hidden = !SCENARIO_ZIP_TESTING;
+    if (SCENARIO_ZIP_TESTING) refreshScenarioSelect();
     populateLobbySettingsForm(config);
 }
 
@@ -2185,6 +2259,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgCommanderHpEl.disabled = true;
     cgMoneyEl.disabled = true;
     cgResetEl.disabled = true;
+    cgScenarioFieldEl.hidden = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
 }
@@ -2884,6 +2959,25 @@ function startGame(
     } | null = null,
 ): void {
     if (started) return;
+    // The match plays the level its settings name (unset = base game). Loading
+    // it happens here, once, for every way into a match — the player never
+    // picks where the data comes from.
+    if (!isLevelActive(settings.level)) {
+        void prepareLevel(settings.level).then(
+            () => startGame(settings, side, names, resume, star, replay, spectate),
+            (e: unknown) => {
+                console.error(e);
+                setMenuChromeVisible(true);
+                setStatus(
+                    t('menu:scenarioUnavailable', {
+                        defaultValue: 'This match uses a scenario that is not available.',
+                    }),
+                    6000,
+                );
+            },
+        );
+        return;
+    }
     started = true;
     destroyMenuGamepadCursor();
     // setMenuChromeVisible(false) is never called anywhere

@@ -253,7 +253,6 @@ import { activeLoadout, randomLoadout } from './loadouts';
 import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
-    BASE_TYPES,
     STRONGHOLD_ARCHER_FOV_HALF,
     hasAbility,
     type BuildingAbilityId,
@@ -289,6 +288,7 @@ import { renderAllUnitIcons } from '../ui/unitIcons';
 import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
+import { activeLevel, isLevelActive } from './level';
 
 /** menu→match camera fly-in (fresh starts only) */
 const MATCH_INTRO_SEC = 1.0;
@@ -376,11 +376,12 @@ export class Game {
     private readonly controls: CameraControls;
     private readonly gamepad: GamepadCursor;
     /**
-     * The unit and building definitions this match plays with (plan §17.8).
-     * Always the base game today; a scenario will supply its own through the
-     * match settings. Every type lookup inside the match goes through this.
+     * The unit, building, talent, rune and commander definitions this match
+     * plays with (plan §17.8): the active level's, which the constructor checks
+     * is the one `settings.level` names. Every lookup inside the match goes
+     * through this.
      */
-    readonly types: TypeRegistry = BASE_TYPES;
+    readonly types: TypeRegistry = activeLevel().types;
     private readonly placement: PlacementController;
     private readonly hud: Hud;
     /** the lesson driver (overlays, forced pads, round staging); null outside a tutorial */
@@ -1281,6 +1282,10 @@ export class Game {
         /** MMR prefetched on the menu-zoom cover — skips a second lookup. */
         preloadedRosterMmr?: ReadonlyMap<string, number>,
     ) {
+        if (!isLevelActive(settingsInput.level)) {
+            const wanted = settingsInput.level ? `scenario "${settingsInput.level.id}"` : 'the base game';
+            throw new Error(`[game] this match plays ${wanted}, but another level is active — call prepareLevel first`);
+        }
         this.watching = replay !== null || spectate !== null;
         this.watcherName = spectate?.watcherName ?? null;
         this.replayVerify = replay?.verify === true;
@@ -1863,7 +1868,7 @@ export class Game {
             this.hpBars.view.visible = false;
             this.introActive = true;
         }
-        this.hud.setUnitIcons(renderAllUnitIcons(this.renderer));
+        this.hud.setUnitIcons(renderAllUnitIcons(this.renderer, this.types.roster));
         this.hud.setBoardExtrasAllowed(!this.settings.climb && !isTutorial(this.settings));
         this.tutorial?.applyInitialChrome();
         // this match's real settings (including any ?hordeFactor= override) —

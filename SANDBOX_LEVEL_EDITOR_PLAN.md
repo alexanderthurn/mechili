@@ -854,7 +854,7 @@ levels/frost-keep/
 | 7. Per-match type registry (`TypeRegistry`, `game.types`) — see 17.8 | done |
 | 7b. Level switch reloads cached files and model data (`switchLevel`) — see 17.9 | done (dev console only) |
 | 7c. More content as data: talents (`data/talents`, `talents`/`talentSlots` on units), runes + forge recipes (`data/runes`, `itemSlots`), commanders + round cards (`data/commanders`, `data/roundCards`); all served by the match's `TypeRegistry`. Tutorials stay code, guarded by `tutorialContentProblems` | done |
-| 8. Level loading (Electron folder / browser zip) + scenario boot | with scenarios |
+| 8. Scenario boot: `settings.level` names the level, `startGame` runs `prepareLevel`, the Game plays `activeLevel().types` and refuses a mismatch; level store (`loadLevel`, known by hash, any source); zip reader; web-only Custom Game "Scenario (test)" row. No user-facing picker in Steam — scenarios arrive with the game context (joining, list, campaign) | base done; multiplayer transfer, persistence and real sources open |
 | 9. Walls and other engine features that unlock new content | later |
 
 `npm run check:content` covers steps 2–7b: manifest freshness and no
@@ -932,6 +932,7 @@ the Game (step 8).
 | Date | Change |
 |------|--------|
 | 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
+| 2026-09-13 | §17 step 8 base: scenario boot via settings.level, level store, zip reader, web test row |
 | 2026-09-13 | §17 step 7c: talents, runes/recipes, commanders/round cards as data; tutorial content guard |
 | 2026-09-13 | §17.9 level switch: cached files and model data reload per level (`switchLevel`, reload hooks, dev console helper) |
 | 2026-09-13 | Rigged-unit animation clips moved into model data (`"animation"`) |

@@ -5,17 +5,41 @@
  * before anything changes, points model data, structure flags and procedural
  * heights at the level's types, installs its files and waits until every
  * cache that loaded a replaced file (unit models, rigged units, spells,
- * commanders, scenery, projectiles) has reloaded. `switchLevel(null)` goes back to the base game.
+ * commanders, scenery, projectiles) has reloaded. `switchLevel(null)` goes back
+ * to the base game.
  *
  * Call it between matches, never while one runs: replaced templates are
- * disposed. The returned registry is what a match built for the level plays
- * with — handing it to the Game is the scenario boot's job (plan §17.7 step 8).
+ * disposed. The Game takes its registry from {@link activeLevel} and checks it
+ * against `settings.level`.
+ *
+ * Where a level comes from is not the player's business: {@link loadLevel}
+ * takes a level's files from any source (a zip in web testing today; a
+ * scenario list, a campaign or a host sending it later) and remembers it by
+ * content hash. A match names the level it plays in its settings
+ * ({@link LevelRef}), and {@link prepareLevel} makes exactly that level active
+ * before the match is built.
  */
-import { switchAssetOverlay, type AssetOverlay } from './assets';
+import {
+    buildAssetOverlay,
+    disposeAssetOverlay,
+    switchAssetOverlay,
+    type AssetOverlay,
+    type OverlayFile,
+    type OverlayReport,
+} from './assets';
 import { BASE_PACK, loadPackWithOverlay } from './content/basePack';
 import { TypeRegistry } from './content/typeRegistry';
 import { BASE_TYPES, proceduralHeightsOf } from './units';
 import { setModelSpecData, setModelTypes, setProceduralModelHeights } from './unitModels';
+
+/**
+ * The level a match plays, as it travels in `GameSettings`, saves and replays.
+ * The hash identifies the exact content; the id is for people.
+ */
+export interface LevelRef {
+    id: string;
+    hash: string;
+}
 
 export interface ActiveLevel {
     /** null = the base game */
@@ -29,6 +53,68 @@ let queue: Promise<unknown> = Promise.resolve();
 /** The level whose files and model data are loaded right now. */
 export function activeLevel(): ActiveLevel {
     return active;
+}
+
+/** The active level as a match setting — undefined for the base game. */
+export function activeLevelRef(): LevelRef | undefined {
+    const overlay = active.overlay;
+    return overlay ? { id: overlay.id, hash: overlay.hash } : undefined;
+}
+
+// ------------------------------------------------------------------ known levels
+
+/** levels loaded this session, by content hash */
+const known = new Map<string, AssetOverlay>();
+
+/**
+ * Take a level's files (from any source), validate its data and remember it.
+ * Throws on invalid data — nothing is remembered then. Loading the same
+ * content twice returns the level already known.
+ */
+export async function loadLevel(
+    id: string,
+    files: readonly OverlayFile[],
+): Promise<{ ref: LevelRef; report: OverlayReport }> {
+    const overlay = await buildAssetOverlay(id, files);
+    const existing = known.get(overlay.hash);
+    if (existing) {
+        disposeAssetOverlay(overlay);
+        return { ref: { id: existing.id, hash: existing.hash }, report: existing.report };
+    }
+    try {
+        loadPackWithOverlay(overlay.dataFiles, id);
+    } catch (e) {
+        disposeAssetOverlay(overlay);
+        throw e;
+    }
+    known.set(overlay.hash, overlay);
+    return { ref: { id: overlay.id, hash: overlay.hash }, report: overlay.report };
+}
+
+/** Every level loaded this session. */
+export function knownLevels(): LevelRef[] {
+    return [...known.values()].map((o) => ({ id: o.id, hash: o.hash }));
+}
+
+/** Can a match naming `ref` start right now (undefined = base game, always)? */
+export function isLevelAvailable(ref: LevelRef | undefined): boolean {
+    return ref === undefined || known.has(ref.hash);
+}
+
+/** Is `ref` exactly the level that is active (undefined = the base game)? */
+export function isLevelActive(ref: LevelRef | undefined): boolean {
+    return (active.overlay?.hash ?? undefined) === ref?.hash;
+}
+
+/**
+ * Make the level a match names active (undefined = base game) and wait for
+ * its files to load. Throws when that level isn't known this session.
+ */
+export async function prepareLevel(ref: LevelRef | undefined): Promise<ActiveLevel> {
+    if (ref === undefined) return switchLevel(null);
+    const overlay = known.get(ref.hash);
+    if (!overlay) throw new Error(`[level] scenario "${ref.id}" (${ref.hash.slice(0, 8)}) is not loaded`);
+    return switchLevel(overlay);
 }
 
 /**

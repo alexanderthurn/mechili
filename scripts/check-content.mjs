@@ -282,6 +282,84 @@ try {
     sw = expect(levels.activeLevel().overlay === null && resolver.activeAssetOverlay() === null, 'a rejected level changed the active files') && sw;
     sw = expect(models.MODEL_SPECS.ogre.skinned === true, 'a rejected level changed model data') && sw;
     if (sw) console.log('ok   level switch: reload hooks after install, model + animation data and structure flags follow, base restored, invalid level rejected');
+
+    // ---- scenario packages: zip → files → known level → the one a match names
+    {
+        const zipMod = await server.ssrLoadModule('/src/game/content/zip.ts');
+        // a tiny zip writer: stored and deflated entries (the reader ignores CRCs)
+        const makeZip = async (entries) => {
+            const parts = [];
+            const central = [];
+            let offset = 0;
+            for (const { path, text, deflate } of entries) {
+                const name = enc(path);
+                const raw = enc(text);
+                const data = deflate
+                    ? new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer())
+                    : raw;
+                const local = new DataView(new ArrayBuffer(30));
+                local.setUint32(0, 0x04034b50, true);
+                local.setUint16(8, deflate ? 8 : 0, true);
+                local.setUint32(18, data.length, true);
+                local.setUint32(22, raw.length, true);
+                local.setUint16(26, name.length, true);
+                parts.push(new Uint8Array(local.buffer), name, data);
+                const cd = new DataView(new ArrayBuffer(46));
+                cd.setUint32(0, 0x02014b50, true);
+                cd.setUint16(10, deflate ? 8 : 0, true);
+                cd.setUint32(20, data.length, true);
+                cd.setUint32(24, raw.length, true);
+                cd.setUint16(28, name.length, true);
+                cd.setUint32(42, offset, true);
+                central.push(new Uint8Array(cd.buffer), name);
+                offset += 30 + name.length + data.length;
+            }
+            const cdSize = central.reduce((n, p) => n + p.length, 0);
+            const eocd = new DataView(new ArrayBuffer(22));
+            eocd.setUint32(0, 0x06054b50, true);
+            eocd.setUint16(10, entries.length, true);
+            eocd.setUint32(12, cdSize, true);
+            eocd.setUint32(16, offset, true);
+            return new Uint8Array(await new Blob([...parts, ...central, new Uint8Array(eocd.buffer)]).arrayBuffer());
+        };
+        const archerText = readBase('data/units/archer.jsonc').replace('"hp": 130', '"hp": 999');
+        let zk = true;
+        const zexpect = (cond, what) => {
+            if (!cond) {
+                zk = false;
+                failed = true;
+                console.error(`FAIL scenario: ${what}`);
+            }
+        };
+        const zipped = await makeZip([
+            { path: 'frost-keep/data/units/archer.jsonc', text: archerText, deflate: true },
+            { path: 'frost-keep/textures/moon.webp', text: 'moon', deflate: false },
+            { path: 'frost-keep/.DS_Store', text: 'junk', deflate: false },
+            { path: '__MACOSX/frost-keep/._moon.webp', text: 'junk', deflate: false },
+        ]);
+        const files = await zipMod.readZip(zipped);
+        zexpect(files.map((f) => f.path).sort().join() === 'data/units/archer.jsonc,textures/moon.webp', `zip paths ${files.map((f) => f.path)}`);
+        zexpect(new TextDecoder().decode(files.find((f) => f.path.endsWith('archer.jsonc'))?.bytes) === archerText, 'deflated entry does not round-trip');
+        const { ref } = await levels.loadLevel('frost-keep', files);
+        const again = await levels.loadLevel('other-name', files);
+        zexpect(again.ref.hash === ref.hash && levels.knownLevels().filter((l) => l.hash === ref.hash).length === 1, 'same content loaded twice is not one level');
+        zexpect(levels.isLevelAvailable(ref) && levels.isLevelAvailable(undefined), 'loaded level not available');
+        zexpect(levels.isLevelActive(undefined) && !levels.isLevelActive(ref), 'base game should be active before prepareLevel');
+        const prepared = await levels.prepareLevel(ref);
+        zexpect(levels.isLevelActive(ref) && prepared.types.require('archer').hp === 999, "prepareLevel does not play the level's archer");
+        zexpect(levels.activeLevelRef()?.hash === ref.hash, 'activeLevelRef does not name the active level');
+        await levels.prepareLevel(undefined);
+        zexpect(levels.isLevelActive(undefined) && units.BASE_TYPES.require('archer').hp === 130, 'back to base game failed');
+        let unknownError = '';
+        await levels.prepareLevel({ id: 'ghost', hash: 'f'.repeat(64) }).catch((e) => (unknownError = String(e.message)));
+        zexpect(unknownError.includes('is not loaded'), 'unknown scenario did not fail');
+        let badError = '';
+        await levels
+            .loadLevel('bad', [{ path: 'data/units/archer.jsonc', bytes: enc(archerText.replace('"hp": 999', '"hp": "lots"')) }])
+            .catch((e) => (badError = String(e.message)));
+        zexpect(badError.includes('hp') && !levels.knownLevels().some((l) => l.id === 'bad'), 'invalid scenario was accepted');
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, top folder, junk skipped) → known level → prepareLevel plays it, base restored, invalid/unknown rejected');
+    }
 } catch (e) {
     failed = true;
     console.error(`FAIL ${e instanceof Error ? e.message : e}`);

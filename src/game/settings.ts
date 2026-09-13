@@ -1,3 +1,4 @@
+import type { LevelRef } from './level';
 import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
 import { t } from '../i18n';
@@ -111,6 +112,12 @@ export interface GameSettings {
      * game rolls one at startup.
      */
     seed?: number;
+    /**
+     * The scenario this match plays (its files and definitions), unset for the
+     * base game. Travels with the settings to peers, saves and replays; the
+     * level must be active before the Game is built (`prepareLevel`).
+     */
+    level?: LevelRef;
     /**
      * Horde algorithm id (see {@link HORDE_ALGORITHMS}).
      * Owns spawn schedule, pack-count multiplier, and leader bias.

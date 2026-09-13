@@ -17,7 +17,7 @@ import {
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { THEME } from '../theme';
-import { BASE_TYPES, buildUnitPreviewMesh, type UnitType } from '../game/units';
+import { buildUnitPreviewMesh, type UnitType } from '../game/units';
 import { cloneUnitModel } from '../game/unitModels';
 
 /** Final PNG edge length (shop tiles are ~80 CSS px; 256 covers 3× retina). */
@@ -149,8 +149,8 @@ function renderUnitIcon(renderer: WebGLRenderer, type: UnitType, envMap: Texture
     return canvas.toDataURL('image/png');
 }
 
-/** One thumbnail per buyable unit type, keyed by id. */
-export function renderAllUnitIcons(renderer: WebGLRenderer): Map<string, string> {
+/** One thumbnail per roster unit type (the match's — a level's units included), keyed by id. */
+export function renderAllUnitIcons(renderer: WebGLRenderer, roster: readonly UnitType[]): Map<string, string> {
     // PBR environment: metallic models need something to reflect (mirrors game.ts).
     // Generated once and shared across all icon renders.
     const pmrem = new PMREMGenerator(renderer);
@@ -158,7 +158,7 @@ export function renderAllUnitIcons(renderer: WebGLRenderer): Map<string, string>
     pmrem.dispose();
 
     const icons = new Map<string, string>();
-    for (const type of BASE_TYPES.roster) icons.set(type.id, renderUnitIcon(renderer, type, envMap));
+    for (const type of roster) icons.set(type.id, renderUnitIcon(renderer, type, envMap));
 
     envMap.dispose();
     return icons;
