@@ -429,6 +429,21 @@ export interface UnitType {
      * {@link Unit.hostUnitId} = this building.
      */
     /**
+     * An aura this type projects onto allies around it. The effect is
+     * implemented once in the sim; a type chooses it and sets the numbers.
+     * Applied once shortly after battle start and to units that arrive later.
+     */
+    aura?: {
+        /** `golden`: immune to tower/storm debuffs and takes reduced damage */
+        effect: 'golden';
+        /** tech on this type that switches the aura on; omit = always on */
+        requiresTech?: string;
+        /** world units around the source */
+        radius: number;
+        /** seconds the buff lasts on a recipient */
+        duration: number;
+    };
+    /**
      * Panel actions this building offers. `forge` also makes it the side's rune
      * forge: runes are dropped on it, it can be lit, and its chimney smokes.
      */
@@ -1618,6 +1633,8 @@ export const UNIT_TYPES: UnitType[] = [
     {
         id: 'ballista',
         name: 'Ballista',
+        // Golden Aura tech: allies within 40 are golden for 30s
+        aura: { effect: 'golden', requiresTech: 'golden', radius: 40, duration: 30 },
         cost: 400,
         unlockCost: 200,
         hpWithdraw: 400,

@@ -219,7 +219,6 @@ import { hordeWavePlan } from './hordeRoster';
 import {
     BattleSim,
     BATTLE_START_FREEZE,
-    GOLDEN_AURA_RADIUS,
     actorSeat,
     actorTeam,
     type Actor,
@@ -10402,9 +10401,9 @@ export class Game {
         // only while the matching tech tile is hovered/peeked in the panel.
         // The Golden Aura tile only shows on a ballista, so hovering it is
         // enough — preview the radius whether or not the tech is bought yet.
-        if (this.hoveredTech !== 'golden') return null;
-        if (unit.type.id === 'ballista') return GOLDEN_AURA_RADIUS;
-        return null;
+        const aura = unit.type.aura;
+        if (!aura || this.hoveredTech !== aura.requiresTech) return null;
+        return aura.radius;
     }
 
     private updateSelectionUi(): void {
