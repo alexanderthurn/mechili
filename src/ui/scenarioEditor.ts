@@ -437,7 +437,7 @@ export class ScenarioEditor {
         if (press.dragging) this.host.placement.editorPlate = null;
         const { x, y } = this.local(e);
         if (press.dragging && press.index !== null && press.unit) {
-            this.dropMoved(press.index, press.unit, x, y);
+            this.dropMoved(press.index, press.unit, x, y, e.altKey);
             return;
         }
         if (Math.hypot(x - press.x, y - press.y) > DRAG_SLOP_PX) return;
@@ -481,23 +481,32 @@ export class ScenarioEditor {
         return this.host.placement.footprintFree(type, entry.at, entry.at.rotated ?? false, moving);
     }
 
-    private dropMoved(index: number, unit: Unit, x: number, y: number): void {
+    /** drop a dragged pack; with `copy` (Alt) a copy lands there and the original stays */
+    private dropMoved(index: number, unit: Unit, x: number, y: number, copy = false): void {
         const entry = this.view.scene.units[index];
         const spot = entry ? this.anchorAt(unit.type, entry.at.rotated ?? false, x, y, entry.team === 'horde') : null;
         if (!entry || !spot) {
             this.apply();
             return;
         }
-        const moved: SceneUnit = { ...entry, at: { ...entry.at, col: spot.at.col, row: spot.at.row } };
-        if (!this.fits(unit.type, moved, unit)) {
+        const moved: SceneUnit = structuredClone({ ...entry, at: { ...entry.at, col: spot.at.col, row: spot.at.row } });
+        if (!this.fits(unit.type, moved, copy ? null : unit)) {
             this.flash(t('editor:noRoom', { defaultValue: 'No room there' }));
             this.apply();
             return;
         }
         const next = structuredClone(this.view);
-        next.scene.units[index] = moved;
-        this.commitView(next);
-        this.apply({ kind: 'unit', index });
+        if (copy) next.scene.units.push(moved);
+        else next.scene.units[index] = moved;
+        if (!this.history.push(this.toCanonical(next))) {
+            this.apply();
+            return;
+        }
+        // entries are kept in team order — find the dropped one again to keep it selected
+        const landed = this.view.scene.units.findIndex(
+            (u) => u.typeId === moved.typeId && u.team === moved.team && u.at.col === moved.at.col && u.at.row === moved.at.row,
+        );
+        this.apply(landed >= 0 ? { kind: 'unit', index: landed } : null);
     }
 
     private placeAt(x: number, y: number): void {
@@ -724,7 +733,7 @@ export class ScenarioEditor {
             btn('se-tool', t('editor:toolMove', { defaultValue: 'Move' }), {
                 active: this.tool === 'move',
                 data: 'data-tool="move"',
-                title: t('editor:toolMoveTip', { defaultValue: 'Drag anything: enemy, horde, earlier placements' }),
+                title: t('editor:toolMoveTip', { defaultValue: 'Drag anything: enemy, horde, earlier placements — hold Alt to drop a copy' }),
             }) +
             btn('se-tool', t('editor:toolPlace', { defaultValue: 'Place' }), { active: this.tool === 'place', data: 'data-tool="place"' }) +
             btn('se-tool', t('editor:toolErase', { defaultValue: 'Erase' }), { active: this.tool === 'erase', data: 'data-tool="erase"' }) +
