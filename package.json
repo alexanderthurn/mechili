@@ -1,6 +1,6 @@
 {
   "name": "melodan",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "MELODAN — a fantasy auto-battler.",
   "type": "module",
   "license": "GPL-3.0",
@@ -8,7 +8,10 @@
     "productName": "Melodan",
     "appId": "com.feuerware.melodan",
     "steamAppId": 4987230,
-    "steamDeployApps": [4987230, 5115110],
+    "steamDeployApps": [
+      4987230,
+      5115110
+    ],
     "executableName": "Melodan",
     "lan": true
   },
