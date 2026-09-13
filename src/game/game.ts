@@ -1208,6 +1208,8 @@ export class Game {
             /** the exporting side's live build-phase clock — replay always
              *  resets it to a fresh full timer, so it's restored separately */
             phaseRemaining?: number;
+            /** battle playback multiplier; omitted on older saves → stay at 1× */
+            speedMultiplier?: number;
             /** Campaign climb wins so far (SP save / retry) */
             climbWins?: number;
         } | null = null,
@@ -1255,7 +1257,12 @@ export class Game {
              *  which for spectate mode holds the two PLAYERS' names (for
              *  sideLabel/roster display, not "who is chatting") */
             watcherName: string;
-            initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
+            initial: {
+                actions: LoggedAction[];
+                battleElapsed: number | null;
+                phaseRemaining: number;
+                speedMultiplier: number;
+            };
         } | null = null,
         /** fresh match only: hold specialist cards + HUD while the camera
          *  flies in from a wide overlook (menu logo covers the ctor hitch). */
@@ -2166,6 +2173,9 @@ export class Game {
             if (resume.phaseRemaining !== undefined && this.phase === 'build') {
                 this.phaseRemaining = resume.phaseRemaining;
             }
+            // hydrate's intermediate startBuildPhase calls reset speed to 1× —
+            // restore the exporter's live multiplier without rebroadcasting
+            this.restoreSpeedMultiplier(resume.speedMultiplier);
             if (!this.watching) void this.ensureRosterMmrs();
         } else if (replay) {
             this.replayLog = replay.actions;
@@ -2192,6 +2202,7 @@ export class Game {
             if (this.phase === 'build') {
                 this.phaseRemaining = spectate.initial.phaseRemaining;
             }
+            this.restoreSpeedMultiplier(spectate.initial.speedMultiplier);
         } else if (matchIntro) {
             // hold the specialist overlay until the camera fly-in finishes
             // Tutorial: skip the offer — auto commander is applied after intro.
@@ -4897,6 +4908,7 @@ export class Game {
             // deployment, observed live. Outside build, send the duration the
             // phase they are about to enter actually gets.
             phaseRemaining: this.phase === 'build' ? this.phaseRemaining : this.deploySeconds(),
+            speedMultiplier: this.speedSteps[this.speedIndex]!,
             viewer: { kind: 'seat', seat },
         });
         // backfill whatever the snapshot just excluded (see
@@ -5467,6 +5479,7 @@ export class Game {
         actions: LoggedAction[];
         battleElapsed: number | null;
         phaseRemaining: number;
+        speedMultiplier: number;
         climbWins: number;
     } {
         return {
@@ -5475,6 +5488,7 @@ export class Game {
             actions: this.actionsForPeerResume(),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
+            speedMultiplier: this.speedSteps[this.speedIndex]!,
             climbWins: this.climbWins,
         };
     }
@@ -5487,6 +5501,7 @@ export class Game {
         actions: LoggedAction[];
         battleElapsed: number | null;
         phaseRemaining: number;
+        speedMultiplier: number;
     } {
         return {
             seed: this.seed,
@@ -5495,6 +5510,7 @@ export class Game {
             actions: this.actionsForSpectatorResume(vision),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
+            speedMultiplier: this.speedSteps[this.speedIndex]!,
         };
     }
 
@@ -6149,6 +6165,19 @@ export class Game {
         } else if (!this.hydrating) {
             this.broadcast({ type: 'speed', multiplier });
         }
+    }
+
+    /**
+     * Catch-up / local-save restore: set playback rate without broadcasting.
+     * Unknown or omitted values leave the current index alone (defaults to 1×).
+     */
+    private restoreSpeedMultiplier(multiplier: number | undefined): void {
+        if (multiplier === undefined) return;
+        const index = this.speedSteps.indexOf(multiplier);
+        if (index < 0 || index === this.speedIndex) return;
+        this.speedIndex = index;
+        this.hud.setSpeed(multiplier);
+        if (this.watching) this.onSpeedIndexChange?.(index);
     }
 
     /**
@@ -10150,8 +10179,9 @@ export class Game {
 
         if (this.onStateCheckpoint && !this.star && !this.matchOver && !this.hydrating) {
             this.persistTimer += dtSeconds;
-            const interval = this.phase === 'battle' ? 0.25 : 1;
-            if (this.persistTimer >= interval) {
+            // real-world cadence (not gameDt) — 1s is enough; unload hooks
+            // catch reloads, and a hard crash only loses ~1s / ~8s sim at 8×
+            if (this.persistTimer >= 1) {
                 this.persistTimer = 0;
                 this.onStateCheckpoint();
             }
