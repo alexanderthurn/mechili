@@ -1418,40 +1418,54 @@ async function renderScenarioList(): Promise<void> {
         });
         return;
     }
+    const button = (text: string, run: () => void, title?: string) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'm-scenario-btn';
+        b.textContent = text;
+        if (title) b.title = title;
+        b.addEventListener('click', run);
+        return b;
+    };
+    const nameEl = (text: string, title: string) => {
+        const label = document.createElement('span');
+        label.className = 'm-scenario-name';
+        label.textContent = text;
+        label.title = title;
+        return label;
+    };
     for (const level of levels) {
-        for (const scenario of level.scenarios) {
+        const chain = level.scenarios.length > 1;
+        const where = `${level.ref.id} · ${level.ref.hash.slice(0, 8)}`;
+        // package actions: once per package
+        const codeButton = button(t('menu:scenarioCode', { defaultValue: 'Code' }), () => {
+            void (async () => {
+                const files = levelFiles(level.ref.hash) ?? (await ensureLevel(level.ref).then(() => levelFiles(level.ref.hash)));
+                spScenarioStatusEl.textContent = files ? await copyShareCode(level.ref.id, files) : 'This scenario is not available';
+            })();
+        }, t('menu:scenarioCodeTip', { defaultValue: 'Copy a share code' }));
+        const deleteButton = button('✕', () => {
+            const what = chain ? `“${level.name}” (${level.scenarios.length} scenarios)` : `“${level.scenarios[0]?.name ?? level.name}”`;
+            if (!window.confirm(t('menu:scenarioDeleteConfirm', { defaultValue: 'Delete {{what}}?', what }))) return;
+            void forgetLevel(level.ref).then(() => renderScenarioList());
+        }, t('menu:scenarioDeleteTip', { defaultValue: 'Delete' }));
+        if (chain) {
+            const head = document.createElement('div');
+            head.className = 'm-scenario-row m-scenario-package';
+            head.append(nameEl(`${level.name} · ${level.scenarios.length}`, where), codeButton, deleteButton);
+            spScenarioListEl.appendChild(head);
+        }
+        level.scenarios.forEach((scenario, i) => {
             const row = document.createElement('div');
-            row.className = 'm-scenario-row';
-            const label = document.createElement('span');
-            label.className = 'm-scenario-name';
-            label.textContent = level.scenarios.length > 1 ? `${level.name} · ${scenario.name}` : scenario.name;
-            label.title = `${level.ref.id} · ${level.ref.hash.slice(0, 8)}`;
-            const button = (text: string, run: () => void) => {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'm-scenario-btn';
-                b.textContent = text;
-                b.addEventListener('click', run);
-                return b;
-            };
+            row.className = `m-scenario-row${chain ? ' m-scenario-level' : ''}`;
             row.append(
-                label,
+                nameEl(chain ? `${i + 1}. ${scenario.name}` : scenario.name, where),
                 button(t('menu:scenarioPlay', { defaultValue: 'Play' }), () => void playSavedScenario(level.ref, scenario.id)),
                 button(t('menu:scenarioEdit', { defaultValue: 'Edit' }), () => void editSavedScenario(level.ref, scenario.id)),
-                button(t('menu:scenarioCode', { defaultValue: 'Code' }), () => {
-                    void (async () => {
-                        const files = levelFiles(level.ref.hash) ?? (await ensureLevel(level.ref).then(() => levelFiles(level.ref.hash)));
-                        spScenarioStatusEl.textContent = files ? await copyShareCode(level.ref.id, files) : 'This scenario is not available';
-                    })();
-                }),
-                button('✕', () => {
-                    const what = level.scenarios.length > 1 ? `“${level.name}” (${level.scenarios.length} scenarios)` : `“${scenario.name}”`;
-                    if (!window.confirm(t('menu:scenarioDeleteConfirm', { defaultValue: 'Delete {{what}}?', what }))) return;
-                    void forgetLevel(level.ref).then(() => renderScenarioList());
-                }),
             );
+            if (!chain) row.append(codeButton, deleteButton);
             spScenarioListEl.appendChild(row);
-        }
+        });
     }
 }
 

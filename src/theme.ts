@@ -1482,6 +1482,8 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-menu .m-scenario-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-menu .m-scenario-import { display: flex; gap: 6px; width: 100%; }
+.mechili-menu .m-scenario-package { background: rgba(212, 184, 120, 0.1); }
+.mechili-menu .m-scenario-level { margin-inline-start: 16px; }
 .mechili-menu .m-scenario-code {
     flex: 1;
     min-width: 0;
