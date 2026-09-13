@@ -95,6 +95,10 @@ export const ANIM_SPECS: Record<string, AnimSpec> = {
         walk: 'walk',
         walkSpeed: 1.35,
         fire: 'fire',
+        // authored 2s — speed up so the swing fits attackInterval 0.7
+        fireSpeed: 2.85,
+        // ranged march-and-shoot / crowd nudge must not cancel the throw
+        fireHold: true,
     },
     ogre: {
         get url() {
