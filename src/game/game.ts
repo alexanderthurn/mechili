@@ -9863,7 +9863,10 @@ export class Game {
                 if (this.watching) this.tickReplayPlayback();
                 if (this.phaseRemaining <= 0) this.onDeployTimerExpired();
             } else if (this.phase === 'hpDraw') {
-                this.tickHpDraw(dtSeconds);
+                // solo pause freezes the drain too — otherwise the souls keep
+                // flying behind the menu and proceedAfterHpDraw starts the next
+                // round (or ends the match) while the player is paused
+                this.tickHpDraw(soloPaused ? 0 : dtSeconds);
             } else if (this.sim) {
                 if (profile) {
                     this.sim.profileEnabled = true;
