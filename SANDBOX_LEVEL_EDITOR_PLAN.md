@@ -854,7 +854,7 @@ levels/frost-keep/
 | 7. Per-match type registry (`TypeRegistry`, `game.types`) — see 17.8 | done |
 | 7b. Level switch reloads cached files and model data (`switchLevel`) — see 17.9 | done (dev console only) |
 | 7c. More content as data: talents (`data/talents`, `talents`/`talentSlots` on units), runes + forge recipes (`data/runes`, `itemSlots`), commanders + round cards (`data/commanders`, `data/roundCards`); all served by the match's `TypeRegistry`. Tutorials stay code, guarded by `tutorialContentProblems` | done |
-| 8. Scenario boot: `settings.level` names the level, `startGame` runs `prepareLevel`, the Game plays `activeLevel().types` and refuses a mismatch; level store (`loadLevel`, known by hash, any source); zip reader; web-only Custom Game "Scenario (test)" row. No user-facing picker in Steam — scenarios arrive with the game context (joining, list, campaign) | done: base, multiplayer transfer (host → guests in lobbies), scenario cache (IndexedDB); open: guests joining a running match, spectators, real scenario sources |
+| 8. Scenario boot: `settings.level` names the level, `startGame` runs `prepareLevel`, the Game plays `activeLevel().types` and refuses a mismatch; level store (`loadLevel`, known by hash, any source); zip reader; web-only Custom Game "Scenario (test)" row. No user-facing picker in Steam — scenarios arrive with the game context (joining, list, campaign) | done: base, multiplayer transfer (host → guests in lobbies), scenario cache (IndexedDB); seat reclaims mid-match and spectators fetch the scenario through a gated offer; open: real scenario sources |
 | 9. Walls and other engine features that unlock new content | later |
 
 `npm run check:content` covers steps 2–7b: manifest freshness and no

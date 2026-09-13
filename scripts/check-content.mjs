@@ -414,7 +414,34 @@ try {
                 'base-build check for joining scenario rooms',
             );
             zexpect(net.contentHashFor(hostRef) === `${net.BASE_CONTENT_HASH}+${hostRef.hash}` && net.contentHashFor(undefined) === net.BASE_CONTENT_HASH, 'contentHashFor');
-            if (zk) console.log(`ok   scenario transfer: ${sender.count} chunks in ${requests} batched requests, same hash on arrival, garbage/oversized refused`);
+            // ---- a spectator of a scenario match: gated offer → chunks → resent handshake → admitted
+            {
+                await levels.prepareLevel(hostRef);
+                const sync = await server.ssrLoadModule('/src/game/levelSync.ts');
+                let handlers = null;
+                const hub = net.SpectatorHub.openWith({ managesLiveness: true, listen: (h) => (handlers = h) }, () => {});
+                const joins = [];
+                hub.listen((name, build, link) => joins.push({ name, build, link }));
+                const outbox = [];
+                const link = { send: (m) => outbox.push(m), close: () => {} };
+                handlers.onSpectate('watcher', { version: net.ourBuild().version, contentHash: net.BASE_CONTENT_HASH }, link);
+                const offer = outbox.find((m) => m.type === 'levelOffer');
+                zexpect(joins.length === 0 && offer?.gate === true && offer.level?.hash === hostRef.hash, 'a spectator without the scenario was not gated');
+                handlers.onData(link, { type: 'levelRequest', hash: hostRef.hash, from: 0 });
+                const chunks = outbox.filter((m) => m.type === 'levelChunk');
+                zexpect(chunks.length === Math.min(transfer.LEVEL_CHUNK_BATCH, offer.chunks), `gated spectator got ${chunks.length} chunks`);
+                // the joining side (same process here, so it already has the level): LevelDownload resolves at once
+                const download = new sync.LevelDownload(offer.level, offer.chunks, () => {});
+                const got = await download.done;
+                zexpect(got?.hash === hostRef.hash, 'LevelDownload did not activate the offered level');
+                handlers.onData(link, { type: 'spectate', name: 'watcher', version: net.ourBuild().version, contentHash: net.currentContentHash() });
+                zexpect(joins.length === 1 && joins[0].name === 'watcher', 'the resent spectate handshake was not admitted');
+                const otherBase = { version: net.ourBuild().version, contentHash: 'deadbeef' };
+                handlers.onSpectate('stranger', otherBase, { send: (m) => outbox.push({ stranger: m }), close: () => {} });
+                zexpect(joins.length === 2, 'a different base build must go to the version check, not the scenario gate');
+                await levels.prepareLevel(undefined);
+            }
+            if (zk) console.log(`ok   scenario transfer: ${sender.count} chunks in ${requests} batched requests, same hash on arrival, garbage/oversized refused; spectators gated, served, admitted on resend`);
         }
         if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected');
     }

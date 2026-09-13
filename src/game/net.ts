@@ -10,6 +10,7 @@ import { activeLoadout } from './loadouts';
 import type { Loadout } from './techCatalog';
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { LevelRef } from './level';
+import { answerLevelMessage, LevelDownload, matchLevelOffer } from './levelSync';
 import type { GameSettings, StrongholdMode } from './settings';
 import type { Team } from './units';
 import { t } from '../i18n';
@@ -107,6 +108,9 @@ export function currentContentHash(): string {
 export function contentHashFor(level: LevelRef | undefined): string {
     return level ? `${BASE_CONTENT_HASH}+${level.hash}` : BASE_CONTENT_HASH;
 }
+
+/** how long a joiner may take to fetch the match's scenario before its connection is dropped */
+export const LEVEL_GATE_TIMEOUT_MS = 5 * 60_000;
 
 /** What a peer must share with us to play: the simulation version AND the content. */
 export interface BuildStamp {
@@ -488,7 +492,13 @@ export type NetMessage =
      * once it is active, fetching the files with `levelRequest` if it doesn't
      * have that content yet (see levelTransfer.ts).
      */
-    | { type: 'levelOffer'; level: LevelRef | null; chunks: number }
+    | {
+          type: 'levelOffer';
+          level: LevelRef | null;
+          chunks: number;
+          /** load it, then send your handshake (starJoin / spectate) again — see levelSync.ts */
+          gate?: boolean;
+      }
     /** guest → host: send chunks `from`… of the offered scenario (a batch at a time) */
     | { type: 'levelRequest'; hash: string; from: number }
     /** host → guest: one piece of the scenario package (base64) */
@@ -1030,9 +1040,24 @@ export class StarHub implements HostHub {
                 }, CONNECT_TIMEOUT_MS);
                 conn.on('close', () => clearTimeout(handshakeTimeout));
                 conn.on('error', () => clearTimeout(handshakeTimeout));
+                let gateTimeout: ReturnType<typeof setTimeout> | null = null;
+                conn.on('close', () => gateTimeout !== null && clearTimeout(gateTimeout));
                 const onData = (data: unknown) => {
                     clearTimeout(handshakeTimeout);
                     const msg = data as NetMessage;
+                    // A player coming back into the running match with our base
+                    // content but not its scenario (a reload): hand the scenario
+                    // over and wait for the handshake to arrive again.
+                    if (answerLevelMessage(msg, (m) => conn.send(m))) return;
+                    if (this.needsMatchLevel(msg)) {
+                        conn.send(matchLevelOffer());
+                        gateTimeout ??= setTimeout(() => {
+                            conn.off('data', onData);
+                            conn.close();
+                        }, LEVEL_GATE_TIMEOUT_MS);
+                        return;
+                    }
+                    if (gateTimeout !== null) clearTimeout(gateTimeout);
                     if (msg.type === 'starRejoin') {
                         conn.off('data', onData);
                         // `seat` alone is never proof of identity — a small
@@ -1154,6 +1179,22 @@ export class StarHub implements HostHub {
                 conn.on('data', onData);
             });
         });
+    }
+
+    /**
+     * A seat reclaim (rejoin, dropped or AI-held seat by name) from a peer
+     * with our base content but not the running match's scenario — it gets
+     * the scenario first. A fresh lobby join is never gated here: the lobby
+     * hands the room's scenario over after seating (`levelOffer`).
+     */
+    private needsMatchLevel(msg: NetMessage): boolean {
+        if (msg.type !== 'starRejoin' && msg.type !== 'starJoin') return false;
+        if (isSameBuild(msg) || !isSameBaseBuild(msg)) return false;
+        return (
+            msg.type === 'starRejoin' ||
+            this.findDroppedSeatByName(msg.name) !== null ||
+            this.findReclaimableSeatByName(msg.name) !== null
+        );
     }
 
     /**
@@ -1830,6 +1871,18 @@ export async function hostStarRoom(
     };
 }
 
+/** The join handshake — rebuilt at send time, so a resend carries the scenario loaded since. */
+export function starJoinMessage(): Extract<NetMessage, { type: 'starJoin' }> {
+    return {
+        type: 'starJoin',
+        name: getPlayerName(),
+        version: GAME_VERSION,
+        contentHash: currentContentHash(),
+        avatar: getAvatarDataUrl(),
+        loadout: activeLoadout(),
+    };
+}
+
 /** Join a 2v2+ star room by the host's username (room code) — same lookup as `joinLobby`. */
 export function joinStarRoom(
     hostName: string,
@@ -1863,14 +1916,7 @@ export function joinStarRoom(
                 reject(e);
             });
         });
-        conn.send({
-            type: 'starJoin',
-            name: localName,
-            version: GAME_VERSION,
-            contentHash: currentContentHash(),
-            avatar: getAvatarDataUrl(),
-            loadout: activeLoadout(),
-        });
+        conn.send(starJoinMessage());
         return new StarGuestSession(peer, conn);
     })();
     return { session, cancel: () => peer?.destroy() };
@@ -2061,9 +2107,22 @@ export class SpectatorHub {
      * connection).
      */
     listen(onJoin: (name: string, build: BuildStamp, link: SpectatorViewerLink) => void): void {
+        // A spectator with our base content but not the match's scenario gets
+        // it first, then sends 'spectate' again (arriving here as data, since
+        // the transport already took the first one as the handshake).
+        const gateOrJoin = (name: string, build: BuildStamp, link: SpectatorViewerLink) => {
+            if (!isSameBuild(build) && isSameBaseBuild(build)) link.send(matchLevelOffer());
+            else onJoin(name, build, link);
+        };
         this.transport.listen({
-            onSpectate: onJoin,
-            onData: (link, msg) => this.onData(link, msg),
+            onSpectate: gateOrJoin,
+            onData: (link, msg) => {
+                if (!this.viewers.has(link)) {
+                    if (msg.type === 'spectate') return gateOrJoin(msg.name, msg, link);
+                    if (answerLevelMessage(msg, (m) => link.send(m))) return;
+                }
+                this.onData(link, msg);
+            },
             onDrop: (link) => this.drop(link),
         });
     }
@@ -2682,13 +2741,33 @@ export async function joinAsSpectator(
                 reject(e);
             });
         });
-        conn.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: currentContentHash() });
+        // rebuilt per send: after fetching the match's scenario the hash includes it
+        const hello = () =>
+            conn.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: currentContentHash() });
+        hello();
         const msg = await new Promise<NetMessage>((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
-            const onData = (data: unknown) => {
+            let timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
+            let download: LevelDownload | null = null;
+            const fail = (e: unknown) => {
                 clearTimeout(timer);
                 conn.off('data', onData);
-                resolve(data as NetMessage);
+                reject(e);
+            };
+            const onData = (data: unknown) => {
+                const m = data as NetMessage;
+                // the match plays a scenario we don't have active: fetch it, then ask again
+                if (m.type === 'levelOffer' && m.gate) {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => fail(new Error('Loading the scenario took too long')), LEVEL_GATE_TIMEOUT_MS);
+                    download?.cancel();
+                    download = new LevelDownload(m.level, m.chunks, (x) => conn.send(x));
+                    download.done.then(hello, fail);
+                    return;
+                }
+                if (download?.handle(m)) return;
+                clearTimeout(timer);
+                conn.off('data', onData);
+                resolve(m);
             };
             conn.on('data', onData);
         });

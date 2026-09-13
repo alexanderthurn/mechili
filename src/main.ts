@@ -28,6 +28,7 @@ import {
     type RoomRosterEntry,
     GAME_VERSION,
     contentHashFor,
+    starJoinMessage,
     isSameBaseBuild,
     isSameBuild,
     formatBuild,
@@ -91,14 +92,13 @@ import {
     ensureLevel,
     isLevelAvailable,
     knownLevels,
-    levelFiles,
     levelFilesFromArchive,
     loadLevel,
     prepareLevel,
     type LevelRef,
 } from './game/level';
 import { readZip } from './game/content/zip';
-import { LevelReceiver, LevelSender } from './game/levelTransfer';
+import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
@@ -3716,14 +3716,6 @@ function wireHostedHub(
     // Only a Custom Game room plays one; any other room offers the base game.
     const roomLevel = (): LevelRef | null => (customConfig ? (activeLevelRef() ?? null) : null);
     const levelBySeat = new Map<SeatId, { name: string; offered: string | null; ready: string | null | undefined }>();
-    let levelSender: { hash: string; sender: LevelSender } | null = null;
-    const senderFor = (level: LevelRef): LevelSender | null => {
-        if (levelSender?.hash !== level.hash) {
-            const files = levelFiles(level.hash);
-            levelSender = files ? { hash: level.hash, sender: new LevelSender(files) } : null;
-        }
-        return levelSender?.sender ?? null;
-    };
     /** offer the room's scenario to guests that haven't had this one offered; true when all have it active */
     const syncGuestLevels = (roster: CanonicalSeatDef[]): boolean => {
         const level = roomLevel();
@@ -3739,7 +3731,7 @@ function wireHostedHub(
             if (!state || state.name !== name || state.offered !== hash) {
                 state = { name, offered: hash, ready: undefined };
                 levelBySeat.set(seat, state);
-                hub.send(seat, { type: 'levelOffer', level, chunks: level ? (senderFor(level)?.count ?? 0) : 0 });
+                hub.send(seat, levelOfferMessage(level));
             }
             if (state.ready !== hash) allReady = false;
         }
@@ -3876,12 +3868,7 @@ function wireHostedHub(
             return;
         }
         if (msg.type === 'levelRequest') {
-            const level = roomLevel();
-            const sender = level && msg.hash === level.hash ? senderFor(level) : null;
-            if (!sender) return;
-            for (const index of sender.batch(msg.from)) {
-                hub.send(seat, { type: 'levelChunk', hash: msg.hash, index, data: sender.chunk(index) });
-            }
+            answerLevelMessage(msg, (m) => hub.send(seat, m), roomLevel());
             return;
         }
         if (msg.type === 'levelReady') {
@@ -4200,78 +4187,48 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
      * player chose.
      */
     let pendingReady: boolean | null = null;
-    // The room's scenario, as the host offers it: made active here (downloaded
-    // first when this client doesn't have that content) and confirmed with
-    // levelReady. A newer offer supersedes an older one still in progress.
-    let levelOfferSeq = 0;
-    let levelReceiver: LevelReceiver | null = null;
-    const reportLevel = (seq: number, hash: string | null, error?: unknown): void => {
-        if (cancelled || seq !== levelOfferSeq) return;
-        const reason = error === undefined ? undefined : error instanceof Error ? error.message : String(error);
-        if (reason) console.error('[scenario] could not load the room scenario', error);
-        session.send({ type: 'levelReady', hash, error: reason });
-    };
-    const activateLevel = (seq: number, level: LevelRef | null): void => {
-        void prepareLevel(level ?? undefined).then(
-            () => reportLevel(seq, level?.hash ?? null),
-            (e: unknown) => reportLevel(seq, level?.hash ?? null, e),
-        );
-    };
-    const onLevelOffer = (level: LevelRef | null, chunks: number): void => {
-        const seq = ++levelOfferSeq;
-        levelReceiver = null;
-        if (!level || isLevelAvailable(level)) {
-            activateLevel(seq, level);
-            return;
-        }
-        // kept from an earlier session? then there is nothing to download
-        void ensureLevel(level).then((have) => {
-            if (seq !== levelOfferSeq || cancelled) return;
-            if (have) activateLevel(seq, level);
-            else downloadLevel(seq, level, chunks);
+    // The room's scenario, as the host offers it: made active here (restored
+    // from the scenario cache or downloaded first) and confirmed with
+    // levelReady. A gated offer — rejoining a running match — is answered by
+    // sending the join handshake again instead. A newer offer supersedes one
+    // still in progress.
+    let levelDownload: LevelDownload | null = null;
+    const onLevelOffer = (offer: Extract<NetMessage, { type: 'levelOffer' }>): void => {
+        levelDownload?.cancel();
+        const download = new LevelDownload(offer.level, offer.chunks, (m) => session.send(m), (level) => {
+            const text = `Loading scenario “${level.id}”…`;
+            if (offer.gate) setStatus(text);
+            else appendLobbyChat('', { kind: 'text', text }, 'system');
         });
-    };
-    const downloadLevel = (seq: number, level: LevelRef, chunks: number): void => {
-        try {
-            levelReceiver = new LevelReceiver(level, chunks);
-        } catch (e) {
-            reportLevel(seq, level.hash, e);
-            return;
-        }
-        appendLobbyChat('', { kind: 'text', text: `Loading scenario “${level.id}”…` }, 'system');
-        session.send({ type: 'levelRequest', hash: level.hash, from: 0 });
-    };
-    const onLevelChunk = (hash: string, index: number, data: string): void => {
-        const receiver = levelReceiver;
-        if (!receiver || receiver.level.hash !== hash) return;
-        const seq = levelOfferSeq;
-        try {
-            const next = receiver.add(index, data);
-            if (next !== null) session.send({ type: 'levelRequest', hash, from: next });
-            if (!receiver.complete()) return;
-            levelReceiver = null;
-            void loadLevel(receiver.level.id, receiver.files()).then(
-                ({ ref }) => {
-                    if (ref.hash !== hash) throw new Error('the received scenario does not match the offer');
-                    activateLevel(seq, ref);
-                },
-                (e: unknown) => reportLevel(seq, hash, e),
-            ).catch((e: unknown) => reportLevel(seq, hash, e));
-        } catch (e) {
-            levelReceiver = null;
-            reportLevel(seq, hash, e);
-        }
+        levelDownload = download;
+        void download.done.then(
+            () => {
+                if (cancelled || levelDownload !== download) return;
+                levelDownload = null;
+                if (offer.gate) session.send(starJoinMessage());
+                else session.send({ type: 'levelReady', hash: offer.level?.hash ?? null });
+            },
+            (e: unknown) => {
+                if (cancelled || levelDownload !== download) return;
+                levelDownload = null;
+                console.error('[scenario] could not load the room scenario', e);
+                const reason = e instanceof Error ? e.message : String(e);
+                if (offer.gate) {
+                    setStatus(`Could not load the match's scenario: ${reason}`, 6000);
+                    session.close();
+                } else {
+                    session.send({ type: 'levelReady', hash: offer.level?.hash ?? null, error: reason });
+                }
+            },
+        );
     };
     const handle = (msg: NetMessage): void => {
         if (cancelled) return;
         if (msg.type === 'levelOffer') {
-            onLevelOffer(msg.level, msg.chunks);
+            onLevelOffer(msg);
             return;
         }
-        if (msg.type === 'levelChunk') {
-            onLevelChunk(msg.hash, msg.index, msg.data);
-            return;
-        }
+        if (levelDownload?.handle(msg)) return;
         if (msg.type === 'starRoster') {
             showLobbyChat((item) =>
                 // `from` is required by the message, but the host re-stamps the
