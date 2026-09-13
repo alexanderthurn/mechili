@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "Повноекранний режим",
     "fullscreenHint": "F11 / Alt+Enter",
+    "presetMinimal": "Мінімум",
     "presetLow": "Низький",
     "presetMedium": "Середній",
     "presetHigh": "Високий",

@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "Toàn màn hình",
     "fullscreenHint": "F11 / Alt+Enter",
+    "presetMinimal": "Tối thiểu",
     "presetLow": "Thấp",
     "presetMedium": "Trung bình",
     "presetHigh": "Cao",

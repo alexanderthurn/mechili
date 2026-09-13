@@ -6,12 +6,12 @@
  * once a preference exists it is the player's, and nothing here second-guesses
  * it on a later launch.
  *
- * Deliberately only ever LOWERS from the default. Every signal available in a
- * browser is coarse — a GPU name is a marketing string, deviceMemory is rounded
- * to a power of two, and neither says anything about thermals or what else is
- * running — so guessing UP would hand somebody a slideshow on evidence too weak
- * to justify it. Guessing down costs some prettiness they can undo in Settings,
- * which is the cheaper mistake.
+ * Desktop default is Medium (full world detail, no bloom / AO / vignette).
+ * High (cinematic post) is only raised into when the GPU name clearly looks
+ * like a strong discrete part — RTX 30-series+ or RX 6000+. Guessing up on
+ * weaker evidence would hand somebody a slideshow; unknown / Apple Silicon /
+ * iGPUs stay on Medium (or lower when other signals force it). Ultra is never
+ * auto-selected.
  */
 
 import type { GraphicsPreset } from './prefs';
@@ -50,6 +50,37 @@ function probeGl(): GlProbe {
 }
 
 /**
+ * Strong discrete GPUs that can usually sustain High (bloom + AO).
+ * Floors, not a fixed generation list: later RTX / RX series with the same
+ * naming scheme qualify automatically. Unknown names do not.
+ *
+ * - NVIDIA: GeForce / Quadro RTX series number ≥ 3000 (30xx+)
+ * - AMD: Radeon RX series number ≥ 6000 (RDNA2+)
+ * Apple Silicon is intentionally excluded — High is playable on M-series but
+ * post FX stay opt-in.
+ */
+export function isStrongDiscreteGpu(renderer: string | null | undefined): boolean {
+    const gpu = (renderer ?? '').toLowerCase();
+    if (!gpu) return false;
+
+    // "rtx 3080", "rtx 4090", "rtx a4500", "rtxa4000"
+    const rtx = gpu.match(/\brtx\s*a?\s*(\d{3,5})\b/) ?? gpu.match(/\brtxa(\d{4})\b/);
+    if (rtx) {
+        const n = Number(rtx[1]);
+        if (Number.isFinite(n) && n >= 3000) return true;
+    }
+
+    // "rx 6800", "rx 7900", "rx 9060" (future-ish same pattern)
+    const rx = gpu.match(/\brx\s*(\d{4})\b/);
+    if (rx) {
+        const n = Number(rx[1]);
+        if (Number.isFinite(n) && n >= 6000) return true;
+    }
+
+    return false;
+}
+
+/**
  * Starting preset for a phone or tablet.
  *
  * Model detection is not available where it would matter most: Safari strips
@@ -59,17 +90,14 @@ function probeGl(): GlProbe {
  * roughly 2018 onward from what came before, on both platforms, without
  * needing to know the model at all.
  *
- * Tested on modern iPhones and Androids, which handled 'high' comfortably;
- * 'medium' is the deliberate step below that, since a phone sustains far less
- * than it peaks at and the texture budget is what keeps these devices from
- * running out of memory.
+ * Never raises to High: mobile does not get cinematic post by default.
  */
 export function probeMobile(): HardwareProbe {
     const gl = probeGl();
     const cores = typeof navigator.hardwareConcurrency === 'number' ? navigator.hardwareConcurrency : null;
     const modern = gl.webgl2 && gl.maxTexture >= 8192 && (cores === null || cores >= 4);
     return {
-        preset: modern ? 'medium' : 'low',
+        preset: modern ? 'low' : 'minimal',
         renderer: gl.renderer,
         cores,
         memoryGb: null,
@@ -94,24 +122,31 @@ export function probeHardware(): HardwareProbe {
     // above the floor is unplayable here, and this is the one case where the
     // signal is unambiguous rather than a guess.
     if (/swiftshader|llvmpipe|software|basic render/.test(gpu)) {
-        return pick('low', 'software renderer');
+        return pick('minimal', 'software renderer');
     }
     // Steam Deck (and its Van Gogh APU under other names). A 15 W handheld that
     // reports 8 threads and plenty of RAM would otherwise read as a desktop.
     if (/van gogh|custom gpu 0405|steam deck/.test(gpu)) {
-        return pick('medium', 'Steam Deck class APU');
+        return pick('low', 'Steam Deck class APU');
     }
-    if (cores !== null && cores <= 2) return pick('low', `${cores} CPU threads`);
-    if (memoryGb !== null && memoryGb <= 2) return pick('low', `${memoryGb} GB RAM`);
+    if (cores !== null && cores <= 2) return pick('minimal', `${cores} CPU threads`);
+    if (memoryGb !== null && memoryGb <= 2) return pick('minimal', `${memoryGb} GB RAM`);
     // Intel integrated graphics, excluding Arc — those are discrete parts that
-    // happen to share the vendor name.
+    // happen to share the vendor name. Arc is not in the High allowlist either;
+    // it falls through to Medium like other non-RTX/RX parts.
     if (/intel/.test(gpu) && !/\barc\b/.test(gpu)) {
-        return pick('medium', 'Intel integrated graphics');
+        return pick('low', 'Intel integrated graphics');
     }
-    if (cores !== null && cores <= 4) return pick('medium', `${cores} CPU threads`);
-    if (memoryGb !== null && memoryGb <= 4) return pick('medium', `${memoryGb} GB RAM`);
-    // Nothing suggested otherwise. Note this returns the DEFAULT rather than
-    // 'ultra': ultra stays something a player chooses, never something a guess
-    // about their machine turns on for them.
-    return pick('high', 'no constraint detected');
+    // Soft constraints: former "Medium" world cost — new Low. Do not raise to
+    // High on these machines even if the GPU name looks strong (thin laptops).
+    if (cores !== null && cores <= 4) return pick('low', `${cores} CPU threads`);
+    if (memoryGb !== null && memoryGb <= 4) return pick('low', `${memoryGb} GB RAM`);
+
+    if (isStrongDiscreteGpu(renderer)) {
+        return pick('high', 'strong discrete GPU (RTX 30+/RX 6000+)');
+    }
+
+    // Desktop default: full world detail, no expensive post.
+    // Ultra stays something a player chooses, never something a guess turns on.
+    return pick('medium', 'default desktop (no strong GPU match)');
 }

@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "Teljes képernyő",
     "fullscreenHint": "F11 / Alt+Enter",
+    "presetMinimal": "Minimális",
     "presetLow": "Alacsony",
     "presetMedium": "Közepes",
     "presetHigh": "Magas",

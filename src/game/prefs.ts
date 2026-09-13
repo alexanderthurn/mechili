@@ -164,8 +164,19 @@ export type ControlScheme = 'auto' | 'mouse' | 'touch' | 'gamepad';
 /** Sun shadow map quality (visual only). */
 export type ShadowQuality = 'off' | 'low' | 'medium' | 'high' | 'ultra';
 
-/** One-click graphics bundles (common game pattern: Low → Ultra). */
-export type GraphicsPreset = 'low' | 'medium' | 'high' | 'ultra';
+/**
+ * One-click graphics bundles: Minimal → Ultra.
+ * Post FX (vignette / bloom / AO) start at High; Ultra is never auto-picked.
+ */
+export type GraphicsPreset = 'minimal' | 'low' | 'medium' | 'high' | 'ultra';
+
+export const GRAPHICS_PRESET_IDS: readonly GraphicsPreset[] = [
+    'minimal',
+    'low',
+    'medium',
+    'high',
+    'ultra',
+] as const;
 
 export type GraphicsPresetValues = Pick<
     Prefs,
@@ -184,7 +195,8 @@ export type GraphicsPresetValues = Pick<
 >;
 
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
-    low: {
+    // Former Low — absolute floor for weak / software GPUs.
+    minimal: {
         scenery: 'low',
         groundEffects: 'low',
         fireVfx: 'low',
@@ -198,7 +210,8 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         bloom: 'off',
         ao: 'off',
     },
-    medium: {
+    // Former Medium.
+    low: {
         scenery: 'medium',
         groundEffects: 'medium',
         fireVfx: 'medium',
@@ -212,6 +225,22 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         bloom: 'off',
         ao: 'off',
     },
+    // Former High world detail, without expensive post passes — desktop default.
+    medium: {
+        scenery: 'high',
+        groundEffects: 'high',
+        fireVfx: 'medium',
+        bloodFx: 'high',
+        stuckProjectiles: 'low',
+        renderScale: 1,
+        shadows: 'high',
+        renderDeadUnits: true,
+        antialias: true,
+        vignette: 'off',
+        bloom: 'off',
+        ao: 'off',
+    },
+    // Medium + cinematic post (vignette / bloom / half-res AO).
     high: {
         scenery: 'high',
         groundEffects: 'high',
@@ -245,7 +274,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
 
 /** Returns the matching preset, or null when the user has mixed custom values. */
 export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null {
-    for (const id of ['low', 'medium', 'high', 'ultra'] as const) {
+    for (const id of GRAPHICS_PRESET_IDS) {
         const v = GRAPHICS_PRESETS[id];
         if (
             p.scenery === v.scenery &&
@@ -301,7 +330,7 @@ export function prefsHadStoredLanguage(): boolean {
 }
 const DEFAULTS: Prefs = {
     combatChat: true,
-    ...GRAPHICS_PRESETS.high,
+    ...GRAPHICS_PRESETS.medium,
     controlScheme: 'auto',
     language: detectDeviceLanguage(),
     uiScale: 1,
@@ -589,9 +618,13 @@ export function sceneryHeightFog(quality: SceneryQuality = prefs().scenery): num
     return 0;
 }
 
-/** Preset whose pre-antialias fields match — for stored prefs that predate the antialias field. */
+/**
+ * Preset whose pre-post / pre-antialias fields match — for stored prefs that
+ * predate those keys. Medium and High share the same world bundle (post differs
+ * only), so Medium wins first and missing post keys stay off — the safer guess.
+ */
 function legacyPresetOf(p: Prefs): GraphicsPreset | null {
-    for (const id of ['low', 'medium', 'high', 'ultra'] as const) {
+    for (const id of GRAPHICS_PRESET_IDS) {
         const v = GRAPHICS_PRESETS[id];
         if (
             p.scenery === v.scenery &&
@@ -772,12 +805,10 @@ export function prefs(): Prefs {
                     const legacy = legacyPresetOf(cached);
                     if (legacy) cached.antialias = GRAPHICS_PRESETS[legacy].antialias;
                 }
-                // Post passes (vignette / bloom / AO): DEFAULTS spreads the high
-                // preset, which turns them ON. A pref file that predates the keys
-                // must not inherit that silently — a recognisable preset tells us
-                // what the player picked, but a custom setup tells us nothing, and
-                // guessing "on" hands new passes to the machine most likely tuned
-                // down on purpose. Off, and they can opt in from Settings.
+                // Post passes (vignette / bloom / AO): DEFAULTS is medium (post
+                // off). A pref file that predates the keys must not inherit High
+                // post from a later default — recognisable world bundles map via
+                // legacyPresetOf (Medium before High → off); custom → off.
                 if (stored.vignette === undefined) {
                     const legacy = legacyPresetOf(cached);
                     cached.vignette = legacy ? GRAPHICS_PRESETS[legacy].vignette : 'off';
@@ -794,12 +825,10 @@ export function prefs(): Prefs {
         } catch {
             /* private browsing */
         }
-        // phones/tablets get the low preset once — first run, and also for
+        // phones/tablets get a probed preset once — first run, and also for
         // prefs stored back when only desktop-grade settings existed
         if (touchFirstDevice() && !cached.mobileTuned) {
-            // Not a flat 'low' any more: modern phones handle more than that
-            // (tested on current iPhones and Androids), so probeMobile() reads
-            // what the GPU can actually do and starts those at 'medium'.
+            // Modern phones land on Low (former Medium); older on Minimal.
             const probe = probeMobile();
             Object.assign(cached, GRAPHICS_PRESETS[probe.preset]);
             cached.mobileTuned = true;
@@ -811,7 +840,7 @@ export function prefs(): Prefs {
             // saved, this stops running. It also means Reset re-probes, which
             // is what someone asking for defaults back would expect.
             const probe = probeHardware();
-            if (probe.preset !== 'high') Object.assign(cached, GRAPHICS_PRESETS[probe.preset]);
+            Object.assign(cached, GRAPHICS_PRESETS[probe.preset]);
             lastHardwareProbe = probe;
         }
         normalizePrefs(cached);
@@ -878,8 +907,14 @@ export function resetSettingsStorage(): void {
     cached = { ...DEFAULTS };
     storedHadLanguage = false;
     if (touchFirstDevice()) {
-        Object.assign(cached, GRAPHICS_PRESETS.low);
+        const probe = probeMobile();
+        Object.assign(cached, GRAPHICS_PRESETS[probe.preset]);
         cached.mobileTuned = true;
+        lastHardwareProbe = probe;
+    } else {
+        const probe = probeHardware();
+        Object.assign(cached, GRAPHICS_PRESETS[probe.preset]);
+        lastHardwareProbe = probe;
     }
     normalizePrefs(cached);
     try {

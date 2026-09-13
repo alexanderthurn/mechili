@@ -88,23 +88,19 @@ Localhost matchmaking defaults to [play.melodan.com](https://play.melodan.com); 
 
 ### Branches & deployment
 
-Every branch mirrors to feuerware under `/<branch>/`. Steam ships on a `v*` tag,
-and the branch the tagged commit sits on decides which app it lands in — the map
-lives in `package.json` under `steamElectronBuild.steamBranchApps`:
+Every branch mirrors to feuerware under `/<branch>/`. Steam ships on a `v*` tag:
+the same build uploads to both Melodan and Melodan Playtest (own depots each),
+listed in `package.json` as `steamElectronBuild.steamDeployApps`:
 
-| Tagged on | Steam app | Depots |
+| Steam app | App id | Depots |
 |---|---|---|
-| `main` | Melodan (4987230) | 4987231-3 |
-| `playtest` | Melodan Playtest (5115110) | 5115111-3 |
+| Melodan | 4987230 | 4987231-3 |
+| Melodan Playtest | 5115110 | 5115111-3 |
 
-A branch only claims a tag once it has a commit `main` does not — a `playtest`
-sitting exactly on `main` *is* main, so merge into it before tagging. Builds land
-on Steam's `develop` branch; `public` is set live by hand in App Admin, since
-steamcmd may not set a default branch live.
-
-The playtest is a separate appID with its own depots — it cannot borrow the
-game's, because a shared depot is only licensed to owners of the base app and
-Steamworks does not support sharing from an unreleased one.
+Builds land on Steam's `develop` branch for both apps; promote to playtest /
+`public` by hand in App Admin. The playtest cannot share the game's depots —
+a shared depot is only licensed to owners of the base app, and Steamworks does
+not support sharing from an unreleased one.
 
 ### Further graphics / mesh ideas
 

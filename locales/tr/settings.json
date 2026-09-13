@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "Tam ekran",
     "fullscreenHint": "F11 / Alt+Enter",
+    "presetMinimal": "Minimal",
     "presetLow": "Düşük",
     "presetMedium": "Orta",
     "presetHigh": "Yüksek",

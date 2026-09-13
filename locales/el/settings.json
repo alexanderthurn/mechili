@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "Πλήρης οθόνη",
     "fullscreenHint": "F11 / Alt+Enter",
+    "presetMinimal": "Ελάχιστα",
     "presetLow": "Χαμηλό",
     "presetMedium": "Μεσαίο",
     "presetHigh": "Υψηλό",

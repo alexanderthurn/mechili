@@ -2,6 +2,7 @@ import {
     applyGraphicsPreset,
     applySteamLanguageDefault,
     detectGraphicsPreset,
+    GRAPHICS_PRESET_IDS,
     prefs,
     resetSettingsStorage,
     updatePrefs,
@@ -226,9 +227,9 @@ export function openSettings(parent: HTMLElement): void {
             ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> <span class="s-fullscreen-text"></span> <span class="s-hint s-fullscreen-hint"></span></label>`
             : '') +
         `<div class="s-presets">` +
-        (['low', 'medium', 'high', 'ultra'] as const)
-            .map((id) => `<button type="button" class="s-preset" data-preset="${id}"></button>`)
-            .join('') +
+        GRAPHICS_PRESET_IDS.map(
+            (id) => `<button type="button" class="s-preset" data-preset="${id}"></button>`,
+        ).join('') +
         // Not a button: there is nothing to apply, it only reports that the
         // individual options no longer match any preset.
         `<span class="s-preset s-custom-chip"></span>` +
