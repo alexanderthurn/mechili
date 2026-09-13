@@ -632,6 +632,10 @@ interface PackageMeta {
 
 - Next level unlocks on victory; optional star rating (HP left, rounds).
 - Single player first; co-op later.
+- *First step implemented:* a victory in a scenario of a package with a
+  `meta.jsonc` order offers **Continue** on the game-over screen, which plays
+  the next scenario of that package (like the tutorials' next lesson). No
+  progress is stored and `carryOver` / `unlocks` are not applied yet.
 - `carryOver` is decided per level transition, not hidden inside a scenario.
 
 ### 9.5 Triggers (later)

@@ -844,6 +844,8 @@ export class Game {
     onScenarioEditor: ((mode: 'author' | 'test', draft: ScenarioDef) => void) | null = null;
     /** scenario editor: package the draft for download; resolves to a status line */
     onScenarioDownload: ((draft: ScenarioDef) => Promise<string>) | null = null;
+    /** a won scenario: play the next one of its package (meta.jsonc order) */
+    onNextScenario: ((scenarioId: string) => void) | null = null;
     /** scenario editor: copy the draft as a share code; resolves to a status line */
     onScenarioShareCode: ((draft: ScenarioDef) => Promise<string>) | null = null;
     /** scenario editor: play the draft as a scenario */
@@ -1938,7 +1940,12 @@ export class Game {
         this.hud.onRetryLastRound = () => this.requestRetryLastRound();
         this.hud.onNextTutorial = () => {
             const next = nextTutorialId(tutorialId(this.settings));
-            if (next !== null) this.onStartTutorial?.(next);
+            if (next !== null) {
+                this.onStartTutorial?.(next);
+                return;
+            }
+            const nextScenario = this.nextScenarioId();
+            if (nextScenario !== null) this.onNextScenario?.(nextScenario);
         };
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
@@ -2824,6 +2831,7 @@ export class Game {
         this.onScenarioSave = null;
         this.onScenarioPlay = null;
         this.onScenarioShareCode = null;
+        this.onNextScenario = null;
         this.scenarioEditor?.destroy();
         this.scenarioEditor = null;
         this.testBattleBar?.remove();
@@ -4198,6 +4206,21 @@ export class Game {
             throw new Error(`[game] scenario has errors: ${normalized.issues.filter((i) => i.level === 'error').map((i) => i.message).join('; ')}`);
         }
         return normalized.def;
+    }
+
+    /**
+     * The scenario after this one in its package's `meta.jsonc` order, when
+     * this match plays one of them and it isn't the last. Packages without a
+     * meta order have no chain.
+     */
+    private nextScenarioId(): string | null {
+        const request = this.settings.scenario;
+        if (request?.mode !== 'play') return null;
+        const { scenarios, meta } = activeLevel();
+        const order = meta?.def?.levels.map((l) => l.scenario).filter((id) => scenarios.get(id)?.def) ?? [];
+        const current = request.id ?? (scenarios.size === 1 ? [...scenarios.keys()][0] : undefined);
+        const at = current !== undefined ? order.indexOf(current) : -1;
+        return at >= 0 && at + 1 < order.length ? order[at + 1]! : null;
     }
 
     /** a specific seat's own chosen commander card (null until picked) — tutorial cards included */
@@ -9840,10 +9863,11 @@ export class Game {
                 !isTutorial(this.settings);
             // A finished lesson offers the one after it, so the set can be played
             // straight through; the last lesson only offers the menu.
+            // a scenario package with an order (meta.jsonc) plays straight through the same way
             const allowNext =
                 result === 'victory' &&
                 !this.watching &&
-                nextTutorialId(tutorialId(this.settings)) !== null;
+                (nextTutorialId(tutorialId(this.settings)) !== null || this.nextScenarioId() !== null);
             const climbProgress = this.settings.climb
                 ? {
                       n: Math.max(1, this.round),

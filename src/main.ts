@@ -3127,6 +3127,7 @@ function constructGame(
         }
     };
     wireGameMenuReturn(game);
+    game.onNextScenario = (id) => void playNextScenario(settings.level, id);
     // Tutorials are not resumable (the lesson's own progress is not in the save),
     // and must never overwrite the Campaign run held in that slot.
     const editorMatch = settings.scenario?.mode === 'author' || settings.scenario?.mode === 'test';
@@ -3430,6 +3431,14 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
 async function openScenarioEditor(mode: 'author' | 'test', draft: ScenarioDef, level: LevelRef | undefined): Promise<void> {
     if (activeGame) await teardownForNextMatch();
     startGame(applyScenarioToSettings(localMatchSettings(), draft, level, mode));
+}
+
+/** a won scenario's "Next": the following scenario of the same package */
+async function playNextScenario(level: LevelRef | undefined, id: string): Promise<void> {
+    const def = activeLevel().scenarios.get(id)?.def;
+    if (!level || !def) return;
+    await teardownForNextMatch();
+    startGame(applyScenarioToSettings(localMatchSettings(), def, level, 'play', id));
 }
 
 /** the draft as a one-level package: named after the draft, with the content of the level it was made on */
