@@ -1176,6 +1176,15 @@ export class Game {
             this.cancelTacticPlacement();
         }
     }
+
+    /**
+     * Solo Escape/☰ menu freezes match clocks (deploy timer, battle sim, FX).
+     * Multiplayer and live spectate keep running — peers / host timers don't wait.
+     */
+    private get soloPaused(): boolean {
+        return !this.star && !this.watching && this.hud.isPauseMenuOpen();
+    }
+
     private readonly onWindowResize = () => this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
     private readonly wrapper: HTMLElement;
     private readonly threeCanvas: HTMLCanvasElement;
@@ -1208,6 +1217,8 @@ export class Game {
             /** the exporting side's live build-phase clock — replay always
              *  resets it to a fresh full timer, so it's restored separately */
             phaseRemaining?: number;
+            /** battle playback multiplier; omitted on older saves → stay at 1× */
+            speedMultiplier?: number;
             /** Campaign climb wins so far (SP save / retry) */
             climbWins?: number;
         } | null = null,
@@ -1255,7 +1266,12 @@ export class Game {
              *  which for spectate mode holds the two PLAYERS' names (for
              *  sideLabel/roster display, not "who is chatting") */
             watcherName: string;
-            initial: { actions: LoggedAction[]; battleElapsed: number | null; phaseRemaining: number };
+            initial: {
+                actions: LoggedAction[];
+                battleElapsed: number | null;
+                phaseRemaining: number;
+                speedMultiplier: number;
+            };
         } | null = null,
         /** fresh match only: hold specialist cards + HUD while the camera
          *  flies in from a wide overlook (menu logo covers the ctor hitch). */
@@ -2166,6 +2182,9 @@ export class Game {
             if (resume.phaseRemaining !== undefined && this.phase === 'build') {
                 this.phaseRemaining = resume.phaseRemaining;
             }
+            // hydrate's intermediate startBuildPhase calls reset speed to 1× —
+            // restore the exporter's live multiplier without rebroadcasting
+            this.restoreSpeedMultiplier(resume.speedMultiplier);
             if (!this.watching) void this.ensureRosterMmrs();
         } else if (replay) {
             this.replayLog = replay.actions;
@@ -2192,6 +2211,7 @@ export class Game {
             if (this.phase === 'build') {
                 this.phaseRemaining = spectate.initial.phaseRemaining;
             }
+            this.restoreSpeedMultiplier(spectate.initial.speedMultiplier);
         } else if (matchIntro) {
             // hold the specialist overlay until the camera fly-in finishes
             // Tutorial: skip the offer — auto commander is applied after intro.
@@ -2228,7 +2248,7 @@ export class Game {
         // catch-up is fully done, not before
         this.seedSeqTracking();
 
-        // Escape toggles the in-game menu (the match keeps running underneath)
+        // Escape toggles the in-game menu (solo: freezes clocks; multiplayer: live)
         window.addEventListener('keydown', this.onEscapeKey);
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
@@ -4082,7 +4102,7 @@ export class Game {
         };
     }
 
-    /** Battlement pads available this match (Tutorial 2 opens pad 5). */
+    /** Battlement pads available this match (all five are archer posts). */
     private strongholdArcherSlots(): readonly number[] {
         return this.tutorial?.strongholdArcherSlots() ?? STRONGHOLD_ARCHER_SLOTS;
     }
@@ -4897,6 +4917,7 @@ export class Game {
             // deployment, observed live. Outside build, send the duration the
             // phase they are about to enter actually gets.
             phaseRemaining: this.phase === 'build' ? this.phaseRemaining : this.deploySeconds(),
+            speedMultiplier: this.speedSteps[this.speedIndex]!,
             viewer: { kind: 'seat', seat },
         });
         // backfill whatever the snapshot just excluded (see
@@ -5467,6 +5488,7 @@ export class Game {
         actions: LoggedAction[];
         battleElapsed: number | null;
         phaseRemaining: number;
+        speedMultiplier: number;
         climbWins: number;
     } {
         return {
@@ -5475,6 +5497,7 @@ export class Game {
             actions: this.actionsForPeerResume(),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
+            speedMultiplier: this.speedSteps[this.speedIndex]!,
             climbWins: this.climbWins,
         };
     }
@@ -5487,6 +5510,7 @@ export class Game {
         actions: LoggedAction[];
         battleElapsed: number | null;
         phaseRemaining: number;
+        speedMultiplier: number;
     } {
         return {
             seed: this.seed,
@@ -5495,6 +5519,7 @@ export class Game {
             actions: this.actionsForSpectatorResume(vision),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
+            speedMultiplier: this.speedSteps[this.speedIndex]!,
         };
     }
 
@@ -6149,6 +6174,19 @@ export class Game {
         } else if (!this.hydrating) {
             this.broadcast({ type: 'speed', multiplier });
         }
+    }
+
+    /**
+     * Catch-up / local-save restore: set playback rate without broadcasting.
+     * Unknown or omitted values leave the current index alone (defaults to 1×).
+     */
+    private restoreSpeedMultiplier(multiplier: number | undefined): void {
+        if (multiplier === undefined) return;
+        const index = this.speedSteps.indexOf(multiplier);
+        if (index < 0 || index === this.speedIndex) return;
+        this.speedIndex = index;
+        this.hud.setSpeed(multiplier);
+        if (this.watching) this.onSpeedIndexChange?.(index);
     }
 
     /**
@@ -7897,18 +7935,9 @@ export class Game {
                 if (unit.type === STRONGHOLD && !unit.destroyed) keeps.push(unit);
             }
         }
-        // The commander is world, not chrome: he stays for cinema shots, so
-        // he gets his own walk rather than riding the UI-hidden list above.
-        const livingKeeps: Unit[] = [];
-        for (const unit of this.placement.allUnits()) {
-            if (unit.type === STRONGHOLD && !unit.destroyed) livingKeeps.push(unit);
-        }
-        this.strongholdCommanders.sync(
-            livingKeeps,
-            (seat) => this.speciality[seat] ?? null,
-            this.settings.strongholdMode === 'lifeline' &&
-                !this.tutorial?.suppressesRooftopCommander,
-        );
+        // Rooftop commander decoration is off for now — all five pads are
+        // archer slots. Re-enable later when the commander returns as a unit.
+        this.strongholdCommanders.sync([], () => null, false);
         this.strongholdFlags.update(
             this.time,
             keeps,
@@ -8970,7 +8999,7 @@ export class Game {
         this.pendingHpDrawPreHp = null;
         if (this.sim) {
             const preHp = { player: this.playerHp, enemy: this.enemyHp };
-            const built = buildHpDrawSources(this.sim, this.economy);
+            const built = buildHpDrawSources(this.sim);
             this.postBattleDeathElapsed = this.sim.elapsed;
             this.postBattleDeathTimeBase = this.time;
             // flames die with the battle; remaining oil (unburned) carries over
@@ -9647,20 +9676,18 @@ export class Game {
     }
 
     /**
-     * Every surviving PLAYER-owned unit deals its value as damage to the
-     * other side: the unit's base price scaled by how much of it survived
-     * (half the dwarf pack alive = half its cost), always a whole number. On
-     * a timeout both sides usually still have some survivors and both take
-     * some damage. Horde survivors deal no HP damage while EITHER player
-     * still has forces standing — the horde thins out packs (and therefore
-     * score) without being a third scoring party of its own. Only once a
-     * side is fully wiped (no survivors of its own) does it also take the
-     * horde's surviving value on top of the opposing player's: nothing of
-     * its own was left to stop either force.
+     * Every surviving PLAYER-owned unit deals its {@link hpWithdrawOf} value as
+     * damage to the other side (fixed per type, not leveled). On a timeout both
+     * sides usually still have some survivors and both take some damage. Horde
+     * survivors deal no HP damage while EITHER player still has forces standing
+     * — the horde thins out packs (and therefore score) without being a third
+     * scoring party of its own. Only once a side is fully wiped (no survivors
+     * of its own) does it also take the horde's surviving value on top of the
+     * opposing player's: nothing of its own was left to stop either force.
      */
     private applyBattleResult(sim: BattleSim): void {
         accumulateBattleDamage(this.matchDamageByType, sim.damageByType);
-        const built = buildHpDrawSources(sim, this.economy);
+        const built = buildHpDrawSources(sim);
         const damageToPlayer = built.damageToPlayer;
         const damageToEnemy = built.damageToEnemy;
         this.playerHp = this.playerHp - damageToPlayer;
@@ -9754,7 +9781,13 @@ export class Game {
         // it AGAIN, double-advancing the sim past where it should be — reset
         // to null whenever we're not sim-active so the next active tick
         // starts fresh, exactly like the very first tick ever does.
-        const simTimingActive = !this.matchOver && !this.suspended && !this.introActive && !this.outroActive;
+        const soloPaused = this.soloPaused;
+        const simTimingActive =
+            !this.matchOver &&
+            !this.suspended &&
+            !soloPaused &&
+            !this.introActive &&
+            !this.outroActive;
         const trueDtSeconds =
             this.lastSimRealTimeMs === null ? dtSeconds : (nowMs - this.lastSimRealTimeMs) / 1000;
         this.lastSimRealTimeMs = simTimingActive ? nowMs : null;
@@ -9781,23 +9814,25 @@ export class Game {
 
         // battle can be fast-forwarded (or slowed); build always runs at 1x
         // — except when watching a replay, where the same speed control
-        // scales build-phase pacing too (nothing live to keep at real time)
-        const gameDt =
-            this.phase === 'battle' || this.watching
-                ? dtSeconds * this.speedSteps[this.speedIndex]!
-                : dtSeconds;
-        // same speed-multiplier scaling as gameDt, just built on the TRUE
-        // dt — this is what actually reaches sim.update() below
-        const trueGameDt =
-            this.phase === 'battle' || this.watching
-                ? trueDtSeconds * this.speedSteps[this.speedIndex]!
-                : trueDtSeconds;
+        // scales build-phase pacing too (nothing live to keep at real time).
+        // Solo pause zeros both so deploy timers, sim, and FX all freeze
+        // (multiplayer reconnect `suspended` still only gates simTimingActive).
+        const gameDt = soloPaused
+            ? 0
+            : this.phase === 'battle' || this.watching
+              ? dtSeconds * this.speedSteps[this.speedIndex]!
+              : dtSeconds;
+        const trueGameDt = soloPaused
+            ? 0
+            : this.phase === 'battle' || this.watching
+              ? trueDtSeconds * this.speedSteps[this.speedIndex]!
+              : trueDtSeconds;
         this.time += gameDt;
 
         if (this.hpDrawSettleRemaining > 0 || this.hasPendingDeathVisuals()) {
             this.tickPlacementDeathVisuals();
         }
-        if (this.hpDrawSettleRemaining > 0) {
+        if (this.hpDrawSettleRemaining > 0 && !soloPaused) {
             this.hpDrawSettleRemaining -= dtSeconds;
             if (this.hpDrawSettleRemaining <= 0 && this.pendingHpDrawPlan) {
                 this.beginHpDrawPhase();
@@ -9974,14 +10009,17 @@ export class Game {
         this.updateStrongholdFlags();
         this.updateHordeMarkers();
 
-        if (!this.introActive && !this.outroActive) {
+        if (!this.introActive && !this.outroActive && !soloPaused) {
             this.controls.update(dtSeconds);
             this.gamepad.update(dtSeconds);
             this.rig.update(dtSeconds);
             this.tutorial?.tickCamera();
         }
         // ambient motion runs on real time, unaffected by battle fast-forward
-        this.scenery.update(dtSeconds, this.rig.camera.position);
+        // (solo pause freezes it with the rest of the match)
+        if (!soloPaused) {
+            this.scenery.update(dtSeconds, this.rig.camera.position);
+        }
         setCloseCameraY(this.rig.camera.position.y);
         // Flash the cinema scene label whenever the season turns over (manual N/X
         // keys or the automatic per-round scene) — only while cinema mode is on.
@@ -10150,8 +10188,9 @@ export class Game {
 
         if (this.onStateCheckpoint && !this.star && !this.matchOver && !this.hydrating) {
             this.persistTimer += dtSeconds;
-            const interval = this.phase === 'battle' ? 0.25 : 1;
-            if (this.persistTimer >= interval) {
+            // real-world cadence (not gameDt) — 1s is enough; unload hooks
+            // catch reloads, and a hard crash only loses ~1s / ~8s sim at 8×
+            if (this.persistTimer >= 1) {
                 this.persistTimer = 0;
                 this.onStateCheckpoint();
             }
@@ -10992,7 +11031,7 @@ export class Game {
             fogged && this.buildingIntelSnapshot
                 ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
                 : this.strongholdArcherCount(team);
-        const nextCost = STRONGHOLD_ARCHER_STEP_COST * (manned + 1);
+        const nextCost = STRONGHOLD_ARCHER.cost + STRONGHOLD_ARCHER_STEP_COST * manned;
         const slotMax = this.strongholdArcherSlots().length;
         out.strongholdArchers = {
             cost: nextCost,

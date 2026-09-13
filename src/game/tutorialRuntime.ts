@@ -22,7 +22,6 @@ import {
     COMMAND_TOWER,
     STRONGHOLD_ARCHER,
     STRONGHOLD_ARCHER_SLOTS,
-    STRONGHOLD_ARCHER_SLOTS_NO_COMMANDER,
     RESEARCH_CENTER,
     STRONGHOLD,
     unitTypeById,
@@ -287,9 +286,9 @@ export class TutorialRuntime {
 
     // ------------------------------------------------------------- per-round
 
-    /** Battlement pads available this match (Tutorial 2 opens pad 5). */
+    /** Battlement pads available this match (all five are archer posts). */
     strongholdArcherSlots(): readonly number[] {
-        return this.lesson === TUTORIAL_2_ID ? STRONGHOLD_ARCHER_SLOTS_NO_COMMANDER : STRONGHOLD_ARCHER_SLOTS;
+        return STRONGHOLD_ARCHER_SLOTS;
     }
 
     /**
@@ -824,11 +823,6 @@ export class TutorialRuntime {
             this.host.round === 3 &&
             (tacticId === OIL_SPILL_ID || tacticId === DRAGON_ID)
         );
-    }
-
-    /** Tutorial 2 uses pad 5 for a fifth archer — no rooftop commander. */
-    get suppressesRooftopCommander(): boolean {
-        return this.lesson === TUTORIAL_2_ID;
     }
 
     /** Tutorial 2 round 1 teaches the wall only — the forge shelf stays empty. */

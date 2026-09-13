@@ -329,9 +329,10 @@ export interface UnitType {
     name: string;
     cost: number;
     /**
-     * End-of-battle HP-withdraw weight for this type (per mech in the sim).
-     * Drives post-battle particle wave tier (low / medium / high). Omit to
-     * derive from {@link hpWithdrawOf}.
+     * End-of-battle HP withdrawn per living mech of this type (fixed; ignores
+     * pack level and purchase premium). Also feeds particle wave grouping via
+     * {@link hpDrawWaveTier}. Omit to use {@link UnitType.cost} /
+     * formation headcount.
      */
     hpWithdraw?: number;
     /**
@@ -955,6 +956,7 @@ export const STRONGHOLD_ARCHER: UnitType = {
     // reuses the archer GLB — no second model, and no new fingerprint entry
     modelId: 'archer',
     cost: 100,
+    hpWithdraw: 50,
     footprint: { cols: 1, rows: 1 },
     formation: { cols: 1, rows: 1 },
     meshScale: 2.2,
@@ -1005,12 +1007,8 @@ export function strongholdArcherSlotWorld(keep: Unit, slot: number): { x: number
     );
 }
 
-/** How many archers a keep's battlements hold — `Unit5` is normally the commander's. */
-export const STRONGHOLD_ARCHER_SLOTS = [1, 2, 3, 4] as const;
-/**
- * Tutorial 2: no rooftop commander — the fifth battlement pad is an archer slot.
- */
-export const STRONGHOLD_ARCHER_SLOTS_NO_COMMANDER = [1, 2, 3, 4, 5] as const;
+/** All authored battlement pads (`Unit1`…`Unit5`) — every slot is an archer post. */
+export const STRONGHOLD_ARCHER_SLOTS = [1, 2, 3, 4, 5] as const;
 /**
  * A Stronghold archer's field of fire, in degrees. He covers this much centred on
  * outward, and the rest — pointing back into his own keep — is dead. Written in
@@ -1019,8 +1017,8 @@ export const STRONGHOLD_ARCHER_SLOTS_NO_COMMANDER = [1, 2, 3, 4, 5] as const;
  */
 export const STRONGHOLD_ARCHER_FOV_DEGREES = 240;
 export const STRONGHOLD_ARCHER_FOV_HALF = (STRONGHOLD_ARCHER_FOV_DEGREES * Math.PI) / 360;
-/** first archer 100, second 200, third 300, fourth 400 */
-export const STRONGHOLD_ARCHER_STEP_COST = 100;
+/** first archer 100; each further post +50 (150, 200, …) */
+export const STRONGHOLD_ARCHER_STEP_COST = 50;
 
 /** shield dome coverage, world units — the top stays below the air layer (18) */
 export const SHIELD_RADIUS = 20;
@@ -1415,7 +1413,7 @@ export const UNIT_TYPES: UnitType[] = [
         // Match cadence to the long pitch (~1.27s visual @ fireSpeed 3)
         attackInterval: 1.35,
         // Hit late in the throw (visual ~1.27s)
-        meleeHitDelay: 0.7,
+        meleeHitDelay: 0.6,
         // commit early at speed 8.5 → slide into the smash
         meleeLunge: 5,
         meleePress: 0.85, // keep closing while swinging (the charge feel)
@@ -1639,9 +1637,10 @@ export function formationHeadcount(type: UnitType): number {
 }
 
 /**
- * Per-mech HP-withdraw weight for wave grouping. Explicit `hpWithdraw` on the
- * type wins; otherwise `cost / formation headcount` (same basis as battle-end
- * damage per sim actor).
+ * Per-mech HP withdrawn at battle end. Explicit `hpWithdraw` on the type wins;
+ * otherwise {@link UnitType.cost} / formation headcount — always the type's
+ * base cost, never what was paid to buy or level the pack (a level-2 archer
+ * still withdraws 100). Wave tier is derived from this ({@link hpDrawWaveTier}).
  */
 export function hpWithdrawOf(type: UnitType): number {
     if (type.hpWithdraw !== undefined) return type.hpWithdraw;
@@ -1650,7 +1649,7 @@ export function hpWithdrawOf(type: UnitType): number {
 
 export type HpDrawWaveTier = 'low' | 'medium' | 'high';
 
-/** Post-battle particle wave from hpWithdraw: low < 100, medium < 300, high otherwise. */
+/** Particle wave from withdraw amount: low < 100, medium < 300, high otherwise. */
 export function hpDrawWaveTier(withdraw: number): HpDrawWaveTier {
     if (withdraw < 100) return 'low';
     if (withdraw < 300) return 'medium';

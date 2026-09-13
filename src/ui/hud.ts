@@ -3480,7 +3480,7 @@ export class Hud {
      * screen: the phone tab bar and field-action buttons step aside. The
      * topbar keeps its original cards-only rule (a card pick or the
      * settings panel blocks End Deployment and speed controls; pause does
-     * not — pause already stops everything itself). Commander HP strips
+     * not — in solo, Game freezes clocks while this menu is open). Commander HP strips
      * hide for the same overlays — they sit above `.mechili-cards` so
      * specialist peek still works, but during an actual pick they only
      * steal taps / clutter the screen. Specialist-detail peek does NOT
