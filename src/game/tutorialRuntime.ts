@@ -52,6 +52,10 @@ import {
     TUTORIAL_3_MIN_RUNES,
     TUTORIAL_3_R4_ARCHERS,
     TUTORIAL_3_ROUNDS,
+    TUTORIAL_ARCHER_ID,
+    TUTORIAL_BALLISTA_ID,
+    TUTORIAL_DWARF_ID,
+    tutorialContentProblems,
     type TutorialPlaceSlot,
     type TutorialWorldZone,
 } from './tutorial';
@@ -147,6 +151,8 @@ export class TutorialRuntime {
     private pendingOutcome: 'win' | 'loss' | null = null;
 
     constructor(host: TutorialHost) {
+        const problems = tutorialContentProblems(host.types);
+        if (problems.length > 0) throw new Error(`[tutorial] content changed under the lessons: ${problems.join('; ')}`);
         this.host = host;
         this.lesson = tutorialId(host.settings);
     }
@@ -399,7 +405,7 @@ export class TutorialRuntime {
     private playerArcher(): Unit | undefined {
         return this.host.placement
             .allUnits()
-            .find((u) => u.seat === this.host.humanSeat && u.type.id === 'archer' && !u.destroyed);
+            .find((u) => u.seat === this.host.humanSeat && u.type.id === TUTORIAL_ARCHER_ID && !u.destroyed);
     }
 
     private ensurePlayerArcherSelected(): void {
@@ -433,7 +439,7 @@ export class TutorialRuntime {
             .allUnits()
             .filter(
                 (u) =>
-                    u.seat === this.host.humanSeat && u.type.id === 'dwarf' && !u.type.structure,
+                    u.seat === this.host.humanSeat && u.type.id === TUTORIAL_DWARF_ID && !u.type.structure,
             );
         const slot0 = slots[0];
         const slot1 = slots[1];
@@ -465,7 +471,7 @@ export class TutorialRuntime {
         const onCellWrongRot = this.host.placement.allUnits().some(
             (u) =>
                 u.seat === this.host.humanSeat &&
-                u.type.id === 'dwarf' &&
+                u.type.id === TUTORIAL_DWARF_ID &&
                 u.cell.col === slot1.anchor.col &&
                 u.cell.row === slot1.anchor.row &&
                 u.rotated !== slot1.rotated,
@@ -569,7 +575,7 @@ export class TutorialRuntime {
     private setupRound2(round: number): void {
         const host = this.host;
         const enemySeat = primarySeatOf(host.seats, 'enemy');
-        host.unlockedUnits[enemySeat] = round === 3 ? ['dwarf'] : ['dwarf', 'archer'];
+        host.unlockedUnits[enemySeat] = round === 3 ? [TUTORIAL_DWARF_ID] : [TUTORIAL_DWARF_ID, TUTORIAL_ARCHER_ID];
         // Match-wide unitsPerRound is 0 (player uses Stronghold only) — give the
         // AI an explicit deploy cap per round or it places nothing and the
         // battle ends instantly.
@@ -908,7 +914,7 @@ export class TutorialRuntime {
     /** Round 4: five archers across the player's zone center. */
     private spawnPlayerArchers3(): void {
         const seat = this.host.humanSeat;
-        const type = this.host.types.byId('archer');
+        const type = this.host.types.byId(TUTORIAL_ARCHER_ID);
         if (!type) return;
         for (const cell of tutorial3CenterArcherCells(
             this.host.map,
@@ -928,7 +934,7 @@ export class TutorialRuntime {
         const host = this.host;
         const humanSeat = host.humanSeat;
         const enemySeat = primarySeatOf(host.seats, 'enemy');
-        host.unlockedUnits[enemySeat] = ['dwarf', 'archer'];
+        host.unlockedUnits[enemySeat] = [TUTORIAL_DWARF_ID, TUTORIAL_ARCHER_ID];
         // Explicit per-round AI cap: the match-wide unitsPerRound only fits
         // round 1, and a cap of 0 would leave the enemy field empty.
         host.deployState.limit[enemySeat] =
@@ -962,7 +968,7 @@ export class TutorialRuntime {
 
         if (round === 1) {
             this.spawnTowers3('enemy');
-            host.unlockedUnits[humanSeat] = ['dwarf', 'ballista'];
+            host.unlockedUnits[humanSeat] = [TUTORIAL_DWARF_ID, TUTORIAL_BALLISTA_ID];
             host.deployState.limit[humanSeat] = 2;
             host.hud.setShopColumnVisible(true);
             host.hud.setShopRunesVisible(false);
@@ -970,7 +976,7 @@ export class TutorialRuntime {
         } else if (round === 2) {
             this.spawnTowers3('both');
             // One pack a side, nose to nose — the boosts are the only difference.
-            const dwarf = this.host.types.byId('dwarf');
+            const dwarf = this.host.types.byId(TUTORIAL_DWARF_ID);
             if (dwarf) {
                 host.placement.spawn(
                     dwarf,
@@ -1029,8 +1035,8 @@ export class TutorialRuntime {
         const own = host.placement
             .allUnits()
             .filter((u) => u.seat === host.humanSeat && !u.type.structure);
-        const dwarves = own.filter((u) => u.type.id === 'dwarf');
-        const ballistas = own.filter((u) => u.type.id === 'ballista');
+        const dwarves = own.filter((u) => u.type.id === TUTORIAL_DWARF_ID);
+        const ballistas = own.filter((u) => u.type.id === TUTORIAL_BALLISTA_ID);
         const tower = this.playerCommandTower();
         const selected = host.placement.selectedUnit;
         return {
@@ -1049,10 +1055,10 @@ export class TutorialRuntime {
             runesBought: host.deployState.runesBought[host.humanSeat]!,
             runesApplied: own.reduce((n, u) => n + u.items.length, 0),
             archerSelected:
-                !!selected && selected.seat === host.humanSeat && selected.type.id === 'archer',
+                !!selected && selected.seat === host.humanSeat && selected.type.id === TUTORIAL_ARCHER_ID,
             longbowOwned: host.techTree.has(
                 host.humanSeat,
-                'archer',
+                TUTORIAL_ARCHER_ID,
                 TUTORIAL_3_ARCHER_RANGE_TECH,
             ),
         };
@@ -1120,7 +1126,7 @@ export class TutorialRuntime {
     soleTechFor(unit: Unit): string | null {
         return this.lesson === TUTORIAL_3_ID &&
             this.host.round === 4 &&
-            unit.type.id === 'archer'
+            unit.type.id === TUTORIAL_ARCHER_ID
             ? TUTORIAL_3_ARCHER_RANGE_TECH
             : null;
     }

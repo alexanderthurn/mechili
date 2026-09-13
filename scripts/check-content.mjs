@@ -140,6 +140,24 @@ try {
         else console.log(`ok   commanders: ${T.commanders.length} offered + ${hidden.length} tutorial; ${T.roundCards.length} round cards; spell ids exist`);
     }
 
+    // ---- tutorials: the units, footprints, talent and commanders the lessons are scripted around
+    {
+        const tutorial = await server.ssrLoadModule('/src/game/tutorial.ts');
+        const basePackModule = await server.ssrLoadModule('/src/game/content/basePack.ts');
+        const registry = await server.ssrLoadModule('/src/game/content/typeRegistry.ts');
+        const problems = tutorial.tutorialContentProblems(units.BASE_TYPES);
+        const dwarfText = readFileSync('assets/data/units/dwarf.jsonc', 'utf8').replace('"cols": 5, "rows": 2', '"cols": 4, "rows": 2');
+        const wider = new registry.TypeRegistry(basePackModule.loadPackWithOverlay(new Map([['data/units/dwarf.jsonc', dwarfText]]), 'tutorial-check'));
+        const caught = tutorial.tutorialContentProblems(wider).some((p) => p.includes('"dwarf" to be 5×2'));
+        if (problems.length > 0 || !caught) {
+            failed = true;
+            for (const p of problems) console.error(`FAIL ${p}`);
+            if (!caught) console.error('FAIL tutorial guard missed a changed dwarf footprint');
+        } else {
+            console.log('ok   tutorials: lesson units, footprints, talent and commanders present');
+        }
+    }
+
     // ---- level overlays: replacement by path, report, hash, data validation
     const resolver = await server.ssrLoadModule('/src/game/assets.ts');
     const pack = await server.ssrLoadModule('/src/game/content/basePack.ts');

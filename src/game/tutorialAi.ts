@@ -9,7 +9,15 @@ import type { Team, UnitType } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import type { Cell } from './map';
-import { TUTORIAL_1_ID, TUTORIAL_2_ID, TUTORIAL_3_ID, tutorial3CenterArcherCells, tutorial3MirroredArmy } from './tutorial';
+import {
+    TUTORIAL_1_ID,
+    TUTORIAL_2_ID,
+    TUTORIAL_3_ID,
+    TUTORIAL_ARCHER_ID,
+    TUTORIAL_DWARF_ID,
+    tutorial3CenterArcherCells,
+    tutorial3MirroredArmy,
+} from './tutorial';
 
 /**
  * Tutorial-mode opponent. One file owns every lesson's AI behaviour so later
@@ -85,8 +93,8 @@ export class TutorialAi implements Opponent {
     /** Tutorial 1: four archers near the middle of the enemy zone, then lock in. */
     private runTutorial1(round: number): void {
         if (round === 1) {
-            this.ctx.unlockedUnits[this.seat] = ['archer'];
-            const type = this.ctx.types.byId('archer');
+            this.ctx.unlockedUnits[this.seat] = [TUTORIAL_ARCHER_ID];
+            const type = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
             if (type) this.placeNearCenter(type, 4);
         }
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
@@ -95,15 +103,15 @@ export class TutorialAi implements Opponent {
     /** Tutorial 2: center-lane waves; round 3 adds a heavy assault from the left. */
     private runTutorial2(round: number): void {
         if (round === 1) {
-            const dwarf = this.ctx.types.byId('dwarf');
+            const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
             if (dwarf) this.placeNearCenter(dwarf, 1);
         } else if (round === 2) {
-            const dwarf = this.ctx.types.byId('dwarf');
-            const archer = this.ctx.types.byId('archer');
+            const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
+            const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
             if (dwarf) this.placeNearCenter(dwarf, 5);
             if (archer) this.placeNearCenter(archer, 7);
         } else if (round === 3) {
-            const dwarf = this.ctx.types.byId('dwarf');
+            const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
             // Left border only — no archers, so the right-back stays clear for
             // the player's summon and the keep fight stays melee.
             if (dwarf) this.placeAtBorderLeft(dwarf, 6);
@@ -118,8 +126,8 @@ export class TutorialAi implements Opponent {
      * center archer line for Longbow.
      */
     private runTutorial3(round: number): void {
-        const dwarf = this.ctx.types.byId('dwarf');
-        const archer = this.ctx.types.byId('archer');
+        const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
+        const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
         if (round === 1) {
             if (dwarf) this.placeAtBorderLeft(dwarf, 2, /* deeper */ 1);
         } else if (round === 2) {

@@ -853,6 +853,7 @@ levels/frost-keep/
 | 6. Overlay layer: `buildAssetOverlay` / `installAssetOverlay`, report, overlay hash in `currentContentHash()`, level data validated via `loadPackWithOverlay` | done (no loading UI) |
 | 7. Per-match type registry (`TypeRegistry`, `game.types`) — see 17.8 | done |
 | 7b. Level switch reloads cached files and model data (`switchLevel`) — see 17.9 | done (dev console only) |
+| 7c. More content as data: talents (`data/talents`, `talents`/`talentSlots` on units), runes + forge recipes (`data/runes`, `itemSlots`), commanders + round cards (`data/commanders`, `data/roundCards`); all served by the match's `TypeRegistry`. Tutorials stay code, guarded by `tutorialContentProblems` | done |
 | 8. Level loading (Electron folder / browser zip) + scenario boot | with scenarios |
 | 9. Walls and other engine features that unlock new content | later |
 
@@ -931,6 +932,7 @@ the Game (step 8).
 | Date | Change |
 |------|--------|
 | 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
+| 2026-09-13 | §17 step 7c: talents, runes/recipes, commanders/round cards as data; tutorial content guard |
 | 2026-09-13 | §17.9 level switch: cached files and model data reload per level (`switchLevel`, reload hooks, dev console helper) |
 | 2026-09-13 | Rigged-unit animation clips moved into model data (`"animation"`) |
 | 2026-09-13 | §17 step 7: per-match `TypeRegistry` (`game.types`); module type constants removed |
