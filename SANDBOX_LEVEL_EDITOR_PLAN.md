@@ -8,7 +8,7 @@ is the atom of a future **Campaign** (one scenario after another).
 
 **Read first:** [ARCHITECTURE.md](ARCHITECTURE.md) (action log, determinism),
 [TEAM_MODES_PLAN.md](TEAM_MODES_PLAN.md) (seats), [PROGRESSION_PLAN.md](PROGRESSION_PLAN.md)
-(loadouts = choice, not unlock).
+(loadouts = the player's own choice, never an unlock; scenarios keep it by default).
 
 **v2 changes (review of v1 against the engine):** v1 assumed dead enemies stay
 dead (the engine revives every unit each round), a shared fixed-HP path that is
@@ -58,11 +58,11 @@ one rules object. See §14.
     primitives** (useful to any caller) and **rule reads**, never editor
     branches. See §12.
 
-11. **Requirement — behaviour comes from attributes, not ids.** Before the
-    editor is built, core stops branching on specific unit or building types
-    (`type === STRONGHOLD`, `id === 'ballista'`). Every such behaviour becomes
-    an attribute on the type, and unit/building definitions become plain data
-    that can later be loaded from JSON content packs. See §17.
+11. **Requirement — behaviour comes from attributes, not ids, and every file
+    is replaceable.** Before the editor is built, core stops branching on
+    specific unit or building types (`type === STRONGHOLD`), definitions become
+    plain data under `assets/data/`, and every file the game loads goes through
+    one resolver so a level can replace it by path. See §17.
 
 ---
 
@@ -290,10 +290,21 @@ interface ScenarioRules {
   /** fog on enemy deployment intel */
   enemyIntel: 'fogged' | 'visible';
 
-  /** human seat: shop unlocks (omit = normal) and researchable techs per type (omit = full allowlist) */
+  /** human seat: shop unlocks (omit = normal) */
   unlockedUnits?: string[];
-  techAllowlist?: Record<string, string[]>;
+  /** how the human seat's talent loadout applies (omit = the player's own loadout, normal rules) */
+  loadout?: LoadoutRule;
 }
+
+/**
+ * The player's loadout (their pregame talent picks, loadouts.ts) is ALWAYS the
+ * default. A scenario only adjusts it when it wants to be stricter or looser.
+ */
+type LoadoutRule =
+  | { mode: 'player' }                                          // default: own loadout, own slots
+  | { mode: 'restrict'; allow: Record<string, string[]> }       // own picks, but only these talents per type count
+  | { mode: 'fixed'; techs: Record<string, string[]> }          // the scenario sets the picks (e.g. a lesson)
+  | { mode: 'open' };                                           // every allowlisted talent, no slot limit
 ```
 
 Rule-by-rule mapping onto today's code:
@@ -331,7 +342,8 @@ removes branches from core instead of adding a third special case.
 3. `scene.techs` are added to each side's `TechTree`.
 4. Scene units are spawned **in canonical order** (player, enemy, horde; then
    list order) with `free = true`, levels and runes applied.
-5. Rules take effect; round 1 build phase starts.
+5. Rules take effect — the player keeps their own loadout unless `rules.loadout`
+   adjusts it; round 1 build phase starts.
 
 Steps 2–4 run in the constructor path, before the first state hash and before
 any action is replayed, so resume and replay reproduce the same board with the
@@ -361,7 +373,14 @@ mechanic and is listed in §11, not assumed.
 - Income is the normal round grant driven by `rules.income` — no separate
   “starting balance” rule.
 - `unlockedUnits` replaces the human seat's unlock list at start.
-- `techAllowlist` becomes the human seat's loadout; normal costs apply.
+- **Loadout:** the player plays with their own saved loadout, exactly as in a
+  normal match, unless `rules.loadout` says otherwise:
+  - `restrict` keeps the player's picks but drops talents not in `allow`
+    (stricter: “no Aegis in this level”);
+  - `fixed` replaces the picks with the scenario's (a lesson, a set-piece);
+  - `open` offers every allowlisted talent without the slot limit (looser:
+    sandbox-style experiments).
+  Talents are still bought with supply at normal costs in every mode.
 - Enemy techs come only from `scene.techs`; enemies do not research in play
   when `opponents: 'lockInOnly'`.
 
@@ -621,8 +640,8 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
 ## 13. Delivery phases
 
 0. **Content preparation (§17), before any editor work:** attributes instead of
-   id checks, definitions made serializable, JSON loader for the base game
-   with an equality check against the TypeScript tables.
+   id checks, definitions as validated data, one asset resolver with a manifest,
+   level overlays by path, content hash in the multiplayer handshake.
 1. **Rules + scenario play:** `matchRules.ts`, `ScenarioDef`, normalize,
    `applyScenario`, play a hand-written JSON, resume + replay verification.
 2. **Capture situation** (§9.1) — immediate value, and it exercises apply.
@@ -717,15 +736,13 @@ Each phase is playable and reviewable on its own.
 
 ---
 
-## 17. Content packs & unit attributes (requirement)
+## 17. Content, assets & overlays (requirement)
 
-Custom maps will need buildings and units that don't exist in the normal game
-(a different Stronghold, walls that shield one side). Those must be possible
-**without touching game code**, and ideally without a programmer. That needs
-two things, delivered before the editor:
-
-1. core code that reacts to **attributes** of a type, never to its identity;
-2. unit and building definitions that are **plain data** and can live in JSON.
+Custom levels will want things the normal game doesn't have: a different
+Stronghold, walls, other trees — and later maybe a modder's whole
+“starspace” look. That must be possible **without touching game code**, and
+ideally without a programmer. Model: **code + assets**, where a level is an
+**overlay** that replaces files by path.
 
 ### 17.1 Attribute rules
 
@@ -733,80 +750,109 @@ two things, delivered before the editor:
 2. **Attribute = capability; match rules decide whether it is active.**
    `collapseOwnArmy` only fires when `strongholdMode` is `lifeline`.
 3. **Group what always goes together.** `fixture: true` means “part of a
-   building”: not sellable, not movable, no refund, not field army. No sets of
-   booleans that must be kept in sync by hand.
+   building”: not sellable, not movable, no refund, not field army.
 4. **Relationships by reference, not by type.** A mounted archer dies with
-   *its* host building, not with any building of a given type.
-5. **Values in data, effects in code.** JSON switches effects on and sets
+   *its* host building (`hostUnitId`), not with any building of a type.
+5. **Values in data, effects in code.** Data switches effects on and sets
    numbers; each effect is implemented once in TypeScript.
-6. **Unknown attributes are load errors.** A typo must never silently do
-   nothing.
-7. **Scripted content may use ids.** Tutorial lessons (“select the archer”)
-   and cheats refer to specific content on purpose.
+6. **Unknown fields are load errors**, at every depth.
+7. **Scripted content may use ids.** Tutorial lessons and cheats refer to
+   specific content on purpose.
 
-### 17.2 Current id checks → attributes
+### 17.2 Id checks → attributes (done)
 
-| Behaviour today | Attribute |
+| Behaviour | Attribute |
 |---|---|
 | Stronghold destroyed → own army collapses (lifeline) | `onDestroyed.collapseOwnArmy` |
 | Command Tower / Research Center destroyed → seat debuff | `onDestroyed.seatDebuff` |
-| Stronghold destroyed → its battlement archers die | `diesWithHost` on the mounted unit |
+| Keep destroyed → its battlement archers die | `diesWithHost` + `Unit.hostUnitId` |
 | Battlement archer: no sell / move / refund / field army | `fixture` |
-| Buy archers onto `Unit1…5` with a climbing price | `garrison { slots, unitTypeId, price { base, step } }` on the host |
-| Rune drop onto the building, forge FX, forge spells | `forge` |
-| Building shop buttons (recruit level, deploy slot, boosts, credit, upgrade, archers) | `abilities: [...]` |
-| Ballista golden aura | `aura { effect, requiresTech, radius, duration }` |
-| Sand pad scale under buildings | `visual.sandScale` |
-| Banners | driven by the model's flag nodes |
+| Posts on `Unit1…5` with a climbing price | `garrison { slots, unitTypeId, priceStep }` |
+| Rune forge, building panel buttons | `abilities: [...]` |
+| Golden aura | `aura { effect, requiresTech, radius, duration }` |
+| Sand pad, banners | `sandPadScale`, model `Flag` node |
 
-### 17.3 Definitions as data
-
-- A type definition may contain only JSON-representable values. Code
-  references (today: the procedural `build` mesh function) become **named
-  references** resolved at load time (`"proceduralModel": "dwarf"`).
-- Model specs (GLB path, yaw, scale, offset) move next to the type they
-  belong to.
-- Ids are namespaced once packs exist (`base:archer`, `fortress:wall`); a
-  level pack may `extends` a base type and override fields.
-
-### 17.4 Pack layout (units and buildings first)
+### 17.3 One asset tree
 
 ```text
-content/
-  base/
-    pack.json
-    units/*.json
-    buildings/*.json
-    models/*.glb
-  scenarios/<id>/
-    scenario.json
-    units/*.json        # new or extended types for this level only
-    buildings/*.json
-    models/*.glb
+assets/
+  data/                  definitions: plain data, JSONC, schema-validated
+    pack.jsonc           roster order, off-roster types, buildings
+    units/*.jsonc
+    buildings/*.jsonc
+    models/*.jsonc       model specs (GLB path, orientation, scale)
+    schema/*.schema.json generated from the TypeScript types
+  models/units/*.glb     unit & building models
+  models/scenery/  models/spells/  textures/  fonts/  ui/  icons/ …
 ```
 
-The base pack is bundled by Vite (no runtime fetch). Scenario packs load at
-runtime. Techs, runes and commanders follow the same pattern later.
+- Definitions are data (`assets/data`); media stays media. Both are *assets*:
+  everything a level could replace lives in this one tree.
+- Model specs reference files by their path under `assets/`
+  (`"file": "models/units/ogre.glb"`), so a data file and a media file are
+  addressed the same way.
+- Schemas are generated from `UnitType` / `ModelSpecData` / `PackManifest`
+  (`npm run content:schema`); VS Code / Cursor get autocomplete, hover docs
+  and inline errors; `npm run check:content` fails on stale schemas.
 
-### 17.5 Determinism
+### 17.4 One resolver, one manifest
 
-- Anything the sim reads from a pack (stats, attributes, GLB-derived slots and
-  heights) must be identical on every peer: the multiplayer join check compares
-  a content hash of the loaded packs, and pack GLBs feed
-  `modelGeometryFingerprint`.
-- Every conversion step must leave a recorded replay's state hashes unchanged.
+- Every file the game loads is requested by **logical path** through
+  `assetUrl('models/scenery/tree-oak.glb')` — no hard-coded
+  `new URL('../../assets/…')` outside the manifest.
+- The **asset manifest** lists exactly the files the game ships (generated by
+  `npm run assets:manifest` from the `assetUrl` calls and the model specs;
+  `check:content` fails when it is stale). An exact list, not folder globs,
+  so unused files never get bundled.
+- Lookups happen **when a file is loaded**, not at module import, so an
+  overlay set before a match applies to everything loaded for it.
 
-### 17.6 Order
+### 17.5 Level overlays
 
-1. Attributes replace id checks in the current TypeScript tables, one
-   behaviour per commit.
-2. Definitions become serializable (named procedural model refs, model specs
-   on the type).
-3. A one-time export writes the base pack as JSON; a loader builds the same
-   objects; a check proves loaded == TypeScript tables.
-4. Level packs (`extends`, new GLBs, new buildings from existing attributes).
-5. Engine features that unlock new content, e.g. walls (movement + projectile
-   blocking needs real pathing — today the sim only has local avoidance).
+```text
+levels/frost-keep/
+  level.jsonc                          board, rules, scene (the ScenarioDef)
+  models/scenery/tree-oak.glb          replaces the base tree
+  data/buildings/stronghold.jsonc      replaces the base Stronghold
+  data/buildings/ice-wall.jsonc        adds a building (new id)
+  models/units/ice-wall.glb
+```
+
+- **Rule:** a file at the same path as a base asset replaces it; a new path
+  adds a file. Any file type — models, textures, fonts, UI images, data.
+- The resolver checks the active overlay first, then the base manifest.
+- Validation reports overlay files that shadow nothing *and* are not
+  referenced by the level's data (usually a typo or a renamed base file).
+- Field-level `extends` for data files (“archer with +20 HP” without copying
+  the file) is a later convenience, not part of the rule.
+- Base assets are bundled at build time; overlay files only exist at runtime
+  (Electron: read from disk; browser: a zip or picker), so the resolver has a
+  build-time base layer and a runtime overlay layer.
+
+### 17.6 Content hash (multiplayer)
+
+- **Every** file counts, not only sim-relevant ones: a replaced texture or
+  tree model can hide units, which is unfair even though the sim agrees.
+- The **base hash** is computed at build time over the manifest files and
+  `assets/data` and embedded like `GAME_VERSION` (≈130 ms for all 171 MB on a
+  dev machine; zero at runtime).
+- A level's **overlay hash** is computed once when it loads (a few ms).
+- The join, rejoin and spectate handshakes compare `base + overlay` next to
+  `GAME_VERSION`; a mismatch refuses to join with a clear message.
+- Nothing is hashed during a match; the per-round model fingerprint stays.
+
+### 17.7 Order
+
+1. Attributes replace id checks (done).
+2. Definitions as data, JSONC + generated schemas (done).
+3. One asset tree: `content/base` → `assets/data`, unit GLBs →
+   `assets/models/units`.
+4. Resolver + generated manifest; all game file loads go through it, lazily.
+5. Build-time base hash in the bundle and the handshakes.
+6. Overlay layer in the resolver + validation + overlay hash (no loading UI
+   yet — that arrives with scenarios).
+7. Later: walls and other engine features that unlock new content (movement +
+   projectile blocking needs real pathing — the sim only has local avoidance).
 
 ---
 
@@ -815,5 +861,6 @@ runtime. Techs, runes and commanders follow the same pattern later.
 | Date | Change |
 |------|--------|
 | 2026-09-13 | v1 review draft: sandbox + level export, MapSize boards, asymmetric side HP, strict module separation |
+| 2026-09-13 | §17 → content, assets & overlays: one `assets/` tree (data + media), `assetUrl` resolver + manifest, level overlays by path, content hash in handshakes. Loadout fixed: the player's own loadout is the default; `rules.loadout` can restrict, fix or open it |
 | 2026-09-13 | §17 requirement: attributes instead of id checks; definitions as data; JSON content packs (units/buildings first); phase 0 before the editor |
 | 2026-09-13 | v2: verified against the engine. Scenario embedded in settings (replay/resume), `MatchRules`, restart-only editor, side-level techs, commander modes, opponents always lock in, revive semantics, capture situation, share codes, regression tests, campaign carry-over, resolved-issues table (§14) |
