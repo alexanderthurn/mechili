@@ -194,9 +194,36 @@ void main() {
 }
 `;
 
+/**
+ * Shared per team / per size: unit views are removed from the scene without
+ * being disposed, so anything built per dome would stay in GPU memory for every
+ * ward bought, sold or previewed. Only the material is per dome — it carries
+ * that dome's position, neighbours and ripples.
+ */
+const runeTextures = new Map<number, CanvasTexture>();
+const domeGeometries = new Map<number, SphereGeometry>();
+
+function wardRuneTexture(filmHex: number): CanvasTexture {
+    let texture = runeTextures.get(filmHex);
+    if (!texture) {
+        texture = makeWardRuneTexture(filmHex);
+        runeTextures.set(filmHex, texture);
+    }
+    return texture;
+}
+
+function wardDomeGeometry(r: number): SphereGeometry {
+    let geometry = domeGeometries.get(r);
+    if (!geometry) {
+        geometry = new SphereGeometry(r, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        domeGeometries.set(r, geometry);
+    }
+    return geometry;
+}
+
 function makeWardMaterial(team: WardTeam): ShaderMaterial {
     const side = colorForBattleTeam(team);
-    const runes = makeWardRuneTexture(side.hex);
+    const runes = wardRuneTexture(side.hex);
     return new ShaderMaterial({
         uniforms: {
             uTeamColor: { value: new Color(side.hex) },
@@ -232,7 +259,7 @@ function makeWardMaterial(team: WardTeam): ShaderMaterial {
 /** Build the translucent hemisphere. Caller parents it under the unit mesh. */
 export function createWardDomeMesh(r: number, heightScale: number, team: WardTeam): Mesh {
     const mat = makeWardMaterial(team);
-    const mesh = new Mesh(new SphereGeometry(r, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+    const mesh = new Mesh(wardDomeGeometry(r), mat);
     mesh.scale.y = heightScale;
     mesh.raycast = () => {};
     mesh.renderOrder = 2;
