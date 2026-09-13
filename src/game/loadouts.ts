@@ -19,6 +19,7 @@
  */
 
 import { allowedTechIds, techSlotLimit, type Loadout } from './techCatalog';
+import type { TypeRegistry } from './content/typeRegistry';
 import { BASE_TYPES, isPlayerBuyable, type UnitType } from './units';
 import { USER_STORAGE_PREFIX } from './userStorage';
 
@@ -53,6 +54,20 @@ function defaultTechIdsFor(type: UnitType): string[] {
 export function defaultLoadout(): Loadout {
     const techs: Record<string, string[]> = {};
     for (const type of loadoutUnitTypes()) techs[type.id] = defaultTechIdsFor(type);
+    return { techs };
+}
+
+/**
+ * Every talent each type may take, no slot limit — the scenario editor's
+ * sandbox, never a player's match loadout (rule 1 still holds: nothing is
+ * unlocked, it only lifts the pick limit while building a board).
+ */
+export function openLoadout(types: TypeRegistry): Loadout {
+    const techs: Record<string, string[]> = {};
+    for (const type of types.all()) {
+        const ids = allowedTechIds(type).filter((id) => types.talent(id) !== null);
+        if (ids.length > 0) techs[type.id] = [...ids];
+    }
     return { techs };
 }
 

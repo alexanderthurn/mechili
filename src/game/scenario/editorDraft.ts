@@ -8,7 +8,7 @@ import type { TypeRegistry } from '../content/typeRegistry';
 import type { LevelRef } from '../level';
 import { STANDARD_MAP, type MapSize } from '../map';
 import { DEFAULT_SETTINGS } from '../settings';
-import { boardCells } from './normalize';
+import { boardCells, HORDE_MARGIN_CELLS } from './normalize';
 import { SCENARIO_VERSION, type ScenarioDef, type SceneTeam, type SceneUnit } from './scenarioDef';
 
 export type MapPresetId = 'tiny' | 'compact' | 'standard' | 'wide' | 'deep';
@@ -72,12 +72,13 @@ export function extentOf(types: TypeRegistry, unit: SceneUnit): { cols: number; 
     return unit.at.rotated ? { cols: type.footprint.rows, rows: type.footprint.cols } : type.footprint;
 }
 
-/** Is every tile of the entry on the board? */
+/** Is every tile of the entry on the board? (horde packs: or in the forest ring around it) */
 export function onBoard(types: TypeRegistry, map: MapSize, unit: SceneUnit): boolean {
     const fp = extentOf(types, unit);
     if (!fp) return true; // unknown types are reported by normalize, not dropped here
     const { cols, rows } = boardCells(map);
-    return unit.at.col >= 0 && unit.at.row >= 0 && unit.at.col + fp.cols <= cols && unit.at.row + fp.rows <= rows;
+    const m = unit.team === 'horde' ? HORDE_MARGIN_CELLS : 0;
+    return unit.at.col >= -m && unit.at.row >= -m && unit.at.col + fp.cols <= cols + m && unit.at.row + fp.rows <= rows + m;
 }
 
 /**
@@ -113,6 +114,75 @@ export function withoutTeam(def: ScenarioDef, team: SceneTeam): ScenarioDef {
     const next = structuredClone(def);
     next.scene.units = next.scene.units.filter((u) => u.team !== team);
     return next;
+}
+
+const TEAM_ORDER: Record<SceneTeam, number> = { player: 0, enemy: 1, horde: 2 };
+
+/**
+ * One spelling per board, so a board read back from the match compares equal
+ * to the draft it was built from: entries in team order, talents sorted and
+ * without empty lists, base buildings at level 1 without posts omitted.
+ */
+export function tidyDraft(def: ScenarioDef): ScenarioDef {
+    const next = structuredClone(def);
+    next.scene.units = next.scene.units
+        .map((u, i) => ({ u, i }))
+        .sort((a, b) => TEAM_ORDER[a.u.team] - TEAM_ORDER[b.u.team] || a.i - b.i)
+        .map(({ u }) => u);
+    for (const side of ['player', 'enemy'] as const) {
+        const techs = next.scene.techs[side];
+        for (const [typeId, ids] of Object.entries(techs)) {
+            if (ids.length === 0) delete techs[typeId];
+            else techs[typeId] = [...ids].sort();
+        }
+        const buildings = next.scene.buildings[side];
+        for (const [id, state] of Object.entries(buildings)) {
+            if (state && state.level === 1 && !state.garrison && !state.destroyed) delete buildings[id];
+        }
+    }
+    return next;
+}
+
+const otherTeam = (team: SceneTeam): SceneTeam => (team === 'player' ? 'enemy' : team === 'enemy' ? 'player' : 'horde');
+
+/** an entry turned 180° around the board's center (the far side's view of it) */
+function rotatedEntry(types: TypeRegistry, map: MapSize, unit: SceneUnit): SceneUnit {
+    const fp = extentOf(types, unit) ?? { cols: 1, rows: 1 };
+    const { cols, rows } = boardCells(map);
+    return { ...unit, at: { ...unit.at, col: cols - unit.at.col - fp.cols, row: rows - unit.at.row - fp.rows } };
+}
+
+/**
+ * The board seen from the other side: every entry turned 180°, player and
+ * enemy swapped (placements, talents, base buildings, side HP). Applying it
+ * twice gives the same draft back (for a tidy draft). The editor plays the
+ * enemy side on this view — the match itself always runs as the player.
+ */
+export function swapSides(types: TypeRegistry, def: ScenarioDef): ScenarioDef {
+    const next = structuredClone(def);
+    next.scene.units = def.scene.units.map((u) => ({ ...rotatedEntry(types, def.map, u), team: otherTeam(u.team) }));
+    next.scene.techs = { player: structuredClone(def.scene.techs.enemy), enemy: structuredClone(def.scene.techs.player) };
+    next.scene.buildings = {
+        player: structuredClone(def.scene.buildings.enemy),
+        enemy: structuredClone(def.scene.buildings.player),
+    };
+    if (def.rules.sideHp !== 'commander') next.rules.sideHp = { player: def.rules.sideHp.enemy, enemy: def.rules.sideHp.player };
+    return tidyDraft(next);
+}
+
+/**
+ * One side's army copied onto the other, turned 180° so both face each other
+ * the same way: the other side's placements are replaced, talents and base
+ * buildings copied. A fair mirror match in one step.
+ */
+export function mirrorSide(types: TypeRegistry, def: ScenarioDef, from: 'player' | 'enemy'): ScenarioDef {
+    const to = otherTeam(from) as 'player' | 'enemy';
+    const next = structuredClone(def);
+    const copies = def.scene.units.filter((u) => u.team === from).map((u) => ({ ...rotatedEntry(types, def.map, u), team: to }));
+    next.scene.units = [...def.scene.units.filter((u) => u.team !== to), ...copies];
+    next.scene.techs[to] = structuredClone(def.scene.techs[from]);
+    next.scene.buildings[to] = structuredClone(def.scene.buildings[from]);
+    return tidyDraft(next);
 }
 
 /** Undo/redo over whole draft snapshots — editor-local, separate from match undo. */

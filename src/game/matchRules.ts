@@ -37,8 +37,9 @@ export function resolveMatchRules(settings: GameSettings, scenario: ScenarioDef 
         // computer only locks in: the board is exactly what was placed
         const editing = settings.scenario?.mode === 'author' || settings.scenario?.mode === 'test';
         return {
-            flanksOpenFromRound: r.flanksOpenFromRound,
-            neutralOpenFromRound: r.neutralOpenFromRound,
+            // the editor builds on the whole side, flanks and middle strip included
+            flanksOpenFromRound: settings.scenario?.mode === 'author' ? 1 : r.flanksOpenFromRound,
+            neutralOpenFromRound: settings.scenario?.mode === 'author' ? 1 : r.neutralOpenFromRound,
             fixedSideHp: r.sideHp === 'commander' ? null : { ...r.sideHp },
             commander: editing && r.commander.mode === 'pick' ? { mode: 'none' } : r.commander,
             fixedAtmosphere: r.atmosphere.rotate ? null : r.atmosphere,

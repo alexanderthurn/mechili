@@ -239,7 +239,7 @@ import {
     type SpellStamp,
 } from './tactics';
 import { TechTree, effectiveTargets, effectiveFlying } from './tech';
-import { activeLoadout, randomLoadout } from './loadouts';
+import { activeLoadout, openLoadout, randomLoadout } from './loadouts';
 import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
@@ -279,7 +279,7 @@ import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
 import { activeLevel, activeLevelRef, isLevelActive, levelFiles, loadLevel, type LevelRef } from './level';
-import { captureScenario } from './scenario/capture';
+import { captureScene, captureScenario } from './scenario/capture';
 import { scenarioPackageFiles } from './scenario/package';
 import type { OverlayFile } from './assets';
 import { resolveMatchRules, stripOpen, type MatchRules } from './matchRules';
@@ -844,6 +844,8 @@ export class Game {
     onScenarioEditor: ((mode: 'author' | 'test', draft: ScenarioDef) => void) | null = null;
     /** scenario editor: package the draft for download; resolves to a status line */
     onScenarioDownload: ((draft: ScenarioDef) => Promise<string>) | null = null;
+    /** scenario editor: keep the draft as a scenario package; resolves to a status line */
+    onScenarioSave: ((draft: ScenarioDef) => Promise<string>) | null = null;
     onRetryLastRound:
         | ((payload: {
               seed: number;
@@ -1391,6 +1393,8 @@ export class Game {
                 let out = s;
                 if (!out.avatar && localAvatar) out = { ...out, avatar: localAvatar };
                 if (!out.loadout) out = { ...out, loadout: localLoadout };
+                // the sandbox teaches any talent a unit has, not only the player's picks
+                if (this.editorMode === 'author') out = { ...out, loadout: openLoadout(this.types) };
                 return out;
             }
             // Every OTHER seat must already carry a loadout by now — a
@@ -1538,7 +1542,11 @@ export class Game {
         // keep the camera target well inside the field so the view never leaves the map —
         // horde mode widens this so the player can pan out far enough to see the wave
         // approaching through the forest ring (see spawnHordeWave)
-        const hordeReach = hordeEnabled(this.settings) ? HORDE_RING_NEAR + HORDE_RING_SPAN : 0;
+        // the scenario editor places horde packs out there too
+        const hordeReach =
+            hordeEnabled(this.settings) || this.editorMode || this.scenario?.scene.units.some((u) => u.team === 'horde')
+                ? HORDE_RING_NEAR + HORDE_RING_SPAN
+                : 0;
         this.rig.setBounds(this.map.halfW - 8 + hordeReach, this.map.halfH - 16 + hordeReach);
         this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar());
         // open centered on the player's own zone (where the starting army
@@ -1928,12 +1936,17 @@ export class Game {
         this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
         this.hud.onEndDeployment = () => {
             if (this.phase !== 'build') return;
+            // editing: End Deployment runs the test battle
+            if (this.scenarioEditor) {
+                this.scenarioEditor.startTest();
+                return;
+            }
             if (this.tutorial && !this.tutorial.tryEndDeploy()) return;
             this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
         };
         this.hud.onSpeedUp = () => this.cycleSpeed(1);
         this.hud.onSpeedDown = () => this.cycleSpeed(-1);
-        this.hud.onUndo = () => this.undoLast();
+        this.hud.onUndo = () => (this.scenarioEditor ? this.scenarioEditor.undo() : this.undoLast());
         this.hud.onSendChat = (item) => {
             const now = performance.now();
             if (now - this.lastChatSent < CHAT_COOLDOWN_MS) return;
@@ -2799,6 +2812,7 @@ export class Game {
         this.onStartTutorial = null;
         this.onScenarioEditor = null;
         this.onScenarioDownload = null;
+        this.onScenarioSave = null;
         this.scenarioEditor?.destroy();
         this.scenarioEditor = null;
         this.testBattleBar?.remove();
@@ -2940,8 +2954,11 @@ export class Game {
             });
             return;
         }
-        this.hud.setUiHidden(true, { hint: false });
-        this.hpBars.view.visible = false;
+        // a sandbox deployment: every buyable unit, free purchases (the settings
+        // already lift the deploy caps and fill the purse)
+        this.economy.free = true;
+        this.unlockedUnits[this.humanSeat] = [...this.types.shopUnitIds];
+        this.refreshShopHud();
         const level = activeLevel().overlay;
         this.scenarioEditor = new ScenarioEditor(
             {
@@ -2956,6 +2973,12 @@ export class Game {
                 // main wires the download right after construction
                 canDownload: () => this.onScenarioDownload !== null,
                 rebuild: (def) => this.rebuildScenarioBoard(def),
+                capture: (baseBuildings) =>
+                    captureScene(
+                        { types: this.types, placement: this.placement, techTree: this.techTree, primarySeat: (team) => primarySeatOf(this.seats, team) },
+                        baseBuildings,
+                    ),
+                save: (def) => this.onScenarioSave?.(def) ?? Promise.resolve(''),
                 issues: (def) => normalizeScenario(def, this.types).issues,
                 autosave: (def) => storeDraft(def, this.settings.level),
                 restart: (def) => this.onScenarioEditor?.('author', def),
@@ -2978,6 +3001,8 @@ export class Game {
         this.hpBars.clear();
         this.selectedActor = null;
         const applied = applyScenario(this.scenarioHost(), def);
+        // the sandbox may move everything on the board, as if placed this round
+        for (const unit of this.placement.allUnits()) unit.deployedRound = this.round;
         this.placement.refaceAll();
         this.refreshFlightAlts();
         return applied;
@@ -2999,7 +3024,8 @@ export class Game {
         const playerLeft = packs.player.standing > 0;
         const enemyLeft = packs.enemy.standing > 0;
         const outcome = playerLeft && enemyLeft ? 'timeout' : playerLeft ? 'player' : enemyLeft ? 'enemy' : 'draw';
-        return { outcome, seconds: sim.elapsed, packs, members };
+        const hp = buildHpDrawSources(sim);
+        return { outcome, seconds: sim.elapsed, packs, members, damage: { player: hp.damageToPlayer, enemy: hp.damageToEnemy } };
     }
 
     /** the narrow view of this match a scenario's board is applied through (plan §12.2) */
@@ -3674,13 +3700,13 @@ export class Game {
         // not just hidden/disabled UI.
         if (this.watching) return false;
         if (this.seatReady[this.humanSeat] || this.suspended) return false;
-        // editing: the board changes through the editor's draft, never through match actions
-        if (this.editorMode === 'author' && this.round >= 1) return false;
         // stamp explicitly: actorSeat's fallback (primarySeatOf(team)) only
         // equals humanSeat when the human is their side's FIRST seat — false
         // for a star guest assigned to seat 1/2/3
         const stamped: Action = action.seat === this.humanSeat ? action : { ...action, seat: this.humanSeat };
         if (!this.dispatcher.dispatch(stamped)) return false;
+        // the sandbox deployment: whatever the game UI changed goes into the draft
+        if (this.scenarioEditor && this.round >= 1) this.scenarioEditor.syncFromBoard();
         if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
         // classic 1v1's starter pick (round 0) goes out via a dedicated
         // 'starter' message instead — this gate stays as-is for it. Star
@@ -8500,8 +8526,8 @@ export class Game {
     }
 
     private canUndo(): boolean {
+        if (this.editorMode === 'author') return this.scenarioEditor?.canUndo ?? false;
         return (
-            this.editorMode !== 'author' &&
             this.phase === 'build' &&
             !this.matchOver &&
             // THIS SEAT locked in, not the whole side — undoLast() below

@@ -677,6 +677,8 @@ function resolveRoundCardPreset(settings: LegacyGameSettings): string {
  */
 export class Economy {
     private readonly balances: number[];
+    /** scenario editor: every purchase succeeds and nothing is deducted */
+    free = false;
 
     constructor(
         private readonly settings: EconomySettings,
@@ -726,6 +728,7 @@ export class Economy {
 
     /** deducts an arbitrary amount (tech, items, ...) if affordable */
     spend(seat: SeatId, amount: number): boolean {
+        if (this.free) return true;
         if (this.balance(seat) < amount) return false;
         this.balances[seat]! -= amount;
         return true;

@@ -68,6 +68,12 @@ export interface NormalizedScenario {
     issues: ScenarioIssue[];
 }
 
+/**
+ * How far past the board (in tiles) horde packs may stand — the forest ring
+ * the horde waves come out of. Player and enemy entries stay on the board.
+ */
+export const HORDE_MARGIN_CELLS = 32;
+
 /** Grid size of a board, same arithmetic as BattleMap. */
 export function boardCells(map: ScenarioDef['map']): { cols: number; rows: number } {
     return {
@@ -149,8 +155,9 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
         }
         const w = u.at.rotated ? type.footprint.rows : type.footprint.cols;
         const h = u.at.rotated ? type.footprint.cols : type.footprint.rows;
-        if (u.at.col < 0 || u.at.row < 0 || u.at.col + w > cols || u.at.row + h > rows) {
-            error(`${where}: outside the ${cols}×${rows} board`);
+        const margin = u.team === 'horde' ? HORDE_MARGIN_CELLS : 0;
+        if (u.at.col < -margin || u.at.row < -margin || u.at.col + w > cols + margin || u.at.row + h > rows + margin) {
+            error(u.team === 'horde' ? `${where}: too far outside the board` : `${where}: outside the ${cols}×${rows} board`);
         }
         if (u.level < 1) error(`${where}: level must be at least 1`);
         if (u.items) {

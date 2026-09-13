@@ -7,6 +7,10 @@ import type { LevelRef } from '../level';
 import type { GameSettings } from '../settings';
 import type { ScenarioDef } from './scenarioDef';
 
+/** what the editor's purse shows (purchases are free there anyway) */
+const EDITOR_SUPPLY = 99_999;
+const EDITOR_DEPLOY_CAP = 999;
+
 export function applyScenarioToSettings(
     settings: GameSettings,
     def: ScenarioDef,
@@ -24,6 +28,11 @@ export function applyScenarioToSettings(
         unitsPerRound: r.deploy.unitsPerRound,
         extrasBudgetPerRound: r.deploy.extrasBudgetPerRound,
     };
+    if (mode === 'author') {
+        // the editor's sandbox deployment: no caps, a purse that never runs dry
+        settings.economy = { ...settings.economy, startingSupply: EDITOR_SUPPLY, supplyGrowthPerRound: 0 };
+        settings.deploy = { ...settings.deploy, unitsPerRound: EDITOR_DEPLOY_CAP, extrasBudgetPerRound: EDITOR_SUPPLY };
+    }
     settings.roundCardPreset = r.roundCards;
     settings.hordePreset = r.hordeWaves;
     settings.strongholdMode = r.strongholdMode;

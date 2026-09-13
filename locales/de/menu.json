@@ -2,6 +2,7 @@
   "singlePlayer": "Einzelspieler",
   "campaign": "Das Jahr",
   "practice": "Übung",
+  "editor": "Editor",
   "matchmaking": "Spielersuche ({{tag}})",
   "matchmakingTitle": "Spielersuche",
   "customGame": "Benutzerdefiniertes Spiel ({{tag}})",

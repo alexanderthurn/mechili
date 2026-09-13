@@ -52,8 +52,18 @@ export interface CaptureHost {
     primarySeat(team: Team): SeatId;
 }
 
+/** what reading the board needs */
+export type SceneCaptureHost = Pick<CaptureHost, 'types' | 'placement' | 'techTree' | 'primarySeat'>;
+
+/** a board read back: `units[i]` stands for `scene.units[i]`, `buildings` are the base buildings on it */
+export interface CapturedScene {
+    scene: ScenarioDef['scene'];
+    units: Unit[];
+    buildings: Unit[];
+}
+
 /** a grid anchor for a gridless pack (horde), from its world position */
-function anchorOfWorld(host: CaptureHost, unit: Unit): { col: number; row: number } {
+function anchorOfWorld(host: SceneCaptureHost, unit: Unit): { col: number; row: number } {
     const map = host.placement.map;
     const { cols, rows } = unit.type.footprint;
     return {
@@ -62,10 +72,21 @@ function anchorOfWorld(host: CaptureHost, unit: Unit): { col: number; row: numbe
     };
 }
 
-export function captureScenario(host: CaptureHost, name: string): ScenarioDef {
-    const { settings, types, rules, round } = host;
+/**
+ * The board as a scene: every pack with level and runes (garrison posts count
+ * for their building, wave packs and summons don't), the base buildings, each
+ * side's talents.
+ */
+export function captureScene(
+    host: SceneCaptureHost,
+    /** the base buildings at their anchors, when known — others of a base type are placed packs */
+    baseBuildings: ReadonlySet<Unit> | null = null,
+): CapturedScene {
+    const { types } = host;
     const baseBuildingIds = new Set(types.buildings.map((b) => b.id));
     const units: SceneUnit[] = [];
+    const unitOf: Unit[] = [];
+    const baseUnits: Unit[] = [];
     const buildings: { player: SceneBuildings; enemy: SceneBuildings } = { player: {}, enemy: {} };
     const all = host.placement.allUnits();
 
@@ -76,12 +97,14 @@ export function captureScenario(host: CaptureHost, name: string): ScenarioDef {
         // wave packs and one-battle summons leave the board; posted archers are their building's garrison
         if (unit.consumed || unit.summoned || unit.hostUnitId !== null) continue;
         const team = unit.team as SceneTeam;
-        if (team !== 'horde' && baseBuildingIds.has(unit.type.id)) {
+        const isBase = baseBuildings ? baseBuildings.has(unit) : baseBuildingIds.has(unit.type.id);
+        if (team !== 'horde' && isBase) {
             const garrison = all.filter((u) => u.hostUnitId === unit.id).length;
             buildings[team][unit.type.id] = {
                 level: unit.level,
                 ...(garrison > 0 ? { garrison } : {}),
             };
+            baseUnits.push(unit);
             continue;
         }
         const at = unit.gridless ? anchorOfWorld(host, unit) : { col: unit.cell.col, row: unit.cell.row };
@@ -92,10 +115,11 @@ export function captureScenario(host: CaptureHost, name: string): ScenarioDef {
             level: unit.level,
             ...(unit.items.length > 0 ? { items: [...unit.items] } : {}),
         });
+        unitOf.push(unit);
     }
-    // canonical order the scenario will be applied in
+    // canonical order the scenario will be applied in (stable within a team)
     const teamOrder: Record<SceneTeam, number> = { player: 0, enemy: 1, horde: 2 };
-    units.sort((a, b) => teamOrder[a.team] - teamOrder[b.team]);
+    const order = units.map((_, i) => i).sort((a, b) => teamOrder[units[a]!.team] - teamOrder[units[b]!.team] || a - b);
 
     const techs: ScenarioDef['scene']['techs'] = { player: {}, enemy: {} };
     for (const team of ['player', 'enemy'] as const) {
@@ -105,6 +129,16 @@ export function captureScenario(host: CaptureHost, name: string): ScenarioDef {
             if (owned.length > 0) techs[team][type.id] = owned.sort();
         }
     }
+    return {
+        scene: { units: order.map((i) => units[i]!), techs, buildings },
+        units: order.map((i) => unitOf[i]!),
+        buildings: baseUnits,
+    };
+}
+
+export function captureScenario(host: CaptureHost, name: string): ScenarioDef {
+    const { settings, types, rules, round } = host;
+    const { scene } = captureScene(host);
 
     const commanderId = host.playerCommanderId;
     const commander: ScenarioDef['rules']['commander'] =
@@ -148,6 +182,6 @@ export function captureScenario(host: CaptureHost, name: string): ScenarioDef {
             ...(host.baseRules?.unlockable ? { unlockable: [...host.baseRules.unlockable] } : {}),
             ...(host.baseRules?.loadout ? { loadout: structuredClone(host.baseRules.loadout) } : {}),
         },
-        scene: { units, techs, buildings },
+        scene,
     };
 }

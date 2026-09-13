@@ -608,8 +608,38 @@ try {
             const playRules = mr.resolveMatchRules(ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), picky, undefined, 'play'), picky);
             zexpect(authorRules.commander.mode === 'none' && authorRules.opponents === 'lockInOnly' && authorRules.enemyIntel === 'visible', `editor rules: ${JSON.stringify(authorRules)}`);
             zexpect(playRules.commander.mode === 'pick' && playRules.opponents === 'build' && playRules.enemyIntel === 'fogged', 'play mode takes the editor overrides');
+            zexpect(authorRules.flanksOpenFromRound === 1 && authorRules.neutralOpenFromRound === 1, 'the editor does not open the whole side');
+            const authorSettings = ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), picky, undefined, 'author');
+            const testSettings = ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), picky, undefined, 'test');
+            zexpect(authorSettings.deploy.unitsPerRound >= 999 && authorSettings.economy.startingSupply >= 99_999 && testSettings.deploy.unitsPerRound === picky.rules.deploy.unitsPerRound, 'the editor purse / caps leak into test battles or are missing');
+            // horde packs may stand in the forest ring; the other teams stay on the board
+            const ring = structuredClone(blank);
+            ring.scene.units.push({ typeId: 'ogre', team: 'enemy', at: { col: 30, row: 50 }, level: 1 });
+            ring.scene.units.push({ typeId: 'ogre', team: 'horde', at: { col: -20, row: 10 }, level: 1 });
+            zexpect(!scen.hasErrors(scen.normalizeScenario(ring, T).issues), 'a horde pack in the forest ring is refused');
+            const farOut = structuredClone(ring);
+            farOut.scene.units[1].at.col = -scen.HORDE_MARGIN_CELLS - 5;
+            const offBoardEnemy = structuredClone(ring);
+            offBoardEnemy.scene.units[0].at.col = -2;
+            zexpect(scen.hasErrors(scen.normalizeScenario(farOut, T).issues) && scen.hasErrors(scen.normalizeScenario(offBoardEnemy, T).issues), 'packs too far out (or an enemy off the board) are accepted');
+            // the enemy's view: turned around and swapped, twice = the same board
+            const busy = structuredClone(ring);
+            busy.scene.units.push({ typeId: 'archer', team: 'player', at: { col: 20, row: 8, rotated: true }, level: 3, items: ['wind'] });
+            busy.scene.techs.player.archer = ['barrel'];
+            busy.scene.buildings.enemy.stronghold = { level: 2 };
+            busy.rules.sideHp = { player: 100, enemy: 200 };
+            const tidyBusy = ed.tidyDraft(busy);
+            const swapped = ed.swapSides(T, tidyBusy);
+            zexpect(JSON.stringify(ed.swapSides(T, swapped)) === JSON.stringify(tidyBusy), 'swapping sides twice changes the board');
+            const swappedArcher = swapped.scene.units.find((u) => u.typeId === 'archer');
+            const cells = scen.boardCells(busy.map);
+            zexpect(swappedArcher?.team === 'enemy' && swappedArcher.at.col === cells.cols - 20 - 2 && swapped.scene.techs.enemy.archer?.join() === 'barrel' && swapped.scene.buildings.player.stronghold?.level === 2 && swapped.rules.sideHp.player === 200, `swapSides: ${JSON.stringify(swappedArcher)} ${JSON.stringify(swapped.scene.buildings)}`);
+            const mirrored = ed.mirrorSide(T, tidyBusy, 'player');
+            const enemies = mirrored.scene.units.filter((u) => u.team === 'enemy');
+            zexpect(enemies.length === 1 && enemies[0].typeId === 'archer' && mirrored.scene.techs.enemy.archer?.join() === 'barrel' && mirrored.scene.units.some((u) => u.team === 'horde'), `mirrorSide: ${JSON.stringify(mirrored.scene.units)}`);
+            zexpect(!scen.hasErrors(scen.normalizeScenario(mirrored, T).issues), 'a mirrored board has errors');
         }
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rule overrides)');
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rules and purse, horde ring, side swap, mirror)');
     }
 } catch (e) {
     failed = true;

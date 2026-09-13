@@ -2041,6 +2041,16 @@ export class PlacementController {
         return this.cellAt(x, y);
     }
 
+    /** the tile under a surface point on the unbounded grid (off-board tiles too), or null */
+    gridCellAtPoint(x: number, y: number): Cell | null {
+        const ground = this.groundAtPoint(x, y);
+        if (!ground) return null;
+        return {
+            col: Math.floor((ground.x + this.map.halfW) / CELL),
+            row: Math.floor((this.map.halfH - ground.z) / CELL),
+        };
+    }
+
     /** the ground point under a surface point (world space), or null */
     groundAtPoint(x: number, y: number): Vector3 | null {
         const rect = this.surface.getBoundingClientRect();

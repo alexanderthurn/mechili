@@ -150,7 +150,7 @@ import {
 import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { initI18n, onLanguageChange, t } from './i18n';
 import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
-import { assetUrl } from './game/assets';
+import { assetUrl, type OverlayFile } from './game/assets';
 
 const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
 /**
@@ -1034,6 +1034,7 @@ menu.innerHTML = `
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="sp-campaign">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:campaign"></span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-practice">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:practice"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-editor">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:editor"></span></button>
         </div>
         <button class="m-btn m-small" data-mode="sp-back" data-i18n="menu:back"></button>
     </div>
@@ -1139,7 +1140,6 @@ menu.innerHTML = `
                 <input type="file" class="cg-scenario-file" accept=".zip,application/zip" hidden>
                 <select class="cg-scenario-pick" hidden></select>
                 <button type="button" class="m-btn m-small cg-scenario-play" hidden>Play scenario (single player)</button>
-                <button type="button" class="m-btn m-small cg-scenario-editor" hidden>Scenario editor</button>
                 <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
             </div>
         </div>
@@ -1298,7 +1298,6 @@ const cgScenarioEl = menu.querySelector<HTMLSelectElement>('.cg-scenario')!;
 const cgScenarioFileEl = menu.querySelector<HTMLInputElement>('.cg-scenario-file')!;
 const cgScenarioPlayEl = menu.querySelector<HTMLButtonElement>('.cg-scenario-play')!;
 const cgScenarioPickEl = menu.querySelector<HTMLSelectElement>('.cg-scenario-pick')!;
-const cgScenarioEditorEl = menu.querySelector<HTMLButtonElement>('.cg-scenario-editor')!;
 
 /**
  * Web testing only: play a Custom Game on a scenario from a zip. The Steam game
@@ -1332,7 +1331,6 @@ function refreshScenarioSelect(): void {
     const { scenarios, meta } = activeLevel();
     const playable = SCENARIO_ZIP_TESTING && !cgScenarioFieldEl.hidden && scenarios.size > 0;
     cgScenarioPlayEl.hidden = !playable;
-    cgScenarioEditorEl.hidden = !SCENARIO_ZIP_TESTING || cgScenarioFieldEl.hidden;
     cgScenarioPickEl.textContent = '';
     const order = meta?.def?.levels.map((l) => l.scenario).filter((id) => scenarios.has(id)) ?? [];
     for (const id of [...order, ...[...scenarios.keys()].filter((id) => !order.includes(id))]) {
@@ -1373,12 +1371,26 @@ cgScenarioPlayEl.addEventListener('click', () => {
     startGame(applyScenarioToSettings(localMatchSettings(), scenario.def, level, 'play', id));
 });
 
-// the editor opens the last draft (autosaved) on the level selected in the row
-cgScenarioEditorEl.addEventListener('click', () => {
-    const draft = loadStoredDraft()?.def ?? newDraft(`v${__APP_VERSION__}`);
-    cancelHost();
-    void openScenarioEditor('author', draft, activeLevelRef());
-});
+/**
+ * Single Player → Editor: the last draft (autosaved) on the level it was made
+ * on when that level is still here, else on the active one (web testing may
+ * have a zip level selected), else the base game.
+ */
+function openStoredScenarioEditor(): void {
+    const stored = loadStoredDraft();
+    const draft = stored?.def ?? newDraft(`v${__APP_VERSION__}`);
+    const wanted = stored?.level;
+    void (async () => {
+        const level = !stored
+            ? activeLevelRef()
+            : wanted && (await ensureLevel(wanted).catch(() => false))
+              ? wanted
+              : wanted
+                ? activeLevelRef()
+                : undefined;
+        await openScenarioEditor('author', draft, level);
+    })();
+}
 
 async function switchScenarioTo(ref: LevelRef | undefined): Promise<void> {
     cgScenarioEl.disabled = true;
@@ -2348,7 +2360,6 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgScenarioFieldEl.hidden = true;
     cgScenarioPlayEl.hidden = true;
     cgScenarioPickEl.hidden = true;
-    cgScenarioEditorEl.hidden = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
 }
@@ -3007,6 +3018,7 @@ function constructGame(
     if (editorMatch) {
         game.onScenarioEditor = (mode, draft) => void openScenarioEditor(mode, draft, settings.level);
         if (SCENARIO_ZIP_TESTING) game.onScenarioDownload = (draft) => downloadScenarioDraft(draft, settings.level);
+        game.onScenarioSave = (draft) => saveScenarioDraft(draft, settings.level);
     }
     if (replayControlsPanel) {
         game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
@@ -3295,12 +3307,24 @@ async function openScenarioEditor(mode: 'author' | 'test', draft: ScenarioDef, l
     startGame(applyScenarioToSettings(localMatchSettings(), draft, level, mode));
 }
 
-/** web: the draft as a one-level package zip, with the content of the level it was made on */
-async function downloadScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
-    // the file (and the scenario's id inside the package) is named after the draft
+/** the draft as a one-level package: named after the draft, with the content of the level it was made on */
+function scenarioDraftPackage(draft: ScenarioDef, level: LevelRef | undefined): { id: string; files: OverlayFile[] } {
     const id = draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || draft.id;
     const def = { ...draft, id, updatedAt: new Date().toISOString() };
-    const files = scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []);
+    return { id, files: scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []) };
+}
+
+/** keep the draft as a scenario package (scenario cache, like a saved replay situation) */
+async function saveScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
+    const { id, files } = scenarioDraftPackage(draft, level);
+    const { ref } = await loadLevel(id, files);
+    console.info(`[scenario] saved "${ref.id}" (${ref.hash.slice(0, 12)})`);
+    return SCENARIO_ZIP_TESTING ? `Saved “${ref.id}” — play it from Custom Game → Scenario (test)` : `Saved “${ref.id}”`;
+}
+
+/** web: the draft as a one-level package zip */
+async function downloadScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
+    const { id, files } = scenarioDraftPackage(draft, level);
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([writeZip(files)], { type: 'application/zip' }));
     link.download = `${id}.zip`;
@@ -5143,6 +5167,7 @@ menu.addEventListener('click', (e) => {
             mode === 'tutorial-3' ||
             mode === 'sp-campaign' ||
             mode === 'sp-practice' ||
+            mode === 'sp-editor' ||
             mode === 'sp-1v1' ||
             mode === 'sp-2v2' ||
             mode === 'sp-horde' ||
@@ -5187,6 +5212,10 @@ menu.addEventListener('click', (e) => {
             break;
         case 'sp-practice':
             showMenuView('sp-practice');
+            break;
+        case 'sp-editor':
+            showMenuView('main');
+            openStoredScenarioEditor();
             break;
         case 'sp-practice-back':
             showMenuView('sp');

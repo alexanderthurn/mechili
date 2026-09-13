@@ -3347,7 +3347,8 @@ export class Hud {
                   ? DISPLAY.commanders
                   : t('hud:round', { n: round });
         const s = Math.max(0, Math.ceil(remainingSeconds));
-        this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+        // the scenario editor's deployment has no clock
+        this.timerEl.textContent = Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '∞';
         this.topBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         // last 5s of deployment — pulse so the player knows to hurry
         this.timerEl.classList.toggle(

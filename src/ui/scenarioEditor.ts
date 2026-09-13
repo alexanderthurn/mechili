@@ -1,25 +1,34 @@
 /**
- * Scenario editor, author mode (plan §8): the tools panel and the board input.
- * Left click selects, left drag moves, the place tool drops the palette's type
- * for the brush team, the erase tool removes. Right drag still pans the camera.
+ * Scenario editor, author mode (plan §8): a sandbox deployment. The normal
+ * game UI builds the board — shop, placing, moving, talents, runes, tower
+ * upgrades, all free — and this window adds what a player can't do: place any
+ * type for any team (horde included, out in the forest ring too), move or
+ * erase anything, set levels, switch to the enemy side, copy an army across,
+ * board size and base buildings, undo, test, save.
  *
- * The draft is the only state: every edit becomes a new draft, the Game
- * rebuilds its board from it and the draft is autosaved. Undo/redo are draft
- * snapshots. The test battle and map changes restart the match from the draft;
- * the history survives that restart (module-level carry).
+ * The draft is the state. Normal-UI actions are read back from the board into
+ * the draft; the window's own edits change the draft and the Game rebuilds its
+ * board from it. The draft is kept canonical (player = the real player); while
+ * the enemy side is edited the board shows it turned around ({@link swapSides}),
+ * so the match always runs as the player. Test battles and board-size changes
+ * restart the match — the history, tool and side survive that (module carry).
  */
 import type { TypeRegistry } from '../game/content/typeRegistry';
 import { colorForBattleTeam } from '../game/colors';
 import { t } from '../i18n';
 import type { PlacementController } from '../game/placement';
 import type { AppliedScene } from '../game/scenario/applyScenario';
+import type { CapturedScene } from '../game/scenario/capture';
 import {
     DraftHistory,
     hasBaseBuildings,
     MAP_PRESETS,
     mapPresetOf,
+    mirrorSide,
     newDraft,
     onBoard,
+    swapSides,
+    tidyDraft,
     withBaseBuildings,
     withMap,
     withoutTeam,
@@ -34,7 +43,7 @@ export interface ScenarioEditorHost {
     readonly placement: PlacementController;
     /** the pointer surface the board listens on */
     readonly surface: HTMLElement;
-    /** the match UI root the panel mounts into */
+    /** the match UI root the window mounts into */
     readonly wrapper: HTMLElement;
     readonly maxUnitLevel: number;
     readonly maxBuildingLevel: number;
@@ -43,59 +52,103 @@ export interface ScenarioEditorHost {
     readonly gameVersion: string;
     /** whether a zip download is offered (web builds) */
     canDownload(): boolean;
-    /** put the draft's board on the running match */
+    /** put a board on the running match */
     rebuild(def: ScenarioDef): AppliedScene;
+    /** read the running match's board back */
+    capture(baseBuildings: ReadonlySet<Unit>): CapturedScene;
     issues(def: ScenarioDef): ScenarioIssue[];
     autosave(def: ScenarioDef): void;
-    /** a new match from the draft (map size changed) */
+    /** a new match from the draft (board size changed) */
     restart(def: ScenarioDef): void;
     test(def: ScenarioDef): void;
+    /** keep the draft as a scenario package; resolves to a status line */
+    save(def: ScenarioDef): Promise<string>;
     download(def: ScenarioDef): Promise<string>;
     exit(): void;
 }
 
-type Tool = 'select' | 'place' | 'erase';
+/** 'play': the normal game UI; the others are the editor's own board tools */
+type Tool = 'play' | 'move' | 'place' | 'erase';
+type Side = 'player' | 'enemy';
 
 type Selection =
     | { kind: 'unit'; index: number }
-    | { kind: 'building'; team: 'player' | 'enemy'; typeId: string };
+    | { kind: 'building'; team: Side; typeId: string };
 
-/** the editor's history across the restarts it causes (test battle, map size) */
-let carried: { history: DraftHistory; tool: Tool; team: SceneTeam; placeTypeId: string | null } | null = null;
+interface Carried {
+    history: DraftHistory;
+    tool: Tool;
+    team: SceneTeam;
+    placeTypeId: string | null;
+    side: Side;
+    collapsed: boolean;
+}
+
+/** the editor's state across the restarts it causes (test battle, board size) */
+let carried: Carried | null = null;
 
 const DRAG_SLOP_PX = 6;
+const WINDOW_POS_KEY = 'melodan-editor-window';
+
+function storedWindowPos(): { x: number; y: number } | null {
+    try {
+        const raw = JSON.parse(localStorage.getItem(WINDOW_POS_KEY) ?? 'null') as { x?: unknown; y?: unknown } | null;
+        return raw && typeof raw.x === 'number' && typeof raw.y === 'number' ? { x: raw.x, y: raw.y } : null;
+    } catch {
+        return null;
+    }
+}
+
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 export class ScenarioEditor {
     private readonly history: DraftHistory;
+    /** the board as built — `units[i]` is `view.scene.units[i]` */
     private applied: AppliedScene = { units: [], buildings: [] };
-    private tool: Tool = 'select';
-    private team: SceneTeam = 'player';
+    private tool: Tool = 'play';
+    private team: SceneTeam = 'enemy';
     private placeTypeId: string | null = null;
-    private selection: Selection | null = null;
+    /** which side the normal game UI builds */
+    private side: Side = 'player';
+    private collapsed = false;
     private press: { x: number; y: number; unit: Unit | null; index: number | null; dragging: boolean } | null = null;
     private readonly root: HTMLDivElement;
+    private readonly selectionEl: HTMLDivElement;
+    private readonly bodyEl: HTMLDivElement;
     private readonly disposers: (() => void)[] = [];
     private statusTimer: ReturnType<typeof setTimeout> | null = null;
+    private shownSelection: Unit | null = null;
 
-    constructor(private readonly host: ScenarioEditorHost, draft: ScenarioDef) {
-        // the same draft coming back from a test battle keeps its undo history
-        if (carried && JSON.stringify(carried.history.draft) === JSON.stringify(draft)) {
+    constructor(
+        private readonly host: ScenarioEditorHost,
+        /** canonical draft */
+        draft: ScenarioDef,
+    ) {
+        const tidy = tidyDraft(draft);
+        // the same draft coming back from a test battle keeps its history, tool and side
+        if (carried && JSON.stringify(tidyDraft(carried.history.draft)) === JSON.stringify(tidy)) {
             this.history = carried.history;
             this.tool = carried.tool;
             this.team = carried.team;
             this.placeTypeId = carried.placeTypeId;
+            this.side = carried.side;
+            this.collapsed = carried.collapsed;
         } else {
-            this.history = new DraftHistory(draft);
+            this.history = new DraftHistory(tidy);
         }
         carried = null;
-        host.placement.externalInput = true;
-        host.placement.repositioningEnabled = false;
 
         this.root = document.createElement('div');
         this.root.className = 'mechili-scenario-editor';
         this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
-        this.root.addEventListener('wheel', (e) => e.stopPropagation());
+        this.root.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+        this.bodyEl = document.createElement('div');
+        this.bodyEl.className = 'se-body';
+        this.selectionEl = document.createElement('div');
+        this.selectionEl.className = 'se-section se-selection';
         host.wrapper.appendChild(this.root);
+        const pos = storedWindowPos();
+        if (pos) this.moveWindowTo(pos.x, pos.y);
 
         this.listen(host.surface, 'pointerdown', (e) => this.onPointerDown(e as PointerEvent));
         this.listen(host.surface, 'pointermove', (e) => this.onPointerMove(e as PointerEvent));
@@ -104,11 +157,51 @@ export class ScenarioEditor {
         this.listen(host.surface, 'pointerleave', () => {
             if (!this.press) host.placement.editorPlate = null;
         });
-        this.listen(window, 'keydown', (e) => this.onKey(e as KeyboardEvent));
+        // capture: ahead of the game's own shortcuts (R would rotate twice)
+        this.listen(window, 'keydown', (e) => this.onKey(e as KeyboardEvent), true);
+        // the normal UI selects through the placement controller — follow it
+        const poll = setInterval(() => {
+            if (host.placement.selectedUnit !== this.shownSelection) this.renderSelection();
+        }, 200);
+        this.disposers.push(() => clearInterval(poll));
 
+        this.applyTool();
         this.apply();
         // the host finishes wiring (download) right after it constructs us
         queueMicrotask(() => this.render());
+    }
+
+    /** place the window, kept on screen */
+    private moveWindowTo(x: number, y: number): void {
+        const bounds = this.host.wrapper.getBoundingClientRect();
+        const w = this.root.offsetWidth || 270;
+        const clampedX = Math.max(0, Math.min(x, bounds.width - Math.min(w, 120)));
+        const clampedY = Math.max(0, Math.min(y, bounds.height - 40));
+        this.root.style.left = `${clampedX}px`;
+        this.root.style.top = `${clampedY}px`;
+    }
+
+    /** the head drags the window; where it ends up is remembered */
+    private wireWindowDrag(head: HTMLElement): void {
+        head.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+            const start = { x: e.clientX, y: e.clientY, left: this.root.offsetLeft, top: this.root.offsetTop };
+            head.setPointerCapture(e.pointerId);
+            const move = (ev: PointerEvent) => this.moveWindowTo(start.left + ev.clientX - start.x, start.top + ev.clientY - start.y);
+            const up = () => {
+                head.removeEventListener('pointermove', move);
+                head.removeEventListener('pointerup', up);
+                head.removeEventListener('pointercancel', up);
+                try {
+                    localStorage.setItem(WINDOW_POS_KEY, JSON.stringify({ x: this.root.offsetLeft, y: this.root.offsetTop }));
+                } catch {
+                    /* not kept */
+                }
+            };
+            head.addEventListener('pointermove', move);
+            head.addEventListener('pointerup', up);
+            head.addEventListener('pointercancel', up);
+        });
     }
 
     destroy(): void {
@@ -120,20 +213,46 @@ export class ScenarioEditor {
         this.host.placement.editorPlate = null;
     }
 
+    get canUndo(): boolean {
+        return this.history.canUndo;
+    }
+
+    /** canonical draft */
     private get draft(): ScenarioDef {
         return this.history.draft;
     }
 
-    private listen(target: EventTarget, type: string, handler: EventListener): void {
-        target.addEventListener(type, handler);
-        this.disposers.push(() => target.removeEventListener(type, handler));
+    /** the draft as the board shows it (turned around while editing the enemy) */
+    private get view(): ScenarioDef {
+        return this.side === 'enemy' ? swapSides(this.host.types, this.draft) : this.draft;
     }
 
-    // ---- draft → board
+    private toCanonical(view: ScenarioDef): ScenarioDef {
+        return this.side === 'enemy' ? swapSides(this.host.types, view) : tidyDraft(view);
+    }
 
-    /** record an edit; the board follows */
-    private commit(next: ScenarioDef): void {
-        if (next.map && JSON.stringify(next.map) !== JSON.stringify(this.draft.map)) {
+    private listen(target: EventTarget, type: string, handler: EventListener, capture = false): void {
+        target.addEventListener(type, handler, capture);
+        this.disposers.push(() => target.removeEventListener(type, handler, capture));
+    }
+
+    private carry(): void {
+        carried = {
+            history: this.history,
+            tool: this.tool,
+            team: this.team,
+            placeTypeId: this.placeTypeId,
+            side: this.side,
+            collapsed: this.collapsed,
+        };
+    }
+
+    // ---- draft ⇄ board
+
+    /** record an edit made on the view; the board follows */
+    private commitView(nextView: ScenarioDef): void {
+        const next = this.toCanonical(nextView);
+        if (JSON.stringify(next.map) !== JSON.stringify(this.draft.map)) {
             this.history.push(next);
             this.restartWith(next);
             return;
@@ -142,81 +261,123 @@ export class ScenarioEditor {
     }
 
     private restartWith(def: ScenarioDef): void {
-        carried = { history: this.history, tool: this.tool, team: this.team, placeTypeId: this.placeTypeId };
+        this.carry();
         this.host.autosave(def);
         this.host.restart(def);
     }
 
-    /** rebuild the board from the draft, autosave, restore the selection, redraw the panel */
-    private apply(): void {
+    /** rebuild the board from the draft, autosave, redraw */
+    private apply(reselect: Selection | null = this.selectionOf(this.host.placement.selectedUnit)): void {
         this.host.placement.deselect();
-        this.applied = this.host.rebuild(this.draft);
+        this.applied = this.host.rebuild(this.view);
         this.host.autosave(this.draft);
-        const unit = this.selectedUnit();
+        const unit = reselect ? this.unitOf(reselect) : null;
         if (unit) this.host.placement.selectUnit(unit);
-        else this.selection = null;
         this.render();
     }
 
-    private selectedUnit(): Unit | null {
-        const sel = this.selection;
-        if (!sel) return null;
+    /**
+     * The normal game UI changed the board (bought, moved, upgraded, taught a
+     * talent, socketed a rune): read it back into the draft.
+     */
+    syncFromBoard(): void {
+        const captured = this.host.capture(new Set(this.applied.buildings));
+        this.applied = { units: captured.units, buildings: captured.buildings };
+        const nextView = structuredClone(this.view);
+        nextView.scene = captured.scene;
+        if (this.history.push(this.toCanonical(nextView))) {
+            this.host.autosave(this.draft);
+            this.render();
+        }
+    }
+
+    undo(): void {
+        this.stepHistory(() => this.history.undo());
+    }
+
+    private redo(): void {
+        this.stepHistory(() => this.history.redo());
+    }
+
+    private stepHistory(step: () => ScenarioDef | null): void {
+        const before = this.draft.map;
+        const def = step();
+        if (!def) return;
+        if (JSON.stringify(def.map) !== JSON.stringify(before)) this.restartWith(def);
+        else this.apply(null);
+    }
+
+    startTest(): void {
+        this.carry();
+        this.host.autosave(this.draft);
+        this.host.test(this.draft);
+    }
+
+    private switchSide(): void {
+        this.side = this.side === 'player' ? 'enemy' : 'player';
+        if (this.team !== 'horde') this.team = this.side === 'player' ? 'enemy' : 'player';
+        this.apply(null);
+        this.flash(
+            this.side === 'enemy'
+                ? t('editor:nowEnemy', { defaultValue: 'You are building the enemy side now' })
+                : t('editor:nowPlayer', { defaultValue: 'You are building the player side now' }),
+        );
+    }
+
+    // ---- selection
+
+    private selectionOf(unit: Unit | null): Selection | null {
+        if (!unit) return null;
+        let target = unit;
+        if (target.hostUnitId !== null) {
+            const hostId = target.hostUnitId;
+            target = this.host.placement.allUnits().find((u) => u.id === hostId) ?? target;
+        }
+        const index = this.applied.units.indexOf(target);
+        if (index >= 0) return { kind: 'unit', index };
+        if (this.applied.buildings.includes(target) && target.team !== 'horde') {
+            return { kind: 'building', team: target.team, typeId: target.type.id };
+        }
+        return null;
+    }
+
+    private unitOf(sel: Selection): Unit | null {
         if (sel.kind === 'unit') return this.applied.units[sel.index] ?? null;
         return this.applied.buildings.find((b) => b.team === sel.team && b.type.id === sel.typeId) ?? null;
     }
 
-    private undo(): void {
-        const before = this.draft.map;
-        const def = this.history.undo();
-        if (!def) return;
-        if (JSON.stringify(def.map) !== JSON.stringify(before)) this.restartWith(def);
-        else this.apply();
-    }
+    // ---- board input (the editor's own tools; 'play' leaves the board to the game)
 
-    private redo(): void {
-        const before = this.draft.map;
-        const def = this.history.redo();
-        if (!def) return;
-        if (JSON.stringify(def.map) !== JSON.stringify(before)) this.restartWith(def);
-        else this.apply();
+    private applyTool(): void {
+        this.host.placement.externalInput = this.tool !== 'play';
+        this.host.placement.editorPlate = null;
     }
-
-    // ---- board input
 
     private local(e: PointerEvent): { x: number; y: number } {
         return this.host.placement.clientToLocal(e.clientX, e.clientY);
     }
 
-    /** what a click on the board hit: a placed entry, a base building (or its post), or nothing */
     private hit(x: number, y: number): { unit: Unit; selection: Selection } | null {
-        let unit = this.host.placement.unitAtPoint(x, y) ?? null;
-        if (!unit) return null;
-        if (unit.hostUnitId !== null) {
-            const hostId = unit.hostUnitId;
-            unit = this.host.placement.allUnits().find((u) => u.id === hostId) ?? unit;
-        }
-        const index = this.applied.units.indexOf(unit);
-        if (index >= 0) return { unit, selection: { kind: 'unit', index } };
-        if (this.applied.buildings.includes(unit) && unit.team !== 'horde') {
-            return { unit, selection: { kind: 'building', team: unit.team, typeId: unit.type.id } };
-        }
-        return null;
+        const unit = this.host.placement.unitAtPoint(x, y) ?? null;
+        const selection = this.selectionOf(unit);
+        const target = selection ? this.unitOf(selection) : null;
+        return selection && target ? { unit: target, selection } : null;
     }
 
     private onPointerDown(e: PointerEvent): void {
-        if (e.button !== 0) return;
+        if (e.button !== 0 || this.tool === 'play') return;
         const { x, y } = this.local(e);
-        const hit = this.tool === 'select' ? this.hit(x, y) : null;
+        const hit = this.tool === 'move' ? this.hit(x, y) : null;
         this.press = { x, y, unit: hit?.unit ?? null, index: hit?.selection.kind === 'unit' ? hit.selection.index : null, dragging: false };
-        if (this.tool === 'select') {
-            this.selection = hit?.selection ?? null;
+        if (this.tool === 'move') {
             if (hit) this.host.placement.selectUnit(hit.unit);
             else this.host.placement.deselect();
-            this.render();
+            this.renderSelection();
         }
     }
 
     private onPointerMove(e: PointerEvent): void {
+        if (this.tool === 'play') return;
         const press = this.press;
         const { x, y } = this.local(e);
         if (this.tool === 'place' && !press) {
@@ -230,26 +391,25 @@ export class ScenarioEditor {
             // the placement marker would pin the pack to its old spot
             this.host.placement.deselect();
         }
-        const spot = this.anchorAt(press.unit.type, this.draft.scene.units[press.index]?.at.rotated ?? false, x, y);
+        const entry = this.view.scene.units[press.index];
+        if (!entry) return;
+        const spot = this.anchorAt(press.unit.type, entry.at.rotated ?? false, x, y, entry.team === 'horde');
         if (!spot) return;
         press.unit.view.position.set(spot.center.x, 0, spot.center.z);
         press.unit.seatMembers(spot.center.x, spot.center.z);
-        const entry = this.draft.scene.units[press.index];
-        if (entry) {
-            const moved: SceneUnit = { ...entry, at: { ...entry.at, col: spot.at.col, row: spot.at.row } };
-            this.host.placement.editorPlate = {
-                type: press.unit.type,
-                anchor: spot.at,
-                rotated: entry.at.rotated ?? false,
-                valid: this.fits(press.unit.type, moved, press.unit),
-            };
-        }
+        const moved: SceneUnit = { ...entry, at: { ...entry.at, col: spot.at.col, row: spot.at.row } };
+        this.host.placement.editorPlate = {
+            type: press.unit.type,
+            anchor: spot.at,
+            rotated: entry.at.rotated ?? false,
+            valid: this.fits(press.unit.type, moved, press.unit),
+        };
     }
 
     /** the place tool's footprint under the cursor */
     private showPlacePlate(x: number, y: number): void {
         const type = this.placeTypeId ? this.host.types.byId(this.placeTypeId) : null;
-        const spot = type ? this.anchorAt(type, false, x, y) : null;
+        const spot = type ? this.anchorAt(type, false, x, y, this.team === 'horde') : null;
         if (!type || !spot) {
             this.host.placement.editorPlate = null;
             return;
@@ -259,7 +419,7 @@ export class ScenarioEditor {
     }
 
     private onPointerUp(e: PointerEvent): void {
-        if (e.button !== 0) return;
+        if (e.button !== 0 || this.tool === 'play') return;
         const press = this.press;
         this.press = null;
         if (!press) return;
@@ -290,9 +450,11 @@ export class ScenarioEditor {
         rotated: boolean,
         x: number,
         y: number,
+        /** horde packs may stand past the board edge */
+        offBoard = false,
     ): { at: { col: number; row: number }; center: { x: number; z: number } } | null {
         const placement = this.host.placement;
-        const cell = placement.cellAtPoint(x, y);
+        const cell = offBoard ? placement.gridCellAtPoint(x, y) : placement.cellAtPoint(x, y);
         if (!cell) return null;
         const at = placement.anchorCenteredOn(type, rotated, cell);
         const fp = rotated ? { cols: type.footprint.rows, rows: type.footprint.cols } : type.footprint;
@@ -300,7 +462,7 @@ export class ScenarioEditor {
         return { at, center: { x: center.x, z: center.z } };
     }
 
-    /** can an entry of `team` stand at `unit.at`? (`moving` may already stand there) */
+    /** can the entry stand where it says? (`moving` may already stand there) */
     private fits(type: UnitType, entry: SceneUnit, moving: Unit | null): boolean {
         if (!onBoard(this.host.types, this.draft.map, entry)) return false;
         // horde packs stand by world position and take no tiles
@@ -309,8 +471,8 @@ export class ScenarioEditor {
     }
 
     private dropMoved(index: number, unit: Unit, x: number, y: number): void {
-        const entry = this.draft.scene.units[index];
-        const spot = entry ? this.anchorAt(unit.type, entry.at.rotated ?? false, x, y) : null;
+        const entry = this.view.scene.units[index];
+        const spot = entry ? this.anchorAt(unit.type, entry.at.rotated ?? false, x, y, entry.team === 'horde') : null;
         if (!entry || !spot) {
             this.apply();
             return;
@@ -321,11 +483,10 @@ export class ScenarioEditor {
             this.apply();
             return;
         }
-        const next = structuredClone(this.draft);
+        const next = structuredClone(this.view);
         next.scene.units[index] = moved;
-        this.selection = { kind: 'unit', index };
-        this.history.push(next);
-        this.apply();
+        this.commitView(next);
+        this.apply({ kind: 'unit', index });
     }
 
     private placeAt(x: number, y: number): void {
@@ -334,42 +495,31 @@ export class ScenarioEditor {
             this.flash(t('editor:pickType', { defaultValue: 'Pick a unit or building first' }));
             return;
         }
-        const spot = this.anchorAt(type, false, x, y);
+        const spot = this.anchorAt(type, false, x, y, this.team === 'horde');
         if (!spot) return;
         const entry: SceneUnit = { typeId: type.id, team: this.team, at: spot.at, level: 1 };
         if (!this.fits(type, entry, null)) {
             this.flash(t('editor:noRoom', { defaultValue: 'No room there' }));
             return;
         }
-        const next = structuredClone(this.draft);
+        const next = structuredClone(this.view);
         next.scene.units.push(entry);
-        this.commit(next);
+        this.commitView(next);
         this.showPlacePlate(x, y);
     }
 
     private erase(selection: Selection): void {
-        const next = structuredClone(this.draft);
-        if (selection.kind === 'unit') {
-            next.scene.units.splice(selection.index, 1);
-            // later entries shift down; a selection past the removed one follows
-            const sel = this.selection;
-            if (sel?.kind === 'unit') {
-                if (sel.index === selection.index) this.selection = null;
-                else if (sel.index > selection.index) this.selection = { kind: 'unit', index: sel.index - 1 };
-            }
-        } else {
-            next.scene.buildings[selection.team][selection.typeId] = false;
-            if (this.selection?.kind === 'building' && this.selection.typeId === selection.typeId && this.selection.team === selection.team) {
-                this.selection = null;
-            }
-        }
-        this.commit(next);
+        const next = structuredClone(this.view);
+        if (selection.kind === 'unit') next.scene.units.splice(selection.index, 1);
+        else next.scene.buildings[selection.team][selection.typeId] = false;
+        this.host.placement.deselect();
+        this.commitView(next);
     }
 
     private changeLevel(delta: number): void {
-        const sel = this.selection;
+        const sel = this.selectionOf(this.host.placement.selectedUnit);
         if (!sel) return;
-        const next = structuredClone(this.draft);
+        const next = structuredClone(this.view);
         if (sel.kind === 'unit') {
             const entry = next.scene.units[sel.index];
             if (!entry) return;
@@ -382,13 +532,13 @@ export class ScenarioEditor {
             const wanted = Math.max(1, Math.min(this.host.maxBuildingLevel, level + delta));
             next.scene.buildings[sel.team][sel.typeId] = { ...(state || {}), level: wanted };
         }
-        this.commit(next);
+        if (this.history.push(this.toCanonical(next))) this.apply(sel);
     }
 
     private rotateSelected(): void {
-        const sel = this.selection;
+        const sel = this.selectionOf(this.host.placement.selectedUnit);
         if (sel?.kind !== 'unit') return;
-        const entry = this.draft.scene.units[sel.index];
+        const entry = this.view.scene.units[sel.index];
         const type = entry ? this.host.types.byId(entry.typeId) : null;
         if (!entry || !type || type.footprint.cols === type.footprint.rows) return;
         const rotated: SceneUnit = { ...entry, at: { ...entry.at, rotated: !entry.at.rotated } };
@@ -397,9 +547,9 @@ export class ScenarioEditor {
             this.flash(t('editor:noRoom', { defaultValue: 'No room there' }));
             return;
         }
-        const next = structuredClone(this.draft);
+        const next = structuredClone(this.view);
         next.scene.units[sel.index] = rotated;
-        this.commit(next);
+        if (this.history.push(this.toCanonical(next))) this.apply(sel);
     }
 
     private onKey(e: KeyboardEvent): void {
@@ -412,27 +562,23 @@ export class ScenarioEditor {
         else if ((mod && key === 'z' && e.shiftKey) || (mod && key === 'y')) this.redo();
         else if (mod) handled = false;
         else if (key === 'delete' || key === 'backspace') {
-            if (this.selection) this.erase(this.selection);
-        } else if (key === 'r') this.rotateSelected();
-        else if (key === '[' || key === '-') this.changeLevel(-1);
-        else if (key === ']' || key === '+' || key === '=') this.changeLevel(1);
-        else if (key === 'v') this.setTool('select');
-        else if (key === 'b') this.setTool('place');
-        else if (key === 'x') this.setTool('erase');
+            const sel = this.selectionOf(this.host.placement.selectedUnit);
+            if (sel) this.erase(sel);
+        } else if (key === '[') this.changeLevel(-1);
+        else if (key === ']') this.changeLevel(1);
+        else if (key === 'r' && this.tool !== 'play') this.rotateSelected();
+        else if (key === 'tab') this.switchSide();
         else handled = false;
         if (handled) {
             e.preventDefault();
-            e.stopPropagation();
+            e.stopImmediatePropagation();
         }
     }
 
     private setTool(tool: Tool): void {
         this.tool = tool;
-        this.host.placement.editorPlate = null;
-        if (tool !== 'select') {
-            this.selection = null;
-            this.host.placement.deselect();
-        }
+        this.applyTool();
+        if (tool === 'place' || tool === 'erase') this.host.placement.deselect();
         this.render();
     }
 
@@ -441,30 +587,82 @@ export class ScenarioEditor {
         if (!el) return;
         el.textContent = text;
         if (this.statusTimer) clearTimeout(this.statusTimer);
-        this.statusTimer = setTimeout(() => (el.textContent = ''), 2500);
+        this.statusTimer = setTimeout(() => (el.textContent = ''), 2800);
     }
 
-    // ---- panel
+    // ---- window
+
+    private teamName(team: SceneTeam): string {
+        return team === 'player'
+            ? t('editor:teamPlayer', { defaultValue: 'Player' })
+            : team === 'enemy'
+              ? t('editor:teamEnemy', { defaultValue: 'Enemy' })
+              : t('editor:teamHorde', { defaultValue: 'Horde' });
+    }
+
+    /** teams as the board shows them, named as the scenario means them */
+    private canonicalTeam(viewTeam: SceneTeam): SceneTeam {
+        if (this.side === 'player' || viewTeam === 'horde') return viewTeam;
+        return viewTeam === 'player' ? 'enemy' : 'player';
+    }
+
+    private renderSelection(): void {
+        const unit = this.host.placement.selectedUnit;
+        this.shownSelection = unit;
+        const sel = this.selectionOf(unit);
+        const types = this.host.types;
+        const view = this.view;
+        if (!sel) {
+            this.selectionEl.innerHTML = `<div class="se-muted">${t('editor:nothingSelected', { defaultValue: 'Nothing selected' })}</div>`;
+            return;
+        }
+        let label: string;
+        let level: number;
+        let canRotate = false;
+        if (sel.kind === 'unit') {
+            const entry = view.scene.units[sel.index];
+            const type = entry ? types.byId(entry.typeId) : null;
+            label = `${esc(type?.name ?? entry?.typeId ?? '?')} · ${this.teamName(this.canonicalTeam(entry?.team ?? 'player'))}`;
+            level = entry?.level ?? 1;
+            canRotate = !!type && type.footprint.cols !== type.footprint.rows;
+        } else {
+            const type = types.byId(sel.typeId);
+            const state = view.scene.buildings[sel.team][sel.typeId];
+            label = `${esc(type?.name ?? sel.typeId)} · ${this.teamName(this.canonicalTeam(sel.team))}`;
+            level = state ? state.level : 1;
+        }
+        this.selectionEl.innerHTML =
+            `<div class="se-sel-name">${label}</div>` +
+            `<div class="se-row">${t('editor:level', { defaultValue: 'Level' })} ` +
+            `<button type="button" class="se-level-down" title="[">−</button>` +
+            `<span class="se-level">${level}</span>` +
+            `<button type="button" class="se-level-up" title="]">+</button>` +
+            (canRotate ? `<button type="button" class="se-rotate" title="R">${t('editor:rotate', { defaultValue: 'Rotate' })}</button>` : '') +
+            `<button type="button" class="se-delete" title="Del">${t('editor:delete', { defaultValue: 'Delete' })}</button>` +
+            `</div>`;
+        this.selectionEl.querySelector('.se-level-down')?.addEventListener('click', () => this.changeLevel(-1));
+        this.selectionEl.querySelector('.se-level-up')?.addEventListener('click', () => this.changeLevel(1));
+        this.selectionEl.querySelector('.se-rotate')?.addEventListener('click', () => this.rotateSelected());
+        this.selectionEl.querySelector('.se-delete')?.addEventListener('click', () => {
+            const current = this.selectionOf(this.host.placement.selectedUnit);
+            if (current) this.erase(current);
+        });
+    }
 
     private render(): void {
         const types = this.host.types;
         const draft = this.draft;
         const all = [...types.all()];
         const baseIds = new Set(types.buildings.map((b) => b.id));
-        const unitTypes = all.filter((ty) => !ty.structure);
-        const buildingTypes = all.filter((ty) => ty.structure);
         const issues = this.host.issues(draft);
         const errors = issues.filter((i) => i.level === 'error');
         const warnings = issues.filter((i) => i.level === 'warning');
         const preset = mapPresetOf(draft.map);
-        const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-        const teamName = (team: SceneTeam) =>
-            team === 'player'
-                ? t('editor:teamPlayer', { defaultValue: 'Player' })
-                : team === 'enemy'
-                  ? t('editor:teamEnemy', { defaultValue: 'Enemy' })
-                  : t('editor:teamHorde', { defaultValue: 'Horde' });
-        const btn = (cls: string, label: string, opts: { active?: boolean; disabled?: boolean; data?: string; title?: string; style?: string } = {}) =>
+        const btn = (
+            cls: string,
+            label: string,
+            opts: { active?: boolean; disabled?: boolean; data?: string; title?: string; style?: string } = {},
+        ) =>
             `<button type="button" class="${cls}${opts.active ? ' active' : ''}"${opts.disabled ? ' disabled' : ''}${opts.data ? ` ${opts.data}` : ''}${opts.title ? ` title="${esc(opts.title)}"` : ''}${opts.style ? ` style="${opts.style}"` : ''}>${label}</button>`;
         const palette = (list: UnitType[]) =>
             list
@@ -476,69 +674,82 @@ export class ScenarioEditor {
                     }),
                 )
                 .join('');
+        // counts as the scenario means them (player = the real player)
+        const counts = { player: 0, enemy: 0, horde: 0 };
+        for (const u of draft.scene.units) counts[u.team]++;
+        const sideColor = colorForBattleTeam(this.side).css;
 
-        let selectionHtml = `<div class="se-muted">${t('editor:nothingSelected', { defaultValue: 'Nothing selected' })}</div>`;
-        const sel = this.selection;
-        if (sel) {
-            let label = '';
-            let level = 1;
-            let canRotate = false;
-            if (sel.kind === 'unit') {
-                const entry = draft.scene.units[sel.index];
-                const type = entry ? types.byId(entry.typeId) : null;
-                label = `${esc(type?.name ?? entry?.typeId ?? '?')} · ${teamName(entry?.team ?? 'player')}`;
-                level = entry?.level ?? 1;
-                canRotate = !!type && type.footprint.cols !== type.footprint.rows;
-            } else {
-                const type = types.byId(sel.typeId);
-                const state = draft.scene.buildings[sel.team][sel.typeId];
-                label = `${esc(type?.name ?? sel.typeId)} · ${teamName(sel.team)} · ${t('editor:baseBuilding', { defaultValue: 'base' })}`;
-                level = state ? state.level : 1;
-            }
-            selectionHtml =
-                `<div class="se-sel-name">${label}</div>` +
-                `<div class="se-row">${t('editor:level', { defaultValue: 'Level' })} ` +
-                btn('se-level-down', '−', { title: '[' }) +
-                `<span class="se-level">${level}</span>` +
-                btn('se-level-up', '+', { title: ']' }) +
-                (canRotate ? btn('se-rotate', t('editor:rotate', { defaultValue: 'Rotate' }), { title: 'R' }) : '') +
-                btn('se-delete', t('editor:delete', { defaultValue: 'Delete' }), { title: 'Del' }) +
-                `</div>`;
-        }
-
-        const counts = (['player', 'enemy', 'horde'] as const).map((team) => draft.scene.units.filter((u) => u.team === team).length);
-
+        this.root.classList.toggle('collapsed', this.collapsed);
         this.root.innerHTML =
             `<div class="se-head">` +
-            `<div class="se-title">${t('editor:title', { defaultValue: 'Scenario editor' })}</div>` +
+            `<span class="se-title">${t('editor:title', { defaultValue: 'Scenario editor' })}</span>` +
+            `<button type="button" class="se-collapse" title="${esc(t('editor:collapse', { defaultValue: 'Fold the window' }))}">${this.collapsed ? '▸' : '▾'}</button>` +
+            `</div>`;
+        const head = this.root.querySelector<HTMLElement>('.se-head')!;
+        this.wireWindowDrag(head);
+        head.querySelector('.se-collapse')!.addEventListener('click', () => {
+            this.collapsed = !this.collapsed;
+            this.render();
+        });
+        this.root.appendChild(this.bodyEl);
+        this.bodyEl.innerHTML =
+            `<div class="se-section">` +
             `<div class="se-muted">${esc(this.host.levelLabel)}</div>` +
             `<input class="se-name" type="text" maxlength="60" value="${esc(draft.name)}">` +
+            `<div class="se-side" style="--se-team:${sideColor}">` +
+            `${t('editor:building', { defaultValue: 'Building' })} <b>${this.teamName(this.side)}</b> ` +
+            btn('se-switch', `⇄ ${this.teamName(this.side === 'player' ? 'enemy' : 'player')}`, { title: 'Tab' }) +
+            `</div>` +
             `</div>` +
             `<div class="se-section">` +
             `<div class="se-row">` +
-            btn('se-tool', t('editor:toolSelect', { defaultValue: 'Select' }), { active: this.tool === 'select', data: 'data-tool="select"', title: 'V — click to select, drag to move' }) +
-            btn('se-tool', t('editor:toolPlace', { defaultValue: 'Place' }), { active: this.tool === 'place', data: 'data-tool="place"', title: 'B' }) +
-            btn('se-tool', t('editor:toolErase', { defaultValue: 'Erase' }), { active: this.tool === 'erase', data: 'data-tool="erase"', title: 'X' }) +
+            btn('se-tool', t('editor:toolPlay', { defaultValue: 'Game UI' }), {
+                active: this.tool === 'play',
+                data: 'data-tool="play"',
+                title: t('editor:toolPlayTip', { defaultValue: 'Build with the normal game UI: shop, move, talents, runes — all free' }),
+            }) +
+            btn('se-tool', t('editor:toolMove', { defaultValue: 'Move' }), {
+                active: this.tool === 'move',
+                data: 'data-tool="move"',
+                title: t('editor:toolMoveTip', { defaultValue: 'Drag anything: enemy, horde, earlier placements' }),
+            }) +
+            btn('se-tool', t('editor:toolPlace', { defaultValue: 'Place' }), { active: this.tool === 'place', data: 'data-tool="place"' }) +
+            btn('se-tool', t('editor:toolErase', { defaultValue: 'Erase' }), { active: this.tool === 'erase', data: 'data-tool="erase"' }) +
+            `</div>` +
+            (this.tool === 'place'
+                ? `<div class="se-row">` +
+                  (['player', 'enemy', 'horde'] as const)
+                      .map((team) =>
+                          btn('se-team', `${this.teamName(this.canonicalTeam(team))}`, {
+                              active: this.team === team,
+                              data: `data-team="${team}"`,
+                              style: `--se-team:${colorForBattleTeam(team).css}`,
+                          }),
+                      )
+                      .join('') +
+                  `</div>` +
+                  `<div class="se-palette">` +
+                  `<div class="se-label">${t('editor:units', { defaultValue: 'Units' })}</div><div class="se-grid">${palette(all.filter((ty) => !ty.structure))}</div>` +
+                  `<div class="se-label">${t('editor:buildings', { defaultValue: 'Buildings' })}</div><div class="se-grid">${palette(all.filter((ty) => ty.structure))}</div>` +
+                  `</div>`
+                : '') +
+            `</div>`;
+        this.bodyEl.appendChild(this.selectionEl);
+        this.renderSelection();
+        const rest = document.createElement('div');
+        rest.innerHTML =
+            `<div class="se-section">` +
+            `<div class="se-row">` +
+            `<span class="se-muted">${this.teamName('player')} ${counts.player} · ${this.teamName('enemy')} ${counts.enemy} · ${this.teamName('horde')} ${counts.horde}</span>` +
             `</div>` +
             `<div class="se-row">` +
-            (['player', 'enemy', 'horde'] as const)
-                .map((team, i) =>
-                    btn('se-team', `${teamName(team)} <span class="se-count">${counts[i]}</span>`, {
-                        active: this.team === team,
-                        data: `data-team="${team}"`,
-                        style: `--se-team:${colorForBattleTeam(team).css}`,
-                    }),
-                )
-                .join('') +
+            btn('se-mirror', t('editor:mirror', { defaultValue: 'Copy army to the other side' }), {
+                title: t('editor:mirrorTip', { defaultValue: 'Replaces the other side’s units, talents and buildings with a turned copy of this side' }),
+            }) +
+            btn('se-clear', t('editor:clearSide', { defaultValue: 'Clear this side' }), { disabled: counts[this.side] === 0 }) +
+            (counts.horde > 0 ? btn('se-clear-horde', t('editor:clearHorde', { defaultValue: 'Clear horde' })) : '') +
             `</div>` +
-            `</div>` +
-            `<div class="se-section se-palette">` +
-            `<div class="se-label">${t('editor:units', { defaultValue: 'Units' })}</div><div class="se-grid">${palette(unitTypes)}</div>` +
-            `<div class="se-label">${t('editor:buildings', { defaultValue: 'Buildings' })}</div><div class="se-grid">${palette(buildingTypes)}</div>` +
-            `</div>` +
-            `<div class="se-section">${selectionHtml}</div>` +
-            `<div class="se-section">` +
-            `<div class="se-row"><label>${t('editor:map', { defaultValue: 'Map' })} <select class="se-map">` +
+            `<div class="se-row"><label>${t('editor:map', { defaultValue: 'Board' })} <select class="se-map">` +
             (Object.keys(MAP_PRESETS) as MapPresetId[])
                 .map((id) => {
                     const m = MAP_PRESETS[id];
@@ -551,12 +762,9 @@ export class ScenarioEditor {
             (['player', 'enemy'] as const)
                 .map(
                     (side) =>
-                        `<label><input type="checkbox" class="se-base" data-side="${side}"${hasBaseBuildings(types, draft, side) ? ' checked' : ''}> ${teamName(side)}</label>`,
+                        `<label><input type="checkbox" class="se-base" data-side="${side}"${hasBaseBuildings(types, draft, side) ? ' checked' : ''}> ${this.teamName(side)}</label>`,
                 )
                 .join('') +
-            `</div>` +
-            `<div class="se-row">` +
-            btn('se-clear', t('editor:clearTeam', { defaultValue: 'Clear {{team}} units', team: teamName(this.team) }), { disabled: counts[['player', 'enemy', 'horde'].indexOf(this.team)] === 0 }) +
             `</div>` +
             `</div>` +
             `<div class="se-section">` +
@@ -565,8 +773,15 @@ export class ScenarioEditor {
             btn('se-redo', t('editor:redo', { defaultValue: 'Redo' }), { disabled: !this.history.canRedo, title: 'Ctrl+Shift+Z' }) +
             btn('se-new', t('editor:new', { defaultValue: 'New' })) +
             `</div>` +
-            btn('se-test', `▶ ${t('editor:testBattle', { defaultValue: 'Test battle' })}`, { disabled: errors.length > 0, title: errors.map((i) => i.message).join('\n') }) +
+            btn('se-test', `▶ ${t('editor:testBattle', { defaultValue: 'Test battle' })}`, {
+                disabled: errors.length > 0,
+                title: errors.length > 0 ? errors.map((i) => i.message).join('\n') : t('editor:testTip', { defaultValue: 'End Deployment does the same' }),
+            }) +
             `<div class="se-row">` +
+            btn('se-save', t('editor:save', { defaultValue: 'Save' }), {
+                disabled: errors.length > 0,
+                title: t('editor:saveTip', { defaultValue: 'Keep it as a scenario (with this level’s content)' }),
+            }) +
             (this.host.canDownload() ? btn('se-download', t('editor:downloadZip', { defaultValue: 'Download zip' })) : '') +
             btn('se-exit', t('editor:exit', { defaultValue: 'Exit' })) +
             `</div>` +
@@ -578,63 +793,81 @@ export class ScenarioEditor {
                   `</div>`
                 : '') +
             `<div class="se-status"></div>` +
-            `<div class="se-hint">${t('editor:hint', { defaultValue: 'Left: select · drag to move · Right drag: pan · R rotate · [ ] level · Del delete · Ctrl+Z undo' })}</div>` +
+            `<div class="se-hint">${t('editor:hint', { defaultValue: 'Tab switch side · [ ] level · Del delete · R rotate (Move) · Ctrl+Z undo' })}</div>` +
             `</div>`;
-
-        this.wirePanel();
+        while (rest.firstChild) this.bodyEl.appendChild(rest.firstChild);
+        this.wireWindow();
     }
 
-    private wirePanel(): void {
+    private wireWindow(): void {
         const on = (selector: string, handler: (el: HTMLElement) => void) => {
-            for (const el of this.root.querySelectorAll<HTMLElement>(selector)) el.addEventListener('click', () => handler(el));
+            for (const el of this.bodyEl.querySelectorAll<HTMLElement>(selector)) el.addEventListener('click', () => handler(el));
         };
+        on('.se-switch', () => this.switchSide());
         on('.se-tool', (el) => this.setTool(el.dataset.tool as Tool));
         on('.se-team', (el) => {
             this.team = el.dataset.team as SceneTeam;
-            if (this.tool === 'erase') this.tool = 'place';
             this.render();
         });
         on('.se-type', (el) => {
             this.placeTypeId = el.dataset.type ?? null;
-            this.setTool('place');
+            this.render();
         });
-        on('.se-level-down', () => this.changeLevel(-1));
-        on('.se-level-up', () => this.changeLevel(1));
-        on('.se-rotate', () => this.rotateSelected());
-        on('.se-delete', () => this.selection && this.erase(this.selection));
-        on('.se-clear', () => this.commit(withoutTeam(this.draft, this.team)));
+        on('.se-mirror', () => {
+            const ok = window.confirm(
+                t('editor:mirrorConfirm', {
+                    defaultValue: 'Replace the {{other}} side with a copy of the {{side}} side?',
+                    side: this.teamName(this.side),
+                    other: this.teamName(this.side === 'player' ? 'enemy' : 'player'),
+                }),
+            );
+            if (!ok) return;
+            const next = mirrorSide(this.host.types, this.draft, this.side);
+            if (this.history.push(next)) this.apply(null);
+        });
+        on('.se-clear', () => {
+            const next = withoutTeam(this.draft, this.side);
+            if (this.history.push(next)) this.apply(null);
+        });
+        on('.se-clear-horde', () => {
+            if (this.history.push(withoutTeam(this.draft, 'horde'))) this.apply(null);
+        });
         on('.se-undo', () => this.undo());
         on('.se-redo', () => this.redo());
         on('.se-new', () => {
-            const ok = window.confirm(
-                t('editor:newConfirm', { defaultValue: 'Start a new board? Undo brings the current one back.' }),
-            );
-            if (ok) this.commit(newDraft(this.host.gameVersion));
+            const ok = window.confirm(t('editor:newConfirm', { defaultValue: 'Start a new board? Undo brings the current one back.' }));
+            if (!ok) return;
+            const next = newDraft(this.host.gameVersion);
+            this.side = 'player';
+            if (JSON.stringify(next.map) !== JSON.stringify(this.draft.map)) {
+                this.history.push(next);
+                this.restartWith(next);
+            } else if (this.history.push(next)) this.apply(null);
         });
-        on('.se-test', () => {
-            carried = { history: this.history, tool: this.tool, team: this.team, placeTypeId: this.placeTypeId };
-            this.host.autosave(this.draft);
-            this.host.test(this.draft);
-        });
-        on('.se-download', (el) => {
+        on('.se-test', () => this.startTest());
+        const busy = (el: HTMLElement, run: () => Promise<string>) => {
             (el as HTMLButtonElement).disabled = true;
-            void this.host
-                .download(this.draft)
+            void run()
                 .then((status) => this.flash(status))
                 .catch((e: unknown) => this.flash(e instanceof Error ? e.message : String(e)))
                 .finally(() => ((el as HTMLButtonElement).disabled = false));
-        });
+        };
+        on('.se-save', (el) => busy(el, () => this.host.save(this.draft)));
+        on('.se-download', (el) => busy(el, () => this.host.download(this.draft)));
         on('.se-exit', () => this.host.exit());
 
-        const name = this.root.querySelector<HTMLInputElement>('.se-name');
+        const name = this.bodyEl.querySelector<HTMLInputElement>('.se-name');
         name?.addEventListener('change', () => {
             const value = name.value.trim();
             if (!value || value === this.draft.name) return;
             const next = structuredClone(this.draft);
             next.name = value;
-            this.commit(next);
+            if (this.history.push(next)) {
+                this.host.autosave(this.draft);
+                this.render();
+            }
         });
-        const map = this.root.querySelector<HTMLSelectElement>('.se-map');
+        const map = this.bodyEl.querySelector<HTMLSelectElement>('.se-map');
         map?.addEventListener('change', () => {
             const preset = MAP_PRESETS[map.value as MapPresetId];
             if (!preset) return;
@@ -651,12 +884,13 @@ export class ScenarioEditor {
                     return;
                 }
             }
-            this.commit(def);
+            this.history.push(def);
+            this.restartWith(def);
         });
-        for (const box of this.root.querySelectorAll<HTMLInputElement>('.se-base')) {
+        for (const box of this.bodyEl.querySelectorAll<HTMLInputElement>('.se-base')) {
             box.addEventListener('change', () => {
-                const side = box.dataset.side as 'player' | 'enemy';
-                this.commit(withBaseBuildings(this.host.types, this.draft, side, box.checked));
+                const side = box.dataset.side as Side;
+                if (this.history.push(tidyDraft(withBaseBuildings(this.host.types, this.draft, side, box.checked)))) this.apply(null);
             });
         }
     }
@@ -670,16 +904,15 @@ export interface TestBattleSummary {
     seconds: number;
     packs: Record<'player' | 'enemy' | 'horde', { standing: number; total: number }>;
     members: Record<'player' | 'enemy' | 'horde', { alive: number; total: number }>;
+    /** damage each side's HP would take */
+    damage: { player: number; enemy: number };
 }
 
 /** The strip over a test battle: back to the editor any time, the result at the end. */
 export class TestBattleBar {
     private readonly root: HTMLDivElement;
 
-    constructor(
-        wrapper: HTMLElement,
-        private readonly cb: { onBack(): void; onAgain(): void },
-    ) {
+    constructor(wrapper: HTMLElement, cb: { onBack(): void; onAgain(): void }) {
         this.root = document.createElement('div');
         this.root.className = 'mechili-test-battle';
         this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -707,7 +940,8 @@ export class TestBattleBar {
             const p = summary.packs[team];
             const m = summary.members[team];
             if (p.total === 0) return '';
-            return `<div class="tb-side" style="--se-team:${colorForBattleTeam(team).css}"><b>${label}</b> ${p.standing}/${p.total} packs · ${m.alive}/${m.total} units</div>`;
+            const damage = team === 'horde' ? '' : ` · ${t('editor:damageTaken', { defaultValue: 'takes' })} ${Math.round(summary.damage[team])}`;
+            return `<div class="tb-side" style="--se-team:${colorForBattleTeam(team).css}"><b>${label}</b> ${p.standing}/${p.total} packs · ${m.alive}/${m.total} units${damage}</div>`;
         };
         el.innerHTML =
             `<div class="tb-headline">${headline} · ${summary.seconds.toFixed(1)}s</div>` +
