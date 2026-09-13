@@ -619,6 +619,8 @@ try {
                 const metaOf = (fs) => JSON.parse(new TextDecoder().decode(fs.find((f) => f.path === 'meta.jsonc').bytes));
                 zexpect(intoA.id === 'rematch' && intoB.id === 'rematch-2' && replaced.id === def.id, `package ids: ${intoA.id} ${intoB.id} ${replaced.id}`);
                 zexpect(metaOf(replaced.files).levels.map((l) => l.scenario).join() === `${def.id},rematch,rematch-2` && pkgMod.packageScenarioIds(replaced.files).length === 3, `package order: ${JSON.stringify(metaOf(replaced.files))}`);
+                const renamed = pkgMod.withScenarioInPackage(replaced.files, { ...def, seed: 77 }, def.id, 'The Long March');
+                zexpect(metaOf(renamed.files).name === 'The Long March' && metaOf(renamed.files).levels.length === 3, 'package rename lost');
                 const { ref: chainRef } = await levels.loadLevel('chain', replaced.files);
                 const chain = await levels.prepareLevel(chainRef);
                 zexpect(chain.scenarios.size === 3 && chain.scenarios.get(def.id)?.def?.seed === 77 && chain.meta?.issues.length === 0, `saved-into package loads: ${JSON.stringify(chain.meta?.issues)}`);

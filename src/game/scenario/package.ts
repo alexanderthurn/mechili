@@ -54,6 +54,8 @@ export function withScenarioInPackage(
     files: readonly OverlayFile[],
     def: ScenarioDef,
     packageId: string,
+    /** a new name for the package (meta.jsonc) */
+    packageName?: string,
 ): { files: OverlayFile[]; id: string } {
     const ids = packageScenarioIds(files);
     let id = def.id;
@@ -78,14 +80,14 @@ export function withScenarioInPackage(
         }
     }
     const allIds = ids.includes(id) ? ids : [...ids, id];
-    if (meta || allIds.length > 1) {
+    if (meta || allIds.length > 1 || packageName) {
         const levels = Array.isArray(meta?.levels) ? [...(meta.levels as { scenario?: unknown }[])] : allIds.filter((x) => x !== id).map((scenario) => ({ scenario }));
         if (!levels.some((l) => l?.scenario === id)) levels.push({ scenario: id });
         const next: PackageMeta = {
             ...(meta as Partial<PackageMeta> | null),
             version: 1,
             id: typeof meta?.id === 'string' ? meta.id : packageId,
-            name: typeof meta?.name === 'string' ? meta.name : packageId,
+            name: packageName ?? (typeof meta?.name === 'string' ? meta.name : packageId),
             levels: levels as PackageMeta['levels'],
         };
         out.push({ path: META_FILE, bytes: encoder.encode(`${JSON.stringify(next, null, 4)}\n`) });

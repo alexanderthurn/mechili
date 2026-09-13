@@ -3155,7 +3155,7 @@ function constructGame(
         game.onScenarioEditor = (mode, draft) => void openScenarioEditor(mode, draft, settings.level);
         if (SCENARIO_ZIP_TESTING) game.onScenarioDownload = (draft) => downloadScenarioDraft(draft, settings.level);
         game.onScenarioSave = (draft) => saveScenarioDraft(draft, settings.level);
-        game.onScenarioSaveInto = (draft) => saveScenarioIntoLevel(draft, settings.level);
+        game.onScenarioSaveInto = (draft, packageName) => saveScenarioIntoLevel(draft, settings.level, packageName);
         game.onScenarioPlay = (draft) => void playScenarioDraft(draft, settings.level);
         game.onScenarioShareCode = async (draft) => {
             const { id, files } = scenarioDraftPackage(draft, settings.level);
@@ -3517,11 +3517,12 @@ function scenarioDraftPackage(draft: ScenarioDef, level: LevelRef | undefined): 
 async function saveScenarioIntoLevel(
     draft: ScenarioDef,
     level: LevelRef | undefined,
+    packageName?: string,
 ): Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }> {
     if (!level || !(await ensureLevel(level))) throw new Error('the package this board is made on is not available');
     const files = levelFiles(level.hash);
     if (!files) throw new Error('the package this board is made on is not available');
-    const { files: merged, id } = withScenarioInPackage(files, { ...draft, updatedAt: new Date().toISOString() }, level.id);
+    const { files: merged, id } = withScenarioInPackage(files, { ...draft, updatedAt: new Date().toISOString() }, level.id, packageName);
     const { ref } = await loadLevel(level.id, merged);
     if (ref.hash === level.hash) return { status: 'Nothing changed', id, reopen: null };
     await forgetLevel(level);

@@ -852,7 +852,7 @@ export class Game {
     onScenarioPlay: ((draft: ScenarioDef) => void) | null = null;
     /** scenario editor: put the draft into the package the board is made on */
     onScenarioSaveInto:
-        | ((draft: ScenarioDef) => Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }>)
+        | ((draft: ScenarioDef, packageName?: string) => Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }>)
         | null = null;
     /** scenario editor: keep the draft as a scenario package; resolves to a status line */
     onScenarioSave: ((draft: ScenarioDef) => Promise<string>) | null = null;
@@ -3014,8 +3014,8 @@ export class Game {
                     ),
                 save: (def) => this.onScenarioSave?.(def) ?? Promise.resolve(''),
                 packageName: activeLevel().scenarios.size > 0 ? (activeLevel().meta?.def?.name ?? level?.id ?? null) : null,
-                saveInto: (def) =>
-                    this.onScenarioSaveInto?.(def) ?? Promise.resolve({ status: '', id: def.id, reopen: null }),
+                saveInto: (def, packageName) =>
+                    this.onScenarioSaveInto?.(def, packageName) ?? Promise.resolve({ status: '', id: def.id, reopen: null }),
                 shareCode: (def) => this.onScenarioShareCode?.(def) ?? Promise.resolve(''),
                 issues: (def) => normalizeScenario(def, this.types).issues,
                 autosave: (def) => storeDraft(def, this.settings.level),

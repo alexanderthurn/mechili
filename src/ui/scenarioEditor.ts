@@ -77,7 +77,7 @@ export interface ScenarioEditorHost {
      * adding it at the end of the order). `id` is the scenario's id in the
      * package; `reopen` restarts the editor on the updated package.
      */
-    saveInto(def: ScenarioDef): Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }>;
+    saveInto(def: ScenarioDef, packageName?: string): Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }>;
     download(def: ScenarioDef): Promise<string>;
     /** copy the draft as a share code; resolves to a status line */
     shareCode(def: ScenarioDef): Promise<string>;
@@ -130,6 +130,8 @@ export class ScenarioEditor {
     private side: Side = 'player';
     private collapsed = false;
     private rulesOpen = false;
+    /** the package name as typed (applied on Save into package) */
+    private packageNameDraft: string | null = null;
     private press: { x: number; y: number; unit: Unit | null; index: number | null; dragging: boolean } | null = null;
     private readonly root: HTMLDivElement;
     private readonly selectionEl: HTMLDivElement;
@@ -733,8 +735,12 @@ export class ScenarioEditor {
         this.root.appendChild(this.bodyEl);
         this.bodyEl.innerHTML =
             `<div class="se-section">` +
-            `<div class="se-muted">${esc(this.host.levelLabel)}</div>` +
-            `<input class="se-name" type="text" maxlength="60" value="${esc(draft.name)}">` +
+            (this.host.packageName
+                ? `<label class="se-rule"><span>${t('editor:packageName', { defaultValue: 'Package (saved with Save into package)' })}</span>` +
+                  `<input class="se-package-name" type="text" maxlength="60" value="${esc(this.packageNameDraft ?? this.host.packageName)}"></label>`
+                : `<div class="se-muted">${esc(this.host.levelLabel)}</div>`) +
+            `<label class="se-rule"><span>${t('editor:scenarioName', { defaultValue: 'Scenario name (level title)' })}</span>` +
+            `<input class="se-name" type="text" maxlength="60" value="${esc(draft.name)}"></label>` +
             `<div class="se-side" style="--se-team:${sideColor}">` +
             `${t('editor:building', { defaultValue: 'Building' })} <b>${this.teamName(this.side)}</b> ` +
             btn('se-switch', `⇄ ${this.teamName(this.side === 'player' ? 'enemy' : 'player')}`, { title: 'Tab' }) +
@@ -927,7 +933,8 @@ export class ScenarioEditor {
         on('.se-save', (el) => busy(el, () => this.host.save(this.draft)));
         on('.se-save-into', (el) =>
             busy(el, async () => {
-                const result = await this.host.saveInto(this.draft);
+                const packageName = this.packageNameDraft?.trim();
+                const result = await this.host.saveInto(this.draft, packageName && packageName !== this.host.packageName ? packageName : undefined);
                 if (result.id !== this.draft.id) {
                     const next = structuredClone(this.draft);
                     next.id = result.id;
@@ -956,6 +963,8 @@ export class ScenarioEditor {
             });
         }
 
+        const packageName = this.bodyEl.querySelector<HTMLInputElement>('.se-package-name');
+        packageName?.addEventListener('input', () => (this.packageNameDraft = packageName.value));
         const name = this.bodyEl.querySelector<HTMLInputElement>('.se-name');
         name?.addEventListener('change', () => {
             const value = name.value.trim();
