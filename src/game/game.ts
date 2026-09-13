@@ -280,7 +280,8 @@ import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
 import { activeLevel, activeLevelRef, isLevelActive, levelFiles, loadLevel, type LevelRef } from './level';
 import { captureScenario } from './scenario/capture';
-import { scenarioFileText, scenarioPackageFiles } from './scenario/package';
+import { scenarioPackageFiles } from './scenario/package';
+import type { OverlayFile } from './assets';
 import { resolveMatchRules, stripOpen, type MatchRules } from './matchRules';
 import { hasErrors, normalizeScenario } from './scenario/normalize';
 import type { ScenarioDef } from './scenario/scenarioDef';
@@ -4008,16 +4009,23 @@ export class Game {
 
     /**
      * The scenario this match plays: the editor draft for author / test, the
-     * level package's `scenario.jsonc` for play. Refuses one with errors.
+     * named scenario of the level package for play. Refuses one with errors.
      */
     private resolveScenario(): ScenarioDef | null {
         const request = this.settings.scenario;
         if (!request) return null;
+        const scenarios = activeLevel().scenarios;
+        // a package with exactly one scenario may be played without naming it
+        const onlyOne = scenarios.size === 1 ? [...scenarios.values()][0] : undefined;
         const normalized = request.draft
             ? normalizeScenario(request.draft, this.types)
-            : activeLevel().scenario;
+            : request.id !== undefined
+              ? scenarios.get(request.id)
+              : onlyOne;
         if (!normalized?.def) {
-            throw new Error(`[game] scenario match without a scenario (${normalized?.issues[0]?.message ?? 'the level has no scenario.jsonc'})`);
+            throw new Error(
+                `[game] scenario match without a scenario (${normalized?.issues[0]?.message ?? `the level has no scenario "${request.id ?? ''}"`})`,
+            );
         }
         if (request.mode === 'play' && hasErrors(normalized.issues)) {
             throw new Error(`[game] scenario has errors: ${normalized.issues.filter((i) => i.level === 'error').map((i) => i.message).join('; ')}`);
@@ -6324,7 +6332,7 @@ export class Game {
      * level the replay played. The watched side becomes `player`. Null outside
      * replay watching or before both commanders are picked.
      */
-    async saveReplayAsScenario(name: string): Promise<{ ref: LevelRef; text: string } | null> {
+    async saveReplayAsScenario(name: string): Promise<{ ref: LevelRef; files: OverlayFile[] } | null> {
         if (!this.watching || this.replayLog === null || this.round < 1) return null;
         const game = this;
         const def = captureScenario(
@@ -6342,6 +6350,8 @@ export class Game {
                 playerCommanderId: this.commander[this.humanSeat] ?? null,
                 playerUnlocks: this.unlockedUnits[this.humanSeat] ?? [],
                 gameVersion: formatGameVersion(GAME_VERSION),
+                // a scenario's player rules belong to side a — only then do they carry over
+                baseRules: this.scenario && this.side === 'a' ? this.scenario.rules : null,
                 primarySeat(team) {
                     return primarySeatOf(game.seats, team);
                 },
@@ -6351,7 +6361,7 @@ export class Game {
         const level = activeLevelRef();
         const files = scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []);
         const { ref } = await loadLevel(def.id, files);
-        return { ref, text: scenarioFileText(def) };
+        return { ref, files };
     }
 
     /** verify mode's recomputed outcome once the match has ended, for a

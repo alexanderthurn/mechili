@@ -98,7 +98,7 @@ import {
     prepareLevel,
     type LevelRef,
 } from './game/level';
-import { readZip } from './game/content/zip';
+import { readZip, writeZip } from './game/content/zip';
 import { listCachedLevels } from './game/levelCache';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
@@ -1133,6 +1133,7 @@ menu.innerHTML = `
                     <select class="cg-scenario"></select>
                 </label>
                 <input type="file" class="cg-scenario-file" accept=".zip,application/zip" hidden>
+                <select class="cg-scenario-pick" hidden></select>
                 <button type="button" class="m-btn m-small cg-scenario-play" hidden>Play scenario (single player)</button>
                 <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
             </div>
@@ -1291,6 +1292,7 @@ const cgScenarioFieldEl = menu.querySelector<HTMLLabelElement>('.cg-scenario-fie
 const cgScenarioEl = menu.querySelector<HTMLSelectElement>('.cg-scenario')!;
 const cgScenarioFileEl = menu.querySelector<HTMLInputElement>('.cg-scenario-file')!;
 const cgScenarioPlayEl = menu.querySelector<HTMLButtonElement>('.cg-scenario-play')!;
+const cgScenarioPickEl = menu.querySelector<HTMLSelectElement>('.cg-scenario-pick')!;
 
 /**
  * Web testing only: play a Custom Game on a scenario from a zip. The Steam game
@@ -1320,8 +1322,19 @@ function refreshScenarioSelect(): void {
     }
     add('zip', 'Load zip…');
     cgScenarioEl.value = active?.hash ?? '';
-    // a level with scenario.jsonc can be played as a single-player scenario
-    cgScenarioPlayEl.hidden = !(SCENARIO_ZIP_TESTING && !cgScenarioFieldEl.hidden && activeLevel().scenario);
+    // a level with scenarios can play one as a single-player match; a picker when it has several
+    const { scenarios, campaign } = activeLevel();
+    const playable = SCENARIO_ZIP_TESTING && !cgScenarioFieldEl.hidden && scenarios.size > 0;
+    cgScenarioPlayEl.hidden = !playable;
+    cgScenarioPickEl.textContent = '';
+    const order = campaign?.def?.levels.map((l) => l.scenario).filter((id) => scenarios.has(id)) ?? [];
+    for (const id of [...order, ...[...scenarios.keys()].filter((id) => !order.includes(id))]) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = scenarios.get(id)?.def?.name ?? id;
+        cgScenarioPickEl.appendChild(opt);
+    }
+    cgScenarioPickEl.hidden = !playable || scenarios.size < 2;
     // scenarios kept from earlier sessions (saved from replays, received, loaded)
     void listCachedLevels().then((cached) => {
         const zip = cgScenarioEl.querySelector('option[value="zip"]');
@@ -1339,8 +1352,9 @@ function refreshScenarioSelect(): void {
 
 cgScenarioPlayEl.addEventListener('click', () => {
     const level = activeLevelRef();
-    const scenario = activeLevel().scenario;
-    if (!level || !scenario) return;
+    const id = cgScenarioPickEl.value || [...activeLevel().scenarios.keys()][0];
+    const scenario = id !== undefined ? activeLevel().scenarios.get(id) : undefined;
+    if (!level || !scenario || id === undefined) return;
     const errors = scenario.issues.filter((i) => i.level === 'error');
     for (const issue of scenario.issues) console[issue.level === 'error' ? 'error' : 'warn']('[scenario]', issue.message);
     if (!scenario.def || errors.length > 0) {
@@ -1349,7 +1363,7 @@ cgScenarioPlayEl.addEventListener('click', () => {
     }
     // leave the room we were hosting — a scenario is a single-player match
     cancelHost();
-    startGame(applyScenarioToSettings(localMatchSettings(), scenario.def, level, 'play'));
+    startGame(applyScenarioToSettings(localMatchSettings(), scenario.def, level, 'play', id));
 });
 
 async function switchScenarioTo(ref: LevelRef | undefined): Promise<void> {
@@ -2319,6 +2333,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgResetEl.disabled = true;
     cgScenarioFieldEl.hidden = true;
     cgScenarioPlayEl.hidden = true;
+    cgScenarioPickEl.hidden = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
 }
@@ -3247,8 +3262,8 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
 
 /**
  * Replay viewer → scenario (plan §9.1): the board as it stands becomes a
- * scenario package in the scenario cache. Web builds also download its
- * scenario.jsonc for editing.
+ * scenario package in the scenario cache. Web builds also download the
+ * package as a zip (loadable again with "Load zip…").
  */
 async function saveReplayScenario(): Promise<string> {
     const game = activeGame;
@@ -3260,8 +3275,8 @@ async function saveReplayScenario(): Promise<string> {
     if (!saved) return 'Nothing to save yet — wait for round 1.';
     if (!isElectron()) {
         const link = document.createElement('a');
-        link.href = URL.createObjectURL(new Blob([saved.text], { type: 'application/json' }));
-        link.download = 'scenario.jsonc';
+        link.href = URL.createObjectURL(new Blob([writeZip(saved.files)], { type: 'application/zip' }));
+        link.download = `${saved.ref.id}.zip`;
         link.click();
         setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
     }

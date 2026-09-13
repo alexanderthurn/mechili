@@ -21,6 +21,7 @@ import {
     SCENARIO_VERSION,
     type SceneBuildings,
     type ScenarioDef,
+    type ScenarioRules,
     type SceneTeam,
     type SceneUnit,
 } from './scenarioDef';
@@ -42,6 +43,12 @@ export interface CaptureHost {
     readonly playerCommanderId: string | null;
     readonly playerUnlocks: readonly string[];
     readonly gameVersion: string;
+    /**
+     * The rules of the scenario the replay itself played, when the watched
+     * side is the side those rules were written for — carried into the capture
+     * where they aren't board state. Null otherwise.
+     */
+    readonly baseRules: ScenarioRules | null;
     primarySeat(team: Team): SeatId;
 }
 
@@ -137,6 +144,9 @@ export function captureScenario(host: CaptureHost, name: string): ScenarioDef {
             opponents: 'lockInOnly',
             enemyIntel: rules.enemyIntel,
             unlockedUnits: [...host.playerUnlocks],
+            // what the original scenario decided for this side and the board doesn't show
+            ...(host.baseRules?.unlockable ? { unlockable: [...host.baseRules.unlockable] } : {}),
+            ...(host.baseRules?.loadout ? { loadout: structuredClone(host.baseRules.loadout) } : {}),
         },
         scene: { units, techs, buildings },
     };

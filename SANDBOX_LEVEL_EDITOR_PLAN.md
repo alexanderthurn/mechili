@@ -260,16 +260,25 @@ cannot play (two enemy archers, one with a talent and one without).
 (§17.5):
 
 ```text
-<scenario>/
-  scenario.jsonc          ScenarioDef (this section) — required
+<package>/                one zip / one level
+  scenarios/<id>.jsonc    one ScenarioDef per level (this section); the file name is its id
+  campaign.jsonc          optional: order, titles, briefings, progression (§9.4)
   data/…                  optional content overrides (units, buildings, spells…)
   models/… textures/…     optional media overrides
 ```
 
-`loadLevel` validates the content as for any level; `scenario.jsonc` is
-validated by its own generated schema plus `normalizeScenario` (§4.3). The
-package's content hash identifies the scenario everywhere (settings, saves,
-replays, multiplayer).
+The simple fallback stays valid: a package with a lone root `scenario.jsonc`
+(no `scenarios/` folder, no campaign) is one level with the id `scenario`.
+A package may hold several levels sharing the same content overrides; the
+match names the one it plays in `settings.scenario.id` (omitted = the only
+one). Without a campaign, a picker lists the levels by file; with one, in the
+campaign's order.
+
+`loadLevel` validates the content as for any level; each scenario is validated
+by its own generated schema plus `normalizeScenario` (§4.3), `campaign.jsonc`
+by `campaign.schema.json` plus `parseCampaign` (a level naming a missing
+scenario is an error). The package's content hash identifies it everywhere
+(settings, saves, replays, multiplayer).
 
 ### 4.2 Why a scene snapshot (plus settings embedding)
 
@@ -577,7 +586,11 @@ destruction for them are checked (and fixed where needed) in phase 3. Cover
 left out for now): current board, levels, runes, side talents, buildings
 (incl. garrison posts), side HP and map flags become a draft
 (`flanksOpenFromRound` = 1 if already open). A match that played a level keeps
-that level's content in the new package.
+that level's content in the new package (without that level's other
+scenarios or campaign) as `scenarios/<id>.jsonc`, downloaded as a zip in web
+builds. When the replay played a scenario and the watched side is the side
+its rules were written for, the rules the board doesn't show (`unlockable`,
+`loadout`) are inherited; otherwise they're left at their defaults.
 Every “that fight was weird” and every bug report becomes reproducible.
 
 ### 9.2 Share codes
@@ -595,16 +608,29 @@ can run before each release.
 
 ### 9.4 Campaign (later)
 
+`campaign.jsonc` inside a package (format parsed and validated already, not
+played yet — `src/game/scenario/campaignDef.ts`):
+
 ```ts
 interface CampaignDef {
+  version: 1;
   id: string;
   name: string;
-  /** scenario packages by content hash (bundled, or fetched like any level) */
-  levels: { scenario: LevelRef; carryOver?: 'none' | 'army' | 'army+supply' }[];
+  description?: string;
+  author?: string;
+  cover?: string;              // image path inside the package
+  levels: {
+    scenario: string;          // scenarios/<scenario>.jsonc in the same package
+    title?: string;
+    briefing?: string;
+    carryOver?: 'none' | 'army' | 'army+supply';   // reserved
+    unlocks?: string[];        // reserved: shop units granted after victory
+  }[];
 }
 ```
 
 - Next level unlocks on victory; optional star rating (HP left, rounds).
+- Single player first; co-op later.
 - `carryOver` is decided per level transition, not hidden inside a scenario.
 
 ### 9.5 Triggers (later)
@@ -743,7 +769,11 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
    scenario" in the replay controls captures the board as it stands (watched
    side = player; opponents lock in only; the player's commander fixed
    without its army), keeps the package in the scenario cache with the replay
-   level's content, and downloads `scenario.jsonc` in web builds. Kept
+   level's content, and downloads a zip (`scenarios/<id>.jsonc` + content) in
+   web builds; inherits `unlockable`/`loadout` from the replayed scenario
+   for its own side. Packages hold several levels under `scenarios/` plus an
+   optional `campaign.jsonc` (validated, not played); a lone root
+   `scenario.jsonc` still works. Kept
    scenarios are listed in the Custom Game test row.
 3. **Editor core:** author mode, place / move / erase, team brush, placing
    any unit or building type for player / enemy / horde (incl. horde-owned

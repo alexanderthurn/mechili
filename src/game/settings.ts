@@ -124,7 +124,12 @@ export interface GameSettings {
      * level's `scenario.jsonc`; 'author' / 'test' carry the editor draft here
      * instead (single player only, never sent to peers).
      */
-    scenario?: { mode: 'play' | 'author' | 'test'; draft?: ScenarioDef };
+    scenario?: {
+        mode: 'play' | 'author' | 'test';
+        /** which of the level package's scenarios (`scenarios/<id>.jsonc`, or `scenario` for a root scenario.jsonc) */
+        id?: string;
+        draft?: ScenarioDef;
+    };
     /**
      * Horde algorithm id (see {@link HORDE_ALGORITHMS}).
      * Owns spawn schedule, pack-count multiplier, and leader bias.

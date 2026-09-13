@@ -30,7 +30,7 @@ import {
 } from './assets';
 import { BASE_PACK, loadPackWithOverlay } from './content/basePack';
 import { cacheLevel, cachedLevel } from './levelCache';
-import { parseScenario, type NormalizedScenario } from './scenario/normalize';
+import { parseCampaign, parseScenario, type NormalizedCampaign, type NormalizedScenario } from './scenario/normalize';
 import { TypeRegistry } from './content/typeRegistry';
 import { BASE_TYPES, proceduralHeightsOf } from './units';
 import { setModelSpecData, setModelTypes, setProceduralModelHeights } from './unitModels';
@@ -48,11 +48,13 @@ export interface ActiveLevel {
     /** null = the base game */
     overlay: AssetOverlay | null;
     types: TypeRegistry;
-    /** the package's `scenario.jsonc`, normalized against `types` — null when it has none */
-    scenario: NormalizedScenario | null;
+    /** the package's scenarios by id, each normalized against `types` (empty for plain content) */
+    scenarios: ReadonlyMap<string, NormalizedScenario>;
+    /** the package's `campaign.jsonc`, if any */
+    campaign: NormalizedCampaign | null;
 }
 
-let active: ActiveLevel = { overlay: null, types: BASE_TYPES, scenario: null };
+let active: ActiveLevel = { overlay: null, types: BASE_TYPES, scenarios: new Map(), campaign: null };
 let queue: Promise<unknown> = Promise.resolve();
 
 /** The level whose files and model data are loaded right now. */
@@ -70,7 +72,7 @@ export function activeLevelRef(): LevelRef | undefined {
 
 /** top folders a level's files live in: `data` and every folder of the base asset tree */
 function levelRootFolders(): Set<string> {
-    return new Set(['data', ...baseAssetPaths().map((p) => p.split('/')[0]!)]);
+    return new Set(['data', 'scenarios', ...baseAssetPaths().map((p) => p.split('/')[0]!)]);
 }
 
 /**
@@ -112,7 +114,8 @@ export async function loadLevel(
     }
     try {
         const { replaced, added } = overlay.report;
-        if (replaced.length === 0 && overlay.scenarioText === null && !added.some((p) => p.startsWith('data/'))) {
+        const definesPlay = overlay.scenarioTexts.size > 0 || overlay.campaignText !== null;
+        if (replaced.length === 0 && !definesPlay && !added.some((p) => p.startsWith('data/'))) {
             throw new Error(
                 `[level] "${id}" changes nothing — expected files like data/units/dwarf.jsonc or ` +
                     `models/units/dwarf.glb, got: ${added.slice(0, 5).join(', ') || '(no files)'}`,
@@ -184,12 +187,16 @@ export function switchLevel(overlay: AssetOverlay | null): Promise<ActiveLevel> 
         if (active.overlay === overlay) return active;
         const pack = overlay ? loadPackWithOverlay(overlay.dataFiles, overlay.id) : BASE_PACK;
         const types = overlay ? new TypeRegistry(pack) : BASE_TYPES;
-        const scenario = overlay?.scenarioText != null ? parseScenario(overlay.scenarioText, types) : null;
+        const scenarios = new Map(
+            [...(overlay?.scenarioTexts ?? [])].map(([id, text]) => [id, parseScenario(text, types, `scenarios/${id}.jsonc`)] as const),
+        );
+        const campaign =
+            overlay?.campaignText != null ? parseCampaign(overlay.campaignText, new Set(scenarios.keys()), types) : null;
         setModelSpecData(pack.models);
         setModelTypes(types.all());
         setProceduralModelHeights(proceduralHeightsOf(types));
         await switchAssetOverlay(overlay);
-        active = { overlay, types, scenario };
+        active = { overlay, types, scenarios, campaign };
         return active;
     });
     queue = run.catch(() => {});

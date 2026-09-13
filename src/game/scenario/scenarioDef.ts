@@ -1,6 +1,7 @@
 /**
  * The scenario format (SANDBOX_LEVEL_EDITOR_PLAN.md §4–§6): a board setup plus
- * match rules, stored as `scenario.jsonc` at the root of a level package.
+ * match rules, stored as `scenarios/<id>.jsonc` in a level package (or a lone
+ * root `scenario.jsonc`).
  * One format for the editor, testing, playing and later the campaign.
  *
  * Types only — `npm run content:schema` generates `scenario.schema.json` from

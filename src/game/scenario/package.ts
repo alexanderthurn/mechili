@@ -1,8 +1,9 @@
 /**
- * A scenario as a level package (plan §4.1): `scenario.jsonc` at the root, next
- * to the content overrides of the level it was made on (if any).
+ * Scenarios as a level package (plan §4.1): levels under `scenarios/<id>.jsonc`
+ * (or a lone root `scenario.jsonc`), an optional `campaign.jsonc`, next to the
+ * content overrides (data, models, textures) they play with.
  */
-import { SCENARIO_FILE, type OverlayFile } from '../assets';
+import { isScenarioPackageFile, SCENARIOS_DIR, type OverlayFile } from '../assets';
 import type { ScenarioDef } from './scenarioDef';
 
 /** `scenario.jsonc` text — readable, with a short header */
@@ -15,10 +16,13 @@ export function scenarioFileText(def: ScenarioDef): string {
     return `${header.join('\n')}\n${JSON.stringify(def, null, 4)}\n`;
 }
 
-/** The package files: the scenario plus the content of the level it came from. */
+/**
+ * A one-level package: `scenarios/<def.id>.jsonc` plus the content files of
+ * the level it was made on — without that level's own scenarios or campaign.
+ */
 export function scenarioPackageFiles(def: ScenarioDef, contentFiles: readonly OverlayFile[] = []): OverlayFile[] {
     return [
-        ...contentFiles.filter((f) => f.path !== SCENARIO_FILE),
-        { path: SCENARIO_FILE, bytes: new TextEncoder().encode(scenarioFileText(def)) },
+        ...contentFiles.filter((f) => !isScenarioPackageFile(f.path)),
+        { path: `${SCENARIOS_DIR}${def.id}.jsonc`, bytes: new TextEncoder().encode(scenarioFileText(def)) },
     ];
 }

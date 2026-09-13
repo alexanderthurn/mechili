@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/CampaignDef",
+  "definitions": {
+    "CampaignDef": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "cover": {
+          "type": "string",
+          "description": "image path inside the package, e.g. `ui/campaign-cover.webp`"
+        },
+        "levels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CampaignLevel"
+          },
+          "description": "played in this order"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "name",
+        "levels"
+      ],
+      "additionalProperties": false
+    },
+    "CampaignLevel": {
+      "type": "object",
+      "properties": {
+        "scenario": {
+          "type": "string",
+          "description": "id of `scenarios/<id>.jsonc` in the same package"
+        },
+        "title": {
+          "type": "string"
+        },
+        "briefing": {
+          "type": "string",
+          "description": "text shown before the level"
+        },
+        "carryOver": {
+          "type": "string",
+          "enum": [
+            "none",
+            "army",
+            "army+supply"
+          ],
+          "description": "what the player takes into the next level (not applied yet)"
+        },
+        "unlocks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "units that stay unlocked from this level on (not applied yet)"
+        }
+      },
+      "required": [
+        "scenario"
+      ],
+      "additionalProperties": false,
+      "description": "`campaign.jsonc` — the optional order and progression over a package's scenarios (plan §9.4). A package without it is simply a collection of scenarios; one with it is also a campaign. Campaign mode itself comes later: today the file is validated, and the fields below are reserved for it."
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

@@ -12,6 +12,8 @@ export function applyScenarioToSettings(
     def: ScenarioDef,
     level: LevelRef | undefined,
     mode: 'play' | 'author' | 'test',
+    /** the scenario's id inside the level package (play) */
+    id?: string,
 ): GameSettings {
     const r = def.rules;
     settings.map = { ...def.map };
@@ -28,6 +30,6 @@ export function applyScenarioToSettings(
     delete settings.climb;
     delete settings.tutorial;
     settings.level = level;
-    settings.scenario = mode === 'play' ? { mode } : { mode, draft: def };
+    settings.scenario = mode === 'play' ? { mode, ...(id !== undefined ? { id } : {}) } : { mode, draft: def };
     return settings;
 }

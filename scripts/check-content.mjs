@@ -491,9 +491,31 @@ try {
             // a package holding only scenario.jsonc is a valid level, and the active level exposes the scenario
             const { ref: scenRef } = await levels.loadLevel('archer-vs-ogre', [{ path: 'scenario.jsonc', bytes: enc(fixture) }]);
             const act = await levels.prepareLevel(scenRef);
-            zexpect(act.scenario?.def?.name === 'Archer vs Ogre' && act.scenario.issues.length === 0, 'the active level does not expose its scenario');
+            const root = act.scenarios.get('scenario');
+            zexpect(act.scenarios.size === 1 && root?.def?.name === 'Archer vs Ogre' && root.issues.length === 0, 'a lone root scenario.jsonc is not exposed as scenario "scenario"');
             await levels.prepareLevel(undefined);
-            zexpect(levels.activeLevel().scenario === null, 'the base game has a scenario');
+            zexpect(levels.activeLevel().scenarios.size === 0 && levels.activeLevel().campaign === null, 'the base game has scenarios');
+            // several levels under scenarios/ + campaign.jsonc naming them in order
+            const second = fixture.replace('"id": "archer-vs-ogre"', '"id": "rematch"').replace('"name": "Archer vs Ogre"', '"name": "Rematch"');
+            const campaignText = JSON.stringify({
+                version: 1, id: 'duel-series', name: 'Duel Series',
+                levels: [{ scenario: 'first', title: 'First Duel', briefing: 'Hold the line.' }, { scenario: 'rematch', carryOver: 'army', unlocks: ['dwarf'] }],
+            });
+            const { ref: seriesRef } = await levels.loadLevel('duel-series', [
+                { path: 'scenarios/first.jsonc', bytes: enc(fixture) },
+                { path: 'scenarios/rematch.jsonc', bytes: enc(second) },
+                { path: 'campaign.jsonc', bytes: enc(campaignText) },
+            ]);
+            const series = await levels.prepareLevel(seriesRef);
+            zexpect(series.scenarios.size === 2 && series.scenarios.get('rematch')?.def?.name === 'Rematch', 'package scenarios not read from scenarios/');
+            zexpect(series.campaign?.def?.levels.length === 2 && series.campaign.issues.length === 0, `campaign not read: ${JSON.stringify(series.campaign?.issues)}`);
+            await levels.prepareLevel(undefined);
+            const badCampaign = scen.parseCampaign(campaignText.replace('"rematch"', '"remtach"'), new Set(['first', 'rematch']), T);
+            zexpect(scen.hasErrors(badCampaign.issues) && badCampaign.issues[0].message.includes('no scenarios/remtach.jsonc'), 'a campaign level naming a missing scenario is not an error');
+            // zip writer → reader round trip
+            const zipped = zipMod.writeZip([{ path: 'scenarios/first.jsonc', bytes: enc(fixture) }, { path: 'models/x.bin', bytes: new Uint8Array([0, 1, 2, 255]) }]);
+            const unzipped = await zipMod.readZip(zipped);
+            zexpect(unzipped.length === 2 && new TextDecoder().decode(unzipped[0].bytes) === fixture && unzipped[1].bytes[3] === 255, 'writeZip output does not read back');
             // match rules: normal matches keep today's behaviour; a scenario supplies its own
             const mr = await server.ssrLoadModule('/src/game/matchRules.ts');
             const setMod = await server.ssrLoadModule('/src/game/settings.ts');
@@ -531,8 +553,7 @@ try {
                 fake(4, 'ogre', 'enemy', 30, 70, { rotated: true }),
                 fake(5, 'hordeZombie', 'horde', 0, 0, { summoned: true }),
             ];
-            const def = cap.captureScenario(
-                {
+            const host = {
                     types: T, settings, rules: mr.resolveMatchRules(settings, null),
                     placement: { allUnits: () => board, map: { halfW: 160, halfH: 170 } },
                     techTree: tree, round: 3, hp: { player: 2500, enemy: 0 },
@@ -540,9 +561,9 @@ try {
                     atmosphere: { season: 'winter', weatherKind: 'snow', weatherIntensity: 0.9, timeOfDay: 'day' },
                     playerCommanderId: 'air', playerUnlocks: ['goblin', 'crowRider'], gameVersion: '0.9.0',
                     primarySeat: (team) => (team === 'player' ? 0 : 1),
-                },
-                'Weird fight',
-            );
+                    baseRules: null,
+            };
+            const def = cap.captureScenario(host, 'Weird fight');
             const checked = scen.normalizeScenario(def, T);
             zexpect(checked.def !== null && !scen.hasErrors(checked.issues), `captured scenario has errors: ${checked.issues.map((i) => i.message).join('; ')}`);
             zexpect(def.scene.units.length === 2 && def.scene.units[0].team === 'player' && def.scene.units[0].items?.join() === 'fire' && def.scene.units[1].at.rotated === true, `captured units: ${JSON.stringify(def.scene.units)}`);
@@ -551,10 +572,13 @@ try {
             const files = pkgMod.scenarioPackageFiles(def);
             const { ref: capRef } = await levels.loadLevel(def.id, files);
             const act = await levels.prepareLevel(capRef);
-            zexpect(act.scenario?.def?.scene.units.length === 2 && act.scenario.issues.every((i) => i.level !== 'error'), 'a captured package does not load back as the same scenario');
+            const back = act.scenarios.get(def.id);
+            zexpect(files.some((f) => f.path === `scenarios/${def.id}.jsonc`) && back?.def?.scene.units.length === 2 && back.issues.every((i) => i.level !== 'error'), 'a captured package does not load back as the same scenario');
+            const withBase = cap.captureScenario({ ...host, baseRules: { ...def.rules, unlockable: ['dwarf'], loadout: { mode: 'open' } } }, 'Inherited');
+            zexpect(withBase.rules.unlockable?.join() === 'dwarf' && withBase.rules.loadout?.mode === 'open' && def.rules.unlockable === undefined, 'capture does not inherit the original scenario rules');
             await levels.prepareLevel(undefined);
         }
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); replay capture round-trips');
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + campaign.jsonc; zip write/read; replay capture round-trips and inherits rules');
     }
 } catch (e) {
     failed = true;
