@@ -333,8 +333,12 @@ export interface CustomGameConfig {
     moneyFactor: number;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
-    /** The Year (mode 'year'): which side attacks — the host's or the guest's */
-    yearAttacker?: 'host' | 'guest';
+    /**
+     * The Year (mode 'year'): who attacks — 'choose' = each player asks for a
+     * role in the lobby and a clash is a coin flip at Start; or fixed to the
+     * host's / the guest's side.
+     */
+    yearRoles?: 'choose' | 'host' | 'guest';
     /** The Year: the attacker fields the Komtur's forest roster (Cursed Christine) */
     yearKomtur?: boolean;
 }
@@ -490,6 +494,16 @@ export type NetMessage =
      *  CanonicalSeatDef.ready) — re-broadcasts as part of the next
      *  starRoster, same as any other roster change. */
     | { type: 'lobbyReady'; ready: boolean }
+    /** guest → host: the role this guest asks for in a Year room (null = any) */
+    | { type: 'lobbyRole'; role: 'attacker' | 'defender' | null }
+    /**
+     * The Year's "Rematch, roles swapped": a player → host asks for it; host →
+     * everyone: the seats that asked so far. When every connected player has,
+     * the host starts the rematch with `starRematch`.
+     */
+    | { type: 'rematch'; seats?: SeatId[] }
+    /** host → guest: the rematch starts — a new match on the same connection */
+    | { type: 'starRematch'; seed: number; settings: GameSettings; roster: CanonicalSeatDef[] }
     /**
      * host → guest: the scenario this room plays (null = base game). Sent on
      * join and whenever the host changes it; the guest answers `levelReady`

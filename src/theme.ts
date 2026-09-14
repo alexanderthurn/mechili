@@ -2140,6 +2140,43 @@ ${chatFloatStyles(u, pc, ec)}
     transition: border-color 0.12s ease, background 0.12s ease;
 }
 .mechili-menu .m-roster-kick:hover { border-color: ${u.hover}; background: ${u.undoHover}; }
+.mechili-menu .m-roster-role {
+    flex: none;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid ${u.border};
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    color: ${u.textMuted};
+    white-space: nowrap;
+}
+.mechili-menu .m-roster-role.is-attacker { border-color: #d8643f; color: #f0a184; }
+.mechili-menu .m-roster-role.is-defender { border-color: #5d97c9; color: #9cc3e4; }
+.mechili-menu .m-lobby-role-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: bold;
+    color: ${u.text};
+}
+.mechili-menu .m-lobby-role-label { margin-inline-end: 4px; }
+.mechili-menu .m-lobby-role {
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 12px;
+    border: 1.5px solid ${u.border};
+    border-radius: 999px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    cursor: pointer;
+}
+.mechili-menu .m-lobby-role:hover { border-color: ${u.hover}; }
+.mechili-menu .m-lobby-role.active { border-color: ${u.brassLight}; color: ${u.brassLight}; box-shadow: 0 0 0 2px rgba(212, 184, 120, 0.2); }
+.mechili-menu .m-lobby-role[data-role="attacker"].active { border-color: #d8643f; color: #f0a184; }
+.mechili-menu .m-lobby-role[data-role="defender"].active { border-color: #5d97c9; color: #9cc3e4; }
 .mechili-menu .m-roster-ready {
     flex: none;
     color: ${u.hpBar};

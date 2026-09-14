@@ -259,6 +259,11 @@ function normalizeCustomGameMode(mode: CustomGameMode | '1v1ai' | undefined): Cu
     return mode ?? DEFAULT_CUSTOM_GAME.mode;
 }
 
+/** a stored / received Year roles setting, or the default: players choose */
+function yearRolesOption(value: unknown): NonNullable<CustomGameConfig['yearRoles']> {
+    return value === 'host' || value === 'guest' ? value : 'choose';
+}
+
 function loadCustomGameConfig(): CustomGameConfig {
     try {
         const raw = localStorage.getItem(CUSTOM_GAME_KEY);
@@ -299,7 +304,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor),
             moneyFactor: moneyFactorOption(parsed.moneyFactor),
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
-            yearAttacker: parsed.yearAttacker === 'guest' ? 'guest' : 'host',
+            yearRoles: yearRolesOption(parsed.yearRoles),
             yearKomtur: parsed.yearKomtur === true,
         };
     } catch {
@@ -1162,6 +1167,12 @@ menu.innerHTML = `
                 <!-- settings first: a guest reads what they are agreeing to, THEN
                      confirms. (The host never sees the ready row — see
                      showHostLobbySettings — so this ordering only shows up there.) -->
+                <div class="m-lobby-role-row" style="display:none">
+                    <span class="m-lobby-role-label" data-i18n="menu:yearYourRole"></span>
+                    <button type="button" class="m-lobby-role" data-role="attacker" data-i18n="hud:yearAttacker"></button>
+                    <button type="button" class="m-lobby-role" data-role="defender" data-i18n="hud:yearDefender"></button>
+                    <button type="button" class="m-lobby-role" data-role="any" data-i18n="menu:yearAnyRole"></button>
+                </div>
                 <button class="m-lobby-settings-toggle" style="display:none" type="button"></button>
                 <label class="m-lobby-ready-row" style="display:none">
                     <input type="checkbox" class="m-lobby-ready-check">
@@ -1189,7 +1200,7 @@ menu.innerHTML = `
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
                 </label>
-                <label class="m-field m-year-field"><span class="m-field-label" data-i18n="menu:yearAttackerSetting"></span>
+                <label class="m-field m-year-field"><span class="m-field-label" data-i18n="menu:yearRolesSetting"></span>
                     <select class="cg-year-attacker"></select>
                 </label>
                 <label class="m-field m-year-field"><span class="m-field-label" data-i18n="menu:yearArmySetting"></span>
@@ -1609,6 +1620,13 @@ function openStoredScenarioEditor(): void {
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
 const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-toggle')!;
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
+const lobbyRoleRowEl = menu.querySelector<HTMLDivElement>('.m-lobby-role-row')!;
+for (const button of lobbyRoleRowEl.querySelectorAll<HTMLButtonElement>('.m-lobby-role')) {
+    button.addEventListener('click', () => {
+        const role = button.dataset.role;
+        lobbyYear?.pick(role === 'attacker' || role === 'defender' ? role : null);
+    });
+}
 const lobbyReadyCheckEl = menu.querySelector<HTMLInputElement>('.m-lobby-ready-check')!;
 const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
 
@@ -1877,6 +1895,7 @@ function refreshYearLobbyOptions(): void {
         if (value) select.value = value;
     };
     fill(cgYearAttackerEl, [
+        ['choose', t('menu:yearRolesChoose', { defaultValue: 'Players choose' })],
         ['host', t('menu:yearHostAttacks', { defaultValue: 'Host attacks' })],
         ['guest', t('menu:yearGuestAttacks', { defaultValue: 'Guest attacks' })],
     ]);
@@ -1925,7 +1944,7 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgMoneyEl.value = String(moneyFactorOption(cfg.moneyFactor));
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
     refreshYearLobbyOptions();
-    cgYearAttackerEl.value = cfg.yearAttacker === 'guest' ? 'guest' : 'host';
+    cgYearAttackerEl.value = yearRolesOption(cfg.yearRoles);
     cgYearKomturEl.value = cfg.yearKomtur ? 'komtur' : 'army';
     for (const field of menu.querySelectorAll<HTMLElement>('.m-year-field')) field.style.display = cfg.mode === 'year' ? '' : 'none';
     // Always short in the closed box — hosts open the list for details;
@@ -2033,10 +2052,10 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'yearAttacker' | 'yearKomtur'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'yearRoles' | 'yearKomtur'
 > {
     return {
-        yearAttacker: cgYearAttackerEl.value === 'guest' ? 'guest' : 'host',
+        yearRoles: yearRolesOption(cgYearAttackerEl.value),
         yearKomtur: cgYearKomturEl.value === 'komtur',
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
@@ -2623,6 +2642,9 @@ function clearLobbySettings(): void {
     lobbyReadyRowEl.style.display = 'none';
     lobbyReadyCheckEl.checked = false;
     lobbyReadyCheckEl.onchange = null;
+    lobbyYear = null;
+    lastRosterRender = null;
+    lobbyRoleRowEl.style.display = 'none';
 }
 
 /** host-side: the settings just changed, so every other seat's previous
@@ -2679,6 +2701,37 @@ const OPEN_SEAT_NAME = 'Waiting…';
  * is; the interactive checkbox is the separate .m-lobby-ready-check,
  * always about the LOCAL viewer's own seat.
  */
+/**
+ * A Year room on screen (host or guest): its settings, and how this client
+ * asks for a role (the host sets its own seat, a guest asks the host).
+ */
+let lobbyYear: { config: CustomGameConfig; pick: (role: 'attacker' | 'defender' | null) => void } | null = null;
+/** the roster table as last drawn — redrawn when the room's Year settings arrive */
+let lastRosterRender: Parameters<typeof renderRosterTable> | null = null;
+
+function setLobbyYear(next: typeof lobbyYear): void {
+    lobbyYear = next;
+    if (lastRosterRender) renderRosterTable(...lastRosterRender);
+    else lobbyRoleRowEl.style.display = 'none';
+}
+
+/** the role a seat stands for in a Year room: fixed by the setting, or what its player asked for */
+function lobbySeatRole(roster: readonly CanonicalSeatDef[], seat: SeatId): string | null {
+    const entry = roster[seat];
+    if (!lobbyYear || !entry || entry.name === OPEN_SEAT_NAME) return null;
+    const roles = yearRolesOption(lobbyYear.config.yearRoles);
+    if (roles !== 'choose') {
+        const attacks = entry.side === (roles === 'host' ? 'a' : 'b');
+        return attacks ? t('hud:yearAttacker') : t('hud:yearDefender');
+    }
+    if (entry.controller !== 'human') return null;
+    return entry.yearRole === 'attacker'
+        ? t('hud:yearAttacker')
+        : entry.yearRole === 'defender'
+          ? t('hud:yearDefender')
+          : t('menu:yearAnyRole', { defaultValue: 'Any' });
+}
+
 function renderRosterTable(
     roster: CanonicalSeatDef[],
     mySeat: SeatId,
@@ -2687,6 +2740,14 @@ function renderRosterTable(
     /** host only: pull someone into a still-open seat (see inviteToHostedRoom) */
     onInvite?: () => void,
 ): void {
+    lastRosterRender = [roster, mySeat, waitForJoined, onKick, onInvite];
+    // the role picker: a Year room whose players choose
+    const choosing = !!lobbyYear && yearRolesOption(lobbyYear.config.yearRoles) === 'choose' && !!roster[mySeat];
+    lobbyRoleRowEl.style.display = choosing ? '' : 'none';
+    const myRole = roster[mySeat]?.yearRole ?? 'any';
+    for (const button of lobbyRoleRowEl.querySelectorAll<HTMLButtonElement>('.m-lobby-role')) {
+        button.classList.toggle('active', choosing && button.dataset.role === myRole);
+    }
     rosterTableEl.innerHTML = '';
     rosterTableEl.style.display = '';
     const cols = document.createElement('div');
@@ -2749,6 +2810,13 @@ function renderRosterTable(
                 });
             }
             cell.appendChild(label);
+            const role = lobbySeatRole(roster, seat);
+            if (role) {
+                const badge = document.createElement('span');
+                badge.className = `m-roster-role${roster[seat]!.yearRole ? ` is-${roster[seat]!.yearRole}` : ''}`;
+                badge.textContent = role;
+                cell.appendChild(badge);
+            }
             if (filled && seat !== 0 && roster[seat]!.ready) {
                 const ready = document.createElement('span');
                 ready.className = 'm-roster-ready';
@@ -4278,6 +4346,17 @@ function wireHostedHub(
             .sort((a, b) => a - b)
             .map((i) => roster[i]?.name ?? '')
             .join(', ');
+        lobbyYear =
+            customConfig?.mode === 'year'
+                ? {
+                      config: customConfig,
+                      pick: (role) => {
+                          const own = hub.currentRoster()[0];
+                          if (own) hub.setRosterEntry(0, { ...own, yearRole: role ?? undefined });
+                          refresh();
+                      },
+                  }
+                : null;
         renderRosterTable(
             roster,
             0,
@@ -4402,6 +4481,14 @@ function wireHostedHub(
             if (msg.error) {
                 announceLobbySystem(`${state.name} could not load the scenario: ${msg.error}`, hub);
             }
+            refresh();
+            return;
+        }
+        if (msg.type === 'lobbyRole') {
+            const entry = hub.currentRoster()[seat];
+            if (!entry || customConfig?.mode !== 'year') return;
+            const role = msg.role === 'attacker' || msg.role === 'defender' ? msg.role : undefined;
+            hub.setRosterEntry(seat, { ...entry, yearRole: role });
             refresh();
             return;
         }
@@ -4536,22 +4623,47 @@ async function beginHost(opts: {
  * The settings every lobby match starts from — hosted rooms and local ones
  * (Practice, a Custom Game with only bots) alike, so the two can't drift apart.
  */
-function lobbyMatchSettings(config: CustomGameConfig | null, horde: boolean, seatCount: number): GameSettings & { seed: number } {
+function lobbyMatchSettings(
+    config: CustomGameConfig | null,
+    horde: boolean,
+    /** the room's final roster (bots filled in) — its size, and the roles players asked for */
+    roster: readonly CanonicalSeatDef[],
+): GameSettings & { seed: number } {
     const settings = settingsFromUrl();
     delete settings.seats; // the roster travels separately (localized per client)
     if (config) applyCustomGameConfig(settings, config);
     else if (horde) applyHordeMode(settings);
+    const seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
     if (config?.mode === 'year') {
         applyClimbMode(settings, {
             role: 'attacker',
-            attackerSide: config.yearAttacker === 'guest' ? 1 : 0,
+            attackerSide: resolveYearAttackerSide(config, roster, seed),
             keepHorde: true,
             ...(config.yearKomtur ? { komtur: true } : {}),
         });
     }
     // 2v2 / duo only — 1v1 must keep the standard map width
-    if (seatCount > 2) widenMapForDuo(settings);
-    return { ...settings, seed: settings.seed ?? (Math.random() * 0x7fffffff) | 0 };
+    if (roster.length > 2) widenMapForDuo(settings);
+    return { ...settings, seed };
+}
+
+/**
+ * Who attacks in a Year room: fixed by the host's setting, or from the roles
+ * the players asked for — a wish nobody contests is granted, the same wish on
+ * both sides (or none) is a coin flip on the match seed, so every client that
+ * receives the settings agrees.
+ */
+function resolveYearAttackerSide(config: CustomGameConfig, roster: readonly CanonicalSeatDef[], seed: number): number {
+    const roles = yearRolesOption(config.yearRoles);
+    if (roles !== 'choose') return roles === 'guest' ? 1 : 0;
+    const wish = (side: 'a' | 'b') => roster.find((s) => s.side === side && s.controller === 'human')?.yearRole;
+    const a = wish('a');
+    const b = wish('b');
+    if (a === 'attacker' && b !== 'attacker') return 0;
+    if (b === 'attacker' && a !== 'attacker') return 1;
+    if (a === 'defender' && b !== 'defender') return 1;
+    if (b === 'defender' && a !== 'defender') return 0;
+    return (seed >>> 0) % 2;
 }
 
 /** empty seats of a lobby roster become bots, each with its own rolled loadout */
@@ -4566,7 +4678,7 @@ function rosterWithBots(roster: readonly CanonicalSeatDef[]): CanonicalSeatDef[]
 /** a lobby match played on this machine only: no room, no spectators, single-player features on */
 function startLocalLobbyMatch(config: CustomGameConfig, roster: readonly CanonicalSeatDef[]): void {
     const finalRoster = rosterWithBots(roster);
-    const settings = lobbyMatchSettings(config, false, finalRoster.length);
+    const settings = lobbyMatchSettings(config, false, finalRoster);
     settings.seats = localizeRoster(finalRoster, 'a');
     startStarBtn.style.display = 'none';
     resetSessionChrome();
@@ -4673,7 +4785,7 @@ function startHostedMatch(): void {
         return;
     }
     finalRoster.forEach((entry, seat) => hub.setRosterEntry(seat, entry));
-    const settings = lobbyMatchSettings(starCustomConfig, starHordeFlag, finalRoster.length);
+    const settings = lobbyMatchSettings(starCustomConfig, starHordeFlag, finalRoster);
     for (const seat of connected) {
         hub.send(seat, {
             type: 'starSetup',
@@ -4891,6 +5003,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                 pendingReady = ready;
                 session.send({ type: 'lobbyReady', ready });
             });
+            setLobbyYear(msg.config.mode === 'year' ? { config: msg.config, pick: (role) => session.send({ type: 'lobbyRole', role }) } : null);
             return;
         }
         // Anything besides the handshake message types below is only ever
