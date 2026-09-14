@@ -1025,6 +1025,10 @@ menu.innerHTML = `
     <div class="m-view m-main is-active" data-view="main">
         <button class="m-btn m-primary" data-mode="tutorial">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial"></span></button>
         <button class="m-btn" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:singlePlayer"></span></button>
+        <button class="m-btn" data-mode="multiplayer">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n="settings:multiplayer"></span></button>
+    </div>
+    <div class="m-view m-main m-mp" data-view="mp">
+        <div class="m-spmode-title" data-i18n="settings:multiplayer"></div>
         <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n-matchmaking></span></button>
         <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label" data-i18n-custom></span></button>
         <div class="m-rooms">
@@ -1034,6 +1038,7 @@ menu.innerHTML = `
             </div>
             <div class="m-room-list empty" data-i18n-rooms-empty></div>
         </div>
+        <button class="m-btn m-small" data-mode="mp-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-spmode" data-view="tutorial">
         <div class="m-spmode-title" data-i18n="menu:tutorial"></div>
@@ -1658,9 +1663,10 @@ wrapper.appendChild(loadoutPanel.el);
 
 /** Exclusive menu screens — only one is active at a time. Session owns
  *  connecting / lobby / waiting UI so main never stacks under it. */
-type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'sp-year' | 'sp-editor' | 'sp-campaigns' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
+type MenuViewId = 'main' | 'mp' | 'sp' | 'sp-practice' | 'sp-year' | 'sp-editor' | 'sp-campaigns' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
 const menuViews: Record<MenuViewId, HTMLElement> = {
     main: mainButtonsEl,
+    mp: menu.querySelector<HTMLDivElement>('[data-view="mp"]')!,
     sp: spModeEl,
     'sp-practice': spPracticeEl,
     'sp-editor': spScenariosEl,
@@ -1725,6 +1731,9 @@ function resetSessionChrome(): void {
     practiceLobby = null;
 }
 
+/** where leaving the session view goes: the screen it was opened from */
+let sessionReturnView: MenuViewId = 'mp';
+
 /** a room is being hosted or joined: the Practice lobby (if it was on screen) is gone */
 function leavePracticeLobby(): void {
     if (!practiceLobby) return;
@@ -1740,6 +1749,8 @@ function showMenuView(view: MenuViewId): void {
     if (currentMenuView === 'session' && view !== 'session') {
         resetSessionChrome();
     }
+    // a room / lobby / connection returns to the screen it was opened from
+    if (view === 'session' && currentMenuView !== 'session') sessionReturnView = currentMenuView;
     currentMenuView = view;
     for (const [id, el] of Object.entries(menuViews) as [MenuViewId, HTMLElement][]) {
         el.classList.toggle('is-active', id === view);
@@ -2365,7 +2376,7 @@ function setStatus(text: string, autoDismissMs?: number): void {
             statusClearTimer = setTimeout(() => {
                 setStatus('');
                 if (currentMenuView === 'session' && !isSessionBusy()) {
-                    showMenuView('main');
+                    showMenuView(sessionReturnView);
                 }
             }, autoDismissMs);
         }
@@ -4743,7 +4754,7 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
             pending = null;
             setMenuBusy(false);
             if (cancelled || String(e).includes('cancelled')) {
-                showMenuView('main');
+                showMenuView(sessionReturnView);
             } else {
                 // without this, a permanently-dead host (room gone for good)
                 // leaves the StarResumeMarker in place, and the next page
@@ -5064,7 +5075,7 @@ function runGuestPending(p: Promise<GuestSession>): void {
     }).catch((e: unknown) => {
         pending = null;
         setMenuBusy(false);
-        if (cancelled || String(e).includes('cancelled')) showMenuView('main');
+        if (cancelled || String(e).includes('cancelled')) showMenuView(sessionReturnView);
         else setStatus(t('menu:connectionFailed', { error: e instanceof Error ? e.message : e }));
     });
 }
@@ -5430,7 +5441,7 @@ async function runQuickMatchmaking(
     } catch (e: unknown) {
         if (cancelled || String(e).includes('cancelled')) {
             setMenuBusy(false);
-            showMenuView('main');
+            showMenuView(sessionReturnView);
             return;
         }
         setMenuBusy(false);
@@ -5520,12 +5531,12 @@ function startSpectateGame(
 }
 
 function cancelMenuPending(): void {
-    const fromPractice = practiceLobby !== null;
+    const back = currentMenuView === 'session' ? sessionReturnView : currentMenuView === 'main' ? 'main' : currentMenuView;
     pending?.cancel();
     pending = null;
     cancelHost();
     setMenuBusy(false);
-    showMenuView(fromPractice ? 'sp-practice' : 'main');
+    showMenuView(back);
 }
 
 function isMenuBlockingOverlayOpen(): boolean {
@@ -5550,7 +5561,13 @@ function closeMenuSubPanelOnEscape(): boolean {
         pending = null;
         cancelHost();
         setMenuBusy(false);
-        showMenuView(currentMenuView.startsWith('sp-') ? 'sp' : 'main');
+        showMenuView(
+            currentMenuView.startsWith('sp-')
+                ? 'sp'
+                : currentMenuView === 'custom' || currentMenuView === 'matchmaking' || currentMenuView === 'mm-simple'
+                  ? 'mp'
+                  : 'main',
+        );
         return true;
     }
 
@@ -5682,6 +5699,12 @@ menu.addEventListener('click', (e) => {
         case 'single':
             showMenuView('sp');
             break;
+        case 'multiplayer':
+            showMenuView('mp');
+            break;
+        case 'mp-back':
+            showMenuView('main');
+            break;
         case 'sp-campaign':
             showMenuView('sp-year');
             break;
@@ -5749,14 +5772,14 @@ menu.addEventListener('click', (e) => {
             pending = null;
             cancelHost();
             setMenuBusy(false);
-            showMenuView('main');
+            showMenuView('mp');
             break;
         case 'mm-back':
             pending?.cancel();
             pending = null;
             cancelHost();
             setMenuBusy(false);
-            showMenuView('main');
+            showMenuView('mp');
             break;
         case 'mm-invite': {
             const team = mmModeEl.querySelector<HTMLInputElement>('input[name="mmteam"]:checked')!.value;
@@ -5898,7 +5921,7 @@ menu.addEventListener('click', (e) => {
             showMenuView('custom');
             break;
         case 'cg-back':
-            showMenuView('main');
+            showMenuView('mp');
             break;
         case 'cg-host-1v1':
             hostCustomGame('1v1');
