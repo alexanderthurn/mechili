@@ -24,7 +24,6 @@
   "round": "第 {{n}} 回合",
   "climbRoundShort": "第 {{n}}/{{total}} 回合",
   "climbRound": "第 {{n}} 回合 · {{wins}}/{{total}}",
-  "climbTieRule": "平局判防守方勝",
   "unlockUnit": "解鎖單位",
   "levelUp": "升級",
   "connectionLost": "連接已斷開…",

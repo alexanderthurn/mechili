@@ -24,7 +24,6 @@
   "round": "Round {{n}}",
   "climbRoundShort": "Round {{n}}/{{total}}",
   "climbRound": "Round {{n}} · {{wins}}/{{total}}",
-  "climbTieRule": "Ties go to the defender",
   "unlockUnit": "Unlock a unit",
   "levelUp": "Level Up",
   "connectionLost": "Connection lost…",

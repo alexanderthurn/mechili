@@ -4399,13 +4399,7 @@ export class Hud {
                   ? t('hud:defeat')
                   : t('hud:draw'));
         const allowRetry = options?.allowRetry === true;
-        const climbNote = options?.climbProgress
-            ? t('hud:climbRoundShort', {
-                  n: options.climbProgress.n,
-                  total: options.climbProgress.total,
-              })
-            : undefined;
-        el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note ?? climbNote, {
+        el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note, {
             allowRetry,
             allowNext: options?.allowNext === true,
             hideMmr: !!options?.climbProgress,

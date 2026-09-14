@@ -24,7 +24,6 @@
   "round": "Раунд {{n}}",
   "climbRoundShort": "Раунд {{n}}/{{total}}",
   "climbRound": "Раунд {{n}} · {{wins}}/{{total}}",
-  "climbTieRule": "У разі нічиєї перемагає захисник",
   "unlockUnit": "Розблокувати юніт",
   "levelUp": "Підвищення рівня",
   "connectionLost": "З’єднання втрачено…",

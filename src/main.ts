@@ -128,7 +128,6 @@ import {
     CLIMB_SUPPLY_GROWTH_PER_ROUND,
     CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
     type ClimbRole,
-    climbAttackerTeam,
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
     DEFAULT_HORDE_PRESET_ID,
@@ -3378,10 +3377,7 @@ function startGame(
             (resume?.climbWins ?? 0) + 1,
             settings.climb.roundsToWin,
         );
-        const climb = settings.climb;
-        // the way of playing, as the menu named it, and who a tie goes to
-        const variant = `year${climb.attackerCommander ? 'Komtur' : ''}${climbAttackerTeam(climb) === 'player' ? 'Attack' : 'Defend'}`;
-        mountClimbIntro(introCoverEl, level, climb.roundsToWin, `${t(`menu:${variant}`)} · ${t('hud:climbTieRule')}`);
+        mountClimbIntro(introCoverEl, level, settings.climb.roundsToWin);
         void introRosterHold().then(() => {
             if (gen !== introGen || !started) return;
             startIntroCoverDive();

@@ -24,7 +24,6 @@
   "round": "Kör {{n}}",
   "climbRoundShort": "{{n}}/{{total}}. kör",
   "climbRound": "{{n}}. kör · {{wins}}/{{total}}",
-  "climbTieRule": "Döntetlennél a védő nyer",
   "unlockUnit": "Egység feloldása",
   "levelUp": "Szintlépés",
   "connectionLost": "Kapcsolat megszakadt…",

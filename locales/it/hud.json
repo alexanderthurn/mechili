@@ -24,7 +24,6 @@
   "round": "Round {{n}}",
   "climbRoundShort": "Round {{n}}/{{total}}",
   "climbRound": "Round {{n}} · {{wins}}/{{total}}",
-  "climbTieRule": "In caso di pareggio vince il difensore",
   "unlockUnit": "Sblocca un'unità",
   "levelUp": "Potenzia",
   "connectionLost": "Connessione persa…",

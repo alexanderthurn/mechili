@@ -24,7 +24,6 @@
   "round": "الجولة {{n}}",
   "climbRoundShort": "الجولة {{n}}/{{total}}",
   "climbRound": "الجولة {{n}} · {{wins}}/{{total}}",
-  "climbTieRule": "التعادل لصالح المدافع",
   "unlockUnit": "فتح وحدة",
   "levelUp": "رفع المستوى",
   "connectionLost": "فُقد الاتصال…",

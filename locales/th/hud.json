@@ -24,7 +24,6 @@
   "round": "รอบ {{n}}",
   "climbRoundShort": "รอบ {{n}}/{{total}}",
   "climbRound": "รอบ {{n}} · {{wins}}/{{total}}",
-  "climbTieRule": "เสมอให้ฝ่ายป้องกันชนะ",
   "unlockUnit": "ปลดล็อกยูนิต",
   "levelUp": "เลเวลอัป",
   "connectionLost": "การเชื่อมต่อขาด…",

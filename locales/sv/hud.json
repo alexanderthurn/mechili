@@ -24,7 +24,6 @@
   "round": "Runda {{n}}",
   "climbRoundShort": "Runda {{n}}/{{total}}",
   "climbRound": "Runda {{n}} · {{wins}}/{{total}}",
-  "climbTieRule": "Oavgjort går till försvararen",
   "unlockUnit": "Lås upp en enhet",
   "levelUp": "Nivå upp",
   "connectionLost": "Anslutningen förlorades…",

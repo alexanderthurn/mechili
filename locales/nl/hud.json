@@ -24,7 +24,6 @@
   "round": "Ronde {{n}}",
   "climbRoundShort": "Ronde {{n}}/{{total}}",
   "climbRound": "Ronde {{n}} · {{wins}}/{{total}}",
-  "climbTieRule": "Bij gelijkspel wint de verdediger",
   "unlockUnit": "Een eenheid ontgrendelen",
   "levelUp": "Niveau omhoog",
   "connectionLost": "Verbinding verbroken…",

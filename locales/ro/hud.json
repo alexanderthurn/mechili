@@ -24,7 +24,6 @@
   "round": "Runda {{n}}",
   "climbRoundShort": "Runda {{n}}/{{total}}",
   "climbRound": "Runda {{n}} · {{wins}}/{{total}}",
-  "climbTieRule": "La egalitate câștigă apărătorul",
   "unlockUnit": "Deblochează o unitate",
   "levelUp": "Nivel superior",
   "connectionLost": "Conexiune pierdută…",
