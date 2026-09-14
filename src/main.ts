@@ -3077,6 +3077,7 @@ function runStopHostDiscovery(): void {
 
 /** tear down an active match and bring back the pre-game menu (no page reload) */
 function finishReturnToMenu(): void {
+    starHandover = null; // a rematch that never got built hands nothing to a later match
     const leftEditor = editorWasOpen() && !returnToEditorAfterMatch;
     markEditorOpen(false);
     if (returnToEditorAfterMatch) {
@@ -3303,6 +3304,11 @@ function constructGame(
         preloadedRosterMmr ?? undefined,
     );
     activeGame = game;
+    // a rematch's connection hand-over: what arrived meanwhile reaches this
+    // match now, before anything newer can
+    const handover = starHandover;
+    starHandover = null;
+    handover?.(game);
     // a conversation that started while waiting continues into the match
     game.seedChatHistory(takeLobbyChatCarry());
     // Steam/LAN have no cloud backend to register with, so the running match
@@ -3700,17 +3706,11 @@ async function startLocalRematch(next: GameSettings, side: 'a' | 'b', names: { l
 }
 
 /**
- * Run `deliver` once the match started after `old` exists — a rematch hands
- * the room connection over, and what arrives in between waits for it.
+ * A rematch hands the room connection over to the next match: messages that
+ * arrive while it is being built wait here and are delivered by constructGame
+ * the moment it exists, in order.
  */
-function whenNextGameStarts(old: Game, deliver: (game: Game) => void): void {
-    const started = performance.now();
-    const check = () => {
-        if (activeGame && activeGame !== old) deliver(activeGame);
-        else if (performance.now() - started < 60_000) setTimeout(check, 50);
-    };
-    check();
-}
+let starHandover: ((game: Game) => void) | null = null;
 
 /**
  * The Year in a room, host: everyone asked for the rematch. The guests get the
@@ -3729,6 +3729,9 @@ async function startStarRematchAsHost(old: Game): Promise<void> {
     // what the guests send before the new match listens waits for it
     const waiting: [SeatId, NetMessage][] = [];
     hub.onMessage = (seat, msg) => waiting.push([seat, msg]);
+    starHandover = (game) => {
+        for (const [seat, msg] of waiting) game.deliverStarMessage(msg, seat);
+    };
     old.destroy({ keepStarSession: true });
     if (activeGame === old) activeGame = null;
     await teardownForNextMatch();
@@ -3739,9 +3742,6 @@ async function startStarRematchAsHost(old: Game): Promise<void> {
         null,
         star,
     );
-    whenNextGameStarts(old, (game) => {
-        for (const [seat, msg] of waiting) game.deliverStarMessage(msg, seat);
-    });
 }
 
 /** The Year in a room, guest: the host started the rematch — the new match on the same connection */
@@ -3750,6 +3750,9 @@ async function startStarRematchAsGuest(old: Game, msg: Extract<NetMessage, { typ
     if (star?.role !== 'guest') return;
     const waiting: NetMessage[] = [];
     star.session.attach((m) => waiting.push(m));
+    starHandover = (game) => {
+        for (const m of waiting) game.deliverStarMessage(m);
+    };
     old.destroy({ keepStarSession: true });
     if (activeGame === old) activeGame = null;
     await teardownForNextMatch();
@@ -3763,9 +3766,6 @@ async function startStarRematchAsGuest(old: Game, msg: Extract<NetMessage, { typ
         null,
         star,
     );
-    whenNextGameStarts(old, (game) => {
-        for (const m of waiting) game.deliverStarMessage(m);
-    });
 }
 
 /** a won scenario's "Next": the following scenario of the same package */

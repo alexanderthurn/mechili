@@ -858,6 +858,8 @@ export class Game {
     onStarRematchStart: ((msg: Extract<NetMessage, { type: 'starRematch' }>) => void) | null = null;
     /** seats that asked for the rematch (host: the authority; guest: as the host last said) */
     private readonly rematchSeats = new Set<SeatId>();
+    /** the rematch was started (each client starts it once) */
+    private rematchStarted = false;
     /** a scenario was won (played, not edited or tested) — its id in the package */
     onScenarioWon: ((scenarioId: string) => void) | null = null;
     /** a won scenario: play the next one of its package (meta.jsonc order) */
@@ -6688,9 +6690,11 @@ export class Game {
      * reads the seat straight out of the already-sanitized payload).
      */
     private onStarMessage(msg: NetMessage, fromSeat?: SeatId): void {
-        // the rematch is agreed on once the match is over
-        if ((msg.type === 'rematch' || msg.type === 'starRematch') && !this.disposed && this.matchOver && this.star) {
-            this.onRematchMessage(msg, fromSeat);
+        // the rematch is agreed on at the end — a request can arrive before this
+        // client's own end screen (battle playback speed is per player), so it
+        // is kept whatever the phase
+        if (msg.type === 'rematch' || msg.type === 'starRematch') {
+            if (!this.disposed && this.star) this.onRematchMessage(msg, fromSeat);
             return;
         }
         if (this.disposed || this.matchOver || !this.star) return;
@@ -9904,7 +9908,9 @@ export class Game {
     /** the end screen's "Rematch, roles swapped" */
     private requestRematch(): void {
         if (!this.matchOver || this.watching || !this.settings.climb) return;
+        if (this.rematchStarted) return;
         if (!this.star) {
+            this.rematchStarted = true;
             this.onRematch?.(this.yearRematchSettings());
             return;
         }
@@ -9922,7 +9928,10 @@ export class Game {
         const star = this.star;
         if (!star || !this.settings.climb) return;
         if (msg.type === 'starRematch') {
-            if (star.role === 'guest') this.onStarRematchStart?.(msg);
+            if (star.role === 'guest' && this.matchOver && !this.rematchStarted) {
+                this.rematchStarted = true;
+                this.onStarRematchStart?.(msg);
+            }
             return;
         }
         if (star.role === 'host') {
@@ -9933,15 +9942,16 @@ export class Game {
             this.rematchSeats.clear();
             for (const seat of msg.seats ?? []) this.rematchSeats.add(seat);
         }
-        if (!this.rematchSeats.has(this.humanSeat)) this.hud.setRematchState('asked');
+        if (!this.rematchSeats.has(this.humanSeat) && this.rematchSeats.size > 0) this.hud.setRematchState('asked');
         if (star.role === 'host') this.maybeStartRematch();
     }
 
     /** host: every player still here asked — start the rematch */
     private maybeStartRematch(): void {
-        if (this.star?.role !== 'host') return;
+        if (this.star?.role !== 'host' || !this.matchOver) return;
         const players = [this.humanSeat, ...this.star.hub.connectedSeats()];
-        if (players.length < 2 || !players.every((seat) => this.rematchSeats.has(seat))) return;
+        if (this.rematchStarted || players.length < 2 || !players.every((seat) => this.rematchSeats.has(seat))) return;
+        this.rematchStarted = true;
         this.onStarRematch?.();
     }
 
@@ -10066,6 +10076,8 @@ export class Game {
             // The Year, played to its end: the same pairing again with the roles swapped
             const allowRematch = !!year && !this.watching;
             this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress, allowRematch, ...(year ? { year } : {}) });
+            // the other player may have asked before this screen came up
+            if (allowRematch && [...this.rematchSeats].some((seat) => seat !== this.humanSeat)) this.hud.setRematchState('asked');
         }
     }
 
