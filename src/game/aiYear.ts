@@ -127,11 +127,11 @@ export const MODEL = {
     /** a converted member counts this many times its HP */
     convertValue: 2.105,
     /** ranged damage share a shield lets through */
-    shieldPass: 0.434,
+    shieldPass: 0.326,
     /** fire share artillery keeps against units that close into its dead zone */
     deadZoneKeep: 0.248,
     /** corrosion bonus on hits */
-    corrode: 1.506,
+    corrode: 1.543,
     /** how much of a production cap / on-kill spawn stock counts as present */
     spawnShare: 0.214,
     /** the target's own speed toward the attacker (share) when closing the gap */
@@ -141,7 +141,7 @@ export const MODEL = {
     /** screening: a group this many depth tiles behind another draws e^-(tiles × this) as much fire */
     screen: 0,
     /** overkill: a hit counts up to this many target HPs (spread damage between members) */
-    overkill: 2.164,
+    overkill: 2.719,
 };
 
 /**
