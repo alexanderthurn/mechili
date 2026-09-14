@@ -1395,6 +1395,13 @@ spScenarioZipBtn.hidden = !SCENARIO_ZIP_TESTING;
  * (saved from the editor or a replay, received from a host, loaded from a
  * zip) — play one, open it in the editor, or delete the package.
  */
+/** Single Player → Editor */
+function openEditorMenu(): void {
+    showMenuView('sp-editor');
+    spEditorContinueEl.hidden = loadStoredDraft() === null;
+    void renderScenarioList();
+}
+
 async function renderScenarioList(): Promise<void> {
     const levels = await scenarioLevels();
     spScenarioListEl.textContent = '';
@@ -2898,6 +2905,7 @@ function runStopHostDiscovery(): void {
 
 /** tear down an active match and bring back the pre-game menu (no page reload) */
 function finishReturnToMenu(): void {
+    const leftEditor = editorWasOpen() && !returnToEditorAfterMatch;
     markEditorOpen(false);
     if (returnToEditorAfterMatch) {
         returnToEditorAfterMatch = false;
@@ -2954,6 +2962,8 @@ function finishReturnToMenu(): void {
     // Reset to the top-level panel regardless of which sub-panel was
     // showing when the match started — exclusive views make this one call.
     showMenuView('main');
+    // leaving the editor lands in its menu, where what was saved is listed
+    if (leftEditor) openEditorMenu();
     pending?.cancel();
     pending = null;
     cancelHost();
@@ -5430,12 +5440,12 @@ function closeMenuSubPanelOnEscape(): boolean {
         return true;
     }
 
-    // Any non-main submenu: back out to the root menu.
+    // Any non-main submenu: back out a level — Single Player's own views to it, the rest to the root menu.
     if (currentMenuView !== 'main') {
         pending = null;
         cancelHost();
         setMenuBusy(false);
-        showMenuView('main');
+        showMenuView(currentMenuView.startsWith('sp-') ? 'sp' : 'main');
         return true;
     }
 
@@ -5593,9 +5603,7 @@ menu.addEventListener('click', (e) => {
             showMenuView('sp-practice');
             break;
         case 'sp-editor':
-            showMenuView('sp-editor');
-            spEditorContinueEl.hidden = loadStoredDraft() === null;
-            void renderScenarioList();
+            openEditorMenu();
             break;
         case 'sp-editor-back':
             showMenuView('sp');
