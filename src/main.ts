@@ -1555,8 +1555,9 @@ function paintMenuChrome(): void {
     }
     applyLobbySettingsExpanded();
     if (cancelEl.style.display !== 'none') {
-        cancelEl.textContent = isSessionBusy() ? t('menu:cancel') : t('menu:ok');
+        cancelEl.textContent = practiceLobby ? t('menu:back') : isSessionBusy() ? t('menu:cancel') : t('menu:ok');
     }
+    if (practiceLobby) startStarBtn.textContent = t('menu:start');
     const loadoutName = loadoutCornerEl.querySelector('.u-name');
     if (loadoutName) loadoutName.textContent = t('menu:unitLoadout');
     settingsCornerEl.title = t('menu:settings');
@@ -1641,6 +1642,14 @@ function resetSessionChrome(): void {
     startStarBtn.style.display = 'none';
     clearRosterTable();
     clearLobbySettings();
+    practiceLobby = null;
+}
+
+/** a room is being hosted or joined: the Practice lobby (if it was on screen) is gone */
+function leavePracticeLobby(): void {
+    if (!practiceLobby) return;
+    practiceLobby = null;
+    resetSessionChrome();
 }
 
 /**
@@ -1776,13 +1785,14 @@ function defaultLobbySettings(): Pick<
     };
 }
 
-function isNonDefaultLobbySettings(cfg: CustomGameConfig): boolean {
+function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobbySettings()): boolean {
     return (
-        cfg.pace !== DEFAULT_CUSTOM_GAME_PACE_ID ||
-        cfg.hordePreset !== DEFAULT_HORDE_PRESET_ID ||
-        cfg.roundCardPreset !== DEFAULT_ROUND_CARD_PRESET_ID ||
-        cfg.commanderHpFactor !== DEFAULT_COMMANDER_HP_FACTOR ||
-        cfg.moneyFactor !== DEFAULT_MONEY_FACTOR
+        cfg.pace !== defaults.pace ||
+        cfg.hordePreset !== defaults.hordePreset ||
+        cfg.roundCardPreset !== defaults.roundCardPreset ||
+        cfg.commanderHpFactor !== defaults.commanderHpFactor ||
+        cfg.moneyFactor !== defaults.moneyFactor ||
+        cfg.strongholdMode !== defaults.strongholdMode
     );
 }
 
@@ -1808,7 +1818,8 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
 
 /** Host-only: show "Reset to defaults" only when pace/horde/cards/HP differ. */
 function syncLobbySettingsResetVisibility(cfg: CustomGameConfig): void {
-    cgResetEl.hidden = !activeLobbyHost || !isNonDefaultLobbySettings(cfg);
+    cgResetEl.hidden =
+        !activeLobbyHost || !isNonDefaultLobbySettings(cfg, activeLobbyHost.save ? defaultPracticeSettings() : defaultLobbySettings());
 }
 
 function selectedLobbyOptionFull(select: HTMLSelectElement): string {
@@ -2423,7 +2434,7 @@ function showHostLobbySettings(
     const firstShow = !lobbySettingsAvailable;
     activeLobbyHost = { config, onChange: onSettingsChanged, ...(save ? { save } : {}) };
     lobbySettingsAvailable = true;
-    if (firstShow) lobbySettingsExpanded = isNonDefaultLobbySettings(config);
+    if (firstShow) lobbySettingsExpanded = isNonDefaultLobbySettings(config, save ? defaultPracticeSettings() : defaultLobbySettings());
     lobbySettingsEl.classList.remove('m-readonly');
     hideLobbySettingTip();
     applyLobbySettingsExpanded();
@@ -2957,7 +2968,7 @@ function wireGameMenuReturn(game: Game): void {
  * brighter / wrong. Await prewarm so we don't race a second renderer onto
  * the new canvas.
  */
-type LocalMatchOpts = { duo?: boolean; horde?: boolean; climb?: boolean; tutorial?: number };
+type LocalMatchOpts = { climb?: boolean; tutorial?: number };
 
 /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
 function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
@@ -2966,8 +2977,6 @@ function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
     settings.specialistTimeSeconds = 60 * 60;
     settings.cardTimeSeconds = 60 * 60;
     if (opts.climb) applyClimbMode(settings);
-    if (opts.horde) applyHordeMode(settings);
-    if (opts.duo) applyDuoMode(settings);
     if (opts.tutorial != null) applyTutorialMode(settings, opts.tutorial);
     return settings;
 }
@@ -3441,7 +3450,10 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
     primeIntroCover();
     const settings = save.settings;
     settings.seed = save.seed;
-    startGame(settings, 'a', { local: save.localName, opponent: 'AI' }, {
+    // a lobby match's seats name the opponent (a lone bot in 1v1, '2v2' otherwise)
+    const seats = settings.seats;
+    const opponent = !seats ? 'AI' : seats.length === 2 ? (seats.find((s) => s.team === 'enemy')?.name ?? 'AI') : '2v2';
+    startGame(settings, 'a', { local: save.localName, opponent }, {
         actions: save.actions,
         battleElapsed: save.battleElapsed,
         phaseRemaining: save.phaseRemaining,
@@ -4307,6 +4319,7 @@ async function beginHost(opts: {
     const isPublic = opts.isPublic ?? true;
     const openInvite = opts.openInvite ?? false;
 
+    leavePracticeLobby();
     starHordeFlag = horde;
     starCustomConfig = customConfig;
     showMenuView('session');
@@ -4564,6 +4577,7 @@ function startHostedMatch(): void {
 
 /** join a 2v2 room by the host's room name — waits for the host to Start */
 function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): void {
+    leavePracticeLobby();
     const p = joinStarRoom(hostName, setStatus, peerServer);
     pending?.cancel();
     let cancelled = false;
@@ -4958,6 +4972,7 @@ function joinSteamAd(lobbyId: string): void {
  */
 function acceptSteamInvite(lobbySteamId: string): void {
     if (started || pending || hosting) return;
+    leavePracticeLobby();
     showMenuView('session');
     setMenuBusy(true);
     let cancelled = false;
@@ -5733,7 +5748,7 @@ menu.addEventListener('click', (e) => {
             hostCustomGame('2v2ai');
             break;
         case 'startstar':
-            if (practiceLobby) startPracticeMatch();
+            if (practiceLobby && !hosting && !pending) startPracticeMatch();
             else startHostedMatch();
             break;
     }
