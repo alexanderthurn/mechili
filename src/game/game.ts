@@ -3307,6 +3307,9 @@ export class Game {
             );
         }
         this.phase = 'build';
+        // The Year: every round is sudden death from full side HP — whatever
+        // the last battle left (a won round restores it already) never carries
+        if (this.settings.climb) this.restoreClimbHp();
         // editing has no clock
         this.phaseRemaining = this.editorMode === 'author' ? Infinity : this.deploySeconds();
         this.syncPostFx();
