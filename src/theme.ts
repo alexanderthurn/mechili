@@ -1487,6 +1487,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-menu .m-scenario-list-label { width: 100%; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: ${u.textMuted}; }
 .mechili-menu .m-scenario-package { background: rgba(212, 184, 120, 0.1); }
 .mechili-menu .m-scenario-level { margin-inline-start: 16px; }
+.mechili-menu .m-scenario-level.is-done .m-scenario-name { color: ${u.brassLight}; }
 .mechili-menu .m-scenario-code {
     flex: 1;
     min-width: 0;

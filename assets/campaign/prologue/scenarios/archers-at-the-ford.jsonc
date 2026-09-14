@@ -1,0 +1,40 @@
+// Level 2 — Archers at the Ford: dwarves in front, archers behind, no bases.
+// Scenario format: SANDBOX_LEVEL_EDITOR_PLAN.md §4–§6 (schema: assets/data/schema/scenario.schema.json).
+{
+    "version": 1,
+    "gameVersion": "v0.0.0",
+    "id": "archers-at-the-ford",
+    "name": "Archers at the Ford",
+    "description": "Archers cover the dwarves this time.",
+    "seed": 102,
+    "map": { "zoneCols": 60, "zoneRows": 30, "neutralRows": 4, "flankCols": 6, "rimCells": 4 },
+    "rules": {
+        "income": { "round1": 700, "growth": 200 },
+        "deploy": { "unitsPerRound": 6, "extrasBudgetPerRound": 0 },
+        "sideHp": { "player": 1, "enemy": 1 },
+        "commander": { "mode": "none" },
+        "roundCards": "off",
+        "hordeWaves": "off",
+        "flanksOpenFromRound": null,
+        "neutralOpenFromRound": null,
+        "atmosphere": { "season": "autumn", "time": "day", "rotate": false },
+        "strongholdMode": "none",
+        "opponents": "lockInOnly",
+        "enemyIntel": "visible",
+        "unlockedUnits": ["dwarf", "archer", "goblin"],
+        "unlockable": [],
+    },
+    "scene": {
+        "units": [
+            { "typeId": "dwarf", "team": "enemy", "at": { "col": 30, "row": 39 }, "level": 1 },
+            { "typeId": "dwarf", "team": "enemy", "at": { "col": 45, "row": 39 }, "level": 1 },
+            { "typeId": "archer", "team": "enemy", "at": { "col": 34, "row": 43 }, "level": 1 },
+            { "typeId": "archer", "team": "enemy", "at": { "col": 44, "row": 43 }, "level": 1 },
+        ],
+        "techs": { "player": {}, "enemy": {} },
+        "buildings": {
+            "player": { "command-tower": false, "research-center": false, "stronghold": false },
+            "enemy": { "command-tower": false, "research-center": false, "stronghold": false },
+        },
+    },
+}

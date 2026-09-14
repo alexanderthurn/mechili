@@ -1,0 +1,44 @@
+// Level 1 — Border Patrol: two dwarf packs, no bases, one battle decides.
+// Scenario format: SANDBOX_LEVEL_EDITOR_PLAN.md §4–§6 (schema: assets/data/schema/scenario.schema.json).
+// Board grid on the standard map: 80 columns × 72 rows; the enemy deploys in
+// rows 38–67 (38 is its front), columns 10–69. `at` is a pack's top-left cell.
+{
+    "version": 1,
+    "gameVersion": "v0.0.0",
+    "id": "border-patrol",
+    "name": "Border Patrol",
+    "description": "Two dwarf patrols block the road.",
+    "seed": 101,
+    "map": { "zoneCols": 60, "zoneRows": 30, "neutralRows": 4, "flankCols": 6, "rimCells": 4 },
+    "rules": {
+        "income": { "round1": 500, "growth": 200 },
+        "deploy": { "unitsPerRound": 6, "extrasBudgetPerRound": 0 },
+        // 1 HP a side: the first battle wins or loses the level
+        "sideHp": { "player": 1, "enemy": 1 },
+        "commander": { "mode": "none" },
+        "roundCards": "off",
+        "hordeWaves": "off",
+        "flanksOpenFromRound": null,
+        "neutralOpenFromRound": null,
+        "atmosphere": { "season": "summer", "time": "day", "rotate": false },
+        "strongholdMode": "none",
+        // the enemy fights as placed and buys nothing
+        "opponents": "lockInOnly",
+        "enemyIntel": "visible",
+        // what the player can buy
+        "unlockedUnits": ["dwarf", "archer"],
+        "unlockable": [],
+    },
+    "scene": {
+        "units": [
+            { "typeId": "dwarf", "team": "enemy", "at": { "col": 32, "row": 40 }, "level": 1 },
+            { "typeId": "dwarf", "team": "enemy", "at": { "col": 43, "row": 40 }, "level": 1 },
+        ],
+        "techs": { "player": {}, "enemy": {} },
+        // false = that base building is not on the board
+        "buildings": {
+            "player": { "command-tower": false, "research-center": false, "stronghold": false },
+            "enemy": { "command-tower": false, "research-center": false, "stronghold": false },
+        },
+    },
+}

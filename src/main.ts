@@ -110,6 +110,7 @@ import { packageScenarioIds, scenarioPackageFiles, scenarioSlug, withScenarioInP
 import type { ScenarioDef } from './game/scenario/scenarioDef';
 import { decodeShareCode, encodeShareCode } from './game/scenario/shareCode';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
+import { builtInCampaigns, campaignLevel, campaignSummary, completedLevels, isBuiltInCampaign, markLevelCompleted } from './game/campaign';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
@@ -1405,7 +1406,8 @@ function openEditorMenu(): void {
 }
 
 async function renderScenarioList(): Promise<void> {
-    const levels = await scenarioLevels();
+    // the bundled campaigns are played from Single Player → Campaign
+    const levels = (await scenarioLevels()).filter((level) => !isBuiltInCampaign(level.ref.id));
     spScenarioListEl.textContent = '';
     spScenarioListEl.classList.toggle('empty', levels.length === 0);
     if (levels.length === 0) {
@@ -1470,37 +1472,69 @@ async function renderScenarioList(): Promise<void> {
  * order, built with the editor's Save into package). Play starts at level 1;
  * a victory continues to the next level. No progress is kept yet.
  */
+/**
+ * Single Player → Campaign: the campaigns that ship with the game
+ * (assets/campaign/<id>/) with each level ticked once won, then chains built
+ * in the editor.
+ */
 async function renderCampaignList(): Promise<void> {
-    const chains = (await scenarioLevels()).filter((level) => level.scenarios.length > 1);
     spCampaignListEl.textContent = '';
-    spCampaignListEl.classList.toggle('empty', chains.length === 0);
-    if (chains.length === 0) {
-        spCampaignListEl.textContent = t('menu:noCampaigns', {
-            defaultValue: 'No campaigns yet — in the Editor, open a scenario and use Save into package to add levels.',
-        });
-        return;
-    }
-    for (const chain of chains) {
-        const row = document.createElement('div');
-        row.className = 'm-scenario-row';
+    const row = (className: string, label: string, title?: string) => {
+        const el = document.createElement('div');
+        el.className = `m-scenario-row ${className}`;
         const name = document.createElement('span');
         name.className = 'm-scenario-name';
-        name.textContent = `${chain.name} · ${chain.scenarios.length}`;
-        name.title = chain.scenarios.map((sc, i) => `${i + 1}. ${sc.name}`).join('\n');
+        name.textContent = label;
+        if (title) name.title = title;
+        el.appendChild(name);
+        spCampaignListEl.appendChild(el);
+        return el;
+    };
+    const playButton = (run: () => void) => {
         const play = document.createElement('button');
         play.type = 'button';
         play.className = 'm-scenario-btn';
         play.textContent = t('menu:scenarioPlay', { defaultValue: 'Play' });
-        const first = chain.scenarios[0];
-        play.addEventListener('click', () => {
-            if (first) void playSavedScenario(chain.ref, first.id);
+        play.addEventListener('click', run);
+        return play;
+    };
+    for (const campaign of builtInCampaigns()) {
+        const summary = campaignSummary(campaign);
+        const done = completedLevels(campaign.id);
+        const won = summary.scenarios.filter((sc) => done.has(sc.id)).length;
+        row('m-scenario-package', `${summary.name} · ${won}/${summary.scenarios.length}`);
+        summary.scenarios.forEach((scenario, i) => {
+            const completed = done.has(scenario.id);
+            const el = row(`m-scenario-level${completed ? ' is-done' : ''}`, `${completed ? '✓' : '○'} ${i + 1}. ${scenario.name}`);
+            el.appendChild(
+                playButton(() => {
+                    void campaignLevel(campaign).then(
+                        (ref) => playSavedScenario(ref, scenario.id),
+                        (e: unknown) => {
+                            console.error('[campaign] could not load', campaign.id, e);
+                            window.alert(`This campaign can't be loaded:\n${e instanceof Error ? e.message : String(e)}`);
+                        },
+                    );
+                }),
+            );
         });
-        row.append(name, play);
-        spCampaignListEl.appendChild(row);
+    }
+    const chains = (await scenarioLevels()).filter((level) => level.scenarios.length > 1 && !isBuiltInCampaign(level.ref.id));
+    for (const chain of chains) {
+        const done = completedLevels(chain.ref.id);
+        const won = chain.scenarios.filter((sc) => done.has(sc.id)).length;
+        const el = row('', `${chain.name} · ${won}/${chain.scenarios.length}`, chain.scenarios.map((sc, i) => `${done.has(sc.id) ? '✓' : '○'} ${i + 1}. ${sc.name}`).join('\n'));
+        const first = chain.scenarios.find((sc) => !done.has(sc.id)) ?? chain.scenarios[0];
+        el.appendChild(playButton(() => first && void playSavedScenario(chain.ref, first.id)));
+    }
+    spCampaignListEl.classList.toggle('empty', spCampaignListEl.childElementCount === 0);
+    if (spCampaignListEl.childElementCount === 0) {
+        spCampaignListEl.textContent = t('menu:noCampaigns', {
+            defaultValue: 'No campaigns yet — in the Editor, open a scenario and use Save into package to add levels.',
+        });
     }
 }
 
-/** a saved scenario, validated against its own package */
 async function savedScenarioDef(ref: LevelRef, id: string): Promise<ScenarioDef | null> {
     await prepareLevel(ref);
     const scenario = activeLevel().scenarios.get(id);
@@ -3159,6 +3193,9 @@ function constructGame(
     };
     wireGameMenuReturn(game);
     game.onNextScenario = (id) => void playNextScenario(settings.level, id);
+    game.onScenarioWon = (id) => {
+        if (settings.level) markLevelCompleted(settings.level.id, id);
+    };
     // Tutorials are not resumable (the lesson's own progress is not in the save),
     // and must never overwrite the Campaign run held in that slot.
     const editorMatch = settings.scenario?.mode === 'author' || settings.scenario?.mode === 'test';

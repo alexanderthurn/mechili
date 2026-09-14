@@ -846,6 +846,8 @@ export class Game {
     onScenarioEditor: ((mode: 'author' | 'test', draft: ScenarioDef) => void) | null = null;
     /** scenario editor: package the draft for download; resolves to a status line */
     onScenarioDownload: ((draft: ScenarioDef) => Promise<string>) | null = null;
+    /** a scenario was won (played, not edited or tested) — its id in the package */
+    onScenarioWon: ((scenarioId: string) => void) | null = null;
     /** a won scenario: play the next one of its package (meta.jsonc order) */
     onNextScenario: ((scenarioId: string) => void) | null = null;
     /** scenario editor: copy the draft as a share code; resolves to a status line */
@@ -2841,6 +2843,7 @@ export class Game {
         this.onScenarioPlay = null;
         this.onScenarioShareCode = null;
         this.onNextScenario = null;
+        this.onScenarioWon = null;
         this.onScenarioSaveInto = null;
         this.scenarioEditor?.destroy();
         this.scenarioEditor = null;
@@ -4257,13 +4260,20 @@ export class Game {
      * meta order have no chain.
      */
     private nextScenarioId(): string | null {
-        const request = this.settings.scenario;
-        if (request?.mode !== 'play') return null;
+        if (this.settings.scenario?.mode !== 'play') return null;
         const { scenarios, meta } = activeLevel();
         const order = meta?.def?.levels.map((l) => l.scenario).filter((id) => scenarios.get(id)?.def) ?? [];
-        const current = request.id ?? (scenarios.size === 1 ? [...scenarios.keys()][0] : undefined);
+        const current = this.playedScenarioId();
         const at = current !== undefined ? order.indexOf(current) : -1;
         return at >= 0 && at + 1 < order.length ? order[at + 1]! : null;
+    }
+
+    /** the scenario of its package this match plays (a lone scenario needs no id) */
+    private playedScenarioId(): string | undefined {
+        const request = this.settings.scenario;
+        if (request?.mode !== 'play') return undefined;
+        const { scenarios } = activeLevel();
+        return request.id ?? (scenarios.size === 1 ? [...scenarios.keys()][0] : undefined);
     }
 
     /** a specific seat's own chosen commander card (null until picked) — tutorial cards included */
@@ -9882,6 +9892,10 @@ export class Game {
         if (this.hydrating) {
             queueMicrotask(() => this.quitToMenu());
             return;
+        }
+        if (result === 'victory' && !this.watching) {
+            const won = this.playedScenarioId();
+            if (won !== undefined) this.onScenarioWon?.(won);
         }
         // watching someone else's (or your own) already-recorded match end
         // again isn't a new result to report — it's the same match — EXCEPT

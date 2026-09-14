@@ -750,6 +750,37 @@ try {
         }
         if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; share codes; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rules and purse, horde ring, side swap, mirror, loadout rules)');
     }
+
+    // ---- bundled campaigns (assets/campaign/<id>/): every level parses, meta names them in order
+    {
+        const camp = await server.ssrLoadModule('/src/game/campaign.ts');
+        const scen = await server.ssrLoadModule('/src/game/scenario/normalize.ts');
+        const { BASE_TYPES: T } = await server.ssrLoadModule('/src/game/units.ts');
+        let ck = true;
+        const list = camp.builtInCampaigns();
+        for (const c of list) {
+            const text = (path) => new TextDecoder().decode(c.files.find((f) => f.path === path)?.bytes);
+            const ids = c.files.filter((f) => f.path.startsWith('scenarios/')).map((f) => f.path.slice('scenarios/'.length, -'.jsonc'.length));
+            for (const id of ids) {
+                const r = scen.parseScenario(text(`scenarios/${id}.jsonc`), T, `${c.id}/scenarios/${id}.jsonc`);
+                if (!r.def || scen.hasErrors(r.issues) || r.def.id !== id) {
+                    ck = false;
+                    console.error(`FAIL campaign ${c.id}/${id}: ${JSON.stringify(r.issues)}${r.def && r.def.id !== id ? ` (id "${r.def.id}" ≠ file name)` : ''}`);
+                }
+            }
+            const meta = scen.parseMeta(text('meta.jsonc') ?? '', new Set(ids), T);
+            if (!meta.def || scen.hasErrors(meta.issues) || meta.def.id !== c.id) {
+                ck = false;
+                console.error(`FAIL campaign ${c.id}/meta.jsonc: ${JSON.stringify(meta.issues)}${meta.def && meta.def.id !== c.id ? ` (id "${meta.def.id}" ≠ folder name)` : ''}`);
+            }
+        }
+        if (list.length === 0) {
+            ck = false;
+            console.error('FAIL no bundled campaign under assets/campaign/');
+        }
+        if (!ck) failed = true;
+        else console.log(`ok   campaigns: ${list.map((c) => `${c.id} (${camp.campaignSummary(c).scenarios.length} levels)`).join(', ')}`);
+    }
 } catch (e) {
     failed = true;
     console.error(`FAIL ${e instanceof Error ? e.message : e}`);

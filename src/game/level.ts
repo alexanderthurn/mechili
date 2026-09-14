@@ -277,14 +277,14 @@ export async function scenarioLevels(): Promise<LevelSummary[]> {
 }
 
 /**
- * A newly saved one-scenario package replaces the earlier saves under its id:
- * other packages of that id with at most one scenario are forgotten (a
- * campaign of the same id stays).
+ * A newly saved package replaces the earlier saves under its id: other
+ * packages of that id with at most `maxScenarios` scenarios are forgotten (by
+ * default one — a campaign of the same id stays).
  */
-export async function supersedeLevel(ref: LevelRef): Promise<number> {
+export async function supersedeLevel(ref: LevelRef, maxScenarios = 1): Promise<number> {
     let replaced = 0;
     for (const level of await scenarioLevels()) {
-        if (level.ref.id !== ref.id || level.ref.hash === ref.hash || level.scenarios.length > 1) continue;
+        if (level.ref.id !== ref.id || level.ref.hash === ref.hash || level.scenarios.length > maxScenarios) continue;
         await forgetLevel(level.ref);
         replaced++;
     }
