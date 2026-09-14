@@ -99,6 +99,7 @@ import {
     prepareLevel,
     forgetLevel,
     scenarioLevels,
+    supersedeLevel,
     type LevelRef,
 } from './game/level';
 import { readZip, writeZip } from './game/content/zip';
@@ -1526,12 +1527,14 @@ function openStoredScenarioEditor(): void {
     const draft = stored?.def ?? newDraft(`v${__APP_VERSION__}`, activeLevel().types);
     const wanted = stored?.level;
     void (async () => {
+        // a package saved again since has a new hash under the same id
+        const newer = async (ref: LevelRef) => (await scenarioLevels()).find((l) => l.ref.id === ref.id)?.ref;
         const level = !stored
             ? activeLevelRef()
             : wanted && (await ensureLevel(wanted).catch(() => false))
               ? wanted
               : wanted
-                ? activeLevelRef()
+                ? ((await newer(wanted)) ?? activeLevelRef())
                 : undefined;
         await openScenarioEditor('author', draft, level);
     })();
@@ -3552,6 +3555,7 @@ async function copyShareCode(id: string, files: readonly OverlayFile[]): Promise
 async function saveScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
     const { id, files } = scenarioDraftPackage(draft, level);
     const { ref } = await loadLevel(id, files);
+    await supersedeLevel(ref);
     console.info(`[scenario] saved "${ref.id}" (${ref.hash.slice(0, 12)})`);
     return `Saved “${ref.id}” — find it under Single Player → Scenarios`;
 }
@@ -3560,6 +3564,7 @@ async function saveScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined
 async function playScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<void> {
     const { id, files } = scenarioDraftPackage(draft, level);
     const { ref } = await loadLevel(id, files);
+    await supersedeLevel(ref);
     const def = { ...draft, id };
     returnToEditorAfterMatch = true;
     if (activeGame) await teardownForNextMatch();

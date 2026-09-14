@@ -11,7 +11,7 @@ import { decodeLevelPackage, encodeLevelPackage } from './levelTransfer';
 
 const DB_NAME = 'melodan-levels';
 const STORE = 'levels';
-/** newest levels kept; older ones are dropped */
+/** newest content-only levels kept (received for a match); older ones are dropped. Packages with scenarios are the player's and stay until deleted. */
 const MAX_LEVELS = 12;
 
 interface CachedLevel {
@@ -56,7 +56,7 @@ function request<T>(req: IDBRequest<T>): Promise<T> {
     });
 }
 
-/** Keep a level's files for later sessions, dropping the least recently used beyond the limit. */
+/** Keep a level's files for later sessions, dropping the least recently used content-only levels beyond the limit. */
 export async function cacheLevel(ref: LevelRef, files: readonly OverlayFile[]): Promise<void> {
     try {
         const db = await openDb();
@@ -71,7 +71,10 @@ export async function cacheLevel(ref: LevelRef, files: readonly OverlayFile[]): 
         };
         await request(store.put(entry));
         const all = (await request(db.transaction(STORE, 'readonly').objectStore(STORE).getAll())) as CachedLevel[];
-        const stale = all.sort((a, b) => b.usedAt - a.usedAt).slice(MAX_LEVELS);
+        const stale = all
+            .filter((e) => e.scenario !== true)
+            .sort((a, b) => b.usedAt - a.usedAt)
+            .slice(MAX_LEVELS);
         if (stale.length > 0) {
             const prune = db.transaction(STORE, 'readwrite').objectStore(STORE);
             for (const old of stale) prune.delete(old.hash);

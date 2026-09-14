@@ -277,6 +277,17 @@ export async function scenarioLevels(): Promise<LevelSummary[]> {
 }
 
 /**
+ * A newly saved one-scenario package replaces the earlier saves under its id:
+ * other packages of that id with at most one scenario are forgotten (a
+ * campaign of the same id stays).
+ */
+export async function supersedeLevel(ref: LevelRef): Promise<void> {
+    for (const level of await scenarioLevels()) {
+        if (level.ref.id === ref.id && level.ref.hash !== ref.hash && level.scenarios.length <= 1) await forgetLevel(level.ref);
+    }
+}
+
+/**
  * Forget a package: out of the scenario cache, and out of this session unless
  * it is the level being played.
  */
