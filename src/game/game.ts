@@ -208,6 +208,7 @@ import {
     secondsForRound,
     shouldOfferRoundCards,
     type DeploySettings,
+    type LevelingSettings,
     type GameSettings,
 } from './settings';
 import { detAtan2, detCos, detSin } from './detMath';
@@ -3986,6 +3987,9 @@ export class Game {
         climb?: boolean;
         opponents?: 'build' | 'lockInOnly';
         rngForRound?: (round: number) => () => number;
+        leveling: LevelingSettings;
+        yearRole?: 'attacker' | 'defender';
+        deployCap: () => number;
     } {
         return {
             types: this.types,
@@ -4031,6 +4035,11 @@ export class Game {
             opponents: this.rules.opponents,
             rngForRound: (round: number) =>
                 mulberry32(seedFrom(this.seed, `ai-climb-${seat}-${round}`)),
+            leveling: this.settings.leveling,
+            ...(this.settings.climb
+                ? { yearRole: climbAttackerTeam(this.settings.climb) === this.seats[seat]?.team ? ('attacker' as const) : ('defender' as const) }
+                : {}),
+            deployCap: () => (this.deployState.limit[seat] ?? 0) + (this.deployState.extra[seat] ?? 0) - (this.deployState.used[seat] ?? 0),
         };
     }
 

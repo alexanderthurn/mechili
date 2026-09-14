@@ -1066,6 +1066,15 @@ export class PlacementController {
         return lane === 'left' ? cell.col < midCol : cell.col >= midCol;
     }
 
+    /** Could this seat put `type` at `anchor` right now (its zone, free tiles)? — for AI planning */
+    canPlaceAt(team: Team, seat: SeatId, type: UnitType, anchor: Cell, rotated: boolean): boolean {
+        const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
+        return (
+            cells !== null &&
+            cells.every((c) => this.deployCellOk(team, c, type, seat) && (type.extra || !this.occupied.has(cellKey(c))))
+        );
+    }
+
     /**
      * Zone-validated placement for a buy action: the anchor must lie fully
      * in the buyer's territory and be free; spawning charges the cost.

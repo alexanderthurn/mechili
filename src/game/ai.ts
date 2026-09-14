@@ -18,6 +18,8 @@ import { isPlayerBuyable, type Team, type UnitType } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
+import { chooseRebuildCommander, YearBrain } from './aiYear';
+import type { LevelingSettings } from './settings';
 
 /** army packs cheaper than this are preferred for the AI's first buy each round */
 const CHEAP_UNIT_COST = 200;
@@ -85,11 +87,23 @@ export class AiOpponent implements Opponent {
             opponents?: 'build' | 'lockInOnly';
             /** Campaign: deterministic per-round stream (seed + round) */
             rngForRound?: (round: number) => () => number;
+            /** leveling rules (the planner reads level multipliers and prices) */
+            leveling?: LevelingSettings;
+            /** The Year: this seat's role — its planner knows who has the base */
+            yearRole?: 'attacker' | 'defender';
+            /** which brain plays: The Year's planner (default in The Year) or the classic random builder */
+            brain?: 'year' | 'classic';
+            /** new packs this seat may deploy in a build phase */
+            deployCap?: () => number;
         },
     ) {}
 
     chooseStarter(offer: readonly StartCard[]): void {
-        const pick = offer[Math.floor(this.ctx.rng() * offer.length)]!;
+        // The Year rebuilds this side every round: pick for lasting combat effects
+        const pick =
+            this.ctx.climb && this.ctx.brain !== 'classic' && offer.length > 0
+                ? chooseRebuildCommander(offer, this.ctx.types)
+                : offer[Math.floor(this.ctx.rng() * offer.length)]!;
         this.ctx.dispatch({ kind: 'chooseCard', team: this.team, seat: this.seat, cardId: pick.id });
     }
 
@@ -110,6 +124,18 @@ export class AiOpponent implements Opponent {
     onBuildPhase(round: number): void {
         if (this.ctx.opponents === 'lockInOnly') {
             // a scenario's authored army fights as placed — lock in, nothing else
+        } else if (this.ctx.brain !== 'classic' && this.ctx.leveling && (this.ctx.climb || this.ctx.brain === 'year')) {
+            // The Year: rebuild from nothing and plan the whole round against the visible army
+            // (the arena's player stand-in uses the same planner on a kept army)
+            if (this.ctx.climb) this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
+            const brain = new YearBrain(
+                { ...this.ctx, leveling: this.ctx.leveling },
+                this.team,
+                this.seat,
+                this.ctx.yearRole ?? 'defender',
+                this.ctx.rngForRound?.(round) ?? this.ctx.rng,
+            );
+            brain.playRound({ keep: !this.ctx.climb, slots: this.ctx.deployCap?.() ?? 40 });
         } else if (this.ctx.climb) {
             this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
             this.runBuildActions({
