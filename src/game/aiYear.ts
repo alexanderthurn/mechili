@@ -142,6 +142,33 @@ export const MODEL = {
     overkill: 2.164,
 };
 
+/**
+ * The planner's own choices (not the battle model): how much it trusts
+ * talents, how hard it plays against the player's answer, … — measured with
+ * the arena (`--planner key=value`).
+ */
+export const PLANNER = {
+    /** weight on a talent's estimated gain (packs are 1) */
+    techWeight: 1,
+    /** share of the score from the plan against the visible army plus the player's best counter */
+    counterWeight: 0.4,
+    /** small penalty per pack of a type already in the plan (keeps the army flexible) */
+    diversityTilt: 0.00002,
+    /** credit for an unlock (it widens every later round's shop) */
+    unlockBonus: 0.02,
+    /** share of the player's liquid supply assumed spent on their counter */
+    enemyBudgetShare: 1,
+    /** lateral spacing between packs of one lane (tiles × CELL) — more when the enemy splashes */
+    laneSpacing: 11,
+    laneSpacingSplash: 18,
+    /** defenders lean their lanes toward their own Stronghold this much */
+    keepPull: 0.3,
+    /** pull every pack's lane toward one focus point (local superiority beats a spread line) */
+    concentrate: 0,
+    /** attackers: the focus is the enemy Stronghold (its fall takes the army with it) rather than their army's center */
+    focusKeep: 0,
+};
+
 function levelMult(level: number, leveling: LevelingSettings): number {
     return 1 + (level - 1) * leveling.statBonusPerLevel;
 }
@@ -421,6 +448,8 @@ interface Plan {
 export class YearBrain {
     /** packs bought in this build phase (the deploy cap counts these) */
     private bought = 0;
+    /** this brain's planner choices ({@link PLANNER} with any overrides) */
+    private readonly p: typeof PLANNER;
 
     constructor(
         private readonly host: YearBrainHost,
@@ -429,7 +458,10 @@ export class YearBrain {
         /** this side's role in The Year (the attacker has no base) */
         private readonly role: 'attacker' | 'defender',
         private readonly rng: () => number,
-    ) {}
+        overrides: Partial<typeof PLANNER> = {},
+    ) {
+        this.p = { ...PLANNER, ...overrides };
+    }
 
     private hasTech: HasTech = (seat, typeId, techId) => {
         const type = this.host.types.byId(typeId);
@@ -567,7 +599,7 @@ export class YearBrain {
         const now = estimateBattle(army, theirs).margin;
         if (counter.length === 0) return now;
         const answered = estimateBattle(army, [...theirs, ...counter]).margin;
-        return 0.6 * now + 0.4 * answered;
+        return (1 - this.p.counterWeight) * now + this.p.counterWeight * answered;
     }
 
     /**
@@ -579,7 +611,7 @@ export class YearBrain {
         const plan: Plan = { packs: [], techs: [], spent: 0 };
         const army: BattleGroup[] = [...base];
         const ownedTechs = new Map<string, Set<string>>();
-        const enemyBudget = economy.balance(this.enemySeat);
+        const enemyBudget = economy.balance(this.enemySeat) * this.p.enemyBudgetShare;
         let counter = this.enemyCounter(army, theirs, enemyBudget);
         let current = this.score(army, theirs, counter);
         const minCost = Math.min(...shop.map((t) => this.buyCost(t)));
@@ -602,7 +634,7 @@ export class YearBrain {
                     const s = this.score([...army, group], theirs, counter);
                     // gain per supply; a small tilt toward packs we have few of keeps the army flexible
                     const have = plan.packs.filter((p) => p.type === type).length;
-                    const gain = (s - current) / cost - have * 0.00002;
+                    const gain = (s - current) / cost - have * this.p.diversityTilt;
                     if (gain > bestGain) {
                         bestGain = gain;
                         bestPick = { kind: 'pack', type, group, cost };
@@ -625,7 +657,7 @@ export class YearBrain {
                         return this.plannedGroup(type, g.depth, next);
                     });
                     const s = this.score(rebuilt, theirs, counter);
-                    const gain = (s - current) / cost;
+                    const gain = ((s - current) / cost) * this.p.techWeight - (this.p.techWeight <= 0 ? Infinity : 0);
                     if (gain > bestGain) {
                         bestGain = gain;
                         bestPick = { kind: 'tech', type, techId: tech.id, cost };
@@ -692,7 +724,7 @@ export class YearBrain {
                 if (!Number.isFinite(cost) || cost > budget) continue;
                 const withIt = this.compose(base, theirs, this.buyableTypes(id), budget - cost, opts.slots);
                 // unlocks stay for later rounds — a little credit for a wider shop
-                const score = this.planScore(base, theirs, withIt) + 0.02;
+                const score = this.planScore(base, theirs, withIt) + this.p.unlockBonus;
                 if (score > bestScore) {
                     bestScore = score;
                     unlock = id;
@@ -795,8 +827,24 @@ export class YearBrain {
         return out;
     }
 
+    /** where the army concentrates this round (world x) */
+    private focusX = 0;
+
     private placePlan(plan: Plan): void {
         const lanes = this.enemyLanes();
+        let sum = 0;
+        let weight = 0;
+        for (const { unit, group } of lanes) {
+            if (group.structure) continue;
+            const w = group.members * group.hpEach;
+            sum += unit.world.x * w;
+            weight += w;
+        }
+        this.focusX = weight > 0 ? sum / weight : 0;
+        if (this.role === 'attacker' && this.p.focusKeep > 0) {
+            const keep = lanes.find(({ unit }) => unit.type.onDestroyed?.collapseOwnArmy);
+            if (keep) this.focusX = this.focusX * (1 - this.p.focusKeep) + keep.unit.world.x * this.p.focusKeep;
+        }
         const placed: { x: number; type: UnitType }[] = [];
         // big and front-line packs first — they claim the front, the rest fills behind
         const order = [...plan.packs].sort((a, b) => a.depth - b.depth || b.type.cost - a.type.cost);
@@ -833,13 +881,14 @@ export class YearBrain {
             weight += w;
         }
         let x = weight > 0 ? targetX / weight : 0;
+        if (this.p.concentrate > 0) x = x * (1 - this.p.concentrate) + this.focusX * this.p.concentrate;
         if (this.role === 'defender') {
             const keep = placement.allUnits().find((u) => u.team === this.team && u.type.onDestroyed?.collapseOwnArmy);
-            if (keep) x = x * 0.7 + keep.world.x * 0.3;
+            if (keep) x = x * (1 - this.p.keepPull) + keep.world.x * this.p.keepPull;
         }
         // spread: step aside from packs of the same kind already in this lane
         const crowd = placed.filter((p) => Math.abs(p.x - x) < 14).length;
-        if (crowd > 0) x += (crowd % 2 === 1 ? 1 : -1) * Math.ceil(crowd / 2) * (enemySplash ? 18 : 11) + (this.rng() - 0.5) * 4;
+        if (crowd > 0) x += (crowd % 2 === 1 ? 1 : -1) * Math.ceil(crowd / 2) * (enemySplash ? this.p.laneSpacingSplash : this.p.laneSpacing) + (this.rng() - 0.5) * 4;
         x = Math.max(-map.halfW + 12, Math.min(map.halfW - 12, x));
 
         const { frontRow, forward, colMin, colMax } = this.frontline(this.team);

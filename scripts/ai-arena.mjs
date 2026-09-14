@@ -202,6 +202,7 @@ function newMatch(variantName, seed, brains) {
         opponents: 'build',
         rngForRound: (round) => mulberry32(seedFrom(seed, `ai-climb-${seat}-${round}`)),
         brain,
+        plannerOverrides: seat === 1 ? aiPlanner : {},
         leveling: settings.leveling,
         yearRole: seat === 1 ? (variant.humanRole === 'defender' ? 'attacker' : 'defender') : variant.humanRole,
         deployCap: () => state.deployState.limit[seat] + state.deployState.extra[seat] - state.deployState.used[seat],
@@ -402,8 +403,9 @@ function playYear(variantName, seed, brains, rounds, verbose) {
     for (let r = 1; r <= rounds; r++) {
         startRound(m);
         // as in the game: the AI builds at the start of the build phase, the player after
-        const aiBudgetBefore = m.economy.balance(1);
+        const tPlan = performance.now();
         m.ai.onBuildPhase(m.state.round);
+        planTimes.push(performance.now() - tPlan);
         const aiLeft = m.economy.balance(1);
         m.human.onBuildPhase(m.state.round);
         if (verbose) {
@@ -700,6 +702,22 @@ async function tune(cachePath, iterations) {
     console.log('best', JSON.stringify(Object.fromEntries(Object.entries(best).map(([k, v]) => [k, Math.round(v * 1000) / 1000]))));
 }
 
+const planTimes = [];
+const aiPlanner = {};
+{
+    // --planner techWeight=0,counterWeight=0.5 — try planner choices without editing code
+    // planner keys go to the AI seat only; model keys change the shared battle model
+    const overrides = arg('planner', '');
+    if (overrides) {
+        const { PLANNER, MODEL } = await load('/src/game/aiYear.ts');
+        for (const pair of overrides.split(',')) {
+            const [k, v] = pair.split('=');
+            if (k in PLANNER) aiPlanner[k] = Number(v);
+            else if (k in MODEL) MODEL[k] = Number(v);
+            else throw new Error(`unknown planner/model key ${k}`);
+        }
+    }
+}
 const games = Number(arg('games', '6'));
 const rounds = Number(arg('rounds', '9'));
 const baseSeed = Number(arg('seed', '1'));
@@ -739,6 +757,10 @@ try {
         console.log(
             `${variant.padEnd(14)} ai=${brains.ai} human=${brains.human}: AI won ${aiRounds}/${total} rounds (${Math.round((100 * aiRounds) / total)}%) · per round ${perRound.join(' ')}`,
         );
+    }
+    if (planTimes.length) {
+        const sorted = [...planTimes].sort((a, b) => a - b);
+        console.log(`AI build phase: median ${sorted[Math.floor(sorted.length / 2)].toFixed(0)}ms, max ${sorted[sorted.length - 1].toFixed(0)}ms`);
     }
     console.log(`(${((Date.now() - t0) / 1000).toFixed(1)}s)`);
 } catch (e) {

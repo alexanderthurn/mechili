@@ -7,7 +7,6 @@
     "name": "Black Spider",
     "cost": 800, // bought by The Komtur's side (was 500 as a wave value)
     "unlockCost": 200,
-    "levelBasis": 500, // waves level in battle as before the price change
     "xpValue": 500.0, // kill XP as before the price change
     "hpWithdraw": 70,
     "buyable": false,

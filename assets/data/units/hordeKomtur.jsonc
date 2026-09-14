@@ -7,7 +7,6 @@
     "name": "Hans von Stoffeln",
     "cost": 1200, // bought by The Komtur's side (was 600 as a wave value)
     "unlockCost": 200,
-    "levelBasis": 600, // waves level in battle as before the price change
     "xpValue": 600.0, // kill XP as before the price change
     "hpWithdraw": 800,
     "buyable": false,

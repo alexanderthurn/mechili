@@ -95,6 +95,8 @@ export class AiOpponent implements Opponent {
             brain?: 'year' | 'classic';
             /** new packs this seat may deploy in a build phase */
             deployCap?: () => number;
+            /** planner choice overrides for this seat (arena experiments) */
+            plannerOverrides?: Record<string, number>;
         },
     ) {}
 
@@ -134,6 +136,7 @@ export class AiOpponent implements Opponent {
                 this.seat,
                 this.ctx.yearRole ?? 'defender',
                 this.ctx.rngForRound?.(round) ?? this.ctx.rng,
+                this.ctx.plannerOverrides,
             );
             brain.playRound({ keep: !this.ctx.climb, slots: this.ctx.deployCap?.() ?? 40 });
         } else if (this.ctx.climb) {
