@@ -163,6 +163,16 @@ try {
                 ok = false;
                 console.error(`FAIL komtur shop: ${JSON.stringify({ shop, starter: komtur && cards.starterUnlockedUnits(komtur, T) })}`);
             }
+            // the ways of playing The Year survive the settings a match is built from
+            const { normalizeGameSettings, DEFAULT_SETTINGS, climbAttackerTeam } = await server.ssrLoadModule('/src/game/settings.ts');
+            const climb = normalizeGameSettings({
+                ...DEFAULT_SETTINGS,
+                climb: { roundsToWin: 9, sideHp: 1, playerSupplyGrowthPerRound: 100, humanRole: 'defender', attackerCommander: 'komtur' },
+            }).climb;
+            if (climb?.attackerCommander !== 'komtur' || climbAttackerTeam(climb) !== 'enemy') {
+                ok = false;
+                console.error(`FAIL The Year variant lost in normalizeGameSettings: ${JSON.stringify(climb)}`);
+            }
         }
         if (!ok) failed = true;
         else console.log(`ok   commanders: ${T.commanders.length} offered + ${hidden.length} hidden; ${T.roundCards.length} round cards; spell ids exist; commander shops (Komtur)`);

@@ -652,6 +652,8 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
                       // older saves used flat playerSupplyPerRound as the grant amount
                       (settings.climb as { playerSupplyPerRound?: number }).playerSupplyPerRound ??
                       CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
+                  ...(settings.climb.humanRole === 'defender' ? { humanRole: 'defender' as const } : {}),
+                  ...(typeof settings.climb.attackerCommander === 'string' ? { attackerCommander: settings.climb.attackerCommander } : {}),
               }
             : undefined,
         tutorial: settings.tutorial
