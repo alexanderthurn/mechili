@@ -55,6 +55,19 @@ export interface ClimbSettings {
      * Grant = startingSupply + (round - 1) * this.
      */
     playerSupplyGrowthPerRound: number;
+    /**
+     * The human's role (omit = attacker, as the mode began): the attacker has no
+     * base buildings and no board extras, the defender keeps its base and wins
+     * a tied round.
+     */
+    humanRole?: ClimbRole;
+}
+
+export type ClimbRole = 'attacker' | 'defender';
+
+/** The side that attacks in The Year: no base, no board extras, must outscore to win a round. */
+export function climbAttackerTeam(climb: ClimbSettings): 'player' | 'enemy' {
+    return climb.humanRole === 'defender' ? 'enemy' : 'player';
 }
 
 /**

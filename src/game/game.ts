@@ -200,6 +200,7 @@ import {
     describeGameSettings,
     Economy,
     hordeCountMult,
+    climbAttackerTeam,
     hordeEnabled,
     hordeLeaderShare,
     isHordeRoundActive,
@@ -1724,6 +1725,7 @@ export class Game {
             playerUnlocks: this.rules.playerUnlocks,
             playerUnlockable: this.rules.playerUnlockable,
             climbMode: !!settings.climb,
+            climbAttacker: settings.climb ? climbAttackerTeam(settings.climb) : null,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -1898,7 +1900,7 @@ export class Game {
             (type) => this.buyUnit(type),
             {
                 types: this.types,
-                boardExtrasAllowed: !this.settings.climb && !isTutorial(this.settings),
+                boardExtrasAllowed: this.humanMayBuyExtras(),
                 unlockable: this.rules.playerUnlockable,
             },
         );
@@ -1924,7 +1926,7 @@ export class Game {
         }
         this.unitIconUrls = renderAllUnitIcons(this.renderer, this.types.roster);
         this.hud.setUnitIcons(this.unitIconUrls);
-        this.hud.setBoardExtrasAllowed(!this.settings.climb && !isTutorial(this.settings));
+        this.hud.setBoardExtrasAllowed(this.humanMayBuyExtras());
         this.tutorial?.applyInitialChrome();
         // this match's real settings (including any ?hordeFactor= override) —
         // fixed for the match's lifetime, so a one-time snapshot is enough
@@ -3102,7 +3104,8 @@ export class Game {
         const placed: Unit[] = [];
         const { rimCells, flankCols, zoneCols, zoneRows } = this.map.size;
         const ownFar = this.map.ownAtFar;
-        const skipPlayerBuildings = !!this.settings.climb;
+        // The Year: the attacking side fields its army only
+        const skipTeam: Team | null = this.settings.climb ? climbAttackerTeam(this.settings.climb) : null;
         const spawnBuilding = (
             xFrac: number,
             rowFrac: number,
@@ -3135,7 +3138,7 @@ export class Game {
         const researchType = this.types.baseBuilding('research');
         const commandType = this.types.baseBuilding('command');
         if (this.settings.strongholdMode !== 'none') {
-            if (!skipPlayerBuildings) {
+            if (skipTeam !== 'player') {
                 spawnBuilding(
                     BASE_ANCHORS.stronghold.xFrac,
                     BASE_ANCHORS.stronghold.rowFrac,
@@ -3144,17 +3147,19 @@ export class Game {
                     primarySeatOf(this.seats, 'player'),
                 );
             }
-            spawnBuilding(
-                BASE_ANCHORS.stronghold.xFrac,
-                BASE_ANCHORS.stronghold.rowFrac,
-                strongholdType,
-                'enemy',
-                primarySeatOf(this.seats, 'enemy'),
-            );
+            if (skipTeam !== 'enemy') {
+                spawnBuilding(
+                    BASE_ANCHORS.stronghold.xFrac,
+                    BASE_ANCHORS.stronghold.rowFrac,
+                    strongholdType,
+                    'enemy',
+                    primarySeatOf(this.seats, 'enemy'),
+                );
+            }
         }
 
         for (const team of ['player', 'enemy'] as const) {
-            if (skipPlayerBuildings && team === 'player') continue;
+            if (team === skipTeam) continue;
             for (const seat of seatIdsOf(this.seats, team)) {
                 const lane = seatLane(this.seats, seat);
                 // remap classic full-zone xFrac into seat's lane; in 2v2 (duo), outer
@@ -8500,10 +8505,16 @@ export class Game {
 
     /** HUD buy button: resolve a spawn spot, then run it through the action system.
      *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
+    /** board extras for the local player: not in tutorials, not as The Year's attacker */
+    private humanMayBuyExtras(): boolean {
+        if (isTutorial(this.settings)) return false;
+        return !this.settings.climb || climbAttackerTeam(this.settings.climb) !== 'player';
+    }
+
     private buyUnit(type: UnitType): boolean {
         if (!this.playerCanAct) return false;
-        // Campaign: no board extras (Ward Stone, Fire Bolt, and any future extras)
-        if (type.extra && (this.settings.climb || isTutorial(this.settings))) return false;
+        // The Year's attacker and the tutorials: no board extras (Ward Stone, Fire Bolt, …)
+        if (type.extra && !this.humanMayBuyExtras()) return false;
         if (this.tutorial?.blocksBuyEarly(type)) return false;
         if (!type.extra && !this.unlockedUnits[this.humanSeat]!.includes(type.id)) return false;
         if (this.economy.balance(this.humanSeat) < this.effectiveCost(type)) return false;
@@ -9480,8 +9491,10 @@ export class Game {
         }
         if (this.settings.climb && !this.star && !this.watching) {
             // Higher remaining HP wins the round (even if both went negative
-            // on a timeout). Equal HP → loss (must outscore the AI).
-            this.pendingClimbOutcome = this.playerHp > this.enemyHp ? 'win' : 'loss';
+            // on a timeout). A tie goes to the defender: an attacker must
+            // outscore, a defender only has to hold.
+            const defending = this.settings.climb.humanRole === 'defender';
+            this.pendingClimbOutcome = (defending ? this.playerHp >= this.enemyHp : this.playerHp > this.enemyHp) ? 'win' : 'loss';
             this.hpDrawAfterMatchOver = false;
         } else if (
             this.tutorial?.armRoundOutcome(this.playerHp, this.enemyHp, !this.star && !this.watching)

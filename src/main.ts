@@ -126,6 +126,7 @@ import {
     CLIMB_SIDE_HP,
     CLIMB_SUPPLY_GROWTH_PER_ROUND,
     CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
+    type ClimbRole,
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
     DEFAULT_HORDE_PRESET_ID,
@@ -195,11 +196,12 @@ function applyHordeMode(settings: GameSettings): void {
  * match economy; set {@link CLIMB_SUPPLY_GROWTH_PER_ROUND} in settings.ts
  * to override while playtesting.
  */
-function applyClimbMode(settings: GameSettings): void {
+function applyClimbMode(settings: GameSettings, role: ClimbRole = 'attacker'): void {
     settings.climb = {
         roundsToWin: CLIMB_ROUNDS_TO_WIN,
         sideHp: CLIMB_SIDE_HP,
         playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
+        ...(role === 'defender' ? { humanRole: role } : {}),
     };
     // Campaign always fields The Komtur at Medium (not Off / not the Low SP-horde default).
     settings.hordePreset = 'medium';
@@ -1042,6 +1044,14 @@ menu.innerHTML = `
         </div>
         <button class="m-btn m-small" data-mode="sp-back" data-i18n="menu:back"></button>
     </div>
+    <div class="m-view m-spmode" data-view="sp-year">
+        <div class="m-spmode-title" data-i18n="menu:campaign"></div>
+        <div class="m-toggle-row m-toggle-grid">
+            <button class="m-btn m-toggle-card" data-mode="year-attack">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:yearAttack"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="year-defend">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:yearDefend"></span></button>
+        </div>
+        <button class="m-btn m-small" data-mode="sp-year-back" data-i18n="menu:back"></button>
+    </div>
     <div class="m-view m-spmode" data-view="sp-campaigns">
         <div class="m-spmode-title" data-i18n="menu:scenarioCampaign"></div>
         <div class="m-room-list m-scenario-list m-campaign-list empty"></div>
@@ -1298,6 +1308,7 @@ const spPracticeEl = menu.querySelector<HTMLDivElement>('[data-view="sp-practice
 const spScenariosEl = menu.querySelector<HTMLDivElement>('[data-view="sp-editor"]')!;
 const spScenarioListEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-list')!;
 const spCampaignsEl = menu.querySelector<HTMLDivElement>('[data-view="sp-campaigns"]')!;
+const spYearEl = menu.querySelector<HTMLDivElement>('[data-view="sp-year"]')!;
 const spCampaignListEl = spCampaignsEl.querySelector<HTMLDivElement>('.m-campaign-list')!;
 const spEditorContinueEl = spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-continue')!;
 spEditorContinueEl.addEventListener('click', () => {
@@ -1579,13 +1590,14 @@ wrapper.appendChild(loadoutPanel.el);
 
 /** Exclusive menu screens — only one is active at a time. Session owns
  *  connecting / lobby / waiting UI so main never stacks under it. */
-type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'sp-editor' | 'sp-campaigns' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
+type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'sp-year' | 'sp-editor' | 'sp-campaigns' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
 const menuViews: Record<MenuViewId, HTMLElement> = {
     main: mainButtonsEl,
     sp: spModeEl,
     'sp-practice': spPracticeEl,
     'sp-editor': spScenariosEl,
     'sp-campaigns': spCampaignsEl,
+    'sp-year': spYearEl,
     tutorial: tutorialEl,
     custom: customEl,
     matchmaking: mmModeEl,
@@ -2968,7 +2980,7 @@ function wireGameMenuReturn(game: Game): void {
  * brighter / wrong. Await prewarm so we don't race a second renderer onto
  * the new canvas.
  */
-type LocalMatchOpts = { climb?: boolean; tutorial?: number };
+type LocalMatchOpts = { climb?: ClimbRole; tutorial?: number };
 
 /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
 function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
@@ -2976,7 +2988,7 @@ function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
     settings.buildTimeSeconds = 60 * 60;
     settings.specialistTimeSeconds = 60 * 60;
     settings.cardTimeSeconds = 60 * 60;
-    if (opts.climb) applyClimbMode(settings);
+    if (opts.climb) applyClimbMode(settings, opts.climb);
     if (opts.tutorial != null) applyTutorialMode(settings, opts.tutorial);
     return settings;
 }
@@ -5496,6 +5508,8 @@ menu.addEventListener('click', (e) => {
             mode === 'tutorial-2' ||
             mode === 'tutorial-3' ||
             mode === 'sp-campaign' ||
+            mode === 'year-attack' ||
+            mode === 'year-defend' ||
             mode === 'sp-practice' ||
             mode === 'sp-editor' ||
             mode === 'sp-campaigns' ||
@@ -5537,8 +5551,18 @@ menu.addEventListener('click', (e) => {
             showMenuView('sp');
             break;
         case 'sp-campaign':
+            showMenuView('sp-year');
+            break;
+        case 'year-attack':
             showMenuView('main');
-            startLocalMatch({ climb: true });
+            startLocalMatch({ climb: 'attacker' });
+            break;
+        case 'year-defend':
+            showMenuView('main');
+            startLocalMatch({ climb: 'defender' });
+            break;
+        case 'sp-year-back':
+            showMenuView('sp');
             break;
         case 'sp-practice':
             showMenuView('sp-practice');

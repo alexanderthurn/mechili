@@ -601,6 +601,10 @@ export interface ActionContext {
     /** what the player side's round unlock may add (scenario); null = any buyable unit */
     playerUnlockable: string[] | null;
     /**
+     * The Year's attacking side (no board extras there); null outside The Year.
+     */
+    climbAttacker: Team | null;
+    /**
      * Campaign climb active — gates {@link ClearArmyAction} (AI fresh rebuild).
      */
     climbMode: boolean;
@@ -768,8 +772,8 @@ export class ActionDispatcher {
                 // structures aren't buyable — except the board extras
                 if (!type || (type.structure && !type.extra)) return false;
                 if (!isPlayerBuyable(type)) return false;
-                // Campaign: human side cannot buy board extras (Ward Stone, Fire Bolt, …)
-                if (type.extra && this.ctx.climbMode && action.team === 'player') return false;
+                // The Year: the attacking side cannot buy board extras (Ward Stone, Fire Bolt, …)
+                if (type.extra && this.ctx.climbAttacker === action.team) return false;
                 if (
                     !type.extra &&
                     !this.ctx.unlockedUnits[seat]!.includes(action.typeId)

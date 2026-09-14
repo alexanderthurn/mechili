@@ -1,6 +1,8 @@
 {
   "singlePlayer": "Einzelspieler",
   "campaign": "Das Jahr",
+  "yearAttack": "Angreifen",
+  "yearDefend": "Verteidigen",
   "practice": "Übung",
   "editor": "Editor",
   "scenarios": "Szenarien",
