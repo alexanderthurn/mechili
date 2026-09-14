@@ -25,7 +25,8 @@ import type { SeatDef, SeatId } from './seats';
  * Campaign (SP climb) playtest knobs — change these while tuning feel.
  * {@link CLIMB_SUPPLY_GROWTH_PER_ROUND}: `null` keeps AI on normal match income growth.
  */
-export const CLIMB_ROUNDS_TO_WIN = 9;
+/** rounds a Year lasts; the side with more round wins takes it */
+export const CLIMB_ROUNDS = 9;
 export const CLIMB_SIDE_HP = 1;
 export const CLIMB_SUPPLY_GROWTH_PER_ROUND: number | null = null;
 /**
@@ -44,10 +45,10 @@ export const CLIMB_AI_DEPLOY_LIMIT = 40;
  */
 export const CLIMB_AI_PACK_BUDGET_FRACTION = 0.55;
 
-/** SP Campaign rules (see {@link GameSettings.climb}). */
+/** The Year's rules (see {@link GameSettings.climb}) — single player and multiplayer. */
 export interface ClimbSettings {
-    /** Round wins needed for campaign victory */
-    roundsToWin: number;
+    /** rounds played; every round counts for the side that won it, the side with more round wins takes the Year */
+    rounds: number;
     /** Fixed side HP after commander pick (both sides) */
     sideHp: number;
     /**
@@ -62,6 +63,11 @@ export interface ClimbSettings {
      */
     humanRole?: ClimbRole;
     /**
+     * Multiplayer: the canonical side that attacks (0 = the host's side).
+     * Wins over {@link humanRole}, which only means something with one human.
+     */
+    attackerSide?: number;
+    /**
      * The attacking side's commander, handed to it instead of an offer — e.g.
      * `cursed` (Cursed Christine), whose shop is the forest roster. Omit = the attacker picks as usual.
      */
@@ -70,9 +76,23 @@ export interface ClimbSettings {
 
 export type ClimbRole = 'attacker' | 'defender';
 
-/** The side that attacks in The Year: no base, no board extras, must outscore to win a round. */
-export function climbAttackerTeam(climb: ClimbSettings): 'player' | 'enemy' {
+/** who took a round of The Year */
+export type YearRoundWinner = ClimbRole;
+
+/**
+ * The side that attacks in The Year (no base, no board extras, must outscore
+ * to win a round), as the local team label. `localSide` is the local seat's
+ * canonical side — needed when the settings name the attacker by side.
+ */
+export function climbAttackerTeam(climb: ClimbSettings, localSide = 0): 'player' | 'enemy' {
+    if (climb.attackerSide !== undefined) return climb.attackerSide === localSide ? 'player' : 'enemy';
     return climb.humanRole === 'defender' ? 'enemy' : 'player';
+}
+
+/** The Year's winner from its round winners: more round wins, a tie to the defender. */
+export function yearWinner(rounds: readonly YearRoundWinner[]): YearRoundWinner {
+    const attacker = rounds.filter((r) => r === 'attacker').length;
+    return attacker > rounds.length - attacker ? 'attacker' : 'defender';
 }
 
 /**
@@ -645,7 +665,8 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         strongholdMode: strongholdModeOption(settings.strongholdMode),
         climb: settings.climb
             ? {
-                  roundsToWin: settings.climb.roundsToWin,
+                  // older saves: roundsToWin was the wins needed, as long as a Year lasts now
+                  rounds: settings.climb.rounds ?? (settings.climb as { roundsToWin?: number }).roundsToWin ?? CLIMB_ROUNDS,
                   sideHp: settings.climb.sideHp,
                   playerSupplyGrowthPerRound:
                       settings.climb.playerSupplyGrowthPerRound ??
@@ -653,6 +674,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
                       (settings.climb as { playerSupplyPerRound?: number }).playerSupplyPerRound ??
                       CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
                   ...(settings.climb.humanRole === 'defender' ? { humanRole: 'defender' as const } : {}),
+                  ...(typeof settings.climb.attackerSide === 'number' ? { attackerSide: settings.climb.attackerSide } : {}),
                   ...(typeof settings.climb.attackerCommander === 'string' ? { attackerCommander: settings.climb.attackerCommander } : {}),
               }
             : undefined,

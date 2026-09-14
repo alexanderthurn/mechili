@@ -33,6 +33,8 @@ import { registerHoverTipClearer } from './hoverTips';
 import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
 import { hudStyles } from '../theme';
+import { yearMarksHtml, yearProgressHtml, yearRoleName, type YearProgress } from './yearTally';
+import { yearWinner } from '../game/settings';
 
 export type Phase = 'build' | 'battle' | 'hpDraw';
 
@@ -4386,6 +4388,8 @@ export class Hud {
              * Campaign: hide MMR (looks like HP) and show Round n/total instead.
              */
             climbProgress?: { n: number; total: number };
+            /** The Year: every round's winner — the end screen shows the tally and who took the Year */
+            year?: YearProgress;
         },
     ): void {
         this.prepareMatchEndUi();
@@ -4403,7 +4407,9 @@ export class Hud {
             allowRetry,
             allowNext: options?.allowNext === true,
             hideMmr: !!options?.climbProgress,
+            ...(options?.year ? { year: options.year } : {}),
         });
+        if (options?.year) el.classList.add('is-year');
         const backLabel = options?.backLabel ?? t('hud:backToMainMenu');
         const btn = el.querySelector('.go-restart')!;
         btn.textContent = backLabel;
@@ -4441,6 +4447,45 @@ export class Hud {
         }, 1600);
     }
 
+    /** The Year's result block: who took the Year, the tally, every round in order */
+    private yearResultHtml(p: YearProgress): string {
+        const winner = yearWinner(p.rounds);
+        const loser = winner === 'attacker' ? 'defender' : 'attacker';
+        const count = (role: 'attacker' | 'defender') => p.rounds.filter((r) => r === role).length;
+        return (
+            `<div class="go-year">` +
+            `<div class="go-year-winner is-${winner}">${escapeHtml(t('hud:yearSideWins', { defaultValue: '{{side}} takes the Year', side: yearRoleName(winner) }))}</div>` +
+            `<div class="go-year-score">` +
+            `<span class="is-${winner}">${count(winner)} × ${escapeHtml(yearRoleName(winner))}</span>` +
+            `<span class="year-dash">·</span>` +
+            `<span class="is-${loser}">${count(loser)} × ${escapeHtml(yearRoleName(loser))}</span>` +
+            `</div>` +
+            yearMarksHtml(p) +
+            `</div>`
+        );
+    }
+
+    /**
+     * The Year between rounds: who took the round and the tally so far, then `onDone`.
+     */
+    showYearRoundSplash(p: YearProgress, onDone: () => void): void {
+        this.clearBlockingOverlays();
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-climb-splash', 'is-year');
+        const last = p.rounds[p.rounds.length - 1];
+        const title = last
+            ? t('hud:yearRoundTo', { defaultValue: 'Round {{n}} to the {{side}}', n: p.rounds.length, side: yearRoleName(last) })
+            : t('hud:climbRoundShort', { n: 1, total: p.total });
+        el.innerHTML = yearProgressHtml(p, { title, fresh: true });
+        this.mount(el);
+        window.setTimeout(() => {
+            removeWithDialogFade(el, () => {
+                this.unmount(el);
+                onDone();
+            });
+        }, 2400);
+    }
+
     /** Fade the result panel out, then run `after` (default: quit to menu). */
     private leaveGameOver(el: HTMLElement, after?: () => void): void {
         if (el.dataset.leaving === '1') return;
@@ -4461,9 +4506,10 @@ export class Hud {
         title: string,
         details?: GameOverDetails,
         note?: string,
-        opts?: { allowRetry?: boolean; allowNext?: boolean; hideMmr?: boolean },
+        opts?: { allowRetry?: boolean; allowNext?: boolean; hideMmr?: boolean; year?: YearProgress },
     ): string {
         const hideMmr = opts?.hideMmr === true;
+        const year = opts?.year ? this.yearResultHtml(opts.year) : '';
         const teams = details
             ? `<div class="go-teams">` +
               this.gameOverTeamHtml('player', details.playerTeam, hideMmr) +
@@ -4486,7 +4532,7 @@ export class Hud {
             `<span class="go-bg-glow go-bg-glow-enemy"></span>` +
             `<span class="go-bg-core"></span>` +
             `</div>` +
-            `<div class="go-title">${escapeHtml(title)}</div>${teams}${noteEl}` +
+            `<div class="go-title">${escapeHtml(title)}</div>${year}${teams}${noteEl}` +
             `<div class="go-actions">${nextBtn}${retryBtn}` +
             `<button type="button" class="go-restart">${escapeHtml(t('hud:backToMainMenu'))}</button>` +
             `</div>`

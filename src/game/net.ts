@@ -2440,8 +2440,8 @@ export interface SinglePlayerSave {
     phaseRemaining?: number;
     /** battle playback multiplier; older saves omit this (treated as 1×) */
     speedMultiplier?: number;
-    /** Campaign climb wins; older saves omit this (treated as 0) */
-    climbWins?: number;
+    /** The Year: who took each round so far — the loading card shows it (the replay decides it again) */
+    yearRounds?: ('attacker' | 'defender')[];
     localName: string;
 }
 

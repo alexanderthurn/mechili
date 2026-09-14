@@ -7,7 +7,7 @@ import { ChatFloat } from './ui/chatFloat';
 import { FriendsPanel } from './ui/friendsPanel';
 import {
     introRosterEntries,
-    mountClimbIntro,
+    mountYearIntro,
     mountScenarioIntro,
     mountTutorialIntro,
     mountIntroRoster,
@@ -124,11 +124,13 @@ import {
     formatStrongholdModeOption,
     strongholdModeOption,
     CUSTOM_GAME_PACE_PRESETS,
-    CLIMB_ROUNDS_TO_WIN,
+    CLIMB_ROUNDS,
     CLIMB_SIDE_HP,
     CLIMB_SUPPLY_GROWTH_PER_ROUND,
     CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
     type ClimbRole,
+    climbAttackerTeam,
+    type YearRoundWinner,
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
     DEFAULT_HORDE_PRESET_ID,
@@ -200,7 +202,7 @@ function applyHordeMode(settings: GameSettings): void {
  */
 function applyClimbMode(settings: GameSettings, variant: ClimbVariant = { role: 'attacker' }): void {
     settings.climb = {
-        roundsToWin: CLIMB_ROUNDS_TO_WIN,
+        rounds: CLIMB_ROUNDS,
         sideHp: CLIMB_SIDE_HP,
         playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
         ...(variant.role === 'defender' ? { humanRole: variant.role } : {}),
@@ -2055,7 +2057,8 @@ type MatchResume = {
     local?: boolean;
     phaseRemaining?: number;
     speedMultiplier?: number;
-    climbWins?: number;
+    /** The Year: round winners so far, for the loading card */
+    yearRounds?: YearRoundWinner[];
 };
 
 function hideResumeOverlay(): void {
@@ -3084,7 +3087,6 @@ async function retrySinglePlayerLastRound(payload: {
     actions: LoggedAction[];
     side: 'a' | 'b';
     names: { local: string; opponent: string };
-    climbWins: number;
 }): Promise<void> {
     await teardownForNextMatch();
     const settings = { ...payload.settings, seed: payload.seed };
@@ -3102,7 +3104,6 @@ async function retrySinglePlayerLastRound(payload: {
             actions: payload.actions,
             battleElapsed: null,
             local: true,
-            climbWins: payload.climbWins,
         },
         null,
         null,
@@ -3410,11 +3411,11 @@ function startGame(
     };
 
     if (showCoverPanel && introCoverEl && useClimbIntro && settings.climb) {
-        const level = Math.min(
-            (resume?.climbWins ?? 0) + 1,
-            settings.climb.roundsToWin,
-        );
-        mountClimbIntro(introCoverEl, level, settings.climb.roundsToWin);
+        const climb = settings.climb;
+        const localSeat = star?.mySeat ?? (side === 'a' ? 0 : 1);
+        const localSide = settings.seats?.[localSeat]?.side ?? localSeat;
+        const you = climbAttackerTeam(climb, localSide) === 'player' ? 'attacker' : 'defender';
+        mountYearIntro(introCoverEl, { rounds: (resume?.yearRounds ?? []).slice(0, climb.rounds), total: climb.rounds, you });
         void introRosterHold().then(() => {
             if (gen !== introGen || !started) return;
             startIntroCoverDive();
@@ -3500,7 +3501,7 @@ function wireSinglePlayerPersist(game: Game): () => void {
             battleElapsed: data.battleElapsed,
             phaseRemaining: data.phaseRemaining,
             speedMultiplier: data.speedMultiplier,
-            climbWins: data.climbWins,
+            yearRounds: data.yearRounds,
             localName: getPlayerName(),
         });
     };
@@ -3529,7 +3530,7 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
         battleElapsed: save.battleElapsed,
         phaseRemaining: save.phaseRemaining,
         speedMultiplier: save.speedMultiplier,
-        climbWins: save.climbWins ?? 0,
+        ...(save.yearRounds ? { yearRounds: save.yearRounds } : {}),
         local: true,
     });
 }

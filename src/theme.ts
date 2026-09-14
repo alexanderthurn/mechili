@@ -2805,6 +2805,95 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85), 0 0 40px rgba(184, 146, 74, 0.25);
 }
 
+/* The Year's progress (ui/yearTally.ts): round marks and the tally — loading
+ * card, between-rounds splash, end screen. In menuStyles, which stay injected
+ * for the whole session, so the HUD can use them too. */
+.year-progress {
+    --year-attacker: #d8643f;
+    --year-defender: #5d97c9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(12px, 2.2vh, 20px);
+    text-align: center;
+}
+.year-title {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85), 0 0 40px rgba(184, 146, 74, 0.25);
+}
+.year-marks {
+    --year-attacker: #d8643f;
+    --year-defender: #5d97c9;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(5px, 1vw, 10px);
+    max-width: 92vw;
+}
+.year-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(28px, 4.6vw, 44px);
+    height: clamp(28px, 4.6vw, 44px);
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 2px solid rgba(240, 232, 216, 0.28);
+    background: rgba(0, 0, 0, 0.35);
+    color: rgba(240, 232, 216, 0.45);
+    font-size: clamp(11px, 1.6vw, 15px);
+    font-weight: 800;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    animation: year-mark-in 0.35s ease-out both;
+    animation-delay: calc(var(--i, 0) * 45ms);
+}
+.year-mark.is-attacker { border-color: var(--year-attacker); background: color-mix(in srgb, var(--year-attacker) 78%, #000); color: ${u.cream}; }
+.year-mark.is-defender { border-color: var(--year-defender); background: color-mix(in srgb, var(--year-defender) 78%, #000); color: ${u.cream}; }
+.year-mark.is-current {
+    border-color: ${u.brassLight};
+    color: ${u.brassLight};
+    box-shadow: 0 0 0 3px rgba(212, 184, 120, 0.25), 0 0 18px rgba(212, 184, 120, 0.45);
+    animation: year-mark-in 0.35s ease-out both, year-mark-pulse 1.6s ease-in-out 0.4s infinite;
+}
+.year-mark.is-fresh { animation: year-mark-pop 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) 0.25s both; }
+@keyframes year-mark-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes year-mark-pop { 0% { opacity: 0; transform: scale(2.2); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes year-mark-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) {
+    .year-mark, .year-mark.is-current, .year-mark.is-fresh { animation: none; }
+}
+.year-tally {
+    --year-attacker: #d8643f;
+    --year-defender: #5d97c9;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: clamp(15px, 2vw, 20px);
+    color: ${u.cream};
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85);
+}
+.year-side { display: inline-flex; align-items: center; gap: 8px; letter-spacing: 0.08em; text-transform: uppercase; }
+.year-side b { font-size: 1.6em; font-weight: 900; }
+.year-side.is-attacker b { color: var(--year-attacker); }
+.year-side.is-defender b { color: var(--year-defender); }
+.year-side-name { opacity: 0.85; }
+.year-side.is-you .year-side-name { opacity: 1; font-weight: 800; }
+.year-you {
+    font-size: 0.62em;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid ${u.brassLight};
+    color: ${u.brassLight};
+    letter-spacing: 0.1em;
+}
+.year-dash { opacity: 0.6; font-weight: 700; }
+.mechili-climb-splash.is-year .year-progress { padding: 0 16px; }
+
 /* Pre-match roster on the intro cover — menuStyles only: the cover runs
  * before Game/Hud boots, so hudStyles() is not injected yet. */
 .mechili-match-roster {
@@ -6279,6 +6368,40 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover.victory .go-title { color: ${pc}; }
 .mechili-gameover.defeat .go-title { color: ${ec}; }
 .mechili-gameover.draw .go-title { color: ${u.brassLight}; }
+/* The Year's result: who took it, the score, every round */
+.mechili-gameover .go-year {
+    --year-attacker: #d8643f;
+    --year-defender: #5d97c9;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: -6px;
+    text-align: center;
+}
+.mechili-gameover .go-year-winner {
+    font-size: clamp(20px, 3.4vw, 32px);
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85);
+    animation: year-mark-pop 0.8s cubic-bezier(0.2, 1.6, 0.4, 1) 0.2s both;
+}
+.mechili-gameover .go-year-winner.is-attacker { color: var(--year-attacker); }
+.mechili-gameover .go-year-winner.is-defender { color: var(--year-defender); }
+.mechili-gameover .go-year-score {
+    display: flex;
+    gap: 12px;
+    font-size: clamp(15px, 2vw, 19px);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: ${u.cream};
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+}
+.mechili-gameover .go-year-score .is-attacker { color: var(--year-attacker); }
+.mechili-gameover .go-year-score .is-defender { color: var(--year-defender); }
 .mechili-gameover .go-sub { font-size: 14px; letter-spacing: 0.5px; color: ${u.text}; opacity: 0.85; margin-top: -10px; text-align: center; max-width: 28em; line-height: 1.45; }
 .mechili-gameover .go-stats { font-size: 13px; color: ${u.textMuted}; letter-spacing: 0.5px; margin-top: -6px; }
 .mechili-gameover .go-teams {

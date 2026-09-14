@@ -201,6 +201,8 @@ import {
     Economy,
     hordeCountMult,
     climbAttackerTeam,
+    yearWinner,
+    type YearRoundWinner,
     hordeEnabled,
     hordeLeaderShare,
     isHordeRoundActive,
@@ -276,6 +278,7 @@ import {
 import { getAvatarDataUrl } from './avatar';
 import { HpBars } from '../ui/hpBars';
 import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
+import type { YearProgress } from '../ui/yearTally';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
@@ -513,16 +516,17 @@ export class Game {
      */
     private endedByOwnChoice = false;
     /**
-     * Campaign climb: round wins so far. Restored from SP save / retry payload
-     * (battle outcomes are not in the action log).
+     * The Year: who took each finished round, in order. Decided from the
+     * battles, so a resume, retry, reconnect or replay rebuilds it by replaying
+     * the log.
      */
-    private climbWins = 0;
+    private yearRounds: YearRoundWinner[] = [];
     /**
      * Campaign: decided in {@link finishOrContinueAfterBattle} from post-damage
-     * HP (higher HP wins, even if both negative). Applied after HP-draw VFX.
-     * Cleared by cheat skip so Shift+I can advance without a false loss.
+     * HP (higher HP wins, even if both negative; a tie to the defender). Counted
+     * after the HP-draw VFX. Cleared by cheat skip so Shift+I doesn't count it.
      */
-    private pendingClimbOutcome: 'win' | 'loss' | null = null;
+    private pendingYearRound: YearRoundWinner | null = null;
     /** match-total combat damage by `${team}:${typeId}` — fed into telemetry */
     private readonly matchDamageByType = new Map<string, number>();
     private disposed = false;
@@ -867,7 +871,6 @@ export class Game {
               actions: LoggedAction[];
               side: 'a' | 'b';
               names: { local: string; opponent: string };
-              climbWins: number;
           }) => void)
         | null = null;
     /**
@@ -1259,8 +1262,6 @@ export class Game {
             phaseRemaining?: number;
             /** battle playback multiplier; omitted on older saves → stay at 1× */
             speedMultiplier?: number;
-            /** Campaign climb wins so far (SP save / retry) */
-            climbWins?: number;
         } | null = null,
         /** 2v2+ star-topology connection — mutually exclusive with `net`.
          *  `settings.seats` must already be the LOCALIZED roster (via
@@ -1661,7 +1662,9 @@ export class Game {
         // Campaign: one free Sell Pack charge in the left tactics strip (same
         // as a card-granted one-shot — not the Command Tower unlock).
         if (settings.climb) {
-            this.tacticInventory[this.humanSeat]!.push(SELL_UNIT_ID);
+            for (let seat = 0; seat < this.seats.length; seat++) {
+                if (!this.seatIsBot(seat)) this.tacticInventory[seat]!.push(SELL_UNIT_ID);
+            }
         }
         this.placement.roster = this.seats;
         this.hpBars.roster = this.seats;
@@ -1728,7 +1731,7 @@ export class Game {
             playerUnlocks: this.rules.playerUnlocks,
             playerUnlockable: this.rules.playerUnlockable,
             climbMode: !!settings.climb,
-            climbAttacker: settings.climb ? climbAttackerTeam(settings.climb) : null,
+            climbAttacker: settings.climb ? this.yearAttackerTeam() : null,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -2251,7 +2254,6 @@ export class Game {
         this.spawnTowers();
         this.placement.enabled = false;
         if (resume) {
-            this.climbWins = resume.climbWins ?? 0;
             this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
             // replay always resets the round's clock to a fresh full timer
             // time from whoever exported, so a rebuild can't hand either
@@ -3109,7 +3111,7 @@ export class Game {
         const { rimCells, flankCols, zoneCols, zoneRows } = this.map.size;
         const ownFar = this.map.ownAtFar;
         // The Year: the attacking side fields its army only
-        const skipTeam: Team | null = this.settings.climb ? climbAttackerTeam(this.settings.climb) : null;
+        const skipTeam: Team | null = this.settings.climb ? this.yearAttackerTeam() : null;
         const spawnBuilding = (
             xFrac: number,
             rowFrac: number,
@@ -3367,10 +3369,10 @@ export class Game {
         this.creditUsed.fill(false);
         this.deployState.used.fill(0);
         this.deployState.extrasSpent.fill(0);
-        // Campaign AI rebuilds a full army each round — raise non-human deploy caps.
+        // The Year's bots rebuild a full army each round — raise their deploy caps.
         if (this.settings.climb) {
             for (let seat = 0; seat < this.seats.length; seat++) {
-                if (seat !== this.humanSeat) this.deployState.limit[seat] = CLIMB_AI_DEPLOY_LIMIT;
+                if (this.seatIsBot(seat)) this.deployState.limit[seat] = CLIMB_AI_DEPLOY_LIMIT;
             }
         }
         this.tutorial?.applyDeployCaps();
@@ -3509,7 +3511,7 @@ export class Game {
         const playerIncome =
             eco.startingSupply + (this.round - 1) * climb.playerSupplyGrowthPerRound;
         for (let seat = 0; seat < this.seats.length; seat++) {
-            const amount = this.seats[seat]!.team === 'player' ? playerIncome : aiIncome;
+            const amount = this.seatIsBot(seat) ? aiIncome : playerIncome;
             // the campaign's own round income — same money dial as the normal
             // path, or the setting would silently do nothing in climb
             this.economy.creditRoundIncome(seat, amount);
@@ -3714,7 +3716,7 @@ export class Game {
             this.pendingHpDrawPlan = null;
             this.pendingHpDrawPreHp = null;
             // Shift+I must not treat the padded/restored HP as a climb verdict
-            this.pendingClimbOutcome = null;
+            this.pendingYearRound = null;
             // ... nor as a multi-round tutorial one (equal padded HP = a loss)
             this.tutorial?.clearPendingOutcome();
             this.paintHudHp();
@@ -4043,7 +4045,7 @@ export class Game {
                 mulberry32(seedFrom(this.seed, `ai-climb-${seat}-${round}`)),
             leveling: this.settings.leveling,
             ...(this.settings.climb
-                ? { yearRole: climbAttackerTeam(this.settings.climb) === this.seats[seat]?.team ? ('attacker' as const) : ('defender' as const) }
+                ? { yearRole: this.yearAttackerTeam() === this.seats[seat]?.team ? ('attacker' as const) : ('defender' as const) }
                 : {}),
             deployCap: () => (this.deployState.limit[seat] ?? 0) + (this.deployState.extra[seat] ?? 0) - (this.deployState.used[seat] ?? 0),
         };
@@ -4501,7 +4503,7 @@ export class Game {
     private starterOfferFor(team: Team, rng: () => number): StartCard[] {
         const climb = this.settings.climb;
         const forced =
-            climb?.attackerCommander && climbAttackerTeam(climb) === team ? this.types.commander(climb.attackerCommander) : null;
+            climb?.attackerCommander && this.yearAttackerTeam() === team ? this.types.commander(climb.attackerCommander) : null;
         return forced ? [forced] : this.draw(this.types.commanders, 4, rng);
     }
 
@@ -5849,7 +5851,8 @@ export class Game {
         battleElapsed: number | null;
         phaseRemaining: number;
         speedMultiplier: number;
-        climbWins: number;
+        /** The Year: round winners so far (the intro card shows them; the replay decides them again) */
+        yearRounds: YearRoundWinner[];
     } {
         return {
             seed: this.seed,
@@ -5858,7 +5861,7 @@ export class Game {
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
             speedMultiplier: this.speedSteps[this.speedIndex]!,
-            climbWins: this.climbWins,
+            yearRounds: [...this.yearRounds],
         };
     }
 
@@ -8539,10 +8542,34 @@ export class Game {
 
     /** HUD buy button: resolve a spawn spot, then run it through the action system.
      *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
+    /** The Year so far, for the HUD: round winners, length, the local side's role */
+    private yearProgress(): YearProgress {
+        return { rounds: [...this.yearRounds], total: this.settings.climb?.rounds ?? 0, you: this.watching ? null : this.yearLocalRole() };
+    }
+
+    /** The Year: the attacking side as a local team label (the settings may name it by canonical side) */
+    private yearAttackerTeam(): Team {
+        return this.settings.climb ? climbAttackerTeam(this.settings.climb, this.seats[this.humanSeat]?.side ?? 0) : 'player';
+    }
+
+    /** the local seat's role in The Year */
+    private yearLocalRole(): YearRoundWinner {
+        return this.yearAttackerTeam() === 'player' ? 'attacker' : 'defender';
+    }
+
+    /**
+     * A computer seat. Rosters that travel (rooms, lobby matches) say so; a
+     * plain single-player match marks its opponent 'human' although the AI
+     * drives it, so there it is every seat but the local one.
+     */
+    private seatIsBot(seat: SeatId): boolean {
+        return this.settings.seats ? this.seats[seat]?.controller === 'ai' : seat !== this.humanSeat;
+    }
+
     /** board extras for the local player: not in tutorials, not as The Year's attacker */
     private humanMayBuyExtras(): boolean {
         if (isTutorial(this.settings)) return false;
-        return !this.settings.climb || climbAttackerTeam(this.settings.climb) !== 'player';
+        return !this.settings.climb || this.yearAttackerTeam() !== 'player';
     }
 
     private buyUnit(type: UnitType): boolean {
@@ -9524,12 +9551,14 @@ export class Game {
             // announce a verdict of its own.
             this.star.hub.broadcast({ type: 'starNextRound', round: this.round });
         }
-        if (this.settings.climb && !this.star && !this.watching) {
-            // Higher remaining HP wins the round (even if both went negative
+        if (this.settings.climb) {
+            // Higher remaining HP takes the round (even if both went negative
             // on a timeout). A tie goes to the defender: an attacker must
-            // outscore, a defender only has to hold.
-            const defending = this.settings.climb.humanRole === 'defender';
-            this.pendingClimbOutcome = (defending ? this.playerHp >= this.enemyHp : this.playerHp > this.enemyHp) ? 'win' : 'loss';
+            // outscore, a defender only has to hold. Every client (and a
+            // spectator) decides it from the same HP — labels mapped by side.
+            const attackerHp = this.yearAttackerTeam() === 'player' ? this.playerHp : this.enemyHp;
+            const defenderHp = this.yearAttackerTeam() === 'player' ? this.enemyHp : this.playerHp;
+            this.pendingYearRound = attackerHp > defenderHp ? 'attacker' : 'defender';
             this.hpDrawAfterMatchOver = false;
         } else if (
             this.tutorial?.armRoundOutcome(this.playerHp, this.enemyHp, !this.star && !this.watching)
@@ -9682,28 +9711,18 @@ export class Game {
     private proceedAfterHpDraw(): void {
         this.flushHpDrawDisplay();
         this.hpDrawSettleRemaining = 0;
-        let climbRoundWon = false;
+        let yearRoundDone = false;
         let tutorialRoundWon = false;
-        if (this.settings.climb && this.pendingClimbOutcome) {
-            const outcome = this.pendingClimbOutcome;
-            this.pendingClimbOutcome = null;
-            // Resume/retry hydrate already restores climbWins from the payload —
-            // re-counting prior round wins here would inflate the total and can
-            // even call presentMatchEnd (→ quitToMenu while hydrating).
-            if (this.hydrating) {
-                if (outcome === 'win') this.restoreClimbHp();
-            } else if (outcome === 'win') {
-                this.climbWins++;
-                if (this.climbWins >= this.settings.climb.roundsToWin) {
-                    this.presentMatchEnd('victory');
-                    return;
-                }
-                this.restoreClimbHp();
-                climbRoundWon = true;
-            } else {
-                this.presentMatchEnd('defeat');
+        if (this.settings.climb && this.pendingYearRound) {
+            // every round counts for whoever took it; the Year ends after its last round
+            this.yearRounds.push(this.pendingYearRound);
+            this.pendingYearRound = null;
+            this.restoreClimbHp();
+            if (this.yearRounds.length >= this.settings.climb.rounds) {
+                this.presentMatchEnd(yearWinner(this.yearRounds) === this.yearLocalRole() ? 'victory' : 'defeat');
                 return;
             }
+            yearRoundDone = true;
         } else if (this.tutorial?.hasPendingOutcome) {
             const result = this.tutorial.consumeRoundOutcome();
             if (result === 'victory' || result === 'defeat') {
@@ -9723,13 +9742,14 @@ export class Game {
         }
         this.placement.refaceAll();
         if (this.star && !this.hydrating) {
+            // a room doesn't wait on anyone's splash: it shows over the next build
+            if (yearRoundDone) this.hud.showYearRoundSplash(this.yearProgress(), () => undefined);
             this.startBuildPhase();
             return;
         }
-        // Campaign: brief Round n/total beat before the next build phase
-        if (climbRoundWon && this.settings.climb && !this.hydrating && !this.watching) {
-            const next = Math.min(this.climbWins + 1, this.settings.climb.roundsToWin);
-            this.hud.showClimbRoundSplash(next, this.settings.climb.roundsToWin, () => {
+        // The Year: who took the round, and the tally so far, before the next build phase
+        if (yearRoundDone && !this.hydrating) {
+            this.hud.showYearRoundSplash(this.yearProgress(), () => {
                 if (this.disposed || this.matchOver) return;
                 this.announceBattleEnd();
             });
@@ -9947,13 +9967,9 @@ export class Game {
                 result === 'victory' &&
                 !this.watching &&
                 (nextTutorialId(tutorialId(this.settings)) !== null || this.nextScenarioId() !== null);
-            const climbProgress = this.settings.climb
-                ? {
-                      n: Math.max(1, this.round),
-                      total: this.settings.climb.roundsToWin,
-                  }
-                : undefined;
-            this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress });
+            const climbProgress = this.settings.climb ? { n: Math.max(1, this.round), total: this.settings.climb.rounds } : undefined;
+            const year = this.settings.climb ? this.yearProgress() : undefined;
+            this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress, ...(year ? { year } : {}) });
         }
     }
 
@@ -9979,7 +9995,6 @@ export class Game {
             actions,
             side: this.side,
             names: { ...this.playerNames },
-            climbWins: this.climbWins,
         });
     }
 

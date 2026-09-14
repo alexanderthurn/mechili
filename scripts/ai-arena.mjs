@@ -87,7 +87,7 @@ function seedFrom(seed, label) {
 function newMatch(variantName, seed, brains) {
     const variant = VARIANTS[variantName];
     const settings = structuredClone(DEFAULT_SETTINGS);
-    settings.climb = { roundsToWin: 9, sideHp: 1, playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND, ...variant };
+    settings.climb = { rounds: 9, sideHp: 1, playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND, ...variant };
     const attackerTeam = variant.humanRole === 'defender' ? 'enemy' : 'player';
     const map = new BattleMap({ ...STANDARD_MAP });
     const seats = [

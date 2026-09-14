@@ -167,7 +167,7 @@ try {
             const { normalizeGameSettings, DEFAULT_SETTINGS, climbAttackerTeam } = await server.ssrLoadModule('/src/game/settings.ts');
             const climb = normalizeGameSettings({
                 ...DEFAULT_SETTINGS,
-                climb: { roundsToWin: 9, sideHp: 1, playerSupplyGrowthPerRound: 100, humanRole: 'defender', attackerCommander: 'cursed' },
+                climb: { rounds: 9, sideHp: 1, playerSupplyGrowthPerRound: 100, humanRole: 'defender', attackerCommander: 'cursed' },
             }).climb;
             if (climb?.attackerCommander !== 'cursed' || climbAttackerTeam(climb) !== 'enemy') {
                 ok = false;
