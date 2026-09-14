@@ -164,5 +164,7 @@
   "tutorial": "Hướng dẫn",
   "tutorial1": "1\nCơ bản",
   "tutorial2": "2\nThành trì",
-  "tutorial3": "3\nTháp"
+  "tutorial3": "3\nTháp",
+  "mpOpenCount": "{{n}} đang mở",
+  "mpRunningCount": "{{n}} đang chơi"
 }

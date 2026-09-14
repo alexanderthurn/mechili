@@ -164,5 +164,7 @@
   "tutorial": "Tutoriál",
   "tutorial1": "1\nZáklady",
   "tutorial2": "2\nPevnost",
-  "tutorial3": "3\nVěže"
+  "tutorial3": "3\nVěže",
+  "mpOpenCount": "Otevřené: {{n}}",
+  "mpRunningCount": "Probíhající: {{n}}"
 }

@@ -164,5 +164,7 @@
   "tutorial": "Opastus",
   "tutorial1": "1\nPerusteet",
   "tutorial2": "2\nLinnake",
-  "tutorial3": "3\nTornit"
+  "tutorial3": "3\nTornit",
+  "mpOpenCount": "Avoimia: {{n}}",
+  "mpRunningCount": "Käynnissä: {{n}}"
 }

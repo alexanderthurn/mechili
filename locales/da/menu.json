@@ -164,5 +164,7 @@
   "tutorial": "Vejledning",
   "tutorial1": "1\nGrundlag",
   "tutorial2": "2\nFæstning",
-  "tutorial3": "3\nTårne"
+  "tutorial3": "3\nTårne",
+  "mpOpenCount": "{{n}} åbne",
+  "mpRunningCount": "{{n}} i gang"
 }

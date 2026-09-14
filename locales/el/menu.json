@@ -164,5 +164,7 @@
   "tutorial": "Οδηγός",
   "tutorial1": "1\nΒασικά",
   "tutorial2": "2\nΟχυρό",
-  "tutorial3": "3\nΠύργοι"
+  "tutorial3": "3\nΠύργοι",
+  "mpOpenCount": "Ανοιχτά: {{n}}",
+  "mpRunningCount": "Σε εξέλιξη: {{n}}"
 }

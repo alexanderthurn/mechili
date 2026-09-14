@@ -165,5 +165,7 @@
   "scopeLanRoom": "LAN room",
   "scopeSteamLobby": "Steam lobby",
   "scopeRoom": "room",
-  "scopeLanRoomNamed": "LAN room \"{{name}}\""
+  "scopeLanRoomNamed": "LAN room \"{{name}}\"",
+  "mpOpenCount": "{{n}} open",
+  "mpRunningCount": "{{n}} running"
 }

@@ -164,5 +164,7 @@
   "tutorial": "チュートリアル",
   "tutorial1": "1\n基本",
   "tutorial2": "2\n要塞",
-  "tutorial3": "3\n塔"
+  "tutorial3": "3\n塔",
+  "mpOpenCount": "募集中 {{n}}",
+  "mpRunningCount": "対戦中 {{n}}"
 }

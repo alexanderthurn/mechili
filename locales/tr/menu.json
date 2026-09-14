@@ -164,5 +164,7 @@
   "tutorial": "Eğitim",
   "tutorial1": "1\nTemeller",
   "tutorial2": "2\nKale",
-  "tutorial3": "3\nKuleler"
+  "tutorial3": "3\nKuleler",
+  "mpOpenCount": "{{n}} açık",
+  "mpRunningCount": "{{n}} süren"
 }

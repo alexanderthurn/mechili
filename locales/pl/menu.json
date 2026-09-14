@@ -164,5 +164,7 @@
   "tutorial": "Samouczek",
   "tutorial1": "1\nPodstawy",
   "tutorial2": "2\nTwierdza",
-  "tutorial3": "3\nWieże"
+  "tutorial3": "3\nWieże",
+  "mpOpenCount": "Otwarte: {{n}}",
+  "mpRunningCount": "Trwające: {{n}}"
 }

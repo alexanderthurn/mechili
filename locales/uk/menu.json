@@ -164,5 +164,7 @@
   "tutorial": "Навчання",
   "tutorial1": "1\nОснови",
   "tutorial2": "2\nТвердиня",
-  "tutorial3": "3\nВежі"
+  "tutorial3": "3\nВежі",
+  "mpOpenCount": "Відкрито: {{n}}",
+  "mpRunningCount": "Триває: {{n}}"
 }

@@ -164,5 +164,7 @@
   "tutorial": "Обучение",
   "tutorial1": "1\nОснови",
   "tutorial2": "2\nКрепост",
-  "tutorial3": "3\nКули"
+  "tutorial3": "3\nКули",
+  "mpOpenCount": "Отворени: {{n}}",
+  "mpRunningCount": "В ход: {{n}}"
 }

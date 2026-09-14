@@ -164,5 +164,7 @@
   "tutorial": "Tutorial",
   "tutorial1": "1\nDasar",
   "tutorial2": "2\nKubu",
-  "tutorial3": "3\nMenara"
+  "tutorial3": "3\nMenara",
+  "mpOpenCount": "{{n}} terbuka",
+  "mpRunningCount": "{{n}} berlangsung"
 }

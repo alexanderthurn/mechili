@@ -164,5 +164,7 @@
   "tutorial": "Bemutató",
   "tutorial1": "1\nAlapok",
   "tutorial2": "2\nErőd",
-  "tutorial3": "3\nTornyok"
+  "tutorial3": "3\nTornyok",
+  "mpOpenCount": "{{n}} nyitott",
+  "mpRunningCount": "{{n}} folyamatban"
 }

@@ -164,5 +164,7 @@
   "tutorial": "Tutorial",
   "tutorial1": "1\nBásico",
   "tutorial2": "2\nFortaleza",
-  "tutorial3": "3\nTorres"
+  "tutorial3": "3\nTorres",
+  "mpOpenCount": "{{n}} abertas",
+  "mpRunningCount": "{{n}} em andamento"
 }

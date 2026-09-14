@@ -1383,6 +1383,28 @@ ${chatFloatStyles(u, pc, ec)}
     z-index: 30;
 }
 .mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
+.mechili-menu .m-mp-count {
+    display: inline-flex;
+    gap: 6px;
+    margin-inline-start: auto;
+    padding-inline-start: 10px;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    text-transform: none;
+}
+.mechili-menu .m-mp-count[hidden] { display: none; }
+.mechili-menu .m-mp-count > span {
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid ${u.border};
+    background: rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+}
+.mechili-menu .m-mp-open { color: ${u.hpBar}; border-color: currentColor; }
+.mechili-menu .m-mp-open::before { content: '● '; }
+.mechili-menu .m-mp-running { color: ${u.brassLight}; }
+.mechili-menu .m-mp-running::before { content: '▶ '; font-size: 0.85em; }
 .mechili-menu .m-rooms {
     width: 100%;
     display: flex;

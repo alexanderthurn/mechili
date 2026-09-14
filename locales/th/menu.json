@@ -164,5 +164,7 @@
   "tutorial": "บทสอน",
   "tutorial1": "1\nพื้นฐาน",
   "tutorial2": "2\nป้อมหลัก",
-  "tutorial3": "3\nหอคอย"
+  "tutorial3": "3\nหอคอย",
+  "mpOpenCount": "เปิดอยู่ {{n}}",
+  "mpRunningCount": "กำลังเล่น {{n}}"
 }

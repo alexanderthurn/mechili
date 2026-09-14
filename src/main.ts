@@ -1032,7 +1032,7 @@ menu.innerHTML = `
     <div class="m-view m-main is-active" data-view="main">
         <button class="m-btn m-primary" data-mode="tutorial">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial"></span></button>
         <button class="m-btn" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:singlePlayer"></span></button>
-        <button class="m-btn" data-mode="multiplayer">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n="settings:multiplayer"></span></button>
+        <button class="m-btn" data-mode="multiplayer">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n="settings:multiplayer"></span><span class="m-mp-count" hidden></span></button>
     </div>
     <div class="m-view m-main m-mp" data-view="mp">
         <div class="m-spmode-title" data-i18n="settings:multiplayer"></div>
@@ -2966,6 +2966,24 @@ onLanguageChange(() => {
  *  handle (peer server, lobby id) that a dataset attribute cannot carry. */
 const roomAdsByKey = new Map<string, RoomAd>();
 
+const mpCountEl = menu.querySelector<HTMLSpanElement>('.m-mp-count')!;
+
+/** the main menu's Multiplayer button: how many games are open to join and running to watch */
+function setMultiplayerCount(ads: readonly { spectate?: unknown }[]): void {
+    const running = ads.filter((ad) => !!ad.spectate).length;
+    const open = ads.length - running;
+    mpCountEl.hidden = ads.length === 0;
+    mpCountEl.replaceChildren();
+    const pill = (className: string, text: string) => {
+        const el = document.createElement('span');
+        el.className = className;
+        el.textContent = text;
+        mpCountEl.appendChild(el);
+    };
+    if (open > 0) pill('m-mp-open', t('menu:mpOpenCount', { defaultValue: '{{n}} open', n: open }));
+    if (running > 0) pill('m-mp-running', t('menu:mpRunningCount', { defaultValue: '{{n}} running', n: running }));
+}
+
 async function refreshRoomList(): Promise<void> {
     let transport: MultiplayerTransport | null = null;
     let foundRooms = false;
@@ -2974,6 +2992,7 @@ async function refreshRoomList(): Promise<void> {
         const scope = roomListScopeLabel(transport);
         setRoomsListHeading(scope);
         if (!transport) {
+            setMultiplayerCount([]);
             roomListEl.className = 'm-room-list empty';
             roomListEl.dataset.emptyKind = 'none';
             roomListEl.textContent = t('menu:noOpenGames', { scope });
@@ -2983,6 +3002,7 @@ async function refreshRoomList(): Promise<void> {
 
         const ads = await listRoomAds(transport);
         foundRooms = ads.length > 0;
+        setMultiplayerCount(ads);
         if (!foundRooms) {
             roomListEl.className = 'm-room-list empty';
             roomListEl.dataset.emptyKind = 'none';
@@ -3027,6 +3047,7 @@ async function refreshRoomList(): Promise<void> {
             }),
         );
     } catch {
+        setMultiplayerCount([]);
         const scope = roomListScopeLabel(transport);
         setRoomsListHeading(scope);
         roomListEl.className = 'm-room-list empty';

@@ -164,5 +164,7 @@
   "tutorial": "Tutorial",
   "tutorial1": "1\nBazele",
   "tutorial2": "2\nBastion",
-  "tutorial3": "3\nTurnuri"
+  "tutorial3": "3\nTurnuri",
+  "mpOpenCount": "Deschise: {{n}}",
+  "mpRunningCount": "În desfășurare: {{n}}"
 }
