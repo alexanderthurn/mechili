@@ -105,7 +105,7 @@ export function currentContentHash(): string {
 }
 
 /** The content hash of a match playing `level` (undefined = base game), whatever is active right now. */
-export function contentHashFor(level: LevelRef | undefined): string {
+export function contentHashFor(level: LevelRef | null | undefined): string {
     return level ? `${BASE_CONTENT_HASH}+${level.hash}` : BASE_CONTENT_HASH;
 }
 

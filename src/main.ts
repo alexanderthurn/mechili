@@ -333,7 +333,8 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
     // Custom Game rooms play the base game (scenarios are single player: Single Player → Editor)
-    settings.level = undefined;
+    // deleted, not set to undefined: the room's transport turns undefined into null
+    delete settings.level;
 }
 
 // dev override: tweak match settings from the URL, e.g. ?build=20&nocards

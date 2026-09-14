@@ -151,8 +151,8 @@ export function knownLevels(): LevelRef[] {
  * scenario cache (a previous session loaded or received it). False when this
  * client has never had that content.
  */
-export async function ensureLevel(ref: LevelRef | undefined): Promise<boolean> {
-    if (ref === undefined || known.has(ref.hash)) return true;
+export async function ensureLevel(ref: LevelRef | null | undefined): Promise<boolean> {
+    if (ref == null || known.has(ref.hash)) return true;
     const cached = await cachedLevel(ref.hash);
     if (!cached) return false;
     try {
@@ -165,12 +165,12 @@ export async function ensureLevel(ref: LevelRef | undefined): Promise<boolean> {
 }
 
 /** Can a match naming `ref` start right now without loading anything (undefined = base game, always)? */
-export function isLevelAvailable(ref: LevelRef | undefined): boolean {
-    return ref === undefined || known.has(ref.hash);
+export function isLevelAvailable(ref: LevelRef | null | undefined): boolean {
+    return ref == null || known.has(ref.hash);
 }
 
 /** Is `ref` exactly the level that is active (undefined = the base game)? */
-export function isLevelActive(ref: LevelRef | undefined): boolean {
+export function isLevelActive(ref: LevelRef | null | undefined): boolean {
     return (active.overlay?.hash ?? undefined) === ref?.hash;
 }
 
@@ -179,8 +179,8 @@ export function isLevelActive(ref: LevelRef | undefined): boolean {
  * its files to load — from the scenario cache if this session hasn't loaded
  * it. Throws when this client doesn't have that content.
  */
-export async function prepareLevel(ref: LevelRef | undefined): Promise<ActiveLevel> {
-    if (ref === undefined) return switchLevel(null);
+export async function prepareLevel(ref: LevelRef | null | undefined): Promise<ActiveLevel> {
+    if (ref == null) return switchLevel(null);
     await ensureLevel(ref);
     const overlay = known.get(ref.hash);
     if (!overlay) throw new Error(`[level] scenario "${ref.id}" (${ref.hash.slice(0, 8)}) is not loaded`);

@@ -648,6 +648,8 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
     return {
         ...DEFAULT_SETTINGS,
         ...rest,
+        // a match that arrived over a room connection may carry null for "no level"
+        ...(rest.level == null ? { level: undefined } : {}),
         economy: {
             ...DEFAULT_SETTINGS.economy,
             ...settings.economy,
