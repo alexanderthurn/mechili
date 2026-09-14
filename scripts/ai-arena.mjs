@@ -666,15 +666,16 @@ async function tune(cachePath, iterations) {
         depthScale: [0, 8],
         structureExposure: [0, 1],
         engagedDensity: [0, 3],
-        areaReach: [0.2, 3],
+        areaReach: [0.2, 6],
         convertValue: [0.5, 4],
         shieldPass: [0.2, 1],
         deadZoneKeep: [0.1, 1],
-        corrode: [1, 1.6],
+        corrode: [1, 2.5],
         spawnShare: [0, 1.5],
         closingShare: [0, 1],
         spreadMiss: [0, 0.4],
         overkill: [1, 3],
+        screen: [0, 0.5],
     };
     let best = { ...MODEL };
     let bestEval = evaluate();
@@ -703,6 +704,17 @@ async function tune(cachePath, iterations) {
 }
 
 const planTimes = [];
+{
+    // --komturPrice 1.3 — scale the Komtur shop's prices (and unlocks) to try balance
+    const mult = Number(arg('komturPrice', '1'));
+    if (mult !== 1) {
+        for (const id of T.shopFor(T.commander('komtur'))) {
+            const type = T.byId(id);
+            type.cost = Math.round(type.cost * mult);
+            if (type.unlockCost) type.unlockCost = Math.round(type.unlockCost * mult);
+        }
+    }
+}
 const aiPlanner = {};
 {
     // --planner techWeight=0,counterWeight=0.5 — try planner choices without editing code

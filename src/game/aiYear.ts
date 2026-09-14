@@ -138,6 +138,8 @@ export const MODEL = {
     closingShare: 0.825,
     /** aim spread → hit share: 1 / (1 + spread × this) */
     spreadMiss: 0.001,
+    /** screening: a group this many depth tiles behind another draws e^-(tiles × this) as much fire */
+    screen: 0,
     /** overkill: a hit counts up to this many target HPs (spread damage between members) */
     overkill: 2.164,
 };
@@ -167,6 +169,10 @@ export const PLANNER = {
     concentrate: 0,
     /** attackers: the focus is the enemy Stronghold (its fall takes the army with it) rather than their army's center */
     focusKeep: 0,
+    /** weight of the HP each side keeps next to the round's outcome */
+    hpWeight: 1,
+    /** 1 = score plans by The Year's round rule (surviving value, tie to the defender); 0 = by HP margin */
+    ruleScore: 0,
 };
 
 function levelMult(level: number, leveling: LevelingSettings): number {
@@ -358,7 +364,8 @@ export function estimateBattle(mineIn: readonly BattleGroup[], theirsIn: readonl
                         const closing = a.speed + (b.structure ? 0 : b.speed * MODEL.closingShare);
                         const start = gap <= reach ? 0 : closing > 0 ? (gap - reach) / closing : Infinity;
                         if (t >= start) {
-                            w = hb;
+                            // the closest foes draw the fire: deeper groups are screened
+                            w = hb * Math.exp(-b.depth * MODEL.screen);
                             if (b.structure) w *= foeMobile / foeStart > 0.25 ? MODEL.structureExposure : 1;
                         }
                     }
@@ -586,7 +593,8 @@ export class YearBrain {
                 effects: this.effectsOf(seat),
                 lifeline: false,
             });
-            const score = -estimateBattle(army, [...theirs, add]).margin;
+            // their best answer: the one that leaves me the worst round
+            const score = -this.roundScore(estimateBattle(army, [...theirs, add]));
             if (score > bestScore) {
                 bestScore = score;
                 best = [add];
@@ -595,10 +603,23 @@ export class YearBrain {
         return best;
     }
 
+    /**
+     * A round of The Year as the rules decide it: each side's surviving units
+     * take their value off the other's HP, higher HP wins, a tie (both wiped
+     * included) goes to the defender. Scored -1..1 with the size of the lead.
+     */
+    private roundScore(est: BattleEstimate): number {
+        if (this.p.ruleScore <= 0) return est.margin;
+        const lead = est.damageToThem - est.damageToMe;
+        const wins = lead > 0 || (lead === 0 && this.role === 'defender');
+        const scale = Math.max(20, est.damageToThem + est.damageToMe);
+        return (wins ? 0.45 : -0.45) + 0.35 * Math.tanh(lead / scale) + 0.2 * (est.mine - est.theirs) * this.p.hpWeight;
+    }
+
     private score(army: readonly BattleGroup[], theirs: readonly BattleGroup[], counter: readonly BattleGroup[]): number {
-        const now = estimateBattle(army, theirs).margin;
+        const now = this.roundScore(estimateBattle(army, theirs));
         if (counter.length === 0) return now;
-        const answered = estimateBattle(army, [...theirs, ...counter]).margin;
+        const answered = this.roundScore(estimateBattle(army, [...theirs, ...counter]));
         return (1 - this.p.counterWeight) * now + this.p.counterWeight * answered;
     }
 
@@ -747,7 +768,7 @@ export class YearBrain {
 
     private planScore(base: readonly BattleGroup[], theirs: readonly BattleGroup[], plan: Plan): number {
         const army = [...base, ...plan.packs.map((p) => this.plannedGroup(p.type, p.depth, new Set(plan.techs.filter((t) => t.type === p.type).map((t) => t.techId))))];
-        return estimateBattle(army, theirs).margin;
+        return this.roundScore(estimateBattle(army, theirs));
     }
 
     /** a kept army levels whatever it can afford first: a level doubles a pack for half its price */
@@ -777,7 +798,7 @@ export class YearBrain {
             let bestScore = -Infinity;
             for (const type of types) {
                 const g = this.plannedGroup(type, 4);
-                const s = estimateBattle([...board.mine, g], board.theirs).margin / Math.max(1, this.buyCost(type));
+                const s = this.roundScore(estimateBattle([...board.mine, g], board.theirs)) / Math.max(1, this.buyCost(type));
                 if (s > bestScore) {
                     bestScore = s;
                     best = type;

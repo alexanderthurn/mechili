@@ -139,6 +139,9 @@ export class AiOpponent implements Opponent {
                 this.ctx.plannerOverrides,
             );
             brain.playRound({ keep: !this.ctx.climb, slots: this.ctx.deployCap?.() ?? 40 });
+            // what the planner leaves alone: runes in the inventory, spells in the strip
+            this.applyItems(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
+            this.placeTactics(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
         } else if (this.ctx.climb) {
             this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
             this.runBuildActions({
