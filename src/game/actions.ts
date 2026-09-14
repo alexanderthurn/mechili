@@ -771,7 +771,9 @@ export class ActionDispatcher {
                 const type = this.ctx.types.byId(action.typeId);
                 // structures aren't buyable — except the board extras
                 if (!type || (type.structure && !type.extra)) return false;
-                if (!isPlayerBuyable(type)) return false;
+                // army units come from the seat's shop (its commander's own, else the normal one)
+                const shop = this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[seat] ?? ''));
+                if (type.extra ? !isPlayerBuyable(type) : !shop.includes(type.id)) return false;
                 // The Year: the attacking side cannot buy board extras (Ward Stone, Fire Bolt, …)
                 if (type.extra && this.ctx.climbAttacker === action.team) return false;
                 if (
@@ -1400,11 +1402,9 @@ export class ActionDispatcher {
                 if (action.team === 'player' && this.ctx.playerUnlockable && !this.ctx.playerUnlockable.includes(action.typeId)) {
                     return false;
                 }
-                const cost = unlockCostFor(
-                    action.typeId,
-                    this.ctx.types.commander(this.ctx.commander[seat] ?? ''),
-                    this.ctx.types,
-                );
+                const unlockCommander = this.ctx.types.commander(this.ctx.commander[seat] ?? '');
+                if (!this.ctx.types.shopFor(unlockCommander).includes(action.typeId)) return false;
+                const cost = unlockCostFor(action.typeId, unlockCommander, this.ctx.types);
                 if (!Number.isFinite(cost)) return false;
                 if (cost > 0 && !economy.spend(seat, cost)) return false;
                 this.ctx.unlockedUnits[seat]!.push(action.typeId);

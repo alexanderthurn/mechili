@@ -6,6 +6,7 @@
     "id": "bat",
     "name": "Bat",
     "cost": 100,
+    "unlockCost": 0,
     "hpWithdraw": 2,
     "buyable": false,
     "horde": true,

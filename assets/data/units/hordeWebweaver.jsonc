@@ -5,7 +5,10 @@
 {
     "id": "hordeWebweaver",
     "name": "Webweaver",
-    "cost": 200,
+    "cost": 400, // bought by The Komtur's side (was 200 as a wave value)
+    "unlockCost": 50,
+    "levelBasis": 200, // waves level in battle as before the price change
+    "xpValue": 25.0, // kill XP as before the price change
     "hpWithdraw": 12,
     "buyable": false,
     "horde": true,

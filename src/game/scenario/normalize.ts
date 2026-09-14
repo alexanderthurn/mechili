@@ -142,7 +142,7 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
         }
     }
     if (rules.unlockable) {
-        const known = rules.unlockable.filter((id) => types.shopUnitIds.includes(id));
+        const known = rules.unlockable.filter((id) => types.allShopUnitIds.includes(id));
         for (const id of rules.unlockable) {
             if (!known.includes(id)) warn(`rules.unlockable: "${id}" is not a buyable unit — dropped`);
         }
@@ -152,7 +152,7 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
         warn('rules.unlockedUnits: no commander and no shop units — the player starts with an empty shop and can only unlock');
     }
     if (rules.unlockedUnits) {
-        const known = rules.unlockedUnits.filter((id) => types.shopUnitIds.includes(id));
+        const known = rules.unlockedUnits.filter((id) => types.allShopUnitIds.includes(id));
         for (const id of rules.unlockedUnits) {
             if (!known.includes(id)) warn(`rules.unlockedUnits: "${id}" is not a buyable unit — dropped`);
         }

@@ -196,15 +196,17 @@ function applyHordeMode(settings: GameSettings): void {
  * match economy; set {@link CLIMB_SUPPLY_GROWTH_PER_ROUND} in settings.ts
  * to override while playtesting.
  */
-function applyClimbMode(settings: GameSettings, role: ClimbRole = 'attacker'): void {
+function applyClimbMode(settings: GameSettings, variant: ClimbVariant = { role: 'attacker' }): void {
     settings.climb = {
         roundsToWin: CLIMB_ROUNDS_TO_WIN,
         sideHp: CLIMB_SIDE_HP,
         playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
-        ...(role === 'defender' ? { humanRole: role } : {}),
+        ...(variant.role === 'defender' ? { humanRole: variant.role } : {}),
+        ...(variant.komtur ? { attackerCommander: 'komtur' } : {}),
     };
-    // Campaign always fields The Komtur at Medium (not Off / not the Low SP-horde default).
-    settings.hordePreset = 'medium';
+    // The Year fields The Komtur's waves at Medium (not Off / not the Low SP-horde default) —
+    // unless the Komtur is the attacker himself: then there is no third party
+    settings.hordePreset = variant.komtur ? 'off' : 'medium';
     if (CLIMB_SUPPLY_GROWTH_PER_ROUND != null) {
         settings.economy = {
             ...settings.economy,
@@ -1049,6 +1051,8 @@ menu.innerHTML = `
         <div class="m-toggle-row m-toggle-grid">
             <button class="m-btn m-toggle-card" data-mode="year-attack">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:yearAttack"></span></button>
             <button class="m-btn m-toggle-card" data-mode="year-defend">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:yearDefend"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="year-komtur-attack">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:yearKomturAttack"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="year-komtur-defend">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:yearKomturDefend"></span></button>
         </div>
         <button class="m-btn m-small" data-mode="sp-year-back" data-i18n="menu:back"></button>
     </div>
@@ -2980,7 +2984,9 @@ function wireGameMenuReturn(game: Game): void {
  * brighter / wrong. Await prewarm so we don't race a second renderer onto
  * the new canvas.
  */
-type LocalMatchOpts = { climb?: ClimbRole; tutorial?: number };
+/** a way to play The Year: your role, and whether the attacker is The Komtur */
+type ClimbVariant = { role: ClimbRole; komtur?: boolean };
+type LocalMatchOpts = { climb?: ClimbVariant; tutorial?: number };
 
 /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
 function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
@@ -5510,6 +5516,8 @@ menu.addEventListener('click', (e) => {
             mode === 'sp-campaign' ||
             mode === 'year-attack' ||
             mode === 'year-defend' ||
+            mode === 'year-komtur-attack' ||
+            mode === 'year-komtur-defend' ||
             mode === 'sp-practice' ||
             mode === 'sp-editor' ||
             mode === 'sp-campaigns' ||
@@ -5555,11 +5563,19 @@ menu.addEventListener('click', (e) => {
             break;
         case 'year-attack':
             showMenuView('main');
-            startLocalMatch({ climb: 'attacker' });
+            startLocalMatch({ climb: { role: 'attacker' } });
             break;
         case 'year-defend':
             showMenuView('main');
-            startLocalMatch({ climb: 'defender' });
+            startLocalMatch({ climb: { role: 'defender' } });
+            break;
+        case 'year-komtur-attack':
+            showMenuView('main');
+            startLocalMatch({ climb: { role: 'attacker', komtur: true } });
+            break;
+        case 'year-komtur-defend':
+            showMenuView('main');
+            startLocalMatch({ climb: { role: 'defender', komtur: true } });
             break;
         case 'sp-year-back':
             showMenuView('sp');

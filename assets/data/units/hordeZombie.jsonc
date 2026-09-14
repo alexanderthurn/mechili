@@ -5,7 +5,9 @@
 {
     "id": "hordeZombie", // keep legacy id for hydrate/replay
     "name": "Black Brood",
-    "cost": 80,
+    "cost": 200, // bought by The Komtur's side (was 80 as a wave value)
+    "unlockCost": 0,
+    "levelBasis": 80, // waves level in battle as before the price change
     "hpWithdraw": 2,
     "buyable": false,
     "horde": true,

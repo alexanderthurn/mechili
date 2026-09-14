@@ -145,8 +145,27 @@ try {
             ok = false;
             console.error('FAIL commander effects missing from data');
         }
+        // a commander's own shop (The Komtur): its side buys and unlocks only from it
+        {
+            const komtur = T.commander('komtur');
+            const shop = T.shopFor(komtur);
+            const normal = T.shopFor(air);
+            if (
+                !komtur ||
+                T.commanders.some((c) => c.id === 'komtur') ||
+                !shop.includes('hordeKomtur') ||
+                shop.some((id) => T.shopUnitIds.includes(id)) ||
+                normal.includes('hordeKomtur') ||
+                !T.allShopUnitIds.includes('hordeSpinne') ||
+                cards.starterUnlockedUnits(komtur, T).join() !== 'hordeZombie,bat' ||
+                !Number.isFinite(cards.unlockCostFor('hordeKomtur', komtur, T))
+            ) {
+                ok = false;
+                console.error(`FAIL komtur shop: ${JSON.stringify({ shop, starter: komtur && cards.starterUnlockedUnits(komtur, T) })}`);
+            }
+        }
         if (!ok) failed = true;
-        else console.log(`ok   commanders: ${T.commanders.length} offered + ${hidden.length} tutorial; ${T.roundCards.length} round cards; spell ids exist`);
+        else console.log(`ok   commanders: ${T.commanders.length} offered + ${hidden.length} hidden; ${T.roundCards.length} round cards; spell ids exist; commander shops (Komtur)`);
     }
 
     // ---- tutorials: the units, footprints, talent and commanders the lessons are scripted around

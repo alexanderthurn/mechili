@@ -4,7 +4,10 @@
 {
     "id": "hordeFarmer",
     "name": "Dead Farmer",
-    "cost": 175,
+    "cost": 400, // bought by The Komtur's side (was 175 as a wave value)
+    "unlockCost": 50,
+    "levelBasis": 175, // waves level in battle as before the price change
+    "xpValue": 14.5833, // kill XP as before the price change
     "hpWithdraw": 7,
     "buyable": false,
     "horde": true,

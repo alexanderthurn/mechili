@@ -61,6 +61,11 @@ export interface ClimbSettings {
      * a tied round.
      */
     humanRole?: ClimbRole;
+    /**
+     * The attacking side's commander, handed to it instead of an offer — e.g.
+     * `komtur`, whose shop is the forest roster. Omit = the attacker picks as usual.
+     */
+    attackerCommander?: string;
 }
 
 export type ClimbRole = 'attacker' | 'defender';

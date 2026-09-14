@@ -198,13 +198,19 @@ export class AiOpponent implements Opponent {
         }
     }
 
+    /** the unit types this seat's shop holds (its commander's own shop, else the normal one) */
+    private shop(): readonly string[] {
+        return this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[this.seat] ?? ''));
+    }
+
     /** unlocked, buyable army types this seat can afford right now */
     private affordableArmyTypes(pred?: (t: UnitType) => boolean): UnitType[] {
         const { economy, unlockedUnits } = this.ctx;
+        const shop = this.shop();
         return this.ctx.types.roster.filter(
             (t) =>
                 !t.extra &&
-                isPlayerBuyable(t) &&
+                shop.includes(t.id) &&
                 unlockedUnits[this.seat]!.includes(t.id) &&
                 economy.canAfford(this.seat, t) &&
                 (!pred || pred(t)),
@@ -256,7 +262,7 @@ export class AiOpponent implements Opponent {
         const unlocked = unlockedUnits[this.seat]!;
 
         const allCheap: UnitType[] = [];
-        for (const id of this.ctx.types.shopUnitIds) {
+        for (const id of this.shop()) {
             const t = this.ctx.types.byId(id);
             if (t && t.cost < CHEAP_UNIT_COST) allCheap.push(t);
         }

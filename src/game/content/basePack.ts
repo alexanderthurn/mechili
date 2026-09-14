@@ -289,6 +289,12 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
             for (const id of card.items ?? []) {
                 if (!(id in runeCatalog)) errors.push(`${where}: names rune "${id}", which does not exist`);
             }
+            for (const id of 'shop' in card ? (card.shop ?? []) : []) {
+                const type = roster.find((t) => t.id === id);
+                if (!type) errors.push(`${where}: shop names unit "${id}", which is not in the roster`);
+                else if (type.structure || type.extra) errors.push(`${where}: shop names "${id}", which is not an army unit`);
+                else if (type.unlockCost === undefined) errors.push(`${where}: shop unit "${id}" has no unlockCost`);
+            }
             const spellIds = [...(card.tactics ?? []), ...('forgeSpells' in card ? card.forgeSpells : [])];
             for (const id of spellIds) {
                 if (!(id in spellCatalog)) errors.push(`${where}: names spell "${id}", which does not exist`);

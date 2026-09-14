@@ -395,6 +395,14 @@ export class Hud {
     private shopUnlockAvailable = false;
     /** the local commander pick has happened (the unlock slot may show) */
     private shopCommanderChosen = false;
+    /** the local seat's shop (its commander's own, else null = the normal shop) — what the unlock picker offers */
+    private shopPool: readonly string[] | null = null;
+
+    setShopPool(pool: readonly string[]): void {
+        if (this.shopPool === pool) return;
+        this.shopPool = pool;
+        this.lastShopKey = '';
+    }
     private shopBalance = 0;
     private unitIcons = new Map<string, string>();
     /** talent rows per unit type, pre-encoded for `data-trows` — kept because
@@ -723,7 +731,8 @@ export class Hud {
         // colors for this match, never tear down so orphans stay laid out.
         ensureHudStyleSheet();
 
-        const shopUnits = this.types.roster.filter((t) => !t.extra && isPlayerBuyable(t));
+        // a tile for every unit any shop can hold — the seat's own shop decides which show
+        const shopUnits = this.types.roster.filter((t) => !t.extra && this.types.allShopUnitIds.includes(t.id));
         const extraTypes = this.boardExtrasAllowed
             ? this.types.roster.filter((t) => t.extra && isPlayerBuyable(t))
             : [];
@@ -2624,14 +2633,14 @@ export class Hud {
                 tile.style.display = '';
                 this.shopGrid.appendChild(tile);
             }
-            for (const id of this.types.shopUnitIds) {
+            for (const id of this.types.allShopUnitIds) {
                 if (unlocked.includes(id)) continue;
                 const tile = this.shopUnitTiles.get(id);
                 if (tile) tile.style.display = 'none';
             }
             this.shopGrid.appendChild(this.unlockTile);
         } else {
-            for (const id of this.types.shopUnitIds) {
+            for (const id of this.types.allShopUnitIds) {
                 const tile = this.shopUnitTiles.get(id);
                 if (tile) tile.style.display = unlocked.includes(id) ? '' : 'none';
             }
@@ -2669,7 +2678,7 @@ export class Hud {
 
     /** units the round unlock may still add: not yet unlocked, and allowed by the match rules */
     private unlockableIds(): string[] {
-        return this.types.shopUnitIds.filter(
+        return (this.shopPool ?? this.types.shopUnitIds).filter(
             (id) => !this.shopUnlocked.includes(id) && (this.unlockable === null || this.unlockable.includes(id)),
         );
     }

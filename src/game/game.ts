@@ -2292,12 +2292,12 @@ export class Game {
             this.deferredStarterOffer =
                 isTutorial(this.settings) || this.rules.commander.mode !== 'pick'
                     ? null
-                    : this.draw(this.types.commanders, 4, this.rngCards.player);
+                    : this.starterOfferFor('player', this.rngCards.player);
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         } else {
             if (this.tutorial) this.tutorial.applyStarters();
             else if (this.rules.commander.mode !== 'pick') this.applyRuleCommanders();
-            else this.showStarterPick(this.draw(this.types.commanders, 4, this.rngCards.player));
+            else this.showStarterPick(this.starterOfferFor('player', this.rngCards.player));
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         }
         if (this.editorMode) this.startScenarioEditing(wrapper, surface);
@@ -4450,7 +4450,7 @@ export class Game {
             this.playerStarterOffer = null;
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.broadcast({ type: 'starter', cardId, side: this.localSeat() });
-            this.opponent.chooseStarter(this.draw(this.types.commanders, 4, this.rngCards.enemy));
+            this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
             this.triggerExtraStarters('player');
             this.triggerExtraStarters('enemy');
             this.afterStarterPick();
@@ -4467,8 +4467,20 @@ export class Game {
     private triggerExtraStarters(team: Team): void {
         for (const e of this.extraAis) {
             if (e.team !== team) continue;
-            e.ai.chooseStarter(this.draw(this.types.commanders, 4, e.rng));
+            e.ai.chooseStarter(this.starterOfferFor(team, e.rng));
         }
+    }
+
+    /**
+     * The commander cards a side is offered at round 0: a mode may hand a side
+     * its commander (The Year's Komtur attacker) — then it is the only card and
+     * nothing is drawn from that side's stream; otherwise four at random.
+     */
+    private starterOfferFor(team: Team, rng: () => number): StartCard[] {
+        const climb = this.settings.climb;
+        const forced =
+            climb?.attackerCommander && climbAttackerTeam(climb) === team ? this.types.commander(climb.attackerCommander) : null;
+        return forced ? [forced] : this.draw(this.types.commanders, 4, rng);
     }
 
     /** timer ran out before the player picked a specialist — choose one at random.
@@ -4485,7 +4497,7 @@ export class Game {
         this.playerStarterOffer = null;
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
         this.broadcast({ type: 'starter', cardId: pick.id, side: this.localSeat() });
-        this.opponent.chooseStarter(this.draw(this.types.commanders, 4, this.rngCards.enemy));
+        this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
         this.triggerExtraStarters('player');
         this.triggerExtraStarters('enemy');
         this.afterStarterPick();
@@ -6128,8 +6140,8 @@ export class Game {
                 unitId: (e.action as { unitId?: number }).unitId,
             })),
         });
-        const starterOffer = this.draw(this.types.commanders, 4, this.rngCards.player);
-        this.draw(this.types.commanders, 4, this.rngCards.enemy);
+        const starterOffer = this.starterOfferFor('player', this.rngCards.player);
+        this.starterOfferFor('enemy', this.rngCards.enemy);
 
         this.replayLogFrom(log, liveBattleElapsed);
         this.hydrating = false;
@@ -8608,6 +8620,7 @@ export class Game {
     }
 
     private refreshShopHud(): void {
+        this.hud.setShopPool(this.types.shopFor(this.starterCardOfSeat(this.humanSeat)));
         this.hud.updateShop(
             this.unlockedUnits[this.humanSeat]!,
             !this.unlockUsedThisRound[this.humanSeat],
