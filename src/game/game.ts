@@ -1909,7 +1909,7 @@ export class Game {
         // the whole match, so once here is enough.
         this.hud.setUnitTalents(
             new Map(
-                this.types.roster.filter((t) => !t.extra && isPlayerBuyable(t)).map((t) => [
+                this.types.roster.filter((t) => !t.extra && (isPlayerBuyable(t) || this.types.allShopUnitIds.includes(t.id))).map((t) => [
                     t.id,
                     techsForUnit(t, this.types, this.loadoutOf(this.humanSeat)).map((tech) => ({
                         icon: techIcon(tech),

@@ -5,15 +5,15 @@
 {
     "id": "hordeZombie", // keep legacy id for hydrate/replay
     "name": "Black Brood",
-    "cost": 200, // bought by The Komtur's side (was 80 as a wave value)
+    "cost": 100, // bought by The Komtur's side
     "unlockCost": 0,
     "hpWithdraw": 2,
     "buyable": false,
     "horde": true,
     "modelId": "horde",
-    // 2× terrain pack area vs original 10×6; same small mesh
-    "footprint": { "cols": 20, "rows": 12 },
-    "formation": { "cols": 8, "rows": 6 }, // 48 — 2× prior 8×3 headcount
+    // a normal pack plate (dwarf-sized) for the same 48 small spiders
+    "footprint": { "cols": 6, "rows": 2 },
+    "formation": { "cols": 12, "rows": 4 }, // 48
     "formationSpread": 0.95,
     "meshScale": 0.5,
     "burn": { "takenMult": 0.5 },

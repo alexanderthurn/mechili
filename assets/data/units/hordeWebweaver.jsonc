@@ -5,15 +5,15 @@
 {
     "id": "hordeWebweaver",
     "name": "Webweaver",
-    "cost": 400, // bought by The Komtur's side (was 200 as a wave value)
+    "cost": 200, // bought by The Komtur's side
     "unlockCost": 50,
     "xpValue": 25.0, // kill XP as before the price change
     "hpWithdraw": 12,
     "buyable": false,
     "horde": true,
     "modelId": "horde",
-    // 2× terrain pack area vs original 6×4; same mesh scale
-    "footprint": { "cols": 12, "rows": 8 },
+    // a normal pack plate (goblin-sized)
+    "footprint": { "cols": 4, "rows": 2 },
     "formation": { "cols": 4, "rows": 2 }, // 8 mechs, more spread out
     "formationSpread": 1.0,
     "meshScale": 1.0,

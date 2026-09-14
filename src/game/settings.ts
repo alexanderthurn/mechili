@@ -63,7 +63,7 @@ export interface ClimbSettings {
     humanRole?: ClimbRole;
     /**
      * The attacking side's commander, handed to it instead of an offer — e.g.
-     * `komtur`, whose shop is the forest roster. Omit = the attacker picks as usual.
+     * `cursed` (Cursed Christine), whose shop is the forest roster. Omit = the attacker picks as usual.
      */
     attackerCommander?: string;
 }

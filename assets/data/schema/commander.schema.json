@@ -105,7 +105,6 @@
         "tutor",
         "money",
         "cursed",
-        "komtur",
         "tutorial"
       ],
       "description": "A commander's identity (portrait art, telemetry, the hidden tutorial commanders). What a commander DOES is its `effects`."

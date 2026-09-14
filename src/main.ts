@@ -203,7 +203,7 @@ function applyClimbMode(settings: GameSettings, variant: ClimbVariant = { role: 
         sideHp: CLIMB_SIDE_HP,
         playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
         ...(variant.role === 'defender' ? { humanRole: variant.role } : {}),
-        ...(variant.komtur ? { attackerCommander: 'komtur' } : {}),
+        ...(variant.komtur ? { attackerCommander: 'cursed' } : {}),
     };
     // The Year fields The Komtur's waves at Medium (not Off / not the Low SP-horde default) —
     // unless the Komtur is the attacker himself: then there is no third party

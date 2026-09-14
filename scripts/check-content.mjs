@@ -147,12 +147,12 @@ try {
         }
         // a commander's own shop (The Komtur): its side buys and unlocks only from it
         {
-            const komtur = T.commander('komtur');
+            const komtur = T.commander('cursed');
             const shop = T.shopFor(komtur);
             const normal = T.shopFor(air);
             if (
                 !komtur ||
-                T.commanders.some((c) => c.id === 'komtur') ||
+                T.commanders.some((c) => c.id === 'cursed') ||
                 !shop.includes('hordeKomtur') ||
                 shop.some((id) => T.shopUnitIds.includes(id)) ||
                 normal.includes('hordeKomtur') ||
@@ -167,9 +167,9 @@ try {
             const { normalizeGameSettings, DEFAULT_SETTINGS, climbAttackerTeam } = await server.ssrLoadModule('/src/game/settings.ts');
             const climb = normalizeGameSettings({
                 ...DEFAULT_SETTINGS,
-                climb: { roundsToWin: 9, sideHp: 1, playerSupplyGrowthPerRound: 100, humanRole: 'defender', attackerCommander: 'komtur' },
+                climb: { roundsToWin: 9, sideHp: 1, playerSupplyGrowthPerRound: 100, humanRole: 'defender', attackerCommander: 'cursed' },
             }).climb;
-            if (climb?.attackerCommander !== 'komtur' || climbAttackerTeam(climb) !== 'enemy') {
+            if (climb?.attackerCommander !== 'cursed' || climbAttackerTeam(climb) !== 'enemy') {
                 ok = false;
                 console.error(`FAIL The Year variant lost in normalizeGameSettings: ${JSON.stringify(climb)}`);
             }

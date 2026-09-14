@@ -73,8 +73,8 @@ const T = units.BASE_TYPES;
 const VARIANTS = {
     attack: { humanRole: 'attacker' },
     defend: { humanRole: 'defender' },
-    'komtur-attack': { humanRole: 'attacker', attackerCommander: 'komtur' },
-    'komtur-defend': { humanRole: 'defender', attackerCommander: 'komtur' },
+    'komtur-attack': { humanRole: 'attacker', attackerCommander: 'cursed' },
+    'komtur-defend': { humanRole: 'defender', attackerCommander: 'cursed' },
 };
 
 function seedFrom(seed, label) {
@@ -587,7 +587,7 @@ async function collect(cachePath) {
     const rng = mulberry32(99);
     const pick = (list) => list[Math.floor(rng() * list.length)];
     const normal = T.shopUnitIds.filter((id) => T.byId(id).cost > 0);
-    const komtur = T.shopFor(T.commander('komtur'));
+    const komtur = T.shopFor(T.commander('cursed'));
     for (let n = 0; n < 500; n++) {
         const withBase = rng() < 0.5;
         run((m) => {
@@ -708,7 +708,7 @@ const planTimes = [];
     // --komturPrice 1.3 — scale the Komtur shop's prices (and unlocks) to try balance
     const mult = Number(arg('komturPrice', '1'));
     if (mult !== 1) {
-        for (const id of T.shopFor(T.commander('komtur'))) {
+        for (const id of T.shopFor(T.commander('cursed'))) {
             const type = T.byId(id);
             type.cost = Math.round(type.cost * mult);
             if (type.unlockCost) type.unlockCost = Math.round(type.unlockCost * mult);

@@ -34,9 +34,8 @@ export type SpecialityId =
     | 'giant'
     | 'tutor'
     | 'money'
+    /** also The Komtur's side in The Year — fields the forest roster (her own shop) */
     | 'cursed'
-    /** The Komtur's side in The Year — fields the forest roster (its own shop). */
-    | 'komtur'
     /** Hidden tutorial-only commander — never offered in normal pools. */
     | 'tutorial';
 
