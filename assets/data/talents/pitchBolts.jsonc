@@ -1,0 +1,9 @@
+{
+    "id": "pitchBolts",
+    "name": "Pitch Bolts",
+    "cost": 350,
+    "mods": {},
+    "fire": { "oil": { "radius": 10 } },
+    "icon": "tech-pitch-bolts",
+    "description": "Bolts splash oil on impact (does not ignite — pair with fire arrows or a Fire Bolt).",
+}

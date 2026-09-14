@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "เต็มจอ",
     "fullscreenHint": "F11 / Alt+Enter",
+    "presetMinimal": "ต่ำสุด",
     "presetLow": "ต่ำ",
     "presetMedium": "กลาง",
     "presetHigh": "สูง",

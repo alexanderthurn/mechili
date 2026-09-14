@@ -1,0 +1,12 @@
+{
+    "file": "models/units/hammerer.glb",
+    "yawDeg": 90,
+    "skinned": true,
+    // named clips: preset:biped:walk / preset:biped:fire
+    "animation": {
+        "walk": { "clip": "walk", "speed": 1.35 },
+        // authored 2s, sped up so the swing fits attackInterval 0.7; march-and-shoot
+        // and crowd nudges must not cancel the throw
+        "fire": { "clip": "fire", "speed": 2.85, "hold": true },
+    },
+}

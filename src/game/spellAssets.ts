@@ -10,19 +10,36 @@ import { getGltfLoader } from '../engine/gltfLoader';
 import { loadSpellTemplate } from './spellMeshes';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import { touchFirstDevice } from './inputCapabilities';
+import { assetUrl, onAssetOverlaySwitch } from './assets';
+import { disposeScene } from '../engine/disposeScene';
 
 const URLS = {
-    hammer: new URL('../../assets/models/spells/hammer-of-gods.glb', import.meta.url).href,
-    'meteor-great': new URL('../../assets/models/spells/meteor-great.glb', import.meta.url).href,
-    'meteor-shard': new URL('../../assets/models/spells/meteor-shard.glb', import.meta.url).href,
-    storm: new URL('../../assets/models/spells/storm-cloud.glb', import.meta.url).href,
-    poison: new URL('../../assets/models/spells/poison-cloud.glb', import.meta.url).href,
-    dragon: new URL('../../assets/models/spells/dragon.glb', import.meta.url).href,
+    get hammer() {
+        return assetUrl('models/spells/hammer-of-gods.glb');
+    },
+    get 'meteor-great'() {
+        return assetUrl('models/spells/meteor-great.glb');
+    },
+    get 'meteor-shard'() {
+        return assetUrl('models/spells/meteor-shard.glb');
+    },
+    get storm() {
+        return assetUrl('models/spells/storm-cloud.glb');
+    },
+    get poison() {
+        return assetUrl('models/spells/poison-cloud.glb');
+    },
+    get dragon() {
+        return assetUrl('models/spells/dragon.glb');
+    },
 } as const;
 
 export type SpellAssetId = keyof typeof URLS;
 
 const templates = new Map<SpellAssetId, Group>();
+/** file URL each template was loaded from */
+const loadedFrom = new Map<SpellAssetId, string>();
+const loadsInFlight = new Set<Promise<Group | null>>();
 let preloadPromise: Promise<void> | null = null;
 
 export type SpellProgress = (done: number, total: number, label: string) => void;
@@ -66,6 +83,7 @@ function prepareHammerTemplate(scene: Object3D): Group {
 async function loadOne(id: SpellAssetId): Promise<Group> {
     const hit = templates.get(id);
     if (hit) return hit;
+    const url = URLS[id];
     let tpl: Group;
     if (id === 'hammer') {
         const gltf = await getGltfLoader().loadAsync(URLS.hammer);
@@ -83,6 +101,7 @@ async function loadOne(id: SpellAssetId): Promise<Group> {
     }
     const budget = modelTextureBudget();
     if (budget) applyTextureBudget(tpl, budget);
+    loadedFrom.set(id, url);
     templates.set(id, tpl);
     return tpl;
 }
@@ -92,13 +111,14 @@ export function getSpellTemplate(id: SpellAssetId): Group | null {
     return templates.get(id) ?? null;
 }
 
-export async function ensureSpellTemplate(id: SpellAssetId): Promise<Group | null> {
-    try {
-        return await loadOne(id);
-    } catch (e) {
+export function ensureSpellTemplate(id: SpellAssetId): Promise<Group | null> {
+    const load = loadOne(id).catch((e: unknown) => {
         console.error(`[spellAssets] '${id}' failed to load`, e);
         return null;
-    }
+    });
+    loadsInFlight.add(load);
+    void load.finally(() => loadsInFlight.delete(load));
+    return load;
 }
 
 /** Load every spell GLB once at boot. Safe to call repeatedly. */
@@ -127,3 +147,16 @@ export function preloadSpellAssets(onProgress?: SpellProgress): Promise<void> {
     })();
     return preloadPromise;
 }
+
+// A level replaced a spell model: reload the templates loaded from another file.
+onAssetOverlaySwitch('spell models', async () => {
+    await Promise.allSettled([...loadsInFlight]);
+    const stale = [...templates.keys()].filter((id) => loadedFrom.get(id) !== URLS[id]);
+    for (const id of stale) {
+        const tpl = templates.get(id)!;
+        templates.delete(id);
+        loadedFrom.delete(id);
+        disposeScene(tpl);
+    }
+    await Promise.all(stale.map((id) => ensureSpellTemplate(id)));
+});

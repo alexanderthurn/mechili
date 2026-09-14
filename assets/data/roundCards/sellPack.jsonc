@@ -1,0 +1,8 @@
+{
+    "id": "sellPack",
+    "title": "Buyback",
+    "pool": "spells",
+    "cost": 50,
+    "tactics": ["sellUnit"],
+    "description": "One-shot spell: sell one of your packs for a supply refund.",
+}

@@ -9,9 +9,12 @@ import { getAvatarDataUrl } from './avatar';
 import { activeLoadout } from './loadouts';
 import type { Loadout } from './techCatalog';
 import type { CanonicalSeatDef, SeatId } from './seats';
+import type { LevelRef } from './level';
+import { answerLevelMessage, LevelDownload, matchLevelOffer } from './levelSync';
 import type { GameSettings, StrongholdMode } from './settings';
 import type { Team } from './units';
 import { t } from '../i18n';
+import { activeAssetOverlay } from './assets';
 
 /** PeerJS signaling target — null means the public PeerJS cloud. */
 export interface PeerServerConfig {
@@ -87,6 +90,62 @@ export function formatGameVersion(encoded: number): string {
 }
 
 export const GAME_VERSION = encodeGameVersion(__APP_VERSION__);
+
+/** SHA-256 of every file the base game loads (plan §17.6), computed at build time. */
+export const BASE_CONTENT_HASH: string = __CONTENT_HASH__;
+
+/**
+ * What peers must match right now: the base content, plus the installed level
+ * overlay's hash when one is active. Nothing is hashed during a match — the
+ * overlay hash is computed once when the overlay is built.
+ */
+export function currentContentHash(): string {
+    const level = activeAssetOverlay();
+    return level ? `${BASE_CONTENT_HASH}+${level.hash}` : BASE_CONTENT_HASH;
+}
+
+/** The content hash of a match playing `level` (undefined = base game), whatever is active right now. */
+export function contentHashFor(level: LevelRef | null | undefined): string {
+    return level ? `${BASE_CONTENT_HASH}+${level.hash}` : BASE_CONTENT_HASH;
+}
+
+/** how long a joiner may take to fetch the match's scenario before its connection is dropped */
+export const LEVEL_GATE_TIMEOUT_MS = 5 * 60_000;
+
+/** What a peer must share with us to play: the simulation version AND the content. */
+export interface BuildStamp {
+    version: number;
+    /** absent from peers that predate content hashing — never a match */
+    contentHash?: string;
+}
+
+export function isSameBuild(peer: BuildStamp): boolean {
+    return peer.version === GAME_VERSION && peer.contentHash === currentContentHash();
+}
+
+/**
+ * Same simulation version and base content, whatever level either side has
+ * active — enough to join a lobby, which then hands the guest the room's
+ * scenario (`levelOffer`). A match itself still requires {@link isSameBuild}.
+ */
+export function isSameBaseBuild(peer: BuildStamp): boolean {
+    return peer.version === GAME_VERSION && peer.contentHash?.split('+')[0] === BASE_CONTENT_HASH;
+}
+
+/**
+ * A build for a mismatch message. Adds the content hash only when the versions
+ * agree, so the player sees WHY two identical-looking versions were refused.
+ */
+export function formatBuild(build: BuildStamp, other: BuildStamp): string {
+    const version = formatGameVersion(build.version);
+    if (build.version !== other.version || build.contentHash === other.contentHash) return version;
+    return `${version} · content ${(build.contentHash ?? 'unknown').slice(0, 8)}`;
+}
+
+/** our own stamp, for the side of a comparison that is us */
+export function ourBuild(): BuildStamp {
+    return { version: GAME_VERSION, contentHash: currentContentHash() };
+}
 
 export const CONNECT_TIMEOUT_MS = 20_000;
 const HEARTBEAT_MS = 5000;
@@ -259,7 +318,7 @@ export function suggestUrl(): string {
 /** Custom Game layouts. '1v1ai' was removed — hosting '1v1' and pressing
  *  "Start with AI" is the same match, so it was a second door to one room
  *  (main.ts's normalizeCustomGameMode migrates any stored one). */
-export type CustomGameMode = '1v1' | '2v2' | '2v2ai';
+export type CustomGameMode = '1v1' | '2v2' | '2v2ai' | 'year';
 export interface CustomGameConfig {
     mode: CustomGameMode;
     /** id into CUSTOM_GAME_PACE_PRESETS */
@@ -274,6 +333,14 @@ export interface CustomGameConfig {
     moneyFactor: number;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
+    /**
+     * The Year (mode 'year'): who attacks — 'choose' = each player asks for a
+     * role in the lobby and a clash is a coin flip at Start; or fixed to the
+     * host's / the guest's side.
+     */
+    yearRoles?: 'choose' | 'host' | 'guest';
+    /** The Year: the attacker fields the Komtur's forest roster (Cursed Christine) */
+    yearKomtur?: boolean;
 }
 
 /**
@@ -288,6 +355,7 @@ export type NetMessage =
     | {
           type: 'setup';
           version: number;
+          contentHash?: string;
           seed: number;
           settings: GameSettings;
           hostName: string;
@@ -366,7 +434,7 @@ export type NetMessage =
     | { type: 'quit' }
     /** spectator's opening handshake, sent immediately on connecting to the
      *  host's dedicated broadcast Peer (never the player link) */
-    | { type: 'spectate'; name: string; version: number }
+    | { type: 'spectate'; name: string; version: number; contentHash?: string }
     /** host's reply admitting a spectator: everything needed to catch up to
      *  the CURRENT visible state for this spectator's vision policy — see
      *  the unified `matchCatchUp` message below (Phase C,
@@ -390,6 +458,7 @@ export type NetMessage =
           type: 'starJoin';
           name: string;
           version: number;
+          contentHash?: string;
           avatar?: string | null;
           loadout?: Loadout;
       }
@@ -399,6 +468,7 @@ export type NetMessage =
     | {
           type: 'starSetup';
           version: number;
+          contentHash?: string;
           seed: number;
           settings: GameSettings;
           roster: CanonicalSeatDef[];
@@ -424,6 +494,35 @@ export type NetMessage =
      *  CanonicalSeatDef.ready) — re-broadcasts as part of the next
      *  starRoster, same as any other roster change. */
     | { type: 'lobbyReady'; ready: boolean }
+    /** guest → host: the role this guest asks for in a Year room (null = any) */
+    | { type: 'lobbyRole'; role: 'attacker' | 'defender' | null }
+    /**
+     * The Year's "Rematch, roles swapped": a player → host asks for it; host →
+     * everyone: the seats that asked so far. When every connected player has,
+     * the host starts the rematch with `starRematch`.
+     */
+    | { type: 'rematch'; seats?: SeatId[] }
+    /** host → guest: the rematch starts — a new match on the same connection */
+    | { type: 'starRematch'; seed: number; settings: GameSettings; roster: CanonicalSeatDef[] }
+    /**
+     * host → guest: the scenario this room plays (null = base game). Sent on
+     * join and whenever the host changes it; the guest answers `levelReady`
+     * once it is active, fetching the files with `levelRequest` if it doesn't
+     * have that content yet (see levelTransfer.ts).
+     */
+    | {
+          type: 'levelOffer';
+          level: LevelRef | null;
+          chunks: number;
+          /** load it, then send your handshake (starJoin / spectate) again — see levelSync.ts */
+          gate?: boolean;
+      }
+    /** guest → host: send chunks `from`… of the offered scenario (a batch at a time) */
+    | { type: 'levelRequest'; hash: string; from: number }
+    /** host → guest: one piece of the scenario package (base64) */
+    | { type: 'levelChunk'; hash: string; index: number; data: string }
+    /** guest → host: this scenario is active here (`hash` null = base game), or it could not be loaded */
+    | { type: 'levelReady'; hash: string | null; error?: string }
     /** host declines a join (room full, version mismatch) */
     | { type: 'starRejected'; reason: string }
     /** host → each guest once every seat has locked in for the round and the
@@ -503,7 +602,7 @@ export type NetMessage =
      * was otherwise a strictly weaker, unauthenticated path to the exact
      * same seat hijack.
      */
-    | { type: 'starRejoin'; seat: SeatId; name: string; version: number }
+    | { type: 'starRejoin'; seat: SeatId; name: string; version: number; contentHash?: string }
     /**
      * Phase C (TEAM_MODES_PLAN.md §3c): the ONE catch-up payload for any
      * viewer of this match — a reconnecting/resyncing seat OR a freshly-
@@ -534,6 +633,7 @@ export type NetMessage =
     | {
           type: 'matchCatchUp';
           version: number;
+          contentHash?: string;
           seed: number;
           settings: GameSettings;
           roster: CanonicalSeatDef[];
@@ -810,7 +910,7 @@ export interface HostHub {
     /** accept joiners; see StarHub.listen for the onJoin contract */
     listen(onJoin: (
             name: string,
-            version: number,
+            build: BuildStamp,
             avatar?: string | null,
             loadout?: Loadout,
         ) => SeatId | { reject: string }): void;
@@ -940,7 +1040,7 @@ export class StarHub implements HostHub {
      */
     listen(onJoin: (
             name: string,
-            version: number,
+            build: BuildStamp,
             avatar?: string | null,
             loadout?: Loadout,
         ) => SeatId | { reject: string }): void {
@@ -958,9 +1058,24 @@ export class StarHub implements HostHub {
                 }, CONNECT_TIMEOUT_MS);
                 conn.on('close', () => clearTimeout(handshakeTimeout));
                 conn.on('error', () => clearTimeout(handshakeTimeout));
+                let gateTimeout: ReturnType<typeof setTimeout> | null = null;
+                conn.on('close', () => gateTimeout !== null && clearTimeout(gateTimeout));
                 const onData = (data: unknown) => {
                     clearTimeout(handshakeTimeout);
                     const msg = data as NetMessage;
+                    // A player coming back into the running match with our base
+                    // content but not its scenario (a reload): hand the scenario
+                    // over and wait for the handshake to arrive again.
+                    if (answerLevelMessage(msg, (m) => conn.send(m))) return;
+                    if (this.needsMatchLevel(msg)) {
+                        conn.send(matchLevelOffer());
+                        gateTimeout ??= setTimeout(() => {
+                            conn.off('data', onData);
+                            conn.close();
+                        }, LEVEL_GATE_TIMEOUT_MS);
+                        return;
+                    }
+                    if (gateTimeout !== null) clearTimeout(gateTimeout);
                     if (msg.type === 'starRejoin') {
                         conn.off('data', onData);
                         // `seat` alone is never proof of identity — a small
@@ -970,13 +1085,14 @@ export class StarHub implements HostHub {
                         // entry, the same identity check the name-matched
                         // starJoin reclaim path below already requires.
                         const accepted =
-                            msg.version === GAME_VERSION &&
+                            isSameBuild(msg) &&
                             this.roster[msg.seat]?.name === msg.name &&
                             this.reclaimSeat(msg.seat, conn);
                         this.onDebugEvent?.('star.rejoinAttempt', {
                             seat: msg.seat,
                             name: msg.name,
                             theirVersion: msg.version,
+                            theirContent: msg.contentHash,
                             ourVersion: GAME_VERSION,
                             accepted,
                         });
@@ -1004,11 +1120,12 @@ export class StarHub implements HostHub {
                     // starRejoin.
                     const droppedSeat = this.findDroppedSeatByName(msg.name);
                     if (droppedSeat !== null) {
-                        const accepted = msg.version === GAME_VERSION && this.reclaimSeat(droppedSeat, conn);
+                        const accepted = isSameBuild(msg) && this.reclaimSeat(droppedSeat, conn);
                         this.onDebugEvent?.('star.nameMatchedRejoinAttempt', {
                             name: msg.name,
                             seat: droppedSeat,
                             theirVersion: msg.version,
+                            theirContent: msg.contentHash,
                             ourVersion: GAME_VERSION,
                             accepted,
                         });
@@ -1036,11 +1153,12 @@ export class StarHub implements HostHub {
                     // never claim an AI-controlled seat.
                     const reclaimableSeat = this.findReclaimableSeatByName(msg.name);
                     if (reclaimableSeat !== null) {
-                        if (msg.version !== GAME_VERSION) {
+                        if (!isSameBuild(msg)) {
                             this.onDebugEvent?.('star.aiReclaimAttempt', {
                                 name: msg.name,
                                 seat: reclaimableSeat,
                                 theirVersion: msg.version,
+                            theirContent: msg.contentHash,
                                 ourVersion: GAME_VERSION,
                                 accepted: false,
                             });
@@ -1057,6 +1175,7 @@ export class StarHub implements HostHub {
                             name: msg.name,
                             seat: reclaimableSeat,
                             theirVersion: msg.version,
+                            theirContent: msg.contentHash,
                             ourVersion: GAME_VERSION,
                             accepted: true,
                         });
@@ -1064,7 +1183,7 @@ export class StarHub implements HostHub {
                         this.onRosterChange?.();
                         return;
                     }
-                    const decision = onJoin(msg.name, msg.version, msg.avatar, msg.loadout);
+                    const decision = onJoin(msg.name, msg, msg.avatar, msg.loadout);
                     if (typeof decision !== 'number') {
                         conn.send({ type: 'starRejected', reason: decision.reject });
                         conn.close();
@@ -1078,6 +1197,22 @@ export class StarHub implements HostHub {
                 conn.on('data', onData);
             });
         });
+    }
+
+    /**
+     * A seat reclaim (rejoin, dropped or AI-held seat by name) from a peer
+     * with our base content but not the running match's scenario — it gets
+     * the scenario first. A fresh lobby join is never gated here: the lobby
+     * hands the room's scenario over after seating (`levelOffer`).
+     */
+    private needsMatchLevel(msg: NetMessage): boolean {
+        if (msg.type !== 'starRejoin' && msg.type !== 'starJoin') return false;
+        if (isSameBuild(msg) || !isSameBaseBuild(msg)) return false;
+        return (
+            msg.type === 'starRejoin' ||
+            this.findDroppedSeatByName(msg.name) !== null ||
+            this.findReclaimableSeatByName(msg.name) !== null
+        );
     }
 
     /**
@@ -1518,7 +1653,7 @@ export class StarGuestSession implements GuestSession {
             if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
             try {
                 const conn = await connectRawTo(this.peer, hostId, signal);
-                conn.send({ type: 'starRejoin', seat: mySeat, name: getPlayerName(), version: GAME_VERSION });
+                conn.send({ type: 'starRejoin', seat: mySeat, name: getPlayerName(), version: GAME_VERSION, contentHash: currentContentHash() });
                 return new StarGuestSession(this.peer, conn);
             } catch (e) {
                 if (e instanceof DOMException && e.name === 'AbortError') throw e;
@@ -1754,6 +1889,18 @@ export async function hostStarRoom(
     };
 }
 
+/** The join handshake — rebuilt at send time, so a resend carries the scenario loaded since. */
+export function starJoinMessage(): Extract<NetMessage, { type: 'starJoin' }> {
+    return {
+        type: 'starJoin',
+        name: getPlayerName(),
+        version: GAME_VERSION,
+        contentHash: currentContentHash(),
+        avatar: getAvatarDataUrl(),
+        loadout: activeLoadout(),
+    };
+}
+
 /** Join a 2v2+ star room by the host's username (room code) — same lookup as `joinLobby`. */
 export function joinStarRoom(
     hostName: string,
@@ -1787,13 +1934,7 @@ export function joinStarRoom(
                 reject(e);
             });
         });
-        conn.send({
-            type: 'starJoin',
-            name: localName,
-            version: GAME_VERSION,
-            avatar: getAvatarDataUrl(),
-            loadout: activeLoadout(),
-        });
+        conn.send(starJoinMessage());
         return new StarGuestSession(peer, conn);
     })();
     return { session, cancel: () => peer?.destroy() };
@@ -1854,7 +1995,7 @@ export interface SpectatorTransport {
     readonly managesLiveness?: boolean;
     listen(handlers: {
         /** a connection that has sent a valid `spectate` handshake */
-        onSpectate: (name: string, version: number, link: SpectatorViewerLink) => void;
+        onSpectate: (name: string, build: BuildStamp, link: SpectatorViewerLink) => void;
         onData: (link: SpectatorViewerLink, msg: NetMessage) => void;
         onDrop: (link: SpectatorViewerLink) => void;
     }): void;
@@ -1871,7 +2012,7 @@ export class PeerSpectatorTransport implements SpectatorTransport {
     }
 
     listen(handlers: {
-        onSpectate: (name: string, version: number, link: SpectatorViewerLink) => void;
+        onSpectate: (name: string, build: BuildStamp, link: SpectatorViewerLink) => void;
         onData: (link: SpectatorViewerLink, msg: NetMessage) => void;
         onDrop: (link: SpectatorViewerLink) => void;
     }): void {
@@ -1895,7 +2036,7 @@ export class PeerSpectatorTransport implements SpectatorTransport {
                     }
                     conn.off('data', onData);
                     conn.on('data', (d) => handlers.onData(conn, d as NetMessage));
-                    handlers.onSpectate(msg.name, msg.version, conn);
+                    handlers.onSpectate(msg.name, msg, conn);
                 };
                 conn.on('data', onData);
                 conn.on('close', () => handlers.onDrop(conn));
@@ -1983,10 +2124,23 @@ export class SpectatorHub {
      * (viewer `{kind:'spectator'}`) (or `spectateRejected` + closing the
      * connection).
      */
-    listen(onJoin: (name: string, version: number, link: SpectatorViewerLink) => void): void {
+    listen(onJoin: (name: string, build: BuildStamp, link: SpectatorViewerLink) => void): void {
+        // A spectator with our base content but not the match's scenario gets
+        // it first, then sends 'spectate' again (arriving here as data, since
+        // the transport already took the first one as the handshake).
+        const gateOrJoin = (name: string, build: BuildStamp, link: SpectatorViewerLink) => {
+            if (!isSameBuild(build) && isSameBaseBuild(build)) link.send(matchLevelOffer());
+            else onJoin(name, build, link);
+        };
         this.transport.listen({
-            onSpectate: onJoin,
-            onData: (link, msg) => this.onData(link, msg),
+            onSpectate: gateOrJoin,
+            onData: (link, msg) => {
+                if (!this.viewers.has(link)) {
+                    if (msg.type === 'spectate') return gateOrJoin(msg.name, msg, link);
+                    if (answerLevelMessage(msg, (m) => link.send(m))) return;
+                }
+                this.onData(link, msg);
+            },
             onDrop: (link) => this.drop(link),
         });
     }
@@ -2294,6 +2448,8 @@ const SINGLE_KEY = 'mechili-single';
 
 export interface SinglePlayerSave {
     version: number;
+    /** content the save was made with — a different build can't replay its log */
+    contentHash?: string;
     seed: number;
     settings: GameSettings;
     actions: LoggedAction[];
@@ -2302,14 +2458,14 @@ export interface SinglePlayerSave {
     phaseRemaining?: number;
     /** battle playback multiplier; older saves omit this (treated as 1×) */
     speedMultiplier?: number;
-    /** Campaign climb wins; older saves omit this (treated as 0) */
-    climbWins?: number;
+    /** The Year: who took each round so far — the loading card shows it (the replay decides it again) */
+    yearRounds?: ('attacker' | 'defender')[];
     localName: string;
 }
 
 export function saveSinglePlayer(state: Omit<SinglePlayerSave, 'version'>): void {
     try {
-        sessionStorage.setItem(SINGLE_KEY, JSON.stringify({ version: GAME_VERSION, ...state }));
+        sessionStorage.setItem(SINGLE_KEY, JSON.stringify({ version: GAME_VERSION, contentHash: currentContentHash(), ...state }));
     } catch {
         /* private browsing / quota */
     }
@@ -2603,13 +2759,33 @@ export async function joinAsSpectator(
                 reject(e);
             });
         });
-        conn.send({ type: 'spectate', name, version: GAME_VERSION });
+        // rebuilt per send: after fetching the match's scenario the hash includes it
+        const hello = () =>
+            conn.send({ type: 'spectate', name, version: GAME_VERSION, contentHash: currentContentHash() });
+        hello();
         const msg = await new Promise<NetMessage>((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
-            const onData = (data: unknown) => {
+            let timer = setTimeout(() => reject(new Error('Host did not respond')), CONNECT_TIMEOUT_MS);
+            let download: LevelDownload | null = null;
+            const fail = (e: unknown) => {
                 clearTimeout(timer);
                 conn.off('data', onData);
-                resolve(data as NetMessage);
+                reject(e);
+            };
+            const onData = (data: unknown) => {
+                const m = data as NetMessage;
+                // the match plays a scenario we don't have active: fetch it, then ask again
+                if (m.type === 'levelOffer' && m.gate) {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => fail(new Error('Loading the scenario took too long')), LEVEL_GATE_TIMEOUT_MS);
+                    download?.cancel();
+                    download = new LevelDownload(m.level, m.chunks, (x) => conn.send(x));
+                    download.done.then(hello, fail);
+                    return;
+                }
+                if (download?.handle(m)) return;
+                clearTimeout(timer);
+                conn.off('data', onData);
+                resolve(m);
             };
             conn.on('data', onData);
         });
@@ -2617,7 +2793,7 @@ export async function joinAsSpectator(
         if (msg.type !== 'matchCatchUp' || msg.viewer.kind !== 'spectator') {
             throw new Error('Unexpected reply from host');
         }
-        if (msg.version !== GAME_VERSION) throw new Error(t('menu:versionMismatchShort'));
+        if (!isSameBuild(msg)) throw new Error(t('menu:versionMismatchShort'));
         return {
             session: new SpectatorSession(peer, conn),
             seed: msg.seed,

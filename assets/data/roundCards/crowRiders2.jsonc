@@ -1,0 +1,9 @@
+{
+    "id": "crowRiders2",
+    "title": "Crow Wing",
+    "pool": "units",
+    "cost": 150,
+    "units": ["crowRider", "crowRider"],
+    "unitsLabel": "2× Crow Riders",
+    "description": "Two Crow Rider flocks join your army.",
+}

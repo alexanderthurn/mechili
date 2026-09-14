@@ -1,0 +1,37 @@
+{
+    // Fantasy Rhino — single fast melee tank; small cleave, breakthrough / aggro soak
+    "id": "ogre",
+    "name": "Ogre",
+    "cost": 200,
+    "unlockCost": 50,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 3.48, // 1.2× base 2.9
+    "burn": { "takenMult": 0.65 },
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 1.62,
+    "colliders": [
+        { "y": 1.2, "r": 1.2 },
+        { "y": 2.4, "r": 0.9 },
+    ],
+    // innate disk like Rhino splash — Whirlwind tech widens it
+    "cleave": { "radius": 2 },
+    "cleaveScar": false, // no ground crater stamp on swings
+    "hp": 1620,
+    "damage": 195,
+    "range": 3.4, // short melee reach
+    // Match cadence to the long pitch (~1.27s visual @ fireSpeed 3)
+    "attackInterval": 1.35,
+    // Hit late in the throw (visual ~1.27s)
+    "meleeHitDelay": 0.6,
+    // commit early at speed 8.5 → slide into the smash
+    "meleeLunge": 5,
+    "meleePress": 0.85, // keep closing while swinging (the charge feel)
+    "speed": 8.5, // faster than dwarf (6) — Rhino closes gaps
+    "turnRate": 4, // heavy body — was 9 (too snappy for a big melee)
+    "sandWeight": 1.5,
+    "proceduralModel": "ogre",
+    // Rhino pivots
+    "talents": ["whirlwind", "bloodRage", "carapace"],
+    "talentSlots": 2,
+}

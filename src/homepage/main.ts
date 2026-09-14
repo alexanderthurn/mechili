@@ -1,23 +1,19 @@
 import { buildingAbilities } from '../game/buildingAbilities';
-import { START_CARDS, ROUND_RUNE_CARDS, type RoundCard, type StartCard } from '../game/cards';
+import type { RoundCard, StartCard } from '../game/cards';
 import { DISPLAY } from '../game/displayNames';
 import { DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
-import { ADVANCED_RUNE_IDS, BASE_RUNE_IDS, ITEMS, itemSlotLimit, type ItemDef } from '../game/items';
-import { FORGE_RECIPES } from '../game/forgeRecipes';
+import { itemSlotLimit, type ItemDef } from '../game/items';
 import {
     MOVE_UNIT_ID,
     RALLY_ROUTE_ID,
     SELL_UNIT_ID,
-    TACTICS,
     TUTOR_ID,
     formatTacticStats,
+    type TacticDef,
 } from '../game/tactics';
 import { techsForUnit } from '../game/techCatalog';
 import {
-    COMMAND_TOWER,
-    RESEARCH_CENTER,
-    STRONGHOLD,
-    UNIT_TYPES,
+    BASE_TYPES,
     isPlayerBuyable,
     isHordeUnit,
     preloadUnitVisuals,
@@ -103,12 +99,11 @@ function isHordeShowcaseUnit(t: UnitType): boolean {
     return isHordeUnit(t) && t.id !== 'hordeBrutSpawn' && t.id !== 'hordeFarmerSpawn';
 }
 
-const SHOWCASE_UNITS: UnitType[] = [
-    ...UNIT_TYPES,
-    COMMAND_TOWER,
-    RESEARCH_CENTER,
-    STRONGHOLD,
-].filter(
+// the homepage shows the base game
+const STRONGHOLD = BASE_TYPES.require('stronghold');
+const COMMAND_TOWER = BASE_TYPES.require('command-tower');
+
+const SHOWCASE_UNITS: UnitType[] = [...BASE_TYPES.roster, ...BASE_TYPES.buildings].filter(
     (t) =>
         showcaseModelKey(t) in MODEL_SPECS &&
         (t.structure || isPlayerBuyable(t) || isHordeShowcaseUnit(t)),
@@ -208,7 +203,7 @@ function statsHtml(type: UnitType): string {
     const flags = unitFlags(type)
         .map((f) => `<span class="mh-flag">${esc(f)}</span>`)
         .join('');
-    const unitTechs = techsForUnit(type.id);
+    const unitTechs = techsForUnit(type, BASE_TYPES);
     const techs =
         unitTechs.length > 0
             ? `<div class="mh-techs">
@@ -282,7 +277,7 @@ const VANGUARD_TACTIC_COST: Record<string, number> = {
     [TUTOR_ID]: 100,
 };
 
-function tacticPrice(tactic: (typeof TACTICS)[string]): { cost: number; where: string } | null {
+function tacticPrice(tactic: TacticDef): { cost: number; where: string } | null {
     if (tactic.strongholdCost !== undefined) {
         return { cost: tactic.strongholdCost, where: unitName(STRONGHOLD.id, STRONGHOLD.name) };
     }
@@ -294,12 +289,12 @@ function tacticPrice(tactic: (typeof TACTICS)[string]): { cost: number; where: s
 
 /** Base runes the forge turns into this one, in recipe order. */
 function runeRecipeIcons(runeId: string): string[] {
-    const recipe = FORGE_RECIPES.find(
+    const recipe = BASE_TYPES.forgeRecipes.find(
         (r) => r.product.kind === 'item' && r.product.id === runeId,
     );
     if (!recipe) return [];
     return recipe.ingredients
-        .map((id) => ITEMS[id]?.icon)
+        .map((id) => BASE_TYPES.rune(id)?.icon)
         .filter((ico): ico is string => !!ico);
 }
 
@@ -326,7 +321,7 @@ function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
 </article>`;
 }
 
-function tacticCard(tactic: (typeof TACTICS)[string], isFirst: boolean): string {
+function tacticCard(tactic: TacticDef, isFirst: boolean): string {
     const kindLabel = t(
         tactic.kind === 'placement' ? 'homepage:tactics.placement' : 'homepage:tactics.oneShot',
     );
@@ -384,11 +379,11 @@ function settingsGroupHtml(g: SettingGroup): string {
 
 /** Base runes first, then the forged ones — the order a player meets them. */
 const ALL_RUNES: { item: ItemDef; isBase: boolean }[] = [
-    ...BASE_RUNE_IDS.map((id) => ({ item: ITEMS[id]!, isBase: true })),
-    ...ADVANCED_RUNE_IDS.map((id) => ({ item: ITEMS[id]!, isBase: false })),
+    ...BASE_TYPES.baseRuneIds.map((id) => ({ item: BASE_TYPES.rune(id)!, isBase: true })),
+    ...BASE_TYPES.advancedRuneIds.map((id) => ({ item: BASE_TYPES.rune(id)!, isBase: false })),
 ].filter((e) => !!e.item);
 
-const ALL_TACTICS = Object.values(TACTICS);
+const ALL_TACTICS = BASE_TYPES.tactics;
 
 /** The hex divider that breaks a lead paragraph in two — passed into copy so
  *  translators keep one whole sentence per key instead of two halves. */
@@ -521,11 +516,11 @@ app.innerHTML = `
     <select class="mh-card-select" id="mh-specialists-select" aria-label="${esc(
         t('homepage:commanders.select', { commander: midTerm(DISPLAY.commander) }),
     )}">
-      ${START_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(commanderTitle(c.id, c.title))}</option>`).join('')}
+      ${BASE_TYPES.commanders.map((c) => `<option value="${esc(c.id)}">${esc(commanderTitle(c.id, c.title))}</option>`).join('')}
     </select>
     <div class="mechili-cards">
       <div class="cards-row" id="mh-specialists-row">
-        ${START_CARDS.map(
+        ${BASE_TYPES.commanders.map(
             (c, i) =>
                 `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${startCardFace(c)}</div>`,
         ).join('')}
@@ -537,8 +532,8 @@ app.innerHTML = `
     <h2>${esc(DISPLAY.items)}</h2>
     <p class="mh-sub">${t('homepage:runes.sub', {
         sep: SEP,
-        packLimit: itemSlotLimit('dwarf'),
-        ballistaLimit: itemSlotLimit('ballista'),
+        packLimit: itemSlotLimit(BASE_TYPES.require('dwarf')),
+        ballistaLimit: itemSlotLimit(BASE_TYPES.require('ballista')),
     })}</p>
     <select class="mh-card-select" id="mh-runes-select" aria-label="${esc(
         t('homepage:runes.select', { item: midTerm(DISPLAY.item) }),
@@ -570,11 +565,11 @@ app.innerHTML = `
     <h2>${esc(t('homepage:roundCards.title'))}</h2>
     <p class="mh-sub">${esc(t('homepage:roundCards.sub', { items: midTerm(DISPLAY.items) }))}</p>
     <select class="mh-card-select" id="mh-round-cards-select" aria-label="${esc(t('homepage:roundCards.select'))}">
-      ${ROUND_RUNE_CARDS.map((c) => `<option value="${esc(c.id)}">${esc(roundCardTitle(c.id, c.title))}</option>`).join('')}
+      ${BASE_TYPES.roundCardsInPool('runes').map((c) => `<option value="${esc(c.id)}">${esc(roundCardTitle(c.id, c.title))}</option>`).join('')}
     </select>
     <div class="mechili-cards">
       <div class="cards-row" id="mh-round-cards-row">
-        ${ROUND_RUNE_CARDS.map(
+        ${BASE_TYPES.roundCardsInPool('runes').map(
             (c, i) =>
                 `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
         ).join('')}

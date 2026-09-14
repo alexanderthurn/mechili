@@ -1,0 +1,9 @@
+{
+    "id": "skyLift",
+    "name": "Sky Lift",
+    "cost": 350,
+    "mods": {},
+    "flight": "lift",
+    "icon": "tech-sky-lift",
+    "description": "Lifts this unit into the air (combat flyer).",
+}

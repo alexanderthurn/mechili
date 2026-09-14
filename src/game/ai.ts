@@ -1,6 +1,5 @@
 import { quantizeWorld, quantizeYaw, type Action } from './actions';
-import { SHOP_UNIT_IDS } from './cards';
-import { unlockCostForSpeciality } from './cards';
+import { unlockCostFor } from './cards';
 import type { RoundCard, SpecialityId, StartCard } from './cards';
 import type { PlacementController } from './placement';
 import type { DeploySettings, Economy } from './settings';
@@ -11,14 +10,16 @@ import {
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
-    TACTICS,
     usesSpellPlacement,
 } from './tactics';
 import type { TechTree } from './tech';
 import { techsForUnit, type Loadout } from './techCatalog';
-import { UNIT_TYPES, isPlayerBuyable, unitTypeById, type Team, type UnitType } from './units';
+import { isPlayerBuyable, type Team, type UnitType } from './units';
+import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
-import { BASE_RUNE_IDS, itemSlotLimit } from './items';
+import { itemSlotLimit } from './items';
+import { chooseRebuildCommander, YearBrain } from './aiYear';
+import type { LevelingSettings } from './settings';
 
 /** army packs cheaper than this are preferred for the AI's first buy each round */
 const CHEAP_UNIT_COST = 200;
@@ -49,6 +50,8 @@ export class AiOpponent implements Opponent {
         /** the seat this brain commands — its purse, its lane, its packs */
         private readonly seat: SeatId,
         private readonly ctx: {
+            /** the unit and building definitions this match plays with */
+            types: TypeRegistry;
             dispatch: (action: Action) => boolean;
             placement: PlacementController;
             economy: Economy;
@@ -63,6 +66,7 @@ export class AiOpponent implements Opponent {
             tactics: string[][];
             /** per-SEAT chosen commander — prices its own shop unlocks */
             speciality: (SpecialityId | null)[];
+            commander: (string | null)[];
             /** the AI's own seeded stream — nothing else may consume it */
             rng: () => number;
             /** per-SEAT talent picks; AI seats normally have none and get
@@ -79,13 +83,29 @@ export class AiOpponent implements Opponent {
              * Practice / MP leave this unset/false.
              */
             climb?: boolean;
+            /** 'lockInOnly': skip every purchase and just lock in (scenario opponents) */
+            opponents?: 'build' | 'lockInOnly';
             /** Campaign: deterministic per-round stream (seed + round) */
             rngForRound?: (round: number) => () => number;
+            /** leveling rules (the planner reads level multipliers and prices) */
+            leveling?: LevelingSettings;
+            /** The Year: this seat's role — its planner knows who has the base */
+            yearRole?: 'attacker' | 'defender';
+            /** which brain plays: The Year's planner (default in The Year) or the classic random builder */
+            brain?: 'year' | 'classic';
+            /** new packs this seat may deploy in a build phase */
+            deployCap?: () => number;
+            /** planner choice overrides for this seat (arena experiments) */
+            plannerOverrides?: Record<string, number>;
         },
     ) {}
 
     chooseStarter(offer: readonly StartCard[]): void {
-        const pick = offer[Math.floor(this.ctx.rng() * offer.length)]!;
+        // The Year rebuilds this side every round: pick for lasting combat effects
+        const pick =
+            this.ctx.climb && this.ctx.brain !== 'classic' && offer.length > 0
+                ? chooseRebuildCommander(offer, this.ctx.types)
+                : offer[Math.floor(this.ctx.rng() * offer.length)]!;
         this.ctx.dispatch({ kind: 'chooseCard', team: this.team, seat: this.seat, cardId: pick.id });
     }
 
@@ -104,7 +124,25 @@ export class AiOpponent implements Opponent {
     }
 
     onBuildPhase(round: number): void {
-        if (this.ctx.climb) {
+        if (this.ctx.opponents === 'lockInOnly') {
+            // a scenario's authored army fights as placed — lock in, nothing else
+        } else if (this.ctx.brain !== 'classic' && this.ctx.leveling && (this.ctx.climb || this.ctx.brain === 'year')) {
+            // The Year: rebuild from nothing and plan the whole round against the visible army
+            // (the arena's player stand-in uses the same planner on a kept army)
+            if (this.ctx.climb) this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
+            const brain = new YearBrain(
+                { ...this.ctx, leveling: this.ctx.leveling },
+                this.team,
+                this.seat,
+                this.ctx.yearRole ?? 'defender',
+                this.ctx.rngForRound?.(round) ?? this.ctx.rng,
+                this.ctx.plannerOverrides,
+            );
+            brain.playRound({ keep: !this.ctx.climb, slots: this.ctx.deployCap?.() ?? 40 });
+            // what the planner leaves alone: runes in the inventory, spells in the strip
+            this.applyItems(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
+            this.placeTactics(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
+        } else if (this.ctx.climb) {
             this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
             this.runBuildActions({
                 climb: true,
@@ -192,13 +230,19 @@ export class AiOpponent implements Opponent {
         }
     }
 
+    /** the unit types this seat's shop holds (its commander's own shop, else the normal one) */
+    private shop(): readonly string[] {
+        return this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[this.seat] ?? ''));
+    }
+
     /** unlocked, buyable army types this seat can afford right now */
     private affordableArmyTypes(pred?: (t: UnitType) => boolean): UnitType[] {
         const { economy, unlockedUnits } = this.ctx;
-        return UNIT_TYPES.filter(
+        const shop = this.shop();
+        return this.ctx.types.roster.filter(
             (t) =>
                 !t.extra &&
-                isPlayerBuyable(t) &&
+                shop.includes(t.id) &&
                 unlockedUnits[this.seat]!.includes(t.id) &&
                 economy.canAfford(this.seat, t) &&
                 (!pred || pred(t)),
@@ -246,12 +290,12 @@ export class AiOpponent implements Opponent {
      * affordable type (same diversity).
      */
     private pickFirstBuyType(rng: () => number = this.ctx.rng): UnitType | null {
-        const { economy, unlockedUnits, unlockUsedThisRound, speciality } = this.ctx;
+        const { economy, unlockedUnits, unlockUsedThisRound, commander } = this.ctx;
         const unlocked = unlockedUnits[this.seat]!;
 
         const allCheap: UnitType[] = [];
-        for (const id of SHOP_UNIT_IDS) {
-            const t = unitTypeById(id);
+        for (const id of this.shop()) {
+            const t = this.ctx.types.byId(id);
             if (t && t.cost < CHEAP_UNIT_COST) allCheap.push(t);
         }
         const preferred = this.preferLesserOwned(allCheap, rng);
@@ -259,7 +303,7 @@ export class AiOpponent implements Opponent {
             preferred &&
             !unlocked.includes(preferred.id) &&
             !unlockUsedThisRound[this.seat] &&
-            unlockCostForSpeciality(preferred.id, speciality[this.seat] ?? null) <=
+            unlockCostFor(preferred.id, this.ctx.types.commander(commander[this.seat] ?? ''), this.ctx.types) <=
                 economy.balance(this.seat)
         ) {
             this.ctx.dispatch({
@@ -299,7 +343,7 @@ export class AiOpponent implements Opponent {
         const need = deploySettings.extraSlotCost + deploySettings.baseRuneCost;
         if (economy.balance(this.seat) < need) return;
         if (!dispatch({ kind: 'buyDeploySlot', team: this.team, seat: this.seat })) return;
-        const itemId = BASE_RUNE_IDS[Math.floor(rng() * BASE_RUNE_IDS.length)]!;
+        const itemId = this.ctx.types.baseRuneIds[Math.floor(rng() * this.ctx.types.baseRuneIds.length)]!;
         dispatch({ kind: 'buyRune', team: this.team, seat: this.seat, itemId });
     }
 
@@ -317,7 +361,7 @@ export class AiOpponent implements Opponent {
                         u.seat === this.seat &&
                         !u.type.structure &&
                         !u.type.extra &&
-                        u.items.length < itemSlotLimit(u.type.id),
+                        u.items.length < itemSlotLimit(u.type),
                 )
                 .sort((a, b) => a.items.length - b.items.length);
             if (packs.length === 0) break;
@@ -369,7 +413,7 @@ export class AiOpponent implements Opponent {
         let placed = 0;
         for (const tacticId of pool) {
             if (placed >= MAX_TACTICS) break;
-            const tactic = TACTICS[tacticId];
+            const tactic = this.ctx.types.tactic(tacticId);
             if (!tactic) continue;
 
             let ok = false;
@@ -461,7 +505,7 @@ export class AiOpponent implements Opponent {
                 const pool = forgeSpellsOf(this.seat) ?? [];
                 for (const tacticId of pool) {
                     if (ownedSpells.includes(tacticId)) continue;
-                    const cost = TACTICS[tacticId]?.strongholdCost;
+                    const cost = this.ctx.types.tactic(tacticId)?.strongholdCost;
                     if (cost === undefined || economy.balance(this.seat) < cost) continue;
                     if (dispatch({ kind: 'buyForgeSpell', team, seat: this.seat, tacticId })) {
                         boughtSpell = true;
@@ -483,8 +527,8 @@ export class AiOpponent implements Opponent {
         while (bought) {
             bought = false;
             for (const typeId of ownedTypeIds) {
-                const type = unitTypeById(typeId);
-                const techs = type ? techsForUnit(type.id, this.ctx.loadoutOf(this.seat)) : [];
+                const type = this.ctx.types.byId(typeId);
+                const techs = type ? techsForUnit(type, this.ctx.types, this.ctx.loadoutOf(this.seat)) : [];
                 if (!type || techs.length === 0) continue;
                 const owned = techTree.ownedFor(this.seat, type.id);
                 for (const tech of techs) {

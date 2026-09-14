@@ -1,0 +1,21 @@
+{
+    "id": "hammerOfGods",
+    "name": "Hammer of the Gods",
+    "icon": "tactic-hammer",
+    "kind": "placement",
+    "targeting": "point-yaw",
+    "cooldownRounds": 2,
+    // aim clamp approx — the damage zone is the hammer footprint
+    "radius": 18, // 4.5 cells
+    "strongholdCost": 300,
+    "spell": {
+        "delaySeconds": 4,
+        "fx": "hammer",
+        // the damage zone is the hammer's footprint, also its ground scar and marker
+        "strike": { "damage": 1000, "radius": 24, "rect": { "halfWidth": 14.535, "halfDepth": 29.07 } },
+    },
+    "marker": {
+        "glow": "rgba(40, 28, 8, 0.55)",
+    },
+    "description": "Click to place, move to rotate, click again to lock. A divine hammer drops onto the zone seconds into the battle.",
+}

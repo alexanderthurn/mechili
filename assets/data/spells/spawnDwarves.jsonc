@@ -1,0 +1,20 @@
+{
+    "id": "spawnDwarves",
+    "name": "Summon Dwarves",
+    "icon": "tactic-summon-dwarves",
+    "kind": "placement",
+    "targeting": "point",
+    "cooldownRounds": 1,
+    "radius": 16, // 4 cells
+    "respectsSafeZone": true,
+    "strongholdCost": 100,
+    // count = PACKS (a dwarf pack is 24 fighters — 2 packs ≈ 48 dwarves)
+    "spell": {
+        "delaySeconds": 2,
+        "spawn": { "typeId": "dwarf", "count": 2 },
+    },
+    "marker": {
+        "glow": "rgba(48, 36, 12, 0.55)",
+    },
+    "description": "Mark a circle anywhere outside the enemy base. Shortly after battle start, a war band of dwarves bursts from the ground there, one by one — they fight this battle only.",
+}

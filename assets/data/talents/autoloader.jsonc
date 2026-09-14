@@ -1,0 +1,7 @@
+{
+    "id": "autoloader",
+    "name": "Quick Winch",
+    "cost": 300,
+    "mods": { "attackInterval": 0.7 },
+    "icon": "tech-quick-winch",
+}

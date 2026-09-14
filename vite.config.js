@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
-import { cpSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { cpSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
 const backendDir = resolve('backend');
@@ -16,6 +17,33 @@ function gitBranch() {
     } catch {
         return '';
     }
+}
+
+/**
+ * SHA-256 over every file the game loads (plan §17.6): the asset manifest's
+ * files plus all of assets/data. Compared in the multiplayer handshakes next to
+ * the version, so two builds with the same version but different content —
+ * a replaced texture, an edited unit — cannot play together. Computed once when
+ * Vite starts (≈0.1 s); a dev server needs a restart to pick up asset edits.
+ */
+function contentHash() {
+    const walk = (dir) =>
+        readdirSync(dir).flatMap((name) => {
+            const p = resolve(dir, name);
+            return statSync(p).isDirectory() ? walk(p) : [p];
+        });
+    const manifest = readFileSync(resolve('src/game/assetManifest.ts'), 'utf8');
+    const listed = [...manifest.matchAll(/'\.\.\/\.\.\/assets\/([^']+)'/g)].map((m) => m[1]);
+    const data = walk(resolve('assets/data')).map((p) => relative(resolve('assets'), p).split('\\').join('/'));
+    const hash = createHash('sha256');
+    for (const file of [...new Set([...listed, ...data])].sort()) {
+        let bytes = readFileSync(resolve('assets', file));
+        // text files: CRLF → LF, so a Windows checkout (git autocrlf) and a
+        // macOS/Linux checkout of the same commit produce the same hash
+        if (/\.(jsonc?|txt|csv|svg)$/i.test(file)) bytes = Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n'));
+        hash.update(file).update('\0').update(bytes).update('\0');
+    }
+    return hash.digest('hex');
 }
 
 /** Copy backend/ (PHP matchmaking, etc.) into dist alongside the game bundle. */
@@ -44,6 +72,7 @@ export default defineConfig({
         __APP_VERSION__: JSON.stringify(appVersion),
         __GIT_BRANCH__: JSON.stringify(gitBranch()),
         __STEAM_APP_ID__: JSON.stringify(steamAppId),
+        __CONTENT_HASH__: JSON.stringify(contentHash()),
     },
     plugins: [copyBackend()],
 });

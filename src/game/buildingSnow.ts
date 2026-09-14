@@ -1,8 +1,5 @@
 import { Mesh, MeshStandardMaterial, type Object3D } from 'three';
 
-/** Base buildings that get upward-face snow (not shield/rocket extras). */
-export const BUILDING_SNOW_IDS = new Set(['command-tower', 'research-center', 'stronghold']);
-
 /** Shared 0..1 cover for building roof snow (lags ground on the way up, clears fast). */
 const buildingSnowUniform = { value: 0 };
 let buildingCover = 0;

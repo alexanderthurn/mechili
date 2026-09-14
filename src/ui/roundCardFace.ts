@@ -7,7 +7,7 @@ import {
     type ForgeSpellPool,
     type RuneCardForgeRow,
 } from '../game/forgeRecipes';
-import { ITEMS } from '../game/items';
+import { BASE_TYPES } from '../game/units';
 import {
     itemName,
     roundCardDescription,
@@ -16,7 +16,6 @@ import {
     t,
     tacticName,
 } from '../i18n';
-import { TACTICS } from '../game/tactics';
 import { iconHtml, moneyHtml } from './iconAtlas';
 
 function escapeAttr(s: string): string {
@@ -51,10 +50,10 @@ function catalogExtras(c: RoundCard): string[] {
     const unitsLabel = roundCardUnitsLabel(c.id, c.unitsLabel);
     if (unitsLabel) extras.push(unitsLabel);
     if (c.items?.length) {
-        extras.push(c.items.map((id) => itemName(id, ITEMS[id]?.name ?? id)).join(', '));
+        extras.push(c.items.map((id) => itemName(id, BASE_TYPES.rune(id)?.name ?? id)).join(', '));
     }
     if (c.tactics?.length) {
-        extras.push(c.tactics.map((id) => tacticName(id, TACTICS[id]?.name ?? id)).join(', '));
+        extras.push(c.tactics.map((id) => tacticName(id, BASE_TYPES.tactic(id)?.name ?? id)).join(', '));
     }
     if (c.flankSpawnHalf) {
         extras.push(t('hud:flankHalf', { defaultValue: 'Flank spawn half-time' }));
@@ -108,10 +107,10 @@ function forgeRowsHtml(rows: readonly RuneCardForgeRow[], cardRuneId: string | n
  * Same markup in-game and on the homepage.
  */
 export function roundCardFaceHtml(c: RoundCard, opts: RoundCardFaceOpts = {}): string {
-    const icon = roundCardIcon(c);
+    const icon = roundCardIcon(c, BASE_TYPES);
     const runeId = c.items?.length === 1 ? c.items[0]! : null;
     const forgeRows = runeId
-        ? forgeRecipesForRuneCard(runeId, opts.ownedItemIds ?? [], opts.forgePool ?? 'all')
+        ? forgeRecipesForRuneCard(BASE_TYPES, runeId, opts.ownedItemIds ?? [], opts.forgePool ?? 'all')
         : [];
     const unitsLabel = roundCardUnitsLabel(c.id, c.unitsLabel);
     const subtitle = opts.catalog

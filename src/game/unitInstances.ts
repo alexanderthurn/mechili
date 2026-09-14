@@ -9,7 +9,7 @@ import {
 } from 'three';
 import { HORDE_COLOR, LEVEL_TINT_COLORS, applyLevelTintColor, levelTintMultiplier } from './colors';
 import {
-    attachWingFlapForModel,
+    attachInstancedWingFlap,
     preserveCrowWingFlap,
     randomWingPhase,
     setCrowWingPhase,
@@ -22,21 +22,18 @@ import {
     swapCrowWingRest,
     swapCrowWingBodyRoll,
     updateCrowWingFlap,
-    usesWingFlapModel,
 } from './crowWingFlap';
-import { getUnitInstanceAsset, hasUnitInstanceAsset, type InstancePart } from './unitModels';
+import {
+    getUnitInstanceAsset,
+    hasUnitInstanceAsset,
+    isStructureModel,
+    usesWingFlapModel,
+    wingFlapOf,
+    type InstancePart,
+} from './unitModels';
 import { attachBuildingSnow } from './buildingSnow';
 import { prefs, type Prefs } from './prefs';
 import type { BattleTeam } from './units';
-
-/** Unit type ids that use `structure: true` — kept here to avoid a units↔instances cycle. */
-const STRUCTURE_IDS = new Set([
-    'command-tower',
-    'research-center',
-    'stronghold',
-    'shield',
-    'rocket',
-]);
 
 /** Max mechs per (type × team × alive|dead) pool — cheat spam still fits. */
 const POOL_CAPACITY = 4096;
@@ -441,16 +438,17 @@ function levelOf(proxy: Group): number {
 
 function unitShadowCast(typeId: string, tier: Prefs['shadows']): boolean {
     if (tier === 'off' || tier === 'low') return false;
-    if (tier === 'medium') return STRUCTURE_IDS.has(typeId);
+    if (tier === 'medium') return isStructureModel(typeId);
     return true;
 }
 
 function makeInstanced(part: InstancePart, typeId: string, team: BattleTeam): InstancedMesh {
     const mat = part.material.clone();
     if (part.material.userData.wantsBuildingSnow) attachBuildingSnow(mat);
-    if (part.material.userData.wantsCrowWingFlap) {
+    const wingFlap = part.material.userData.wantsCrowWingFlap ? wingFlapOf(typeId) : null;
+    if (wingFlap) {
         preserveCrowWingFlap(part.material, mat);
-        attachWingFlapForModel(typeId, mat, part.geometry);
+        attachInstancedWingFlap(wingFlap, mat, part.geometry);
     }
     // Level hue is per-instance now (see levelTintMultiplier) — nothing here.
     // the neutral horde reads as its own faction: dye its pools pink

@@ -1,0 +1,10 @@
+// Dead Farmer innate — spawn type is the only per-unit knob.
+// Child packs should not own this talent (no chain).
+{
+    "id": "darkHarvest",
+    "name": "Dark Harvest",
+    "cost": 0,
+    "mods": {},
+    "onKill": { "typeId": "hordeFarmerSpawn" },
+    "icon": "tech-default",
+}

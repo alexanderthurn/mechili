@@ -1,0 +1,9 @@
+// Catalog-only for now — add it to a unit's "talents" when one should use it.
+{
+    "id": "wideBlast",
+    "name": "Wide Blast",
+    "cost": 250,
+    "mods": { "splashRadius": 3 },
+    "icon": "tech-wide-blast",
+    "description": "Triples splash radius (grants splash to units without it).",
+}

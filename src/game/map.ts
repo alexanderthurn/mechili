@@ -847,7 +847,7 @@ export class BattleMap {
 
     /**
      * Oriented soft rectangle wear (Hammer of the Gods footprint).
-     * Matches HAMMER_ZONE + placement yaw — not a circumscribed disc.
+     * Matches the strike's `rect` + placement yaw — not a circumscribed disc.
      */
     stampWearOrientedRect(
         x: number,
@@ -1657,7 +1657,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         const profile = groundMaterialProfile();
         // Wear surface: HQ dirt on high/ultra, sand on lower tiers
         const wear = await loadWearGroundTextures();
-        const sand = wear?.albedo ?? (await loadWorldTexture(sandAlbedoUrl));
+        const sand = wear?.albedo ?? (await loadWorldTexture(sandAlbedoUrl()));
         const tileSize = profile.detailTile;
         const repeat = new Vector2(this.width / tileSize, this.height / tileSize);
         const tile = (t: typeof albedo) => {

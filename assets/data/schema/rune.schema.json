@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ItemDef",
+  "definitions": {
+    "ItemDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "string",
+          "enum": [
+            "base",
+            "advanced"
+          ],
+          "description": "`base`: weak elemental rune — round-card pool, always in the shop, forge fuel. `advanced`: forged in the Stronghold oven or granted by a commander."
+        },
+        "icon": {
+          "type": "string",
+          "description": "atlas id for HUD and world badges (`item-*`)"
+        },
+        "mods": {
+          "type": "object",
+          "properties": {
+            "hp": {
+              "type": "number"
+            },
+            "damage": {
+              "type": "number"
+            },
+            "range": {
+              "type": "number"
+            },
+            "speed": {
+              "type": "number"
+            },
+            "attackInterval": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false,
+          "description": "stat multipliers for every mech of the equipped pack"
+        },
+        "debuffImmune": {
+          "type": "boolean",
+          "description": "pack-wide immunity to tower-destruction debuffs for the battle"
+        },
+        "grantsShieldHp": {
+          "type": "boolean",
+          "description": "grants every mech in the pack a shield pool equal to its max HP"
+        },
+        "forge": {
+          "type": "object",
+          "properties": {
+            "ingredients": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority": {
+              "type": "number",
+              "description": "tie-break among same-size matches, higher wins (default 1)"
+            }
+          },
+          "required": [
+            "ingredients"
+          ],
+          "additionalProperties": false,
+          "description": "Forge recipe producing this rune: the exact multiset of rune ids the oven must hold. No two recipes may share the same ingredients."
+        },
+        "forgeCost": {
+          "type": "number",
+          "description": "Supply the Stronghold charges to fire the oven for this rune, on top of the ingredients. Omit = free. Only advanced (forged) runes have one."
+        },
+        "cardCost": {
+          "type": "number",
+          "description": "supply price as a between-round card (default 50)"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "tier",
+        "icon",
+        "mods",
+        "description"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

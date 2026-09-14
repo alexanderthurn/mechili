@@ -1,7 +1,10 @@
+import { BASE_TYPES } from './units';
+import type { TypeRegistry } from './content/typeRegistry';
+import { TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID } from './cards';
 import type { GameSettings, TutorialSettings } from './settings';
 import type { BattleMap, Cell } from './map';
 import { CELL } from './map';
-import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, TACTICS, clampTacticPoint } from './tactics';
+import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, clampTacticPoint } from './tactics';
 
 /** Tutorial 1: empty board, auto commander, soft UI lesson, 4 enemy archers. */
 export const TUTORIAL_1_ID = 1;
@@ -136,14 +139,66 @@ export function tutorialBaseCell(
         : { col, row: centerRow };
 }
 
-/** Dwarf footprint for a tutorial pad (matches Unit footprint + rotation). */
-export function tutorialDwarfFootprint(rotated: boolean): { cols: number; rows: number } {
-    return rotated ? { cols: 2, rows: 5 } : { cols: 5, rows: 2 };
+/**
+ * The units the three lessons are scripted around. Their steps, pads and
+ * line-ups assume exactly these ids and footprints, so they are named here
+ * once and checked when a lesson starts ({@link tutorialContentProblems}) —
+ * renaming a unit or changing its footprint must fail loudly, not leave a
+ * lesson waiting for a unit that never comes. Tutorials run on base content.
+ */
+export const TUTORIAL_DWARF_ID = 'dwarf';
+export const TUTORIAL_ARCHER_ID = 'archer';
+export const TUTORIAL_BALLISTA_ID = 'ballista';
+
+const TUTORIAL_FOOTPRINTS: Readonly<Record<string, { cols: number; rows: number }>> = {
+    [TUTORIAL_DWARF_ID]: { cols: 5, rows: 2 },
+    [TUTORIAL_ARCHER_ID]: { cols: 2, rows: 2 },
+    [TUTORIAL_BALLISTA_ID]: { cols: 4, rows: 4 },
+};
+
+/** What would break a lesson in `types`: a missing unit or an unexpected footprint. Empty = fine. */
+export function tutorialContentProblems(types: TypeRegistry): string[] {
+    const problems: string[] = [];
+    for (const [id, fp] of Object.entries(TUTORIAL_FOOTPRINTS)) {
+        const type = types.byId(id);
+        if (!type) {
+            problems.push(`tutorials need unit "${id}"`);
+        } else if (type.footprint.cols !== fp.cols || type.footprint.rows !== fp.rows) {
+            problems.push(
+                `tutorial pads expect "${id}" to be ${fp.cols}×${fp.rows}, it is ${type.footprint.cols}×${type.footprint.rows}`,
+            );
+        }
+    }
+    for (const id of ['stronghold', 'command-tower', 'research-center']) {
+        if (!types.byId(id)) problems.push(`tutorials need building "${id}"`);
+    }
+    if (!types.byId(TUTORIAL_ARCHER_ID)?.talents?.includes(TUTORIAL_3_ARCHER_RANGE_TECH)) {
+        problems.push(`tutorial 3 needs talent "${TUTORIAL_3_ARCHER_RANGE_TECH}" on "${TUTORIAL_ARCHER_ID}"`);
+    }
+    for (const id of [TUTORIAL_START_CARD_ID, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID]) {
+        if (!types.commander(id)) problems.push(`tutorials need hidden commander "${id}"`);
+    }
+    // tutorial 2 walks through these three spells step by step
+    const dragon = types.tactic(DRAGON_ID);
+    if (dragon?.targeting !== 'two-point' || dragon.spell?.fx !== 'dragon') {
+        problems.push(`tutorial 2 needs "${DRAGON_ID}" as a two-point dragon spell`);
+    }
+    if (types.tactic(SPAWN_DWARVES_ID)?.spell?.spawn?.typeId !== TUTORIAL_DWARF_ID) {
+        problems.push(`tutorial 2 needs "${SPAWN_DWARVES_ID}" to summon "${TUTORIAL_DWARF_ID}"`);
+    }
+    if (!types.tactic(OIL_SPILL_ID)) problems.push(`tutorial 2 needs "${OIL_SPILL_ID}"`);
+    return problems;
 }
 
-/** Siege ballista footprint (4×4, rotation-symmetric). */
+/** Dwarf footprint for a tutorial pad (matches Unit footprint + rotation). */
+export function tutorialDwarfFootprint(rotated: boolean): { cols: number; rows: number } {
+    const fp = TUTORIAL_FOOTPRINTS[TUTORIAL_DWARF_ID]!;
+    return rotated ? { cols: fp.rows, rows: fp.cols } : { ...fp };
+}
+
+/** Siege ballista footprint (rotation-symmetric). */
 export function tutorialBallistaFootprint(): { cols: number; rows: number } {
-    return { cols: 4, rows: 4 };
+    return { ...TUTORIAL_FOOTPRINTS[TUTORIAL_BALLISTA_ID]! };
 }
 
 /** Row of a side's forward rank for a footprint that deep (own zone, facing mid-field). */
@@ -198,7 +253,7 @@ export function tutorial3CenterDwarfCell(map: BattleMap): Cell {
 
 /** One pack in Tutorial 3's mirrored border line-up (round 3). */
 export interface Tutorial3ArmyPack {
-    typeId: 'dwarf' | 'archer';
+    typeId: typeof TUTORIAL_DWARF_ID | typeof TUTORIAL_ARCHER_ID;
     cell: Cell;
 }
 
@@ -219,16 +274,16 @@ export function tutorial3MirroredArmy(
     map: BattleMap,
     team: 'player' | 'enemy',
 ): Tutorial3ArmyPack[] {
-    const composition: readonly ('dwarf' | 'archer')[] = [
-        'dwarf',
-        'archer',
-        'dwarf',
-        'archer',
-        'archer',
+    const composition: readonly Tutorial3ArmyPack['typeId'][] = [
+        TUTORIAL_DWARF_ID,
+        TUTORIAL_ARCHER_ID,
+        TUTORIAL_DWARF_ID,
+        TUTORIAL_ARCHER_ID,
+        TUTORIAL_ARCHER_ID,
     ];
     const near = team === 'player' ? !map.ownAtFar : map.ownAtFar;
-    // Dwarf 5×2, archer 2×2 — leave one empty cell between packs.
-    const widths = composition.map((id) => (id === 'dwarf' ? 5 : 2));
+    // leave one empty cell between packs
+    const widths = composition.map((id) => TUTORIAL_FOOTPRINTS[id]!.cols);
     const gaps = composition.length - 1;
     const totalW = widths.reduce((a, b) => a + b, 0) + gaps;
     let col = Math.floor((map.cols - totalW) / 2);
@@ -236,7 +291,7 @@ export function tutorial3MirroredArmy(
     for (let i = 0; i < composition.length; i++) {
         const typeId = composition[i]!;
         const cols = widths[i]!;
-        const rows = typeId === 'dwarf' ? 2 : 2;
+        const rows = TUTORIAL_FOOTPRINTS[typeId]!.rows;
         packs.push({
             typeId,
             cell: { col, row: tutorial3BorderRow(map, rows, near) },
@@ -334,7 +389,7 @@ export function tutorial2OilCorridor(map: BattleMap): TutorialCorridorZone {
  */
 export function tutorial2DragonCorridor(map: BattleMap): TutorialCorridorZone {
     const { midCol, midRow } = tutorial2MidField(map);
-    const maxSpan = TACTICS[DRAGON_ID]?.maxSpan ?? 24 * CELL;
+    const maxSpan = BASE_TYPES.tactic(DRAGON_ID)?.maxSpan ?? 24 * CELL;
     const halfCells = Math.floor(maxSpan / (2 * CELL));
     const start = map.cellCenter(midCol + halfCells, midRow);
     const end = map.cellCenter(midCol - halfCells, midRow);

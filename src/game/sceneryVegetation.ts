@@ -27,6 +27,7 @@ import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import type { SceneryQuality } from './prefs';
 import { TRANSITION_TAU, type Season } from './weather';
+import { assetUrl, onAssetOverlaySwitch } from './assets';
 
 export type VegetationKind = 'oak' | 'pine' | 'bushRound' | 'bushTall';
 
@@ -75,70 +76,76 @@ const SPECS: Record<
     }
 > = {
     oak: {
-        url: new URL('../../assets/models/scenery/tree-oak.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/scenery/tree-oak.glb');
+        },
         height: 10,
-        billboard: new URL('../../assets/textures/scenery/billboard-oak.png', import.meta.url).href,
-        billboardSnow: new URL('../../assets/textures/scenery/billboard-oak-snow.png', import.meta.url)
-            .href,
-        billboardSpring: new URL(
-            '../../assets/textures/scenery/billboard-oak-spring.png',
-            import.meta.url,
-        ).href,
-        billboardAutumn: new URL(
-            '../../assets/textures/scenery/billboard-oak-autumn.png',
-            import.meta.url,
-        ).href,
+        get billboard() {
+            return assetUrl('textures/scenery/billboard-oak.png');
+        },
+        get billboardSnow() {
+            return assetUrl('textures/scenery/billboard-oak-snow.png');
+        },
+        get billboardSpring() {
+            return assetUrl('textures/scenery/billboard-oak-spring.png');
+        },
+        get billboardAutumn() {
+            return assetUrl('textures/scenery/billboard-oak-autumn.png');
+        },
     },
     pine: {
-        url: new URL('../../assets/models/scenery/tree-pine.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/scenery/tree-pine.glb');
+        },
         height: 12,
-        billboard: new URL('../../assets/textures/scenery/billboard-pine.png', import.meta.url).href,
-        billboardSnow: new URL('../../assets/textures/scenery/billboard-pine-snow.png', import.meta.url)
-            .href,
-        billboardSpring: new URL(
-            '../../assets/textures/scenery/billboard-pine-spring.png',
-            import.meta.url,
-        ).href,
-        billboardAutumn: new URL(
-            '../../assets/textures/scenery/billboard-pine-autumn.png',
-            import.meta.url,
-        ).href,
+        get billboard() {
+            return assetUrl('textures/scenery/billboard-pine.png');
+        },
+        get billboardSnow() {
+            return assetUrl('textures/scenery/billboard-pine-snow.png');
+        },
+        get billboardSpring() {
+            return assetUrl('textures/scenery/billboard-pine-spring.png');
+        },
+        get billboardAutumn() {
+            return assetUrl('textures/scenery/billboard-pine-autumn.png');
+        },
     },
     bushRound: {
-        url: new URL('../../assets/models/scenery/bush-round.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/scenery/bush-round.glb');
+        },
         height: 2.4,
-        billboard: new URL('../../assets/textures/scenery/billboard-bush-round.png', import.meta.url)
-            .href,
-        billboardSnow: new URL(
-            '../../assets/textures/scenery/billboard-bush-round-snow.png',
-            import.meta.url,
-        ).href,
-        billboardSpring: new URL(
-            '../../assets/textures/scenery/billboard-bush-round-spring.png',
-            import.meta.url,
-        ).href,
-        billboardAutumn: new URL(
-            '../../assets/textures/scenery/billboard-bush-round-autumn.png',
-            import.meta.url,
-        ).href,
+        get billboard() {
+            return assetUrl('textures/scenery/billboard-bush-round.png');
+        },
+        get billboardSnow() {
+            return assetUrl('textures/scenery/billboard-bush-round-snow.png');
+        },
+        get billboardSpring() {
+            return assetUrl('textures/scenery/billboard-bush-round-spring.png');
+        },
+        get billboardAutumn() {
+            return assetUrl('textures/scenery/billboard-bush-round-autumn.png');
+        },
     },
     bushTall: {
-        url: new URL('../../assets/models/scenery/bush-tall.glb', import.meta.url).href,
+        get url() {
+            return assetUrl('models/scenery/bush-tall.glb');
+        },
         height: 3.2,
-        billboard: new URL('../../assets/textures/scenery/billboard-bush-tall.png', import.meta.url)
-            .href,
-        billboardSnow: new URL(
-            '../../assets/textures/scenery/billboard-bush-tall-snow.png',
-            import.meta.url,
-        ).href,
-        billboardSpring: new URL(
-            '../../assets/textures/scenery/billboard-bush-tall-spring.png',
-            import.meta.url,
-        ).href,
-        billboardAutumn: new URL(
-            '../../assets/textures/scenery/billboard-bush-tall-autumn.png',
-            import.meta.url,
-        ).href,
+        get billboard() {
+            return assetUrl('textures/scenery/billboard-bush-tall.png');
+        },
+        get billboardSnow() {
+            return assetUrl('textures/scenery/billboard-bush-tall-snow.png');
+        },
+        get billboardSpring() {
+            return assetUrl('textures/scenery/billboard-bush-tall-spring.png');
+        },
+        get billboardAutumn() {
+            return assetUrl('textures/scenery/billboard-bush-tall-autumn.png');
+        },
     },
 };
 
@@ -148,6 +155,15 @@ const cache = new Map<VegetationKind, VegetationAsset>();
 const billboardCache = new Map<VegetationKind, { geometry: BufferGeometry; material: MeshBasicMaterial }>();
 let loadPromise: Promise<void> | null = null;
 let billboardPromise: Promise<void> | null = null;
+/** file URL each kind's mesh was last loaded from */
+const meshFrom = new Map<VegetationKind, string>();
+/** file URLs each kind's billboard textures were last loaded from */
+const billboardFrom = new Map<VegetationKind, string>();
+
+function billboardFiles(kind: VegetationKind): string {
+    const spec = SPECS[kind]!;
+    return [spec.billboard, spec.billboardSnow, spec.billboardSpring, spec.billboardAutumn].join('|');
+}
 type BillboardSeasonMaps = Record<Season, Texture>;
 
 /** Season shown on billboard `map` (fade source). */
@@ -523,6 +539,7 @@ export async function loadSceneryVegetation(): Promise<void> {
                 if (cache.has(id)) return;
                 const spec = SPECS[id]!;
                 try {
+                    meshFrom.set(id, spec.url);
                     const gltf = await loader.loadAsync(spec.url);
                     if (budget) applyTextureBudget(gltf.scene, budget);
                     const root = normalize(gltf.scene, spec.height);
@@ -549,6 +566,7 @@ export async function loadSceneryBillboards(): Promise<void> {
                 if (billboardCache.has(id)) return;
                 const spec = SPECS[id]!;
                 try {
+                    billboardFrom.set(id, billboardFiles(id));
                     const [tex, snowTex, springTex, autumnTex] = await Promise.all([
                         texLoader.loadAsync(spec.billboard),
                         texLoader.loadAsync(spec.billboardSnow).catch(() => null),
@@ -629,3 +647,53 @@ export function placeVegetationInstance(
     return true;
 }
 
+/** Drop a material from the season / snow uniform lists before disposing it. */
+function forgetMaterial(material: object): void {
+    for (const list of [seasonMaterials, snowMaterials] as object[][]) {
+        const i = list.indexOf(material);
+        if (i >= 0) list.splice(i, 1);
+    }
+}
+
+// A level replaced a tree / bush model or billboard: reload the kinds that were
+// loaded (or tried) from another file. Scenery built afterwards uses the new ones.
+onAssetOverlaySwitch('scenery vegetation', async () => {
+    await Promise.allSettled([loadPromise, billboardPromise]);
+    const kinds = Object.keys(SPECS) as VegetationKind[];
+    const reloads: Promise<void>[] = [];
+
+    const staleMeshes = kinds.filter((k) => meshFrom.has(k) && meshFrom.get(k) !== SPECS[k]!.url);
+    for (const k of staleMeshes) {
+        const asset = cache.get(k);
+        if (asset) {
+            forgetMaterial(asset.material);
+            asset.geometry.dispose();
+            asset.material.dispose();
+        }
+        cache.delete(k);
+        meshFrom.delete(k);
+    }
+    if (staleMeshes.length > 0) {
+        loadPromise = null;
+        reloads.push(loadSceneryVegetation());
+    }
+
+    const staleCards = kinds.filter((k) => billboardFrom.has(k) && billboardFrom.get(k) !== billboardFiles(k));
+    for (const k of staleCards) {
+        const card = billboardCache.get(k);
+        if (card) {
+            const maps = card.material.userData.seasonMaps as BillboardSeasonMaps | undefined;
+            for (const tex of new Set([card.material.map, ...Object.values(maps ?? {})])) tex?.dispose();
+            forgetMaterial(card.material);
+            card.geometry.dispose();
+            card.material.dispose();
+        }
+        billboardCache.delete(k);
+        billboardFrom.delete(k);
+    }
+    if (staleCards.length > 0) {
+        billboardPromise = null;
+        reloads.push(loadSceneryBillboards());
+    }
+    await Promise.all(reloads);
+});

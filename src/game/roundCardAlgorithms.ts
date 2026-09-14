@@ -4,6 +4,7 @@
  */
 
 import { t } from '../i18n';
+import type { TypeRegistry } from './content/typeRegistry';
 import {
     drawRoundCardOffer,
     type RoundCard,
@@ -25,9 +26,9 @@ export abstract class RoundCardAlgorithm {
         return DEFAULT_OFFER_COUNT;
     }
 
-    drawOffer(round: number, rng: () => number): RoundCard[] {
+    drawOffer(round: number, rng: () => number, types: TypeRegistry): RoundCard[] {
         if (!this.shouldOffer(round)) return [];
-        return drawRoundCardOffer(rng, {
+        return drawRoundCardOffer(types, rng, {
             offerCount: this.offerCount(),
             pool: this.poolForRound(round),
         });

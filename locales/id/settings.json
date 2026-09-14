@@ -212,6 +212,7 @@
   "gfx": {
     "fullscreen": "Layar penuh",
     "fullscreenHint": "F11 / Alt+Enter",
+    "presetMinimal": "Minimal",
     "presetLow": "Rendah",
     "presetMedium": "Sedang",
     "presetHigh": "Tinggi",

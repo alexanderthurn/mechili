@@ -3,6 +3,7 @@
  * homepage (web.html) commander gallery.
  */
 import { startCardForgeIcons, type StartCard } from '../game/cards';
+import { BASE_TYPES } from '../game/units';
 import {
     commanderDescription,
     commanderTitle,
@@ -125,7 +126,7 @@ function decodeTipRows(raw: string): TipRow[] {
 
 /** Forge-spell icon row for a commander card face (with tip data attrs). */
 export function startCardForgeSpellsHtml(c: StartCard): string {
-    const forge = startCardForgeIcons(c);
+    const forge = startCardForgeIcons(c, BASE_TYPES);
     if (forge.length === 0) return '';
     return `<div class="c-forge-spells">${forge
         .map(

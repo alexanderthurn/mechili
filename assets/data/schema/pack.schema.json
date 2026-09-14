@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/PackManifest",
+  "definitions": {
+    "PackManifest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number"
+        },
+        "roster": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "offRoster": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "buildings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "runes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "every rune in data/runes, in catalog order (inventories and card lists sort by it)"
+        },
+        "commanders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "commanders offered to players, in draw order"
+        },
+        "hiddenCommanders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "commanders loaded but never offered (tutorial lessons)"
+        },
+        "roundCards": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "between-round unit / spell cards, in draw order"
+        },
+        "spells": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "every spell in data/spells, in catalog order"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "roster",
+        "offRoster",
+        "buildings",
+        "runes",
+        "commanders",
+        "hiddenCommanders",
+        "roundCards",
+        "spells"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

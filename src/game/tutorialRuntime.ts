@@ -15,16 +15,10 @@ import { t } from '../i18n';
 import { TutorialGuide } from '../ui/tutorialGuide';
 import { TutorialGuide2 } from '../ui/tutorialGuide2';
 import { TutorialGuide3 } from '../ui/tutorialGuide3';
-import { TUTORIAL_2_START_CARD, TUTORIAL_3_START_CARD, TUTORIAL_START_CARD } from './cards';
+import { TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID } from './cards';
 import { BASE_ANCHORS } from './map';
 import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID } from './tactics';
 import {
-    COMMAND_TOWER,
-    STRONGHOLD_ARCHER,
-    STRONGHOLD_ARCHER_SLOTS,
-    RESEARCH_CENTER,
-    STRONGHOLD,
-    unitTypeById,
     type Team,
     type Unit,
     type UnitType,
@@ -58,9 +52,14 @@ import {
     TUTORIAL_3_MIN_RUNES,
     TUTORIAL_3_R4_ARCHERS,
     TUTORIAL_3_ROUNDS,
+    TUTORIAL_ARCHER_ID,
+    TUTORIAL_BALLISTA_ID,
+    TUTORIAL_DWARF_ID,
+    tutorialContentProblems,
     type TutorialPlaceSlot,
     type TutorialWorldZone,
 } from './tutorial';
+import type { TypeRegistry } from './content/typeRegistry';
 
 /**
  * The slice of {@link Game} the tutorial lessons are allowed to touch. Kept
@@ -68,6 +67,8 @@ import {
  * to decide which step the player is on, or a seam they drive to stage a round.
  */
 export interface TutorialHost {
+    /** the unit and building definitions this match plays with */
+    readonly types: TypeRegistry;
     readonly settings: GameSettings;
     readonly map: BattleMap;
     readonly placement: PlacementController;
@@ -121,6 +122,18 @@ export type TutorialRoundResult = 'continue' | 'roundWon' | 'victory' | 'defeat'
  * seams and holds no lesson state of its own.
  */
 export class TutorialRuntime {
+    // Lessons name specific base buildings on purpose (plan §17.1 rule 7) —
+    // resolved through the match's registry, never module constants.
+    private get STRONGHOLD() {
+        return this.host.types.require('stronghold');
+    }
+    private get COMMAND_TOWER() {
+        return this.host.types.require('command-tower');
+    }
+    private get RESEARCH_CENTER() {
+        return this.host.types.require('research-center');
+    }
+
     private readonly host: TutorialHost;
     private readonly lesson: number | null;
     /** Soft-hint overlay for Tutorial 1; null outside that lesson. */
@@ -138,6 +151,8 @@ export class TutorialRuntime {
     private pendingOutcome: 'win' | 'loss' | null = null;
 
     constructor(host: TutorialHost) {
+        const problems = tutorialContentProblems(host.types);
+        if (problems.length > 0) throw new Error(`[tutorial] content changed under the lessons: ${problems.join('; ')}`);
         this.host = host;
         this.lesson = tutorialId(host.settings);
     }
@@ -165,20 +180,21 @@ export class TutorialRuntime {
             this.maybeStartGuide();
             return;
         }
-        const starterCard =
+        const starterCardId =
             this.lesson === TUTORIAL_2_ID
-                ? TUTORIAL_2_START_CARD
+                ? TUTORIAL_2_START_CARD_ID
                 : this.lesson === TUTORIAL_3_ID
-                  ? TUTORIAL_3_START_CARD
-                  : TUTORIAL_START_CARD;
+                  ? TUTORIAL_3_START_CARD_ID
+                  : TUTORIAL_START_CARD_ID;
         host.dispatchPlayer({
             kind: 'chooseCard',
             team: 'player',
-            cardId: starterCard.id,
+            cardId: starterCardId,
         });
         // Block the unlock picker for this stripped lesson.
         host.unlockUsedThisRound[host.humanSeat] = true;
-        host.opponent.chooseStarter([starterCard]);
+        const starterCard = host.types.commander(starterCardId);
+        host.opponent.chooseStarter(starterCard ? [starterCard] : []);
         host.afterStarterPick();
         this.maybeStartGuide();
     }
@@ -286,11 +302,6 @@ export class TutorialRuntime {
 
     // ------------------------------------------------------------- per-round
 
-    /** Battlement pads available this match (all five are archer posts). */
-    strongholdArcherSlots(): readonly number[] {
-        return STRONGHOLD_ARCHER_SLOTS;
-    }
-
     /**
      * Tutorial 1: empty map. Tutorial 2: player Stronghold only (forward).
      * Tutorial 3: per-round tower sets, spawned by {@link setupRound3}.
@@ -339,14 +350,14 @@ export class TutorialRuntime {
         // Mark field packs as prior-round so drag-reposition is denied
         // (runes / techs still work).
         for (const u of this.host.placement.allUnits()) {
-            if (u.type.structure || u.type === STRONGHOLD_ARCHER) continue;
+            if (u.type.structure || u.type.fixture) continue;
             u.deployedRound = 0;
         }
     }
 
     private clearFieldUnits(): void {
         for (const u of [...this.host.placement.allUnits()]) {
-            if (u.type.structure || u.type === STRONGHOLD_ARCHER) continue;
+            if (u.type.structure || u.type.fixture) continue;
             this.host.placement.removeUnit(u);
         }
     }
@@ -354,7 +365,7 @@ export class TutorialRuntime {
     /** Round 3 opens on a bare field — every building comes down first. */
     private clearStructures(): void {
         for (const u of [...this.host.placement.allUnits()]) {
-            if (u.type.structure || u.type === STRONGHOLD_ARCHER) {
+            if (u.type.structure || u.type.fixture) {
                 this.host.placement.removeUnit(u);
             }
         }
@@ -365,7 +376,7 @@ export class TutorialRuntime {
     private playerStronghold(): Unit | undefined {
         return this.host.placement
             .allUnits()
-            .find((u) => u.type === STRONGHOLD && u.team === 'player' && !u.destroyed);
+            .find((u) => u.type === this.STRONGHOLD && u.team === 'player' && !u.destroyed);
     }
 
     private ensurePlayerStrongholdSelected(): void {
@@ -380,7 +391,7 @@ export class TutorialRuntime {
     private playerCommandTower(): Unit | undefined {
         return this.host.placement
             .allUnits()
-            .find((u) => u.type === COMMAND_TOWER && u.team === 'player' && !u.destroyed);
+            .find((u) => u.type === this.COMMAND_TOWER && u.team === 'player' && !u.destroyed);
     }
 
     private ensurePlayerCommandTowerSelected(): void {
@@ -394,7 +405,7 @@ export class TutorialRuntime {
     private playerArcher(): Unit | undefined {
         return this.host.placement
             .allUnits()
-            .find((u) => u.seat === this.host.humanSeat && u.type.id === 'archer' && !u.destroyed);
+            .find((u) => u.seat === this.host.humanSeat && u.type.id === TUTORIAL_ARCHER_ID && !u.destroyed);
     }
 
     private ensurePlayerArcherSelected(): void {
@@ -428,7 +439,7 @@ export class TutorialRuntime {
             .allUnits()
             .filter(
                 (u) =>
-                    u.seat === this.host.humanSeat && u.type.id === 'dwarf' && !u.type.structure,
+                    u.seat === this.host.humanSeat && u.type.id === TUTORIAL_DWARF_ID && !u.type.structure,
             );
         const slot0 = slots[0];
         const slot1 = slots[1];
@@ -460,7 +471,7 @@ export class TutorialRuntime {
         const onCellWrongRot = this.host.placement.allUnits().some(
             (u) =>
                 u.seat === this.host.humanSeat &&
-                u.type.id === 'dwarf' &&
+                u.type.id === TUTORIAL_DWARF_ID &&
                 u.cell.col === slot1.anchor.col &&
                 u.cell.row === slot1.anchor.row &&
                 u.rotated !== slot1.rotated,
@@ -524,11 +535,11 @@ export class TutorialRuntime {
             host.map,
             BASE_ANCHORS.stronghold.xFrac,
             TUTORIAL_2_STRONGHOLD_ROW_FRAC,
-            STRONGHOLD.footprint,
+            this.STRONGHOLD.footprint,
             'player',
         );
         host.placement.spawn(
-            STRONGHOLD,
+            this.STRONGHOLD,
             cell,
             'player',
             false,
@@ -541,18 +552,18 @@ export class TutorialRuntime {
         const host = this.host;
         const exists = host.placement
             .allUnits()
-            .some((u) => u.type === STRONGHOLD && u.team === 'enemy' && !u.destroyed);
+            .some((u) => u.type === this.STRONGHOLD && u.team === 'enemy' && !u.destroyed);
         if (exists) return;
         // Same anchors as a normal match — back of the enemy zone, centered.
         const cell = tutorialBaseCell(
             host.map,
             BASE_ANCHORS.stronghold.xFrac,
             BASE_ANCHORS.stronghold.rowFrac,
-            STRONGHOLD.footprint,
+            this.STRONGHOLD.footprint,
             'enemy',
         );
         host.placement.spawn(
-            STRONGHOLD,
+            this.STRONGHOLD,
             cell,
             'enemy',
             false,
@@ -564,7 +575,7 @@ export class TutorialRuntime {
     private setupRound2(round: number): void {
         const host = this.host;
         const enemySeat = primarySeatOf(host.seats, 'enemy');
-        host.unlockedUnits[enemySeat] = round === 3 ? ['dwarf'] : ['dwarf', 'archer'];
+        host.unlockedUnits[enemySeat] = round === 3 ? [TUTORIAL_DWARF_ID] : [TUTORIAL_DWARF_ID, TUTORIAL_ARCHER_ID];
         // Match-wide unitsPerRound is 0 (player uses Stronghold only) — give the
         // AI an explicit deploy cap per round or it places nothing and the
         // battle ends instantly.
@@ -684,7 +695,7 @@ export class TutorialRuntime {
         const host = this.host;
         const enemyKeep = host.placement
             .allUnits()
-            .find((u) => u.type === STRONGHOLD && u.team === 'enemy' && !u.destroyed);
+            .find((u) => u.type === this.STRONGHOLD && u.team === 'enemy' && !u.destroyed);
         if (!enemyKeep) return null;
         const mid = tutorial2OilCorridor(host.map);
         return tutorial2SummonNearKeep(
@@ -871,19 +882,19 @@ export class TutorialRuntime {
                 host.placement
                     .allUnits()
                     .some((u) => u.type === type && u.team === side && !u.destroyed);
-            if (!standing(RESEARCH_CENTER)) {
+            if (!standing(this.RESEARCH_CENTER)) {
                 spawnBuilding(
                     BASE_ANCHORS.research.xFrac,
                     BASE_ANCHORS.research.rowFrac,
-                    RESEARCH_CENTER,
+                    this.RESEARCH_CENTER,
                     side,
                 );
             }
-            if (!standing(COMMAND_TOWER)) {
+            if (!standing(this.COMMAND_TOWER)) {
                 spawnBuilding(
                     BASE_ANCHORS.command.xFrac,
                     BASE_ANCHORS.command.rowFrac,
-                    COMMAND_TOWER,
+                    this.COMMAND_TOWER,
                     side,
                 );
             }
@@ -894,7 +905,7 @@ export class TutorialRuntime {
     private spawnPlayerArmy3(): void {
         const seat = this.host.humanSeat;
         for (const pack of tutorial3MirroredArmy(this.host.map, 'player')) {
-            const type = unitTypeById(pack.typeId);
+            const type = this.host.types.byId(pack.typeId);
             if (!type) continue;
             this.host.placement.spawn(type, pack.cell, 'player', false, true, seat);
         }
@@ -903,7 +914,7 @@ export class TutorialRuntime {
     /** Round 4: five archers across the player's zone center. */
     private spawnPlayerArchers3(): void {
         const seat = this.host.humanSeat;
-        const type = unitTypeById('archer');
+        const type = this.host.types.byId(TUTORIAL_ARCHER_ID);
         if (!type) return;
         for (const cell of tutorial3CenterArcherCells(
             this.host.map,
@@ -923,7 +934,7 @@ export class TutorialRuntime {
         const host = this.host;
         const humanSeat = host.humanSeat;
         const enemySeat = primarySeatOf(host.seats, 'enemy');
-        host.unlockedUnits[enemySeat] = ['dwarf', 'archer'];
+        host.unlockedUnits[enemySeat] = [TUTORIAL_DWARF_ID, TUTORIAL_ARCHER_ID];
         // Explicit per-round AI cap: the match-wide unitsPerRound only fits
         // round 1, and a cap of 0 would leave the enemy field empty.
         host.deployState.limit[enemySeat] =
@@ -957,7 +968,7 @@ export class TutorialRuntime {
 
         if (round === 1) {
             this.spawnTowers3('enemy');
-            host.unlockedUnits[humanSeat] = ['dwarf', 'ballista'];
+            host.unlockedUnits[humanSeat] = [TUTORIAL_DWARF_ID, TUTORIAL_BALLISTA_ID];
             host.deployState.limit[humanSeat] = 2;
             host.hud.setShopColumnVisible(true);
             host.hud.setShopRunesVisible(false);
@@ -965,7 +976,7 @@ export class TutorialRuntime {
         } else if (round === 2) {
             this.spawnTowers3('both');
             // One pack a side, nose to nose — the boosts are the only difference.
-            const dwarf = unitTypeById('dwarf');
+            const dwarf = this.host.types.byId(TUTORIAL_DWARF_ID);
             if (dwarf) {
                 host.placement.spawn(
                     dwarf,
@@ -1024,8 +1035,8 @@ export class TutorialRuntime {
         const own = host.placement
             .allUnits()
             .filter((u) => u.seat === host.humanSeat && !u.type.structure);
-        const dwarves = own.filter((u) => u.type.id === 'dwarf');
-        const ballistas = own.filter((u) => u.type.id === 'ballista');
+        const dwarves = own.filter((u) => u.type.id === TUTORIAL_DWARF_ID);
+        const ballistas = own.filter((u) => u.type.id === TUTORIAL_BALLISTA_ID);
         const tower = this.playerCommandTower();
         const selected = host.placement.selectedUnit;
         return {
@@ -1044,10 +1055,10 @@ export class TutorialRuntime {
             runesBought: host.deployState.runesBought[host.humanSeat]!,
             runesApplied: own.reduce((n, u) => n + u.items.length, 0),
             archerSelected:
-                !!selected && selected.seat === host.humanSeat && selected.type.id === 'archer',
+                !!selected && selected.seat === host.humanSeat && selected.type.id === TUTORIAL_ARCHER_ID,
             longbowOwned: host.techTree.has(
                 host.humanSeat,
-                'archer',
+                TUTORIAL_ARCHER_ID,
                 TUTORIAL_3_ARCHER_RANGE_TECH,
             ),
         };
@@ -1115,7 +1126,7 @@ export class TutorialRuntime {
     soleTechFor(unit: Unit): string | null {
         return this.lesson === TUTORIAL_3_ID &&
             this.host.round === 4 &&
-            unit.type.id === 'archer'
+            unit.type.id === TUTORIAL_ARCHER_ID
             ? TUTORIAL_3_ARCHER_RANGE_TECH
             : null;
     }

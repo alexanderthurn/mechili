@@ -21,6 +21,7 @@ import {
 import type { HpDrawScheduledParticle } from './hpDraw';
 import type { HpDrawWaveTier } from './units';
 import { cloneUnitModel, hasUnitModel } from './unitModels';
+import { assetUrl, onAssetOverlaySwitch } from './assets';
 
 const MAX_HP_DRAW = 256;
 /** Distance along the view ray for the HP-portrait anchor in world space. */
@@ -86,20 +87,35 @@ const SOUL_TINT = 0xe8ffff;
 const SOUL_OPACITY_WAIT = 0.28;
 const SOUL_OPACITY_FLY = 0.48;
 
+const SOUL_URL = (): string => assetUrl('textures/vfx/soul-ghost.png');
 let sharedSoulTexture: Texture | null = null;
+let soulTextureFrom = '';
 let soulTextureLoading = false;
+
+// A level replaced the soul sprite: the next draw loads the new file.
+onAssetOverlaySwitch('soul texture', () => {
+    if (!sharedSoulTexture || soulTextureFrom === SOUL_URL()) return;
+    sharedSoulTexture.dispose();
+    sharedSoulTexture = null;
+});
 
 function ensureSoulTexture(): Texture | null {
     if (sharedSoulTexture) return sharedSoulTexture;
     if (soulTextureLoading) return null;
     soulTextureLoading = true;
-    const url = new URL('../../assets/textures/vfx/soul-ghost.png', import.meta.url).href;
+    const url = SOUL_URL();
     new TextureLoader().load(
         url,
         (tex) => {
+            soulTextureLoading = false;
+            // the overlay switched while this was loading: drop it, the next draw loads the new file
+            if (url !== SOUL_URL()) {
+                tex.dispose();
+                return;
+            }
             tex.colorSpace = SRGBColorSpace;
             sharedSoulTexture = tex;
-            soulTextureLoading = false;
+            soulTextureFrom = url;
         },
         undefined,
         () => {

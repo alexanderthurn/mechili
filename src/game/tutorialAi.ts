@@ -1,14 +1,23 @@
 import type { Action } from './actions';
-import { TUTORIAL_2_START_CARD, TUTORIAL_3_START_CARD, TUTORIAL_START_CARD, type RoundCard, type SpecialityId, type StartCard } from './cards';
+import { TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, type RoundCard, type SpecialityId, type StartCard } from './cards';
 import type { Opponent } from './ai';
 import type { PlacementController } from './placement';
 import type { DeploySettings, Economy } from './settings';
 import type { TechTree } from './tech';
 import type { Loadout } from './techCatalog';
-import { unitTypeById, type Team, type UnitType } from './units';
+import type { Team, UnitType } from './units';
+import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import type { Cell } from './map';
-import { TUTORIAL_1_ID, TUTORIAL_2_ID, TUTORIAL_3_ID, tutorial3CenterArcherCells, tutorial3MirroredArmy } from './tutorial';
+import {
+    TUTORIAL_1_ID,
+    TUTORIAL_2_ID,
+    TUTORIAL_3_ID,
+    TUTORIAL_ARCHER_ID,
+    TUTORIAL_DWARF_ID,
+    tutorial3CenterArcherCells,
+    tutorial3MirroredArmy,
+} from './tutorial';
 
 /**
  * Tutorial-mode opponent. One file owns every lesson's AI behaviour so later
@@ -20,6 +29,8 @@ export class TutorialAi implements Opponent {
         private readonly seat: SeatId,
         private readonly tutorialLessonId: number,
         private readonly ctx: {
+            /** the unit and building definitions this match plays with */
+            types: TypeRegistry;
             dispatch: (action: Action) => boolean;
             placement: PlacementController;
             economy: Economy;
@@ -42,10 +53,10 @@ export class TutorialAi implements Opponent {
     chooseStarter(_offer: readonly StartCard[]): void {
         const cardId =
             this.tutorialLessonId === TUTORIAL_2_ID
-                ? TUTORIAL_2_START_CARD.id
+                ? TUTORIAL_2_START_CARD_ID
                 : this.tutorialLessonId === TUTORIAL_3_ID
-                  ? TUTORIAL_3_START_CARD.id
-                  : TUTORIAL_START_CARD.id;
+                  ? TUTORIAL_3_START_CARD_ID
+                  : TUTORIAL_START_CARD_ID;
         this.ctx.dispatch({
             kind: 'chooseCard',
             team: this.team,
@@ -82,8 +93,8 @@ export class TutorialAi implements Opponent {
     /** Tutorial 1: four archers near the middle of the enemy zone, then lock in. */
     private runTutorial1(round: number): void {
         if (round === 1) {
-            this.ctx.unlockedUnits[this.seat] = ['archer'];
-            const type = unitTypeById('archer');
+            this.ctx.unlockedUnits[this.seat] = [TUTORIAL_ARCHER_ID];
+            const type = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
             if (type) this.placeNearCenter(type, 4);
         }
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
@@ -92,15 +103,15 @@ export class TutorialAi implements Opponent {
     /** Tutorial 2: center-lane waves; round 3 adds a heavy assault from the left. */
     private runTutorial2(round: number): void {
         if (round === 1) {
-            const dwarf = unitTypeById('dwarf');
+            const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
             if (dwarf) this.placeNearCenter(dwarf, 1);
         } else if (round === 2) {
-            const dwarf = unitTypeById('dwarf');
-            const archer = unitTypeById('archer');
+            const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
+            const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
             if (dwarf) this.placeNearCenter(dwarf, 5);
             if (archer) this.placeNearCenter(archer, 7);
         } else if (round === 3) {
-            const dwarf = unitTypeById('dwarf');
+            const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
             // Left border only — no archers, so the right-back stays clear for
             // the player's summon and the keep fight stays melee.
             if (dwarf) this.placeAtBorderLeft(dwarf, 6);
@@ -115,15 +126,15 @@ export class TutorialAi implements Opponent {
      * center archer line for Longbow.
      */
     private runTutorial3(round: number): void {
-        const dwarf = unitTypeById('dwarf');
-        const archer = unitTypeById('archer');
+        const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
+        const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
         if (round === 1) {
             if (dwarf) this.placeAtBorderLeft(dwarf, 2, /* deeper */ 1);
         } else if (round === 2) {
             if (dwarf) this.placeNearCenter(dwarf, 1);
         } else if (round === 3) {
             for (const pack of tutorial3MirroredArmy(this.ctx.placement.map, 'enemy')) {
-                const type = unitTypeById(pack.typeId);
+                const type = this.ctx.types.byId(pack.typeId);
                 if (type) this.buyAt(type, pack.cell);
             }
         } else if (round === 4) {

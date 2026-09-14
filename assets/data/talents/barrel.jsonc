@@ -1,0 +1,8 @@
+// flat range bonus (shared by archer / goblin / ballista)
+{
+    "id": "barrel",
+    "name": "Longbow",
+    "cost": 200,
+    "mods": { "rangeAdd": 20 },
+    "icon": "tech-longbow",
+}

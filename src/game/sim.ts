@@ -18,18 +18,13 @@ import {
     type FireProfile,
     type HazardPour,
 } from './fire';
-import { ITEMS } from './items';
 import type { SeatId } from './seats';
 import { detAtan2, detCos, detSin, hypot, wrapPi } from './detMath';
 import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
-    BIG_METEOR_ID,
-    HAMMER_ID,
-    HAMMER_ZONE,
     METEOR_SHARD_FALL_SEC,
-    METEOR_SHOWER_ID,
     RALLY_ROUTE_RADIUS,
     RALLY_ROUTE_REACH,
     RALLY_ROUTE_STUCK_SEC,
@@ -38,12 +33,8 @@ import {
 import { effectiveFlying, effectiveTargets, type ResolvedStats } from './tech';
 import { ownedCleaveTechs, ownedOnKillTechs, ownedProduceTechs, type Loadout } from './techCatalog';
 import {
-    COMMAND_TOWER,
     DEPLOY_AIR_Y,
-    RESEARCH_CENTER,
-    STRONGHOLD_ARCHER,
     STRONGHOLD_ARCHER_FOV_HALF,
-    STRONGHOLD,
     bloodColorOf,
     resolveDeathWear,
     projectileAimY,
@@ -57,9 +48,10 @@ import {
     levelBasisOf,
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
-import { computeCrowWingRate, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy, usesWingFlapModel } from './crowWingFlap';
+import type { TypeRegistry } from './content/typeRegistry';
+import { computeCrowWingRate, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
 import { hasUnitDeathAnim, playUnitDeathAnim, playUnitFireAnim, unitDeathFallLocal } from './unitAnimated';
-import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight } from './unitModels';
+import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight, usesWingFlapModel } from './unitModels';
 import {
     beginDeathClip,
     beginDeathFall,
@@ -95,13 +87,9 @@ import {
 } from './buildingCollapse';
 import type { CpuTimings } from '../ui/debug';
 
-/** how long the ballista Golden Aura keeps allies immune after the one-shot apply */
-export const GOLDEN_AURA_DURATION = 30;
-/** how far around a golden ballista allies get the buff (world units) */
-export const GOLDEN_AURA_RADIUS = 40;
 /** golden units take 30% less damage on top of debuff immunity */
 export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
-/** battle clock time when ballista Golden Aura is applied once (after other pre-battle effects) */
+/** battle clock time when golden auras ({@link UnitType.aura}) are applied once (after other pre-battle effects) */
 export const GOLDEN_AURA_APPLY_AT = 0.1;
 /** storm bolt: personal tower-like debuff duration (refreshed on each hit) */
 export const STORM_DEBUFF_SEC = 5;
@@ -126,6 +114,8 @@ export interface SimConfig {
     statsOf: (unit: Unit) => ResolvedStats;
     /** per-SEAT now (never shared) — pass the unit's own seat, not its team */
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean;
+    /** the match's unit types and talents */
+    types: TypeRegistry;
     /** a seat's talent picks — only fire profiles need the SELECTION itself
      *  (everything else filters through hasTech, which already reflects it) */
     loadoutOf: (seat: SeatId) => Loadout | undefined;
@@ -184,9 +174,13 @@ export interface SpellStrike {
     radius: number;
     damage: number;
     delaySeconds: number;
-    /** which TACTICS entry — drives strike VFX (hammer ground bloom, …) */
+    /** which spell it came from (debug / events) */
     tacticId?: string;
-    /** hammer footprint orientation (radians) */
+    /** rectangular footprint instead of the circle (see TacticDef strike.rect) */
+    rect?: { halfWidth: number; halfDepth: number };
+    /** impact preset: the hammer crushes, the great meteor burns and shakes, a shower meteor leaves no scorch */
+    fx?: 'hammer' | 'meteor' | 'shower';
+    /** footprint orientation (radians) */
     yaw?: number;
 }
 
@@ -407,13 +401,14 @@ export interface Actor {
     /** true this sim step while the convert beam is on (incl. shield-blocked) */
     convertRayActive: boolean;
     /**
-     * Melee windup: damage waiting to land ({@link UnitType.meleeHitDelay}).
-     * 0 = none pending. Anim starts on cooldown bump; hit resolves later.
+     * Attack windup: damage (melee) or volley (ranged) waiting to resolve
+     * ({@link UnitType.meleeHitDelay}). 0 = none pending. Anim starts on
+     * cooldown bump; the hit / shot resolves later.
      */
     meleePendingDamage: number;
     /** sim {@link elapsed} when {@link meleePendingDamage} should apply */
     meleePendingAt: number;
-    /** {@link Actor.index} of the swing's focus target (FX / cleave focus) */
+    /** {@link Actor.index} of the swing's / shot's focus target */
     meleePendingFocus: number;
     /**
      * Center distance to hold while peeling after a ground melee hit
@@ -490,12 +485,13 @@ export function actorSeat(a: Actor): number {
 export function hasShieldHp(
     unit: Unit,
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+    types: TypeRegistry,
 ): boolean {
     if (unit.summoned) return false;
     for (const id of unit.items) {
-        if (ITEMS[id]?.grantsShieldHp) return true;
+        if (types.rune(id)?.grantsShieldHp) return true;
     }
-    return hasTech(unit.seat, unit.type.id, 'aegis');
+    return types.talentsOf(unit.type).some((t) => t.grantsShieldHp && hasTech(unit.seat, unit.type.id, t.id));
 }
 
 /**
@@ -585,6 +581,8 @@ export type SimEvent =
           bloodScale?: number;
           /** Ground wear stamp. Omit/true = stamp; false = VFX only. */
           scar?: boolean;
+          /** Ward dome absorb — hull ripple (render-only). */
+          ward?: boolean;
       }
     /** Arrow / ballista shaft planted at a hit (render-only stuck-bolt pool).
      *  `attachIndex` = actor whose mesh the shaft follows (tip/fall/walk). */
@@ -718,6 +716,28 @@ export type SimEvent =
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
 
+/**
+ * Where a straight shot aims on its target, above the feet (world units): the
+ * middle of the model, moved into the nearest hit volume. A small unit's
+ * mid-mesh sits above its collider sphere — a bolt aimed there rises over it
+ * and never connects (lobbed shots come down through it instead).
+ */
+function straightAimY(tt: UnitType): number {
+    const want = projectileAimY(tt) * tt.meshScale;
+    let best = want;
+    let bestGap = Infinity;
+    for (const c of tt.colliders) {
+        const cy = c.y * tt.meshScale;
+        const band = c.r * tt.meshScale * 0.5;
+        const y = Math.max(cy - band, Math.min(cy + band, want));
+        if (Math.abs(y - want) < bestGap) {
+            bestGap = Math.abs(y - want);
+            best = y;
+        }
+    }
+    return best;
+}
+
 /** Grounded rock after a stone impact — inherits flying uniform scale. */
 function stoneDropFields(p: Projectile): { dropStone?: boolean; dropStoneScale?: number } {
     if (p.style !== 'stone' || p.scaleEnd != null) return {};
@@ -749,11 +769,11 @@ function detHash01(n: number): number {
     return ((x >>> 0) % 1_000_000) / 1_000_000;
 }
 
-/** circle (default) or hammer rectangle footprint.
- *  Hammer: center must lie in HAMMER_ZONE (no radius pad) so damage matches the scar.
+/** circle (default) or rectangle footprint.
+ *  Rectangle: center must lie in `rect` (no radius pad) so damage matches the scar.
  *  Circles: include actor radius as padding. */
 function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean {
-    if (s.tacticId === HAMMER_ID) {
+    if (s.rect) {
         const yaw = s.yaw ?? 0;
         const c = detCos(yaw);
         const sn = detSin(yaw);
@@ -762,7 +782,7 @@ function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean 
         const lx = dx * c + dz * sn;
         const lz = -dx * sn + dz * c;
         // pad ignored — scar ↔ kill must match what you see on the ground
-        return Math.abs(lx) <= HAMMER_ZONE.halfWidth && Math.abs(lz) <= HAMMER_ZONE.halfDepth;
+        return Math.abs(lx) <= s.rect.halfWidth && Math.abs(lz) <= s.rect.halfDepth;
     }
     return hypot(x - s.x, z - s.z) <= s.radius + pad;
 }
@@ -789,6 +809,8 @@ const MELEE_PRESS_BAND = 0.07;
 const FLY_PASS_CLEAR = 5.2;
 /** Free-flight: brief pause behind the foe before a det-random turn. */
 const FLY_PASS_COAST_SEC = 0.4;
+/** a chasing free-flyer slows at most to this share of its speed to turn onto a close foe */
+const FLY_CHASE_MIN_SPEED = 0.15;
 /** Free-flight: ±radian jitter when picking the next approach heading. */
 const FLY_PASS_TURN_SPREAD = Math.PI * 0.95;
 /**
@@ -877,7 +899,7 @@ export class BattleSim {
     private readonly resolved = new Map<Unit, ResolvedStats>();
     /** damage dealt per `${team}:${typeId}` — the post-battle report data */
     readonly damageByType = new Map<string, number>();
-    /** ballista Golden Aura is a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
+    /** golden auras ({@link UnitType.aura}) are a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
     private goldenAuraApplied = false;
     /** duration of the previous sim step — converts actor.mv* into velocity for lead aim */
     private prevStepDt = 1 / SIM_HZ;
@@ -992,7 +1014,7 @@ export class BattleSim {
             const stats = config.statsOf(unit);
             this.resolved.set(unit, stats);
             // shield pool mirrors the leveled max HP (0 when the pack has none)
-            const shieldMax = hasShieldHp(unit, config.hasTech)
+            const shieldMax = hasShieldHp(unit, config.hasTech, config.types)
                 ? stats.hp * this.levelMult(unit)
                 : 0;
             for (const m of unit.members) {
@@ -1019,10 +1041,10 @@ export class BattleSim {
                     // a pinned pack (Stronghold archer on his battlement) owns
                     // its own absolute Y — feetY already returns altitude
                     // verbatim whenever it is above zero
-                    altitude: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                    altitude: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech, this.config.types),
                     prevAltitude:
-                        unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
-                    footY: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech),
+                        unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech, this.config.types),
+                    footY: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech, this.config.types),
                     rocketTarget: null,
                     goldenUntil: 0,
                     stormDebuffUntil: 0,
@@ -1271,7 +1293,7 @@ export class BattleSim {
             (a) =>
                 actorTeam(a) === team &&
                 !a.unit.type.structure &&
-                a.unit.type !== STRONGHOLD_ARCHER &&
+                !a.unit.type.fixture &&
                 (a.alive || (a.appearAt > 0 && !a.appeared)),
         );
     }
@@ -1460,7 +1482,7 @@ export class BattleSim {
     }
 
     private fireProfileOf(source: Unit): FireProfile | undefined {
-        return resolveFireProfile(source.type, source.seat, this.config.hasTech, this.config.loadoutOf(source.seat));
+        return resolveFireProfile(source.type, source.seat, this.config.hasTech, this.config.types, this.config.loadoutOf(source.seat));
     }
 
     /**
@@ -1543,7 +1565,23 @@ export class BattleSim {
             return;
         }
         // Don't stack windups if attackInterval < delay (Blood Rage, etc.)
-        if (a.meleePendingDamage > 0) this.resolveMeleePending(a);
+        if (a.meleePendingDamage > 0) this.resolveAttackPending(a);
+        a.meleePendingDamage = damage;
+        a.meleePendingAt = this.elapsed + delay;
+        a.meleePendingFocus = target.index;
+    }
+
+    /**
+     * Start a ranged volley. Instant by default; {@link UnitType.meleeHitDelay}
+     * queues the shot so the fire anim can draw (same windup field as melee).
+     */
+    private beginRangedFire(a: Actor, target: Actor, damage: number, speed: number): void {
+        const delay = a.unit.type.meleeHitDelay ?? 0;
+        if (delay <= 0) {
+            this.fireVolley(a, target, damage, speed);
+            return;
+        }
+        if (a.meleePendingDamage > 0) this.resolveAttackPending(a);
         a.meleePendingDamage = damage;
         a.meleePendingAt = this.elapsed + delay;
         a.meleePendingFocus = target.index;
@@ -1606,17 +1644,17 @@ export class BattleSim {
         return true;
     }
 
-    /** Land any queued melee swings whose windup has elapsed. */
+    /** Land any queued attack windups whose delay has elapsed. */
     private stepMeleePending(): void {
         for (const a of this.actors) {
             if (!a.alive || a.meleePendingDamage <= 0) continue;
             if (this.elapsed + 1e-9 < a.meleePendingAt) continue;
-            this.resolveMeleePending(a);
+            this.resolveAttackPending(a);
         }
     }
 
-    /** Apply a pending melee hit at the attacker's current pose / targets. */
-    private resolveMeleePending(a: Actor): void {
+    /** Apply a pending melee hit or ranged volley at the attacker's current pose. */
+    private resolveAttackPending(a: Actor): void {
         const damage = a.meleePendingDamage;
         if (damage <= 0) return;
         a.meleePendingDamage = 0;
@@ -1624,6 +1662,13 @@ export class BattleSim {
         const focus = this.actors[a.meleePendingFocus];
         let target = focus && focus.alive ? focus : this.closestEnemy(a);
         if (!target) return; // whiff — nothing in range
+
+        const speed = a.unit.type.projectileSpeed;
+        if (speed) {
+            this.fireVolley(a, target, damage, speed);
+            return;
+        }
+
         const tdx = target.x - a.x;
         const tdz = target.z - a.z;
         const tDist = hypot(tdx, tdz) || 1e-6;
@@ -1840,8 +1885,14 @@ export class BattleSim {
         // --- chase: point (slowly) at target and commit a pierce ---
         this.updateFreeFlight(a, dt, { x: target.x, y: aimY, z: target.z });
         const aimYaw = detAtan2(-tdx, -tdz);
+        const off = Math.abs(deltaAngle(a.facing, aimYaw));
         faceToward(a, aimYaw, dt);
-        this.flyAlongFacing(a, stats, d, dt, 0);
+        // A foe inside the tightest circle this flyer can bank (speed / turn
+        // rate) would be circled forever, nose never on it — slow to the arc
+        // that runs through it instead.
+        const fullSpeed = stats.speed * this.debuff(a, d.speedMult);
+        const arcSpeed = (tDist * (a.unit.type.turnRate ?? DEFAULT_TURN_RATE)) / (2 * Math.max(detSin(off), 0.05));
+        this.flyAlongFacing(a, stats, d, dt, Math.max(fullSpeed * FLY_CHASE_MIN_SPEED, Math.min(fullSpeed, arcSpeed)) * dt);
         if (canAttack) a.cooldown -= dt;
         if (tDist <= commit && facingAligned(a, aimYaw, 0.55)) {
             const flat = hypot(tdx, tdz) || 1e-6;
@@ -2247,7 +2298,7 @@ export class BattleSim {
             list.push(u);
         }
         for (const [parent, byTech] of lanesByParent) {
-            const owned = ownedProduceTechs(parent.type, parent.seat, this.config.hasTech);
+            const owned = ownedProduceTechs(parent.type, parent.seat, this.config.hasTech, this.config.types);
             const lanes: {
                 techId: string;
                 interval: number;
@@ -2275,7 +2326,7 @@ export class BattleSim {
         // parents that own produce techs but got no children still track (noop)
         for (const a of this.actors) {
             if (a.unit.productionHeld || this.productionLanes.has(a.unit)) continue;
-            const owned = ownedProduceTechs(a.unit.type, a.unit.seat, this.config.hasTech);
+            const owned = ownedProduceTechs(a.unit.type, a.unit.seat, this.config.hasTech, this.config.types);
             if (owned.length === 0) continue;
             this.productionLanes.set(
                 a.unit,
@@ -2307,7 +2358,7 @@ export class BattleSim {
     }
 
     private cacheCleaveFor(unit: Unit): void {
-        const owned = ownedCleaveTechs(unit.type, unit.seat, this.config.hasTech);
+        const owned = ownedCleaveTechs(unit.type, unit.seat, this.config.hasTech, this.config.types);
         const fromType = unit.type.cleave?.radius ?? 0;
         const fromTech = owned.length === 0 ? 0 : Math.max(...owned.map(({ cleave }) => cleave.radius));
         const radius = Math.max(fromType, fromTech);
@@ -2326,7 +2377,7 @@ export class BattleSim {
     }
 
     private cacheOnKillFor(unit: Unit): void {
-        const owned = ownedOnKillTechs(unit.type, unit.seat, this.config.hasTech);
+        const owned = ownedOnKillTechs(unit.type, unit.seat, this.config.hasTech, this.config.types);
         if (owned.length === 0) return;
         this.onKillByUnit.set(
             unit,
@@ -2364,8 +2415,8 @@ export class BattleSim {
         this.resolved.set(child, stats);
         const levelMult = this.levelMult(child);
         const maxHp = stats.hp * levelMult;
-        const shieldMax = hasShieldHp(child, this.config.hasTech) ? maxHp : 0;
-        const alt = child.pinnedY ?? effectiveFlying(child.type, child.seat, this.config.hasTech);
+        const shieldMax = hasShieldHp(child, this.config.hasTech, this.config.types) ? maxHp : 0;
+        const alt = child.pinnedY ?? effectiveFlying(child.type, child.seat, this.config.hasTech, this.config.types);
         let nth = 0;
         const firstActorIdx = this.actors.length;
         for (const m of child.members) {
@@ -2459,9 +2510,9 @@ export class BattleSim {
         if (this.goldenAuraApplied) {
             for (let i = firstActorIdx; i < this.actors.length; i++) {
                 const na = this.actors[i]!;
-                this.applyBallistaGoldenAura(na);
-                if (na.unit.type.id === 'ballista') {
-                    this.applyBallistaGoldenAura(undefined, na);
+                this.applyGoldenAura(na);
+                if (na.unit.type.aura) {
+                    this.applyGoldenAura(undefined, na);
                 }
             }
         }
@@ -2762,7 +2813,14 @@ export class BattleSim {
             );
             if (dome) {
                 // wards block the strike — no unit debuff
-                this.events.push({ kind: 'impact', x: dome.x, y: 3, z: dome.z });
+                this.events.push({
+                    kind: 'impact',
+                    x: dome.x,
+                    y: 3,
+                    z: dome.z,
+                    ward: true,
+                    scar: false,
+                });
                 this.events.push({ kind: 'spellLightning', x: dome.x, y: 3, z: dome.z });
             } else {
                 const splash = z.impactRadius ?? 0;
@@ -2876,7 +2934,7 @@ export class BattleSim {
             radius: m.radius,
             damage: m.damage,
             delaySeconds: 0,
-            tacticId: METEOR_SHOWER_ID,
+            fx: 'shower',
         });
         const shields = livingShieldDisks(this.actors.map((a) => a.unit));
         if (insideAnyShield(m.x, m.z, shields)) return;
@@ -2908,8 +2966,8 @@ export class BattleSim {
      * One area strike: everything in the blast takes environmental damage
      * (both teams, air included) — except targets under a living ward dome.
      * Each dome involved eats the strike damage ONCE and can break.
-     * Hammer uses the HAMMER_ZONE rectangle (same as ground scar) for both
-     * ground and air; other strikes use a circle.
+     * A strike with a `rect` (hammer) uses that rectangle (same as the ground
+     * scar) for both ground and air; other strikes use a circle.
      * Strikes whose impact point lies inside a ward disc are absorbed at the
      * roof (meteors / hammers do not pass through).
      */
@@ -2923,16 +2981,24 @@ export class BattleSim {
             intercept.hp -= s.damage;
             intercept.hurtTimer = HURT_BAR_SECONDS;
             if (intercept.hp <= 0) this.breakShield(intercept);
-            this.events.push({ kind: 'impact', x: intercept.x, y: 3, z: intercept.z });
+            this.events.push({
+                kind: 'impact',
+                x: intercept.x,
+                y: 3,
+                z: intercept.z,
+                ward: true,
+                scar: false,
+            });
             return;
         }
         const y = simGroundHeightAt(s.x, s.z);
-        const hammer = s.tacticId === HAMMER_ID;
-        const bigMeteor = s.tacticId === BIG_METEOR_ID;
-        const meteorShower = s.tacticId === METEOR_SHOWER_ID;
-        // particles: cover the hammer footprint (approx half-diagonal)
-        const visualRadius = hammer
-            ? Math.sqrt(HAMMER_ZONE.halfWidth * HAMMER_ZONE.halfWidth + HAMMER_ZONE.halfDepth * HAMMER_ZONE.halfDepth)
+        const hammer = s.fx === 'hammer';
+        const bigMeteor = s.fx === 'meteor';
+        const meteorShower = s.fx === 'shower';
+        const rect = s.rect;
+        // particles: cover a rectangular footprint (approx half-diagonal)
+        const visualRadius = rect
+            ? Math.sqrt(rect.halfWidth * rect.halfWidth + rect.halfDepth * rect.halfDepth)
             : s.radius;
         this.events.push({
             kind: 'explosion',
@@ -2946,11 +3012,11 @@ export class BattleSim {
             shake: bigMeteor ? 1 : 0,
             // Meteors: VFX only — no permanent wear scorch (hammer still scars).
             scar: bigMeteor || meteorShower ? false : undefined,
-            rect: hammer
+            rect: rect
                 ? {
-                      // scar = hit zone (HAMMER_ZONE) — ground + air damage use the same rect
-                      halfWidth: HAMMER_ZONE.halfWidth,
-                      halfDepth: HAMMER_ZONE.halfDepth,
+                      // scar = hit zone — ground + air damage use the same rect
+                      halfWidth: rect.halfWidth,
+                      halfDepth: rect.halfDepth,
                       yaw: s.yaw ?? 0,
                   }
                 : undefined,
@@ -2963,8 +3029,8 @@ export class BattleSim {
                 kind: 'hammerCrush',
                 x: s.x,
                 z: s.z,
-                halfWidth: HAMMER_ZONE.halfWidth,
-                halfDepth: HAMMER_ZONE.halfDepth,
+                halfWidth: rect?.halfWidth ?? s.radius,
+                halfDepth: rect?.halfDepth ?? s.radius,
                 yaw: s.yaw ?? 0,
             });
             // No blast shove — impulse was sliding pancakes (and their meshes)
@@ -3167,7 +3233,7 @@ export class BattleSim {
      *  tower-destruction debuff; Stronghold loss is a separate, currently
      *  undecided penalty (deliberately no debuff of its own for now). */
     private isDebuffBuilding(unit: Unit): boolean {
-        return unit.type === COMMAND_TOWER || unit.type === RESEARCH_CENTER;
+        return unit.type.onDestroyed?.seatDebuff === true;
     }
 
     /** seconds of debuff from losing a command tower at the given level */
@@ -3231,23 +3297,38 @@ export class BattleSim {
     /** golden item on the pack, or a recent ballista aura buff */
     isGolden(actor: Actor): boolean {
         for (const id of actor.unit.items) {
-            if (ITEMS[id]?.debuffImmune) return true;
+            if (this.config.types.rune(id)?.debuffImmune) return true;
         }
         return actor.goldenUntil > this.elapsed + 1e-9;
     }
 
-    /** one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies in range of a golden ballista get 30s immunity */
-    private applyBallistaGoldenAura(recipient?: Actor, caster?: Actor): void {
-        const r2 = GOLDEN_AURA_RADIUS * GOLDEN_AURA_RADIUS;
-        // duration runs from NOW, so a flank unit that arrives late still gets
-        // its full buff instead of the remainder of the opening window
-        const expires = this.elapsed + GOLDEN_AURA_DURATION;
+    /**
+     * one-shot at {@link GOLDEN_AURA_APPLY_AT}: allies within a source's `aura.radius` turn golden for `aura.duration`.
+     *
+     * `windowOnly` caps the buff at the opening window instead of running a
+     * fresh 30s from now. Conversion uses it: a mech that switches sides
+     * mid-battle joins a team whose aura is (or soon will be) spent, and a full
+     * new window made it the only debuff-immune, −30%-damage unit on the field.
+     */
+    private applyGoldenAura(recipient?: Actor, caster?: Actor, windowOnly = false): void {
         for (const f of this.actors) {
             if (caster && f !== caster) continue;
-            if (!f.alive || f.unit.type.id !== 'ballista') continue;
-            // a ballista still riding in grants nothing until it has landed
+            const aura = f.unit.type.aura;
+            if (!f.alive || aura?.effect !== 'golden') continue;
+            // a source still riding in grants nothing until it has landed
             if (this.isSpawning(f)) continue;
-            if (!this.config.hasTech(f.unit.seat, 'ballista', 'golden')) continue;
+            // the tech of whoever commands the source NOW (a converted one
+            // follows its new owner, like the tower debuffs do)
+            if (aura.requiresTech && !this.config.hasTech(actorSeat(f), f.unit.type.id, aura.requiresTech)) {
+                continue;
+            }
+            // duration runs from NOW, so a flank unit that arrives late still gets
+            // its full buff instead of the remainder of the opening window
+            const expires = windowOnly
+                ? Math.min(this.elapsed + aura.duration, GOLDEN_AURA_APPLY_AT + aura.duration)
+                : this.elapsed + aura.duration;
+            if (expires <= this.elapsed) continue;
+            const r2 = aura.radius * aura.radius;
             for (const a of this.actors) {
                 if (recipient && a !== recipient) continue;
                 if (!a.alive || actorTeam(a) !== actorTeam(f) || a.unit.type.structure) continue;
@@ -3572,8 +3653,8 @@ export class BattleSim {
                 // it can receive the golden aura, and — if it IS a golden
                 // ballista — it starts granting to allies around it.
                 if (this.goldenAuraApplied && a.alive) {
-                    this.applyBallistaGoldenAura(a);
-                    this.applyBallistaGoldenAura(undefined, a);
+                    this.applyGoldenAura(a);
+                    this.applyGoldenAura(undefined, a);
                 }
                 continue;
             }
@@ -3672,15 +3753,13 @@ export class BattleSim {
             target.unit.markDestroyed(knockDir ?? undefined, {
                 crush: this.crushingHammer,
             });
-            // The wall archers cannot be shot at — the keep under them is the only
-            // way in, so when the keep goes the wall goes with it. Killed with
-            // no killer: the besieger earned the Stronghold, not four archers.
-            if (target.unit.type === STRONGHOLD) {
-                for (const a of this.actors) {
-                    if (!a.alive || a.unit.type !== STRONGHOLD_ARCHER) continue;
-                    if (a.unit.seat !== target.unit.seat) continue;
-                    this.kill(a, null, a.maxHp, undefined, true);
-                }
+            // Units mounted on this building go down with it. Killed with no
+            // killer: the besieger earned the building, not its garrison. Linked
+            // by id, not by seat — an ally's archer on a shared keep falls too.
+            for (const a of this.actors) {
+                if (!a.alive || !a.unit.type.diesWithHost) continue;
+                if (a.unit.hostUnitId !== target.unit.id) continue;
+                this.kill(a, null, a.maxHp, undefined, true);
             }
             if (this.isDebuffBuilding(target.unit) && !razed) {
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
@@ -3791,7 +3870,7 @@ export class BattleSim {
         // with no killer, so this grants no XP and triggers no on-kill spawns —
         // the Stronghold's slayer earns the siege, not a dozen extra kills. The
         // round then ends on its own, with nothing mobile left on that side.
-        if (this.config.strongholdLifeline && target.unit.type === STRONGHOLD) {
+        if (this.config.strongholdLifeline && target.unit.type.onDestroyed?.collapseOwnArmy) {
             const towerTop = Math.max(1, ...t.colliders.map((c) => c.y)) * t.meshScale;
             const maxRadius = this.collapseReach(target.x, target.z);
             this.collapseFronts.push({
@@ -3842,7 +3921,7 @@ export class BattleSim {
         }
 
         if (!this.goldenAuraApplied && this.elapsed >= GOLDEN_AURA_APPLY_AT) {
-            this.applyBallistaGoldenAura();
+            this.applyGoldenAura();
             this.goldenAuraApplied = true;
         }
 
@@ -3968,7 +4047,7 @@ export class BattleSim {
                                 a.cooldown += stats.attackInterval;
                                 const damage =
                                     stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                                this.fireVolley(a, target, damage, a.unit.type.projectileSpeed);
+                                this.beginRangedFire(a, target, damage, a.unit.type.projectileSpeed);
                             }
                         }
                     }
@@ -4048,7 +4127,7 @@ export class BattleSim {
                         a.cooldown += stats.attackInterval;
                         const damage =
                             stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
-                        this.fireVolley(a, target, damage, a.unit.type.projectileSpeed);
+                        this.beginRangedFire(a, target, damage, a.unit.type.projectileSpeed);
                     }
                 }
                 // convert-ray handled elsewhere; melee already returned above
@@ -4595,7 +4674,7 @@ export class BattleSim {
                 dx = aimX - mx;
                 dz = aimZ - mz;
             }
-            dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale + aimYOff - muzzleY;
+            dy = this.feetY(target, aimX, aimZ) + straightAimY(tt) + aimYOff - muzzleY;
             const len = hypot(dx, dy, dz) || 1e-6;
             vx = (dx / len) * speed;
             vy = (dy / len) * speed;
@@ -4755,6 +4834,8 @@ export class BattleSim {
                     x: p.x + sx * crossing.t,
                     y: p.y + sy * crossing.t,
                     z: p.z + sz * crossing.t,
+                    ward: true,
+                    scar: false,
                 });
                 if (shield.hp <= 0) this.breakShield(shield);
                 continue; // bullet absorbed
@@ -4903,11 +4984,7 @@ export class BattleSim {
         radius: number,
         shotDir?: { x: number; z: number },
     ): void {
-        const targets = effectiveTargets(
-            p.source.type,
-            p.source.seat,
-            this.config.hasTech,
-        );
+        const targets = effectiveTargets(p.source.type, p.source.seat, this.config.hasTech, this.config.types);
         for (const a of this.actors) {
             if (!a.alive || actorTeam(a) === p.team) continue;
             if (a.unit.type.extra) continue; // extras are immune to blasts too
@@ -5221,7 +5298,7 @@ export class BattleSim {
             }
 
             const team = actorTeam(caster);
-            const targets = effectiveTargets(caster.unit.type, actorSeat(caster), this.config.hasTech);
+            const targets = effectiveTargets(caster.unit.type, actorSeat(caster), this.config.hasTech, this.config.types);
             let target = caster.convertTarget;
             const stillOk =
                 target &&
@@ -5374,7 +5451,7 @@ export class BattleSim {
         // (Tower debuffs already key off {@link actorSeat}, so allegiance alone
         // stops the old seat's loss from crippling this mech.)
         target.goldenUntil = 0;
-        if (this.goldenAuraApplied) this.applyBallistaGoldenAura(target);
+        if (this.goldenAuraApplied) this.applyGoldenAura(target, undefined, true);
         // brief pause before the next channel
         const recover = caster.unit.type.convertRay?.recover ?? 1.25;
         caster.convertCooldown = recover;
@@ -5474,14 +5551,14 @@ export class BattleSim {
 
     /** True unless this is a ground swat that misses (deterministic ~28%). */
     private groundSwatConnects(from: Actor, target: Actor): boolean {
-        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech);
+        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech, this.config.types);
         if (!this.isOpportunisticGroundSwat(from, target, native)) return true;
         const seed = from.index * 100003 + target.index * 9176 + this.stepIndex * 131;
         return detHash01(seed) < GROUND_SWAT_CATCH;
     }
 
     private closestEnemy(from: Actor, anyLayer = false): Actor | null {
-        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech);
+        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech, this.config.types);
         const wantAir = anyLayer || native.air;
         const wantGround = anyLayer || native.ground;
         if (!wantAir && !wantGround) return null;

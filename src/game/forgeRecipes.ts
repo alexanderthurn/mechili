@@ -3,9 +3,10 @@
  * {@link FORGE_SLOTS_PER_PLAYER} (duo → up to 6). Exact multiset recipes → one
  * product next deploy; if nothing matches, every rune is refunded.
  *
- * Currently only advanced-rune recipes are active. Ingredient multisets must
- * be unique across the whole table — never the same oven → two different
- * products.
+ * Currently only advanced-rune recipes are active: each advanced rune's data
+ * file carries its `forge` recipe, and the match's {@link TypeRegistry} builds
+ * the table. Loading rejects two recipes with the same ingredients — never the
+ * same oven → two different products.
  *
  * Fuel is the four base runes (earth / fire / water / wind).
  * Same-element stacks craft advanced runes (anyone).
@@ -16,9 +17,8 @@ import {
     SELL_UNIT_ID,
     TUTOR_ID,
     RALLY_ROUTE_ID,
-    TACTICS,
 } from './tactics';
-import { ITEMS } from './items';
+import type { TypeRegistry } from './content/typeRegistry';
 import { DISPLAY } from './displayNames';
 import { itemDescription, itemName, t, tacticDescription, tacticName } from '../i18n';
 
@@ -79,50 +79,6 @@ export function emptyForgeSlots(capacity = FORGE_SLOTS_PER_PLAYER): (ForgeSlot |
     return Array.from({ length: capacity }, () => null);
 }
 
-function item(id: string): ForgeProduct {
-    return { kind: 'item', id };
-}
-
-/**
- * Rune recipe table — unique ingredient multisets only.
- * Spell recipes removed for now; only advanced runes remain.
- */
-export const FORGE_RECIPES: ForgeRecipe[] = [
-    // --- advanced runes (anyone) ---
-    { ingredients: ['earth', 'earth'], product: item('addi'), priority: 1 }, // Valor
-    { ingredients: ['fire', 'fire'], product: item('power'), priority: 1 }, // Carnage
-    { ingredients: ['water', 'water'], product: item('vigor'), priority: 1 }, // Giant Blood
-    { ingredients: ['wind', 'wind'], product: item('golden'), priority: 1 }, // Sunstone
-    { ingredients: ['earth', 'earth', 'earth'], product: item('colossus'), priority: 1 }, // Mithril
-    { ingredients: ['fire', 'fire', 'fire'], product: item('wrath'), priority: 1 }, // Berserk
-    { ingredients: ['water', 'water', 'water'], product: item('bulwark'), priority: 1 }, // Bulwark
-];
-
-function ingredientKey(ingredients: readonly string[]): string {
-    const m = countMultiset([...ingredients]);
-    return [...m.entries()]
-        .sort((a, b) => a[0]!.localeCompare(b[0]!))
-        .map(([id, n]) => `${id}:${n}`)
-        .join('|');
-}
-
-(function assertUniqueIngredientMultisets(): void {
-    const seen = new Map<string, ForgeProduct>();
-    for (const r of FORGE_RECIPES) {
-        const key = ingredientKey(r.ingredients);
-        const prev = seen.get(key);
-        if (prev) {
-            console.error(
-                `[forge] duplicate ingredient multiset ${key}:`,
-                prev,
-                'vs',
-                r.product,
-            );
-        }
-        seen.set(key, r.product);
-    }
-})();
-
 export interface ForgeResolveResult {
     product: ForgeProduct | null;
     /** oven indices consumed by the matched recipe */
@@ -133,10 +89,11 @@ export interface ForgeResolveResult {
 
 /** Display icon / name / desc for a forge product. */
 export function forgeProductInfo(
+    types: TypeRegistry,
     product: ForgeProduct,
 ): { icon: string; name: string; desc: string } | null {
     if (product.kind === 'tactic') {
-        const def = TACTICS[product.id];
+        const def = types.tactic(product.id);
         if (!def) return null;
         return {
             icon: def.icon,
@@ -144,7 +101,7 @@ export function forgeProductInfo(
             desc: tacticDescription(product.id, def.description),
         };
     }
-    const it = ITEMS[product.id];
+    const it = types.rune(product.id);
     if (!it) return null;
     return {
         icon: it.icon,
@@ -197,8 +154,8 @@ export function isForgeRecipeAllowed(recipe: ForgeRecipe, pool: ForgeSpellPool):
 }
 
 /** Recipes available under a spell pool (rune crafts always included). */
-export function forgeRecipesForPool(pool: ForgeSpellPool): ForgeRecipe[] {
-    return FORGE_RECIPES.filter((r) => isForgeRecipeAllowed(r, pool));
+export function forgeRecipesForPool(types: TypeRegistry, pool: ForgeSpellPool): ForgeRecipe[] {
+    return types.forgeRecipes.filter((r) => isForgeRecipeAllowed(r, pool));
 }
 
 /** Unique union of specialist forge spell lists. */
@@ -214,8 +171,8 @@ export function unionForgeSpellPools(
 }
 
 /** recipes sorted for best-match: larger first, then higher priority */
-function sortedRecipes(pool: ForgeSpellPool = 'all'): ForgeRecipe[] {
-    return forgeRecipesForPool(pool).sort((a, b) => {
+function sortedRecipes(types: TypeRegistry, pool: ForgeSpellPool = 'all'): ForgeRecipe[] {
+    return forgeRecipesForPool(types, pool).sort((a, b) => {
         if (b.ingredients.length !== a.ingredients.length) {
             return b.ingredients.length - a.ingredients.length;
         }
@@ -229,6 +186,7 @@ function sortedRecipes(pool: ForgeSpellPool = 'all'): ForgeRecipe[] {
  * Spell recipes outside `pool` are skipped; rune recipes always compete.
  */
 export function resolveForge(
+    types: TypeRegistry,
     slots: readonly (ForgeSlot | null)[],
     pool: ForgeSpellPool = 'all',
 ): ForgeResolveResult {
@@ -243,7 +201,7 @@ export function resolveForge(
 
     const have = countMultiset(filled.map((f) => f.itemId));
     let matched: ForgeRecipe | null = null;
-    for (const recipe of sortedRecipes(pool)) {
+    for (const recipe of sortedRecipes(types, pool)) {
         const need = countMultiset(recipe.ingredients);
         if (recipeExact(need, have)) {
             matched = recipe;
@@ -303,6 +261,7 @@ function sameProduct(a: ForgeProduct | null, b: ForgeProduct): boolean {
  * were inserted (drag-over preview). Locked (non-pool) spell recipes are omitted.
  */
 export function forgeOvenPreview(
+    types: TypeRegistry,
     ovenItemIds: readonly string[],
     addingItemId?: string | null,
     pool: ForgeSpellPool = 'all',
@@ -319,10 +278,10 @@ export function forgeOvenPreview(
         seat: 0 as SeatId,
         round: 0,
     }));
-    const bakeProduct = resolveForge(slots, pool).product;
+    const bakeProduct = resolveForge(types, slots, pool).product;
     const have = countMultiset(next);
     const paths: ForgeDragPreview['paths'] = [];
-    for (const recipe of FORGE_RECIPES) {
+    for (const recipe of types.forgeRecipes) {
         if (!isForgeRecipeAllowed(recipe, pool)) continue;
         if (recipe.ingredients.length <= next.length) continue;
         if (sameProduct(bakeProduct, recipe.product)) continue;
@@ -338,11 +297,12 @@ export function forgeOvenPreview(
 
 /** Preview while dragging a rune onto the forge. */
 export function forgeDragPreview(
+    types: TypeRegistry,
     ovenItemIds: readonly string[],
     addingItemId: string,
     pool: ForgeSpellPool = 'all',
 ): ForgeDragPreview {
-    return forgeOvenPreview(ovenItemIds, addingItemId, pool);
+    return forgeOvenPreview(types, ovenItemIds, addingItemId, pool);
 }
 
 /** HUD-ready icons for {@link forgeOvenPreview} */
@@ -353,19 +313,20 @@ export interface ForgePreviewView {
 
 /** Icon view for drag ghost / forge-slot hover. */
 export function forgePreviewView(
+    types: TypeRegistry,
     ovenItemIds: readonly string[],
     addingItemId?: string | null,
     pool: ForgeSpellPool = 'all',
 ): ForgePreviewView {
-    const preview = forgeOvenPreview(ovenItemIds, addingItemId, pool);
+    const preview = forgeOvenPreview(types, ovenItemIds, addingItemId, pool);
     return {
         bakeIcon: preview.bakeProduct
-            ? (forgeProductInfo(preview.bakeProduct)?.icon ?? null)
+            ? (forgeProductInfo(types, preview.bakeProduct)?.icon ?? null)
             : null,
         paths: preview.paths.map((p) => ({
-            spellIcon: forgeProductInfo(p.product)?.icon ?? '?',
+            spellIcon: forgeProductInfo(types, p.product)?.icon ?? '?',
             missingIcons: p.missingItemIds
-                .map((id) => ITEMS[id]?.icon)
+                .map((id) => types.rune(id)?.icon)
                 .filter((id): id is string => !!id),
         })),
     };
@@ -377,6 +338,7 @@ export function forgePreviewView(
  *   `this` = fogged/intel view of what already burned at this deploy's start.
  */
 export function forgeHintText(
+    types: TypeRegistry,
     slots: readonly (ForgeSlot | null)[],
     when: 'next' | 'this' = 'next',
     pool: ForgeSpellPool = 'all',
@@ -386,7 +348,7 @@ export function forgeHintText(
     if (filled.length === 0) {
         return '';
     }
-    if (!resolveForge(slots, pool).product) {
+    if (!resolveForge(types, slots, pool).product) {
         return when === 'this'
             ? t('hud:forgeNoMatchThis', {
                   defaultValue:
@@ -412,8 +374,8 @@ export function forgeHintText(
 
 
 /** Supply the oven charges to produce this — per product, 0 when it is free. */
-export function forgeProductCost(product: ForgeProduct): number {
-    return product.kind === 'item' ? (ITEMS[product.id]?.forgeCost ?? 0) : 0;
+export function forgeProductCost(types: TypeRegistry, product: ForgeProduct): number {
+    return product.kind === 'item' ? (types.rune(product.id)?.forgeCost ?? 0) : 0;
 }
 
 export interface ForgeHelpRow {
@@ -429,11 +391,11 @@ export interface ForgeHelpRow {
     forgeCost: number;
 }
 
-function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
-    const info = forgeProductInfo(recipe.product);
+function helpRow(types: TypeRegistry, recipe: ForgeRecipe): ForgeHelpRow | null {
+    const info = forgeProductInfo(types, recipe.product);
     if (!info) return null;
     const icons = recipe.ingredients
-        .map((id) => ITEMS[id]?.icon)
+        .map((id) => types.rune(id)?.icon)
         .filter((id): id is string => !!id);
     return {
         ingredients: [...recipe.ingredients],
@@ -442,18 +404,18 @@ function helpRow(recipe: ForgeRecipe): ForgeHelpRow | null {
         spellName: info.name,
         spellDesc: info.desc,
         productKind: recipe.product.kind,
-        forgeCost: forgeProductCost(recipe.product),
+        forgeCost: forgeProductCost(types, recipe.product),
     };
 }
 
 /** Rune atlas icons required to bake a spell (empty if no recipe). */
-export function forgeIngredientIcons(tacticId: string): string[] {
-    const recipe = FORGE_RECIPES.find(
+export function forgeIngredientIcons(types: TypeRegistry, tacticId: string): string[] {
+    const recipe = types.forgeRecipes.find(
         (r) => r.product.kind === 'tactic' && r.product.id === tacticId,
     );
     if (!recipe) return [];
     return recipe.ingredients
-        .map((id) => ITEMS[id]?.icon)
+        .map((id) => types.rune(id)?.icon)
         .filter((id): id is string => !!id);
 }
 
@@ -461,11 +423,11 @@ export function forgeIngredientIcons(tacticId: string): string[] {
  * Flat recipe list for the forge help overlay: team-unlocked spells, Rally,
  * and advanced-rune crafts.
  */
-export function forgeHelpRows(pool: ForgeSpellPool = 'all'): ForgeHelpRow[] {
+export function forgeHelpRows(types: TypeRegistry, pool: ForgeSpellPool = 'all'): ForgeHelpRow[] {
     const rows: ForgeHelpRow[] = [];
-    for (const recipe of FORGE_RECIPES) {
+    for (const recipe of types.forgeRecipes) {
         if (!isForgeRecipeAllowed(recipe, pool)) continue;
-        const row = helpRow(recipe);
+        const row = helpRow(types, recipe);
         if (row) rows.push(row);
     }
     return rows;
@@ -473,6 +435,7 @@ export function forgeHelpRows(pool: ForgeSpellPool = 'all'): ForgeHelpRow[] {
 
 /** Recipes the bag can fully pay for right now (largest first). */
 export function forgeRecipesCraftableFromBag(
+    types: TypeRegistry,
     bagItemIds: readonly string[],
     pool: ForgeSpellPool = 'all',
 ): {
@@ -490,11 +453,11 @@ export function forgeRecipesCraftableFromBag(
         spellName: string;
         spellDesc: string;
     }[] = [];
-    for (const recipe of sortedRecipes(pool)) {
+    for (const recipe of sortedRecipes(types, pool)) {
         if (recipe.ingredients.length > FORGE_SLOTS_PER_PLAYER) continue;
         const need = countMultiset(recipe.ingredients);
         if (!recipeFits(need, have)) continue;
-        const info = forgeProductInfo(recipe.product);
+        const info = forgeProductInfo(types, recipe.product);
         if (!info) continue;
         out.push({
             productId: recipe.product.id,
@@ -545,21 +508,22 @@ export interface RuneCardForgeRow {
  * Locked spell recipes omitted; rune→rune crafts always included.
  */
 export function forgeRecipesForRuneCard(
+    types: TypeRegistry,
     runeId: string,
     ownedItemIds: readonly string[] = [],
     pool: ForgeSpellPool = 'all',
 ): RuneCardForgeRow[] {
-    if (!ITEMS[runeId]) return [];
+    if (!types.rune(runeId)) return [];
     const have = countMultiset([...ownedItemIds, runeId]);
     const rows: RuneCardForgeRow[] = [];
-    for (const recipe of FORGE_RECIPES) {
+    for (const recipe of types.forgeRecipes) {
         if (!recipe.ingredients.includes(runeId)) continue;
         if (!isForgeRecipeAllowed(recipe, pool)) continue;
-        const info = forgeProductInfo(recipe.product);
+        const info = forgeProductInfo(types, recipe.product);
         if (!info) continue;
         const poolMap = new Map(have);
         const ingredients = recipe.ingredients.map((id) => {
-            const icon = ITEMS[id]?.icon ?? '?';
+            const icon = types.rune(id)?.icon ?? '?';
             const n = poolMap.get(id) ?? 0;
             const owned = n > 0;
             if (owned) poolMap.set(id, n - 1);
@@ -571,7 +535,7 @@ export function forgeRecipesForRuneCard(
             spellDesc: info.desc,
             ready: ingredients.every((ing) => ing.owned),
             ingredients,
-            forgeCost: forgeProductCost(recipe.product),
+            forgeCost: forgeProductCost(types, recipe.product),
         });
     }
     rows.sort((a, b) => a.ingredients.length - b.ingredients.length);

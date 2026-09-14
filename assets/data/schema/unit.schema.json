@@ -1,0 +1,704 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/UnitType",
+  "definitions": {
+    "UnitType": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "cost": {
+          "type": "number"
+        },
+        "hpWithdraw": {
+          "type": "number",
+          "description": "End-of-battle HP withdrawn per living mech of this type (fixed; ignores pack level and purchase premium). Also feeds particle wave grouping via hpDrawWaveTier . Omit to use UnitType.cost / formation headcount."
+        },
+        "unlockCost": {
+          "type": "number",
+          "description": "Once-per-deployment shop unlock fee (supply). Only shop-buyable army types set this — omit for towers / board extras / unlisted types."
+        },
+        "levelBasis": {
+          "type": "number",
+          "description": "Supply value used for LEVEL price and XP thresholds when it must differ from cost . Spawn-only units are free (`cost: 0`), which made both the level price and the XP threshold 0 — i.e. instant, free, repeatable level-ups. Money (buy price, sell refund) still uses `cost`, so raising this cannot be farmed for supply."
+        },
+        "xpValue": {
+          "type": "number",
+          "description": "XP granted to the killer per member of this pack killed. Defaults to `cost / memberCount`, which is 0 for spawn-only (free) units and scales oddly for very large or very small packs — set it when the kill should simply be worth a fixed amount."
+        },
+        "footprint": {
+          "$ref": "#/definitions/GridExtent",
+          "description": "tiles this unit occupies on the grid (width x depth)"
+        },
+        "formation": {
+          "$ref": "#/definitions/GridExtent",
+          "description": "how many individual mechs stand inside the footprint (width x depth)"
+        },
+        "meshScale": {
+          "type": "number",
+          "description": "uniform scale applied to each mech mesh"
+        },
+        "sandPadScale": {
+          "type": "number",
+          "description": "Soft sand pad stamped under a structure, as a multiple of its footprint (default 1). Visual only."
+        },
+        "structure": {
+          "type": "boolean",
+          "description": "structures don't bob and never rotate to face anything (but are valid facing targets)"
+        },
+        "baseAnchor": {
+          "type": "string",
+          "enum": [
+            "stronghold",
+            "research",
+            "command"
+          ],
+          "description": "A base building every side starts with, and where it stands: the Stronghold at the back center, the research and command towers per seat (see BASE_ANCHORS). One type per anchor; buildings without it (a wall, a farm house from a level package) only stand where a scenario places them."
+        },
+        "extra": {
+          "type": "boolean",
+          "description": "board extras (shield, rocket): bought like units but never targeted or damaged by ordinary fire, exempt from the deploy limit and recruiting"
+        },
+        "notAcquired": {
+          "type": "boolean",
+          "description": "Never CHOSEN as a target — an enemy walks past looking for something else. Unlike extra this is only about acquisition: the unit is still in the target hash, so a shot crossing it connects, and splash, blasts and fire all reach it. A Stronghold archer on a keep: you besiege the keep, and he takes what lands near him."
+        },
+        "onDestroyed": {
+          "type": "object",
+          "properties": {
+            "collapseOwnArmy": {
+              "type": "boolean",
+              "description": "Its side's whole army collapses with it. Only while the match's `strongholdMode` is `'lifeline'` — the attribute says what the building can do, the match decides whether that is in play."
+            },
+            "seatDebuff": {
+              "type": "boolean",
+              "description": "The owning seat takes the tower-destruction debuff (window shrinks with level)."
+            }
+          },
+          "additionalProperties": false,
+          "description": "What this type's destruction does to the rest of the board. Each effect is implemented once in the sim; a type only switches it on, so a custom building gets the behaviour by setting the attribute — never by id."
+        },
+        "fixture": {
+          "type": "boolean",
+          "description": "Part of a building rather than a pack: cannot be sold, repositioned or refunded, and never counts as field army."
+        },
+        "diesWithHost": {
+          "type": "boolean",
+          "description": "Dies — with no killer — when the unit it is mounted on (Unit.hostUnitId) is destroyed."
+        },
+        "aura": {
+          "type": "object",
+          "properties": {
+            "effect": {
+              "type": "string",
+              "const": "golden",
+              "description": "`golden`: immune to tower/storm debuffs and takes reduced damage"
+            },
+            "requiresTech": {
+              "type": "string",
+              "description": "tech on this type that switches the aura on; omit = always on"
+            },
+            "radius": {
+              "type": "number",
+              "description": "world units around the source"
+            },
+            "duration": {
+              "type": "number",
+              "description": "seconds the buff lasts on a recipient"
+            }
+          },
+          "required": [
+            "effect",
+            "radius",
+            "duration"
+          ],
+          "additionalProperties": false,
+          "description": "An aura this type projects onto allies around it. The effect is implemented once in the sim; a type chooses it and sets the numbers. Applied once shortly after battle start and to units that arrive later."
+        },
+        "abilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BuildingAbilityId"
+          },
+          "description": "Panel actions this building offers. `forge` also makes it the side's rune forge: runes are dropped on it, it can be lit, and its chimney smokes."
+        },
+        "garrison": {
+          "type": "object",
+          "properties": {
+            "slots": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "description": "`UnitN` pad numbers on the model, in fill order"
+            },
+            "unitTypeId": {
+              "type": "string",
+              "description": "type posted on each pad (looked up in the match's type registry)"
+            },
+            "priceStep": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "slots",
+            "unitTypeId",
+            "priceStep"
+          ],
+          "additionalProperties": false
+        },
+        "buyable": {
+          "type": "boolean",
+          "description": "When `false`, players and the AI cannot buy or unlock this type from the shop. Omit or `true` = eligible (still subject to unlock / extras). Horde-only units set this false; a type may be both shop and horde."
+        },
+        "horde": {
+          "type": "boolean",
+          "description": "When `true`, eligible for The Komtur wave plan / forest roster. Independent of buyable — set both for dual-use types."
+        },
+        "shield": {
+          "type": "object",
+          "properties": {
+            "radius": {
+              "type": "number"
+            },
+            "height": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "radius",
+            "height"
+          ],
+          "additionalProperties": false,
+          "description": "shield extra: a dome that absorbs enemy projectiles crossing INTO it"
+        },
+        "rocket": {
+          "type": "object",
+          "properties": {
+            "range": {
+              "type": "number"
+            },
+            "speed": {
+              "type": "number"
+            },
+            "damage": {
+              "type": "number"
+            },
+            "splash": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "range",
+            "speed",
+            "damage",
+            "splash"
+          ],
+          "additionalProperties": false,
+          "description": "rocket extra: waits armed, then homes onto the first enemy in range"
+        },
+        "flying": {
+          "type": "number",
+          "description": "flight altitude in world units — air units collide with nothing on the ground"
+        },
+        "freeFlight": {
+          "type": "boolean",
+          "description": "Free-flight layer (bats): flying is a low cruise ceiling, not a fixed hover band. Altitude climbs/dives toward chase aims and the mesh pitches at the target. Omit = classic flat air layer (crow riders)."
+        },
+        "targets": {
+          "type": "object",
+          "properties": {
+            "ground": {
+              "type": "boolean"
+            },
+            "air": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "ground",
+            "air"
+          ],
+          "additionalProperties": false,
+          "description": "the can-attack matrix: which layers this unit's weapon can hit"
+        },
+        "collisionRadius": {
+          "type": "number",
+          "description": "ground-plane collision circle per mech, in world units — nothing walks through it"
+        },
+        "blobShadowScale": {
+          "type": "number",
+          "description": "Multiplier on the low-quality ground blob disc (omit = 1). Does not change gameplay collision — visual only."
+        },
+        "colliders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "y": {
+                "type": "number"
+              },
+              "r": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "y",
+              "r"
+            ],
+            "additionalProperties": false
+          },
+          "description": "simplified 3D hit volumes for bullets: spheres on the mech's local y axis (rotation-proof), offsets and radii scaled by meshScale at use"
+        },
+        "aimY": {
+          "type": "number",
+          "description": "Optional local Y above feet that projectiles aim at (× meshScale). Hit detection still uses colliders — this only steers loft."
+        },
+        "aimSpread": {
+          "type": "number",
+          "description": "Multiplier on arrow aim scatter (1 = default archer wobble). Lower = tighter shots. Only applies when projectileStyle is `arrow` and not homing."
+        },
+        "projectileSpeed": {
+          "type": "number",
+          "description": "ranged mechs fire visible projectiles at this speed (world units/s); melee when absent"
+        },
+        "projectileStyle": {
+          "type": "string",
+          "enum": [
+            "bolt",
+            "arrow",
+            "largeArrow",
+            "stone",
+            "orb"
+          ],
+          "description": "visual for the flying shot — does not affect sim hit radius. `bolt` = energy bead (default); `arrow` / `largeArrow` = fletched shafts; `stone` = hurled rock (catapult); `orb` = wizard magic orb."
+        },
+        "projectileScale": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "length": {
+                  "type": "number"
+                },
+                "thickness": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Scale vs the style's default projectile mesh (1 = archer/ballista size). Number = uniform. For shafts, `{ length, thickness }` scales Z (flight) vs X/Y (girth) separately — goblins use short but thick arrows."
+        },
+        "projectileScaleEnd": {
+          "type": "number",
+          "description": "If set (uniform number scales only), the mesh lerps from projectileScale → this over the flight path (xz), so a blast shot can start small and end near splash size."
+        },
+        "projectileCount": {
+          "type": "number",
+          "description": "How many projectiles leave the muzzle per attack (Stormcaller volley). Omit / 1 = single shot. Each shot deals full damage and uses aimSpread (or a default fan when count > 1)."
+        },
+        "projectileTrail": {
+          "type": "string",
+          "const": "cloud",
+          "description": "Soft VFX ribbon behind flying shots. `cloud` = misty smoke puffs (mortar / Stormcaller stones)."
+        },
+        "projectileLaunchHeight": {
+          "type": "number",
+          "description": "spawn height above the unit's altitude (world units). When set, overrides the default collider-mid muzzle for that shot."
+        },
+        "projectileLaunchHeightFrac": {
+          "type": "number",
+          "description": "Muzzle height as a fraction of visual mesh height (0..1), above feet. Easier than absolute units — e.g. `0.75` ≈ upper chest / bow. Ignored when projectileLaunchHeight is set."
+        },
+        "projectileBallistic": {
+          "type": "boolean",
+          "description": "lobbed shot: aims upward and falls under gravity so long-range bolts arc. Without projectileLaunchAngleDeg , `projectileSpeed` is the fixed horizontal speed (arc height grows with range). With a launch angle set, elevation is fixed and muzzle speed is solved from distance (farther = faster shot, same angle)."
+        },
+        "projectileLaunchAngleDeg": {
+          "type": "number",
+          "description": "Ballistic launch elevation in degrees (e.g. 40). When set, muzzle speed is derived from range so the lob angle stays constant."
+        },
+        "projectileBallisticTimeScale": {
+          "type": "number",
+          "description": "Ballistic only: stretch the solved parabola in time (same path, longer hang). 1 = normal; 2 = twice as slow. When set ≠ 1, aim is the target's position at fire time (no lead) so movers walk out from under the lob."
+        },
+        "homing": {
+          "type": "boolean",
+          "description": "homing shots re-aim mid-flight and hit ONLY their victim — a guaranteed hit (shields still block)"
+        },
+        "splashRadius": {
+          "type": "number",
+          "description": "area damage: a projectile impact hurts EVERY valid target within this range (world units), not just what it hit. Absent = single target."
+        },
+        "convertRay": {
+          "type": "object",
+          "properties": {
+            "range": {
+              "type": "number"
+            },
+            "recover": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "range"
+          ],
+          "additionalProperties": false,
+          "description": "Conversion ray — the Wizard's only attack. Progress fills at effective attack (resolved damage × level × tower attack debuff) per second toward the victim's current HP; at full, allegiance flips for the rest of the battle. Buildings, golden-aura mechs, and ward domes cannot be converted — the ray deals the same continuous HP damage instead. `recover` is idle seconds after a successful convert."
+        },
+        "sandWeight": {
+          "type": "number",
+          "description": "Ground wear strength when walking/standing (1 ≈ typical infantry). Omit = derive from cost + bulk via sandStampWeight ."
+        },
+        "deathWear": {
+          "$ref": "#/definitions/DeathWear",
+          "description": "Ground stain / death particles. Omit = ash if structure, else blood."
+        },
+        "deathAshScorch": {
+          "type": "object",
+          "properties": {
+            "radius": {
+              "type": "number"
+            },
+            "strength": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "radius",
+            "strength"
+          ],
+          "additionalProperties": false,
+          "description": "Ash-death scorch on the wear mask. Omit = global big/small defaults."
+        },
+        "bloodColor": {
+          "type": "number",
+          "description": "Hit/death gore tint (hex). Omit = default red. Ignored when wear is ash/none (structures, siege, etc.)."
+        },
+        "bloodScale": {
+          "type": "number",
+          "description": "Multiplier on flesh hit/death blood particles and ground stamps (1 = normal infantry). Small chaff (bats) use ~0.25–0.4."
+        },
+        "fire": {
+          "$ref": "#/definitions/FireProfile",
+          "description": "Burn / ground-fire inflicted by this unit's hits (projectiles, splash, rockets, melee). Ground fire stamps the shared hazard layer; burn DoT uses refresh + strongest DPS."
+        },
+        "cleave": {
+          "type": "object",
+          "properties": {
+            "radius": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "additionalProperties": false,
+          "description": "Melee disk: each swing hits every enemy in this XZ radius (no projectile). Combined with range as the engagement distance."
+        },
+        "cleaveScar": {
+          "type": "boolean",
+          "description": "When false, cleave swings skip the ground scorch stamp (still deal damage). Omit/true = stamp like a stomp crater."
+        },
+        "splashScar": {
+          "type": "boolean",
+          "description": "When false, splash projectile explosions skip the ground scorch stamp. Omit/true = stamp like other blasts."
+        },
+        "cleaveShake": {
+          "type": "number",
+          "description": "Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake)."
+        },
+        "burn": {
+          "$ref": "#/definitions/BurnAffinity",
+          "description": "how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless."
+        },
+        "corrodeOnHit": {
+          "type": "object",
+          "properties": {
+            "seconds": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "seconds"
+          ],
+          "additionalProperties": false,
+          "description": "On projectile/splash hit: apply the corroded (acid) debuff to non-horde victims for this many seconds (refreshes)."
+        },
+        "innateTechs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tech ids always owned by this type (even horde / seat −1). Used for innate battle abilities like Schwarze Spinne's brood production."
+        },
+        "talents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Talents (`data/talents/<id>.jsonc`) a player may pick for this type, in auto-pick order: without a loadout the first talentSlots are taken."
+        },
+        "talentSlots": {
+          "type": "number",
+          "description": "how many talents a player may pick for this type (default 4)"
+        },
+        "itemSlots": {
+          "type": "number",
+          "description": "how many runes a pack of this type can carry (default 2)"
+        },
+        "poisonImmune": {
+          "type": "boolean",
+          "description": "immune to poison-cloud spells (default: affected)"
+        },
+        "hp": {
+          "type": "number",
+          "description": "combat stats, per individual mech"
+        },
+        "damage": {
+          "type": "number"
+        },
+        "range": {
+          "type": "number"
+        },
+        "minRange": {
+          "type": "number",
+          "description": "Minimum engagement range (dead zone). A ranged unit cannot fire at an enemy closer than this; it prefers targets it can still hit and backs away when everything left is too close. Omit / 0 = no dead zone."
+        },
+        "piercesShield": {
+          "type": "boolean",
+          "description": "This unit's attacks ignore Actor.shieldHp and hit HP directly. Melee contact always pierces (structural) — set this for a RANGED attack that should also bypass shields. DoT (burn / acid / poison) always bypasses, since it never routes through applyDamage."
+        },
+        "attackInterval": {
+          "type": "number",
+          "description": "seconds between shots"
+        },
+        "meleeHitDelay": {
+          "type": "number",
+          "description": "Seconds after the attack starts (cooldown bump / fire anim) before the hit lands (melee) or the projectile leaves (ranged). Omit / 0 = immediate. Same field for both — ogre smash windup and hammerer pistol draw share it."
+        },
+        "meleeLunge": {
+          "type": "number",
+          "description": "Melee only: start the swing this many world units before true contact range (extra surface gap). The unit keeps closing during the windup — reads as a charge / attack slide instead of plant-then-swing."
+        },
+        "meleeRetreat": {
+          "type": "number",
+          "description": "Melee only: after hitting a ground target, back off until this many world units of surface gap remain, then dive again. Flyers use this for hit-and-run (Wasp-like); air-vs-air stays in contact. Omit / 0 = cling."
+        },
+        "meleePress": {
+          "type": "number",
+          "description": "Melee only: how close this unit presses while swinging, as a fraction of its reach (range + both radii). Omit / 1 = plant where contact is made and swing from there, which is how every melee unit behaved before the ogre. Below 1 the unit keeps closing while it fights — and, if it has a meleeHitDelay , slides through the windup so a big smash reads as a charge rather than a stop-then-swing. 0.85 = press in to 85% of reach.\n\nPer-unit on purpose: a heavy breaker wants the slide, a line of dwarves does not, and the next melee unit may want its own number."
+        },
+        "speed": {
+          "type": "number"
+        },
+        "walkLean": {
+          "type": "number",
+          "description": "Procedural walk lean *height* for non-skinned ground units (omit = 1). Scales bob / roll / forward lean. Speed (stun, oil, debuffs) still multiplies via displacement. Pair with walkCadence for step rate."
+        },
+        "walkCadence": {
+          "type": "number",
+          "description": "Procedural walk *step rate* for non-skinned ground units (omit = 1). Scales gait frequency only — not lean amplitude. See walkLean ."
+        },
+        "turnRate": {
+          "type": "number",
+          "description": "Max yaw change while turning (rad/s). Every mobile type sets its own — small infantry high, siege / bosses low. Structures omit (never turn)."
+        },
+        "turnMove": {
+          "type": "string",
+          "enum": [
+            "track",
+            "pivot",
+            "cruise"
+          ],
+          "description": "How locomotion couples to facing while turnRate applies:\n- `track` (default) — move along the seek direction; facing eases toward it\n- `pivot` — stand until roughly aligned, then walk (big spiders, ballista)\n- `cruise` — keep moving along current facing while yaw eases (flyers)"
+        },
+        "proceduralModel": {
+          "$ref": "#/definitions/ProceduralModelId",
+          "description": "Named procedural mesh builder (PROCEDURAL_MODELS): ONE mech's meshes around the origin, facing -z. Used for the provisional height probe, previews, and wherever no GLB is loaded. A name, not a function, so a type definition stays plain data."
+        },
+        "formationSpread": {
+          "type": "number",
+          "description": "Scatters each member off its grid slot by up to this fraction of the slot spacing (0 = the usual tight rectangle). Deterministic — a pure hash of the member's grid index, so every client renders/simulates the identical scatter. Used by horde packs so a wave reads as a mob instead of a drilled formation; regular buildable packs leave this unset."
+        },
+        "modelId": {
+          "type": "string",
+          "description": "Id to use for 3D model / InstancedMesh-pool lookups (unitModels.ts, unitAnimated.ts, UnitInstanceRenderer) instead of this type's own `id`. Id to look up in unitModels MODEL_SPECS / instance pools instead of this type's own `id`. Lets a variant (e.g. HORDE_ZOMBIE → `horde`) point at a dedicated GLB. Defaults to `id`."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "cost",
+        "footprint",
+        "formation",
+        "meshScale",
+        "targets",
+        "collisionRadius",
+        "colliders",
+        "hp",
+        "damage",
+        "range",
+        "attackInterval",
+        "speed",
+        "proceduralModel"
+      ],
+      "additionalProperties": false
+    },
+    "GridExtent": {
+      "type": "object",
+      "properties": {
+        "cols": {
+          "type": "number"
+        },
+        "rows": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "cols",
+        "rows"
+      ],
+      "additionalProperties": false
+    },
+    "BuildingAbilityId": {
+      "type": "string",
+      "enum": [
+        "recruitLevel",
+        "deploySlot",
+        "rangeBoost",
+        "speedBoost",
+        "credit",
+        "armyBoosts",
+        "selling",
+        "rallyRoute",
+        "movePack",
+        "forge",
+        "forgeSpells",
+        "sendSupply"
+      ],
+      "description": "Panel actions a building can offer. Each is implemented once (HUD + action dispatcher); a building lists the ones it offers in UnitType.abilities ."
+    },
+    "DeathWear": {
+      "type": "string",
+      "enum": [
+        "blood",
+        "ash",
+        "none"
+      ],
+      "description": "Ground / particle residue when a unit dies."
+    },
+    "FireProfile": {
+      "type": "object",
+      "properties": {
+        "burn": {
+          "$ref": "#/definitions/FireBurnSpec"
+        },
+        "ground": {
+          "$ref": "#/definitions/FireGroundSpec"
+        },
+        "oil": {
+          "type": "object",
+          "properties": {
+            "radius": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "additionalProperties": false,
+          "description": "splash oil onto the shared hazard layer at impact (shield discs stay clear)"
+        }
+      },
+      "additionalProperties": false,
+      "description": "weapon / rocket profile — burn victims, ignite ground, and/or stamp oil"
+    },
+    "FireBurnSpec": {
+      "type": "object",
+      "properties": {
+        "dps": {
+          "type": "number",
+          "description": "damage per second while burning"
+        },
+        "duration": {
+          "type": "number",
+          "description": "seconds; re-hit refreshes the timer"
+        }
+      },
+      "required": [
+        "dps",
+        "duration"
+      ],
+      "additionalProperties": false
+    },
+    "FireGroundSpec": {
+      "type": "object",
+      "properties": {
+        "radius": {
+          "type": "number",
+          "description": "how much ground lights up around the impact"
+        },
+        "duration": {
+          "type": "number",
+          "description": "active flame lifetime (battle seconds)"
+        },
+        "intensity": {
+          "type": "number",
+          "description": "DPS applied each step to ground units standing in the fire"
+        }
+      },
+      "required": [
+        "radius",
+        "duration",
+        "intensity"
+      ],
+      "additionalProperties": false
+    },
+    "BurnAffinity": {
+      "type": "object",
+      "properties": {
+        "takenMult": {
+          "type": "number"
+        },
+        "durationMult": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "takenMult"
+      ],
+      "additionalProperties": false,
+      "description": "how strongly a unit type takes burn damage (1 = normal, 0 = immune)"
+    },
+    "ProceduralModelId": {
+      "type": "string",
+      "enum": [
+        "dwarf",
+        "goblin",
+        "hammerer",
+        "ogre",
+        "archer",
+        "wizard",
+        "ballista",
+        "crowRider",
+        "bat",
+        "mortar",
+        "shield",
+        "rocket",
+        "tower"
+      ],
+      "description": "Names of the procedural mesh builders (PROCEDURAL_MODELS must cover exactly these)."
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

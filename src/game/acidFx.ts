@@ -17,6 +17,7 @@ import {
 import type { HazardField } from './fire';
 import { groundSupportAt } from './map';
 import type { FireVfxQuality } from './prefs';
+import { assetUrl } from './assets';
 
 /** allocate once at the high-tier ceiling so tier switches don't rebuild the mesh */
 const POOL_MAX = 2048;
@@ -175,7 +176,7 @@ export class AcidFx {
         this.mesh.receiveShadow = false;
         scene.add(this.mesh);
 
-        const url = new URL('../../assets/textures/vfx/acid-smell-atlas.png', import.meta.url).href;
+        const url = assetUrl('textures/vfx/acid-smell-atlas.png');
         new TextureLoader().load(url, (tex) => {
             tex.wrapS = ClampToEdgeWrapping;
             tex.wrapT = ClampToEdgeWrapping;

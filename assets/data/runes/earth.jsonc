@@ -1,0 +1,10 @@
+// Weak elemental rune — round-card pool + always-on shop; forge fuel for advanced runes.
+{
+    "id": "earth",
+    "name": "Earth",
+    "tier": "base",
+    "icon": "item-earth",
+    "mods": { "hp": 1.1 },
+    "cardCost": 0, // base runes are free on round cards
+    "description": "+10% HP.",
+}

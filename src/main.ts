@@ -7,7 +7,8 @@ import { ChatFloat } from './ui/chatFloat';
 import { FriendsPanel } from './ui/friendsPanel';
 import {
     introRosterEntries,
-    mountClimbIntro,
+    mountYearIntro,
+    mountScenarioIntro,
     mountTutorialIntro,
     mountIntroRoster,
     prefetchIntroRosterMmrs,
@@ -27,7 +28,13 @@ import {
     type RoomAd,
     type RoomRosterEntry,
     GAME_VERSION,
-    formatGameVersion,
+    contentHashFor,
+    starJoinMessage,
+    isSameBaseBuild,
+    isSameBuild,
+    formatBuild,
+    ourBuild,
+    currentContentHash,
     hostStarRoom,
     isMelodanPlayHost,
     joinAsSpectator,
@@ -80,6 +87,30 @@ import {
     migrateUserStorage,
 } from './game/userStorage';
 import { bootGameAssets } from './game/bootAssets';
+import {
+    activeLevel,
+    activeLevelRef,
+    isLevelActive,
+    ensureLevel,
+    isLevelAvailable,
+    levelFiles,
+    levelFilesFromArchive,
+    loadLevel,
+    prepareLevel,
+    forgetLevel,
+    scenarioLevels,
+    supersedeLevel,
+    type LevelRef,
+} from './game/level';
+import { readZip, writeZip } from './game/content/zip';
+import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
+import { loadStoredDraft, newDraft } from './game/scenario/editorDraft';
+import { BASE_TYPES } from './game/units';
+import { packageScenarioIds, scenarioPackageFiles, scenarioSlug, withScenarioInPackage } from './game/scenario/package';
+import type { ScenarioDef } from './game/scenario/scenarioDef';
+import { decodeShareCode, encodeShareCode } from './game/scenario/shareCode';
+import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
+import { builtInCampaigns, campaignLevel, campaignSummary, completedLevels, isBuiltInCampaign, markLevelCompleted } from './game/campaign';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
@@ -93,10 +124,14 @@ import {
     formatStrongholdModeOption,
     strongholdModeOption,
     CUSTOM_GAME_PACE_PRESETS,
-    CLIMB_ROUNDS_TO_WIN,
+    CLIMB_ROUNDS,
     CLIMB_SIDE_HP,
     CLIMB_SUPPLY_GROWTH_PER_ROUND,
     CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
+    type ClimbRole,
+    climbAttackerTeam,
+    yearAttackerFromWishes,
+    type YearRoundWinner,
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
     DEFAULT_HORDE_PRESET_ID,
@@ -124,6 +159,7 @@ import {
 import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { initI18n, onLanguageChange, t } from './i18n';
 import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
+import { assetUrl, type OverlayFile } from './game/assets';
 
 const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
 /**
@@ -165,14 +201,19 @@ function applyHordeMode(settings: GameSettings): void {
  * match economy; set {@link CLIMB_SUPPLY_GROWTH_PER_ROUND} in settings.ts
  * to override while playtesting.
  */
-function applyClimbMode(settings: GameSettings): void {
+function applyClimbMode(settings: GameSettings, variant: ClimbVariant = { role: 'attacker' }): void {
     settings.climb = {
-        roundsToWin: CLIMB_ROUNDS_TO_WIN,
+        rounds: CLIMB_ROUNDS,
+        ...(variant.attackerSide !== undefined ? { attackerSide: variant.attackerSide } : {}),
         sideHp: CLIMB_SIDE_HP,
         playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
+        ...(variant.role === 'defender' ? { humanRole: variant.role } : {}),
+        ...(variant.komtur ? { attackerCommander: 'cursed' } : {}),
     };
-    // Campaign always fields The Komtur at Medium (not Off / not the Low SP-horde default).
-    settings.hordePreset = 'medium';
+    // The Year fields The Komtur's waves at Medium (not Off / not the Low SP-horde default) —
+    // unless the Komtur is the attacker himself: then there is no third party
+    if (variant.komtur) settings.hordePreset = 'off';
+    else if (!variant.keepHorde) settings.hordePreset = 'medium';
     if (CLIMB_SUPPLY_GROWTH_PER_ROUND != null) {
         settings.economy = {
             ...settings.economy,
@@ -219,6 +260,11 @@ function normalizeCustomGameMode(mode: CustomGameMode | '1v1ai' | undefined): Cu
     return mode ?? DEFAULT_CUSTOM_GAME.mode;
 }
 
+/** a stored / received Year roles setting, or the default: players choose */
+function yearRolesOption(value: unknown): NonNullable<CustomGameConfig['yearRoles']> {
+    return value === 'host' || value === 'guest' ? value : 'choose';
+}
+
 function loadCustomGameConfig(): CustomGameConfig {
     try {
         const raw = localStorage.getItem(CUSTOM_GAME_KEY);
@@ -259,6 +305,8 @@ function loadCustomGameConfig(): CustomGameConfig {
             commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor),
             moneyFactor: moneyFactorOption(parsed.moneyFactor),
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
+            yearRoles: yearRolesOption(parsed.yearRoles),
+            yearKomtur: parsed.yearKomtur === true,
         };
     } catch {
         return { ...DEFAULT_CUSTOM_GAME };
@@ -284,6 +332,9 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
     settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
+    // Custom Game rooms play the base game (scenarios are single player: Single Player → Editor)
+    // deleted, not set to undefined: the room's transport turns undefined into null
+    delete settings.level;
 }
 
 // dev override: tweak match settings from the URL, e.g. ?build=20&nocards
@@ -542,10 +593,10 @@ void resolveStartupTransport(prefs().multiplayerTransport, prefs().transportChos
     });
 
 const wrapper = document.createElement('div');
-const menuBgUrl = new URL('../assets/ui/menu-bg.webp', import.meta.url).href;
+const menuBgUrl = (): string => assetUrl('ui/menu-bg.webp');
 wrapper.style.cssText =
     `position:fixed;inset:0;overflow:hidden;` +
-    `background:#b8d4c8 ${cssUrl(menuBgUrl)} center/cover no-repeat;`;
+    `background:#b8d4c8 ${cssUrl(menuBgUrl())} center/cover no-repeat;`;
 
 function createThreeCanvas(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
@@ -697,10 +748,10 @@ void refreshVersionLabel();
 window.addEventListener('online', () => void refreshVersionLabel());
 window.addEventListener('offline', () => void refreshVersionLabel());
 
-const feuerwareLogoUrl = new URL('../assets/marketing/feuerware_melodan.webp', import.meta.url).href;
+const feuerwareLogoUrl = (): string => assetUrl('marketing/feuerware_melodan.webp');
 const feuerwareEl = document.createElement('img');
 feuerwareEl.className = 'mechili-feuerware';
-feuerwareEl.src = feuerwareLogoUrl;
+feuerwareEl.src = feuerwareLogoUrl();
 feuerwareEl.alt = 'Feuerware';
 feuerwareEl.width = 82;
 feuerwareEl.height = 82;
@@ -804,7 +855,7 @@ function showIntroCover(deferDive = false): void {
     applyRandomMenuZoomOrigin(bg);
     const logoImg = document.createElement('img');
     logoImg.className = 'mechili-intro-logo';
-    logoImg.src = logoUrl;
+    logoImg.src = logoUrl();
     logoImg.alt = 'MELODAN';
     logoImg.width = 600;
     logoImg.height = 327;
@@ -840,7 +891,7 @@ function showOutroCover(): void {
     bg.style.transform = 'translate3d(0, 0, 0) scale3d(3.5, 3.5, 1)';
     const logoImg = document.createElement('img');
     logoImg.className = 'mechili-intro-logo';
-    logoImg.src = logoUrl;
+    logoImg.src = logoUrl();
     logoImg.alt = 'MELODAN';
     logoImg.width = 600;
     logoImg.height = 327;
@@ -853,8 +904,8 @@ function showOutroCover(): void {
 }
 
 const title = new Container();
-const logoUrl = new URL('../assets/ui/logo.webp', import.meta.url).href;
-const logoTex = await Assets.load(logoUrl);
+const logoUrl = (): string => assetUrl('ui/logo.webp');
+const logoTex = await Assets.load(logoUrl());
 const logo = new Sprite(logoTex);
 logo.anchor.set(0.5);
 // the logo art is on a black background (alpha isn't supported in this pipeline);
@@ -981,6 +1032,10 @@ menu.innerHTML = `
     <div class="m-view m-main is-active" data-view="main">
         <button class="m-btn m-primary" data-mode="tutorial">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial"></span></button>
         <button class="m-btn" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:singlePlayer"></span></button>
+        <button class="m-btn" data-mode="multiplayer">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n="settings:multiplayer"></span><span class="m-mp-count" hidden></span></button>
+    </div>
+    <div class="m-view m-main m-mp" data-view="mp">
+        <div class="m-spmode-title" data-i18n="settings:multiplayer"></div>
         <button class="m-btn" data-mode="matchmaking">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n-matchmaking></span></button>
         <button class="m-btn" data-mode="custom">${iconHtml('ui-menu', 'm-ico mask-ico')}<span class="m-label" data-i18n-custom></span></button>
         <div class="m-rooms">
@@ -990,6 +1045,7 @@ menu.innerHTML = `
             </div>
             <div class="m-room-list empty" data-i18n-rooms-empty></div>
         </div>
+        <button class="m-btn m-small" data-mode="mp-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-spmode" data-view="tutorial">
         <div class="m-spmode-title" data-i18n="menu:tutorial"></div>
@@ -1002,18 +1058,51 @@ menu.innerHTML = `
     </div>
     <div class="m-view m-spmode" data-view="sp">
         <div class="m-spmode-title" data-i18n="menu:singlePlayer"></div>
-        <div class="m-toggle-row">
+        <div class="m-toggle-row m-toggle-grid">
             <button class="m-btn m-toggle-card" data-mode="sp-campaign">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:campaign"></span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-practice">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:practice"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-campaigns">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:scenarioCampaign"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-editor">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:editor"></span></button>
         </div>
         <button class="m-btn m-small" data-mode="sp-back" data-i18n="menu:back"></button>
+    </div>
+    <div class="m-view m-spmode" data-view="sp-year">
+        <div class="m-spmode-title" data-i18n="menu:campaign"></div>
+        <div class="m-toggle-row m-toggle-grid">
+            <button class="m-btn m-toggle-card" data-mode="year-attack">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:yearAttack"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="year-defend">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:yearDefend"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="year-komtur-attack">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:yearKomturAttack"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="year-komtur-defend">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:yearKomturDefend"></span></button>
+        </div>
+        <button class="m-btn m-small" data-mode="sp-year-back" data-i18n="menu:back"></button>
+    </div>
+    <div class="m-view m-spmode" data-view="sp-campaigns">
+        <div class="m-spmode-title" data-i18n="menu:scenarioCampaign"></div>
+        <div class="m-room-list m-scenario-list m-campaign-list empty"></div>
+        <button class="m-btn m-small" data-mode="sp-campaigns-back" data-i18n="menu:back"></button>
+    </div>
+    <div class="m-view m-spmode" data-view="sp-editor">
+        <div class="m-spmode-title" data-i18n="menu:editor"></div>
+        <div class="m-scenario-open">
+            <button type="button" class="m-scenario-btn m-editor-continue" data-i18n="menu:editorContinue"></button>
+            <button type="button" class="m-scenario-btn m-editor-new" data-i18n="menu:editorNew"></button>
+        </div>
+        <div class="m-scenario-list-label" data-i18n="menu:scenarios"></div>
+        <div class="m-room-list m-scenario-list empty"></div>
+        <div class="m-scenario-import">
+            <input type="text" class="m-scenario-code" placeholder="MELODAN1:…" spellcheck="false" autocomplete="off">
+            <button type="button" class="m-scenario-btn m-scenario-import-btn">Import code</button>
+            <button type="button" class="m-scenario-btn m-scenario-zip-btn" hidden>Import zip</button>
+            <input type="file" class="m-scenario-file" accept=".zip,application/zip" hidden>
+        </div>
+        <div class="m-scenario-status"></div>
+        <button class="m-btn m-small" data-mode="sp-editor-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-spmode" data-view="sp-practice">
         <div class="m-spmode-title" data-i18n="menu:practice"></div>
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="sp-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
-            <button class="m-btn m-toggle-card" data-mode="sp-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:horde"></span></button>
         </div>
         <button class="m-btn m-small" data-mode="sp-practice-back" data-i18n="menu:back"></button>
     </div>
@@ -1056,7 +1145,7 @@ menu.innerHTML = `
     </div>
     <div class="m-view m-custom" data-view="custom">
         <div class="m-spmode-title" data-i18n="menu:customGameTitle"></div>
-        <div class="m-toggle-row">
+        <div class="m-toggle-row m-toggle-grid">
             <button class="m-btn m-toggle-card" data-mode="cg-host-1v1">
                 ${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">1v1</span>
             </button>
@@ -1065,6 +1154,9 @@ menu.innerHTML = `
             </button>
             <button class="m-btn m-toggle-card" data-mode="cg-host-2v2ai">
                 ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:mode2vAi"></span>
+            </button>
+            <button class="m-btn m-toggle-card" data-mode="cg-host-year">
+                ${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:campaign"></span>
             </button>
         </div>
         <button class="m-btn m-small" data-mode="cg-back" data-i18n="menu:back"></button>
@@ -1077,6 +1169,12 @@ menu.innerHTML = `
                 <!-- settings first: a guest reads what they are agreeing to, THEN
                      confirms. (The host never sees the ready row — see
                      showHostLobbySettings — so this ordering only shows up there.) -->
+                <div class="m-lobby-role-row" style="display:none">
+                    <span class="m-lobby-role-label" data-i18n="menu:yearYourRole"></span>
+                    <button type="button" class="m-lobby-role" data-role="attacker" data-i18n="hud:yearAttacker"></button>
+                    <button type="button" class="m-lobby-role" data-role="defender" data-i18n="hud:yearDefender"></button>
+                    <button type="button" class="m-lobby-role" data-role="any" data-i18n="menu:yearAnyRole"></button>
+                </div>
                 <button class="m-lobby-settings-toggle" style="display:none" type="button"></button>
                 <label class="m-lobby-ready-row" style="display:none">
                     <input type="checkbox" class="m-lobby-ready-check">
@@ -1103,6 +1201,12 @@ menu.innerHTML = `
                 </label>
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
+                </label>
+                <label class="m-field m-year-field"><span class="m-field-label" data-i18n="menu:yearRolesSetting"></span>
+                    <select class="cg-year-attacker"></select>
+                </label>
+                <label class="m-field m-year-field"><span class="m-field-label" data-i18n="menu:yearArmySetting"></span>
+                    <select class="cg-year-komtur"></select>
                 </label>
                 <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
             </div>
@@ -1240,6 +1344,59 @@ const rosterTableEl = menu.querySelector<HTMLDivElement>('.m-roster-table')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('[data-view="sp"]')!;
 const spPracticeEl = menu.querySelector<HTMLDivElement>('[data-view="sp-practice"]')!;
+const spScenariosEl = menu.querySelector<HTMLDivElement>('[data-view="sp-editor"]')!;
+const spScenarioListEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-list')!;
+const spCampaignsEl = menu.querySelector<HTMLDivElement>('[data-view="sp-campaigns"]')!;
+const spYearEl = menu.querySelector<HTMLDivElement>('[data-view="sp-year"]')!;
+const spCampaignListEl = spCampaignsEl.querySelector<HTMLDivElement>('.m-campaign-list')!;
+const spEditorContinueEl = spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-continue')!;
+spEditorContinueEl.addEventListener('click', () => {
+    showMenuView('main');
+    openStoredScenarioEditor();
+});
+spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-new')!.addEventListener('click', () => {
+    if (loadStoredDraft() && !window.confirm('Start a new board? It replaces the draft you were editing.')) return;
+    showMenuView('main');
+    void openScenarioEditor('author', newDraft(`v${__APP_VERSION__}`, BASE_TYPES), undefined);
+});
+const spScenarioCodeEl = spScenariosEl.querySelector<HTMLInputElement>('.m-scenario-code')!;
+const spScenarioStatusEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-status')!;
+const spScenarioZipBtn = spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-zip-btn')!;
+const spScenarioFileEl = spScenariosEl.querySelector<HTMLInputElement>('.m-scenario-file')!;
+spScenarioZipBtn.addEventListener('click', () => {
+    spScenarioFileEl.value = '';
+    spScenarioFileEl.click();
+});
+spScenarioFileEl.addEventListener('change', () => {
+    const file = spScenarioFileEl.files?.[0];
+    if (!file) return;
+    void (async () => {
+        try {
+            const files = levelFilesFromArchive(await readZip(await file.arrayBuffer()));
+            const { ref, report } = await loadLevel(file.name.replace(/\.zip$/i, ''), files);
+            console.info(`[scenario] loaded "${ref.id}" (${files.length} files, ${ref.hash.slice(0, 12)})`, report);
+            spScenarioStatusEl.textContent = `Imported “${ref.id}”`;
+            await renderScenarioList();
+        } catch (e) {
+            console.error('[scenario] zip rejected', e);
+            spScenarioStatusEl.textContent = `Zip rejected: ${e instanceof Error ? e.message : String(e)}`;
+        }
+    })();
+});
+spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-import-btn')!.addEventListener('click', () => {
+    const text = spScenarioCodeEl.value;
+    if (!text.trim()) return;
+    void decodeShareCode(text)
+        .then(({ id, files }) => loadLevel(id, files))
+        .then(({ ref }) => {
+            spScenarioCodeEl.value = '';
+            spScenarioStatusEl.textContent = `Imported “${ref.id}”`;
+            return renderScenarioList();
+        })
+        .catch((e: unknown) => {
+            spScenarioStatusEl.textContent = `Import failed: ${e instanceof Error ? e.message : String(e)}`;
+        });
+});
 const tutorialEl = menu.querySelector<HTMLDivElement>('[data-view="tutorial"]')!;
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
 const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
@@ -1256,10 +1413,222 @@ const cgRoundCardsEl = menu.querySelector<HTMLSelectElement>('.cg-roundcards')!;
 const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp')!;
 const cgMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-money')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
+const cgYearAttackerEl = menu.querySelector<HTMLSelectElement>('.cg-year-attacker')!;
+const cgYearKomturEl = menu.querySelector<HTMLSelectElement>('.cg-year-komtur')!;
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
+/**
+ * Web testing only: scenario zips can be imported (Single Player → Editor)
+ * and drafts downloaded as zips. The Steam game never shows a file picker —
+ * there a scenario comes with what the player does (the editor, a share code,
+ * joining a match).
+ */
+spScenarioCodeEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-import-btn')!.click();
+});
+const SCENARIO_ZIP_TESTING = !isElectron();
+spScenarioZipBtn.hidden = !SCENARIO_ZIP_TESTING;
+
+/**
+ * Single Player → Editor: every package with scenarios this client has
+ * (saved from the editor or a replay, received from a host, loaded from a
+ * zip) — play one, open it in the editor, or delete the package.
+ */
+/** Single Player → Editor */
+function openEditorMenu(): void {
+    showMenuView('sp-editor');
+    spEditorContinueEl.hidden = loadStoredDraft() === null;
+    void renderScenarioList();
+}
+
+async function renderScenarioList(): Promise<void> {
+    // the bundled campaigns are played from Single Player → Campaign
+    const levels = (await scenarioLevels()).filter((level) => !isBuiltInCampaign(level.ref.id));
+    spScenarioListEl.textContent = '';
+    spScenarioListEl.classList.toggle('empty', levels.length === 0);
+    if (levels.length === 0) {
+        spScenarioListEl.textContent = t('menu:noScenarios', {
+            defaultValue: 'No scenarios yet — build a board and press Save.',
+        });
+        return;
+    }
+    const button = (text: string, run: () => void, title?: string) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'm-scenario-btn';
+        b.textContent = text;
+        if (title) b.title = title;
+        b.addEventListener('click', run);
+        return b;
+    };
+    const nameEl = (text: string, title: string) => {
+        const label = document.createElement('span');
+        label.className = 'm-scenario-name';
+        label.textContent = text;
+        label.title = title;
+        return label;
+    };
+    for (const level of levels) {
+        const chain = level.scenarios.length > 1;
+        const where = `${level.ref.id} · ${level.ref.hash.slice(0, 8)}`;
+        // package actions: once per package
+        const codeButton = button(t('menu:scenarioCode', { defaultValue: 'Code' }), () => {
+            void (async () => {
+                const files = levelFiles(level.ref.hash) ?? (await ensureLevel(level.ref).then(() => levelFiles(level.ref.hash)));
+                spScenarioStatusEl.textContent = files ? await copyShareCode(level.ref.id, files) : 'This scenario is not available';
+            })();
+        }, t('menu:scenarioCodeTip', { defaultValue: 'Copy a share code' }));
+        const deleteButton = button('✕', () => {
+            const what = chain ? `“${level.name}” (${level.scenarios.length} scenarios)` : `“${level.scenarios[0]?.name ?? level.name}”`;
+            if (!window.confirm(t('menu:scenarioDeleteConfirm', { defaultValue: 'Delete {{what}}?', what }))) return;
+            void forgetLevel(level.ref).then(() => renderScenarioList());
+        }, t('menu:scenarioDeleteTip', { defaultValue: 'Delete' }));
+        if (chain) {
+            const head = document.createElement('div');
+            head.className = 'm-scenario-row m-scenario-package';
+            head.append(nameEl(`${level.name} · ${level.scenarios.length}`, where), codeButton, deleteButton);
+            spScenarioListEl.appendChild(head);
+        }
+        level.scenarios.forEach((scenario, i) => {
+            const row = document.createElement('div');
+            row.className = `m-scenario-row${chain ? ' m-scenario-level' : ''}`;
+            row.append(
+                nameEl(chain ? `${i + 1}. ${scenario.name}` : scenario.name, where),
+                button(t('menu:scenarioPlay', { defaultValue: 'Play' }), () => void playSavedScenario(level.ref, scenario.id)),
+                button(t('menu:scenarioEdit', { defaultValue: 'Edit' }), () => void editSavedScenario(level.ref, scenario.id)),
+            );
+            if (!chain) row.append(codeButton, deleteButton);
+            spScenarioListEl.appendChild(row);
+        });
+    }
+}
+
+/**
+ * Single Player → Campaign: packages that chain several levels (meta.jsonc
+ * order, built with the editor's Save into package). Play starts at level 1;
+ * a victory continues to the next level. No progress is kept yet.
+ */
+/**
+ * Single Player → Campaign: the campaigns that ship with the game
+ * (assets/campaign/<id>/) with each level ticked once won, then chains built
+ * in the editor.
+ */
+async function renderCampaignList(): Promise<void> {
+    spCampaignListEl.textContent = '';
+    const row = (className: string, label: string, title?: string) => {
+        const el = document.createElement('div');
+        el.className = `m-scenario-row ${className}`;
+        const name = document.createElement('span');
+        name.className = 'm-scenario-name';
+        name.textContent = label;
+        if (title) name.title = title;
+        el.appendChild(name);
+        spCampaignListEl.appendChild(el);
+        return el;
+    };
+    const playButton = (run: () => void) => {
+        const play = document.createElement('button');
+        play.type = 'button';
+        play.className = 'm-scenario-btn';
+        play.textContent = t('menu:scenarioPlay', { defaultValue: 'Play' });
+        play.addEventListener('click', run);
+        return play;
+    };
+    for (const campaign of builtInCampaigns()) {
+        const summary = campaignSummary(campaign);
+        const done = completedLevels(campaign.id);
+        const won = summary.scenarios.filter((sc) => done.has(sc.id)).length;
+        row('m-scenario-package', `${summary.name} · ${won}/${summary.scenarios.length}`);
+        summary.scenarios.forEach((scenario, i) => {
+            const completed = done.has(scenario.id);
+            const el = row(`m-scenario-level${completed ? ' is-done' : ''}`, `${completed ? '✓' : '○'} ${i + 1}. ${scenario.name}`);
+            el.appendChild(
+                playButton(() => {
+                    void campaignLevel(campaign).then(
+                        (ref) => playSavedScenario(ref, scenario.id),
+                        (e: unknown) => {
+                            console.error('[campaign] could not load', campaign.id, e);
+                            window.alert(`This campaign can't be loaded:\n${e instanceof Error ? e.message : String(e)}`);
+                        },
+                    );
+                }),
+            );
+        });
+    }
+    const chains = (await scenarioLevels()).filter((level) => level.scenarios.length > 1 && !isBuiltInCampaign(level.ref.id));
+    for (const chain of chains) {
+        const done = completedLevels(chain.ref.id);
+        const won = chain.scenarios.filter((sc) => done.has(sc.id)).length;
+        const el = row('', `${chain.name} · ${won}/${chain.scenarios.length}`, chain.scenarios.map((sc, i) => `${done.has(sc.id) ? '✓' : '○'} ${i + 1}. ${sc.name}`).join('\n'));
+        const first = chain.scenarios.find((sc) => !done.has(sc.id)) ?? chain.scenarios[0];
+        el.appendChild(playButton(() => first && void playSavedScenario(chain.ref, first.id)));
+    }
+    spCampaignListEl.classList.toggle('empty', spCampaignListEl.childElementCount === 0);
+    if (spCampaignListEl.childElementCount === 0) {
+        spCampaignListEl.textContent = t('menu:noCampaigns', {
+            defaultValue: 'No campaigns yet — in the Editor, open a scenario and use Save into package to add levels.',
+        });
+    }
+}
+
+async function savedScenarioDef(ref: LevelRef, id: string): Promise<ScenarioDef | null> {
+    await prepareLevel(ref);
+    const scenario = activeLevel().scenarios.get(id);
+    const errors = scenario?.issues.filter((i) => i.level === 'error') ?? [];
+    if (!scenario?.def || errors.length > 0) {
+        window.alert(`This scenario can't be played:\n${errors.map((i) => `• ${i.message}`).join('\n') || 'not found'}`);
+        return null;
+    }
+    return scenario.def;
+}
+
+async function playSavedScenario(ref: LevelRef, id: string): Promise<void> {
+    const def = await savedScenarioDef(ref, id).catch(() => null);
+    if (!def) return;
+    showMenuView('main');
+    startGame(applyScenarioToSettings(localMatchSettings(), def, ref, 'play', id));
+}
+
+async function editSavedScenario(ref: LevelRef, id: string): Promise<void> {
+    const def = await savedScenarioDef(ref, id).catch(() => null);
+    if (!def) return;
+    showMenuView('main');
+    // the scenario keeps its id in the package, so "Save into package" replaces it
+    await openScenarioEditor('author', { ...def, id }, ref);
+}
+
+/**
+ * Single Player → Editor: the last draft (autosaved) on the level it was made
+ * on when that level is still here, else on the active one (web testing may
+ * have a zip level selected), else the base game.
+ */
+function openStoredScenarioEditor(): void {
+    const stored = loadStoredDraft();
+    const draft = stored?.def ?? newDraft(`v${__APP_VERSION__}`, activeLevel().types);
+    const wanted = stored?.level;
+    void (async () => {
+        // a package saved again since has a new hash under the same id
+        const newer = async (ref: LevelRef) => (await scenarioLevels()).find((l) => l.ref.id === ref.id)?.ref;
+        const level = !stored
+            ? activeLevelRef()
+            : wanted && (await ensureLevel(wanted).catch(() => false))
+              ? wanted
+              : wanted
+                ? ((await newer(wanted)) ?? activeLevelRef())
+                : undefined;
+        await openScenarioEditor('author', draft, level);
+    })();
+}
+
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
 const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-toggle')!;
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
+const lobbyRoleRowEl = menu.querySelector<HTMLDivElement>('.m-lobby-role-row')!;
+for (const button of lobbyRoleRowEl.querySelectorAll<HTMLButtonElement>('.m-lobby-role')) {
+    button.addEventListener('click', () => {
+        const role = button.dataset.role;
+        lobbyYear?.pick(role === 'attacker' || role === 'defender' ? role : null);
+    });
+}
 const lobbyReadyCheckEl = menu.querySelector<HTMLInputElement>('.m-lobby-ready-check')!;
 const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
 
@@ -1290,8 +1659,9 @@ function paintMenuChrome(): void {
     }
     applyLobbySettingsExpanded();
     if (cancelEl.style.display !== 'none') {
-        cancelEl.textContent = isSessionBusy() ? t('menu:cancel') : t('menu:ok');
+        cancelEl.textContent = practiceLobby ? t('menu:back') : isSessionBusy() ? t('menu:cancel') : t('menu:ok');
     }
+    if (practiceLobby) startStarBtn.textContent = t('menu:start');
     const loadoutName = loadoutCornerEl.querySelector('.u-name');
     if (loadoutName) loadoutName.textContent = t('menu:unitLoadout');
     settingsCornerEl.title = t('menu:settings');
@@ -1313,11 +1683,15 @@ wrapper.appendChild(loadoutPanel.el);
 
 /** Exclusive menu screens — only one is active at a time. Session owns
  *  connecting / lobby / waiting UI so main never stacks under it. */
-type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
+type MenuViewId = 'main' | 'mp' | 'sp' | 'sp-practice' | 'sp-year' | 'sp-editor' | 'sp-campaigns' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
 const menuViews: Record<MenuViewId, HTMLElement> = {
     main: mainButtonsEl,
+    mp: menu.querySelector<HTMLDivElement>('[data-view="mp"]')!,
     sp: spModeEl,
     'sp-practice': spPracticeEl,
+    'sp-editor': spScenariosEl,
+    'sp-campaigns': spCampaignsEl,
+    'sp-year': spYearEl,
     tutorial: tutorialEl,
     custom: customEl,
     matchmaking: mmModeEl,
@@ -1374,6 +1748,17 @@ function resetSessionChrome(): void {
     startStarBtn.style.display = 'none';
     clearRosterTable();
     clearLobbySettings();
+    practiceLobby = null;
+}
+
+/** where leaving the session view goes: the screen it was opened from */
+let sessionReturnView: MenuViewId = 'mp';
+
+/** a room is being hosted or joined: the Practice lobby (if it was on screen) is gone */
+function leavePracticeLobby(): void {
+    if (!practiceLobby) return;
+    practiceLobby = null;
+    resetSessionChrome();
 }
 
 /**
@@ -1384,6 +1769,8 @@ function showMenuView(view: MenuViewId): void {
     if (currentMenuView === 'session' && view !== 'session') {
         resetSessionChrome();
     }
+    // a room / lobby / connection returns to the screen it was opened from
+    if (view === 'session' && currentMenuView !== 'session') sessionReturnView = currentMenuView;
     currentMenuView = view;
     for (const [id, el] of Object.entries(menuViews) as [MenuViewId, HTMLElement][]) {
         el.classList.toggle('is-active', id === view);
@@ -1495,6 +1882,32 @@ for (const optSh of STRONGHOLD_MODE_OPTIONS) {
 }
 wireSelectShortLabels(cgStrongholdEl);
 
+/** The Year's room options — their labels follow the language (see refreshYearLobbyOptions) */
+function refreshYearLobbyOptions(): void {
+    const fill = (select: HTMLSelectElement, options: [string, string][]) => {
+        const value = select.value;
+        select.replaceChildren(
+            ...options.map(([v, label]) => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                opt.textContent = label;
+                return opt;
+            }),
+        );
+        if (value) select.value = value;
+    };
+    fill(cgYearAttackerEl, [
+        ['choose', t('menu:yearRolesChoose', { defaultValue: 'Players choose' })],
+        ['host', t('menu:yearHostAttacks', { defaultValue: 'Host attacks' })],
+        ['guest', t('menu:yearGuestAttacks', { defaultValue: 'Guest attacks' })],
+    ]);
+    fill(cgYearKomturEl, [
+        ['army', t('menu:yearArmyNormal', { defaultValue: 'Normal army' })],
+        ['komtur', t('menu:yearArmyKomtur', { defaultValue: 'The Komtur' })],
+    ]);
+}
+refreshYearLobbyOptions();
+
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
     'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode'
@@ -1509,13 +1922,14 @@ function defaultLobbySettings(): Pick<
     };
 }
 
-function isNonDefaultLobbySettings(cfg: CustomGameConfig): boolean {
+function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobbySettings()): boolean {
     return (
-        cfg.pace !== DEFAULT_CUSTOM_GAME_PACE_ID ||
-        cfg.hordePreset !== DEFAULT_HORDE_PRESET_ID ||
-        cfg.roundCardPreset !== DEFAULT_ROUND_CARD_PRESET_ID ||
-        cfg.commanderHpFactor !== DEFAULT_COMMANDER_HP_FACTOR ||
-        cfg.moneyFactor !== DEFAULT_MONEY_FACTOR
+        cfg.pace !== defaults.pace ||
+        cfg.hordePreset !== defaults.hordePreset ||
+        cfg.roundCardPreset !== defaults.roundCardPreset ||
+        cfg.commanderHpFactor !== defaults.commanderHpFactor ||
+        cfg.moneyFactor !== defaults.moneyFactor ||
+        cfg.strongholdMode !== defaults.strongholdMode
     );
 }
 
@@ -1531,6 +1945,10 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgCommanderHpEl.value = String(commanderHpFactorOption(cfg.commanderHpFactor));
     cgMoneyEl.value = String(moneyFactorOption(cfg.moneyFactor));
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
+    refreshYearLobbyOptions();
+    cgYearAttackerEl.value = yearRolesOption(cfg.yearRoles);
+    cgYearKomturEl.value = cfg.yearKomtur ? 'komtur' : 'army';
+    for (const field of menu.querySelectorAll<HTMLElement>('.m-year-field')) field.style.display = cfg.mode === 'year' ? '' : 'none';
     // Always short in the closed box — hosts open the list for details;
     // guests get a hover/tap tip (see wireLobbySettingTips).
     for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl]) {
@@ -1541,7 +1959,8 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
 
 /** Host-only: show "Reset to defaults" only when pace/horde/cards/HP differ. */
 function syncLobbySettingsResetVisibility(cfg: CustomGameConfig): void {
-    cgResetEl.hidden = !activeLobbyHost || !isNonDefaultLobbySettings(cfg);
+    cgResetEl.hidden =
+        !activeLobbyHost || !isNonDefaultLobbySettings(cfg, activeLobbyHost.save ? defaultPracticeSettings() : defaultLobbySettings());
 }
 
 function selectedLobbyOptionFull(select: HTMLSelectElement): string {
@@ -1635,9 +2054,11 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'yearRoles' | 'yearKomtur'
 > {
     return {
+        yearRoles: yearRolesOption(cgYearAttackerEl.value),
+        yearKomtur: cgYearKomturEl.value === 'komtur',
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
@@ -1657,7 +2078,8 @@ function hostCustomGame(mode: CustomGameMode): void {
     // which layout, which roster, how many humans to wait for. Deriving these
     // inside each transport branch is what once let Steam open a four-seat
     // 2v2 lobby for a one-seat layout while web/LAN routed it correctly.
-    const is1v1 = cfg.mode === '1v1';
+    // The Year is a 1v1: one attacker, one defender
+    const is1v1 = cfg.mode === '1v1' || cfg.mode === 'year';
     const layout: '1v1' | '2v2' = is1v1 ? '1v1' : '2v2';
     const buildRoster = is1v1 ? initial1v1Roster : initialStarRoster;
     // 2v2ai waits for one human ally; the other two seats become AI at Start.
@@ -1691,6 +2113,10 @@ function hostCustomGame(mode: CustomGameMode): void {
 }
 
 let started = false;
+/** set while the Practice lobby is on screen */
+let practiceLobby: { config: CustomGameConfig; roster: CanonicalSeatDef[] } | null = null;
+/** set while a scenario started from the editor runs: the menu hands back to the editor */
+let returnToEditorAfterMatch = false;
 /** true after 3D assets finish loading — match starts wait for this */
 let bootReady = false;
 let roomPoll: ReturnType<typeof setTimeout> | null = null;
@@ -1710,7 +2136,8 @@ type MatchResume = {
     local?: boolean;
     phaseRemaining?: number;
     speedMultiplier?: number;
-    climbWins?: number;
+    /** The Year: round winners so far, for the loading card */
+    yearRounds?: YearRoundWinner[];
 };
 
 function hideResumeOverlay(): void {
@@ -1970,7 +2397,7 @@ function setStatus(text: string, autoDismissMs?: number): void {
             statusClearTimer = setTimeout(() => {
                 setStatus('');
                 if (currentMenuView === 'session' && !isSessionBusy()) {
-                    showMenuView('main');
+                    showMenuView(sessionReturnView);
                 }
             }, autoDismissMs);
         }
@@ -2113,13 +2540,13 @@ function clearRosterTable(): void {
  *  per hostCustomGame() call, which would otherwise stack duplicate
  *  listeners across repeated hosts (cancel, host again, ...). null
  *  whenever the local client isn't hosting a Custom Game room right now. */
-let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null = null;
+let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (cfg: CustomGameConfig) => void } | null = null;
 
 (function wireLobbySettingsInputsOnce(): void {
     const onChange = () => {
         if (!activeLobbyHost) return;
         Object.assign(activeLobbyHost.config, readLobbySettingsForm());
-        saveCustomGameConfig(activeLobbyHost.config);
+        (activeLobbyHost.save ?? saveCustomGameConfig)(activeLobbyHost.config);
         syncLobbySettingsResetVisibility(activeLobbyHost.config);
         activeLobbyHost.onChange();
     };
@@ -2128,11 +2555,14 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null =
     cgRoundCardsEl.addEventListener('change', onChange);
     cgCommanderHpEl.addEventListener('change', onChange);
     cgMoneyEl.addEventListener('change', onChange);
+    cgStrongholdEl.addEventListener('change', onChange);
+    cgYearAttackerEl.addEventListener('change', onChange);
+    cgYearKomturEl.addEventListener('change', onChange);
     cgResetEl.addEventListener('click', () => {
         if (!activeLobbyHost) return;
-        Object.assign(activeLobbyHost.config, defaultLobbySettings());
+        Object.assign(activeLobbyHost.config, activeLobbyHost.save ? defaultPracticeSettings() : defaultLobbySettings());
         populateLobbySettingsForm(activeLobbyHost.config);
-        saveCustomGameConfig(activeLobbyHost.config);
+        (activeLobbyHost.save ?? saveCustomGameConfig)(activeLobbyHost.config);
         activeLobbyHost.onChange();
     });
 })();
@@ -2142,11 +2572,16 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null =
  *  called after every edit, so the roster/ready-reset/broadcast/Start-
  *  button-gating all happen through the exact same path a roster change
  *  already goes through. Idempotent — safe to call on every refresh(). */
-function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () => void): void {
+function showHostLobbySettings(
+    config: CustomGameConfig,
+    onSettingsChanged: () => void,
+    /** where edits are kept (Practice keeps its own settings); default: the Custom Game config */
+    save?: (cfg: CustomGameConfig) => void,
+): void {
     const firstShow = !lobbySettingsAvailable;
-    activeLobbyHost = { config, onChange: onSettingsChanged };
+    activeLobbyHost = { config, onChange: onSettingsChanged, ...(save ? { save } : {}) };
     lobbySettingsAvailable = true;
-    if (firstShow) lobbySettingsExpanded = isNonDefaultLobbySettings(config);
+    if (firstShow) lobbySettingsExpanded = config.mode === 'year' || isNonDefaultLobbySettings(config, save ? defaultPracticeSettings() : defaultLobbySettings());
     lobbySettingsEl.classList.remove('m-readonly');
     hideLobbySettingTip();
     applyLobbySettingsExpanded();
@@ -2157,6 +2592,9 @@ function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () =
     cgRoundCardsEl.disabled = false;
     cgCommanderHpEl.disabled = false;
     cgMoneyEl.disabled = false;
+    cgStrongholdEl.disabled = false;
+    cgYearAttackerEl.disabled = false;
+    cgYearKomturEl.disabled = false;
     cgResetEl.disabled = false;
     populateLobbySettingsForm(config);
 }
@@ -2171,7 +2609,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     const firstShow = !lobbySettingsAvailable;
     activeLobbyHost = null;
     lobbySettingsAvailable = true;
-    if (firstShow) lobbySettingsExpanded = isNonDefaultLobbySettings(config);
+    if (firstShow) lobbySettingsExpanded = config.mode === 'year' || isNonDefaultLobbySettings(config);
     lobbySettingsEl.classList.add('m-readonly');
     applyLobbySettingsExpanded();
     lobbyReadyRowEl.style.display = '';
@@ -2180,6 +2618,9 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgRoundCardsEl.disabled = true;
     cgCommanderHpEl.disabled = true;
     cgMoneyEl.disabled = true;
+    cgStrongholdEl.disabled = true;
+    cgYearAttackerEl.disabled = true;
+    cgYearKomturEl.disabled = true;
     cgResetEl.disabled = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
@@ -2203,6 +2644,9 @@ function clearLobbySettings(): void {
     lobbyReadyRowEl.style.display = 'none';
     lobbyReadyCheckEl.checked = false;
     lobbyReadyCheckEl.onchange = null;
+    lobbyYear = null;
+    lastRosterRender = null;
+    lobbyRoleRowEl.style.display = 'none';
 }
 
 /** host-side: the settings just changed, so every other seat's previous
@@ -2259,6 +2703,37 @@ const OPEN_SEAT_NAME = 'Waiting…';
  * is; the interactive checkbox is the separate .m-lobby-ready-check,
  * always about the LOCAL viewer's own seat.
  */
+/**
+ * A Year room on screen (host or guest): its settings, and how this client
+ * asks for a role (the host sets its own seat, a guest asks the host).
+ */
+let lobbyYear: { config: CustomGameConfig; pick: (role: 'attacker' | 'defender' | null) => void } | null = null;
+/** the roster table as last drawn — redrawn when the room's Year settings arrive */
+let lastRosterRender: Parameters<typeof renderRosterTable> | null = null;
+
+function setLobbyYear(next: typeof lobbyYear): void {
+    lobbyYear = next;
+    if (lastRosterRender) renderRosterTable(...lastRosterRender);
+    else lobbyRoleRowEl.style.display = 'none';
+}
+
+/** the role a seat stands for in a Year room: fixed by the setting, or what its player asked for */
+function lobbySeatRole(roster: readonly CanonicalSeatDef[], seat: SeatId): string | null {
+    const entry = roster[seat];
+    if (!lobbyYear || !entry || entry.name === OPEN_SEAT_NAME) return null;
+    const roles = yearRolesOption(lobbyYear.config.yearRoles);
+    if (roles !== 'choose') {
+        const attacks = entry.side === (roles === 'host' ? 'a' : 'b');
+        return attacks ? t('hud:yearAttacker') : t('hud:yearDefender');
+    }
+    if (entry.controller !== 'human') return null;
+    return entry.yearRole === 'attacker'
+        ? t('hud:yearAttacker')
+        : entry.yearRole === 'defender'
+          ? t('hud:yearDefender')
+          : t('menu:yearAnyRole', { defaultValue: 'Any' });
+}
+
 function renderRosterTable(
     roster: CanonicalSeatDef[],
     mySeat: SeatId,
@@ -2267,6 +2742,14 @@ function renderRosterTable(
     /** host only: pull someone into a still-open seat (see inviteToHostedRoom) */
     onInvite?: () => void,
 ): void {
+    lastRosterRender = [roster, mySeat, waitForJoined, onKick, onInvite];
+    // the role picker: a Year room whose players choose
+    const choosing = !!lobbyYear && yearRolesOption(lobbyYear.config.yearRoles) === 'choose' && !!roster[mySeat];
+    lobbyRoleRowEl.style.display = choosing ? '' : 'none';
+    const myRole = roster[mySeat]?.yearRole ?? 'any';
+    for (const button of lobbyRoleRowEl.querySelectorAll<HTMLButtonElement>('.m-lobby-role')) {
+        button.classList.toggle('active', choosing && button.dataset.role === myRole);
+    }
     rosterTableEl.innerHTML = '';
     rosterTableEl.style.display = '';
     const cols = document.createElement('div');
@@ -2329,6 +2812,13 @@ function renderRosterTable(
                 });
             }
             cell.appendChild(label);
+            const role = lobbySeatRole(roster, seat);
+            if (role) {
+                const badge = document.createElement('span');
+                badge.className = `m-roster-role${roster[seat]!.yearRole ? ` is-${roster[seat]!.yearRole}` : ''}`;
+                badge.textContent = role;
+                cell.appendChild(badge);
+            }
             if (filled && seat !== 0 && roster[seat]!.ready) {
                 const ready = document.createElement('span');
                 ready.className = 'm-roster-ready';
@@ -2476,6 +2966,24 @@ onLanguageChange(() => {
  *  handle (peer server, lobby id) that a dataset attribute cannot carry. */
 const roomAdsByKey = new Map<string, RoomAd>();
 
+const mpCountEl = menu.querySelector<HTMLSpanElement>('.m-mp-count')!;
+
+/** the main menu's Multiplayer button: how many games are open to join and running to watch */
+function setMultiplayerCount(ads: readonly { spectate?: unknown }[]): void {
+    const running = ads.filter((ad) => !!ad.spectate).length;
+    const open = ads.length - running;
+    mpCountEl.hidden = ads.length === 0;
+    mpCountEl.replaceChildren();
+    const pill = (className: string, text: string) => {
+        const el = document.createElement('span');
+        el.className = className;
+        el.textContent = text;
+        mpCountEl.appendChild(el);
+    };
+    if (open > 0) pill('m-mp-open', t('menu:mpOpenCount', { defaultValue: '{{n}} open', n: open }));
+    if (running > 0) pill('m-mp-running', t('menu:mpRunningCount', { defaultValue: '{{n}} running', n: running }));
+}
+
 async function refreshRoomList(): Promise<void> {
     let transport: MultiplayerTransport | null = null;
     let foundRooms = false;
@@ -2484,6 +2992,7 @@ async function refreshRoomList(): Promise<void> {
         const scope = roomListScopeLabel(transport);
         setRoomsListHeading(scope);
         if (!transport) {
+            setMultiplayerCount([]);
             roomListEl.className = 'm-room-list empty';
             roomListEl.dataset.emptyKind = 'none';
             roomListEl.textContent = t('menu:noOpenGames', { scope });
@@ -2493,6 +3002,7 @@ async function refreshRoomList(): Promise<void> {
 
         const ads = await listRoomAds(transport);
         foundRooms = ads.length > 0;
+        setMultiplayerCount(ads);
         if (!foundRooms) {
             roomListEl.className = 'm-room-list empty';
             roomListEl.dataset.emptyKind = 'none';
@@ -2537,6 +3047,7 @@ async function refreshRoomList(): Promise<void> {
             }),
         );
     } catch {
+        setMultiplayerCount([]);
         const scope = roomListScopeLabel(transport);
         setRoomsListHeading(scope);
         roomListEl.className = 'm-room-list empty';
@@ -2588,6 +3099,14 @@ function runStopHostDiscovery(): void {
 
 /** tear down an active match and bring back the pre-game menu (no page reload) */
 function finishReturnToMenu(): void {
+    starHandover = null; // a rematch that never got built hands nothing to a later match
+    const leftEditor = editorWasOpen() && !returnToEditorAfterMatch;
+    markEditorOpen(false);
+    if (returnToEditorAfterMatch) {
+        returnToEditorAfterMatch = false;
+        // after the menu is back in place, go straight on to the editor
+        setTimeout(() => openStoredScenarioEditor(), 0);
+    }
     friendsPanel.hide();
     takeLobbyChatCarry();   // nothing pending can belong to a future match
     stopSinglePlayerPersist?.();
@@ -2638,6 +3157,8 @@ function finishReturnToMenu(): void {
     // Reset to the top-level panel regardless of which sub-panel was
     // showing when the match started — exclusive views make this one call.
     showMenuView('main');
+    // leaving the editor lands in its menu, where what was saved is listed
+    if (leftEditor) openEditorMenu();
     pending?.cancel();
     pending = null;
     cancelHost();
@@ -2672,7 +3193,16 @@ function wireGameMenuReturn(game: Game): void {
  * brighter / wrong. Await prewarm so we don't race a second renderer onto
  * the new canvas.
  */
-type LocalMatchOpts = { duo?: boolean; horde?: boolean; climb?: boolean; tutorial?: number };
+/** a way to play The Year: your role, and whether the attacker is The Komtur */
+type ClimbVariant = {
+    role: ClimbRole;
+    komtur?: boolean;
+    /** a room: the canonical side that attacks (0 = the host's) — `role` is then unused */
+    attackerSide?: number;
+    /** a room: keep the lobby's Komtur waves setting */
+    keepHorde?: boolean;
+};
+type LocalMatchOpts = { climb?: ClimbVariant; tutorial?: number };
 
 /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
 function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
@@ -2680,9 +3210,7 @@ function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
     settings.buildTimeSeconds = 60 * 60;
     settings.specialistTimeSeconds = 60 * 60;
     settings.cardTimeSeconds = 60 * 60;
-    if (opts.climb) applyClimbMode(settings);
-    if (opts.horde) applyHordeMode(settings);
-    if (opts.duo) applyDuoMode(settings);
+    if (opts.climb) applyClimbMode(settings, opts.climb);
     if (opts.tutorial != null) applyTutorialMode(settings, opts.tutorial);
     return settings;
 }
@@ -2722,7 +3250,6 @@ async function retrySinglePlayerLastRound(payload: {
     actions: LoggedAction[];
     side: 'a' | 'b';
     names: { local: string; opponent: string };
-    climbWins: number;
 }): Promise<void> {
     await teardownForNextMatch();
     const settings = { ...payload.settings, seed: payload.seed };
@@ -2740,7 +3267,6 @@ async function retrySinglePlayerLastRound(payload: {
             actions: payload.actions,
             battleElapsed: null,
             local: true,
-            climbWins: payload.climbWins,
         },
         null,
         null,
@@ -2800,6 +3326,11 @@ function constructGame(
         preloadedRosterMmr ?? undefined,
     );
     activeGame = game;
+    // a rematch's connection hand-over: what arrived meanwhile reaches this
+    // match now, before anything newer can
+    const handover = starHandover;
+    starHandover = null;
+    handover?.(game);
     // a conversation that started while waiting continues into the match
     game.seedChatHistory(takeLobbyChatCarry());
     // Steam/LAN have no cloud backend to register with, so the running match
@@ -2830,10 +3361,30 @@ function constructGame(
         }
     };
     wireGameMenuReturn(game);
+    game.onNextScenario = (id) => void playNextScenario(settings.level, id);
+    // The Year's "Rematch, roles swapped"
+    game.onRematch = (next) => void startLocalRematch(next, side, names);
+    game.onStarRematch = () => void startStarRematchAsHost(game);
+    game.onStarRematchStart = (msg) => void startStarRematchAsGuest(game, msg);
+    game.onScenarioWon = (id) => {
+        if (settings.level) markLevelCompleted(settings.level.id, id);
+    };
     // Tutorials are not resumable (the lesson's own progress is not in the save),
     // and must never overwrite the Campaign run held in that slot.
-    if (!star && !replay && !spectate && !settings.tutorial) {
+    const editorMatch = settings.scenario?.mode === 'author' || settings.scenario?.mode === 'test';
+    if (!star && !replay && !spectate && !settings.tutorial && !editorMatch) {
         stopSinglePlayerPersist = wireSinglePlayerPersist(game);
+    }
+    if (editorMatch) {
+        game.onScenarioEditor = (mode, draft) => void openScenarioEditor(mode, draft, settings.level);
+        if (SCENARIO_ZIP_TESTING) game.onScenarioDownload = (draft) => downloadScenarioDraft(draft, settings.level);
+        game.onScenarioSave = (draft) => saveScenarioDraft(draft, settings.level);
+        game.onScenarioSaveInto = (draft, packageName) => saveScenarioIntoLevel(draft, settings.level, packageName);
+        game.onScenarioPlay = (draft) => void playScenarioDraft(draft, settings.level);
+        game.onScenarioShareCode = async (draft) => {
+            const { id, files } = scenarioDraftPackage(draft, settings.level);
+            return copyShareCode(id, files);
+        };
     }
     if (replayControlsPanel) {
         game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
@@ -2880,6 +3431,25 @@ function startGame(
     } | null = null,
 ): void {
     if (started) return;
+    // The match plays the level its settings name (unset = base game). Loading
+    // it happens here, once, for every way into a match — the player never
+    // picks where the data comes from.
+    if (!isLevelActive(settings.level)) {
+        void prepareLevel(settings.level).then(
+            () => startGame(settings, side, names, resume, star, replay, spectate),
+            (e: unknown) => {
+                console.error(e);
+                setMenuChromeVisible(true);
+                setStatus(
+                    t('menu:scenarioUnavailable', {
+                        defaultValue: 'This match uses a scenario that is not available.',
+                    }),
+                    6000,
+                );
+            },
+        );
+        return;
+    }
     started = true;
     destroyMenuGamepadCursor();
     // setMenuChromeVisible(false) is never called anywhere
@@ -2892,7 +3462,11 @@ function startGame(
     hideResumeOverlay();
     // Cinematic handoff for any live match entry (fresh, resume, lobby join).
     // Skip for replay/spectate — those jump straight into playback/viewing.
-    const useIntro = !replay && !spectate;
+    const editorMatch = settings.scenario?.mode === 'author' || settings.scenario?.mode === 'test';
+    const useIntro = !replay && !spectate && !editorMatch;
+    // only a scenario played from the editor goes back to it
+    if (settings.scenario?.mode !== 'play') returnToEditorAfterMatch = false;
+    markEditorOpen(editorMatch);
 
     // Strip menu chrome immediately. For the intro path we MUST yield a paint
     // with logo-only before `new Game()` — otherwise the main thread freezes
@@ -2934,7 +3508,7 @@ function startGame(
                 stopStarResumeHeartbeat = null;
             };
         }
-    } else if (!replay && !spectate) {
+    } else if (!replay && !spectate && !editorMatch) {
         // watching a replay/spectating a live match touches neither marker —
         // it isn't a new match of ours, and clearing either here would wipe
         // out the player's real, unrelated saved game just because they
@@ -2967,7 +3541,8 @@ function startGame(
     // Normal resume/reconnect skips the VS roster (cover may already be animating).
     const useClimbIntro = !!settings.climb;
     const useTutorialIntro = settings.tutorial != null;
-    const showCoverPanel = useClimbIntro || useTutorialIntro || !resume;
+    const scenarioIntro = scenarioIntroText(settings);
+    const showCoverPanel = useClimbIntro || useTutorialIntro || scenarioIntro !== null || !resume;
 
     if (!coverActive) {
         showIntroCover(showCoverPanel);
@@ -3008,11 +3583,18 @@ function startGame(
     };
 
     if (showCoverPanel && introCoverEl && useClimbIntro && settings.climb) {
-        const level = Math.min(
-            (resume?.climbWins ?? 0) + 1,
-            settings.climb.roundsToWin,
-        );
-        mountClimbIntro(introCoverEl, level, settings.climb.roundsToWin);
+        const climb = settings.climb;
+        const localSeat = star?.mySeat ?? (side === 'a' ? 0 : 1);
+        const localSide = settings.seats?.[localSeat]?.side ?? localSeat;
+        const you = climbAttackerTeam(climb, localSide) === 'player' ? 'attacker' : 'defender';
+        mountYearIntro(introCoverEl, { rounds: (resume?.yearRounds ?? []).slice(0, climb.rounds), total: climb.rounds, you });
+        void introRosterHold().then(() => {
+            if (gen !== introGen || !started) return;
+            startIntroCoverDive();
+            runBootHandoff();
+        });
+    } else if (showCoverPanel && introCoverEl && scenarioIntro) {
+        mountScenarioIntro(introCoverEl, scenarioIntro.title, scenarioIntro.briefing);
         void introRosterHold().then(() => {
             if (gen !== introGen || !started) return;
             startIntroCoverDive();
@@ -3044,6 +3626,40 @@ function startGame(
     }
 }
 
+/** this tab is in the scenario editor (or its test battle) — a reload goes back to it */
+const EDITOR_OPEN_KEY = 'melodan-editor-open';
+
+function markEditorOpen(open: boolean): void {
+    try {
+        if (open) sessionStorage.setItem(EDITOR_OPEN_KEY, '1');
+        else sessionStorage.removeItem(EDITOR_OPEN_KEY);
+    } catch {
+        /* no session storage: a reload lands in the menu */
+    }
+}
+
+function editorWasOpen(): boolean {
+    try {
+        return sessionStorage.getItem(EDITOR_OPEN_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+/** a played scenario's intro card: the package's level title and briefing, else its name and description */
+function scenarioIntroText(settings: GameSettings): { title: string; briefing?: string } | null {
+    if (settings.scenario?.mode !== 'play' || !isLevelActive(settings.level)) return null;
+    const { scenarios, meta } = activeLevel();
+    const id = settings.scenario.id ?? (scenarios.size === 1 ? [...scenarios.keys()][0] : undefined);
+    const def = id !== undefined ? scenarios.get(id)?.def : undefined;
+    if (!def) return null;
+    const level = meta?.def?.levels.find((l) => l.scenario === id);
+    const order = meta?.def?.levels.findIndex((l) => l.scenario === id) ?? -1;
+    const title = level?.title ?? def.name;
+    const briefing = level?.briefing ?? def.description;
+    return { title: order >= 0 && (meta?.def?.levels.length ?? 0) > 1 ? `${order + 1}. ${title}` : title, ...(briefing ? { briefing } : {}) };
+}
+
 /** checkpoints the action log so a browser reload can resume solo play */
 function wireSinglePlayerPersist(game: Game): () => void {
     let enabled = true;
@@ -3057,7 +3673,7 @@ function wireSinglePlayerPersist(game: Game): () => void {
             battleElapsed: data.battleElapsed,
             phaseRemaining: data.phaseRemaining,
             speedMultiplier: data.speedMultiplier,
-            climbWins: data.climbWins,
+            yearRounds: data.yearRounds,
             localName: getPlayerName(),
         });
     };
@@ -3078,14 +3694,203 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
     primeIntroCover();
     const settings = save.settings;
     settings.seed = save.seed;
-    startGame(settings, 'a', { local: save.localName, opponent: 'AI' }, {
+    // a lobby match's seats name the opponent (a lone bot in 1v1, '2v2' otherwise)
+    const seats = settings.seats;
+    const opponent = !seats ? 'AI' : seats.length === 2 ? (seats.find((s) => s.team === 'enemy')?.name ?? 'AI') : '2v2';
+    startGame(settings, 'a', { local: save.localName, opponent }, {
         actions: save.actions,
         battleElapsed: save.battleElapsed,
         phaseRemaining: save.phaseRemaining,
         speedMultiplier: save.speedMultiplier,
-        climbWins: save.climbWins ?? 0,
+        ...(save.yearRounds ? { yearRounds: save.yearRounds } : {}),
         local: true,
     });
+}
+
+/**
+ * Replay viewer → scenario (plan §9.1): the board as it stands becomes a
+ * scenario package in the scenario cache. Web builds also download the
+ * package as a zip (loadable again with "Load zip…").
+ */
+/**
+ * Scenario editor: start editing a draft, or its test battle — from the menu,
+ * or from the editor / test match that is running (which is torn down first).
+ */
+async function openScenarioEditor(mode: 'author' | 'test', draft: ScenarioDef, level: LevelRef | undefined): Promise<void> {
+    if (activeGame) await teardownForNextMatch();
+    startGame(applyScenarioToSettings(localMatchSettings(), draft, level, mode));
+}
+
+/** The Year's rematch without a room: the same match again, roles swapped */
+async function startLocalRematch(next: GameSettings, side: 'a' | 'b', names: { local: string; opponent: string }): Promise<void> {
+    await teardownForNextMatch();
+    startGame(next, side, names);
+}
+
+/**
+ * A rematch hands the room connection over to the next match: messages that
+ * arrive while it is being built wait here and are delivered by constructGame
+ * the moment it exists, in order.
+ */
+let starHandover: ((game: Game) => void) | null = null;
+
+/**
+ * The Year in a room, host: everyone asked for the rematch. The guests get the
+ * new match (roles swapped, new seed) over the same connection, then this
+ * client starts its own on the same hub.
+ */
+async function startStarRematchAsHost(old: Game): Promise<void> {
+    const star = old.starRole;
+    if (star?.role !== 'host') return;
+    const hub = star.hub;
+    const roster = hub.currentRoster();
+    const next = old.yearRematchSettings();
+    delete next.seats; // the roster travels separately (localized per client)
+    const seed = next.seed ?? 1;
+    for (const seat of hub.connectedSeats()) hub.send(seat, { type: 'starRematch', seed, settings: next, roster });
+    // what the guests send before the new match listens waits for it
+    const waiting: [SeatId, NetMessage][] = [];
+    hub.onMessage = (seat, msg) => waiting.push([seat, msg]);
+    starHandover = (game) => {
+        for (const [seat, msg] of waiting) game.deliverStarMessage(msg, seat);
+    };
+    old.destroy({ keepStarSession: true });
+    if (activeGame === old) activeGame = null;
+    await teardownForNextMatch();
+    startGame(
+        { ...next, seed, seats: localizeRoster(roster, 'a') },
+        'a',
+        { local: getPlayerName(), opponent: opponentDisplayName(roster, 0) },
+        null,
+        star,
+    );
+}
+
+/** The Year in a room, guest: the host started the rematch — the new match on the same connection */
+async function startStarRematchAsGuest(old: Game, msg: Extract<NetMessage, { type: 'starRematch' }>): Promise<void> {
+    const star = old.starRole;
+    if (star?.role !== 'guest') return;
+    const waiting: NetMessage[] = [];
+    star.session.attach((m) => waiting.push(m));
+    starHandover = (game) => {
+        for (const m of waiting) game.deliverStarMessage(m);
+    };
+    old.destroy({ keepStarSession: true });
+    if (activeGame === old) activeGame = null;
+    await teardownForNextMatch();
+    const mySeat = star.mySeat;
+    const yourSide = msg.roster[mySeat]?.side ?? 'b';
+    const settings = { ...msg.settings, seed: msg.seed, seats: localizeRoster(rosterWithWiredAvatars(msg.roster), yourSide) };
+    startGame(
+        settings,
+        yourSide,
+        { local: msg.roster[mySeat]?.name ?? getPlayerName(), opponent: opponentDisplayName(msg.roster, mySeat) },
+        null,
+        star,
+    );
+}
+
+/** a won scenario's "Next": the following scenario of the same package */
+async function playNextScenario(level: LevelRef | undefined, id: string): Promise<void> {
+    const def = activeLevel().scenarios.get(id)?.def;
+    if (!level || !def) return;
+    await teardownForNextMatch();
+    startGame(applyScenarioToSettings(localMatchSettings(), def, level, 'play', id));
+}
+
+/** the draft as a one-level package: named after the draft, with the content of the level it was made on */
+function scenarioDraftPackage(draft: ScenarioDef, level: LevelRef | undefined): { id: string; files: OverlayFile[] } {
+    const id = scenarioSlug(draft.name, draft.id);
+    const def = { ...draft, id, updatedAt: new Date().toISOString() };
+    return { id, files: scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []) };
+}
+
+/**
+ * The editor's "Save into package": the draft goes into the package the board
+ * is made on. The updated package replaces the old one (cache and list), and
+ * the editor reopens on it so the next save builds on this one.
+ */
+async function saveScenarioIntoLevel(
+    draft: ScenarioDef,
+    level: LevelRef | undefined,
+    packageName?: string,
+): Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }> {
+    if (!level || !(await ensureLevel(level))) throw new Error('the package this board is made on is not available');
+    const files = levelFiles(level.hash);
+    if (!files) throw new Error('the package this board is made on is not available');
+    const { files: merged, id } = withScenarioInPackage(files, { ...draft, updatedAt: new Date().toISOString() }, level.id, packageName);
+    const { ref } = await loadLevel(level.id, merged);
+    if (ref.hash === level.hash) return { status: 'Nothing changed', id, reopen: null };
+    await forgetLevel(level);
+    const replaced = packageScenarioIds(files).includes(id);
+    return {
+        status: replaced ? `Saved into “${level.id}”` : `Added to “${level.id}” as the next level`,
+        id,
+        reopen: (def) => void openScenarioEditor('author', def, ref),
+    };
+}
+
+/** a package as a share code on the clipboard; resolves to a status line */
+async function copyShareCode(id: string, files: readonly OverlayFile[]): Promise<string> {
+    const { code, skipped } = await encodeShareCode(id, files);
+    try {
+        await navigator.clipboard.writeText(code);
+    } catch {
+        console.info('[scenario] share code:', code);
+        return 'Could not reach the clipboard — the code is in the console';
+    }
+    const note = skipped.length > 0 ? ` (without ${skipped.length} model/texture files)` : '';
+    return `Code copied — ${Math.ceil(code.length / 1024)} KB${note}`;
+}
+
+/** keep the draft as a scenario package (scenario cache, like a saved replay situation) */
+async function saveScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
+    const { id, files } = scenarioDraftPackage(draft, level);
+    const { ref } = await loadLevel(id, files);
+    const replaced = await supersedeLevel(ref);
+    console.info(`[scenario] saved "${ref.id}" (${ref.hash.slice(0, 12)})`);
+    return `${replaced > 0 ? 'Replaced' : 'Saved'} “${ref.id}” — find it under Single Player → Editor`;
+}
+
+/** the editor's Play: keep the draft as a package, then play it as a single-player scenario */
+async function playScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<void> {
+    const { id, files } = scenarioDraftPackage(draft, level);
+    const { ref } = await loadLevel(id, files);
+    await supersedeLevel(ref);
+    const def = { ...draft, id };
+    returnToEditorAfterMatch = true;
+    if (activeGame) await teardownForNextMatch();
+    startGame(applyScenarioToSettings(localMatchSettings(), def, ref, 'play', id));
+}
+
+/** web: the draft as a one-level package zip */
+async function downloadScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
+    const { id, files } = scenarioDraftPackage(draft, level);
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([writeZip(files)], { type: 'application/zip' }));
+    link.download = `${id}.zip`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+    return `Downloaded ${id}.zip`;
+}
+
+async function saveReplayScenario(): Promise<string> {
+    const game = activeGame;
+    if (!game) return '';
+    // Electron has no window.prompt — the desktop build uses the default name
+    const name = isElectron() ? 'Replay situation' : window.prompt('Scenario name', 'Replay situation');
+    if (name === null) return '';
+    const saved = await game.saveReplayAsScenario(name.trim() || 'Replay situation');
+    if (!saved) return 'Nothing to save yet — wait for round 1.';
+    if (!isElectron()) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([writeZip(saved.files)], { type: 'application/zip' }));
+        link.download = `${saved.ref.id}.zip`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+    }
+    console.info(`[scenario] saved "${saved.ref.id}" (${saved.ref.hash.slice(0, 12)})`);
+    return `Saved “${saved.ref.id}” — find it under Single Player → Editor.`;
 }
 
 /** kept around so rebuildReplayAt (round jump / skip to end) can
@@ -3130,6 +3935,7 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
             onSkipDeployment: () => activeGame?.skipReplayDeployment(),
             onSkipBattle: () => activeGame?.skipReplayBattle(),
             onSpeedChange: (index) => activeGame?.setReplaySpeedIndex(index),
+            onSaveScenario: () => saveReplayScenario(),
         },
     );
 }
@@ -3460,6 +4266,7 @@ function cancelHost(): void {
         console.error('cancelHost: hub.close() failed', e);
     }
     hosting = null;
+    practiceLobby = null;
     updateSteamPresence('menu');
     starCustomConfig = null;
     startStarBtn.style.display = 'none';
@@ -3598,10 +4405,39 @@ function wireHostedHub(
         lastPresent = present;
     };
 
+    // ---- the room's scenario: every joined guest must have it active before Start.
+    // Only a Custom Game room plays one; any other room offers the base game.
+    // rooms play the base game for now; the hand-over below stays for future level sources
+    const roomLevel = (): LevelRef | null => null;
+    const levelBySeat = new Map<SeatId, { name: string; offered: string | null; ready: string | null | undefined }>();
+    /** offer the room's scenario to guests that haven't had this one offered; true when all have it active */
+    const syncGuestLevels = (roster: CanonicalSeatDef[]): boolean => {
+        const level = roomLevel();
+        const hash = level?.hash ?? null;
+        const connected = hub.connectedSeats();
+        for (const seat of [...levelBySeat.keys()]) {
+            if (!connected.includes(seat)) levelBySeat.delete(seat);
+        }
+        let allReady = true;
+        for (const seat of connected) {
+            const name = roster[seat]?.name ?? '';
+            let state = levelBySeat.get(seat);
+            if (!state || state.name !== name || state.offered !== hash) {
+                state = { name, offered: hash, ready: undefined };
+                levelBySeat.set(seat, state);
+                hub.send(seat, levelOfferMessage(level));
+            }
+            if (state.ready !== hash) allReady = false;
+        }
+        // the base game needs no wait: a guest switches back when its match starts
+        return hash === null || allReady;
+    };
+
     const refresh = () => {
         if (!hosting) return;
         const roster = hub.currentRoster();
         announceRosterChanges(roster);
+        const levelsReady = syncGuestLevels(roster);
         const joined = hub.connectedSeats().length + 1;
         const names = roster
             .map((s, i) => (i === 0 ? `${s.name}${t('menu:rosterYou')}` : s.name))
@@ -3612,6 +4448,17 @@ function wireHostedHub(
             .sort((a, b) => a - b)
             .map((i) => roster[i]?.name ?? '')
             .join(', ');
+        lobbyYear =
+            customConfig?.mode === 'year'
+                ? {
+                      config: customConfig,
+                      pick: (role) => {
+                          const own = hub.currentRoster()[0];
+                          if (own) hub.setRosterEntry(0, { ...own, yearRole: role ?? undefined });
+                          refresh();
+                      },
+                  }
+                : null;
         renderRosterTable(
             roster,
             0,
@@ -3642,8 +4489,10 @@ function wireHostedHub(
         // already on screen in the roster table, so naming it here too said
         // nothing — what the player cannot otherwise see is whether pressing
         // this fills the empty seats with bots.
-        startStarBtn.disabled = !!customConfig && !allReady;
-        startStarBtn.textContent = startStarBtn.disabled
+        startStarBtn.disabled = (!!customConfig && !allReady) || !levelsReady;
+        startStarBtn.textContent = !levelsReady
+            ? t('menu:waitingScenario', { defaultValue: 'Waiting for scenario…' })
+            : startStarBtn.disabled
             ? t('menu:waitingReady')
             : joined < roster.length
               ? t('menu:startWithAi')
@@ -3653,7 +4502,7 @@ function wireHostedHub(
         // actually be here (joined > 1) — a room the host is alone in trivially
         // satisfies "all ready", and glowing at them to start a solo match
         // against bots would be telling them the wrong thing.
-        startStarBtn.classList.toggle('is-go', !!customConfig && allReady && joined > 1);
+        startStarBtn.classList.toggle('is-go', !!customConfig && allReady && levelsReady && joined > 1);
         // auto-start once `waitForJoined` have joined — EXCEPT for a Custom
         // Game room (customConfig set), which always waits for the host's
         // own explicit Start click instead. Matchmaking/quick-match rooms
@@ -3723,15 +4572,38 @@ function wireHostedHub(
             hub.broadcast({ type: 'chat', item: msg.item, from }, seat);
             return;
         }
+        if (msg.type === 'levelRequest') {
+            answerLevelMessage(msg, (m) => hub.send(seat, m), roomLevel());
+            return;
+        }
+        if (msg.type === 'levelReady') {
+            const state = levelBySeat.get(seat);
+            if (!state) return;
+            state.ready = msg.error ? undefined : msg.hash;
+            if (msg.error) {
+                announceLobbySystem(`${state.name} could not load the scenario: ${msg.error}`, hub);
+            }
+            refresh();
+            return;
+        }
+        if (msg.type === 'lobbyRole') {
+            const entry = hub.currentRoster()[seat];
+            if (!entry || customConfig?.mode !== 'year') return;
+            const role = msg.role === 'attacker' || msg.role === 'defender' ? msg.role : undefined;
+            hub.setRosterEntry(seat, { ...entry, yearRole: role });
+            refresh();
+            return;
+        }
         if (msg.type !== 'lobbyReady') return;
         const entry = hub.currentRoster()[seat];
         if (entry) hub.setRosterEntry(seat, { ...entry, ready: msg.ready });
         refresh();
     };
-    hub.listen((name, version, avatar, loadout) => {
-        if (version !== GAME_VERSION) {
+    hub.listen((name, build, avatar, loadout) => {
+        // base content only: the room's scenario is handed over after joining (levelOffer)
+        if (!isSameBaseBuild(build)) {
             return {
-                reject: `Version mismatch — this room runs ${formatGameVersion(GAME_VERSION)}, you have ${formatGameVersion(version)}.`,
+                reject: `Version mismatch — this room runs ${formatBuild(ourBuild(), build)}, you have ${formatBuild(build, ourBuild())}.`,
             };
         }
         const seat = hub.nextOpenSeat();
@@ -3781,6 +4653,7 @@ async function beginHost(opts: {
     const isPublic = opts.isPublic ?? true;
     const openInvite = opts.openInvite ?? false;
 
+    leavePracticeLobby();
     starHordeFlag = horde;
     starCustomConfig = customConfig;
     showMenuView('session');
@@ -3848,6 +4721,129 @@ async function beginHost(opts: {
 }
 
 /** host clicks Start: AI-fill empty seats, send each guest its own setup, launch locally */
+/**
+ * The settings every lobby match starts from — hosted rooms and local ones
+ * (Practice, a Custom Game with only bots) alike, so the two can't drift apart.
+ */
+function lobbyMatchSettings(
+    config: CustomGameConfig | null,
+    horde: boolean,
+    /** the room's final roster (bots filled in) — its size, and the roles players asked for */
+    roster: readonly CanonicalSeatDef[],
+): GameSettings & { seed: number } {
+    const settings = settingsFromUrl();
+    delete settings.seats; // the roster travels separately (localized per client)
+    if (config) applyCustomGameConfig(settings, config);
+    else if (horde) applyHordeMode(settings);
+    const seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+    if (config?.mode === 'year') {
+        applyClimbMode(settings, {
+            role: 'attacker',
+            attackerSide: resolveYearAttackerSide(config, roster, seed),
+            keepHorde: true,
+            ...(config.yearKomtur ? { komtur: true } : {}),
+        });
+    }
+    // 2v2 / duo only — 1v1 must keep the standard map width
+    if (roster.length > 2) widenMapForDuo(settings);
+    return { ...settings, seed };
+}
+
+/**
+ * Who attacks in a Year room: fixed by the host's setting, or from the roles
+ * the players asked for — a wish nobody contests is granted, the same wish on
+ * both sides (or none) is a coin flip on the match seed, so every client that
+ * receives the settings agrees.
+ */
+function resolveYearAttackerSide(config: CustomGameConfig, roster: readonly CanonicalSeatDef[], seed: number): number {
+    const roles = yearRolesOption(config.yearRoles);
+    if (roles !== 'choose') return roles === 'guest' ? 1 : 0;
+    const wish = (side: 'a' | 'b') => roster.find((s) => s.side === side && s.controller === 'human')?.yearRole;
+    return yearAttackerFromWishes(wish('a'), wish('b'), seed);
+}
+
+/** empty seats of a lobby roster become bots, each with its own rolled loadout */
+function rosterWithBots(roster: readonly CanonicalSeatDef[]): CanonicalSeatDef[] {
+    return roster.map((s, i) =>
+        i > 0 && s.controller === 'human' && s.name === OPEN_SEAT_NAME
+            ? { side: s.side, controller: 'ai' as const, name: starAiName(i, [...roster]), loadout: randomLoadout() }
+            : s,
+    );
+}
+
+/** a lobby match played on this machine only: no room, no spectators, single-player features on */
+function startLocalLobbyMatch(config: CustomGameConfig, roster: readonly CanonicalSeatDef[]): void {
+    const finalRoster = rosterWithBots(roster);
+    const settings = lobbyMatchSettings(config, false, finalRoster);
+    settings.seats = localizeRoster(finalRoster, 'a');
+    startStarBtn.style.display = 'none';
+    resetSessionChrome();
+    setMenuBusy(false);
+    startGame(settings, 'a', { local: getPlayerName(), opponent: opponentDisplayName(finalRoster, 0) });
+}
+
+// ---- Practice: the Custom Game lobby, local, every other seat a bot
+
+const PRACTICE_KEY = 'melodan-practice';
+
+/** Practice's own defaults: the Custom Game ones, without a clock to race */
+function defaultPracticeSettings(): ReturnType<typeof defaultLobbySettings> {
+    return { ...defaultLobbySettings(), pace: 'long' };
+}
+
+function loadPracticeConfig(): CustomGameConfig {
+    try {
+        const raw = localStorage.getItem(PRACTICE_KEY);
+        const parsed = raw ? (JSON.parse(raw) as Partial<CustomGameConfig>) : {};
+        const defaults = defaultPracticeSettings();
+        return {
+            mode: parsed.mode === '2v2' ? '2v2' : '1v1',
+            pace: customGamePaceById(parsed.pace ?? defaults.pace).id,
+            hordePreset: hordeAlgorithmById(parsed.hordePreset ?? defaults.hordePreset).id,
+            roundCardPreset: roundCardAlgorithmById(parsed.roundCardPreset ?? defaults.roundCardPreset).id,
+            commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor ?? defaults.commanderHpFactor),
+            moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
+            strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
+        };
+    } catch {
+        return { mode: '1v1', ...defaultPracticeSettings() };
+    }
+}
+
+function savePracticeConfig(config: CustomGameConfig): void {
+    try {
+        localStorage.setItem(PRACTICE_KEY, JSON.stringify(config));
+    } catch {
+        /* private browsing */
+    }
+}
+
+/** Single Player → Practice → 1v1 / 2v2: the Custom Game lobby, locally, with bots in every other seat. */
+function openPracticeLobby(mode: '1v1' | '2v2'): void {
+    const config: CustomGameConfig = { ...loadPracticeConfig(), mode };
+    savePracticeConfig(config);
+    const roster = (mode === '1v1' ? initial1v1Roster : initialStarRoster)(getPlayerName());
+    practiceLobby = { config, roster };
+    showMenuView('session');
+    setStatus('');
+    // waitForJoined 1: nobody is expected, every open seat shows as a bot
+    renderRosterTable(roster, 0, 1);
+    showHostLobbySettings(config, () => undefined, savePracticeConfig);
+    startStarBtn.disabled = false;
+    startStarBtn.classList.remove('is-go');
+    startStarBtn.textContent = t('menu:start');
+    startStarBtn.style.display = '';
+    cancelEl.textContent = t('menu:back');
+    cancelEl.style.display = '';
+}
+
+function startPracticeMatch(): void {
+    const lobby = practiceLobby;
+    if (!lobby) return;
+    practiceLobby = null;
+    startLocalLobbyMatch(lobby.config, lobby.roster);
+}
+
 function startHostedMatch(): void {
     if (!hosting) return;
     const { hub, transport } = hosting;
@@ -3876,18 +4872,22 @@ function startHostedMatch(): void {
     // stays wired for the whole match — see StarHub.listen()) forever,
     // letting a brand-new stranger claim it mid-match and receive the full
     // matchCatchUp as if they'd been playing since round 0.
+    // Custom Game with nobody else in the room: close it and play the same match
+    // locally — Retry, cheats, pause and resume, nothing broadcast or joinable
+    if (starCustomConfig && connected.size === 0) {
+        const config = starCustomConfig;
+        cancelHost();
+        startLocalLobbyMatch(config, finalRoster);
+        return;
+    }
     finalRoster.forEach((entry, seat) => hub.setRosterEntry(seat, entry));
-    const settings = settingsFromUrl();
-    delete settings.seats; // canonical roster travels separately, localized per recipient
-    if (starCustomConfig) applyCustomGameConfig(settings, starCustomConfig);
-    else if (starHordeFlag) applyHordeMode(settings);
-    // 2v2 / duo only — 1v1 must keep the standard map width
-    if (finalRoster.length > 2) widenMapForDuo(settings);
-    settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+    const settings = lobbyMatchSettings(starCustomConfig, starHordeFlag, finalRoster);
     for (const seat of connected) {
         hub.send(seat, {
             type: 'starSetup',
             version: GAME_VERSION,
+            // the content of the match about to start, not whatever the lobby had active
+            contentHash: contentHashFor(settings.level),
             seed: settings.seed,
             settings,
             roster: finalRoster,
@@ -3938,6 +4938,7 @@ function startHostedMatch(): void {
 
 /** join a 2v2 room by the host's room name — waits for the host to Start */
 function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): void {
+    leavePracticeLobby();
     const p = joinStarRoom(hostName, setStatus, peerServer);
     pending?.cancel();
     let cancelled = false;
@@ -3961,7 +4962,7 @@ function beginStarJoin(hostName: string, peerServer?: PeerServerConfig | null): 
             pending = null;
             setMenuBusy(false);
             if (cancelled || String(e).includes('cancelled')) {
-                showMenuView('main');
+                showMenuView(sessionReturnView);
             } else {
                 // without this, a permanently-dead host (room gone for good)
                 // leaves the StarResumeMarker in place, and the next page
@@ -4026,8 +5027,48 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
      * player chose.
      */
     let pendingReady: boolean | null = null;
+    // The room's scenario, as the host offers it: made active here (restored
+    // from the scenario cache or downloaded first) and confirmed with
+    // levelReady. A gated offer — rejoining a running match — is answered by
+    // sending the join handshake again instead. A newer offer supersedes one
+    // still in progress.
+    let levelDownload: LevelDownload | null = null;
+    const onLevelOffer = (offer: Extract<NetMessage, { type: 'levelOffer' }>): void => {
+        levelDownload?.cancel();
+        const download = new LevelDownload(offer.level, offer.chunks, (m) => session.send(m), (level) => {
+            const text = `Loading scenario “${level.id}”…`;
+            if (offer.gate) setStatus(text);
+            else appendLobbyChat('', { kind: 'text', text }, 'system');
+        });
+        levelDownload = download;
+        void download.done.then(
+            () => {
+                if (cancelled || levelDownload !== download) return;
+                levelDownload = null;
+                if (offer.gate) session.send(starJoinMessage());
+                else session.send({ type: 'levelReady', hash: offer.level?.hash ?? null });
+            },
+            (e: unknown) => {
+                if (cancelled || levelDownload !== download) return;
+                levelDownload = null;
+                console.error('[scenario] could not load the room scenario', e);
+                const reason = e instanceof Error ? e.message : String(e);
+                if (offer.gate) {
+                    setStatus(`Could not load the match's scenario: ${reason}`, 6000);
+                    session.close();
+                } else {
+                    session.send({ type: 'levelReady', hash: offer.level?.hash ?? null, error: reason });
+                }
+            },
+        );
+    };
     const handle = (msg: NetMessage): void => {
         if (cancelled) return;
+        if (msg.type === 'levelOffer') {
+            onLevelOffer(msg);
+            return;
+        }
+        if (levelDownload?.handle(msg)) return;
         if (msg.type === 'starRoster') {
             showLobbyChat((item) =>
                 // `from` is required by the message, but the host re-stamps the
@@ -4058,6 +5099,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                 pendingReady = ready;
                 session.send({ type: 'lobbyReady', ready });
             });
+            setLobbyYear(msg.config.mode === 'year' ? { config: msg.config, pick: (role) => session.send({ type: 'lobbyRole', role }) } : null);
             return;
         }
         // Anything besides the handshake message types below is only ever
@@ -4101,14 +5143,14 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             // SpectatorHub connection, see joinAsSpectator) — defensive
             // only, should never actually fire
             if (msg.viewer.kind !== 'seat') return;
-            if (msg.version !== GAME_VERSION) {
+            if (!isSameBuild(msg)) {
                 clearStarResumeMarker();
                 clearRosterTable();
                 clearLobbySettings();
                 setStatus(
                     t('menu:versionMismatch', {
-                        host: formatGameVersion(msg.version),
-                        you: formatGameVersion(GAME_VERSION),
+                        host: formatBuild(msg, ourBuild()),
+                        you: formatBuild(ourBuild(), msg),
                     }),
                     5000,
                 );
@@ -4138,15 +5180,18 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             );
             return;
         }
-        // only 'starSetup' can reach here (see the guard above)
-        if (msg.version !== GAME_VERSION) {
+        // only 'starSetup' can reach here (see the guard above). The match's
+        // content must be ours: same base, and its scenario (if any) loaded here —
+        // startGame then makes that scenario active.
+        const setupBuild = { version: GAME_VERSION, contentHash: contentHashFor(msg.settings.level) };
+        if (msg.version !== setupBuild.version || msg.contentHash !== setupBuild.contentHash || !isLevelAvailable(msg.settings.level)) {
             clearStarResumeMarker();
             clearRosterTable();
             clearLobbySettings();
             setStatus(
                 t('menu:versionMismatch', {
-                    host: formatGameVersion(msg.version),
-                    you: formatGameVersion(GAME_VERSION),
+                    host: formatBuild(msg, ourBuild()),
+                    you: formatBuild(ourBuild(), msg),
                 }),
                 5000,
             );
@@ -4239,7 +5284,7 @@ function runGuestPending(p: Promise<GuestSession>): void {
     }).catch((e: unknown) => {
         pending = null;
         setMenuBusy(false);
-        if (cancelled || String(e).includes('cancelled')) showMenuView('main');
+        if (cancelled || String(e).includes('cancelled')) showMenuView(sessionReturnView);
         else setStatus(t('menu:connectionFailed', { error: e instanceof Error ? e.message : e }));
     });
 }
@@ -4289,6 +5334,7 @@ function joinSteamAd(lobbyId: string): void {
  */
 function acceptSteamInvite(lobbySteamId: string): void {
     if (started || pending || hosting) return;
+    leavePracticeLobby();
     showMenuView('session');
     setMenuBusy(true);
     let cancelled = false;
@@ -4604,7 +5650,7 @@ async function runQuickMatchmaking(
     } catch (e: unknown) {
         if (cancelled || String(e).includes('cancelled')) {
             setMenuBusy(false);
-            showMenuView('main');
+            showMenuView(sessionReturnView);
             return;
         }
         setMenuBusy(false);
@@ -4694,11 +5740,12 @@ function startSpectateGame(
 }
 
 function cancelMenuPending(): void {
+    const back = currentMenuView === 'session' ? sessionReturnView : currentMenuView === 'main' ? 'main' : currentMenuView;
     pending?.cancel();
     pending = null;
     cancelHost();
     setMenuBusy(false);
-    showMenuView('main');
+    showMenuView(back);
 }
 
 function isMenuBlockingOverlayOpen(): boolean {
@@ -4718,12 +5765,18 @@ function closeMenuSubPanelOnEscape(): boolean {
         return true;
     }
 
-    // Any non-main submenu: back out to the root menu.
+    // Any non-main submenu: back out a level — Single Player's own views to it, the rest to the root menu.
     if (currentMenuView !== 'main') {
         pending = null;
         cancelHost();
         setMenuBusy(false);
-        showMenuView('main');
+        showMenuView(
+            currentMenuView.startsWith('sp-')
+                ? 'sp'
+                : currentMenuView === 'custom' || currentMenuView === 'matchmaking' || currentMenuView === 'mm-simple'
+                  ? 'mp'
+                  : 'main',
+        );
         return true;
     }
 
@@ -4811,10 +5864,15 @@ menu.addEventListener('click', (e) => {
             mode === 'tutorial-2' ||
             mode === 'tutorial-3' ||
             mode === 'sp-campaign' ||
+            mode === 'year-attack' ||
+            mode === 'year-defend' ||
+            mode === 'year-komtur-attack' ||
+            mode === 'year-komtur-defend' ||
             mode === 'sp-practice' ||
+            mode === 'sp-editor' ||
+            mode === 'sp-campaigns' ||
             mode === 'sp-1v1' ||
             mode === 'sp-2v2' ||
-            mode === 'sp-horde' ||
             mode === 'matchmaking' ||
             mode === 'mms-2v2' ||
             mode === 'mm-play' ||
@@ -4850,12 +5908,49 @@ menu.addEventListener('click', (e) => {
         case 'single':
             showMenuView('sp');
             break;
-        case 'sp-campaign':
+        case 'multiplayer':
+            showMenuView('mp');
+            break;
+        case 'mp-back':
             showMenuView('main');
-            startLocalMatch({ climb: true });
+            break;
+        case 'sp-campaign':
+            showMenuView('sp-year');
+            break;
+        case 'year-attack':
+            showMenuView('main');
+            startLocalMatch({ climb: { role: 'attacker' } });
+            break;
+        case 'year-defend':
+            showMenuView('main');
+            startLocalMatch({ climb: { role: 'defender' } });
+            break;
+        case 'year-komtur-attack':
+            showMenuView('main');
+            startLocalMatch({ climb: { role: 'attacker', komtur: true } });
+            break;
+        case 'year-komtur-defend':
+            showMenuView('main');
+            startLocalMatch({ climb: { role: 'defender', komtur: true } });
+            break;
+        case 'sp-year-back':
+            showMenuView('sp');
             break;
         case 'sp-practice':
             showMenuView('sp-practice');
+            break;
+        case 'sp-editor':
+            openEditorMenu();
+            break;
+        case 'sp-editor-back':
+            showMenuView('sp');
+            break;
+        case 'sp-campaigns':
+            showMenuView('sp-campaigns');
+            void renderCampaignList();
+            break;
+        case 'sp-campaigns-back':
+            showMenuView('sp');
             break;
         case 'sp-practice-back':
             showMenuView('sp');
@@ -4864,16 +5959,10 @@ menu.addEventListener('click', (e) => {
             showMenuView('main');
             break;
         case 'sp-1v1':
-            showMenuView('main');
-            startLocalMatch();
+            openPracticeLobby('1v1');
             break;
         case 'sp-2v2':
-            showMenuView('main');
-            startLocalMatch({ duo: true });
-            break;
-        case 'sp-horde':
-            showMenuView('main');
-            startLocalMatch({ horde: true });
+            openPracticeLobby('2v2');
             break;
         case 'matchmaking': {
             const test2v2 = test2v2Param();
@@ -4892,14 +5981,14 @@ menu.addEventListener('click', (e) => {
             pending = null;
             cancelHost();
             setMenuBusy(false);
-            showMenuView('main');
+            showMenuView('mp');
             break;
         case 'mm-back':
             pending?.cancel();
             pending = null;
             cancelHost();
             setMenuBusy(false);
-            showMenuView('main');
+            showMenuView('mp');
             break;
         case 'mm-invite': {
             const team = mmModeEl.querySelector<HTMLInputElement>('input[name="mmteam"]:checked')!.value;
@@ -5041,7 +6130,7 @@ menu.addEventListener('click', (e) => {
             showMenuView('custom');
             break;
         case 'cg-back':
-            showMenuView('main');
+            showMenuView('mp');
             break;
         case 'cg-host-1v1':
             hostCustomGame('1v1');
@@ -5052,8 +6141,12 @@ menu.addEventListener('click', (e) => {
         case 'cg-host-2v2ai':
             hostCustomGame('2v2ai');
             break;
+        case 'cg-host-year':
+            hostCustomGame('year');
+            break;
         case 'startstar':
-            startHostedMatch();
+            if (practiceLobby && !hosting && !pending) startPracticeMatch();
+            else startHostedMatch();
             break;
     }
 });
@@ -5061,6 +6154,8 @@ menu.addEventListener('click', (e) => {
 // full-screen boot splash (logo + bar + Feuerware) until assets are ready —
 // only then does the main menu chrome appear (unless we resume a match)
 await bootGameAssets((p) => setBootProgress(p.fraction, p.label));
+// dev builds: melodanLevel.pick() in the console tries a level folder (plan §17)
+if (import.meta.env.DEV) void import('./game/levelDevTools').then((m) => m.installLevelDevTools());
 // Compile cold VFX programs on the 3D canvas while the loader is still up.
 // The warmed WebGLRenderer is handed to the first Game (programs are per-context).
 await prewarmGpu(threeCanvas, (label) => setBootProgress(1, label));
@@ -5121,11 +6216,20 @@ if (bulkVerify) {
     } else {
         beginStarJoin(starMpMarker.hostName);
     }
+} else if (editorWasOpen()) {
+    // reloaded while editing: back into the editor with the autosaved draft
+    openStoredScenarioEditor();
 } else if (spSave) {
-    if (spSave.version !== GAME_VERSION) {
-        clearSinglePlayer();
-        setMenuChromeVisible(true);
-    } else resumeSinglePlayer(spSave);
+    // a save of a scenario match resumes once that scenario is back (scenario cache)
+    const saveLevel = spSave.settings.level;
+    const sameBuild = spSave.version === GAME_VERSION && spSave.contentHash === contentHashFor(saveLevel);
+    void (sameBuild ? ensureLevel(saveLevel) : Promise.resolve(false)).then((available) => {
+        if (available) resumeSinglePlayer(spSave);
+        else {
+            clearSinglePlayer();
+            setMenuChromeVisible(true);
+        }
+    });
 } else {
     setMenuChromeVisible(true);
     // ?room=mangoo — join that host's room directly. Every room is

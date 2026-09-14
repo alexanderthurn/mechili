@@ -1,0 +1,9 @@
+{
+    "id": "moveUnit",
+    "name": "Move Pack",
+    "icon": "ui-move",
+    "kind": "oneShot",
+    "targeting": "own-unit",
+    "cooldownRounds": 0,
+    "description": "Click to arm, then click one of your packs from an earlier round — it may be dragged and rotated again for the rest of this round.",
+}

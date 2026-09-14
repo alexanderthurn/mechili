@@ -168,6 +168,7 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
 /** Infer ground texture tier from the active graphics bundle (or closest mix). */
 export function groundTextureTier(): GroundTextureTier {
     const preset = detectGraphicsPreset();
+    if (preset === 'minimal') return 'low';
     if (preset) return preset;
 
     const p = prefs();
@@ -253,5 +254,8 @@ export function setCloseCameraY(y: number): void {
 }
 
 export function graphicsPresetOrFallback(): GraphicsPreset {
-    return detectGraphicsPreset() ?? (groundTextureTier() as GraphicsPreset);
+    const preset = detectGraphicsPreset();
+    if (preset) return preset;
+    // Ground tiers have no Minimal — map the inferred texture tier up.
+    return groundTextureTier();
 }

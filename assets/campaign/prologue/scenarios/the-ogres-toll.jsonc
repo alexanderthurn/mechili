@@ -1,0 +1,41 @@
+// Level 3 — The Ogre's Toll: an ogre with hammerers, and the enemy keeps its
+// base (buildings left out of "buildings" stand at level 1).
+// Scenario format: SANDBOX_LEVEL_EDITOR_PLAN.md §4–§6 (schema: assets/data/schema/scenario.schema.json).
+{
+    "version": 1,
+    "gameVersion": "v0.0.0",
+    "id": "the-ogres-toll",
+    "name": "The Ogre's Toll",
+    "description": "An ogre guards the pass in front of his camp.",
+    "seed": 103,
+    "map": { "zoneCols": 60, "zoneRows": 30, "neutralRows": 4, "flankCols": 6, "rimCells": 4 },
+    "rules": {
+        "income": { "round1": 1000, "growth": 200 },
+        "deploy": { "unitsPerRound": 8, "extrasBudgetPerRound": 0 },
+        "sideHp": { "player": 1, "enemy": 1 },
+        "commander": { "mode": "none" },
+        "roundCards": "off",
+        "hordeWaves": "off",
+        "flanksOpenFromRound": null,
+        "neutralOpenFromRound": null,
+        "atmosphere": { "season": "winter", "time": "dusk", "rotate": false },
+        "strongholdMode": "none",
+        "opponents": "lockInOnly",
+        "enemyIntel": "visible",
+        "unlockedUnits": ["dwarf", "archer", "goblin", "hammerer"],
+        "unlockable": [],
+    },
+    "scene": {
+        "units": [
+            { "typeId": "ogre", "team": "enemy", "at": { "col": 38, "row": 39 }, "level": 1 },
+            { "typeId": "hammerer", "team": "enemy", "at": { "col": 32, "row": 42 }, "level": 1 },
+            { "typeId": "hammerer", "team": "enemy", "at": { "col": 46, "row": 42 }, "level": 1 },
+            { "typeId": "goblin", "team": "enemy", "at": { "col": 36, "row": 44 }, "level": 1 },
+        ],
+        "techs": { "player": {}, "enemy": {} },
+        "buildings": {
+            "player": { "command-tower": false, "research-center": false, "stronghold": false },
+            "enemy": {},
+        },
+    },
+}

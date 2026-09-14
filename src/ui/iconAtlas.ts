@@ -12,6 +12,7 @@
  */
 
 import atlasJson from '../../assets/icons/icons.json';
+import { assetUrl } from '../game/assets';
 
 type AtlasFrame = {
     frame: { x: number; y: number; w: number; h: number };
@@ -23,12 +24,12 @@ type AtlasJson = {
 };
 
 const atlas = atlasJson as AtlasJson;
-const atlasUrl = new URL('../../assets/icons/icons.webp', import.meta.url).href;
+const atlasUrl = (): string => assetUrl('icons/icons.webp');
 const sheetW = atlas.meta.size.w;
 const sheetH = atlas.meta.size.h;
 
 /** Prefer data URL so HUD CSS masks/backgrounds paint without a late network fetch. */
-let atlasPaintUrl = atlasUrl;
+let atlasPaintUrl = atlasUrl();
 /** Decoded atlas image — used by world sprites that stamp frames onto canvas. */
 let atlasImage: HTMLImageElement | null = null;
 let preloadPromise: Promise<void> | null = null;
@@ -62,10 +63,10 @@ export function preloadIconAtlas(): Promise<void> {
     if (atlasImage && atlasPaintUrl.startsWith('data:')) return Promise.resolve();
     if (preloadPromise) return preloadPromise;
     preloadPromise = (async () => {
-        const res = await fetch(atlasUrl).catch((e: unknown) => {
+        const res = await fetch(atlasUrl()).catch((e: unknown) => {
             // Under file:// (Electron) this is the first thing to suspect when
             // icons look wrong — log the URL, since the path is the usual cause.
-            console.warn('[iconAtlas] fetch failed, painting from', atlasUrl, e);
+            console.warn('[iconAtlas] fetch failed, painting from', atlasUrl(), e);
             return null;
         });
         if (!res) return;   // keep the plain URL: CSS can still paint from it

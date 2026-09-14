@@ -1,9 +1,9 @@
 /**
  * Tech loadouts — the player's pregame talent picks, per unit type.
  *
- * See PROGRESSION_PLAN.md §1. The catalog (`techCatalog.ts`) says which
- * talents a unit type MAY take (`UNIT_TECH_ALLOWLIST`) and how many it may
- * take (`UNIT_TECH_SLOTS`); a Loadout is one player's choice within that.
+ * See PROGRESSION_PLAN.md §1. A unit type's data says which talents it MAY
+ * take (`talents`) and how many (`talentSlots`); a Loadout is one player's
+ * choice within that. Loadouts are built against the base game's types.
  *
  * Three rules hold everywhere:
  *
@@ -18,8 +18,10 @@
  *    keep working untouched.
  */
 
-import { allowedTechIds, techSlotLimit, techById, type Loadout } from './techCatalog';
-import { UNIT_TYPES, isPlayerBuyable } from './units';
+import { allowedTechIds, techSlotLimit, type Loadout } from './techCatalog';
+import type { TypeRegistry } from './content/typeRegistry';
+import type { LoadoutRule } from './scenario/scenarioDef';
+import { BASE_TYPES, isPlayerBuyable, type UnitType } from './units';
 import { USER_STORAGE_PREFIX } from './userStorage';
 
 export type { Loadout };
@@ -37,23 +39,76 @@ export const LOADOUT_KEY = `${USER_STORAGE_PREFIX}loadout`;
 
 /** Unit types a player picks talents for — no structures, extras or horde. */
 export function loadoutUnitTypes() {
-    return UNIT_TYPES.filter(
-        (t) => !t.structure && !t.extra && isPlayerBuyable(t) && allowedTechIds(t.id).length > 0,
+    return BASE_TYPES.roster.filter(
+        (t) => !t.structure && !t.extra && isPlayerBuyable(t) && allowedTechIds(t).length > 0,
     );
 }
 
 /** The first N allowed ids — what `selectedTechIds` returned before loadouts. */
-function defaultTechIdsFor(typeId: string): string[] {
-    return allowedTechIds(typeId)
-        .slice(0, techSlotLimit(typeId))
-        .filter((id) => !!techById(id));
+function defaultTechIdsFor(type: UnitType): string[] {
+    return allowedTechIds(type)
+        .slice(0, techSlotLimit(type))
+        .filter((id) => BASE_TYPES.talent(id) !== null);
 }
 
 /** A full default loadout — a fresh profile plays exactly as before. */
 export function defaultLoadout(): Loadout {
     const techs: Record<string, string[]> = {};
-    for (const type of loadoutUnitTypes()) techs[type.id] = defaultTechIdsFor(type.id);
+    for (const type of loadoutUnitTypes()) techs[type.id] = defaultTechIdsFor(type);
     return { techs };
+}
+
+/**
+ * Every talent each type may take, no slot limit — the scenario editor's
+ * sandbox, never a player's match loadout (rule 1 still holds: nothing is
+ * unlocked, it only lifts the pick limit while building a board).
+ */
+export function openLoadout(types: TypeRegistry): Loadout {
+    const techs: Record<string, string[]> = {};
+    for (const type of types.all()) {
+        const ids = allowedTechIds(type).filter((id) => types.talent(id) !== null);
+        if (ids.length > 0) techs[type.id] = [...ids];
+    }
+    return { techs };
+}
+
+/**
+ * The player's loadout under a scenario's `loadout` rule: their own picks
+ * (`player`), every talent (`open`), the scenario's picks (`fixed`), or their
+ * own picks narrowed to the scenario's allow lists (`restrict` — a type whose
+ * picks all fall outside gets the first allowed ones instead).
+ */
+export function scenarioLoadout(rule: LoadoutRule, own: Loadout | undefined, types: TypeRegistry): Loadout | undefined {
+    switch (rule.mode) {
+        case 'player':
+            return own;
+        case 'open':
+            return openLoadout(types);
+        case 'fixed': {
+            const techs: Record<string, string[]> = { ...(own?.techs ?? {}) } as Record<string, string[]>;
+            for (const [typeId, ids] of Object.entries(rule.techs)) {
+                const type = types.byId(typeId);
+                if (type) techs[typeId] = ids.filter((id) => allowedTechIds(type).includes(id) && types.talent(id) !== null);
+            }
+            return { techs };
+        }
+        case 'restrict': {
+            const techs: Record<string, string[]> = { ...(own?.techs ?? {}) } as Record<string, string[]>;
+            for (const [typeId, allow] of Object.entries(rule.allow)) {
+                const type = types.byId(typeId);
+                if (!type) continue;
+                const picks = own?.techs[typeId] ?? allowedTechIds(type).slice(0, techSlotLimit(type));
+                const kept = picks.filter((id) => allow.includes(id));
+                techs[typeId] = kept.length > 0 ? kept : allow.filter((id) => allowedTechIds(type).includes(id)).slice(0, techSlotLimit(type));
+            }
+            return { techs };
+        }
+    }
+}
+
+/** a loadout rule that can show more talents than the type's slot count */
+export function loadoutShowsAll(rule: LoadoutRule): boolean {
+    return rule.mode === 'open' || rule.mode === 'fixed';
 }
 
 /**
@@ -75,16 +130,16 @@ export function normalizeLoadout(raw: unknown): Loadout {
     for (const type of loadoutUnitTypes()) {
         const picked = src[type.id];
         if (!Array.isArray(picked)) {
-            techs[type.id] = defaultTechIdsFor(type.id);
+            techs[type.id] = defaultTechIdsFor(type);
             continue;
         }
-        const allowed = allowedTechIds(type.id);
+        const allowed = allowedTechIds(type);
         const ids: string[] = [];
         for (const id of picked) {
             if (typeof id !== 'string' || ids.includes(id)) continue;
-            if (!allowed.includes(id) || !techById(id)) continue;
+            if (!allowed.includes(id) || BASE_TYPES.talent(id) === null) continue;
             ids.push(id);
-            if (ids.length >= techSlotLimit(type.id)) break;
+            if (ids.length >= techSlotLimit(type)) break;
         }
         techs[type.id] = ids;
     }
@@ -107,14 +162,14 @@ export function normalizeLoadout(raw: unknown): Loadout {
 export function randomLoadout(rand: () => number = Math.random): Loadout {
     const techs: Record<string, string[]> = {};
     for (const type of loadoutUnitTypes()) {
-        const picks = allowedTechIds(type.id).filter((id) => !!techById(id));
+        const picks = allowedTechIds(type).filter((id) => BASE_TYPES.talent(id) !== null);
         for (let i = picks.length - 1; i > 0; i--) {
             const j = Math.floor(rand() * (i + 1));
             const tmp = picks[i]!;
             picks[i] = picks[j]!;
             picks[j] = tmp;
         }
-        techs[type.id] = picks.slice(0, techSlotLimit(type.id));
+        techs[type.id] = picks.slice(0, techSlotLimit(type));
     }
     return { techs };
 }
@@ -125,13 +180,14 @@ export function randomLoadout(rand: () => number = Math.random): Loadout {
  * of silently refusing.
  */
 export function toggleTech(loadout: Loadout, typeId: string, techId: string): Loadout {
-    if (!allowedTechIds(typeId).includes(techId)) return loadout;
-    const current = [...(loadout.techs[typeId] ?? defaultTechIdsFor(typeId))];
+    const type = BASE_TYPES.byId(typeId);
+    if (!type || !allowedTechIds(type).includes(techId)) return loadout;
+    const current = [...(loadout.techs[typeId] ?? defaultTechIdsFor(type))];
     const at = current.indexOf(techId);
     if (at >= 0) current.splice(at, 1);
     else {
         current.push(techId);
-        while (current.length > techSlotLimit(typeId)) current.shift();
+        while (current.length > techSlotLimit(type)) current.shift();
     }
     return { ...loadout, techs: { ...loadout.techs, [typeId]: current } };
 }

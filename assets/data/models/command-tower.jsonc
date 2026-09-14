@@ -1,0 +1,3 @@
+// the two base buildings — distinct castles instead of the shared procedural tower
+// stone watchtower
+{ "file": "models/units/command-tower.glb" }

@@ -1,0 +1,44 @@
+/**
+ * An archer bought onto the keep's battlements. Shoots exactly like the pack
+ * archer — same bow, same numbers — and differs in three ways only: he cannot
+ * move (`speed: 0`), nothing can shoot him (`colliders: []`, the Ward Stone's
+ * trick), and he stands on an authored `UnitN` slot rather than the grid, via
+ * {@link Unit.pinnedY}. He is deliberately not in UNIT_TYPES: the shop must
+ * never offer him, he is bought from the Stronghold panel one at a time.
+ */
+{
+    "id": "stronghold-archer",
+    "name": "Stronghold Archer",
+    // reuses the archer GLB — no second model, and no new fingerprint entry
+    "modelId": "archer",
+    "cost": 100,
+    "hpWithdraw": 50,
+    "footprint": { "cols": 1, "rows": 1 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 2.2,
+    "burn": { "takenMult": 1.1 },
+    "targets": { "ground": true, "air": true },
+    "collisionRadius": 1.0,
+    /**
+     * Nobody AIMS at him — an army besieging a keep shoots the keep — but he
+     * is otherwise as real as anything else on the board: arrows that cross
+     * his collider on the way past hit him, and splash, blast and dragonfire
+     * all reach him. `extra` would have made him immune to all of it, and it
+     * also keeps a unit out of the target hash the projectile sweep reads.
+     */
+    "notAcquired": true,
+    "fixture": true,
+    "diesWithHost": true,
+    "colliders": [{ "y": 1.1, "r": 0.75 }],
+    "projectileSpeed": 100,
+    "projectileStyle": "arrow",
+    "projectileBallistic": true,
+    "projectileLaunchHeightFrac": 0.75,
+    "hp": 130,
+    "damage": 65,
+    "range": 45,
+    "attackInterval": 1.4,
+    "speed": 0,
+    "turnRate": 6,
+    "proceduralModel": "archer",
+}

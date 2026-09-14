@@ -1,4 +1,4 @@
-import { FLANK_SPAWN_HALF_MULT, ROUND_CARDS, SKIP_CARD_REWARD, startCardById, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostForSpeciality, type SpecialityId, type ShopUnitId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, SKIP_CARD_REWARD, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostFor, type SpecialityId, type ShopUnitId } from './cards';
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
@@ -11,7 +11,7 @@ import {
     livingShieldDisks,
     type HazardPour,
 } from './fire';
-import { BASE_RUNE_IDS, ITEMS, itemSlotLimit } from './items';
+import { itemSlotLimit } from './items';
 import {
     FORGE_SLOTS_PER_PLAYER,
     forgeProductCost,
@@ -21,7 +21,7 @@ import {
     type ForgeSlot,
     type ForgeSpellPool,
 } from './forgeRecipes';
-import { isTechSelectedForUnit, techById } from './techCatalog';
+import { isTechSelectedForUnit } from './techCatalog';
 import {
     DRAGON_POUR_DURATION_SEC,
     OIL_SPILL_ID,
@@ -29,7 +29,6 @@ import {
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
-    TACTICS,
     clampTacticEnd,
     pointInSafeZone,
     usesSpellPlacement,
@@ -53,17 +52,14 @@ import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
 import { detAtan2 } from './detMath';
 import {
-    STRONGHOLD_ARCHER,
-    STRONGHOLD_ARCHER_STEP_COST,
-    STRONGHOLD,
     strongholdArcherSlotWorld,
     levelBasisOf,
-    unitTypeById,
     isPlayerBuyable,
     type Team,
     type Unit,
     type UnitType,
 } from './units';
+import type { TypeRegistry } from './content/typeRegistry';
 
 /**
  * Every way a player (or the enemy AI) can affect the game, as plain data.
@@ -482,6 +478,8 @@ interface LogEntry extends LoggedAction {
 }
 
 export interface ActionContext {
+    /** the unit and building definitions this match plays with */
+    types: TypeRegistry;
     placement: PlacementController;
     economy: Economy;
     techTree: TechTree;
@@ -528,8 +526,10 @@ export interface ActionContext {
     creditUsed: boolean[];
     /** Command Tower Credit (per SEAT): debt still owed at the next deployment start */
     creditDebt: boolean[];
-    /** each SEAT's own chosen card speciality (null until its pick) — own effect, own units */
+    /** each SEAT's own chosen card speciality (null until its pick) — its identity */
     speciality: (SpecialityId | null)[];
+    /** each SEAT's own chosen commander card id (null until its pick) — its effects */
+    commander: (string | null)[];
     /** per-SEAT multiplier on flank spawn duration (Flanky card → 0.5) */
     flankSpawnMult: number[];
     /**
@@ -590,16 +590,24 @@ export interface ActionContext {
      */
     commanderHpFactor: number;
     /**
-     * Campaign climb: when set, chooseCard sets that side's HP to this value
-     * instead of adding commander startingHp (see GameSettings.climb).
+     * Fixed side HP (campaign climb, tutorials, scenarios): when set, chooseCard
+     * sets the side's HP to its value instead of adding commander startingHp.
      */
-    climbSideHp: number | null;
+    fixedSideHp: { player: number; enemy: number } | null;
+    /** false = chooseCard grants no starting army (a scenario's fixed commander without its troops) */
+    starterArmy: boolean;
+    /** replaces the player side's shop unlocks after its commander pick (scenario); null = the commander's */
+    playerUnlocks: string[] | null;
+    /** what the player side's round unlock may add (scenario); null = any buyable unit */
+    playerUnlockable: string[] | null;
+    /**
+     * The Year's attacking side (no board extras there); null outside The Year.
+     */
+    climbAttacker: Team | null;
     /**
      * Campaign climb active — gates {@link ClearArmyAction} (AI fresh rebuild).
      */
     climbMode: boolean;
-    /** Battlement archer pads on a Stronghold (`Unit1`…`Unit5`). */
-    strongholdArcherSlots: readonly number[];
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -706,7 +714,7 @@ export class ActionDispatcher {
 
     /** free one-shot charges of `tacticId` in `round`: inventory − cooling uses */
     availableTacticCharges(seat: SeatId, tacticId: string, round: number): number {
-        const cooldown = TACTICS[tacticId]?.cooldownRounds ?? 0;
+        const cooldown = this.ctx.types.tactic(tacticId)?.cooldownRounds ?? 0;
         const inventory = this.ctx.tactics[seat]!.filter((id) => id === tacticId).length;
         const cooling = this.tacticUseRounds(seat, tacticId, round - cooldown).length;
         return inventory - cooling;
@@ -760,12 +768,14 @@ export class ActionDispatcher {
         const seat = this.actorSeat(action);
         switch (action.kind) {
             case 'buy': {
-                const type = unitTypeById(action.typeId);
+                const type = this.ctx.types.byId(action.typeId);
                 // structures aren't buyable — except the board extras
                 if (!type || (type.structure && !type.extra)) return false;
-                if (!isPlayerBuyable(type)) return false;
-                // Campaign: human side cannot buy board extras (Ward Stone, Fire Bolt, …)
-                if (type.extra && this.ctx.climbMode && action.team === 'player') return false;
+                // army units come from the seat's shop (its commander's own, else the normal one)
+                const shop = this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[seat] ?? ''));
+                if (type.extra ? !isPlayerBuyable(type) : !shop.includes(type.id)) return false;
+                // The Year: the attacking side cannot buy board extras (Ward Stone, Fire Bolt, …)
+                if (type.extra && this.ctx.climbAttacker === action.team) return false;
                 if (
                     !type.extra &&
                     !this.ctx.unlockedUnits[seat]!.includes(action.typeId)
@@ -808,8 +818,8 @@ export class ActionDispatcher {
                 return true;
             }
             case 'buyRune': {
-                if (!(BASE_RUNE_IDS as readonly string[]).includes(action.itemId)) return false;
-                if (!ITEMS[action.itemId]) return false;
+                if (!this.ctx.types.baseRuneIds.includes(action.itemId)) return false;
+                if (!this.ctx.types.rune(action.itemId)) return false;
                 const deploy = this.ctx.deployState;
                 if (deploy.used[seat]! >= deploy.limit[seat]! + deploy.extra[seat]!) return false;
                 const ds = this.ctx.deploySettings;
@@ -843,13 +853,14 @@ export class ActionDispatcher {
                 return placement.rotateUnit(unit, action.anchor);
             }
             case 'buyTech': {
-                const type = unitTypeById(action.typeId);
+                const type = this.ctx.types.byId(action.typeId);
                 // gate on THIS seat's own picks — a talent outside your
                 // loadout is unbuyable, which is also what keeps every
                 // downstream `hasTech` consumer implicitly loadout-correct
-                const tech = type && isTechSelectedForUnit(type.id, action.techId, this.ctx.seats[seat]?.loadout)
-                    ? techById(action.techId)
-                    : null;
+                const tech =
+                    type && isTechSelectedForUnit(type, action.techId, this.ctx.types, this.ctx.seats[seat]?.loadout)
+                        ? this.ctx.types.talent(action.techId)
+                        : null;
                 if (!type || !tech) return false;
                 if (techTree.has(seat, type.id, tech.id)) return false;
                 // every owned tech of the type makes the remaining ones pricier
@@ -898,31 +909,19 @@ export class ActionDispatcher {
                 // pays for the third, not for their own first.
                 const keep = placement
                     .allUnits()
-                    .find((u) => u.type === STRONGHOLD && u.team === action.team && !u.destroyed);
+                    .find((u) => u.type.garrison && u.team === action.team && !u.destroyed);
                 if (!keep) return false;
-                const slots = this.ctx.strongholdArcherSlots;
-                const taken = placement
-                    .allUnits()
-                    .filter((u) => u.type === STRONGHOLD_ARCHER && u.team === action.team).length;
+                const garrison = keep.type.garrison!;
+                const postedType = this.ctx.types.byId(garrison.unitTypeId);
+                if (!postedType) return false;
+                const slots = garrison.slots;
+                const taken = placement.allUnits().filter((u) => u.hostUnitId === keep.id).length;
                 if (taken >= slots.length) return false;
-                const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
-                if (!spot) return false; // keep model has no authored slots
-                const cost = STRONGHOLD_ARCHER.cost + STRONGHOLD_ARCHER_STEP_COST * taken;
+                if (!strongholdArcherSlotWorld(keep, slots[taken]!)) return false; // keep model has no authored slots
+                const cost = this.ctx.types.garrisonPostCost(keep.type, taken);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
-                const archer = placement.spawnAtWorld(
-                    STRONGHOLD_ARCHER,
-                    spot.x,
-                    spot.z,
-                    action.team,
-                    seat,
-                );
-                archer.strongholdArcherSlot = slots[taken]!;
-                archer.pinnedY = spot.y;
-                // outward from the keep's middle — the wedge behind him is the
-                // keep itself, and he does not shoot through his own walls
-                archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
-                archer.seatMembers();
+                const archer = spawnGarrisonPost(placement, postedType, keep, action.team, seat)!;
                 entry.strongholdArcherUnit = archer;
                 return true;
             }
@@ -947,7 +946,10 @@ export class ActionDispatcher {
                 return true;
             }
             case 'recruitLevel': {
-                if (this.ctx.speciality[seat] === 'elite') return false; // already permanent
+                // a commander that already recruits at a higher level has nothing to buy
+                if ((this.ctx.types.commander(this.ctx.commander[seat] ?? '')?.effects?.recruitLevel ?? 1) > 1) {
+                    return false;
+                }
                 if (recruitLevel[seat]! > 1) return false; // once per round
                 if (!economy.spend(seat, leveling.recruitLevel2Cost)) return false;
                 entry.paid = leveling.recruitLevel2Cost;
@@ -1004,7 +1006,7 @@ export class ActionDispatcher {
                 const pool = this.ctx.forgeSpellsOf(seat);
                 if (!pool?.includes(action.tacticId)) return false;
                 // price rides on the spell; no price means it is not sold here
-                const cost = TACTICS[action.tacticId]?.strongholdCost;
+                const cost = this.ctx.types.tactic(action.tacticId)?.strongholdCost;
                 if (cost === undefined) return false;
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
@@ -1023,8 +1025,8 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
                     return false;
                 }
-                // a battlement archer is part of the keep, not a pack you trade
-                if (unit.type === STRONGHOLD_ARCHER) return false;
+                // a fixture is part of its building, not a pack you trade
+                if (unit.type.fixture) return false;
                 if (useAbility) sell.used[seat]!++;
                 else if (!this.consumeTacticCharge(entry, seat, SELL_UNIT_ID)) {
                     return false;
@@ -1137,17 +1139,18 @@ export class ActionDispatcher {
                 // race with a teammate's slot either. commanderHpFactor
                 // scales both teams the same (Custom Game / GameSettings).
                 if (this.ctx.starterPicked[seat]) return false;
-                const card = startCardById(action.cardId);
+                const card = this.ctx.types.commander(action.cardId);
                 if (!card) return false;
                 this.ctx.starterPicked[seat] = true;
                 this.ctx.speciality[seat] = card.speciality;
-                if (card.speciality === 'flanky') {
-                    this.ctx.flankSpawnMult[seat] = FLANK_SPAWN_HALF_MULT;
+                this.ctx.commander[seat] = card.id;
+                if (card.effects?.flankSpawnMult !== undefined) {
+                    this.ctx.flankSpawnMult[seat] = card.effects.flankSpawnMult;
                 }
                 entry.prevHp = this.ctx.hp.get(action.team);
-                if (this.ctx.climbSideHp != null) {
-                    // Campaign: fixed sudden-death HP — commander startingHp ignored
-                    this.ctx.hp.set(action.team, this.ctx.climbSideHp);
+                if (this.ctx.fixedSideHp != null) {
+                    // campaign / tutorial / scenario: fixed side HP — commander startingHp ignored
+                    this.ctx.hp.set(action.team, this.ctx.fixedSideHp[action.team]);
                 } else {
                     const grantedHp = Math.round(card.startingHp * this.ctx.commanderHpFactor);
                     this.ctx.hp.set(action.team, this.ctx.hp.get(action.team) + grantedHp);
@@ -1169,7 +1172,10 @@ export class ActionDispatcher {
                               : (['dwarf', 'archer'] as ShopUnitId[])
                           : card.id === TUTORIAL_2_START_CARD_ID
                             ? []
-                            : starterUnlockedUnits(card);
+                            : starterUnlockedUnits(card, this.ctx.types);
+                if (this.ctx.playerUnlocks && action.team === 'player') {
+                    this.ctx.unlockedUnits[seat] = [...this.ctx.playerUnlocks];
+                }
                 // items (tactics) are additive per CARD, not an overwrite like
                 // speciality/HP/unlocks above — every seat's own pick grants
                 // its own items into ITS OWN pool (items are per-seat, never
@@ -1181,8 +1187,8 @@ export class ActionDispatcher {
                 }
                 // the starting army — free, placed ring-wise from THIS SEAT's lane
                 entry.units = [];
-                for (const typeId of card.units) {
-                    const type = unitTypeById(typeId);
+                for (const typeId of this.ctx.starterArmy ? card.units : []) {
+                    const type = this.ctx.types.byId(typeId);
                     if (!type) continue;
                     const anchor = placement.findStartSpot(action.team, type, seat);
                     if (!anchor) continue;
@@ -1203,8 +1209,8 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
                     return false;
                 }
-                if (unit.items.length >= itemSlotLimit(unit.type.id)) return false;
-                if (!ITEMS[action.itemId]) return false;
+                if (unit.items.length >= itemSlotLimit(unit.type)) return false;
+                if (!this.ctx.types.rune(action.itemId)) return false;
                 const inventory = this.ctx.items[seat]!;
                 const held = inventory.indexOf(action.itemId);
                 if (held < 0) return false;
@@ -1236,9 +1242,9 @@ export class ActionDispatcher {
             case 'forgeLight': {
                 if (this.ctx.forgeLitBy[action.team] !== null) return false; // already paid
                 const oven = this.ctx.forgeSlots[action.team]!;
-                const product = resolveForge(oven, this.ctx.forgePoolOf(action.team)).product;
+                const product = resolveForge(this.ctx.types, oven, this.ctx.forgePoolOf(action.team)).product;
                 if (!product) return false; // nothing complete to pay for
-                const cost = forgeProductCost(product);
+                const cost = forgeProductCost(this.ctx.types, product);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 this.ctx.forgeLitBy[action.team] = seat;
@@ -1250,16 +1256,16 @@ export class ActionDispatcher {
                 // burn and pocket the supply.
                 if (this.ctx.forgeLitBy[action.team] !== seat) return false;
                 const oven = this.ctx.forgeSlots[action.team]!;
-                const product = resolveForge(oven, this.ctx.forgePoolOf(action.team)).product;
+                const product = resolveForge(this.ctx.types, oven, this.ctx.forgePoolOf(action.team)).product;
                 // the oven was sealed while lit, so this is what was paid for
-                const cost = product ? forgeProductCost(product) : 0;
+                const cost = product ? forgeProductCost(this.ctx.types, product) : 0;
                 economy.credit(seat, cost);
                 entry.paid = cost;
                 this.ctx.forgeLitBy[action.team] = null;
                 return true;
             }
             case 'forgeInsert': {
-                if (!ITEMS[action.itemId]) return false;
+                if (!this.ctx.types.rune(action.itemId)) return false;
                 // a lit oven is paid for: changing its runes would change what
                 // was bought, so it is sealed until it resolves
                 if (this.ctx.forgeLitBy[action.team] !== null) return false;
@@ -1283,7 +1289,7 @@ export class ActionDispatcher {
                 const ids = action.itemIds;
                 if (ids.length === 0 || ids.length > FORGE_SLOTS_PER_PLAYER) return false;
                 for (const id of ids) {
-                    if (!ITEMS[id]) return false;
+                    if (!this.ctx.types.rune(id)) return false;
                 }
                 const oven = this.ctx.forgeSlots[action.team]!;
                 if (forgeSeatFilledCount(oven, seat) + ids.length > FORGE_SLOTS_PER_PLAYER) {
@@ -1339,13 +1345,13 @@ export class ActionDispatcher {
                     this.ctx.roundCardTaken[seat] = true;
                     return true;
                 }
-                const card = ROUND_CARDS.find((c) => c.id === action.cardId);
+                const card = this.ctx.types.roundCard(action.cardId);
                 if (!card) return false;
                 if (!economy.spend(seat, card.cost)) return false;
                 entry.paid = card.cost;
                 entry.units = [];
                 for (const typeId of card.units ?? []) {
-                    const type = unitTypeById(typeId);
+                    const type = this.ctx.types.byId(typeId);
                     if (!type) continue;
                     const anchor = placement.findStartSpot(action.team, type, seat);
                     if (!anchor) continue;
@@ -1393,7 +1399,12 @@ export class ActionDispatcher {
             case 'unlockUnit': {
                 if (this.ctx.unlockUsedThisRound[seat]) return false;
                 if (this.ctx.unlockedUnits[seat]!.includes(action.typeId)) return false;
-                const cost = unlockCostForSpeciality(action.typeId, this.ctx.speciality[seat] ?? null);
+                if (action.team === 'player' && this.ctx.playerUnlockable && !this.ctx.playerUnlockable.includes(action.typeId)) {
+                    return false;
+                }
+                const unlockCommander = this.ctx.types.commander(this.ctx.commander[seat] ?? '');
+                if (!this.ctx.types.shopFor(unlockCommander).includes(action.typeId)) return false;
+                const cost = unlockCostFor(action.typeId, unlockCommander, this.ctx.types);
                 if (!Number.isFinite(cost)) return false;
                 if (cost > 0 && !economy.spend(seat, cost)) return false;
                 this.ctx.unlockedUnits[seat]!.push(action.typeId);
@@ -1402,13 +1413,13 @@ export class ActionDispatcher {
                 return true;
             }
             case 'placeRallyRoute': {
-                if (!TACTICS[RALLY_ROUTE_ID]) return false;
+                if (!this.ctx.types.tactic(RALLY_ROUTE_ID)) return false;
                 // per-seat charge pool and per-seat placement count — your
                 // own routes draw only from your own charges, never an ally's
                 const max = this.ctx.tactics[seat]!.filter((id) => id === RALLY_ROUTE_ID).length;
                 const placed = this.ctx.rallyRoutes.filter((r) => r.seat === seat).length;
                 if (max < 1 || placed >= max) return false;
-                const maxSpan = TACTICS[RALLY_ROUTE_ID]!.maxSpan;
+                const maxSpan = this.ctx.types.tactic(RALLY_ROUTE_ID)!.maxSpan;
                 const mid = clampTacticEnd(
                     action.startX,
                     action.startZ,
@@ -1443,15 +1454,15 @@ export class ActionDispatcher {
                 return true;
             }
             case 'placeOilSpill': {
-                if (!TACTICS[OIL_SPILL_ID]) return false;
+                if (!this.ctx.types.tactic(OIL_SPILL_ID)) return false;
                 // per-seat charge pool and per-seat placement count
                 const max = this.ctx.tactics[seat]!.filter((id) => id === OIL_SPILL_ID).length;
                 const placed = this.ctx.oilStamps.filter((s) => s.seat === seat).length;
                 if (max < 1 || placed >= max) return false;
                 const { round } = this.ctx.clock();
                 const duration =
-                    TACTICS[OIL_SPILL_ID]!.oilDurationRounds ?? OIL_SPILL_DURATION_ROUNDS;
-                const radius = TACTICS[OIL_SPILL_ID]!.oilRadius ?? OIL_SPILL_RADIUS;
+                    this.ctx.types.tactic(OIL_SPILL_ID)!.oilDurationRounds ?? OIL_SPILL_DURATION_ROUNDS;
+                const radius = this.ctx.types.tactic(OIL_SPILL_ID)!.oilRadius ?? OIL_SPILL_RADIUS;
                 const end = clampTacticEnd(
                     action.startX,
                     action.startZ,
@@ -1488,7 +1499,7 @@ export class ActionDispatcher {
                 return true;
             }
             case 'placeSpell': {
-                const tactic = TACTICS[action.tacticId];
+                const tactic = this.ctx.types.tactic(action.tacticId);
                 if (!tactic || !usesSpellPlacement(tactic)) return false;
                 if (
                     tactic.targeting !== 'point' &&
@@ -1578,7 +1589,7 @@ export class ActionDispatcher {
                 for (const unit of [...placement.allUnits()]) {
                     if (unit.seat !== seat || unit.team !== action.team) continue;
                     if (unit.type.structure || unit.type.extra) continue;
-                    if (unit.type === STRONGHOLD_ARCHER) continue;
+                    if (unit.type.fixture) continue;
                     const items = [...unit.items];
                     const itemRounds = [...unit.itemAppliedRound];
                     for (const itemId of items) this.ctx.items[seat]!.push(itemId);
@@ -1603,7 +1614,7 @@ export class ActionDispatcher {
                         const ids = [...set];
                         for (let i = ids.length - 1; i >= 0; i--) {
                             const techId = ids[i]!;
-                            const tech = techById(techId);
+                            const tech = this.ctx.types.talent(techId);
                             const paid = tech ? economy.techCostOf(tech, i) : 0;
                             techTree.remove(seat, typeId, techId);
                             if (paid > 0) economy.credit(seat, paid);
@@ -1639,7 +1650,7 @@ export class ActionDispatcher {
         for (const unit of placement.allUnits()) {
             if (unit.seat !== seat) continue;
             if (unit.type.structure || unit.type.extra) continue;
-            if (unit.type === STRONGHOLD_ARCHER) continue;
+            if (unit.type.fixture) continue;
             total += Math.round(economy.costOf(unit.type) * sellSettings.refundFactor);
             if (unit.level > 1) {
                 total += levelCost(unit.type, economy, leveling) * (unit.level - 1);
@@ -1650,7 +1661,7 @@ export class ActionDispatcher {
             for (const [, set] of ownedSnap) {
                 const ids = [...set];
                 for (let i = 0; i < ids.length; i++) {
-                    const tech = techById(ids[i]!);
+                    const tech = this.ctx.types.talent(ids[i]!);
                     if (tech) total += economy.techCostOf(tech, i);
                 }
             }
@@ -1991,7 +2002,7 @@ export function resetOilFieldToBaseline(
 export function prepareHazardPours(
     ctx: Pick<
         ActionContext,
-        'oilStamps' | 'spellStamps' | 'oilField' | 'oilBaseline' | 'placement'
+        'oilStamps' | 'spellStamps' | 'oilField' | 'oilBaseline' | 'placement' | 'types'
     >,
     round: number,
 ): HazardPour[] {
@@ -2016,10 +2027,10 @@ export function prepareHazardPours(
         });
     }
     const acids = ctx.spellStamps
-        .filter((s) => s.placedRound === round && TACTICS[s.tacticId]?.acidCapsule)
+        .filter((s) => s.placedRound === round && ctx.types.tactic(s.tacticId)?.acidCapsule)
         .sort((a, b) => a.id - b.id);
     for (const s of acids) {
-        const tactic = TACTICS[s.tacticId]!;
+        const tactic = ctx.types.tactic(s.tacticId)!;
         const radius = tactic.radius ?? ACID_SPILL_RADIUS;
         const durationRounds = tactic.acidCapsule!.durationRounds;
         pours.push({
@@ -2035,10 +2046,10 @@ export function prepareHazardPours(
         });
     }
     const fires = ctx.spellStamps
-        .filter((s) => s.placedRound === round && TACTICS[s.tacticId]?.fireCapsule)
+        .filter((s) => s.placedRound === round && ctx.types.tactic(s.tacticId)?.fireCapsule)
         .sort((a, b) => a.id - b.id);
     for (const s of fires) {
-        const tactic = TACTICS[s.tacticId]!;
+        const tactic = ctx.types.tactic(s.tacticId)!;
         const radius = tactic.radius ?? FIRE_SPILL_RADIUS;
         const fire = tactic.fireCapsule!;
         pours.push({
@@ -2060,13 +2071,13 @@ export function prepareHazardPours(
         .filter(
             (s) =>
                 s.placedRound === round &&
-                TACTICS[s.tacticId]?.spell?.igniteCapsule &&
+                ctx.types.tactic(s.tacticId)?.spell?.igniteCapsule &&
                 s.endX !== undefined &&
                 s.endZ !== undefined,
         )
         .sort((a, b) => a.id - b.id);
     for (const s of dragons) {
-        const tactic = TACTICS[s.tacticId]!;
+        const tactic = ctx.types.tactic(s.tacticId)!;
         const spell = tactic.spell!;
         const ignite = spell.igniteCapsule!;
         pours.push({
@@ -2090,6 +2101,35 @@ export function prepareHazardPours(
 }
 
 /** quantize world coords so peers never disagree on float noise */
+/**
+ * Man the next free post of a garrisoned building (`garrison` attribute):
+ * the posted type stands on the model's next `UnitN` pad, pinned to it, facing
+ * out. Shared by the purchase action and scenario setup. Null when every post
+ * is taken or the model has no pad for the next one.
+ */
+export function spawnGarrisonPost(
+    placement: PlacementController,
+    postedType: UnitType,
+    keep: Unit,
+    team: Team,
+    seat: SeatId,
+): Unit | null {
+    const slots = keep.type.garrison?.slots ?? [];
+    const taken = placement.allUnits().filter((u) => u.hostUnitId === keep.id).length;
+    if (taken >= slots.length) return null;
+    const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
+    if (!spot) return null;
+    const archer = placement.spawnAtWorld(postedType, spot.x, spot.z, team, seat);
+    archer.strongholdArcherSlot = slots[taken]!;
+    archer.hostUnitId = keep.id;
+    archer.pinnedY = spot.y;
+    // outward from the keep's middle — the wedge behind him is the
+    // keep itself, and he does not shoot through his own walls
+    archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
+    archer.seatMembers();
+    return archer;
+}
+
 export function quantizeWorld(v: number): number {
     return Math.round(v * 20) / 20;
 }

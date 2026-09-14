@@ -1,0 +1,27 @@
+// A campaign that ships with the game: one folder under assets/campaign/.
+// This file names the campaign and plays its levels in order; each level is
+// a scenario in scenarios/<id>.jsonc (the same format the editor saves).
+// Schema: assets/data/schema/meta.schema.json
+{
+    "version": 1,
+    "id": "prologue",
+    "name": "Prologue",
+    "description": "Three small fights to learn the ropes.",
+    "levels": [
+        {
+            "scenario": "border-patrol",
+            "title": "Border Patrol",
+            "briefing": "Two dwarf patrols block the road. Break through.",
+        },
+        {
+            "scenario": "archers-at-the-ford",
+            "title": "Archers at the Ford",
+            "briefing": "Archers cover the dwarves this time. Reach them before they thin your lines.",
+        },
+        {
+            "scenario": "the-ogres-toll",
+            "title": "The Ogre's Toll",
+            "briefing": "An ogre guards the pass in front of his camp. Take it.",
+        },
+    ],
+}

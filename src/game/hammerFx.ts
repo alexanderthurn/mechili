@@ -10,11 +10,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { shieldAtPoint, type ShieldDisk } from './fire';
 import { ensureSpellTemplate } from './spellAssets';
 import { groundHeightAt } from './map';
-import { HAMMER_ZONE } from './tactics';
 import { SHIELD_HEIGHT } from './units';
-
-/** @deprecated import from tactics — re-exported for existing tweak notes */
-export { HAMMER_ZONE };
 
 /** drop duration before the sim strike — also drives the charge-rect fill */
 export const HAMMER_SWING_SEC = 0.85;

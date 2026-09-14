@@ -1,5 +1,5 @@
+import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
-import { techById } from './techCatalog';
 import type { UnitType } from './units';
 
 /** a unit type's combat stats after tech multipliers (level scaling is separate) */
@@ -16,36 +16,48 @@ export interface ResolvedStats {
 }
 
 /**
- * Attack layers after Sky Bind — owning that tech always enables both ground and air.
+ * Attack layers after talents: an owned talent with `targets` (Sky Bind)
+ * replaces the type's own. Several such talents combine (either layer counts).
  */
 export function effectiveTargets(
-    type: Pick<UnitType, 'id' | 'targets'>,
+    type: UnitType,
     seat: SeatId,
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+    types: TypeRegistry,
 ): { ground: boolean; air: boolean } {
-    if (seat >= 0 && hasTech(seat, type.id, 'skyBind')) return { ground: true, air: true };
-    return type.targets;
+    if (seat < 0) return type.targets;
+    let granted: { ground: boolean; air: boolean } | null = null;
+    for (const tech of types.talentsOf(type)) {
+        if (!tech.targets || !hasTech(seat, type.id, tech.id)) continue;
+        granted = granted
+            ? { ground: granted.ground || tech.targets.ground, air: granted.air || tech.targets.air }
+            : tech.targets;
+    }
+    return granted ?? type.targets;
 }
 
 /** Combat altitude granted by Sky Lift when the unit isn't already a flyer. */
 export const SKY_LIFT_ALTITUDE = 18;
 
 /**
- * Flight altitude after Sky Lift / Earthbound.
- * Earthbound wins if both are owned. Structures and board extras are unchanged.
+ * Flight altitude after talents with `flight`: `ground` (Earthbound) wins over
+ * `lift` (Sky Lift) and natural flight. Structures and board extras are unchanged.
  */
 export function effectiveFlying(
-    type: Pick<UnitType, 'id' | 'flying' | 'structure' | 'extra'>,
+    type: UnitType,
     seat: SeatId,
     hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
+    types: TypeRegistry,
 ): number {
-    if (type.structure || type.extra) return type.flying ?? 0;
-    if (seat >= 0 && hasTech(seat, type.id, 'earthbound')) return 0;
     const base = type.flying ?? 0;
-    if (seat >= 0 && hasTech(seat, type.id, 'skyLift')) {
-        return base > 0 ? base : SKY_LIFT_ALTITUDE;
+    if (type.structure || type.extra || seat < 0) return base;
+    let lift = false;
+    for (const tech of types.talentsOf(type)) {
+        if (!tech.flight || !hasTech(seat, type.id, tech.id)) continue;
+        if (tech.flight === 'ground') return 0;
+        lift = true;
     }
-    return base;
+    return lift && base <= 0 ? SKY_LIFT_ALTITUDE : base;
 }
 
 /**
@@ -77,7 +89,10 @@ export function typeOwnsTech(
 export class TechTree {
     private readonly owned: Map<string, Set<string>>[];
 
-    constructor(seatCount: number) {
+    constructor(
+        seatCount: number,
+        private readonly types: TypeRegistry,
+    ) {
         this.owned = Array.from({ length: seatCount }, () => new Map());
     }
 
@@ -98,6 +113,11 @@ export class TechTree {
         return this.ownedFor(seat, typeId).has(techId);
     }
 
+    /** forget every owned talent (the scenario editor rebuilds its board) */
+    clear(): void {
+        for (const bySeat of this.owned) bySeat.clear();
+    }
+
     /** the actual purchase (charging, price escalation) lives in the action dispatcher */
     add(seat: SeatId, typeId: string, techId: string): void {
         if (seat < 0 || seat >= this.owned.length) return;
@@ -107,11 +127,11 @@ export class TechTree {
     statsFor(seat: SeatId, type: UnitType): ResolvedStats {
         const owned =
             seat >= 0 && seat < this.owned.length ? this.ownedFor(seat, type.id) : TechTree.EMPTY;
-        return TechTree.statsWithOwned(type, owned);
+        return TechTree.statsWithOwned(type, owned, this.types);
     }
 
     /** Resolve base + tech mods from an explicit owned set (deploy intel fog). */
-    static statsWithOwned(type: UnitType, owned: ReadonlySet<string>): ResolvedStats {
+    static statsWithOwned(type: UnitType, owned: ReadonlySet<string>, types: TypeRegistry): ResolvedStats {
         const stats: ResolvedStats = {
             hp: type.hp,
             damage: type.damage,
@@ -130,7 +150,7 @@ export class TechTree {
         // refactor away from two peers disagreeing.
         let rangeAdd = 0;
         for (const techId of techIds) {
-            const tech = techById(techId);
+            const tech = types.talent(techId);
             if (!tech) continue;
             stats.hp *= tech.mods.hp ?? 1;
             stats.damage *= tech.mods.damage ?? 1;

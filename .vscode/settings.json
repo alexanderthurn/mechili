@@ -1,0 +1,46 @@
+{
+    // Content files (units, buildings, models, talents, runes, commanders, round cards, spells, packs): autocomplete, hover docs
+    // and inline errors from the schemas generated off the TypeScript types.
+    "json.schemas": [
+        {
+            "fileMatch": ["**/assets/data/units/*.jsonc", "**/assets/data/buildings/*.jsonc", "**/levels/*/data/units/*.jsonc", "**/levels/*/data/buildings/*.jsonc"],
+            "url": "./assets/data/schema/unit.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/models/*.jsonc", "**/levels/*/data/models/*.jsonc"],
+            "url": "./assets/data/schema/model.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/talents/*.jsonc", "**/levels/*/data/talents/*.jsonc"],
+            "url": "./assets/data/schema/talent.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/runes/*.jsonc", "**/levels/*/data/runes/*.jsonc"],
+            "url": "./assets/data/schema/rune.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/commanders/*.jsonc", "**/levels/*/data/commanders/*.jsonc"],
+            "url": "./assets/data/schema/commander.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/roundCards/*.jsonc", "**/levels/*/data/roundCards/*.jsonc"],
+            "url": "./assets/data/schema/roundCard.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/spells/*.jsonc", "**/levels/*/data/spells/*.jsonc"],
+            "url": "./assets/data/schema/spell.schema.json"
+        },
+        {
+            "fileMatch": ["**/scenario.jsonc", "**/scenarios/*.jsonc"],
+            "url": "./assets/data/schema/scenario.schema.json"
+        },
+        {
+            "fileMatch": ["**/meta.jsonc"],
+            "url": "./assets/data/schema/meta.schema.json"
+        },
+        {
+            "fileMatch": ["**/assets/data/pack.jsonc", "**/levels/*/data/pack.jsonc"],
+            "url": "./assets/data/schema/pack.schema.json"
+        }
+    ]
+}

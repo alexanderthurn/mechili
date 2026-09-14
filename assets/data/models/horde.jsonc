@@ -1,0 +1,5 @@
+{
+    "file": "models/units/horde.glb",
+    "scale": 3,
+    "offset": { "y": -0.04 },
+}

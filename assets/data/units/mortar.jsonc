@@ -1,0 +1,45 @@
+{
+    // Fragile long-range mortar pack; volley of unguided splash stones
+    // with a min-range dead zone (no AA).
+    "id": "mortar",
+    "name": "Mortar",
+    "cost": 200,
+    "unlockCost": 50,
+    "footprint": { "cols": 5, "rows": 2 }, // same pack pad as dwarves
+    "formation": { "cols": 4, "rows": 1 }, // 4 tubes in a single line
+    "meshScale": 1.2, // half of prior 2.4
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 1.5,
+    "colliders": [
+        { "y": 0.7, "r": 0.95 },
+        { "y": 1.5, "r": 0.55 },
+    ],
+    "projectileSpeed": 27, // fallback if fixed-angle solve fails
+    "projectileStyle": "stone",
+    "projectileScale": 0.5,
+    "projectileBallistic": true,
+    "projectileLaunchAngleDeg": 35, // fixed lob; speed scales with range
+    "projectileBallisticTimeScale": 2, // same arc, 2× hang — movers can dodge
+    "projectileLaunchHeightFrac": 0.82,
+    "projectileCount": 5, // barrage per tube
+    "projectileTrail": "cloud",
+    "aimSpread": 6.5, // unguided scatter — higher = worse aim (try 4–10)
+    "splashRadius": 5.5,
+    "splashScar": false, // no ground crater stamp per stone
+    "sandWeight": 1.05,
+    "deathWear": "ash",
+    "deathAshScorch": { "radius": 1, "strength": 0.2 },
+    "burn": { "takenMult": 3.2 }, // timber siege frame
+    "hp": 260, // fragile — dies if crawlers/ogres close the gap
+    "damage": 24, // per stone; ×5 ≈ 120 / volley / tube
+    "range": 92, // longer than ballista — artillery king
+    "minRange": 42, // larger dead zone than ballista
+    "attackInterval": 5.8,
+    "speed": 2.3,
+    "turnRate": 1.35,
+    "turnMove": "pivot",
+    "proceduralModel": "mortar",
+    // range / fire rate / damage — Stormcaller pivots
+    "talents": ["barrel", "autoloader", "ap"],
+    "talentSlots": 2,
+}

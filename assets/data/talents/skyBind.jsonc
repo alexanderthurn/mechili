@@ -1,0 +1,9 @@
+{
+    "id": "skyBind",
+    "name": "Sky Bind",
+    "cost": 400,
+    "mods": {},
+    "targets": { "ground": true, "air": true },
+    "icon": "tech-sky-bind",
+    "description": "Can attack ground and air units.",
+}

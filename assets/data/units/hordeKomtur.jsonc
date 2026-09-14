@@ -1,0 +1,43 @@
+/**
+ * Der Komtur himself — mounted knight on `horde3.glb`. Flying melee boss:
+ * each swing slams a short disk and lights the lawn. `buyable: false`.
+ */
+{
+    "id": "hordeKomtur",
+    "name": "Hans von Stoffeln",
+    "cost": 1200, // bought by The Komtur's side (was 600 as a wave value)
+    "unlockCost": 200,
+    "xpValue": 600.0, // kill XP as before the price change
+    "hpWithdraw": 800,
+    "buyable": false,
+    "horde": true,
+    "modelId": "horde3",
+    "footprint": { "cols": 4, "rows": 3 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 4.2, // half of prior 8.4
+    "flying": 22,
+    "burn": { "takenMult": 0.35 },
+    "bloodColor": 9236248 /* 0x8cef18 */,
+    "targets": { "ground": true, "air": true },
+    "collisionRadius": 1.1,
+    "colliders": [
+        { "y": 0.8, "r": 2.0 },
+        { "y": 2.4, "r": 1.5 },
+    ],
+    "cleave": { "radius": 8 },
+    "cleaveShake": 1,
+    "fire": {
+        "ground": { "radius": 8, "duration": 8, "intensity": 21 },
+    },
+    "hp": 12000, // 10× prior boss weight
+    "damage": 550,
+    "range": 8,
+    "attackInterval": 0.85,
+    "speed": 12,
+    "turnRate": 2.2,
+    "turnMove": "cruise",
+    "proceduralModel": "dwarf",
+    // standard talents for The Komtur's side
+    "talents": ["stingers", "armor"],
+    "talentSlots": 2,
+}

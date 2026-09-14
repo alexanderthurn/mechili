@@ -754,7 +754,7 @@ export class Weather {
         this.moon.visible = false;
         h.skyGroup.add(this.moon);
         // upgrade to the painted moon once (if) it loads
-        void loadWorldTexture(moonUrl).then((t) => {
+        void loadWorldTexture(moonUrl()).then((t) => {
             if (!t) return;
             t.colorSpace = SRGBColorSpace;
             this.moon.material.map = t;

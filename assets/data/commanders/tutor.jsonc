@@ -1,0 +1,14 @@
+{
+    "id": "tutor",
+    "title": "Lady Lecture",
+    "portrait": "spec-tutor",
+    "speciality": "tutor",
+    "unlock": "wizard",
+    "units": ["goblin", "goblin", "goblin", "archer", "archer"],
+    "unitsLabel": "3× Goblins · 2× Archers",
+    "startingHp": 6000,
+    "tactics": ["tutor"],
+    "tacticsRound": 1,
+    "forgeSpells": ["fireSpill", "storm", "meteorShower"],
+    "description": "Starts with one Field Lesson.",
+}

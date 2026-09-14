@@ -18,13 +18,13 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import { touchFirstDevice } from './inputCapabilities';
-import {
-    attachBuildingSnow,
-    attachBuildingSnowToObject,
-    BUILDING_SNOW_IDS,
-} from './buildingSnow';
-import { markCrowWingFlapMaterial, usesWingFlapModel } from './crowWingFlap';
-import type { BattleTeam } from './units';
+import { attachBuildingSnow, attachBuildingSnowToObject } from './buildingSnow';
+import { markCrowWingFlapMaterial, type WingFlapData } from './crowWingFlap';
+import type { BattleTeam, UnitType } from './units';
+import type { ModelAnimation } from './unitAnimated';
+import { assetUrl, hasAsset, onAssetOverlaySwitch } from './assets';
+import { disposeScene } from '../engine/disposeScene';
+import { BASE_PACK } from './content/basePack';
 
 /**
  * Units backed by a generated GLB model instead of procedural primitives.
@@ -37,6 +37,17 @@ import type { BattleTeam } from './units';
  * the model's +X onto that forward. Default yaw for every Tripo/P1 model.
  */
 export const MODEL_FWD_YAW = Math.PI / 2;
+
+/**
+ * A model as authored data — the shape a JSON content file will hold: a file
+ * name and degrees instead of a built URL and radians.
+ */
+export type ModelSpecData = Omit<ModelSpec, 'url' | 'yaw'> & {
+    /** GLB path under `assets/`, e.g. `models/units/dwarf.glb` */
+    file: string;
+    /** extra yaw in degrees on top of the forward convention ({@link MODEL_FWD_YAW}) */
+    yawDeg?: number;
+};
 
 export interface ModelSpec {
     url: string;
@@ -61,81 +72,94 @@ export interface ModelSpec {
         clip?: string | 'first' | 'longest' | 'shortest';
         time?: number;
     };
+    /** Battle animation clips for a rigged model (needs `skinned`). */
+    animation?: ModelAnimation;
+    /** Wing-flap shader stroke for a winged model (crow rider, bat, …), defined per model. */
+    wingFlap?: WingFlapData;
 }
 
-export const MODEL_SPECS: Record<string, ModelSpec> = {
-    // fantasy conversion (Melodan): P1 super-low-poly, static + procedural.
-    // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
-    dwarf: {
-        url: new URL('../../assets/models/dwarf.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW+ MathUtils.degToRad(90),
-        scale: 3,
-        // soles sit a hair above the bbox floor — nudge feet into the lawn
-        offset: { y: -0.04 },
-    },
-    horde: {
-        url: new URL('../../assets/models/horde.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW,
-        scale: 3,
-        offset: { y: -0.04 },
-    },
-    horde2: {
-        url: new URL('../../assets/models/horde2.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW,
-        scale: 3,
-        offset: { y: -0.04 },
-    },
-    horde3: {
-        url: new URL('../../assets/models/horde3.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW,
-        scale: 3,
-        offset: { y: -0.04 },
-    },
-    // Static bind-pose template for icons / fallback. Battle uses mixer via unitAnimated.
-    archer: {
-        url: new URL('../../assets/models/archera.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
-        skinned: true,
-    },
-    hammerer: {
-        url: new URL('../../assets/models/hammerer.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
-        skinned: true,
-    },
-    ogre: {
-        url: new URL('../../assets/models/ogre.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
-        skinned: true,
-    },
-    wizard: { url: new URL('../../assets/models/wizard.glb', import.meta.url).href, yaw: MODEL_FWD_YAW },
-    ballista: { url: new URL('../../assets/models/ballista.glb', import.meta.url).href, yaw: MODEL_FWD_YAW + MathUtils.degToRad(180) },
-    // Mortar — tube siege; static Tripo mesh (cannon toward facing)
-    mortar: {
-        url: new URL('../../assets/models/mortar.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(180),
-    },
-    crowRider: { url: new URL('../../assets/models/crow-rider.glb', import.meta.url).href, yaw: MODEL_FWD_YAW  },
-    // Air chaff (Wasp-like) — wing flap + stretched span for flock silhouette
-    bat: {
-        url: new URL('../../assets/models/bat.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW,
-        stretch: { x: 1.45, z: 1.1 },
-    },
-    goblin: {
-        url: new URL('../../assets/models/goblin.glb', import.meta.url).href,
-        yaw: MODEL_FWD_YAW + MathUtils.degToRad(90),
-        scale: 2.85,
-        offset: { y: -0.04 },
-        // skinned walk clip → bake frame 0 into InstancedMesh (no runtime mixer)
-        bakePose: { clip: 'walk', time: 0 },
-    },
-    shield: { url: new URL('../../assets/models/shield.glb', import.meta.url).href, yaw: MODEL_FWD_YAW, scale: 0.5 }, // ward stone
-    rocket: { url: new URL('../../assets/models/rocket.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // fire bolt
-    // the two base buildings — distinct castles instead of the shared procedural tower
-    'command-tower': { url: new URL('../../assets/models/command-tower.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // stone watchtower
-    stronghold: { url: new URL('../../assets/models/stronghold.glb', import.meta.url).href, yaw: MODEL_FWD_YAW }, // castle keep + Flag empty for the mast
-    'research-center': { url: new URL('../../assets/models/research-center.glb', import.meta.url).href, yaw: MODEL_FWD_YAW-70, scale: 1.0 }, // wizard tower
-};
+function resolveModelSpec(data: ModelSpecData): ModelSpec {
+    const { file, yawDeg, ...rest } = data;
+    return {
+        ...rest,
+        // resolved when the model is loaded, so a level overlay can replace the file
+        // ('' = no such file: the load fails and the unit keeps its procedural mesh)
+        get url() {
+            return hasAsset(file) ? assetUrl(file) : '';
+        },
+        // same expression the old table used, so the result is bit-identical
+        yaw: MODEL_FWD_YAW + MathUtils.degToRad(yawDeg ?? 0),
+    };
+}
+
+/**
+ * Runtime model specs (built asset URL + radians) by model id, from
+ * `assets/data/models/*.jsonc` — or a level's models after
+ * {@link setModelSpecData}. Mutated in place, never reassigned.
+ */
+export const MODEL_SPECS: Record<string, ModelSpec> = Object.fromEntries(
+    Object.entries(BASE_PACK.models).map(([id, data]) => [id, resolveModelSpec(data)]),
+);
+
+/**
+ * Play with these model definitions (a level's pack, or the base pack again).
+ * Loaded models follow on the next overlay switch: the reload hook compares
+ * what each was loaded from with the new spec.
+ */
+export function setModelSpecData(data: Readonly<Record<string, ModelSpecData>>): void {
+    for (const id of Object.keys(MODEL_SPECS)) {
+        if (!(id in data)) delete MODEL_SPECS[id];
+    }
+    for (const [id, d] of Object.entries(data)) MODEL_SPECS[id] = resolveModelSpec(d);
+}
+
+function structureModelsOf(types: Iterable<UnitType>): Set<string> {
+    const ids = new Set<string>();
+    for (const type of types) {
+        if (type.structure) ids.add(type.modelId ?? type.id);
+    }
+    return ids;
+}
+
+/** model ids a `structure: true` type uses — the base game's until a level switch */
+let structureModelIds: ReadonlySet<string> = structureModelsOf([
+    ...BASE_PACK.roster,
+    ...BASE_PACK.offRoster,
+    ...BASE_PACK.buildings,
+]);
+
+/** The model's wing-flap stroke, or null for a model without wings. */
+export function wingFlapOf(modelId: string): WingFlapData | null {
+    return MODEL_SPECS[modelId]?.wingFlap ?? null;
+}
+
+/** Does this model flap its wings (has a `wingFlap` stroke)? */
+export function usesWingFlapModel(modelId: string): boolean {
+    return MODEL_SPECS[modelId]?.wingFlap !== undefined;
+}
+
+/**
+ * Buildings are the types with `structure: true` — nothing else decides it.
+ * Their models get roof snow and keep shadows on the medium shadow tier.
+ */
+export function isStructureModel(modelId: string): boolean {
+    return structureModelIds.has(modelId);
+}
+
+/** The types the loaded models belong to (a level's, or the base game's again). */
+export function setModelTypes(types: Iterable<UnitType>): void {
+    structureModelIds = structureModelsOf(types);
+}
+
+/**
+ * What a model was built from: its spec (the getter puts the resolved file URL
+ * in) and the procedural height it was sized to. A different key after an
+ * overlay switch means the loaded model is stale.
+ */
+export function modelBuildKey(spec: ModelSpec, height: number | undefined): string {
+    return `${JSON.stringify(spec)}@${height ?? 1}`;
+}
+
 
 type Template = Group;
 const templates = new Map<string, Template>();
@@ -163,6 +187,11 @@ const visualHalfWidths = new Map<string, number>();
 /**
  * Optional muzzle / ray origins from GLB empties named `AttackNode`, in
  * normalized model space (feet at y=0, rest forward −Z, before meshScale).
+ *
+ * When the empty is parented under a hand bone and the model has a fire clip,
+ * we sample that clip (not bind/T-pose) so the baked muzzle matches the shoot
+ * pose. The live mesh still carries the empty on the bone for any view-side
+ * reads — the sim deliberately uses this baked sample for lockstep.
  */
 const attackNodes = new Map<string, { x: number; y: number; z: number }>();
 /**
@@ -295,9 +324,86 @@ export function attackNodeWorld(
     };
 }
 
+const _liveAttack = new Vector3();
+
+/**
+ * Live world position of an `AttackNode` on a spawned mesh (follows bones if
+ * parented under the skeleton). View / VFX only — do not feed the sim; peers
+ * would disagree whenever mixers drift.
+ */
+export function liveAttackNodeWorld(root: Object3D): { x: number; y: number; z: number } | null {
+    const node = root.getObjectByName('AttackNode');
+    if (!node) return null;
+    root.updateMatrixWorld(true);
+    node.getWorldPosition(_liveAttack);
+    return { x: _liveAttack.x, y: _liveAttack.y, z: _liveAttack.z };
+}
+
+/**
+ * Read AttackNode after optionally posing a fire clip. Restores bind pose so
+ * the template is not left mid-swing. Fraction 0.85 ≈ late release (matches
+ * units that use {@link UnitType.meleeHitDelay} for a drawn-weapon windup).
+ */
+function measureAttackNode(
+    root: Object3D,
+    clips: AnimationClip[],
+    fireClipPick: NonNullable<ModelSpec['bakePose']>['clip'] | string | undefined,
+): { x: number; y: number; z: number } | null {
+    const attack = root.getObjectByName('AttackNode');
+    if (!attack) return null;
+
+    let mixer: AnimationMixer | null = null;
+    if (fireClipPick && clips.length > 0) {
+        const clip = pickBakeClip(clips, fireClipPick);
+        if (clip) {
+            mixer = new AnimationMixer(root);
+            const action = mixer.clipAction(clip);
+            action.play();
+            action.paused = true;
+            action.time = Math.min(clip.duration * 0.85, Math.max(clip.duration - 1e-4, 0));
+            mixer.update(0);
+        }
+    }
+    root.updateMatrixWorld(true);
+    const p = new Vector3();
+    attack.getWorldPosition(p);
+
+    if (mixer) {
+        mixer.stopAllAction();
+        mixer.uncacheRoot(root);
+        root.traverse((o) => {
+            const sm = o as SkinnedMesh;
+            if (sm.isSkinnedMesh) sm.skeleton.pose();
+        });
+        root.updateMatrixWorld(true);
+    }
+    return { x: p.x, y: p.y, z: p.z };
+}
+
 /** Record a provisional or measured local height (GLB load overwrites with bbox). */
 export function seedUnitVisualHeight(id: string, height: number): void {
     visualHeights.set(id, Math.max(height, 0.05));
+}
+
+/**
+ * The procedural heights of the types a match plays with (type id → local
+ * height). Types without a loaded model get it as their visual height; ids no
+ * type or model uses any more are dropped, so a level played earlier can't
+ * leave entries in {@link modelGeometryFingerprint} that a peer doesn't have.
+ */
+export function setProceduralModelHeights(heights: Readonly<Record<string, number>>): void {
+    lastHeights = { ...heights };
+    for (const id of [...visualHeights.keys()]) {
+        if (!(id in heights) && !templates.has(id)) visualHeights.delete(id);
+    }
+    for (const [id, h] of Object.entries(heights)) {
+        if (!templates.has(id)) seedUnitVisualHeight(id, h);
+    }
+}
+
+/** Heights the models were (or will be) sized to; null before the first load. */
+export function proceduralModelHeights(): Readonly<Record<string, number>> | null {
+    return lastHeights;
 }
 
 export function hasUnitModel(id: string): boolean {
@@ -325,7 +431,7 @@ export function cloneUnitModel(id: string, _team?: BattleTeam): Group | null {
     const clone = skeletonClone(t) as Group;
     uniquifyMaterials(clone);
     // Three.js Material.clone() drops onBeforeCompile — re-attach after uniquify
-    if (BUILDING_SNOW_IDS.has(id)) attachBuildingSnowToObject(clone);
+    if (isStructureModel(id)) attachBuildingSnowToObject(clone);
     return clone;
 }
 
@@ -641,6 +747,11 @@ function dequantizeGeometry(source: BufferGeometry): BufferGeometry {
  */
 const failedModels = new Set<string>();
 let lastHeights: Record<string, number> | null = null;
+/** {@link modelBuildKey} each model was last loaded (or attempted) with */
+const loadedKeys = new Map<string, string>();
+const loadsInFlight = new Set<Promise<void>>();
+/** the full load has run (boot) — until then there is nothing to reload */
+let modelsRequested = false;
 let retryInFlight: Promise<void> | null = null;
 let retryAttempt = 0;
 const RETRY_DELAYS_MS = [3_000, 10_000, 30_000];
@@ -668,11 +779,23 @@ function scheduleModelRetry(): void {
  * Level tint is applied live per pack. `heights` gives each unit's procedural
  * local height. Failures fall back to the procedural mesh.
  */
-export async function loadUnitModels(
+export function loadUnitModels(
     heights: Record<string, number>,
     onProgress?: (done: number, total: number) => void,
-    /** retry pass: load only these ids (default: every spec) */
+    /** retry / reload pass: load only these ids (default: every spec) */
     only?: ReadonlySet<string>,
+): Promise<void> {
+    if (!only) modelsRequested = true;
+    const load = loadUnitModelsNow(heights, onProgress, only);
+    loadsInFlight.add(load);
+    void load.finally(() => loadsInFlight.delete(load));
+    return load;
+}
+
+async function loadUnitModelsNow(
+    heights: Record<string, number>,
+    onProgress: ((done: number, total: number) => void) | undefined,
+    only: ReadonlySet<string> | undefined,
 ): Promise<void> {
     lastHeights = heights;
     const entries = Object.entries(MODEL_SPECS).filter(([id]) => !only || only.has(id));
@@ -680,7 +803,9 @@ export async function loadUnitModels(
     const textureBudget = modelTextureBudget();
     let done = 0;
     const loadEntry = async ([id, spec]: (typeof entries)[number]): Promise<void> => {
+        loadedKeys.set(id, staticModelKey(id, spec, heights));
         try {
+            if (!spec.url) throw new Error('model file is not in the asset manifest or the level');
             const gltf = await loader.loadAsync(spec.url);
             // shrink BEFORE cloning: clones share texture instances
             if (textureBudget) applyTextureBudget(gltf.scene, textureBudget);
@@ -712,13 +837,17 @@ export async function loadUnitModels(
                 ),
             );
             root.updateMatrixWorld(true);
-            const attack = root.getObjectByName('AttackNode');
-            if (attack) {
-                const p = new Vector3();
-                attack.getWorldPosition(p);
-                attackNodes.set(id, { x: p.x, y: p.y, z: p.z });
+            const firePick = spec.animation?.fire?.clip;
+            const attackLocal = measureAttackNode(
+                root,
+                gltf.animations ?? [],
+                typeof firePick === 'number' ? undefined : firePick,
+            );
+            if (attackLocal) {
+                attackNodes.set(id, attackLocal);
                 console.info(
-                    `[unitModels] AttackNode '${id}' @ (${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`,
+                    `[unitModels] AttackNode '${id}' @ (${attackLocal.x.toFixed(3)}, ${attackLocal.y.toFixed(3)}, ${attackLocal.z.toFixed(3)})` +
+                        (spec.animation?.fire?.clip ? ' (fire-pose sample)' : ''),
                 );
             }
             // Unit1, Unit2, … — consecutive from 1, stop at the first gap
@@ -748,7 +877,7 @@ export async function loadUnitModels(
             // bakePose models are static after bakeSkinnedPose and use InstancedMesh.
             if (!spec.skinned) {
                 const baked = bakeInstanceAsset(root);
-                if (BUILDING_SNOW_IDS.has(id)) {
+                if (isStructureModel(id)) {
                     attachBuildingSnowToObject(root);
                     for (const part of baked.parts) attachBuildingSnow(part.material);
                 }
@@ -756,7 +885,7 @@ export async function loadUnitModels(
                     for (const part of baked.parts) markCrowWingFlapMaterial(part.material);
                 }
                 instanceAssets.set(id, baked);
-            } else if (BUILDING_SNOW_IDS.has(id)) {
+            } else if (isStructureModel(id)) {
                 attachBuildingSnowToObject(root);
             }
             console.info(
@@ -783,3 +912,51 @@ export async function loadUnitModels(
     console.info(`[unitModels] ready: ${[...templates.keys()].join(', ') || '(none)'}`);
     if (!only) scheduleModelRetry();
 }
+
+/** {@link modelBuildKey} plus roof snow, which is baked into the materials at load */
+function staticModelKey(id: string, spec: ModelSpec, heights: Readonly<Record<string, number>>): string {
+    return `${modelBuildKey(spec, heights[id])}${isStructureModel(id) ? '#structure' : ''}`;
+}
+
+/** Forget a loaded model: it renders procedurally until loaded again. */
+function unloadUnitModel(id: string): void {
+    const template = templates.get(id);
+    const baked = instanceAssets.get(id);
+    templates.delete(id);
+    instanceAssets.delete(id);
+    // GPU buffers only — anything still showing a clone re-uploads on its next frame
+    if (template) disposeScene(template);
+    for (const part of baked?.parts ?? []) {
+        part.geometry.dispose();
+        part.material.dispose();
+    }
+    visualHalfWidths.delete(id);
+    attackNodes.delete(id);
+    flagNodes.delete(id);
+    slotNodes.delete(id);
+    failedModels.delete(id);
+    loadedKeys.delete(id);
+    const seed = lastHeights?.[id];
+    if (seed === undefined) visualHeights.delete(id);
+    else seedUnitVisualHeight(id, seed);
+}
+
+// A level switched files or model data: reload exactly the models built from
+// something else, drop the ones the level no longer has.
+onAssetOverlaySwitch('unit models', async () => {
+    await Promise.allSettled([...loadsInFlight]);
+    const heights = lastHeights;
+    if (!modelsRequested || !heights) return; // the boot load will read the current files
+    for (const id of [...loadedKeys.keys()]) {
+        if (!(id in MODEL_SPECS)) unloadUnitModel(id);
+    }
+    const stale = new Set(
+        Object.entries(MODEL_SPECS)
+            .filter(([id, spec]) => loadedKeys.get(id) !== staticModelKey(id, spec, heights))
+            .map(([id]) => id),
+    );
+    if (stale.size === 0) return;
+    console.info(`[unitModels] reloading for the new level: ${[...stale].join(', ')}`);
+    for (const id of stale) unloadUnitModel(id);
+    await loadUnitModels(heights, undefined, stale);
+});

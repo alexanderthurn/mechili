@@ -25,3 +25,4 @@ dist/
 misc/**
 node_modules/
 .env.translate.local
+arena-cases.json

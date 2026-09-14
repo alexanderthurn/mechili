@@ -1,0 +1,9 @@
+{
+    "id": "ballista1",
+    "title": "Siege Ballista",
+    "pool": "units",
+    "cost": 150,
+    "units": ["ballista"],
+    "unitsLabel": "1× Ballista",
+    "description": "A Ballista joins your army.",
+}

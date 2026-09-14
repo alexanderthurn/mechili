@@ -1,0 +1,7 @@
+{
+    "id": "armor",
+    "name": "Iron Plating",
+    "cost": 300,
+    "mods": { "hp": 1.5 },
+    "icon": "tech-iron-plating",
+}

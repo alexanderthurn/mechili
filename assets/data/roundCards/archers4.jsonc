@@ -1,0 +1,9 @@
+{
+    "id": "archers4",
+    "title": "Archer Company",
+    "pool": "units",
+    "cost": 150,
+    "units": ["archer", "archer", "archer", "archer"],
+    "unitsLabel": "4× Archers",
+    "description": "Four Archers join your army.",
+}

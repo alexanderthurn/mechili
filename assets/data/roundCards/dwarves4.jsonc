@@ -1,0 +1,9 @@
+{
+    "id": "dwarves4",
+    "title": "Dwarf Band",
+    "pool": "units",
+    "cost": 150,
+    "units": ["dwarf", "dwarf", "dwarf", "dwarf"],
+    "unitsLabel": "4× Dwarves",
+    "description": "Four Dwarf packs join your army.",
+}

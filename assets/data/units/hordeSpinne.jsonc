@@ -1,0 +1,44 @@
+/**
+ * The one Schwarze Spinne — `horde.glb` at large scale. Mother of spiders via
+ * innate `spiderMother` produce tech + acid shots. `buyable: false`.
+ */
+{
+    "id": "hordeSpinne",
+    "name": "Black Spider",
+    "cost": 800, // bought by The Komtur's side (was 500 as a wave value)
+    "unlockCost": 200,
+    "xpValue": 500.0, // kill XP as before the price change
+    "hpWithdraw": 70,
+    "buyable": false,
+    "horde": true,
+    "modelId": "horde",
+    "footprint": { "cols": 4, "rows": 3 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 6.0, // 12× Brood — showcase boss presence
+    "burn": { "takenMult": 0.4 },
+    "bloodColor": 9236248 /* 0x8cef18 */,
+    "targets": { "ground": true, "air": true },
+    "collisionRadius": 3.2,
+    "colliders": [
+        { "y": 0.7, "r": 1.5 },
+        { "y": 2.0, "r": 1.1 },
+    ],
+    "sandWeight": 0.135, // 10% of prior 1.35
+    "projectileSpeed": 70,
+    "projectileStyle": "orb",
+    "corrodeOnHit": { "seconds": 6 },
+    "innateTechs": ["spiderMother"],
+    "hp": 4500, // 5× prior
+    "damage": 200,
+    "range": 44,
+    "attackInterval": 0.4,
+    "speed": 12,
+    "turnRate": 1.0,
+    "turnMove": "pivot",
+    "proceduralModel": "dwarf",
+    "walkCadence": 1.5,
+    "walkLean": 1.5,
+    // standard talents for The Komtur's side (Spider Mother stays innate)
+    "talents": ["barrel", "armor"],
+    "talentSlots": 2,
+}

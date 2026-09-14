@@ -1,0 +1,192 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/StartCard",
+  "definitions": {
+    "StartCard": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "portrait": {
+          "type": "string",
+          "description": "atlas portrait for the specialist card face (`spec-*`)"
+        },
+        "units": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "starting army as unit type ids — every card totals 500 supply"
+        },
+        "unitsLabel": {
+          "type": "string",
+          "description": "the army, human-readable, for the card face"
+        },
+        "startingHp": {
+          "type": "number"
+        },
+        "speciality": {
+          "$ref": "#/definitions/SpecialityId",
+          "description": "what this commander does — a behaviour the game code implements"
+        },
+        "unlock": {
+          "type": "string",
+          "description": "the signature unit this commander can buy even if it is not in the starting army"
+        },
+        "shop": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "This commander's own shop — the unit types its side can ever buy or unlock, instead of the normal shop (e.g. The Komtur's forest roster, whose units are otherwise not buyable). Omit = the normal shop."
+        },
+        "effects": {
+          "$ref": "#/definitions/CommanderEffects",
+          "description": "what the commander does in a match — each effect is code, the numbers are the commander's"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "pack items granted into the player's inventory"
+        },
+        "tactics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tactic charges this commander is gifted — NOT at pick time: they arrive at the start of a round, like the archer's free unit."
+        },
+        "tacticsRound": {
+          "type": "number",
+          "description": "which round tactics lands in (default SPECIALITY_TACTIC_ROUND)"
+        },
+        "forgeSpells": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Stronghold forge spells this specialist unlocks (tactic ids). Teammates share the union. One 1-rune, one 2-rune, one 3-rune spell."
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "portrait",
+        "units",
+        "unitsLabel",
+        "startingHp",
+        "speciality",
+        "forgeSpells",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "SpecialityId": {
+      "type": "string",
+      "enum": [
+        "air",
+        "costControl",
+        "elite",
+        "archer",
+        "addi",
+        "flanky",
+        "meteor",
+        "speed",
+        "giant",
+        "tutor",
+        "money",
+        "cursed",
+        "tutorial"
+      ],
+      "description": "A commander's identity (portrait art, telemetry, the hidden tutorial commanders). What a commander DOES is its `effects`."
+    },
+    "CommanderEffects": {
+      "type": "object",
+      "properties": {
+        "flyingBonus": {
+          "type": "number",
+          "description": "flying units: attack and HP × (1 + this) — Sky Sorcerer 0.12"
+        },
+        "unitStatsBonus": {
+          "type": "number",
+          "description": "every non-structure unit: attack and HP × (1 + this) — Greedy Prince −0.12"
+        },
+        "incomePerRound": {
+          "type": "number",
+          "description": "supply credited at the start of every round — Greedy Prince 100"
+        },
+        "roundOneSupply": {
+          "type": "number",
+          "description": "extra supply at the start of round 1 — Elite Prince 100, Money Queen 200"
+        },
+        "recruitLevel": {
+          "type": "number",
+          "description": "level new units are recruited at, permanently — Elite Prince 2"
+        },
+        "giftUnit": {
+          "type": "object",
+          "properties": {
+            "typeId": {
+              "type": "string"
+            },
+            "level": {
+              "type": "number"
+            },
+            "round": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "typeId",
+            "level",
+            "round"
+          ],
+          "additionalProperties": false,
+          "description": "one free unit arriving in a round — Archer Commander: a level-3 archer in round 2"
+        },
+        "unitEachRound": {
+          "type": "string",
+          "description": "one free unit of this type every round — Cursed Christine's Black Brood spider"
+        },
+        "speedBonus": {
+          "type": "number",
+          "description": "flat movement bonus for every moving non-structure unit, after runes — Speedy Widow 3"
+        },
+        "unlockDiscount": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "number"
+            },
+            "amount": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "from",
+            "amount"
+          ],
+          "additionalProperties": false,
+          "description": "shop unlocks costing at least `from` are `amount` cheaper — Countess Chonk 200 / 200"
+        },
+        "flankSpawnMult": {
+          "type": "number",
+          "description": "multiplier on first-time flank spawn duration — Flanky Shadow 0.5"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Commander effects; any combination works. Numbers here are what the card face text promises."
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

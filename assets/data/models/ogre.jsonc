@@ -1,0 +1,14 @@
+{
+    "file": "models/units/ogre.glb",
+    "yawDeg": 90,
+    "skinned": true,
+    "animation": {
+        // foot align is measured from the walk clip, so deploy and run both sit on the marker
+        "walk": { "clip": "run", "speed": 0.5 },
+        // authored ~3.8s, sped up to fit combat cadence; melee stands in a scrum,
+        // so micro-pushes must not cancel the swing
+        "fire": { "clip": "pitch_baseball", "speed": 3, "hold": true },
+        // ~3.0s authored → ~1.4s tip; the head falls toward the character's left
+        "death": { "clip": "fall", "speed": 2.2, "fallLocal": { "x": -1, "z": 0 } },
+    },
+}

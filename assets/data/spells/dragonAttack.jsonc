@@ -1,0 +1,22 @@
+{
+    "id": "dragonAttack",
+    "name": "Dragon Attack",
+    "icon": "tactic-dragon",
+    "kind": "placement",
+    "targeting": "two-point",
+    "cooldownRounds": 3,
+    "radius": 20, // 5 cells
+    "maxSpan": 96, // 24 cells
+    "strongholdCost": 300,
+    "spell": {
+        "delaySeconds": 5,
+        "fx": "dragon",
+        "igniteCapsule": { "burnSeconds": 4, "intensity": 48, "damage": 1400 },
+    },
+    "marker": {
+        // orange path, deep-blue line accent
+        "glow": "rgba(36, 14, 10, 0.55)",
+        "capsule": { "fill": "#2a1008", "line": "#4050c0" },
+    },
+    "description": "Draw the dragon’s strafing path (wider and longer than oil). It dives in and breathes fire along the corridor — the beam scorches units as it passes and paints the ground ablaze. Ward domes absorb the breath (and pay for it).",
+}

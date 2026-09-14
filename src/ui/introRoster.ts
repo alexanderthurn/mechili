@@ -3,6 +3,7 @@
  * Stays on the cover and dissolves with it into the 3D scene.
  */
 
+import { yearProgressHtml, type YearProgress } from './yearTally';
 import { fetchPlayerPublic, getCachedProfile } from '../game/account';
 import { SIDE_COLORS } from '../game/colors';
 import { DEFAULT_MMR } from '../game/mmr';
@@ -146,8 +147,15 @@ export function unmountIntroRoster(cover: HTMLElement | null): void {
 }
 
 /** Simple Campaign level card on the intro cover (replaces the VS roster). */
-export function mountClimbIntro(cover: HTMLElement, round: number, total: number): void {
-    mountSimpleIntro(cover, t('hud:climbRoundShort', { n: round, total }));
+/** The Year's loading card: the coming round, every round's winner so far, the tally. */
+export function mountYearIntro(cover: HTMLElement, progress: YearProgress): void {
+    unmountIntroRoster(cover);
+    unmountClimbIntro(cover);
+    const el = withDialogFade(document.createElement('div'));
+    el.classList.add('mechili-climb-intro', 'is-year');
+    const n = Math.min(progress.rounds.length + 1, progress.total);
+    el.innerHTML = `<div class="ci-frame">${yearProgressHtml(progress, { title: t('hud:climbRoundShort', { n, total: progress.total }), current: true })}</div>`;
+    cover.appendChild(el);
 }
 
 /** Tutorial lesson card — same cover slot as campaign, titled with the lesson name. */
@@ -159,7 +167,12 @@ export function mountTutorialIntro(cover: HTMLElement, lessonId: number): void {
     mountSimpleIntro(cover, raw.replace(/\s*\n\s*/g, ' · '));
 }
 
-function mountSimpleIntro(cover: HTMLElement, title: string): void {
+/** Scenario card — its title (or the package's level title) and briefing. */
+export function mountScenarioIntro(cover: HTMLElement, title: string, briefing?: string): void {
+    mountSimpleIntro(cover, title, briefing);
+}
+
+function mountSimpleIntro(cover: HTMLElement, title: string, subtitle?: string): void {
     unmountIntroRoster(cover);
     unmountClimbIntro(cover);
     const el = withDialogFade(document.createElement('div'));
@@ -167,6 +180,7 @@ function mountSimpleIntro(cover: HTMLElement, title: string): void {
     el.innerHTML =
         `<div class="ci-frame">` +
         `<div class="ci-title">${escapeHtml(title)}</div>` +
+        (subtitle ? `<div class="ci-subtitle">${escapeHtml(subtitle)}</div>` : '') +
         `</div>`;
     cover.appendChild(el);
 }

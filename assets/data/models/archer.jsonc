@@ -1,0 +1,10 @@
+// Static bind-pose template for icons / fallback; battle plays the "animation" clips.
+{
+    "file": "models/units/archer.glb",
+    "yawDeg": 90,
+    "skinned": true,
+    "animation": {
+        "walk": { "clip": "longest", "speed": 1.5 },
+        "fire": { "clip": "shortest" },
+    },
+}

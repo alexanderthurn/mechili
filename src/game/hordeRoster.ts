@@ -4,15 +4,8 @@
  */
 
 import { HORDE_CYCLE_LEN, HORDE_FINAL_ROUND } from './hordeAlgorithms';
-import {
-    BAT,
-    HORDE_BRUT,
-    HORDE_FARMER,
-    HORDE_KOMTUR,
-    HORDE_SPINNE,
-    HORDE_WEBWEAVER,
-    type UnitType,
-} from './units';
+import type { TypeRegistry } from './content/typeRegistry';
+import type { UnitType } from './units';
 
 /** 1–{@link HORDE_CYCLE_LEN} within the current circle. */
 export function hordeSlot(round: number): number {
@@ -45,7 +38,7 @@ export interface HordeWaveEntry {
  * Medium’s spawn rounds are those beats: 3 brood, 5 +weaver, 7 +farmer,
  * 9 spider, 18 +Hans. Ultra doubles all counts via `countMult`.
  */
-export function hordeWavePlan(round: number, countMult = 1): HordeWaveEntry[] {
+export function hordeWavePlan(round: number, countMult: number, types: TypeRegistry): HordeWaveEntry[] {
     const s = hordeSlot(round);
     const level = hordeCycle(round);
     const m = Math.max(1, Math.floor(countMult));
@@ -60,11 +53,16 @@ export function hordeWavePlan(round: number, countMult = 1): HordeWaveEntry[] {
     // Hans is the stronger spider — he joins the finale from the second circle on.
     const komtur = motherNight && level >= 2 ? 1 * m : 0;
     const out: HordeWaveEntry[] = [];
-    for (let i = 0; i < brut; i++) out.push({ type: HORDE_BRUT, level });
-    for (let i = 0; i < bats; i++) out.push({ type: BAT, level });
-    for (let i = 0; i < web; i++) out.push({ type: HORDE_WEBWEAVER, level });
-    for (let i = 0; i < farmer; i++) out.push({ type: HORDE_FARMER, level });
-    for (let i = 0; i < spinne; i++) out.push({ type: HORDE_SPINNE, level });
-    for (let i = 0; i < komtur; i++) out.push({ type: HORDE_KOMTUR, level });
+    const add = (count: number, typeId: string) => {
+        if (count <= 0) return;
+        const type = types.require(typeId);
+        for (let i = 0; i < count; i++) out.push({ type, level });
+    };
+    add(brut, 'hordeZombie'); // Black Brood (legacy id)
+    add(bats, 'bat');
+    add(web, 'hordeWebweaver');
+    add(farmer, 'hordeFarmer');
+    add(spinne, 'hordeSpinne');
+    add(komtur, 'hordeKomtur');
     return out;
 }

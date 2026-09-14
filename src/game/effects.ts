@@ -50,6 +50,7 @@ import {
     getUnitVisualHeight,
 } from './unitModels';
 import { THEME } from '../theme';
+import { assetUrl, onAssetOverlaySwitch } from './assets';
 
 /** Per-style flight pool — plenty for rapid-fire archers later. */
 const MAX_PROJECTILES = 1024;
@@ -150,7 +151,7 @@ function getCrowStoneGeometry(): IcosahedronGeometry {
     return crowStoneGeometry;
 }
 
-const BOLT_URL = new URL('../../assets/models/bolt.glb', import.meta.url).href;
+const BOLT_URL = (): string => assetUrl('models/bolt.glb');
 
 interface BoltAsset {
     geometry: BufferGeometry;
@@ -161,6 +162,8 @@ interface BoltAsset {
 
 let boltAsset: BoltAsset | null = null;
 let boltLoad: Promise<BoltAsset | null> | null = null;
+/** file URL of the last bolt load */
+let boltFrom = '';
 
 /** Brighter sibling burst for oversized death gore. */
 function lightenBlood(hex: number): number {
@@ -380,7 +383,8 @@ export async function preloadProjectileBolt(): Promise<void> {
     if (!boltLoad) {
         boltLoad = (async () => {
             try {
-                const gltf = await getGltfLoader().loadAsync(BOLT_URL);
+                boltFrom = BOLT_URL();
+                const gltf = await getGltfLoader().loadAsync(boltFrom);
                 const prepared = prepareBoltFromScene(gltf.scene);
                 if (!prepared) throw new Error('no meshes in bolt.glb');
                 boltAsset = prepared;
@@ -408,7 +412,7 @@ export function boltTipWorldOffset(style: 'arrow' | 'largeArrow'): number {
     return tipZ * scale;
 }
 
-const BRICK_URL = new URL('../../assets/models/brick.glb', import.meta.url).href;
+const BRICK_URL = (): string => assetUrl('models/brick.glb');
 
 interface BrickAsset {
     geometry: BufferGeometry;
@@ -419,6 +423,8 @@ interface BrickAsset {
 
 let brickAsset: BrickAsset | null = null;
 let brickLoad: Promise<BrickAsset | null> | null = null;
+/** file URL of the last brick load */
+let brickFrom = '';
 /** Half-height used by {@link chipRestY}; updated when brick.glb loads. */
 let brickHalfExtentY = 0.24;
 
@@ -495,7 +501,8 @@ export async function preloadDebrisBrick(): Promise<void> {
     if (!brickLoad) {
         brickLoad = (async () => {
             try {
-                const gltf = await getGltfLoader().loadAsync(BRICK_URL);
+                brickFrom = BRICK_URL();
+                const gltf = await getGltfLoader().loadAsync(brickFrom);
                 const prepared = prepareBrickFromScene(gltf.scene);
                 if (!prepared) throw new Error('no meshes in brick.glb');
                 brickAsset = prepared;
@@ -517,7 +524,7 @@ export function getDebrisBrickAsset(): BrickAsset | null {
     return brickAsset;
 }
 
-const ROCK_URL = new URL('../../assets/models/rock.glb', import.meta.url).href;
+const ROCK_URL = (): string => assetUrl('models/rock.glb');
 
 interface RockAsset {
     geometry: BufferGeometry;
@@ -527,6 +534,8 @@ interface RockAsset {
 
 let rockAsset: RockAsset | null = null;
 let rockLoad: Promise<RockAsset | null> | null = null;
+/** file URL of the last rock load */
+let rockFrom = '';
 /** Half-extent for grounded crow stones; icosahedron radius until rock.glb loads. */
 let crowStoneHalfExtentY = CROW_STONE_GEO_R;
 
@@ -611,7 +620,8 @@ export async function preloadCrowRock(): Promise<void> {
     if (!rockLoad) {
         rockLoad = (async () => {
             try {
-                const gltf = await getGltfLoader().loadAsync(ROCK_URL);
+                rockFrom = ROCK_URL();
+                const gltf = await getGltfLoader().loadAsync(rockFrom);
                 const prepared = prepareRockFromScene(gltf.scene);
                 if (!prepared) throw new Error('no meshes in rock.glb');
                 rockAsset = prepared;
@@ -628,6 +638,37 @@ export async function preloadCrowRock(): Promise<void> {
     }
     await rockLoad;
 }
+
+// A level replaced bolt / brick / rock: reload the ones loaded from another file
+// (a failed load too — the level's file may be the one that works).
+onAssetOverlaySwitch('projectile and debris models', async () => {
+    await Promise.allSettled([boltLoad, brickLoad, rockLoad]);
+    const reloads: Promise<void>[] = [];
+    if (boltLoad && boltFrom !== BOLT_URL()) {
+        boltAsset?.geometry.dispose();
+        boltAsset?.material.dispose();
+        boltAsset = null;
+        boltLoad = null;
+        reloads.push(preloadProjectileBolt());
+    }
+    if (brickLoad && brickFrom !== BRICK_URL()) {
+        brickAsset?.geometry.dispose();
+        brickAsset?.material.dispose();
+        brickAsset = null;
+        brickLoad = null;
+        brickHalfExtentY = 0.24;
+        reloads.push(preloadDebrisBrick());
+    }
+    if (rockLoad && rockFrom !== ROCK_URL()) {
+        rockAsset?.geometry.dispose();
+        rockAsset?.material.dispose();
+        rockAsset = null;
+        rockLoad = null;
+        crowStoneHalfExtentY = CROW_STONE_GEO_R;
+        reloads.push(preloadCrowRock());
+    }
+    await Promise.all(reloads);
+});
 
 export function getCrowRockAsset(): RockAsset | null {
     return rockAsset;

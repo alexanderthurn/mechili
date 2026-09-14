@@ -1,0 +1,12 @@
+// Advanced rune — forged in the Stronghold oven or granted by a commander.
+{
+    "id": "vigor",
+    "name": "Giant Blood",
+    "tier": "advanced",
+    "icon": "item-vigor",
+    "mods": { "hp": 2 },
+    // forged from 2 base runes in the Stronghold oven
+    "forge": { "ingredients": ["water", "water"] },
+    "cardCost": 50,
+    "description": "+100% HP.",
+}

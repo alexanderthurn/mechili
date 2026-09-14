@@ -1,0 +1,13 @@
+// Advanced rune — forged in the Stronghold oven or granted by a commander.
+{
+    "id": "golden",
+    "name": "Sunstone",
+    "tier": "advanced",
+    "icon": "item-golden",
+    "mods": {},
+    "debuffImmune": true,
+    // forged from 2 base runes in the Stronghold oven
+    "forge": { "ingredients": ["wind", "wind"] },
+    "cardCost": 50,
+    "description": "Immune to tower debuffs and takes 30% less damage. Wizards cannot convert — the ray deals damage instead.",
+}

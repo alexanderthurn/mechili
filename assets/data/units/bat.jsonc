@@ -1,0 +1,40 @@
+/**
+ * Low free-flight dive flock — Komtur wave air chaff. Not shop-buyable for
+ * now; flip {@link UnitType.buyable} when dual-use is wanted.
+ */
+{
+    "id": "bat",
+    "name": "Bat",
+    "cost": 100,
+    "unlockCost": 0,
+    "hpWithdraw": 2,
+    "buyable": false,
+    "horde": true,
+    // Neat lattice (1 bat per cell) — no formationSpread jitter
+    "footprint": { "cols": 6, "rows": 2 },
+    "formation": { "cols": 6, "rows": 3 }, // 18 ordered flock
+    "meshScale": 1.0,
+    "flying": 5.5, // low cruise — not crow-height
+    "freeFlight": true, // climb/dive toward foes; pitch at aim
+    "burn": { "takenMult": 1 }, // air: burn status ignored while aloft
+    "targets": { "ground": true, "air": true },
+    "collisionRadius": 0.9, // unused for soft push (ghost), kept for broadphase
+    "blobShadowScale": 0.55,
+    // Generous AA volumes — wings + body so goblin/archer volleys can connect
+    "colliders": [
+        { "y": 0.4, "r": 0.85 },
+        { "y": 0.5, "r": 1.35 },
+    ],
+    "hp": 10,
+    "bloodScale": 0.28, // tiny body — don't fountain like a dwarf
+    "damage": 2, // chip — pressure from numbers, not punches (3 before bats stopped circling close foes)
+    "range": 2.2, // touch radius while piercing
+    "meleeLunge": 5, // commit the pass from a bit out
+    "attackInterval": 1.05,
+    "speed": 12,
+    "turnRate": 3.2, // slow bank — points then flies along facing
+    "turnMove": "cruise",
+    "proceduralModel": "bat",
+    "talents": ["engines", "stingers"],
+    "talentSlots": 2,
+}

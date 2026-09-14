@@ -131,6 +131,8 @@ export interface CanonicalSeatDef {
      *  the 'lobbyReady'/'lobbySettings' NetMessage doc comments). Never
      *  meaningful once the match has actually started. */
     ready?: boolean;
+    /** Custom Game lobby, The Year with roles to choose: the role this seat asks for (unset = any) */
+    yearRole?: 'attacker' | 'defender';
     /** this seat's talent picks, carried to every client by starSetup /
      *  starRoster / matchCatchUp exactly like `avatar`. ALWAYS normalized
      *  before it lands here (see `normalizeLoadout`) — it feeds the sim. */
