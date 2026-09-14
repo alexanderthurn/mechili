@@ -5482,7 +5482,7 @@ export class Game {
             // forever, freezing every player at the specialist screen (same
             // follow-up triggerExtraStarters' own caller runs after a human
             // pick — see afterStarterPick).
-            ai.chooseStarter(this.draw(this.types.commanders, 4, rng));
+            ai.chooseStarter(this.starterOfferFor(def.team, rng));
             this.afterStarterPick();
         } else if (this.phase === 'build' && !this.seatReady[seat]) {
             ai.onBuildPhase(this.round);

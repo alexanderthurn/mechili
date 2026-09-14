@@ -146,8 +146,8 @@ export function unmountIntroRoster(cover: HTMLElement | null): void {
 }
 
 /** Simple Campaign level card on the intro cover (replaces the VS roster). */
-export function mountClimbIntro(cover: HTMLElement, round: number, total: number): void {
-    mountSimpleIntro(cover, t('hud:climbRoundShort', { n: round, total }));
+export function mountClimbIntro(cover: HTMLElement, round: number, total: number, role?: string): void {
+    mountSimpleIntro(cover, t('hud:climbRoundShort', { n: round, total }), role);
 }
 
 /** Tutorial lesson card — same cover slot as campaign, titled with the lesson name. */
