@@ -1034,7 +1034,7 @@ menu.innerHTML = `
     </div>
     <div class="m-view m-spmode" data-view="sp">
         <div class="m-spmode-title" data-i18n="menu:singlePlayer"></div>
-        <div class="m-toggle-row">
+        <div class="m-toggle-row m-toggle-grid">
             <button class="m-btn m-toggle-card" data-mode="sp-campaign">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:campaign"></span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-practice">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:practice"></span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-campaigns">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:scenarioCampaign"></span></button>

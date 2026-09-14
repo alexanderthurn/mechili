@@ -1882,6 +1882,8 @@ ${chatFloatStyles(u, pc, ec)}
    language as .m-btn, built on real radio/checkbox inputs (hidden, not
    removed) so the existing :checked-based JS needs no changes at all */
 .mechili-menu .m-toggle-row { display: flex; gap: 10px; width: 100%; }
+/* four entries: two rows of two */
+.mechili-menu .m-toggle-row.m-toggle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .mechili-menu .m-toggle-card {
     position: relative;
     flex: 1;
