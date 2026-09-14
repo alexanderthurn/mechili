@@ -1882,7 +1882,7 @@ function refreshYearLobbyOptions(): void {
     ]);
     fill(cgYearKomturEl, [
         ['army', t('menu:yearArmyNormal', { defaultValue: 'Normal army' })],
-        ['komtur', t('menu:yearArmyKomtur', { defaultValue: 'The Komtur (Cursed Christine)' })],
+        ['komtur', t('menu:yearArmyKomtur', { defaultValue: 'The Komtur' })],
     ]);
 }
 refreshYearLobbyOptions();

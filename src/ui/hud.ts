@@ -4454,7 +4454,7 @@ export class Hud {
         const count = (role: 'attacker' | 'defender') => p.rounds.filter((r) => r === role).length;
         return (
             `<div class="go-year">` +
-            `<div class="go-year-winner is-${winner}">${escapeHtml(t('hud:yearSideWins', { defaultValue: '{{side}} takes the Year', side: yearRoleName(winner) }))}</div>` +
+            `<div class="go-year-winner is-${winner}">${escapeHtml(t('hud:yearSideWins', { defaultValue: '{{side}} wins', side: yearRoleName(winner) }))}</div>` +
             `<div class="go-year-score">` +
             `<span class="is-${winner}">${count(winner)} × ${escapeHtml(yearRoleName(winner))}</span>` +
             `<span class="year-dash">·</span>` +
@@ -4474,7 +4474,7 @@ export class Hud {
         el.classList.add('mechili-climb-splash', 'is-year');
         const last = p.rounds[p.rounds.length - 1];
         const title = last
-            ? t('hud:yearRoundTo', { defaultValue: 'Round {{n}} to the {{side}}', n: p.rounds.length, side: yearRoleName(last) })
+            ? t('hud:yearRoundTo', { defaultValue: 'Round {{n}}: {{side}}', n: p.rounds.length, side: yearRoleName(last) })
             : t('hud:climbRoundShort', { n: 1, total: p.total });
         el.innerHTML = yearProgressHtml(p, { title, fresh: true });
         this.mount(el);
