@@ -24,6 +24,7 @@
   "round": "Рунд {{n}}",
   "climbRoundShort": "Рунд {{n}}/{{total}}",
   "climbRound": "Рунд {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "При равенство печели защитникът",
   "unlockUnit": "Отключи единица",
   "levelUp": "Повишаване на нивото",
   "connectionLost": "Връзката е прекъсната…",

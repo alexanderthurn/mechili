@@ -24,6 +24,7 @@
   "round": "Runda {{n}}",
   "climbRoundShort": "Runda {{n}}/{{total}}",
   "climbRound": "Runda {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "Remis wygrywa obrońca",
   "unlockUnit": "Odblokuj jednostkę",
   "levelUp": "Ulepsz",
   "connectionLost": "Utracono połączenie…",

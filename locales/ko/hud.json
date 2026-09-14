@@ -24,6 +24,7 @@
   "round": "{{n}}라운드",
   "climbRoundShort": "라운드 {{n}}/{{total}}",
   "climbRound": "라운드 {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "무승부는 방어측 승리",
   "unlockUnit": "유닛 해금",
   "levelUp": "레벨 업",
   "connectionLost": "연결이 끊겼습니다…",

@@ -24,6 +24,7 @@
   "round": "ラウンド {{n}}",
   "climbRoundShort": "ラウンド {{n}}/{{total}}",
   "climbRound": "ラウンド {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "引き分けは防衛側の勝利",
   "unlockUnit": "ユニットを解放",
   "levelUp": "レベルアップ",
   "connectionLost": "接続が切れました…",

@@ -24,6 +24,7 @@
   "round": "Runde {{n}}",
   "climbRoundShort": "Runde {{n}}/{{total}}",
   "climbRound": "Runde {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "Uafgjort går til forsvareren",
   "unlockUnit": "Lås en enhed op",
   "levelUp": "Niveau op",
   "connectionLost": "Forbindelse mistet…",

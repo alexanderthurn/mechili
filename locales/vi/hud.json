@@ -24,6 +24,7 @@
   "round": "Vòng {{n}}",
   "climbRoundShort": "Vòng {{n}}/{{total}}",
   "climbRound": "Vòng {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "Hòa thì bên phòng thủ thắng",
   "unlockUnit": "Mở khóa một đơn vị",
   "levelUp": "Lên cấp",
   "connectionLost": "Mất kết nối…",

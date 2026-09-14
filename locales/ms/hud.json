@@ -24,6 +24,7 @@
   "round": "Pusingan {{n}}",
   "climbRoundShort": "Pusingan {{n}}/{{total}}",
   "climbRound": "Pusingan {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "Seri dimenangi pihak bertahan",
   "unlockUnit": "Buka kunci unit",
   "levelUp": "Naik Tahap",
   "connectionLost": "Sambungan terputus…",

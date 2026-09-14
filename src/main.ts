@@ -3366,8 +3366,9 @@ function startGame(
             settings.climb.roundsToWin,
         );
         const climb = settings.climb;
-        const role = `climbRole${climb.attackerCommander ? 'Komtur' : ''}${climbAttackerTeam(climb) === 'player' ? 'Attacker' : 'Defender'}`;
-        mountClimbIntro(introCoverEl, level, climb.roundsToWin, t(`hud:${role}`));
+        // the way of playing, as the menu named it, and who a tie goes to
+        const variant = `year${climb.attackerCommander ? 'Komtur' : ''}${climbAttackerTeam(climb) === 'player' ? 'Attack' : 'Defend'}`;
+        mountClimbIntro(introCoverEl, level, climb.roundsToWin, `${t(`menu:${variant}`)} · ${t('hud:climbTieRule')}`);
         void introRosterHold().then(() => {
             if (gen !== introGen || !started) return;
             startIntroCoverDive();

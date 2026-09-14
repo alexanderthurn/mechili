@@ -24,6 +24,7 @@
   "round": "Kolo {{n}}",
   "climbRoundShort": "Kolo {{n}}/{{total}}",
   "climbRound": "Kolo {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "Při remíze vítězí obránce",
   "unlockUnit": "Odemkněte jednotku",
   "levelUp": "Vyšší úroveň",
   "connectionLost": "Spojení ztraceno…",

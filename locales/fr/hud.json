@@ -24,6 +24,7 @@
   "round": "Manche {{n}}",
   "climbRoundShort": "Manche {{n}}/{{total}}",
   "climbRound": "Manche {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "Égalité : avantage au défenseur",
   "unlockUnit": "Déverrouiller une unité",
   "levelUp": "Passez au niveau supérieur",
   "connectionLost": "Connexion perdue…",

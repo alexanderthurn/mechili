@@ -24,6 +24,7 @@
   "round": "Tur {{n}}",
   "climbRoundShort": "Tur {{n}}/{{total}}",
   "climbRound": "Tur {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "Beraberlikte savunan kazanır",
   "unlockUnit": "Bir birimin kilidini açın",
   "levelUp": "Seviye Atla",
   "connectionLost": "Bağlantı kesildi…",

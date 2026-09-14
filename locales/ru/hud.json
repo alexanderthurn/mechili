@@ -24,6 +24,7 @@
   "round": "Раунд {{n}}",
   "climbRoundShort": "Раунд {{n}}/{{total}}",
   "climbRound": "Раунд {{n}} · {{wins}}/{{total}}",
+  "climbTieRule": "При ничьей побеждает защитник",
   "unlockUnit": "Открыть отряд",
   "levelUp": "Уровень+",
   "connectionLost": "Связь потеряна…",
