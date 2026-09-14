@@ -1,5 +1,8 @@
 # The Year — round tally, multiplayer, menu
 
+Status (2026-09-14): implemented as below. Not play-tested yet: a Year room
+between two machines, the end screen, the loading card on a resumed match.
+
 ## 1. Rules
 
 - A Year is a fixed number of rounds (9). Every round is one battle from full
