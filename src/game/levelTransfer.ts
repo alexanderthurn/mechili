@@ -129,6 +129,8 @@ export class LevelReceiver {
     /** store a chunk; returns the next index to request once this batch is complete, else null */
     add(index: number, data: string): number | null {
         if (!Number.isInteger(index) || index < 0 || index >= this.count || this.parts[index]) return null;
+        // refuse before decoding: base64 of a full chunk is 4/3 its size
+        if (typeof data !== 'string' || data.length > Math.ceil(LEVEL_CHUNK_BYTES / 3) * 4) throw new Error('[level] oversized scenario chunk');
         const part = fromBase64(data);
         if (part.length > LEVEL_CHUNK_BYTES) throw new Error('[level] oversized scenario chunk');
         this.bytes += part.length;
