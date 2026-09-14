@@ -638,10 +638,14 @@ try {
             const setMod = await server.ssrLoadModule('/src/game/settings.ts');
             const ss = await server.ssrLoadModule('/src/game/scenario/scenarioSettings.ts');
             const T = units.BASE_TYPES;
-            const blank = ed.newDraft('v0.0.0');
+            const blank = ed.newDraft('v0.0.0', T);
             const blankCheck = scen.normalizeScenario(blank, T);
             zexpect(blankCheck.def !== null && !scen.hasErrors(blankCheck.issues), `a new draft has errors: ${blankCheck.issues.map((i) => i.message).join('; ')}`);
             zexpect(ed.mapPresetOf(blank.map) === 'standard' && ed.hasBaseBuildings(T, blank, 'enemy'), 'a new draft is not the standard board with base buildings');
+            zexpect(blank.rules.unlockedUnits?.length === T.shopUnitIds.length && blankCheck.issues.every((i) => !i.message.includes('empty shop')), 'a new draft has no shop units');
+            const emptyShop = structuredClone(blank);
+            delete emptyShop.rules.unlockedUnits;
+            zexpect(scen.normalizeScenario(emptyShop, T).issues.some((i) => i.message.includes('empty shop')), 'no commander + no shop units is not warned');
             const history = new ed.DraftHistory(blank);
             const withOgre = structuredClone(blank);
             withOgre.scene.units.push({ typeId: 'ogre', team: 'enemy', at: { col: 60, row: 60 }, level: 1 });

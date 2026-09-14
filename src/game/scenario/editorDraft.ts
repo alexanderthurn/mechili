@@ -29,8 +29,12 @@ export function mapPresetOf(map: MapSize): MapPresetId | null {
     return null;
 }
 
-/** a fresh board: standard map, base buildings, no units, no commanders, nothing that opens later */
-export function newDraft(gameVersion: string): ScenarioDef {
+/**
+ * A fresh board: standard map, base buildings, no units, no commanders, every
+ * buyable unit in the player's shop (without a commander nothing else would
+ * fill it), nothing that opens later.
+ */
+export function newDraft(gameVersion: string, types: TypeRegistry): ScenarioDef {
     const stamp = new Date().toISOString();
     return {
         version: SCENARIO_VERSION,
@@ -56,6 +60,7 @@ export function newDraft(gameVersion: string): ScenarioDef {
             strongholdMode: DEFAULT_SETTINGS.strongholdMode,
             opponents: 'lockInOnly',
             enemyIntel: 'visible',
+            unlockedUnits: [...types.shopUnitIds],
         },
         scene: {
             units: [],

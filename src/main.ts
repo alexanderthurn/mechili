@@ -1504,7 +1504,7 @@ async function editSavedScenario(ref: LevelRef, id: string): Promise<void> {
  */
 function openStoredScenarioEditor(): void {
     const stored = loadStoredDraft();
-    const draft = stored?.def ?? newDraft(`v${__APP_VERSION__}`);
+    const draft = stored?.def ?? newDraft(`v${__APP_VERSION__}`, activeLevel().types);
     const wanted = stored?.level;
     void (async () => {
         const level = !stored

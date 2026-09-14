@@ -393,6 +393,8 @@ export class Hud {
     private readonly shopUnitTiles = new Map<string, HTMLButtonElement>();
     private shopUnlocked: string[] = [];
     private shopUnlockAvailable = false;
+    /** the local commander pick has happened (the unlock slot may show) */
+    private shopCommanderChosen = false;
     private shopBalance = 0;
     private unitIcons = new Map<string, string>();
     /** talent rows per unit type, pre-encoded for `data-trows` — kept because
@@ -2597,12 +2599,17 @@ export class Hud {
         }
     }
 
-    /** shows only unlocked units; the unlock slot appears when a pick is still available */
-    updateShop(unlocked: readonly string[], unlockAvailable: boolean, balance: number): void {
-        const key = `${unlocked.join(',')}|${unlockAvailable}|${balance}`;
+    /**
+     * Shows only unlocked units; the unlock slot appears once the commander is
+     * chosen and a pick is still available — also with an empty starting shop
+     * (a scenario without a commander or shop units).
+     */
+    updateShop(unlocked: readonly string[], unlockAvailable: boolean, balance: number, commanderChosen = unlocked.length > 0): void {
+        const key = `${unlocked.join(',')}|${unlockAvailable}|${balance}|${commanderChosen}`;
         if (key === this.lastShopKey) return;
         this.lastShopKey = key;
         this.shopUnlocked = [...unlocked];
+        this.shopCommanderChosen = commanderChosen;
         this.shopUnlockAvailable = unlockAvailable;
         this.shopBalance = balance;
 
@@ -2629,9 +2636,8 @@ export class Hud {
                 if (tile) tile.style.display = unlocked.includes(id) ? '' : 'none';
             }
         }
-        const specialistChosen = unlocked.length > 0;
         const hasLocked = this.unlockableIds().length > 0;
-        const showUnlock = specialistChosen && unlockAvailable && hasLocked;
+        const showUnlock = commanderChosen && unlockAvailable && hasLocked;
         this.unlockTile.style.display = showUnlock ? '' : 'none';
         this.unlockTile.classList.toggle('available', showUnlock);
         this.refreshCosts();
@@ -4505,6 +4511,7 @@ export class Hud {
             this.shopUnlocked,
             this.shopUnlockAvailable,
             amount,
+            this.shopCommanderChosen,
         );
     }
 

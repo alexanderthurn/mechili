@@ -910,7 +910,7 @@ export class ScenarioEditor {
         on('.se-new', () => {
             const ok = window.confirm(t('editor:newConfirm', { defaultValue: 'Start a new board? Undo brings the current one back.' }));
             if (!ok) return;
-            const next = newDraft(this.host.gameVersion);
+            const next = newDraft(this.host.gameVersion, this.host.types);
             this.side = 'player';
             if (JSON.stringify(next.map) !== JSON.stringify(this.draft.map)) {
                 this.history.push(next);

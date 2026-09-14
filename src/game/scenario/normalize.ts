@@ -148,6 +148,9 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
         }
         rules.unlockable = known;
     }
+    if (rules.commander.mode === 'none' && rules.unlockedUnits === undefined) {
+        warn('rules.unlockedUnits: no commander and no shop units — the player starts with an empty shop and can only unlock');
+    }
     if (rules.unlockedUnits) {
         const known = rules.unlockedUnits.filter((id) => types.shopUnitIds.includes(id));
         for (const id of rules.unlockedUnits) {

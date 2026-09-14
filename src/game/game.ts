@@ -8601,6 +8601,7 @@ export class Game {
             this.unlockedUnits[this.humanSeat]!,
             !this.unlockUsedThisRound[this.humanSeat],
             this.economy.balance(this.humanSeat),
+            !!this.starterPicked[this.humanSeat],
         );
     }
 
