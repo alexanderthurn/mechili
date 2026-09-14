@@ -1387,6 +1387,9 @@ const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset
  * there a scenario comes with what the player does (the editor, a share code,
  * joining a match).
  */
+spScenarioCodeEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-import-btn')!.click();
+});
 const SCENARIO_ZIP_TESTING = !isElectron();
 spScenarioZipBtn.hidden = !SCENARIO_ZIP_TESTING;
 
