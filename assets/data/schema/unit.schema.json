@@ -483,7 +483,7 @@
         },
         "meleeHitDelay": {
           "type": "number",
-          "description": "Seconds after the attack starts (cooldown bump / fire anim) before the hit lands (melee) or the projectile leaves (ranged). Omit / 0 = immediate. Shared by ogre smash windup and hammerer pistol draw."
+          "description": "Seconds after the attack starts (cooldown bump / fire anim) before the hit lands (melee) or the projectile leaves (ranged). Omit / 0 = immediate. Same field for both — ogre smash windup and hammerer pistol draw share it."
         },
         "meleeLunge": {
           "type": "number",
