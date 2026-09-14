@@ -1,12 +1,15 @@
+// The Komtur's side in The Year: never offered in normal pools — a mode hands her
+// to the side that plays the Komtur. She fields his forest roster instead of an army.
 {
     "id": "cursed",
     "title": "Cursed Christine",
     "portrait": "spec-cursed",
     "speciality": "cursed",
-    "unlock": "dwarf",
-    "units": ["hammerer", "hammerer", "hammerer", "goblin", "goblin"],
-    "unitsLabel": "3× Hammerers · 2× Goblins",
+    "units": ["hordeZombie", "hordeZombie", "hordeZombie", "bat", "bat"],
+    "unitsLabel": "3× Black Brood · 2× Bats",
     "startingHp": 5800,
+    // her shop: the forest roster only (spawn-only children come from their parents)
+    "shop": ["hordeZombie", "bat", "hordeWebweaver", "hordeFarmer", "hordeSpinne", "hordeKomtur"],
     "forgeSpells": ["spawnDwarves", "poisonCloud", "hammerOfGods"],
     "effects": { "unitEachRound": "hordeBrutSpawn" },
     "description": "Gets one free Black Brood spider each round.",

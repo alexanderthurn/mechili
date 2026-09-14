@@ -57,6 +57,7 @@ import {
     clearSinglePlayer,
     clearStarResumeMarker,
     GAME_VERSION,
+    formatGameVersion,
     isSameBuild,
     formatBuild,
     ourBuild,
@@ -97,6 +98,7 @@ import {
     SPECIALITY_TACTIC_ROUND,
     unlockCostFor,
     SKIP_CARD_REWARD,
+    NO_COMMANDER_CARD_ID,
     TUTORIAL_2_START_CARD_ID,
     TUTORIAL_3_START_CARD_ID,
     TUTORIAL_START_CARD_ID,
@@ -198,6 +200,9 @@ import {
     describeGameSettings,
     Economy,
     hordeCountMult,
+    climbAttackerTeam,
+    yearWinner,
+    type YearRoundWinner,
     hordeEnabled,
     hordeLeaderShare,
     isHordeRoundActive,
@@ -205,6 +210,7 @@ import {
     secondsForRound,
     shouldOfferRoundCards,
     type DeploySettings,
+    type LevelingSettings,
     type GameSettings,
 } from './settings';
 import { detAtan2, detCos, detSin } from './detMath';
@@ -237,7 +243,7 @@ import {
     type SpellStamp,
 } from './tactics';
 import { TechTree, effectiveTargets, effectiveFlying } from './tech';
-import { activeLoadout, randomLoadout } from './loadouts';
+import { activeLoadout, loadoutShowsAll, openLoadout, randomLoadout, scenarioLoadout } from './loadouts';
 import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
@@ -272,11 +278,22 @@ import {
 import { getAvatarDataUrl } from './avatar';
 import { HpBars } from '../ui/hpBars';
 import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
+import type { YearProgress } from '../ui/yearTally';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
-import { activeLevel, isLevelActive } from './level';
+import { activeLevel, activeLevelRef, isLevelActive, levelFiles, loadLevel, type LevelRef } from './level';
+import { captureScene, captureScenario } from './scenario/capture';
+import { scenarioPackageFiles } from './scenario/package';
+import type { OverlayFile } from './assets';
+import { resolveMatchRules, stripOpen, type MatchRules } from './matchRules';
+import { hasErrors, normalizeScenario } from './scenario/normalize';
+import type { ScenarioDef } from './scenario/scenarioDef';
+import { applyScenario, type AppliedScene, type ScenarioHost } from './scenario/applyScenario';
+import { ScenarioEditor, TestBattleBar, type TestBattleSummary } from '../ui/scenarioEditor';
+import { getUnitInstanceRenderer } from './unitInstances';
+import { storeDraft } from './scenario/editorDraft';
 
 /** menu→match camera fly-in (fresh starts only) */
 const MATCH_INTRO_SEC = 1.0;
@@ -353,6 +370,9 @@ function seedFrom(seed: number, label: string): number {
  * The battlefield scene: a real three.js world (ground, lights, shadows,
  * unit meshes) rendered below the transparent Pixi UI overlay.
  */
+/** how long a test battle shows its board before it locks in */
+const TEST_BATTLE_LOOK_MS = 700;
+
 export class Game {
     private readonly map: BattleMap;
     private readonly economy: Economy;
@@ -496,16 +516,17 @@ export class Game {
      */
     private endedByOwnChoice = false;
     /**
-     * Campaign climb: round wins so far. Restored from SP save / retry payload
-     * (battle outcomes are not in the action log).
+     * The Year: who took each finished round, in order. Decided from the
+     * battles, so a resume, retry, reconnect or replay rebuilds it by replaying
+     * the log.
      */
-    private climbWins = 0;
+    private yearRounds: YearRoundWinner[] = [];
     /**
      * Campaign: decided in {@link finishOrContinueAfterBattle} from post-damage
-     * HP (higher HP wins, even if both negative). Applied after HP-draw VFX.
-     * Cleared by cheat skip so Shift+I can advance without a false loss.
+     * HP (higher HP wins, even if both negative; a tie to the defender). Counted
+     * after the HP-draw VFX. Cleared by cheat skip so Shift+I doesn't count it.
      */
-    private pendingClimbOutcome: 'win' | 'loss' | null = null;
+    private pendingYearRound: YearRoundWinner | null = null;
     /** match-total combat damage by `${team}:${typeId}` — fed into telemetry */
     private readonly matchDamageByType = new Map<string, number>();
     private disposed = false;
@@ -825,6 +846,34 @@ export class Game {
      * tear this match down and boot that tutorial from scratch.
      */
     onStartTutorial: ((lesson: number) => void) | null = null;
+    /** scenario editor: start the editor ('author') or a test battle from a draft */
+    onScenarioEditor: ((mode: 'author' | 'test', draft: ScenarioDef) => void) | null = null;
+    /** scenario editor: package the draft for download; resolves to a status line */
+    onScenarioDownload: ((draft: ScenarioDef) => Promise<string>) | null = null;
+    /** The Year, not in a room: start the rematch with these settings (roles swapped, new seed) */
+    onRematch: ((settings: GameSettings) => void) | null = null;
+    /** The Year in a room, host: every player asked for the rematch — start it */
+    onStarRematch: (() => void) | null = null;
+    /** The Year in a room, guest: the host started the rematch */
+    onStarRematchStart: ((msg: Extract<NetMessage, { type: 'starRematch' }>) => void) | null = null;
+    /** seats that asked for the rematch (host: the authority; guest: as the host last said) */
+    private readonly rematchSeats = new Set<SeatId>();
+    /** the rematch was started (each client starts it once) */
+    private rematchStarted = false;
+    /** a scenario was won (played, not edited or tested) — its id in the package */
+    onScenarioWon: ((scenarioId: string) => void) | null = null;
+    /** a won scenario: play the next one of its package (meta.jsonc order) */
+    onNextScenario: ((scenarioId: string) => void) | null = null;
+    /** scenario editor: copy the draft as a share code; resolves to a status line */
+    onScenarioShareCode: ((draft: ScenarioDef) => Promise<string>) | null = null;
+    /** scenario editor: play the draft as a scenario */
+    onScenarioPlay: ((draft: ScenarioDef) => void) | null = null;
+    /** scenario editor: put the draft into the package the board is made on */
+    onScenarioSaveInto:
+        | ((draft: ScenarioDef, packageName?: string) => Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }>)
+        | null = null;
+    /** scenario editor: keep the draft as a scenario package; resolves to a status line */
+    onScenarioSave: ((draft: ScenarioDef) => Promise<string>) | null = null;
     onRetryLastRound:
         | ((payload: {
               seed: number;
@@ -832,7 +881,6 @@ export class Game {
               actions: LoggedAction[];
               side: 'a' | 'b';
               names: { local: string; opponent: string };
-              climbWins: number;
           }) => void)
         | null = null;
     /**
@@ -1185,6 +1233,18 @@ export class Game {
     private battleDown: { x: number; y: number } | null = null;
 
     private readonly settings: GameSettings;
+    /** the board + rules this match starts from (plan §4), null for a normal match */
+    private readonly scenario: ScenarioDef | null;
+    /** the scenario editor's own matches: editing a draft, or its test battle */
+    private readonly editorMode: 'author' | 'test' | null;
+    private scenarioEditor: ScenarioEditor | null = null;
+    /** 3D thumbnails by type id (the roster; the editor adds everything else it lists) */
+    private unitIconUrls: Map<string, string> = new Map();
+    /** the base buildings standing at their anchors (placed ones of the same types aren't) */
+    private readonly baseBuildingUnits = new Set<Unit>();
+    private testBattleBar: TestBattleBar | null = null;
+    /** what this match does each round (plan §5) */
+    private readonly rules: MatchRules;
     /** the match roster; localized so MY side always reads 'player' locally */
     private readonly seats: SeatDef[];
     /** the local human's seat id — 0 for every local/classic-net mode; a star
@@ -1212,8 +1272,6 @@ export class Game {
             phaseRemaining?: number;
             /** battle playback multiplier; omitted on older saves → stay at 1× */
             speedMultiplier?: number;
-            /** Campaign climb wins so far (SP save / retry) */
-            climbWins?: number;
         } | null = null,
         /** 2v2+ star-topology connection — mutually exclusive with `net`.
          *  `settings.seats` must already be the LOCALIZED roster (via
@@ -1314,6 +1372,10 @@ export class Game {
             debugWindow.mechiliDebugClear = () => this.debugLog.clear();
         }
         this.settings = normalizeGameSettings(settingsInput);
+        this.scenario = this.resolveScenario();
+        this.rules = resolveMatchRules(this.settings, this.scenario);
+        const scenarioMode = this.settings.scenario?.mode;
+        this.editorMode = scenarioMode === 'author' || scenarioMode === 'test' ? scenarioMode : null;
         const settings = this.settings;
         this.wrapper = wrapper;
         this.threeCanvas = threeCanvas;
@@ -1360,6 +1422,10 @@ export class Game {
                 let out = s;
                 if (!out.avatar && localAvatar) out = { ...out, avatar: localAvatar };
                 if (!out.loadout) out = { ...out, loadout: localLoadout };
+                // the sandbox teaches any talent a unit has, not only the player's picks;
+                // a scenario may open, fix or narrow the player's loadout
+                if (this.editorMode === 'author') out = { ...out, loadout: openLoadout(this.types) };
+                else if (this.scenario) out = { ...out, loadout: scenarioLoadout(this.rules.loadout, out.loadout, this.types) };
                 return out;
             }
             // Every OTHER seat must already carry a loadout by now — a
@@ -1507,7 +1573,11 @@ export class Game {
         // keep the camera target well inside the field so the view never leaves the map —
         // horde mode widens this so the player can pan out far enough to see the wave
         // approaching through the forest ring (see spawnHordeWave)
-        const hordeReach = hordeEnabled(this.settings) ? HORDE_RING_NEAR + HORDE_RING_SPAN : 0;
+        // the scenario editor places horde packs out there too
+        const hordeReach =
+            hordeEnabled(this.settings) || this.editorMode || this.scenario?.scene.units.some((u) => u.team === 'horde')
+                ? HORDE_RING_NEAR + HORDE_RING_SPAN
+                : 0;
         this.rig.setBounds(this.map.halfW - 8 + hordeReach, this.map.halfH - 16 + hordeReach);
         this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar());
         // open centered on the player's own zone (where the starting army
@@ -1602,7 +1672,9 @@ export class Game {
         // Campaign: one free Sell Pack charge in the left tactics strip (same
         // as a card-granted one-shot — not the Command Tower unlock).
         if (settings.climb) {
-            this.tacticInventory[this.humanSeat]!.push(SELL_UNIT_ID);
+            for (let seat = 0; seat < this.seats.length; seat++) {
+                if (!this.seatIsBot(seat)) this.tacticInventory[seat]!.push(SELL_UNIT_ID);
+            }
         }
         this.placement.roster = this.seats;
         this.hpBars.roster = this.seats;
@@ -1664,8 +1736,12 @@ export class Game {
                 },
             },
             commanderHpFactor: settings.commanderHpFactor,
-            climbSideHp: settings.climb?.sideHp ?? settings.tutorial?.sideHp ?? null,
+            fixedSideHp: this.rules.fixedSideHp,
+            starterArmy: this.rules.commander.mode !== 'fixed' || this.rules.commander.starterArmy,
+            playerUnlocks: this.rules.playerUnlocks,
+            playerUnlockable: this.rules.playerUnlockable,
             climbMode: !!settings.climb,
+            climbAttacker: settings.climb ? this.yearAttackerTeam() : null,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -1722,9 +1798,7 @@ export class Game {
             // (live relay, or a resume/replay catch-up) — same "check HP,
             // end the match" logic endBattlePhase already runs after a
             // battle result, just triggered by a different cause
-            onForfeit: () => {
-                if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
-            },
+            onForfeit: (team) => this.finishAfterForfeit(team),
         });
         if (this.watching) {
             // every seat's actions come from the replay log — no AI, no
@@ -1838,13 +1912,17 @@ export class Game {
             wrapper,
             (type) => this.effectiveCost(type),
             (type) => this.buyUnit(type),
-            { types: this.types, boardExtrasAllowed: !this.settings.climb && !isTutorial(this.settings) },
+            {
+                types: this.types,
+                boardExtrasAllowed: this.humanMayBuyExtras(),
+                unlockable: this.rules.playerUnlockable,
+            },
         );
         // Shop hover windows list this player's own talent picks. Fixed for
         // the whole match, so once here is enough.
         this.hud.setUnitTalents(
             new Map(
-                this.types.roster.filter((t) => !t.extra && isPlayerBuyable(t)).map((t) => [
+                this.types.roster.filter((t) => !t.extra && (isPlayerBuyable(t) || this.types.allShopUnitIds.includes(t.id))).map((t) => [
                     t.id,
                     techsForUnit(t, this.types, this.loadoutOf(this.humanSeat)).map((tech) => ({
                         icon: techIcon(tech),
@@ -1860,8 +1938,9 @@ export class Game {
             this.hpBars.view.visible = false;
             this.introActive = true;
         }
-        this.hud.setUnitIcons(renderAllUnitIcons(this.renderer, this.types.roster));
-        this.hud.setBoardExtrasAllowed(!this.settings.climb && !isTutorial(this.settings));
+        this.unitIconUrls = renderAllUnitIcons(this.renderer, this.types.roster);
+        this.hud.setUnitIcons(this.unitIconUrls);
+        this.hud.setBoardExtrasAllowed(this.humanMayBuyExtras());
         this.tutorial?.applyInitialChrome();
         // this match's real settings (including any ?hordeFactor= override) —
         // fixed for the match's lifetime, so a one-time snapshot is enough
@@ -1881,21 +1960,32 @@ export class Game {
         this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         this.hud.onRetryLastRound = () => this.requestRetryLastRound();
+        this.hud.onRematch = () => this.requestRematch();
         this.hud.onNextTutorial = () => {
             const next = nextTutorialId(tutorialId(this.settings));
-            if (next !== null) this.onStartTutorial?.(next);
+            if (next !== null) {
+                this.onStartTutorial?.(next);
+                return;
+            }
+            const nextScenario = this.nextScenarioId();
+            if (nextScenario !== null) this.onNextScenario?.(nextScenario);
         };
         // a spectator has no seat of its own to grant vision from
         if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
         this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
         this.hud.onEndDeployment = () => {
             if (this.phase !== 'build') return;
+            // editing: End Deployment runs the test battle
+            if (this.scenarioEditor) {
+                this.scenarioEditor.startTest();
+                return;
+            }
             if (this.tutorial && !this.tutorial.tryEndDeploy()) return;
             this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
         };
         this.hud.onSpeedUp = () => this.cycleSpeed(1);
         this.hud.onSpeedDown = () => this.cycleSpeed(-1);
-        this.hud.onUndo = () => this.undoLast();
+        this.hud.onUndo = () => (this.scenarioEditor ? this.scenarioEditor.undo() : this.undoLast());
         this.hud.onSendChat = (item) => {
             const now = performance.now();
             if (now - this.lastChatSent < CHAT_COOLDOWN_MS) return;
@@ -2173,7 +2263,6 @@ export class Game {
         this.spawnTowers();
         this.placement.enabled = false;
         if (resume) {
-            this.climbWins = resume.climbWins ?? 0;
             this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
             // replay always resets the round's clock to a fresh full timer
             // time from whoever exported, so a rebuild can't hand either
@@ -2214,15 +2303,18 @@ export class Game {
         } else if (matchIntro) {
             // hold the specialist overlay until the camera fly-in finishes
             // Tutorial: skip the offer — auto commander is applied after intro.
-            this.deferredStarterOffer = isTutorial(this.settings)
-                ? null
-                : this.draw(this.types.commanders, 4, this.rngCards.player);
+            this.deferredStarterOffer =
+                isTutorial(this.settings) || this.rules.commander.mode !== 'pick'
+                    ? null
+                    : this.starterOfferFor('player', this.rngCards.player);
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         } else {
             if (this.tutorial) this.tutorial.applyStarters();
-            else this.showStarterPick(this.draw(this.types.commanders, 4, this.rngCards.player));
+            else if (this.rules.commander.mode !== 'pick') this.applyRuleCommanders();
+            else this.showStarterPick(this.starterOfferFor('player', this.rngCards.player));
             if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
         }
+        if (this.editorMode) this.startScenarioEditing(wrapper, surface);
         if (this.star?.role === 'host') this.startSpectatorHub();
         if (this.star) this.wireStar(this.star);
         if (resume && this.star?.role === 'guest' && !resume.local) {
@@ -2359,6 +2451,7 @@ export class Game {
         this.hud.setMatchChromeVisible(true);
         if (!this.introCardsRevealed) {
             if (this.tutorial) this.tutorial.applyStarters();
+            else if (this.rules.commander.mode !== 'pick') this.applyRuleCommanders();
             else if (offer) this.showStarterPick(offer);
             else if (pendingRound) this.showRoundOffer(pendingRound);
         } else {
@@ -2755,6 +2848,21 @@ export class Game {
         this.onReturnToMenu = null;
         this.onRetryLastRound = null;
         this.onStartTutorial = null;
+        this.onScenarioEditor = null;
+        this.onScenarioDownload = null;
+        this.onScenarioSave = null;
+        this.onScenarioPlay = null;
+        this.onScenarioShareCode = null;
+        this.onNextScenario = null;
+        this.onScenarioWon = null;
+        this.onRematch = null;
+        this.onStarRematch = null;
+        this.onStarRematchStart = null;
+        this.onScenarioSaveInto = null;
+        this.scenarioEditor?.destroy();
+        this.scenarioEditor = null;
+        this.testBattleBar?.remove();
+        this.testBattleBar = null;
         this.onConnectionLost = null;
         // network/backend teardown FIRST, before any rendering/HUD disposal
         // below — those touch three.js/pixi resources and a stray exception
@@ -2870,16 +2978,161 @@ export class Game {
             this.tutorial.spawnBaseTowers();
             return;
         }
+        if (this.scenario) {
+            applyScenario(this.scenarioHost(), this.scenario);
+            return;
+        }
+        this.spawnBaseBuildings(() => true);
+    }
+
+    /**
+     * The scenario editor's matches (plan §8): author mode mounts the editor
+     * over a board that never leaves the build phase; a test battle gets the
+     * strip that leads back to it.
+     */
+    private startScenarioEditing(wrapper: HTMLElement, surface: HTMLElement): void {
+        const draft = this.settings.scenario?.draft;
+        if (!draft) return;
+        if (this.editorMode === 'test') {
+            this.testBattleBar = new TestBattleBar(wrapper, {
+                onBack: () => this.onScenarioEditor?.('author', draft),
+                onAgain: () => this.onScenarioEditor?.('test', draft),
+                onSkip: () => this.skipTestBattle(),
+            }, JSON.stringify(draft.scene) + JSON.stringify(draft.rules));
+            return;
+        }
+        // a sandbox deployment: every buyable unit, free purchases (the settings
+        // already lift the deploy caps and fill the purse)
+        this.economy.free = true;
+        this.unlockedUnits[this.humanSeat] = [...this.types.shopUnitIds];
+        this.refreshShopHud();
+        const missing = [...this.types.all()].filter((type) => !this.unitIconUrls.has(type.id));
+        for (const [id, url] of renderAllUnitIcons(this.renderer, missing)) this.unitIconUrls.set(id, url);
+        const level = activeLevel().overlay;
+        this.scenarioEditor = new ScenarioEditor(
+            {
+                types: this.types,
+                placement: this.placement,
+                surface,
+                wrapper,
+                maxUnitLevel: this.settings.leveling.maxLevel,
+                maxBuildingLevel: this.settings.towers.upgrade.maxLevel,
+                prices: {
+                    levelCostFactor: this.settings.leveling.levelCostFactor,
+                    techCostEscalation: this.settings.economy.techCostEscalation,
+                },
+                levelLabel: level ? level.id : 'Base game',
+                gameVersion: formatGameVersion(GAME_VERSION),
+                // main wires the download right after construction
+                canDownload: () => this.onScenarioDownload !== null,
+                unitIcon: (typeId) => this.unitIconUrls.get(typeId) ?? null,
+                rebuild: (def) => this.rebuildScenarioBoard(def),
+                capture: (baseBuildings) =>
+                    captureScene(
+                        { types: this.types, placement: this.placement, techTree: this.techTree, primarySeat: (team) => primarySeatOf(this.seats, team) },
+                        baseBuildings,
+                    ),
+                save: (def) => this.onScenarioSave?.(def) ?? Promise.resolve(''),
+                packageName: activeLevel().scenarios.size > 0 ? (activeLevel().meta?.def?.name ?? level?.id ?? null) : null,
+                saveInto: (def, packageName) =>
+                    this.onScenarioSaveInto?.(def, packageName) ?? Promise.resolve({ status: '', id: def.id, reopen: null }),
+                shareCode: (def) => this.onScenarioShareCode?.(def) ?? Promise.resolve(''),
+                issues: (def) => normalizeScenario(def, this.types).issues,
+                autosave: (def) => storeDraft(def, this.settings.level),
+                restart: (def) => this.onScenarioEditor?.('author', def),
+                test: (def) => this.onScenarioEditor?.('test', def),
+                play: (def) => this.onScenarioPlay?.(def),
+                download: (def) => this.onScenarioDownload?.(def) ?? Promise.resolve(''),
+                exit: () => this.quitToMenu(),
+            },
+            draft,
+        );
+    }
+
+    /** a test battle straight to its result (the sim runs headless, then the board shows how it ended) */
+    private skipTestBattle(): void {
+        if (this.editorMode !== 'test' || this.phase !== 'battle' || !this.sim) return;
+        while (!this.sim.finished) {
+            this.sim.update(0.25);
+            this.sim.consumeEvents();
+        }
+        this.sim.syncMeshes();
+        this.endBattlePhase();
+    }
+
+    /** author mode: the board again from a draft — everything placed goes, the draft's scene comes back */
+    private rebuildScenarioBoard(def: ScenarioDef): AppliedScene {
+        const instances = getUnitInstanceRenderer();
+        for (const unit of [...this.placement.allUnits()]) {
+            instances?.unregisterUnit(unit);
+            this.placement.removeUnit(unit);
+        }
+        this.techTree.clear();
+        this.baseBuildingUnits.clear();
+        this.hpBars.clear();
+        this.selectedActor = null;
+        const applied = applyScenario(this.scenarioHost(), def);
+        // the sandbox may move everything on the board, as if placed this round
+        for (const unit of this.placement.allUnits()) unit.deployedRound = this.round;
+        this.placement.refaceAll();
+        // enemy intel panels read phase-start snapshots — the rebuilt board is the new start
+        this.placement.captureIntelSnapshot();
+        this.techIntelSnapshot = this.techTree.snapshotOwned();
+        this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
+        this.refreshFlightAlts();
+        return applied;
+    }
+
+    /** a finished test battle, counted from the sim before it is torn down */
+    private testBattleSummary(sim: BattleSim): TestBattleSummary {
+        const zero = () => ({ player: { standing: 0, total: 0 }, enemy: { standing: 0, total: 0 }, horde: { standing: 0, total: 0 } });
+        const packs = zero();
+        const members = { player: { alive: 0, total: 0 }, enemy: { alive: 0, total: 0 }, horde: { alive: 0, total: 0 } };
+        for (const [unit, count] of sim.unitSurvivors()) {
+            if (unit.summoned) continue;
+            const team = unit.team;
+            packs[team].total++;
+            if (count.alive > 0) packs[team].standing++;
+            members[team].total += count.total;
+            members[team].alive += count.alive;
+        }
+        const playerLeft = packs.player.standing > 0;
+        const enemyLeft = packs.enemy.standing > 0;
+        const outcome = playerLeft && enemyLeft ? 'timeout' : playerLeft ? 'player' : enemyLeft ? 'enemy' : 'draw';
+        const hp = buildHpDrawSources(sim);
+        return { outcome, seconds: sim.elapsed, packs, members, damage: { player: hp.damageToPlayer, enemy: hp.damageToEnemy } };
+    }
+
+    /** the narrow view of this match a scenario's board is applied through (plan §12.2) */
+    private scenarioHost(): ScenarioHost {
+        return {
+            types: this.types,
+            placement: this.placement,
+            techTree: this.techTree,
+            primarySeat: (team) => primarySeatOf(this.seats, team),
+            spawnBaseBuildings: (want) => this.spawnBaseBuildings(want),
+        };
+    }
+
+    /**
+     * The base buildings at their anchors — every one `want` accepts — in the
+     * fixed order unit ids depend on. Returns what was placed.
+     */
+    private spawnBaseBuildings(want: (team: Team, typeId: string) => boolean): Unit[] {
+        const placed: Unit[] = [];
         const { rimCells, flankCols, zoneCols, zoneRows } = this.map.size;
         const ownFar = this.map.ownAtFar;
-        const skipPlayerBuildings = !!this.settings.climb;
+        // The Year: the attacking side fields its army only
+        const skipTeam: Team | null = this.settings.climb ? this.yearAttackerTeam() : null;
         const spawnBuilding = (
             xFrac: number,
             rowFrac: number,
-            type: UnitType,
+            type: UnitType | null,
             team: Team,
             seat: SeatId,
         ) => {
+            // a pack without a building for this anchor simply has none there
+            if (!type) return;
             const fp = type.footprint;
             const centerRow = Math.round(rimCells + zoneRows * rowFrac - fp.rows / 2);
             const col = rimCells + flankCols + Math.round(zoneCols * xFrac) - Math.floor(fp.cols / 2);
@@ -2891,30 +3144,40 @@ export class Game {
                 row: this.map.rows - centerRow - fp.rows,
             };
             const useFar = (team === 'enemy') !== ownFar;
-            this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
+            if (!want(team, type.id)) return;
+            const unit = this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
+            if (unit) {
+                placed.push(unit);
+                this.baseBuildingUnits.add(unit);
+            }
         };
 
+        const strongholdType = this.types.baseBuilding('stronghold');
+        const researchType = this.types.baseBuilding('research');
+        const commandType = this.types.baseBuilding('command');
         if (this.settings.strongholdMode !== 'none') {
-            if (!skipPlayerBuildings) {
+            if (skipTeam !== 'player') {
                 spawnBuilding(
                     BASE_ANCHORS.stronghold.xFrac,
                     BASE_ANCHORS.stronghold.rowFrac,
-                    this.types.require('stronghold'),
+                    strongholdType,
                     'player',
                     primarySeatOf(this.seats, 'player'),
                 );
             }
-            spawnBuilding(
-                BASE_ANCHORS.stronghold.xFrac,
-                BASE_ANCHORS.stronghold.rowFrac,
-                this.types.require('stronghold'),
-                'enemy',
-                primarySeatOf(this.seats, 'enemy'),
-            );
+            if (skipTeam !== 'enemy') {
+                spawnBuilding(
+                    BASE_ANCHORS.stronghold.xFrac,
+                    BASE_ANCHORS.stronghold.rowFrac,
+                    strongholdType,
+                    'enemy',
+                    primarySeatOf(this.seats, 'enemy'),
+                );
+            }
         }
 
         for (const team of ['player', 'enemy'] as const) {
-            if (skipPlayerBuildings && team === 'player') continue;
+            if (team === skipTeam) continue;
             for (const seat of seatIdsOf(this.seats, team)) {
                 const lane = seatLane(this.seats, seat);
                 // remap classic full-zone xFrac into seat's lane; in 2v2 (duo), outer
@@ -2942,19 +3205,20 @@ export class Game {
                 spawnBuilding(
                     resX,
                     resRow,
-                    this.types.require('research-center'),
+                    researchType,
                     team,
                     seat,
                 );
                 spawnBuilding(
                     cmdX,
                     cmdRow,
-                    this.types.require('command-tower'),
+                    commandType,
                     team,
                     seat,
                 );
             }
         }
+        return placed;
     }
 
     /**
@@ -3045,9 +3309,26 @@ export class Game {
         // of snapping back to 1x every round — nothing live to reset for
         if (!this.watching) this.resetSpeed();
         this.round++;
-        this.weather?.onRound(this.round, this.hydrating);
+        const atmosphere = this.rules.fixedAtmosphere;
+        if (!atmosphere) this.weather?.onRound(this.round, this.hydrating);
+        else if (this.round === 1) {
+            this.weather?.setScene(
+                {
+                    season: atmosphere.season,
+                    weatherKind: atmosphere.weather ?? 'clear',
+                    weatherIntensity: (atmosphere.weather ?? 'clear') === 'clear' ? 0 : 0.7,
+                    timeOfDay: atmosphere.time ?? 'day',
+                },
+                undefined,
+                true,
+            );
+        }
         this.phase = 'build';
-        this.phaseRemaining = this.deploySeconds();
+        // The Year: every round is sudden death from full side HP — whatever
+        // the last battle left (a won round restores it already) never carries
+        if (this.settings.climb) this.restoreClimbHp();
+        // editing has no clock
+        this.phaseRemaining = this.editorMode === 'author' ? Infinity : this.deploySeconds();
         this.syncPostFx();
         // scars fade each round so the field heals over a few battles
         if (this.round > 1) this.map.fadeWear(0.68);
@@ -3073,11 +3354,10 @@ export class Game {
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], true);
         this.syncTacticVisuals();
-        // flanks and the middle strip open up after the first round; the outer
-        // rim stays undeployable forever. Tutorials never open flanks (Tutorial 1
-        // also uses flankCols: 0 so those strips aren't on the board at all).
-        const wantFlanks = this.round >= 2 && !isTutorial(this.settings);
-        const wantNeutral = this.round >= 2;
+        // flanks and the middle strip open when the rules say (normally round 2);
+        // the outer rim stays undeployable forever.
+        const wantFlanks = stripOpen(this.rules.flanksOpenFromRound, this.round);
+        const wantNeutral = stripOpen(this.rules.neutralOpenFromRound, this.round);
         if (
             wantFlanks !== this.map.flanksUnlocked ||
             wantNeutral !== this.map.neutralUnlocked
@@ -3088,8 +3368,8 @@ export class Game {
         }
         this.gridOverlay.visible = true;
         // the horde stands on the board from deployment start — both players
-        // see the wave and place against it
-        this.spawnHordeWave();
+        // see the wave and place against it (not while editing the board)
+        if (this.editorMode !== 'author') this.spawnHordeWave();
         // a commander's recruit level (Elite Prince: 2) is permanent and free of premium
         for (let seat = 0; seat < this.seats.length; seat++) {
             this.recruitLevel[seat] = this.starterCardOfSeat(seat)?.effects?.recruitLevel ?? 1;
@@ -3101,10 +3381,10 @@ export class Game {
         this.creditUsed.fill(false);
         this.deployState.used.fill(0);
         this.deployState.extrasSpent.fill(0);
-        // Campaign AI rebuilds a full army each round — raise non-human deploy caps.
+        // The Year's bots rebuild a full army each round — raise their deploy caps.
         if (this.settings.climb) {
             for (let seat = 0; seat < this.seats.length; seat++) {
-                if (seat !== this.humanSeat) this.deployState.limit[seat] = CLIMB_AI_DEPLOY_LIMIT;
+                if (this.seatIsBot(seat)) this.deployState.limit[seat] = CLIMB_AI_DEPLOY_LIMIT;
             }
         }
         this.tutorial?.applyDeployCaps();
@@ -3193,7 +3473,7 @@ export class Game {
         }
         this.placement.captureIntelSnapshot();
         // Campaign / Tutorial: no fog of war — player sees live AI deploys this round
-        this.placement.setIntelFog(!this.settings.climb && !isTutorial(this.settings));
+        this.placement.setIntelFog(this.rules.enemyIntel === 'fogged');
         this.captureEnemyIntelSnapshot();
         this.techIntelSnapshot = this.techTree.snapshotOwned();
         this.buildingIntelSnapshot = this.captureBuildingIntelSnapshot();
@@ -3202,7 +3482,7 @@ export class Game {
         this.tutorial?.onBuildPhase(this.round);
 
         // replay applies every action from the log — only run live AI when not rebuilding
-        if (!this.hydrating) {
+        if (!this.hydrating && this.editorMode !== 'author') {
             this.opponent.onBuildPhase(this.round);
             for (const e of this.extraAis) e.ai.onBuildPhase(this.round);
             // Campaign: AI places oil/spells before the player acts — refresh
@@ -3212,9 +3492,18 @@ export class Game {
         }
 
         // between-round cards (schedule owned by roundCardPreset algorithm)
-        if (shouldOfferRoundCards(this.settings, this.round)) this.offerRoundCards();
+        if (!this.editorMode && shouldOfferRoundCards(this.settings, this.round)) this.offerRoundCards();
         // cinema mode: startBuildPhase re-shows grid / deploy chrome — put it back away
         this.enforceCinemaWorld();
+        // a test battle fights the board as placed: the player locks in after a
+        // short look at it (never from inside the constructor)
+        if (this.editorMode === 'test' && !this.hydrating) {
+            const round = this.round;
+            setTimeout(() => {
+                if (this.disposed || this.phase !== 'build' || this.round !== round) return;
+                this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
+            }, TEST_BATTLE_LOOK_MS);
+        }
     }
 
     /**
@@ -3234,7 +3523,7 @@ export class Game {
         const playerIncome =
             eco.startingSupply + (this.round - 1) * climb.playerSupplyGrowthPerRound;
         for (let seat = 0; seat < this.seats.length; seat++) {
-            const amount = this.seats[seat]!.team === 'player' ? playerIncome : aiIncome;
+            const amount = this.seatIsBot(seat) ? aiIncome : playerIncome;
             // the campaign's own round income — same money dial as the normal
             // path, or the setting would silently do nothing in climb
             this.economy.creditRoundIncome(seat, amount);
@@ -3439,7 +3728,7 @@ export class Game {
             this.pendingHpDrawPlan = null;
             this.pendingHpDrawPreHp = null;
             // Shift+I must not treat the padded/restored HP as a climb verdict
-            this.pendingClimbOutcome = null;
+            this.pendingYearRound = null;
             // ... nor as a multi-round tutorial one (equal padded HP = a loss)
             this.tutorial?.clearPendingOutcome();
             this.paintHudHp();
@@ -3505,6 +3794,8 @@ export class Game {
         // for a star guest assigned to seat 1/2/3
         const stamped: Action = action.seat === this.humanSeat ? action : { ...action, seat: this.humanSeat };
         if (!this.dispatcher.dispatch(stamped)) return false;
+        // the sandbox deployment: whatever the game UI changed goes into the draft
+        if (this.scenarioEditor && this.round >= 1) this.scenarioEditor.syncFromBoard();
         if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
         // classic 1v1's starter pick (round 0) goes out via a dedicated
         // 'starter' message instead — this gate stays as-is for it. Star
@@ -3714,7 +4005,11 @@ export class Game {
         forgeSpellOwned: string[][];
         forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
         climb?: boolean;
+        opponents?: 'build' | 'lockInOnly';
         rngForRound?: (round: number) => () => number;
+        leveling: LevelingSettings;
+        yearRole?: 'attacker' | 'defender';
+        deployCap: () => number;
     } {
         return {
             types: this.types,
@@ -3757,8 +4052,14 @@ export class Game {
             forgeSpellOwned: this.forgeSpellOwned,
             forgeSpellsOf: (s: SeatId) => this.forgeSpellsOf(s),
             climb: !!this.settings.climb,
+            opponents: this.rules.opponents,
             rngForRound: (round: number) =>
                 mulberry32(seedFrom(this.seed, `ai-climb-${seat}-${round}`)),
+            leveling: this.settings.leveling,
+            ...(this.settings.climb
+                ? { yearRole: this.yearAttackerTeam() === this.seats[seat]?.team ? ('attacker' as const) : ('defender' as const) }
+                : {}),
+            deployCap: () => (this.deployState.limit[seat] ?? 0) + (this.deployState.extra[seat] ?? 0) - (this.deployState.used[seat] ?? 0),
         };
     }
 
@@ -3941,6 +4242,54 @@ export class Game {
         this.startBattlePhase();
     }
 
+    /**
+     * The scenario this match plays: the editor draft for author / test, the
+     * named scenario of the level package for play. Refuses one with errors.
+     */
+    private resolveScenario(): ScenarioDef | null {
+        const request = this.settings.scenario;
+        if (!request) return null;
+        const scenarios = activeLevel().scenarios;
+        // a package with exactly one scenario may be played without naming it
+        const onlyOne = scenarios.size === 1 ? [...scenarios.values()][0] : undefined;
+        const normalized = request.draft
+            ? normalizeScenario(request.draft, this.types)
+            : request.id !== undefined
+              ? scenarios.get(request.id)
+              : onlyOne;
+        if (!normalized?.def) {
+            throw new Error(
+                `[game] scenario match without a scenario (${normalized?.issues[0]?.message ?? `the level has no scenario "${request.id ?? ''}"`})`,
+            );
+        }
+        if (request.mode === 'play' && hasErrors(normalized.issues)) {
+            throw new Error(`[game] scenario has errors: ${normalized.issues.filter((i) => i.level === 'error').map((i) => i.message).join('; ')}`);
+        }
+        return normalized.def;
+    }
+
+    /**
+     * The scenario after this one in its package's `meta.jsonc` order, when
+     * this match plays one of them and it isn't the last. Packages without a
+     * meta order have no chain.
+     */
+    private nextScenarioId(): string | null {
+        if (this.settings.scenario?.mode !== 'play') return null;
+        const { scenarios, meta } = activeLevel();
+        const order = meta?.def?.levels.map((l) => l.scenario).filter((id) => scenarios.get(id)?.def) ?? [];
+        const current = this.playedScenarioId();
+        const at = current !== undefined ? order.indexOf(current) : -1;
+        return at >= 0 && at + 1 < order.length ? order[at + 1]! : null;
+    }
+
+    /** the scenario of its package this match plays (a lone scenario needs no id) */
+    private playedScenarioId(): string | undefined {
+        const request = this.settings.scenario;
+        if (request?.mode !== 'play') return undefined;
+        const { scenarios } = activeLevel();
+        return request.id ?? (scenarios.size === 1 ? [...scenarios.keys()][0] : undefined);
+    }
+
     /** a specific seat's own chosen commander card (null until picked) — tutorial cards included */
     private starterCardOfSeat(seat: SeatId): StartCard | null {
         const id = this.commander[seat];
@@ -3979,6 +4328,25 @@ export class Game {
     }
 
     /** local specialist is locked in — start match once every seat has picked */
+    /**
+     * Commanders decided by the rules instead of an offer (scenario 'fixed' /
+     * 'none'): the player gets the fixed commander or none, every computer seat
+     * none. Logged like any pick, so resume and replay rebuild it.
+     */
+    private applyRuleCommanders(): void {
+        if (this.starterPicked[this.humanSeat]) {
+            this.afterStarterPick(); // resumed — the picks are already in the log
+            return;
+        }
+        const rule = this.rules.commander;
+        const playerCard = rule.mode === 'fixed' ? rule.id : NO_COMMANDER_CARD_ID;
+        this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: playerCard });
+        const none = this.types.commander(NO_COMMANDER_CARD_ID);
+        this.opponent.chooseStarter(none ? [none] : []);
+        for (const e of this.extraAis) e.ai.chooseStarter(none ? [none] : []);
+        this.afterStarterPick();
+    }
+
     private afterStarterPick(): void {
         this.refreshShopHud();
         this.syncSpecialities();
@@ -4118,7 +4486,7 @@ export class Game {
             this.playerStarterOffer = null;
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.broadcast({ type: 'starter', cardId, side: this.localSeat() });
-            this.opponent.chooseStarter(this.draw(this.types.commanders, 4, this.rngCards.enemy));
+            this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
             this.triggerExtraStarters('player');
             this.triggerExtraStarters('enemy');
             this.afterStarterPick();
@@ -4135,8 +4503,20 @@ export class Game {
     private triggerExtraStarters(team: Team): void {
         for (const e of this.extraAis) {
             if (e.team !== team) continue;
-            e.ai.chooseStarter(this.draw(this.types.commanders, 4, e.rng));
+            e.ai.chooseStarter(this.starterOfferFor(team, e.rng));
         }
+    }
+
+    /**
+     * The commander cards a side is offered at round 0: a mode may hand a side
+     * its commander (The Year's Komtur attacker) — then it is the only card and
+     * nothing is drawn from that side's stream; otherwise four at random.
+     */
+    private starterOfferFor(team: Team, rng: () => number): StartCard[] {
+        const climb = this.settings.climb;
+        const forced =
+            climb?.attackerCommander && this.yearAttackerTeam() === team ? this.types.commander(climb.attackerCommander) : null;
+        return forced ? [forced] : this.draw(this.types.commanders, 4, rng);
     }
 
     /** timer ran out before the player picked a specialist — choose one at random.
@@ -4153,7 +4533,7 @@ export class Game {
         this.playerStarterOffer = null;
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
         this.broadcast({ type: 'starter', cardId: pick.id, side: this.localSeat() });
-        this.opponent.chooseStarter(this.draw(this.types.commanders, 4, this.rngCards.enemy));
+        this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
         this.triggerExtraStarters('player');
         this.triggerExtraStarters('enemy');
         this.afterStarterPick();
@@ -4552,6 +4932,7 @@ export class Game {
                 // ran) has its own connection close moments later as its
                 // client tears down — that's expected, not a drop to wait
                 // out
+                if (this.matchOver) this.hud.setRematchState('gone');
                 if (this.quitSeats.has(seat)) return;
                 this.beginStarSeatSuspend(seat);
             };
@@ -4588,6 +4969,7 @@ export class Game {
      * in this feature, since there is zero live-testing coverage for it yet.
      */
     private beginStarGuestReconnect(session: GuestSession): void {
+        if (this.matchOver) this.hud.setRematchState('gone');
         if (this.matchOver || !this.star || this.star.role !== 'guest' || this.star.session !== session) {
             return;
         }
@@ -5129,7 +5511,7 @@ export class Game {
             // forever, freezing every player at the specialist screen (same
             // follow-up triggerExtraStarters' own caller runs after a human
             // pick — see afterStarterPick).
-            ai.chooseStarter(this.draw(this.types.commanders, 4, rng));
+            ai.chooseStarter(this.starterOfferFor(def.team, rng));
             this.afterStarterPick();
         } else if (this.phase === 'build' && !this.seatReady[seat]) {
             ai.onBuildPhase(this.round);
@@ -5349,7 +5731,7 @@ export class Game {
             // side 'a', so this matches the host's perspective.
             if (msg.team === 'player') this.playerHp = 0;
             else this.enemyHp = 0;
-            if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
+            this.finishAfterForfeit(msg.team);
         }
     }
 
@@ -5410,6 +5792,11 @@ export class Game {
     }
 
     voluntaryQuit(): void {
+        // the editor and its test battles are not matches anyone loses
+        if (this.editorMode && !this.disposed) {
+            this.quitToMenu();
+            return;
+        }
         if (!this.matchOver && !this.disposed) {
             // every branch below ends in a defeat the player asked for
             this.endedByOwnChoice = true;
@@ -5478,7 +5865,8 @@ export class Game {
         battleElapsed: number | null;
         phaseRemaining: number;
         speedMultiplier: number;
-        climbWins: number;
+        /** The Year: round winners so far (the intro card shows them; the replay decides them again) */
+        yearRounds: YearRoundWinner[];
     } {
         return {
             seed: this.seed,
@@ -5487,7 +5875,7 @@ export class Game {
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
             phaseRemaining: this.phaseRemaining,
             speedMultiplier: this.speedSteps[this.speedIndex]!,
-            climbWins: this.climbWins,
+            yearRounds: [...this.yearRounds],
         };
     }
 
@@ -5791,8 +6179,8 @@ export class Game {
                 unitId: (e.action as { unitId?: number }).unitId,
             })),
         });
-        const starterOffer = this.draw(this.types.commanders, 4, this.rngCards.player);
-        this.draw(this.types.commanders, 4, this.rngCards.enemy);
+        const starterOffer = this.starterOfferFor('player', this.rngCards.player);
+        this.starterOfferFor('enemy', this.rngCards.enemy);
 
         this.replayLogFrom(log, liveBattleElapsed);
         this.hydrating = false;
@@ -6215,6 +6603,45 @@ export class Game {
         this.fastForwardBattle();
     }
 
+    /**
+     * Replay viewer: save the board as it stands as a scenario package (plan
+     * §9.1) — kept in the scenario cache, together with the content of the
+     * level the replay played. The watched side becomes `player`. Null outside
+     * replay watching or before both commanders are picked.
+     */
+    async saveReplayAsScenario(name: string): Promise<{ ref: LevelRef; files: OverlayFile[] } | null> {
+        if (!this.watching || this.replayLog === null || this.round < 1) return null;
+        const game = this;
+        const def = captureScenario(
+            {
+                types: this.types,
+                settings: this.settings,
+                rules: this.rules,
+                placement: this.placement,
+                techTree: this.techTree,
+                round: this.round,
+                hp: { player: this.playerHp, enemy: this.enemyHp },
+                flanksOpen: this.map.flanksUnlocked,
+                neutralOpen: this.map.neutralUnlocked,
+                atmosphere: this.weather?.snapshot.atmosphere ?? null,
+                playerCommanderId: this.commander[this.humanSeat] ?? null,
+                playerUnlocks: this.unlockedUnits[this.humanSeat] ?? [],
+                gameVersion: formatGameVersion(GAME_VERSION),
+                // a scenario's player rules belong to side a — only then do they carry over
+                baseRules: this.scenario && this.side === 'a' ? this.scenario.rules : null,
+                baseBuildings: this.baseBuildingUnits,
+                primarySeat(team) {
+                    return primarySeatOf(game.seats, team);
+                },
+            },
+            name,
+        );
+        const level = activeLevelRef();
+        const files = scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []);
+        const { ref } = await loadLevel(def.id, files);
+        return { ref, files };
+    }
+
     /** verify mode's recomputed outcome once the match has ended, for a
      *  caller (bulk verify in main.ts) to compare against the original
      *  without needing the visual game-over note. Null until finishMatch
@@ -6263,6 +6690,13 @@ export class Game {
      * reads the seat straight out of the already-sanitized payload).
      */
     private onStarMessage(msg: NetMessage, fromSeat?: SeatId): void {
+        // the rematch is agreed on at the end — a request can arrive before this
+        // client's own end screen (battle playback speed is per player), so it
+        // is kept whatever the phase
+        if (msg.type === 'rematch' || msg.type === 'starRematch') {
+            if (!this.disposed && this.star) this.onRematchMessage(msg, fromSeat);
+            return;
+        }
         if (this.disposed || this.matchOver || !this.star) return;
         const star = this.star;
         const isHost = star.role === 'host';
@@ -6514,7 +6948,7 @@ export class Game {
             const team = this.hostTeamAsLocal(msg.team);
             if (team === 'player') this.playerHp = 0;
             else this.enemyHp = 0;
-            if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
+            this.finishAfterForfeit(team);
         }
     }
 
@@ -7118,7 +7552,7 @@ export class Game {
      * Practice / MP keep fog until the local seat locks deployment.
      */
     private revealEnemyDeployIntel(): boolean {
-        return this.deployReady.player || !!this.settings.climb || isTutorial(this.settings);
+        return this.deployReady.player || this.rules.enemyIntel === 'visible' || isTutorial(this.settings);
     }
 
     private enemyInventoryView(): {
@@ -8129,10 +8563,40 @@ export class Game {
 
     /** HUD buy button: resolve a spawn spot, then run it through the action system.
      *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
+    /** The Year so far, for the HUD: round winners, length, the local side's role */
+    private yearProgress(): YearProgress {
+        return { rounds: [...this.yearRounds], total: this.settings.climb?.rounds ?? 0, you: this.watching ? null : this.yearLocalRole() };
+    }
+
+    /** The Year: the attacking side as a local team label (the settings may name it by canonical side) */
+    private yearAttackerTeam(): Team {
+        return this.settings.climb ? climbAttackerTeam(this.settings.climb, this.seats[this.humanSeat]?.side ?? 0) : 'player';
+    }
+
+    /** the local seat's role in The Year */
+    private yearLocalRole(): YearRoundWinner {
+        return this.yearAttackerTeam() === 'player' ? 'attacker' : 'defender';
+    }
+
+    /**
+     * A computer seat. Rosters that travel (rooms, lobby matches) say so; a
+     * plain single-player match marks its opponent 'human' although the AI
+     * drives it, so there it is every seat but the local one.
+     */
+    private seatIsBot(seat: SeatId): boolean {
+        return this.settings.seats ? this.seats[seat]?.controller === 'ai' : seat !== this.humanSeat;
+    }
+
+    /** board extras for the local player: not in tutorials, not as The Year's attacker */
+    private humanMayBuyExtras(): boolean {
+        if (isTutorial(this.settings)) return false;
+        return !this.settings.climb || this.yearAttackerTeam() !== 'player';
+    }
+
     private buyUnit(type: UnitType): boolean {
         if (!this.playerCanAct) return false;
-        // Campaign: no board extras (Ward Stone, Fire Bolt, and any future extras)
-        if (type.extra && (this.settings.climb || isTutorial(this.settings))) return false;
+        // The Year's attacker and the tutorials: no board extras (Ward Stone, Fire Bolt, …)
+        if (type.extra && !this.humanMayBuyExtras()) return false;
         if (this.tutorial?.blocksBuyEarly(type)) return false;
         if (!type.extra && !this.unlockedUnits[this.humanSeat]!.includes(type.id)) return false;
         if (this.economy.balance(this.humanSeat) < this.effectiveCost(type)) return false;
@@ -8226,14 +8690,17 @@ export class Game {
     }
 
     private refreshShopHud(): void {
+        this.hud.setShopPool(this.types.shopFor(this.starterCardOfSeat(this.humanSeat)));
         this.hud.updateShop(
             this.unlockedUnits[this.humanSeat]!,
             !this.unlockUsedThisRound[this.humanSeat],
             this.economy.balance(this.humanSeat),
+            !!this.starterPicked[this.humanSeat],
         );
     }
 
     private canUndo(): boolean {
+        if (this.editorMode === 'author') return this.scenarioEditor?.canUndo ?? false;
         return (
             this.phase === 'build' &&
             !this.matchOver &&
@@ -8592,6 +9059,12 @@ export class Game {
         }[] = [];
         // dragon breath is a progressive fire pour (hazardPours), not a one-shot ignite
         this.refreshFlightAlts();
+        // a horde pack standing out in the forest ring (a scenario placed it
+        // there) walks in like a wave does — derived from positions, same everywhere
+        for (const unit of this.placement.allUnits()) {
+            if (unit.team !== 'horde' || unit.type.structure) continue;
+            if (Math.abs(unit.world.x) > this.map.halfW || Math.abs(unit.world.z) > this.map.halfH) unit.marchIn = true;
+        }
         this.sim = new BattleSim(this.placement.allUnits(), {
             towers: this.settings.towers,
             leveling: this.settings.leveling,
@@ -8995,6 +9468,7 @@ export class Game {
         let hash: number | undefined;
         this.pendingHpDrawPlan = null;
         this.pendingHpDrawPreHp = null;
+        const testSummary = this.editorMode === 'test' && this.sim ? this.testBattleSummary(this.sim) : null;
         if (this.sim) {
             const preHp = { player: this.playerHp, enemy: this.enemyHp };
             const built = buildHpDrawSources(this.sim);
@@ -9045,6 +9519,13 @@ export class Game {
         this.oilVisuals.sync(this.oilField, 0, [], false);
         this.spellVisuals.clear(); // active zone markers are battle-only
         this.rallyVisuals.sync([], null); // battle-only follower markers
+        if (testSummary) {
+            // a test battle is one fight: the board stays as it ended, the strip shows the result
+            this.phase = 'hpDraw';
+            this.syncPostFx();
+            this.testBattleBar?.showResult(testSummary);
+            return;
+        }
         if (hash !== undefined && this.star) {
             // Star mode's battle-end / pre-match-end sync barrier: gates
             // BOTH of what used to run immediately below (finishMatch(), or
@@ -9091,10 +9572,14 @@ export class Game {
             // announce a verdict of its own.
             this.star.hub.broadcast({ type: 'starNextRound', round: this.round });
         }
-        if (this.settings.climb && !this.star && !this.watching) {
-            // Higher remaining HP wins the round (even if both went negative
-            // on a timeout). Equal HP → loss (must outscore the AI).
-            this.pendingClimbOutcome = this.playerHp > this.enemyHp ? 'win' : 'loss';
+        if (this.settings.climb) {
+            // Higher remaining HP takes the round (even if both went negative
+            // on a timeout). A tie goes to the defender: an attacker must
+            // outscore, a defender only has to hold. Every client (and a
+            // spectator) decides it from the same HP — labels mapped by side.
+            const attackerHp = this.yearAttackerTeam() === 'player' ? this.playerHp : this.enemyHp;
+            const defenderHp = this.yearAttackerTeam() === 'player' ? this.enemyHp : this.playerHp;
+            this.pendingYearRound = attackerHp > defenderHp ? 'attacker' : 'defender';
             this.hpDrawAfterMatchOver = false;
         } else if (
             this.tutorial?.armRoundOutcome(this.playerHp, this.enemyHp, !this.star && !this.watching)
@@ -9247,28 +9732,18 @@ export class Game {
     private proceedAfterHpDraw(): void {
         this.flushHpDrawDisplay();
         this.hpDrawSettleRemaining = 0;
-        let climbRoundWon = false;
+        let yearRoundDone = false;
         let tutorialRoundWon = false;
-        if (this.settings.climb && this.pendingClimbOutcome) {
-            const outcome = this.pendingClimbOutcome;
-            this.pendingClimbOutcome = null;
-            // Resume/retry hydrate already restores climbWins from the payload —
-            // re-counting prior round wins here would inflate the total and can
-            // even call presentMatchEnd (→ quitToMenu while hydrating).
-            if (this.hydrating) {
-                if (outcome === 'win') this.restoreClimbHp();
-            } else if (outcome === 'win') {
-                this.climbWins++;
-                if (this.climbWins >= this.settings.climb.roundsToWin) {
-                    this.presentMatchEnd('victory');
-                    return;
-                }
-                this.restoreClimbHp();
-                climbRoundWon = true;
-            } else {
-                this.presentMatchEnd('defeat');
+        if (this.settings.climb && this.pendingYearRound) {
+            // every round counts for whoever took it; the Year ends after its last round
+            this.yearRounds.push(this.pendingYearRound);
+            this.pendingYearRound = null;
+            this.restoreClimbHp();
+            if (this.yearRounds.length >= this.settings.climb.rounds) {
+                this.presentMatchEnd(yearWinner(this.yearRounds) === this.yearLocalRole() ? 'victory' : 'defeat');
                 return;
             }
+            yearRoundDone = true;
         } else if (this.tutorial?.hasPendingOutcome) {
             const result = this.tutorial.consumeRoundOutcome();
             if (result === 'victory' || result === 'defeat') {
@@ -9288,13 +9763,14 @@ export class Game {
         }
         this.placement.refaceAll();
         if (this.star && !this.hydrating) {
+            // a room doesn't wait on anyone's splash: it shows over the next build
+            if (yearRoundDone) this.hud.showYearRoundSplash(this.yearProgress(), () => undefined);
             this.startBuildPhase();
             return;
         }
-        // Campaign: brief Round n/total beat before the next build phase
-        if (climbRoundWon && this.settings.climb && !this.hydrating && !this.watching) {
-            const next = Math.min(this.climbWins + 1, this.settings.climb.roundsToWin);
-            this.hud.showClimbRoundSplash(next, this.settings.climb.roundsToWin, () => {
+        // The Year: who took the round, and the tally so far, before the next build phase
+        if (yearRoundDone && !this.hydrating) {
+            this.hud.showYearRoundSplash(this.yearProgress(), () => {
                 if (this.disposed || this.matchOver) return;
                 this.announceBattleEnd();
             });
@@ -9406,6 +9882,88 @@ export class Game {
     }
 
     /** someone hit 0 HP — freeze the game and show the result */
+    /** a message that reached this match before the next one could take it (rematch hand-over) */
+    deliverStarMessage(msg: NetMessage, fromSeat?: SeatId): void {
+        this.onStarMessage(msg, fromSeat);
+    }
+
+    /** this match's connection (main reuses it for a rematch) */
+    get starRole(): StarRole | null {
+        return this.star;
+    }
+
+    /** The Year's rematch: the same match with the roles swapped and a new seed */
+    yearRematchSettings(): GameSettings {
+        const next = structuredClone(this.settings);
+        next.seed = (Math.random() * 0x7fffffff) | 0;
+        const climb = next.climb;
+        if (climb) {
+            if (climb.attackerSide !== undefined) climb.attackerSide = climb.attackerSide === 0 ? 1 : 0;
+            else if (climb.humanRole === 'defender') delete climb.humanRole;
+            else climb.humanRole = 'defender';
+        }
+        return next;
+    }
+
+    /** the end screen's "Rematch, roles swapped" */
+    private requestRematch(): void {
+        if (!this.matchOver || this.watching || !this.settings.climb) return;
+        if (this.rematchStarted) return;
+        if (!this.star) {
+            this.rematchStarted = true;
+            this.onRematch?.(this.yearRematchSettings());
+            return;
+        }
+        this.rematchSeats.add(this.humanSeat);
+        this.hud.setRematchState('waiting');
+        if (this.star.role === 'host') {
+            this.star.hub.broadcast({ type: 'rematch', seats: [...this.rematchSeats] });
+            this.maybeStartRematch();
+        } else {
+            this.star.session.send({ type: 'rematch' });
+        }
+    }
+
+    private onRematchMessage(msg: Extract<NetMessage, { type: 'rematch' | 'starRematch' }>, fromSeat?: SeatId): void {
+        const star = this.star;
+        if (!star || !this.settings.climb) return;
+        if (msg.type === 'starRematch') {
+            if (star.role === 'guest' && this.matchOver && !this.rematchStarted) {
+                this.rematchStarted = true;
+                this.onStarRematchStart?.(msg);
+            }
+            return;
+        }
+        if (star.role === 'host') {
+            if (fromSeat === undefined) return;
+            this.rematchSeats.add(fromSeat);
+            star.hub.broadcast({ type: 'rematch', seats: [...this.rematchSeats] });
+        } else {
+            this.rematchSeats.clear();
+            for (const seat of msg.seats ?? []) this.rematchSeats.add(seat);
+        }
+        if (!this.rematchSeats.has(this.humanSeat) && this.rematchSeats.size > 0) this.hud.setRematchState('asked');
+        if (star.role === 'host') this.maybeStartRematch();
+    }
+
+    /** host: every player still here asked — start the rematch */
+    private maybeStartRematch(): void {
+        if (this.star?.role !== 'host' || !this.matchOver) return;
+        const players = [this.humanSeat, ...this.star.hub.connectedSeats()];
+        if (this.rematchStarted || players.length < 2 || !players.every((seat) => this.rematchSeats.has(seat))) return;
+        this.rematchStarted = true;
+        this.onStarRematch?.();
+    }
+
+    /** a side forfeited (its HP is 0 now): the match ends — in The Year too, whatever the round tally */
+    private finishAfterForfeit(team: Team): void {
+        if (this.settings.climb) {
+            this.presentMatchEnd(team === 'player' ? 'defeat' : 'victory');
+            return;
+        }
+        if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
+    }
+
     private finishMatch(): void {
         const result =
             this.playerHp <= 0 && this.enemyHp <= 0
@@ -9458,6 +10016,10 @@ export class Game {
             queueMicrotask(() => this.quitToMenu());
             return;
         }
+        if (result === 'victory' && !this.watching) {
+            const won = this.playedScenarioId();
+            if (won !== undefined) this.onScenarioWon?.(won);
+        }
         // watching someone else's (or your own) already-recorded match end
         // again isn't a new result to report — it's the same match — EXCEPT
         // verify mode, which specifically re-submits through the normal
@@ -9503,17 +10065,19 @@ export class Game {
                 !isTutorial(this.settings);
             // A finished lesson offers the one after it, so the set can be played
             // straight through; the last lesson only offers the menu.
+            // a scenario package with an order (meta.jsonc) plays straight through the same way
             const allowNext =
                 result === 'victory' &&
                 !this.watching &&
-                nextTutorialId(tutorialId(this.settings)) !== null;
-            const climbProgress = this.settings.climb
-                ? {
-                      n: Math.max(1, this.round),
-                      total: this.settings.climb.roundsToWin,
-                  }
-                : undefined;
-            this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress });
+                (nextTutorialId(tutorialId(this.settings)) !== null || this.nextScenarioId() !== null);
+            const climbProgress = this.settings.climb ? { n: Math.max(1, this.round), total: this.settings.climb.rounds } : undefined;
+            // a Year that ran its course shows the tally (one ended by a forfeit doesn't claim a Year winner)
+            const year = this.settings.climb && this.yearRounds.length >= this.settings.climb.rounds ? this.yearProgress() : undefined;
+            // The Year, played to its end: the same pairing again with the roles swapped
+            const allowRematch = !!year && !this.watching;
+            this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress, allowRematch, ...(year ? { year } : {}) });
+            // the other player may have asked before this screen came up
+            if (allowRematch && [...this.rematchSeats].some((seat) => seat !== this.humanSeat)) this.hud.setRematchState('asked');
         }
     }
 
@@ -9539,7 +10103,6 @@ export class Game {
             actions,
             side: this.side,
             names: { ...this.playerNames },
-            climbWins: this.climbWins,
         });
     }
 
@@ -10738,7 +11301,11 @@ export class Game {
         }
         const canBuy = u.seat === this.humanSeat && this.playerCanAct;
         const selected = techsForUnit(u.type, this.types, this.loadoutOf(u.seat));
-        const slotsN = techSlotLimit(u.type);
+        // the editor's sandbox shows every talent the type has, not only the slot count
+        const slotsN =
+            (this.editorMode === 'author' || loadoutShowsAll(this.rules.loadout)) && u.seat === this.humanSeat
+                ? Math.max(techSlotLimit(u.type), selected.length)
+                : techSlotLimit(u.type);
         const owned = this.intelTechOwned(u);
         const ownedCount = owned.size;
         const bal = this.economy.balance(u.seat);

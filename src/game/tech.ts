@@ -113,6 +113,11 @@ export class TechTree {
         return this.ownedFor(seat, typeId).has(techId);
     }
 
+    /** forget every owned talent (the scenario editor rebuilds its board) */
+    clear(): void {
+        for (const bySeat of this.owned) bySeat.clear();
+    }
+
     /** the actual purchase (charging, price escalation) lives in the action dispatcher */
     add(seat: SeatId, typeId: string, techId: string): void {
         if (seat < 0 || seat >= this.owned.length) return;

@@ -79,10 +79,28 @@ export interface AssetOverlay {
     urls: ReadonlyMap<string, string>;
     /** data files (`data/**.jsonc`) as text, for the level's definition loader */
     dataFiles: ReadonlyMap<string, string>;
+    /**
+     * Scenario files by id: `scenarios/<id>.jsonc`, plus a lone root
+     * `scenario.jsonc` (id `scenario`) as the simple one-level form.
+     */
+    scenarioTexts: ReadonlyMap<string, string>;
+    /** `meta.jsonc` at the package root, if any (name, author, order of its scenarios) */
+    metaText: string | null;
     report: OverlayReport;
 }
 
 const TEXT_FILE = /\.(jsonc?|txt|csv|svg)$/i;
+/** the simple one-level package: board + rules in one root file (plan §4.1) */
+export const SCENARIO_FILE = 'scenario.jsonc';
+/** levels of a package: `scenarios/<id>.jsonc` */
+export const SCENARIOS_DIR = 'scenarios/';
+/** optional package information: name, author, cover, order of its scenarios */
+export const META_FILE = 'meta.jsonc';
+
+/** a scenario or package meta file (text, never a URL) */
+export function isScenarioPackageFile(path: string): boolean {
+    return path === SCENARIO_FILE || path === META_FILE || (path.startsWith(SCENARIOS_DIR) && path.endsWith('.jsonc'));
+}
 
 /** a copy on a plain ArrayBuffer — Blob and digest won't take SharedArrayBuffer views */
 function toBytes(b: ArrayBuffer | Uint8Array): Uint8Array<ArrayBuffer> {
@@ -120,7 +138,15 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
 
     const dataFiles = new Map<string, string>();
     const referenced = new Set<string>();
+    const scenarioTexts = new Map<string, string>();
+    let metaText: string | null = null;
     for (const f of valid) {
+        if (isScenarioPackageFile(f.path)) {
+            const text = new TextDecoder().decode(toBytes(f.bytes));
+            if (f.path === META_FILE) metaText = text;
+            else if (f.path === SCENARIO_FILE) scenarioTexts.set('scenario', text);
+            else scenarioTexts.set(f.path.slice(SCENARIOS_DIR.length, -'.jsonc'.length), text);
+        }
         if (!f.path.startsWith('data/') || !TEXT_FILE.test(f.path)) continue;
         const text = new TextDecoder().decode(toBytes(f.bytes));
         dataFiles.set(f.path, text);
@@ -135,10 +161,12 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
         if (BASE_ASSET_URLS.has(f.path) || BASE_DATA_PATHS.has(f.path)) report.replaced.push(f.path);
         else {
             report.added.push(f.path);
-            if (!f.path.startsWith('data/') && !referenced.has(f.path)) report.unreferenced.push(f.path);
+            if (!f.path.startsWith('data/') && !isScenarioPackageFile(f.path) && !referenced.has(f.path)) {
+                report.unreferenced.push(f.path);
+            }
         }
         parts.push(enc.encode(f.path), new Uint8Array([0]), normalizedBytes(f.path, bytes), new Uint8Array([0]));
-        if (!f.path.startsWith('data/')) {
+        if (!f.path.startsWith('data/') && !isScenarioPackageFile(f.path)) {
             urls.set(f.path, URL.createObjectURL(new Blob([bytes])));
         }
     }
@@ -150,7 +178,7 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
         at += p.length;
     }
     const hash = hex(await crypto.subtle.digest('SHA-256', joined));
-    return { id, hash, urls, dataFiles, report };
+    return { id, hash, urls, dataFiles, scenarioTexts, metaText, report };
 }
 
 /**

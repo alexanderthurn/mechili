@@ -7,6 +7,7 @@
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 3.6,
     "structure": true,
+    "baseAnchor": "research",
     "burn": { "takenMult": 0.35 }, // stone / masonry resists
     "targets": { "ground": false, "air": false }, // towers don't shoot
     "collisionRadius": 6.84, // footprint tiles × CELL × 0.57

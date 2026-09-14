@@ -19,6 +19,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { THEME } from '../theme';
 import { buildUnitPreviewMesh, type UnitType } from '../game/units';
 import { cloneUnitModel } from '../game/unitModels';
+import { cloneAnimatedModel } from '../game/unitAnimated';
 
 /** Final PNG edge length (shop tiles are ~80 CSS px; 256 covers 3× retina). */
 const ICON_SIZE = 256;
@@ -79,7 +80,9 @@ function renderUnitIcon(renderer: WebGLRenderer, type: UnitType, envMap: Texture
     fill.position.set(-2, 2, -3);
     scene.add(fill);
 
-    const glb = cloneUnitModel(type.id, 'player');
+    // the model the unit wears on the board — a type may borrow another's (modelId)
+    const modelKey = type.modelId ?? type.id;
+    const glb = cloneUnitModel(modelKey, 'player') ?? cloneAnimatedModel(modelKey, 'player');
     const mesh = glb ?? buildUnitPreviewMesh(type, 'player');
     if (!glb) mesh.scale.multiplyScalar(2);
     scene.add(mesh);

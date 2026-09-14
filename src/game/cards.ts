@@ -34,6 +34,7 @@ export type SpecialityId =
     | 'giant'
     | 'tutor'
     | 'money'
+    /** also The Komtur's side in The Year — fields the forest roster (her own shop) */
     | 'cursed'
     /** Hidden tutorial-only commander — never offered in normal pools. */
     | 'tutorial';
@@ -196,6 +197,12 @@ export interface StartCard {
     speciality: SpecialityId;
     /** the signature unit this commander can buy even if it is not in the starting army */
     unlock?: string;
+    /**
+     * This commander's own shop — the unit types its side can ever buy or
+     * unlock, instead of the normal shop (e.g. The Komtur's forest roster,
+     * whose units are otherwise not buyable). Omit = the normal shop.
+     */
+    shop?: string[];
     /** what the commander does in a match — each effect is code, the numbers are the commander's */
     effects?: CommanderEffects;
     /** pack items granted into the player's inventory */
@@ -247,10 +254,12 @@ export function startCardForgeIcons(
 export const TUTORIAL_START_CARD_ID = 'tutorial';
 export const TUTORIAL_2_START_CARD_ID = 'tutorial2';
 export const TUTORIAL_3_START_CARD_ID = 'tutorial3';
+/** hidden commander a scenario without commanders picks for every seat */
+export const NO_COMMANDER_CARD_ID = 'none';
 
 /** starter packs + the commander's signature unit (tutorial commanders have neither) */
 export function starterUnlockedUnits(card: StartCard, types: TypeRegistry): ShopUnitId[] {
     const ids = new Set<ShopUnitId>(card.units);
     if (card.unlock !== undefined) ids.add(card.unlock);
-    return types.shopUnitIds.filter((id) => ids.has(id));
+    return types.shopFor(card).filter((id) => ids.has(id));
 }

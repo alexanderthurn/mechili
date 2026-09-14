@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/PackageMeta",
+  "definitions": {
+    "PackageMeta": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "cover": {
+          "type": "string",
+          "description": "image path inside the package, e.g. `ui/cover.webp`"
+        },
+        "levels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PackageMetaLevel"
+          },
+          "description": "played in this order"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "name",
+        "levels"
+      ],
+      "additionalProperties": false
+    },
+    "PackageMetaLevel": {
+      "type": "object",
+      "properties": {
+        "scenario": {
+          "type": "string",
+          "description": "id of `scenarios/<id>.jsonc` in the same package"
+        },
+        "title": {
+          "type": "string"
+        },
+        "briefing": {
+          "type": "string",
+          "description": "text shown before the level"
+        },
+        "carryOver": {
+          "type": "string",
+          "enum": [
+            "none",
+            "army",
+            "army+supply"
+          ],
+          "description": "what the player takes into the next level (not applied yet)"
+        },
+        "unlocks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "units that stay unlocked from this level on (not applied yet)"
+        }
+      },
+      "required": [
+        "scenario"
+      ],
+      "additionalProperties": false,
+      "description": "`meta.jsonc` — optional information about a package: its name, author, cover, and the order and progression of its scenarios (plan §4.1, §9.4). A package without it is simply a collection of scenarios, listed by file. Campaign play comes later: today the file is validated, and the progression fields are reserved for it."
+    }
+  },
+  "allowComments": true,
+  "allowTrailingCommas": true
+}

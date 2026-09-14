@@ -590,10 +590,20 @@ export interface ActionContext {
      */
     commanderHpFactor: number;
     /**
-     * Campaign climb: when set, chooseCard sets that side's HP to this value
-     * instead of adding commander startingHp (see GameSettings.climb).
+     * Fixed side HP (campaign climb, tutorials, scenarios): when set, chooseCard
+     * sets the side's HP to its value instead of adding commander startingHp.
      */
-    climbSideHp: number | null;
+    fixedSideHp: { player: number; enemy: number } | null;
+    /** false = chooseCard grants no starting army (a scenario's fixed commander without its troops) */
+    starterArmy: boolean;
+    /** replaces the player side's shop unlocks after its commander pick (scenario); null = the commander's */
+    playerUnlocks: string[] | null;
+    /** what the player side's round unlock may add (scenario); null = any buyable unit */
+    playerUnlockable: string[] | null;
+    /**
+     * The Year's attacking side (no board extras there); null outside The Year.
+     */
+    climbAttacker: Team | null;
     /**
      * Campaign climb active — gates {@link ClearArmyAction} (AI fresh rebuild).
      */
@@ -761,9 +771,11 @@ export class ActionDispatcher {
                 const type = this.ctx.types.byId(action.typeId);
                 // structures aren't buyable — except the board extras
                 if (!type || (type.structure && !type.extra)) return false;
-                if (!isPlayerBuyable(type)) return false;
-                // Campaign: human side cannot buy board extras (Ward Stone, Fire Bolt, …)
-                if (type.extra && this.ctx.climbMode && action.team === 'player') return false;
+                // army units come from the seat's shop (its commander's own, else the normal one)
+                const shop = this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[seat] ?? ''));
+                if (type.extra ? !isPlayerBuyable(type) : !shop.includes(type.id)) return false;
+                // The Year: the attacking side cannot buy board extras (Ward Stone, Fire Bolt, …)
+                if (type.extra && this.ctx.climbAttacker === action.team) return false;
                 if (
                     !type.extra &&
                     !this.ctx.unlockedUnits[seat]!.includes(action.typeId)
@@ -905,25 +917,11 @@ export class ActionDispatcher {
                 const slots = garrison.slots;
                 const taken = placement.allUnits().filter((u) => u.hostUnitId === keep.id).length;
                 if (taken >= slots.length) return false;
-                const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
-                if (!spot) return false; // keep model has no authored slots
+                if (!strongholdArcherSlotWorld(keep, slots[taken]!)) return false; // keep model has no authored slots
                 const cost = this.ctx.types.garrisonPostCost(keep.type, taken);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
-                const archer = placement.spawnAtWorld(
-                    postedType,
-                    spot.x,
-                    spot.z,
-                    action.team,
-                    seat,
-                );
-                archer.strongholdArcherSlot = slots[taken]!;
-                archer.hostUnitId = keep.id;
-                archer.pinnedY = spot.y;
-                // outward from the keep's middle — the wedge behind him is the
-                // keep itself, and he does not shoot through his own walls
-                archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
-                archer.seatMembers();
+                const archer = spawnGarrisonPost(placement, postedType, keep, action.team, seat)!;
                 entry.strongholdArcherUnit = archer;
                 return true;
             }
@@ -1150,9 +1148,9 @@ export class ActionDispatcher {
                     this.ctx.flankSpawnMult[seat] = card.effects.flankSpawnMult;
                 }
                 entry.prevHp = this.ctx.hp.get(action.team);
-                if (this.ctx.climbSideHp != null) {
-                    // Campaign: fixed sudden-death HP — commander startingHp ignored
-                    this.ctx.hp.set(action.team, this.ctx.climbSideHp);
+                if (this.ctx.fixedSideHp != null) {
+                    // campaign / tutorial / scenario: fixed side HP — commander startingHp ignored
+                    this.ctx.hp.set(action.team, this.ctx.fixedSideHp[action.team]);
                 } else {
                     const grantedHp = Math.round(card.startingHp * this.ctx.commanderHpFactor);
                     this.ctx.hp.set(action.team, this.ctx.hp.get(action.team) + grantedHp);
@@ -1175,6 +1173,9 @@ export class ActionDispatcher {
                           : card.id === TUTORIAL_2_START_CARD_ID
                             ? []
                             : starterUnlockedUnits(card, this.ctx.types);
+                if (this.ctx.playerUnlocks && action.team === 'player') {
+                    this.ctx.unlockedUnits[seat] = [...this.ctx.playerUnlocks];
+                }
                 // items (tactics) are additive per CARD, not an overwrite like
                 // speciality/HP/unlocks above — every seat's own pick grants
                 // its own items into ITS OWN pool (items are per-seat, never
@@ -1186,7 +1187,7 @@ export class ActionDispatcher {
                 }
                 // the starting army — free, placed ring-wise from THIS SEAT's lane
                 entry.units = [];
-                for (const typeId of card.units) {
+                for (const typeId of this.ctx.starterArmy ? card.units : []) {
                     const type = this.ctx.types.byId(typeId);
                     if (!type) continue;
                     const anchor = placement.findStartSpot(action.team, type, seat);
@@ -1398,11 +1399,12 @@ export class ActionDispatcher {
             case 'unlockUnit': {
                 if (this.ctx.unlockUsedThisRound[seat]) return false;
                 if (this.ctx.unlockedUnits[seat]!.includes(action.typeId)) return false;
-                const cost = unlockCostFor(
-                    action.typeId,
-                    this.ctx.types.commander(this.ctx.commander[seat] ?? ''),
-                    this.ctx.types,
-                );
+                if (action.team === 'player' && this.ctx.playerUnlockable && !this.ctx.playerUnlockable.includes(action.typeId)) {
+                    return false;
+                }
+                const unlockCommander = this.ctx.types.commander(this.ctx.commander[seat] ?? '');
+                if (!this.ctx.types.shopFor(unlockCommander).includes(action.typeId)) return false;
+                const cost = unlockCostFor(action.typeId, unlockCommander, this.ctx.types);
                 if (!Number.isFinite(cost)) return false;
                 if (cost > 0 && !economy.spend(seat, cost)) return false;
                 this.ctx.unlockedUnits[seat]!.push(action.typeId);
@@ -2099,6 +2101,35 @@ export function prepareHazardPours(
 }
 
 /** quantize world coords so peers never disagree on float noise */
+/**
+ * Man the next free post of a garrisoned building (`garrison` attribute):
+ * the posted type stands on the model's next `UnitN` pad, pinned to it, facing
+ * out. Shared by the purchase action and scenario setup. Null when every post
+ * is taken or the model has no pad for the next one.
+ */
+export function spawnGarrisonPost(
+    placement: PlacementController,
+    postedType: UnitType,
+    keep: Unit,
+    team: Team,
+    seat: SeatId,
+): Unit | null {
+    const slots = keep.type.garrison?.slots ?? [];
+    const taken = placement.allUnits().filter((u) => u.hostUnitId === keep.id).length;
+    if (taken >= slots.length) return null;
+    const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
+    if (!spot) return null;
+    const archer = placement.spawnAtWorld(postedType, spot.x, spot.z, team, seat);
+    archer.strongholdArcherSlot = slots[taken]!;
+    archer.hostUnitId = keep.id;
+    archer.pinnedY = spot.y;
+    // outward from the keep's middle — the wedge behind him is the
+    // keep itself, and he does not shoot through his own walls
+    archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
+    archer.seatMembers();
+    return archer;
+}
+
 export function quantizeWorld(v: number): number {
     return Math.round(v * 20) / 20;
 }

@@ -105,7 +105,7 @@ export function currentContentHash(): string {
 }
 
 /** The content hash of a match playing `level` (undefined = base game), whatever is active right now. */
-export function contentHashFor(level: LevelRef | undefined): string {
+export function contentHashFor(level: LevelRef | null | undefined): string {
     return level ? `${BASE_CONTENT_HASH}+${level.hash}` : BASE_CONTENT_HASH;
 }
 
@@ -318,7 +318,7 @@ export function suggestUrl(): string {
 /** Custom Game layouts. '1v1ai' was removed — hosting '1v1' and pressing
  *  "Start with AI" is the same match, so it was a second door to one room
  *  (main.ts's normalizeCustomGameMode migrates any stored one). */
-export type CustomGameMode = '1v1' | '2v2' | '2v2ai';
+export type CustomGameMode = '1v1' | '2v2' | '2v2ai' | 'year';
 export interface CustomGameConfig {
     mode: CustomGameMode;
     /** id into CUSTOM_GAME_PACE_PRESETS */
@@ -333,6 +333,14 @@ export interface CustomGameConfig {
     moneyFactor: number;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
+    /**
+     * The Year (mode 'year'): who attacks — 'choose' = each player asks for a
+     * role in the lobby and a clash is a coin flip at Start; or fixed to the
+     * host's / the guest's side.
+     */
+    yearRoles?: 'choose' | 'host' | 'guest';
+    /** The Year: the attacker fields the Komtur's forest roster (Cursed Christine) */
+    yearKomtur?: boolean;
 }
 
 /**
@@ -486,6 +494,16 @@ export type NetMessage =
      *  CanonicalSeatDef.ready) — re-broadcasts as part of the next
      *  starRoster, same as any other roster change. */
     | { type: 'lobbyReady'; ready: boolean }
+    /** guest → host: the role this guest asks for in a Year room (null = any) */
+    | { type: 'lobbyRole'; role: 'attacker' | 'defender' | null }
+    /**
+     * The Year's "Rematch, roles swapped": a player → host asks for it; host →
+     * everyone: the seats that asked so far. When every connected player has,
+     * the host starts the rematch with `starRematch`.
+     */
+    | { type: 'rematch'; seats?: SeatId[] }
+    /** host → guest: the rematch starts — a new match on the same connection */
+    | { type: 'starRematch'; seed: number; settings: GameSettings; roster: CanonicalSeatDef[] }
     /**
      * host → guest: the scenario this room plays (null = base game). Sent on
      * join and whenever the host changes it; the guest answers `levelReady`
@@ -2440,8 +2458,8 @@ export interface SinglePlayerSave {
     phaseRemaining?: number;
     /** battle playback multiplier; older saves omit this (treated as 1×) */
     speedMultiplier?: number;
-    /** Campaign climb wins; older saves omit this (treated as 0) */
-    climbWins?: number;
+    /** The Year: who took each round so far — the loading card shows it (the replay decides it again) */
+    yearRounds?: ('attacker' | 'defender')[];
     localName: string;
 }
 

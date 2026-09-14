@@ -5,7 +5,9 @@
 {
     "id": "hordeKomtur",
     "name": "Hans von Stoffeln",
-    "cost": 600,
+    "cost": 1200, // bought by The Komtur's side (was 600 as a wave value)
+    "unlockCost": 200,
+    "xpValue": 600.0, // kill XP as before the price change
     "hpWithdraw": 800,
     "buyable": false,
     "horde": true,
@@ -35,4 +37,7 @@
     "turnRate": 2.2,
     "turnMove": "cruise",
     "proceduralModel": "dwarf",
+    // standard talents for The Komtur's side
+    "talents": ["stingers", "armor"],
+    "talentSlots": 2,
 }

@@ -1,0 +1,13 @@
+// Hidden "no commander": scenarios with rules.commander.mode "none" pick it for
+// every seat — no army, no spells, no effects. Side HP comes from the scenario.
+{
+    "id": "none",
+    "title": "No Commander",
+    "portrait": "spec-speed",
+    "speciality": "tutorial",
+    "units": [],
+    "unitsLabel": "",
+    "startingHp": 1,
+    "forgeSpells": [],
+    "description": "",
+}

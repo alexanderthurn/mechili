@@ -18,6 +18,8 @@ import { isPlayerBuyable, type Team, type UnitType } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
+import { chooseRebuildCommander, YearBrain } from './aiYear';
+import type { LevelingSettings } from './settings';
 
 /** army packs cheaper than this are preferred for the AI's first buy each round */
 const CHEAP_UNIT_COST = 200;
@@ -81,13 +83,29 @@ export class AiOpponent implements Opponent {
              * Practice / MP leave this unset/false.
              */
             climb?: boolean;
+            /** 'lockInOnly': skip every purchase and just lock in (scenario opponents) */
+            opponents?: 'build' | 'lockInOnly';
             /** Campaign: deterministic per-round stream (seed + round) */
             rngForRound?: (round: number) => () => number;
+            /** leveling rules (the planner reads level multipliers and prices) */
+            leveling?: LevelingSettings;
+            /** The Year: this seat's role — its planner knows who has the base */
+            yearRole?: 'attacker' | 'defender';
+            /** which brain plays: The Year's planner (default in The Year) or the classic random builder */
+            brain?: 'year' | 'classic';
+            /** new packs this seat may deploy in a build phase */
+            deployCap?: () => number;
+            /** planner choice overrides for this seat (arena experiments) */
+            plannerOverrides?: Record<string, number>;
         },
     ) {}
 
     chooseStarter(offer: readonly StartCard[]): void {
-        const pick = offer[Math.floor(this.ctx.rng() * offer.length)]!;
+        // The Year rebuilds this side every round: pick for lasting combat effects
+        const pick =
+            this.ctx.climb && this.ctx.brain !== 'classic' && offer.length > 0
+                ? chooseRebuildCommander(offer, this.ctx.types)
+                : offer[Math.floor(this.ctx.rng() * offer.length)]!;
         this.ctx.dispatch({ kind: 'chooseCard', team: this.team, seat: this.seat, cardId: pick.id });
     }
 
@@ -106,7 +124,25 @@ export class AiOpponent implements Opponent {
     }
 
     onBuildPhase(round: number): void {
-        if (this.ctx.climb) {
+        if (this.ctx.opponents === 'lockInOnly') {
+            // a scenario's authored army fights as placed — lock in, nothing else
+        } else if (this.ctx.brain !== 'classic' && this.ctx.leveling && (this.ctx.climb || this.ctx.brain === 'year')) {
+            // The Year: rebuild from nothing and plan the whole round against the visible army
+            // (the arena's player stand-in uses the same planner on a kept army)
+            if (this.ctx.climb) this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
+            const brain = new YearBrain(
+                { ...this.ctx, leveling: this.ctx.leveling },
+                this.team,
+                this.seat,
+                this.ctx.yearRole ?? 'defender',
+                this.ctx.rngForRound?.(round) ?? this.ctx.rng,
+                this.ctx.plannerOverrides,
+            );
+            brain.playRound({ keep: !this.ctx.climb, slots: this.ctx.deployCap?.() ?? 40 });
+            // what the planner leaves alone: runes in the inventory, spells in the strip
+            this.applyItems(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
+            this.placeTactics(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
+        } else if (this.ctx.climb) {
             this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
             this.runBuildActions({
                 climb: true,
@@ -194,13 +230,19 @@ export class AiOpponent implements Opponent {
         }
     }
 
+    /** the unit types this seat's shop holds (its commander's own shop, else the normal one) */
+    private shop(): readonly string[] {
+        return this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[this.seat] ?? ''));
+    }
+
     /** unlocked, buyable army types this seat can afford right now */
     private affordableArmyTypes(pred?: (t: UnitType) => boolean): UnitType[] {
         const { economy, unlockedUnits } = this.ctx;
+        const shop = this.shop();
         return this.ctx.types.roster.filter(
             (t) =>
                 !t.extra &&
-                isPlayerBuyable(t) &&
+                shop.includes(t.id) &&
                 unlockedUnits[this.seat]!.includes(t.id) &&
                 economy.canAfford(this.seat, t) &&
                 (!pred || pred(t)),
@@ -252,7 +294,7 @@ export class AiOpponent implements Opponent {
         const unlocked = unlockedUnits[this.seat]!;
 
         const allCheap: UnitType[] = [];
-        for (const id of this.ctx.types.shopUnitIds) {
+        for (const id of this.shop()) {
             const t = this.ctx.types.byId(id);
             if (t && t.cost < CHEAP_UNIT_COST) allCheap.push(t);
         }

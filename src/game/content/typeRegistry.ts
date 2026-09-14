@@ -24,8 +24,10 @@ export class TypeRegistry {
     readonly roster: readonly UnitType[];
     /** addressable by id, never in the roster (e.g. posted from a building panel) */
     readonly offRoster: readonly UnitType[];
-    /** base buildings, in construction / preload order */
+    /** every building type the pack lists, in construction / preload order */
     readonly buildings: readonly UnitType[];
+    /** the buildings every side starts with (those with a `baseAnchor`), in the same order */
+    readonly baseBuildings: readonly UnitType[];
     /** model specs by model id */
     readonly models: Readonly<Record<string, ModelSpecData>>;
     /**
@@ -33,6 +35,8 @@ export class TypeRegistry {
      * extras, no structures, nothing marked `buyable: false`.
      */
     readonly shopUnitIds: readonly string[];
+    /** every unit type any shop can hold: the normal shop plus each commander's own */
+    readonly allShopUnitIds: readonly string[];
     /** talent catalog by id */
     readonly talents: ReadonlyMap<string, TechDef>;
     /** rune catalog by id, in catalog order */
@@ -64,6 +68,7 @@ export class TypeRegistry {
         this.roster = pack.roster;
         this.offRoster = pack.offRoster;
         this.buildings = pack.buildings;
+        this.baseBuildings = pack.buildings.filter((b) => b.baseAnchor !== undefined);
         this.models = pack.models;
         this.index = new Map([...pack.roster, ...pack.offRoster, ...pack.buildings].map((t) => [t.id, t]));
         this.shopUnitIds = pack.roster
@@ -83,6 +88,8 @@ export class TypeRegistry {
             .sort((a, b) => a.ingredients.length - b.ingredients.length);
         this.commanders = pack.commanders;
         this.commanderIndex = new Map([...pack.commanders, ...pack.hiddenCommanders].map((c) => [c.id, c]));
+        const factionUnits = [...pack.commanders, ...pack.hiddenCommanders].flatMap((c) => c.shop ?? []);
+        this.allShopUnitIds = [...new Set([...this.shopUnitIds, ...factionUnits])];
         const runeCards: RoundCard[] = [
             ...pack.runes.filter((r) => r.tier === 'base'),
             ...pack.runes.filter((r) => r.tier === 'advanced'),
@@ -102,6 +109,11 @@ export class TypeRegistry {
     /** a spell by id — null for an unknown id */
     tactic(id: string): TacticDef | null {
         return this.tacticIndex.get(id) ?? null;
+    }
+
+    /** the unit types a side under this commander can buy or unlock (its own shop, else the normal one) */
+    shopFor(commander: StartCard | null | undefined): readonly string[] {
+        return commander?.shop ?? this.shopUnitIds;
     }
 
     /** a commander by id, including hidden tutorial ones */
@@ -144,6 +156,11 @@ export class TypeRegistry {
         return list;
     }
 
+    /** the base building standing at an anchor, if the pack has one */
+    baseBuilding(anchor: NonNullable<UnitType['baseAnchor']>): UnitType | null {
+        return this.baseBuildings.find((b) => b.baseAnchor === anchor) ?? null;
+    }
+
     /** every type: roster, off-roster and buildings */
     all(): IterableIterator<UnitType> {
         return this.index.values();
@@ -164,7 +181,8 @@ export class TypeRegistry {
     /** once-per-deployment shop unlock fee; Infinity for types that can't be unlocked */
     unlockCost(typeId: string): number {
         const type = this.index.get(typeId);
-        if (!type || type.buyable === false) return Number.POSITIVE_INFINITY;
+        if (!type) return Number.POSITIVE_INFINITY;
+        // a unit outside the normal shop has a price only for the commanders whose shop holds it
         return type.unlockCost ?? Number.POSITIVE_INFINITY;
     }
 

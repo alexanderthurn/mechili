@@ -1383,6 +1383,28 @@ ${chatFloatStyles(u, pc, ec)}
     z-index: 30;
 }
 .mechili-menu .m-lobby { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
+.mechili-menu .m-mp-count {
+    display: inline-flex;
+    gap: 6px;
+    margin-inline-start: auto;
+    padding-inline-start: 10px;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    text-transform: none;
+}
+.mechili-menu .m-mp-count[hidden] { display: none; }
+.mechili-menu .m-mp-count > span {
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid ${u.border};
+    background: rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+}
+.mechili-menu .m-mp-open { color: ${u.hpBar}; border-color: currentColor; }
+.mechili-menu .m-mp-open::before { content: '● '; }
+.mechili-menu .m-mp-running { color: ${u.brassLight}; }
+.mechili-menu .m-mp-running::before { content: '▶ '; font-size: 0.85em; }
 .mechili-menu .m-rooms {
     width: 100%;
     display: flex;
@@ -1459,6 +1481,47 @@ ${chatFloatStyles(u, pc, ec)}
 /* a running match with OUR OWN seat currently disconnected — resume it
    instead of spectating */
 .mechili-menu .m-room-row { display: flex; gap: 8px; width: 100%; }
+.mechili-menu .m-scenario-list { max-height: min(46vh, 420px); }
+.mechili-menu .m-scenario-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 3px;
+}
+.mechili-menu .m-scenario-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold; color: ${u.text}; }
+.mechili-menu .m-scenario-btn {
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 10px;
+    border: 1.5px solid ${u.border};
+    border-radius: 3px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    cursor: pointer;
+}
+.mechili-menu .m-scenario-btn:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-menu .m-scenario-import { display: flex; gap: 6px; width: 100%; }
+.mechili-menu .m-scenario-open { display: flex; gap: 8px; width: 100%; }
+.mechili-menu .m-scenario-open .m-scenario-btn { flex: 1; padding: 10px 12px; font-size: 15px; font-weight: bold; }
+.mechili-menu .m-scenario-list-label { width: 100%; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: ${u.textMuted}; }
+.mechili-menu .m-scenario-package { background: rgba(212, 184, 120, 0.1); }
+.mechili-menu .m-scenario-level { margin-inline-start: 16px; }
+.mechili-menu .m-scenario-level.is-done .m-scenario-name { color: ${u.brassLight}; }
+.mechili-menu .m-scenario-code {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 8px;
+    border: 1.5px solid ${u.border};
+    border-radius: 3px;
+    background: #1e1b15;
+    color: ${u.text};
+}
+.mechili-menu .m-scenario-status { min-height: 1.2em; font-size: 13px; color: ${u.brassLight}; text-align: center; }
 .mechili-menu .m-room-row .m-btn { flex: 1; width: auto; }
 .mechili-menu .m-main {
     gap: 12px;
@@ -1842,6 +1905,8 @@ ${chatFloatStyles(u, pc, ec)}
    language as .m-btn, built on real radio/checkbox inputs (hidden, not
    removed) so the existing :checked-based JS needs no changes at all */
 .mechili-menu .m-toggle-row { display: flex; gap: 10px; width: 100%; }
+/* four entries: two rows of two */
+.mechili-menu .m-toggle-row.m-toggle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .mechili-menu .m-toggle-card {
     position: relative;
     flex: 1;
@@ -2097,6 +2162,43 @@ ${chatFloatStyles(u, pc, ec)}
     transition: border-color 0.12s ease, background 0.12s ease;
 }
 .mechili-menu .m-roster-kick:hover { border-color: ${u.hover}; background: ${u.undoHover}; }
+.mechili-menu .m-roster-role {
+    flex: none;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid ${u.border};
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    color: ${u.textMuted};
+    white-space: nowrap;
+}
+.mechili-menu .m-roster-role.is-attacker { border-color: #d8643f; color: #f0a184; }
+.mechili-menu .m-roster-role.is-defender { border-color: #5d97c9; color: #9cc3e4; }
+.mechili-menu .m-lobby-role-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: bold;
+    color: ${u.text};
+}
+.mechili-menu .m-lobby-role-label { margin-inline-end: 4px; }
+.mechili-menu .m-lobby-role {
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 12px;
+    border: 1.5px solid ${u.border};
+    border-radius: 999px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    cursor: pointer;
+}
+.mechili-menu .m-lobby-role:hover { border-color: ${u.hover}; }
+.mechili-menu .m-lobby-role.active { border-color: ${u.brassLight}; color: ${u.brassLight}; box-shadow: 0 0 0 2px rgba(212, 184, 120, 0.2); }
+.mechili-menu .m-lobby-role[data-role="attacker"].active { border-color: #d8643f; color: #f0a184; }
+.mechili-menu .m-lobby-role[data-role="defender"].active { border-color: #5d97c9; color: #9cc3e4; }
 .mechili-menu .m-roster-ready {
     flex: none;
     color: ${u.hpBar};
@@ -2432,6 +2534,124 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-replay-controls button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-replay-controls .rc-speed-hint { font-size: 11px; color: ${u.textMuted}; white-space: nowrap; }
 
+/* scenario editor (author mode) — a floating window; drag it by its head */
+.mechili-scenario-editor {
+    position: absolute;
+    top: calc(64px + env(safe-area-inset-top));
+    left: calc(12px + env(safe-area-inset-left));
+    z-index: 40;
+    width: min(270px, calc(100vw - 24px));
+    max-height: min(64vh, calc(100vh - 80px));
+    display: flex;
+    flex-direction: column;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    font-size: 13px;
+    color: ${u.text};
+    pointer-events: auto;
+}
+.mechili-scenario-editor .se-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    cursor: move;
+    user-select: none;
+    border-bottom: 1px solid rgba(138, 109, 74, 0.35);
+}
+.mechili-scenario-editor.collapsed .se-head { border-bottom: none; }
+.mechili-scenario-editor.collapsed .se-body { display: none; }
+.mechili-scenario-editor .se-body { overflow-y: auto; padding: 0 10px 8px; display: flex; flex-direction: column; gap: 6px; }
+.mechili-scenario-editor .se-title { font-size: 14px; font-weight: 700; color: ${u.brassLight}; }
+.mechili-scenario-editor .se-muted, .mechili-scenario-editor .se-hint { color: ${u.textMuted}; font-size: 11px; }
+.mechili-scenario-editor .se-label { color: ${u.textMuted}; font-size: 11px; margin-top: 4px; }
+.mechili-scenario-editor .se-section { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid rgba(138, 109, 74, 0.35); padding-top: 7px; }
+.mechili-scenario-editor .se-body > .se-section:first-child { border-top: none; }
+.mechili-scenario-editor .se-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.mechili-scenario-editor .se-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.mechili-scenario-editor .se-palette { max-height: 26vh; overflow-y: auto; }
+.mechili-scenario-editor .se-side { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-inline-start: 5px solid var(--se-team); padding-inline-start: 7px; }
+.mechili-scenario-editor input, .mechili-scenario-editor select {
+    font: inherit;
+    padding: 3px 6px;
+    border: 1px solid ${u.border};
+    border-radius: 4px;
+    background: #1e1b15;
+    color: ${u.text};
+}
+.mechili-scenario-editor input[type='checkbox'] { padding: 0; }
+.mechili-scenario-editor .se-name { width: 100%; box-sizing: border-box; }
+.mechili-scenario-editor label { display: inline-flex; align-items: center; gap: 4px; }
+.mechili-scenario-editor button, .mechili-test-battle button {
+    font: inherit;
+    padding: 3px 8px;
+    border: 1.5px solid ${u.border};
+    border-radius: 6px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    cursor: pointer;
+    text-align: start;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mechili-scenario-editor button:hover:not(:disabled), .mechili-test-battle button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-scenario-editor button:disabled { opacity: 0.45; cursor: default; }
+.mechili-scenario-editor button.active { border-color: ${u.brassLight}; background: rgba(212, 184, 120, 0.18); color: ${u.brassLight}; }
+.mechili-scenario-editor .se-collapse { padding: 0 6px; border: none; background: none; font-size: 14px; }
+.mechili-scenario-editor .se-team { border-inline-start: 5px solid var(--se-team); }
+.mechili-scenario-editor .se-type { display: flex; align-items: center; gap: 5px; padding: 2px 6px 2px 2px; }
+.mechili-scenario-editor .se-ico { flex: none; width: 26px; height: 26px; background-size: cover; background-position: center; border-radius: 3px; }
+.mechili-scenario-editor .se-type-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mechili-scenario-editor .se-sel-name { font-weight: 600; }
+.mechili-scenario-editor .se-level { min-width: 1.6em; text-align: center; font-weight: 700; }
+.mechili-scenario-editor .se-run button { flex: 1; text-align: center; font-weight: 700; padding: 6px 10px; border-color: ${u.brassLight}; }
+.mechili-scenario-editor .se-issues { font-size: 12px; color: #e8b04a; cursor: help; }
+.mechili-scenario-editor .se-issues.error { color: #ff7a60; }
+.mechili-scenario-editor .se-status { min-height: 1.2em; color: ${u.brassLight}; }
+.mechili-scenario-editor .se-rules > summary { cursor: pointer; font-weight: 600; color: ${u.brassLight}; }
+.mechili-scenario-editor .se-rules-grid { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.mechili-scenario-editor .se-rule { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px; }
+.mechili-scenario-editor .se-rule > span { flex: 1 1 100%; color: ${u.textMuted}; font-size: 11px; }
+.mechili-scenario-editor .se-rule input[type='number'] { width: 5.5em; }
+.mechili-scenario-editor .se-rule input[type='text'] { flex: 1; min-width: 0; }
+.mechili-scenario-editor .se-rule select { flex: 1; min-width: 0; }
+.mechili-scenario-editor .se-rule input[type='checkbox'] { margin-inline-start: auto; }
+.mechili-scenario-editor .se-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 6px; font-size: 12px; }
+
+/* scenario editor test battle strip */
+.mechili-test-battle {
+    position: absolute;
+    top: calc(10px + env(safe-area-inset-top));
+    inset-inline-start: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: calc(100vw - 32px);
+    padding: 8px 12px;
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    font-size: 13px;
+    color: ${u.text};
+    pointer-events: auto;
+}
+.mechili-test-battle .tb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mechili-test-battle .tb-title { font-weight: 700; color: ${u.brassLight}; }
+.mechili-test-battle .tb-headline { font-size: 16px; font-weight: 700; }
+.mechili-test-battle .tb-side { border-inline-start: 4px solid var(--se-team); padding-inline-start: 6px; }
+.mechili-test-battle:not(.done) .tb-result { display: none; }
+.mechili-test-battle.done .tb-skip { display: none; }
+.mechili-test-battle .tb-earlier-head { margin-top: 4px; font-size: 11px; color: ${u.textMuted}; }
+.mechili-test-battle .tb-earlier { font-size: 12px; color: ${u.text}; }
+.mechili-test-battle .tb-earlier.other { color: ${u.textMuted}; font-style: italic; }
+
 /* suggest chip, inline-start of the main menu (same feel as username) */
 .mechili-suggest-btn {
     position: absolute;
@@ -2626,6 +2846,15 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     z-index: 1;
     text-align: center;
 }
+.mechili-climb-intro .ci-subtitle {
+    margin-top: 14px;
+    max-width: min(640px, 86vw);
+    margin-inline: auto;
+    font-size: clamp(15px, 2vw, 20px);
+    line-height: 1.4;
+    color: ${u.cream};
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);
+}
 .mechili-climb-intro .ci-title {
     font-size: clamp(28px, 5vw, 48px);
     font-weight: 800;
@@ -2634,6 +2863,95 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     color: ${u.cream};
     text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85), 0 0 40px rgba(184, 146, 74, 0.25);
 }
+
+/* The Year's progress (ui/yearTally.ts): round marks and the tally — loading
+ * card, between-rounds splash, end screen. In menuStyles, which stay injected
+ * for the whole session, so the HUD can use them too. */
+.year-progress {
+    --year-attacker: #d8643f;
+    --year-defender: #5d97c9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(12px, 2.2vh, 20px);
+    text-align: center;
+}
+.year-title {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85), 0 0 40px rgba(184, 146, 74, 0.25);
+}
+.year-marks {
+    --year-attacker: #d8643f;
+    --year-defender: #5d97c9;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(5px, 1vw, 10px);
+    max-width: 92vw;
+}
+.year-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(28px, 4.6vw, 44px);
+    height: clamp(28px, 4.6vw, 44px);
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 2px solid rgba(240, 232, 216, 0.28);
+    background: rgba(0, 0, 0, 0.35);
+    color: rgba(240, 232, 216, 0.45);
+    font-size: clamp(11px, 1.6vw, 15px);
+    font-weight: 800;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    animation: year-mark-in 0.35s ease-out both;
+    animation-delay: calc(var(--i, 0) * 45ms);
+}
+.year-mark.is-attacker { border-color: var(--year-attacker); background: color-mix(in srgb, var(--year-attacker) 78%, #000); color: ${u.cream}; }
+.year-mark.is-defender { border-color: var(--year-defender); background: color-mix(in srgb, var(--year-defender) 78%, #000); color: ${u.cream}; }
+.year-mark.is-current {
+    border-color: ${u.brassLight};
+    color: ${u.brassLight};
+    box-shadow: 0 0 0 3px rgba(212, 184, 120, 0.25), 0 0 18px rgba(212, 184, 120, 0.45);
+    animation: year-mark-in 0.35s ease-out both, year-mark-pulse 1.6s ease-in-out 0.4s infinite;
+}
+.year-mark.is-fresh { animation: year-mark-pop 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) 0.25s both; }
+@keyframes year-mark-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes year-mark-pop { 0% { opacity: 0; transform: scale(2.2); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes year-mark-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) {
+    .year-mark, .year-mark.is-current, .year-mark.is-fresh { animation: none; }
+}
+.year-tally {
+    --year-attacker: #d8643f;
+    --year-defender: #5d97c9;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: clamp(15px, 2vw, 20px);
+    color: ${u.cream};
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85);
+}
+.year-side { display: inline-flex; align-items: center; gap: 8px; letter-spacing: 0.08em; text-transform: uppercase; }
+.year-side b { font-size: 1.6em; font-weight: 900; }
+.year-side.is-attacker b { color: var(--year-attacker); }
+.year-side.is-defender b { color: var(--year-defender); }
+.year-side-name { opacity: 0.85; }
+.year-side.is-you .year-side-name { opacity: 1; font-weight: 800; }
+.year-you {
+    font-size: 0.62em;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid ${u.brassLight};
+    color: ${u.brassLight};
+    letter-spacing: 0.1em;
+}
+.year-dash { opacity: 0.6; font-weight: 700; }
+.mechili-climb-splash.is-year .year-progress { padding: 0 16px; }
 
 /* Pre-match roster on the intro cover — menuStyles only: the cover runs
  * before Game/Hud boots, so hudStyles() is not injected yet. */
@@ -6094,6 +6412,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-actions,
 .mechili-gameover .go-restart,
 .mechili-gameover .go-retry,
+.mechili-gameover .go-rematch,
 .mechili-gameover .go-next {
     position: relative;
     z-index: 1;
@@ -6109,6 +6428,40 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover.victory .go-title { color: ${pc}; }
 .mechili-gameover.defeat .go-title { color: ${ec}; }
 .mechili-gameover.draw .go-title { color: ${u.brassLight}; }
+/* The Year's result: who took it, the score, every round */
+.mechili-gameover .go-year {
+    --year-attacker: #d8643f;
+    --year-defender: #5d97c9;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: -6px;
+    text-align: center;
+}
+.mechili-gameover .go-year-winner {
+    font-size: clamp(20px, 3.4vw, 32px);
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85);
+    animation: year-mark-pop 0.8s cubic-bezier(0.2, 1.6, 0.4, 1) 0.2s both;
+}
+.mechili-gameover .go-year-winner.is-attacker { color: var(--year-attacker); }
+.mechili-gameover .go-year-winner.is-defender { color: var(--year-defender); }
+.mechili-gameover .go-year-score {
+    display: flex;
+    gap: 12px;
+    font-size: clamp(15px, 2vw, 19px);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: ${u.cream};
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+}
+.mechili-gameover .go-year-score .is-attacker { color: var(--year-attacker); }
+.mechili-gameover .go-year-score .is-defender { color: var(--year-defender); }
 .mechili-gameover .go-sub { font-size: 14px; letter-spacing: 0.5px; color: ${u.text}; opacity: 0.85; margin-top: -10px; text-align: center; max-width: 28em; line-height: 1.45; }
 .mechili-gameover .go-stats { font-size: 13px; color: ${u.textMuted}; letter-spacing: 0.5px; margin-top: -6px; }
 .mechili-gameover .go-teams {
@@ -6285,6 +6638,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-gameover .go-restart,
 .mechili-gameover .go-retry,
+.mechili-gameover .go-rematch,
 .mechili-gameover .go-next {
     align-self: center;
     padding: 10px 26px;
@@ -6300,11 +6654,15 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-gameover .go-restart:hover,
 .mechili-gameover .go-retry:hover,
+.mechili-gameover .go-rematch:hover:not(:disabled),
 .mechili-gameover .go-next:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
 .mechili-gameover .go-restart:focus-visible,
 .mechili-gameover .go-retry:focus-visible,
+.mechili-gameover .go-rematch:focus-visible,
 .mechili-gameover .go-next:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
-/* with Retry / Next present, Back is the quieter second action */
+.mechili-gameover .go-rematch:disabled { opacity: 0.6; cursor: default; }
+.mechili-gameover .go-rematch.is-asked { border-color: ${u.brassLight}; color: ${u.brassLight}; box-shadow: 0 0 16px rgba(212, 184, 120, 0.45); animation: year-mark-pulse 1.6s ease-in-out infinite; }
+.mechili-gameover .go-actions:has(.go-rematch) .go-restart,
 .mechili-gameover .go-actions:has(.go-retry) .go-restart,
 .mechili-gameover .go-actions:has(.go-next) .go-restart {
     background: transparent;

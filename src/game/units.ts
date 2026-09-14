@@ -352,6 +352,13 @@ export interface UnitType {
     /** structures don't bob and never rotate to face anything (but are valid facing targets) */
     structure?: boolean;
     /**
+     * A base building every side starts with, and where it stands: the
+     * Stronghold at the back center, the research and command towers per seat
+     * (see BASE_ANCHORS). One type per anchor; buildings without it (a wall, a
+     * farm house from a level package) only stand where a scenario places them.
+     */
+    baseAnchor?: 'stronghold' | 'research' | 'command';
+    /**
      * board extras (shield, rocket): bought like units but never targeted or
      * damaged by ordinary fire, exempt from the deploy limit and recruiting
      */

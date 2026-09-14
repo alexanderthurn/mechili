@@ -145,8 +145,56 @@ try {
             ok = false;
             console.error('FAIL commander effects missing from data');
         }
+        // a commander's own shop (The Komtur): its side buys and unlocks only from it
+        {
+            const komtur = T.commander('cursed');
+            const shop = T.shopFor(komtur);
+            const normal = T.shopFor(air);
+            if (
+                !komtur ||
+                T.commanders.some((c) => c.id === 'cursed') ||
+                !shop.includes('hordeKomtur') ||
+                shop.some((id) => T.shopUnitIds.includes(id)) ||
+                normal.includes('hordeKomtur') ||
+                !T.allShopUnitIds.includes('hordeSpinne') ||
+                cards.starterUnlockedUnits(komtur, T).join() !== 'hordeZombie,bat' ||
+                !Number.isFinite(cards.unlockCostFor('hordeKomtur', komtur, T))
+            ) {
+                ok = false;
+                console.error(`FAIL komtur shop: ${JSON.stringify({ shop, starter: komtur && cards.starterUnlockedUnits(komtur, T) })}`);
+            }
+            // the ways of playing The Year survive the settings a match is built from
+            const { normalizeGameSettings, DEFAULT_SETTINGS, climbAttackerTeam } = await server.ssrLoadModule('/src/game/settings.ts');
+            const climb = normalizeGameSettings({
+                ...DEFAULT_SETTINGS,
+                climb: { rounds: 9, sideHp: 1, playerSupplyGrowthPerRound: 100, humanRole: 'defender', attackerCommander: 'cursed' },
+            }).climb;
+            const setMod = await server.ssrLoadModule('/src/game/settings.ts');
+            const wishes = [
+                [['attacker', undefined, 7], 0], [[undefined, 'attacker', 7], 1], [['defender', undefined, 7], 1],
+                [['attacker', 'defender', 8], 0], [['attacker', 'attacker', 8], 0], [['attacker', 'attacker', 9], 1], [[undefined, undefined, 9], 1],
+            ];
+            for (const [[a, b, seed], want] of wishes) {
+                if (setMod.yearAttackerFromWishes(a, b, seed) !== want) {
+                    ok = false;
+                    console.error(`FAIL Year roles: ${a}/${b} seed ${seed} → ${setMod.yearAttackerFromWishes(a, b, seed)}, expected ${want}`);
+                }
+            }
+            if (setMod.yearWinner(['attacker', 'defender', 'attacker']) !== 'attacker' || setMod.yearWinner(['attacker', 'defender']) !== 'defender') {
+                ok = false;
+                console.error('FAIL yearWinner');
+            }
+            if (setMod.climbAttackerTeam({ rounds: 9, sideHp: 1, playerSupplyGrowthPerRound: 100, attackerSide: 1 }, 1) !== 'player') {
+                ok = false;
+                console.error('FAIL climbAttackerTeam by side');
+            }
+            if (climb?.attackerCommander !== 'cursed' || climbAttackerTeam(climb) !== 'enemy') {
+                ok = false;
+                console.error(`FAIL The Year variant lost in normalizeGameSettings: ${JSON.stringify(climb)}`);
+            }
+        }
         if (!ok) failed = true;
-        else console.log(`ok   commanders: ${T.commanders.length} offered + ${hidden.length} tutorial; ${T.roundCards.length} round cards; spell ids exist`);
+        else console.log(`ok   commanders: ${T.commanders.length} offered + ${hidden.length} hidden; ${T.roundCards.length} round cards; spell ids exist; commander shops (Komtur)`);
     }
 
     // ---- tutorials: the units, footprints, talent and commanders the lessons are scripted around
@@ -175,7 +223,9 @@ try {
     const stronghold = readBase('data/buildings/stronghold.jsonc').replace('"hp": 3000', '"hp": 5000');
     const iceWall = readBase('data/buildings/command-tower.jsonc')
         .replace('"id": "command-tower"', '"id": "ice-wall"')
-        .replace('"name": "Vanguard"', '"name": "Ice Wall"');
+        .replace('"name": "Vanguard"', '"name": "Ice Wall"')
+        // a wall stands where a scenario puts it — no base anchor
+        .replace('\n    "baseAnchor": "command",', '');
     const packWithWall = readBase('data/pack.jsonc').replace('"buildings": [', '"buildings": ["ice-wall", ');
     const levelFiles = (strongholdText) => [
         { path: 'textures/moon.webp', bytes: enc('a different moon') },
@@ -226,6 +276,21 @@ try {
     );
     ok = expect(levelPack.buildings.find((b) => b.id === 'stronghold')?.hp === 5000, "level's stronghold replacement not applied") && ok;
     ok = expect(levelPack.buildings.some((b) => b.id === 'ice-wall'), 'added building missing') && ok;
+    {
+        const { TypeRegistry } = await server.ssrLoadModule('/src/game/content/typeRegistry.ts');
+        const levelTypes = new TypeRegistry(levelPack);
+        ok = expect(levelTypes.baseBuildings.map((b) => b.id).join() === BASE_PACK.buildings.filter((b) => b.baseAnchor).map((b) => b.id).join() && levelTypes.baseBuilding('command')?.id === 'command-tower', 'an added building counts as a base building') && ok;
+        let anchorError = '';
+        try {
+            pack.loadPackWithOverlay(
+                new Map([...level.dataFiles, ['data/buildings/ice-wall.jsonc', iceWall.replace('"structure": true,', '"structure": true,\n    "baseAnchor": "command",')], ['data/pack.jsonc', packWithWall]]),
+                'frost-keep',
+            );
+        } catch (e) {
+            anchorError = String(e.message);
+        }
+        ok = expect(anchorError.includes('both stand at baseAnchor "command"'), `two buildings at one anchor not reported (${anchorError.split('\n')[0]})`) && ok;
+    }
     ok = expect(BASE_PACK.buildings.find((b) => b.id === 'stronghold')?.hp === 3000, 'overlay validation changed the base game') && ok;
     let talentError = '';
     try {
@@ -460,7 +525,280 @@ try {
             }
             if (zk) console.log(`ok   scenario transfer: ${sender.count} chunks in ${requests} batched requests, same hash on arrival, garbage/oversized refused; spectators gated, served, admitted on resend`);
         }
-        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected');
+        // ---- scenario format: fixture normalizes cleanly; errors and warnings are reported
+        {
+            const scen = await server.ssrLoadModule('/src/game/scenario/normalize.ts');
+            const fixture = readFileSync('scripts/fixtures/scenarios/archer-vs-ogre/scenario.jsonc', 'utf8');
+            const T = units.BASE_TYPES;
+            const clean = scen.parseScenario(fixture, T);
+            zexpect(clean.def !== null && clean.issues.length === 0, `fixture scenario has issues: ${clean.issues.map((i) => i.message).join('; ')}`);
+            const variant = (edit) => {
+                const raw = JSON.parse(JSON.stringify(clean.def));
+                edit(raw);
+                return scen.normalizeScenario(raw, T);
+            };
+            const messages = (r) => r.issues.map((i) => `${i.level}:${i.message}`).join(' | ');
+            const unknownUnit = variant((d) => (d.scene.units[0].typeId = 'archr'));
+            zexpect(scen.hasErrors(unknownUnit.issues) && messages(unknownUnit).includes('no unit or building type "archr"'), `unknown unit: ${messages(unknownUnit)}`);
+            const offBoard = variant((d) => (d.scene.units[2].at.row = 999));
+            zexpect(messages(offBoard).includes('outside the'), `off board: ${messages(offBoard)}`);
+            const garrison = variant((d) => (d.scene.buildings.enemy.stronghold = { level: 1, garrison: 9 }));
+            zexpect(messages(garrison).includes('garrison 9 but it has 5 posts'), `garrison: ${messages(garrison)}`);
+            const dropped = variant((d) => {
+                d.scene.units[1].items = ['wind', 'nope'];
+                d.scene.techs.player.archer = ['barrel', 'aegis'];
+            });
+            zexpect(!scen.hasErrors(dropped.issues) && dropped.def.scene.units[1].items.join() === 'wind' && dropped.def.scene.techs.player.archer.join() === 'barrel', `dropped warnings: ${messages(dropped)}`);
+            const badShape = variant((d) => (d.rules.opponents = 'sleep'));
+            zexpect(badShape.def === null && scen.hasErrors(badShape.issues), 'a schema violation must leave no def');
+            const badVersion = variant((d) => (d.version = 2));
+            zexpect(badVersion.def === null && messages(badVersion).includes('unsupported scenario version'), `version: ${messages(badVersion)}`);
+            // a package holding only scenario.jsonc is a valid level, and the active level exposes the scenario
+            const { ref: scenRef } = await levels.loadLevel('archer-vs-ogre', [{ path: 'scenario.jsonc', bytes: enc(fixture) }]);
+            const act = await levels.prepareLevel(scenRef);
+            const root = act.scenarios.get('scenario');
+            zexpect(act.scenarios.size === 1 && root?.def?.name === 'Archer vs Ogre' && root.issues.length === 0, 'a lone root scenario.jsonc is not exposed as scenario "scenario"');
+            await levels.prepareLevel(undefined);
+            zexpect(levels.activeLevel().scenarios.size === 0 && levels.activeLevel().meta === null, 'the base game has scenarios');
+            // several levels under scenarios/ + meta.jsonc naming them in order
+            const second = fixture.replace('"id": "archer-vs-ogre"', '"id": "rematch"').replace('"name": "Archer vs Ogre"', '"name": "Rematch"');
+            const metaText = JSON.stringify({
+                version: 1, id: 'duel-series', name: 'Duel Series',
+                levels: [{ scenario: 'first', title: 'First Duel', briefing: 'Hold the line.' }, { scenario: 'rematch', carryOver: 'army', unlocks: ['dwarf'] }],
+            });
+            // a list names a package's scenarios in meta.jsonc's order
+            const reversedMeta = JSON.stringify({ ...JSON.parse(metaText), levels: [{ scenario: 'rematch' }, { scenario: 'first' }] });
+            const summary = levels.summarizeLevel({ id: 'duel-series', hash: 'x' }, [
+                { path: 'scenarios/first.jsonc', bytes: enc(fixture) },
+                { path: 'scenarios/rematch.jsonc', bytes: enc(second) },
+                { path: 'meta.jsonc', bytes: enc(reversedMeta) },
+            ]);
+            zexpect(summary.name === 'Duel Series' && summary.scenarios.map((sc) => `${sc.id}:${sc.name}`).join() === 'rematch:Rematch,first:Archer vs Ogre', `summarizeLevel: ${JSON.stringify(summary)}`);
+            const { ref: seriesRef } = await levels.loadLevel('duel-series', [
+                { path: 'scenarios/first.jsonc', bytes: enc(fixture) },
+                { path: 'scenarios/rematch.jsonc', bytes: enc(second) },
+                { path: 'meta.jsonc', bytes: enc(metaText) },
+            ]);
+            const series = await levels.prepareLevel(seriesRef);
+            zexpect(series.scenarios.size === 2 && series.scenarios.get('rematch')?.def?.name === 'Rematch', 'package scenarios not read from scenarios/');
+            zexpect(series.meta?.def?.levels.length === 2 && series.meta.issues.length === 0, `meta.jsonc not read: ${JSON.stringify(series.meta?.issues)}`);
+            await levels.prepareLevel(undefined);
+            const badMeta = scen.parseMeta(metaText.replace('"rematch"', '"remtach"'), new Set(['first', 'rematch']), T);
+            zexpect(scen.hasErrors(badMeta.issues) && badMeta.issues[0].message.includes('no scenarios/remtach.jsonc'), 'a meta.jsonc level naming a missing scenario is not an error');
+            // zip writer → reader round trip
+            const zipped = zipMod.writeZip([{ path: 'scenarios/first.jsonc', bytes: enc(fixture) }, { path: 'models/x.bin', bytes: new Uint8Array([0, 1, 2, 255]) }]);
+            const unzipped = await zipMod.readZip(zipped);
+            zexpect(unzipped.length === 2 && new TextDecoder().decode(unzipped[0].bytes) === fixture && unzipped[1].bytes[3] === 255, 'writeZip output does not read back');
+            // share code: text files through a chat line and back, media left out
+            const shareMod = await server.ssrLoadModule('/src/game/scenario/shareCode.ts');
+            const shared = await shareMod.encodeShareCode('duel series!', [
+                { path: 'scenarios/first.jsonc', bytes: enc(fixture) },
+                { path: 'meta.jsonc', bytes: enc(metaText) },
+                { path: 'models/x.bin', bytes: new Uint8Array([0, 1, 2]) },
+            ]);
+            const back = await shareMod.decodeShareCode(`  ${shared.code}\n`);
+            zexpect(shareMod.isShareCode(shared.code) && shared.skipped.join() === 'models/x.bin' && back.id === 'duel-series-' && back.files.length === 2 && new TextDecoder().decode(back.files[0].bytes) === fixture, `share code round trip: ${JSON.stringify({ skipped: shared.skipped, id: back.id, n: back.files.length })}`);
+            let damaged = false;
+            await shareMod.decodeShareCode(shared.code.slice(0, 30) + 'xx' + shared.code.slice(32)).catch(() => (damaged = true));
+            zexpect(damaged, 'a damaged share code decodes');
+            // match rules: normal matches keep today's behaviour; a scenario supplies its own
+            const mr = await server.ssrLoadModule('/src/game/matchRules.ts');
+            const setMod = await server.ssrLoadModule('/src/game/settings.ts');
+            const ss = await server.ssrLoadModule('/src/game/scenario/scenarioSettings.ts');
+            const normal = mr.resolveMatchRules(structuredClone(setMod.DEFAULT_SETTINGS), null);
+            zexpect(normal.flanksOpenFromRound === 2 && normal.neutralOpenFromRound === 2 && normal.fixedSideHp === null && normal.enemyIntel === 'fogged' && normal.opponents === 'build' && normal.commander.mode === 'pick' && normal.fixedAtmosphere === null, `normal rules changed: ${JSON.stringify(normal)}`);
+            const climb = mr.resolveMatchRules({ ...structuredClone(setMod.DEFAULT_SETTINGS), climb: { sideHp: 1 } }, null);
+            zexpect(climb.fixedSideHp?.player === 1 && climb.fixedSideHp?.enemy === 1 && climb.enemyIntel === 'visible' && climb.flanksOpenFromRound === 2, `climb rules changed: ${JSON.stringify(climb)}`);
+            const scenRules = mr.resolveMatchRules(structuredClone(setMod.DEFAULT_SETTINGS), clean.def);
+            zexpect(scenRules.flanksOpenFromRound === null && scenRules.fixedSideHp?.enemy === 1000 && scenRules.opponents === 'lockInOnly' && scenRules.fixedAtmosphere?.season === 'autumn' && scenRules.playerUnlocks?.join() === 'archer' && scenRules.playerUnlockable?.length === 0 && normal.playerUnlockable === null, `scenario rules: ${JSON.stringify(scenRules)}`);
+            const scenSettings = ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), clean.def, scenRef, 'play');
+            zexpect(scenSettings.map.zoneCols === 24 && scenSettings.seed === 1234 && scenSettings.economy.startingSupply === 300 && scenSettings.deploy.unitsPerRound === 2 && scenSettings.strongholdMode === 'none' && scenSettings.hordePreset === 'off' && scenSettings.level?.hash === scenRef.hash && scenSettings.scenario?.mode === 'play' && !scenSettings.scenario.draft, `scenario settings: ${JSON.stringify({ map: scenSettings.map, scenario: scenSettings.scenario })}`);
+        }
+        // ---- capture: a replay board → scenario → package → the same board back
+        {
+            const cap = await server.ssrLoadModule('/src/game/scenario/capture.ts');
+            const pkgMod = await server.ssrLoadModule('/src/game/scenario/package.ts');
+            const scen = await server.ssrLoadModule('/src/game/scenario/normalize.ts');
+            const techMod = await server.ssrLoadModule('/src/game/tech.ts');
+            const mr = await server.ssrLoadModule('/src/game/matchRules.ts');
+            const setMod = await server.ssrLoadModule('/src/game/settings.ts');
+            const T = units.BASE_TYPES;
+            const settings = structuredClone(setMod.DEFAULT_SETTINGS);
+            settings.seed = 77;
+            const tree = new techMod.TechTree(2, T);
+            tree.add(1, 'ogre', 'carapace');
+            const fake = (id, typeId, team, col, row, extra = {}) => ({
+                id, type: T.require(typeId), team, cell: { col, row }, rotated: false, level: 1, items: [],
+                consumed: false, summoned: false, hostUnitId: null, gridless: false, world: { x: 0, z: 0 }, ...extra,
+            });
+            const board = [
+                fake(1, 'stronghold', 'enemy', 40, 60, { level: 2 }),
+                fake(2, 'stronghold-archer', 'enemy', 0, 0, { hostUnitId: 1, gridless: true }),
+                fake(3, 'archer', 'player', 10, 20, { level: 3, items: ['fire'] }),
+                fake(4, 'ogre', 'enemy', 30, 70, { rotated: true }),
+                fake(5, 'hordeZombie', 'horde', 0, 0, { summoned: true }),
+            ];
+            const host = {
+                    types: T, settings, rules: mr.resolveMatchRules(settings, null),
+                    placement: { allUnits: () => board, map: { halfW: 160, halfH: 170 } },
+                    techTree: tree, round: 3, hp: { player: 2500, enemy: 0 },
+                    flanksOpen: true, neutralOpen: true,
+                    atmosphere: { season: 'winter', weatherKind: 'snow', weatherIntensity: 0.9, timeOfDay: 'day' },
+                    playerCommanderId: 'air', playerUnlocks: ['goblin', 'crowRider'], gameVersion: '0.9.0',
+                    primarySeat: (team) => (team === 'player' ? 0 : 1),
+                    baseRules: null,
+            };
+            const def = cap.captureScenario(host, 'Weird fight');
+            const checked = scen.normalizeScenario(def, T);
+            zexpect(checked.def !== null && !scen.hasErrors(checked.issues), `captured scenario has errors: ${checked.issues.map((i) => i.message).join('; ')}`);
+            zexpect(def.scene.units.length === 2 && def.scene.units[0].team === 'player' && def.scene.units[0].items?.join() === 'fire' && def.scene.units[1].at.rotated === true, `captured units: ${JSON.stringify(def.scene.units)}`);
+            zexpect(def.scene.buildings.enemy.stronghold?.level === 2 && def.scene.buildings.enemy.stronghold.garrison === 1 && def.scene.buildings.player.stronghold === false, `captured buildings: ${JSON.stringify(def.scene.buildings)}`);
+            zexpect(def.scene.techs.enemy.ogre?.join() === 'carapace' && def.rules.sideHp.enemy === 1 && def.rules.commander.mode === 'fixed' && def.rules.flanksOpenFromRound === 1 && def.rules.atmosphere.weather === 'snow' && def.rules.income.round1 === settings.economy.startingSupply + 2 * settings.economy.supplyGrowthPerRound, `captured rules: ${JSON.stringify(def.rules)}`);
+            const files = pkgMod.scenarioPackageFiles(def);
+            const { ref: capRef } = await levels.loadLevel(def.id, files);
+            const act = await levels.prepareLevel(capRef);
+            const back = act.scenarios.get(def.id);
+            zexpect(files.some((f) => f.path === `scenarios/${def.id}.jsonc`) && back?.def?.scene.units.length === 2 && back.issues.every((i) => i.level !== 'error'), 'a captured package does not load back as the same scenario');
+            // saving into a package: replace by id, add under a free id at the end of the order
+            {
+                const intoA = pkgMod.withScenarioInPackage(files, { ...def, name: 'Rematch', id: 'draft-1' }, def.id);
+                const intoB = pkgMod.withScenarioInPackage(intoA.files, { ...def, name: 'Rematch', id: 'draft-2' }, def.id);
+                const replaced = pkgMod.withScenarioInPackage(intoB.files, { ...def, seed: 77 }, def.id);
+                const metaOf = (fs) => JSON.parse(new TextDecoder().decode(fs.find((f) => f.path === 'meta.jsonc').bytes));
+                zexpect(intoA.id === 'rematch' && intoB.id === 'rematch-2' && replaced.id === def.id, `package ids: ${intoA.id} ${intoB.id} ${replaced.id}`);
+                zexpect(metaOf(replaced.files).levels.map((l) => l.scenario).join() === `${def.id},rematch,rematch-2` && pkgMod.packageScenarioIds(replaced.files).length === 3, `package order: ${JSON.stringify(metaOf(replaced.files))}`);
+                const renamed = pkgMod.withScenarioInPackage(replaced.files, { ...def, seed: 77 }, def.id, 'The Long March');
+                zexpect(metaOf(renamed.files).name === 'The Long March' && metaOf(renamed.files).levels.length === 3, 'package rename lost');
+                const { ref: chainRef } = await levels.loadLevel('chain', replaced.files);
+                const chain = await levels.prepareLevel(chainRef);
+                zexpect(chain.scenarios.size === 3 && chain.scenarios.get(def.id)?.def?.seed === 77 && chain.meta?.issues.length === 0, `saved-into package loads: ${JSON.stringify(chain.meta?.issues)}`);
+                await levels.prepareLevel(undefined);
+            }
+            const withBase = cap.captureScenario({ ...host, baseRules: { ...def.rules, unlockable: ['dwarf'], loadout: { mode: 'open' } } }, 'Inherited');
+            zexpect(withBase.rules.unlockable?.join() === 'dwarf' && withBase.rules.loadout?.mode === 'open' && def.rules.unlockable === undefined, 'capture does not inherit the original scenario rules');
+            await levels.prepareLevel(undefined);
+        }
+        // ---- editor draft: a new board is valid, edits undo/redo, map change drops what no longer fits
+        {
+            const ed = await server.ssrLoadModule('/src/game/scenario/editorDraft.ts');
+            const scen = await server.ssrLoadModule('/src/game/scenario/normalize.ts');
+            const mr = await server.ssrLoadModule('/src/game/matchRules.ts');
+            const setMod = await server.ssrLoadModule('/src/game/settings.ts');
+            const ss = await server.ssrLoadModule('/src/game/scenario/scenarioSettings.ts');
+            const T = units.BASE_TYPES;
+            const blank = ed.newDraft('v0.0.0', T);
+            const blankCheck = scen.normalizeScenario(blank, T);
+            zexpect(blankCheck.def !== null && !scen.hasErrors(blankCheck.issues), `a new draft has errors: ${blankCheck.issues.map((i) => i.message).join('; ')}`);
+            zexpect(ed.mapPresetOf(blank.map) === 'standard' && ed.hasBaseBuildings(T, blank, 'enemy'), 'a new draft is not the standard board with base buildings');
+            zexpect(blank.rules.unlockedUnits?.length === T.shopUnitIds.length && blankCheck.issues.every((i) => !i.message.includes('empty shop')), 'a new draft has no shop units');
+            const emptyShop = structuredClone(blank);
+            delete emptyShop.rules.unlockedUnits;
+            zexpect(scen.normalizeScenario(emptyShop, T).issues.some((i) => i.message.includes('empty shop')), 'no commander + no shop units is not warned');
+            const history = new ed.DraftHistory(blank);
+            const withOgre = structuredClone(blank);
+            withOgre.scene.units.push({ typeId: 'ogre', team: 'enemy', at: { col: 60, row: 60 }, level: 1 });
+            zexpect(history.push(withOgre) && !history.push(structuredClone(withOgre)) && history.canUndo, 'draft history records no-ops or misses edits');
+            zexpect(history.undo()?.scene.units.length === 0 && history.redo()?.scene.units.length === 1 && !history.canRedo, 'draft undo/redo broken');
+            const tiny = ed.withMap(T, withOgre, ed.MAP_PRESETS.tiny);
+            zexpect(tiny.removed.length === 1 && tiny.def.scene.units.length === 0 && ed.mapPresetOf(tiny.def.map) === 'tiny', 'a smaller board keeps units that no longer fit');
+            const bare = ed.withBaseBuildings(T, blank, 'player', false);
+            zexpect(!ed.hasBaseBuildings(T, bare, 'player') && ed.hasBaseBuildings(T, ed.withBaseBuildings(T, bare, 'player', true), 'player'), 'base building toggle broken');
+            // editing / testing: no commander offer, the computer only locks in, nothing fogged
+            const picky = structuredClone(blank);
+            picky.rules.commander = { mode: 'pick' };
+            picky.rules.opponents = 'build';
+            picky.rules.enemyIntel = 'fogged';
+            const authorRules = mr.resolveMatchRules(ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), picky, undefined, 'author'), picky);
+            const playRules = mr.resolveMatchRules(ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), picky, undefined, 'play'), picky);
+            zexpect(authorRules.commander.mode === 'none' && authorRules.opponents === 'lockInOnly' && authorRules.enemyIntel === 'visible', `editor rules: ${JSON.stringify(authorRules)}`);
+            zexpect(playRules.commander.mode === 'pick' && playRules.opponents === 'build' && playRules.enemyIntel === 'fogged', 'play mode takes the editor overrides');
+            zexpect(authorRules.flanksOpenFromRound === 1 && authorRules.neutralOpenFromRound === 1, 'the editor does not open the whole side');
+            const authorSettings = ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), picky, undefined, 'author');
+            const testSettings = ss.applyScenarioToSettings(structuredClone(setMod.DEFAULT_SETTINGS), picky, undefined, 'test');
+            zexpect(authorSettings.deploy.unitsPerRound >= 999 && authorSettings.economy.startingSupply >= 99_999 && testSettings.deploy.unitsPerRound === picky.rules.deploy.unitsPerRound, 'the editor purse / caps leak into test battles or are missing');
+            // horde packs may stand in the forest ring; the other teams stay on the board
+            const ring = structuredClone(blank);
+            ring.scene.units.push({ typeId: 'ogre', team: 'enemy', at: { col: 30, row: 50 }, level: 1 });
+            ring.scene.units.push({ typeId: 'ogre', team: 'horde', at: { col: -20, row: 10 }, level: 1 });
+            zexpect(!scen.hasErrors(scen.normalizeScenario(ring, T).issues), 'a horde pack in the forest ring is refused');
+            const farOut = structuredClone(ring);
+            farOut.scene.units[1].at.col = -scen.HORDE_MARGIN_CELLS - 5;
+            const offBoardEnemy = structuredClone(ring);
+            offBoardEnemy.scene.units[0].at.col = -2;
+            zexpect(scen.hasErrors(scen.normalizeScenario(farOut, T).issues) && scen.hasErrors(scen.normalizeScenario(offBoardEnemy, T).issues), 'packs too far out (or an enemy off the board) are accepted');
+            // the enemy's view: turned around and swapped, twice = the same board
+            const busy = structuredClone(ring);
+            busy.scene.units.push({ typeId: 'archer', team: 'player', at: { col: 20, row: 8, rotated: true }, level: 3, items: ['wind'] });
+            busy.scene.techs.player.archer = ['barrel'];
+            busy.scene.buildings.enemy.stronghold = { level: 2 };
+            busy.rules.sideHp = { player: 100, enemy: 200 };
+            const tidyBusy = ed.tidyDraft(busy);
+            const swapped = ed.swapSides(T, tidyBusy);
+            zexpect(JSON.stringify(ed.swapSides(T, swapped)) === JSON.stringify(tidyBusy), 'swapping sides twice changes the board');
+            const swappedArcher = swapped.scene.units.find((u) => u.typeId === 'archer');
+            const cells = scen.boardCells(busy.map);
+            zexpect(swappedArcher?.team === 'enemy' && swappedArcher.at.col === cells.cols - 20 - 2 && swapped.scene.techs.enemy.archer?.join() === 'barrel' && swapped.scene.buildings.player.stronghold?.level === 2 && swapped.rules.sideHp.player === 200, `swapSides: ${JSON.stringify(swappedArcher)} ${JSON.stringify(swapped.scene.buildings)}`);
+            const mirrored = ed.mirrorSide(T, tidyBusy, 'player');
+            const enemies = mirrored.scene.units.filter((u) => u.team === 'enemy');
+            zexpect(enemies.length === 1 && enemies[0].typeId === 'archer' && mirrored.scene.techs.enemy.archer?.join() === 'barrel' && mirrored.scene.units.some((u) => u.team === 'horde'), `mirrorSide: ${JSON.stringify(mirrored.scene.units)}`);
+            zexpect(!scen.hasErrors(scen.normalizeScenario(mirrored, T).issues), 'a mirrored board has errors');
+            // army value: packs + levels + runes + talents with escalation
+            {
+                const prices = { levelCostFactor: 0.5, techCostEscalation: 200 };
+                const v = ed.armyValue(T, tidyBusy, prices);
+                const archer = T.byId('archer');
+                const expectPlayer = archer.cost + 2 * Math.round((archer.levelBasis ?? archer.cost) * 0.5) + (T.rune('wind')?.cardCost ?? 0) + T.talent('barrel').cost;
+                zexpect(v.player === expectPlayer && v.enemy === T.byId('ogre').cost && v.horde === T.byId('ogre').cost, `army value: ${JSON.stringify(v)} expected player ${expectPlayer}`);
+                const two = structuredClone(tidyBusy);
+                two.scene.techs.player.archer = ['barrel', 'ap'];
+                zexpect(ed.armyValue(T, two, prices).player === expectPlayer + T.talent('ap').cost + 200, 'talent escalation not counted');
+            }
+            // the player's loadout under a scenario's rule
+            const lo = await server.ssrLoadModule('/src/game/loadouts.ts');
+            const own = { techs: { ogre: ['whirlwind', 'bloodRage'], mortar: ['barrel', 'autoloader'] } };
+            const opened = lo.scenarioLoadout({ mode: 'open' }, own, T);
+            const fixed = lo.scenarioLoadout({ mode: 'fixed', techs: { ogre: ['carapace', 'nope'] } }, own, T);
+            const narrowed = lo.scenarioLoadout({ mode: 'restrict', allow: { ogre: ['bloodRage', 'carapace'], mortar: ['ap'] } }, own, T);
+            zexpect(lo.scenarioLoadout({ mode: 'player' }, own, T) === own && opened.techs.ogre.length === 3 && opened.techs.mortar.length === 3, `open loadout: ${JSON.stringify(opened.techs.ogre)}`);
+            zexpect(fixed.techs.ogre.join() === 'carapace' && fixed.techs.mortar.join() === 'barrel,autoloader', `fixed loadout: ${JSON.stringify(fixed.techs)}`);
+            zexpect(narrowed.techs.ogre.join() === 'bloodRage' && narrowed.techs.mortar.join() === 'ap', `restricted loadout: ${JSON.stringify(narrowed.techs)}`);
+            const fixedRule = structuredClone(blank);
+            fixedRule.rules.loadout = { mode: 'fixed', techs: { ogre: ['carapace', 'legs'], nobody: ['x'] } };
+            const fixedCheck = scen.normalizeScenario(fixedRule, T);
+            zexpect(!scen.hasErrors(fixedCheck.issues) && fixedCheck.def.rules.loadout.techs.ogre.join() === 'carapace' && !('nobody' in fixedCheck.def.rules.loadout.techs), `loadout rule normalize: ${JSON.stringify(fixedCheck.def?.rules.loadout)}`);
+        }
+        if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; share codes; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rules and purse, horde ring, side swap, mirror, loadout rules)');
+    }
+
+    // ---- bundled campaigns (assets/campaign/<id>/): every level parses, meta names them in order
+    {
+        const camp = await server.ssrLoadModule('/src/game/campaign.ts');
+        const scen = await server.ssrLoadModule('/src/game/scenario/normalize.ts');
+        const { BASE_TYPES: T } = await server.ssrLoadModule('/src/game/units.ts');
+        let ck = true;
+        const list = camp.builtInCampaigns();
+        for (const c of list) {
+            const text = (path) => new TextDecoder().decode(c.files.find((f) => f.path === path)?.bytes);
+            const ids = c.files.filter((f) => f.path.startsWith('scenarios/')).map((f) => f.path.slice('scenarios/'.length, -'.jsonc'.length));
+            for (const id of ids) {
+                const r = scen.parseScenario(text(`scenarios/${id}.jsonc`), T, `${c.id}/scenarios/${id}.jsonc`);
+                if (!r.def || scen.hasErrors(r.issues) || r.def.id !== id) {
+                    ck = false;
+                    console.error(`FAIL campaign ${c.id}/${id}: ${JSON.stringify(r.issues)}${r.def && r.def.id !== id ? ` (id "${r.def.id}" ≠ file name)` : ''}`);
+                }
+            }
+            const meta = scen.parseMeta(text('meta.jsonc') ?? '', new Set(ids), T);
+            if (!meta.def || scen.hasErrors(meta.issues) || meta.def.id !== c.id) {
+                ck = false;
+                console.error(`FAIL campaign ${c.id}/meta.jsonc: ${JSON.stringify(meta.issues)}${meta.def && meta.def.id !== c.id ? ` (id "${meta.def.id}" ≠ folder name)` : ''}`);
+            }
+        }
+        if (list.length === 0) {
+            ck = false;
+            console.error('FAIL no bundled campaign under assets/campaign/');
+        }
+        if (!ck) failed = true;
+        else console.log(`ok   campaigns: ${list.map((c) => `${c.id} (${camp.campaignSummary(c).scenarios.length} levels)`).join(', ')}`);
     }
 } catch (e) {
     failed = true;

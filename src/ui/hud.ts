@@ -33,6 +33,8 @@ import { registerHoverTipClearer } from './hoverTips';
 import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
 import { hudStyles } from '../theme';
+import { yearMarksHtml, yearProgressHtml, yearRoleName, type YearProgress } from './yearTally';
+import { yearWinner } from '../game/settings';
 
 export type Phase = 'build' | 'battle' | 'hpDraw';
 
@@ -393,6 +395,16 @@ export class Hud {
     private readonly shopUnitTiles = new Map<string, HTMLButtonElement>();
     private shopUnlocked: string[] = [];
     private shopUnlockAvailable = false;
+    /** the local commander pick has happened (the unlock slot may show) */
+    private shopCommanderChosen = false;
+    /** the local seat's shop (its commander's own, else null = the normal shop) — what the unlock picker offers */
+    private shopPool: readonly string[] | null = null;
+
+    setShopPool(pool: readonly string[]): void {
+        if (this.shopPool === pool) return;
+        this.shopPool = pool;
+        this.lastShopKey = '';
+    }
     private shopBalance = 0;
     private unitIcons = new Map<string, string>();
     /** talent rows per unit type, pre-encoded for `data-trows` — kept because
@@ -627,6 +639,7 @@ export class Hud {
     private extrasBudgetLeft = Infinity;
     /** Campaign: hide Ward Stone / Fire Bolt row (any `UnitType.extra`) */
     private boardExtrasAllowed = true;
+    private readonly unlockable: readonly string[] | null;
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
     private readonly boardExtraButtons: HTMLButtonElement[] = [];
@@ -702,9 +715,15 @@ export class Hud {
         overlayParent: HTMLElement,
         costOf: (type: UnitType) => number,
         onBuy: (type: UnitType) => boolean,
-        opts: { types: TypeRegistry; boardExtrasAllowed?: boolean },
+        opts: {
+            types: TypeRegistry;
+            boardExtrasAllowed?: boolean;
+            /** what the round unlock may add (match rules); null / omitted = any buyable unit */
+            unlockable?: readonly string[] | null;
+        },
     ) {
         this.types = opts.types;
+        this.unlockable = opts.unlockable ?? null;
         this.overlayParent = overlayParent;
         this.costOf = costOf;
         // Explicit false hides Ward Stone / Fire Bolt / any future board extras.
@@ -714,7 +733,8 @@ export class Hud {
         // colors for this match, never tear down so orphans stay laid out.
         ensureHudStyleSheet();
 
-        const shopUnits = this.types.roster.filter((t) => !t.extra && isPlayerBuyable(t));
+        // a tile for every unit any shop can hold — the seat's own shop decides which show
+        const shopUnits = this.types.roster.filter((t) => !t.extra && this.types.allShopUnitIds.includes(t.id));
         const extraTypes = this.boardExtrasAllowed
             ? this.types.roster.filter((t) => t.extra && isPlayerBuyable(t))
             : [];
@@ -2590,12 +2610,17 @@ export class Hud {
         }
     }
 
-    /** shows only unlocked units; the unlock slot appears when a pick is still available */
-    updateShop(unlocked: readonly string[], unlockAvailable: boolean, balance: number): void {
-        const key = `${unlocked.join(',')}|${unlockAvailable}|${balance}`;
+    /**
+     * Shows only unlocked units; the unlock slot appears once the commander is
+     * chosen and a pick is still available — also with an empty starting shop
+     * (a scenario without a commander or shop units).
+     */
+    updateShop(unlocked: readonly string[], unlockAvailable: boolean, balance: number, commanderChosen = unlocked.length > 0): void {
+        const key = `${unlocked.join(',')}|${unlockAvailable}|${balance}|${commanderChosen}`;
         if (key === this.lastShopKey) return;
         this.lastShopKey = key;
         this.shopUnlocked = [...unlocked];
+        this.shopCommanderChosen = commanderChosen;
         this.shopUnlockAvailable = unlockAvailable;
         this.shopBalance = balance;
 
@@ -2610,21 +2635,20 @@ export class Hud {
                 tile.style.display = '';
                 this.shopGrid.appendChild(tile);
             }
-            for (const id of this.types.shopUnitIds) {
+            for (const id of this.types.allShopUnitIds) {
                 if (unlocked.includes(id)) continue;
                 const tile = this.shopUnitTiles.get(id);
                 if (tile) tile.style.display = 'none';
             }
             this.shopGrid.appendChild(this.unlockTile);
         } else {
-            for (const id of this.types.shopUnitIds) {
+            for (const id of this.types.allShopUnitIds) {
                 const tile = this.shopUnitTiles.get(id);
                 if (tile) tile.style.display = unlocked.includes(id) ? '' : 'none';
             }
         }
-        const specialistChosen = unlocked.length > 0;
-        const hasLocked = this.types.shopUnitIds.some((id) => !unlocked.includes(id));
-        const showUnlock = specialistChosen && unlockAvailable && hasLocked;
+        const hasLocked = this.unlockableIds().length > 0;
+        const showUnlock = commanderChosen && unlockAvailable && hasLocked;
         this.unlockTile.style.display = showUnlock ? '' : 'none';
         this.unlockTile.classList.toggle('available', showUnlock);
         this.refreshCosts();
@@ -2639,7 +2663,7 @@ export class Hud {
 
     private openUnlockPicker(): void {
         if (!this.shopUnlockAvailable || this.shopUnlocked.length === 0) return;
-        const locked = this.types.shopUnitIds.filter((id) => !this.shopUnlocked.includes(id)).map((id) => {
+        const locked = this.unlockableIds().map((id) => {
             const type = this.types.roster.find((t) => t.id === id)!;
             const unlockCost = this.unlockCostOf(id);
             return {
@@ -2652,6 +2676,13 @@ export class Hud {
         });
         if (locked.length === 0) return;
         this.showUnlockPicker(locked);
+    }
+
+    /** units the round unlock may still add: not yet unlocked, and allowed by the match rules */
+    private unlockableIds(): string[] {
+        return (this.shopPool ?? this.types.shopUnitIds).filter(
+            (id) => !this.shopUnlocked.includes(id) && (this.unlockable === null || this.unlockable.includes(id)),
+        );
     }
 
     private unlockTierLabel(unlockCost: number): string {
@@ -3333,7 +3364,8 @@ export class Hud {
                   ? DISPLAY.commanders
                   : t('hud:round', { n: round });
         const s = Math.max(0, Math.ceil(remainingSeconds));
-        this.timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+        // the scenario editor's deployment has no clock
+        this.timerEl.textContent = Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '∞';
         this.topBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         // last 5s of deployment — pulse so the player knows to hurry
         this.timerEl.classList.toggle(
@@ -4356,6 +4388,10 @@ export class Hud {
              * Campaign: hide MMR (looks like HP) and show Round n/total instead.
              */
             climbProgress?: { n: number; total: number };
+            /** The Year: every round's winner — the end screen shows the tally and who took the Year */
+            year?: YearProgress;
+            /** offer "Rematch, roles swapped" (see {@link onRematch}, {@link setRematchState}) */
+            allowRematch?: boolean;
         },
     ): void {
         this.prepareMatchEndUi();
@@ -4369,17 +4405,16 @@ export class Hud {
                   ? t('hud:defeat')
                   : t('hud:draw'));
         const allowRetry = options?.allowRetry === true;
-        const climbNote = options?.climbProgress
-            ? t('hud:climbRoundShort', {
-                  n: options.climbProgress.n,
-                  total: options.climbProgress.total,
-              })
-            : undefined;
-        el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note ?? climbNote, {
+        el.innerHTML = this.gameOverInnerHtml(title, options?.details, options?.note, {
             allowRetry,
             allowNext: options?.allowNext === true,
             hideMmr: !!options?.climbProgress,
+            ...(options?.year ? { year: options.year } : {}),
+            allowRematch: options?.allowRematch === true,
         });
+        this.rematchButton = el.querySelector<HTMLButtonElement>('.go-rematch');
+        this.rematchButton?.addEventListener('click', () => this.onRematch?.());
+        if (options?.year) el.classList.add('is-year');
         const backLabel = options?.backLabel ?? t('hud:backToMainMenu');
         const btn = el.querySelector('.go-restart')!;
         btn.textContent = backLabel;
@@ -4417,6 +4452,73 @@ export class Hud {
         }, 1600);
     }
 
+    /** the end screen asked for "Rematch, roles swapped" */
+    onRematch: (() => void) | null = null;
+    private rematchButton: HTMLButtonElement | null = null;
+
+    /**
+     * The rematch button follows the room: 'waiting' — you asked, the other
+     * player hasn't yet; 'asked' — the other player wants it; 'gone' — the
+     * other player left.
+     */
+    setRematchState(state: 'waiting' | 'asked' | 'gone'): void {
+        const button = this.rematchButton;
+        if (!button?.isConnected) return;
+        if (state === 'gone') {
+            button.disabled = true;
+            button.classList.remove('is-asked');
+            button.textContent = t('hud:rematchGone', { defaultValue: 'Opponent left' });
+        } else if (state === 'waiting') {
+            if (button.disabled && button.classList.contains('is-gone')) return;
+            button.disabled = true;
+            button.classList.remove('is-asked');
+            button.textContent = t('hud:rematchWaiting', { defaultValue: 'Waiting for opponent…' });
+        } else if (!button.disabled) {
+            button.classList.add('is-asked');
+            button.textContent = t('hud:rematchAccept', { defaultValue: 'Accept rematch, roles swapped' });
+        }
+        if (state === 'gone') button.classList.add('is-gone');
+    }
+
+    /** The Year's result block: who took the Year, the tally, every round in order */
+    private yearResultHtml(p: YearProgress): string {
+        const winner = yearWinner(p.rounds);
+        const loser = winner === 'attacker' ? 'defender' : 'attacker';
+        const count = (role: 'attacker' | 'defender') => p.rounds.filter((r) => r === role).length;
+        return (
+            `<div class="go-year">` +
+            `<div class="go-year-winner is-${winner}">${escapeHtml(t('hud:yearSideWins', { defaultValue: '{{side}} wins', side: yearRoleName(winner) }))}</div>` +
+            `<div class="go-year-score">` +
+            `<span class="is-${winner}">${count(winner)} × ${escapeHtml(yearRoleName(winner))}</span>` +
+            `<span class="year-dash">·</span>` +
+            `<span class="is-${loser}">${count(loser)} × ${escapeHtml(yearRoleName(loser))}</span>` +
+            `</div>` +
+            yearMarksHtml(p) +
+            `</div>`
+        );
+    }
+
+    /**
+     * The Year between rounds: who took the round and the tally so far, then `onDone`.
+     */
+    showYearRoundSplash(p: YearProgress, onDone: () => void): void {
+        this.clearBlockingOverlays();
+        const el = withDialogFade(document.createElement('div'));
+        el.classList.add('mechili-climb-splash', 'is-year');
+        const last = p.rounds[p.rounds.length - 1];
+        const title = last
+            ? t('hud:yearRoundTo', { defaultValue: 'Round {{n}}: {{side}}', n: p.rounds.length, side: yearRoleName(last) })
+            : t('hud:climbRoundShort', { n: 1, total: p.total });
+        el.innerHTML = yearProgressHtml(p, { title, fresh: true });
+        this.mount(el);
+        window.setTimeout(() => {
+            removeWithDialogFade(el, () => {
+                this.unmount(el);
+                onDone();
+            });
+        }, 2400);
+    }
+
     /** Fade the result panel out, then run `after` (default: quit to menu). */
     private leaveGameOver(el: HTMLElement, after?: () => void): void {
         if (el.dataset.leaving === '1') return;
@@ -4437,9 +4539,10 @@ export class Hud {
         title: string,
         details?: GameOverDetails,
         note?: string,
-        opts?: { allowRetry?: boolean; allowNext?: boolean; hideMmr?: boolean },
+        opts?: { allowRetry?: boolean; allowNext?: boolean; hideMmr?: boolean; year?: YearProgress; allowRematch?: boolean },
     ): string {
         const hideMmr = opts?.hideMmr === true;
+        const year = opts?.year ? this.yearResultHtml(opts.year) : '';
         const teams = details
             ? `<div class="go-teams">` +
               this.gameOverTeamHtml('player', details.playerTeam, hideMmr) +
@@ -4453,6 +4556,9 @@ export class Hud {
             : '';
         // `hud:continue` rather than a tutorial-specific label: it is already
         // translated in every locale, and it reads right for "on to the next one".
+        const rematchBtn = opts?.allowRematch
+            ? `<button type="button" class="go-rematch">${escapeHtml(t('hud:rematchSwapped', { defaultValue: 'Rematch, roles swapped' }))}</button>`
+            : '';
         const nextBtn = opts?.allowNext
             ? `<button type="button" class="go-next">${escapeHtml(t('hud:continue'))}</button>`
             : '';
@@ -4462,8 +4568,8 @@ export class Hud {
             `<span class="go-bg-glow go-bg-glow-enemy"></span>` +
             `<span class="go-bg-core"></span>` +
             `</div>` +
-            `<div class="go-title">${escapeHtml(title)}</div>${teams}${noteEl}` +
-            `<div class="go-actions">${nextBtn}${retryBtn}` +
+            `<div class="go-title">${escapeHtml(title)}</div>${year}${teams}${noteEl}` +
+            `<div class="go-actions">${rematchBtn}${nextBtn}${retryBtn}` +
             `<button type="button" class="go-restart">${escapeHtml(t('hud:backToMainMenu'))}</button>` +
             `</div>`
         );
@@ -4490,6 +4596,7 @@ export class Hud {
             this.shopUnlocked,
             this.shopUnlockAvailable,
             amount,
+            this.shopCommanderChosen,
         );
     }
 

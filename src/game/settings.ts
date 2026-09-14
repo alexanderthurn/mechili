@@ -1,5 +1,6 @@
 import { BASE_TYPES } from './units';
 import type { LevelRef } from './level';
+import type { ScenarioDef } from './scenario/scenarioDef';
 import { STANDARD_MAP, type MapSize } from './map';
 import { DISPLAY } from './displayNames';
 import { t } from '../i18n';
@@ -24,7 +25,8 @@ import type { SeatDef, SeatId } from './seats';
  * Campaign (SP climb) playtest knobs — change these while tuning feel.
  * {@link CLIMB_SUPPLY_GROWTH_PER_ROUND}: `null` keeps AI on normal match income growth.
  */
-export const CLIMB_ROUNDS_TO_WIN = 9;
+/** rounds a Year lasts; the side with more round wins takes it */
+export const CLIMB_ROUNDS = 9;
 export const CLIMB_SIDE_HP = 1;
 export const CLIMB_SUPPLY_GROWTH_PER_ROUND: number | null = null;
 /**
@@ -43,10 +45,10 @@ export const CLIMB_AI_DEPLOY_LIMIT = 40;
  */
 export const CLIMB_AI_PACK_BUDGET_FRACTION = 0.55;
 
-/** SP Campaign rules (see {@link GameSettings.climb}). */
+/** The Year's rules (see {@link GameSettings.climb}) — single player and multiplayer. */
 export interface ClimbSettings {
-    /** Round wins needed for campaign victory */
-    roundsToWin: number;
+    /** rounds played; every round counts for the side that won it, the side with more round wins takes the Year */
+    rounds: number;
     /** Fixed side HP after commander pick (both sides) */
     sideHp: number;
     /**
@@ -54,6 +56,56 @@ export interface ClimbSettings {
      * Grant = startingSupply + (round - 1) * this.
      */
     playerSupplyGrowthPerRound: number;
+    /**
+     * The human's role (omit = attacker, as the mode began): the attacker has no
+     * base buildings and no board extras, the defender keeps its base and wins
+     * a tied round.
+     */
+    humanRole?: ClimbRole;
+    /**
+     * Multiplayer: the canonical side that attacks (0 = the host's side).
+     * Wins over {@link humanRole}, which only means something with one human.
+     */
+    attackerSide?: number;
+    /**
+     * The attacking side's commander, handed to it instead of an offer — e.g.
+     * `cursed` (Cursed Christine), whose shop is the forest roster. Omit = the attacker picks as usual.
+     */
+    attackerCommander?: string;
+}
+
+export type ClimbRole = 'attacker' | 'defender';
+
+/** who took a round of The Year */
+export type YearRoundWinner = ClimbRole;
+
+/**
+ * The side that attacks in The Year (no base, no board extras, must outscore
+ * to win a round), as the local team label. `localSide` is the local seat's
+ * canonical side — needed when the settings name the attacker by side.
+ */
+export function climbAttackerTeam(climb: ClimbSettings, localSide = 0): 'player' | 'enemy' {
+    if (climb.attackerSide !== undefined) return climb.attackerSide === localSide ? 'player' : 'enemy';
+    return climb.humanRole === 'defender' ? 'enemy' : 'player';
+}
+
+/**
+ * The attacking side (0 / 1) from the roles two players asked for: a wish the
+ * other side doesn't contest is granted; the same wish on both sides, or none,
+ * is a coin flip on the match seed.
+ */
+export function yearAttackerFromWishes(a: ClimbRole | undefined, b: ClimbRole | undefined, seed: number): number {
+    if (a === 'attacker' && b !== 'attacker') return 0;
+    if (b === 'attacker' && a !== 'attacker') return 1;
+    if (a === 'defender' && b !== 'defender') return 1;
+    if (b === 'defender' && a !== 'defender') return 0;
+    return (seed >>> 0) % 2;
+}
+
+/** The Year's winner from its round winners: more round wins, a tie to the defender. */
+export function yearWinner(rounds: readonly YearRoundWinner[]): YearRoundWinner {
+    const attacker = rounds.filter((r) => r === 'attacker').length;
+    return attacker > rounds.length - attacker ? 'attacker' : 'defender';
 }
 
 /**
@@ -118,6 +170,17 @@ export interface GameSettings {
      * level must be active before the Game is built (`prepareLevel`).
      */
     level?: LevelRef;
+    /**
+     * A scenario match (plan §2.2): 'play' reads the board and rules from the
+     * level's `scenario.jsonc`; 'author' / 'test' carry the editor draft here
+     * instead (single player only, never sent to peers).
+     */
+    scenario?: {
+        mode: 'play' | 'author' | 'test';
+        /** which of the level package's scenarios (`scenarios/<id>.jsonc`, or `scenario` for a root scenario.jsonc) */
+        id?: string;
+        draft?: ScenarioDef;
+    };
     /**
      * Horde algorithm id (see {@link HORDE_ALGORITHMS}).
      * Owns spawn schedule, pack-count multiplier, and leader bias.
@@ -585,6 +648,8 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
     return {
         ...DEFAULT_SETTINGS,
         ...rest,
+        // a match that arrived over a room connection may carry null for "no level"
+        ...(rest.level == null ? { level: undefined } : {}),
         economy: {
             ...DEFAULT_SETTINGS.economy,
             ...settings.economy,
@@ -615,13 +680,17 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         strongholdMode: strongholdModeOption(settings.strongholdMode),
         climb: settings.climb
             ? {
-                  roundsToWin: settings.climb.roundsToWin,
+                  // older saves: roundsToWin was the wins needed, as long as a Year lasts now
+                  rounds: settings.climb.rounds ?? (settings.climb as { roundsToWin?: number }).roundsToWin ?? CLIMB_ROUNDS,
                   sideHp: settings.climb.sideHp,
                   playerSupplyGrowthPerRound:
                       settings.climb.playerSupplyGrowthPerRound ??
                       // older saves used flat playerSupplyPerRound as the grant amount
                       (settings.climb as { playerSupplyPerRound?: number }).playerSupplyPerRound ??
                       CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
+                  ...(settings.climb.humanRole === 'defender' ? { humanRole: 'defender' as const } : {}),
+                  ...(typeof settings.climb.attackerSide === 'number' ? { attackerSide: settings.climb.attackerSide } : {}),
+                  ...(typeof settings.climb.attackerCommander === 'string' ? { attackerCommander: settings.climb.attackerCommander } : {}),
               }
             : undefined,
         tutorial: settings.tutorial
@@ -665,6 +734,8 @@ function resolveRoundCardPreset(settings: LegacyGameSettings): string {
  */
 export class Economy {
     private readonly balances: number[];
+    /** scenario editor: every purchase succeeds and nothing is deducted */
+    free = false;
 
     constructor(
         private readonly settings: EconomySettings,
@@ -714,6 +785,7 @@ export class Economy {
 
     /** deducts an arbitrary amount (tech, items, ...) if affordable */
     spend(seat: SeatId, amount: number): boolean {
+        if (this.free) return true;
         if (this.balance(seat) < amount) return false;
         this.balances[seat]! -= amount;
         return true;

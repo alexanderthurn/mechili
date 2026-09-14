@@ -358,6 +358,14 @@ export class PlacementController {
     groundClickInterceptor: ((x: number, y: number) => boolean) | null = null;
     /** blocks normal placement interaction (tactic placement mode) */
     inputLocked = false;
+    /**
+     * The scenario editor owns left clicks and drags: no selecting, carrying
+     * or rubber-banding here — selection markers still draw for whatever it
+     * selects through {@link selectUnit}.
+     */
+    externalInput = false;
+    /** the editor's footprint under the cursor (place / drag target), green when it fits */
+    editorPlate: { type: UnitType; anchor: Cell; rotated: boolean; valid: boolean } | null = null;
 
     /**
      * per-team id counters: a side's ids depend only on its OWN spawn
@@ -526,7 +534,7 @@ export class PlacementController {
             }
             this.pointer = this.toLocal(e);
             // touch: one-finger drags pan the camera — no rubber-band select
-            if (e.pointerType === 'touch') return;
+            if (e.pointerType === 'touch' || this.externalInput) return;
             if (!this.downAt || !this.enabled || this.pendingType || this.inputLocked) return;
             const moved = Math.hypot(this.pointer.x - this.downAt.x, this.pointer.y - this.downAt.y);
             if (this.rectActive || moved > 6) this.updateRect(this.downAt, this.pointer);
@@ -568,6 +576,10 @@ export class PlacementController {
             const wasRect = this.rectActive;
             this.hideRect();
             const up = this.toLocal(e);
+            if (this.externalInput) {
+                this.pointer = up;
+                return;
+            }
             // tactic placement: single clicks only, no drag-select — but still
             // require a canvas pointerdown. Arming a spell removes its strip
             // button, so the same gesture's pointerup can retarget onto this
@@ -1052,6 +1064,15 @@ export class PlacementController {
         if (lane === 'full') return true;
         const midCol = Math.floor(this.map.cols / 2);
         return lane === 'left' ? cell.col < midCol : cell.col >= midCol;
+    }
+
+    /** Could this seat put `type` at `anchor` right now (its zone, free tiles)? — for AI planning */
+    canPlaceAt(team: Team, seat: SeatId, type: UnitType, anchor: Cell, rotated: boolean): boolean {
+        const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
+        return (
+            cells !== null &&
+            cells.every((c) => this.deployCellOk(team, c, type, seat) && (type.extra || !this.occupied.has(cellKey(c))))
+        );
     }
 
     /**
@@ -2024,6 +2045,47 @@ export class PlacementController {
         });
     }
 
+    /** the ground cell under a surface point, or null off the board */
+    cellAtPoint(x: number, y: number): Cell | null {
+        return this.cellAt(x, y);
+    }
+
+    /** the tile under a surface point on the unbounded grid (off-board tiles too), or null */
+    gridCellAtPoint(x: number, y: number): Cell | null {
+        const ground = this.groundAtPoint(x, y);
+        if (!ground) return null;
+        return {
+            col: Math.floor((ground.x + this.map.halfW) / CELL),
+            row: Math.floor((this.map.halfH - ground.z) / CELL),
+        };
+    }
+
+    /** the ground point under a surface point (world space), or null */
+    groundAtPoint(x: number, y: number): Vector3 | null {
+        const rect = this.surface.getBoundingClientRect();
+        return this.rig.screenToGround(x, y, rect.width, rect.height);
+    }
+
+    /** the anchor that centers a footprint on `center` */
+    anchorCenteredOn(type: UnitType, rotated: boolean, center: Cell): Cell {
+        return this.centeredAnchor(type, rotated, center);
+    }
+
+    /**
+     * Whether a footprint lies on the board and its tiles are free — `ignore`
+     * may stand there (a pack being moved). No zone rules: the editor places
+     * anywhere.
+     */
+    footprintFree(type: UnitType, anchor: Cell, rotated: boolean, ignore: Unit | null = null): boolean {
+        const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
+        if (!cells) return false;
+        if (type.extra) return true;
+        return cells.every((c) => {
+            const holder = this.occupied.get(cellKey(c));
+            return holder === undefined || holder === ignore;
+        });
+    }
+
     /** the pack under a surface point — for tactics that target units (e.g. sell) */
     unitAtPoint(x: number, y: number): Unit | undefined {
         return this.pickUnitAt(x, y);
@@ -2456,6 +2518,15 @@ export class PlacementController {
         this.auraMesh.visible = false;
         this.itemDropHovering = false;
         this.itemDropOnForge = false;
+
+        if (this.editorPlate) {
+            const { type, anchor, rotated, valid } = this.editorPlate;
+            const fp = this.footprintOf(type, rotated);
+            const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
+            this.placeFootprintPlate(this.hoverMesh, this.hoverMaterial, center, fp, valid ? VALID_COLOR : INVALID_COLOR, timeSeconds, true);
+            this.targetPreview.clear();
+            return;
+        }
 
         // an extra riding the cursor: ghost mesh + footprint plate + effect ring
         if (this.pendingType && this.pendingUnit && this.enabled) {

@@ -6,6 +6,7 @@
     "id": "bat",
     "name": "Bat",
     "cost": 100,
+    "unlockCost": 0,
     "hpWithdraw": 2,
     "buyable": false,
     "horde": true,
@@ -26,7 +27,7 @@
     ],
     "hp": 10,
     "bloodScale": 0.28, // tiny body — don't fountain like a dwarf
-    "damage": 3, // chip — pressure from numbers, not punches
+    "damage": 2, // chip — pressure from numbers, not punches (3 before bats stopped circling close foes)
     "range": 2.2, // touch radius while piercing
     "meleeLunge": 5, // commit the pass from a bit out
     "attackInterval": 1.05,
@@ -34,7 +35,6 @@
     "turnRate": 3.2, // slow bank — points then flies along facing
     "turnMove": "cruise",
     "proceduralModel": "bat",
-    // Gale Wings — mobility while testing
-    "talents": ["engines"],
-    "talentSlots": 1,
+    "talents": ["engines", "stingers"],
+    "talentSlots": 2,
 }

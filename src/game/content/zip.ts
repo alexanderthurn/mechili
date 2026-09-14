@@ -1,6 +1,6 @@
 /**
- * Minimal zip reader for level packages: stored and deflated entries, no
- * encryption, no zip64. Decompression uses the platform's
+ * Minimal zip reader and writer for level packages: reads stored and deflated
+ * entries (no encryption, no zip64), writes stored entries. Decompression uses the platform's
  * `DecompressionStream('deflate-raw')` (browsers, Electron, Node 18+), so the
  * game needs no zip library.
  */
@@ -62,4 +62,74 @@ export async function readZip(bytes: ArrayBuffer | Uint8Array): Promise<OverlayF
         else throw new Error(`[zip] ${path}: compression method ${method} is not supported`);
     }
     return files;
+}
+
+// ------------------------------------------------------------------ writing
+
+let crcTable: Uint32Array | null = null;
+
+function crc32(bytes: Uint8Array): number {
+    if (!crcTable) {
+        crcTable = new Uint32Array(256);
+        for (let n = 0; n < 256; n++) {
+            let c = n;
+            for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+            crcTable[n] = c >>> 0;
+        }
+    }
+    let crc = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) crc = crcTable[(crc ^ bytes[i]!) & 0xff]! ^ (crc >>> 8);
+    return (crc ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * A zip of `files`, uncompressed (stored) — level packages are a few text
+ * files plus already-compressed media, and any unzip tool opens it.
+ */
+export function writeZip(files: readonly OverlayFile[]): Uint8Array<ArrayBuffer> {
+    const enc = new TextEncoder();
+    const parts: Uint8Array[] = [];
+    const central: Uint8Array[] = [];
+    let offset = 0;
+    for (const f of files) {
+        const name = enc.encode(f.path);
+        const data = f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes);
+        const crc = crc32(data);
+        const local = new DataView(new ArrayBuffer(30));
+        local.setUint32(0, LOCAL_SIGNATURE, true);
+        local.setUint16(4, 20, true); // version needed
+        local.setUint16(6, 0x0800, true); // UTF-8 names
+        local.setUint32(14, crc, true);
+        local.setUint32(18, data.length, true);
+        local.setUint32(22, data.length, true);
+        local.setUint16(26, name.length, true);
+        parts.push(new Uint8Array(local.buffer), name, data);
+        const cd = new DataView(new ArrayBuffer(46));
+        cd.setUint32(0, CENTRAL_SIGNATURE, true);
+        cd.setUint16(4, 20, true);
+        cd.setUint16(6, 20, true);
+        cd.setUint16(8, 0x0800, true);
+        cd.setUint32(16, crc, true);
+        cd.setUint32(20, data.length, true);
+        cd.setUint32(24, data.length, true);
+        cd.setUint16(28, name.length, true);
+        cd.setUint32(42, offset, true);
+        central.push(new Uint8Array(cd.buffer), name);
+        offset += 30 + name.length + data.length;
+    }
+    const centralSize = central.reduce((n, p) => n + p.length, 0);
+    const eocd = new DataView(new ArrayBuffer(22));
+    eocd.setUint32(0, EOCD_SIGNATURE, true);
+    eocd.setUint16(8, files.length, true);
+    eocd.setUint16(10, files.length, true);
+    eocd.setUint32(12, centralSize, true);
+    eocd.setUint32(16, offset, true);
+    const all = [...parts, ...central, new Uint8Array(eocd.buffer)];
+    const out = new Uint8Array(all.reduce((n, p) => n + p.length, 0));
+    let at = 0;
+    for (const p of all) {
+        out.set(p, at);
+        at += p.length;
+    }
+    return out;
 }

@@ -19,6 +19,8 @@
  */
 
 import { allowedTechIds, techSlotLimit, type Loadout } from './techCatalog';
+import type { TypeRegistry } from './content/typeRegistry';
+import type { LoadoutRule } from './scenario/scenarioDef';
 import { BASE_TYPES, isPlayerBuyable, type UnitType } from './units';
 import { USER_STORAGE_PREFIX } from './userStorage';
 
@@ -54,6 +56,59 @@ export function defaultLoadout(): Loadout {
     const techs: Record<string, string[]> = {};
     for (const type of loadoutUnitTypes()) techs[type.id] = defaultTechIdsFor(type);
     return { techs };
+}
+
+/**
+ * Every talent each type may take, no slot limit — the scenario editor's
+ * sandbox, never a player's match loadout (rule 1 still holds: nothing is
+ * unlocked, it only lifts the pick limit while building a board).
+ */
+export function openLoadout(types: TypeRegistry): Loadout {
+    const techs: Record<string, string[]> = {};
+    for (const type of types.all()) {
+        const ids = allowedTechIds(type).filter((id) => types.talent(id) !== null);
+        if (ids.length > 0) techs[type.id] = [...ids];
+    }
+    return { techs };
+}
+
+/**
+ * The player's loadout under a scenario's `loadout` rule: their own picks
+ * (`player`), every talent (`open`), the scenario's picks (`fixed`), or their
+ * own picks narrowed to the scenario's allow lists (`restrict` — a type whose
+ * picks all fall outside gets the first allowed ones instead).
+ */
+export function scenarioLoadout(rule: LoadoutRule, own: Loadout | undefined, types: TypeRegistry): Loadout | undefined {
+    switch (rule.mode) {
+        case 'player':
+            return own;
+        case 'open':
+            return openLoadout(types);
+        case 'fixed': {
+            const techs: Record<string, string[]> = { ...(own?.techs ?? {}) } as Record<string, string[]>;
+            for (const [typeId, ids] of Object.entries(rule.techs)) {
+                const type = types.byId(typeId);
+                if (type) techs[typeId] = ids.filter((id) => allowedTechIds(type).includes(id) && types.talent(id) !== null);
+            }
+            return { techs };
+        }
+        case 'restrict': {
+            const techs: Record<string, string[]> = { ...(own?.techs ?? {}) } as Record<string, string[]>;
+            for (const [typeId, allow] of Object.entries(rule.allow)) {
+                const type = types.byId(typeId);
+                if (!type) continue;
+                const picks = own?.techs[typeId] ?? allowedTechIds(type).slice(0, techSlotLimit(type));
+                const kept = picks.filter((id) => allow.includes(id));
+                techs[typeId] = kept.length > 0 ? kept : allow.filter((id) => allowedTechIds(type).includes(id)).slice(0, techSlotLimit(type));
+            }
+            return { techs };
+        }
+    }
+}
+
+/** a loadout rule that can show more talents than the type's slot count */
+export function loadoutShowsAll(rule: LoadoutRule): boolean {
+    return rule.mode === 'open' || rule.mode === 'fixed';
 }
 
 /**

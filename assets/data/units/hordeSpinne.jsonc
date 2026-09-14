@@ -5,7 +5,9 @@
 {
     "id": "hordeSpinne",
     "name": "Black Spider",
-    "cost": 500,
+    "cost": 800, // bought by The Komtur's side (was 500 as a wave value)
+    "unlockCost": 200,
+    "xpValue": 500.0, // kill XP as before the price change
     "hpWithdraw": 70,
     "buyable": false,
     "horde": true,
@@ -36,6 +38,7 @@
     "proceduralModel": "dwarf",
     "walkCadence": 1.5,
     "walkLean": 1.5,
-    // innate on the type; listed so tooling / future research UI can see it
-    "talents": ["spiderMother"],
+    // standard talents for The Komtur's side (Spider Mother stays innate)
+    "talents": ["barrel", "armor"],
+    "talentSlots": 2,
 }

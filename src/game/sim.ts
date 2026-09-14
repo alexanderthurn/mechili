@@ -716,6 +716,28 @@ export type SimEvent =
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
 
+/**
+ * Where a straight shot aims on its target, above the feet (world units): the
+ * middle of the model, moved into the nearest hit volume. A small unit's
+ * mid-mesh sits above its collider sphere — a bolt aimed there rises over it
+ * and never connects (lobbed shots come down through it instead).
+ */
+function straightAimY(tt: UnitType): number {
+    const want = projectileAimY(tt) * tt.meshScale;
+    let best = want;
+    let bestGap = Infinity;
+    for (const c of tt.colliders) {
+        const cy = c.y * tt.meshScale;
+        const band = c.r * tt.meshScale * 0.5;
+        const y = Math.max(cy - band, Math.min(cy + band, want));
+        if (Math.abs(y - want) < bestGap) {
+            bestGap = Math.abs(y - want);
+            best = y;
+        }
+    }
+    return best;
+}
+
 /** Grounded rock after a stone impact — inherits flying uniform scale. */
 function stoneDropFields(p: Projectile): { dropStone?: boolean; dropStoneScale?: number } {
     if (p.style !== 'stone' || p.scaleEnd != null) return {};
@@ -787,6 +809,8 @@ const MELEE_PRESS_BAND = 0.07;
 const FLY_PASS_CLEAR = 5.2;
 /** Free-flight: brief pause behind the foe before a det-random turn. */
 const FLY_PASS_COAST_SEC = 0.4;
+/** a chasing free-flyer slows at most to this share of its speed to turn onto a close foe */
+const FLY_CHASE_MIN_SPEED = 0.15;
 /** Free-flight: ±radian jitter when picking the next approach heading. */
 const FLY_PASS_TURN_SPREAD = Math.PI * 0.95;
 /**
@@ -1861,8 +1885,14 @@ export class BattleSim {
         // --- chase: point (slowly) at target and commit a pierce ---
         this.updateFreeFlight(a, dt, { x: target.x, y: aimY, z: target.z });
         const aimYaw = detAtan2(-tdx, -tdz);
+        const off = Math.abs(deltaAngle(a.facing, aimYaw));
         faceToward(a, aimYaw, dt);
-        this.flyAlongFacing(a, stats, d, dt, 0);
+        // A foe inside the tightest circle this flyer can bank (speed / turn
+        // rate) would be circled forever, nose never on it — slow to the arc
+        // that runs through it instead.
+        const fullSpeed = stats.speed * this.debuff(a, d.speedMult);
+        const arcSpeed = (tDist * (a.unit.type.turnRate ?? DEFAULT_TURN_RATE)) / (2 * Math.max(detSin(off), 0.05));
+        this.flyAlongFacing(a, stats, d, dt, Math.max(fullSpeed * FLY_CHASE_MIN_SPEED, Math.min(fullSpeed, arcSpeed)) * dt);
         if (canAttack) a.cooldown -= dt;
         if (tDist <= commit && facingAligned(a, aimYaw, 0.55)) {
             const flat = hypot(tdx, tdz) || 1e-6;
@@ -4644,7 +4674,7 @@ export class BattleSim {
                 dx = aimX - mx;
                 dz = aimZ - mz;
             }
-            dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale + aimYOff - muzzleY;
+            dy = this.feetY(target, aimX, aimZ) + straightAimY(tt) + aimYOff - muzzleY;
             const len = hypot(dx, dy, dz) || 1e-6;
             vx = (dx / len) * speed;
             vy = (dy / len) * speed;

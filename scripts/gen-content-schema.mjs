@@ -19,6 +19,8 @@ const SCHEMAS = [
     { file: 'assets/data/schema/commander.schema.json', path: 'src/game/cards.ts', type: 'StartCard' },
     { file: 'assets/data/schema/roundCard.schema.json', path: 'src/game/cards.ts', type: 'RoundCard' },
     { file: 'assets/data/schema/spell.schema.json', path: 'src/game/tactics.ts', type: 'TacticDef' },
+    { file: 'assets/data/schema/scenario.schema.json', path: 'src/game/scenario/scenarioDef.ts', type: 'ScenarioDef' },
+    { file: 'assets/data/schema/meta.schema.json', path: 'src/game/scenario/packageMeta.ts', type: 'PackageMeta' },
 ];
 
 /** `{@link Foo}` / `{@link Foo.bar}` → `Foo` / `Foo.bar` — readable hover text */

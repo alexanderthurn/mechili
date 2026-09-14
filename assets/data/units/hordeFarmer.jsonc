@@ -4,12 +4,14 @@
 {
     "id": "hordeFarmer",
     "name": "Dead Farmer",
-    "cost": 175,
+    "cost": 200, // bought by The Komtur's side
+    "unlockCost": 50,
+    "xpValue": 14.5833, // kill XP as before the price change
     "hpWithdraw": 7,
     "buyable": false,
     "horde": true,
     "modelId": "horde2",
-    "footprint": { "cols": 10, "rows": 6 },
+    "footprint": { "cols": 6, "rows": 2 }, // a normal pack plate
     "formation": { "cols": 6, "rows": 2 }, // 12 — fewer than Brut swarm
     "formationSpread": 0.75,
     "meshScale": 1.7, // 2× prior 0.85
@@ -27,6 +29,7 @@
     "speed": 12,
     "turnRate": 4,
     "proceduralModel": "dwarf",
-    // innate on the type; listed so tooling / future research UI can see it
-    "talents": ["darkHarvest"],
+    // standard talents for The Komtur's side (Dark Harvest stays innate)
+    "talents": ["bloodRage", "carapace"],
+    "talentSlots": 2,
 }
