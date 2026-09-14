@@ -139,6 +139,9 @@ export class ScenarioEditor {
     private readonly disposers: (() => void)[] = [];
     private statusTimer: ReturnType<typeof setTimeout> | null = null;
     private shownSelection: Unit | null = null;
+    /** a button in the window is being pressed: redraws wait, or the press would lose its button */
+    private pressingWindow = false;
+    private renderPending = false;
 
     constructor(
         private readonly host: ScenarioEditorHost,
@@ -162,7 +165,10 @@ export class ScenarioEditor {
 
         this.root = document.createElement('div');
         this.root.className = 'mechili-scenario-editor';
-        this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
+        this.root.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            this.pressingWindow = true;
+        });
         this.root.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
         this.bodyEl = document.createElement('div');
         this.bodyEl.className = 'se-body';
@@ -174,7 +180,14 @@ export class ScenarioEditor {
 
         this.listen(host.surface, 'pointerdown', (e) => this.onPointerDown(e as PointerEvent));
         this.listen(host.surface, 'pointermove', (e) => this.onPointerMove(e as PointerEvent));
-        this.listen(host.surface, 'pointerup', (e) => this.onPointerUp(e as PointerEvent));
+        // window: a drag released over the editor window or the HUD still lands
+        this.listen(window, 'pointerup', (e) => {
+            this.onPointerUp(e as PointerEvent);
+            if (!this.pressingWindow) return;
+            this.pressingWindow = false;
+            // after the click that follows
+            if (this.renderPending) setTimeout(() => this.renderSoon(), 0);
+        });
         this.listen(host.surface, 'pointercancel', () => this.cancelPress());
         this.listen(host.surface, 'pointerleave', () => {
             if (!this.press) host.placement.editorPlate = null;
@@ -687,7 +700,21 @@ export class ScenarioEditor {
         });
     }
 
+    /**
+     * Redraw after an input's change: it fires on blur, which a press on a
+     * button of this window causes — a redraw right then would swap that
+     * button out before its click.
+     */
+    private renderSoon(): void {
+        if (!this.root.isConnected) return;
+        this.renderPending = true;
+        if (this.pressingWindow) return;
+        this.renderPending = false;
+        this.render();
+    }
+
     private render(): void {
+        this.renderPending = false;
         const types = this.host.types;
         const draft = this.draft;
         const all = [...types.all()];
@@ -958,7 +985,7 @@ export class ScenarioEditor {
                 // rules don't touch the board: record, keep, redraw
                 if (this.history.push(next)) {
                     this.host.autosave(this.draft);
-                    this.render();
+                    this.renderSoon();
                 }
             });
         }
@@ -973,7 +1000,7 @@ export class ScenarioEditor {
             next.name = value;
             if (this.history.push(next)) {
                 this.host.autosave(this.draft);
-                this.render();
+                this.renderSoon();
             }
         });
         const map = this.bodyEl.querySelector<HTMLSelectElement>('.se-map');
