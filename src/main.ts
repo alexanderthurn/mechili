@@ -93,7 +93,6 @@ import {
     isLevelActive,
     ensureLevel,
     isLevelAvailable,
-    knownLevels,
     levelFiles,
     levelFilesFromArchive,
     loadLevel,
@@ -103,7 +102,6 @@ import {
     type LevelRef,
 } from './game/level';
 import { readZip, writeZip } from './game/content/zip';
-import { listCachedLevels } from './game/levelCache';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { loadStoredDraft, newDraft } from './game/scenario/editorDraft';
 import { packageScenarioIds, scenarioPackageFiles, scenarioSlug, withScenarioInPackage } from './game/scenario/package';
@@ -315,8 +313,8 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
     settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
-    // the scenario chosen for this room (web testing), unset = base game
-    settings.level = activeLevelRef();
+    // Custom Game rooms play the base game (scenarios are single player: Single Player → Scenarios)
+    settings.level = undefined;
 }
 
 // dev override: tweak match settings from the URL, e.g. ?build=20&nocards
@@ -1049,6 +1047,8 @@ menu.innerHTML = `
         <div class="m-scenario-import">
             <input type="text" class="m-scenario-code" placeholder="MELODAN1:…" spellcheck="false" autocomplete="off">
             <button type="button" class="m-scenario-btn m-scenario-import-btn">Import code</button>
+            <button type="button" class="m-scenario-btn m-scenario-zip-btn" hidden>Import zip</button>
+            <input type="file" class="m-scenario-file" accept=".zip,application/zip" hidden>
         </div>
         <div class="m-scenario-status"></div>
         <button class="m-btn m-small" data-mode="sp-scenarios-back" data-i18n="menu:back"></button>
@@ -1149,12 +1149,6 @@ menu.innerHTML = `
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
                 </label>
-                <label class="m-field cg-scenario-field" hidden><span class="m-field-label">Scenario (test)</span>
-                    <select class="cg-scenario"></select>
-                </label>
-                <input type="file" class="cg-scenario-file" accept=".zip,application/zip" hidden>
-                <select class="cg-scenario-pick" hidden></select>
-                <button type="button" class="m-btn m-small cg-scenario-play" hidden>Play scenario (single player)</button>
                 <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
             </div>
         </div>
@@ -1295,6 +1289,28 @@ const spScenariosEl = menu.querySelector<HTMLDivElement>('[data-view="sp-scenari
 const spScenarioListEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-list')!;
 const spScenarioCodeEl = spScenariosEl.querySelector<HTMLInputElement>('.m-scenario-code')!;
 const spScenarioStatusEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-status')!;
+const spScenarioZipBtn = spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-zip-btn')!;
+const spScenarioFileEl = spScenariosEl.querySelector<HTMLInputElement>('.m-scenario-file')!;
+spScenarioZipBtn.addEventListener('click', () => {
+    spScenarioFileEl.value = '';
+    spScenarioFileEl.click();
+});
+spScenarioFileEl.addEventListener('change', () => {
+    const file = spScenarioFileEl.files?.[0];
+    if (!file) return;
+    void (async () => {
+        try {
+            const files = levelFilesFromArchive(await readZip(await file.arrayBuffer()));
+            const { ref, report } = await loadLevel(file.name.replace(/\.zip$/i, ''), files);
+            console.info(`[scenario] loaded "${ref.id}" (${files.length} files, ${ref.hash.slice(0, 12)})`, report);
+            spScenarioStatusEl.textContent = `Imported “${ref.id}”`;
+            await renderScenarioList();
+        } catch (e) {
+            console.error('[scenario] zip rejected', e);
+            spScenarioStatusEl.textContent = `Zip rejected: ${e instanceof Error ? e.message : String(e)}`;
+        }
+    })();
+});
 spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-import-btn')!.addEventListener('click', () => {
     const text = spScenarioCodeEl.value;
     if (!text.trim()) return;
@@ -1326,83 +1342,14 @@ const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp'
 const cgMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-money')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
-const cgScenarioFieldEl = menu.querySelector<HTMLLabelElement>('.cg-scenario-field')!;
-const cgScenarioEl = menu.querySelector<HTMLSelectElement>('.cg-scenario')!;
-const cgScenarioFileEl = menu.querySelector<HTMLInputElement>('.cg-scenario-file')!;
-const cgScenarioPlayEl = menu.querySelector<HTMLButtonElement>('.cg-scenario-play')!;
-const cgScenarioPickEl = menu.querySelector<HTMLSelectElement>('.cg-scenario-pick')!;
-
 /**
- * Web testing only: play a Custom Game on a scenario from a zip. The Steam game
- * never shows a picker — there a scenario comes with what the player does
- * (joining a match, a campaign, a scenario list), and `startGame` loads the
- * level the match settings name.
+ * Web testing only: scenario zips can be imported (Single Player → Scenarios)
+ * and drafts downloaded as zips. The Steam game never shows a file picker —
+ * there a scenario comes with what the player does (the editor, a share code,
+ * joining a match).
  */
 const SCENARIO_ZIP_TESTING = !isElectron();
-
-/** option value (content hash) → level, for the scenario row */
-const scenarioRowLevels = new Map<string, LevelRef>();
-
-function refreshScenarioSelect(): void {
-    const active = activeLevelRef();
-    cgScenarioEl.textContent = '';
-    scenarioRowLevels.clear();
-    const add = (value: string, label: string) => {
-        const opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = label;
-        cgScenarioEl.appendChild(opt);
-    };
-    add('', 'Base game');
-    for (const level of knownLevels()) {
-        scenarioRowLevels.set(level.hash, level);
-        add(level.hash, `${level.id} · ${level.hash.slice(0, 6)}`);
-    }
-    add('zip', 'Load zip…');
-    cgScenarioEl.value = active?.hash ?? '';
-    // a level with scenarios can play one as a single-player match; a picker when it has several
-    const { scenarios, meta } = activeLevel();
-    const playable = SCENARIO_ZIP_TESTING && !cgScenarioFieldEl.hidden && scenarios.size > 0;
-    cgScenarioPlayEl.hidden = !playable;
-    cgScenarioPickEl.textContent = '';
-    const order = meta?.def?.levels.map((l) => l.scenario).filter((id) => scenarios.has(id)) ?? [];
-    for (const id of [...order, ...[...scenarios.keys()].filter((id) => !order.includes(id))]) {
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = scenarios.get(id)?.def?.name ?? id;
-        cgScenarioPickEl.appendChild(opt);
-    }
-    cgScenarioPickEl.hidden = !playable || scenarios.size < 2;
-    // scenarios kept from earlier sessions (saved from replays, received, loaded)
-    void listCachedLevels().then((cached) => {
-        const zip = cgScenarioEl.querySelector('option[value="zip"]');
-        for (const { ref, scenario } of cached) {
-            if (scenarioRowLevels.has(ref.hash)) continue;
-            scenarioRowLevels.set(ref.hash, ref);
-            const opt = document.createElement('option');
-            opt.value = ref.hash;
-            opt.textContent = `${ref.id} · ${ref.hash.slice(0, 6)}${scenario ? ' · scenario' : ''} (kept)`;
-            cgScenarioEl.insertBefore(opt, zip);
-        }
-        cgScenarioEl.value = activeLevelRef()?.hash ?? '';
-    });
-}
-
-cgScenarioPlayEl.addEventListener('click', () => {
-    const level = activeLevelRef();
-    const id = cgScenarioPickEl.value || [...activeLevel().scenarios.keys()][0];
-    const scenario = id !== undefined ? activeLevel().scenarios.get(id) : undefined;
-    if (!level || !scenario || id === undefined) return;
-    const errors = scenario.issues.filter((i) => i.level === 'error');
-    for (const issue of scenario.issues) console[issue.level === 'error' ? 'error' : 'warn']('[scenario]', issue.message);
-    if (!scenario.def || errors.length > 0) {
-        window.alert(`This scenario has errors:\n${errors.map((i) => `• ${i.message}`).join('\n')}`);
-        return;
-    }
-    // leave the room we were hosting — a scenario is a single-player match
-    cancelHost();
-    startGame(applyScenarioToSettings(localMatchSettings(), scenario.def, level, 'play', id));
-});
+spScenarioZipBtn.hidden = !SCENARIO_ZIP_TESTING;
 
 /**
  * Single Player → Scenarios: every package with scenarios this client has
@@ -1518,45 +1465,6 @@ function openStoredScenarioEditor(): void {
     })();
 }
 
-async function switchScenarioTo(ref: LevelRef | undefined): Promise<void> {
-    cgScenarioEl.disabled = true;
-    try {
-        await prepareLevel(ref);
-    } finally {
-        cgScenarioEl.disabled = false;
-        refreshScenarioSelect();
-    }
-    // guests get the new scenario offered (and un-ready) like any settings edit
-    activeLobbyHost?.onChange();
-}
-
-cgScenarioEl.addEventListener('change', () => {
-    if (cgScenarioEl.value === 'zip') {
-        refreshScenarioSelect(); // stays on the active entry until a zip is loaded
-        cgScenarioFileEl.value = '';
-        cgScenarioFileEl.click();
-        return;
-    }
-    const ref = scenarioRowLevels.get(cgScenarioEl.value);
-    void switchScenarioTo(ref).catch((e: unknown) => console.error('[scenario]', e));
-});
-
-cgScenarioFileEl.addEventListener('change', () => {
-    const file = cgScenarioFileEl.files?.[0];
-    if (!file) return;
-    void (async () => {
-        try {
-            const files = levelFilesFromArchive(await readZip(await file.arrayBuffer()));
-            const { ref, report } = await loadLevel(file.name.replace(/\.zip$/i, ''), files);
-            console.info(`[scenario] loaded "${ref.id}" (${files.length} files, ${ref.hash.slice(0, 12)})`, report);
-            await switchScenarioTo(ref);
-        } catch (e) {
-            console.error('[scenario] zip rejected', e);
-            window.alert(`Scenario zip rejected:\n${e instanceof Error ? e.message : String(e)}`);
-            refreshScenarioSelect();
-        }
-    })();
-});
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
 const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-toggle')!;
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
@@ -2461,8 +2369,6 @@ function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () =
     cgCommanderHpEl.disabled = false;
     cgMoneyEl.disabled = false;
     cgResetEl.disabled = false;
-    cgScenarioFieldEl.hidden = !SCENARIO_ZIP_TESTING;
-    if (SCENARIO_ZIP_TESTING) refreshScenarioSelect();
     populateLobbySettingsForm(config);
 }
 
@@ -2486,9 +2392,6 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgCommanderHpEl.disabled = true;
     cgMoneyEl.disabled = true;
     cgResetEl.disabled = true;
-    cgScenarioFieldEl.hidden = true;
-    cgScenarioPlayEl.hidden = true;
-    cgScenarioPickEl.hidden = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
 }
@@ -3552,7 +3455,7 @@ async function saveScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined
     const { id, files } = scenarioDraftPackage(draft, level);
     const { ref } = await loadLevel(id, files);
     console.info(`[scenario] saved "${ref.id}" (${ref.hash.slice(0, 12)})`);
-    return SCENARIO_ZIP_TESTING ? `Saved “${ref.id}” — play it from Custom Game → Scenario (test)` : `Saved “${ref.id}”`;
+    return `Saved “${ref.id}” — find it under Single Player → Scenarios`;
 }
 
 /** the editor's Play: keep the draft as a package, then play it as a single-player scenario */
@@ -3592,7 +3495,7 @@ async function saveReplayScenario(): Promise<string> {
         setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
     }
     console.info(`[scenario] saved "${saved.ref.id}" (${saved.ref.hash.slice(0, 12)})`);
-    return `Saved “${saved.ref.id}” — play it from Custom Game → Scenario (test).`;
+    return `Saved “${saved.ref.id}” — find it under Single Player → Scenarios.`;
 }
 
 /** kept around so rebuildReplayAt (round jump / skip to end) can
@@ -4108,7 +4011,8 @@ function wireHostedHub(
 
     // ---- the room's scenario: every joined guest must have it active before Start.
     // Only a Custom Game room plays one; any other room offers the base game.
-    const roomLevel = (): LevelRef | null => (customConfig ? (activeLevelRef() ?? null) : null);
+    // rooms play the base game for now; the hand-over below stays for future level sources
+    const roomLevel = (): LevelRef | null => null;
     const levelBySeat = new Map<SeatId, { name: string; offered: string | null; ready: string | null | undefined }>();
     /** offer the room's scenario to guests that haven't had this one offered; true when all have it active */
     const syncGuestLevels = (roster: CanonicalSeatDef[]): boolean => {

@@ -316,7 +316,7 @@ the starting state those actions apply to.
 | Editor draft | `localStorage` `mechili-scenario-draft` (autosave of the `ScenarioDef`; content overrides are not edited in v1) |
 | Multiplayer | the level hand-over (`levelOffer` / chunks) — nothing scenario-specific |
 | Share code | deflate + base64url of a package without media (clipboard); packages with media are shared as levels |
-| Web testing | zip import (Custom Game "Scenario (test)" row, and the Scenarios screen) |
+| Web testing | zip import on the Scenarios screen (web builds only) |
 | Campaign / bundled | packages in the build |
 
 ---
@@ -786,7 +786,8 @@ grant/revoke (`TechTree.add` / `remove` exist), new `Action` kinds.
    for its own side. Packages hold several levels under `scenarios/` plus an
    optional `meta.jsonc` (validated, not played); a lone root
    `scenario.jsonc` still works. Kept
-   scenarios are listed in the Custom Game test row.
+   scenarios are listed under Single Player → Scenarios (the Custom Game test
+   row was removed 2026-09-14; Custom Game rooms play the base game).
 3. **Editor core — implemented as a sandbox deployment** (decision
    2026-09-14, after the first pass): the editor is a normal build phase in
    the normal game UI, the way Mechabellum's editor works, plus a floating
