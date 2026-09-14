@@ -203,6 +203,7 @@ function applyHordeMode(settings: GameSettings): void {
 function applyClimbMode(settings: GameSettings, variant: ClimbVariant = { role: 'attacker' }): void {
     settings.climb = {
         rounds: CLIMB_ROUNDS,
+        ...(variant.attackerSide !== undefined ? { attackerSide: variant.attackerSide } : {}),
         sideHp: CLIMB_SIDE_HP,
         playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
         ...(variant.role === 'defender' ? { humanRole: variant.role } : {}),
@@ -210,7 +211,8 @@ function applyClimbMode(settings: GameSettings, variant: ClimbVariant = { role: 
     };
     // The Year fields The Komtur's waves at Medium (not Off / not the Low SP-horde default) —
     // unless the Komtur is the attacker himself: then there is no third party
-    settings.hordePreset = variant.komtur ? 'off' : 'medium';
+    if (variant.komtur) settings.hordePreset = 'off';
+    else if (!variant.keepHorde) settings.hordePreset = 'medium';
     if (CLIMB_SUPPLY_GROWTH_PER_ROUND != null) {
         settings.economy = {
             ...settings.economy,
@@ -297,6 +299,8 @@ function loadCustomGameConfig(): CustomGameConfig {
             commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor),
             moneyFactor: moneyFactorOption(parsed.moneyFactor),
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
+            yearAttacker: parsed.yearAttacker === 'guest' ? 'guest' : 'host',
+            yearKomtur: parsed.yearKomtur === true,
         };
     } catch {
         return { ...DEFAULT_CUSTOM_GAME };
@@ -1129,7 +1133,7 @@ menu.innerHTML = `
     </div>
     <div class="m-view m-custom" data-view="custom">
         <div class="m-spmode-title" data-i18n="menu:customGameTitle"></div>
-        <div class="m-toggle-row">
+        <div class="m-toggle-row m-toggle-grid">
             <button class="m-btn m-toggle-card" data-mode="cg-host-1v1">
                 ${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label">1v1</span>
             </button>
@@ -1138,6 +1142,9 @@ menu.innerHTML = `
             </button>
             <button class="m-btn m-toggle-card" data-mode="cg-host-2v2ai">
                 ${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:mode2vAi"></span>
+            </button>
+            <button class="m-btn m-toggle-card" data-mode="cg-host-year">
+                ${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:campaign"></span>
             </button>
         </div>
         <button class="m-btn m-small" data-mode="cg-back" data-i18n="menu:back"></button>
@@ -1176,6 +1183,12 @@ menu.innerHTML = `
                 </label>
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
+                </label>
+                <label class="m-field m-year-field"><span class="m-field-label" data-i18n="menu:yearAttackerSetting"></span>
+                    <select class="cg-year-attacker"></select>
+                </label>
+                <label class="m-field m-year-field"><span class="m-field-label" data-i18n="menu:yearArmySetting"></span>
+                    <select class="cg-year-komtur"></select>
                 </label>
                 <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
             </div>
@@ -1382,6 +1395,8 @@ const cgRoundCardsEl = menu.querySelector<HTMLSelectElement>('.cg-roundcards')!;
 const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp')!;
 const cgMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-money')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
+const cgYearAttackerEl = menu.querySelector<HTMLSelectElement>('.cg-year-attacker')!;
+const cgYearKomturEl = menu.querySelector<HTMLSelectElement>('.cg-year-komtur')!;
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
 /**
  * Web testing only: scenario zips can be imported (Single Player → Editor)
@@ -1836,6 +1851,31 @@ for (const optSh of STRONGHOLD_MODE_OPTIONS) {
 }
 wireSelectShortLabels(cgStrongholdEl);
 
+/** The Year's room options — their labels follow the language (see refreshYearLobbyOptions) */
+function refreshYearLobbyOptions(): void {
+    const fill = (select: HTMLSelectElement, options: [string, string][]) => {
+        const value = select.value;
+        select.replaceChildren(
+            ...options.map(([v, label]) => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                opt.textContent = label;
+                return opt;
+            }),
+        );
+        if (value) select.value = value;
+    };
+    fill(cgYearAttackerEl, [
+        ['host', t('menu:yearHostAttacks', { defaultValue: 'Host attacks' })],
+        ['guest', t('menu:yearGuestAttacks', { defaultValue: 'Guest attacks' })],
+    ]);
+    fill(cgYearKomturEl, [
+        ['army', t('menu:yearArmyNormal', { defaultValue: 'Normal army' })],
+        ['komtur', t('menu:yearArmyKomtur', { defaultValue: 'The Komtur (Cursed Christine)' })],
+    ]);
+}
+refreshYearLobbyOptions();
+
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
     'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode'
@@ -1873,6 +1913,10 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgCommanderHpEl.value = String(commanderHpFactorOption(cfg.commanderHpFactor));
     cgMoneyEl.value = String(moneyFactorOption(cfg.moneyFactor));
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
+    refreshYearLobbyOptions();
+    cgYearAttackerEl.value = cfg.yearAttacker === 'guest' ? 'guest' : 'host';
+    cgYearKomturEl.value = cfg.yearKomtur ? 'komtur' : 'army';
+    for (const field of menu.querySelectorAll<HTMLElement>('.m-year-field')) field.style.display = cfg.mode === 'year' ? '' : 'none';
     // Always short in the closed box — hosts open the list for details;
     // guests get a hover/tap tip (see wireLobbySettingTips).
     for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl]) {
@@ -1978,9 +2022,11 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'yearAttacker' | 'yearKomtur'
 > {
     return {
+        yearAttacker: cgYearAttackerEl.value === 'guest' ? 'guest' : 'host',
+        yearKomtur: cgYearKomturEl.value === 'komtur',
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
@@ -2000,7 +2046,8 @@ function hostCustomGame(mode: CustomGameMode): void {
     // which layout, which roster, how many humans to wait for. Deriving these
     // inside each transport branch is what once let Steam open a four-seat
     // 2v2 lobby for a one-seat layout while web/LAN routed it correctly.
-    const is1v1 = cfg.mode === '1v1';
+    // The Year is a 1v1: one attacker, one defender
+    const is1v1 = cfg.mode === '1v1' || cfg.mode === 'year';
     const layout: '1v1' | '2v2' = is1v1 ? '1v1' : '2v2';
     const buildRoster = is1v1 ? initial1v1Roster : initialStarRoster;
     // 2v2ai waits for one human ally; the other two seats become AI at Start.
@@ -2477,6 +2524,8 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
     cgCommanderHpEl.addEventListener('change', onChange);
     cgMoneyEl.addEventListener('change', onChange);
     cgStrongholdEl.addEventListener('change', onChange);
+    cgYearAttackerEl.addEventListener('change', onChange);
+    cgYearKomturEl.addEventListener('change', onChange);
     cgResetEl.addEventListener('click', () => {
         if (!activeLobbyHost) return;
         Object.assign(activeLobbyHost.config, activeLobbyHost.save ? defaultPracticeSettings() : defaultLobbySettings());
@@ -2500,7 +2549,7 @@ function showHostLobbySettings(
     const firstShow = !lobbySettingsAvailable;
     activeLobbyHost = { config, onChange: onSettingsChanged, ...(save ? { save } : {}) };
     lobbySettingsAvailable = true;
-    if (firstShow) lobbySettingsExpanded = isNonDefaultLobbySettings(config, save ? defaultPracticeSettings() : defaultLobbySettings());
+    if (firstShow) lobbySettingsExpanded = config.mode === 'year' || isNonDefaultLobbySettings(config, save ? defaultPracticeSettings() : defaultLobbySettings());
     lobbySettingsEl.classList.remove('m-readonly');
     hideLobbySettingTip();
     applyLobbySettingsExpanded();
@@ -2512,6 +2561,8 @@ function showHostLobbySettings(
     cgCommanderHpEl.disabled = false;
     cgMoneyEl.disabled = false;
     cgStrongholdEl.disabled = false;
+    cgYearAttackerEl.disabled = false;
+    cgYearKomturEl.disabled = false;
     cgResetEl.disabled = false;
     populateLobbySettingsForm(config);
 }
@@ -2526,7 +2577,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     const firstShow = !lobbySettingsAvailable;
     activeLobbyHost = null;
     lobbySettingsAvailable = true;
-    if (firstShow) lobbySettingsExpanded = isNonDefaultLobbySettings(config);
+    if (firstShow) lobbySettingsExpanded = config.mode === 'year' || isNonDefaultLobbySettings(config);
     lobbySettingsEl.classList.add('m-readonly');
     applyLobbySettingsExpanded();
     lobbyReadyRowEl.style.display = '';
@@ -2536,6 +2587,8 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgCommanderHpEl.disabled = true;
     cgMoneyEl.disabled = true;
     cgStrongholdEl.disabled = true;
+    cgYearAttackerEl.disabled = true;
+    cgYearKomturEl.disabled = true;
     cgResetEl.disabled = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
@@ -3038,7 +3091,14 @@ function wireGameMenuReturn(game: Game): void {
  * the new canvas.
  */
 /** a way to play The Year: your role, and whether the attacker is The Komtur */
-type ClimbVariant = { role: ClimbRole; komtur?: boolean };
+type ClimbVariant = {
+    role: ClimbRole;
+    komtur?: boolean;
+    /** a room: the canonical side that attacks (0 = the host's) — `role` is then unused */
+    attackerSide?: number;
+    /** a room: keep the lobby's Komtur waves setting */
+    keepHorde?: boolean;
+};
 type LocalMatchOpts = { climb?: ClimbVariant; tutorial?: number };
 
 /** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
@@ -4470,6 +4530,14 @@ function lobbyMatchSettings(config: CustomGameConfig | null, horde: boolean, sea
     delete settings.seats; // the roster travels separately (localized per client)
     if (config) applyCustomGameConfig(settings, config);
     else if (horde) applyHordeMode(settings);
+    if (config?.mode === 'year') {
+        applyClimbMode(settings, {
+            role: 'attacker',
+            attackerSide: config.yearAttacker === 'guest' ? 1 : 0,
+            keepHorde: true,
+            ...(config.yearKomtur ? { komtur: true } : {}),
+        });
+    }
     // 2v2 / duo only — 1v1 must keep the standard map width
     if (seatCount > 2) widenMapForDuo(settings);
     return { ...settings, seed: settings.seed ?? (Math.random() * 0x7fffffff) | 0 };
@@ -5840,6 +5908,9 @@ menu.addEventListener('click', (e) => {
             break;
         case 'cg-host-2v2ai':
             hostCustomGame('2v2ai');
+            break;
+        case 'cg-host-year':
+            hostCustomGame('year');
             break;
         case 'startstar':
             if (practiceLobby && !hosting && !pending) startPracticeMatch();

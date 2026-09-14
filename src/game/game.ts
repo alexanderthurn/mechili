@@ -1788,9 +1788,7 @@ export class Game {
             // (live relay, or a resume/replay catch-up) — same "check HP,
             // end the match" logic endBattlePhase already runs after a
             // battle result, just triggered by a different cause
-            onForfeit: () => {
-                if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
-            },
+            onForfeit: (team) => this.finishAfterForfeit(team),
         });
         if (this.watching) {
             // every seat's actions come from the replay log — no AI, no
@@ -5717,7 +5715,7 @@ export class Game {
             // side 'a', so this matches the host's perspective.
             if (msg.team === 'player') this.playerHp = 0;
             else this.enemyHp = 0;
-            if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
+            this.finishAfterForfeit(msg.team);
         }
     }
 
@@ -6927,7 +6925,7 @@ export class Game {
             const team = this.hostTeamAsLocal(msg.team);
             if (team === 'player') this.playerHp = 0;
             else this.enemyHp = 0;
-            if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
+            this.finishAfterForfeit(team);
         }
     }
 
@@ -7531,7 +7529,7 @@ export class Game {
      * Practice / MP keep fog until the local seat locks deployment.
      */
     private revealEnemyDeployIntel(): boolean {
-        return this.deployReady.player || !!this.settings.climb || isTutorial(this.settings);
+        return this.deployReady.player || this.rules.enemyIntel === 'visible' || isTutorial(this.settings);
     }
 
     private enemyInventoryView(): {
@@ -9861,6 +9859,15 @@ export class Game {
     }
 
     /** someone hit 0 HP — freeze the game and show the result */
+    /** a side forfeited (its HP is 0 now): the match ends — in The Year too, whatever the round tally */
+    private finishAfterForfeit(team: Team): void {
+        if (this.settings.climb) {
+            this.presentMatchEnd(team === 'player' ? 'defeat' : 'victory');
+            return;
+        }
+        if (this.playerHp <= 0 || this.enemyHp <= 0) this.finishMatch();
+    }
+
     private finishMatch(): void {
         const result =
             this.playerHp <= 0 && this.enemyHp <= 0
@@ -9968,7 +9975,8 @@ export class Game {
                 !this.watching &&
                 (nextTutorialId(tutorialId(this.settings)) !== null || this.nextScenarioId() !== null);
             const climbProgress = this.settings.climb ? { n: Math.max(1, this.round), total: this.settings.climb.rounds } : undefined;
-            const year = this.settings.climb ? this.yearProgress() : undefined;
+            // a Year that ran its course shows the tally (one ended by a forfeit doesn't claim a Year winner)
+            const year = this.settings.climb && this.yearRounds.length >= this.settings.climb.rounds ? this.yearProgress() : undefined;
             this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress, ...(year ? { year } : {}) });
         }
     }

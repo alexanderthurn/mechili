@@ -60,7 +60,8 @@ export function resolveMatchRules(settings: GameSettings, scenario: ScenarioDef 
         commander: { mode: 'pick' },
         fixedAtmosphere: null,
         opponents: 'build',
-        enemyIntel: settings.climb || tutorial ? 'visible' : 'fogged',
+        // single-player Year and lessons show the computer's deployment; a Year room keeps the fog
+        enemyIntel: (settings.climb && !settings.seats) || tutorial ? 'visible' : 'fogged',
         playerUnlocks: null,
         playerUnlockable: null,
         loadout: { mode: 'player' },

@@ -318,7 +318,7 @@ export function suggestUrl(): string {
 /** Custom Game layouts. '1v1ai' was removed — hosting '1v1' and pressing
  *  "Start with AI" is the same match, so it was a second door to one room
  *  (main.ts's normalizeCustomGameMode migrates any stored one). */
-export type CustomGameMode = '1v1' | '2v2' | '2v2ai';
+export type CustomGameMode = '1v1' | '2v2' | '2v2ai' | 'year';
 export interface CustomGameConfig {
     mode: CustomGameMode;
     /** id into CUSTOM_GAME_PACE_PRESETS */
@@ -333,6 +333,10 @@ export interface CustomGameConfig {
     moneyFactor: number;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
+    /** The Year (mode 'year'): which side attacks — the host's or the guest's */
+    yearAttacker?: 'host' | 'guest';
+    /** The Year: the attacker fields the Komtur's forest roster (Cursed Christine) */
+    yearKomtur?: boolean;
 }
 
 /**
