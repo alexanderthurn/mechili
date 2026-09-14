@@ -867,7 +867,7 @@ export class ScenarioEditor {
             `<div class="se-row">` +
             btn('se-save', this.host.packageName ? t('editor:saveNew', { defaultValue: 'Save as new' }) : t('editor:save', { defaultValue: 'Save' }), {
                 disabled: errors.length > 0,
-                title: t('editor:saveTip', { defaultValue: 'Keep it as a scenario (with this level’s content)' }),
+                title: t('editor:saveTip', { defaultValue: 'Keep it as a scenario (with this level’s content) — one saved under the same name is replaced' }),
             }) +
             (this.host.packageName
                 ? btn('se-save-into', t('editor:saveInto', { defaultValue: 'Save into package' }), {
@@ -880,7 +880,7 @@ export class ScenarioEditor {
                 : '') +
             btn('se-code', t('editor:shareCode', { defaultValue: 'Copy code' }), {
                 disabled: errors.length > 0,
-                title: t('editor:shareCodeTip', { defaultValue: 'A text code for chat — import it under Single Player → Scenarios' }),
+                title: t('editor:shareCodeTip', { defaultValue: 'A text code for chat — import it under Single Player → Editor' }),
             }) +
             (this.host.canDownload() ? btn('se-download', t('editor:downloadZip', { defaultValue: 'Download zip' })) : '') +
             btn('se-exit', t('editor:exit', { defaultValue: 'Exit' })) +

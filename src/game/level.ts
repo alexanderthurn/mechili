@@ -281,10 +281,14 @@ export async function scenarioLevels(): Promise<LevelSummary[]> {
  * other packages of that id with at most one scenario are forgotten (a
  * campaign of the same id stays).
  */
-export async function supersedeLevel(ref: LevelRef): Promise<void> {
+export async function supersedeLevel(ref: LevelRef): Promise<number> {
+    let replaced = 0;
     for (const level of await scenarioLevels()) {
-        if (level.ref.id === ref.id && level.ref.hash !== ref.hash && level.scenarios.length <= 1) await forgetLevel(level.ref);
+        if (level.ref.id !== ref.id || level.ref.hash === ref.hash || level.scenarios.length > 1) continue;
+        await forgetLevel(level.ref);
+        replaced++;
     }
+    return replaced;
 }
 
 /**

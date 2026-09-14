@@ -320,7 +320,7 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
     settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
-    // Custom Game rooms play the base game (scenarios are single player: Single Player → Scenarios)
+    // Custom Game rooms play the base game (scenarios are single player: Single Player → Editor)
     settings.level = undefined;
 }
 
@@ -1382,7 +1382,7 @@ const cgMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-money')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
 /**
- * Web testing only: scenario zips can be imported (Single Player → Scenarios)
+ * Web testing only: scenario zips can be imported (Single Player → Editor)
  * and drafts downloaded as zips. The Steam game never shows a file picker —
  * there a scenario comes with what the player does (the editor, a share code,
  * joining a match).
@@ -1391,7 +1391,7 @@ const SCENARIO_ZIP_TESTING = !isElectron();
 spScenarioZipBtn.hidden = !SCENARIO_ZIP_TESTING;
 
 /**
- * Single Player → Scenarios: every package with scenarios this client has
+ * Single Player → Editor: every package with scenarios this client has
  * (saved from the editor or a replay, received from a host, loaded from a
  * zip) — play one, open it in the editor, or delete the package.
  */
@@ -3559,9 +3559,9 @@ async function copyShareCode(id: string, files: readonly OverlayFile[]): Promise
 async function saveScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
     const { id, files } = scenarioDraftPackage(draft, level);
     const { ref } = await loadLevel(id, files);
-    await supersedeLevel(ref);
+    const replaced = await supersedeLevel(ref);
     console.info(`[scenario] saved "${ref.id}" (${ref.hash.slice(0, 12)})`);
-    return `Saved “${ref.id}” — find it under Single Player → Scenarios`;
+    return `${replaced > 0 ? 'Replaced' : 'Saved'} “${ref.id}” — find it under Single Player → Editor`;
 }
 
 /** the editor's Play: keep the draft as a package, then play it as a single-player scenario */
@@ -3602,7 +3602,7 @@ async function saveReplayScenario(): Promise<string> {
         setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
     }
     console.info(`[scenario] saved "${saved.ref.id}" (${saved.ref.hash.slice(0, 12)})`);
-    return `Saved “${saved.ref.id}” — find it under Single Player → Scenarios.`;
+    return `Saved “${saved.ref.id}” — find it under Single Player → Editor.`;
 }
 
 /** kept around so rebuildReplayAt (round jump / skip to end) can
