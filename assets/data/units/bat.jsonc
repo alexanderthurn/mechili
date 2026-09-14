@@ -35,7 +35,6 @@
     "turnRate": 3.2, // slow bank — points then flies along facing
     "turnMove": "cruise",
     "proceduralModel": "bat",
-    // Gale Wings — mobility while testing
-    "talents": ["engines"],
-    "talentSlots": 1,
+    "talents": ["engines", "stingers"],
+    "talentSlots": 2,
 }

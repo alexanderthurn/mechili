@@ -30,4 +30,7 @@
     "speed": 12,
     "turnRate": 10,
     "proceduralModel": "dwarf",
+    // standard talents for The Komtur's side
+    "talents": ["bloodRage", "carapace"],
+    "talentSlots": 2,
 }

@@ -33,4 +33,7 @@
     "speed": 12,
     "turnRate": 5,
     "proceduralModel": "dwarf",
+    // standard talents for The Komtur's side
+    "talents": ["barrel", "ap", "autoloader"],
+    "talentSlots": 2,
 }
