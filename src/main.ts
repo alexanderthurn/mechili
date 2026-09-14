@@ -1069,7 +1069,6 @@ menu.innerHTML = `
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="sp-1v1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label">1v1</span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-2v2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label">2v2</span></button>
-            <button class="m-btn m-toggle-card" data-mode="sp-horde">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:horde"></span></button>
         </div>
         <button class="m-btn m-small" data-mode="sp-practice-back" data-i18n="menu:back"></button>
     </div>
@@ -1959,6 +1958,8 @@ function hostCustomGame(mode: CustomGameMode): void {
 }
 
 let started = false;
+/** set while the Practice lobby is on screen */
+let practiceLobby: { config: CustomGameConfig; roster: CanonicalSeatDef[] } | null = null;
 /** set while a scenario started from the editor runs: the menu hands back to the editor */
 let returnToEditorAfterMatch = false;
 /** true after 3D assets finish loading — match starts wait for this */
@@ -2383,13 +2384,13 @@ function clearRosterTable(): void {
  *  per hostCustomGame() call, which would otherwise stack duplicate
  *  listeners across repeated hosts (cancel, host again, ...). null
  *  whenever the local client isn't hosting a Custom Game room right now. */
-let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null = null;
+let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (cfg: CustomGameConfig) => void } | null = null;
 
 (function wireLobbySettingsInputsOnce(): void {
     const onChange = () => {
         if (!activeLobbyHost) return;
         Object.assign(activeLobbyHost.config, readLobbySettingsForm());
-        saveCustomGameConfig(activeLobbyHost.config);
+        (activeLobbyHost.save ?? saveCustomGameConfig)(activeLobbyHost.config);
         syncLobbySettingsResetVisibility(activeLobbyHost.config);
         activeLobbyHost.onChange();
     };
@@ -2398,11 +2399,12 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null =
     cgRoundCardsEl.addEventListener('change', onChange);
     cgCommanderHpEl.addEventListener('change', onChange);
     cgMoneyEl.addEventListener('change', onChange);
+    cgStrongholdEl.addEventListener('change', onChange);
     cgResetEl.addEventListener('click', () => {
         if (!activeLobbyHost) return;
-        Object.assign(activeLobbyHost.config, defaultLobbySettings());
+        Object.assign(activeLobbyHost.config, activeLobbyHost.save ? defaultPracticeSettings() : defaultLobbySettings());
         populateLobbySettingsForm(activeLobbyHost.config);
-        saveCustomGameConfig(activeLobbyHost.config);
+        (activeLobbyHost.save ?? saveCustomGameConfig)(activeLobbyHost.config);
         activeLobbyHost.onChange();
     });
 })();
@@ -2412,9 +2414,14 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void } | null =
  *  called after every edit, so the roster/ready-reset/broadcast/Start-
  *  button-gating all happen through the exact same path a roster change
  *  already goes through. Idempotent — safe to call on every refresh(). */
-function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () => void): void {
+function showHostLobbySettings(
+    config: CustomGameConfig,
+    onSettingsChanged: () => void,
+    /** where edits are kept (Practice keeps its own settings); default: the Custom Game config */
+    save?: (cfg: CustomGameConfig) => void,
+): void {
     const firstShow = !lobbySettingsAvailable;
-    activeLobbyHost = { config, onChange: onSettingsChanged };
+    activeLobbyHost = { config, onChange: onSettingsChanged, ...(save ? { save } : {}) };
     lobbySettingsAvailable = true;
     if (firstShow) lobbySettingsExpanded = isNonDefaultLobbySettings(config);
     lobbySettingsEl.classList.remove('m-readonly');
@@ -2427,6 +2434,7 @@ function showHostLobbySettings(config: CustomGameConfig, onSettingsChanged: () =
     cgRoundCardsEl.disabled = false;
     cgCommanderHpEl.disabled = false;
     cgMoneyEl.disabled = false;
+    cgStrongholdEl.disabled = false;
     cgResetEl.disabled = false;
     populateLobbySettingsForm(config);
 }
@@ -2450,6 +2458,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgRoundCardsEl.disabled = true;
     cgCommanderHpEl.disabled = true;
     cgMoneyEl.disabled = true;
+    cgStrongholdEl.disabled = true;
     cgResetEl.disabled = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
@@ -3930,6 +3939,7 @@ function cancelHost(): void {
         console.error('cancelHost: hub.close() failed', e);
     }
     hosting = null;
+    practiceLobby = null;
     updateSteamPresence('menu');
     starCustomConfig = null;
     startStarBtn.style.display = 'none';
@@ -4364,6 +4374,102 @@ async function beginHost(opts: {
 }
 
 /** host clicks Start: AI-fill empty seats, send each guest its own setup, launch locally */
+/**
+ * The settings every lobby match starts from — hosted rooms and local ones
+ * (Practice, a Custom Game with only bots) alike, so the two can't drift apart.
+ */
+function lobbyMatchSettings(config: CustomGameConfig | null, horde: boolean, seatCount: number): GameSettings & { seed: number } {
+    const settings = settingsFromUrl();
+    delete settings.seats; // the roster travels separately (localized per client)
+    if (config) applyCustomGameConfig(settings, config);
+    else if (horde) applyHordeMode(settings);
+    // 2v2 / duo only — 1v1 must keep the standard map width
+    if (seatCount > 2) widenMapForDuo(settings);
+    return { ...settings, seed: settings.seed ?? (Math.random() * 0x7fffffff) | 0 };
+}
+
+/** empty seats of a lobby roster become bots, each with its own rolled loadout */
+function rosterWithBots(roster: readonly CanonicalSeatDef[]): CanonicalSeatDef[] {
+    return roster.map((s, i) =>
+        i > 0 && s.controller === 'human' && s.name === OPEN_SEAT_NAME
+            ? { side: s.side, controller: 'ai' as const, name: starAiName(i, [...roster]), loadout: randomLoadout() }
+            : s,
+    );
+}
+
+/** a lobby match played on this machine only: no room, no spectators, single-player features on */
+function startLocalLobbyMatch(config: CustomGameConfig, roster: readonly CanonicalSeatDef[]): void {
+    const finalRoster = rosterWithBots(roster);
+    const settings = lobbyMatchSettings(config, false, finalRoster.length);
+    settings.seats = localizeRoster(finalRoster, 'a');
+    startStarBtn.style.display = 'none';
+    resetSessionChrome();
+    setMenuBusy(false);
+    startGame(settings, 'a', { local: getPlayerName(), opponent: opponentDisplayName(finalRoster, 0) });
+}
+
+// ---- Practice: the Custom Game lobby, local, every other seat a bot
+
+const PRACTICE_KEY = 'melodan-practice';
+
+/** Practice's own defaults: the Custom Game ones, without a clock to race */
+function defaultPracticeSettings(): ReturnType<typeof defaultLobbySettings> {
+    return { ...defaultLobbySettings(), pace: 'long' };
+}
+
+function loadPracticeConfig(): CustomGameConfig {
+    try {
+        const raw = localStorage.getItem(PRACTICE_KEY);
+        const parsed = raw ? (JSON.parse(raw) as Partial<CustomGameConfig>) : {};
+        const defaults = defaultPracticeSettings();
+        return {
+            mode: parsed.mode === '2v2' ? '2v2' : '1v1',
+            pace: customGamePaceById(parsed.pace ?? defaults.pace).id,
+            hordePreset: hordeAlgorithmById(parsed.hordePreset ?? defaults.hordePreset).id,
+            roundCardPreset: roundCardAlgorithmById(parsed.roundCardPreset ?? defaults.roundCardPreset).id,
+            commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor ?? defaults.commanderHpFactor),
+            moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
+            strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
+        };
+    } catch {
+        return { mode: '1v1', ...defaultPracticeSettings() };
+    }
+}
+
+function savePracticeConfig(config: CustomGameConfig): void {
+    try {
+        localStorage.setItem(PRACTICE_KEY, JSON.stringify(config));
+    } catch {
+        /* private browsing */
+    }
+}
+
+/** Single Player → Practice → 1v1 / 2v2: the Custom Game lobby, locally, with bots in every other seat. */
+function openPracticeLobby(mode: '1v1' | '2v2'): void {
+    const config: CustomGameConfig = { ...loadPracticeConfig(), mode };
+    savePracticeConfig(config);
+    const roster = (mode === '1v1' ? initial1v1Roster : initialStarRoster)(getPlayerName());
+    practiceLobby = { config, roster };
+    showMenuView('session');
+    setStatus('');
+    // waitForJoined 1: nobody is expected, every open seat shows as a bot
+    renderRosterTable(roster, 0, 1);
+    showHostLobbySettings(config, () => undefined, savePracticeConfig);
+    startStarBtn.disabled = false;
+    startStarBtn.classList.remove('is-go');
+    startStarBtn.textContent = t('menu:start');
+    startStarBtn.style.display = '';
+    cancelEl.textContent = t('menu:back');
+    cancelEl.style.display = '';
+}
+
+function startPracticeMatch(): void {
+    const lobby = practiceLobby;
+    if (!lobby) return;
+    practiceLobby = null;
+    startLocalLobbyMatch(lobby.config, lobby.roster);
+}
+
 function startHostedMatch(): void {
     if (!hosting) return;
     const { hub, transport } = hosting;
@@ -4392,14 +4498,16 @@ function startHostedMatch(): void {
     // stays wired for the whole match — see StarHub.listen()) forever,
     // letting a brand-new stranger claim it mid-match and receive the full
     // matchCatchUp as if they'd been playing since round 0.
+    // Custom Game with nobody else in the room: close it and play the same match
+    // locally — Retry, cheats, pause and resume, nothing broadcast or joinable
+    if (starCustomConfig && connected.size === 0) {
+        const config = starCustomConfig;
+        cancelHost();
+        startLocalLobbyMatch(config, finalRoster);
+        return;
+    }
     finalRoster.forEach((entry, seat) => hub.setRosterEntry(seat, entry));
-    const settings = settingsFromUrl();
-    delete settings.seats; // canonical roster travels separately, localized per recipient
-    if (starCustomConfig) applyCustomGameConfig(settings, starCustomConfig);
-    else if (starHordeFlag) applyHordeMode(settings);
-    // 2v2 / duo only — 1v1 must keep the standard map width
-    if (finalRoster.length > 2) widenMapForDuo(settings);
-    settings.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+    const settings = lobbyMatchSettings(starCustomConfig, starHordeFlag, finalRoster.length);
     for (const seat of connected) {
         hub.send(seat, {
             type: 'starSetup',
@@ -5255,11 +5363,12 @@ function startSpectateGame(
 }
 
 function cancelMenuPending(): void {
+    const fromPractice = practiceLobby !== null;
     pending?.cancel();
     pending = null;
     cancelHost();
     setMenuBusy(false);
-    showMenuView('main');
+    showMenuView(fromPractice ? 'sp-practice' : 'main');
 }
 
 function isMenuBlockingOverlayOpen(): boolean {
@@ -5377,7 +5486,6 @@ menu.addEventListener('click', (e) => {
             mode === 'sp-campaigns' ||
             mode === 'sp-1v1' ||
             mode === 'sp-2v2' ||
-            mode === 'sp-horde' ||
             mode === 'matchmaking' ||
             mode === 'mms-2v2' ||
             mode === 'mm-play' ||
@@ -5442,16 +5550,10 @@ menu.addEventListener('click', (e) => {
             showMenuView('main');
             break;
         case 'sp-1v1':
-            showMenuView('main');
-            startLocalMatch();
+            openPracticeLobby('1v1');
             break;
         case 'sp-2v2':
-            showMenuView('main');
-            startLocalMatch({ duo: true });
-            break;
-        case 'sp-horde':
-            showMenuView('main');
-            startLocalMatch({ horde: true });
+            openPracticeLobby('2v2');
             break;
         case 'matchmaking': {
             const test2v2 = test2v2Param();
@@ -5631,7 +5733,8 @@ menu.addEventListener('click', (e) => {
             hostCustomGame('2v2ai');
             break;
         case 'startstar':
-            startHostedMatch();
+            if (practiceLobby) startPracticeMatch();
+            else startHostedMatch();
             break;
     }
 });
