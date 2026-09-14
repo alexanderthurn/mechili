@@ -715,6 +715,28 @@ export type SimEvent =
 const PROJECTILE_RADIUS = 0.25;
 const PROJECTILE_TTL = 3;
 
+/**
+ * Where a straight shot aims on its target, above the feet (world units): the
+ * middle of the model, moved into the nearest hit volume. A small unit's
+ * mid-mesh sits above its collider sphere — a bolt aimed there rises over it
+ * and never connects (lobbed shots come down through it instead).
+ */
+function straightAimY(tt: UnitType): number {
+    const want = projectileAimY(tt) * tt.meshScale;
+    let best = want;
+    let bestGap = Infinity;
+    for (const c of tt.colliders) {
+        const cy = c.y * tt.meshScale;
+        const band = c.r * tt.meshScale * 0.5;
+        const y = Math.max(cy - band, Math.min(cy + band, want));
+        if (Math.abs(y - want) < bestGap) {
+            bestGap = Math.abs(y - want);
+            best = y;
+        }
+    }
+    return best;
+}
+
 /** Grounded rock after a stone impact — inherits flying uniform scale. */
 function stoneDropFields(p: Projectile): { dropStone?: boolean; dropStoneScale?: number } {
     if (p.style !== 'stone' || p.scaleEnd != null) return {};
@@ -4628,7 +4650,7 @@ export class BattleSim {
                 dx = aimX - mx;
                 dz = aimZ - mz;
             }
-            dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale + aimYOff - muzzleY;
+            dy = this.feetY(target, aimX, aimZ) + straightAimY(tt) + aimYOff - muzzleY;
             const len = hypot(dx, dy, dz) || 1e-6;
             vx = (dx / len) * speed;
             vy = (dy / len) * speed;
