@@ -89,6 +89,19 @@ export function climbAttackerTeam(climb: ClimbSettings, localSide = 0): 'player'
     return climb.humanRole === 'defender' ? 'enemy' : 'player';
 }
 
+/**
+ * The attacking side (0 / 1) from the roles two players asked for: a wish the
+ * other side doesn't contest is granted; the same wish on both sides, or none,
+ * is a coin flip on the match seed.
+ */
+export function yearAttackerFromWishes(a: ClimbRole | undefined, b: ClimbRole | undefined, seed: number): number {
+    if (a === 'attacker' && b !== 'attacker') return 0;
+    if (b === 'attacker' && a !== 'attacker') return 1;
+    if (a === 'defender' && b !== 'defender') return 1;
+    if (b === 'defender' && a !== 'defender') return 0;
+    return (seed >>> 0) % 2;
+}
+
 /** The Year's winner from its round winners: more round wins, a tie to the defender. */
 export function yearWinner(rounds: readonly YearRoundWinner[]): YearRoundWinner {
     const attacker = rounds.filter((r) => r === 'attacker').length;

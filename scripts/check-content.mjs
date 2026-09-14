@@ -169,6 +169,25 @@ try {
                 ...DEFAULT_SETTINGS,
                 climb: { rounds: 9, sideHp: 1, playerSupplyGrowthPerRound: 100, humanRole: 'defender', attackerCommander: 'cursed' },
             }).climb;
+            const setMod = await server.ssrLoadModule('/src/game/settings.ts');
+            const wishes = [
+                [['attacker', undefined, 7], 0], [[undefined, 'attacker', 7], 1], [['defender', undefined, 7], 1],
+                [['attacker', 'defender', 8], 0], [['attacker', 'attacker', 8], 0], [['attacker', 'attacker', 9], 1], [[undefined, undefined, 9], 1],
+            ];
+            for (const [[a, b, seed], want] of wishes) {
+                if (setMod.yearAttackerFromWishes(a, b, seed) !== want) {
+                    ok = false;
+                    console.error(`FAIL Year roles: ${a}/${b} seed ${seed} → ${setMod.yearAttackerFromWishes(a, b, seed)}, expected ${want}`);
+                }
+            }
+            if (setMod.yearWinner(['attacker', 'defender', 'attacker']) !== 'attacker' || setMod.yearWinner(['attacker', 'defender']) !== 'defender') {
+                ok = false;
+                console.error('FAIL yearWinner');
+            }
+            if (setMod.climbAttackerTeam({ rounds: 9, sideHp: 1, playerSupplyGrowthPerRound: 100, attackerSide: 1 }, 1) !== 'player') {
+                ok = false;
+                console.error('FAIL climbAttackerTeam by side');
+            }
             if (climb?.attackerCommander !== 'cursed' || climbAttackerTeam(climb) !== 'enemy') {
                 ok = false;
                 console.error(`FAIL The Year variant lost in normalizeGameSettings: ${JSON.stringify(climb)}`);

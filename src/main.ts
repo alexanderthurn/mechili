@@ -130,6 +130,7 @@ import {
     CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
     type ClimbRole,
     climbAttackerTeam,
+    yearAttackerFromWishes,
     type YearRoundWinner,
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
@@ -3333,6 +3334,10 @@ function constructGame(
     };
     wireGameMenuReturn(game);
     game.onNextScenario = (id) => void playNextScenario(settings.level, id);
+    // The Year's "Rematch, roles swapped"
+    game.onRematch = (next) => void startLocalRematch(next, side, names);
+    game.onStarRematch = () => void startStarRematchAsHost(game);
+    game.onStarRematchStart = (msg) => void startStarRematchAsGuest(game, msg);
     game.onScenarioWon = (id) => {
         if (settings.level) markLevelCompleted(settings.level.id, id);
     };
@@ -3686,6 +3691,81 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
 async function openScenarioEditor(mode: 'author' | 'test', draft: ScenarioDef, level: LevelRef | undefined): Promise<void> {
     if (activeGame) await teardownForNextMatch();
     startGame(applyScenarioToSettings(localMatchSettings(), draft, level, mode));
+}
+
+/** The Year's rematch without a room: the same match again, roles swapped */
+async function startLocalRematch(next: GameSettings, side: 'a' | 'b', names: { local: string; opponent: string }): Promise<void> {
+    await teardownForNextMatch();
+    startGame(next, side, names);
+}
+
+/**
+ * Run `deliver` once the match started after `old` exists — a rematch hands
+ * the room connection over, and what arrives in between waits for it.
+ */
+function whenNextGameStarts(old: Game, deliver: (game: Game) => void): void {
+    const started = performance.now();
+    const check = () => {
+        if (activeGame && activeGame !== old) deliver(activeGame);
+        else if (performance.now() - started < 60_000) setTimeout(check, 50);
+    };
+    check();
+}
+
+/**
+ * The Year in a room, host: everyone asked for the rematch. The guests get the
+ * new match (roles swapped, new seed) over the same connection, then this
+ * client starts its own on the same hub.
+ */
+async function startStarRematchAsHost(old: Game): Promise<void> {
+    const star = old.starRole;
+    if (star?.role !== 'host') return;
+    const hub = star.hub;
+    const roster = hub.currentRoster();
+    const next = old.yearRematchSettings();
+    delete next.seats; // the roster travels separately (localized per client)
+    const seed = next.seed ?? 1;
+    for (const seat of hub.connectedSeats()) hub.send(seat, { type: 'starRematch', seed, settings: next, roster });
+    // what the guests send before the new match listens waits for it
+    const waiting: [SeatId, NetMessage][] = [];
+    hub.onMessage = (seat, msg) => waiting.push([seat, msg]);
+    old.destroy({ keepStarSession: true });
+    if (activeGame === old) activeGame = null;
+    await teardownForNextMatch();
+    startGame(
+        { ...next, seed, seats: localizeRoster(roster, 'a') },
+        'a',
+        { local: getPlayerName(), opponent: opponentDisplayName(roster, 0) },
+        null,
+        star,
+    );
+    whenNextGameStarts(old, (game) => {
+        for (const [seat, msg] of waiting) game.deliverStarMessage(msg, seat);
+    });
+}
+
+/** The Year in a room, guest: the host started the rematch — the new match on the same connection */
+async function startStarRematchAsGuest(old: Game, msg: Extract<NetMessage, { type: 'starRematch' }>): Promise<void> {
+    const star = old.starRole;
+    if (star?.role !== 'guest') return;
+    const waiting: NetMessage[] = [];
+    star.session.attach((m) => waiting.push(m));
+    old.destroy({ keepStarSession: true });
+    if (activeGame === old) activeGame = null;
+    await teardownForNextMatch();
+    const mySeat = star.mySeat;
+    const yourSide = msg.roster[mySeat]?.side ?? 'b';
+    const settings = { ...msg.settings, seed: msg.seed, seats: localizeRoster(rosterWithWiredAvatars(msg.roster), yourSide) };
+    startGame(
+        settings,
+        yourSide,
+        { local: msg.roster[mySeat]?.name ?? getPlayerName(), opponent: opponentDisplayName(msg.roster, mySeat) },
+        null,
+        star,
+    );
+    whenNextGameStarts(old, (game) => {
+        for (const m of waiting) game.deliverStarMessage(m);
+    });
 }
 
 /** a won scenario's "Next": the following scenario of the same package */
@@ -4657,13 +4737,7 @@ function resolveYearAttackerSide(config: CustomGameConfig, roster: readonly Cano
     const roles = yearRolesOption(config.yearRoles);
     if (roles !== 'choose') return roles === 'guest' ? 1 : 0;
     const wish = (side: 'a' | 'b') => roster.find((s) => s.side === side && s.controller === 'human')?.yearRole;
-    const a = wish('a');
-    const b = wish('b');
-    if (a === 'attacker' && b !== 'attacker') return 0;
-    if (b === 'attacker' && a !== 'attacker') return 1;
-    if (a === 'defender' && b !== 'defender') return 1;
-    if (b === 'defender' && a !== 'defender') return 0;
-    return (seed >>> 0) % 2;
+    return yearAttackerFromWishes(wish('a'), wish('b'), seed);
 }
 
 /** empty seats of a lobby roster become bots, each with its own rolled loadout */

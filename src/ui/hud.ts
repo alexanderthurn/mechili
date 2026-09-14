@@ -4390,6 +4390,8 @@ export class Hud {
             climbProgress?: { n: number; total: number };
             /** The Year: every round's winner — the end screen shows the tally and who took the Year */
             year?: YearProgress;
+            /** offer "Rematch, roles swapped" (see {@link onRematch}, {@link setRematchState}) */
+            allowRematch?: boolean;
         },
     ): void {
         this.prepareMatchEndUi();
@@ -4408,7 +4410,10 @@ export class Hud {
             allowNext: options?.allowNext === true,
             hideMmr: !!options?.climbProgress,
             ...(options?.year ? { year: options.year } : {}),
+            allowRematch: options?.allowRematch === true,
         });
+        this.rematchButton = el.querySelector<HTMLButtonElement>('.go-rematch');
+        this.rematchButton?.addEventListener('click', () => this.onRematch?.());
         if (options?.year) el.classList.add('is-year');
         const backLabel = options?.backLabel ?? t('hud:backToMainMenu');
         const btn = el.querySelector('.go-restart')!;
@@ -4445,6 +4450,34 @@ export class Hud {
                 onDone();
             });
         }, 1600);
+    }
+
+    /** the end screen asked for "Rematch, roles swapped" */
+    onRematch: (() => void) | null = null;
+    private rematchButton: HTMLButtonElement | null = null;
+
+    /**
+     * The rematch button follows the room: 'waiting' — you asked, the other
+     * player hasn't yet; 'asked' — the other player wants it; 'gone' — the
+     * other player left.
+     */
+    setRematchState(state: 'waiting' | 'asked' | 'gone'): void {
+        const button = this.rematchButton;
+        if (!button?.isConnected) return;
+        if (state === 'gone') {
+            button.disabled = true;
+            button.classList.remove('is-asked');
+            button.textContent = t('hud:rematchGone', { defaultValue: 'Opponent left' });
+        } else if (state === 'waiting') {
+            if (button.disabled && button.classList.contains('is-gone')) return;
+            button.disabled = true;
+            button.classList.remove('is-asked');
+            button.textContent = t('hud:rematchWaiting', { defaultValue: 'Waiting for opponent…' });
+        } else if (!button.disabled) {
+            button.classList.add('is-asked');
+            button.textContent = t('hud:rematchAccept', { defaultValue: 'Accept rematch, roles swapped' });
+        }
+        if (state === 'gone') button.classList.add('is-gone');
     }
 
     /** The Year's result block: who took the Year, the tally, every round in order */
@@ -4506,7 +4539,7 @@ export class Hud {
         title: string,
         details?: GameOverDetails,
         note?: string,
-        opts?: { allowRetry?: boolean; allowNext?: boolean; hideMmr?: boolean; year?: YearProgress },
+        opts?: { allowRetry?: boolean; allowNext?: boolean; hideMmr?: boolean; year?: YearProgress; allowRematch?: boolean },
     ): string {
         const hideMmr = opts?.hideMmr === true;
         const year = opts?.year ? this.yearResultHtml(opts.year) : '';
@@ -4523,6 +4556,9 @@ export class Hud {
             : '';
         // `hud:continue` rather than a tutorial-specific label: it is already
         // translated in every locale, and it reads right for "on to the next one".
+        const rematchBtn = opts?.allowRematch
+            ? `<button type="button" class="go-rematch">${escapeHtml(t('hud:rematchSwapped', { defaultValue: 'Rematch, roles swapped' }))}</button>`
+            : '';
         const nextBtn = opts?.allowNext
             ? `<button type="button" class="go-next">${escapeHtml(t('hud:continue'))}</button>`
             : '';
@@ -4533,7 +4569,7 @@ export class Hud {
             `<span class="go-bg-core"></span>` +
             `</div>` +
             `<div class="go-title">${escapeHtml(title)}</div>${year}${teams}${noteEl}` +
-            `<div class="go-actions">${nextBtn}${retryBtn}` +
+            `<div class="go-actions">${rematchBtn}${nextBtn}${retryBtn}` +
             `<button type="button" class="go-restart">${escapeHtml(t('hud:backToMainMenu'))}</button>` +
             `</div>`
         );

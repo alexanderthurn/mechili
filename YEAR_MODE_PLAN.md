@@ -58,3 +58,17 @@ between two machines, the end screen, the loading card on a resumed match.
 - Multiplayer: Matchmaking, Custom Game, and the open lobbies list (moved from
   the main menu; the room poll runs while that view is open).
 - Custom Game: 1v1, 2v2, 2 vs AI, The Year.
+
+## 6. Roles and rematch
+
+- Room setting **Roles**: Players choose (default) / Host attacks / Guest attacks.
+- With "Players choose", each player picks Attacker / Defender / Any in the
+  lobby (the seat shows it). At Start: an uncontested wish is granted, the same
+  wish on both sides (or none) is a coin flip on the match seed
+  (`yearAttackerFromWishes`). The result rides the match settings, so every
+  client agrees.
+- End screen of a finished Year: **Rematch, roles swapped**. Single player (and
+  a room played alone against bots) restarts at once. In a room every player
+  has to ask; the host then sends `starRematch` (roster, new seed, swapped
+  attacker) over the same connection and both sides start the new match —
+  messages that arrive during the hand-over are delivered to the new match.

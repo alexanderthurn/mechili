@@ -850,6 +850,14 @@ export class Game {
     onScenarioEditor: ((mode: 'author' | 'test', draft: ScenarioDef) => void) | null = null;
     /** scenario editor: package the draft for download; resolves to a status line */
     onScenarioDownload: ((draft: ScenarioDef) => Promise<string>) | null = null;
+    /** The Year, not in a room: start the rematch with these settings (roles swapped, new seed) */
+    onRematch: ((settings: GameSettings) => void) | null = null;
+    /** The Year in a room, host: every player asked for the rematch — start it */
+    onStarRematch: (() => void) | null = null;
+    /** The Year in a room, guest: the host started the rematch */
+    onStarRematchStart: ((msg: Extract<NetMessage, { type: 'starRematch' }>) => void) | null = null;
+    /** seats that asked for the rematch (host: the authority; guest: as the host last said) */
+    private readonly rematchSeats = new Set<SeatId>();
     /** a scenario was won (played, not edited or tested) — its id in the package */
     onScenarioWon: ((scenarioId: string) => void) | null = null;
     /** a won scenario: play the next one of its package (meta.jsonc order) */
@@ -1950,6 +1958,7 @@ export class Game {
         this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         this.hud.onRetryLastRound = () => this.requestRetryLastRound();
+        this.hud.onRematch = () => this.requestRematch();
         this.hud.onNextTutorial = () => {
             const next = nextTutorialId(tutorialId(this.settings));
             if (next !== null) {
@@ -2844,6 +2853,9 @@ export class Game {
         this.onScenarioShareCode = null;
         this.onNextScenario = null;
         this.onScenarioWon = null;
+        this.onRematch = null;
+        this.onStarRematch = null;
+        this.onStarRematchStart = null;
         this.onScenarioSaveInto = null;
         this.scenarioEditor?.destroy();
         this.scenarioEditor = null;
@@ -4918,6 +4930,7 @@ export class Game {
                 // ran) has its own connection close moments later as its
                 // client tears down — that's expected, not a drop to wait
                 // out
+                if (this.matchOver) this.hud.setRematchState('gone');
                 if (this.quitSeats.has(seat)) return;
                 this.beginStarSeatSuspend(seat);
             };
@@ -4954,6 +4967,7 @@ export class Game {
      * in this feature, since there is zero live-testing coverage for it yet.
      */
     private beginStarGuestReconnect(session: GuestSession): void {
+        if (this.matchOver) this.hud.setRematchState('gone');
         if (this.matchOver || !this.star || this.star.role !== 'guest' || this.star.session !== session) {
             return;
         }
@@ -6674,6 +6688,11 @@ export class Game {
      * reads the seat straight out of the already-sanitized payload).
      */
     private onStarMessage(msg: NetMessage, fromSeat?: SeatId): void {
+        // the rematch is agreed on once the match is over
+        if ((msg.type === 'rematch' || msg.type === 'starRematch') && !this.disposed && this.matchOver && this.star) {
+            this.onRematchMessage(msg, fromSeat);
+            return;
+        }
         if (this.disposed || this.matchOver || !this.star) return;
         const star = this.star;
         const isHost = star.role === 'host';
@@ -9859,6 +9878,73 @@ export class Game {
     }
 
     /** someone hit 0 HP — freeze the game and show the result */
+    /** a message that reached this match before the next one could take it (rematch hand-over) */
+    deliverStarMessage(msg: NetMessage, fromSeat?: SeatId): void {
+        this.onStarMessage(msg, fromSeat);
+    }
+
+    /** this match's connection (main reuses it for a rematch) */
+    get starRole(): StarRole | null {
+        return this.star;
+    }
+
+    /** The Year's rematch: the same match with the roles swapped and a new seed */
+    yearRematchSettings(): GameSettings {
+        const next = structuredClone(this.settings);
+        next.seed = (Math.random() * 0x7fffffff) | 0;
+        const climb = next.climb;
+        if (climb) {
+            if (climb.attackerSide !== undefined) climb.attackerSide = climb.attackerSide === 0 ? 1 : 0;
+            else if (climb.humanRole === 'defender') delete climb.humanRole;
+            else climb.humanRole = 'defender';
+        }
+        return next;
+    }
+
+    /** the end screen's "Rematch, roles swapped" */
+    private requestRematch(): void {
+        if (!this.matchOver || this.watching || !this.settings.climb) return;
+        if (!this.star) {
+            this.onRematch?.(this.yearRematchSettings());
+            return;
+        }
+        this.rematchSeats.add(this.humanSeat);
+        this.hud.setRematchState('waiting');
+        if (this.star.role === 'host') {
+            this.star.hub.broadcast({ type: 'rematch', seats: [...this.rematchSeats] });
+            this.maybeStartRematch();
+        } else {
+            this.star.session.send({ type: 'rematch' });
+        }
+    }
+
+    private onRematchMessage(msg: Extract<NetMessage, { type: 'rematch' | 'starRematch' }>, fromSeat?: SeatId): void {
+        const star = this.star;
+        if (!star || !this.settings.climb) return;
+        if (msg.type === 'starRematch') {
+            if (star.role === 'guest') this.onStarRematchStart?.(msg);
+            return;
+        }
+        if (star.role === 'host') {
+            if (fromSeat === undefined) return;
+            this.rematchSeats.add(fromSeat);
+            star.hub.broadcast({ type: 'rematch', seats: [...this.rematchSeats] });
+        } else {
+            this.rematchSeats.clear();
+            for (const seat of msg.seats ?? []) this.rematchSeats.add(seat);
+        }
+        if (!this.rematchSeats.has(this.humanSeat)) this.hud.setRematchState('asked');
+        if (star.role === 'host') this.maybeStartRematch();
+    }
+
+    /** host: every player still here asked — start the rematch */
+    private maybeStartRematch(): void {
+        if (this.star?.role !== 'host') return;
+        const players = [this.humanSeat, ...this.star.hub.connectedSeats()];
+        if (players.length < 2 || !players.every((seat) => this.rematchSeats.has(seat))) return;
+        this.onStarRematch?.();
+    }
+
     /** a side forfeited (its HP is 0 now): the match ends — in The Year too, whatever the round tally */
     private finishAfterForfeit(team: Team): void {
         if (this.settings.climb) {
@@ -9977,7 +10063,9 @@ export class Game {
             const climbProgress = this.settings.climb ? { n: Math.max(1, this.round), total: this.settings.climb.rounds } : undefined;
             // a Year that ran its course shows the tally (one ended by a forfeit doesn't claim a Year winner)
             const year = this.settings.climb && this.yearRounds.length >= this.settings.climb.rounds ? this.yearProgress() : undefined;
-            this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress, ...(year ? { year } : {}) });
+            // The Year, played to its end: the same pairing again with the roles swapped
+            const allowRematch = !!year && !this.watching;
+            this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress, allowRematch, ...(year ? { year } : {}) });
         }
     }
 

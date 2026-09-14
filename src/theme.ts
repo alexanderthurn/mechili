@@ -6390,6 +6390,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-actions,
 .mechili-gameover .go-restart,
 .mechili-gameover .go-retry,
+.mechili-gameover .go-rematch,
 .mechili-gameover .go-next {
     position: relative;
     z-index: 1;
@@ -6615,6 +6616,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-gameover .go-restart,
 .mechili-gameover .go-retry,
+.mechili-gameover .go-rematch,
 .mechili-gameover .go-next {
     align-self: center;
     padding: 10px 26px;
@@ -6630,11 +6632,15 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-gameover .go-restart:hover,
 .mechili-gameover .go-retry:hover,
+.mechili-gameover .go-rematch:hover:not(:disabled),
 .mechili-gameover .go-next:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
 .mechili-gameover .go-restart:focus-visible,
 .mechili-gameover .go-retry:focus-visible,
+.mechili-gameover .go-rematch:focus-visible,
 .mechili-gameover .go-next:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
-/* with Retry / Next present, Back is the quieter second action */
+.mechili-gameover .go-rematch:disabled { opacity: 0.6; cursor: default; }
+.mechili-gameover .go-rematch.is-asked { border-color: ${u.brassLight}; color: ${u.brassLight}; box-shadow: 0 0 16px rgba(212, 184, 120, 0.45); animation: year-mark-pulse 1.6s ease-in-out infinite; }
+.mechili-gameover .go-actions:has(.go-rematch) .go-restart,
 .mechili-gameover .go-actions:has(.go-retry) .go-restart,
 .mechili-gameover .go-actions:has(.go-next) .go-restart {
     background: transparent;
