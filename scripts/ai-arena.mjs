@@ -502,6 +502,41 @@ async function duels(budget) {
     console.log(`model agrees with the real battle in ${agree}/${total}`);
 }
 
+/**
+ * --matchup bat,hammerer [--budget 600] [--seeds 20]: the same two armies fought
+ * over many placements — how much HP each side takes off the other, who is left.
+ */
+function matchup(a, b, budget, seeds) {
+    const sum = { dealtA: 0, dealtB: 0, winsA: 0, winsB: 0, seconds: 0 };
+    for (let s = 0; s < seeds; s++) {
+        const m = newMatch('attack', 7 + s, { ai: 'classic', human: 'classic' });
+        m.map.flanksUnlocked = false;
+        m.map.neutralUnlocked = false;
+        m.state.round = 1;
+        m.placement.currentRound = 1;
+        const place = (id, team, seat) => {
+            const type = T.require(id);
+            for (let i = 0, count = Math.max(1, Math.floor(budget / type.cost)); i < count; i++) {
+                const spot = m.placement.findAiSpot(team, seat, type, mulberry32(1000 + s * 131 + i * 7 + seat));
+                if (spot) m.placement.spawn(type, spot.anchor, team, spot.rotated, true, seat);
+            }
+        };
+        place(a, 'player', 0);
+        place(b, 'enemy', 1);
+        let lost = { player: 0, enemy: 0 };
+        const out = battle(m, (sim) => {
+            for (const actor of sim.actors) lost[actor.unit.team] = (lost[actor.unit.team] ?? 0) + actor.maxHp - Math.max(0, actor.alive ? actor.hp : 0);
+        });
+        sum.dealtA += lost.enemy;
+        sum.dealtB += lost.player;
+        if (out.survivors.player > 0 && out.survivors.enemy === 0) sum.winsA++;
+        if (out.survivors.enemy > 0 && out.survivors.player === 0) sum.winsB++;
+        sum.seconds += out.seconds;
+    }
+    const avg = (v) => (v / seeds).toFixed(0);
+    console.log(`${a} vs ${b} at ${budget} supply, ${seeds} placements: ${a} deals ${avg(sum.dealtA)} HP, ${b} deals ${avg(sum.dealtB)} HP · ${a} wins ${sum.winsA}, ${b} wins ${sum.winsB} · ${(sum.seconds / seeds).toFixed(1)}s`);
+}
+
 /** tiles between a unit and its side's front edge (as the planner measures it) */
 function depthOf(m, unit) {
     const map = m.map;
@@ -745,6 +780,11 @@ try {
     }
     if (flag('tune')) {
         await tune(arg('cache', 'arena-cases.json'), Number(arg('iterations', '1500')));
+        process.exit(0);
+    }
+    if (arg('matchup', '')) {
+        const [a, b] = arg('matchup', '').split(',');
+        matchup(a, b, Number(arg('budget', '600')), Number(arg('seeds', '20')));
         process.exit(0);
     }
     if (flag('duels')) {

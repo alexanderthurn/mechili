@@ -27,7 +27,7 @@
     ],
     "hp": 10,
     "bloodScale": 0.28, // tiny body — don't fountain like a dwarf
-    "damage": 3, // chip — pressure from numbers, not punches
+    "damage": 2, // chip — pressure from numbers, not punches (3 before bats stopped circling close foes)
     "range": 2.2, // touch radius while piercing
     "meleeLunge": 5, // commit the pass from a bit out
     "attackInterval": 1.05,
