@@ -104,6 +104,7 @@ import {
 import { readZip, writeZip } from './game/content/zip';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { loadStoredDraft, newDraft } from './game/scenario/editorDraft';
+import { BASE_TYPES } from './game/units';
 import { packageScenarioIds, scenarioPackageFiles, scenarioSlug, withScenarioInPackage } from './game/scenario/package';
 import type { ScenarioDef } from './game/scenario/scenarioDef';
 import { decodeShareCode, encodeShareCode } from './game/scenario/shareCode';
@@ -1036,13 +1037,23 @@ menu.innerHTML = `
         <div class="m-toggle-row">
             <button class="m-btn m-toggle-card" data-mode="sp-campaign">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:campaign"></span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-practice">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:practice"></span></button>
-            <button class="m-btn m-toggle-card" data-mode="sp-scenarios">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:scenarios"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="sp-campaigns">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:scenarioCampaign"></span></button>
             <button class="m-btn m-toggle-card" data-mode="sp-editor">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:editor"></span></button>
         </div>
         <button class="m-btn m-small" data-mode="sp-back" data-i18n="menu:back"></button>
     </div>
-    <div class="m-view m-spmode" data-view="sp-scenarios">
-        <div class="m-spmode-title" data-i18n="menu:scenarios"></div>
+    <div class="m-view m-spmode" data-view="sp-campaigns">
+        <div class="m-spmode-title" data-i18n="menu:scenarioCampaign"></div>
+        <div class="m-room-list m-scenario-list m-campaign-list empty"></div>
+        <button class="m-btn m-small" data-mode="sp-campaigns-back" data-i18n="menu:back"></button>
+    </div>
+    <div class="m-view m-spmode" data-view="sp-editor">
+        <div class="m-spmode-title" data-i18n="menu:editor"></div>
+        <div class="m-scenario-open">
+            <button type="button" class="m-scenario-btn m-editor-continue" data-i18n="menu:editorContinue"></button>
+            <button type="button" class="m-scenario-btn m-editor-new" data-i18n="menu:editorNew"></button>
+        </div>
+        <div class="m-scenario-list-label" data-i18n="menu:scenarios"></div>
         <div class="m-room-list m-scenario-list empty"></div>
         <div class="m-scenario-import">
             <input type="text" class="m-scenario-code" placeholder="MELODAN1:…" spellcheck="false" autocomplete="off">
@@ -1051,7 +1062,7 @@ menu.innerHTML = `
             <input type="file" class="m-scenario-file" accept=".zip,application/zip" hidden>
         </div>
         <div class="m-scenario-status"></div>
-        <button class="m-btn m-small" data-mode="sp-scenarios-back" data-i18n="menu:back"></button>
+        <button class="m-btn m-small" data-mode="sp-editor-back" data-i18n="menu:back"></button>
     </div>
     <div class="m-view m-spmode" data-view="sp-practice">
         <div class="m-spmode-title" data-i18n="menu:practice"></div>
@@ -1285,8 +1296,20 @@ const rosterTableEl = menu.querySelector<HTMLDivElement>('.m-roster-table')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('[data-view="sp"]')!;
 const spPracticeEl = menu.querySelector<HTMLDivElement>('[data-view="sp-practice"]')!;
-const spScenariosEl = menu.querySelector<HTMLDivElement>('[data-view="sp-scenarios"]')!;
+const spScenariosEl = menu.querySelector<HTMLDivElement>('[data-view="sp-editor"]')!;
 const spScenarioListEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-list')!;
+const spCampaignsEl = menu.querySelector<HTMLDivElement>('[data-view="sp-campaigns"]')!;
+const spCampaignListEl = spCampaignsEl.querySelector<HTMLDivElement>('.m-campaign-list')!;
+const spEditorContinueEl = spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-continue')!;
+spEditorContinueEl.addEventListener('click', () => {
+    showMenuView('main');
+    openStoredScenarioEditor();
+});
+spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-new')!.addEventListener('click', () => {
+    if (loadStoredDraft() && !window.confirm('Start a new board? It replaces the draft you were editing.')) return;
+    showMenuView('main');
+    void openScenarioEditor('author', newDraft(`v${__APP_VERSION__}`, BASE_TYPES), undefined);
+});
 const spScenarioCodeEl = spScenariosEl.querySelector<HTMLInputElement>('.m-scenario-code')!;
 const spScenarioStatusEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-status')!;
 const spScenarioZipBtn = spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-zip-btn')!;
@@ -1362,7 +1385,7 @@ async function renderScenarioList(): Promise<void> {
     spScenarioListEl.classList.toggle('empty', levels.length === 0);
     if (levels.length === 0) {
         spScenarioListEl.textContent = t('menu:noScenarios', {
-            defaultValue: 'No scenarios yet — build one in the Editor and press Save.',
+            defaultValue: 'No scenarios yet — build a board and press Save.',
         });
         return;
     }
@@ -1414,6 +1437,41 @@ async function renderScenarioList(): Promise<void> {
             if (!chain) row.append(codeButton, deleteButton);
             spScenarioListEl.appendChild(row);
         });
+    }
+}
+
+/**
+ * Single Player → Campaign: packages that chain several levels (meta.jsonc
+ * order, built with the editor's Save into package). Play starts at level 1;
+ * a victory continues to the next level. No progress is kept yet.
+ */
+async function renderCampaignList(): Promise<void> {
+    const chains = (await scenarioLevels()).filter((level) => level.scenarios.length > 1);
+    spCampaignListEl.textContent = '';
+    spCampaignListEl.classList.toggle('empty', chains.length === 0);
+    if (chains.length === 0) {
+        spCampaignListEl.textContent = t('menu:noCampaigns', {
+            defaultValue: 'No campaigns yet — in the Editor, open a scenario and use Save into package to add levels.',
+        });
+        return;
+    }
+    for (const chain of chains) {
+        const row = document.createElement('div');
+        row.className = 'm-scenario-row';
+        const name = document.createElement('span');
+        name.className = 'm-scenario-name';
+        name.textContent = `${chain.name} · ${chain.scenarios.length}`;
+        name.title = chain.scenarios.map((sc, i) => `${i + 1}. ${sc.name}`).join('\n');
+        const play = document.createElement('button');
+        play.type = 'button';
+        play.className = 'm-scenario-btn';
+        play.textContent = t('menu:scenarioPlay', { defaultValue: 'Play' });
+        const first = chain.scenarios[0];
+        play.addEventListener('click', () => {
+            if (first) void playSavedScenario(chain.ref, first.id);
+        });
+        row.append(name, play);
+        spCampaignListEl.appendChild(row);
     }
 }
 
@@ -1521,12 +1579,13 @@ wrapper.appendChild(loadoutPanel.el);
 
 /** Exclusive menu screens — only one is active at a time. Session owns
  *  connecting / lobby / waiting UI so main never stacks under it. */
-type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'sp-scenarios' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
+type MenuViewId = 'main' | 'sp' | 'sp-practice' | 'sp-editor' | 'sp-campaigns' | 'tutorial' | 'custom' | 'matchmaking' | 'mm-simple' | 'session';
 const menuViews: Record<MenuViewId, HTMLElement> = {
     main: mainButtonsEl,
     sp: spModeEl,
     'sp-practice': spPracticeEl,
-    'sp-scenarios': spScenariosEl,
+    'sp-editor': spScenariosEl,
+    'sp-campaigns': spCampaignsEl,
     tutorial: tutorialEl,
     custom: customEl,
     matchmaking: mmModeEl,
@@ -5315,7 +5374,7 @@ menu.addEventListener('click', (e) => {
             mode === 'sp-campaign' ||
             mode === 'sp-practice' ||
             mode === 'sp-editor' ||
-            mode === 'sp-scenarios' ||
+            mode === 'sp-campaigns' ||
             mode === 'sp-1v1' ||
             mode === 'sp-2v2' ||
             mode === 'sp-horde' ||
@@ -5362,14 +5421,18 @@ menu.addEventListener('click', (e) => {
             showMenuView('sp-practice');
             break;
         case 'sp-editor':
-            showMenuView('main');
-            openStoredScenarioEditor();
-            break;
-        case 'sp-scenarios':
-            showMenuView('sp-scenarios');
+            showMenuView('sp-editor');
+            spEditorContinueEl.hidden = loadStoredDraft() === null;
             void renderScenarioList();
             break;
-        case 'sp-scenarios-back':
+        case 'sp-editor-back':
+            showMenuView('sp');
+            break;
+        case 'sp-campaigns':
+            showMenuView('sp-campaigns');
+            void renderCampaignList();
+            break;
+        case 'sp-campaigns-back':
             showMenuView('sp');
             break;
         case 'sp-practice-back':
