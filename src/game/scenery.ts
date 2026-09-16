@@ -82,6 +82,7 @@ import {
     loadFloorPieces,
     type FloorPiecePlacement,
 } from './sceneryFloorPieces';
+import { createOuterGroundGeometry } from './outerGroundGrid';
 import { updateBuildingSnowCover, snapBuildingSnowCover } from './buildingSnow';
 import { BillboardTreeShadows, type BlobShadowSource } from './blobShadows';
 
@@ -111,13 +112,13 @@ function sceneryDensity(quality: SceneryQuality): {
             meadow: 2.2,
             lake: 1.8,
             segs: 400,
-            margin: 600,
+            margin: 480,
             acceptBase: 0.85,
             // thick immediately past keep-out — peak density almost at the edge
             beltNear: 8,
             beltRamp: 18,
-            // stay dense across green foothills; rockFactor rejects stone
-            beltFar: 500,
+            // hard-capped at crest (MOUNTAIN_PEAK_END); no soft spill past 500
+            beltFar: 480,
             forestFogCards: 22,
             peakClouds: 22,
         };
@@ -130,11 +131,11 @@ function sceneryDensity(quality: SceneryQuality): {
             meadow: 2.2,
             lake: 1.8,
             segs: 380,
-            margin: 600,
+            margin: 480,
             acceptBase: 0.85,
             beltNear: 8,
             beltRamp: 18,
-            beltFar: 500,
+            beltFar: 480,
             forestFogCards: 18,
             peakClouds: 18,
         };
@@ -147,11 +148,11 @@ function sceneryDensity(quality: SceneryQuality): {
         meadow: 1,
         lake: 1,
         segs: 300,
-        margin: 480,
+        margin: 400,
         acceptBase: 0.42,
         beltNear: 14,
         beltRamp: 40,
-        beltFar: 380,
+        beltFar: 360,
         forestFogCards: 12,
         peakClouds: 12,
     };
@@ -206,13 +207,41 @@ function detHypot(x: number, z: number): number {
 
 /**
  * How far past the board AABB the outer ground covers.
- * Mountains rise from ~d=110, peak ~470, outer slope ~640–900.
- * This keeps a short back-slope without a second countryside behind the ring.
+ * Mountains rise from ~d=110 and stop at the crest (d=500). Outer rim verts
+ * stay at peak height (no drop to y=0). Decorations past the crest are culled.
  */
-const OUTER_PAST_BOARD = 780;
+const MOUNTAIN_RISE_START = 110;
+/** Same climb as before — full strength at start+360 (~470). */
+const MOUNTAIN_RISE_SPAN = 360;
+/** Crest / world cut — hold peak height from ~470 out to 500. */
+const MOUNTAIN_PEAK_END = 500;
+const OUTER_PAST_BOARD = MOUNTAIN_PEAK_END;
+
+/**
+ * Former outer extent — used only to keep the same segment budget after the
+ * world was shortened, so those verts go into the mountain climb instead.
+ */
+const OUTER_PAST_BOARD_BUDGET = 780;
 
 function outerWorldSize(halfW: number, halfH: number): number {
     return 2 * (Math.max(halfW, halfH) + OUTER_PAST_BOARD);
+}
+
+/** World size as if the old long skirt still existed — drives SEGS only. */
+function outerWorldBudgetSize(halfW: number, halfH: number): number {
+    return 2 * (Math.max(halfW, halfH) + OUTER_PAST_BOARD_BUDGET);
+}
+
+/**
+ * Distance past the board used for the mountain ring / crest cull.
+ * Not a circle around the origin — it's hypot of how far past each board edge
+ * (rounded rectangle → nearly circular outside the corners). Same base metric
+ * as {@link Scenery}'s terrainHeight (without the noise wobble).
+ */
+function pastBoard(halfW: number, halfH: number, x: number, z: number): number {
+    const ox = Math.max(0, Math.abs(x) - halfW);
+    const oz = Math.max(0, Math.abs(z) - halfH);
+    return detHypot(ox, oz);
 }
 
 /**
@@ -291,7 +320,7 @@ export class Scenery {
         const rng = mulberry32(seed);
         this.map = map;
         this.worldSize = outerWorldSize(map.halfW, map.halfH);
-        this.cloudBoundsX = map.halfW + 600;
+        this.cloudBoundsX = map.halfW + MOUNTAIN_PEAK_END;
 
         const noise = makeValueNoise(31337);
         this.noise = noise;
@@ -326,18 +355,21 @@ export class Scenery {
                 noise(x / 48 + 22.1, z / 48 + 9.3) * 0.32 +
                 noise(x / 22 + 8.8, z / 22 + 55.5) * 0.18;
             const knoll = detPow01(Math.max(0, hN - 0.45) / 0.55, POW_1_3);
-            // Foothills die as the high range takes over — don't resume a
-            // second meadow behind the mountain ring.
-            const foothill = 1 - smooth01((d - 400) / 280);
-            const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn * foothill;
+            // Ascend to the crest, then hold — outer verts stay at peak height
+            // (no drop to y=0, which read as a fake vertical outer wall).
+            const dClimb = Math.min(d, MOUNTAIN_PEAK_END);
 
-            const rise = smooth01((d - 110) / 360) * (1 - smooth01((d - 640) / 260));
+            const rise = smooth01((dClimb - MOUNTAIN_RISE_START) / MOUNTAIN_RISE_SPAN);
             const n =
                 noise(x / 170 + 3.7, z / 170 + 8.1) * 0.55 +
                 noise(x / 62 + 51.2, z / 62 + 17.9) * 0.3 +
                 noise(x / 24 + 9.4, z / 24 + 63.7) * 0.15;
             const ridge = detPow01(Math.max(0, n - 0.32) / 0.68, POW_1_35);
             const mountain = rise * (28 + 280 * ridge);
+            // Foothills die as the high range takes over — don't resume a
+            // second meadow behind the mountain ring.
+            const foothill = 1 - smooth01((dClimb - 400) / 280);
+            const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn * foothill;
             const base = rolling + mountain;
             // Surface wrinkles on the original big shapes — stronger the higher
             // you climb, not extra summits. ~15wu / ~8wu so the mesh can hold them.
@@ -349,10 +381,8 @@ export class Scenery {
             // lakes win over everything: where the basin noise runs high the
             // ground is pressed to -7, well below the water table at -1.1
             const lake = this.lakeAt(x, z);
-            const depth = -7 * smooth01((d - 25) / 45);
-            // Short skirt on the outer slope, then the world ends (no hinterland).
-            const beyond = smooth01((d - 740) / 160);
-            return (base + wrinkles) * (1 - lake) * (1 - beyond) + depth * lake;
+            const depth = -7 * smooth01((dClimb - 25) / 45);
+            return (base + wrinkles) * (1 - lake) + depth * lake;
         };
 
         // NOTE: terrainHeight/lakeAt stay real at every quality tier (including
@@ -404,12 +434,13 @@ export class Scenery {
         geometry.rotateX(-Math.PI / 2);
 
         const count = Math.round(14 + this.density.forestFogCards);
-        const beltMax = Math.min(this.density.beltFar, 360);
+        const beltMax = Math.min(this.density.beltFar, MOUNTAIN_PEAK_END - 20);
         let placed = 0;
         for (let attempt = 0; attempt < 4000 && placed < count; attempt++) {
             const x = (rng() * 2 - 1) * (map.halfW + beltMax);
             const z = (rng() * 2 - 1) * (map.halfH + beltMax);
-            const d = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
+            const d = pastBoard(map.halfW, map.halfH, x, z);
+            if (d >= MOUNTAIN_PEAK_END) continue;
             if (d < this.density.beltNear + 6 || d > beltMax) continue;
             const h = this.terrainHeight(x, z);
             if (h < -0.5 || h > 60 || !this.isGrassy(x, z)) continue;
@@ -847,10 +878,12 @@ export class Scenery {
 
         /** random meadow-band point (outside board, on grass, not in water) */
         const meadowSpot = (maxH: number): { x: number; z: number; h: number } | null => {
+            const band = Math.min(320, MOUNTAIN_PEAK_END - 10);
             for (let attempt = 0; attempt < 60; attempt++) {
-                const x = (rng() * 2 - 1) * (map.halfW + 320);
-                const z = (rng() * 2 - 1) * (map.halfH + 320);
+                const x = (rng() * 2 - 1) * (map.halfW + band);
+                const z = (rng() * 2 - 1) * (map.halfH + band);
                 if (Math.abs(x) <= map.halfW + 6 && Math.abs(z) <= map.halfH + 6) continue;
+                if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
                 const h = this.terrainHeight(x, z);
                 if (h < -0.3 || h > maxH) continue;
                 return { x, z, h };
@@ -1047,9 +1080,10 @@ export class Scenery {
         /** random point where the lake factor and height match the given band */
         const lakeSpot = (minLake: number, hMin: number, hMax: number) => {
             for (let attempt = 0; attempt < 400; attempt++) {
-                const span = this.worldSize * 0.5;
+                const span = Math.min(this.worldSize * 0.5, this.map.halfW + MOUNTAIN_PEAK_END);
                 const x = (rng() * 2 - 1) * span;
                 const z = (rng() * 2 - 1) * span;
+                if (pastBoard(this.map.halfW, this.map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
                 if (this.lakeAt(x, z) < minLake) continue;
                 const h = this.terrainHeight(x, z);
                 if (h < hMin || h > hMax) continue;
@@ -1204,15 +1238,23 @@ export class Scenery {
         // no longer flattened at these tiers (see the constructor), so a flat
         // 1-segment quad would visibly float/sink units against the relief
         // they and the deterministic horde spawn logic both see.
-        // `density.segs` was tuned for a 3000-wide plane; scale so spacing
-        // stays ~7.5 wu/quad now that the mesh only covers the mountain ring.
+        // High/medium: scale SEGS with the real (shorter) world → fewer verts.
+        // Ultra: keep the old board+780 budget so those verts densify the climb,
+        // plus the adaptive mountain lattice in createOuterGroundGeometry.
         const REF_WORLD = 3000;
+        const segsBasis =
+            this.quality === 'ultra'
+                ? outerWorldBudgetSize(map.halfW, map.halfH)
+                : SIZE;
         const SEGS = Math.max(
             24,
-            Math.round((this.detailed ? this.density.segs : 96) * (SIZE / REF_WORLD)),
+            Math.round((this.detailed ? this.density.segs : 96) * (segsBasis / REF_WORLD)),
         );
-        const geometry = new PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
-        geometry.rotateX(-Math.PI / 2);
+        const geometry = createOuterGroundGeometry(SIZE, SEGS, {
+            dense: this.quality === 'ultra',
+            halfW: map.halfW,
+            halfH: map.halfH,
+        });
 
         const pos = geometry.attributes.position!;
         const colors = new Float32Array(pos.count * 3);
@@ -1619,8 +1661,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const s = THEME.scenery;
         const dens = this.density;
         const hq = sceneryHqVegetation(this.quality);
-        // reach lower mountain slopes (rise starts ~d=55, foothills to ~350)
-        const margin = dens.margin;
+        // Forest / props only inside the crest — past d=500 is culled (unseen).
+        const margin = Math.min(dens.margin, MOUNTAIN_PEAK_END - 10);
         const acceptBase = dens.acceptBase;
         // forest measured from the playable edge so trees sit on the rim;
         // keepOut matches the pre-rim clearance (~2 tiles) so the wall isn't
@@ -1629,11 +1671,12 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const forestHalfW = map.halfW - rimW;
         const forestHalfH = map.halfH - rimW;
         const keepOut = 8;
+        const beltFar = Math.min(dens.beltFar, MOUNTAIN_PEAK_END - 20);
 
         const distOut = (x: number, z: number) =>
             Math.max(Math.abs(x) - forestHalfW, Math.abs(z) - forestHalfH, 0);
 
-        /** random grassy point outside the field (never on mountain stone) */
+        /** random grassy point outside the field (never on mountain stone / past crest) */
         const forestSpot = (maxHeight: number): { x: number; z: number } => {
             const tries = dens.outer >= 5 ? 80 : 24;
             for (let attempt = 0; attempt < tries; attempt++) {
@@ -1645,36 +1688,42 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                     else if (roll < 0.55) sampleMargin = 280; // mid meadow
                     else sampleMargin = margin; // green pockets toward mountains
                 }
+                sampleMargin = Math.min(sampleMargin, MOUNTAIN_PEAK_END - 10);
                 const x = (rng() * 2 - 1) * (forestHalfW + sampleMargin);
                 const z = (rng() * 2 - 1) * (forestHalfH + sampleMargin);
+                if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
                 const d = distOut(x, z);
                 if (d < keepOut) continue;
                 const h = this.terrainHeight(x, z);
                 if (h > maxHeight) continue;
                 if (h < -0.4) continue; // no trees in the lakes
                 if (!this.isGrassy(x, z)) continue; // no trees on rock/snow
-                // thin near the field, dense toward foothills, taper far out
+                // thin near the field, dense toward foothills — hard stop at crest
+                if (d > beltFar) continue;
                 const belt =
                     smooth01((d - dens.beltNear) / dens.beltRamp) *
-                    (1 - smooth01((d - dens.beltFar) / 120));
+                    (1 - smooth01((d - beltFar) / 80));
                 if (rng() > acceptBase + belt * (1 - acceptBase)) continue;
                 return { x, z };
             }
-            // fallback: any grassy outer point
+            // fallback: any grassy outer point inside the crest
             for (let attempt = 0; attempt < 80; attempt++) {
                 const x = (rng() * 2 - 1) * (forestHalfW + margin);
                 const z = (rng() * 2 - 1) * (forestHalfH + margin);
+                if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
                 if (distOut(x, z) < keepOut) continue;
                 if (this.terrainHeight(x, z) < -0.4) continue;
                 if (!this.isGrassy(x, z)) continue;
                 return { x, z };
             }
-            // last resort (should be rare)
-            for (;;) {
+            // last resort (should be rare) — still inside crest
+            for (let attempt = 0; attempt < 200; attempt++) {
                 const x = (rng() * 2 - 1) * (forestHalfW + margin);
                 const z = (rng() * 2 - 1) * (forestHalfH + margin);
+                if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
                 if (distOut(x, z) >= keepOut) return { x, z };
             }
+            return { x: forestHalfW + keepOut + 4, z: 0 };
         };
         // on the battlefield, but never in a base's courtyard
         const anchors = map.baseAnchors();
@@ -2434,7 +2483,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         for (let i = 0; i < 12; i++) {
             const mesh = new Mesh(geometry, material);
             const farSide = rng() < 0.7;
-            const lane = map.halfH + 100 + rng() * 320;
+            // Keep sky cards inside the crest ring — nothing useful past d=500
+            const lane = map.halfH + 80 + rng() * Math.min(280, MOUNTAIN_PEAK_END - 80);
             mesh.position.set(
                 (rng() * 2 - 1) * this.cloudBoundsX,
                 110 + rng() * 60,
@@ -2450,9 +2500,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const peakCap = this.density.peakClouds;
         let placed = 0;
         for (let attempt = 0; attempt < 6000 && placed < peakCap; attempt++) {
-            const span = this.worldSize * 0.5;
+            const span = Math.min(this.worldSize * 0.5, map.halfW + MOUNTAIN_PEAK_END);
             const x = (rng() * 2 - 1) * span;
             const z = (rng() * 2 - 1) * span;
+            if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
             const h = this.terrainHeight(x, z);
             if (h < 165) continue;
             if (this.peakClouds.some((p) => Math.hypot(p.mesh.position.x - x, p.mesh.position.z - z) < 90)) {

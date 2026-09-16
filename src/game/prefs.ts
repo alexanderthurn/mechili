@@ -47,7 +47,7 @@ export interface Prefs {
     combatChat: boolean;
     /**
      * Outer world quality. Applies immediately (rebuilds scenery mid-match).
-     * - ultra: dense forest + Tripo on the board, billboards outside
+     * - ultra: dense forest + Tripo on the board, dense mountain grid + future cliff sculpt
      * - high: dense forests outside the board + Tripo on the board
      * - medium: billboard forest (no low-poly cones; no tree blob shadows)
      * - low: flat board + flat green world, no decoration
