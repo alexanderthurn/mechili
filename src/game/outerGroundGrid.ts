@@ -1,10 +1,15 @@
 /**
- * Outer-ground XZ lattice. Default = uniform PlaneGeometry (cheap).
- * Ultra scenery: ~3× linear spacing past the horde ring
- * (d ≥ {@link MOUNTAIN_DENSE_FROM}), still a heightfield — sculpting later.
+ * Outer-ground XZ lattice.
+ * - Ultra (`dense`): ~3× finer spacing on the mountain band (optics + sculpt).
+ * - High/medium (`mountainSparse`): coarser spacing on the mountain band —
+ *   the gebirge is pure visuals; near-board ring stays at meadow step for
+ *   horde / lakes / relevant gameplay-adjacent optics.
+ * - Otherwise: uniform spacing.
+ *
+ * The battle-map rectangle is cut out (inset rim under the board mesh).
  */
 
-import { BufferAttribute, BufferGeometry, PlaneGeometry } from 'three';
+import { BufferAttribute, BufferGeometry } from 'three';
 
 /**
  * Distance past the board edge where the fine mountain grid begins.
@@ -13,41 +18,59 @@ import { BufferAttribute, BufferGeometry, PlaneGeometry } from 'three';
 export const MOUNTAIN_DENSE_FROM = 130;
 
 /** Linear density multiplier in the mountain band vs meadow (3 → ~9× verts/area). */
-export const MOUNTAIN_DENSE_MULT = 4;
+export const MOUNTAIN_DENSE_MULT = 3;
 
 /**
- * Build the outer ground base plane (Y up before callers rotate… actually
- * returns already XZ-oriented like `PlaneGeometry` after `rotateX(-π/2)`).
+ * How far the board hole is inset from the AABB. Keeps a rim of outer-ground
+ * verts tucked under the battle mesh so the seam never opens a gap (the
+ * lattice does not land exactly on ±halfW / ±halfH).
+ */
+const BOARD_HOLE_INSET = 12;
+
+/**
+ * Build the outer ground base plane (already XZ-oriented like `PlaneGeometry`
+ * after `rotateX(-π/2)`), with a rectangular hole under the board.
  */
 export function createOuterGroundGeometry(
     size: number,
     segs: number,
     opts: {
         dense: boolean;
+        /** High/medium: fewer verts on the mountain rim (optics). */
+        mountainSparse?: boolean;
         halfW: number;
         halfH: number;
         denseFrom?: number;
         denseMult?: number;
     },
 ): BufferGeometry {
-    if (!opts.dense) {
-        const geo = new PlaneGeometry(size, size, segs, segs);
-        geo.rotateX(-Math.PI / 2);
-        return geo;
-    }
-
-    const denseFrom = opts.denseFrom ?? MOUNTAIN_DENSE_FROM;
-    const mult = opts.denseMult ?? MOUNTAIN_DENSE_MULT;
     const half = size * 0.5;
     const stepNear = size / Math.max(1, segs);
-    const stepFar = stepNear / mult;
+    const denseFrom = opts.denseFrom ?? MOUNTAIN_DENSE_FROM;
+    const mult = opts.denseMult ?? MOUNTAIN_DENSE_MULT;
 
-    const xs = sampleAxis(half, stepNear, stepFar, opts.halfW + denseFrom);
-    const zs = sampleAxis(half, stepNear, stepFar, opts.halfH + denseFrom);
-    return buildRectilinearXZ(xs, zs, size);
+    let xs: number[];
+    let zs: number[];
+    if (opts.dense) {
+        const stepFar = stepNear / mult;
+        xs = sampleAxis(half, stepNear, stepFar, opts.halfW + denseFrom);
+        zs = sampleAxis(half, stepNear, stepFar, opts.halfH + denseFrom);
+    } else if (opts.mountainSparse) {
+        // Opposite of Ultra: meadow step near the board, coarser on mountains.
+        const stepFar = stepNear * mult;
+        xs = sampleAxis(half, stepNear, stepFar, opts.halfW + denseFrom);
+        zs = sampleAxis(half, stepNear, stepFar, opts.halfH + denseFrom);
+    } else {
+        xs = sampleAxis(half, stepNear, stepNear, Number.POSITIVE_INFINITY);
+        zs = sampleAxis(half, stepNear, stepNear, Number.POSITIVE_INFINITY);
+    }
+
+    const holeW = Math.max(0, opts.halfW - BOARD_HOLE_INSET);
+    const holeH = Math.max(0, opts.halfH - BOARD_HOLE_INSET);
+    return buildRectilinearXZ(xs, zs, size, holeW, holeH);
 }
 
-/** Walk [-half, +half] with coarse then fine spacing. */
+/** Walk [-half, +half] with near then far spacing past fineBeyond. */
 function sampleAxis(
     half: number,
     stepNear: number,
@@ -70,53 +93,63 @@ function sampleAxis(
 }
 
 /**
- * Structured grid on XZ (Y=0). UVs match PlaneGeometry after rotateX(-π/2):
- * u along +X, v along −Z so meadow tiling phase stays consistent.
+ * Structured grid on XZ (Y=0), omitting verts inside the inset board hole.
+ * UVs match PlaneGeometry after rotateX(-π/2): u along +X, v along −Z.
  */
-function buildRectilinearXZ(xs: number[], zs: number[], size: number): BufferGeometry {
+function buildRectilinearXZ(
+    xs: number[],
+    zs: number[],
+    size: number,
+    holeHalfW: number,
+    holeHalfH: number,
+): BufferGeometry {
     const nx = xs.length;
     const nz = zs.length;
-    const vertCount = nx * nz;
-    const positions = new Float32Array(vertCount * 3);
-    const uvs = new Float32Array(vertCount * 2);
     const half = size * 0.5;
 
+    const keep = new Int32Array(nx * nz);
+    keep.fill(-1);
+    let vertCount = 0;
     for (let iz = 0; iz < nz; iz++) {
         const z = zs[iz]!;
         for (let ix = 0; ix < nx; ix++) {
             const x = xs[ix]!;
-            const i = iz * nx + ix;
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = 0;
-            positions[i * 3 + 2] = z;
-            uvs[i * 2] = (x + half) / size;
-            // PlaneGeometry: v increases with original +Y; after rotateX(-π/2)
-            // that maps to −Z, so invert Z for UV.v.
-            uvs[i * 2 + 1] = 1 - (z + half) / size;
+            if (Math.abs(x) <= holeHalfW && Math.abs(z) <= holeHalfH) continue;
+            keep[iz * nx + ix] = vertCount++;
         }
     }
 
-    const quadCount = (nx - 1) * (nz - 1);
-    const indices = new Uint32Array(quadCount * 6);
-    let t = 0;
+    const positions = new Float32Array(vertCount * 3);
+    const uvs = new Float32Array(vertCount * 2);
+    for (let iz = 0; iz < nz; iz++) {
+        const z = zs[iz]!;
+        for (let ix = 0; ix < nx; ix++) {
+            const vi = keep[iz * nx + ix]!;
+            if (vi < 0) continue;
+            const x = xs[ix]!;
+            positions[vi * 3] = x;
+            positions[vi * 3 + 1] = 0;
+            positions[vi * 3 + 2] = z;
+            uvs[vi * 2] = (x + half) / size;
+            uvs[vi * 2 + 1] = 1 - (z + half) / size;
+        }
+    }
+
+    const indices: number[] = [];
     for (let iz = 0; iz < nz - 1; iz++) {
         for (let ix = 0; ix < nx - 1; ix++) {
-            const a = iz * nx + ix;
-            const b = a + 1;
-            const c = a + nx;
-            const d = c + 1;
-            indices[t++] = a;
-            indices[t++] = c;
-            indices[t++] = b;
-            indices[t++] = b;
-            indices[t++] = c;
-            indices[t++] = d;
+            const a = keep[iz * nx + ix]!;
+            const b = keep[iz * nx + ix + 1]!;
+            const c = keep[(iz + 1) * nx + ix]!;
+            const d = keep[(iz + 1) * nx + ix + 1]!;
+            if (a < 0 || b < 0 || c < 0 || d < 0) continue;
+            indices.push(a, c, b, b, c, d);
         }
     }
 
     const geo = new BufferGeometry();
     geo.setAttribute('position', new BufferAttribute(positions, 3));
     geo.setAttribute('uv', new BufferAttribute(uvs, 2));
-    geo.setIndex(new BufferAttribute(indices, 1));
+    geo.setIndex(new BufferAttribute(new Uint32Array(indices), 1));
     return geo;
 }

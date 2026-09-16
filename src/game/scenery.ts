@@ -43,6 +43,7 @@ import {
     summerDryUniform,
     hazardTimeShared,
     fireCharcoalGroundUniform,
+    worldHeightAt,
     type BattleMap,
 } from './map';
 import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
@@ -83,6 +84,8 @@ import {
     type FloorPiecePlacement,
 } from './sceneryFloorPieces';
 import { createOuterGroundGeometry } from './outerGroundGrid';
+import { sculptUltraMountainPositions } from './mountainSculpt';
+import { applyOuterBakeToPositions, readMountainBakeFromStorage, mountainEditorEnabled } from './mountainEditor';
 import { updateBuildingSnowCover, snapBuildingSnowCover } from './buildingSnow';
 import { BillboardTreeShadows, type BlobShadowSource } from './blobShadows';
 
@@ -214,7 +217,7 @@ const MOUNTAIN_RISE_START = 110;
 /** Same climb as before — full strength at start+360 (~470). */
 const MOUNTAIN_RISE_SPAN = 360;
 /** Crest / world cut — hold peak height from ~470 out to 500. */
-const MOUNTAIN_PEAK_END = 500;
+export const MOUNTAIN_PEAK_END = 500;
 const OUTER_PAST_BOARD = MOUNTAIN_PEAK_END;
 
 /**
@@ -268,6 +271,17 @@ export class Scenery {
     /** far-card contact shadows (sun-aligned); built when billboards are placed */
     private readonly treeShadows = new BillboardTreeShadows(this.group);
     private sunLight: DirectionalLight | null = null;
+    /** Outer meadow/mountain ground — used by the mountain editor. */
+    private outerGroundMesh: Mesh | null = null;
+    /**
+     * Per InstancedMesh: last ground Y used when seating decorations, so we can
+     * preserve trunk/canopy lifts across landscape sculpt updates.
+     */
+    private readonly instanceGroundY = new WeakMap<InstancedMesh, Float32Array>();
+    private readonly reseatMat = new Matrix4();
+    private readonly reseatPos = new Vector3();
+    private readonly reseatQuat = new Quaternion();
+    private readonly reseatScale = new Vector3();
 
     private waterTexture: CanvasTexture | null = null;
     private waterMaterial: MeshStandardMaterial | null = null;
@@ -315,9 +329,12 @@ export class Scenery {
     private readonly quality: SceneryQuality = prefs().scenery;
     private readonly detailed = sceneryDetailed(this.quality);
     private readonly density = sceneryDensity(this.quality);
+    /** scenery RNG seed — ultra mountain overhang sites stay stable */
+    private readonly seed: number;
 
     constructor(map: BattleMap, seed = 20260709) {
         const rng = mulberry32(seed);
+        this.seed = seed;
         this.map = map;
         this.worldSize = outerWorldSize(map.halfW, map.halfH);
         this.cloudBoundsX = map.halfW + MOUNTAIN_PEAK_END;
@@ -403,6 +420,8 @@ export class Scenery {
         this.skyGroup.add(this.createSkyDome(), this.createSunGlow());
         this.group.add(this.skyGroup);
         this.group.add(this.createOuterGround(map));
+        // If a landscape bake was applied to the outer mesh, gameplay height
+        // is re-bound by Game via syncLandscapeHeights (board + outer).
         if (this.detailed) {
             this.group.add(this.createWater());
             this.createLakeDetails(rng);
@@ -1252,6 +1271,8 @@ export class Scenery {
         );
         const geometry = createOuterGroundGeometry(SIZE, SEGS, {
             dense: this.quality === 'ultra',
+            // High/medium: keep near-board step, sparsify the mountain rim (optics).
+            mountainSparse: this.quality === 'high' || this.quality === 'medium',
             halfW: map.halfW,
             halfH: map.halfH,
         });
@@ -1294,6 +1315,18 @@ export class Scenery {
             colors[i * 3 + 1] = c.g;
             colors[i * 3 + 2] = c.b;
         }
+        // Ultra procedural folds only when there is no authored bake yet.
+        // Authored maps use a quality-independent heightfield (sim + every tier).
+        const bake = !mountainEditorEnabled() ? readMountainBakeFromStorage() : null;
+        if (this.quality === 'ultra' && !bake) {
+            sculptUltraMountainPositions(pos, {
+                halfW: map.halfW,
+                halfH: map.halfH,
+                noise: this.noise,
+                seed: this.seed,
+            });
+        }
+        if (bake) applyOuterBakeToPositions(pos as BufferAttribute, bake, -0.05);
         pos.needsUpdate = true;
         geometry.setAttribute('color', new BufferAttribute(colors, 3));
         geometry.setAttribute('aBeach', new BufferAttribute(beach, 1));
@@ -1324,9 +1357,66 @@ export class Scenery {
         const mesh = new Mesh(geometry, material);
         mesh.position.y = -0.05;
         mesh.receiveShadow = true;
+        mesh.name = 'outer-ground';
+        this.outerGroundMesh = mesh;
         if (this.detailed) void this.applyMeadowTexture(material, map, SIZE);
         else this.applyOuterGroundSnowOnly(material);
         return mesh;
+    }
+
+    /** Outer heightfield mesh (meadow + mountains) for the mountain editor. */
+    getOuterGroundMesh(): Mesh | null {
+        return this.outerGroundMesh;
+    }
+
+    /** Procedural outer height (pre-bake / pre-sculpt) — for restoring overrides. */
+    proceduralOuterHeightAt(x: number, z: number): number {
+        return this.terrainHeight(x, z);
+    }
+
+    /**
+     * After landscape sculpt / bake bind: move trees, bushes, meadow props onto
+     * the current {@link worldHeightAt} while keeping their original lifts.
+     */
+    reseatGroundedDecorations(): void {
+        const WATER_Y = -1.1;
+        this.group.traverse((o) => {
+            const mesh = o as InstancedMesh;
+            if (!mesh.isInstancedMesh || mesh.count <= 0) return;
+            // Sky / horizon clouds live under skyGroup — leave them alone.
+            for (let p: Object3D | null = mesh; p; p = p.parent) {
+                if (p === this.skyGroup) return;
+            }
+
+            let cache = this.instanceGroundY.get(mesh);
+            const init = !cache;
+            if (!cache) {
+                cache = new Float32Array(mesh.count);
+                this.instanceGroundY.set(mesh, cache);
+            }
+
+            for (let i = 0; i < mesh.count; i++) {
+                mesh.getMatrixAt(i, this.reseatMat);
+                this.reseatMat.decompose(this.reseatPos, this.reseatQuat, this.reseatScale);
+                const x = this.reseatPos.x;
+                const z = this.reseatPos.z;
+                // Lily pads / blossoms sit on the water plane, not terrain.
+                if (Math.abs(this.reseatPos.y - WATER_Y) < 0.35) continue;
+
+                if (init) {
+                    cache[i] =
+                        this.proceduralOuterHeightAt(x, z) + this.map.proceduralHeightAt(x, z);
+                }
+                const lift = this.reseatPos.y - cache[i]!;
+                const ground = worldHeightAt(x, z);
+                this.reseatPos.y = ground + lift;
+                cache[i] = ground;
+                this.reseatMat.compose(this.reseatPos, this.reseatQuat, this.reseatScale);
+                mesh.setMatrixAt(i, this.reseatMat);
+            }
+            mesh.instanceMatrix.needsUpdate = true;
+        });
+        if (this.sunLight) this.treeShadows.update(this.sunLight.position, this.sunLight.intensity);
     }
 
     /**

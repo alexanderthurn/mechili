@@ -107,9 +107,8 @@ export class CameraRig {
     }
 
     /** allows zooming out just far enough to frame a map of the given size */
-    fitMap(width: number, height: number, worldFar = 0): void {
-        // 2× so the mountain ring can fill the view (was board-only framing)
-        this.maxZoom = Math.max(120, width * 0.95, height * 1.1) * 4;
+    fitMap(width: number, height: number, worldFar = 0, maxZoomMult = 1): void {
+        this.maxZoom = Math.max(120, width * 0.95, height * 1.1) * maxZoomMult;
         // keep the far plane beyond the widest orbit, and at least `worldFar`
         // so outer mountains aren't hard-clipped
         this.camera.far = Math.max(this.maxZoom * 4, worldFar);

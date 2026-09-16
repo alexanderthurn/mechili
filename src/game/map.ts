@@ -518,8 +518,24 @@ export class BattleMap {
      * The board's relief. ALWAYS on — never gated by graphics settings: the
      * sim's ballistics read it, so it must be identical on every machine in a
      * match, and the visuals simply show the same truth.
+     *
+     * When a landscape bake / mountain-editor sculpt is active,
+     * {@link setReliefOverride} replaces the procedural field so units,
+     * buildings, ballistics and the deploy grid all follow the sculpt.
      */
+    private reliefOverride: ((x: number, z: number) => number) | null = null;
+
+    setReliefOverride(fn: ((x: number, z: number) => number) | null): void {
+        this.reliefOverride = fn;
+    }
+
     heightAt(x: number, z: number): number {
+        if (this.reliefOverride) return this.reliefOverride(x, z);
+        return this.proceduralHeightAt(x, z);
+    }
+
+    /** Procedural board mounds (used when no landscape override is set). */
+    proceduralHeightAt(x: number, z: number): number {
         const WAVE = 46;
         const n =
             this.reliefNoise(x / WAVE + 37.2, z / WAVE + 11.7) * 0.72 +
@@ -535,6 +551,16 @@ export class BattleMap {
             fade = Math.min(fade, smooth01((d - a.r) / 10));
         }
         return THEME.terrain.reliefDepth * hill * fade;
+    }
+
+    /** Re-drape an existing ground-aligned mesh (deploy grid) onto current relief. */
+    applyReliefToMesh(mesh: Mesh): void {
+        const pos = mesh.geometry.attributes.position!;
+        for (let i = 0; i < pos.count; i++) {
+            pos.setY(i, this.heightAt(pos.getX(i), pos.getZ(i)));
+        }
+        pos.needsUpdate = true;
+        mesh.geometry.computeVertexNormals();
     }
 
     /** approximate centers of the base buildings on both sides (see game.ts spawnTowers) */

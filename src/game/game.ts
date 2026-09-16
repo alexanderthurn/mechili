@@ -182,7 +182,9 @@ import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay } fro
 import { GROUND_UNIT_Y, setCloseCameraY } from './groundQuality';
 import { modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
-import { Scenery } from './scenery';
+import { Scenery, MOUNTAIN_PEAK_END } from './scenery';
+import { MountainEditor, mountainEditorEnabled, applyBoardBakeToMesh, readMountainBakeFromStorage } from './mountainEditor';
+import { syncLandscapeHeights, clearLandscapeHeightOverrides } from './landscapeHeight';
 import type { Weather } from './weather';
 import {
     createFovWedge,
@@ -427,6 +429,8 @@ export class Game {
     private appliedFireVfx: FireVfxQuality = prefs().fireVfx;
     private readonly unitInstances: UnitInstanceRenderer;
     private scenery: Scenery;
+    /** Dev mountain sculptor — only when `?editor=true`. */
+    private mountainEditor: MountainEditor | null = null;
     private weather: Weather | null;
     /** last season the cinema hint flashed for — drives auto-flash on season change */
     private lastHintSeason: string | null = null;
@@ -1181,7 +1185,7 @@ export class Game {
         }
         // Exit cinema: restore deploy chrome only while freely placing
         if (this.phase === 'build' && !this.deployReady.player && !this.matchOver) {
-            this.placement.enabled = true;
+            if (!this.mountainEditor) this.placement.enabled = true;
             this.gridOverlay.visible = true;
             this.placement.beginDeployment();
             this.syncTacticVisuals();
@@ -1531,6 +1535,10 @@ export class Game {
         this.blobShadows = new BlobShadows(this.scene);
         this.groundMesh = this.map.createMesh();
         this.scene.add(this.groundMesh);
+        if (!mountainEditorEnabled()) {
+            const bake = readMountainBakeFromStorage();
+            if (bake) applyBoardBakeToMesh(this.groundMesh, bake);
+        }
         this.scenery = new Scenery(this.map);
         this.scene.add(this.scenery.group);
         this.inputDisposers.push(onPrefsChange(() => this.applyPrefs()));
@@ -1574,12 +1582,20 @@ export class Game {
         // horde mode widens this so the player can pan out far enough to see the wave
         // approaching through the forest ring (see spawnHordeWave)
         // the scenario editor places horde packs out there too
+        // mountain editor (`?editor=true`): free pan to the crest + 4× zoom-out
+        const mountainEdit = mountainEditorEnabled();
         const hordeReach =
-            hordeEnabled(this.settings) || this.editorMode || this.scenario?.scene.units.some((u) => u.team === 'horde')
+            !mountainEdit &&
+            (hordeEnabled(this.settings) || this.editorMode || this.scenario?.scene.units.some((u) => u.team === 'horde'))
                 ? HORDE_RING_NEAR + HORDE_RING_SPAN
                 : 0;
-        this.rig.setBounds(this.map.halfW - 8 + hordeReach, this.map.halfH - 16 + hordeReach);
-        this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar());
+        if (mountainEdit) {
+            this.rig.setBounds(this.map.halfW + MOUNTAIN_PEAK_END, this.map.halfH + MOUNTAIN_PEAK_END);
+            this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar(), 4);
+        } else {
+            this.rig.setBounds(this.map.halfW - 8 + hordeReach, this.map.halfH - 16 + hordeReach);
+            this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar());
+        }
         // open centered on the player's own zone (where the starting army
         // stands) — the far-side owner looks at the shared board rotated 180°
         const nearSide = side === 'a';
@@ -1618,6 +1634,23 @@ export class Game {
         // sync with the host's actual grants via 'visionUpdate' messages —
         // see onSpectateMessage.
         if (spectate) this.placement.spectatorLiveSeats = new Set();
+        if (mountainEdit) {
+            const outer = this.scenery.getOuterGroundMesh();
+            if (outer) {
+                this.mountainEditor = new MountainEditor({
+                    mesh: outer,
+                    boardMesh: this.groundMesh,
+                    scene: this.scene,
+                    camera: this.rig.camera,
+                    domElement: surface,
+                    halfW: this.map.halfW,
+                    halfH: this.map.halfH,
+                    onLandscapeChanged: () => this.bindLandscapeHeights(),
+                });
+                this.placement.enabled = false;
+            }
+        }
+        this.bindLandscapeHeights();
         // one-finger drags aim the carried ghost/tactic instead of panning
         this.controls.suppressTouchPan = () => this.placement.pointerCarries;
         // gamepad: virtual cursor over the same click pipeline (Halo Wars style)
@@ -2727,6 +2760,50 @@ export class Game {
     }
 
     /**
+     * Bind sculpted board + outer meshes to sim/visual height queries, and
+     * re-drape the deploy grid so units, buildings, ballistics and the wire
+     * overlay all follow the landscape bake / live editor sculpt.
+     */
+    private bindLandscapeHeights(): void {
+        const procedural = (x: number, z: number) => this.scenery.proceduralOuterHeightAt(x, z);
+        const outer = this.scenery.getOuterGroundMesh();
+        const editing = !!this.mountainEditor;
+        const bake = readMountainBakeFromStorage();
+        if (editing) {
+            // Live sculpt: meshes are the truth until the next Save.
+            syncLandscapeHeights({
+                map: this.map,
+                boardMesh: this.groundMesh,
+                outerMesh: outer,
+                proceduralOuter: procedural,
+            });
+        } else if (bake?.heightfield) {
+            // Play: quality-independent heightfield drives sim + grid.
+            syncLandscapeHeights({
+                map: this.map,
+                boardMesh: this.groundMesh,
+                outerMesh: outer,
+                proceduralOuter: procedural,
+                heightfield: bake.heightfield,
+            });
+        } else if (bake) {
+            syncLandscapeHeights({
+                map: this.map,
+                boardMesh: this.groundMesh,
+                outerMesh: outer,
+                proceduralOuter: procedural,
+            });
+        } else {
+            clearLandscapeHeightOverrides(this.map, procedural);
+        }
+        this.map.applyReliefToMesh(this.gridOverlay);
+        this.scenery.reseatGroundedDecorations();
+        for (const u of this.placement.allUnits()) {
+            u.seatMembers(u.view.position.x, u.view.position.z);
+        }
+    }
+
+    /**
      * Live-applies the scenery / ground-effects prefs from the settings menu:
      * rebuilds the ground, the outer world (incl. weather hooks) and the shadow map.
      */
@@ -2758,6 +2835,10 @@ export class Game {
         disposeTree(this.groundMesh);
         this.groundMesh = this.map.createMesh();
         this.scene.add(this.groundMesh);
+        if (!this.mountainEditor) {
+            const bake = readMountainBakeFromStorage();
+            if (bake) applyBoardBakeToMesh(this.groundMesh, bake);
+        }
         const gridVisible = this.gridOverlay.visible;
         this.scene.remove(this.gridOverlay);
         disposeTree(this.gridOverlay);
@@ -2796,6 +2877,10 @@ export class Game {
             this.scenery.attachSun(this.sun);
             this.hemi.intensity = THEME.hemiIntensity;
         }
+
+        const outer = this.scenery.getOuterGroundMesh();
+        if (this.mountainEditor && outer) this.mountainEditor.reattach(outer, this.groundMesh);
+        this.bindLandscapeHeights();
 
         // shadow resolution (force the render target to reallocate)
         this.applyShadowQuality();
@@ -2898,6 +2983,8 @@ export class Game {
         for (const dispose of this.inputDisposers) dispose();
         this.inputDisposers.length = 0;
         this.placement.dispose();
+        this.mountainEditor?.dispose();
+        this.mountainEditor = null;
         this.blobShadows.dispose();
         this.unitInstances.dispose();
         setUnitInstanceRenderer(null);
@@ -3334,7 +3421,7 @@ export class Game {
         if (this.round > 1) this.map.fadeWear(0.68);
         this.stoneChips.clear(); // high-setting collapse rubble lives until here
         this.placement.beginDeployment();
-        this.placement.enabled = true;
+        this.placement.enabled = !this.mountainEditor;
         this.placement.hiddenPlacements = true;
         this.placement.currentRound = this.round; // earlier deployments are locked now
         this.refreshFlightAlts();
