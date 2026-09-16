@@ -23,8 +23,38 @@ import {
     rasterizeLandscapeHeightfield,
     type LandscapeHeightfield,
 } from './landscapeHeight';
+import {
+    applyMaterialFieldsToMesh,
+    ensureOuterMaterialAttrs,
+    paintOuterMaterial,
+    rasterizeOuterMaterials,
+    type OuterMaterialFields,
+    type OuterMaterialKind,
+} from './landscapeMaterials';
+import {
+    defaultPlantScale,
+    plantMinSpacing,
+    type AuthoredPlant,
+    type PlantBrushKind,
+    type PlantClearDisk,
+} from './landscapePlants';
+import type { VegetationKind } from './sceneryVegetation';
 
-export type MountainBrush = 'raise' | 'lower' | 'flatten' | 'lean';
+export type MountainBrush =
+    | 'raise'
+    | 'lower'
+    | 'flatten'
+    | 'lean'
+    | 'mat-grass'
+    | 'mat-rock'
+    | 'mat-snow'
+    | 'mat-beach'
+    | 'mat-scree'
+    | 'obj-oak'
+    | 'obj-pine'
+    | 'obj-bushRound'
+    | 'obj-bushTall'
+    | 'obj-erase';
 
 export interface MountainBakeBoard {
     vertCount: number;
@@ -45,6 +75,12 @@ export interface MountainBake {
     board?: MountainBakeBoard;
     /** World Y grid — preferred apply path on every scenery tier. */
     heightfield?: LandscapeHeightfield;
+    /** Outer material weights (grass/rock/snow/beach/scree), same grid as heightfield. */
+    materials?: OuterMaterialFields;
+    /** Hand-placed trees/bushes (XZ + scale); Y from world height on load. */
+    plants?: AuthoredPlant[];
+    /** Disks that suppress procedural vegetation on reload + live erase. */
+    plantClears?: PlantClearDisk[];
 }
 
 const STORAGE_KEY = 'melodan.mountainBake.v1';
@@ -68,6 +104,14 @@ export interface MountainEditorOpts {
     halfH: number;
     /** After a sculpt stroke / load / reset — rebind sim heights + deploy grid. */
     onLandscapeChanged?: () => void;
+    /** Live plant paint/erase against scenery pools. */
+    plants?: {
+        getPlants: () => AuthoredPlant[];
+        getClears: () => PlantClearDisk[];
+        paint: (kind: VegetationKind, x: number, z: number, sc: number, yaw: number) => void;
+        erase: (x: number, z: number, radius: number) => void;
+        setAll: (plants: AuthoredPlant[], clears: PlantClearDisk[]) => void;
+    };
 }
 
 export class MountainEditor {
@@ -87,6 +131,11 @@ export class MountainEditor {
     private readonly disposers: (() => void)[] = [];
     private basePositions: Float32Array;
     private boardBasePositions: Float32Array;
+    private matBaseGrass: Float32Array;
+    private matBaseRock: Float32Array;
+    private matBaseSnow: Float32Array;
+    private matBaseBeach: Float32Array;
+    private matBaseScree: Float32Array;
     private readonly cursor: Mesh;
     private hover: { x: number; z: number } | null = null;
     /** Scratch lists for draping the cursor over nearby mesh verts. */
@@ -96,6 +145,12 @@ export class MountainEditor {
     private radiusInput!: HTMLInputElement;
     private strengthInput!: HTMLInputElement;
     private readonly onLandscapeChanged: (() => void) | null;
+    private readonly plantsApi: NonNullable<MountainEditorOpts['plants']> | null;
+    /** Authored plants snapshot at construct / reattach (Reset). */
+    private basePlants: AuthoredPlant[] = [];
+    private basePlantClears: PlantClearDisk[] = [];
+    /** Min time between plant stamps while dragging. */
+    private lastPlantStampMs = 0;
 
     constructor(opts: MountainEditorOpts) {
         this.mesh = opts.mesh;
@@ -105,10 +160,21 @@ export class MountainEditor {
         this.halfW = opts.halfW;
         this.halfH = opts.halfH;
         this.onLandscapeChanged = opts.onLandscapeChanged ?? null;
+        this.plantsApi = opts.plants ?? null;
+        if (this.plantsApi) {
+            this.basePlants = this.plantsApi.getPlants().map((p) => ({ ...p }));
+            this.basePlantClears = this.plantsApi.getClears().map((c) => ({ ...c }));
+        }
         const pos = this.mesh.geometry.attributes.position!;
         this.basePositions = new Float32Array(pos.array as ArrayLike<number>);
         const bpos = this.board.geometry.attributes.position!;
         this.boardBasePositions = new Float32Array(bpos.array as ArrayLike<number>);
+        this.matBaseGrass = new Float32Array(0);
+        this.matBaseRock = new Float32Array(0);
+        this.matBaseSnow = new Float32Array(0);
+        this.matBaseBeach = new Float32Array(0);
+        this.matBaseScree = new Float32Array(0);
+        this.captureMaterialBases();
 
         this.cursor = createRangeRing(opts.scene);
         const mat = this.cursor.material as MeshBasicMaterial;
@@ -143,9 +209,11 @@ export class MountainEditor {
             } catch {
                 /* ignore */
             }
-            this.mesh.geometry.computeVertexNormals();
-            this.board.geometry.computeVertexNormals();
-            this.onLandscapeChanged?.();
+            if (!this.isMaterialBrush() && !this.isObjectBrush()) {
+                this.mesh.geometry.computeVertexNormals();
+                this.board.geometry.computeVertexNormals();
+                this.onLandscapeChanged?.();
+            }
             if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
         };
         const onLeave = () => {
@@ -177,6 +245,11 @@ export class MountainEditor {
         this.basePositions = new Float32Array(pos.array as ArrayLike<number>);
         const bpos = boardMesh.geometry.attributes.position!;
         this.boardBasePositions = new Float32Array(bpos.array as ArrayLike<number>);
+        this.captureMaterialBases();
+        if (this.plantsApi) {
+            this.basePlants = this.plantsApi.getPlants().map((p) => ({ ...p }));
+            this.basePlantClears = this.plantsApi.getClears().map((c) => ({ ...c }));
+        }
         if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
     }
 
@@ -194,13 +267,23 @@ export class MountainEditor {
         const t = e.target as HTMLElement | null;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
 
-        const brushByDigit: Record<string, MountainBrush> = {
+        const brushByKey: Record<string, MountainBrush> = {
             '1': 'raise',
             '2': 'lower',
             '3': 'flatten',
             '4': 'lean',
+            g: 'mat-grass',
+            k: 'mat-rock',
+            n: 'mat-snow',
+            h: 'mat-beach',
+            c: 'mat-scree',
+            o: 'obj-oak',
+            p: 'obj-pine',
+            b: 'obj-bushRound',
+            t: 'obj-bushTall',
+            x: 'obj-erase',
         };
-        const brush = brushByDigit[e.key];
+        const brush = brushByKey[e.key.toLowerCase()];
         if (brush) {
             this.setBrush(brush);
             e.preventDefault();
@@ -216,6 +299,48 @@ export class MountainEditor {
             else this.nudgeStrength(-5);
             e.preventDefault();
             e.stopPropagation();
+        }
+    }
+
+    private isMaterialBrush(): boolean {
+        return this.brush.startsWith('mat-');
+    }
+
+    private isObjectBrush(): boolean {
+        return this.brush.startsWith('obj-');
+    }
+
+    private materialKind(): OuterMaterialKind | null {
+        switch (this.brush) {
+            case 'mat-grass':
+                return 'grass';
+            case 'mat-rock':
+                return 'rock';
+            case 'mat-snow':
+                return 'snow';
+            case 'mat-beach':
+                return 'beach';
+            case 'mat-scree':
+                return 'scree';
+            default:
+                return null;
+        }
+    }
+
+    private objectKind(): PlantBrushKind | null {
+        switch (this.brush) {
+            case 'obj-oak':
+                return 'oak';
+            case 'obj-pine':
+                return 'pine';
+            case 'obj-bushRound':
+                return 'bushRound';
+            case 'obj-bushTall':
+                return 'bushTall';
+            case 'obj-erase':
+                return 'erase';
+            default:
+                return null;
         }
     }
 
@@ -332,6 +457,19 @@ export class MountainEditor {
     }
 
     private applyBrush(cx: number, cz: number): void {
+        const obj = this.objectKind();
+        if (obj) {
+            this.applyObjectBrush(obj, cx, cz);
+            return;
+        }
+
+        const kind = this.materialKind();
+        if (kind) {
+            ensureOuterMaterialAttrs(this.mesh.geometry);
+            paintOuterMaterial(this.mesh, kind, cx, cz, this.radius, this.strength);
+            return;
+        }
+
         const r = this.radius;
         const r2 = r * r;
         const str = this.strength;
@@ -358,6 +496,48 @@ export class MountainEditor {
 
         this.sculptMesh(this.mesh, cx, cz, r, r2, str, avgWorldY);
         this.sculptMesh(this.board, cx, cz, r, r2, str, avgWorldY);
+    }
+
+    private applyObjectBrush(kind: PlantBrushKind, cx: number, cz: number): void {
+        if (!this.plantsApi) return;
+        if (kind === 'erase') {
+            const now = performance.now();
+            if (now - this.lastPlantStampMs < 40) return;
+            this.lastPlantStampMs = now;
+            this.plantsApi.erase(cx, cz, this.radius);
+            return;
+        }
+
+        const now = performance.now();
+        // Stronger brush → faster stamp rate
+        const gap = Math.max(35, 140 - this.strength * 12);
+        if (now - this.lastPlantStampMs < gap) return;
+        this.lastPlantStampMs = now;
+
+        const plants = this.plantsApi.getPlants();
+        const spacing = plantMinSpacing(kind);
+        const spacing2 = spacing * spacing;
+        const tries = 1 + Math.floor(this.strength / 3);
+        for (let t = 0; t < tries; t++) {
+            const ang = Math.random() * Math.PI * 2;
+            const dist = Math.random() * this.radius * 0.92;
+            const x = cx + Math.cos(ang) * dist;
+            const z = cz + Math.sin(ang) * dist;
+            let ok = true;
+            for (const p of plants) {
+                const dx = p.x - x;
+                const dz = p.z - z;
+                if (dx * dx + dz * dz < spacing2) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (!ok) continue;
+            const sc = defaultPlantScale(kind) * (0.85 + Math.random() * 0.35);
+            const yaw = Math.random() * Math.PI * 2;
+            this.plantsApi.paint(kind, x, z, sc, yaw);
+            plants.push({ kind, x, z, sc, yaw });
+        }
     }
 
     private sculptMesh(
@@ -423,6 +603,12 @@ export class MountainEditor {
             version: 2,
             kind: 'mountain-sculpt',
             heightfield,
+            materials: rasterizeOuterMaterials(this.mesh, {
+                halfW: this.halfW,
+                halfH: this.halfH,
+            }),
+            plants: this.plantsApi?.getPlants().map((p) => ({ ...p })) ?? [],
+            plantClears: this.plantsApi?.getClears().map((c) => ({ ...c })) ?? [],
             // Ultra vert dumps — exact reload when topology matches.
             vertCount: outer.vertCount,
             positions: outer.positions,
@@ -478,6 +664,10 @@ export class MountainEditor {
             alert('Bake has no heightfield or vertex data');
             return;
         }
+        if (bake.materials) {
+            applyMaterialFieldsToMesh(this.mesh, bake.materials);
+        }
+        this.plantsApi?.setAll(bake.plants ?? [], bake.plantClears ?? []);
         this.onLandscapeChanged?.();
         if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
     }
@@ -549,8 +739,41 @@ export class MountainEditor {
         };
         restore(this.mesh, this.basePositions);
         restore(this.board, this.boardBasePositions);
+        this.restoreMaterialBases();
+        this.plantsApi?.setAll(
+            this.basePlants.map((p) => ({ ...p })),
+            this.basePlantClears.map((c) => ({ ...c })),
+        );
         this.onLandscapeChanged?.();
         if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
+    }
+
+    private captureMaterialBases(): void {
+        ensureOuterMaterialAttrs(this.mesh.geometry);
+        const copy = (name: string): Float32Array => {
+            const attr = this.mesh.geometry.getAttribute(name) as BufferAttribute;
+            return new Float32Array(attr.array as ArrayLike<number>);
+        };
+        this.matBaseGrass = copy('aGrass');
+        this.matBaseRock = copy('aRock');
+        this.matBaseSnow = copy('aSnow');
+        this.matBaseBeach = copy('aBeach');
+        this.matBaseScree = copy('aScree');
+    }
+
+    private restoreMaterialBases(): void {
+        ensureOuterMaterialAttrs(this.mesh.geometry);
+        const write = (name: string, base: Float32Array) => {
+            const attr = this.mesh.geometry.getAttribute(name) as BufferAttribute;
+            if (base.length !== attr.count) return;
+            for (let i = 0; i < attr.count; i++) attr.setX(i, base[i]!);
+            attr.needsUpdate = true;
+        };
+        write('aGrass', this.matBaseGrass);
+        write('aRock', this.matBaseRock);
+        write('aSnow', this.matBaseSnow);
+        write('aBeach', this.matBaseBeach);
+        write('aScree', this.matBaseScree);
     }
 
     private buildPanel(): HTMLDivElement {
@@ -579,6 +802,20 @@ export class MountainEditor {
   <label class="tool"><input type="radio" name="mtn-brush" value="flatten">Flatten <kbd>3</kbd></label>
   <label class="tool"><input type="radio" name="mtn-brush" value="lean">Lean <kbd>4</kbd></label>
 </div>
+<div class="row tools">
+  <label class="tool"><input type="radio" name="mtn-brush" value="mat-grass">Grass <kbd>G</kbd></label>
+  <label class="tool"><input type="radio" name="mtn-brush" value="mat-rock">Rock <kbd>K</kbd></label>
+  <label class="tool"><input type="radio" name="mtn-brush" value="mat-snow">Snow <kbd>N</kbd></label>
+  <label class="tool"><input type="radio" name="mtn-brush" value="mat-beach">Beach <kbd>H</kbd></label>
+  <label class="tool"><input type="radio" name="mtn-brush" value="mat-scree">Scree <kbd>C</kbd></label>
+</div>
+<div class="row tools">
+  <label class="tool"><input type="radio" name="mtn-brush" value="obj-oak">Oak <kbd>O</kbd></label>
+  <label class="tool"><input type="radio" name="mtn-brush" value="obj-pine">Pine <kbd>P</kbd></label>
+  <label class="tool"><input type="radio" name="mtn-brush" value="obj-bushRound">Bush <kbd>B</kbd></label>
+  <label class="tool"><input type="radio" name="mtn-brush" value="obj-bushTall">Tall <kbd>T</kbd></label>
+  <label class="tool"><input type="radio" name="mtn-brush" value="obj-erase">Erase <kbd>X</kbd></label>
+</div>
 <div class="sliders">
   <span>Radius <kbd>5</kbd>/<kbd>6</kbd></span><input type="range" class="r" min="8" max="120" value="28">
   <span>Strength <kbd>7</kbd>/<kbd>8</kbd></span><input type="range" class="s" min="5" max="80" value="22">
@@ -588,7 +825,7 @@ export class MountainEditor {
   <button type="button" class="load">Load</button>
   <button type="button" class="reset">Reset</button>
 </div>
-<div class="hint">Board + mountains · 1–4 brush · 5/6 radius · 7/8 strength</div>`;
+<div class="hint">Sculpt · materials · plants (outer/board) · Save packs height + mats + plants</div>`;
 
         const tools = el.querySelectorAll<HTMLInputElement>('input[name="mtn-brush"]');
         for (const input of tools) {
@@ -660,6 +897,13 @@ export function applyOuterBakeToPositions(pos: BufferAttribute, bake: MountainBa
         return true;
     }
     return applyMountainBakeToPositions(pos, bake);
+}
+
+/** Drape authored outer material weights onto a mesh (any scenery tier). */
+export function applyOuterMaterialBake(mesh: Mesh, bake: MountainBake): boolean {
+    if (!bake.materials) return false;
+    applyMaterialFieldsToMesh(mesh, bake.materials);
+    return true;
 }
 
 export function readMountainBakeFromStorage(): MountainBake | null {

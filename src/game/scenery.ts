@@ -85,7 +85,13 @@ import {
 } from './sceneryFloorPieces';
 import { createOuterGroundGeometry } from './outerGroundGrid';
 import { sculptUltraMountainPositions } from './mountainSculpt';
-import { applyOuterBakeToPositions, readMountainBakeFromStorage, mountainEditorEnabled } from './mountainEditor';
+import { applyOuterBakeToPositions, applyOuterMaterialBake, readMountainBakeFromStorage, mountainEditorEnabled } from './mountainEditor';
+import { ensureOuterMaterialAttrs } from './landscapeMaterials';
+import {
+    pointInPlantClear,
+    type AuthoredPlant,
+    type PlantClearDisk,
+} from './landscapePlants';
 import { updateBuildingSnowCover, snapBuildingSnowCover } from './buildingSnow';
 import { BillboardTreeShadows, type BlobShadowSource } from './blobShadows';
 
@@ -273,6 +279,11 @@ export class Scenery {
     private sunLight: DirectionalLight | null = null;
     /** Outer meadow/mountain ground — used by the mountain editor. */
     private outerGroundMesh: Mesh | null = null;
+    /** Hand-placed trees/bushes from the landscape editor / bake. */
+    private authoredPlants: AuthoredPlant[] = [];
+    private plantClears: PlantClearDisk[] = [];
+    private readonly authoredMeshes = new Map<VegetationKind, InstancedMesh>();
+    private readonly plantDummy = new Object3D();
     /**
      * Per InstancedMesh: last ground Y used when seating decorations, so we can
      * preserve trunk/canopy lifts across landscape sculpt updates.
@@ -422,6 +433,12 @@ export class Scenery {
         this.group.add(this.createOuterGround(map));
         // If a landscape bake was applied to the outer mesh, gameplay height
         // is re-bound by Game via syncLandscapeHeights (board + outer).
+        // Authored plants apply on normal play; editor starts empty until Load.
+        if (!mountainEditorEnabled()) {
+            const bake = readMountainBakeFromStorage();
+            if (bake?.plants) this.authoredPlants = bake.plants.map((p) => ({ ...p }));
+            if (bake?.plantClears) this.plantClears = bake.plantClears.map((c) => ({ ...c }));
+        }
         if (this.detailed) {
             this.group.add(this.createWater());
             this.createLakeDetails(rng);
@@ -1331,6 +1348,7 @@ export class Scenery {
         geometry.setAttribute('color', new BufferAttribute(colors, 3));
         geometry.setAttribute('aBeach', new BufferAttribute(beach, 1));
         geometry.setAttribute('aScree', new BufferAttribute(scree, 1));
+        ensureOuterMaterialAttrs(geometry);
         geometry.computeVertexNormals();
         const normalAttr = geometry.attributes.normal!;
         const mossArr = new Float32Array(pos.count);
@@ -1359,6 +1377,7 @@ export class Scenery {
         mesh.receiveShadow = true;
         mesh.name = 'outer-ground';
         this.outerGroundMesh = mesh;
+        if (bake) applyOuterMaterialBake(mesh, bake);
         if (this.detailed) void this.applyMeadowTexture(material, map, SIZE);
         else this.applyOuterGroundSnowOnly(material);
         return mesh;
@@ -1367,6 +1386,145 @@ export class Scenery {
     /** Outer heightfield mesh (meadow + mountains) for the mountain editor. */
     getOuterGroundMesh(): Mesh | null {
         return this.outerGroundMesh;
+    }
+
+    getAuthoredPlants(): AuthoredPlant[] {
+        return this.authoredPlants.map((p) => ({ ...p }));
+    }
+
+    getPlantClears(): PlantClearDisk[] {
+        return this.plantClears.map((c) => ({ ...c }));
+    }
+
+    /** Replace authored plant list + clears (Load / Reset). */
+    setAuthoredPlants(plants: AuthoredPlant[], clears: PlantClearDisk[] = []): void {
+        this.authoredPlants = plants.map((p) => ({ ...p }));
+        this.plantClears = clears.map((c) => ({ ...c }));
+        void this.rebuildAuthoredPlantMeshes();
+        // Live-remove procedural instances that fall inside clear disks.
+        for (const c of this.plantClears) {
+            this.removeDecorationInstancesInRadius(c.x, c.z, c.r, /*skipAuthored*/ true);
+        }
+    }
+
+    paintAuthoredPlant(kind: VegetationKind, x: number, z: number, sc: number, yaw: number): void {
+        if (!this.detailed) return;
+        this.authoredPlants.push({ kind, x, z, sc, yaw });
+        const mesh = this.authoredMeshes.get(kind);
+        if (!mesh || mesh.count >= mesh.instanceMatrix.count) {
+            void this.rebuildAuthoredPlantMeshes();
+            return;
+        }
+        const drawSc = sc * BILLBOARD_SCALE;
+        placeVegetationInstance(
+            mesh,
+            x,
+            worldHeightAt(x, z) - BILLBOARD_Y_SINK,
+            z,
+            drawSc,
+            yaw,
+            this.plantDummy,
+        );
+        mesh.instanceMatrix.needsUpdate = true;
+    }
+
+    erasePlantsAt(cx: number, cz: number, radius: number): void {
+        const r2 = radius * radius;
+        this.authoredPlants = this.authoredPlants.filter((p) => {
+            const dx = p.x - cx;
+            const dz = p.z - cz;
+            return dx * dx + dz * dz > r2;
+        });
+        this.plantClears.push({ x: cx, z: cz, r: radius });
+        void this.rebuildAuthoredPlantMeshes();
+        this.removeDecorationInstancesInRadius(cx, cz, radius, /*skipAuthored*/ true);
+    }
+
+    private plantClearedAt(x: number, z: number): boolean {
+        return pointInPlantClear(this.plantClears, x, z);
+    }
+
+    private async rebuildAuthoredPlantMeshes(): Promise<void> {
+        if (!this.detailed) return;
+        for (const mesh of this.authoredMeshes.values()) {
+            this.group.remove(mesh);
+        }
+        this.authoredMeshes.clear();
+        if (this.authoredPlants.length === 0) return;
+
+        await loadSceneryBillboards();
+        const kinds: VegetationKind[] = ['oak', 'pine', 'bushRound', 'bushTall'];
+        for (const kind of kinds) {
+            const list = this.authoredPlants.filter((p) => p.kind === kind);
+            if (list.length === 0) continue;
+            const capacity = Math.max(list.length + 96, 128);
+            const mesh = createBillboardInstances(kind, capacity);
+            if (!mesh) continue;
+            mesh.userData.authoredPlants = true;
+            mesh.name = `authored-${kind}`;
+            for (const p of list) {
+                placeVegetationInstance(
+                    mesh,
+                    p.x,
+                    worldHeightAt(p.x, p.z) - BILLBOARD_Y_SINK,
+                    p.z,
+                    p.sc * BILLBOARD_SCALE,
+                    p.yaw,
+                    this.plantDummy,
+                );
+            }
+            mesh.instanceMatrix.needsUpdate = true;
+            this.group.add(mesh);
+            this.authoredMeshes.set(kind, mesh);
+        }
+    }
+
+    /** Drop decoration instances inside a disk (procedural trees/props). */
+    private removeDecorationInstancesInRadius(
+        cx: number,
+        cz: number,
+        radius: number,
+        skipAuthored: boolean,
+    ): void {
+        const r2 = radius * radius;
+        const scratch = this.reseatMat;
+        this.group.traverse((o) => {
+            const mesh = o as InstancedMesh;
+            if (!mesh.isInstancedMesh || mesh.count <= 0) return;
+            if (skipAuthored && mesh.userData.authoredPlants) return;
+            // Sky / horizon clouds live under skyGroup — leave them alone.
+            for (let p: Object3D | null = mesh; p; p = p.parent) {
+                if (p === this.skyGroup) return;
+            }
+
+            let i = 0;
+            while (i < mesh.count) {
+                mesh.getMatrixAt(i, scratch);
+                scratch.decompose(this.reseatPos, this.reseatQuat, this.reseatScale);
+                const dx = this.reseatPos.x - cx;
+                const dz = this.reseatPos.z - cz;
+                if (dx * dx + dz * dz <= r2) {
+                    const last = mesh.count - 1;
+                    if (i < last) {
+                        mesh.getMatrixAt(last, scratch);
+                        mesh.setMatrixAt(i, scratch);
+                        if (mesh.instanceColor) {
+                            const cr = mesh.instanceColor.getX(last);
+                            const cg = mesh.instanceColor.getY(last);
+                            const cb = mesh.instanceColor.getZ(last);
+                            mesh.instanceColor.setXYZ(i, cr, cg, cb);
+                        }
+                        const cache = this.instanceGroundY.get(mesh);
+                        if (cache && last < cache.length) cache[i] = cache[last]!;
+                    }
+                    mesh.count--;
+                } else {
+                    i++;
+                }
+            }
+            mesh.instanceMatrix.needsUpdate = true;
+            if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        });
     }
 
     /** Procedural outer height (pre-bake / pre-sculpt) — for restoring overrides. */
@@ -1435,20 +1593,23 @@ export class Scenery {
             shader.uniforms.uDryGrass = summerDryUniform;
 
             shader.vertexShader =
-                'attribute float aBeach;\nvarying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'attribute float aBeach;\nattribute float aGrass;\nattribute float aRock;\nattribute float aSnow;\nvarying float vBeach;\nvarying float vGrass;\nvarying float vRock;\nvarying float vSnow;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
-                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvGrass = aGrass;\n\tvRock = aRock;\n\tvSnow = aSnow;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
                 );
 
             const inject = `
 ${OUTER_MOUNTAIN_SNOW_GLSL}
+    snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
+    float rockTint = clamp( vRock * ( 1.0 - vGrass ) * ( 1.0 - snowF ), 0.0, 1.0 );
+    diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.62, 0.6, 0.56 ), rockTint );
     diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
 ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             `;
 
             let frag =
-                'varying float vBeach;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'varying float vBeach;\nvarying float vGrass;\nvarying float vRock;\nvarying float vSnow;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
 
@@ -1457,7 +1618,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v12-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v13-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -1584,10 +1745,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 '\treturn clamp( acc, 0.0, 1.0 );\n' +
                 '}\n';
             shader.vertexShader =
-                'attribute float aBeach;\nattribute float aScree;\nattribute float aMoss;\nvarying float vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'attribute float aBeach;\nattribute float aScree;\nattribute float aMoss;\nattribute float aGrass;\nattribute float aRock;\nattribute float aSnow;\nvarying float vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vGrass;\nvarying float vRock;\nvarying float vSnow;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
-                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvScree = aScree;\n\tvMoss = aMoss;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvScree = aScree;\n\tvMoss = aMoss;\n\tvGrass = aGrass;\n\tvRock = aRock;\n\tvSnow = aSnow;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
                 );
             let inject = `
     diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
@@ -1656,6 +1817,9 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
                 inject += `
     rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH));
     rockF = max(rockF * (1.0 - snowF), cliffStrip * (0.14 + breakup * 0.4) * mix(0.1, 0.65, deepWinter));
+    // Authored paint: force rock / suppress rock for grass shelves
+    rockF = clamp( mix( rockF, 1.0, vRock ) * ( 1.0 - vGrass ), 0.0, 1.0 );
+    snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
     vec3 rockTop = texture2D(uRock, vWorldXZ / ${rockTile.toFixed(1)}).rgb;
     vec3 rockSide = texture2D(uRock, vec2(length(vWorldXZ), vTerrainH) / ${rockTile.toFixed(1)}).rgb;
     vec3 rockCol = mix(rockTop, rockSide, smoothstep(0.3, 0.72, vSlope));
@@ -1694,12 +1858,13 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
 ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             } else {
                 inject += `
+    snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
     diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
 ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
             const needBlob = !!(photoGrass || rockPhoto1);
             let frag =
-                'varying float vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'varying float vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vGrass;\nvarying float vRock;\nvarying float vSnow;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 (rock ? 'uniform sampler2D uRock;\n' : '') +
                 (rockPhoto1 ? 'uniform sampler2D uRockPhoto1;\n' : '') +
                 (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
@@ -1739,7 +1904,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v50${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v51${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -1788,6 +1953,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 if (h > maxHeight) continue;
                 if (h < -0.4) continue; // no trees in the lakes
                 if (!this.isGrassy(x, z)) continue; // no trees on rock/snow
+                if (this.plantClearedAt(x, z)) continue;
                 // thin near the field, dense toward foothills — hard stop at crest
                 if (d > beltFar) continue;
                 const belt =
@@ -1804,6 +1970,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 if (distOut(x, z) < keepOut) continue;
                 if (this.terrainHeight(x, z) < -0.4) continue;
                 if (!this.isGrassy(x, z)) continue;
+                if (this.plantClearedAt(x, z)) continue;
                 return { x, z };
             }
             // last resort (should be rare) — still inside crest
@@ -1915,6 +2082,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             z: number,
             sc: number,
         ) => {
+            if (this.plantClearedAt(x, z)) return true; // consume slot, skip place
             if (!billboardMix) return false;
             if (this.quality === 'high' && onField) fieldHqPlants.push({ kind, x, z, sc });
             else farPlants.push({ kind, x, z, sc });
@@ -2163,7 +2331,11 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 forestSpot,
                 fieldSpot,
                 groundY,
+            }).then(() => {
+                void this.rebuildAuthoredPlantMeshes();
             });
+        } else {
+            void this.rebuildAuthoredPlantMeshes();
         }
 
         if (floorPiecesEnabled(this.quality)) {
@@ -2441,8 +2613,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const shadows: BlobShadowSource[] = [];
 
         for (const kind of kinds) {
-            const nearList = plants.filter((p) => p.kind === kind && p.near);
-            const farList = plants.filter((p) => p.kind === kind && !p.near);
+            const nearList = plants.filter((p) => p.kind === kind && p.near && !this.plantClearedAt(p.x, p.z));
+            const farList = plants.filter((p) => p.kind === kind && !p.near && !this.plantClearedAt(p.x, p.z));
 
             if (nearList.length > 0) {
                 const mesh = createVegetationInstances(kind, nearList.length);

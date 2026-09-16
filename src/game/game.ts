@@ -1646,6 +1646,14 @@ export class Game {
                     halfW: this.map.halfW,
                     halfH: this.map.halfH,
                     onLandscapeChanged: () => this.bindLandscapeHeights(),
+                    plants: {
+                        getPlants: () => this.scenery.getAuthoredPlants(),
+                        getClears: () => this.scenery.getPlantClears(),
+                        paint: (kind, x, z, sc, yaw) =>
+                            this.scenery.paintAuthoredPlant(kind, x, z, sc, yaw),
+                        erase: (x, z, r) => this.scenery.erasePlantsAt(x, z, r),
+                        setAll: (plants, clears) => this.scenery.setAuthoredPlants(plants, clears),
+                    },
                 });
                 this.placement.enabled = false;
             }
@@ -2848,10 +2856,19 @@ export class Game {
 
         // outer world + weather (restore the current atmosphere)
         const weatherSnapshot = this.weather?.snapshot ?? null;
+        const editorPlants = this.mountainEditor
+            ? {
+                  plants: this.scenery.getAuthoredPlants(),
+                  clears: this.scenery.getPlantClears(),
+              }
+            : null;
         this.scene.remove(this.scenery.group);
         disposeTree(this.scenery.group);
         this.scenery = new Scenery(this.map);
         this.scene.add(this.scenery.group);
+        if (editorPlants) {
+            this.scenery.setAuthoredPlants(editorPlants.plants, editorPlants.clears);
+        }
         if (sceneryWeatherFx(scenery)) {
             if (!this.scene.fog) this.scene.fog = new Fog(THEME.sky, THEME.fogNear, THEME.fogFar);
             this.weather = this.scenery.createWeather(
