@@ -620,20 +620,22 @@ export class BattleMap {
             const uz = d > 1e-6 ? dz / d : 0;
             const radius = HIGHLAND_RADIUS + (this.reliefNoise(ux * 1.3 + 40.2, uz * 1.3 + 7.7) - 0.5) * 9;
             const plateau = HIGHLAND_HEIGHT * (1 - smooth01((d - radius) / 7));
-            // the ramp: from inside the top, out and down toward the front flank
-            const ax = -6;
-            const az = cz - 10;
-            const bx = -58;
-            const bz = cz - 30;
-            const lx = bx - ax;
-            const lz = bz - az;
-            const len = hypot(lx, lz);
-            const t = ((xs - ax) * lx + (zs - az) * lz) / (len * len);
-            const across = Math.abs((xs - ax) * lz - (zs - az) * lx) / len;
-            const ramp =
-                t < 0 || t > 1 ? 0 : HIGHLAND_HEIGHT * Math.min(1, Math.max(0, 1 - (t - 0.1) / 0.9)) * (1 - smooth01((across - 5) / 4));
+            // two ways up, one to each front flank: a wide, gentle ramp and a
+            // narrower, steeper one (both from inside the top, out and down)
+            // `top`: where along the line the plateau's edge is — the descent starts there, so there is no step at the top
+            const ramp = (ax: number, az: number, bx: number, bz: number, half: number, blend: number, top: number): number => {
+                const lx = bx - ax;
+                const lz = bz - az;
+                const len = hypot(lx, lz);
+                const t = ((xs - ax) * lx + (zs - az) * lz) / (len * len);
+                if (t < 0 || t > 1) return 0;
+                const across = Math.abs((xs - ax) * lz - (zs - az) * lx) / len;
+                return HIGHLAND_HEIGHT * Math.min(1, Math.max(0, 1 - (t - top) / (1 - top))) * (1 - smooth01((across - half) / blend));
+            };
+            const wide = ramp(-6, cz - 10, -78, cz - 42, 10, 6, 0.17);
+            const steep = ramp(6, cz - 10, 38, cz - 24, 6, 3, 0.3);
             const low = smooth01((this.symNoise(x, z, 44, 17.3, 3.9) - 0.45) / 0.45) * 1.5;
-            return (Math.max(plateau, ramp) + low) * smooth01(edge / 12);
+            return (Math.max(plateau, wide, steep) + low) * smooth01(edge / 12);
         }
         // 'wall': a hilly wall across the middle between the two sides, with
         // three gaps whose slopes are easy to walk; the rest of the board nearly flat
