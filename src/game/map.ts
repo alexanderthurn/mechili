@@ -599,9 +599,9 @@ export class BattleMap {
         const zoneDepth = this.size.zoneRows * CELL;
         const zoneWidth = this.size.zoneCols * CELL;
         if (this.shape === 'hills') {
-            // many hills, taller and steeper than standard: most slopes walkable, some too steep
+            // taller, steeper hills than standard over about a quarter of the board: most slopes walkable, some too steep
             const n = this.symNoise(x, z, 30, 37.2, 11.7) * 0.65 + this.symNoise(x, z, 13, 5.1, 91.3) * 0.35;
-            const hill = smooth01((n - 0.32) / 0.5);
+            const hill = smooth01((n - 0.49) / 0.5);
             return 8 * hill * smooth01((edge - rimW * 0.5) / 22);
         }
         if (this.shape === 'highlands') {
