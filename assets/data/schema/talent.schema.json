@@ -101,6 +101,10 @@
           "type": "boolean",
           "description": "Owning it gives every mech of the pack a shield pool equal to its max HP (Aegis)."
         },
+        "debuffImmune": {
+          "type": "boolean",
+          "description": "Immune to hex, tower debuffs, and storm disable (no −30% taken / convert block — those stay on the Sunstone rune / golden aura)."
+        },
         "emp": {
           "type": "object",
           "properties": {
