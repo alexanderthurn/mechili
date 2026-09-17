@@ -190,7 +190,7 @@ export function makeValueNoise(seed: number): (x: number, y: number) => number {
 /** how far a building pad blends into the surrounding shape (wu) */
 const PAD_BLEND = 10;
 /** Highlands: plateau height and mean radius around each Stronghold (wu) */
-const HIGHLAND_HEIGHT = 15;
+const HIGHLAND_HEIGHT = 10;
 const HIGHLAND_RADIUS = 20;
 
 /** Cheap hash/fbm for high/ultra ground hazards (declared once at shader top). */
