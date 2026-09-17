@@ -296,7 +296,9 @@ float slopeNoise( vec2 p ) {
 `;
 
 /** rock texture size on board cliffs (wu per repeat) */
-const SLOPE_ROCK_TILE = 14;
+const SLOPE_ROCK_TILE = 6;
+/** how far the steepest cliffs lean toward rock (the rest stays earth) */
+const SLOPE_ROCK_STRENGTH = 0.5;
 
 /**
  * GLSL: hillsides look like hillsides — the steeper the ground, the drier and
@@ -348,7 +350,7 @@ export function slopeGroundGlsl(opts: {
 		texture2D( ${rock}, slopeP.xz / ${tile} ).rgb * slopeRw.y +
 		texture2D( ${rock}, slopeP.zy / ${tile} ).rgb * slopeRw.x +
 		texture2D( ${rock}, slopeP.xy / ${tile} ).rgb * slopeRw.z;
-	slopeCol = mix( slopeCol, slopeRock * vec3( 0.95, 0.9, 0.85 ), slopeRockT );
+	slopeCol = mix( slopeCol, slopeRock * vec3( 0.95, 0.9, 0.85 ), slopeRockT * ${SLOPE_ROCK_STRENGTH.toFixed(2)} );
 `;
     }
     glsl += `	diffuseColor.rgb = slopeCol;
