@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Blodfest",
-    "description": "Heler 25% af den uddelte skade (fordelt på Packets levende medlemmer)."
+    "description": "Heler {{pct}}% af den uddelte skade (fordelt på Packets levende medlemmer)."
   },
   "carrionFeast": {
     "name": "Ådselsfest",

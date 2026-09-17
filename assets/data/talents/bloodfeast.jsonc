@@ -4,7 +4,7 @@
     "name": "Bloodfeast",
     "cost": 250,
     "mods": {},
-    "lifesteal": 0.25,
+    "lifesteal": 0.5,
     "icon": "tech-bloodfeast",
-    "description": "Heals for 25% of damage dealt (shared among living pack members).",
+    "description": "Heals for {{pct}}% of damage dealt (shared among living pack members).",
 }

@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "血の饗宴",
-    "description": "与ダメージの25%を回復（生存中のパックメンバーで分配）。"
+    "description": "与ダメージの{{pct}}%を回復（生存中のパックメンバーで分配）。"
   },
   "carrionFeast": {
     "name": "屍肉の饗宴",

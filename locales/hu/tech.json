@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Véres lakoma",
-    "description": "Az okozott sebzés 25%-át gyógyítja (a Pack élő tagjai között elosztva)."
+    "description": "Az okozott sebzés {{pct}}%-át gyógyítja (a Pack élő tagjai között elosztva)."
   },
   "carrionFeast": {
     "name": "Dögevő lakoma",

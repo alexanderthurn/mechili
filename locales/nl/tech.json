@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Bloedfeest",
-    "description": "Geneest 25% van de toegebrachte schade (verdeeld over de levende Pack-leden)."
+    "description": "Geneest {{pct}}% van de toegebrachte schade (verdeeld over de levende Pack-leden)."
   },
   "carrionFeast": {
     "name": "Aasfeest",

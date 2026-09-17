@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Krvavá hostina",
-    "description": "Léčí 25% způsobeného poškození (rozděleno mezi živé členy Packu)."
+    "description": "Léčí {{pct}}% způsobeného poškození (rozděleno mezi živé členy Packu)."
   },
   "carrionFeast": {
     "name": "Hostina mršin",

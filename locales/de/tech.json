@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Blutmahl",
-    "description": "Heilt um 25% des verursachten Schadens (verteilt auf die lebenden Pack-Mitglieder)."
+    "description": "Heilt um {{pct}}% des verursachten Schadens (verteilt auf die lebenden Pack-Mitglieder)."
   },
   "carrionFeast": {
     "name": "Aasfest",
