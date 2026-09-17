@@ -94,6 +94,8 @@ export interface TechDef {
         rangeAdd: number;
         speed: number;
         attackInterval: number;
+        /** extra projectiles per attack (summed across owned talents) */
+        projectileCountAdd: number;
         splashRadius: number;
     }>;
     /** optional fire / oil on hit — applied when this tech is owned */

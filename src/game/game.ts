@@ -7366,6 +7366,7 @@ export class Game {
                 minRange: type.minRange ?? 0,
                 speed: type.speed,
                 attackInterval: type.attackInterval,
+                projectileCount: Math.max(1, Math.floor(type.projectileCount ?? 1)),
                 splashRadius: type.splashRadius ?? 0,
             };
         }

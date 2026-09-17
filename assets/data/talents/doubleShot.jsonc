@@ -1,0 +1,9 @@
+// Two projectiles per attack, slower reload.
+{
+    "id": "doubleShot",
+    "name": "Twin Shot",
+    "cost": 250,
+    "mods": { "projectileCountAdd": 1, "attackInterval": 1.1 },
+    "icon": "tech-twin-shot",
+    "description": "Fires 2 projectiles per attack (+1 extra for volley weapons). +10% reload time.",
+}
