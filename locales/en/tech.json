@@ -15,6 +15,10 @@
     "name": "Fire Arrows",
     "description": "Arrows leave a brief ground fire and burn — enough to ignite oil puddles."
   },
+  "empArrows": {
+    "name": "Hex Arrows",
+    "description": "Arrows hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+  },
   "engines": {
     "name": "Gale Wings"
   },
@@ -81,6 +85,7 @@
     "produceFirst": ", first after {{delay}}",
     "produceOffspring": ". Offspring match parent level",
     "onKill": "When this unit kills, raise a {{child}}",
-    "cleave": "Hits every enemy within {{radius}} (around this unit)"
+    "cleave": "Hits every enemy within {{radius}} (around this unit)",
+    "emp": "Hex on hit: talents off and −{{slow}}% move speed for {{duration}}"
   }
 }

@@ -123,6 +123,12 @@ export interface TechDef {
     flight?: 'lift' | 'ground';
     /** Owning it gives every mech of the pack a shield pool equal to its max HP (Aegis). */
     grantsShieldHp?: boolean;
+    /**
+     * On hit: hex the target — researched talents stop applying and move speed
+     * is multiplied by `speedMult` (default 0.6) for `duration` seconds.
+     * Golden / debuff-immune shrugs it off. Innate talents still apply.
+     */
+    emp?: { duration: number; speedMult?: number };
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
     /** atlas glyph; omit to show `tech-default` (question mark — missing icon) */
@@ -227,6 +233,16 @@ export function techDescription(tech: TechDef): string {
             t('tech:_auto.cleave', {
                 radius: tech.cleave.radius,
                 defaultValue: `Hits every enemy within ${tech.cleave.radius} (around this unit)`,
+            }).replace(/[.。．]+$/u, ''),
+        );
+    }
+    if (tech.emp) {
+        const slowPct = Math.round((1 - (tech.emp.speedMult ?? 0.6)) * 100);
+        parts.push(
+            t('tech:_auto.emp', {
+                duration: formatTechSeconds(tech.emp.duration),
+                slow: slowPct,
+                defaultValue: `Hex on hit: talents off and −${slowPct}% move speed for ${formatTechSeconds(tech.emp.duration)}`,
             }).replace(/[.。．]+$/u, ''),
         );
     }
@@ -1647,8 +1663,8 @@ function applyMeshLevelTint(root: Group, level: number): void {
     });
 }
 
-/** tints a mech during battle — golden > debuff > acid > burn > spawning > normal */
-export type BattleTint = 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning';
+/** tints a mech during battle — golden > hex > debuff > acid > burn > spawning > normal */
+export type BattleTint = 'normal' | 'golden' | 'hex' | 'debuff' | 'acid' | 'burn' | 'spawning';
 
 export function syncBattleTint(
     mesh: Group,
@@ -1666,6 +1682,7 @@ export function syncBattleTint(
     const grey = TINT_GREY;
     const goldPulse = 1.15 + Math.sin(timeSeconds * 4.5) * 0.4;
     const debuffT = timeSeconds * 7;
+    const hexT = timeSeconds * 14;
     const acidT = timeSeconds * 5.5;
     const burnT = timeSeconds * 6.2;
     const spawnGlow = tintScratch;
@@ -1693,6 +1710,31 @@ export function syncBattleTint(
                 child.userData.goldenMat = tinted;
             }
             tinted.emissiveIntensity = goldPulse;
+            child.material = tinted;
+            return;
+        }
+
+        if (tint === 'hex') {
+            // Cold electric cyan — hard binary on/off flicker
+            let tinted = child.userData.hexMat as MeshStandardMaterial | undefined;
+            const base = child.userData.battleOrigMat as MeshStandardMaterial;
+            if (!tinted) {
+                tinted = base.clone();
+                preserveBuildingSnow(base, tinted);
+                child.userData.hexMat = tinted;
+            }
+            const on = Math.sin(hexT) >= 0;
+            const frost = new Color(0.25, 0.65, 1.0);
+            const dim = new Color(0.12, 0.28, 0.45);
+            if (on) {
+                tinted.color.lerpColors(base.color, frost, 0.95);
+                tinted.emissive.setRGB(0.15, 0.7, 1.0);
+                tinted.emissiveIntensity = 1.6;
+            } else {
+                tinted.color.lerpColors(base.color, dim, 0.55);
+                tinted.emissive.setRGB(0.05, 0.2, 0.4);
+                tinted.emissiveIntensity = 0.15;
+            }
             child.material = tinted;
             return;
         }
@@ -1791,17 +1833,20 @@ export function clearBattleTint(mesh: Group): void {
         const orig = child.userData.battleOrigMat as MeshStandardMaterial | undefined;
         if (orig) child.material = orig;
         const golden = child.userData.goldenMat as MeshStandardMaterial | undefined;
+        const hex = child.userData.hexMat as MeshStandardMaterial | undefined;
         const debuff = child.userData.debuffMat as MeshStandardMaterial | undefined;
         const acid = child.userData.acidMat as MeshStandardMaterial | undefined;
         const burn = child.userData.burnMat as MeshStandardMaterial | undefined;
         const spawn = child.userData.spawnMat as MeshStandardMaterial | undefined;
         golden?.dispose();
+        hex?.dispose();
         debuff?.dispose();
         acid?.dispose();
         burn?.dispose();
         spawn?.dispose();
         delete child.userData.battleOrigMat;
         delete child.userData.goldenMat;
+        delete child.userData.hexMat;
         delete child.userData.debuffMat;
         delete child.userData.acidMat;
         delete child.userData.burnMat;

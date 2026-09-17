@@ -97,6 +97,22 @@
           "type": "boolean",
           "description": "Owning it gives every mech of the pack a shield pool equal to its max HP (Aegis)."
         },
+        "emp": {
+          "type": "object",
+          "properties": {
+            "duration": {
+              "type": "number",
+              "description": "seconds the hex lasts; re-hit refreshes the timer"
+            },
+            "speedMult": {
+              "type": "number",
+              "description": "move-speed multiplier while hexed (default 0.6 = −40%)"
+            }
+          },
+          "required": ["duration"],
+          "additionalProperties": false,
+          "description": "On hit: temporarily disable the target's researched talents and slow them (Mechabellum EMP)."
+        },
         "description": {
           "type": "string",
           "description": "shown on hover; auto-derived from `mods` when omitted (see techDescription)"

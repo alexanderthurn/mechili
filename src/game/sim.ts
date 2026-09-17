@@ -32,8 +32,8 @@ import {
     RALLY_ROUTE_STUCK_SEC,
     type RallyRoute,
 } from './tactics';
-import { effectiveFlying, effectiveTargets, type ResolvedStats } from './tech';
-import { ownedCleaveTechs, ownedOnKillTechs, ownedProduceTechs, type Loadout } from './techCatalog';
+import { effectiveFlying, effectiveTargets, TechTree, type ResolvedStats } from './tech';
+import { ownedCleaveTechs, ownedOnKillTechs, ownedProduceTechs, techsForUnit, type Loadout } from './techCatalog';
 import {
     DEPLOY_AIR_Y,
     STRONGHOLD_ARCHER_FOV_HALF,
@@ -377,6 +377,13 @@ export interface Actor {
     burnUntil: number;
     /** burn damage per second while burnUntil > elapsed */
     burnDps: number;
+    /**
+     * Hex / EMP: researched talents stop applying until this sim time.
+     * Innate talents and item runes still work. 0 = not hexed.
+     */
+    empUntil: number;
+    /** move-speed multiplier while {@link empUntil} is active (typically 0.6) */
+    empSpeedMult: number;
     /** acid debuff: takes CORRODE_TAKEN_MULT damage while this > elapsed */
     corrodedUntil: number;
     /** summons: sim time this mech materializes (0 = was there from the start) */
@@ -907,6 +914,8 @@ export class BattleSim {
     private readonly segmentScratch: Actor[] = [];
     /** tech-resolved base stats per pack, fixed at battle start */
     private readonly resolved = new Map<Unit, ResolvedStats>();
+    /** innate-only stats (researched talents stripped) — reused while hexed */
+    private readonly empBaseStats = new Map<string, ResolvedStats>();
     /** damage dealt per `${team}:${typeId}` — the post-battle report data */
     readonly damageByType = new Map<string, number>();
     /** golden auras ({@link UnitType.aura}) are a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
@@ -1077,6 +1086,8 @@ export class BattleSim {
                     approachOffsetUntil: 0,
                     burnUntil: 0,
                     burnDps: 0,
+                    empUntil: 0,
+                    empSpeedMult: 1,
                     corrodedUntil: 0,
                     appearAt: 0,
                     appeared: true,
@@ -1185,7 +1196,7 @@ export class BattleSim {
             // deterministic per-pack fire stagger, from the canonical order
             const nth = perUnit.get(a.unit) ?? 0;
             perUnit.set(a.unit, nth + 1);
-            const stats = this.resolved.get(a.unit)!;
+            const stats = this.statsOf(a);
             a.cooldown = (nth % 5) * (stats.attackInterval / 5);
         });
 
@@ -1370,7 +1381,8 @@ export class BattleSim {
     ): void {
         // Shield soaks the whole hit and breaks — no HP spills over, so the
         // shield always eats exactly one more attack than its pool covers.
-        if (channel === 'shielded' && target.shieldHp > 0) {
+        // Hex shuts off talent shields (Aegis); item runes (Bulwark) still soak.
+        if (channel === 'shielded' && target.shieldHp > 0 && !this.techShieldSuppressed(target)) {
             source.damageDealt += Math.min(amount, target.shieldHp);
             this.recordDamage(source, amount);
             target.shieldHp = Math.max(0, target.shieldHp - amount);
@@ -1384,6 +1396,87 @@ export class BattleSim {
         target.hurtTimer = HURT_BAR_SECONDS;
         if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
         if (target.hp <= 0) this.kill(target, source, amount, knockDir);
+    }
+
+    /** Hex active right now (researched talents off + slow). */
+    private isEmpd(a: Actor): boolean {
+        return a.empUntil > this.elapsed + 1e-9;
+    }
+
+    /**
+     * Combat stats for this body: full tech mods, or innate-only while hexed.
+     * Current HP / maxHp are not rewritten mid-fight.
+     */
+    private statsOf(a: Actor): ResolvedStats {
+        if (!this.isEmpd(a)) return this.resolved.get(a.unit)!;
+        const key = a.unit.type.id;
+        let base = this.empBaseStats.get(key);
+        if (!base) {
+            base = TechTree.statsWithOwned(
+                a.unit.type,
+                new Set(a.unit.type.innateTechs ?? []),
+                this.config.types,
+            );
+            this.empBaseStats.set(key, base);
+        }
+        return base;
+    }
+
+    /**
+     * Does this body still benefit from a researched talent? Innate always;
+     * hexed bodies lose everything else.
+     */
+    private actorHasTech(a: Actor, techId: string): boolean {
+        if (a.unit.type.innateTechs?.includes(techId)) return true;
+        if (this.isEmpd(a)) return false;
+        return this.config.hasTech(a.unit.seat, a.unit.type.id, techId);
+    }
+
+    /** Aegis (talent) shield ignored while hexed; Bulwark rune still works. */
+    private techShieldSuppressed(a: Actor): boolean {
+        if (!this.isEmpd(a)) return false;
+        for (const id of a.unit.items) {
+            if (this.config.types.rune(id)?.grantsShieldHp) return false;
+        }
+        return true;
+    }
+
+    private moveSpeedFactor(a: Actor, towerSpeedMult: number): number {
+        let m = this.debuff(a, towerSpeedMult);
+        if (this.isEmpd(a)) m *= a.empSpeedMult;
+        return m;
+    }
+
+    /**
+     * Strongest emp profile among owned talents on this pack (attacker side).
+     * Checked at impact from seat research — not stripped if the shooter is hexed.
+     */
+    private empProfileOf(source: Unit): { duration: number; speedMult: number } | undefined {
+        let best: { duration: number; speedMult: number } | undefined;
+        for (const tech of techsForUnit(source.type, this.config.types, this.config.loadoutOf(source.seat))) {
+            if (!tech.emp || !this.config.hasTech(source.seat, source.type.id, tech.id)) continue;
+            const speedMult = tech.emp.speedMult ?? 0.6;
+            if (!best || tech.emp.duration > best.duration) {
+                best = { duration: tech.emp.duration, speedMult };
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Apply hex on hit. Golden / debuff-immune shrug it off. Structures and
+     * board extras are never hexed. Refresh timer; keep the strongest slow.
+     */
+    private applyEmp(source: Unit, target: Actor): void {
+        const profile = this.empProfileOf(source);
+        if (!profile || !target.alive) return;
+        if (target.unit.type.structure || target.unit.type.extra) return;
+        if (this.isGolden(target)) return;
+        const already = target.empUntil > this.elapsed + 1e-9;
+        target.empUntil = Math.max(target.empUntil, this.elapsed + profile.duration);
+        target.empSpeedMult = already
+            ? Math.min(target.empSpeedMult, profile.speedMult)
+            : profile.speedMult;
     }
 
     /**
@@ -1510,13 +1603,14 @@ export class BattleSim {
         if (damage <= 0) return;
         // Ground swat: swing still happens (caller burned cooldown); bird often escapes.
         if (!this.groundSwatConnects(a, target)) return;
-        const radius = this.cleaveRadiusByUnit.get(a.unit) ?? 0;
+        const radius = this.cleaveRadiusOf(a);
         if (radius > 0) {
             this.cleaveStrike(a, radius, damage, target);
             return;
         }
         const dealt = damage * this.damageTakenMult(target);
         this.applyDamage(a.unit, target, dealt, { x: dx, z: dz }, 'direct');
+        this.applyEmp(a.unit, target);
         if (!a.unit.type.freeFlight) this.armMeleeRetreat(a, target);
         // Layer flyers plant on the lawn; free-flight bats already dive via altitude.
         if (a.altitude > 0 && target.altitude === 0 && !a.unit.type.freeFlight) {
@@ -1682,12 +1776,12 @@ export class BattleSim {
         const tdx = target.x - a.x;
         const tdz = target.z - a.z;
         const tDist = hypot(tdx, tdz) || 1e-6;
-        const radius = this.cleaveRadiusByUnit.get(a.unit) ?? 0;
+        const radius = this.cleaveRadiusOf(a);
         if (radius > 0) {
             this.cleaveStrike(a, radius, damage, target);
             return;
         }
-        const stats = this.resolved.get(a.unit)!;
+        const stats = this.statsOf(a);
         const reach = stats.range + a.radius + target.radius;
         // slight slack so a foe that edged out mid-swing still takes the hit
         if (tDist > reach * 1.2) return;
@@ -1788,8 +1882,8 @@ export class BattleSim {
             wantY = Math.max(minY, Math.min(aim.y, cruise + 3.5));
         }
 
-        const stats = this.resolved.get(a.unit);
-        const climbSpeed = (stats?.speed ?? 8) * 0.9;
+        const stats = this.statsOf(a);
+        const climbSpeed = stats.speed * 0.9;
         const dy = wantY - a.altitude;
         a.altitude += Math.sign(dy) * Math.min(Math.abs(dy), climbSpeed * dt);
         a.altitude = Math.max(minY, a.altitude);
@@ -1900,7 +1994,7 @@ export class BattleSim {
         // A foe inside the tightest circle this flyer can bank (speed / turn
         // rate) would be circled forever, nose never on it — slow to the arc
         // that runs through it instead.
-        const fullSpeed = stats.speed * this.debuff(a, d.speedMult);
+        const fullSpeed = stats.speed * this.moveSpeedFactor(a, d.speedMult);
         const arcSpeed = (tDist * (a.unit.type.turnRate ?? DEFAULT_TURN_RATE)) / (2 * Math.max(detSin(off), 0.05));
         this.flyAlongFacing(a, stats, d, dt, Math.max(fullSpeed * FLY_CHASE_MIN_SPEED, Math.min(fullSpeed, arcSpeed)) * dt);
         if (canAttack) a.cooldown -= dt;
@@ -1922,7 +2016,7 @@ export class BattleSim {
         dt: number,
         cap: number,
     ): void {
-        const speed = stats.speed * this.debuff(a, d.speedMult);
+        const speed = stats.speed * this.moveSpeedFactor(a, d.speedMult);
         const move = cap > 0 ? Math.min(speed * dt, cap) : speed * dt;
         a.x += -detSin(a.facing) * move;
         a.z += -detCos(a.facing) * move;
@@ -1939,7 +2033,7 @@ export class BattleSim {
         /** stop short rather than overshoot (route arrival). 0 = no cap. */
         cap = 0,
     ): void {
-        const speed = stats.speed * this.debuff(a, d.speedMult);
+        const speed = stats.speed * this.moveSpeedFactor(a, d.speedMult);
         const move = cap > 0 ? Math.min(speed * dt, cap) : speed * dt;
         a.x += hx * move;
         a.z += hz * move;
@@ -1967,7 +2061,7 @@ export class BattleSim {
             actorTeam(focus) !== team &&
             !hits.includes(focus)
         ) {
-            const stats = this.resolved.get(a.unit)!;
+            const stats = this.statsOf(a);
             const connectAt = (stats.range + a.radius + focus.radius) * 1.35;
             if (hypot(focus.x - a.x, focus.z - a.z) <= connectAt) hits.unshift(focus);
         }
@@ -1976,6 +2070,7 @@ export class BattleSim {
             const dz = t.z - a.z;
             if (!this.groundSwatConnects(a, t)) continue;
             this.applyDamage(a.unit, t, damage * this.damageTakenMult(t), { x: dx, z: dz }, 'direct');
+            this.applyEmp(a.unit, t);
         }
         const anyGround =
             hits.some((t) => t.altitude === 0) || (focus.alive && focus.altitude === 0);
@@ -2375,6 +2470,12 @@ export class BattleSim {
         if (radius > 0) this.cleaveRadiusByUnit.set(unit, radius);
     }
 
+    /** Cleave disk for this body — hex drops researched cleave (keeps type innate). */
+    private cleaveRadiusOf(a: Actor): number {
+        if (this.isEmpd(a)) return a.unit.type.cleave?.radius ?? 0;
+        return this.cleaveRadiusByUnit.get(a.unit) ?? 0;
+    }
+
     /** Cache cleave radii per pack (innate + researched). */
     private initCleaveState(): void {
         const seen = new Set<Unit>();
@@ -2475,6 +2576,8 @@ export class BattleSim {
                 approachOffsetUntil: 0,
                 burnUntil: 0,
                 burnDps: 0,
+                empUntil: 0,
+                empSpeedMult: 1,
                 corrodedUntil: 0,
                 appearAt: 0,
                 appeared: true,
@@ -3389,10 +3492,11 @@ export class BattleSim {
     ): CrashLand[] {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
-            // golden > tower debuff > acid (corroded) > burn DoT > spawning
-            let tint: 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning' = 'normal';
+            // golden > hex > tower debuff > acid (corroded) > burn DoT > spawning
+            let tint: 'normal' | 'golden' | 'hex' | 'debuff' | 'acid' | 'burn' | 'spawning' = 'normal';
             let spawnProgress = 0;
             if (this.isGolden(a)) tint = 'golden';
+            else if (this.isEmpd(a)) tint = 'hex';
             else if (this.isDebuffed(a) && (debuffTintAt?.(actorSeat(a), a.x, a.z) ?? true)) {
                 tint = 'debuff';
             } else if (a.corrodedUntil > this.elapsed) {
@@ -4006,7 +4110,7 @@ export class BattleSim {
             if (this.isSpawning(a)) continue;
 
             const onPath = this.updatePathProgress(a, dt);
-            const stats = this.resolved.get(a.unit)!;
+            const stats = this.statsOf(a);
 
             let canAttack = true;
             let target = this.closestEnemy(a);
@@ -4319,7 +4423,7 @@ export class BattleSim {
 
             const speed =
                 stats.speed *
-                this.debuff(a, d.speedMult) *
+                this.moveSpeedFactor(a, d.speedMult) *
                 (a.altitude === 0 && this.hazards.hasOilAt(a.x, a.z) ? OIL_SPEED_MULT : 1);
             let move = Math.min(speed * dt, Math.max(0, goalDist - stopMargin));
             // Ground units: uphill slows; steep faces slide sideways instead of freezing.
@@ -4358,8 +4462,8 @@ export class BattleSim {
             return;
         }
         const dist = hypot(a.x, a.z) || 1e-6;
-        const stats = this.resolved.get(a.unit);
-        const speed = stats?.speed ?? 0;
+        const stats = this.statsOf(a);
+        const speed = stats.speed;
         const move = speed * dt;
         a.x += (-a.x / dist) * move;
         a.z += (-a.z / dist) * move;
@@ -4971,6 +5075,7 @@ export class BattleSim {
                         shotDir: { x: sx, z: sz },
                     });
                     this.applyCorrodeOnHit(p.source, hit);
+                    this.applyEmp(p.source, hit);
                 }
                 continue; // bullet consumed
             }
@@ -5079,6 +5184,7 @@ export class BattleSim {
                 p.source.type.piercesShield ? 'direct' : 'shielded',
             );
             this.applyCorrodeOnHit(p.source, a);
+            this.applyEmp(p.source, a);
         }
         const blastStrength =
             p.source.type.projectileStyle === 'stone'
@@ -5363,7 +5469,12 @@ export class BattleSim {
             }
 
             const team = actorTeam(caster);
-            const targets = effectiveTargets(caster.unit.type, actorSeat(caster), this.config.hasTech, this.config.types);
+            const targets = effectiveTargets(
+                caster.unit.type,
+                actorSeat(caster),
+                (_s, _t, techId) => this.actorHasTech(caster, techId),
+                this.config.types,
+            );
             let target = caster.convertTarget;
             const stillOk =
                 target &&
@@ -5399,7 +5510,7 @@ export class BattleSim {
             }
             if (!target) continue;
 
-            const stats = this.resolved.get(caster.unit)!;
+            const stats = this.statsOf(caster);
             // same modifiers as a normal attack roll
             const intensity =
                 stats.damage * this.levelMult(caster.unit) * this.debuff(caster, d.attackMult);
@@ -5616,14 +5727,24 @@ export class BattleSim {
 
     /** True unless this is a ground swat that misses (deterministic ~28%). */
     private groundSwatConnects(from: Actor, target: Actor): boolean {
-        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech, this.config.types);
+        const native = effectiveTargets(
+            from.unit.type,
+            actorSeat(from),
+            (_s, _t, techId) => this.actorHasTech(from, techId),
+            this.config.types,
+        );
         if (!this.isOpportunisticGroundSwat(from, target, native)) return true;
         const seed = from.index * 100003 + target.index * 9176 + this.stepIndex * 131;
         return detHash01(seed) < GROUND_SWAT_CATCH;
     }
 
     private closestEnemy(from: Actor, anyLayer = false): Actor | null {
-        const native = effectiveTargets(from.unit.type, actorSeat(from), this.config.hasTech, this.config.types);
+        const native = effectiveTargets(
+            from.unit.type,
+            actorSeat(from),
+            (_s, _t, techId) => this.actorHasTech(from, techId),
+            this.config.types,
+        );
         const wantAir = anyLayer || native.air;
         const wantGround = anyLayer || native.ground;
         if (!wantAir && !wantGround) return null;
@@ -5636,7 +5757,7 @@ export class BattleSim {
             this.inFieldOfFire(from, cached) &&
             this.allowsEnemyLayer(from, cached, wantAir, wantGround, native);
 
-        const stats = this.resolved.get(from.unit)!;
+        const stats = this.statsOf(from);
         const minRange = stats.minRange;
         const inDeadZone = (cached: Actor): boolean => {
             if (minRange <= 0) return false;

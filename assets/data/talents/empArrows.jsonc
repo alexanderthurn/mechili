@@ -1,0 +1,13 @@
+// Hex Arrows — Mechabellum Electromagnetic Shot: disable talents + slow on hit.
+// Icon TBD (uses tech-default until then).
+{
+    "id": "empArrows",
+    "name": "Hex Arrows",
+    "cost": 250,
+    "mods": {},
+    "emp": {
+        "duration": 3.5,
+        "speedMult": 0.6,
+    },
+    "description": "Arrows hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off.",
+}

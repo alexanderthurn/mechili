@@ -249,6 +249,11 @@ export interface SelectionInfo {
                   max: number;
                   done: boolean;
               };
+              /**
+               * Battle hex / EMP: researched talent is owned but currently
+               * inactive on this body (innate talents never set this).
+               */
+              disabled?: boolean;
           }
     )[];
     /** base buildings render their level as N / maxLevel and hide XP */
@@ -3224,38 +3229,48 @@ export class Hud {
     ): string {
         if (!techs?.length) return '';
         const cells = techs
-            .map((t, i) => {
-                if (t.empty) {
-                    const slot = i + 1;
+            .map((slot, i) => {
+                if (slot.empty) {
+                    const n = i + 1;
                     return (
-                        `<span class="action-tile empty" data-ttitle="${DISPLAY.tech} slot ${slot}" data-tdesc="Empty — no ${DISPLAY.tech.toLowerCase()} selected for this slot."></span>`
+                        `<span class="action-tile empty" data-ttitle="${DISPLAY.tech} slot ${n}" data-tdesc="Empty — no ${DISPLAY.tech.toLowerCase()} selected for this slot."></span>`
                     );
                 }
-                const produce = t.produce;
+                const produce = slot.produce;
+                const disabled = !!slot.disabled;
                 const produceNote = produce
                     ? produce.done
                         ? `Production complete (${produce.released}/${produce.max}).`
                         : `Producing… ${produce.released}/${produce.max} · ${Math.round(produce.progress * 100)}% to next.`
                     : '';
-                const badge = produce
-                    ? `<span class="at-badge produce-count">${produce.released}/${produce.max}</span>`
-                    : t.owned
-                      ? `<span class="at-badge">✓</span>`
-                      : t.cost !== undefined
-                        ? `<span class="at-cost">${t.cost}</span>`
-                        : '';
-                const state = t.owned ? 'owned' : t.affordable ? 'buy' : 'locked';
+                const disableNote = disabled
+                    ? t('hud:techHexed', {
+                          defaultValue: 'Hexed — this talent is off until the hex ends.',
+                      })
+                    : '';
+                const note = [produceNote, disableNote].filter(Boolean).join(' ');
+                const badge = disabled
+                    ? ''
+                    : produce
+                      ? `<span class="at-badge produce-count">${produce.released}/${produce.max}</span>`
+                      : slot.owned
+                        ? `<span class="at-badge">✓</span>`
+                        : slot.cost !== undefined
+                          ? `<span class="at-cost">${slot.cost}</span>`
+                          : '';
+                const state = slot.owned ? 'owned' : slot.affordable ? 'buy' : 'locked';
                 const ring = produce
                     ? `<span class="at-produce${produce.done ? ' done' : ''}" style="--p:${produce.progress}">` +
                       `<span class="at-produce-ring" aria-hidden="true"></span>` +
-                      `<span class="at-icon m-icon" style="${iconCss(t.icon)}"></span></span>`
-                    : `<span class="at-icon m-icon" style="${iconCss(t.icon)}"></span>`;
+                      `<span class="at-icon m-icon" style="${iconCss(slot.icon)}"></span></span>`
+                    : `<span class="at-icon m-icon" style="${iconCss(slot.icon)}"></span>`;
+                const slash = disabled ? `<span class="at-hex-slash" aria-hidden="true"></span>` : '';
                 return (
-                    `<button class="action-tile ${state}${produce ? ' producing' : ''}" data-tech="${t.id}"` +
-                    ` data-ttitle="${escapeAttr(t.name)}" data-tdesc="${escapeAttr(t.desc)}"` +
-                    ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost}"` +
-                    ` data-tstate="${state}" data-tnote="${escapeAttr(produceNote)}">` +
-                    `${ring}${badge}</button>`
+                    `<button class="action-tile ${state}${produce ? ' producing' : ''}${disabled ? ' hexed' : ''}" data-tech="${slot.id}"` +
+                    ` data-ttitle="${escapeAttr(slot.name)}" data-tdesc="${escapeAttr(slot.desc)}"` +
+                    ` data-ticon="${escapeAttr(slot.icon)}" data-tcost="${slot.cost}"` +
+                    ` data-tstate="${disabled ? 'hexed' : state}" data-tnote="${escapeAttr(note)}">` +
+                    `${ring}${slash}${badge}</button>`
                 );
             })
             .join('');
@@ -3301,9 +3316,11 @@ export class Hud {
         const costLine =
             state === 'owned'
                 ? `<span class="ai-cost owned">✓ Owned</span>`
-                : cost
-                  ? `<span class="ai-cost${Number(cost) < 0 ? ' refund' : ''}">${Number(cost) < 0 ? moneyHtml(`+${-Number(cost)}`) : moneyHtml(cost)}</span>`
-                  : '';
+                : state === 'hexed'
+                  ? `<span class="ai-cost hexed">${t('hud:techHexedShort', { defaultValue: '✕ Hexed — inactive' })}</span>`
+                  : cost
+                    ? `<span class="ai-cost${Number(cost) < 0 ? ' refund' : ''}">${Number(cost) < 0 ? moneyHtml(`+${-Number(cost)}`) : moneyHtml(cost)}</span>`
+                    : '';
         const note = d.tnote ? `<div class="ai-note">${d.tnote}</div>` : '';
         const touchBuy =
             inputMode() === 'touch' && state === 'buy'

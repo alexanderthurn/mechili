@@ -35,6 +35,8 @@
   "rematchGone": "Opponent left",
   "unlockUnit": "Unlock a unit",
   "levelUp": "Level Up",
+  "techHexed": "Hexed — this talent is off until the hex ends.",
+  "techHexedShort": "✕ Hexed — inactive",
   "connectionLost": "Connection lost…",
   "giveUp": "Give up",
   "move": "Move",
