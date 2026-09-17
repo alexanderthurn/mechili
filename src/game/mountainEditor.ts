@@ -64,6 +64,17 @@ export type MountainBrush =
     | 'obj-bushTall'
     | 'obj-erase';
 
+type MouseSlot = 'left' | 'right' | 'middle';
+
+/** what a new left tool puts on the other buttons (a panel right/middle click overrides it) */
+function companions(left: MountainBrush): Partial<Record<Exclude<MouseSlot, 'left'>, MountainBrush>> {
+    if (left === 'raise') return { right: 'lower', middle: 'flatten' };
+    if (left === 'lower') return { right: 'raise', middle: 'flatten' };
+    if (left === 'flatten' || left === 'lean') return { right: 'lower', middle: 'flatten' };
+    if (left.startsWith('obj-') && left !== 'obj-erase') return { right: 'obj-erase' };
+    return {};
+}
+
 /** the bake the first editor wrote (browser storage, v1/v2) — import-only now */
 interface LegacyBake {
     version: 1 | 2;
@@ -113,7 +124,13 @@ export interface MountainEditorOpts {
 }
 
 export class MountainEditor {
+    /** the brush a stroke paints with (the button's slot while a stroke runs, else the left slot) */
     brush: MountainBrush = 'raise';
+    /**
+     * A tool per mouse button: left paints with a plain drag; right and middle
+     * need Shift (without it they stay the camera's pan and orbit).
+     */
+    private readonly slots: Record<MouseSlot, MountainBrush> = { left: 'raise', right: 'lower', middle: 'flatten' };
     radius = 28;
     strength = 2.2;
     private mesh: Mesh;
@@ -181,15 +198,23 @@ export class MountainEditor {
 
         this.panel = this.buildPanel();
         document.body.appendChild(this.panel);
+        this.renderSlots();
 
         const onDown = (e: PointerEvent) => {
-            if (!this.editing || e.button !== 0) return;
+            if (!this.editing) return;
             if ((e.target as HTMLElement).closest?.('.mtn-editor')) return;
+            // left paints; Shift+right / Shift+middle paint their slots — without
+            // Shift those buttons stay the camera's (pan / orbit)
+            const slot: MouseSlot | null =
+                e.button === 0 ? 'left' : e.button === 2 && e.shiftKey ? 'right' : e.button === 1 && e.shiftKey ? 'middle' : null;
+            if (!slot) return;
+            this.brush = this.slots[slot];
             this.painting = true;
             this.dom.setPointerCapture(e.pointerId);
             this.onPointer(e.clientX, e.clientY, true);
             e.preventDefault();
-            e.stopPropagation();
+            // the camera listens on the same element — keep the stroke from also panning / orbiting
+            e.stopImmediatePropagation();
         };
         const onMove = (e: PointerEvent) => {
             if (!this.editing) return;
@@ -214,6 +239,7 @@ export class MountainEditor {
                 this.board.geometry.computeVertexNormals();
                 this.onLandscapeChanged?.();
             }
+            this.brush = this.slots.left;
             if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
         };
         const onLeave = () => {
@@ -349,13 +375,33 @@ export class MountainEditor {
         }
     }
 
+    /** a new left tool (key or panel click) — the other buttons follow with its companions */
     private setBrush(brush: MountainBrush): void {
-        this.brush = brush;
-        for (const input of this.panel.querySelectorAll<HTMLInputElement>('input[name="mtn-brush"]')) {
-            input.checked = input.value === brush;
-        }
-        for (const lab of this.panel.querySelectorAll('label.tool')) {
-            lab.classList.toggle('active', lab.querySelector('input')?.checked === true);
+        this.slots.left = brush;
+        Object.assign(this.slots, companions(brush));
+        if (!this.painting) this.brush = brush;
+        this.renderSlots();
+    }
+
+    /** put a tool on the right or middle button (panel right / middle click) */
+    private setSlot(slot: Exclude<MouseSlot, 'left'>, brush: MountainBrush): void {
+        this.slots[slot] = brush;
+        this.renderSlots();
+    }
+
+    /** the panel shows which button holds which tool */
+    private renderSlots(): void {
+        for (const lab of this.panel.querySelectorAll<HTMLLabelElement>('label.tool')) {
+            const input = lab.querySelector('input');
+            if (!input) continue;
+            input.checked = input.value === this.slots.left;
+            lab.classList.toggle('active', input.checked);
+            const tags = lab.querySelector('.slot-tags');
+            if (!tags) continue;
+            tags.textContent = (['left', 'right', 'middle'] as const)
+                .filter((slot) => this.slots[slot] === input.value)
+                .map((slot) => (slot === 'left' ? 'L' : slot === 'right' ? 'R' : 'M'))
+                .join('');
         }
     }
 
@@ -836,6 +882,8 @@ export class MountainEditor {
 .mtn-editor .hint{margin-top:8px;opacity:.7;font-size:11px}
 .mtn-editor.playing > :not(h3):not(.row:first-of-type){display:none}
 .mtn-editor .mode{width:100%}
+.mtn-editor .slot-tags{margin-left:4px;font:700 10px/1 ui-monospace,monospace;color:#d4b878;letter-spacing:.05em}
+.mtn-editor .slot-tags:empty{display:none}
 .mtn-editor .status{margin-top:6px;font-size:11px;color:#d4b878;min-height:1em;max-width:320px}
 .mtn-editor input[type=text]{background:#2a221a;border:1px solid #5c4634;color:#f0e8d8;border-radius:4px;padding:3px 6px;font:inherit}
 </style>
@@ -876,13 +924,31 @@ export class MountainEditor {
   <button type="button" class="import-browser" hidden>Import browser bake</button>
 </div>
 <div class="status"></div>
-<div class="hint">Sculpt · paint · plants (outer + board) · Save downloads &lt;id&gt;.json for assets/data/landscapes/ · play it with ?landscape=&lt;id&gt;</div>`;
+<div class="hint">Left drag: L tool · Shift+right drag: R · Shift+middle drag: M · click / right-click / middle-click a tool to put it on that button · Save downloads &lt;id&gt;.json for assets/data/landscapes/ · play it with ?landscape=&lt;id&gt;</div>`;
 
         const tools = el.querySelectorAll<HTMLInputElement>('input[name="mtn-brush"]');
         for (const input of tools) {
             input.addEventListener('change', () => {
                 if (!input.checked) return;
                 this.setBrush(input.value as MountainBrush);
+            });
+            const label = input.closest<HTMLLabelElement>('label.tool');
+            if (!label) continue;
+            const tags = document.createElement('span');
+            tags.className = 'slot-tags';
+            label.appendChild(tags);
+            // right-click a tool: the right button; middle-click: the middle button
+            label.addEventListener('contextmenu', (ev) => {
+                ev.preventDefault();
+                this.setSlot('right', input.value as MountainBrush);
+            });
+            label.addEventListener('mousedown', (ev) => {
+                if (ev.button === 1) ev.preventDefault(); // no autoscroll
+            });
+            label.addEventListener('auxclick', (ev) => {
+                if (ev.button !== 1) return;
+                ev.preventDefault();
+                this.setSlot('middle', input.value as MountainBrush);
             });
         }
         this.radiusInput = el.querySelector<HTMLInputElement>('.r')!;
