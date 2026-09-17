@@ -2,10 +2,11 @@
  * Stronghold forge: shared oven per side. Each player may fill up to
  * {@link FORGE_SLOTS_PER_PLAYER} (duo → up to 6).
  *
- * Elemental mixes (base + combined plates) will merge by mix/level rules.
- * If the oven holds any **advanced** rune, the bake returns that advanced
- * unchanged (elementals are consumed) — advanced and elementals do not fuse.
- * Optional exact multiset recipes can still override when defined on data.
+ * Default bake: merge elemental runes (union of mixes + min level, or add
+ * levels when the mix matches; cap 9). Forging is free.
+ * Any **advanced** rune in the oven returns that advanced unchanged
+ * (elementals consumed). Optional exact multiset recipes still override when
+ * defined on data.
  */
 import type { SeatId } from './seats';
 import {
@@ -17,6 +18,10 @@ import {
 import type { TypeRegistry } from './content/typeRegistry';
 import { DISPLAY } from './displayNames';
 import { itemDescription, itemName, t, tacticDescription, tacticName } from '../i18n';
+import {
+    isElementalRuneId,
+    mergeElementalIds,
+} from './runeMix';
 
 /** Max runes one player may insert into the shared forge */
 export const FORGE_SLOTS_PER_PLAYER = 3;
@@ -178,11 +183,9 @@ function sortedRecipes(types: TypeRegistry, pool: ForgeSpellPool = 'all'): Forge
 
 /**
  * Pick at most one recipe whose ingredients exactly match the oven.
- * No subset crafts — extras or missing pieces → no product, all runes refunded.
- * Spell recipes outside `pool` are skipped; rune recipes always compete.
- *
- * Special case: any advanced rune in the oven → that advanced is the product
- * (unchanged). Multiple different advanced ids → refund everything.
+ * Exact data recipes win first (optional specials). Else: any advanced in the
+ * oven → that advanced unchanged. Else: 2+ elementals → mix/level merge.
+ * No match → refund everything.
  */
 export function resolveForge(
     types: TypeRegistry,
@@ -196,6 +199,18 @@ export function resolveForge(
     }
     if (filled.length === 0) {
         return { product: null, consumed: [], refunds: [] };
+    }
+
+    const have = countMultiset(filled.map((f) => f.itemId));
+    for (const recipe of sortedRecipes(types, pool)) {
+        const need = countMultiset(recipe.ingredients);
+        if (recipeExact(need, have)) {
+            return {
+                product: recipe.product,
+                consumed: filled,
+                refunds: [],
+            };
+        }
     }
 
     const advancedIds = [
@@ -220,28 +235,21 @@ export function resolveForge(
         };
     }
 
-    const have = countMultiset(filled.map((f) => f.itemId));
-    let matched: ForgeRecipe | null = null;
-    for (const recipe of sortedRecipes(types, pool)) {
-        const need = countMultiset(recipe.ingredients);
-        if (recipeExact(need, have)) {
-            matched = recipe;
-            break;
+    if (filled.length >= 2 && filled.every((f) => isElementalRuneId(f.itemId))) {
+        const merged = mergeElementalIds(filled.map((f) => f.itemId));
+        if (merged && types.rune(merged)) {
+            return {
+                product: { kind: 'item', id: merged },
+                consumed: filled,
+                refunds: [],
+            };
         }
     }
 
-    if (!matched) {
-        return {
-            product: null,
-            consumed: [],
-            refunds: filled.map(({ itemId, seat }) => ({ itemId, seat })),
-        };
-    }
-
     return {
-        product: matched.product,
-        consumed: filled,
-        refunds: [],
+        product: null,
+        consumed: [],
+        refunds: filled.map(({ itemId, seat }) => ({ itemId, seat })),
     };
 }
 
@@ -370,6 +378,17 @@ export function forgeHintText(
         return '';
     }
     if (!resolveForge(types, slots, pool).product) {
+        const onlyElementals =
+            filled.length > 0 && filled.every((s) => isElementalRuneId(s.itemId));
+        if (onlyElementals && filled.length < 2) {
+            return when === 'this'
+                ? t('hud:forgeNeedTwoThis', {
+                      defaultValue: 'Need at least two runes to forge — returned this deploy',
+                  })
+                : t('hud:forgeNeedTwoNext', {
+                      defaultValue: 'Need at least two runes to forge',
+                  });
+        }
         return when === 'this'
             ? t('hud:forgeNoMatchThis', {
                   defaultValue:
@@ -394,9 +413,9 @@ export function forgeHintText(
 }
 
 
-/** Supply the oven charges to produce this — per product, 0 when it is free. */
-export function forgeProductCost(types: TypeRegistry, product: ForgeProduct): number {
-    return product.kind === 'item' ? (types.rune(product.id)?.forgeCost ?? 0) : 0;
+/** Supply the oven charges — forging is free (card prices unchanged). */
+export function forgeProductCost(_types: TypeRegistry, _product: ForgeProduct): number {
+    return 0;
 }
 
 export interface ForgeHelpRow {

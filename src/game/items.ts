@@ -9,12 +9,15 @@
  * `misc/concepts/runes/README.md`. Atlas ids: `item-*`.
  *
  * Economy: four weak base runes (earth/fire/water/wind) are always buyable in
- * the unit shop (no per-round buy-slot limit); advanced runes come from round
- * cards or commander grants — not the forge.
+ * the unit shop (no per-round buy-slot limit). Forge merges them into mix +
+ * level variants (135 elemental ids generated at load — see `runeMix.ts`).
+ * Advanced runes come from round cards or commander grants — not the forge
+ * (except optional exact recipes / advanced passthrough).
  *
  * The catalog is data: `assets/data/runes/<id>.jsonc`, in the order
- * `pack.jsonc` lists them. Look runes up through the match's
- * {@link TypeRegistry} (`types.rune(id)`, `types.baseRuneIds`).
+ * `pack.jsonc` lists them, plus generated elemental levels/mixes. Look runes
+ * up through the match's {@link TypeRegistry} (`types.rune(id)`,
+ * `types.baseRuneIds`).
  */
 import type { UnitType } from './units';
 

@@ -625,6 +625,8 @@ export function createBillboardInstances(kind: VegetationKind, capacity: number)
     mesh.receiveShadow = false;
     mesh.count = 0;
     mesh.frustumCulled = true;
+    // Cutout cards: GTAO opaque override turns them into dark slabs (postFx).
+    mesh.userData.gtaoSkip = true;
     return mesh;
 }
 

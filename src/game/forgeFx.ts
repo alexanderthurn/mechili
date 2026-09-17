@@ -14,11 +14,10 @@ const SPAWN_JITTER = 0.28;
 
 /** Derive spark intensity from oven contents + unlocked spell pool. */
 /**
- * Runes sitting in an oven nobody paid for are just storage — the chimney only
- * has something to say once the burn is bought.
+ * Runes in a complete oven → chimney glows; incomplete trays stay quiet.
  */
-export function forgeGlowMode(lit: boolean): ForgeGlowMode {
-    return lit ? 'ready' : 'off';
+export function forgeGlowMode(willBake: boolean): ForgeGlowMode {
+    return willBake ? 'ready' : 'off';
 }
 
 type ChimneyPreset = {

@@ -40,7 +40,6 @@ import {
     resolveForge,
     unionForgeSpellPools,
     type ForgeSlot,
-    forgeProductCost,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
 import { TutorialAi } from './tutorialAi';
@@ -8258,15 +8257,12 @@ export class Game {
             const limit = itemSlotLimit(unit.type);
             const out: (string | null)[] = [];
             for (let i = 0; i < limit; i++) {
-                const id = unit.items[i];
-                out.push(id ? (this.types.rune(id)?.icon ?? null) : null);
+                out.push(unit.items[i] ?? null);
             }
             return out;
         }
         if (this.canDropForgeOn(unit)) {
-            return this.forgeSlots.player!.map((s) =>
-                s ? (this.types.rune(s.itemId)?.icon ?? null) : null,
-            );
+            return this.forgeSlots.player!.map((s) => s?.itemId ?? null);
         }
         return null;
     }
@@ -8360,34 +8356,26 @@ export class Game {
 
     /**
      * Start of deploy (after intel snapshot): resolve each side's oven → grant
-     * one spell to every seat on that side; refund unused runes; clear tray.
+     * the product to every seat on that side; refund unused runes; clear tray.
+     * Forging is free — a matching tray always bakes (no pay-to-light step).
      */
     private burnForges(): void {
         if (this.round <= 1) return;
         for (const team of ['player', 'enemy'] as const) {
             const oven = this.forgeSlots[team]!;
             const pool = this.teamForgePool(team);
-            if (this.forgeLitBy[team] === null) {
-                // Nobody paid to fire it, so nothing was forged — every rune
-                // goes back to whoever put it in, matched recipe or not.
-                for (const slot of oven) {
-                    if (slot) this.itemInventory[slot.seat]!.push(slot.itemId);
+            const result = resolveForge(this.types, oven, pool);
+            if (result.product?.kind === 'tactic') {
+                for (const seat of seatIdsOf(this.seats, team)) {
+                    this.tacticInventory[seat]!.push(result.product.id);
                 }
-            } else {
-                const result = resolveForge(this.types, oven, pool);
-                if (result.product?.kind === 'tactic') {
-                    for (const seat of seatIdsOf(this.seats, team)) {
-                        this.tacticInventory[seat]!.push(result.product.id);
-                    }
-                } else if (result.product?.kind === 'item') {
-                    // same as spells: every seat on the side receives one copy
-                    for (const seat of seatIdsOf(this.seats, team)) {
-                        this.itemInventory[seat]!.push(result.product.id);
-                    }
+            } else if (result.product?.kind === 'item') {
+                for (const seat of seatIdsOf(this.seats, team)) {
+                    this.itemInventory[seat]!.push(result.product.id);
                 }
-                for (const { itemId, seat } of result.refunds) {
-                    this.itemInventory[seat]!.push(itemId);
-                }
+            }
+            for (const { itemId, seat } of result.refunds) {
+                this.itemInventory[seat]!.push(itemId);
             }
             this.forgeLitBy[team] = null;
             this.forgeSlots[team] = emptyForgeSlots(
@@ -8405,10 +8393,14 @@ export class Game {
         );
     }
 
-    /** world strip over the Stronghold: predicted bake spell (deploy only; battle = sparks) */
+    /** world strip over the Stronghold: predicted bake product (deploy only; battle = sparks) */
     private forgeWorldBadges(
         unit: Unit,
-    ): { runes: string[]; spellIcon: string | null } | null {
+    ): {
+        runes: string[];
+        spellIcon: string | null;
+        productItemId?: string | null;
+    } | null {
         if (!hasAbility(unit.type, 'forge')) return null;
         // battle: chimney sparks only — spell badge is deploy intel / loading UI
         if (this.phase !== 'build') return null;
@@ -8437,7 +8429,12 @@ export class Game {
             : null;
         const spellIcon = info?.icon ?? null;
         if (!spellIcon) return null;
-        return { runes: [], spellIcon };
+        return {
+            runes: [],
+            spellIcon,
+            productItemId:
+                result.product?.kind === 'item' ? result.product.id : null,
+        };
     }
 
     /**
@@ -8459,13 +8456,10 @@ export class Game {
                       id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null,
                   )
                 : this.forgeSlots[team]!;
+            const willBake = !!resolveForge(this.types, oven, this.teamForgePool(team)).product;
             targets.push({
                 unit,
-                mode: forgeGlowMode(
-                    snapIds && this.buildingIntelSnapshot
-                        ? (this.buildingIntelSnapshot.forgeLit[team] ?? false)
-                        : this.forgeLitBy[team] !== null,
-                ),
+                mode: forgeGlowMode(willBake),
             });
         }
         this.forgeFx.update(dt, this.time, targets, this.scene);
@@ -11697,8 +11691,16 @@ export class Game {
                 enemy: this.forgeSlots.enemy.map((s) => s?.itemId ?? null),
             },
             forgeLit: {
-                player: this.forgeLitBy.player !== null,
-                enemy: this.forgeLitBy.enemy !== null,
+                player: !!resolveForge(
+                    this.types,
+                    this.forgeSlots.player,
+                    this.teamForgePool('player'),
+                ).product,
+                enemy: !!resolveForge(
+                    this.types,
+                    this.forgeSlots.enemy,
+                    this.teamForgePool('enemy'),
+                ).product,
             },
         };
     }
@@ -11870,28 +11872,26 @@ export class Game {
         const bakeInfo = bakeResult.product
             ? forgeProductInfo(this.types, bakeResult.product)
             : null;
-        const lit =
-            fogged && this.buildingIntelSnapshot
-                ? (this.buildingIntelSnapshot.forgeLit[team] ?? false)
-                : this.forgeLitBy[team] !== null;
-        const bakeCost = bakeResult.product ? forgeProductCost(this.types, bakeResult.product) : 0;
+        const lit = !!bakeInfo;
         out.forge = {
             slotCount,
             lit,
-            canUnlight: canBuy && this.forgeLitBy[team] === this.humanSeat,
-            bakeAffordable: canBuy && !lit && this.economy.balance(this.humanSeat) >= bakeCost,
-            dropReady: !fogged && !lit && this.canDropForgeOn(u),
+            canUnlight: false,
+            bakeAffordable: true,
+            dropReady: !fogged && this.canDropForgeOn(u),
             hint: forgeHintText(this.types, hintSlots, fogged ? 'this' : 'next', pool, lit),
             suggestions,
             spellPool: pool,
             bake: bakeInfo
                 ? {
+                      id:
+                          bakeResult.product?.kind === 'item'
+                              ? bakeResult.product.id
+                              : undefined,
                       icon: bakeInfo.icon,
                       name: bakeInfo.name,
                       desc: bakeInfo.desc,
-                      forgeCost: bakeResult.product
-                          ? forgeProductCost(this.types, bakeResult.product)
-                          : 0,
+                      forgeCost: 0,
                       ingredientIcons:
                           bakeResult.product?.kind === 'tactic'
                               ? forgeIngredientIcons(this.types, bakeResult.product.id)

@@ -33,6 +33,8 @@ import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from
 import { effectiveTargets, effectiveFlying } from './tech';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import { drawIcon } from '../ui/iconAtlas';
+import { levelTintCss } from './colors';
+import { elementalLevel } from './runeMix';
 
 /** horde unit ids start here — far above anything the parity counters reach */
 const HORDE_ID_BASE = 1_000_000;
@@ -320,11 +322,17 @@ export class PlacementController {
      */
     ownedTechIcons: ((unit: Unit) => string[]) | null = null;
     /**
-     * Stronghold forge strip — rune atlas ids + optional predicted spell icon.
+     * Stronghold forge strip — oven rune atlas ids + predicted product icon.
+     * `productItemId` (when set) drives the level border/chip on the world badge.
      * Null / empty = no forge strip for this unit.
      */
-    forgeStatusIcons: ((unit: Unit) => { runes: string[]; spellIcon: string | null } | null) | null =
-        null;
+    forgeStatusIcons: ((
+        unit: Unit,
+    ) => {
+        runes: string[];
+        spellIcon: string | null;
+        productItemId?: string | null;
+    } | null) | null = null;
     /**
      * Forge strip stays on during battle; cinema (Shift+C) turns this off so
      * the oven icons leave the world shot.
@@ -339,8 +347,8 @@ export class PlacementController {
      */
     itemDropValid: ((unit: Unit) => boolean) | null = null;
     /**
-     * Armed rune: icon strip over valid targets — filled atlas ids, `null` =
-     * empty slot (green drop ring). Overrides the normal status strip.
+     * Armed rune: icon strip over valid targets — item ids for filled slots,
+     * `null` = empty slot (green drop ring). Overrides the normal status strip.
      */
     itemDropStripIcons: ((unit: Unit) => readonly (string | null)[] | null) | null = null;
     /**
@@ -1536,23 +1544,26 @@ export class PlacementController {
         const placeItemSlotStrip = (
             unit: Unit,
             world: Vector3,
-            icons: readonly (string | null)[],
+            itemIds: readonly (string | null)[],
         ) => {
-            const n = icons.length;
+            const n = itemIds.length;
             if (n === 0) return;
             const y = this.statusStripY(unit, world);
             const mid = (n - 1) / 2;
-            icons.forEach((iconId, slot) => {
+            itemIds.forEach((itemId, slot) => {
                 let sprite = this.itemBadges[itemUsed];
                 if (!sprite) {
-                    sprite = new Sprite();
-                    this.scene.add(sprite);
+                    sprite = this.makeStatusBadgeSprite();
                     this.itemBadges.push(sprite);
                 }
+                sprite.userData.gtaoSkip = true;
                 sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
-                sprite.material = iconId
-                    ? this.itemBadgeMaterial(iconId)
-                    : this.emptySlotBadgeMaterial(true);
+                if (itemId) {
+                    const icon = this.types.rune(itemId)?.icon ?? 'ui-unknown';
+                    sprite.material = this.itemBadgeMaterial(icon, elementalLevel(itemId));
+                } else {
+                    sprite.material = this.emptySlotBadgeMaterial(true);
+                }
                 sprite.renderOrder = 0;
                 const t = slot - mid;
                 sprite.position.set(
@@ -1570,21 +1581,23 @@ export class PlacementController {
             world: Vector3,
             itemIconIds: string[],
             techIconIds: string[],
+            itemLevels: readonly number[] = [],
         ) => {
             const n = itemIconIds.length + techIconIds.length;
             if (n === 0) return;
             const y = this.statusStripY(unit, world);
             const mid = (n - 1) / 2;
             let slot = 0;
-            for (const itemIconId of itemIconIds) {
+            for (let i = 0; i < itemIconIds.length; i++) {
+                const itemIconId = itemIconIds[i]!;
                 let sprite = this.itemBadges[itemUsed];
                 if (!sprite) {
-                    sprite = new Sprite();
-                    this.scene.add(sprite);
+                    sprite = this.makeStatusBadgeSprite();
                     this.itemBadges.push(sprite);
                 }
+                sprite.userData.gtaoSkip = true;
                 sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
-                sprite.material = this.itemBadgeMaterial(itemIconId);
+                sprite.material = this.itemBadgeMaterial(itemIconId, itemLevels[i] ?? 0);
                 sprite.renderOrder = 0;
                 const t = slot - mid;
                 sprite.position.set(
@@ -1599,10 +1612,10 @@ export class PlacementController {
             for (const iconId of techIconIds) {
                 let sprite = this.techBadges[techUsed];
                 if (!sprite) {
-                    sprite = new Sprite();
-                    this.scene.add(sprite);
+                    sprite = this.makeStatusBadgeSprite();
                     this.techBadges.push(sprite);
                 }
+                sprite.userData.gtaoSkip = true;
                 sprite.scale.set(STATUS_BADGE_SIZE, STATUS_BADGE_SIZE, 1);
                 sprite.material = this.techBadgeMaterial(iconId);
                 sprite.renderOrder = 0;
@@ -1630,24 +1643,36 @@ export class PlacementController {
                 placeItemSlotStrip(unit, world, dropStrip);
                 continue;
             }
-            // forge spell badge is deploy-only (battle shows chimney sparks instead)
+            // forge product badge is deploy-only (battle shows chimney sparks instead)
             const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(unit) : null;
             if (forge) {
-                placeStrip(
-                    unit,
-                    world,
-                    forge.runes,
-                    forge.spellIcon ? [forge.spellIcon] : [],
-                );
+                const productId = forge.productItemId ?? null;
+                const lvl = productId ? elementalLevel(productId) : 0;
+                if (forge.spellIcon && productId) {
+                    // Item product: circular plate + level chrome (matches HUD runes)
+                    placeStrip(unit, world, [forge.spellIcon], [], [lvl]);
+                } else {
+                    // Spell product (or unknown): flat tech icon
+                    placeStrip(
+                        unit,
+                        world,
+                        forge.runes,
+                        forge.spellIcon ? [forge.spellIcon] : [],
+                    );
+                }
                 continue;
             }
             if (!this.enabled) continue;
-            placeStrip(
-                unit,
-                world,
-                this.intelItemIcons(unit),
-                this.ownedTechIcons?.(unit) ?? [],
-            );
+            {
+                const items = this.intelItems(unit);
+                placeStrip(
+                    unit,
+                    world,
+                    items.map((i) => i.icon),
+                    this.ownedTechIcons?.(unit) ?? [],
+                    items.map((i) => i.level),
+                );
+            }
         }
         if (this.enabled && this.intelFog) {
             for (const [id, snap] of this.intelSnapshot) {
@@ -1657,18 +1682,33 @@ export class PlacementController {
                 if (!ghost) continue;
                 const forge = this.forgeStatusVisible ? this.forgeStatusIcons?.(ghost) : null;
                 if (forge) {
-                    placeStrip(
-                        ghost,
-                        snap.world,
-                        forge.runes,
-                        forge.spellIcon ? [forge.spellIcon] : [],
-                    );
+                    const productId = forge.productItemId ?? null;
+                    const lvl = productId ? elementalLevel(productId) : 0;
+                    if (forge.spellIcon && productId) {
+                        placeStrip(ghost, snap.world, [forge.spellIcon], [], [lvl]);
+                    } else {
+                        placeStrip(
+                            ghost,
+                            snap.world,
+                            forge.runes,
+                            forge.spellIcon ? [forge.spellIcon] : [],
+                        );
+                    }
                     continue;
                 }
-                const itemIcons = snap.items
-                    .map((id) => (this.types.rune(id)?.icon ?? null))
-                    .filter((id): id is string => id !== null);
-                placeStrip(ghost, snap.world, itemIcons, this.ownedTechIcons?.(ghost) ?? []);
+                const items: { icon: string; level: number }[] = [];
+                for (const itemId of snap.items) {
+                    const icon = this.types.rune(itemId)?.icon;
+                    if (!icon) continue;
+                    items.push({ icon, level: elementalLevel(itemId) });
+                }
+                placeStrip(
+                    ghost,
+                    snap.world,
+                    items.map((i) => i.icon),
+                    this.ownedTechIcons?.(ghost) ?? [],
+                    items.map((i) => i.level),
+                );
             }
         }
         for (let i = itemUsed; i < this.itemBadges.length; i++) this.itemBadges[i]!.visible = false;
@@ -1705,19 +1745,23 @@ export class PlacementController {
         return items + techs;
     }
 
-    private itemBadgeMaterial(iconId: string): SpriteMaterial {
+    private itemBadgeMaterial(iconId: string, level = 0): SpriteMaterial {
+        const tint = levelTintCss(level);
         // style tag busts the cache when the paint/depth recipe changes
-        const key = `${iconId}|solid`;
+        const key = tint ? `${iconId}|lvl${level}|${tint}|nodw` : `${iconId}|solid|nodw`;
         let material = this.itemBadgeMaterials.get(key);
         if (!material) {
-            const texture = this.paintItemBadgeTexture(iconId);
+            const texture = tint
+                ? this.paintLeveledItemBadgeTexture(iconId, level, tint)
+                : this.paintItemBadgeTexture(iconId);
             material = new SpriteMaterial({
                 map: texture,
-                // cut out the square corners; disc itself is opaque and depth-writing
+                // cut out the square corners; do not write depth — GTAO would
+                // otherwise treat the whole billboard quad as a dark slab
                 transparent: false,
                 alphaTest: 0.5,
                 depthTest: true,
-                depthWrite: true,
+                depthWrite: false,
             });
             this.itemBadgeMaterials.set(key, material);
         }
@@ -1726,7 +1770,7 @@ export class PlacementController {
 
     /** atlas icon as-is (same as details-pane tech tiles) — no plate, depth-tested */
     private techBadgeMaterial(iconId: string): SpriteMaterial {
-        const key = `${iconId}|atlas|flat`;
+        const key = `${iconId}|atlas|flat|nodw`;
         let material = this.techBadgeMaterials.get(key);
         if (!material) {
             const texture = this.paintTechBadgeTexture(iconId);
@@ -1735,7 +1779,7 @@ export class PlacementController {
                 transparent: false,
                 alphaTest: 0.5,
                 depthTest: true,
-                depthWrite: true,
+                depthWrite: false,
             });
             this.techBadgeMaterials.set(key, material);
         }
@@ -1752,11 +1796,19 @@ export class PlacementController {
                 transparent: false,
                 alphaTest: 0.5,
                 depthTest: true,
-                depthWrite: true,
+                depthWrite: false,
             });
             this.emptySlotBadgeMaterials.set(dropReady, material);
         }
         return material;
+    }
+
+    /** HUD status strip billboard — skipped by GTAO G-buffer (see postFx). */
+    private makeStatusBadgeSprite(): Sprite {
+        const sprite = new Sprite();
+        sprite.userData.gtaoSkip = true;
+        this.scene.add(sprite);
+        return sprite;
     }
 
     /** opaque circular plate + atlas icon; corners stay transparent for alphaTest */
@@ -1775,6 +1827,54 @@ export class PlacementController {
         ctx.clip();
         drawIcon(ctx, iconId, 0, 0, 64);
         ctx.restore();
+        const texture = new CanvasTexture(canvas);
+        texture.colorSpace = SRGBColorSpace;
+        return texture;
+    }
+
+    /** Circular rune plate + level border + outside digit chip (matches HUD). */
+    private paintLeveledItemBadgeTexture(
+        iconId: string,
+        level: number,
+        borderCss: string,
+    ): CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 80;
+        canvas.height = 80;
+        const ctx = canvas.getContext('2d')!;
+        const cx = 36;
+        const cy = 36;
+        const r = 30;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = THEME.ui.techBuyBg;
+        ctx.fill();
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.clip();
+        drawIcon(ctx, iconId, cx - 32, cy - 32, 64);
+        ctx.restore();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+        ctx.strokeStyle = borderCss;
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        const chipX = 64;
+        const chipY = 64;
+        const chipR = 13;
+        ctx.beginPath();
+        ctx.arc(chipX, chipY, chipR, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(8, 6, 4, 0.94)';
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = borderCss;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '900 16px system-ui, Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(level), chipX, chipY + 0.5);
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
         return texture;
@@ -1990,7 +2090,8 @@ export class PlacementController {
         return unit.world;
     }
 
-    private intelItemIcons(unit: Unit): string[] {
+    /** Equipped rune icons + levels for the status strip (fog-aware). */
+    private intelItems(unit: Unit): { icon: string; level: number }[] {
         const ids = (() => {
             if (!this.isFogged(unit)) return unit.items;
             if (!this.enemyIntelVisible(unit)) return [];
@@ -2000,7 +2101,17 @@ export class PlacementController {
             }
             return unit.items;
         })();
-        return ids.map((id) => (this.types.rune(id)?.icon ?? null)).filter((id): id is string => id !== null);
+        const out: { icon: string; level: number }[] = [];
+        for (const id of ids) {
+            const icon = this.types.rune(id)?.icon;
+            if (!icon) continue;
+            out.push({ icon, level: elementalLevel(id) });
+        }
+        return out;
+    }
+
+    private intelItemIcons(unit: Unit): string[] {
+        return this.intelItems(unit).map((i) => i.icon);
     }
 
     private memberPositionsAt(world: Vector3, unit: Unit): Vector3[] {

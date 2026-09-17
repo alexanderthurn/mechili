@@ -4,7 +4,7 @@
  * On → RenderPass → [AO] → [bloom] → [vignette] → OutputPass
  * so ACES / sRGB stay correct (tone map only on the final blit).
  */
-import { Vector2, type Camera, type Scene, type WebGLRenderer } from 'three';
+import { Vector2, type Camera, type Material, type Object3D, type Scene, type WebGLRenderer } from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
@@ -13,6 +13,25 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
 import type { AoQuality, BloomQuality, VignetteQuality } from './prefs';
+
+/**
+ * Objects that look wrong in GTAO's opaque G-buffer (cutout/sprite quads →
+ * dark slabs). Points/Lines are already stripped by GTAOPass itself.
+ */
+function shouldSkipGtaoObject(object: Object3D): boolean {
+    const o = object as Object3D & {
+        isSprite?: boolean;
+        material?: Material | Material[];
+        userData?: { wardDome?: boolean; gtaoSkip?: boolean };
+    };
+    if (o.userData?.wardDome || o.userData?.gtaoSkip) return true;
+    if (o.isSprite) return true;
+    const mat = o.material;
+    if (!mat) return false;
+    const mats = Array.isArray(mat) ? mat : [mat];
+    // alpha-tested billboards / foliage cards (trees, bushes, grass tufts, …)
+    return mats.some((m) => (m.alphaTest ?? 0) > 0);
+}
 
 /** Eskil vignette: higher offset → stronger corner falloff. */
 const VIGNETTE: Record<Exclude<VignetteQuality, 'off'>, { offset: number; darkness: number }> = {
@@ -253,10 +272,10 @@ export class PostFx {
                 Math.max(4, Math.floor(bh * s)),
             );
             ao.output = GTAOPass.OUTPUT.Default;
-            // GTAO's normal pass uses an opaque override. Ward domes are huge
-            // transparent shells — leaving them in writes a full-screen depth
-            // wall and has shown one-frame clear/sky flashes. Hide them for
-            // the G-buffer only (same cache restore path as points/lines).
+            // GTAO's normal/depth pass uses an opaque override — alpha cutouts
+            // and sprites become solid quads (dark slabs on trees, HUD badges,
+            // sun glow, …). Hide those for the G-buffer only; Points/Lines are
+            // already stripped by GTAOPass._overrideVisibility.
             // Runtime fields are underscored; @types/three names differ.
             type GtaoVis = {
                 _overrideVisibility: () => void;
@@ -268,10 +287,10 @@ export class PostFx {
                 hideDefault();
                 const cache = gtao._visibilityCache;
                 this.scene.traverse((object) => {
-                    const o = object as { visible?: boolean; userData?: { wardDome?: boolean } };
-                    if (o.userData?.wardDome && o.visible) {
-                        o.visible = false;
-                        cache.push(o as { visible: boolean });
+                    if (!object.visible) return;
+                    if (shouldSkipGtaoObject(object)) {
+                        object.visible = false;
+                        cache.push(object as { visible: boolean });
                     }
                 });
             };

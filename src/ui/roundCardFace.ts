@@ -92,7 +92,6 @@ function forgeRowsHtml(rows: readonly RuneCardForgeRow[], cardRuneId: string | n
                 `data-ttitle="${escapeAttr(row.spellName)}" ` +
                 `data-tdesc="${escapeAttr(row.spellDesc)}" ` +
                 `data-ticon="${escapeAttr(row.spellIcon)}" ` +
-                `data-tfee="${row.forgeCost}" ` +
                 `data-forge-ings="${escapeAttr(ingIcons)}">` +
                 `${iconHtml(row.spellIcon, 'c-forge-spell-ico')}` +
                 under +
