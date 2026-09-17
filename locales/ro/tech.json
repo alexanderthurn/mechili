@@ -2,30 +2,25 @@
   "legs": {
     "name": "Picioare de flotă"
   },
-  "carapace": {
-    "name": "Ascuns de piatră"
-  },
   "barrel": {
-    "name": "Arc lung"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Săgeți străpungătoare"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Săgeți de foc",
-    "description": "Săgețile lasă un scurt foc la sol și ard — suficient cât să aprindă bălțile de petrol."
-  },
-  "engines": {
-    "name": "Aripi de Gale"
-  },
-  "stingers": {
-    "name": "Gheare de corb"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Placare cu fier"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Troliu rapid"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Aegis",
@@ -69,5 +64,9 @@
     "produceOffspring": "Nivelul părintelui potrivit pentru urmași",
     "onKill": "Când această unitate ucide, ridică un {{child}}",
     "cleave": "Lovește toți inamicii aflați în raza de {{radius}} (în jurul acestei unități)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

@@ -2,30 +2,25 @@
   "legs": {
     "name": "Быстрые ноги"
   },
-  "carapace": {
-    "name": "Каменная шкура"
-  },
   "barrel": {
-    "name": "Длинный лук"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Пронзающие стрелы"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Огненные стрелы",
-    "description": "Стрелы оставляют краткий огонь на земле и жгут — достаточно, чтобы поджечь масляные лужи."
-  },
-  "engines": {
-    "name": "Крылья шквала"
-  },
-  "stingers": {
-    "name": "Когти ворона"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Железная броня"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Быстрая лебёдка"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Эгида",
@@ -69,5 +64,9 @@
     "produceOffspring": ". Потомство соответствует уровню родителя",
     "onKill": "Когда этот юнит убивает, поднимает {{child}}",
     "cleave": "Поражает каждого врага в радиусе {{radius}} (вокруг этого юнита)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

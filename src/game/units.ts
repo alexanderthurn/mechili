@@ -129,6 +129,44 @@ export interface TechDef {
      * Golden / debuff-immune shrugs it off. Innate talents still apply.
      */
     emp?: { duration: number; speedMult?: number };
+    /** Extra damage / range vs airborne foes (`altitude > 0`). Multipliers. */
+    vsAir?: { damage?: number; range?: number };
+    /** Extra damage / range vs grounded foes (`altitude <= 0`). Multipliers. */
+    vsGround?: { damage?: number; range?: number };
+    /**
+     * Extra per-level scaling on top of the global veterancy mult.
+     * `damagePerLevel` / `rangePerLevel` are added per level above 1
+     * (e.g. 0.1 → +10% per level).
+     */
+    levelScale?: { damagePerLevel?: number; rangePerLevel?: number };
+    /** Passive HP regen while alive in battle. */
+    regen?: { hpPerSecond?: number; maxHpFractionPerSecond?: number };
+    /** Fraction of HP/shield damage dealt returned as pack HP (split among living members). */
+    lifesteal?: number;
+    /** On kill: heal this pack for `ofVictimMaxHp` × victim max HP (split among living members). */
+    onKillHeal?: { ofVictimMaxHp: number };
+    /**
+     * On death: splash nova and/or acid puddle.
+     * Explode damage = dying body's maxHp × `damageMult` (default 1).
+     */
+    onDeath?: {
+        explode?: { splash: number; damageMult?: number };
+        acid?: { radius: number };
+    };
+    /**
+     * Added to {@link UnitType.formationSpread} when laying out pack members
+     * (looser spacing vs splash). Applied at spawn time.
+     */
+    formationSpreadAdd?: number;
+    /**
+     * Convert-ray extras (wizard). `maxTargets` channels at once;
+     * `intensityMult` scales each channel (weaker multi-bind).
+     */
+    convert?: { maxTargets?: number; intensityMult?: number };
+    /** After a successful convert, restore the victim to full HP. */
+    convertHealFull?: boolean;
+    /** Every deploy round this pack may be repositioned without Move Pack. */
+    freeRedeploy?: boolean;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
     /** atlas glyph; omit to show `tech-default` (question mark — missing icon) */
@@ -1200,6 +1238,10 @@ export class Unit {
         readonly world: Vector3,
         /** placement rotated 90°: footprint and formation use swapped cols/rows */
         public rotated = false,
+        /**
+         * Member scatter multiplier (Loose Rank etc.). Omit = {@link UnitType.formationSpread}.
+         */
+        formationSpread?: number,
     ) {
         // Fire Bolt hovers at combat altitude from the moment it's placed —
         // unlike crow riders, it never hugs the ground during deployment
@@ -1208,6 +1250,7 @@ export class Unit {
         const formation = rotated ? swapExtent(type.formation) : type.formation;
         const spacingX = (footprint.cols * CELL) / formation.cols;
         const spacingZ = (footprint.rows * CELL) / formation.rows;
+        const spread = formationSpread ?? type.formationSpread ?? 0;
         // which model/instance-pool asset to use — defaults to the type's own
         // id, but a horde-only variant (e.g. HORDE_ZOMBIE) can point this at a
         // dedicated GLB via modelId (see UnitType.modelId)
@@ -1253,10 +1296,10 @@ export class Unit {
                 mesh.scale.setScalar(type.meshScale);
                 let ox = (i - (formation.cols - 1) / 2) * spacingX;
                 let oz = (j - (formation.rows - 1) / 2) * spacingZ;
-                if (type.formationSpread) {
+                if (spread > 0) {
                     const key = i * 131 + j * 7919;
-                    ox += (hash01(key + 1) - 0.5) * spacingX * type.formationSpread;
-                    oz += (hash01(key + 104729) - 0.5) * spacingZ * type.formationSpread;
+                    ox += (hash01(key + 1) - 0.5) * spacingX * spread;
+                    oz += (hash01(key + 104729) - 0.5) * spacingZ * spread;
                 }
                 mesh.position.set(ox, 0, oz);
                 this.view.add(mesh);

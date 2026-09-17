@@ -30,6 +30,6 @@
     "turnRate": 4,
     "proceduralModel": "dwarf",
     // standard talents for The Komtur's side (Dark Harvest stays innate)
-    "talents": ["bloodRage", "carapace"],
-    "talentSlots": 2,
+    "talents": ["bloodRage", "armor"],
+    "talentSlots": 4,
 }

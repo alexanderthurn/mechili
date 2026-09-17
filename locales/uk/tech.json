@@ -2,30 +2,25 @@
   "legs": {
     "name": "Швидкі ноги"
   },
-  "carapace": {
-    "name": "Кам'яна Шкура"
-  },
   "barrel": {
-    "name": "Довгий лук"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Бронебійні стріли"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Вогняні стріли",
-    "description": "Стріли залишають короткочасний наземний вогонь і горять — достатньо, щоб запалити калюжі нафти."
-  },
-  "engines": {
-    "name": "Крила шквалу"
-  },
-  "stingers": {
-    "name": "Кігті воронів"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Залізне покриття"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Швидка лебідка"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Егіда",
@@ -69,5 +64,9 @@
     "produceOffspring": ". Потомство відповідає рівню батьків",
     "onKill": "Коли цей юніт вбиває, піднімає {{child}}",
     "cleave": "Вражає кожного ворога в радіусі {{radius}} (навколо цього юніта)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

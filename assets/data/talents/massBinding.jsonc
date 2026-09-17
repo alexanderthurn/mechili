@@ -1,0 +1,9 @@
+// Convert several foes at once, each channel weaker.
+{
+    "id": "massBinding",
+    "name": "Mass Binding",
+    "cost": 300,
+    "mods": {},
+    "convert": { "maxTargets": 3, "intensityMult": 0.55 },
+    "description": "Convert up to 3 enemies at once; each channel is 45% weaker.",
+}

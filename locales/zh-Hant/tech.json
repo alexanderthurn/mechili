@@ -2,30 +2,25 @@
   "legs": {
     "name": "捷足"
   },
-  "carapace": {
-    "name": "石膚"
-  },
   "barrel": {
-    "name": "長弓"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "穿甲箭"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "火焰箭",
-    "description": "箭矢在地面留下短暫火焰並灼燒——足以點燃油潭。"
-  },
-  "engines": {
-    "name": "疾風之翼"
-  },
-  "stingers": {
-    "name": "鴉爪"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "鐵甲"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "速絞盤"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "神盾",
@@ -69,5 +64,9 @@
     "produceOffspring": "。子嗣與親本等級相同",
     "onKill": "當此單位擊殺時，喚出 {{child}}",
     "cleave": "命中此單位周圍 {{radius}} 內的每個敵人"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

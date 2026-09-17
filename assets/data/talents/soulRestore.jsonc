@@ -1,0 +1,9 @@
+// Converted units return to full health.
+{
+    "id": "soulRestore",
+    "name": "Soul Restore",
+    "cost": 250,
+    "mods": {},
+    "convertHealFull": true,
+    "description": "Converted units are restored to full HP.",
+}

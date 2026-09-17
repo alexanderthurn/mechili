@@ -32,6 +32,6 @@
     "sandWeight": 1.5,
     "proceduralModel": "ogre",
     // Breakthrough pivots
-    "talents": ["whirlwind", "bloodRage", "carapace", "aegis"],
-    "talentSlots": 2,
+    "talents": ["whirlwind", "bloodRage", "armor", "aegis", "regeneration", "bloodfeast", "carrionFeast", "ruinousEnd", "groundhunt"],
+    "talentSlots": 4,
 }

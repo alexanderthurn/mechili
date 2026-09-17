@@ -2,30 +2,25 @@
   "legs": {
     "name": "Tez Ayaklar"
   },
-  "carapace": {
-    "name": "Taş Deri"
-  },
   "barrel": {
-    "name": "Uzun yay"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Delici Oklar"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Ateş Okları",
-    "description": "Oklar kısa süreli bir yer ateşi bırakır ve yanar; bu ateş, petrol birikintilerini tutuşturmaya yeter."
-  },
-  "engines": {
-    "name": "Fırtına Kanatları"
-  },
-  "stingers": {
-    "name": "Karga Pençeleri"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Demir Kaplama"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Hızlı Vinç"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Aegis",
@@ -69,5 +64,9 @@
     "produceOffspring": ". Yavrular ebeveyn seviyesindedir",
     "onKill": "Bu birim öldürdüğünde bir {{child}} diriltir",
     "cleave": "{{radius}} içindeki (bu birimin etrafındaki) tüm düşmanlara vurur."
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

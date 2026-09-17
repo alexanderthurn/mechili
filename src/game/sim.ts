@@ -45,6 +45,7 @@ import {
     type BattleTeam,
     type DeathWear,
     type Team,
+    type TechDef,
     type Unit,
     type UnitType,
     levelBasisOf,
@@ -397,8 +398,10 @@ export interface Actor {
     allegiance: BattleTeam | null;
     /** seat that owns this mech while {@link allegiance} is set */
     allegianceSeat: number;
-    /** sticky convert-ray victim (wizard second weapon) */
+    /** sticky convert-ray victim (wizard second weapon) — primary / FX compat */
     convertTarget: Actor | null;
+    /** multi-bind convert channels (Mass Binding); {@link convertTarget} mirrors [0] */
+    convertTargets: Actor[];
     /** accumulated convert progress (0..hp); flips when ≥ current hp */
     convertProgress: number;
     /** who is currently channeling a convert ray onto this mech (for the UI bar) */
@@ -958,6 +961,8 @@ export class BattleSim {
         [];
     /** golden-angle counter so stacked corpses don't occupy the same xz */
     private onKillSpawnSeq = 0;
+    /** bodies that already fired onDeath talents this battle (explode / acid) */
+    private readonly deathTalentsApplied = new Set<Actor>();
     /** pack → cleave disk radius; 0 / missing = single-target melee */
     private readonly cleaveRadiusByUnit = new Map<Unit, number>();
     /**
@@ -1094,6 +1099,7 @@ export class BattleSim {
                     allegiance: null,
                     allegianceSeat: unit.seat,
                     convertTarget: null,
+                    convertTargets: [],
                     convertProgress: 0,
                     convertBy: null,
                     convertCooldown: 0,
@@ -1383,18 +1389,24 @@ export class BattleSim {
         // shield always eats exactly one more attack than its pool covers.
         // Hex shuts off talent shields (Aegis); item runes (Bulwark) still soak.
         if (channel === 'shielded' && target.shieldHp > 0 && !this.techShieldSuppressed(target)) {
-            source.damageDealt += Math.min(amount, target.shieldHp);
+            const drained = Math.min(amount, target.shieldHp);
+            source.damageDealt += drained;
             this.recordDamage(source, amount);
             target.shieldHp = Math.max(0, target.shieldHp - amount);
             target.hurtTimer = HURT_BAR_SECONDS;
             if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
+            const steal = this.lifestealFraction(source);
+            if (steal > 0 && drained > 0) this.healPack(source, drained * steal);
             return;
         }
-        source.damageDealt += Math.min(amount, Math.max(0, target.hp));
+        const drained = Math.min(amount, Math.max(0, target.hp));
+        source.damageDealt += drained;
         target.hp -= amount;
         this.recordDamage(source, amount);
         target.hurtTimer = HURT_BAR_SECONDS;
         if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
+        const steal = this.lifestealFraction(source);
+        if (steal > 0 && drained > 0) this.healPack(source, drained * steal);
         if (target.hp <= 0) this.kill(target, source, amount, knockDir);
     }
 
@@ -1445,6 +1457,164 @@ export class BattleSim {
         let m = this.debuff(a, towerSpeedMult);
         if (this.isEmpd(a)) m *= a.empSpeedMult;
         return m;
+    }
+
+    /** Owned talents that still apply on this body (innate + researched; hex strips researched). */
+    private techProfiles(a: Actor): TechDef[] {
+        const out: TechDef[] = [];
+        for (const tech of this.config.types.talentsOf(a.unit.type)) {
+            if (this.actorHasTech(a, tech.id)) out.push(tech);
+        }
+        return out;
+    }
+
+    /** Product of vsAir / vsGround multipliers for the target's layer. */
+    private vsLayerMult(attacker: Actor, target: Actor, kind: 'damage' | 'range'): number {
+        let m = 1;
+        const air = target.altitude > 0;
+        for (const tech of this.techProfiles(attacker)) {
+            const layer = air ? tech.vsAir : tech.vsGround;
+            if (!layer) continue;
+            const v = kind === 'damage' ? layer.damage : layer.range;
+            if (v != null) m *= v;
+        }
+        return m;
+    }
+
+    /** 1 + (level − 1) × sum of per-level talent bonuses. */
+    private levelScaleMult(a: Actor, kind: 'damage' | 'range'): number {
+        let per = 0;
+        for (const tech of this.techProfiles(a)) {
+            if (!tech.levelScale) continue;
+            const v = kind === 'damage' ? tech.levelScale.damagePerLevel : tech.levelScale.rangePerLevel;
+            if (v != null) per += v;
+        }
+        return 1 + (a.unit.level - 1) * per;
+    }
+
+    /** Weapon reach after levelScale + vsLayer range multipliers. */
+    private weaponRange(attacker: Actor, target: Actor, baseRange: number): number {
+        return baseRange * this.levelScaleMult(attacker, 'range') * this.vsLayerMult(attacker, target, 'range');
+    }
+
+    /**
+     * Attack damage roll: base × veterancy × tower attack debuff × levelScale × vsLayer.
+     */
+    private hitDamage(
+        attacker: Actor,
+        target: Actor,
+        statsDamage: number,
+        attackMult: number,
+    ): number {
+        return (
+            statsDamage *
+            this.levelMult(attacker.unit) *
+            this.debuff(attacker, attackMult) *
+            this.levelScaleMult(attacker, 'damage') *
+            this.vsLayerMult(attacker, target, 'damage')
+        );
+    }
+
+    /** Split heal among living non-structure members of a pack. */
+    private healPack(unit: Unit, totalHeal: number): void {
+        if (totalHeal <= 0 || unit.type.structure) return;
+        const members: Actor[] = [];
+        for (const a of this.actors) {
+            if (a.unit !== unit || !a.alive) continue;
+            members.push(a);
+        }
+        if (members.length === 0) return;
+        const each = totalHeal / members.length;
+        for (const a of members) {
+            a.hp = Math.min(a.maxHp, a.hp + each);
+        }
+    }
+
+    /**
+     * Strongest lifesteal fraction among owned researched talents (seat research —
+     * same ownership check as {@link empProfileOf}).
+     */
+    private lifestealFraction(source: Unit): number {
+        let best = 0;
+        for (const tech of techsForUnit(source.type, this.config.types, this.config.loadoutOf(source.seat))) {
+            if (tech.lifesteal == null) continue;
+            if (!this.config.hasTech(source.seat, source.type.id, tech.id)) continue;
+            if (tech.lifesteal > best) best = tech.lifesteal;
+        }
+        return best;
+    }
+
+    /** Convert-ray extras: channel count, intensity scale, full heal on flip. */
+    private convertTuning(caster: Actor): {
+        maxTargets: number;
+        intensityMult: number;
+        healFull: boolean;
+    } {
+        let maxTargets = 1;
+        let intensityMult = 1;
+        let healFull = false;
+        for (const tech of this.techProfiles(caster)) {
+            if (tech.convert) {
+                if (tech.convert.maxTargets != null) {
+                    maxTargets = Math.max(maxTargets, tech.convert.maxTargets);
+                }
+                if (tech.convert.intensityMult != null) {
+                    intensityMult *= tech.convert.intensityMult;
+                }
+            }
+            if (tech.convertHealFull) healFull = true;
+        }
+        return { maxTargets, intensityMult, healFull };
+    }
+
+    /** Death nova / acid puddle from onDeath talents. Once per body. */
+    private applyOnDeathTalents(target: Actor): void {
+        if (this.deathTalentsApplied.has(target)) return;
+        this.deathTalentsApplied.add(target);
+        if (target.unit.type.structure || target.unit.type.extra) return;
+        let explodeSplash = 0;
+        let explodeMult = 1;
+        let acidRadius = 0;
+        let hasExplode = false;
+        for (const tech of this.techProfiles(target)) {
+            const od = tech.onDeath;
+            if (!od) continue;
+            if (od.explode) {
+                const mult = od.explode.damageMult ?? 1;
+                if (!hasExplode || od.explode.splash > explodeSplash) {
+                    explodeSplash = od.explode.splash;
+                    explodeMult = mult;
+                    hasExplode = true;
+                } else if (od.explode.splash === explodeSplash && mult > explodeMult) {
+                    explodeMult = mult;
+                }
+            }
+            if (od.acid) {
+                acidRadius = Math.max(acidRadius, od.acid.radius);
+            }
+        }
+        if (hasExplode && explodeSplash > 0) {
+            const damage = target.maxHp * explodeMult;
+            this.explode(
+                { damage, team: actorTeam(target), source: target.unit },
+                target.x,
+                target.z,
+                explodeSplash,
+            );
+            this.events.push({
+                kind: 'explosion',
+                x: target.x,
+                y: simGroundHeightAt(target.x, target.z),
+                z: target.z,
+                radius: explodeSplash,
+                heavy: true,
+            });
+        }
+        if (acidRadius > 0) {
+            const shields = livingShieldDisks(this.actors.map((a) => a.unit));
+            const expires = this.config.oilExpiresRound ?? 9999;
+            this.hazards.stampAcid(target.x, target.z, acidRadius, expires, shields);
+        }
     }
 
     /**
@@ -1708,15 +1878,14 @@ export class BattleSim {
         tDist: number,
     ): boolean {
         if (a.unit.type.projectileSpeed || a.unit.type.convertRay) return false;
-        const reach = stats.range + a.radius + target.radius;
+        const reach = this.weaponRange(a, target, stats.range) + a.radius + target.radius;
         const commit = reach + (a.unit.type.meleeLunge ?? 0);
         if (tDist > commit) return false;
 
         if (canAttack) a.cooldown -= dt;
         if (canAttack && a.cooldown <= 0) {
             a.cooldown += stats.attackInterval;
-            const damage =
-                stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
+            const damage = this.hitDamage(a, target, stats.damage, d.attackMult);
             this.beginMelee(a, target, damage, tdx, tdz, tDist);
         }
 
@@ -1782,7 +1951,7 @@ export class BattleSim {
             return;
         }
         const stats = this.statsOf(a);
-        const reach = stats.range + a.radius + target.radius;
+        const reach = this.weaponRange(a, target, stats.range) + a.radius + target.radius;
         // slight slack so a foe that edged out mid-swing still takes the hit
         if (tDist > reach * 1.2) return;
         this.strikeMelee(a, target, damage, tdx, tdz, tDist);
@@ -1926,7 +2095,7 @@ export class BattleSim {
         const tdx = target.x - a.x;
         const tdz = target.z - a.z;
         const tDist = hypot(tdx, tdz) || 1e-6;
-        const touch = stats.range + a.radius + target.radius;
+        const touch = this.weaponRange(a, target, stats.range) + a.radius + target.radius;
         const commit = touch + (a.unit.type.meleeLunge ?? 3);
 
         // --- coast: keep sailing past, then pick a det-random turn ---
@@ -1965,8 +2134,7 @@ export class BattleSim {
                 if (canAttack) a.cooldown -= dt;
                 if (canAttack && a.cooldown <= 0) {
                     a.cooldown += stats.attackInterval;
-                    const damage =
-                        stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
+                    const damage = this.hitDamage(a, target, stats.damage, d.attackMult);
                     this.strikeMelee(a, target, damage, tdx, tdz, tDist);
                     a.flyPassStruck = true;
                 }
@@ -2178,6 +2346,24 @@ export class BattleSim {
                 a.burnUntil = 0;
                 a.burnDps = 0;
             }
+        }
+    }
+
+    /** Passive HP regen from regen talents (friendly, non-structure). */
+    private stepRegen(dt: number): void {
+        for (const a of this.actors) {
+            if (!a.alive || a.unit.type.structure) continue;
+            if (this.isSpawning(a)) continue;
+            let rate = 0;
+            for (const tech of this.techProfiles(a)) {
+                if (!tech.regen) continue;
+                if (tech.regen.hpPerSecond) rate += tech.regen.hpPerSecond;
+                if (tech.regen.maxHpFractionPerSecond) {
+                    rate += a.maxHp * tech.regen.maxHpFractionPerSecond;
+                }
+            }
+            if (rate <= 0) continue;
+            a.hp = Math.min(a.maxHp, a.hp + rate * dt);
         }
     }
 
@@ -2584,6 +2770,7 @@ export class BattleSim {
                 allegiance: null,
                 allegianceSeat: child.seat,
                 convertTarget: null,
+                convertTargets: [],
                 convertProgress: 0,
                 convertBy: null,
                 convertCooldown: 0,
@@ -3857,9 +4044,20 @@ export class BattleSim {
                         });
                     }
                 }
+                // onKillHeal: fraction of victim max HP, shared across the killer's pack
+                for (const tech of techsForUnit(
+                    killer.type,
+                    this.config.types,
+                    this.config.loadoutOf(killer.seat),
+                )) {
+                    if (!tech.onKillHeal) continue;
+                    if (!this.config.hasTech(killer.seat, killer.type.id, tech.id)) continue;
+                    this.healPack(killer, target.maxHp * tech.onKillHeal.ofVictimMaxHp);
+                }
             }
         }
         target.alive = false;
+        this.applyOnDeathTalents(target);
         const t = target.unit.type;
         const wear = resolveDeathWear(t);
         // normalize the killing-blow direction so death gore jets along it
@@ -4128,7 +4326,9 @@ export class BattleSim {
                     // A pass already underway finishes — its heading is locked —
                     // and a foe close enough to commit still wins over the route.
                     // Otherwise fly the route like every other unit marching it.
-                    const touch = target ? stats.range + a.radius + target.radius : 0;
+                    const touch = target
+                        ? this.weaponRange(a, target, stats.range) + a.radius + target.radius
+                        : 0;
                     const commit = touch + (a.unit.type.meleeLunge ?? 3);
                     const engaged =
                         a.flyPassPhase !== 0 ||
@@ -4156,7 +4356,7 @@ export class BattleSim {
                     const tdz = target.z - a.z;
                     const tDist = hypot(tdx, tdz) || 1e-6;
                     const reach = effectiveWeaponReach(
-                        stats.range,
+                        this.weaponRange(a, target, stats.range),
                         a.radius,
                         target.radius,
                         this.feetY(a),
@@ -4193,8 +4393,7 @@ export class BattleSim {
                             if (canAttack) a.cooldown -= dt;
                             if (canAttack && a.cooldown <= 0) {
                                 a.cooldown += stats.attackInterval;
-                                const damage =
-                                    stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
+                                const damage = this.hitDamage(a, target, stats.damage, d.attackMult);
                                 this.beginRangedFire(a, target, damage, a.unit.type.projectileSpeed);
                             }
                         }
@@ -4234,7 +4433,7 @@ export class BattleSim {
             // range is surface-to-surface: collision circles must not keep
             // melee mechs from ever "reaching" wide targets like towers
             const reach = effectiveWeaponReach(
-                stats.range,
+                this.weaponRange(a, target, stats.range),
                 a.radius,
                 target.radius,
                 this.feetY(a),
@@ -4280,8 +4479,7 @@ export class BattleSim {
                     if (canAttack) a.cooldown -= dt;
                     if (canAttack && a.cooldown <= 0) {
                         a.cooldown += stats.attackInterval;
-                        const damage =
-                            stats.damage * this.levelMult(a.unit) * this.debuff(a, d.attackMult);
+                        const damage = this.hitDamage(a, target, stats.damage, d.attackMult);
                         this.beginRangedFire(a, target, damage, a.unit.type.projectileSpeed);
                     }
                 }
@@ -4325,6 +4523,7 @@ export class BattleSim {
         this.rebuildTargetHash();
         this.stepProjectiles(dt);
         this.stepHazards(dt);
+        this.stepRegen(dt);
         add('projectiles');
         this.flushOnKillSpawns();
         // after the kills, so a Stronghold felled this step starts its front on
@@ -5442,9 +5641,11 @@ export class BattleSim {
 
     /**
      * Wizard convert ray: progress fills at the caster's effective attack
-     * (same stack as orb damage — resolved damage × level × tower attack debuff).
+     * (same stack as orb damage — resolved damage × level × tower attack debuff
+     * × levelScale × vsLayer × convert intensityMult).
      * Enemy ward domes absorb the beam (damage the shield; no convert through).
      * Buildings and golden-aura units take the same continuous HP damage.
+     * Mass Binding can lock multiple sticky channels at once.
      */
     private stepConversionRays(dt: number): void {
         // clear stale convertBy / beam tips (channelers re-assert each step)
@@ -5461,13 +5662,15 @@ export class BattleSim {
 
             if (caster.convertCooldown > 0) {
                 caster.convertCooldown = Math.max(0, caster.convertCooldown - dt);
-                if (caster.convertTarget) {
-                    caster.convertTarget.convertProgress = 0;
-                    caster.convertTarget = null;
+                for (const t of caster.convertTargets) {
+                    t.convertProgress = 0;
                 }
+                caster.convertTargets.length = 0;
+                caster.convertTarget = null;
                 continue;
             }
 
+            const tuning = this.convertTuning(caster);
             const team = actorTeam(caster);
             const targets = effectiveTargets(
                 caster.unit.type,
@@ -5475,90 +5678,115 @@ export class BattleSim {
                 (_s, _t, techId) => this.actorHasTech(caster, techId),
                 this.config.types,
             );
-            let target = caster.convertTarget;
-            const stillOk =
-                target &&
+
+            const stillOk = (target: Actor): boolean =>
                 target.alive &&
                 actorTeam(target) !== team &&
                 !target.unit.type.extra &&
                 !target.unit.type.notAcquired &&
-                // structures are valid ray victims (damage, not convert)
                 (target.unit.type.structure ||
                     (target.altitude > 0 ? targets.air : targets.ground)) &&
-                // already flipped this battle — leave alone
                 (target.unit.type.structure || target.allegiance === null);
 
-            if (stillOk && target) {
-                const reach = ray.range + caster.radius + target.radius;
-                const dx = target.x - caster.x;
-                const dz = target.z - caster.z;
-                if (dx * dx + dz * dz > reach * reach) {
-                    target.convertProgress = 0;
-                    caster.convertTarget = null;
-                    target = null;
+            // validate sticky channels; drop invalid / out of range
+            {
+                const kept: Actor[] = [];
+                for (const target of caster.convertTargets) {
+                    if (!stillOk(target)) {
+                        target.convertProgress = 0;
+                        continue;
+                    }
+                    const reach =
+                        this.weaponRange(caster, target, ray.range) + caster.radius + target.radius;
+                    const dx = target.x - caster.x;
+                    const dz = target.z - caster.z;
+                    if (dx * dx + dz * dz > reach * reach) {
+                        target.convertProgress = 0;
+                        continue;
+                    }
+                    kept.push(target);
                 }
-            } else {
-                if (target) target.convertProgress = 0;
-                caster.convertTarget = null;
-                target = null;
+                caster.convertTargets = kept;
             }
 
-            if (!target) {
-                target = this.closestConvertTarget(caster, ray.range, targets);
-                caster.convertTarget = target;
-                if (target) target.convertProgress = 0;
+            // fill up to maxTargets with closest unused foes
+            while (caster.convertTargets.length < tuning.maxTargets) {
+                const exclude = new Set(caster.convertTargets);
+                const next = this.closestConvertTarget(caster, ray.range, targets, exclude);
+                if (!next) break;
+                next.convertProgress = 0;
+                caster.convertTargets.push(next);
             }
-            if (!target) continue;
+
+            caster.convertTarget = caster.convertTargets[0] ?? null;
+            if (caster.convertTargets.length === 0) continue;
 
             const stats = this.statsOf(caster);
-            // same modifiers as a normal attack roll
-            const intensity =
-                stats.damage * this.levelMult(caster.unit) * this.debuff(caster, d.attackMult);
-
             const from = this.convertRayOrigin(caster);
-            const tt = target.unit.type;
-            const toY = target.footY + projectileAimY(tt) * tt.meshScale;
-            const sx = target.x - from.x;
-            const sy = toY - from.y;
-            const sz = target.z - from.z;
-            const block = this.enemyShieldHitOnSegment(from.x, from.y, from.z, sx, sy, sz, team);
+            let tipSet = false;
+            let tipBlocked = false;
+            let anyActive = false;
 
-            caster.convertRayActive = true;
-            if (block) {
-                // beam stops on the dome — chew the absorb pool instead of converting
-                if (target.convertProgress > 0) target.convertProgress = 0;
-                caster.convertRayTipX = block.x;
-                caster.convertRayTipY = block.y;
-                caster.convertRayTipZ = block.z;
-                block.shield.hp -= intensity * dt;
-                block.shield.hurtTimer = HURT_BAR_SECONDS;
-                if (block.shield.hp <= 0) this.breakShield(block.shield);
-                continue;
-            }
+            // snapshot — convertActor may splice the list mid-loop
+            const channelList = caster.convertTargets.slice();
+            for (const target of channelList) {
+                if (!caster.convertTargets.includes(target)) continue;
 
-            caster.convertRayTipX = target.x;
-            caster.convertRayTipY = toY;
-            caster.convertRayTipZ = target.z;
+                const intensity =
+                    this.hitDamage(caster, target, stats.damage, d.attackMult) * tuning.intensityMult;
 
-            if (this.convertRayDealsDamage(target)) {
-                // buildings + golden aura: same continuous chew as wards, no convert
-                if (target.convertProgress > 0) target.convertProgress = 0;
-                const dealt = intensity * dt * this.damageTakenMult(target);
-                // convert ray chews straight through to HP — shields don't stop it
-                if (dealt > 0) {
-                    this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz }, 'direct');
+                const tt = target.unit.type;
+                const toY = target.footY + projectileAimY(tt) * tt.meshScale;
+                const sx = target.x - from.x;
+                const sy = toY - from.y;
+                const sz = target.z - from.z;
+                const block = this.enemyShieldHitOnSegment(from.x, from.y, from.z, sx, sy, sz, team);
+
+                anyActive = true;
+                if (block) {
+                    if (target.convertProgress > 0) target.convertProgress = 0;
+                    if (!tipSet) {
+                        caster.convertRayTipX = block.x;
+                        caster.convertRayTipY = block.y;
+                        caster.convertRayTipZ = block.z;
+                        tipSet = true;
+                        tipBlocked = true;
+                    }
+                    block.shield.hp -= intensity * dt;
+                    block.shield.hurtTimer = HURT_BAR_SECONDS;
+                    if (block.shield.hp <= 0) this.breakShield(block.shield);
+                    continue;
                 }
-                continue;
+
+                // prefer tip on first unblocked channel (overwrite a blocked primary tip)
+                if (!tipSet || tipBlocked) {
+                    caster.convertRayTipX = target.x;
+                    caster.convertRayTipY = toY;
+                    caster.convertRayTipZ = target.z;
+                    tipSet = true;
+                    tipBlocked = false;
+                }
+
+                if (this.convertRayDealsDamage(target)) {
+                    if (target.convertProgress > 0) target.convertProgress = 0;
+                    const dealt = intensity * dt * this.damageTakenMult(target);
+                    if (dealt > 0) {
+                        this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz }, 'direct');
+                    }
+                    continue;
+                }
+
+                target.convertBy = caster;
+                target.convertProgress += intensity * dt;
+                target.hurtTimer = Math.max(target.hurtTimer, 0.4);
+
+                if (target.convertProgress + 1e-9 >= target.hp) {
+                    this.convertActor(caster, target);
+                }
             }
 
-            target.convertBy = caster;
-            target.convertProgress += intensity * dt;
-            // keep the convert bar visible
-            target.hurtTimer = Math.max(target.hurtTimer, 0.4);
-
-            if (target.convertProgress + 1e-9 >= target.hp) {
-                this.convertActor(caster, target);
-            }
+            if (anyActive) caster.convertRayActive = true;
+            caster.convertTarget = caster.convertTargets[0] ?? null;
         }
     }
 
@@ -5584,12 +5812,19 @@ export class BattleSim {
         from: Actor,
         range: number,
         targets: { ground: boolean; air: boolean },
+        exclude?: ReadonlySet<Actor> | readonly Actor[],
     ): Actor | null {
+        const excluded =
+            exclude == null
+                ? null
+                : exclude instanceof Set
+                  ? exclude
+                  : new Set(exclude);
         const team = actorTeam(from);
         let best: Actor | null = null;
         let bestD = Infinity;
-        const reach = range + from.radius;
         for (const a of this.actors) {
+            if (excluded?.has(a)) continue;
             if (!a.alive || actorTeam(a) === team) continue;
             // board extras (wards) are hit via beam blocking, not as ray targets
             if (a.unit.type.extra) continue;
@@ -5602,10 +5837,10 @@ export class BattleSim {
                 // already converted this battle — leave alone
                 continue;
             }
+            const maxR = this.weaponRange(from, a, range) + from.radius + a.radius;
             const dx = a.x - from.x;
             const dz = a.z - from.z;
             const d = dx * dx + dz * dz;
-            const maxR = reach + a.radius;
             if (d > maxR * maxR) continue;
             if (d < bestD || (d === bestD && best !== null && a.index < best.index)) {
                 bestD = d;
@@ -5623,23 +5858,36 @@ export class BattleSim {
         target.convertProgress = 0;
         target.convertBy = null;
         target.convertTarget = null;
+        target.convertTargets.length = 0;
         // Drop the old seat's golden aura; pick up the new team's if in range.
         // (Tower debuffs already key off {@link actorSeat}, so allegiance alone
         // stops the old seat's loss from crippling this mech.)
         target.goldenUntil = 0;
         if (this.goldenAuraApplied) this.applyGoldenAura(target, undefined, true);
+        // Soul Restore: full HP (and shield) after the flip
+        if (this.convertTuning(caster).healFull) {
+            target.hp = target.maxHp;
+            if (target.shieldMaxHp > 0) target.shieldHp = target.shieldMaxHp;
+        }
         // brief pause before the next channel
         const recover = caster.unit.type.convertRay?.recover ?? 1.25;
         caster.convertCooldown = recover;
         // drop anyone channeling this victim / this caster's lock
-        if (caster.convertTarget === target) caster.convertTarget = null;
-        for (const a of this.actors) {
+        const dropRef = (a: Actor): void => {
+            const idx = a.convertTargets.indexOf(target);
+            if (idx >= 0) a.convertTargets.splice(idx, 1);
             if (a.convertTarget === target) {
-                a.convertTarget = null;
+                a.convertTarget = a.convertTargets[0] ?? null;
             }
+        };
+        dropRef(caster);
+        for (const a of this.actors) {
+            if (a === caster) continue;
+            dropRef(a);
             // converted mechs stop converting for their old side
             if (a === target) {
                 a.convertTarget = null;
+                a.convertTargets.length = 0;
             }
         }
         // clear attack stickies that now see a teammate
@@ -5772,7 +6020,7 @@ export class BattleSim {
                 return this.isOpportunisticGroundSwat(from, cached, native);
             }
             const reach = effectiveWeaponReach(
-                stats.range,
+                this.weaponRange(from, cached, stats.range),
                 from.radius,
                 cached.radius,
                 this.feetY(from),

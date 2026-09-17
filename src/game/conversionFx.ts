@@ -208,39 +208,58 @@ export class ConversionFx {
                       y: caster.footY + Math.max(1.6, ut.meshScale * 1.15),
                       z: caster.rz,
                   };
-            _pos.set(from.x, from.y, from.z);
-            const victim = caster.convertTarget;
-            // unblocked: stick tip to the victim mesh; blocked: sim tip on the ward skin
-            if (victim?.alive && victim.convertBy === caster) {
-                const vt = victim.unit.type;
-                const toY = victim.footY + projectileAimY(vt) * vt.meshScale;
-                _dir.set(victim.rx - from.x, toY - from.y, victim.rz - from.z);
-            } else {
-                _dir.set(
-                    caster.convertRayTipX - from.x,
-                    caster.convertRayTipY - from.y,
-                    caster.convertRayTipZ - from.z,
-                );
-            }
-            const len = Math.max(_dir.length(), 0.35);
-            _dir.multiplyScalar(1 / len);
-            quatFromUpTo(_dir, _quat);
 
-            const width = 1.05 + 0.12 * Math.sin(simTime * 10 + caster.index);
-            _scale.set(width, len, width);
-            _mat.compose(_pos, _quat, _scale);
-            this.core.setMatrixAt(n, _mat);
-
-            _scale.set(width * this.glowWidthMul, len, width * this.glowWidthMul);
-            _mat.compose(_pos, _quat, _scale);
-            this.glow.setMatrixAt(n, _mat);
+            const victims =
+                caster.convertTargets?.length > 0
+                    ? caster.convertTargets
+                    : caster.convertTarget
+                      ? [caster.convertTarget]
+                      : [null];
 
             const team = actorTeam(caster);
             const seat = actorSeat(caster);
-            _color.setHex(colorForUnit(team, isSecondarySeat(this.roster, seat)).hex);
-            this.core.setColorAt(n, _white);
-            this.glow.setColorAt(n, _color.lerp(_orb, 0.5));
-            n++;
+            const teamHex = colorForUnit(team, isSecondarySeat(this.roster, seat)).hex;
+
+            for (let vi = 0; vi < victims.length; vi++) {
+                if (n >= MAX_RAYS) break;
+                const victim = victims[vi];
+                _pos.set(from.x, from.y, from.z);
+                // unblocked: stick tip to the victim mesh; blocked: sim tip on the ward skin
+                if (victim?.alive && victim.convertBy === caster) {
+                    const vt = victim.unit.type;
+                    const toY = victim.footY + projectileAimY(vt) * vt.meshScale;
+                    _dir.set(victim.rx - from.x, toY - from.y, victim.rz - from.z);
+                } else if (vi === 0) {
+                    _dir.set(
+                        caster.convertRayTipX - from.x,
+                        caster.convertRayTipY - from.y,
+                        caster.convertRayTipZ - from.z,
+                    );
+                } else if (victim?.alive) {
+                    const vt = victim.unit.type;
+                    const toY = victim.footY + projectileAimY(vt) * vt.meshScale;
+                    _dir.set(victim.rx - from.x, toY - from.y, victim.rz - from.z);
+                } else {
+                    continue;
+                }
+                const len = Math.max(_dir.length(), 0.35);
+                _dir.multiplyScalar(1 / len);
+                quatFromUpTo(_dir, _quat);
+
+                const width = 1.05 + 0.12 * Math.sin(simTime * 10 + caster.index + vi);
+                _scale.set(width, len, width);
+                _mat.compose(_pos, _quat, _scale);
+                this.core.setMatrixAt(n, _mat);
+
+                _scale.set(width * this.glowWidthMul, len, width * this.glowWidthMul);
+                _mat.compose(_pos, _quat, _scale);
+                this.glow.setMatrixAt(n, _mat);
+
+                this.core.setColorAt(n, _white);
+                _color.setHex(teamHex);
+                this.glow.setColorAt(n, _color.lerp(_orb, 0.5));
+                n++;
+            }
         }
         this.core.count = n;
         this.glow.count = n;

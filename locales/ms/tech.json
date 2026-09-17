@@ -2,30 +2,25 @@
   "legs": {
     "name": "Kaki Armada"
   },
-  "carapace": {
-    "name": "Sembunyikan Batu"
-  },
   "barrel": {
-    "name": "Busur Panjang"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Anak Panah Menembus"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Anak Panah Api",
-    "description": "Anak panah meninggalkan api sebentar di darat dan terbakar — cukup untuk menyalakan lopak minyak."
-  },
-  "engines": {
-    "name": "Sayap Gale"
-  },
-  "stingers": {
-    "name": "Crow Cakar"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Penyaduran Besi"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Winch Pantas"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Aegis",
@@ -69,5 +64,9 @@
     "produceOffspring": ". Anak padan tahap induk",
     "onKill": "Apabila unit ini membunuh, bangkitkan {{child}}",
     "cleave": "Menyerang setiap musuh dalam lingkungan {{radius}} (di sekitar unit ini)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

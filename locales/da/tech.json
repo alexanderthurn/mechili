@@ -2,30 +2,25 @@
   "legs": {
     "name": "Fleet Feet"
   },
-  "carapace": {
-    "name": "Stenhud"
-  },
   "barrel": {
-    "name": "Langbue"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Piercingpile"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Ildpile",
-    "description": "Pile efterlader en kortvarig ild på jorden og brænder – nok til at antænde oliepytter."
-  },
-  "engines": {
-    "name": "Gale Wings"
-  },
-  "stingers": {
-    "name": "Kragekløer"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Jernbelægning"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Hurtig spil"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Aegis",
@@ -69,5 +64,9 @@
     "produceOffspring": ". Afkomsmatch på forældreniveau",
     "onKill": "Når denne enhed dræber, hæv en {{child}}",
     "cleave": "Rammer alle fjender inden for {{radius}} (omkring denne enhed)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

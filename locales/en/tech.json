@@ -1,35 +1,31 @@
 {
   "legs": {
-    "name": "Fleet Feet"
-  },
-  "carapace": {
-    "name": "Stone Hide"
+    "name": "Fleet Feet",
+    "description": "+35% move speed."
   },
   "barrel": {
-    "name": "Longbow"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Piercing Arrows"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Fire Arrows",
-    "description": "Arrows leave a brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "empArrows": {
-    "name": "Hex Arrows",
-    "description": "Arrows hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
-  },
-  "engines": {
-    "name": "Gale Wings"
-  },
-  "stingers": {
-    "name": "Crow Talons"
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   },
   "armor": {
-    "name": "Iron Plating"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Quick Winch"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Aegis",
@@ -68,6 +64,58 @@
   "bloodRage": {
     "name": "Blood Rage",
     "description": "+30% move speed and +33% attack speed."
+  },
+  "powerDraw": {
+    "name": "Power Draw",
+    "description": "+70% damage, −15% range, and slower shots."
+  },
+  "skyhunt": {
+    "name": "Skyhunt",
+    "description": "+50% damage and +25% range vs air units."
+  },
+  "groundhunt": {
+    "name": "Groundhunt",
+    "description": "+50% damage and +15% range vs ground units."
+  },
+  "veteranAim": {
+    "name": "Veteran Aim",
+    "description": "Each level above 1: +12% damage and +10% range (on top of normal veterancy)."
+  },
+  "regeneration": {
+    "name": "Regeneration",
+    "description": "Regenerates 2% of max HP per second in battle."
+  },
+  "bloodfeast": {
+    "name": "Bloodfeast",
+    "description": "Heals for 25% of damage dealt (shared among living pack members)."
+  },
+  "carrionFeast": {
+    "name": "Carrion Feast",
+    "description": "On kill, heal this pack for 30% of the victim's max HP (shared among living members)."
+  },
+  "blightburst": {
+    "name": "Blightburst",
+    "description": "On death, leaves a blight puddle that corrodes enemies."
+  },
+  "ruinousEnd": {
+    "name": "Ruinous End",
+    "description": "On death, explodes for damage equal to this unit's max HP."
+  },
+  "looseRank": {
+    "name": "Loose Rank",
+    "description": "Pack members stand farther apart — less vulnerable to splash."
+  },
+  "massBinding": {
+    "name": "Mass Binding",
+    "description": "Convert up to 3 enemies at once; each channel is 45% weaker."
+  },
+  "soulRestore": {
+    "name": "Soul Restore",
+    "description": "Converted units are restored to full HP."
+  },
+  "galeGate": {
+    "name": "Gale Gate",
+    "description": "May reposition every deploy round without using Move Pack."
   },
   "_auto": {
     "modHp": "{{pct}} HP",

@@ -1,0 +1,9 @@
+// Free redeploy every round (no speed bonus).
+{
+    "id": "galeGate",
+    "name": "Gale Gate",
+    "cost": 250,
+    "mods": {},
+    "freeRedeploy": true,
+    "description": "May reposition every deploy round without using Move Pack.",
+}

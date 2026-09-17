@@ -35,6 +35,6 @@
     "turnRate": 3.2, // slow bank — points then flies along facing
     "turnMove": "cruise",
     "proceduralModel": "bat",
-    "talents": ["engines", "stingers", "aegis"],
-    "talentSlots": 2,
+    "talents": ["legs", "ap", "aegis", "galeGate", "regeneration", "bloodfeast", "carrionFeast", "blightburst", "ruinousEnd"],
+    "talentSlots": 4,
 }

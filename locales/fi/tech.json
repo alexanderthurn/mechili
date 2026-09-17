@@ -2,30 +2,25 @@
   "legs": {
     "name": "Fleet Feet"
   },
-  "carapace": {
-    "name": "Kivi Nahka"
-  },
   "barrel": {
-    "name": "Pitkäjousi"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Lävistävät nuolet"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Tulinuolet",
-    "description": "Nuolet jättävät lyhyen maahan palavan tulen ja polttavat – tarpeeksi sytyttääkseen öljylammikot."
-  },
-  "engines": {
-    "name": "Gale Wings"
-  },
-  "stingers": {
-    "name": "Varis-kynnet"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Rautapinnoitus"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Pikavinssi"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Aegis",
@@ -69,5 +64,9 @@
     "produceOffspring": "Jälkeläiset vastaavat vanhempien tasoa.",
     "onKill": "Kun tämä yksikkö tappaa, nosta {{child}}",
     "cleave": "Osuu jokaiseen viholliseen {{radius}}-etäisyydellä (tämän yksikön ympärillä)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

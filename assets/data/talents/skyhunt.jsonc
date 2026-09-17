@@ -1,0 +1,9 @@
+// Bonus damage and reach against airborne foes.
+{
+    "id": "skyhunt",
+    "name": "Skyhunt",
+    "cost": 200,
+    "mods": {},
+    "vsAir": { "damage": 1.5, "range": 1.25 },
+    "description": "+50% damage and +25% range vs air units.",
+}

@@ -1,0 +1,9 @@
+// Bonus damage and reach against grounded foes.
+{
+    "id": "groundhunt",
+    "name": "Groundhunt",
+    "cost": 200,
+    "mods": {},
+    "vsGround": { "damage": 1.5, "range": 1.15 },
+    "description": "+50% damage and +15% range vs ground units.",
+}

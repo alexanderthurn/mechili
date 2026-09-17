@@ -2,30 +2,25 @@
   "legs": {
     "name": "Rącze Stopy"
   },
-  "carapace": {
-    "name": "Kamienna Skóra"
-  },
   "barrel": {
-    "name": "Łuk długi"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Przebijające strzały"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Ogniste strzały",
-    "description": "Strzały pozostawiają na ziemi krótkotrwały ogień, który następnie płonie — na tyle silny, że może zapalić kałuże oleju."
-  },
-  "engines": {
-    "name": "Skrzydła Wichury"
-  },
-  "stingers": {
-    "name": "Szpony wrony"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Powłoka żelazna"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Szybka wciągarka"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Egida",
@@ -69,5 +64,9 @@
     "produceOffspring": ". Potomstwo ma poziom rodzica",
     "onKill": "Gdy ta jednostka zabija, podnosi {{child}}",
     "cleave": "Trafia każdego wroga w promieniu {{radius}} (wokół tej jednostki)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

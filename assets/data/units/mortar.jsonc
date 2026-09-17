@@ -40,6 +40,6 @@
     "turnMove": "pivot",
     "proceduralModel": "mortar",
     // range / fire rate / damage / splash / fire / emp — artillery pivots
-    "talents": ["barrel", "autoloader", "ap", "wideBlast", "fireArrows", "empArrows"],
-    "talentSlots": 2,
+    "talents": ["barrel", "autoloader", "ap", "wideBlast", "fireArrows", "empArrows", "powerDraw", "groundhunt", "veteranAim"],
+    "talentSlots": 4,
 }
