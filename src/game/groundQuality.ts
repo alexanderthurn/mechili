@@ -226,24 +226,34 @@ export function closeTileInjectGlsl(profile: GroundMaterialProfile): string {
 	float steepT = smoothstep( 0.06, 0.22, 1.0 - abs( closeWorldN.y ) );
 	vec2 closeUv = vMapUv * uCloseRepeat;
 	vec3 closeAlb = texture2D( map, closeUv ).rgb;
-	if ( steepT > 0.0 ) {
-		// lawn UV per world unit along x and z (the UV is a planar xz projection)
-		float kx = ( abs( dFdx( vMapUv.x ) ) + abs( dFdy( vMapUv.x ) ) ) / max( abs( dFdx( vCloseWorld.x ) ) + abs( dFdy( vCloseWorld.x ) ), 1e-4 );
-		float kz = ( abs( dFdx( vMapUv.y ) ) + abs( dFdy( vMapUv.y ) ) ) / max( abs( dFdx( vCloseWorld.z ) ) + abs( dFdy( vCloseWorld.z ) ), 1e-4 );
-		float k = clamp( 0.5 * ( kx + kz ), 1e-4, 10.0 );
-		vec3 tw = pow( abs( closeWorldN ), vec3( 4.0 ) );
-		tw /= max( tw.x + tw.y + tw.z, 1e-4 );
-		vec2 uvX = vec2( vCloseWorld.z, vCloseWorld.y ) * k;
-		vec2 uvZ = vec2( vCloseWorld.x, vCloseWorld.y ) * k;
-		vec3 planar = texture2D( map, vMapUv ).rgb;
-		vec3 tri = planar * tw.y + texture2D( map, uvX ).rgb * tw.x + texture2D( map, uvZ ).rgb * tw.z;
-		// swap the stretched sample for the side-projected one (keeps any tint already applied)
-		diffuseColor.rgb *= mix( vec3( 1.0 ), ( tri + 0.04 ) / ( planar + 0.04 ), steepT );
-		vec3 closeTri = closeAlb * tw.y + texture2D( map, uvX * uCloseRepeat ).rgb * tw.x + texture2D( map, uvZ * uCloseRepeat ).rgb * tw.z;
-		closeAlb = mix( closeAlb, closeTri, steepT );
-	}
+	// derivatives and texture reads stay outside any branch: inside one the GPU's
+	// mip level (and dFdx) is undefined and neighbouring pixel blocks disagree
+	// lawn UV per world unit along x and z (the UV is a planar xz projection)
+	float closeKx = ( abs( dFdx( vMapUv.x ) ) + abs( dFdy( vMapUv.x ) ) ) / max( abs( dFdx( vCloseWorld.x ) ) + abs( dFdy( vCloseWorld.x ) ), 1e-4 );
+	float closeKz = ( abs( dFdx( vMapUv.y ) ) + abs( dFdy( vMapUv.y ) ) ) / max( abs( dFdx( vCloseWorld.z ) ) + abs( dFdy( vCloseWorld.z ) ), 1e-4 );
+	float closeK = clamp( 0.5 * ( closeKx + closeKz ), 1e-4, 10.0 );
+	vec3 tw = pow( abs( closeWorldN ), vec3( 4.0 ) );
+	tw /= max( tw.x + tw.y + tw.z, 1e-4 );
+	vec2 uvX = vec2( vCloseWorld.z, vCloseWorld.y ) * closeK;
+	vec2 uvZ = vec2( vCloseWorld.x, vCloseWorld.y ) * closeK;
+	vec3 planar = texture2D( map, vMapUv ).rgb;
+	vec3 tri = planar * tw.y + texture2D( map, uvX ).rgb * tw.x + texture2D( map, uvZ ).rgb * tw.z;
+	// swap the stretched sample for the side-projected one (keeps any tint already applied)
+	diffuseColor.rgb *= mix( vec3( 1.0 ), ( tri + 0.04 ) / ( planar + 0.04 ), steepT );
+	vec3 closeTri = closeAlb * tw.y + texture2D( map, uvX * uCloseRepeat ).rgb * tw.x + texture2D( map, uvZ * uCloseRepeat ).rgb * tw.z;
+	closeAlb = mix( closeAlb, closeTri, steepT );
 	diffuseColor.rgb = mix( diffuseColor.rgb, closeAlb, closeW );
 `;
+}
+
+/**
+ * GLSL expression: the lawn texture at `uv`, at the fine repeat where the
+ * close tile is on — for layers drawn after it (texture bombing), so a patch
+ * near the camera never brings the coarse blades back.
+ */
+export function closeTileSampleGlsl(profile: GroundMaterialProfile, uv: string): string {
+    if (profile.closeRepeat <= 1.01) return `texture2D( map, ${uv} ).rgb`;
+    return `mix( texture2D( map, ${uv} ).rgb, texture2D( map, ( ${uv} ) * uCloseRepeat ).rgb, closeW )`;
 }
 
 /** Declare closeW=0 when close-tile is off so later GLSL can always reference it. */
