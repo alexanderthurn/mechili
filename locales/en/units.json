@@ -47,6 +47,9 @@
   "mortar": {
     "name": "Mortar"
   },
+  "prismCannon": {
+    "name": "Arcane Prism Cannon"
+  },
   "ballista": {
     "name": "Ballista"
   },

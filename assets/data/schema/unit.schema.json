@@ -354,6 +354,49 @@
           "additionalProperties": false,
           "description": "Conversion ray — the Wizard's only attack. Progress fills at effective attack (resolved damage × level × tower attack debuff) per second toward the victim's current HP; at full, allegiance flips for the rest of the battle. Buildings, golden-aura mechs, and ward domes cannot be converted — the ray deals the same continuous HP damage instead. `recover` is idle seconds after a successful convert."
         },
+        "rampBeam": {
+          "type": "object",
+          "properties": {
+            "range": {
+              "type": "number"
+            },
+            "doubleEvery": {
+              "type": "number"
+            },
+            "maxDps": {
+              "type": "number"
+            },
+            "splashRadius": {
+              "type": "number"
+            },
+            "muzzleLocal": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                },
+                "z": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "range",
+            "doubleEvery"
+          ],
+          "additionalProperties": false,
+          "description": "Continuous damage beam that ramps exponentially while locked on one target (Melting Point / Arcane Prism Cannon). Starting DPS is the unit's resolved damage (talents included). At lock time t: `min(maxDps, damage × 2^(t / doubleEvery))`, then the normal hit-damage stack (level, tower debuff, vs-layer). Lock resets when the beam breaks (death, out of range, ward block). Optional `muzzleLocal` is rest-local (before meshScale) when the GLB has no AttackNode — typically the barrel mouth on a static siege mesh."
+        },
         "sandWeight": {
           "type": "number",
           "description": "Ground wear strength when walking/standing (1 ≈ typical infantry). Omit = derive from cost + bulk via sandStampWeight ."

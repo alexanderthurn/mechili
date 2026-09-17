@@ -608,6 +608,23 @@ export interface UnitType {
      */
     convertRay?: { range: number; recover?: number };
     /**
+     * Continuous damage beam that ramps exponentially while locked on one
+     * target (Melting Point / Arcane Prism Cannon). Starting DPS is the unit's
+     * resolved {@link damage} (talents included). At lock time t:
+     * `min(maxDps, damage × 2^(t / doubleEvery))`, then the normal hit-damage
+     * stack (level, tower debuff, vs-layer). Lock resets when the beam breaks
+     * (death, out of range, ward block). Optional `muzzleLocal` is rest-local
+     * (before meshScale) when the GLB has no AttackNode — typically the barrel
+     * mouth on a static siege mesh.
+     */
+    rampBeam?: {
+        range: number;
+        doubleEvery: number;
+        maxDps?: number;
+        splashRadius?: number;
+        muzzleLocal?: { x: number; y: number; z: number };
+    };
+    /**
      * Ground wear strength when walking/standing (1 ≈ typical infantry).
      * Omit = derive from cost + bulk via {@link sandStampWeight}.
      */
