@@ -8,8 +8,8 @@ import {
 } from './cards';
 import type { GameSettings, TutorialSettings } from './settings';
 import type { BattleMap, Cell } from './map';
-import { CELL } from './map';
-import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, clampTacticPoint } from './tactics';
+import { BASE_ANCHORS, CELL } from './map';
+import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, HAMMER_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, clampTacticPoint } from './tactics';
 
 /** Tutorial 1: empty board, auto commander, soft UI lesson, 4 enemy archers. */
 export const TUTORIAL_1_ID = 1;
@@ -17,14 +17,14 @@ export const TUTORIAL_1_ID = 1;
 export const TUTORIAL_2_ID = 2;
 
 export const TUTORIAL_2_ROUNDS = 3;
-/** Tutorial 3: Tower lesson across two rounds (debuff, Vanguard boosts). */
+/** Tutorial 3: Towers — debuff, Vanguard, Garrison (+1/Veteran), upgrade+mortar. */
 export const TUTORIAL_3_ID = 3;
 
-export const TUTORIAL_3_ROUNDS = 2;
-/** Tutorial 4: Units lesson across two rounds (runes, Longbow talent). */
+export const TUTORIAL_3_ROUNDS = 4;
+/** Tutorial 4: Units — runes, forge, forged apply, Longbow, height+Hammer. */
 export const TUTORIAL_4_ID = 4;
 
-export const TUTORIAL_4_ROUNDS = 2;
+export const TUTORIAL_4_ROUNDS = 5;
 
 /** Lesson order, as the Tutorial menu lists them. */
 export const TUTORIAL_LESSON_IDS = [TUTORIAL_1_ID, TUTORIAL_2_ID, TUTORIAL_3_ID, TUTORIAL_4_ID] as const;
@@ -36,17 +36,34 @@ export function nextTutorialId(id: number | null): number | null {
     return i >= 0 && i < TUTORIAL_LESSON_IDS.length - 1 ? TUTORIAL_LESSON_IDS[i + 1]! : null;
 }
 
-/** Tutorial 4 round 1 gate: base runes the player must buy before End Deployment opens. */
-export const TUTORIAL_4_MIN_RUNES = 5;
-
 /** Tutorial 3 round 2 gate: Vanguard boost tiers to buy (mirrors `settings.boosts.costs.length`). */
 export const TUTORIAL_3_BOOST_MAX_TIERS = 2;
 
-/** Tutorial 4 round 2: Longbow talent id on archers (`techCatalog` barrel). */
+/** Tutorial 3 round 3: dwarves the player must field after +1 slot. */
+export const TUTORIAL_3_R3_DWARVES = 3;
+
+/** Tutorial 3 round 4: tower upgrade target level (max). */
+export const TUTORIAL_3_R4_TOWER_LEVEL = 5;
+
+/** Tutorial 4: Longbow talent id on archers (`techCatalog` barrel). */
 export const TUTORIAL_4_ARCHER_RANGE_TECH = 'barrel';
 
-/** Tutorial 4 round 2: archers lined up in each half's center. */
+/** Tutorial 4 range / height rounds: archers lined up in each half's center. */
 export const TUTORIAL_4_ARCHERS = 5;
+
+/** Tutorial 4 round 1: shop rune → pack assign order (L→R on the locked line). */
+export const TUTORIAL_4_RUNE_LESSON = [
+    { runeId: 'fire', packIndex: 0 },
+    { runeId: 'earth', packIndex: 1 },
+    { runeId: 'wind', packIndex: 2 },
+    { runeId: 'water', packIndex: 3 },
+] as const;
+
+/** Tutorial 4 forge product id. */
+export const TUTORIAL_4_FORGE_PRODUCT = 'fire:3';
+
+/** Tutorial 4 height shelf (world units). */
+export const TUTORIAL_4_SHELF_HEIGHT = 9;
 
 /** Round-2/3 forge spells: oil + dragon in R2, summon unlocked in R3. */
 export const TUTORIAL_2_SPELL_IDS = [OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID] as const;
@@ -111,19 +128,21 @@ export function applyTutorialMode(settings: GameSettings, id: number): void {
     } else if (id === TUTORIAL_3_ID) {
         settings.strongholdMode = 'none';
         lesson.roundsToWin = TUTORIAL_3_ROUNDS;
-        // Round 1 buys one dwarf + one ballista; round 2 re-caps per round.
+        // R1 dwarf+ballista; later rounds re-cap per setupRound3.
         settings.deploy = { ...settings.deploy, unitsPerRound: 2 };
         settings.economy = {
             ...settings.economy,
             startingSupply: 3000,
         };
     } else if (id === TUTORIAL_4_ID) {
+        // Stronghold is spawned only for forge rounds; mode stays none so
+        // default tower spawn stays off.
         settings.strongholdMode = 'none';
         lesson.roundsToWin = TUTORIAL_4_ROUNDS;
         settings.deploy = { ...settings.deploy, unitsPerRound: 0 };
         settings.economy = {
             ...settings.economy,
-            startingSupply: 3000,
+            startingSupply: 4000,
         };
     } else {
         settings.strongholdMode = 'none';
@@ -166,11 +185,13 @@ export function tutorialBaseCell(
 export const TUTORIAL_DWARF_ID = 'dwarf';
 export const TUTORIAL_ARCHER_ID = 'archer';
 export const TUTORIAL_BALLISTA_ID = 'ballista';
+export const TUTORIAL_MORTAR_ID = 'mortar';
 
 const TUTORIAL_FOOTPRINTS: Readonly<Record<string, { cols: number; rows: number }>> = {
     [TUTORIAL_DWARF_ID]: { cols: 5, rows: 2 },
     [TUTORIAL_ARCHER_ID]: { cols: 2, rows: 2 },
     [TUTORIAL_BALLISTA_ID]: { cols: 4, rows: 4 },
+    [TUTORIAL_MORTAR_ID]: { cols: 5, rows: 2 },
 };
 
 /** What would break a lesson in `types`: a missing unit or an unexpected footprint. Empty = fine. */
@@ -209,6 +230,10 @@ export function tutorialContentProblems(types: TypeRegistry): string[] {
         problems.push(`tutorial 2 needs "${SPAWN_DWARVES_ID}" to summon "${TUTORIAL_DWARF_ID}"`);
     }
     if (!types.tactic(OIL_SPILL_ID)) problems.push(`tutorial 2 needs "${OIL_SPILL_ID}"`);
+    if (!types.tactic(HAMMER_ID)) problems.push(`tutorial 4 needs spell "${HAMMER_ID}"`);
+    if (!types.rune('fire') || !types.rune('earth') || !types.rune('water') || !types.rune('wind')) {
+        problems.push('tutorial 4 needs base runes fire/earth/water/wind');
+    }
     return problems;
 }
 
@@ -221,6 +246,12 @@ export function tutorialDwarfFootprint(rotated: boolean): { cols: number; rows: 
 /** Siege ballista footprint (rotation-symmetric). */
 export function tutorialBallistaFootprint(): { cols: number; rows: number } {
     return { ...TUTORIAL_FOOTPRINTS[TUTORIAL_BALLISTA_ID]! };
+}
+
+/** Mortar footprint (same pad family as dwarves). */
+export function tutorialMortarFootprint(rotated = false): { cols: number; rows: number } {
+    const fp = TUTORIAL_FOOTPRINTS[TUTORIAL_MORTAR_ID]!;
+    return rotated ? { cols: fp.rows, rows: fp.cols } : { ...fp };
 }
 
 /** Row of a side's forward rank for a footprint that deep (own zone, facing mid-field). */
@@ -289,8 +320,8 @@ function tutorial4BorderRow(map: BattleMap, fpRows: number, near: boolean): numb
 }
 
 /**
- * Tutorial 4 round 1: 2 dwarves + 3 archers, L→R, mirrored across the border
- * so both armies stare at each other at point-blank range.
+ * Tutorial 4 guided-rune / forge-apply line: 2 dwarves + 2 archers, L→R,
+ * mirrored across the border.
  */
 export function tutorial4MirroredArmy(
     map: BattleMap,
@@ -298,7 +329,6 @@ export function tutorial4MirroredArmy(
 ): Tutorial4ArmyPack[] {
     const composition: readonly Tutorial4ArmyPack['typeId'][] = [
         TUTORIAL_DWARF_ID,
-        TUTORIAL_ARCHER_ID,
         TUTORIAL_DWARF_ID,
         TUTORIAL_ARCHER_ID,
         TUTORIAL_ARCHER_ID,
@@ -324,8 +354,8 @@ export function tutorial4MirroredArmy(
 }
 
 /**
- * Tutorial 4 round 2: five archers across the middle of a side's zone so both
- * lines must march before they can shoot (Longbow decides who fires first).
+ * Tutorial 4 range / height rounds: archers across the middle of a side's zone
+ * so both lines must march before they can shoot.
  */
 export function tutorial4CenterArcherCells(
     map: BattleMap,
@@ -349,6 +379,97 @@ export function tutorial4CenterArcherCells(
         col += step;
     }
     return cells;
+}
+
+/**
+ * Tutorial 3 round 3: three dwarf pads pressed to the shared border, packed
+ * tight in the center so they stand opposite the enemy's two L2 dwarves.
+ */
+export function tutorial3R3DwarfSlots(map: BattleMap): TutorialPlaceSlot[] {
+    const fp = tutorialDwarfFootprint(false);
+    const count = TUTORIAL_3_R3_DWARVES;
+    const gap = 1;
+    const totalW = count * fp.cols + (count - 1) * gap;
+    let col = Math.floor((map.cols - totalW) / 2);
+    const row = tutorial4BorderRow(map, fp.rows, !map.ownAtFar);
+    const slots: TutorialPlaceSlot[] = [];
+    for (let i = 0; i < count; i++) {
+        slots.push({ anchor: { col, row }, rotated: false });
+        col += fp.cols + gap;
+    }
+    return slots;
+}
+
+/** Tutorial 3 round 3: two enemy dwarf cells on the opposite border, centered. */
+export function tutorial3R3EnemyDwarfCells(map: BattleMap): Cell[] {
+    const fp = tutorialDwarfFootprint(false);
+    const count = 2;
+    const gap = 1;
+    const totalW = count * fp.cols + (count - 1) * gap;
+    let col = Math.floor((map.cols - totalW) / 2);
+    const row = tutorial4BorderRow(map, fp.rows, map.ownAtFar);
+    const cells: Cell[] = [];
+    for (let i = 0; i < count; i++) {
+        cells.push({ col, row });
+        col += fp.cols + gap;
+    }
+    return cells;
+}
+
+/**
+ * Tutorial 3 round 4: mortar on the player's back deploy border (own rim),
+ * lined up with the Garrison — artillery behind the tower.
+ */
+export function tutorial3R4MortarSlot(map: BattleMap): TutorialPlaceSlot {
+    const fp = tutorialMortarFootprint(false);
+    const { rimCells } = map.size;
+    const garrison = tutorialBaseCell(
+        map,
+        BASE_ANCHORS.research.xFrac,
+        BASE_ANCHORS.research.rowFrac,
+        { cols: 3, rows: 3 },
+        'player',
+    );
+    const playerNear = !map.ownAtFar;
+    const row = playerNear ? rimCells : map.rows - rimCells - fp.rows;
+    return {
+        anchor: {
+            col: Math.max(rimCells, Math.min(map.cols - rimCells - fp.cols, garrison.col)),
+            row,
+        },
+        rotated: false,
+    };
+}
+
+/**
+ * Asymmetric relief for Tutorial 4: player shelf high, enemy valley low, with
+ * a mid-field ridge the Hammer lesson flattens.
+ */
+export function tutorial4HeightAt(map: BattleMap, x: number, z: number): number {
+    const halfH = map.halfH;
+    const playerSign = map.ownAtFar ? 1 : -1;
+    const along = (z * playerSign) / halfH;
+    let h: number;
+    if (along < -0.15) h = TUTORIAL_4_SHELF_HEIGHT;
+    else if (along > 0.2) h = 0.4;
+    else {
+        const t = (along + 0.15) / 0.35;
+        const s = t * t * (3 - 2 * t);
+        h = TUTORIAL_4_SHELF_HEIGHT * (1 - s) + 0.4 * s;
+    }
+    const ridgeZ = 0.08 * halfH * playerSign;
+    const ridge = Math.exp(-((z - ridgeZ) ** 2) / (14 * 14)) * Math.exp(-(x * x) / (55 * 55));
+    return h + ridge * 4.5;
+}
+
+/** World-space Hammer aim point for Tutorial 4 round 5 (mid ridge crest). */
+export function tutorial4HammerZone(map: BattleMap): TutorialWorldZone {
+    const playerSign = map.ownAtFar ? 1 : -1;
+    return {
+        x: 0,
+        z: 0.08 * map.halfH * playerSign,
+        radius: 16,
+    };
 }
 
 /**

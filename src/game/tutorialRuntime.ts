@@ -24,7 +24,7 @@ import {
     TUTORIAL_START_CARD_ID,
 } from './cards';
 import { BASE_ANCHORS } from './map';
-import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID } from './tactics';
+import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID, HAMMER_ID } from './tactics';
 import {
     type Team,
     type Unit,
@@ -40,9 +40,8 @@ import {
     tutorial2OilCorridor,
     tutorial2SummonNearKeep,
     tutorial3BallistaSlot,
-    tutorial3CenterDwarfCell,
     tutorial3DwarfSlot,
-    tutorial4CenterArcherCells,
+    tutorial4HammerZone,
     tutorial4MirroredArmy,
     tutorialBallistaFootprint,
     tutorialBaseCell,
@@ -56,18 +55,26 @@ import {
     TUTORIAL_2_STRONGHOLD_ROW_FRAC,
     TUTORIAL_3_ID,
     TUTORIAL_3_ROUNDS,
+    TUTORIAL_3_R3_DWARVES,
+    TUTORIAL_3_R4_TOWER_LEVEL,
     TUTORIAL_4_ARCHER_RANGE_TECH,
-    TUTORIAL_4_ARCHERS,
     TUTORIAL_4_ID,
-    TUTORIAL_4_MIN_RUNES,
     TUTORIAL_4_ROUNDS,
+    TUTORIAL_4_RUNE_LESSON,
     TUTORIAL_ARCHER_ID,
-    TUTORIAL_BALLISTA_ID,
     TUTORIAL_DWARF_ID,
     tutorialContentProblems,
     type TutorialPlaceSlot,
     type TutorialWorldZone,
 } from './tutorial';
+import {
+    boardState3,
+    boardState4,
+    mortarPadTarget,
+    r3PadTargets,
+    setupTutorial3Round,
+    setupTutorial4Round,
+} from './tutorialRounds34';
 import type { TypeRegistry } from './content/typeRegistry';
 
 /**
@@ -95,7 +102,7 @@ export interface TutorialHost {
     readonly starterPicked: boolean[];
     readonly unlockUsedThisRound: boolean[];
     readonly unlockedUnits: string[][];
-    readonly deployState: { limit: number[]; runesBought: number[] };
+    readonly deployState: { limit: number[]; runesBought: number[]; extra: number[]; used: number[] };
     readonly boostState: Record<'attack' | 'hp', number[]>;
     readonly tacticInventory: string[][];
     readonly forgeSpellOwned: string[][];
@@ -103,6 +110,10 @@ export interface TutorialHost {
     readonly spellStamps: SpellStamp[];
     readonly armedTactic: string | null;
     readonly tacticDraftStart: { x: number; z: number } | null;
+    readonly recruitLevel: number[];
+    readonly itemInventory: string[][];
+    readonly forgeSlots: Record<'player' | 'enemy', (import('./forgeRecipes').ForgeSlot | null)[]>;
+    readonly armedItem: string | null;
     /** live camera pose for Tutorial 1's pan / orbit / zoom lesson */
     cameraSnap(): TutorialCameraSnap;
     dispatchPlayer(action: Action): boolean;
@@ -308,29 +319,38 @@ export class TutorialRuntime {
         return new TutorialGuide4(mount, (target) => this.onGuide4Highlight(target));
     }
 
-    /** Boost steps need the Vanguard panel open; select steps must not cheat it. */
+    /** Boost / Garrison panel steps need the right building selected. */
     private onGuide3Highlight(target: Tutorial3Highlight): void {
         const host = this.host;
         if (target === 'boost-attack' || target === 'boost-hp') {
             this.ensurePlayerCommandTowerSelected();
-            // The callout binds to a live boost tile — paint the panel first,
-            // or the very first frame frames the whole sheet instead.
             const tower = this.playerCommandTower();
             if (tower) host.hud.setSelection(host.unitInfo(tower));
+        } else if (
+            target === 'deploy-slot' ||
+            target === 'recruit-l2' ||
+            target === 'tower-upgrade'
+        ) {
+            this.ensurePlayerGarrisonSelected();
+            const g = this.playerGarrison();
+            if (g) host.hud.setSelection(host.unitInfo(g));
         }
         host.hud.setTutorial3Highlight(target);
         this.refresh3Zones();
     }
 
-    /** Longbow steps need an archer panel open; select steps must not cheat it. */
+    /** Longbow / forge steps need the right panel open. */
     private onGuide4Highlight(target: Tutorial4Highlight): void {
         const host = this.host;
         if (target === 'tech-barrel') {
             this.ensurePlayerArcherSelected();
             const archer = this.playerArcher();
             if (archer) host.hud.setSelection(host.unitInfo(archer));
+        } else if (target === 'stronghold') {
+            // world click — no UI frame
         }
         host.hud.setTutorial3Highlight(target);
+        this.refresh4Zones();
     }
 
     // ------------------------------------------------------------- per-round
@@ -444,6 +464,20 @@ export class TutorialRuntime {
         if (!tower) return;
         if (this.host.placement.selectedUnit?.id === tower.id) return;
         this.host.placement.selectUnit(tower);
+        this.host.hud.openUnitDetails();
+    }
+
+    private playerGarrison(): Unit | undefined {
+        return this.host.placement
+            .allUnits()
+            .find((u) => u.type === this.RESEARCH_CENTER && u.team === 'player' && !u.destroyed);
+    }
+
+    private ensurePlayerGarrisonSelected(): void {
+        const g = this.playerGarrison();
+        if (!g) return;
+        if (this.host.placement.selectedUnit?.id === g.id) return;
+        this.host.placement.selectUnit(g);
         this.host.hud.openUnitDetails();
     }
 
@@ -899,200 +933,34 @@ export class TutorialRuntime {
         return spells.filter((id) => id === SPAWN_DWARVES_ID);
     }
 
-    // ------------------------------------------------------------ tutorial 3
+    // ------------------------------------------------------------ tutorial 3 / 4
 
-    /**
-     * The Garrison / Vanguard pair for one side (or both), on the same anchors
-     * a normal match uses — no Stronghold, and never a duplicate.
-     */
-    private spawnTowers3(team: 'player' | 'enemy' | 'both'): void {
-        const host = this.host;
-        const spawnBuilding = (
-            xFrac: number,
-            rowFrac: number,
-            type: UnitType,
-            side: 'player' | 'enemy',
-        ) => {
-            host.placement.spawn(
-                type,
-                tutorialBaseCell(host.map, xFrac, rowFrac, type.footprint, side),
-                side,
-                false,
-                false,
-                primarySeatOf(host.seats, side),
-            );
-        };
-        const sides: ('player' | 'enemy')[] = team === 'both' ? ['player', 'enemy'] : [team];
-        for (const side of sides) {
-            const standing = (type: UnitType) =>
-                host.placement
-                    .allUnits()
-                    .some((u) => u.type === type && u.team === side && !u.destroyed);
-            if (!standing(this.RESEARCH_CENTER)) {
-                spawnBuilding(
-                    BASE_ANCHORS.research.xFrac,
-                    BASE_ANCHORS.research.rowFrac,
-                    this.RESEARCH_CENTER,
-                    side,
-                );
-            }
-            if (!standing(this.COMMAND_TOWER)) {
-                spawnBuilding(
-                    BASE_ANCHORS.command.xFrac,
-                    BASE_ANCHORS.command.rowFrac,
-                    this.COMMAND_TOWER,
-                    side,
-                );
-            }
-        }
-    }
-
-    /** Round 1: the player's own half of the mirrored 2 dwarf + 3 archer army. */
-    private spawnPlayerArmy4(): void {
-        const seat = this.host.humanSeat;
-        for (const pack of tutorial4MirroredArmy(this.host.map, 'player')) {
-            const type = this.host.types.byId(pack.typeId);
-            if (!type) continue;
-            this.host.placement.spawn(type, pack.cell, 'player', false, true, seat);
-        }
-    }
-
-    /** Round 2: five archers across the player's zone center. */
-    private spawnPlayerArchers4(): void {
-        const seat = this.host.humanSeat;
-        const type = this.host.types.byId(TUTORIAL_ARCHER_ID);
-        if (!type) return;
-        for (const cell of tutorial4CenterArcherCells(
-            this.host.map,
-            'player',
-            TUTORIAL_4_ARCHERS,
-        )) {
-            this.host.placement.spawn(type, cell, 'player', false, true, seat);
-        }
-    }
-
-    /**
-     * Tutorial 3's two lessons: enemy towers only (debuff), then mirrored
-     * towers + one pack a side (Vanguard boosts).
-     */
     private setupRound3(round: number): void {
         const host = this.host;
-        const humanSeat = host.humanSeat;
-        const enemySeat = primarySeatOf(host.seats, 'enemy');
-        host.unlockedUnits[enemySeat] = [TUTORIAL_DWARF_ID, TUTORIAL_ARCHER_ID];
-        // Explicit per-round AI cap: the match-wide unitsPerRound only fits
-        // round 1, and a cap of 0 would leave the enemy field empty.
-        host.deployState.limit[enemySeat] = round === 1 ? 2 : 1;
-        const enemyNeed = 2000;
-        const enemyHave = host.economy.balance(enemySeat);
-        if (enemyHave < enemyNeed) host.economy.credit(enemySeat, enemyNeed - enemyHave);
-
-        const credit = (need: number) => {
-            const have = host.economy.balance(humanSeat);
-            if (have < need) host.economy.credit(humanSeat, need - have);
-        };
-
+        // Round 1 pads come from maybeStartGuide; R3/R4 replace them here.
+        const slots = setupTutorial3Round(host, round, {
+            garrison: this.RESEARCH_CENTER,
+            vanguard: this.COMMAND_TOWER,
+        });
         if (round === 1) {
-            this.spawnTowers3('enemy');
-            host.unlockedUnits[humanSeat] = [TUTORIAL_DWARF_ID, TUTORIAL_BALLISTA_ID];
-            host.deployState.limit[humanSeat] = 2;
-            host.hud.setShopColumnVisible(true);
-            host.hud.setShopRunesVisible(false);
-            credit(1500); // one dwarf (100) + one ballista (400), with room to spare
+            this.placeSlots3 = [tutorial3DwarfSlot(host.map), tutorial3BallistaSlot(host.map)];
         } else {
-            this.spawnTowers3('both');
-            // One pack a side, nose to nose — the boosts are the only difference.
-            const dwarf = this.host.types.byId(TUTORIAL_DWARF_ID);
-            if (dwarf) {
-                host.placement.spawn(
-                    dwarf,
-                    tutorial3CenterDwarfCell(host.map),
-                    'player',
-                    false,
-                    true,
-                    humanSeat,
-                );
-            }
-            host.unlockedUnits[humanSeat] = [];
-            host.deployState.limit[humanSeat] = 0;
-            host.hud.setShopColumnVisible(false);
-            host.hud.setShopRunesVisible(false);
-            // Both tracks, every tier — the round's gate needs all of it.
-            credit(2 * host.settings.boosts.costs.reduce((sum, c) => sum + c, 0));
+            this.placeSlots3 = slots;
         }
-        host.refreshShopHud();
-
         if (round >= 2) {
             if (!this.guide3 || this.guide3.currentStep === 'done') {
                 this.guide3?.destroy();
                 this.guide3 = this.newGuide3(this.mount());
             }
-            // Each round opens on nothing selected — the lesson asks for the click.
             host.placement.deselect();
             this.guide3.startRound(round);
         }
         this.sync3();
     }
 
-    /**
-     * Tutorial 4's two lessons: locked mirrored armies (runes), then center
-     * archers (Longbow).
-     */
     private setupRound4(round: number): void {
         const host = this.host;
-        const humanSeat = host.humanSeat;
-        const enemySeat = primarySeatOf(host.seats, 'enemy');
-        host.unlockedUnits[enemySeat] = [TUTORIAL_DWARF_ID, TUTORIAL_ARCHER_ID];
-        host.deployState.limit[enemySeat] = round === 1 ? 5 : TUTORIAL_4_ARCHERS;
-        const enemyNeed = 2000;
-        const enemyHave = host.economy.balance(enemySeat);
-        if (enemyHave < enemyNeed) host.economy.credit(enemySeat, enemyNeed - enemyHave);
-
-        const credit = (need: number) => {
-            const have = host.economy.balance(humanSeat);
-            if (have < need) host.economy.credit(humanSeat, need - have);
-        };
-
-        // Force Longbow onto the human archer loadout for this lesson (readonly
-        // Loadout — replace the seat entry rather than mutating nested arrays).
-        const seatEntry = host.seats[humanSeat];
-        if (seatEntry?.loadout) {
-            const archerTechs = [...(seatEntry.loadout.techs.archer ?? [])];
-            if (!archerTechs.includes(TUTORIAL_4_ARCHER_RANGE_TECH)) {
-                host.seats[humanSeat] = {
-                    ...seatEntry,
-                    loadout: {
-                        techs: {
-                            ...seatEntry.loadout.techs,
-                            archer: [TUTORIAL_4_ARCHER_RANGE_TECH, ...archerTechs].slice(0, 3),
-                        },
-                    },
-                };
-            }
-        }
-
-        this.clearStructures();
-        if (round === 1) {
-            this.spawnPlayerArmy4();
-            // Shop runes have no buy-slot limit; units stay locked this round.
-            host.unlockedUnits[humanSeat] = [];
-            host.deployState.limit[humanSeat] = 0;
-            host.hud.setShopColumnVisible(true);
-            host.hud.setShopRunesVisible(true);
-            const ds = host.settings.deploy;
-            const runes = TUTORIAL_4_MIN_RUNES * 2;
-            credit(runes * ds.baseRuneCost + ((runes * (runes - 1)) / 2) * ds.runeCostStep);
-        } else {
-            this.spawnPlayerArchers4();
-            host.unlockedUnits[humanSeat] = [];
-            host.deployState.limit[humanSeat] = 0;
-            host.hud.setShopColumnVisible(false);
-            host.hud.setShopRunesVisible(false);
-            // Longbow base cost (200) — enough even if a prior talent somehow exists.
-            credit(400);
-        }
-        host.refreshShopHud();
-
+        setupTutorial4Round(host, round, this.STRONGHOLD);
         if (round >= 2) {
             if (!this.guide4 || this.guide4.currentStep === 'done') {
                 this.guide4?.destroy();
@@ -1105,55 +973,26 @@ export class TutorialRuntime {
     }
 
     private board3(): Tutorial3BoardState {
-        const host = this.host;
-        const dwarfSlot = this.placeSlots3[0];
-        const ballistaSlot = this.placeSlots3[1];
-        const own = host.placement
-            .allUnits()
-            .filter((u) => u.seat === host.humanSeat && !u.type.structure);
-        const dwarves = own.filter((u) => u.type.id === TUTORIAL_DWARF_ID);
-        const ballistas = own.filter((u) => u.type.id === TUTORIAL_BALLISTA_ID);
-        const tower = this.playerCommandTower();
-        const selected = host.placement.selectedUnit;
-        return {
-            round: host.round,
-            dwarfCount: dwarves.length,
-            ballistaCount: ballistas.length,
-            dwarfPlaced: !!dwarfSlot && dwarves.some((u) => unitMatchesTutorialSlot(u, dwarfSlot)),
-            // The ballista footprint is square — rotating it changes nothing,
-            // so the pad accepts either orientation on the right cell.
-            ballistaPlaced:
-                !!ballistaSlot && ballistas.some((u) => cellEq(u.cell, ballistaSlot.anchor)),
-            vanguardSelected: !!tower && selected?.id === tower.id,
-            boostAttack: host.boostState.attack[host.humanSeat]!,
-            boostHp: host.boostState.hp[host.humanSeat]!,
-            boostMax: host.settings.boosts.costs.length,
-        };
+        return boardState3(
+            this.host,
+            this.placeSlots3,
+            this.RESEARCH_CENTER,
+            this.COMMAND_TOWER,
+        );
     }
 
     private board4(): Tutorial4BoardState {
-        const host = this.host;
-        const own = host.placement
-            .allUnits()
-            .filter((u) => u.seat === host.humanSeat && !u.type.structure);
-        const selected = host.placement.selectedUnit;
-        return {
-            round: host.round,
-            runesBought: host.deployState.runesBought[host.humanSeat]!,
-            runesApplied: own.reduce((n, u) => n + u.items.length, 0),
-            archerSelected:
-                !!selected && selected.seat === host.humanSeat && selected.type.id === TUTORIAL_ARCHER_ID,
-            longbowOwned: host.techTree.has(
-                host.humanSeat,
-                TUTORIAL_ARCHER_ID,
-                TUTORIAL_4_ARCHER_RANGE_TECH,
-            ),
-        };
+        return boardState4(this.host, this.STRONGHOLD);
     }
 
     sync3(): void {
         if (!this.guide3 || this.lesson !== TUTORIAL_3_ID) return;
+        const prev = this.guide3.currentStep;
         this.guide3.syncFromBoard(this.board3());
+        // After the first two L2 dwarves, force a fresh Garrison click for +1 slot.
+        if (prev === 'r3BuyTwo' && this.guide3.currentStep === 'r3SelectGarrisonAgain') {
+            this.host.placement.deselect();
+        }
         this.refresh3Zones();
         this.host.updateSelectionUi();
     }
@@ -1161,77 +1000,166 @@ export class TutorialRuntime {
     sync4(): void {
         if (!this.guide4 || this.lesson !== TUTORIAL_4_ID) return;
         this.guide4.syncFromBoard(this.board4());
+        this.refresh4Zones();
         this.host.updateSelectionUi();
     }
 
-    /** Round 1's forced pads: the dwarf pad opens first, the ballista pad after it. */
     private refresh3Zones(): void {
         const host = this.host;
         const guide = this.guide3;
-        if (this.lesson !== TUTORIAL_3_ID || !guide || host.round !== 1) {
+        if (this.lesson !== TUTORIAL_3_ID || !guide) {
             host.placement.clearTutorialTargets();
             return;
         }
-        const step = guide.currentStep;
-        const showDwarf = step !== 'r1Intro' && step !== 'r1BuyDwarf' && step !== 'done';
-        const showBallista =
-            step === 'r1PlaceBallista' || step === 'r1DebuffExplain' || step === 'r1End';
-        const dwarfSlot = this.placeSlots3[0];
-        const ballistaSlot = this.placeSlots3[1];
-        const targets: {
-            anchor: { col: number; row: number };
-            cols: number;
-            rows: number;
-            filled?: boolean;
-        }[] = [];
         const state = this.board3();
-        if (showDwarf && dwarfSlot) {
-            const fp = tutorialDwarfFootprint(dwarfSlot.rotated);
-            targets.push({
-                anchor: dwarfSlot.anchor,
-                cols: fp.cols,
-                rows: fp.rows,
-                filled: state.dwarfPlaced,
-            });
-        }
-        if (showBallista && ballistaSlot) {
-            const fp = tutorialBallistaFootprint();
-            targets.push({
-                anchor: ballistaSlot.anchor,
-                cols: fp.cols,
-                rows: fp.rows,
-                filled: state.ballistaPlaced,
-            });
-        }
-        if (targets.length === 0) {
-            host.placement.clearTutorialTargets();
+        if (host.round === 1) {
+            const step = guide.currentStep;
+            const showDwarf = step !== 'r1Intro' && step !== 'r1BuyDwarf' && step !== 'done';
+            const showBallista =
+                step === 'r1PlaceBallista' || step === 'r1DebuffExplain' || step === 'r1End';
+            const dwarfSlot = this.placeSlots3[0];
+            const ballistaSlot = this.placeSlots3[1];
+            const targets: {
+                anchor: { col: number; row: number };
+                cols: number;
+                rows: number;
+                filled?: boolean;
+            }[] = [];
+            if (showDwarf && dwarfSlot) {
+                const fp = tutorialDwarfFootprint(dwarfSlot.rotated);
+                targets.push({
+                    anchor: dwarfSlot.anchor,
+                    cols: fp.cols,
+                    rows: fp.rows,
+                    filled: state.dwarfPlaced,
+                });
+            }
+            if (showBallista && ballistaSlot) {
+                const fp = tutorialBallistaFootprint();
+                targets.push({
+                    anchor: ballistaSlot.anchor,
+                    cols: fp.cols,
+                    rows: fp.rows,
+                    filled: state.ballistaPlaced,
+                });
+            }
+            if (targets.length === 0) host.placement.clearTutorialTargets();
+            else host.placement.setTutorialPlaceTargets(targets);
             return;
         }
-        host.placement.setTutorialPlaceTargets(targets);
+        if (host.round === 3) {
+            const step = guide.currentStep;
+            if (step === 'r3BuyTwo') {
+                host.placement.setTutorialPlaceTargets(
+                    r3PadTargets(this.placeSlots3, state.r3PadsFilled, 2),
+                );
+            } else if (step === 'r3BuyThird' || step === 'r3End') {
+                host.placement.setTutorialPlaceTargets(
+                    r3PadTargets(this.placeSlots3, state.r3PadsFilled, 3),
+                );
+            } else {
+                host.placement.clearTutorialTargets();
+            }
+            return;
+        }
+        if (host.round === 4) {
+            const step = guide.currentStep;
+            const slot = this.placeSlots3[0];
+            if (slot && (step === 'r4PlaceMortar' || step === 'r4End' || step === 'r4BuyMortar')) {
+                host.placement.setTutorialPlaceTargets([
+                    mortarPadTarget(slot, state.mortarPlaced),
+                ]);
+            } else {
+                host.placement.clearTutorialTargets();
+            }
+            return;
+        }
+        host.placement.clearTutorialTargets();
     }
 
-    /** Tutorial 3 round 2 is the boost lesson — the other tracks stay hidden. */
+    private refresh4Zones(): void {
+        const host = this.host;
+        const guide = this.guide4;
+        if (this.lesson !== TUTORIAL_4_ID || !guide) {
+            host.placement.clearTutorialTargets();
+            return;
+        }
+        if (host.round === 1) {
+            const step = guide.currentStep;
+            const assignMatch = /^r1Assign(\d)$/.exec(step);
+            if (assignMatch) {
+                const i = Number(assignMatch[1]);
+                const lesson = TUTORIAL_4_RUNE_LESSON[i];
+                const army = tutorial4MirroredArmy(host.map, 'player');
+                const pack = lesson ? army[lesson.packIndex] : undefined;
+                if (pack) {
+                    const type = host.types.byId(pack.typeId);
+                    const fp = type?.footprint ?? { cols: 2, rows: 2 };
+                    host.placement.setTutorialPlaceTargets([
+                        { anchor: pack.cell, cols: fp.cols, rows: fp.rows, filled: false },
+                    ]);
+                    return;
+                }
+            }
+            host.placement.clearTutorialTargets();
+            return;
+        }
+        if (host.round === 3) {
+            const step = guide.currentStep;
+            if (step === 'r3Apply' || step === 'r3End') {
+                const army = tutorial4MirroredArmy(host.map, 'player');
+                const pack = army[0];
+                if (pack) {
+                    const fp = tutorialDwarfFootprint(false);
+                    host.placement.setTutorialPlaceTargets([
+                        { anchor: pack.cell, cols: fp.cols, rows: fp.rows, filled: false },
+                    ]);
+                    return;
+                }
+            }
+            host.placement.clearTutorialTargets();
+            return;
+        }
+        if (host.round === 5) {
+            const step = guide.currentStep;
+            if (step === 'r5PlaceHammer' || step === 'r5End') {
+                const zone = tutorial4HammerZone(host.map);
+                host.placement.setTutorialWorldZones([{ ...zone, filled: this.board4().hammerPlaced }]);
+                return;
+            }
+        }
+        host.placement.clearTutorialTargets();
+    }
+
+    /** Snap Hammer placement onto the glowing ridge. */
+    hammerPointClick(ground: { x: number; z: number }): { x: number; z: number } | 'miss' | null {
+        if (this.lesson !== TUTORIAL_4_ID || this.host.round !== 5 || !this.guide4) return null;
+        const step = this.guide4.currentStep;
+        if (step !== 'r5PlaceHammer' && step !== 'r5End') return null;
+        const zone = tutorial4HammerZone(this.host.map);
+        if (!pointNear(ground.x, ground.z, zone.x, zone.z, zoneClickTol(zone.radius))) {
+            this.guide4.nudge(t('tutorial:tutorial4NudgeHammer'));
+            return 'miss';
+        }
+        return { x: zone.x, z: zone.z };
+    }
+
     get boostLessonOnly(): boolean {
         return this.lesson === TUTORIAL_3_ID && this.host.round === 2;
     }
 
-    /** Tutorial 4 round 2: an archer's tech list narrows to Longbow alone. */
     soleTechFor(unit: Unit): string | null {
         return this.lesson === TUTORIAL_4_ID &&
-            this.host.round === 2 &&
+            this.host.round === 4 &&
             unit.type.id === TUTORIAL_ARCHER_ID
             ? TUTORIAL_4_ARCHER_RANGE_TECH
             : null;
     }
 
-    // ----------------------------------------------------------------- gates
-
-    /** Whichever lesson overlay is live — nudges go to it, never to a fixed one. */
     private nudge(message: string): void {
         (this.guide1 ?? this.guide2 ?? this.guide3 ?? this.guide4)?.nudge(message);
     }
 
-    /** Every lesson re-reads the board after a placement / purchase. */
     syncFromBoard(): void {
         this.sync1();
         this.sync2();
@@ -1247,7 +1175,6 @@ export class TutorialRuntime {
         this.host.placement.clearTutorialTargets();
     }
 
-    /** End Deployment: true when this lesson's step is satisfied (else it nudges). */
     tryEndDeploy(): boolean {
         if (this.lesson === TUTORIAL_1_ID) {
             const board = this.board1();
@@ -1277,7 +1204,7 @@ export class TutorialRuntime {
             if (!this.guide3.canEndDeploy(state)) {
                 if (state.round === 1) {
                     this.guide3.nudge(t('tutorial:tutorial3NudgePlacePads'));
-                } else {
+                } else if (state.round === 2) {
                     this.guide3.nudge(
                         t('tutorial:tutorial3NudgeBoosts', {
                             attack: state.boostAttack,
@@ -1285,6 +1212,35 @@ export class TutorialRuntime {
                             max: state.boostMax,
                         }),
                     );
+                } else if (state.round === 3) {
+                    if (!state.recruitActive) {
+                        this.guide3.nudge(t('tutorial:tutorial3NudgeRecruit'));
+                    } else if (state.r3PadsFilled < 2) {
+                        this.guide3.nudge(
+                            t('tutorial:tutorial3NudgeDwarves', {
+                                filled: state.r3PadsFilled,
+                                need: 2,
+                            }),
+                        );
+                    } else if (state.deployExtra < 1) {
+                        this.guide3.nudge(t('tutorial:tutorial3NudgeSlot'));
+                    } else {
+                        this.guide3.nudge(
+                            t('tutorial:tutorial3NudgeDwarves', {
+                                filled: state.r3PadsFilled,
+                                need: TUTORIAL_3_R3_DWARVES,
+                            }),
+                        );
+                    }
+                } else if (state.towerLevel < TUTORIAL_3_R4_TOWER_LEVEL) {
+                    this.guide3.nudge(
+                        t('tutorial:tutorial3NudgeUpgrade', {
+                            level: state.towerLevel,
+                            max: TUTORIAL_3_R4_TOWER_LEVEL,
+                        }),
+                    );
+                } else {
+                    this.guide3.nudge(t('tutorial:tutorial3NudgeMortar'));
                 }
                 return false;
             }
@@ -1292,51 +1248,76 @@ export class TutorialRuntime {
         if (this.lesson === TUTORIAL_4_ID && this.guide4) {
             const state = this.board4();
             if (!this.guide4.canEndDeploy(state)) {
-                if (state.round === 1) {
-                    this.guide4.nudge(
-                        t('tutorial:tutorial4NudgeRunes', {
-                            bought: state.runesBought,
-                            need: TUTORIAL_4_MIN_RUNES,
-                        }),
-                    );
-                } else {
-                    this.guide4.nudge(t('tutorial:tutorial4NudgeLongbow'));
-                }
+                if (state.round === 1) this.guide4.nudge(t('tutorial:tutorial4NudgeRune'));
+                else if (state.round === 2) this.guide4.nudge(t('tutorial:tutorial4NudgeForge'));
+                else if (state.round === 3) this.guide4.nudge(t('tutorial:tutorial4NudgeApply'));
+                else if (state.round === 4) this.guide4.nudge(t('tutorial:tutorial4NudgeLongbow'));
+                else this.guide4.nudge(t('tutorial:tutorial4NudgeHammer'));
                 return false;
             }
         }
         return true;
     }
 
-    /** Shop gates that run before the unlock / affordability checks. */
     blocksBuyEarly(_type: UnitType): boolean {
         if (this.lesson === TUTORIAL_2_ID && this.host.round < 3) {
             this.guide2?.nudge(t('tutorial:tutorial2NudgeNoShop'));
             return true;
         }
         if (this.lesson === TUTORIAL_3_ID) {
-            if (this.host.round >= 2) {
+            const round = this.host.round;
+            if (round === 2) {
                 this.guide3?.nudge(t('tutorial:tutorial3NudgeNoShop'));
                 return true;
             }
-            const step = this.guide3?.currentStep;
-            if (step === 'r1Intro') {
-                this.guide3?.nudge(t('tutorial:tutorial3NudgeReadIntro'));
-                return true;
+            if (round === 3) {
+                const step = this.guide3?.currentStep;
+                if (
+                    step === 'r3Intro' ||
+                    step === 'r3SelectGarrison' ||
+                    step === 'r3Recruit' ||
+                    step === 'r3SelectGarrisonAgain' ||
+                    step === 'r3DeploySlot'
+                ) {
+                    this.guide3?.nudge(t('tutorial:tutorial3NudgeGarrison'));
+                    return true;
+                }
             }
-            if (step === 'r1PlaceDwarf' || step === 'r1PlaceBallista') {
-                this.guide3?.nudge(t('tutorial:tutorialNudgeFinishPad'));
-                return true;
+            if (round === 4) {
+                const step = this.guide3?.currentStep;
+                if (step === 'r4Intro' || step === 'r4SelectTower' || step === 'r4Upgrade') {
+                    this.guide3?.nudge(
+                        t('tutorial:tutorial3NudgeUpgrade', {
+                            level: this.board3().towerLevel,
+                            max: TUTORIAL_3_R4_TOWER_LEVEL,
+                        }),
+                    );
+                    return true;
+                }
+            }
+            if (round === 1) {
+                const step = this.guide3?.currentStep;
+                if (step === 'r1Intro') {
+                    this.guide3?.nudge(t('tutorial:tutorial3NudgeReadIntro'));
+                    return true;
+                }
+                if (step === 'r1PlaceDwarf' || step === 'r1PlaceBallista') {
+                    this.guide3?.nudge(t('tutorial:tutorialNudgeFinishPad'));
+                    return true;
+                }
             }
         }
         if (this.lesson === TUTORIAL_4_ID) {
-            this.guide4?.nudge(t('tutorial:tutorial3NudgeNoShop'));
-            return true;
+            const round = this.host.round;
+            if (round === 1 || round === 2) return false; // rune shop
+            if (round >= 3) {
+                this.guide4?.nudge(t('tutorial:tutorial3NudgeNoShop'));
+                return true;
+            }
         }
         return false;
     }
 
-    /** Tutorial 1's shop gates — only reached once the buy is otherwise legal. */
     blocksBuyLate(): boolean {
         const step = this.guide1?.currentStep;
         if (step === 'place1' || step === 'place2') {
@@ -1354,18 +1335,18 @@ export class TutorialRuntime {
         return false;
     }
 
-    /** Tutorial 4's rune round is the only place a lesson sells runes. */
     blocksBuyRune(): boolean {
-        if (this.lesson === TUTORIAL_4_ID && this.host.round === 1) return false;
+        if (this.lesson === TUTORIAL_4_ID && (this.host.round === 1 || this.host.round === 2)) {
+            return false;
+        }
         this.nudge(t('tutorial:tutorialNudgeRunes'));
         return true;
     }
 
-    /** Tutorial 4 round 2: Longbow is the only talent the lesson pays for. */
     blocksBuyTech(techId: string): boolean {
         if (
             this.lesson !== TUTORIAL_4_ID ||
-            this.host.round !== 2 ||
+            this.host.round !== 4 ||
             techId === TUTORIAL_4_ARCHER_RANGE_TECH
         ) {
             return false;

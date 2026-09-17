@@ -1071,7 +1071,7 @@ menu.innerHTML = `
     </div>
     <div class="m-view m-spmode" data-view="tutorial">
         <div class="m-spmode-title" data-i18n="menu:tutorial"></div>
-        <div class="m-toggle-row">
+        <div class="m-toggle-row m-toggle-grid">
             <button class="m-btn m-toggle-card" data-mode="tutorial-1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial1"></span></button>
             <button class="m-btn m-toggle-card" data-mode="tutorial-2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial2"></span></button>
             <button class="m-btn m-toggle-card" data-mode="tutorial-3">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial3"></span></button>

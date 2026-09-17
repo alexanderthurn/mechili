@@ -2,14 +2,21 @@ import { t } from '../i18n';
 import { TutorialPanel } from './tutorialPanel';
 import {
     TUTORIAL_3_BOOST_MAX_TIERS,
+    TUTORIAL_3_R3_DWARVES,
+    TUTORIAL_3_R4_TOWER_LEVEL,
 } from '../game/tutorial';
 
 export type Tutorial3Highlight =
     | 'shop-dwarf'
     | 'shop-ballista'
+    | 'shop-mortar'
     | 'vanguard'
+    | 'garrison'
     | 'boost-attack'
     | 'boost-hp'
+    | 'deploy-slot'
+    | 'recruit-l2'
+    | 'tower-upgrade'
     | 'end-deploy'
     | null;
 
@@ -26,30 +33,52 @@ export type Tutorial3Step =
     | 'r2BoostAttack'
     | 'r2BoostHp'
     | 'r2End'
+    | 'r3Intro'
+    | 'r3SelectGarrison'
+    | 'r3Recruit'
+    | 'r3BuyTwo'
+    | 'r3SelectGarrisonAgain'
+    | 'r3DeploySlot'
+    | 'r3BuyThird'
+    | 'r3End'
+    | 'r4Intro'
+    | 'r4SelectTower'
+    | 'r4Upgrade'
+    | 'r4BuyMortar'
+    | 'r4PlaceMortar'
+    | 'r4End'
     | 'done';
 
 export interface Tutorial3BoardState {
     round: number;
     dwarfCount: number;
     ballistaCount: number;
+    mortarCount: number;
     dwarfPlaced: boolean;
     ballistaPlaced: boolean;
+    /** round 3: how many of the three pads are filled */
+    r3PadsFilled: number;
+    mortarPlaced: boolean;
     vanguardSelected: boolean;
+    garrisonSelected: boolean;
     boostAttack: number;
     boostHp: number;
-    /** tiers per track (settings.boosts.costs.length) */
     boostMax: number;
+    recruitActive: boolean;
+    deployExtra: number;
+    towerLevel: number;
 }
 
-/** Steps that wait on the Next button instead of a board change. */
 const READ_STEPS: readonly Tutorial3Step[] = [
     'r1Intro',
     'r1DebuffExplain',
     'r2Intro',
+    'r3Intro',
+    'r4Intro',
 ];
 
 /**
- * Soft-hint overlay for Tutorial 3 (Tower lesson, two rounds).
+ * Soft-hint overlay for Tutorial 3 (Towers: debuff, Vanguard, Garrison, mortar).
  */
 export class TutorialGuide3 extends TutorialPanel {
     private step: Tutorial3Step = 'r1Intro';
@@ -70,25 +99,21 @@ export class TutorialGuide3 extends TutorialPanel {
         return this.step === 'done';
     }
 
-    /** Begin round 1 after match intro. */
     start(): void {
         if (this.destroyed) return;
         this.step = 'r1Intro';
         this.paint();
     }
 
-    /** Advance the guide when a new build phase begins (round 2). */
     startRound(round: number): void {
         if (this.destroyed) return;
         if (round === 2) this.step = 'r2Intro';
+        else if (round === 3) this.step = 'r3Intro';
+        else if (round === 4) this.step = 'r4Intro';
         else return;
         this.paint();
     }
 
-    /**
-     * Reconcile with the live board / Vanguard panel / shop.
-     * The End Deployment gate is a separate read — see {@link canEndDeploy}.
-     */
     syncFromBoard(state: Tutorial3BoardState): void {
         if (this.destroyed || this.step === 'done') return;
         this.lastState = state;
@@ -111,6 +136,30 @@ export class TutorialGuide3 extends TutorialPanel {
             } else if (this.step === 'r2BoostHp' && state.boostHp >= state.boostMax) {
                 this.step = 'r2End';
             }
+        } else if (state.round === 3) {
+            if (this.step === 'r3SelectGarrison' && state.garrisonSelected) {
+                this.step = 'r3Recruit';
+            } else if (this.step === 'r3Recruit' && state.recruitActive) {
+                this.step = 'r3BuyTwo';
+            } else if (this.step === 'r3BuyTwo' && state.r3PadsFilled >= 2) {
+                this.step = 'r3SelectGarrisonAgain';
+            } else if (this.step === 'r3SelectGarrisonAgain' && state.garrisonSelected) {
+                this.step = 'r3DeploySlot';
+            } else if (this.step === 'r3DeploySlot' && state.deployExtra >= 1) {
+                this.step = 'r3BuyThird';
+            } else if (this.step === 'r3BuyThird' && state.r3PadsFilled >= TUTORIAL_3_R3_DWARVES) {
+                this.step = 'r3End';
+            }
+        } else if (state.round === 4) {
+            if (this.step === 'r4SelectTower' && state.garrisonSelected) {
+                this.step = 'r4Upgrade';
+            } else if (this.step === 'r4Upgrade' && state.towerLevel >= TUTORIAL_3_R4_TOWER_LEVEL) {
+                this.step = 'r4BuyMortar';
+            } else if (this.step === 'r4BuyMortar' && state.mortarCount >= 1) {
+                this.step = 'r4PlaceMortar';
+            } else if (this.step === 'r4PlaceMortar' && state.mortarPlaced) {
+                this.step = 'r4End';
+            }
         }
 
         this.paint();
@@ -126,6 +175,21 @@ export class TutorialGuide3 extends TutorialPanel {
                 this.step === 'r2End' &&
                 state.boostAttack >= state.boostMax &&
                 state.boostHp >= state.boostMax
+            );
+        }
+        if (state.round === 3) {
+            return (
+                this.step === 'r3End' &&
+                state.recruitActive &&
+                state.deployExtra >= 1 &&
+                state.r3PadsFilled >= TUTORIAL_3_R3_DWARVES
+            );
+        }
+        if (state.round === 4) {
+            return (
+                this.step === 'r4End' &&
+                state.towerLevel >= TUTORIAL_3_R4_TOWER_LEVEL &&
+                state.mortarPlaced
             );
         }
         return false;
@@ -152,6 +216,12 @@ export class TutorialGuide3 extends TutorialPanel {
                 break;
             case 'r2Intro':
                 this.step = 'r2SelectVanguard';
+                break;
+            case 'r3Intro':
+                this.step = 'r3SelectGarrison';
+                break;
+            case 'r4Intro':
+                this.step = 'r4SelectTower';
                 break;
             default:
                 return;
@@ -224,6 +294,88 @@ export class TutorialGuide3 extends TutorialPanel {
             case 'r2End':
                 this.titleEl.textContent = t('tutorial:tutorial3R2EndTitle');
                 this.bodyEl.textContent = t('tutorial:tutorial3R2EndBody');
+                highlight = 'end-deploy';
+                break;
+            case 'r3Intro':
+                this.titleEl.textContent = t('tutorial:tutorial3R3IntroTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R3IntroBody');
+                break;
+            case 'r3SelectGarrison':
+                this.titleEl.textContent = t('tutorial:tutorial3R3SelectTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R3SelectBody');
+                highlight = 'garrison';
+                break;
+            case 'r3Recruit':
+                this.titleEl.textContent = t('tutorial:tutorial3R3RecruitTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R3RecruitBody');
+                highlight = 'recruit-l2';
+                break;
+            case 'r3BuyTwo': {
+                const filled = Math.min(this.lastState?.r3PadsFilled ?? 0, 2);
+                this.titleEl.textContent = t('tutorial:tutorial3R3BuyTwoTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R3BuyTwoBody', {
+                    filled,
+                    need: 2,
+                });
+                highlight = 'shop-dwarf';
+                break;
+            }
+            case 'r3SelectGarrisonAgain':
+                this.titleEl.textContent = t('tutorial:tutorial3R3SelectAgainTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R3SelectAgainBody');
+                highlight = 'garrison';
+                break;
+            case 'r3DeploySlot':
+                this.titleEl.textContent = t('tutorial:tutorial3R3SlotTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R3SlotBody');
+                highlight = 'deploy-slot';
+                break;
+            case 'r3BuyThird': {
+                const filled = this.lastState?.r3PadsFilled ?? 0;
+                this.titleEl.textContent = t('tutorial:tutorial3R3BuyThirdTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R3BuyThirdBody', {
+                    filled,
+                    need: TUTORIAL_3_R3_DWARVES,
+                });
+                highlight = 'shop-dwarf';
+                break;
+            }
+            case 'r3End':
+                this.titleEl.textContent = t('tutorial:tutorial3R3EndTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R3EndBody');
+                highlight = 'end-deploy';
+                break;
+            case 'r4Intro':
+                this.titleEl.textContent = t('tutorial:tutorial3R4IntroTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R4IntroBody');
+                break;
+            case 'r4SelectTower':
+                this.titleEl.textContent = t('tutorial:tutorial3R4SelectTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R4SelectBody');
+                highlight = 'garrison';
+                break;
+            case 'r4Upgrade': {
+                const level = this.lastState?.towerLevel ?? 1;
+                this.titleEl.textContent = t('tutorial:tutorial3R4UpgradeTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R4UpgradeBody', {
+                    level,
+                    max: TUTORIAL_3_R4_TOWER_LEVEL,
+                });
+                highlight = 'tower-upgrade';
+                break;
+            }
+            case 'r4BuyMortar':
+                this.titleEl.textContent = t('tutorial:tutorial3R4BuyTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R4BuyBody');
+                highlight = 'shop-mortar';
+                break;
+            case 'r4PlaceMortar':
+                this.titleEl.textContent = t('tutorial:tutorial3R4PlaceTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R4PlaceBody');
+                break;
+            case 'r4End':
+                this.titleEl.textContent = t('tutorial:tutorial3R4EndTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial3R4EndBody');
                 highlight = 'end-deploy';
                 break;
             case 'done':

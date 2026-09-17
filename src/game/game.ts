@@ -47,9 +47,11 @@ import {
     isTutorial,
     nextTutorialId,
     tutorialId,
+    tutorial4HeightAt,
     TUTORIAL_1_ID,
     TUTORIAL_2_ID,
     TUTORIAL_3_ID,
+    TUTORIAL_4_ID,
 } from './tutorial';
 import { TutorialRuntime, type TutorialHost } from './tutorialRuntime';
 import {
@@ -1416,6 +1418,9 @@ export class Game {
                         : `[landscape] "${settings.landscape}" is not loaded — playing the procedural terrain`,
                 );
             }
+        } else if (tutorialId(settings) === TUTORIAL_4_ID) {
+            // Asymmetric shelf / valley for the Units height lesson (whole match).
+            this.map.setReliefOverride((x, z) => tutorial4HeightAt(this.map, x, z));
         }
         // sized to THIS match's board — a hardcoded default here silently
         // drops every oil/acid/fire effect placed outside the standard
@@ -3952,7 +3957,13 @@ export class Game {
             stamped.kind === 'buyRune' ||
             stamped.kind === 'applyItem' ||
             stamped.kind === 'removeItem' ||
-            stamped.kind === 'buyTech'
+            stamped.kind === 'buyTech' ||
+            stamped.kind === 'forgeInsert' ||
+            stamped.kind === 'forgeRemove' ||
+            stamped.kind === 'recruitLevel' ||
+            stamped.kind === 'buyDeploySlot' ||
+            stamped.kind === 'upgradeTower' ||
+            stamped.kind === 'placeSpell'
         ) {
             this.tutorial?.sync3();
             this.tutorial?.sync4();
@@ -4562,6 +4573,18 @@ export class Game {
             },
             get tacticDraftStart() {
                 return game.tacticDraftStart;
+            },
+            get recruitLevel() {
+                return game.recruitLevel;
+            },
+            get itemInventory() {
+                return game.itemInventory;
+            },
+            get forgeSlots() {
+                return game.forgeSlots;
+            },
+            get armedItem() {
+                return game.armedItem;
             },
             cameraSnap: () => {
                 const pose = this.rig.getPose();
@@ -8191,6 +8214,9 @@ export class Game {
                 if (tactic.respectsSafeZone && this.inSafeZone(ground.x, ground.z, radius)) {
                     return true;
                 }
+                const snapped = this.tutorial?.hammerPointClick(ground);
+                if (snapped === 'miss') return true;
+                if (snapped) ground = snapped;
                 this.tacticDraftStart = ground;
                 this.syncTacticVisuals();
                 return true;
@@ -8208,6 +8234,7 @@ export class Game {
                 })
             ) {
                 this.cancelTacticPlacement();
+                this.tutorial?.sync4();
             }
             return true;
         }
@@ -8793,6 +8820,7 @@ export class Game {
             const bag = this.itemInventory[this.humanSeat]!;
             this.armedItem = itemId;
             this.armedItemIndex = bag.length - 1;
+            this.tutorial?.sync4();
         }
         return ok;
     }

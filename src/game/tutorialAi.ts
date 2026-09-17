@@ -24,9 +24,11 @@ import {
     TUTORIAL_4_ID,
     TUTORIAL_ARCHER_ID,
     TUTORIAL_DWARF_ID,
+    tutorial3R3EnemyDwarfCells,
     tutorial4CenterArcherCells,
     tutorial4MirroredArmy,
 } from './tutorial';
+import { setUnitLevel } from './tutorialRounds34';
 
 /**
  * Tutorial-mode opponent. One file owns every lesson's AI behaviour so later
@@ -38,7 +40,6 @@ export class TutorialAi implements Opponent {
         private readonly seat: SeatId,
         private readonly tutorialLessonId: number,
         private readonly ctx: {
-            /** the unit and building definitions this match plays with */
             types: TypeRegistry;
             dispatch: (action: Action) => boolean;
             placement: PlacementController;
@@ -105,7 +106,6 @@ export class TutorialAi implements Opponent {
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }
 
-    /** Tutorial 1: four archers near the middle of the enemy zone, then lock in. */
     private runTutorial1(round: number): void {
         if (round === 1) {
             this.ctx.unlockedUnits[this.seat] = [TUTORIAL_ARCHER_ID];
@@ -115,7 +115,6 @@ export class TutorialAi implements Opponent {
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }
 
-    /** Tutorial 2: center-lane waves; round 3 adds a heavy assault from the left. */
     private runTutorial2(round: number): void {
         if (round === 1) {
             const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
@@ -127,40 +126,50 @@ export class TutorialAi implements Opponent {
             if (archer) this.placeNearCenter(archer, 7);
         } else if (round === 3) {
             const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
-            // Left border only — no archers, so the right-back stays clear for
-            // the player's summon and the keep fight stays melee.
             if (dwarf) this.placeAtBorderLeft(dwarf, 6);
         }
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }
 
-    /**
-     * Tutorial 3: round 1 stacks the left flank (leaving the right tower
-     * exposed), round 2 fields the single center pack the boost lesson is
-     * measured against.
-     */
     private runTutorial3(round: number): void {
         const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
         if (round === 1) {
             if (dwarf) this.placeAtBorderLeft(dwarf, 2, /* deeper */ 1);
         } else if (round === 2) {
             if (dwarf) this.placeNearCenter(dwarf, 1);
+        } else if (round === 3) {
+            // Two L2 dwarves on the opposite border, centered on the player's three.
+            if (dwarf) {
+                for (const cell of tutorial3R3EnemyDwarfCells(this.ctx.placement.map)) {
+                    if (this.buyAt(dwarf, cell)) {
+                        const u = this.ctx.placement
+                            .allUnits()
+                            .find(
+                                (unit) =>
+                                    unit.seat === this.seat &&
+                                    unit.type.id === TUTORIAL_DWARF_ID &&
+                                    unit.cell.col === cell.col &&
+                                    unit.cell.row === cell.row,
+                            );
+                        if (u) setUnitLevel(u, 2);
+                    }
+                }
+            }
+        } else if (round === 4) {
+            // Two dwarves chewing the player's Garrison.
+            if (dwarf) this.placeAtBorderLeft(dwarf, 2, 0);
         }
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }
 
-    /**
-     * Tutorial 4: round 1 brings the mirrored rune army, round 2 the center
-     * archer line for Longbow.
-     */
     private runTutorial4(round: number): void {
         const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
-        if (round === 1) {
+        if (round === 1 || round === 2 || round === 3) {
             for (const pack of tutorial4MirroredArmy(this.ctx.placement.map, 'enemy')) {
                 const type = this.ctx.types.byId(pack.typeId);
                 if (type) this.buyAt(type, pack.cell);
             }
-        } else if (round === 2) {
+        } else if (round === 4 || round === 5) {
             for (const cell of tutorial4CenterArcherCells(this.ctx.placement.map, 'enemy')) {
                 if (archer) this.buyAt(archer, cell);
             }
@@ -182,11 +191,6 @@ export class TutorialAi implements Opponent {
         }
     }
 
-    /**
-     * Enemy packs on the left side of the shared border.
-     * @param deeperCells how many cells to pull back from the absolute front
-     *   (Tutorial 3 round 1 uses 1 so the player's facing pad has a little air).
-     */
     private placeAtBorderLeft(type: UnitType, count: number, deeperCells = 0): void {
         const map = this.ctx.placement.map;
         const { rimCells, flankCols, zoneCols, zoneRows, neutralRows } = map.size;
@@ -194,21 +198,19 @@ export class TutorialAi implements Opponent {
         const enemyNear = (this.team === 'enemy') === map.ownAtFar;
         const fpCols = type.footprint.cols;
         const fpRows = type.footprint.rows;
-        // Player’s left when looking at the enemy = lower col (+X is right).
         const leftCol = zoneLeft + 2;
         const borderRow = enemyNear
             ? rimCells + zoneRows - fpRows - 1 - deeperCells
             : rimCells + zoneRows + neutralRows + 1 + deeperCells;
         const stepC = fpCols + 1;
         const stepR = fpRows + 1;
-        const rowDir = enemyNear ? -1 : 1; // stack slightly deeper into enemy half
+        const rowDir = enemyNear ? -1 : 1;
         let placed = 0;
         for (let i = 0; i < 20 && placed < count; i++) {
             const anchor: Cell = {
                 col: leftCol + (i % 3) * stepC,
                 row: borderRow + Math.floor(i / 3) * stepR * rowDir,
             };
-            // Stay in the left half so we don’t spill toward the summon.
             if (anchor.col > zoneLeft + Math.floor(zoneCols * 0.45)) continue;
             if (this.buyAt(type, anchor)) placed++;
         }

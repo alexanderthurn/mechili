@@ -2502,36 +2502,90 @@ export class Hud {
         this.mountTutorialCallouts(elements);
     }
 
-    /** Tutorial 3: shop tiles / rune row, Vanguard boost tiles, End Deployment. */
+    /** Tutorial 3/4: shop tiles, building panels, rune row, End Deployment. */
     setTutorial3Highlight(
         target:
             | 'shop-dwarf'
             | 'shop-ballista'
+            | 'shop-mortar'
             | 'vanguard'
+            | 'garrison'
             | 'boost-attack'
             | 'boost-hp'
+            | 'deploy-slot'
+            | 'recruit-l2'
+            | 'tower-upgrade'
             | 'runes'
+            | 'rune-fire'
+            | 'rune-earth'
+            | 'rune-water'
+            | 'rune-wind'
             | 'tech-barrel'
+            | 'stronghold'
+            | 'tactics-hammer'
             | 'end-deploy'
             | null,
     ): void {
         this.clearTutorialHighlight();
-        // The Vanguard itself is a world object — that step has no UI target.
-        if (!target || target === 'vanguard') return;
+        if (!target || target === 'vanguard' || target === 'garrison' || target === 'stronghold') {
+            return;
+        }
 
         const elements: HTMLElement[] = [];
         if (target === 'end-deploy') {
             elements.push(this.endButton);
-        } else if (target === 'shop-dwarf' || target === 'shop-ballista') {
+        } else if (target === 'tactics-hammer') {
+            this.setPhoneTab('tactics');
+            const btn = this.inventoryEl.querySelector<HTMLElement>(
+                `.inv-item[data-tactic="hammerOfGods"]`,
+            );
+            elements.push(btn ?? this.inventoryEl);
+        } else if (
+            target === 'shop-dwarf' ||
+            target === 'shop-ballista' ||
+            target === 'shop-mortar'
+        ) {
             this.setPhoneTab('shop');
-            const tile = this.shopUnitTiles.get(target === 'shop-dwarf' ? 'dwarf' : 'ballista');
+            const id =
+                target === 'shop-dwarf' ? 'dwarf' : target === 'shop-ballista' ? 'ballista' : 'mortar';
+            const tile = this.shopUnitTiles.get(id);
             elements.push(tile ?? this.shopPanel);
         } else if (target === 'runes') {
             this.setPhoneTab('shop');
             elements.push(this.shopRuneRow);
+        } else if (
+            target === 'rune-fire' ||
+            target === 'rune-earth' ||
+            target === 'rune-water' ||
+            target === 'rune-wind'
+        ) {
+            this.setPhoneTab('shop');
+            const id = target.slice('rune-'.length);
+            const btn = this.shopRuneButtons.find((b) => b.itemId === id)?.el;
+            elements.push(btn ?? this.shopRuneRow);
         } else if (target === 'tech-barrel') {
             this.openUnitDetails();
             const tile = this.panel.querySelector<HTMLElement>('[data-tech="barrel"]');
+            elements.push(tile ?? this.panel);
+        } else if (target === 'tower-upgrade') {
+            this.openUnitDetails();
+            const tile = this.panel.querySelector<HTMLElement>('[data-towerupgrade]');
+            if (tile) elements.push(tile);
+            else if (
+                this.touchUpgradeBtn.style.display !== 'none' &&
+                this.touchUpgradeBtn.isConnected
+            ) {
+                elements.push(this.touchUpgradeBtn);
+            } else {
+                elements.push(this.panel);
+            }
+        } else if (target === 'deploy-slot') {
+            this.openUnitDetails();
+            const tile = this.panel.querySelector<HTMLElement>('[data-deployslot]');
+            elements.push(tile ?? this.panel);
+        } else if (target === 'recruit-l2') {
+            this.openUnitDetails();
+            const tile = this.panel.querySelector<HTMLElement>('[data-recruit]');
             elements.push(tile ?? this.panel);
         } else {
             this.openUnitDetails();
