@@ -9,13 +9,20 @@ import type { OilStamp, SpellStamp } from './tactics';
 import type { Hud, SelectionInfo } from '../ui/hud';
 import type { Tutorial2BoardState } from '../ui/tutorialGuide2';
 import type { Tutorial3BoardState, Tutorial3Highlight } from '../ui/tutorialGuide3';
+import type { Tutorial4BoardState, Tutorial4Highlight } from '../ui/tutorialGuide4';
 import type { TutorialCameraSnap, TutorialSlotMask } from '../ui/tutorialGuide';
 import { primarySeatOf } from './seats';
 import { t } from '../i18n';
 import { TutorialGuide } from '../ui/tutorialGuide';
 import { TutorialGuide2 } from '../ui/tutorialGuide2';
 import { TutorialGuide3 } from '../ui/tutorialGuide3';
-import { TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID } from './cards';
+import { TutorialGuide4 } from '../ui/tutorialGuide4';
+import {
+    TUTORIAL_2_START_CARD_ID,
+    TUTORIAL_3_START_CARD_ID,
+    TUTORIAL_4_START_CARD_ID,
+    TUTORIAL_START_CARD_ID,
+} from './cards';
 import { BASE_ANCHORS } from './map';
 import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID } from './tactics';
 import {
@@ -33,10 +40,10 @@ import {
     tutorial2OilCorridor,
     tutorial2SummonNearKeep,
     tutorial3BallistaSlot,
-    tutorial3CenterArcherCells,
     tutorial3CenterDwarfCell,
     tutorial3DwarfSlot,
-    tutorial3MirroredArmy,
+    tutorial4CenterArcherCells,
+    tutorial4MirroredArmy,
     tutorialBallistaFootprint,
     tutorialBaseCell,
     tutorialDwarfFootprint,
@@ -47,11 +54,13 @@ import {
     TUTORIAL_2_ID,
     TUTORIAL_2_ROUNDS,
     TUTORIAL_2_STRONGHOLD_ROW_FRAC,
-    TUTORIAL_3_ARCHER_RANGE_TECH,
     TUTORIAL_3_ID,
-    TUTORIAL_3_MIN_RUNES,
-    TUTORIAL_3_R4_ARCHERS,
     TUTORIAL_3_ROUNDS,
+    TUTORIAL_4_ARCHER_RANGE_TECH,
+    TUTORIAL_4_ARCHERS,
+    TUTORIAL_4_ID,
+    TUTORIAL_4_MIN_RUNES,
+    TUTORIAL_4_ROUNDS,
     TUTORIAL_ARCHER_ID,
     TUTORIAL_BALLISTA_ID,
     TUTORIAL_DWARF_ID,
@@ -75,7 +84,7 @@ export interface TutorialHost {
     readonly economy: Economy;
     readonly techTree: TechTree;
     readonly hud: Hud;
-    /** mutable: Tutorial 3 replaces the human seat entry to force Longbow */
+    /** mutable: Tutorial 4 replaces the human seat entry to force Longbow */
     readonly seats: SeatDef[];
     readonly humanSeat: SeatId;
     readonly opponent: Opponent;
@@ -113,7 +122,7 @@ export interface TutorialHost {
 export type TutorialRoundResult = 'continue' | 'roundWon' | 'victory' | 'defeat';
 
 /**
- * Everything the three tutorial lessons need on top of a normal match: the
+ * Everything the tutorial lessons need on top of a normal match: the
  * soft-hint overlays, the forced pads / spell corridors, the per-round board
  * staging and the shop / End Deployment gates that keep a lesson on rails.
  *
@@ -142,6 +151,8 @@ export class TutorialRuntime {
     private guide2: TutorialGuide2 | null = null;
     /** Soft-hint overlay for Tutorial 3; null outside that lesson. */
     private guide3: TutorialGuide3 | null = null;
+    /** Soft-hint overlay for Tutorial 4; null outside that lesson. */
+    private guide4: TutorialGuide4 | null = null;
     /** Tutorial 1 forced pads (exact cell + rotation). */
     private placeSlots1: TutorialPlaceSlot[] = [];
     /** Tutorial 3 round-1 forced pads: [0] = dwarf (left), [1] = ballista (right). */
@@ -185,7 +196,9 @@ export class TutorialRuntime {
                 ? TUTORIAL_2_START_CARD_ID
                 : this.lesson === TUTORIAL_3_ID
                   ? TUTORIAL_3_START_CARD_ID
-                  : TUTORIAL_START_CARD_ID;
+                  : this.lesson === TUTORIAL_4_ID
+                    ? TUTORIAL_4_START_CARD_ID
+                    : TUTORIAL_START_CARD_ID;
         host.dispatchPlayer({
             kind: 'chooseCard',
             team: 'player',
@@ -213,7 +226,7 @@ export class TutorialRuntime {
     maybeStartGuide(): void {
         const host = this.host;
         if (host.watching) return;
-        if (this.guide1 || this.guide2 || this.guide3) return;
+        if (this.guide1 || this.guide2 || this.guide3 || this.guide4) return;
         // Wait until build chrome is up (after intro / starter assign).
         if (host.introActive || host.round < 1) return;
         const mount = this.mount();
@@ -240,6 +253,13 @@ export class TutorialRuntime {
             this.guide3 = this.newGuide3(mount);
             this.guide3.start();
             this.sync3();
+            return;
+        }
+        if (this.lesson === TUTORIAL_4_ID) {
+            host.placement.deselect();
+            this.guide4 = this.newGuide4(mount);
+            this.guide4.start();
+            this.sync4();
         }
     }
 
@@ -250,6 +270,8 @@ export class TutorialRuntime {
         this.guide2 = null;
         this.guide3?.destroy();
         this.guide3 = null;
+        this.guide4?.destroy();
+        this.guide4 = null;
         this.host.placement.clearTutorialTargets();
     }
 
@@ -282,7 +304,11 @@ export class TutorialRuntime {
         return new TutorialGuide3(mount, (target) => this.onGuide3Highlight(target));
     }
 
-    /** Boost / Longbow steps need the right panel open; select steps must not cheat it. */
+    private newGuide4(mount: HTMLElement): TutorialGuide4 {
+        return new TutorialGuide4(mount, (target) => this.onGuide4Highlight(target));
+    }
+
+    /** Boost steps need the Vanguard panel open; select steps must not cheat it. */
     private onGuide3Highlight(target: Tutorial3Highlight): void {
         const host = this.host;
         if (target === 'boost-attack' || target === 'boost-hp') {
@@ -291,13 +317,20 @@ export class TutorialRuntime {
             // or the very first frame frames the whole sheet instead.
             const tower = this.playerCommandTower();
             if (tower) host.hud.setSelection(host.unitInfo(tower));
-        } else if (target === 'tech-barrel') {
+        }
+        host.hud.setTutorial3Highlight(target);
+        this.refresh3Zones();
+    }
+
+    /** Longbow steps need an archer panel open; select steps must not cheat it. */
+    private onGuide4Highlight(target: Tutorial4Highlight): void {
+        const host = this.host;
+        if (target === 'tech-barrel') {
             this.ensurePlayerArcherSelected();
             const archer = this.playerArcher();
             if (archer) host.hud.setSelection(host.unitInfo(archer));
         }
         host.hud.setTutorial3Highlight(target);
-        this.refresh3Zones();
     }
 
     // ------------------------------------------------------------- per-round
@@ -305,6 +338,7 @@ export class TutorialRuntime {
     /**
      * Tutorial 1: empty map. Tutorial 2: player Stronghold only (forward).
      * Tutorial 3: per-round tower sets, spawned by {@link setupRound3}.
+     * Tutorial 4: no buildings — armies staged by {@link setupRound4}.
      */
     spawnBaseTowers(): void {
         if (this.lesson !== TUTORIAL_2_ID) return;
@@ -340,13 +374,24 @@ export class TutorialRuntime {
             this.clearFieldUnits();
             this.setupRound3(round);
         }
+        if (this.lesson === TUTORIAL_4_ID) {
+            this.clearFieldUnits();
+            this.setupRound4(round);
+        }
     }
 
-    /** R2–R4 armies are pre-staged — freeze after both sides have spawned. */
+    /** Pre-staged armies freeze after both sides have spawned. */
     onAiBuildPhaseDone(): void {
-        if (this.lesson !== TUTORIAL_3_ID) return;
-        const round = this.host.round;
-        if (round < 2) return;
+        if (this.lesson === TUTORIAL_3_ID && this.host.round >= 2) {
+            this.freezeFieldPacks();
+            return;
+        }
+        if (this.lesson === TUTORIAL_4_ID) {
+            this.freezeFieldPacks();
+        }
+    }
+
+    private freezeFieldPacks(): void {
         // Mark field packs as prior-round so drag-reposition is denied
         // (runes / techs still work).
         for (const u of this.host.placement.allUnits()) {
@@ -420,6 +465,7 @@ export class TutorialRuntime {
     onUnitSelected(): void {
         this.sync2();
         this.sync3();
+        this.sync4();
     }
 
     // ------------------------------------------------------------ tutorial 1
@@ -901,34 +947,33 @@ export class TutorialRuntime {
         }
     }
 
-    /** Round 3: the player's own half of the mirrored 2 dwarf + 3 archer army. */
-    private spawnPlayerArmy3(): void {
+    /** Round 1: the player's own half of the mirrored 2 dwarf + 3 archer army. */
+    private spawnPlayerArmy4(): void {
         const seat = this.host.humanSeat;
-        for (const pack of tutorial3MirroredArmy(this.host.map, 'player')) {
+        for (const pack of tutorial4MirroredArmy(this.host.map, 'player')) {
             const type = this.host.types.byId(pack.typeId);
             if (!type) continue;
             this.host.placement.spawn(type, pack.cell, 'player', false, true, seat);
         }
     }
 
-    /** Round 4: five archers across the player's zone center. */
-    private spawnPlayerArchers3(): void {
+    /** Round 2: five archers across the player's zone center. */
+    private spawnPlayerArchers4(): void {
         const seat = this.host.humanSeat;
         const type = this.host.types.byId(TUTORIAL_ARCHER_ID);
         if (!type) return;
-        for (const cell of tutorial3CenterArcherCells(
+        for (const cell of tutorial4CenterArcherCells(
             this.host.map,
             'player',
-            TUTORIAL_3_R4_ARCHERS,
+            TUTORIAL_4_ARCHERS,
         )) {
             this.host.placement.spawn(type, cell, 'player', false, true, seat);
         }
     }
 
     /**
-     * Tutorial 3's four lessons: enemy towers only (debuff), mirrored towers +
-     * one pack a side (Vanguard boosts), locked mirrored armies (runes), then
-     * center archers (Longbow).
+     * Tutorial 3's two lessons: enemy towers only (debuff), then mirrored
+     * towers + one pack a side (Vanguard boosts).
      */
     private setupRound3(round: number): void {
         const host = this.host;
@@ -937,8 +982,7 @@ export class TutorialRuntime {
         host.unlockedUnits[enemySeat] = [TUTORIAL_DWARF_ID, TUTORIAL_ARCHER_ID];
         // Explicit per-round AI cap: the match-wide unitsPerRound only fits
         // round 1, and a cap of 0 would leave the enemy field empty.
-        host.deployState.limit[enemySeat] =
-            round === 1 ? 2 : round === 2 ? 1 : round === 3 ? 5 : TUTORIAL_3_R4_ARCHERS;
+        host.deployState.limit[enemySeat] = round === 1 ? 2 : 1;
         const enemyNeed = 2000;
         const enemyHave = host.economy.balance(enemySeat);
         if (enemyHave < enemyNeed) host.economy.credit(enemySeat, enemyNeed - enemyHave);
@@ -948,24 +992,6 @@ export class TutorialRuntime {
             if (have < need) host.economy.credit(humanSeat, need - have);
         };
 
-        // Force Longbow onto the human archer loadout for this lesson (readonly
-        // Loadout — replace the seat entry rather than mutating nested arrays).
-        const seatEntry = host.seats[humanSeat];
-        if (seatEntry?.loadout) {
-            const archerTechs = [...(seatEntry.loadout.techs.archer ?? [])];
-            if (!archerTechs.includes(TUTORIAL_3_ARCHER_RANGE_TECH)) {
-                host.seats[humanSeat] = {
-                    ...seatEntry,
-                    loadout: {
-                        techs: {
-                            ...seatEntry.loadout.techs,
-                            archer: [TUTORIAL_3_ARCHER_RANGE_TECH, ...archerTechs].slice(0, 3),
-                        },
-                    },
-                };
-            }
-        }
-
         if (round === 1) {
             this.spawnTowers3('enemy');
             host.unlockedUnits[humanSeat] = [TUTORIAL_DWARF_ID, TUTORIAL_BALLISTA_ID];
@@ -973,7 +999,7 @@ export class TutorialRuntime {
             host.hud.setShopColumnVisible(true);
             host.hud.setShopRunesVisible(false);
             credit(1500); // one dwarf (100) + one ballista (400), with room to spare
-        } else if (round === 2) {
+        } else {
             this.spawnTowers3('both');
             // One pack a side, nose to nose — the boosts are the only difference.
             const dwarf = this.host.types.byId(TUTORIAL_DWARF_ID);
@@ -993,26 +1019,6 @@ export class TutorialRuntime {
             host.hud.setShopRunesVisible(false);
             // Both tracks, every tier — the round's gate needs all of it.
             credit(2 * host.settings.boosts.costs.reduce((sum, c) => sum + c, 0));
-        } else if (round === 3) {
-            this.clearStructures();
-            this.spawnPlayerArmy3();
-            // Shop runes have no buy-slot limit; units stay locked this round.
-            host.unlockedUnits[humanSeat] = [];
-            host.deployState.limit[humanSeat] = 0;
-            host.hud.setShopColumnVisible(true);
-            host.hud.setShopRunesVisible(true);
-            const ds = host.settings.deploy;
-            const runes = TUTORIAL_3_MIN_RUNES * 2;
-            credit(runes * ds.baseRuneCost + ((runes * (runes - 1)) / 2) * ds.runeCostStep);
-        } else {
-            this.clearStructures();
-            this.spawnPlayerArchers3();
-            host.unlockedUnits[humanSeat] = [];
-            host.deployState.limit[humanSeat] = 0;
-            host.hud.setShopColumnVisible(false);
-            host.hud.setShopRunesVisible(false);
-            // Longbow base cost (200) — enough even if a prior talent somehow exists.
-            credit(400);
         }
         host.refreshShopHud();
 
@@ -1026,6 +1032,76 @@ export class TutorialRuntime {
             this.guide3.startRound(round);
         }
         this.sync3();
+    }
+
+    /**
+     * Tutorial 4's two lessons: locked mirrored armies (runes), then center
+     * archers (Longbow).
+     */
+    private setupRound4(round: number): void {
+        const host = this.host;
+        const humanSeat = host.humanSeat;
+        const enemySeat = primarySeatOf(host.seats, 'enemy');
+        host.unlockedUnits[enemySeat] = [TUTORIAL_DWARF_ID, TUTORIAL_ARCHER_ID];
+        host.deployState.limit[enemySeat] = round === 1 ? 5 : TUTORIAL_4_ARCHERS;
+        const enemyNeed = 2000;
+        const enemyHave = host.economy.balance(enemySeat);
+        if (enemyHave < enemyNeed) host.economy.credit(enemySeat, enemyNeed - enemyHave);
+
+        const credit = (need: number) => {
+            const have = host.economy.balance(humanSeat);
+            if (have < need) host.economy.credit(humanSeat, need - have);
+        };
+
+        // Force Longbow onto the human archer loadout for this lesson (readonly
+        // Loadout — replace the seat entry rather than mutating nested arrays).
+        const seatEntry = host.seats[humanSeat];
+        if (seatEntry?.loadout) {
+            const archerTechs = [...(seatEntry.loadout.techs.archer ?? [])];
+            if (!archerTechs.includes(TUTORIAL_4_ARCHER_RANGE_TECH)) {
+                host.seats[humanSeat] = {
+                    ...seatEntry,
+                    loadout: {
+                        techs: {
+                            ...seatEntry.loadout.techs,
+                            archer: [TUTORIAL_4_ARCHER_RANGE_TECH, ...archerTechs].slice(0, 3),
+                        },
+                    },
+                };
+            }
+        }
+
+        this.clearStructures();
+        if (round === 1) {
+            this.spawnPlayerArmy4();
+            // Shop runes have no buy-slot limit; units stay locked this round.
+            host.unlockedUnits[humanSeat] = [];
+            host.deployState.limit[humanSeat] = 0;
+            host.hud.setShopColumnVisible(true);
+            host.hud.setShopRunesVisible(true);
+            const ds = host.settings.deploy;
+            const runes = TUTORIAL_4_MIN_RUNES * 2;
+            credit(runes * ds.baseRuneCost + ((runes * (runes - 1)) / 2) * ds.runeCostStep);
+        } else {
+            this.spawnPlayerArchers4();
+            host.unlockedUnits[humanSeat] = [];
+            host.deployState.limit[humanSeat] = 0;
+            host.hud.setShopColumnVisible(false);
+            host.hud.setShopRunesVisible(false);
+            // Longbow base cost (200) — enough even if a prior talent somehow exists.
+            credit(400);
+        }
+        host.refreshShopHud();
+
+        if (round >= 2) {
+            if (!this.guide4 || this.guide4.currentStep === 'done') {
+                this.guide4?.destroy();
+                this.guide4 = this.newGuide4(this.mount());
+            }
+            host.placement.deselect();
+            this.guide4.startRound(round);
+        }
+        this.sync4();
     }
 
     private board3(): Tutorial3BoardState {
@@ -1052,6 +1128,17 @@ export class TutorialRuntime {
             boostAttack: host.boostState.attack[host.humanSeat]!,
             boostHp: host.boostState.hp[host.humanSeat]!,
             boostMax: host.settings.boosts.costs.length,
+        };
+    }
+
+    private board4(): Tutorial4BoardState {
+        const host = this.host;
+        const own = host.placement
+            .allUnits()
+            .filter((u) => u.seat === host.humanSeat && !u.type.structure);
+        const selected = host.placement.selectedUnit;
+        return {
+            round: host.round,
             runesBought: host.deployState.runesBought[host.humanSeat]!,
             runesApplied: own.reduce((n, u) => n + u.items.length, 0),
             archerSelected:
@@ -1059,7 +1146,7 @@ export class TutorialRuntime {
             longbowOwned: host.techTree.has(
                 host.humanSeat,
                 TUTORIAL_ARCHER_ID,
-                TUTORIAL_3_ARCHER_RANGE_TECH,
+                TUTORIAL_4_ARCHER_RANGE_TECH,
             ),
         };
     }
@@ -1068,6 +1155,12 @@ export class TutorialRuntime {
         if (!this.guide3 || this.lesson !== TUTORIAL_3_ID) return;
         this.guide3.syncFromBoard(this.board3());
         this.refresh3Zones();
+        this.host.updateSelectionUi();
+    }
+
+    sync4(): void {
+        if (!this.guide4 || this.lesson !== TUTORIAL_4_ID) return;
+        this.guide4.syncFromBoard(this.board4());
         this.host.updateSelectionUi();
     }
 
@@ -1122,12 +1215,12 @@ export class TutorialRuntime {
         return this.lesson === TUTORIAL_3_ID && this.host.round === 2;
     }
 
-    /** Tutorial 3 round 4: an archer's tech list narrows to Longbow alone. */
+    /** Tutorial 4 round 2: an archer's tech list narrows to Longbow alone. */
     soleTechFor(unit: Unit): string | null {
-        return this.lesson === TUTORIAL_3_ID &&
-            this.host.round === 4 &&
+        return this.lesson === TUTORIAL_4_ID &&
+            this.host.round === 2 &&
             unit.type.id === TUTORIAL_ARCHER_ID
-            ? TUTORIAL_3_ARCHER_RANGE_TECH
+            ? TUTORIAL_4_ARCHER_RANGE_TECH
             : null;
     }
 
@@ -1135,7 +1228,7 @@ export class TutorialRuntime {
 
     /** Whichever lesson overlay is live — nudges go to it, never to a fixed one. */
     private nudge(message: string): void {
-        (this.guide1 ?? this.guide2 ?? this.guide3)?.nudge(message);
+        (this.guide1 ?? this.guide2 ?? this.guide3 ?? this.guide4)?.nudge(message);
     }
 
     /** Every lesson re-reads the board after a placement / purchase. */
@@ -1143,12 +1236,14 @@ export class TutorialRuntime {
         this.sync1();
         this.sync2();
         this.sync3();
+        this.sync4();
     }
 
     onPlayerEndedDeployment(): void {
         this.guide1?.onPlayerEndedDeployment();
         this.guide2?.onPlayerEndedDeployment();
         this.guide3?.onPlayerEndedDeployment();
+        this.guide4?.onPlayerEndedDeployment();
         this.host.placement.clearTutorialTargets();
     }
 
@@ -1182,7 +1277,7 @@ export class TutorialRuntime {
             if (!this.guide3.canEndDeploy(state)) {
                 if (state.round === 1) {
                     this.guide3.nudge(t('tutorial:tutorial3NudgePlacePads'));
-                } else if (state.round === 2) {
+                } else {
                     this.guide3.nudge(
                         t('tutorial:tutorial3NudgeBoosts', {
                             attack: state.boostAttack,
@@ -1190,15 +1285,22 @@ export class TutorialRuntime {
                             max: state.boostMax,
                         }),
                     );
-                } else if (state.round === 3) {
-                    this.guide3.nudge(
-                        t('tutorial:tutorial3NudgeRunes', {
+                }
+                return false;
+            }
+        }
+        if (this.lesson === TUTORIAL_4_ID && this.guide4) {
+            const state = this.board4();
+            if (!this.guide4.canEndDeploy(state)) {
+                if (state.round === 1) {
+                    this.guide4.nudge(
+                        t('tutorial:tutorial4NudgeRunes', {
                             bought: state.runesBought,
-                            need: TUTORIAL_3_MIN_RUNES,
+                            need: TUTORIAL_4_MIN_RUNES,
                         }),
                     );
                 } else {
-                    this.guide3.nudge(t('tutorial:tutorial3NudgeLongbow'));
+                    this.guide4.nudge(t('tutorial:tutorial4NudgeLongbow'));
                 }
                 return false;
             }
@@ -1227,6 +1329,10 @@ export class TutorialRuntime {
                 return true;
             }
         }
+        if (this.lesson === TUTORIAL_4_ID) {
+            this.guide4?.nudge(t('tutorial:tutorial3NudgeNoShop'));
+            return true;
+        }
         return false;
     }
 
@@ -1248,23 +1354,23 @@ export class TutorialRuntime {
         return false;
     }
 
-    /** Tutorial 3's rune round is the only place a lesson sells runes. */
+    /** Tutorial 4's rune round is the only place a lesson sells runes. */
     blocksBuyRune(): boolean {
-        if (this.lesson === TUTORIAL_3_ID && this.host.round === 3) return false;
+        if (this.lesson === TUTORIAL_4_ID && this.host.round === 1) return false;
         this.nudge(t('tutorial:tutorialNudgeRunes'));
         return true;
     }
 
-    /** Tutorial 3 round 4: Longbow is the only talent the lesson pays for. */
+    /** Tutorial 4 round 2: Longbow is the only talent the lesson pays for. */
     blocksBuyTech(techId: string): boolean {
         if (
-            this.lesson !== TUTORIAL_3_ID ||
-            this.host.round !== 4 ||
-            techId === TUTORIAL_3_ARCHER_RANGE_TECH
+            this.lesson !== TUTORIAL_4_ID ||
+            this.host.round !== 2 ||
+            techId === TUTORIAL_4_ARCHER_RANGE_TECH
         ) {
             return false;
         }
-        this.guide3?.nudge(t('tutorial:tutorial3NudgeLongbow'));
+        this.guide4?.nudge(t('tutorial:tutorial4NudgeLongbow'));
         return true;
     }
 
@@ -1272,6 +1378,7 @@ export class TutorialRuntime {
 
     /** Battles this lesson must win to finish (Tutorial 1 is a single round). */
     private get roundsToWin(): number {
+        if (this.lesson === TUTORIAL_4_ID) return TUTORIAL_4_ROUNDS;
         if (this.lesson === TUTORIAL_3_ID) return TUTORIAL_3_ROUNDS;
         if (this.lesson === TUTORIAL_2_ID) return TUTORIAL_2_ROUNDS;
         return 1;

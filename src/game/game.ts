@@ -3955,6 +3955,7 @@ export class Game {
             stamped.kind === 'buyTech'
         ) {
             this.tutorial?.sync3();
+            this.tutorial?.sync4();
         }
         if (stamped.kind === 'endDeployment') {
             this.tutorial?.onPlayerEndedDeployment();

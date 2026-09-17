@@ -1,6 +1,11 @@
 import { BASE_TYPES } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
-import { TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID } from './cards';
+import {
+    TUTORIAL_2_START_CARD_ID,
+    TUTORIAL_3_START_CARD_ID,
+    TUTORIAL_4_START_CARD_ID,
+    TUTORIAL_START_CARD_ID,
+} from './cards';
 import type { GameSettings, TutorialSettings } from './settings';
 import type { BattleMap, Cell } from './map';
 import { CELL } from './map';
@@ -12,13 +17,17 @@ export const TUTORIAL_1_ID = 1;
 export const TUTORIAL_2_ID = 2;
 
 export const TUTORIAL_2_ROUNDS = 3;
-/** Tutorial 3: Tower lesson across four rounds (debuff, Vanguard boosts, runes, Longbow). */
+/** Tutorial 3: Tower lesson across two rounds (debuff, Vanguard boosts). */
 export const TUTORIAL_3_ID = 3;
 
-export const TUTORIAL_3_ROUNDS = 4;
+export const TUTORIAL_3_ROUNDS = 2;
+/** Tutorial 4: Units lesson across two rounds (runes, Longbow talent). */
+export const TUTORIAL_4_ID = 4;
+
+export const TUTORIAL_4_ROUNDS = 2;
 
 /** Lesson order, as the Tutorial menu lists them. */
-export const TUTORIAL_LESSON_IDS = [TUTORIAL_1_ID, TUTORIAL_2_ID, TUTORIAL_3_ID] as const;
+export const TUTORIAL_LESSON_IDS = [TUTORIAL_1_ID, TUTORIAL_2_ID, TUTORIAL_3_ID, TUTORIAL_4_ID] as const;
 
 /** The lesson that follows this one, or null when it was the last. */
 export function nextTutorialId(id: number | null): number | null {
@@ -27,17 +36,17 @@ export function nextTutorialId(id: number | null): number | null {
     return i >= 0 && i < TUTORIAL_LESSON_IDS.length - 1 ? TUTORIAL_LESSON_IDS[i + 1]! : null;
 }
 
-/** Round 3 gate: base runes the player must buy before End Deployment opens. */
-export const TUTORIAL_3_MIN_RUNES = 5;
+/** Tutorial 4 round 1 gate: base runes the player must buy before End Deployment opens. */
+export const TUTORIAL_4_MIN_RUNES = 5;
 
-/** Round 2 gate: Vanguard boost tiers to buy (mirrors `settings.boosts.costs.length`). */
+/** Tutorial 3 round 2 gate: Vanguard boost tiers to buy (mirrors `settings.boosts.costs.length`). */
 export const TUTORIAL_3_BOOST_MAX_TIERS = 2;
 
-/** Round 4: Longbow talent id on archers (`techCatalog` barrel). */
-export const TUTORIAL_3_ARCHER_RANGE_TECH = 'barrel';
+/** Tutorial 4 round 2: Longbow talent id on archers (`techCatalog` barrel). */
+export const TUTORIAL_4_ARCHER_RANGE_TECH = 'barrel';
 
-/** Round 4: archers lined up in each half's center. */
-export const TUTORIAL_3_R4_ARCHERS = 5;
+/** Tutorial 4 round 2: archers lined up in each half's center. */
+export const TUTORIAL_4_ARCHERS = 5;
 
 /** Round-2/3 forge spells: oil + dragon in R2, summon unlocked in R3. */
 export const TUTORIAL_2_SPELL_IDS = [OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID] as const;
@@ -102,8 +111,16 @@ export function applyTutorialMode(settings: GameSettings, id: number): void {
     } else if (id === TUTORIAL_3_ID) {
         settings.strongholdMode = 'none';
         lesson.roundsToWin = TUTORIAL_3_ROUNDS;
-        // Round 1 buys one dwarf + one ballista; later rounds re-cap per round.
+        // Round 1 buys one dwarf + one ballista; round 2 re-caps per round.
         settings.deploy = { ...settings.deploy, unitsPerRound: 2 };
+        settings.economy = {
+            ...settings.economy,
+            startingSupply: 3000,
+        };
+    } else if (id === TUTORIAL_4_ID) {
+        settings.strongholdMode = 'none';
+        lesson.roundsToWin = TUTORIAL_4_ROUNDS;
+        settings.deploy = { ...settings.deploy, unitsPerRound: 0 };
         settings.economy = {
             ...settings.economy,
             startingSupply: 3000,
@@ -140,7 +157,7 @@ export function tutorialBaseCell(
 }
 
 /**
- * The units the three lessons are scripted around. Their steps, pads and
+ * The units the tutorials are scripted around. Their steps, pads and
  * line-ups assume exactly these ids and footprints, so they are named here
  * once and checked when a lesson starts ({@link tutorialContentProblems}) —
  * renaming a unit or changing its footprint must fail loudly, not leave a
@@ -172,10 +189,15 @@ export function tutorialContentProblems(types: TypeRegistry): string[] {
     for (const id of ['stronghold', 'command-tower', 'research-center']) {
         if (!types.byId(id)) problems.push(`tutorials need building "${id}"`);
     }
-    if (!types.byId(TUTORIAL_ARCHER_ID)?.talents?.includes(TUTORIAL_3_ARCHER_RANGE_TECH)) {
-        problems.push(`tutorial 3 needs talent "${TUTORIAL_3_ARCHER_RANGE_TECH}" on "${TUTORIAL_ARCHER_ID}"`);
+    if (!types.byId(TUTORIAL_ARCHER_ID)?.talents?.includes(TUTORIAL_4_ARCHER_RANGE_TECH)) {
+        problems.push(`tutorial 4 needs talent "${TUTORIAL_4_ARCHER_RANGE_TECH}" on "${TUTORIAL_ARCHER_ID}"`);
     }
-    for (const id of [TUTORIAL_START_CARD_ID, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID]) {
+    for (const id of [
+        TUTORIAL_START_CARD_ID,
+        TUTORIAL_2_START_CARD_ID,
+        TUTORIAL_3_START_CARD_ID,
+        TUTORIAL_4_START_CARD_ID,
+    ]) {
         if (!types.commander(id)) problems.push(`tutorials need hidden commander "${id}"`);
     }
     // tutorial 2 walks through these three spells step by step
@@ -251,8 +273,8 @@ export function tutorial3CenterDwarfCell(map: BattleMap): Cell {
     };
 }
 
-/** One pack in Tutorial 3's mirrored border line-up (round 3). */
-export interface Tutorial3ArmyPack {
+/** One pack in Tutorial 4's mirrored border line-up (round 1). */
+export interface Tutorial4ArmyPack {
     typeId: typeof TUTORIAL_DWARF_ID | typeof TUTORIAL_ARCHER_ID;
     cell: Cell;
 }
@@ -261,20 +283,20 @@ export interface Tutorial3ArmyPack {
  * Forward row pressed against the shared border (as close as packs can stand
  * without spilling into the neutral strip).
  */
-function tutorial3BorderRow(map: BattleMap, fpRows: number, near: boolean): number {
+function tutorial4BorderRow(map: BattleMap, fpRows: number, near: boolean): number {
     const { rimCells, zoneRows } = map.size;
     return near ? rimCells + zoneRows - fpRows : map.rows - rimCells - zoneRows;
 }
 
 /**
- * Tutorial 3 round 3: 2 dwarves + 3 archers, L→R, mirrored across the border
+ * Tutorial 4 round 1: 2 dwarves + 3 archers, L→R, mirrored across the border
  * so both armies stare at each other at point-blank range.
  */
-export function tutorial3MirroredArmy(
+export function tutorial4MirroredArmy(
     map: BattleMap,
     team: 'player' | 'enemy',
-): Tutorial3ArmyPack[] {
-    const composition: readonly Tutorial3ArmyPack['typeId'][] = [
+): Tutorial4ArmyPack[] {
+    const composition: readonly Tutorial4ArmyPack['typeId'][] = [
         TUTORIAL_DWARF_ID,
         TUTORIAL_ARCHER_ID,
         TUTORIAL_DWARF_ID,
@@ -287,14 +309,14 @@ export function tutorial3MirroredArmy(
     const gaps = composition.length - 1;
     const totalW = widths.reduce((a, b) => a + b, 0) + gaps;
     let col = Math.floor((map.cols - totalW) / 2);
-    const packs: Tutorial3ArmyPack[] = [];
+    const packs: Tutorial4ArmyPack[] = [];
     for (let i = 0; i < composition.length; i++) {
         const typeId = composition[i]!;
         const cols = widths[i]!;
         const rows = TUTORIAL_FOOTPRINTS[typeId]!.rows;
         packs.push({
             typeId,
-            cell: { col, row: tutorial3BorderRow(map, rows, near) },
+            cell: { col, row: tutorial4BorderRow(map, rows, near) },
         });
         col += cols + 1;
     }
@@ -302,13 +324,13 @@ export function tutorial3MirroredArmy(
 }
 
 /**
- * Tutorial 3 round 4: five archers across the middle of a side's zone so both
+ * Tutorial 4 round 2: five archers across the middle of a side's zone so both
  * lines must march before they can shoot (Longbow decides who fires first).
  */
-export function tutorial3CenterArcherCells(
+export function tutorial4CenterArcherCells(
     map: BattleMap,
     team: 'player' | 'enemy',
-    count = TUTORIAL_3_R4_ARCHERS,
+    count = TUTORIAL_4_ARCHERS,
 ): Cell[] {
     const fpCols = 2;
     const fpRows = 2;

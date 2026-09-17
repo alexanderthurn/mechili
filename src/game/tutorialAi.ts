@@ -1,5 +1,13 @@
 import type { Action } from './actions';
-import { TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, type RoundCard, type SpecialityId, type StartCard } from './cards';
+import {
+    TUTORIAL_2_START_CARD_ID,
+    TUTORIAL_3_START_CARD_ID,
+    TUTORIAL_4_START_CARD_ID,
+    TUTORIAL_START_CARD_ID,
+    type RoundCard,
+    type SpecialityId,
+    type StartCard,
+} from './cards';
 import type { Opponent } from './ai';
 import type { PlacementController } from './placement';
 import type { DeploySettings, Economy } from './settings';
@@ -13,10 +21,11 @@ import {
     TUTORIAL_1_ID,
     TUTORIAL_2_ID,
     TUTORIAL_3_ID,
+    TUTORIAL_4_ID,
     TUTORIAL_ARCHER_ID,
     TUTORIAL_DWARF_ID,
-    tutorial3CenterArcherCells,
-    tutorial3MirroredArmy,
+    tutorial4CenterArcherCells,
+    tutorial4MirroredArmy,
 } from './tutorial';
 
 /**
@@ -56,7 +65,9 @@ export class TutorialAi implements Opponent {
                 ? TUTORIAL_2_START_CARD_ID
                 : this.tutorialLessonId === TUTORIAL_3_ID
                   ? TUTORIAL_3_START_CARD_ID
-                  : TUTORIAL_START_CARD_ID;
+                  : this.tutorialLessonId === TUTORIAL_4_ID
+                    ? TUTORIAL_4_START_CARD_ID
+                    : TUTORIAL_START_CARD_ID;
         this.ctx.dispatch({
             kind: 'chooseCard',
             team: this.team,
@@ -85,6 +96,10 @@ export class TutorialAi implements Opponent {
         }
         if (this.tutorialLessonId === TUTORIAL_3_ID) {
             this.runTutorial3(round);
+            return;
+        }
+        if (this.tutorialLessonId === TUTORIAL_4_ID) {
+            this.runTutorial4(round);
             return;
         }
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
@@ -122,23 +137,31 @@ export class TutorialAi implements Opponent {
     /**
      * Tutorial 3: round 1 stacks the left flank (leaving the right tower
      * exposed), round 2 fields the single center pack the boost lesson is
-     * measured against, round 3 brings the mirrored rune army, round 4 the
-     * center archer line for Longbow.
+     * measured against.
      */
     private runTutorial3(round: number): void {
         const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
-        const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
         if (round === 1) {
             if (dwarf) this.placeAtBorderLeft(dwarf, 2, /* deeper */ 1);
         } else if (round === 2) {
             if (dwarf) this.placeNearCenter(dwarf, 1);
-        } else if (round === 3) {
-            for (const pack of tutorial3MirroredArmy(this.ctx.placement.map, 'enemy')) {
+        }
+        this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
+    }
+
+    /**
+     * Tutorial 4: round 1 brings the mirrored rune army, round 2 the center
+     * archer line for Longbow.
+     */
+    private runTutorial4(round: number): void {
+        const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
+        if (round === 1) {
+            for (const pack of tutorial4MirroredArmy(this.ctx.placement.map, 'enemy')) {
                 const type = this.ctx.types.byId(pack.typeId);
                 if (type) this.buyAt(type, pack.cell);
             }
-        } else if (round === 4) {
-            for (const cell of tutorial3CenterArcherCells(this.ctx.placement.map, 'enemy')) {
+        } else if (round === 2) {
+            for (const cell of tutorial4CenterArcherCells(this.ctx.placement.map, 'enemy')) {
                 if (archer) this.buyAt(archer, cell);
             }
         }

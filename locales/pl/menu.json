@@ -165,6 +165,7 @@
   "tutorial1": "1\nPodstawy",
   "tutorial2": "2\nTwierdza",
   "tutorial3": "3\nWieże",
+  "tutorial4": "4\nJednostki",
   "mpOpenCount": "Otwarte: {{n}}",
   "mpRunningCount": "Trwające: {{n}}",
   "mapSetting": "Mapa",

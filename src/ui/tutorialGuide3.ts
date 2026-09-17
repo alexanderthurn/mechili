@@ -2,8 +2,6 @@ import { t } from '../i18n';
 import { TutorialPanel } from './tutorialPanel';
 import {
     TUTORIAL_3_BOOST_MAX_TIERS,
-    TUTORIAL_3_MIN_RUNES,
-    TUTORIAL_3_R4_ARCHERS,
 } from '../game/tutorial';
 
 export type Tutorial3Highlight =
@@ -12,8 +10,6 @@ export type Tutorial3Highlight =
     | 'vanguard'
     | 'boost-attack'
     | 'boost-hp'
-    | 'runes'
-    | 'tech-barrel'
     | 'end-deploy'
     | null;
 
@@ -30,14 +26,6 @@ export type Tutorial3Step =
     | 'r2BoostAttack'
     | 'r2BoostHp'
     | 'r2End'
-    | 'r3Intro'
-    | 'r3BuyRunes'
-    | 'r3EquipHint'
-    | 'r3End'
-    | 'r4Intro'
-    | 'r4SelectArcher'
-    | 'r4BuyLongbow'
-    | 'r4End'
     | 'done';
 
 export interface Tutorial3BoardState {
@@ -51,12 +39,6 @@ export interface Tutorial3BoardState {
     boostHp: number;
     /** tiers per track (settings.boosts.costs.length) */
     boostMax: number;
-    runesBought: number;
-    /** runes already slotted into packs — drives the equip hint's counter only */
-    runesApplied: number;
-    archerSelected: boolean;
-    /** Longbow (`barrel`) researched for archers this seat */
-    longbowOwned: boolean;
 }
 
 /** Steps that wait on the Next button instead of a board change. */
@@ -64,13 +46,10 @@ const READ_STEPS: readonly Tutorial3Step[] = [
     'r1Intro',
     'r1DebuffExplain',
     'r2Intro',
-    'r3Intro',
-    'r3EquipHint',
-    'r4Intro',
 ];
 
 /**
- * Soft-hint overlay for Tutorial 3 (Tower lesson, four rounds).
+ * Soft-hint overlay for Tutorial 3 (Tower lesson, two rounds).
  */
 export class TutorialGuide3 extends TutorialPanel {
     private step: Tutorial3Step = 'r1Intro';
@@ -98,12 +77,10 @@ export class TutorialGuide3 extends TutorialPanel {
         this.paint();
     }
 
-    /** Advance the guide when a new build phase begins (rounds 2–4). */
+    /** Advance the guide when a new build phase begins (round 2). */
     startRound(round: number): void {
         if (this.destroyed) return;
         if (round === 2) this.step = 'r2Intro';
-        else if (round === 3) this.step = 'r3Intro';
-        else if (round === 4) this.step = 'r4Intro';
         else return;
         this.paint();
     }
@@ -134,16 +111,6 @@ export class TutorialGuide3 extends TutorialPanel {
             } else if (this.step === 'r2BoostHp' && state.boostHp >= state.boostMax) {
                 this.step = 'r2End';
             }
-        } else if (state.round === 3) {
-            if (this.step === 'r3BuyRunes' && state.runesBought >= TUTORIAL_3_MIN_RUNES) {
-                this.step = 'r3EquipHint';
-            }
-        } else if (state.round === 4) {
-            if (this.step === 'r4SelectArcher' && state.archerSelected) {
-                this.step = 'r4BuyLongbow';
-            } else if (this.step === 'r4BuyLongbow' && state.longbowOwned) {
-                this.step = 'r4End';
-            }
         }
 
         this.paint();
@@ -160,12 +127,6 @@ export class TutorialGuide3 extends TutorialPanel {
                 state.boostAttack >= state.boostMax &&
                 state.boostHp >= state.boostMax
             );
-        }
-        if (state.round === 3) {
-            return this.step === 'r3End' && state.runesBought >= TUTORIAL_3_MIN_RUNES;
-        }
-        if (state.round === 4) {
-            return this.step === 'r4End' && state.longbowOwned;
         }
         return false;
     }
@@ -191,15 +152,6 @@ export class TutorialGuide3 extends TutorialPanel {
                 break;
             case 'r2Intro':
                 this.step = 'r2SelectVanguard';
-                break;
-            case 'r3Intro':
-                this.step = 'r3BuyRunes';
-                break;
-            case 'r3EquipHint':
-                this.step = 'r3End';
-                break;
-            case 'r4Intro':
-                this.step = 'r4SelectArcher';
                 break;
             default:
                 return;
@@ -272,51 +224,6 @@ export class TutorialGuide3 extends TutorialPanel {
             case 'r2End':
                 this.titleEl.textContent = t('tutorial:tutorial3R2EndTitle');
                 this.bodyEl.textContent = t('tutorial:tutorial3R2EndBody');
-                highlight = 'end-deploy';
-                break;
-            case 'r3Intro':
-                this.titleEl.textContent = t('tutorial:tutorial3R3IntroTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial3R3IntroBody');
-                break;
-            case 'r3BuyRunes': {
-                const bought = Math.min(this.lastState?.runesBought ?? 0, TUTORIAL_3_MIN_RUNES);
-                this.titleEl.textContent = t('tutorial:tutorial3R3RunesTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial3R3RunesBody', {
-                    bought,
-                    need: TUTORIAL_3_MIN_RUNES,
-                });
-                highlight = 'runes';
-                break;
-            }
-            case 'r3EquipHint': {
-                const applied = this.lastState?.runesApplied ?? 0;
-                this.titleEl.textContent = t('tutorial:tutorial3R3EquipTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial3R3EquipBody', { applied });
-                break;
-            }
-            case 'r3End':
-                this.titleEl.textContent = t('tutorial:tutorial3R3EndTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial3R3EndBody');
-                highlight = 'end-deploy';
-                break;
-            case 'r4Intro':
-                this.titleEl.textContent = t('tutorial:tutorial3R4IntroTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial3R4IntroBody', {
-                    packs: TUTORIAL_3_R4_ARCHERS,
-                });
-                break;
-            case 'r4SelectArcher':
-                this.titleEl.textContent = t('tutorial:tutorial3R4SelectTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial3R4SelectBody');
-                break;
-            case 'r4BuyLongbow':
-                this.titleEl.textContent = t('tutorial:tutorial3R4LongbowTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial3R4LongbowBody');
-                highlight = 'tech-barrel';
-                break;
-            case 'r4End':
-                this.titleEl.textContent = t('tutorial:tutorial3R4EndTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial3R4EndBody');
                 highlight = 'end-deploy';
                 break;
             case 'done':

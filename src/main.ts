@@ -1075,6 +1075,7 @@ menu.innerHTML = `
             <button class="m-btn m-toggle-card" data-mode="tutorial-1">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial1"></span></button>
             <button class="m-btn m-toggle-card" data-mode="tutorial-2">${iconHtml('ui-deploy-cap', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial2"></span></button>
             <button class="m-btn m-toggle-card" data-mode="tutorial-3">${iconHtml('ui-supply', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial3"></span></button>
+            <button class="m-btn m-toggle-card" data-mode="tutorial-4">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial4"></span></button>
         </div>
         <button class="m-btn m-small" data-mode="tutorial-back" data-i18n="menu:back"></button>
     </div>
@@ -5955,6 +5956,7 @@ menu.addEventListener('click', (e) => {
             mode === 'tutorial-1' ||
             mode === 'tutorial-2' ||
             mode === 'tutorial-3' ||
+            mode === 'tutorial-4' ||
             mode === 'sp-campaign' ||
             mode === 'year-attack' ||
             mode === 'year-defend' ||
@@ -5996,6 +5998,10 @@ menu.addEventListener('click', (e) => {
         case 'tutorial-3':
             showMenuView('main');
             startLocalMatch({ tutorial: 3 });
+            break;
+        case 'tutorial-4':
+            showMenuView('main');
+            startLocalMatch({ tutorial: 4 });
             break;
         case 'single':
             showMenuView('sp');

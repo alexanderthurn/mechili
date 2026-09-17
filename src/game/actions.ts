@@ -1,4 +1,4 @@
-import { FLANK_SPAWN_HALF_MULT, SKIP_CARD_REWARD, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostFor, type SpecialityId, type ShopUnitId } from './cards';
+import { FLANK_SPAWN_HALF_MULT, SKIP_CARD_REWARD, starterUnlockedUnits, TUTORIAL_2_START_CARD_ID, TUTORIAL_3_START_CARD_ID, TUTORIAL_4_START_CARD_ID, TUTORIAL_START_CARD_ID, unlockCostFor, type SpecialityId, type ShopUnitId } from './cards';
 import {
     ACID_SPILL_RADIUS,
     FIRE_SPILL_RADIUS,
@@ -1210,7 +1210,8 @@ export class ActionDispatcher {
                           ? action.team === 'player'
                               ? (['dwarf', 'ballista'] as ShopUnitId[])
                               : (['dwarf', 'archer'] as ShopUnitId[])
-                          : card.id === TUTORIAL_2_START_CARD_ID
+                          : card.id === TUTORIAL_2_START_CARD_ID ||
+                              card.id === TUTORIAL_4_START_CARD_ID
                             ? []
                             : starterUnlockedUnits(card, this.ctx.types);
                 if (this.ctx.playerUnlocks && action.team === 'player') {

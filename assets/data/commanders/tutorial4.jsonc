@@ -1,0 +1,12 @@
+// Hidden tutorial commander (Tutorial 4): no Stronghold, no forge spells — runes / talents only.
+{
+    "id": "tutorial4",
+    "title": "Tutorial Commander",
+    "portrait": "spec-elite",
+    "speciality": "tutorial",
+    "units": [],
+    "unitsLabel": "",
+    "startingHp": 1,
+    "forgeSpells": [],
+    "description": "",
+}

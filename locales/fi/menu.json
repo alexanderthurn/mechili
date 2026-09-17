@@ -165,6 +165,7 @@
   "tutorial1": "1\nPerusteet",
   "tutorial2": "2\nLinnake",
   "tutorial3": "3\nTornit",
+  "tutorial4": "4\nYksiköt",
   "mpOpenCount": "Avoimia: {{n}}",
   "mpRunningCount": "Käynnissä: {{n}}",
   "mapSetting": "Kartta",
