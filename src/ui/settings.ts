@@ -156,6 +156,7 @@ export function openSettings(parent: HTMLElement): void {
             off: 'settings:gfx.presetOff',
         });
         fillOpts('.s-stuck', {
+            ultra: 'settings:gfx.stuckUltra',
             high: 'settings:gfx.stuckHigh',
             low: 'settings:gfx.stuckLow',
             off: 'settings:gfx.presetOff',
@@ -265,6 +266,7 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="off"></option>` +
         `</select> <span class="s-hint s-blood-hint"></span></label>` +
         `<label class="s-row"><span class="s-stuck-label"></span> <select class="s-stuck">` +
+        `<option value="ultra"></option>` +
         `<option value="high"></option>` +
         `<option value="low"></option>` +
         `<option value="off"></option>` +

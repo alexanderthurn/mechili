@@ -18,7 +18,7 @@ export type FireVfxQuality = 'high' | 'medium' | 'low' | 'off';
 /** Blood spray / gib particle volume (visual only; ground stains are groundEffects). */
 export type BloodFxQuality = 'off' | 'low' | 'medium' | 'high' | 'ultra';
 /** Stuck arrow / ballista shafts left in units & dirt after hits (visual only). */
-export type StuckProjectilesQuality = 'off' | 'low' | 'high';
+export type StuckProjectilesQuality = 'off' | 'low' | 'high' | 'ultra';
 /** Screen-edge vignette (post-process; visual only). */
 export type VignetteQuality = 'off' | 'high' | 'ultra';
 /** Selective bloom on bright emissives / fire (post-process; visual only). */
@@ -300,6 +300,7 @@ export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null 
 export function stuckProjectileCap(
     quality: StuckProjectilesQuality = prefs().stuckProjectiles,
 ): number {
+    if (quality === 'ultra') return 1024;
     if (quality === 'high') return 128;
     if (quality === 'low') return 32;
     return 0;
@@ -413,7 +414,12 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     p.vignette = migrateVignette(p.vignette);
     p.bloom = migrateBloom(p.bloom);
     p.ao = migrateAo(p.ao);
-    if (p.stuckProjectiles !== 'off' && p.stuckProjectiles !== 'low' && p.stuckProjectiles !== 'high') {
+    if (
+        p.stuckProjectiles !== 'off' &&
+        p.stuckProjectiles !== 'low' &&
+        p.stuckProjectiles !== 'high' &&
+        p.stuckProjectiles !== 'ultra'
+    ) {
         p.stuckProjectiles = DEFAULTS.stuckProjectiles;
     }
     if (p.shadows === undefined && p.unitShadows !== undefined) {
@@ -707,7 +713,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     groundEffects: asWord(QUALITY_4),
     fireVfx: asWord(QUALITY_4),
     bloodFx: asWord(QUALITY_5),
-    stuckProjectiles: asWord(['off', 'low', 'high']),
+    stuckProjectiles: asWord(['off', 'low', 'high', 'ultra']),
     shadows: asWord(QUALITY_5),
     controlScheme: asWord(['auto', 'mouse', 'touch', 'gamepad']),
     language: asWord([

@@ -1506,7 +1506,7 @@ class ParticlePool extends SoftParticlePool {
     }
 }
 
-const MAX_STUCK_BOLTS = 128;
+const MAX_STUCK_BOLTS = 1024;
 /** How far before the hitbox contact we start the visual-seat ray. */
 const STUCK_SEAT_BACK = 10;
 /** Max travel past the backtracked origin when hunting for mesh. */
