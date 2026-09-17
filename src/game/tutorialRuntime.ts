@@ -24,7 +24,7 @@ import {
     TUTORIAL_START_CARD_ID,
 } from './cards';
 import { BASE_ANCHORS } from './map';
-import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID, HAMMER_ID } from './tactics';
+import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID } from './tactics';
 import {
     type Team,
     type Unit,
@@ -41,8 +41,8 @@ import {
     tutorial2SummonNearKeep,
     tutorial3BallistaSlot,
     tutorial3DwarfSlot,
-    tutorial4HammerZone,
     tutorial4MirroredArmy,
+    tutorial4OgreCell,
     tutorialBallistaFootprint,
     tutorialBaseCell,
     tutorialDwarfFootprint,
@@ -63,6 +63,7 @@ import {
     TUTORIAL_4_RUNE_LESSON,
     TUTORIAL_ARCHER_ID,
     TUTORIAL_DWARF_ID,
+    TUTORIAL_OGRE_ID,
     tutorialContentProblems,
     type TutorialPlaceSlot,
     type TutorialWorldZone,
@@ -1107,41 +1108,23 @@ export class TutorialRuntime {
         if (host.round === 3) {
             const step = guide.currentStep;
             if (step === 'r3Apply' || step === 'r3End') {
-                const army = tutorial4MirroredArmy(host.map, 'player');
-                const pack = army[0];
-                if (pack) {
-                    const fp = tutorialDwarfFootprint(false);
-                    host.placement.setTutorialPlaceTargets([
-                        { anchor: pack.cell, cols: fp.cols, rows: fp.rows, filled: false },
-                    ]);
-                    return;
-                }
+                const cell = tutorial4OgreCell(host.map, 'player');
+                const type = host.types.byId(TUTORIAL_OGRE_ID);
+                const fp = type?.footprint ?? { cols: 2, rows: 2 };
+                host.placement.setTutorialPlaceTargets([
+                    { anchor: cell, cols: fp.cols, rows: fp.rows, filled: false },
+                ]);
+                return;
             }
             host.placement.clearTutorialTargets();
             return;
         }
-        if (host.round === 5) {
-            const step = guide.currentStep;
-            if (step === 'r5PlaceHammer' || step === 'r5End') {
-                const zone = tutorial4HammerZone(host.map);
-                host.placement.setTutorialWorldZones([{ ...zone, filled: this.board4().hammerPlaced }]);
-                return;
-            }
-        }
         host.placement.clearTutorialTargets();
     }
 
-    /** Snap Hammer placement onto the glowing ridge. */
-    hammerPointClick(ground: { x: number; z: number }): { x: number; z: number } | 'miss' | null {
-        if (this.lesson !== TUTORIAL_4_ID || this.host.round !== 5 || !this.guide4) return null;
-        const step = this.guide4.currentStep;
-        if (step !== 'r5PlaceHammer' && step !== 'r5End') return null;
-        const zone = tutorial4HammerZone(this.host.map);
-        if (!pointNear(ground.x, ground.z, zone.x, zone.z, zoneClickTol(zone.radius))) {
-            this.guide4.nudge(t('tutorial:tutorial4NudgeHammer'));
-            return 'miss';
-        }
-        return { x: zone.x, z: zone.z };
+    /** No hammer lesson in Tutorial 4 anymore — keep the hook for game.ts. */
+    hammerPointClick(_ground: { x: number; z: number }): { x: number; z: number } | 'miss' | null {
+        return null;
     }
 
     get boostLessonOnly(): boolean {
@@ -1252,7 +1235,7 @@ export class TutorialRuntime {
                 else if (state.round === 2) this.guide4.nudge(t('tutorial:tutorial4NudgeForge'));
                 else if (state.round === 3) this.guide4.nudge(t('tutorial:tutorial4NudgeApply'));
                 else if (state.round === 4) this.guide4.nudge(t('tutorial:tutorial4NudgeLongbow'));
-                else this.guide4.nudge(t('tutorial:tutorial4NudgeHammer'));
+                else this.guide4.nudge(t('tutorial:tutorial4NudgeHeight'));
                 return false;
             }
         }

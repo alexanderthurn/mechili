@@ -1828,7 +1828,7 @@ export class PlacementController {
     private itemBadgeMaterial(iconId: string, level = 0): SpriteMaterial {
         const tint = levelTintCss(level);
         // style tag busts the cache when the paint/depth recipe changes
-        const key = tint ? `${iconId}|lvl${level}|${tint}|nodw` : `${iconId}|solid|nodw`;
+        const key = tint ? `${iconId}|lvl${level}|${tint}|dw` : `${iconId}|solid|dw`;
         let material = this.itemBadgeMaterials.get(key);
         if (!material) {
             const texture = tint
@@ -1836,12 +1836,12 @@ export class PlacementController {
                 : this.paintItemBadgeTexture(iconId);
             material = new SpriteMaterial({
                 map: texture,
-                // cut out the square corners; do not write depth — GTAO would
-                // otherwise treat the whole billboard quad as a dark slab
+                // Opaque cutout plate — solid in the color pass; GTAO still
+                // skips Sprites / alphaTest / gtaoSkip (see postFx).
                 transparent: false,
                 alphaTest: 0.5,
                 depthTest: true,
-                depthWrite: false,
+                depthWrite: true,
             });
             this.itemBadgeMaterials.set(key, material);
         }
@@ -1850,7 +1850,7 @@ export class PlacementController {
 
     /** atlas icon as-is (same as details-pane tech tiles) — no plate, depth-tested */
     private techBadgeMaterial(iconId: string): SpriteMaterial {
-        const key = `${iconId}|atlas|flat|nodw`;
+        const key = `${iconId}|atlas|flat|dw`;
         let material = this.techBadgeMaterials.get(key);
         if (!material) {
             const texture = this.paintTechBadgeTexture(iconId);
@@ -1859,7 +1859,7 @@ export class PlacementController {
                 transparent: false,
                 alphaTest: 0.5,
                 depthTest: true,
-                depthWrite: false,
+                depthWrite: true,
             });
             this.techBadgeMaterials.set(key, material);
         }
@@ -1876,7 +1876,7 @@ export class PlacementController {
                 transparent: false,
                 alphaTest: 0.5,
                 depthTest: true,
-                depthWrite: false,
+                depthWrite: true,
             });
             this.emptySlotBadgeMaterials.set(dropReady, material);
         }

@@ -24,9 +24,11 @@ import {
     TUTORIAL_4_ID,
     TUTORIAL_ARCHER_ID,
     TUTORIAL_DWARF_ID,
+    TUTORIAL_OGRE_ID,
     tutorial3R3EnemyDwarfCells,
     tutorial4CenterArcherCells,
     tutorial4MirroredArmy,
+    tutorial4OgreCell,
 } from './tutorial';
 import { setUnitLevel } from './tutorialRounds34';
 
@@ -164,11 +166,14 @@ export class TutorialAi implements Opponent {
 
     private runTutorial4(round: number): void {
         const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
-        if (round === 1 || round === 2 || round === 3) {
+        if (round === 1 || round === 2) {
             for (const pack of tutorial4MirroredArmy(this.ctx.placement.map, 'enemy')) {
                 const type = this.ctx.types.byId(pack.typeId);
                 if (type) this.buyAt(type, pack.cell);
             }
+        } else if (round === 3) {
+            const ogre = this.ctx.types.byId(TUTORIAL_OGRE_ID);
+            if (ogre) this.buyAt(ogre, tutorial4OgreCell(this.ctx.placement.map, 'enemy'));
         } else if (round === 4 || round === 5) {
             for (const cell of tutorial4CenterArcherCells(this.ctx.placement.map, 'enemy')) {
                 if (archer) this.buyAt(archer, cell);

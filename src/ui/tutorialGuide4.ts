@@ -14,7 +14,6 @@ export type Tutorial4Highlight =
     | 'rune-wind'
     | 'stronghold'
     | 'tech-barrel'
-    | 'tactics-hammer'
     | 'end-deploy'
     | null;
 
@@ -41,8 +40,6 @@ export type Tutorial4Step =
     | 'r4BuyLongbow'
     | 'r4End'
     | 'r5Intro'
-    | 'r5ArmHammer'
-    | 'r5PlaceHammer'
     | 'r5End'
     | 'done';
 
@@ -52,6 +49,8 @@ export interface Tutorial4BoardState {
     runeAssigned: boolean[];
     /** bag currently holds the armed shop rune id (after buy) */
     armedRuneId: string | null;
+    /** bag contents — so buy→assign advances even if the rune was disarmed */
+    itemBag: string[];
     forgeReady: boolean;
     forgeInserts: number;
     forgedOwned: boolean;
@@ -79,7 +78,7 @@ const RUNE_HIGHLIGHT: Record<string, Tutorial4Highlight> = {
 };
 
 /**
- * Soft-hint overlay for Tutorial 4 (Units: runes, forge, talent, height+Hammer).
+ * Soft-hint overlay for Tutorial 4 (Units: runes, forge, talent, height).
  */
 export class TutorialGuide4 extends TutorialPanel {
     private step: Tutorial4Step = 'r1Intro';
@@ -125,8 +124,16 @@ export class TutorialGuide4 extends TutorialPanel {
                 const buy = `r1Buy${i}` as Tutorial4Step;
                 const assign = `r1Assign${i}` as Tutorial4Step;
                 const runeId = TUTORIAL_4_RUNE_LESSON[i]!.runeId;
-                if (this.step === buy && state.armedRuneId === runeId) {
-                    this.step = assign;
+                const haveRune =
+                    state.armedRuneId === runeId ||
+                    state.itemBag.includes(runeId) ||
+                    state.runeAssigned[i];
+                if (this.step === buy && haveRune) {
+                    this.step = state.runeAssigned[i]
+                        ? (i + 1 < TUTORIAL_4_RUNE_LESSON.length
+                            ? (`r1Buy${i + 1}` as Tutorial4Step)
+                            : 'r1End')
+                        : assign;
                 } else if (this.step === assign && state.runeAssigned[i]) {
                     this.step = (i + 1 < TUTORIAL_4_RUNE_LESSON.length
                         ? (`r1Buy${i + 1}` as Tutorial4Step)
@@ -149,12 +156,6 @@ export class TutorialGuide4 extends TutorialPanel {
             } else if (this.step === 'r4BuyLongbow' && state.longbowOwned) {
                 this.step = 'r4End';
             }
-        } else if (state.round === 5) {
-            if (this.step === 'r5ArmHammer' && state.hammerArmed) {
-                this.step = 'r5PlaceHammer';
-            } else if (this.step === 'r5PlaceHammer' && state.hammerPlaced) {
-                this.step = 'r5End';
-            }
         }
 
         this.paint();
@@ -175,7 +176,7 @@ export class TutorialGuide4 extends TutorialPanel {
             return this.step === 'r4End' && state.longbowOwned;
         }
         if (state.round === 5) {
-            return this.step === 'r5End' && state.hammerPlaced;
+            return this.step === 'r5End';
         }
         return false;
     }
@@ -206,7 +207,7 @@ export class TutorialGuide4 extends TutorialPanel {
                 this.step = 'r4SelectArcher';
                 break;
             case 'r5Intro':
-                this.step = 'r5ArmHammer';
+                this.step = 'r5End';
                 break;
             default:
                 return;
@@ -312,15 +313,6 @@ export class TutorialGuide4 extends TutorialPanel {
             case 'r5Intro':
                 this.titleEl.textContent = t('tutorial:tutorial4R5IntroTitle');
                 this.bodyEl.textContent = t('tutorial:tutorial4R5IntroBody');
-                break;
-            case 'r5ArmHammer':
-                this.titleEl.textContent = t('tutorial:tutorial4R5ArmTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial4R5ArmBody');
-                highlight = 'tactics-hammer';
-                break;
-            case 'r5PlaceHammer':
-                this.titleEl.textContent = t('tutorial:tutorial4R5PlaceTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial4R5PlaceBody');
                 break;
             case 'r5End':
                 this.titleEl.textContent = t('tutorial:tutorial4R5EndTitle');

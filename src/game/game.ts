@@ -1419,7 +1419,7 @@ export class Game {
                 );
             }
         } else if (tutorialId(settings) === TUTORIAL_4_ID) {
-            // Asymmetric shelf / valley for the Units height lesson (whole match).
+            // Asymmetric slope for the Units height lesson (whole match).
             this.map.setReliefOverride((x, z) => tutorial4HeightAt(this.map, x, z));
         }
         // sized to THIS match's board — a hardcoded default here silently

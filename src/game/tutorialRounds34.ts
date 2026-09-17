@@ -4,7 +4,7 @@
  */
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
 import { BASE_ANCHORS, type BattleMap } from './map';
-import { HAMMER_ID, type SpellStamp } from './tactics';
+import type { SpellStamp } from './tactics';
 import { resolveForge, type ForgeSlot } from './forgeRecipes';
 import type { Economy, GameSettings } from './settings';
 import type { TechTree } from './tech';
@@ -17,8 +17,8 @@ import {
     tutorial3R3DwarfSlots,
     tutorial3R4MortarSlot,
     tutorial4CenterArcherCells,
-    tutorial4HammerZone,
     tutorial4MirroredArmy,
+    tutorial4OgreCell,
     tutorialBaseCell,
     tutorialDwarfFootprint,
     tutorialMortarFootprint,
@@ -30,7 +30,9 @@ import {
     TUTORIAL_ARCHER_ID,
     TUTORIAL_BALLISTA_ID,
     TUTORIAL_DWARF_ID,
+    TUTORIAL_GOBLIN_ID,
     TUTORIAL_MORTAR_ID,
+    TUTORIAL_OGRE_ID,
     type TutorialPlaceSlot,
 } from './tutorial';
 import type { Tutorial3BoardState } from '../ui/tutorialGuide3';
@@ -223,7 +225,7 @@ export function setupTutorial4Round(
 ): void {
     const human = host.humanSeat;
     const enemy = primarySeatOf(host.seats, 'enemy');
-    host.unlockedUnits[enemy] = [TUTORIAL_DWARF_ID, TUTORIAL_ARCHER_ID];
+    host.unlockedUnits[enemy] = [TUTORIAL_DWARF_ID, TUTORIAL_GOBLIN_ID, TUTORIAL_OGRE_ID, TUTORIAL_ARCHER_ID];
     creditSeat(host, enemy, 2500);
 
     // Force Longbow onto human archer loadout for talent round
@@ -251,7 +253,7 @@ export function setupTutorial4Round(
         }
         host.unlockedUnits[human] = [];
         host.deployState.limit[human] = 0;
-        host.deployState.limit[enemy] = 4;
+        host.deployState.limit[enemy] = 2;
         host.hud.setShopColumnVisible(true);
         host.hud.setShopRunesVisible(true);
         creditSeat(host, human, 800);
@@ -266,21 +268,21 @@ export function setupTutorial4Round(
         }
         host.unlockedUnits[human] = [];
         host.deployState.limit[human] = 0;
-        host.deployState.limit[enemy] = 4;
+        host.deployState.limit[enemy] = 2;
         host.hud.setShopColumnVisible(true);
         host.hud.setShopRunesVisible(true);
         creditSeat(host, human, 600);
     } else if (round === 3) {
         clearFieldUnits(host);
-        // Keep stronghold if present; clear otherwise re-spawn none needed for apply
-        clearStructures(host);
-        for (const pack of tutorial4MirroredArmy(host.map, 'player')) {
-            const type = host.types.byId(pack.typeId);
-            if (type) host.placement.spawn(type, pack.cell, 'player', false, true, human);
+        // Keep the Stronghold from R2 — clearing it looked empty/odd.
+        spawnPlayerStronghold(host, stronghold);
+        const ogre = host.types.byId(TUTORIAL_OGRE_ID);
+        if (ogre) {
+            host.placement.spawn(ogre, tutorial4OgreCell(host.map, 'player'), 'player', false, true, human);
         }
         host.unlockedUnits[human] = [];
         host.deployState.limit[human] = 0;
-        host.deployState.limit[enemy] = 4;
+        host.deployState.limit[enemy] = 1;
         host.hud.setShopColumnVisible(false);
         host.hud.setShopRunesVisible(false);
         creditSeat(host, human, 200);
@@ -302,6 +304,20 @@ export function setupTutorial4Round(
     } else {
         clearFieldUnits(host);
         clearStructures(host);
+        // Strip Range so both lines fight with the same talent — height is the edge.
+        host.techTree.remove(human, TUTORIAL_ARCHER_ID, TUTORIAL_4_ARCHER_RANGE_TECH);
+        const seat = host.seats[human];
+        if (seat?.loadout) {
+            const archerTechs = (seat.loadout.techs.archer ?? []).filter(
+                (id) => id !== TUTORIAL_4_ARCHER_RANGE_TECH,
+            );
+            host.seats[human] = {
+                ...seat,
+                loadout: {
+                    techs: { ...seat.loadout.techs, archer: archerTechs },
+                },
+            };
+        }
         const type = host.types.byId(TUTORIAL_ARCHER_ID);
         if (type) {
             for (const cell of tutorial4CenterArcherCells(host.map, 'player', TUTORIAL_4_ARCHERS)) {
@@ -313,9 +329,6 @@ export function setupTutorial4Round(
         host.deployState.limit[enemy] = TUTORIAL_4_ARCHERS;
         host.hud.setShopColumnVisible(false);
         host.hud.setShopRunesVisible(false);
-        // Grant Hammer of the Gods
-        const bag = host.tacticInventory[human]!;
-        if (!bag.includes(HAMMER_ID)) bag.push(HAMMER_ID);
         creditSeat(host, human, 200);
     }
     host.refreshShopHud();
@@ -398,22 +411,14 @@ export function boardState4(host: TutorialRoundHost, strongholdType: UnitType): 
     const forgeReady = product?.id === TUTORIAL_4_FORGE_PRODUCT;
     const bag = host.itemInventory?.[human] ?? [];
     const forgedOwned = bag.includes(TUTORIAL_4_FORGE_PRODUCT);
-    const leftDwarf = army[0]
-        ? own.find((u) => u.type.id === TUTORIAL_DWARF_ID && cellEq(u.cell, army[0]!.cell))
-        : undefined;
-    const forgedApplied = !!leftDwarf?.items.includes(TUTORIAL_4_FORGE_PRODUCT);
-    const hammerZone = tutorial4HammerZone(host.map);
-    const hammerPlaced = host.spellStamps.some(
-        (s) =>
-            s.seat === human &&
-            s.tacticId === HAMMER_ID &&
-            (s.x - hammerZone.x) ** 2 + (s.z - hammerZone.z) ** 2 <=
-                (hammerZone.radius * 1.2) ** 2,
-    );
+    const ogreCell = tutorial4OgreCell(host.map, 'player');
+    const ogre = own.find((u) => u.type.id === TUTORIAL_OGRE_ID && cellEq(u.cell, ogreCell));
+    const forgedApplied = !!ogre?.items.includes(TUTORIAL_4_FORGE_PRODUCT);
     return {
         round: host.round,
         runeAssigned,
         armedRuneId: host.armedItem,
+        itemBag: [...bag],
         forgeReady,
         forgeInserts,
         forgedOwned,
@@ -421,8 +426,8 @@ export function boardState4(host: TutorialRoundHost, strongholdType: UnitType): 
         archerSelected:
             !!selected && selected.seat === human && selected.type.id === TUTORIAL_ARCHER_ID,
         longbowOwned: host.techTree.has(human, TUTORIAL_ARCHER_ID, TUTORIAL_4_ARCHER_RANGE_TECH),
-        hammerArmed: host.armedTactic === HAMMER_ID,
-        hammerPlaced,
+        hammerArmed: false,
+        hammerPlaced: false,
         keepSelected: !!keep && selected?.id === keep.id,
     };
 }

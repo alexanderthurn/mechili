@@ -9,7 +9,7 @@ import {
 import type { GameSettings, TutorialSettings } from './settings';
 import type { BattleMap, Cell } from './map';
 import { BASE_ANCHORS, CELL } from './map';
-import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, HAMMER_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, clampTacticPoint } from './tactics';
+import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, clampTacticPoint } from './tactics';
 
 /** Tutorial 1: empty board, auto commander, soft UI lesson, 4 enemy archers. */
 export const TUTORIAL_1_ID = 1;
@@ -21,7 +21,7 @@ export const TUTORIAL_2_ROUNDS = 3;
 export const TUTORIAL_3_ID = 3;
 
 export const TUTORIAL_3_ROUNDS = 4;
-/** Tutorial 4: Units — runes, forge, forged apply, Longbow, height+Hammer. */
+/** Tutorial 4: Units — runes, forge, forged apply, Longbow, height. */
 export const TUTORIAL_4_ID = 4;
 
 export const TUTORIAL_4_ROUNDS = 5;
@@ -51,19 +51,19 @@ export const TUTORIAL_4_ARCHER_RANGE_TECH = 'barrel';
 /** Tutorial 4 range / height rounds: archers lined up in each half's center. */
 export const TUTORIAL_4_ARCHERS = 5;
 
-/** Tutorial 4 round 1: shop rune → pack assign order (L→R on the locked line). */
+/** Tutorial 4 round 1: shop rune → pack assign (goblin fire/wind, dwarf earth/water). */
 export const TUTORIAL_4_RUNE_LESSON = [
-    { runeId: 'fire', packIndex: 0 },
-    { runeId: 'earth', packIndex: 1 },
-    { runeId: 'wind', packIndex: 2 },
-    { runeId: 'water', packIndex: 3 },
+    { runeId: 'fire', packIndex: 1 },
+    { runeId: 'wind', packIndex: 1 },
+    { runeId: 'earth', packIndex: 0 },
+    { runeId: 'water', packIndex: 0 },
 ] as const;
 
 /** Tutorial 4 forge product id. */
 export const TUTORIAL_4_FORGE_PRODUCT = 'fire:3';
 
-/** Tutorial 4 height shelf (world units). */
-export const TUTORIAL_4_SHELF_HEIGHT = 9;
+/** Tutorial 4 height shelf (world units) — player high ground in R5. */
+export const TUTORIAL_4_SHELF_HEIGHT = 22;
 
 /** Round-2/3 forge spells: oil + dragon in R2, summon unlocked in R3. */
 export const TUTORIAL_2_SPELL_IDS = [OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID] as const;
@@ -186,12 +186,16 @@ export const TUTORIAL_DWARF_ID = 'dwarf';
 export const TUTORIAL_ARCHER_ID = 'archer';
 export const TUTORIAL_BALLISTA_ID = 'ballista';
 export const TUTORIAL_MORTAR_ID = 'mortar';
+export const TUTORIAL_GOBLIN_ID = 'goblin';
+export const TUTORIAL_OGRE_ID = 'ogre';
 
 const TUTORIAL_FOOTPRINTS: Readonly<Record<string, { cols: number; rows: number }>> = {
     [TUTORIAL_DWARF_ID]: { cols: 5, rows: 2 },
     [TUTORIAL_ARCHER_ID]: { cols: 2, rows: 2 },
     [TUTORIAL_BALLISTA_ID]: { cols: 4, rows: 4 },
     [TUTORIAL_MORTAR_ID]: { cols: 5, rows: 2 },
+    [TUTORIAL_GOBLIN_ID]: { cols: 4, rows: 2 },
+    [TUTORIAL_OGRE_ID]: { cols: 2, rows: 2 },
 };
 
 /** What would break a lesson in `types`: a missing unit or an unexpected footprint. Empty = fine. */
@@ -230,7 +234,6 @@ export function tutorialContentProblems(types: TypeRegistry): string[] {
         problems.push(`tutorial 2 needs "${SPAWN_DWARVES_ID}" to summon "${TUTORIAL_DWARF_ID}"`);
     }
     if (!types.tactic(OIL_SPILL_ID)) problems.push(`tutorial 2 needs "${OIL_SPILL_ID}"`);
-    if (!types.tactic(HAMMER_ID)) problems.push(`tutorial 4 needs spell "${HAMMER_ID}"`);
     if (!types.rune('fire') || !types.rune('earth') || !types.rune('water') || !types.rune('wind')) {
         problems.push('tutorial 4 needs base runes fire/earth/water/wind');
     }
@@ -304,9 +307,9 @@ export function tutorial3CenterDwarfCell(map: BattleMap): Cell {
     };
 }
 
-/** One pack in Tutorial 4's mirrored border line-up (round 1). */
+/** One pack in Tutorial 4's mirrored border line-up (rounds 1–2). */
 export interface Tutorial4ArmyPack {
-    typeId: typeof TUTORIAL_DWARF_ID | typeof TUTORIAL_ARCHER_ID;
+    typeId: typeof TUTORIAL_DWARF_ID | typeof TUTORIAL_GOBLIN_ID;
     cell: Cell;
 }
 
@@ -320,8 +323,8 @@ function tutorial4BorderRow(map: BattleMap, fpRows: number, near: boolean): numb
 }
 
 /**
- * Tutorial 4 guided-rune / forge-apply line: 2 dwarves + 2 archers, L→R,
- * mirrored across the border.
+ * Tutorial 4 guided-rune / forge line: dwarf + goblin, L→R, mirrored across
+ * the border. Round 1 fills both rune slots on each pack.
  */
 export function tutorial4MirroredArmy(
     map: BattleMap,
@@ -329,9 +332,7 @@ export function tutorial4MirroredArmy(
 ): Tutorial4ArmyPack[] {
     const composition: readonly Tutorial4ArmyPack['typeId'][] = [
         TUTORIAL_DWARF_ID,
-        TUTORIAL_DWARF_ID,
-        TUTORIAL_ARCHER_ID,
-        TUTORIAL_ARCHER_ID,
+        TUTORIAL_GOBLIN_ID,
     ];
     const near = team === 'player' ? !map.ownAtFar : map.ownAtFar;
     // leave one empty cell between packs
@@ -351,6 +352,16 @@ export function tutorial4MirroredArmy(
         col += cols + 1;
     }
     return packs;
+}
+
+/** Tutorial 4 round 3: single centered ogre on the border, mirrored per team. */
+export function tutorial4OgreCell(map: BattleMap, team: 'player' | 'enemy'): Cell {
+    const fp = TUTORIAL_FOOTPRINTS[TUTORIAL_OGRE_ID]!;
+    const near = team === 'player' ? !map.ownAtFar : map.ownAtFar;
+    return {
+        col: Math.floor((map.cols - fp.cols) / 2),
+        row: tutorial4BorderRow(map, fp.rows, near),
+    };
 }
 
 /**
@@ -442,34 +453,19 @@ export function tutorial3R4MortarSlot(map: BattleMap): TutorialPlaceSlot {
 }
 
 /**
- * Asymmetric relief for Tutorial 4: player shelf high, enemy valley low, with
- * a mid-field ridge the Hammer lesson flattens.
+ * Asymmetric relief for Tutorial 4: continuous slope from the enemy line (low)
+ * up to the player's shelf (high). No mid ridge — height alone is the lesson.
  */
 export function tutorial4HeightAt(map: BattleMap, x: number, z: number): number {
+    void x;
     const halfH = map.halfH;
     const playerSign = map.ownAtFar ? 1 : -1;
+    // Negative along = player half (matches original shelf convention).
     const along = (z * playerSign) / halfH;
-    let h: number;
-    if (along < -0.15) h = TUTORIAL_4_SHELF_HEIGHT;
-    else if (along > 0.2) h = 0.4;
-    else {
-        const t = (along + 0.15) / 0.35;
-        const s = t * t * (3 - 2 * t);
-        h = TUTORIAL_4_SHELF_HEIGHT * (1 - s) + 0.4 * s;
-    }
-    const ridgeZ = 0.08 * halfH * playerSign;
-    const ridge = Math.exp(-((z - ridgeZ) ** 2) / (14 * 14)) * Math.exp(-(x * x) / (55 * 55));
-    return h + ridge * 4.5;
-}
-
-/** World-space Hammer aim point for Tutorial 4 round 5 (mid ridge crest). */
-export function tutorial4HammerZone(map: BattleMap): TutorialWorldZone {
-    const playerSign = map.ownAtFar ? 1 : -1;
-    return {
-        x: 0,
-        z: 0.08 * map.halfH * playerSign,
-        radius: 16,
-    };
+    // Smoothstep from enemy (~+0.55) up to player (~−0.55).
+    const t = Math.min(1, Math.max(0, (-along + 0.55) / 1.1));
+    const s = t * t * (3 - 2 * t);
+    return 0.35 + (TUTORIAL_4_SHELF_HEIGHT - 0.35) * s;
 }
 
 /**
