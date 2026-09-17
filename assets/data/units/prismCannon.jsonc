@@ -16,7 +16,7 @@
         { "y": 2.2, "r": 0.7 },
     ],
     "rampBeam": {
-        "doubleEvery": 1.25,
+        "doubleEvery": 1,
         "maxDps": 1000000,
         "splashRadius": 3,
         // Tight horizontal cone — must yaw to engage flanks; pitch free.
@@ -35,6 +35,8 @@
     // Slow traverse: flankers can outrun the cone and break the lock.
     "turnRate": 0.1,
     "turnMove": "pivot",
+    // Wheeled siege — little gait wobble while rolling.
+    "walkLean": 0.2,
     "proceduralModel": "mortar",
     "talents": ["barrel", "armor", "massBinding", "bloodfeast"],
     "talentSlots": 4,

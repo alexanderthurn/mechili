@@ -4536,15 +4536,6 @@ function wireHostedHub(
         announceRosterChanges(roster);
         const levelsReady = syncGuestLevels(roster);
         const joined = hub.connectedSeats().length + 1;
-        const names = roster
-            .map((s, i) => (i === 0 ? `${s.name}${t('menu:rosterYou')}` : s.name))
-            .join(', ');
-        // only ACTUALLY joined seats (host + currently connected) — the
-        // rest of `roster` is still "Waiting…" placeholders, not real names
-        const connectedNames = [0, ...hub.connectedSeats()]
-            .sort((a, b) => a - b)
-            .map((i) => roster[i]?.name ?? '')
-            .join(', ');
         lobbyYear =
             customConfig?.mode === 'year'
                 ? {
@@ -4608,46 +4599,16 @@ function wireHostedHub(
         // Custom Game host wants a last look at who joined (and the chance
         // to kick someone) before committing.
         if (joined >= waitForJoined && !customConfig) {
-            setStatus(
-                t('menu:roomStarting', {
-                    name: hostName,
-                    joined,
-                    total: roster.length,
-                    names,
-                }),
-            );
+            setStatus(t('menu:roomStarting', { name: hostName }));
             startHostedMatch();
             return;
         }
         if (joined >= waitForJoined && customConfig && !allReady) {
-            setStatus(
-                t('menu:roomWaitingReady', {
-                    name: hostName,
-                    joined,
-                    total: roster.length,
-                    names,
-                }),
-            );
+            setStatus(t('menu:roomWaitingReady', { name: hostName }));
         } else if (joined >= waitForJoined) {
-            setStatus(
-                t('menu:roomReadyStart', {
-                    name: hostName,
-                    joined,
-                    total: roster.length,
-                    names,
-                }),
-            );
+            setStatus(t('menu:roomReadyStart', { name: hostName }));
         } else if (offerAiStart) {
-            const remaining = waitForJoined - joined;
-            setStatus(
-                t('menu:roomNeedMore', {
-                    name: hostName,
-                    joined,
-                    total: roster.length,
-                    names: connectedNames,
-                    need: remaining,
-                }),
-            );
+            setStatus(t('menu:roomNeedMore', { name: hostName }));
         } else {
             setStatus(t('menu:waitingOpponent'));
         }

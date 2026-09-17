@@ -107,7 +107,7 @@
   },
   "looseRank": {
     "name": "Loose Rank",
-    "description": "Pack members stand farther apart — less vulnerable to splash."
+    "description": "At battle start, pack members push farther apart for 3s (4× personal space), then tighten again."
   },
   "massBinding": {
     "name": "Mass Binding",

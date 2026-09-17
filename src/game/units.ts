@@ -161,6 +161,12 @@ export interface TechDef {
      */
     formationSpreadAdd?: number;
     /**
+     * Opening-battle crowd inflate (Loose Rank): for `seconds` after the
+     * freeze, this pack's soft-separation / overlap radius is multiplied by
+     * `radiusMult` so members push apart without changing spawn layout.
+     */
+    battleSpread?: { radiusMult: number; seconds: number };
+    /**
      * Convert-ray / ramp-beam extras (wizard Mass Binding, Prism Cannon).
      * `maxTargets` channels at once; `intensityMult` scales each channel.
      */

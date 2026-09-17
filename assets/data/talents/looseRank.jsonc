@@ -1,10 +1,11 @@
-// Scatter pack members so splash hits fewer bodies.
+// Pack starts tight; for the opening seconds, personal space inflates so
+// members push apart via normal crowd separation (then snap back).
 {
     "id": "looseRank",
     "name": "Loose Rank",
     "cost": 150,
     "mods": {},
-    "formationSpreadAdd": 1.4,
+    "battleSpread": { "radiusMult": 3, "seconds": 2 },
     "icon": "tech-loose-rank",
-    "description": "Pack members stand farther apart — less vulnerable to splash.",
+    "description": "At battle start, pack members push farther apart for 3s (4× personal space), then tighten again.",
 }
