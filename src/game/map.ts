@@ -14,7 +14,7 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, textureBombGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -1554,13 +1554,9 @@ export class BattleMap {
             if (useDetail) {
                 extraUniforms += 'uniform float uDetailScale;\nuniform float uDetailStrength;\n';
                 if (bomb) {
-                    // Keep bomb on the base lawn UV — uniform close tile, no extra breakup.
-                    inject +=
-                        '\tvec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );\n' +
-                        '\tfloat bombW = fract( sin( dot( floor( vMapUv * 4.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
-                        '\tbombW = smoothstep( 0.28, 0.72, bombW );\n' +
-                        `\tvec3 bombAlb = ${useCloseTile ? closeTileSampleGlsl(profile, 'bombUv') : 'texture2D( map, bombUv ).rgb'};\n` +
-                        '\tdiffuseColor.rgb = mix( diffuseColor.rgb, bombAlb, bombW * 0.55 );\n';
+                    inject += textureBombGlsl((uv) =>
+                        useCloseTile ? closeTileSampleGlsl(profile, uv) : `texture2D( map, ${uv} ).rgb`,
+                    );
                 }
                 if (useCloseTile) {
                     inject +=

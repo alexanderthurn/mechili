@@ -47,7 +47,7 @@ import {
     worldHeightAt,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, textureBombGlsl } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -1805,11 +1805,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 inject += closeTileWeightFallbackGlsl(profile);
             }
             if (bomb) {
-                inject += `
-    vec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );
-    float bombW = fract( sin( dot( floor( vMapUv * 4.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
-    bombW = smoothstep( 0.28, 0.72, bombW );
-    diffuseColor.rgb = mix( diffuseColor.rgb, ${closeTileSampleGlsl(profile, 'bombUv')}, bombW * 0.55 );`;
+                inject += textureBombGlsl((uv) => closeTileSampleGlsl(profile, uv));
             }
             if (useDetail) {
                 if (profile.closeRepeat > 1.01) {

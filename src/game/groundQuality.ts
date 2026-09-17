@@ -252,6 +252,33 @@ export function closeTileSampleGlsl(profile: GroundMaterialProfile, uv: string):
     return `mix( texture2D( map, ${uv} ).rgb, texture2D( map, ( ${uv} ) * uCloseRepeat ).rgb, closeW )`;
 }
 
+/**
+ * GLSL: texture bombing — a rotated copy of the lawn blended in soft,
+ * irregular patches so the tiling doesn't read as wallpaper. Patches come from
+ * smoothly interpolated cell noise (no square cell edges) and stay subtle.
+ * `sample` is the texture read for a UV (fine near the camera where the close
+ * tile is on).
+ */
+export function textureBombGlsl(sample: (uv: string) => string): string {
+    return `
+	vec2 bombUv = vMapUv.yx * vec2( -1.0, 1.0 ) + vec2( 0.37, 0.19 );
+	vec2 bombCell = vMapUv * 3.0;
+	vec2 bombI = floor( bombCell );
+	vec2 bombF = fract( bombCell );
+	bombF = bombF * bombF * ( 3.0 - 2.0 * bombF );
+	float bombH00 = fract( sin( dot( bombI, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	float bombH10 = fract( sin( dot( bombI + vec2( 1.0, 0.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	float bombH01 = fract( sin( dot( bombI + vec2( 0.0, 1.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	float bombH11 = fract( sin( dot( bombI + vec2( 1.0, 1.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	float bombW = mix( mix( bombH00, bombH10, bombF.x ), mix( bombH01, bombH11, bombF.x ), bombF.y );
+	bombW = smoothstep( 0.35, 0.8, bombW );
+	diffuseColor.rgb = mix( diffuseColor.rgb, ${sample('bombUv')}, bombW * ${BOMB_STRENGTH.toFixed(2)} );
+`;
+}
+
+/** how far a bombing patch leans toward the rotated copy (was 0.55: too patchy) */
+const BOMB_STRENGTH = 0.25;
+
 /** Declare closeW=0 when close-tile is off so later GLSL can always reference it. */
 export function closeTileWeightFallbackGlsl(profile: GroundMaterialProfile): string {
     if (profile.closeRepeat > 1.01) return '';
