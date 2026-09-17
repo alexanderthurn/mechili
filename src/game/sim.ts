@@ -4740,7 +4740,7 @@ export class BattleSim {
             const sx = a.x - b.x;
             const sz = a.z - b.z;
             const sd = hypot(sx, sz);
-            const minD = a.radius + b.radius + SEPARATION_GAP;
+            const minD = this.crowdRadius(a) + this.crowdRadius(b) + SEPARATION_GAP;
             if (sd >= minD || sd < 1e-4) continue;
             const w = ((minD - sd) / minD) * SEPARATION_STRENGTH;
             steerX += (sx / sd) * w;
@@ -6073,11 +6073,33 @@ export class BattleSim {
         return (this.stepIndex + a.index) % every === 0;
     }
 
+    /**
+     * Soft-separation / overlap radius. Loose Rank temporarily inflates this
+     * after the opening freeze so pack members push apart; combat range still
+     * uses {@link Actor.radius}.
+     */
+    private crowdRadius(a: Actor): number {
+        let mult = 1;
+        const t = this.elapsed - BATTLE_START_FREEZE;
+        if (t >= 0) {
+            for (const tech of this.techProfiles(a)) {
+                const bs = tech.battleSpread;
+                if (!bs || bs.seconds <= 0 || bs.radiusMult <= 1) continue;
+                if (t >= bs.seconds) continue;
+                if (bs.radiusMult > mult) mult = bs.radiusMult;
+            }
+        }
+        return a.radius * mult;
+    }
+
     private pushApart(a: Actor, b: Actor): void {
         const dx = a.x - b.x;
         const dz = a.z - b.z;
         const dist = hypot(dx, dz);
-        const minD = a.radius + b.radius;
+        const minD =
+            a.unit.type.structure || b.unit.type.structure
+                ? a.radius + b.radius
+                : this.crowdRadius(a) + this.crowdRadius(b);
         if (dist >= minD || dist < 1e-6) return;
         const overlap = minD - dist;
         const nx = dx / dist;
@@ -6087,6 +6109,7 @@ export class BattleSim {
             a.z += nz * overlap;
             return;
         }
+        // Mass from true collision radius — inflate only the desired spacing.
         const massA = a.radius * a.radius;
         const massB = b.radius * b.radius;
         const shareA = massB / (massA + massB);
