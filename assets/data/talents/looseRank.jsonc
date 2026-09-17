@@ -5,5 +5,6 @@
     "cost": 150,
     "mods": {},
     "formationSpreadAdd": 1.4,
+    "icon": "tech-loose-rank",
     "description": "Pack members stand farther apart — less vulnerable to splash.",
 }

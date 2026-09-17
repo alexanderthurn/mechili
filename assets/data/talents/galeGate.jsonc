@@ -5,5 +5,6 @@
     "cost": 250,
     "mods": {},
     "freeRedeploy": true,
+    "icon": "tech-gale-gate",
     "description": "May reposition every deploy round without using Move Pack.",
 }

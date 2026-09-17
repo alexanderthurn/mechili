@@ -5,5 +5,6 @@
     "cost": 250,
     "mods": {},
     "lifesteal": 0.25,
+    "icon": "tech-bloodfeast",
     "description": "Heals for 25% of damage dealt (shared among living pack members).",
 }

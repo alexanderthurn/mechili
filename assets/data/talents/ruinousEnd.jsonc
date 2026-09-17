@@ -5,5 +5,6 @@
     "cost": 250,
     "mods": {},
     "onDeath": { "explode": { "splash": 4, "damageMult": 1 } },
+    "icon": "tech-ruinous-end",
     "description": "On death, explodes for damage equal to this unit's max HP.",
 }

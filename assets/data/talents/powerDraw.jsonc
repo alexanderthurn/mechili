@@ -4,5 +4,6 @@
     "name": "Power Draw",
     "cost": 200,
     "mods": { "damage": 1.7, "attackInterval": 1.4, "range": 0.85 },
+    "icon": "tech-power-draw",
     "description": "+70% damage, −15% range, and slower shots.",
 }

@@ -4,5 +4,6 @@
     "name": "Piercing",
     "cost": 250,
     "mods": { "damage": 1.4 },
+    "icon": "tech-piercing",
     "description": "+40% damage.",
 }

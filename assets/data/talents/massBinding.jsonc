@@ -5,5 +5,6 @@
     "cost": 300,
     "mods": {},
     "convert": { "maxTargets": 3, "intensityMult": 0.55 },
+    "icon": "tech-mass-binding",
     "description": "Convert up to 3 enemies at once; each channel is 45% weaker.",
 }

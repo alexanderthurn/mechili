@@ -95,7 +95,7 @@
   },
   "blightburst": {
     "name": "Blightburst",
-    "description": "On death, leaves a blight puddle that corrodes enemies."
+    "description": "On death, leaves an acid puddle."
   },
   "ruinousEnd": {
     "name": "Ruinous End",
