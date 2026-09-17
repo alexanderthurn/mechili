@@ -102,7 +102,8 @@ export interface SimConfig {
     /**
      * The board relief grid battle effects deform (a Hammer of the Gods
      * flattens it). The sim changes it inside the step an effect lands in, so
-     * every client derives the same ground; omit to leave the ground as it is.
+     * every client derives the same ground; the change carries into later
+     * battles (healing per TERRAIN_HEAL_PER_ROUND). Omit to leave the ground as it is.
      */
     terrain?: TerrainGrid;
     towers: TowerSettings;

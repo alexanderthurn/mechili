@@ -185,6 +185,7 @@ import { modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery, MOUNTAIN_PEAK_END } from './scenery';
 import { MountainEditor, mountainEditorEnabled } from './mountainEditor';
+import { TERRAIN_HEAL_PER_ROUND } from './terrainGrid';
 import {
     boardSamplerFromMesh,
     landscapeBoardSampler,
@@ -9173,9 +9174,10 @@ export class Game {
             if (unit.team !== 'horde' || unit.type.structure) continue;
             if (Math.abs(unit.world.x) > this.map.halfW || Math.abs(unit.world.z) > this.map.halfH) unit.marchIn = true;
         }
-        // every battle starts on the undeformed board (a spectator or reconnect
-        // rebuilding this battle starts from the same ground)
-        this.map.terrain.reset();
+        // deformation carries over between battles, healing a share each round
+        // (TERRAIN_HEAL_PER_ROUND); done here, at battle start, so a spectator
+        // or reconnect replaying the match arrives at the same ground
+        this.map.terrain.heal(TERRAIN_HEAL_PER_ROUND);
         this.sim = new BattleSim(this.placement.allUnits(), {
             terrain: this.map.terrain,
             towers: this.settings.towers,
@@ -9626,8 +9628,6 @@ export class Game {
         this.conversionFx.clear();
         this.oilDripFx.clear();
         this.scenery.clearHammerCrush();
-        // hammer flattening lasts for the battle it happened in
-        this.map.terrain.reset();
         this.spellChargeMarkers = [];
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);

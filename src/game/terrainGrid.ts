@@ -16,6 +16,13 @@
 import type { BufferAttribute, BufferGeometry } from 'three';
 import { detCos, detSin } from './detMath';
 
+/**
+ * How much of a deformation heals at the start of each later battle: 1 = the
+ * ground is back to normal, 0.5 = halfway back each round, 0 = it stays for
+ * the rest of the match.
+ */
+export const TERRAIN_HEAL_PER_ROUND = 0;
+
 /** inclusive node rectangle */
 export interface TerrainRect {
     x0: number;
@@ -65,7 +72,28 @@ export class TerrainGrid {
         this.markDirty({ x0: 0, z0: 0, x1: this.nx - 1, z1: this.nz - 1 });
     }
 
-    /** undo every deformation (battle start / end) */
+    /**
+     * Move every deformed node back toward the undeformed relief by `amount`
+     * (0 = nothing, 1 = fully): height += (base − height) · amount.
+     */
+    heal(amount: number): void {
+        if (amount >= 1) {
+            this.reset();
+            return;
+        }
+        const r = this.deformed;
+        if (!r || amount <= 0) return;
+        for (let iz = r.z0; iz <= r.z1; iz++) {
+            const row = iz * this.nx;
+            for (let ix = r.x0; ix <= r.x1; ix++) {
+                const i = row + ix;
+                this.heights[i] = this.heights[i]! + (this.base[i]! - this.heights[i]!) * amount;
+            }
+        }
+        this.markDirty(r);
+    }
+
+    /** undo every deformation */
     reset(): void {
         const r = this.deformed;
         if (!r) return;

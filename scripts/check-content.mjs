@@ -826,6 +826,17 @@ try {
         for (let i = 0; i < gp.count; i += 97) worstMesh = Math.max(worstMesh, Math.abs(gp.getY(i) - map.heightAt(gp.getX(i), gp.getZ(i))));
         texpect(worstMesh < 1e-4, `mesh vertices off the grid by ${worstMesh}`);
         texpect(Math.abs(geo.attributes.normal.getY(0) - 1) < 0.2, 'normals not pointing up');
+        // healing between rounds: 0 keeps it, 0.5 halfway back, 1 back to normal
+        const deformed = Float32Array.from(grid.heights);
+        grid.heal(0);
+        texpect(grid.heights.every((v, i) => v === deformed[i]), 'heal(0) changed the ground');
+        grid.heal(0.5);
+        const iCenter = Math.round((-30 + map.halfH) / grid.cellZ) * grid.nx + Math.round((20 + map.halfW) / grid.cellX);
+        const halfway = before[iCenter] + (deformed[iCenter] - before[iCenter]) * 0.5;
+        texpect(Math.abs(grid.heights[iCenter] - halfway) < 1e-4, `heal(0.5) at ${grid.heights[iCenter]}, expected ${halfway}`);
+        grid.heal(1);
+        texpect(grid.checksum() === sumBefore, 'heal(1) does not restore the relief');
+        grid.flattenRect(20, -30, 10, 6, 0.4, 5);
         // reset: exactly the undeformed relief again
         grid.reset();
         texpect(grid.checksum() === sumBefore && grid.heights.every((v, i) => v === before[i]), 'reset does not restore the relief');
@@ -851,7 +862,7 @@ try {
         if (!tk) failed = true;
         else
             console.log(
-                `ok   terrain grid: nodes exact, hammer flat inside / untouched outside, crater, deterministic, mesh copy, reset exact · lookup ${lookupNs.toFixed(0)} ns (procedural ${procNs.toFixed(0)} ns) · 1000 craters ${cratersMs.toFixed(1)} ms · full-board mesh write ${uploadMs.toFixed(1)} ms`,
+                `ok   terrain grid: nodes exact, hammer flat inside / untouched outside, crater, deterministic, mesh copy, healing 0 / 0.5 / 1, reset exact · lookup ${lookupNs.toFixed(0)} ns (procedural ${procNs.toFixed(0)} ns) · 1000 craters ${cratersMs.toFixed(1)} ms · full-board mesh write ${uploadMs.toFixed(1)} ms`,
             );
     }
 
