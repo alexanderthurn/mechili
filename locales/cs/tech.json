@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Volné řady",
-    "description": "Členové Packu stojí dál od sebe — méně zranitelní plošným poškozením."
+    "description": "Na začátku bitvy se členové Packu na 2 s rozestoupí (3× víc prostoru) a pak se zase semknou."
   },
   "massBinding": {
     "name": "Hromadné spoutání",

@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Laza sorok",
-    "description": "A Pack tagjai távolabb állnak egymástól — kevésbé sebezhetők területi sebzéssel."
+    "description": "A csata elején a Pack tagjai 2 mp-re szétterülnek (3× személyes tér), aztán újra összezárnak."
   },
   "massBinding": {
     "name": "Tömeges kötés",

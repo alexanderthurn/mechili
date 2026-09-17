@@ -1035,6 +1035,8 @@ export class BattleSim {
     private prevStepDt = 1 / SIM_HZ;
     /** line-of-fire verdicts per shooter→target pair: the loft that clears (0 = blocked) */
     private readonly losCache = new Map<number, { until: number; loft: number }>();
+    /** talents with an opening crowd spread (Loose Rank), per unit type — see crowdRadius */
+    private readonly spreadTalents = new Map<UnitType, { list: TechDef[]; seconds: number }>();
     private readonly buildingScratch: Actor[] = [];
     /** when true, step() accumulates timings into {@link lastProfile} */
     profileEnabled = false;
@@ -6079,15 +6081,27 @@ export class BattleSim {
      * uses {@link Actor.radius}.
      */
     private crowdRadius(a: Actor): number {
-        let mult = 1;
         const t = this.elapsed - BATTLE_START_FREEZE;
-        if (t >= 0) {
-            for (const tech of this.techProfiles(a)) {
-                const bs = tech.battleSpread;
-                if (!bs || bs.seconds <= 0 || bs.radiusMult <= 1) continue;
-                if (t >= bs.seconds) continue;
-                if (bs.radiusMult > mult) mult = bs.radiusMult;
-            }
+        if (t < 0) return a.radius;
+        // hot path (every crowd pair, every step): most types have no spread talent,
+        // and after the opening seconds nobody does — skip the talent walk entirely
+        let spread = this.spreadTalents.get(a.unit.type);
+        if (!spread) {
+            const list = this.config.types
+                .talentsOf(a.unit.type)
+                .filter((tech) => tech.battleSpread && tech.battleSpread.seconds > 0 && tech.battleSpread.radiusMult > 1);
+            let seconds = 0;
+            for (const tech of list) seconds = Math.max(seconds, tech.battleSpread!.seconds);
+            spread = { list, seconds };
+            this.spreadTalents.set(a.unit.type, spread);
+        }
+        if (spread.list.length === 0 || t >= spread.seconds) return a.radius;
+        let mult = 1;
+        for (const tech of spread.list) {
+            const bs = tech.battleSpread!;
+            if (t >= bs.seconds || bs.radiusMult <= mult) continue;
+            if (!this.actorHasTech(a, tech.id)) continue;
+            mult = bs.radiusMult;
         }
         return a.radius * mult;
     }

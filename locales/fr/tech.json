@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Rangs espacés",
-    "description": "Les membres du Pack se tiennent plus écartés — moins vulnérables aux dégâts de zone."
+    "description": "Au début de la bataille, les membres du Pack s’écartent pendant 2 s (3× plus d’espace), puis se resserrent."
   },
   "massBinding": {
     "name": "Lien de masse",

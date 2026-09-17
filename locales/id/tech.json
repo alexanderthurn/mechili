@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Barisan Renggang",
-    "description": "Anggota Pack berdiri lebih berjauhan — lebih tahan terhadap kerusakan area."
+    "description": "Saat pertempuran dimulai, anggota Pack merenggang selama 2 dtk (3× ruang pribadi), lalu merapat lagi."
   },
   "massBinding": {
     "name": "Ikatan Massal",

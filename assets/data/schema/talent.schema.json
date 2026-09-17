@@ -239,7 +239,7 @@
             "seconds"
           ],
           "additionalProperties": false,
-          "description": "After battle freeze, multiply soft-separation / overlap radius by radiusMult for seconds so pack members push apart (Loose Rank). Spawn layout unchanged."
+          "description": "Opening-battle crowd inflate (Loose Rank): for `seconds` after the freeze, this pack's soft-separation / overlap radius is multiplied by `radiusMult` so members push apart without changing spawn layout."
         },
         "convert": {
           "type": "object",

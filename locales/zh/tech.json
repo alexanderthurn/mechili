@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "松散阵列",
-    "description": "编队成员站得更分散 — 更不容易受到范围伤害。"
+    "description": "战斗开始时，编队成员会散开 2 秒（个人空间 ×3），随后重新收拢。"
   },
   "massBinding": {
     "name": "群体束缚",

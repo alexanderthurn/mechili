@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Lockere Reihen",
-    "description": "Pack-Mitglieder stehen weiter auseinander — weniger anfällig für Flächenschaden."
+    "description": "Zu Schlachtbeginn rücken die Pack-Mitglieder 2 s lang weiter auseinander (3× Platz) und schließen danach wieder auf."
   },
   "massBinding": {
     "name": "Massenbann",

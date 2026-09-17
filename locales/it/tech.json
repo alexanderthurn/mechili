@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Ranghi larghi",
-    "description": "I membri del Pack stanno più distanti: meno vulnerabili ai danni ad area."
+    "description": "All’inizio della battaglia i membri del Pack si allargano per 2 s (3× spazio personale), poi si ricompattano."
   },
   "massBinding": {
     "name": "Vincolo di massa",

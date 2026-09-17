@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Løse rækker",
-    "description": "Packets medlemmer står længere fra hinanden — mindre sårbare over for områdeskade."
+    "description": "Ved kampens start spreder Packets medlemmer sig i 2 s (3× personligt rum) og slutter derefter op igen."
   },
   "massBinding": {
     "name": "Massebinding",

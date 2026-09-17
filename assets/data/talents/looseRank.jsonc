@@ -7,5 +7,5 @@
     "mods": {},
     "battleSpread": { "radiusMult": 3, "seconds": 2 },
     "icon": "tech-loose-rank",
-    "description": "At battle start, pack members push farther apart for 3s (4× personal space), then tighten again.",
+    "description": "At battle start, pack members push farther apart for 2s (3× personal space), then tighten again.",
 }

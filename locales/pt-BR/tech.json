@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Fileiras abertas",
-    "description": "Os membros do Pack ficam mais afastados — menos vulneráveis a dano em área."
+    "description": "No início da batalha, os membros do Pack se afastam por 2 s (3× espaço pessoal) e depois se juntam de novo."
   },
   "massBinding": {
     "name": "Vínculo em massa",

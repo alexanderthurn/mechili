@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Seyrek saf",
-    "description": "Pack üyeleri birbirinden daha uzakta durur — alan hasarına karşı daha az savunmasız."
+    "description": "Savaş başında Pack üyeleri 2 sn boyunca birbirinden açılır (3× kişisel alan), sonra yeniden sıklaşır."
   },
   "massBinding": {
     "name": "Toplu bağ",

@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Glesa led",
-    "description": "Packets medlemmar står längre isär — mindre sårbara för områdesskada."
+    "description": "När striden börjar sprider Packets medlemmar ut sig i 2 s (3× eget utrymme) och sluter sedan upp igen."
   },
   "massBinding": {
     "name": "Massbindning",

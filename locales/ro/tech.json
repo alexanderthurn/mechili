@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Rânduri rare",
-    "description": "Membrii Pack-ului stau mai depărtați — mai puțin vulnerabili la daune de zonă."
+    "description": "La începutul luptei, membrii Pack-ului se răsfiră timp de 2 s (3× spațiu personal), apoi se strâng din nou."
   },
   "massBinding": {
     "name": "Legare în masă",

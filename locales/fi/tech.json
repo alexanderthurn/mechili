@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Harva rivistö",
-    "description": "Packin jäsenet seisovat kauempana toisistaan — vähemmän alttiita aluevahingolle."
+    "description": "Taistelun alussa Packin jäsenet levittäytyvät 2 s ajaksi (3× henkilökohtainen tila) ja tiivistyvät sitten taas."
   },
   "massBinding": {
     "name": "Joukkosidonta",

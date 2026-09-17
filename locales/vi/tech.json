@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Đội hình thưa",
-    "description": "Thành viên Pack đứng cách xa nhau hơn — ít bị sát thương diện rộng."
+    "description": "Khi trận đánh bắt đầu, các thành viên Pack giãn ra trong 2 giây (gấp 3 khoảng cách), rồi khép lại."
   },
   "massBinding": {
     "name": "Trói buộc hàng loạt",

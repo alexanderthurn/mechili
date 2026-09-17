@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "鬆散陣列",
-    "description": "編隊成員站得更分散 — 更不容易受到範圍傷害。"
+    "description": "戰鬥開始時，編隊成員會散開 2 秒（個人空間 ×3），隨後重新收攏。"
   },
   "massBinding": {
     "name": "群體束縛",

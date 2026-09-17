@@ -102,7 +102,7 @@
   },
   "looseRank": {
     "name": "Filas abiertas",
-    "description": "Los miembros del Pack se separan más: menos vulnerables al daño en área."
+    "description": "Al empezar la batalla, los miembros del Pack se separan durante 2 s (3× espacio personal) y luego se vuelven a juntar."
   },
   "massBinding": {
     "name": "Vínculo masivo",
