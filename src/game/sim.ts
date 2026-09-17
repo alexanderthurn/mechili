@@ -5259,6 +5259,11 @@ export class BattleSim {
                 const ix = p.x + sx * wall.t;
                 const iy = p.y + sy * wall.t;
                 const iz = p.z + sz * wall.t;
+                if (p.stone?.landed) {
+                    // its blast went off where it landed — a rolling stone just stops against the wall
+                    this.restStone(p, ix, iz);
+                    continue;
+                }
                 const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
                 if (splash > 0) {
                     this.explode(p, ix, iz, splash, { x: sx, z: sz });
@@ -6372,8 +6377,10 @@ export class BattleSim {
                 const minReach = minRange + from.radius + a.radius;
                 if (d < minReach * minReach) return; // dead zone — not a walk/shoot pick
             }
+            const closer = d < bestD || (d === bestD && best !== null && a.index < best.index);
             let aside = from.shunTarget === a && from.shunUntil > this.elapsed;
-            if (!aside && ranged) {
+            // the line-of-fire check only matters for a foe that would become the pick
+            if (!aside && ranged && closer) {
                 const outer = stats.range + from.radius + a.radius + RANGE_ELEV_MAX_BONUS;
                 if (d <= outer * outer) {
                     const reach = effectiveWeaponReach(
