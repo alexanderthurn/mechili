@@ -100,6 +100,9 @@ export interface GroundMaterialProfile {
     closeFar: number;
 }
 
+/** close grass tile, the same on every tier that has one (Low keeps it off) */
+const CLOSE_TILE = { closeRepeat: 1.4, closeNear: 30, closeFar: 85 } as const;
+
 const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
     low: {
         tier: 'low',
@@ -127,10 +130,7 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 18,
         macroStrength: 0.82,
         textureBomb: false,
-        // Mild close refine — enough to shrink blades, not wallpaper density.
-        closeRepeat: 1.4,
-        closeNear: 32,
-        closeFar: 80,
+        ...CLOSE_TILE,
     },
     high: {
         tier: 'high',
@@ -144,9 +144,7 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 18,
         macroStrength: 0.48,
         textureBomb: true,
-        closeRepeat: 2.4,
-        closeNear: 30,
-        closeFar: 85,
+        ...CLOSE_TILE,
     },
     ultra: {
         tier: 'ultra',
@@ -159,9 +157,7 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 16,
         macroStrength: 0.35,
         textureBomb: true,
-        closeRepeat: 2.9,
-        closeNear: 30,
-        closeFar: 90,
+        ...CLOSE_TILE,
     },
 };
 
