@@ -246,8 +246,9 @@ export function placeRangeRing(mesh: Mesh, x: number, z: number, radius: RangeSh
         }
         geo.userData.unitXZ = unit;
     }
-    let lastDx = NaN;
-    let lastDz = NaN;
+    let haveLast = false;
+    let lastDx = 0;
+    let lastDz = 0;
     let lastR = typeof radius === 'number' ? radius : 0;
     for (let i = 0; i < pos.count; i++) {
         const ux = unit[i * 2]!;
@@ -258,10 +259,11 @@ export function placeRangeRing(mesh: Mesh, x: number, z: number, radius: RangeSh
             const dx = ux / len;
             const dz = uz / len;
             // inner and outer band vertices share a direction — solve it once
-            if (Math.abs(dx - lastDx) > 1e-6 || Math.abs(dz - lastDz) > 1e-6) {
+            if (!haveLast || Math.abs(dx - lastDx) > 1e-6 || Math.abs(dz - lastDz) > 1e-6) {
                 lastR = radius(dx, dz);
                 lastDx = dx;
                 lastDz = dz;
+                haveLast = true;
             }
             r = lastR;
         }
