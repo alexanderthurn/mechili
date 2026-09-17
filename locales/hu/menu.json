@@ -174,9 +174,9 @@
   "terrainStandard": "Normál",
   "terrainStandardDesc": "néhány alacsony halom",
   "terrainHills": "Dombvidék",
-  "terrainHillsDesc": "több és magasabb domb, mind szelíd",
+  "terrainHillsDesc": "sok magasabb, meredekebb domb",
   "terrainHighlands": "Felföld",
-  "terrainHighlandsDesc": "minden erőd magaslaton",
-  "terrainRidges": "Gerincek",
-  "terrainRidgesDesc": "sík közép, meredek gerinc védi a bázisokat"
+  "terrainHighlandsDesc": "minden erőd magas fennsíkon, egyetlen feljáróval",
+  "terrainWall": "Sánc",
+  "terrainWallDesc": "dombos sánc réseken át középen, a többi sík"
 }

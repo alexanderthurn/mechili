@@ -174,9 +174,9 @@
   "terrainStandard": "Standard",
   "terrainStandardDesc": "ein paar flache Hügel",
   "terrainHills": "Hügelland",
-  "terrainHillsDesc": "mehr und höhere Hügel, alle sanft",
+  "terrainHillsDesc": "viele höhere, steilere Hügel",
   "terrainHighlands": "Hochland",
-  "terrainHighlandsDesc": "jede Festung auf einer Anhöhe",
-  "terrainRidges": "Bergrücken",
-  "terrainRidgesDesc": "flache Mitte, ein steiler Kamm schützt jede Basis"
+  "terrainHighlandsDesc": "jede Festung auf einem hohen Plateau mit einer Rampe",
+  "terrainWall": "Wall",
+  "terrainWallDesc": "ein hügeliger Wall mit Lücken in der Mitte, sonst flach"
 }

@@ -174,9 +174,9 @@
   "terrainStandard": "Estándar",
   "terrainStandardDesc": "unos pocos montículos bajos",
   "terrainHills": "Colinas",
-  "terrainHillsDesc": "más colinas y más altas, todas suaves",
+  "terrainHillsDesc": "muchas colinas más altas y empinadas",
   "terrainHighlands": "Tierras altas",
-  "terrainHighlandsDesc": "cada fortaleza en lo alto",
-  "terrainRidges": "Crestas",
-  "terrainRidgesDesc": "centro llano, una cresta empinada protege cada base"
+  "terrainHighlandsDesc": "cada fortaleza en una meseta alta con una sola rampa",
+  "terrainWall": "Muralla",
+  "terrainWallDesc": "una muralla de colinas con huecos en el centro, el resto llano"
 }

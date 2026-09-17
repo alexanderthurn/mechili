@@ -174,9 +174,9 @@
   "terrainStandard": "Standard",
   "terrainStandardDesc": "noen få lave hauger",
   "terrainHills": "Åser",
-  "terrainHillsDesc": "flere og høyere åser, alle slake",
+  "terrainHillsDesc": "mange høyere og brattere åser",
   "terrainHighlands": "Høyland",
-  "terrainHighlandsDesc": "hver festning på høyden",
-  "terrainRidges": "Rygger",
-  "terrainRidgesDesc": "flat midte, en bratt rygg vokter hver base"
+  "terrainHighlandsDesc": "hver festning på et høyt platå med én rampe opp",
+  "terrainWall": "Voll",
+  "terrainWallDesc": "en kupert voll med åpninger i midten, resten flatt"
 }

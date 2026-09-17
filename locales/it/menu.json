@@ -174,9 +174,9 @@
   "terrainStandard": "Standard",
   "terrainStandardDesc": "qualche collinetta bassa",
   "terrainHills": "Colline",
-  "terrainHillsDesc": "più colline e più alte, tutte dolci",
+  "terrainHillsDesc": "molte colline più alte e ripide",
   "terrainHighlands": "Altopiani",
-  "terrainHighlandsDesc": "ogni fortezza in altura",
-  "terrainRidges": "Creste",
-  "terrainRidgesDesc": "centro piatto, una cresta ripida protegge ogni base"
+  "terrainHighlandsDesc": "ogni fortezza su un altopiano con una sola rampa",
+  "terrainWall": "Muraglia",
+  "terrainWallDesc": "una muraglia collinosa con varchi al centro, il resto piatto"
 }

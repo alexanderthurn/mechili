@@ -174,9 +174,9 @@
   "terrainStandard": "Стандартен",
   "terrainStandardDesc": "няколко ниски могили",
   "terrainHills": "Хълмове",
-  "terrainHillsDesc": "повече и по-високи хълмове, всички полегати",
+  "terrainHillsDesc": "много по-високи и стръмни хълмове",
   "terrainHighlands": "Планини",
-  "terrainHighlandsDesc": "всяка крепост на възвишение",
-  "terrainRidges": "Хребети",
-  "terrainRidgesDesc": "равен център, стръмен хребет пази всяка база"
+  "terrainHighlandsDesc": "всяка крепост на високо плато с една рампа",
+  "terrainWall": "Вал",
+  "terrainWallDesc": "хълмист вал с проходи в средата, останалото равно"
 }

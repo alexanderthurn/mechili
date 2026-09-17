@@ -174,9 +174,9 @@
   "terrainStandard": "Standar",
   "terrainStandardDesc": "beberapa gundukan rendah",
   "terrainHills": "Perbukitan",
-  "terrainHillsDesc": "lebih banyak bukit yang lebih tinggi, semuanya landai",
+  "terrainHillsDesc": "banyak bukit yang lebih tinggi dan curam",
   "terrainHighlands": "Dataran tinggi",
-  "terrainHighlandsDesc": "setiap benteng di tempat tinggi",
-  "terrainRidges": "Punggung bukit",
-  "terrainRidgesDesc": "tengah datar, punggung bukit curam melindungi tiap markas"
+  "terrainHighlandsDesc": "setiap benteng di dataran tinggi dengan satu tanjakan",
+  "terrainWall": "Tembok",
+  "terrainWallDesc": "tembok perbukitan bercelah di tengah, sisanya datar"
 }

@@ -174,9 +174,9 @@
   "terrainStandard": "Standard",
   "terrainStandardDesc": "beberapa busut rendah",
   "terrainHills": "Perbukitan",
-  "terrainHillsDesc": "lebih banyak bukit yang lebih tinggi, semuanya landai",
+  "terrainHillsDesc": "banyak bukit yang lebih tinggi dan curam",
   "terrainHighlands": "Tanah tinggi",
-  "terrainHighlandsDesc": "setiap kubu di kawasan tinggi",
-  "terrainRidges": "Rabung",
-  "terrainRidgesDesc": "tengah rata, rabung curam melindungi setiap pangkalan"
+  "terrainHighlandsDesc": "setiap kubu di dataran tinggi dengan satu tanjakan",
+  "terrainWall": "Tembok",
+  "terrainWallDesc": "tembok berbukit dengan celah di tengah, selebihnya rata"
 }

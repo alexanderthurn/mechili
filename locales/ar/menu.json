@@ -174,9 +174,9 @@
   "terrainStandard": "قياسية",
   "terrainStandardDesc": "بعض التلال المنخفضة",
   "terrainHills": "تلال متموجة",
-  "terrainHillsDesc": "تلال أكثر وأعلى، كلها لطيفة",
+  "terrainHillsDesc": "تلال كثيرة أعلى وأشد انحدارًا",
   "terrainHighlands": "مرتفعات",
-  "terrainHighlandsDesc": "كل حصن على أرض مرتفعة",
-  "terrainRidges": "سلاسل",
-  "terrainRidgesDesc": "وسط مستوٍ، وسلسلة شديدة الانحدار تحمي كل قاعدة"
+  "terrainHighlandsDesc": "كل حصن على هضبة عالية لها منحدر واحد للصعود",
+  "terrainWall": "سور",
+  "terrainWallDesc": "سور من التلال في الوسط به فجوات، والباقي مستوٍ"
 }

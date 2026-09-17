@@ -174,9 +174,9 @@
   "terrainStandard": "Standardní",
   "terrainStandardDesc": "pár nízkých pahorků",
   "terrainHills": "Kopce",
-  "terrainHillsDesc": "více vyšších kopců, všechny mírné",
+  "terrainHillsDesc": "mnoho vyšších a strmějších kopců",
   "terrainHighlands": "Vysočina",
-  "terrainHighlandsDesc": "každá pevnost na vyvýšenině",
-  "terrainRidges": "Hřebeny",
-  "terrainRidgesDesc": "rovný střed, strmý hřeben chrání každou základnu"
+  "terrainHighlandsDesc": "každá pevnost na vysoké plošině s jedinou rampou",
+  "terrainWall": "Val",
+  "terrainWallDesc": "kopcovitý val s průchody uprostřed, jinde rovina"
 }

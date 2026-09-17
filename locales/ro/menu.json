@@ -174,9 +174,9 @@
   "terrainStandard": "Standard",
   "terrainStandardDesc": "câteva movile joase",
   "terrainHills": "Dealuri",
-  "terrainHillsDesc": "mai multe dealuri, mai înalte, toate line",
+  "terrainHillsDesc": "multe dealuri mai înalte și mai abrupte",
   "terrainHighlands": "Podișuri",
-  "terrainHighlandsDesc": "fiecare fortăreață pe înălțime",
-  "terrainRidges": "Creste",
-  "terrainRidgesDesc": "centru plat, o creastă abruptă apără fiecare bază"
+  "terrainHighlandsDesc": "fiecare fortăreață pe un platou înalt cu o singură rampă",
+  "terrainWall": "Val",
+  "terrainWallDesc": "un val deluros cu breșe la mijloc, restul plat"
 }

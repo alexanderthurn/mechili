@@ -174,9 +174,9 @@
   "terrainStandard": "Tiêu chuẩn",
   "terrainStandardDesc": "vài gò đất thấp",
   "terrainHills": "Đồi thoải",
-  "terrainHillsDesc": "nhiều đồi hơn và cao hơn, đều thoải",
+  "terrainHillsDesc": "nhiều đồi cao và dốc hơn",
   "terrainHighlands": "Cao nguyên",
-  "terrainHighlandsDesc": "mỗi pháo đài nằm trên cao",
-  "terrainRidges": "Sống núi",
-  "terrainRidgesDesc": "giữa bằng phẳng, sống núi dốc bảo vệ mỗi căn cứ"
+  "terrainHighlandsDesc": "mỗi pháo đài trên cao nguyên cao, chỉ một đường dốc lên",
+  "terrainWall": "Tường thành",
+  "terrainWallDesc": "một dải đồi chắn ngang giữa có khe hở, còn lại bằng phẳng"
 }

@@ -174,9 +174,9 @@
   "terrainStandard": "Tavallinen",
   "terrainStandardDesc": "muutama matala kumpu",
   "terrainHills": "Kumpuilevat mäet",
-  "terrainHillsDesc": "enemmän ja korkeampia mäkiä, kaikki loivia",
+  "terrainHillsDesc": "paljon korkeampia ja jyrkempiä mäkiä",
   "terrainHighlands": "Ylänkö",
-  "terrainHighlandsDesc": "jokainen linnake korkealla",
-  "terrainRidges": "Harjanteet",
-  "terrainRidgesDesc": "tasainen keskusta, jyrkkä harjanne suojaa kutakin tukikohtaa"
+  "terrainHighlandsDesc": "jokainen linnake korkealla tasanteella, yksi luiska ylös",
+  "terrainWall": "Valli",
+  "terrainWallDesc": "mäkinen valli keskellä aukkoineen, muuten tasaista"
 }

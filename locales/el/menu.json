@@ -174,9 +174,9 @@
   "terrainStandard": "Κανονικό",
   "terrainStandardDesc": "λίγοι χαμηλοί λόφοι",
   "terrainHills": "Λοφώδες",
-  "terrainHillsDesc": "περισσότεροι και ψηλότεροι λόφοι, όλοι ομαλοί",
+  "terrainHillsDesc": "πολλοί ψηλότεροι, πιο απότομοι λόφοι",
   "terrainHighlands": "Υψίπεδα",
-  "terrainHighlandsDesc": "κάθε φρούριο σε ύψωμα",
-  "terrainRidges": "Κορυφογραμμές",
-  "terrainRidgesDesc": "επίπεδο κέντρο, απότομη κορυφογραμμή προστατεύει κάθε βάση"
+  "terrainHighlandsDesc": "κάθε φρούριο σε ψηλό οροπέδιο με μία ράμπα",
+  "terrainWall": "Τείχος",
+  "terrainWallDesc": "λοφώδες τείχος με περάσματα στο κέντρο, τα υπόλοιπα επίπεδα"
 }

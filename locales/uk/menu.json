@@ -174,9 +174,9 @@
   "terrainStandard": "Стандартна",
   "terrainStandardDesc": "кілька низьких пагорбів",
   "terrainHills": "Пагорби",
-  "terrainHillsDesc": "більше і вищі пагорби, усі пологі",
+  "terrainHillsDesc": "багато вищих і крутіших пагорбів",
   "terrainHighlands": "Височини",
-  "terrainHighlandsDesc": "кожна фортеця на височині",
-  "terrainRidges": "Гряди",
-  "terrainRidgesDesc": "рівний центр, крута гряда захищає кожну базу"
+  "terrainHighlandsDesc": "кожна фортеця на високому плато з одним підйомом",
+  "terrainWall": "Вал",
+  "terrainWallDesc": "горбистий вал із проходами в центрі, решта рівна"
 }

@@ -174,9 +174,9 @@
   "terrainStandard": "Standard",
   "terrainStandardDesc": "et par lave høje",
   "terrainHills": "Bakker",
-  "terrainHillsDesc": "flere og højere bakker, alle bløde",
+  "terrainHillsDesc": "mange højere og stejlere bakker",
   "terrainHighlands": "Højland",
-  "terrainHighlandsDesc": "hver fæstning på højt terræn",
-  "terrainRidges": "Højderygge",
-  "terrainRidgesDesc": "flad midte, en stejl ryg beskytter hver base"
+  "terrainHighlandsDesc": "hver fæstning på et højt plateau med én rampe op",
+  "terrainWall": "Vold",
+  "terrainWallDesc": "en bakket vold med huller i midten, resten fladt"
 }

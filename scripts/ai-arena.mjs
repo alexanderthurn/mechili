@@ -2,7 +2,7 @@
 // real AI code, real BattleSim — no renderer, no HUD. Measures how an AI does
 // round after round against a stand-in for the human.
 //
-//   node scripts/ai-arena.mjs [--games 6] [--rounds 9] [--variant attack|defend|komtur-attack|komtur-defend|all] [--terrain standard|hills|highlands|ridges]
+//   node scripts/ai-arena.mjs [--games 6] [--rounds 9] [--variant attack|defend|komtur-attack|komtur-defend|all] [--terrain standard|hills|highlands|wall]
 //                             [--ai year|classic] [--human classic|year] [--seed 1] [--verbose]
 //
 // The AI side rebuilds its army every round (as in the game); the human side

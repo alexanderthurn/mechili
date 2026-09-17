@@ -174,9 +174,9 @@
   "terrainStandard": "标准",
   "terrainStandardDesc": "几处低矮土丘",
   "terrainHills": "丘陵",
-  "terrainHillsDesc": "更多更高的山丘，坡度都很缓",
+  "terrainHillsDesc": "更多更高更陡的山丘",
   "terrainHighlands": "高地",
-  "terrainHighlandsDesc": "双方要塞都在高处",
-  "terrainRidges": "山脊",
-  "terrainRidgesDesc": "中央平坦，陡峭山脊守护各自基地"
+  "terrainHighlandsDesc": "双方要塞各在高台上，只有一条坡道",
+  "terrainWall": "城墙",
+  "terrainWallDesc": "中央一道带缺口的丘陵墙，其余平坦"
 }

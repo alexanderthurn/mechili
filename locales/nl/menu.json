@@ -174,9 +174,9 @@
   "terrainStandard": "Standaard",
   "terrainStandardDesc": "een paar lage heuvels",
   "terrainHills": "Glooiende heuvels",
-  "terrainHillsDesc": "meer en hogere heuvels, allemaal zacht",
+  "terrainHillsDesc": "veel hogere, steilere heuvels",
   "terrainHighlands": "Hooglanden",
-  "terrainHighlandsDesc": "elke vesting op hoge grond",
-  "terrainRidges": "Bergkammen",
-  "terrainRidgesDesc": "vlak midden, een steile kam beschermt elke basis"
+  "terrainHighlandsDesc": "elke vesting op een hoog plateau met één helling omhoog",
+  "terrainWall": "Wal",
+  "terrainWallDesc": "een heuvelachtige wal met gaten in het midden, de rest vlak"
 }

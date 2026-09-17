@@ -174,9 +174,9 @@
   "terrainStandard": "Стандартная",
   "terrainStandardDesc": "несколько низких холмиков",
   "terrainHills": "Холмы",
-  "terrainHillsDesc": "больше холмов и выше, все пологие",
+  "terrainHillsDesc": "много более высоких и крутых холмов",
   "terrainHighlands": "Возвышенности",
-  "terrainHighlandsDesc": "каждая крепость на возвышенности",
-  "terrainRidges": "Гряды",
-  "terrainRidgesDesc": "ровный центр, крутая гряда прикрывает каждую базу"
+  "terrainHighlandsDesc": "каждая крепость на высоком плато с одним подъёмом",
+  "terrainWall": "Вал",
+  "terrainWallDesc": "холмистый вал с проходами в центре, остальное ровное"
 }

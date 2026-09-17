@@ -174,9 +174,9 @@
   "terrainStandard": "Standard",
   "terrainStandardDesc": "quelques buttes basses",
   "terrainHills": "Collines",
-  "terrainHillsDesc": "plus de collines, plus hautes, toutes douces",
+  "terrainHillsDesc": "de nombreuses collines plus hautes et plus raides",
   "terrainHighlands": "Hautes terres",
-  "terrainHighlandsDesc": "chaque forteresse en hauteur",
-  "terrainRidges": "Crêtes",
-  "terrainRidgesDesc": "un centre plat, une crête abrupte devant chaque base"
+  "terrainHighlandsDesc": "chaque forteresse sur un haut plateau avec une seule rampe",
+  "terrainWall": "Rempart",
+  "terrainWallDesc": "un rempart vallonné avec des brèches au centre, le reste plat"
 }

@@ -174,9 +174,9 @@
   "terrainStandard": "มาตรฐาน",
   "terrainStandardDesc": "เนินเตี้ยไม่กี่ลูก",
   "terrainHills": "เนินเขา",
-  "terrainHillsDesc": "เนินมากขึ้นและสูงขึ้น ลาดไม่ชัน",
+  "terrainHillsDesc": "เนินจำนวนมากที่สูงและชันขึ้น",
   "terrainHighlands": "ที่ราบสูง",
-  "terrainHighlandsDesc": "ป้อมปราการแต่ละฝั่งอยู่บนที่สูง",
-  "terrainRidges": "สันเขา",
-  "terrainRidgesDesc": "ตรงกลางราบ มีสันเขาชันป้องกันแต่ละฐาน"
+  "terrainHighlandsDesc": "ป้อมปราการแต่ละฝั่งอยู่บนที่ราบสูง มีทางลาดขึ้นทางเดียว",
+  "terrainWall": "กำแพง",
+  "terrainWallDesc": "แนวเนินกลางแผนที่มีช่องผ่าน ที่เหลือราบ"
 }

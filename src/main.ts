@@ -360,7 +360,7 @@ function settingsFromUrl(): GameSettings {
     // ?landscape=<id>: play (or, with ?editor=true, edit) a map from assets/data/landscapes/
     const landscape = params.get('landscape');
     if (landscape) settings.landscape = landscape;
-    // ?terrain=hills|highlands|ridges: the generated board relief
+    // ?terrain=hills|highlands|wall: the generated board relief
     const terrain = params.get('terrain');
     if (terrain) settings.terrainShape = terrainShapeOption(terrain);
 
@@ -1930,9 +1930,9 @@ refreshYearLobbyOptions();
 
 const TERRAIN_SHAPE_TEXT: Record<TerrainShape, { name: [string, string]; desc: [string, string] }> = {
     standard: { name: ['terrainStandard', 'Standard'], desc: ['terrainStandardDesc', 'a few low mounds'] },
-    hills: { name: ['terrainHills', 'Rolling hills'], desc: ['terrainHillsDesc', 'more and taller hills, all gentle'] },
-    highlands: { name: ['terrainHighlands', 'Highlands'], desc: ['terrainHighlandsDesc', 'each Stronghold on high ground'] },
-    ridges: { name: ['terrainRidges', 'Ridges'], desc: ['terrainRidgesDesc', 'a flat middle, a steep ridge guarding each base'] },
+    hills: { name: ['terrainHills', 'Rolling hills'], desc: ['terrainHillsDesc', 'many taller, steeper hills'] },
+    highlands: { name: ['terrainHighlands', 'Highlands'], desc: ['terrainHighlandsDesc', 'each Stronghold on a high plateau with one ramp up'] },
+    wall: { name: ['terrainWall', 'Wall'], desc: ['terrainWallDesc', 'a hilly wall with gaps across the middle, the rest flat'] },
 };
 
 /** the lobby's terrain choice — labels follow the language */

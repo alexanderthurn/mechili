@@ -175,9 +175,9 @@
   "terrainStandard": "Standard",
   "terrainStandardDesc": "a few low mounds",
   "terrainHills": "Rolling hills",
-  "terrainHillsDesc": "more and taller hills, all gentle",
+  "terrainHillsDesc": "many taller, steeper hills",
   "terrainHighlands": "Highlands",
-  "terrainHighlandsDesc": "each Stronghold on high ground",
-  "terrainRidges": "Ridges",
-  "terrainRidgesDesc": "a flat middle, a steep ridge guarding each base"
+  "terrainHighlandsDesc": "each Stronghold on a high plateau with one ramp up",
+  "terrainWall": "Wall",
+  "terrainWallDesc": "a hilly wall with gaps across the middle, the rest flat"
 }

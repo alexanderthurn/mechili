@@ -174,9 +174,9 @@
   "terrainStandard": "Standart",
   "terrainStandardDesc": "birkaç alçak tümsek",
   "terrainHills": "Tepelik",
-  "terrainHillsDesc": "daha çok ve daha yüksek tepeler, hepsi yumuşak",
+  "terrainHillsDesc": "daha yüksek ve dik çok sayıda tepe",
   "terrainHighlands": "Yayla",
-  "terrainHighlandsDesc": "her kale yüksek bir yerde",
-  "terrainRidges": "Sırtlar",
-  "terrainRidgesDesc": "düz orta, her üssü dik bir sırt korur"
+  "terrainHighlandsDesc": "her kale tek rampalı yüksek bir platoda",
+  "terrainWall": "Sur",
+  "terrainWallDesc": "ortada geçitli tepelik bir sur, gerisi düz"
 }

@@ -174,9 +174,9 @@
   "terrainStandard": "Padrão",
   "terrainStandardDesc": "alguns morros baixos",
   "terrainHills": "Colinas",
-  "terrainHillsDesc": "mais colinas e mais altas, todas suaves",
+  "terrainHillsDesc": "muitas colinas mais altas e íngremes",
   "terrainHighlands": "Planaltos",
-  "terrainHighlandsDesc": "cada fortaleza em terreno elevado",
-  "terrainRidges": "Cristas",
-  "terrainRidgesDesc": "centro plano, uma crista íngreme protege cada base"
+  "terrainHighlandsDesc": "cada fortaleza num planalto alto com uma única rampa",
+  "terrainWall": "Muralha",
+  "terrainWallDesc": "uma muralha de morros com brechas no centro, o resto plano"
 }

@@ -174,9 +174,9 @@
   "terrainStandard": "Standardowy",
   "terrainStandardDesc": "kilka niskich pagórków",
   "terrainHills": "Pagórki",
-  "terrainHillsDesc": "więcej wyższych wzgórz, wszystkie łagodne",
+  "terrainHillsDesc": "wiele wyższych, bardziej stromych wzgórz",
   "terrainHighlands": "Wyżyny",
-  "terrainHighlandsDesc": "każda twierdza na wzniesieniu",
-  "terrainRidges": "Grzbiety",
-  "terrainRidgesDesc": "płaski środek, stromy grzbiet osłania każdą bazę"
+  "terrainHighlandsDesc": "każda twierdza na wysokim płaskowyżu z jednym podjazdem",
+  "terrainWall": "Wał",
+  "terrainWallDesc": "pagórkowaty wał z przerwami pośrodku, reszta płaska"
 }

@@ -188,6 +188,9 @@ export function makeValueNoise(seed: number): (x: number, y: number) => number {
 
 /** how far a building pad blends into the surrounding shape (wu) */
 const PAD_BLEND = 10;
+/** Highlands: plateau height and mean radius around each Stronghold (wu) */
+const HIGHLAND_HEIGHT = 15;
+const HIGHLAND_RADIUS = 22;
 
 /** Cheap hash/fbm for high/ultra ground hazards (declared once at shader top). */
 const HAZARD_NOISE_GLSL =
@@ -595,52 +598,59 @@ export class BattleMap {
         const edge = Math.min(this.halfW - Math.abs(x), this.halfH - Math.abs(z));
         const zoneDepth = this.size.zoneRows * CELL;
         const zoneWidth = this.size.zoneCols * CELL;
-        const neutralHalf = (this.size.neutralRows * CELL) / 2;
         if (this.shape === 'hills') {
-            // more and taller rolling hills than standard, still gentle (grade ≲ 0.4)
-            const n = this.symNoise(x, z, 44, 37.2, 11.7) * 0.75 + this.symNoise(x, z, 24, 5.1, 91.3) * 0.25;
-            const hill = smooth01((n - 0.3) / 0.6);
-            return 5.5 * hill * smooth01((edge - rimW * 0.5) / 22);
+            // many hills, taller and steeper than standard: most slopes walkable, some too steep
+            const n = this.symNoise(x, z, 30, 37.2, 11.7) * 0.65 + this.symNoise(x, z, 13, 5.1, 91.3) * 0.35;
+            const hill = smooth01((n - 0.32) / 0.5);
+            return 8 * hill * smooth01((edge - rimW * 0.5) / 22);
         }
         if (this.shape === 'highlands') {
-            // each side's ground rises toward its Stronghold: a broad incline
-            // with the keep on a knoll at the top; buildings on the way up get
-            // flat terraces, the flanks stay lower
-            const low = smooth01((this.symNoise(x, z, 44, 17.3, 3.9) - 0.45) / 0.45) * 2;
+            // each Stronghold on a small, high plateau with an uneven cliff
+            // edge, and one gentle ramp up; the rest of the board low and easy
             const side = z >= 0 ? 1 : -1;
-            const back = z * side; // distance toward this side's own back edge
+            const xs = x * side; // side-local: the enemy's plateau is the mirror image
+            const zs = z * side;
             const keepZ = this.halfH - rimW - zoneDepth * BASE_ANCHORS.stronghold.rowFrac;
-            const rise = smooth01((back - neutralHalf - 30) / (keepZ - neutralHalf - 22));
-            const flanks = 1 - smooth01((Math.abs(x) - zoneWidth * 0.3) / (zoneWidth * 0.22));
-            const knoll = 1 - smooth01((hypot(x, back - keepZ) - 18) / 22);
-            const lift = 9 * rise * flanks + 2.5 * knoll;
-            const h = lift + low * (1 - rise * 0.6);
-            // the back eases down to the meadow over the rim
-            return h * smooth01(edge / (rimW + 18));
+            const cz = keepZ + 2.4;
+            const dx = xs;
+            const dz = zs - cz;
+            const d = hypot(dx, dz);
+            const ux = d > 1e-6 ? dx / d : 0;
+            const uz = d > 1e-6 ? dz / d : 0;
+            const radius = HIGHLAND_RADIUS + (this.reliefNoise(ux * 1.3 + 40.2, uz * 1.3 + 7.7) - 0.5) * 9;
+            const plateau = HIGHLAND_HEIGHT * (1 - smooth01((d - radius) / 7));
+            // the ramp: from inside the top, out and down toward the front flank
+            const ax = -6;
+            const az = cz - 10;
+            const bx = -58;
+            const bz = cz - 30;
+            const lx = bx - ax;
+            const lz = bz - az;
+            const len = hypot(lx, lz);
+            const t = ((xs - ax) * lx + (zs - az) * lz) / (len * len);
+            const across = Math.abs((xs - ax) * lz - (zs - az) * lx) / len;
+            const ramp =
+                t < 0 || t > 1 ? 0 : HIGHLAND_HEIGHT * Math.min(1, Math.max(0, 1 - (t - 0.1) / 0.9)) * (1 - smooth01((across - 5) / 4));
+            const low = smooth01((this.symNoise(x, z, 44, 17.3, 3.9) - 0.45) / 0.45) * 1.5;
+            return (Math.max(plateau, ramp) + low) * smooth01(edge / 12);
         }
-        // 'ridges': a band across the middle (about 13 tiles): flat at the
-        // center line, low gentle hills either side, then a ridge whose steep
-        // face guards each side's base — a wall in places, walkable in others,
-        // cut by two passes. Behind the ridges the bases sit in rolling hills.
-        const az = Math.abs(z);
-        const side = z >= 0 ? 1 : -1;
-        const xs = x * side; // the enemy's ridge is the mirror image of ours
-        const ridgeZ = neutralHalf + 16;
-        const top = 3;
-        // foothills: from the flat center a low, easy rise up to the ridge's foot
-        const valley = (1.4 + this.symNoise(x, z, 22, 8.4, 44.1) * 1.4) * smooth01((az - 5) / 9);
-        const along = this.reliefNoise(xs / 38 + 3.3, 71.5);
-        const steepW = 5 + 7 * along; // front face: 5 wu (a wall) … 12 wu (walkable)
-        const dz = az - ridgeZ;
-        const ridgeProfile =
-            dz < 0
-                ? 1 - smooth01((-dz - top) / steepW) // front, toward the middle
-                : 1 - smooth01((dz - top) / 16) * 0.7; // back: a long easy slope toward the base
-        let passes = 1;
-        for (const px of [-zoneWidth * 0.3, zoneWidth * 0.15]) passes = Math.min(passes, smooth01((Math.abs(xs - px) - 5) / 10));
-        const ridge = (5.5 + (this.reliefNoise(xs / 21 + 9.1, 13.3) - 0.5) * 3) * ridgeProfile * passes;
-        const baseHills = smooth01((this.symNoise(x, z, 34, 2.2, 66.6) - 0.4) / 0.45) * 3.5 * smooth01((dz - 6) / 14);
-        const h = Math.max(valley, ridge) + baseHills;
+        // 'wall': a hilly wall across the middle between the two sides, with
+        // three gaps whose slopes are easy to walk; the rest of the board nearly flat
+        const wiggle = (this.reliefNoise(x / 50 + 3.1, 5.5) - this.reliefNoise(-x / 50 + 3.1, 5.5)) * 10; // odd in x: the wall stays fair
+        const dz = Math.abs(z - wiggle);
+        const even = (ox: number, oz: number, wave: number) =>
+            (this.reliefNoise(x / wave + ox, oz) + this.reliefNoise(-x / wave + ox, oz)) * 0.5;
+        const crest = 5 + 3.5 * even(21.7, 8.8, 23);
+        const faceW = 6 + 8 * even(9.4, 30.1, 31); // 6 wu: a sheer face … 14 wu: a steep walk
+        const wall = crest * (1 - smooth01((dz - 4) / faceW));
+        let gaps = 1;
+        for (const gx of [-zoneWidth * 0.25, 0, zoneWidth * 0.25]) {
+            gaps = Math.min(gaps, smooth01((Math.abs(x - gx) - 4) / 16));
+        }
+        const bumps =
+            smooth01((this.symNoise(x, z, 12, 64.2, 19.5) - 0.45) / 0.35) * 3.5 * (1 - smooth01((Math.abs(z) - 16) / 8));
+        const low = smooth01((this.symNoise(x, z, 40, 2.2, 66.6) - 0.5) / 0.4);
+        const h = Math.max(wall * (0.15 + 0.85 * gaps), bumps * gaps) + low;
         return h * smooth01((edge - rimW * 0.5) / 22);
     }
 
