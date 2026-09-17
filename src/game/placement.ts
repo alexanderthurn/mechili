@@ -1559,7 +1559,7 @@ export class PlacementController {
         timeSeconds: number,
         animated: boolean,
         y = 0.04,
-        /** pinned posts (a Stronghold archer on its battlements): flat at this height, drawn over the building */
+        /** pinned posts (a Stronghold archer on its battlements): flat, just above the pad it stands on */
         pinnedY?: number,
     ): void {
         const pulse = this.pulse(timeSeconds);
@@ -1579,8 +1579,7 @@ export class PlacementController {
         const anchorY = onBuilding ? pinnedY : this.map.heightAt(center.x, center.z);
         for (let i = 0; i < pos.count; i++) {
             if (onBuilding) {
-                // stone pad, not relief — and the keep's roof must not swallow it
-                pos.setY(i, 0);
+                pos.setY(i, 0); // stone pad, not relief
                 continue;
             }
             const wx = center.x + pos.getX(i) * edge;
@@ -1588,9 +1587,10 @@ export class PlacementController {
             pos.setY(i, this.map.heightAt(wx, wz) - anchorY);
         }
         pos.needsUpdate = true;
-        mesh.position.set(center.x, y + 0.04 + anchorY, center.z);
+        // a hair over the pad so the battlement floor doesn't z-fight it away; the archer still covers it
+        mesh.position.set(center.x, (onBuilding ? 0.12 : y + 0.04) + anchorY, center.z);
         mesh.scale.set(edge, 1, edge);
-        material.depthTest = !onBuilding;
+        material.depthTest = true;
         material.color.setHex(color);
         material.opacity = animated ? 0.58 + 0.22 * pulse : MOVABLE_PLATE_OPACITY;
         mesh.visible = true;
