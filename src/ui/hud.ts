@@ -370,7 +370,7 @@ export class Hud {
     /** the player sent a chat item (emote or text) */
     onSendChat: ((item: ChatItem) => void) | null = null;
     onUnlockPick: ((typeId: string) => void) | null = null;
-    /** shop: buy a always-available base rune (shares the unit buy limit) */
+    /** shop: buy an always-available base rune (no per-round buy-slot limit) */
     onBuyRune: ((itemId: string) => boolean) | null = null;
     onQuitToMenu: (() => void) | null = null;
     /** SP defeat only — rebuild the lost round (see Game.requestRetryLastRound) */
@@ -850,8 +850,7 @@ export class Hud {
             this.writeRuneTip(btn, itemId);
             btn.addEventListener('click', () => {
                 if (btn.classList.contains('unaffordable')) return;
-                const lastSlot = this.deploysLeft <= 1;
-                if (this.onBuyRune?.(itemId) && lastSlot) this.setPhoneTab(null);
+                this.onBuyRune?.(itemId);
             });
             this.shopRuneButtons.push({ el: btn, itemId });
             this.shopRuneRow.appendChild(btn);
@@ -2288,9 +2287,9 @@ export class Hud {
         );
     }
 
-        /** purchases used / allowed this round; buy buttons grey out at the limit.
+    /** purchases used / allowed this round; unit buy buttons grey out at the limit.
      *  `extrasBudgetLeft` is the separate supply cap for shields/rockets.
-     *  Unit buys and base-rune buys share the same counter. */
+     *  Base-rune buys are unlimited (supply only). */
     setDeploys(used: number, limit: number, extrasBudgetLeft: number): void {
         this.deploysLeft = limit - used;
         this.extrasBudgetLeft = extrasBudgetLeft;
@@ -2298,7 +2297,6 @@ export class Hud {
         const labelEl = this.deploysEl.querySelector<HTMLSpanElement>('.unit-cap-label');
         if (labelEl && labelEl.textContent !== label) labelEl.textContent = label;
         this.deploysEl.title = t('hud:deploysTitleExtras', { n: extrasBudgetLeft });
-        this.refreshShopRuneAffordability();
     }
 
     /** Campaign: hide board-extra shop tiles (Ward Stone, Fire Bolt, …). */
@@ -2554,12 +2552,8 @@ export class Hud {
     }
 
     private refreshShopRuneAffordability(): void {
-        const blocked = this.deploysLeft <= 0;
         for (const { el } of this.shopRuneButtons) {
-            el.classList.toggle(
-                'unaffordable',
-                blocked || this.shopRuneCost > this.shopRuneBalance,
-            );
+            el.classList.toggle('unaffordable', this.shopRuneCost > this.shopRuneBalance);
         }
     }
 

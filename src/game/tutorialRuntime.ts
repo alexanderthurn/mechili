@@ -996,9 +996,9 @@ export class TutorialRuntime {
         } else if (round === 3) {
             this.clearStructures();
             this.spawnPlayerArmy3();
-            // Shop runes share the unit buy limit; leave headroom past the gate.
+            // Shop runes have no buy-slot limit; units stay locked this round.
             host.unlockedUnits[humanSeat] = [];
-            host.deployState.limit[humanSeat] = 20;
+            host.deployState.limit[humanSeat] = 0;
             host.hud.setShopColumnVisible(true);
             host.hud.setShopRunesVisible(true);
             const ds = host.settings.deploy;

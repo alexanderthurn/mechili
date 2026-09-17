@@ -322,11 +322,11 @@ export interface BoostSettings {
     hpTiers: number[];
 }
 
-/** how many unit / base-rune purchases a deployment phase allows */
+/** how many unit-pack purchases a deployment phase allows */
 export interface DeploySettings {
     /** each player's STARTING per-round buy limit (specials may raise it permanently later) */
     unitsPerRound: number;
-    /** shop price of a base rune (earth/fire/water/wind); shares the buy limit with units */
+    /** shop price of a base rune (earth/fire/water/wind); no buy-slot limit */
     baseRuneCost: number;
     /** each shop rune purchase raises the next one's price by this much (per seat, match-long) */
     runeCostStep: number;
@@ -1048,7 +1048,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     label: t('settings:sheet.buysPerRound', { defaultValue: 'Buys per round' }),
                     value: `${settings.deploy.unitsPerRound}`,
                     note: t('settings:sheet.buysPerRoundNote', {
-                        defaultValue: 'shared by units and base runes',
+                        defaultValue: 'unit packs only',
                     }),
                 },
                 {
@@ -1056,7 +1056,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     value: supply(settings.deploy.baseRuneCost),
                     note: t('settings:sheet.baseRuneNote', {
                         step: settings.deploy.runeCostStep,
-                        defaultValue: `shop — +${settings.deploy.runeCostStep} per purchase; uses one buy slot`,
+                        defaultValue: `shop — +${settings.deploy.runeCostStep} per purchase; unlimited buys`,
                     }),
                 },
                 {

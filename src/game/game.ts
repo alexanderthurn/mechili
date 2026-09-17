@@ -8741,7 +8741,7 @@ export class Game {
         return ok;
     }
 
-    /** HUD: buy a base rune into the bag — shares the per-round purchase limit with units. */
+    /** HUD: buy a base rune into the bag — no per-round purchase-slot limit. */
     private buyRune(itemId: string): boolean {
         if (!this.playerCanAct) return false;
         if (this.tutorial?.blocksBuyRune()) return false;

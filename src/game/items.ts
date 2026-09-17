@@ -9,7 +9,7 @@
  * `misc/concepts/runes/README.md`. Atlas ids: `item-*`.
  *
  * Economy: four weak base runes (earth/fire/water/wind) are offered on round
- * cards and always buyable in the unit shop (sharing the per-round buy limit);
+ * cards and always buyable in the unit shop (no per-round buy-slot limit);
  * advanced runes are forged from them at the Stronghold.
  *
  * The catalog is data: `assets/data/runes/<id>.jsonc`, in the order

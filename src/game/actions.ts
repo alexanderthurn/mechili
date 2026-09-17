@@ -77,7 +77,7 @@ export interface BuyAction {
     anchor: Cell;
     rotated: boolean;
 }
-/** buys a base rune into the seat's bag — shares the per-round unit buy limit */
+/** buys a base rune into the seat's bag — unlimited; only supply (and escalating price) gates it */
 export interface BuyRuneAction {
     kind: 'buyRune';
     team: Team;
@@ -821,14 +821,12 @@ export class ActionDispatcher {
                 if (!this.ctx.types.baseRuneIds.includes(action.itemId)) return false;
                 if (!this.ctx.types.rune(action.itemId)) return false;
                 const deploy = this.ctx.deployState;
-                if (deploy.used[seat]! >= deploy.limit[seat]! + deploy.extra[seat]!) return false;
                 const ds = this.ctx.deploySettings;
                 const cost = ds.baseRuneCost + (deploy.runesBought[seat] ?? 0) * ds.runeCostStep;
                 if (!economy.spend(seat, cost)) return false;
                 this.ctx.items[seat]!.push(action.itemId);
                 entry.paid = cost;
                 entry.grantedItems = [action.itemId];
-                deploy.used[seat] = (deploy.used[seat] ?? 0) + 1;
                 deploy.runesBought[seat] = (deploy.runesBought[seat] ?? 0) + 1;
                 return true;
             }
@@ -1690,7 +1688,6 @@ export class ActionDispatcher {
                 const i = bag.lastIndexOf(id);
                 if (i >= 0) bag.splice(i, 1);
                 economy.credit(seat, e.paid!);
-                this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
                 this.ctx.deployState.runesBought[seat] = Math.max(
                     0,
                     (this.ctx.deployState.runesBought[seat] ?? 0) - 1,

@@ -187,8 +187,8 @@ export class AiOpponent implements Opponent {
             if (!this.buyUnit(type, rng)) break;
         }
 
-        // 3) spare ~100 supply → +1 deploy slot + a shop rune to equip
-        this.maybeBuySlotAndRune(rng);
+        // 3) spare supply → a shop rune to equip
+        this.maybeBuyRune(rng);
 
         // rearrange packs
         for (const unit of placement.allUnits()) {
@@ -335,14 +335,14 @@ export class AiOpponent implements Opponent {
     }
 
     /**
-     * After army buys: if supply covers +1 deploy slot and a base rune, buy both
-     * so the rune can be equipped in {@link applyItems}.
+     * After army buys: if supply covers a base rune, buy one so it can be
+     * equipped in {@link applyItems}. Runes do not use deploy buy slots.
      */
-    private maybeBuySlotAndRune(rng: () => number = this.ctx.rng): void {
+    private maybeBuyRune(rng: () => number = this.ctx.rng): void {
         const { dispatch, economy, deploySettings } = this.ctx;
-        const need = deploySettings.extraSlotCost + deploySettings.baseRuneCost;
-        if (economy.balance(this.seat) < need) return;
-        if (!dispatch({ kind: 'buyDeploySlot', team: this.team, seat: this.seat })) return;
+        // Escalating price is applied in the action; gate on the base price so
+        // we don't bother when supply is clearly short.
+        if (economy.balance(this.seat) < deploySettings.baseRuneCost) return;
         const itemId = this.ctx.types.baseRuneIds[Math.floor(rng() * this.ctx.types.baseRuneIds.length)]!;
         dispatch({ kind: 'buyRune', team: this.team, seat: this.seat, itemId });
     }
