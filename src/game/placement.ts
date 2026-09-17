@@ -1559,6 +1559,8 @@ export class PlacementController {
         timeSeconds: number,
         animated: boolean,
         y = 0.04,
+        /** pinned posts (a Stronghold archer on its battlements): flat at this height, drawn over the building */
+        pinnedY?: number,
     ): void {
         const pulse = this.pulse(timeSeconds);
         const edge = animated ? 0.96 + 0.04 * pulse : 0.94;
@@ -1573,8 +1575,14 @@ export class PlacementController {
             mesh.userData.fpKey = fpKey;
         }
         const pos = mesh.geometry.attributes.position!;
-        const anchorY = this.map.heightAt(center.x, center.z);
+        const onBuilding = pinnedY !== undefined;
+        const anchorY = onBuilding ? pinnedY : this.map.heightAt(center.x, center.z);
         for (let i = 0; i < pos.count; i++) {
+            if (onBuilding) {
+                // stone pad, not relief — and the keep's roof must not swallow it
+                pos.setY(i, 0);
+                continue;
+            }
             const wx = center.x + pos.getX(i) * edge;
             const wz = center.z + pos.getZ(i) * edge;
             pos.setY(i, this.map.heightAt(wx, wz) - anchorY);
@@ -1582,6 +1590,7 @@ export class PlacementController {
         pos.needsUpdate = true;
         mesh.position.set(center.x, y + 0.04 + anchorY, center.z);
         mesh.scale.set(edge, 1, edge);
+        material.depthTest = !onBuilding;
         material.color.setHex(color);
         material.opacity = animated ? 0.58 + 0.22 * pulse : MOVABLE_PLATE_OPACITY;
         mesh.visible = true;
@@ -2614,7 +2623,10 @@ export class PlacementController {
         const plateFp = snap
             ? this.footprintOf(over.type, snap.rotated)
             : this.footprintOf(over.type, over.rotated);
-        const center = this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
+        // a pinned post (Stronghold archer) has no grid cell — mark it where it stands
+        const center = over.gridless
+            ? new Vector3(over.world.x, over.world.y, over.world.z)
+            : this.map.areaCenter(cell, plateFp.cols, plateFp.rows);
         this.placeFootprintPlate(
             this.hoverMesh,
             this.hoverMaterial,
@@ -2623,6 +2635,8 @@ export class PlacementController {
             VALID_COLOR,
             timeSeconds,
             true,
+            0.04,
+            over.pinnedY ?? undefined,
         );
     }
 
@@ -2783,6 +2797,8 @@ export class PlacementController {
                 VALID_COLOR,
                 timeSeconds,
                 true,
+                0.04,
+                sel.pinnedY ?? undefined,
             );
             markerCenter = center;
         }
