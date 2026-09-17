@@ -5805,6 +5805,8 @@ export class BattleSim {
     /**
      * Arcane Prism / Melting Point beam: sticky lock, exponential DPS ramp,
      * soft tip splash. Reuses convertRay tip/active for the yellow ray VFX.
+     * Horizontal fire is gated by {@link UnitType.rampBeam.fireYawHalfDeg} —
+     * pitch is free; flankers that outrun turnRate break the lock.
      */
     private stepRampBeams(dt: number): void {
         const d = this.config.towers.debuffPerLostTower;
@@ -5820,6 +5822,7 @@ export class BattleSim {
                 this.config.types,
             );
             const team = actorTeam(caster);
+            const fireHalf = Math.max(1e-3, ((beam.fireYawHalfDeg ?? 20) * Math.PI) / 180);
 
             const stillOk = (target: Actor): boolean =>
                 target.alive &&
@@ -5829,14 +5832,27 @@ export class BattleSim {
                 (target.unit.type.structure ||
                     (target.altitude > 0 ? targets.air : targets.ground));
 
-            const stats = this.statsOf(caster);
-            let target = caster.rampBeamTarget;
-            if (target && stillOk(target)) {
+            const inReach = (target: Actor, range: number): boolean => {
                 const reach =
-                    this.weaponRange(caster, target, stats.range) + caster.radius + target.radius;
+                    this.weaponRange(caster, target, range) + caster.radius + target.radius;
                 const dx = target.x - caster.x;
                 const dz = target.z - caster.z;
-                if (dx * dx + dz * dz > reach * reach) {
+                return dx * dx + dz * dz <= reach * reach;
+            };
+
+            const aimYawOf = (target: Actor): number =>
+                detAtan2(-(target.x - caster.x), -(target.z - caster.z));
+
+            const inFireYaw = (target: Actor): boolean =>
+                Math.abs(deltaAngle(caster.facing, aimYawOf(target))) <= fireHalf;
+
+            const stats = this.statsOf(caster);
+            let target = caster.rampBeamTarget;
+            if (target && stillOk(target) && inReach(target, stats.range)) {
+                // Keep turning toward the sticky lock (overrides AI closestEnemy).
+                faceToward(caster, aimYawOf(target), dt);
+                if (!inFireYaw(target)) {
+                    // Flanker slipped the cone before the barrel caught up.
                     target = null;
                 }
             } else {
@@ -5844,11 +5860,23 @@ export class BattleSim {
             }
 
             if (!target) {
-                // Target lost (death / OOR) — ramp resets. A full-HP next victim
-                // is intentional Melting Point behaviour, not an HP rewind.
+                // Target lost (death / OOR / out of yaw cone) — ramp resets.
                 caster.rampBeamLockT = 0;
                 caster.rampBeamTarget = null;
-                target = this.closestConvertTarget(caster, stats.range, targets);
+                caster.convertRayActive = false;
+
+                // Turn toward the nearest threat even outside the cone so the
+                // prism can bring flanks into the fire wedge.
+                const anyNear = this.closestConvertTarget(caster, stats.range, targets);
+                if (anyNear) faceToward(caster, aimYawOf(anyNear), dt);
+
+                target = this.closestConvertTarget(
+                    caster,
+                    stats.range,
+                    targets,
+                    undefined,
+                    fireHalf,
+                );
                 if (!target) continue;
                 caster.rampBeamTarget = target;
                 caster.rampBeamLockT = 0;
@@ -5857,9 +5885,17 @@ export class BattleSim {
             const from = this.beamRayOrigin(caster);
             const tt = target.unit.type;
             const toY = target.footY + projectileAimY(tt) * tt.meshScale;
-            const sx = target.x - from.x;
-            const sy = toY - from.y;
-            const sz = target.z - from.z;
+            // Beam tracks the barrel (facing), not a chord to the target — otherwise
+            // the laser looks like it yaws faster than turnRate. Pitch stays free.
+            const flat = hypot(target.x - from.x, target.z - from.z) || 1e-6;
+            const fwdX = -detSin(caster.facing);
+            const fwdZ = -detCos(caster.facing);
+            const tipX = from.x + fwdX * flat;
+            const tipY = toY;
+            const tipZ = from.z + fwdZ * flat;
+            const sx = tipX - from.x;
+            const sy = tipY - from.y;
+            const sz = tipZ - from.z;
             const block = this.enemyShieldHitOnSegment(from.x, from.y, from.z, sx, sy, sz, team);
 
             // Exponential ramp: unit damage × 2^(t / doubleEvery), capped.
@@ -5886,9 +5922,9 @@ export class BattleSim {
             }
 
             caster.rampBeamLockT += dt;
-            caster.convertRayTipX = target.x;
-            caster.convertRayTipY = toY;
-            caster.convertRayTipZ = target.z;
+            caster.convertRayTipX = tipX;
+            caster.convertRayTipY = tipY;
+            caster.convertRayTipZ = tipZ;
             caster.convertRayActive = true;
 
             const splash = beam.splashRadius ?? 0;
@@ -5963,6 +5999,8 @@ export class BattleSim {
         range: number,
         targets: { ground: boolean; air: boolean },
         exclude?: ReadonlySet<Actor> | readonly Actor[],
+        /** When set, only return targets inside this yaw half-angle of facing. */
+        fireYawHalf?: number,
     ): Actor | null {
         const excluded =
             exclude == null
@@ -5992,6 +6030,10 @@ export class BattleSim {
             const dz = a.z - from.z;
             const d = dx * dx + dz * dz;
             if (d > maxR * maxR) continue;
+            if (fireYawHalf != null) {
+                const aimYaw = detAtan2(-dx, -dz);
+                if (Math.abs(deltaAngle(from.facing, aimYaw)) > fireYawHalf) continue;
+            }
             if (d < bestD || (d === bestD && best !== null && a.index < best.index)) {
                 bestD = d;
                 best = a;

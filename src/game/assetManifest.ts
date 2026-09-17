@@ -46,6 +46,7 @@ const RAW = import.meta.glob(
         '../../assets/models/units/horde3.glb',
         '../../assets/models/units/mortar.glb',
         '../../assets/models/units/ogre.glb',
+        '../../assets/models/units/prismcannon.glb',
         '../../assets/models/units/research-center.glb',
         '../../assets/models/units/rocket.glb',
         '../../assets/models/units/shield.glb',

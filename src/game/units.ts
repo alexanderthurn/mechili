@@ -609,8 +609,9 @@ export interface UnitType {
     convertRay?: { range: number; recover?: number };
     /**
      * Continuous damage beam that ramps exponentially while locked on one
-     * target (Melting Point / Arcane Prism Cannon). Starting DPS is the unit's
-     * resolved {@link damage} (talents included). At lock time t:
+     * target (Melting Point / Arcane Prism Cannon). Reach uses the unit's
+     * normal {@link range}. Starting DPS is the unit's resolved {@link damage}
+     * (talents included). At lock time t:
      * `min(maxDps, damage × 2^(t / doubleEvery))`, then the normal hit-damage
      * stack (level, tower debuff, vs-layer). Lock resets when the beam breaks
      * (death, out of range, ward block). Optional `muzzleLocal` is rest-local
@@ -618,11 +619,16 @@ export interface UnitType {
      * mouth on a static siege mesh.
      */
     rampBeam?: {
-        range: number;
         doubleEvery: number;
         maxDps?: number;
         splashRadius?: number;
         muzzleLocal?: { x: number; y: number; z: number };
+        /**
+         * Half-angle (degrees) of the horizontal fire cone around facing.
+         * Pitch is free; targets outside this yaw wedge cannot be locked or
+         * damaged — the unit must turn (via {@link turnRate}) first. Omit = 20°.
+         */
+        fireYawHalfDeg?: number;
     };
     /**
      * Ground wear strength when walking/standing (1 ≈ typical infantry).
