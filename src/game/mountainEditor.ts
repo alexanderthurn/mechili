@@ -15,6 +15,7 @@ import {
     MeshBasicMaterial,
     Plane,
     Raycaster,
+    ShaderMaterial,
     Vector2,
     Vector3,
     type BufferAttribute,
@@ -23,6 +24,7 @@ import {
     type Scene,
 } from 'three';
 import { createRangeRing } from './placement';
+import { SLOPE_BLOCK_GRADE } from './terrainCombat';
 import { worldHeightAt } from './map';
 import {
     applyLandscapeToBoardMesh,
@@ -124,6 +126,52 @@ export interface MountainEditorOpts {
     };
 }
 
+/**
+ * Steep-ground overlay for the board: amber where a slope starts to slow
+ * units, red where it is too steep to walk up ({@link SLOPE_BLOCK_GRADE}).
+ * Shares the board geometry, so it follows every brush stroke; the slope comes
+ * from screen-space derivatives, so it needs no normals.
+ */
+function createSteepOverlay(): Mesh {
+    const material = new ShaderMaterial({
+        uniforms: {
+            uFrom: { value: SLOPE_BLOCK_GRADE * 0.6 },
+            uBlock: { value: SLOPE_BLOCK_GRADE },
+        },
+        vertexShader: `
+varying vec3 vWorld;
+void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+}`,
+        fragmentShader: `
+uniform float uFrom;
+uniform float uBlock;
+varying vec3 vWorld;
+void main() {
+    vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
+    float ny = max(abs(n.y), 1e-3);
+    float grade = sqrt(max(0.0, 1.0 - ny * ny)) / ny;
+    if (grade < uFrom) discard;
+    float blocked = step(uBlock, grade);
+    vec3 color = mix(vec3(1.0, 0.72, 0.12), vec3(0.95, 0.12, 0.08), blocked);
+    gl_FragColor = vec4(color, mix(0.3, 0.55, blocked));
+}`,
+        transparent: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+    });
+    const mesh = new Mesh(undefined, material);
+    mesh.name = 'steep-overlay';
+    mesh.renderOrder = 2;
+    mesh.frustumCulled = false;
+    mesh.raycast = () => {};
+    return mesh;
+}
+
 export class MountainEditor {
     /** the brush a stroke paints with (the button's slot while a stroke runs, else the left slot) */
     brush: MountainBrush = 'raise';
@@ -158,6 +206,8 @@ export class MountainEditor {
      * casting spells — with the landscape as it is.
      */
     private editing = true;
+    private readonly steepOverlay = createSteepOverlay();
+    private showSteep = true;
     private readonly onActiveChange: ((active: boolean) => void) | null;
     private readonly panel: HTMLDivElement;
     private readonly disposers: (() => void)[] = [];
@@ -182,6 +232,7 @@ export class MountainEditor {
     constructor(opts: MountainEditorOpts) {
         this.mesh = opts.mesh;
         this.board = opts.boardMesh;
+        this.attachSteepOverlay();
         this.camera = opts.camera;
         this.dom = opts.domElement;
         this.map = opts.map;
@@ -273,6 +324,7 @@ export class MountainEditor {
     reattach(mesh: Mesh, boardMesh: Mesh): void {
         this.mesh = mesh;
         this.board = boardMesh;
+        this.attachSteepOverlay();
         ensureOuterMaterialAttrs(this.mesh.geometry);
         if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
     }
@@ -281,6 +333,8 @@ export class MountainEditor {
         for (const d of this.disposers) d();
         this.disposers.length = 0;
         this.panel.remove();
+        this.steepOverlay.removeFromParent();
+        (this.steepOverlay.material as ShaderMaterial).dispose();
         this.cursor.removeFromParent();
         this.cursor.geometry.dispose();
         (this.cursor.material as MeshBasicMaterial).dispose();
@@ -835,6 +889,19 @@ export class MountainEditor {
         }
     }
 
+    /** hang the steep overlay on the current board mesh (it shares the board's geometry) */
+    private attachSteepOverlay(): void {
+        this.steepOverlay.geometry = this.board.geometry;
+        this.board.add(this.steepOverlay);
+        this.updateSteepOverlay();
+    }
+
+    private updateSteepOverlay(): void {
+        this.steepOverlay.visible = this.editing && this.showSteep;
+        const toggle = this.panel?.querySelector<HTMLButtonElement>('.steep');
+        if (toggle) toggle.classList.toggle('on', this.showSteep);
+    }
+
     /** whether terrain editing currently owns the board's clicks and brush keys */
     get active(): boolean {
         return this.editing;
@@ -850,6 +917,7 @@ export class MountainEditor {
             this.cursor.visible = false;
         }
         this.panel.classList.toggle('playing', !on);
+        this.updateSteepOverlay();
         const toggle = this.panel.querySelector<HTMLButtonElement>('.mode');
         if (toggle) toggle.textContent = on ? 'Editing terrain — Play (^ / `)' : 'Playing — Edit terrain (^ / `)';
         this.onActiveChange?.(on);
@@ -887,6 +955,7 @@ export class MountainEditor {
 .mtn-editor .hint{margin-top:8px;opacity:.7;font-size:11px}
 .mtn-editor.playing > :not(h3):not(.row:first-of-type){display:none}
 .mtn-editor .mode{width:100%}
+.mtn-editor .steep.on{background:#4a3828;border-color:#d4b878;color:#d4b878}
 .mtn-editor .slot-tags{margin-left:4px;font:700 10px/1 ui-monospace,monospace;color:#d4b878;letter-spacing:.05em}
 .mtn-editor .slot-tags:empty{display:none}
 .mtn-editor .status{margin-top:6px;font-size:11px;color:#d4b878;min-height:1em;max-width:320px}
@@ -926,6 +995,7 @@ export class MountainEditor {
   <button type="button" class="save">Save</button>
   <button type="button" class="load">Load</button>
   <button type="button" class="reset">Reset</button>
+  <button type="button" class="steep on" title="Amber: slows units · red: too steep to walk up">Steep slopes</button>
   <button type="button" class="import-browser" hidden>Import browser bake</button>
 </div>
 <div class="status"></div>
@@ -975,6 +1045,10 @@ export class MountainEditor {
         el.querySelector('.save')!.addEventListener('click', () => this.save());
         el.querySelector('.load')!.addEventListener('click', () => this.loadFromFile());
         el.querySelector('.reset')!.addEventListener('click', () => this.resetToBase());
+        el.querySelector('.steep')!.addEventListener('click', () => {
+            this.showSteep = !this.showSteep;
+            this.updateSteepOverlay();
+        });
         const importBrowser = el.querySelector<HTMLButtonElement>('.import-browser')!;
         importBrowser.hidden = !this.hasLegacyBrowserBake();
         importBrowser.addEventListener('click', () => this.importBrowserBake());
