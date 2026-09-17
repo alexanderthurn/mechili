@@ -1,15 +1,11 @@
 /**
  * Stronghold forge: shared oven per side. Each player may fill up to
- * {@link FORGE_SLOTS_PER_PLAYER} (duo → up to 6). Exact multiset recipes → one
- * product next deploy; if nothing matches, every rune is refunded.
+ * {@link FORGE_SLOTS_PER_PLAYER} (duo → up to 6).
  *
- * Currently only advanced-rune recipes are active: each advanced rune's data
- * file carries its `forge` recipe, and the match's {@link TypeRegistry} builds
- * the table. Loading rejects two recipes with the same ingredients — never the
- * same oven → two different products.
- *
- * Fuel is the four base runes (earth / fire / water / wind).
- * Same-element stacks craft advanced runes (anyone).
+ * Elemental mixes (base + combined plates) will merge by mix/level rules.
+ * If the oven holds any **advanced** rune, the bake returns that advanced
+ * unchanged (elementals are consumed) — advanced and elementals do not fuse.
+ * Optional exact multiset recipes can still override when defined on data.
  */
 import type { SeatId } from './seats';
 import {
@@ -184,6 +180,9 @@ function sortedRecipes(types: TypeRegistry, pool: ForgeSpellPool = 'all'): Forge
  * Pick at most one recipe whose ingredients exactly match the oven.
  * No subset crafts — extras or missing pieces → no product, all runes refunded.
  * Spell recipes outside `pool` are skipped; rune recipes always compete.
+ *
+ * Special case: any advanced rune in the oven → that advanced is the product
+ * (unchanged). Multiple different advanced ids → refund everything.
  */
 export function resolveForge(
     types: TypeRegistry,
@@ -197,6 +196,28 @@ export function resolveForge(
     }
     if (filled.length === 0) {
         return { product: null, consumed: [], refunds: [] };
+    }
+
+    const advancedIds = [
+        ...new Set(
+            filled
+                .map((f) => f.itemId)
+                .filter((id) => types.advancedRuneIds.includes(id)),
+        ),
+    ];
+    if (advancedIds.length > 1) {
+        return {
+            product: null,
+            consumed: [],
+            refunds: filled.map(({ itemId, seat }) => ({ itemId, seat })),
+        };
+    }
+    if (advancedIds.length === 1) {
+        return {
+            product: { kind: 'item', id: advancedIds[0]! },
+            consumed: filled,
+            refunds: [],
+        };
     }
 
     const have = countMultiset(filled.map((f) => f.itemId));

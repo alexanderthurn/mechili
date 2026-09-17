@@ -1,4 +1,4 @@
-// Advanced rune — forged in the Stronghold oven or granted by a commander.
+// Advanced rune — between-round cards or commander grants (not forgeable).
 {
     "id": "bulwark",
     "name": "Bulwark",
@@ -7,8 +7,6 @@
     "icon": "ability-ward",
     "mods": {},
     "grantsShieldHp": true,
-    // forged from 3 base runes in the Stronghold oven
-    "forge": { "ingredients": ["water", "water", "water"] },
     "cardCost": 50,
     "description": "Shield: every unit gains a second health pool equal to its HP. Ranged hits drain the shield first; melee, fire and acid ignore it.",
 }

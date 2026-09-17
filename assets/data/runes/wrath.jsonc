@@ -1,12 +1,10 @@
-// Advanced rune — forged in the Stronghold oven or granted by a commander.
+// Advanced rune — between-round cards or commander grants (not forgeable).
 {
     "id": "wrath",
     "name": "Berserk",
     "tier": "advanced",
     "icon": "item-wrath",
     "mods": { "damage": 4 },
-    // forged from 3 base runes in the Stronghold oven
-    "forge": { "ingredients": ["fire", "fire", "fire"] },
     "cardCost": 100,
     "description": "+300% attack.",
 }

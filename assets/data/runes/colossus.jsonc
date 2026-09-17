@@ -1,12 +1,10 @@
-// Advanced rune — forged in the Stronghold oven or granted by a commander.
+// Advanced rune — between-round cards or commander grants (not forgeable).
 {
     "id": "colossus",
     "name": "Mithril Cuirass",
     "tier": "advanced",
     "icon": "item-colossus",
     "mods": { "hp": 3.5 },
-    // forged from 3 base runes in the Stronghold oven
-    "forge": { "ingredients": ["earth", "earth", "earth"] },
     "cardCost": 100,
     "description": "+250% HP.",
 }

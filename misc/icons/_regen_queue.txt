@@ -12,6 +12,17 @@ item-earth|simple carved mountain peaks — weak BASE earth rune, muted ochre gl
 item-fire|simple single flame tongue — weak BASE fire rune, soft ember glow, NOT a skull
 item-water|simple water droplet with ripple rings — weak BASE water rune, cool blue glow
 item-wind|three curved wind gusts — weak BASE wind rune, pale cyan glow
+item-earth-fire|volcano mountain with lava channels — earth+fire mix
+item-earth-water|cliff waterfall in stone — earth+water mix
+item-earth-wind|eroded mesa with dust swirls — earth+wind mix
+item-fire-water|boiling geyser steam plume — fire+water mix
+item-fire-wind|fire tornado spiral — fire+wind mix
+item-water-wind|storm spiral rain and gusts — water+wind mix
+item-earth-fire-water|volcanic island seal — earth+fire+water mix
+item-earth-fire-wind|ash-plume crater — earth+fire+wind mix
+item-earth-water-wind|storm-lashed cliff — earth+water+wind mix
+item-fire-water-wind|tempest flame rain wind — fire+water+wind mix
+item-earth-fire-water-wind|four-element mandala seal — all bases mix
 mod-damage|sword blade meaning damage stat modifier
 mod-hp|heart or sturdy shield meaning HP modifier
 mod-range|archery target with rings meaning range modifier

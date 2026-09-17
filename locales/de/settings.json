@@ -30,9 +30,9 @@
   "hordeHigh": "Hoch – eine Welle in jeder Runde",
   "hordeUltra": "Ultra – jede Runde, doppelte Pack-Anzahl zählt",
   "cardsOff": "Aus – keine Karten zwischen den Runden",
-  "cardsSpare": "Knapp",
-  "cardsEvery": "Nur Runen (in jeder Runde) — Basisrunen in jeder Runde ab Runde 2",
-  "cardsFull": "Vollständig — Runden 2–4 Runen, 5–7 Einheiten-Packs, 8–10 Zauber",
+  "cardsSpare": "Nur Runen (knapp) — erweiterte Runen in Runden 2, 4, 6, 8, 10",
+  "cardsEvery": "Nur Runen (jede Runde) — erweiterte Runen ab Runde 2",
+  "cardsFull": "Vollständig — Runden 2–4 erweiterte Runen, 5–7 Einheiten-Packs, 8–10 Zauber",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (beide Teams)",
     "timersTitle": "Timer & HP",

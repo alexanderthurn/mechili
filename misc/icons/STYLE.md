@@ -130,8 +130,10 @@ Shipped motifs:
 | `item-fire` | Fire | simple flame (base) | ember-orange |
 | `item-water` | Water | droplet + ripples (base) | cool blue |
 | `item-wind` | Wind | three gust curls (base) | pale cyan |
+| `item-earth-fire` … `item-earth-fire-water-wind` | mixes | fused elemental seals (11 plates) | combined glows |
 
 HUD clips them round (`.inv-item:not(.tactic)`, `.item-sq`); world badges use circular sprites.
+Levels are a HUD digit on the same mix plate — no per-level art.
 
 ```bash
 uv run ~/.claude/skills/threejs-image-generator/scripts/generate_image.py \
