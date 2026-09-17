@@ -5,7 +5,7 @@
 {
     "id": "hordeKomtur",
     "name": "Hans von Stoffeln",
-    "cost": 1200, // bought by The Komtur's side (was 600 as a wave value)
+    "cost": 800, // bought by The Komtur's side (was 600 as a wave value)
     "unlockCost": 200,
     "xpValue": 600.0, // kill XP as before the price change
     "hpWithdraw": 800,
