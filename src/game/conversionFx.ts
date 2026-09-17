@@ -57,6 +57,9 @@ const PRISM_ATTACK_W = 3.2;
 const PRISM_ATTACK_HDR = 1.85;
 /** prism pipe gain with bloom on (bloom off uses 1.25): lower, since bloom adds the glow */
 const PRISM_BLOOM_GAIN = 0.9;
+/** brightest a prism pipe channel gets (soft cap): just over the bloom threshold with bloom on; effectively none without */
+const PRISM_BLOOM_CAP = 1.6;
+const PRISM_CAP_OFF = 1000;
 /** Sky shaft: much wider / much fainter than the attack pipe. */
 const PRISM_SKY_W = PRISM_ATTACK_W * 27;
 const PRISM_SKY_HDR = PRISM_ATTACK_HDR / 50;
@@ -168,6 +171,7 @@ const PRISM_VERT = /* glsl */ `
 const PRISM_FRAG = /* glsl */ `
     uniform float uTime;
     uniform float uGain;
+    uniform float uCap;
     varying vec2 vUv;
     varying vec3 vColor;
 
@@ -206,6 +210,9 @@ const PRISM_FRAG = /* glsl */ `
         vec3 col = mix(edge, mid, core);
         col = mix(col, hot, core * core * (0.55 + 0.45 * n));
         col *= vColor * (1.35 + 0.4 * n) * uGain;
+        // soft ceiling: the core stays hot, but with bloom on it never climbs far
+        // past the bloom threshold, so the halo can't flood the screen
+        col = col * uCap / (uCap + col);
 
         gl_FragColor = vec4(col, body);
     }
@@ -302,6 +309,7 @@ export class ConversionFx {
             uniforms: {
                 uTime: { value: 0 },
                 uGain: { value: 1 },
+                uCap: { value: PRISM_CAP_OFF },
             },
             vertexShader: PRISM_VERT,
             fragmentShader: PRISM_FRAG,
@@ -378,6 +386,7 @@ export class ConversionFx {
             this.convert.coreMat.color.setRGB(1, 1, 1);
             this.convert.glowMat.color.setRGB(0.66, 0.97, 1);
             this.prismMat.uniforms.uGain!.value = 1.25;
+            this.prismMat.uniforms.uCap!.value = PRISM_CAP_OFF;
             return;
         }
         if (bloom === 'high') {
@@ -385,11 +394,13 @@ export class ConversionFx {
             this.convert.glowWidthMul = 2.35;
             // bloom draws the prism's halo — a hotter pipe on top just blows it out
             this.prismMat.uniforms.uGain!.value = PRISM_BLOOM_GAIN;
+            this.prismMat.uniforms.uCap!.value = PRISM_BLOOM_CAP;
         } else {
             // ultra — push HDR so selective bloom wraps the pipe in a yellow halo
             this.bloomBoost = 2.6;
             this.convert.glowWidthMul = 2.55;
             this.prismMat.uniforms.uGain!.value = PRISM_BLOOM_GAIN;
+            this.prismMat.uniforms.uCap!.value = PRISM_BLOOM_CAP;
         }
         const b = this.bloomBoost;
         this.convert.coreMat.color.setRGB(b, b, b);
