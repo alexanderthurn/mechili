@@ -678,7 +678,10 @@ export class YearBrain {
                         return this.plannedGroup(type, g.depth, next);
                     });
                     const s = this.score(rebuilt, theirs, counter);
-                    const gain = ((s - current) / cost) * this.p.techWeight - (this.p.techWeight <= 0 ? Infinity : 0);
+                    // Skip talents the estimator can't see (e.g. Blightburst onDeath) —
+                    // zero gain would otherwise dump leftover supply into them.
+                    if (s <= current) continue;
+                    const gain = ((s - current) / cost) * this.p.techWeight;
                     if (gain > bestGain) {
                         bestGain = gain;
                         bestPick = { kind: 'tech', type, techId: tech.id, cost };
@@ -687,6 +690,9 @@ export class YearBrain {
                 }
             }
             if (!bestPick) break;
+            // Packs may still take leftover supply at a weak gain; talents must
+            // actually raise the estimate (otherwise Blightburst etc. get bought).
+            if (bestPick.kind === 'tech' && bestGain <= 0) break;
             // nothing helps any more: still spend — idle supply is wasted when the army is rebuilt
             if (bestPick.kind === 'pack') {
                 army.push(bestPick.group);
@@ -808,20 +814,69 @@ export class YearBrain {
             const depth = preferredDepth(best, { range: best.range, minRange: best.minRange ?? 0, flying: (best.flying ?? 0) > 0, convert: !!best.convertRay || !!best.rampBeam });
             if (!this.placeOne(best, depth, this.enemyLanes(), [])) break;
         }
-        // talents for fielded types, cheapest first
+        // Talents that improve the battle estimate — never dump leftover into
+        // zero-effect picks (Blightburst / Loose Rank aren't modeled yet).
         for (let guard = 0; guard < 20; guard++) {
-            let bought = false;
-            const fielded = [...new Set(this.host.placement.allUnits().filter((u) => u.seat === this.seat && !u.type.structure && !u.type.extra).map((u) => u.type))];
+            const board = this.boardGroups();
+            const current = this.roundScore(estimateBattle(board.mine, board.theirs));
+            let best: { type: UnitType; techId: string; score: number } | null = null;
+            const fielded = [
+                ...new Set(
+                    this.host.placement
+                        .allUnits()
+                        .filter((u) => u.seat === this.seat && !u.type.structure && !u.type.extra)
+                        .map((u) => u.type),
+                ),
+            ];
             for (const type of fielded) {
                 const owned = this.host.techTree.ownedFor(this.seat, type.id);
                 for (const tech of techsForUnit(type, this.host.types, this.host.loadoutOf(this.seat))) {
                     if (owned.has(tech.id)) continue;
                     if (economy.techCostOf(tech, owned.size) > economy.balance(this.seat)) continue;
-                    if (dispatch({ kind: 'buyTech', team: this.team, seat: this.seat, typeId: type.id, techId: tech.id })) bought = true;
+                    const s = this.roundScore(this.estimateWithExtraTech(type.id, tech.id));
+                    if (s <= current) continue;
+                    if (!best || s > best.score) best = { type, techId: tech.id, score: s };
                 }
             }
-            if (!bought) break;
+            if (!best) break;
+            if (
+                !dispatch({
+                    kind: 'buyTech',
+                    team: this.team,
+                    seat: this.seat,
+                    typeId: best.type.id,
+                    techId: best.techId,
+                })
+            ) {
+                break;
+            }
         }
+    }
+
+    /** Board estimate as if this seat already owned `techId` on `typeId`. */
+    private estimateWithExtraTech(typeId: string, techId: string): BattleEstimate {
+        const { types, leveling } = this.host;
+        const hasTech: HasTech = (seat, tid, id) =>
+            (seat === this.seat && tid === typeId && id === techId) || this.hasTech(seat, tid, id);
+        const mine: BattleGroup[] = [];
+        const theirs: BattleGroup[] = [];
+        for (const u of this.host.placement.allUnits()) {
+            if (u.team === 'horde' || u.type.extra || u.summoned || u.destroyed) continue;
+            const g = groupOf(u.type, {
+                seat: u.seat,
+                level: u.level,
+                items: u.items,
+                count: 1,
+                depth: this.depthOf(u),
+                hasTech: u.seat === this.seat ? hasTech : this.hasTech,
+                types,
+                leveling,
+                effects: this.effectsOf(u.seat),
+                lifeline: true,
+            });
+            (u.team === this.team ? mine : theirs).push(g);
+        }
+        return estimateBattle(mine, theirs);
     }
 
     /** where the enemy stands: world x per enemy group, for lane matching */

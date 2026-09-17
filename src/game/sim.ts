@@ -4960,11 +4960,11 @@ export class BattleSim {
         });
     }
 
-    /** spawns one or more bullets from the shooter's muzzle (see {@link UnitType.projectileCount}) */
+    /** spawns one or more bullets from the shooter's muzzle (see resolved {@link ResolvedStats.projectileCount}) */
     private fireVolley(a: Actor, target: Actor, damage: number, speed: number): void {
         // Same whiff rules as melee — cooldown already advanced by the caller.
         if (!this.groundSwatConnects(a, target)) return;
-        const n = Math.max(1, Math.floor(a.unit.type.projectileCount ?? 1));
+        const n = Math.max(1, Math.floor(this.statsOf(a).projectileCount));
         for (let i = 0; i < n; i++) {
             this.fire(a, target, damage, speed, i);
         }
@@ -5248,7 +5248,7 @@ export class BattleSim {
         let dz = aimZ - mz;
         let dy = this.feetY(target, aimX, aimZ) + aimLocalY * tt.meshScale - muzzleY;
 
-        const volley = Math.max(1, Math.floor(at.projectileCount ?? 1));
+        const volley = Math.max(1, Math.floor(this.statsOf(a).projectileCount));
         const useSpread =
             spread &&
             !at.homing &&

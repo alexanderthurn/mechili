@@ -27,6 +27,10 @@
     "name": "Quick Draw",
     "description": "+43% attack speed."
   },
+  "doubleShot": {
+    "name": "Twin Shot",
+    "description": "Fires 2 projectiles per attack (+1 extra for volley weapons). +10% reload time."
+  },
   "aegis": {
     "name": "Aegis",
     "description": "Shield: every unit gains a second health pool equal to its HP. Ranged hits drain the shield first; melee, fire and acid ignore it."

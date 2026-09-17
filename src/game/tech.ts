@@ -11,6 +11,8 @@ export interface ResolvedStats {
     minRange: number;
     speed: number;
     attackInterval: number;
+    /** projectiles per attack (type base + talent `projectileCountAdd`) */
+    projectileCount: number;
     /** projectile splash radius (0 = single-target); tech can multiply the type base */
     splashRadius: number;
 }
@@ -139,6 +141,7 @@ export class TechTree {
             minRange: type.minRange ?? 0,
             speed: type.speed,
             attackInterval: type.attackInterval,
+            projectileCount: Math.max(1, Math.floor(type.projectileCount ?? 1)),
             splashRadius: type.splashRadius ?? 0,
         };
         const techIds = new Set<string>(type.innateTechs ?? []);
@@ -149,6 +152,7 @@ export class TechTree {
         // flat bonus too — and anything order-dependent in stats is one
         // refactor away from two peers disagreeing.
         let rangeAdd = 0;
+        let projectileCountAdd = 0;
         for (const techId of techIds) {
             const tech = types.talent(techId);
             if (!tech) continue;
@@ -165,9 +169,11 @@ export class TechTree {
                 else stats.splashRadius *= splashMod;
             }
             rangeAdd += tech.mods.rangeAdd ?? 0;
+            projectileCountAdd += tech.mods.projectileCountAdd ?? 0;
         }
         // flat after ALL multipliers — same idea as Command Tower range boost
         stats.range += rangeAdd;
+        stats.projectileCount = Math.max(1, stats.projectileCount + projectileCountAdd);
         return stats;
     }
 
