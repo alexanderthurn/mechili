@@ -84,6 +84,14 @@ export const LEVEL_TINT_COLORS: readonly (number | null)[] = [
 /** dye amount for level tint multiply (0 = none, 1 = full color) */
 export const LEVEL_TINT_STRENGTH = 0.75;
 
+/** CSS hex for pack/rune level chrome (null = no tint bar, level 1). */
+export function levelTintCss(level: number): string | null {
+    const hex =
+        level >= 2 && level < LEVEL_TINT_COLORS.length ? LEVEL_TINT_COLORS[level]! : null;
+    if (hex == null) return null;
+    return `#${hex.toString(16).padStart(6, '0')}`;
+}
+
 const _mul = { r: 1, g: 1, b: 1 };
 
 /**

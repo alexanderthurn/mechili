@@ -4,6 +4,14 @@ import { DISPLAY } from '../game/displayNames';
 import { DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
 import { itemSlotLimit, type ItemDef } from '../game/items';
 import {
+    mixDescription,
+    mixDisplayName,
+    mixIconId,
+    mixId,
+    mixedElementMixes,
+    type RuneElement,
+} from '../game/runeMix';
+import {
     MOVE_UNIT_ID,
     RALLY_ROUTE_ID,
     SELL_UNIT_ID,
@@ -298,24 +306,83 @@ function runeRecipeIcons(runeId: string): string[] {
         .filter((ico): ico is string => !!ico);
 }
 
-function runeCard(item: ItemDef, isBase: boolean, isFirst: boolean): string {
-    // One price tag either way — a base rune is bought, a forged one is paid for
-    // in ingredients plus the forge fee, so the band shows whichever applies.
-    const recipe = isBase ? [] : runeRecipeIcons(item.id);
-    const costHtml = isBase
-        ? `<div class="mh-tactic-cost" title="${esc(t('homepage:runes.shopTitle'))}" aria-label="${esc(t('homepage:runes.shopLabel'))}">${DEFAULT_SETTINGS.deploy.baseRuneCost}</div>`
-        : `<div class="mh-tactic-cost" title="${esc(t('homepage:runes.forgeTitle', { building: unitName(STRONGHOLD.id, STRONGHOLD.name) }))}" aria-label="${esc(t('homepage:runes.forgeLabel'))}">${recipe
-              .map((ico) => iconHtml(ico, 'mh-cost-rune'))
-              .join('')}<span class="mh-cost-plus">+</span>${item.forgeCost ?? 0}</div>`;
+type RuneKind = 'base' | 'mixed' | 'advanced';
+
+type HomepageRune = {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    kind: RuneKind;
+    /** Element icons that make up a mix (for the cost band). */
+    mixElements?: RuneElement[];
+    forgeCost?: number;
+    cardCost?: number;
+};
+
+function homepageRuneFromDef(item: ItemDef, kind: 'base' | 'advanced'): HomepageRune {
+    return {
+        id: item.id,
+        name: itemName(item.id, item.name),
+        description: itemDescription(item.id, item.description),
+        icon: item.icon,
+        kind,
+        forgeCost: item.forgeCost,
+        cardCost: item.cardCost,
+    };
+}
+
+function homepageRuneFromMix(elements: RuneElement[]): HomepageRune {
+    const id = mixId(elements)!;
+    return {
+        id,
+        name: mixDisplayName(elements),
+        description: mixDescription(elements),
+        icon: mixIconId(elements)!,
+        kind: 'mixed',
+        mixElements: elements,
+    };
+}
+
+function runeKindTag(kind: RuneKind): string {
+    if (kind === 'base') return t('homepage:runes.base', { defaultValue: 'Base' });
+    if (kind === 'mixed') return t('homepage:runes.mixed', { defaultValue: 'Mixed' });
+    return t('homepage:runes.advanced', { defaultValue: 'Advanced' });
+}
+
+function runeCard(rune: HomepageRune, isFirst: boolean): string {
+    const tagClass =
+        rune.kind === 'base' ? '' : rune.kind === 'mixed' ? ' mixed' : ' forged';
+    let costHtml = '';
+    if (rune.kind === 'base') {
+        costHtml = `<div class="mh-tactic-cost" title="${esc(t('homepage:runes.shopTitle'))}" aria-label="${esc(t('homepage:runes.shopLabel'))}">${DEFAULT_SETTINGS.deploy.baseRuneCost}</div>`;
+    } else if (rune.kind === 'mixed') {
+        const ings = (rune.mixElements ?? [])
+            .map((el) => BASE_TYPES.rune(el)?.icon)
+            .filter((ico): ico is string => !!ico)
+            .map((ico) => iconHtml(ico, 'mh-cost-rune'))
+            .join('');
+        const fee = 50;
+        costHtml = `<div class="mh-tactic-cost" title="${esc(t('homepage:runes.mixForgeTitle', { defaultValue: 'Forged at the Stronghold' }))}" aria-label="${esc(t('homepage:runes.mixForgeLabel', { defaultValue: 'Forge price' }))}">${ings}<span class="mh-cost-plus">+</span>${fee}</div>`;
+    } else {
+        const recipe = runeRecipeIcons(rune.id);
+        const fee = rune.cardCost ?? 50;
+        costHtml =
+            recipe.length > 0
+                ? `<div class="mh-tactic-cost" title="${esc(t('homepage:runes.forgeTitle'))}" aria-label="${esc(t('homepage:runes.forgeLabel'))}">${recipe
+                      .map((ico) => iconHtml(ico, 'mh-cost-rune'))
+                      .join('')}<span class="mh-cost-plus">+</span>${fee}</div>`
+                : `<div class="mh-tactic-cost" title="${esc(t('homepage:runes.forgeTitle'))}" aria-label="${esc(t('homepage:runes.forgeLabel'))}">${fee}</div>`;
+    }
     return `
-<article class="mh-tactic mh-rune${isFirst ? ' mh-active' : ''}" data-key="${esc(item.id)}">
-  <span class="mh-rune-tag${isBase ? '' : ' forged'}">${esc(t(isBase ? 'homepage:runes.base' : 'homepage:runes.advanced'))}</span>
-  <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(item.icon, 'mh-tactic-tile')}</div>
+<article class="mh-tactic mh-rune${isFirst ? ' mh-active' : ''}" data-key="${esc(rune.id)}">
+  <span class="mh-rune-tag${tagClass}">${esc(runeKindTag(rune.kind))}</span>
+  <div class="mh-tactic-icon" aria-hidden="true">${iconHtml(rune.icon, 'mh-tactic-tile')}</div>
   <div class="mh-tactic-body">
     <div class="mh-tactic-head">
-      <h3>${esc(itemName(item.id, item.name))}</h3>
+      <h3>${esc(rune.name)}</h3>
     </div>
-    <p class="mh-tactic-desc">${esc(itemDescription(item.id, item.description))}</p>
+    <p class="mh-tactic-desc">${esc(rune.description)}</p>
     ${costHtml}
   </div>
 </article>`;
@@ -377,11 +444,12 @@ function settingsGroupHtml(g: SettingGroup): string {
 </div>`;
 }
 
-/** Base runes first, then the forged ones — the order a player meets them. */
-const ALL_RUNES: { item: ItemDef; isBase: boolean }[] = [
-    ...BASE_TYPES.baseRuneIds.map((id) => ({ item: BASE_TYPES.rune(id)!, isBase: true })),
-    ...BASE_TYPES.advancedRuneIds.map((id) => ({ item: BASE_TYPES.rune(id)!, isBase: false })),
-].filter((e) => !!e.item);
+/** Base → mixed forge plates → advanced card specials. */
+const ALL_RUNES: HomepageRune[] = [
+    ...BASE_TYPES.baseRuneIds.map((id) => homepageRuneFromDef(BASE_TYPES.rune(id)!, 'base')),
+    ...mixedElementMixes().map(homepageRuneFromMix),
+    ...BASE_TYPES.advancedRuneIds.map((id) => homepageRuneFromDef(BASE_TYPES.rune(id)!, 'advanced')),
+];
 
 const ALL_TACTICS = BASE_TYPES.tactics;
 
@@ -538,10 +606,10 @@ app.innerHTML = `
     <select class="mh-card-select" id="mh-runes-select" aria-label="${esc(
         t('homepage:runes.select', { item: midTerm(DISPLAY.item) }),
     )}">
-      ${ALL_RUNES.map(({ item }) => `<option value="${esc(item.id)}">${esc(itemName(item.id, item.name))}</option>`).join('')}
+      ${ALL_RUNES.map((rune) => `<option value="${esc(rune.id)}">${esc(rune.name)}</option>`).join('')}
     </select>
     <div class="mh-tactics" id="mh-runes-grid">
-      ${ALL_RUNES.map(({ item, isBase }, i) => runeCard(item, isBase, i === 0)).join('')}
+      ${ALL_RUNES.map((rune, i) => runeCard(rune, i === 0)).join('')}
     </div>
   </section>
 

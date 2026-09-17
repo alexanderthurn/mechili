@@ -96,14 +96,14 @@
     "select": "Wähle einen {{commander}}"
   },
   "runes": {
-    "sub": "Fest mit einem Pack verbunden, stärkt es jeden Mech darin {{sep}}. Die meisten Packs enthalten {{packLimit}}, die Balliste {{ballistaLimit}}. Die vier Basisrunen werden aus Rundenkarten gezogen oder im Shop gekauft; die stärkeren werden in der Hochburg daraus geschmiedet und niemals verkauft.",
+    "sub": "Fest mit einem Pack verbunden, stärkt es jeden Mech darin {{sep}}. Die meisten Packs enthalten {{packLimit}}, die Balliste {{ballistaLimit}}. Die vier Basisrunen werden im Shop gekauft; die stärkeren kommen nur von Rundenkarten und werden nie verkauft.",
     "select": "Wähle eine {{item}}",
     "base": "Basis",
     "advanced": "Erweitert",
-    "shopTitle": "Im Shop gekauft oder aus einer Rundenkarte gezogen",
+    "shopTitle": "Im Shop gekauft",
     "shopLabel": "Shop-Preis",
-    "forgeTitle": "Geschmiedet bei {{building}}",
-    "forgeLabel": "Schmiedepreis"
+    "forgeTitle": "Aus einer Rundenkarte gezogen",
+    "forgeLabel": "Kartenpreis"
   },
   "tactics": {
     "sub": "Dies sind die Fähigkeiten auf deinem {{tactics}}-Streifen {{sep}}: Angriffe, Zauber, Beschwörungen und Kampfzauber wie der Feueratem des Drachen. Kampfzauber kannst du in deiner Hochburg kaufen, jeweils nur einmal, und nur die drei, die dein Kommandant kennt. Die Symbole entsprechen denen im Spiel.",

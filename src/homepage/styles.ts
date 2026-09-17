@@ -1103,9 +1103,7 @@ html, body {
     line-height: 1.5;
     color: ${u.phase};
 }
-/* Base vs advanced reads as a corner tag rather than a line of subtitle: an
-   outline for the raw runes you buy, filled brass for the ones that came out of
-   a forge — the same "upgraded" jump the runes themselves make. */
+/* Base = muted outline; mixed = brass outline; advanced = filled brass. */
 .mh-rune-tag {
     position: absolute;
     top: 10px;
@@ -1120,6 +1118,11 @@ html, body {
     color: ${u.textMuted};
     background: rgba(12, 9, 6, 0.55);
     border: 1px solid ${u.border};
+}
+.mh-rune-tag.mixed {
+    color: ${u.brassLight};
+    background: rgba(12, 9, 6, 0.65);
+    border-color: ${u.brass};
 }
 .mh-rune-tag.forged {
     color: ${u.parchmentInk};

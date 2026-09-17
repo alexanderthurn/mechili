@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Banchetto di sangue",
-    "description": "Cura il 25% dei danni inflitti (diviso tra i membri vivi del Pack)."
+    "description": "Cura il {{pct}}% dei danni inflitti (diviso tra i membri vivi del Pack)."
   },
   "carrionFeast": {
     "name": "Banchetto di carogne",

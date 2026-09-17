@@ -30,9 +30,9 @@
   "hordeHigh": "High — a wave every round",
   "hordeUltra": "Ultra — every round, double pack counts",
   "cardsOff": "Off — no between-round cards",
-  "cardsSpare": "Runes Only (Spare) — base runes on rounds 2, 4, 6, 8, 10",
-  "cardsEvery": "Runes Only (Every Round) — base runes every round from round 2",
-  "cardsFull": "Full — rounds 2–4 runes, 5–7 unit packs, 8–10 spells",
+  "cardsSpare": "Runes Only (Spare) — advanced runes on rounds 2, 4, 6, 8, 10",
+  "cardsEvery": "Runes Only (Every Round) — advanced runes every round from round 2",
+  "cardsFull": "Full — rounds 2–4 advanced runes, 5–7 unit packs, 8–10 spells",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (both teams)",
     "moneyOption": "{{label}} supply income (both teams)",

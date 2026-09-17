@@ -1,12 +1,10 @@
-// Advanced rune — forged in the Stronghold oven or granted by a commander.
+// Advanced rune — between-round cards or commander grants (not forgeable).
 {
     "id": "addi",
     "name": "Valor",
     "tier": "advanced",
     "icon": "item-addi",
     "mods": { "damage": 1.15, "hp": 1.15 },
-    // forged from 2 base runes in the Stronghold oven
-    "forge": { "ingredients": ["earth", "earth"] },
     "cardCost": 50,
     "description": "+15% attack and HP.",
 }

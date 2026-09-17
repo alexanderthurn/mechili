@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Krwawa uczta",
-    "description": "Leczy o 25% zadanych obrażeń (dzielone między żywych członków Packa)."
+    "description": "Leczy o {{pct}}% zadanych obrażeń (dzielone między żywych członków Packa)."
   },
   "carrionFeast": {
     "name": "Uczta padlinożercy",

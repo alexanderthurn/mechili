@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "血宴",
-    "description": "按造成伤害的 25% 回复生命（由存活的编队成员分摊）。"
+    "description": "按造成伤害的 {{pct}}% 回复生命（由存活的编队成员分摊）。"
   },
   "carrionFeast": {
     "name": "腐肉盛宴",

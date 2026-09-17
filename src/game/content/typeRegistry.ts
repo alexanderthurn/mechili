@@ -14,6 +14,7 @@
 import type { RoundCard, RoundCardDrawPool, StartCard } from '../cards';
 import type { ForgeRecipe } from '../forgeRecipes';
 import type { ItemDef } from '../items';
+import { generateElementalRunes, isRuneElement } from '../runeMix';
 import type { TacticDef } from '../tactics';
 import type { TechDef, UnitType } from '../units';
 import type { ModelSpecData } from '../unitModels';
@@ -41,17 +42,20 @@ export class TypeRegistry {
     readonly talents: ReadonlyMap<string, TechDef>;
     /** rune catalog by id, in catalog order */
     readonly runes: ReadonlyMap<string, ItemDef>;
-    /** weak elemental runes (round cards, shop, forge fuel), in catalog order */
+    /**
+     * Shop-buyable pure L1 elementals (`earth` / `fire` / `water` / `wind`).
+     * Mixes and higher levels come from the forge, not the shop.
+     */
     readonly baseRuneIds: readonly string[];
-    /** forged / granted runes, in catalog order */
+    /** Card / commander specials, in catalog order */
     readonly advancedRuneIds: readonly string[];
-    /** oven recipes from the runes' `forge`: fewer ingredients first, then catalog order */
+    /** Optional exact oven recipes (overrides); elemental merge is the default */
     readonly forgeRecipes: readonly ForgeRecipe[];
     /** commanders offered to players, in draw order */
     readonly commanders: readonly StartCard[];
     /**
-     * Every between-round card: one per rune (base tier first, at its
-     * `cardCost`), then the unit and spell cards from data/roundCards.
+     * Every between-round card: advanced runes (at `cardCost`), then unit and
+     * spell cards from data/roundCards. Shop bases are not dealt as cards.
      */
     readonly roundCards: readonly RoundCard[];
 
@@ -75,10 +79,15 @@ export class TypeRegistry {
             .filter((t) => !t.extra && !t.structure && t.buyable !== false)
             .map((t) => t.id);
         this.talents = new Map(Object.entries(pack.talents));
-        this.runes = new Map(pack.runes.map((r) => [r.id, r]));
-        this.baseRuneIds = pack.runes.filter((r) => r.tier === 'base').map((r) => r.id);
-        this.advancedRuneIds = pack.runes.filter((r) => r.tier === 'advanced').map((r) => r.id);
-        this.forgeRecipes = pack.runes
+        const authoredBase = pack.runes.filter((r) => r.tier === 'base');
+        const advanced = pack.runes.filter((r) => r.tier === 'advanced');
+        const elemental = generateElementalRunes(authoredBase);
+        const allRunes = [...elemental, ...advanced];
+        this.runes = new Map(allRunes.map((r) => [r.id, r]));
+        // Shop sells only the four pure L1s authored in data — not mixes / L2+.
+        this.baseRuneIds = authoredBase.filter((r) => isRuneElement(r.id)).map((r) => r.id);
+        this.advancedRuneIds = advanced.map((r) => r.id);
+        this.forgeRecipes = allRunes
             .filter((r) => r.forge)
             .map((r) => ({
                 ingredients: [...r.forge!.ingredients],
@@ -90,10 +99,7 @@ export class TypeRegistry {
         this.commanderIndex = new Map([...pack.commanders, ...pack.hiddenCommanders].map((c) => [c.id, c]));
         const factionUnits = [...pack.commanders, ...pack.hiddenCommanders].flatMap((c) => c.shop ?? []);
         this.allShopUnitIds = [...new Set([...this.shopUnitIds, ...factionUnits])];
-        const runeCards: RoundCard[] = [
-            ...pack.runes.filter((r) => r.tier === 'base'),
-            ...pack.runes.filter((r) => r.tier === 'advanced'),
-        ].map((rune) => ({
+        const runeCards: RoundCard[] = advanced.map((rune) => ({
             id: rune.id,
             title: rune.name,
             cost: rune.cardCost ?? 50,

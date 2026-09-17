@@ -5139,6 +5139,36 @@ ${chatFloatStyles(u, pc, ec)}
     pointer-events: none;
     text-transform: lowercase;
 }
+.mechili-sidebar .inv-item:not(.tactic).rune-leveled,
+.mechili-panel .item-sq.rune-leveled {
+    overflow: visible;
+    border: 2px solid;
+    box-sizing: border-box;
+    z-index: 2;
+}
+.mechili-sidebar .inv-item .rune-lvl,
+.mechili-panel .item-sq .rune-lvl {
+    position: absolute;
+    right: -7px;
+    bottom: -7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1;
+    color: #fff;
+    background: rgba(8, 6, 4, 0.94);
+    border: 2px solid var(--rune-lvl, ${u.brassLight});
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+    pointer-events: none;
+    z-index: 3;
+}
 .mechili-sidebar .inv-item .inv-cd.wait {
     color: ${u.brassLight};
 }
@@ -5399,6 +5429,22 @@ ${chatFloatStyles(u, pc, ec)}
     box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 12px rgba(0, 255, 102, 0.45);
     animation: forge-bake-pulse 1.25s ease-in-out infinite;
 }
+.mechili-panel .item-sq.forge-bake.rune-leveled {
+    border-width: 2px;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--rune-lvl) 85%, transparent),
+        0 0 12px color-mix(in srgb, var(--rune-lvl) 45%, transparent);
+    animation: forge-bake-lvl-pulse 1.25s ease-in-out infinite;
+}
+@keyframes forge-bake-lvl-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--rune-lvl) 70%, transparent),
+            0 0 8px color-mix(in srgb, var(--rune-lvl) 35%, transparent);
+    }
+    50% {
+        box-shadow: 0 0 0 3px var(--rune-lvl),
+            0 0 16px color-mix(in srgb, var(--rune-lvl) 65%, transparent);
+    }
+}
 .mechili-panel .item-sq.forge-bake.cancelable {
     cursor: pointer;
     padding: 0;
@@ -5431,9 +5477,11 @@ ${chatFloatStyles(u, pc, ec)}
 }
 @media (prefers-reduced-motion: reduce) {
     .mechili-panel .forge-block.ready,
-    .mechili-panel .item-sq.forge-bake { animation: none; }
+    .mechili-panel .item-sq.forge-bake,
+    .mechili-panel .item-sq.forge-bake.rune-leveled { animation: none; }
 }
 .mechili-panel .item-sq {
+    position: relative;
     width: 44px;
     height: 44px;
     display: inline-flex;

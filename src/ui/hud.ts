@@ -8,6 +8,8 @@ import {
     forgeRecipeMatch,
     type ForgeSpellPool,
 } from '../game/forgeRecipes';
+import { elementalLevel } from '../game/runeMix';
+import { levelTintCss } from '../game/colors';
 import { buildingAbilities } from '../game/buildingAbilities';
 import { emoteById, type ChatItem } from '../game/emotes';
 import { inputMode } from '../game/inputCapabilities';
@@ -184,8 +186,10 @@ export interface SelectionInfo {
             desc: string;
             itemIds: string[];
         }[];
-        /** spell that would bake from the current tray (if any) */
+        /** spell/rune that would bake from the current tray (if any) */
         bake?: {
+            /** product item id when kind is item — drives level digit */
+            id?: string;
             icon: string;
             name: string;
             desc: string;
@@ -918,6 +922,11 @@ export class Hud {
             if (inputMode() === 'touch') {
                 const peek = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
                 if (peek) {
+                    if (peek.dataset.spellTip) {
+                        this.hideActionInfo();
+                        this.cardSpellTips.show(peek);
+                        return;
+                    }
                     if (this.actionInfoFor !== peek) {
                         this.showActionInfo(peek);
                         if (this.isForgePreviewSlot(peek) && peek.classList.contains('empty')) {
@@ -986,9 +995,14 @@ export class Hud {
             if ((e as PointerEvent).pointerType === 'touch') return;
             const tile = (e.target as HTMLElement).closest<HTMLElement>(infoSel);
             if (tile) {
-                // forge-bake / spell tips use commander-style floating tip
-                if (!tile.dataset.spellTip) this.showActionInfo(tile);
-                else this.hideActionInfo();
+                // Runes / forge-bake use the floating spell tip; other tiles use
+                // the in-panel action-info frame.
+                if (tile.dataset.spellTip) {
+                    this.hideActionInfo();
+                    this.cardSpellTips.show(tile);
+                } else {
+                    this.showActionInfo(tile);
+                }
                 if (tile.classList.contains('drop-target')) this.setPanelItemDropReady(true);
             }
         });
@@ -1106,6 +1120,9 @@ export class Hud {
         );
         this.attachLongPress(this.shopColumn, '.shop-rune', (btn) =>
             this.showRuneHoverTip(btn),
+        );
+        this.attachLongPress(this.panel, '.item-sq[data-spell-tip]', (tile) =>
+            this.showRuneHoverTip(tile),
         );
         this.attachLongPress(this.inventoryEl, '.inv-item', (btn) => {
             const routeId = btn.dataset.routeId;
@@ -1344,6 +1361,32 @@ export class Hud {
         el.dataset.tdesc = extra ? `${desc}\n${extra}` : desc;
         el.dataset.ticon = def.icon;
         el.removeAttribute('title');
+    }
+
+    /** Level digit + tinted border for elemental L2+ (unit veterancy colors). */
+    private runeLevelMark(itemId: string | undefined | null): {
+        badge: string;
+        borderStyle: string;
+        color: string;
+    } {
+        if (!itemId) return { badge: '', borderStyle: '', color: '' };
+        const lv = elementalLevel(itemId);
+        const color = levelTintCss(lv);
+        if (!color) return { badge: '', borderStyle: '', color: '' };
+        return {
+            badge: `<span class="rune-lvl" style="--rune-lvl:${color}" aria-hidden="true">${lv}</span>`,
+            borderStyle: `border-color:${color};--rune-lvl:${color}`,
+            color,
+        };
+    }
+
+    /** Join iconCss + optional extras without gluing the last property. */
+    private runeIconStyle(icon: string, extra = ''): string {
+        const base = iconCss(icon);
+        const more = extra.trim();
+        if (!base) return more;
+        if (!more) return base;
+        return `${base};${more.startsWith(';') ? more.slice(1) : more}`;
     }
 
     private showRuneHoverTip(el: HTMLElement): void {
@@ -1806,9 +1849,12 @@ export class Hud {
                                 `data-tdesc="${escapeAttr(`${itemDescription(i.id, def.description)}\n${extra}`)}" ` +
                                 `data-ticon="${escapeAttr(def.icon)}"`
                               : ` title="${escapeAttr(`${itemName(i.id, i.name)}\n${extra}`)}"`;
+                      const lvl = this.runeLevelMark(i.id);
                       return (
-                          `<button class="inv-item${i.armed ? ' armed' : ''}" data-item="${i.id}" data-index="${i.index}"${tip}>` +
-                          `${iconHtml(i.icon)}</button>`
+                          `<button class="inv-item${i.armed ? ' armed' : ''}${lvl.badge ? ' rune-leveled' : ''}" ` +
+                          (lvl.borderStyle ? `style="${lvl.borderStyle}" ` : '') +
+                          `data-item="${i.id}" data-index="${i.index}"${tip}>` +
+                          `${iconHtml(i.icon)}${lvl.badge}</button>`
                       );
                   })
                   .join('')
@@ -2167,11 +2213,15 @@ export class Hud {
                   total,
               ) +
               items
-                  .map(
-                      (i) =>
-                          `<span class="inv-item readonly" title="${i.name}">` +
-                          `${iconHtml(i.icon)}</span>`,
-                  )
+                  .map((i) => {
+                      const lvl = this.runeLevelMark(i.id);
+                      return (
+                          `<span class="inv-item readonly${lvl.badge ? ' rune-leveled' : ''}" ` +
+                          (lvl.borderStyle ? `style="${lvl.borderStyle}" ` : '') +
+                          `title="${i.name}">` +
+                          `${iconHtml(i.icon)}${lvl.badge}</span>`
+                      );
+                  })
                   .join('')
             : '';
         const tacticHtml = tactics.length
@@ -3040,8 +3090,9 @@ export class Hud {
                               inputMode() === 'touch'
                                   ? t('hud:returnToBagTouch', { item: DISPLAY.item.toLowerCase() })
                                   : t('hud:returnToBag', { item: DISPLAY.item.toLowerCase() });
+                          const lvl = this.runeLevelMark(item.id);
                           return (
-                          `<span class="item-sq m-icon${item.removable ? ' removable' : ''}" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
+                          `<span class="item-sq m-icon${item.removable ? ' removable' : ''}${lvl.badge ? ' rune-leveled' : ''}" style="${this.runeIconStyle(item.icon, lvl.borderStyle)}" data-spell-tip="1" data-tip-wide="1" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
                               item.removable
                                   ? `${item.desc ?? item.name}\n${removeHint}`
                                   : (item.desc ?? item.name),
@@ -3049,19 +3100,17 @@ export class Hud {
                               item.removable && info.unitId !== undefined && item.id
                                   ? ` data-item-id="${escapeAttr(item.id)}" data-item-slot="${i}" data-unit-id="${info.unitId}"`
                                   : ''
-                          }></span>`
+                          }>${lvl.badge}</span>`
                       );
                   }).join('')}</div>`;
         const forge = info.forge;
         const forgeSquares = !forge
             ? ''
-            : `<div class="forge-block${forge.lit ? ' ready' : ''}">` +
+            : `<div class="forge-block${forge.bake ? ' ready' : ''}">` +
               `<div class="forge-label">${
-                  forge.lit
+                  forge.bake
                       ? t('hud:forgeLabelFiring')
-                      : forge.bake
-                        ? t('hud:forgeLabelReady')
-                        : t('hud:forgeLabel')
+                      : t('hud:forgeLabel')
               }</div>` +
               `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
                   const item = forge.slots[i];
@@ -3075,6 +3124,7 @@ export class Hud {
                               `<span class="item-sq m-icon forge-suggest" style="${iconCss(suggest.icon)}" ` +
                               `data-forge-fill="${escapeAttr(suggest.itemIds.join(','))}" ` +
                               `data-forge-ings="${escapeAttr(ingIcons.join(','))}" ` +
+                              `data-spell-tip="1" data-tip-wide="1" ` +
                               `data-ttitle="${escapeAttr(suggest.name)}" ` +
                               `data-tdesc="${escapeAttr(`${suggest.desc}\n${t('hud:forgePlaceSuggest', { items: DISPLAY.items.toLowerCase() })}`)}" ` +
                               `data-ticon="${escapeAttr(suggest.icon)}"></span>`
@@ -3094,8 +3144,9 @@ export class Hud {
                       inputMode() === 'touch'
                           ? t('hud:returnToBagTouch', { item: DISPLAY.item.toLowerCase() })
                           : t('hud:returnToBag', { item: DISPLAY.item.toLowerCase() });
+                  const lvl = this.runeLevelMark(item.id);
                   return (
-                      `<span class="item-sq m-icon${item.removable ? ' removable' : ''}" style="${iconCss(item.icon)}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
+                      `<span class="item-sq m-icon${item.removable ? ' removable' : ''}${lvl.badge ? ' rune-leveled' : ''}" style="${this.runeIconStyle(item.icon, lvl.borderStyle)}" data-spell-tip="1" data-tip-wide="1" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
                           item.removable
                               ? `${item.desc}\n${removeHint}`
                               : item.desc,
@@ -3103,43 +3154,27 @@ export class Hud {
                           item.removable
                               ? ` data-forge="1" data-item-slot="${i}"`
                               : ''
-                      }></span>`
+                      }>${lvl.badge}</span>`
                   );
               }).join('')}` +
               (forge.bake
-                  ? `<span class="forge-bake-arrow" aria-hidden="true">→</span>` +
-                    (forge.lit
-                        ? // paid for: this is what comes out next deployment.
-                          // Whoever paid can click it again to take it back.
-                          `<${forge.canUnlight ? 'button type="button"' : 'span'} ` +
-                          `class="item-sq m-icon forge-bake${forge.canUnlight ? ' cancelable' : ''}" ` +
-                          `style="${iconCss(forge.bake.icon)}" ` +
-                          (forge.canUnlight ? `data-forge-unlight="1" ` : '') +
-                          `data-spell-tip="1" ` +
-                          `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
-                          `data-tdesc="${escapeAttr(
-                              `${forge.bake.desc}\n${t('hud:forgeFiringNext')}${
-                                  forge.canUnlight ? `\n${t('hud:forgeCancelRefund')}` : ''
-                              }`,
-                          )}" ` +
-                          `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
-                          `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}">` +
-                          `</${forge.canUnlight ? 'button' : 'span'}>`
-                        : // not paid for yet: the same square becomes the buy button
-                          `<button type="button" class="action-tile forge-buy ${
-                              forge.bakeAffordable ? 'buy' : 'locked'
-                          }" data-forge-light="1" ` +
-                          `data-spell-tip="1" ` +
-                          `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
-                          `data-tdesc="${escapeAttr(`${forge.bake.desc}\n${t('hud:forgeFireToStart')}`)}" ` +
-                          `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
-                          (forge.bake.forgeCost === undefined
-                              ? ''
-                              : `data-tfee="${forge.bake.forgeCost}" `) +
-                          `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}">` +
-                          `<span class="at-icon m-icon" style="${iconCss(forge.bake.icon)}"></span>` +
-                          `<span class="at-cost">${forge.bake.forgeCost ?? 0}</span>` +
-                          `</button>`)
+                  ? (() => {
+                        const lvl = this.runeLevelMark(forge.bake.id);
+                        return (
+                            `<span class="forge-bake-arrow" aria-hidden="true">→</span>` +
+                            `<span class="item-sq m-icon forge-bake${lvl.badge ? ' rune-leveled' : ''}" ` +
+                            `style="${this.runeIconStyle(forge.bake.icon, lvl.borderStyle)}" ` +
+                            `data-spell-tip="1" data-tip-wide="1" ` +
+                            `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
+                            `data-tdesc="${escapeAttr(
+                                `${forge.bake.desc}\n${t('hud:forgeFiringNext')}`,
+                            )}" ` +
+                            `data-ticon="${escapeAttr(forge.bake.icon)}" ` +
+                            `data-forge-ings="${escapeAttr((forge.bake.ingredientIcons ?? []).join(','))}">` +
+                            `${lvl.badge}` +
+                            `</span>`
+                        );
+                    })()
                   : '') +
               `</div>` +
               (forge.hint
@@ -4098,9 +4133,8 @@ export class Hud {
                 `data-ttitle="${escapeAttr(r.spellName)}" ` +
                 `data-tdesc="${escapeAttr(r.spellDesc)}" ` +
                 `data-ticon="${escapeAttr(r.spellIcon)}" ` +
-                `data-tfee="${r.forgeCost}" ` +
                 `data-forge-ings="${escapeAttr(r.ingredientIcons.join(','))}">` +
-                `<div class="forge-tile-ings">${ings}<span class="forge-tile-fee">+ ${r.forgeCost}</span></div>` +
+                `<div class="forge-tile-ings">${ings}</div>` +
                 `<span class="forge-arrow">→</span>` +
                 `${iconHtml(r.spellIcon, 'forge-spell')}` +
                 `<div class="forge-tile-name">${escapeHtml(r.spellName)}</div>` +

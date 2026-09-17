@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "血宴",
-    "description": "按造成傷害的 25% 回復生命（由存活的編隊成員分攤）。"
+    "description": "按造成傷害的 {{pct}}% 回復生命（由存活的編隊成員分攤）。"
   },
   "carrionFeast": {
     "name": "腐肉盛宴",

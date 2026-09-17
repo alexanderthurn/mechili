@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Blodfest",
-    "description": "Läker 25% av utdelad skada (delas mellan Packets levande medlemmar)."
+    "description": "Läker {{pct}}% av utdelad skada (delas mellan Packets levande medlemmar)."
   },
   "carrionFeast": {
     "name": "Asfest",

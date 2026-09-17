@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Ospăț de sânge",
-    "description": "Vindecă 25% din daunele provocate (împărțit între membrii în viață ai Pack-ului)."
+    "description": "Vindecă {{pct}}% din daunele provocate (împărțit între membrii în viață ai Pack-ului)."
   },
   "carrionFeast": {
     "name": "Ospăț de hoit",

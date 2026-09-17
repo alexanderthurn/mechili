@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Kan şöleni",
-    "description": "Verilen hasarın %25’i kadar iyileştirir (Pack’in yaşayan üyeleri arasında paylaşılır)."
+    "description": "Verilen hasarın %{{pct}}’i kadar iyileştirir (Pack’in yaşayan üyeleri arasında paylaşılır)."
   },
   "carrionFeast": {
     "name": "Leş şöleni",

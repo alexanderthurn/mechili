@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Banquete de sangue",
-    "description": "Cura 25% do dano causado (dividido pelos membros vivos do Pack)."
+    "description": "Cura {{pct}}% do dano causado (dividido pelos membros vivos do Pack)."
   },
   "carrionFeast": {
     "name": "Banquete de carniça",

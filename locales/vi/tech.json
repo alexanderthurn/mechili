@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Tiệc máu",
-    "description": "Hồi 25% sát thương gây ra (chia cho các thành viên Pack còn sống)."
+    "description": "Hồi {{pct}}% sát thương gây ra (chia cho các thành viên Pack còn sống)."
   },
   "carrionFeast": {
     "name": "Tiệc xác thối",

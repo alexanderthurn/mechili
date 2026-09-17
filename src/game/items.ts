@@ -8,13 +8,16 @@
  * Icon craft (carved medallion + internal glow): `misc/icons/STYLE.md`,
  * `misc/concepts/runes/README.md`. Atlas ids: `item-*`.
  *
- * Economy: four weak base runes (earth/fire/water/wind) are offered on round
- * cards and always buyable in the unit shop (no per-round buy-slot limit);
- * advanced runes are forged from them at the Stronghold.
+ * Economy: four weak base runes (earth/fire/water/wind) are always buyable in
+ * the unit shop (no per-round buy-slot limit). Forge merges them into mix +
+ * level variants (135 elemental ids generated at load — see `runeMix.ts`).
+ * Advanced runes come from round cards or commander grants — not the forge
+ * (except optional exact recipes / advanced passthrough).
  *
  * The catalog is data: `assets/data/runes/<id>.jsonc`, in the order
- * `pack.jsonc` lists them. Look runes up through the match's
- * {@link TypeRegistry} (`types.rune(id)`, `types.baseRuneIds`).
+ * `pack.jsonc` lists them, plus generated elemental levels/mixes. Look runes
+ * up through the match's {@link TypeRegistry} (`types.rune(id)`,
+ * `types.baseRuneIds`).
  */
 import type { UnitType } from './units';
 
@@ -30,8 +33,8 @@ export interface ItemDef {
     id: string;
     name: string;
     /**
-     * `base`: weak elemental rune — round-card pool, always in the shop, forge fuel.
-     * `advanced`: forged in the Stronghold oven or granted by a commander.
+     * `base`: weak elemental rune — always in the shop.
+     * `advanced`: between-round cards or commander grants (not shop).
      */
     tier: 'base' | 'advanced';
     /** atlas id for HUD and world badges (`item-*`) */
@@ -43,8 +46,8 @@ export interface ItemDef {
     /** grants every mech in the pack a shield pool equal to its max HP */
     grantsShieldHp?: boolean;
     /**
-     * Forge recipe producing this rune: the exact multiset of rune ids the oven
-     * must hold. No two recipes may share the same ingredients.
+     * Optional forge recipe producing this rune (exact multiset of oven
+     * ingredients). Unused for advanced runes — they come from cards.
      */
     forge?: {
         ingredients: string[];
@@ -53,7 +56,7 @@ export interface ItemDef {
     };
     /**
      * Supply the Stronghold charges to fire the oven for this rune, on top of
-     * the ingredients. Omit = free. Only advanced (forged) runes have one.
+     * the ingredients. Omit = free.
      */
     forgeCost?: number;
     /** supply price as a between-round card (default 50) */

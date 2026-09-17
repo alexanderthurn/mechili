@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Festín de sangre",
-    "description": "Cura el 25% del daño infligido (repartido entre los miembros vivos del Pack)."
+    "description": "Cura el {{pct}}% del daño infligido (repartido entre los miembros vivos del Pack)."
   },
   "carrionFeast": {
     "name": "Festín de carroña",

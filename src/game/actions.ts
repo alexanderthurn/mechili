@@ -467,8 +467,8 @@ interface LogEntry extends LoggedAction {
     /** buyStrongholdArcher: the archer that was raised (for undo) */
     strongholdArcherUnit?: Unit;
     /**
-     * clearArmy: packs removed (items already returned to the bag — restored
-     * onto the pack on undo from {@link clearedPackItems})
+     * clearArmy / sellUnit: packs removed (items already returned to the bag —
+     * restored onto the pack on undo from {@link clearedPackItems})
      */
     clearedPackItems?: { unitId: number; items: string[]; itemRounds: number[] }[];
     /** clearArmy: techs removed with the supply that was refunded for each */
@@ -557,7 +557,8 @@ export interface ActionContext {
     /**
      * Persistent oil grid (shared, both teams). `oilBaseline` is the field at
      * the start of the current build phase; `oilStamps` are this deployment's
-     * placements (undo rebuilds baseline + stamps).
+     * placements only (cleared each round). Cooldown is derived from the
+     * action log via {@link LogEntry.usedTactic}, independent of stamp lifetime.
      */
     oilField: HazardField;
     oilBaseline: HazardField;
@@ -721,15 +722,48 @@ export class ActionDispatcher {
     }
 
     /**
-     * Spends one one-shot charge of `tacticId` and records it on the log
-     * entry — cooldown, undo, replay and the strip's greyed-out entry all
-     * derive from that record. Every 'oneShot' tactic action MUST consume
-     * its charge through this.
+     * Spends one charge of `tacticId` and records it on the log entry —
+     * cooldown, undo, replay and the strip's greyed-out entry all derive
+     * from that record. Used by one-shot tactics and Oil Spill (oil stamps
+     * wipe each round; the charge spend lives on the log independently).
      */
     private consumeTacticCharge(entry: LogEntry, seat: SeatId, tacticId: string): boolean {
         if (this.availableTacticCharges(seat, tacticId, entry.round) < 1) return false;
         entry.usedTactic = tacticId;
         return true;
+    }
+
+    /** Cancel oil: free the charge spend on the matching placeOilSpill log entry. */
+    private clearOilChargeSpend(stampId: number): void {
+        for (const e of this.log) {
+            if (
+                e.action.kind === 'placeOilSpill' &&
+                e.oilStamp?.id === stampId &&
+                e.usedTactic === OIL_SPILL_ID
+            ) {
+                e.usedTactic = undefined;
+                return;
+            }
+        }
+    }
+
+    /** Undo of removeOilSpill: put the charge spend back on the place entry. */
+    private restoreOilChargeSpend(stampId: number): void {
+        for (const e of this.log) {
+            if (e.action.kind === 'placeOilSpill' && e.oilStamp?.id === stampId) {
+                e.usedTactic = OIL_SPILL_ID;
+                return;
+            }
+        }
+    }
+
+    /** SP cheat: drop charge spends so past uses no longer block availability. */
+    clearTacticChargeSpends(seat: SeatId, tacticId: string): void {
+        for (const e of this.log) {
+            if (this.actorSeat(e.action) === seat && e.usedTactic === tacticId) {
+                e.usedTactic = undefined;
+            }
+        }
     }
 
     /** one side's applied actions of a round, in order — the network batch */
@@ -1032,6 +1066,14 @@ export class ActionDispatcher {
                 const refund = Math.round(
                     economy.costOf(unit.type) * this.ctx.sellSettings.refundFactor,
                 );
+                // Runes come back to the bag (fused or not) — selling the pack
+                // does not destroy them.
+                const items = [...unit.items];
+                const itemRounds = [...unit.itemAppliedRound];
+                for (const itemId of items) this.ctx.items[seat]!.push(itemId);
+                unit.items.length = 0;
+                unit.itemAppliedRound.length = 0;
+                entry.clearedPackItems = [{ unitId: unit.id, items, itemRounds }];
                 entry.unit = unit;
                 entry.paid = refund;
                 placement.removeUnit(unit);
@@ -1452,15 +1494,14 @@ export class ActionDispatcher {
                 return true;
             }
             case 'placeOilSpill': {
-                if (!this.ctx.types.tactic(OIL_SPILL_ID)) return false;
-                // per-seat charge pool and per-seat placement count
-                const max = this.ctx.tactics[seat]!.filter((id) => id === OIL_SPILL_ID).length;
-                const placed = this.ctx.oilStamps.filter((s) => s.seat === seat).length;
-                if (max < 1 || placed >= max) return false;
+                const tactic = this.ctx.types.tactic(OIL_SPILL_ID);
+                if (!tactic) return false;
+                // charge cooldown from the log (stamps wipe each round; CD does not)
+                if (!this.consumeTacticCharge(entry, seat, OIL_SPILL_ID)) return false;
                 const { round } = this.ctx.clock();
                 const duration =
-                    this.ctx.types.tactic(OIL_SPILL_ID)!.oilDurationRounds ?? OIL_SPILL_DURATION_ROUNDS;
-                const radius = this.ctx.types.tactic(OIL_SPILL_ID)!.oilRadius ?? OIL_SPILL_RADIUS;
+                    tactic.oilDurationRounds ?? OIL_SPILL_DURATION_ROUNDS;
+                const radius = tactic.oilRadius ?? OIL_SPILL_RADIUS;
                 const end = clampTacticEnd(
                     action.startX,
                     action.startZ,
@@ -1486,13 +1527,14 @@ export class ActionDispatcher {
                 return true;
             }
             case 'removeOilSpill': {
-                // own placements only
+                // own placements only (cancel this round's intent — frees the charge)
                 const i = this.ctx.oilStamps.findIndex(
                     (s) => s.id === action.stampId && s.seat === seat,
                 );
                 if (i < 0) return false;
                 entry.oilStamp = this.ctx.oilStamps[i];
                 this.ctx.oilStamps.splice(i, 1);
+                this.clearOilChargeSpend(entry.oilStamp.id);
                 resetOilFieldToBaseline(this.ctx);
                 return true;
             }
@@ -1770,14 +1812,29 @@ export class ActionDispatcher {
                 economy.credit(seat, e.paid!);
                 break;
             }
-            case 'sellUnit':
-                placement.restoreUnit(e.unit!);
+            case 'sellUnit': {
+                const unit = e.unit!;
+                const snap = e.clearedPackItems?.[0];
+                if (snap) {
+                    const bag = this.ctx.items[seat]!;
+                    for (let i = snap.items.length - 1; i >= 0; i--) {
+                        const id = snap.items[i]!;
+                        const at = bag.lastIndexOf(id);
+                        if (at >= 0) bag.splice(at, 1);
+                    }
+                    unit.items.length = 0;
+                    unit.itemAppliedRound.length = 0;
+                    for (const id of snap.items) unit.items.push(id);
+                    for (const r of snap.itemRounds) unit.itemAppliedRound.push(r);
+                }
+                placement.restoreUnit(unit);
                 economy.spend(seat, e.paid!); // take the refund back
                 // a spent one-shot charge frees up when undoLast drops the log
                 // entry (its use record IS the log entry) — only the per-round
                 // ability counter needs rolling back by hand
                 if (e.usedTactic === undefined) this.ctx.sellState.used[seat]!--;
                 break;
+            }
             case 'buyForgeSpell': {
                 const owned = this.ctx.forgeSpellOwned[seat];
                 for (const id of e.grantedTactics ?? []) {
@@ -1916,6 +1973,7 @@ export class ActionDispatcher {
             }
             case 'removeOilSpill': {
                 this.ctx.oilStamps.push(e.oilStamp!);
+                this.restoreOilChargeSpend(e.oilStamp!.id);
                 resetOilFieldToBaseline(this.ctx);
                 break;
             }

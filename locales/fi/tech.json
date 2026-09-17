@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Veripidot",
-    "description": "Parantaa 25% aiheutetusta vahingosta (jaetaan Packin elävien jäsenten kesken)."
+    "description": "Parantaa {{pct}}% aiheutetusta vahingosta (jaetaan Packin elävien jäsenten kesken)."
   },
   "carrionFeast": {
     "name": "Raatopidot",

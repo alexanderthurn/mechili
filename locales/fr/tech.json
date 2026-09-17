@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Festin de sang",
-    "description": "Soigne de 25% des dégâts infligés (répartis entre les membres vivants du Pack)."
+    "description": "Soigne de {{pct}}% des dégâts infligés (répartis entre les membres vivants du Pack)."
   },
   "carrionFeast": {
     "name": "Festin de charogne",

@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Pesta Darah",
-    "description": "Memulihkan 25% dari kerusakan yang diberikan (dibagi ke anggota Pack yang masih hidup)."
+    "description": "Memulihkan {{pct}}% dari kerusakan yang diberikan (dibagi ke anggota Pack yang masih hidup)."
   },
   "carrionFeast": {
     "name": "Pesta Bangkai",

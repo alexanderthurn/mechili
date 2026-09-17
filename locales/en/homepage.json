@@ -96,14 +96,17 @@
     "select": "Choose a {{commander}}"
   },
   "runes": {
-    "sub": "Fused onto a pack for good, lifting every mech in it {{sep}} most packs hold {{packLimit}}, the ballista {{ballistaLimit}}. The four base runes are drafted from round cards or bought in the shop; the stronger ones are forged from them at the Stronghold, and never sold.",
+    "sub": "Fused onto a pack for good, lifting every mech in it {{sep}} most packs hold {{packLimit}}, the ballista {{ballistaLimit}}. Base runes are bought in the shop; mixed runes are forged from them; advanced specials are drafted from round cards only.",
     "select": "Choose a {{item}}",
     "base": "Base",
+    "mixed": "Mixed",
     "advanced": "Advanced",
-    "shopTitle": "Bought in the shop, or drafted from a round card",
+    "shopTitle": "Bought in the shop",
     "shopLabel": "Shop price",
-    "forgeTitle": "Forged at the {{building}}",
-    "forgeLabel": "Forge price"
+    "mixForgeTitle": "Forged at the Stronghold",
+    "mixForgeLabel": "Forge price",
+    "forgeTitle": "Drafted from a round card",
+    "forgeLabel": "Card price"
   },
   "tactics": {
     "sub": "These are the skills on your {{tactics}} strip {{sep}} rallies, spills, summons, and battle casts like the dragon’s fire breath. Battle spells are bought at your Stronghold, once each, and only the three your commander knows. Icons match what you see in-game.",

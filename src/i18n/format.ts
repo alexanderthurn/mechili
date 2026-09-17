@@ -62,12 +62,15 @@ export function techName(id: string, fallback?: string): string {
 }
 
 /** Hand-written talent blurbs — empty string if none (caller may build from mods). */
-export function techBlurb(id: string, fallback?: string): string {
+export function techBlurb(
+    id: string,
+    fallback?: string,
+    vars?: Record<string, string | number>,
+): string {
     if (fallback === undefined) {
-        const v = t(`tech:${id}.description`, { defaultValue: '' });
-        return v;
+        return t(`tech:${id}.description`, { defaultValue: '', ...vars });
     }
-    return t(`tech:${id}.description`, { defaultValue: fallback });
+    return t(`tech:${id}.description`, { defaultValue: fallback, ...vars });
 }
 
 export function commanderTitle(id: string, fallback?: string): string {

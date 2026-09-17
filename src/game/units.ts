@@ -194,7 +194,11 @@ export function techIcon(tech: TechDef): string {
 /** human-readable summary of what a tech does — its own text, or built from its mods / produce */
 export function techDescription(tech: TechDef): string {
     if (tech.description) {
-        return techBlurb(tech.id, tech.description);
+        const vars: Record<string, string | number> = {};
+        if (tech.lifesteal != null) {
+            vars.pct = Math.round(tech.lifesteal * 100);
+        }
+        return techBlurb(tech.id, tech.description, vars);
     }
     const parts: string[] = [];
     const pct = (mult: number) => `${mult >= 1 ? '+' : '−'}${Math.round(Math.abs(mult - 1) * 100)}%`;

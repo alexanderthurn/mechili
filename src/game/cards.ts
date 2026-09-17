@@ -2,7 +2,7 @@
  * The specialist system: before round 1 each player picks a SPECIALIST card
  * — a starting army (equal total value), a starting HP pool, a permanent
  * speciality, and possibly pack items. Between rounds, round cards are
- * offered; the live offer currently draws runes only.
+ * offered; the live offer currently draws advanced runes only.
  *
  * Commanders and round cards are data (`assets/data/commanders`,
  * `assets/data/roundCards`, rune cards from `assets/data/runes`), served by the
@@ -94,7 +94,7 @@ export type RoundCardDrawPool = 'runes' | 'units' | 'spells';
 
 /**
  * Between-round offer: shuffle the configured pool and take up to `offerCount`.
- * The rune pool is narrowed to `itemIds` (default: the base runes).
+ * The rune pool defaults to **advanced** runes only (bases are shop / forge).
  */
 export function drawRoundCardOffer(
     types: TypeRegistry,
@@ -108,7 +108,7 @@ export function drawRoundCardOffer(
     const pool = opts?.pool ?? 'runes';
     let deck = types.roundCardsInPool(pool);
     if (pool === 'runes') {
-        const allowed = new Set(opts?.itemIds?.length ? opts.itemIds : types.baseRuneIds);
+        const allowed = new Set(opts?.itemIds?.length ? opts.itemIds : types.advancedRuneIds);
         deck = deck.filter((c) => allowed.has(c.id));
     }
     if (deck.length === 0) return [];

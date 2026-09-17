@@ -49,12 +49,12 @@ class OffRoundCards extends RoundCardAlgorithm {
     }
 }
 
-/** Base runes on even rounds only (sparse). */
+/** Advanced runes on even rounds only (sparse). */
 class RunesSpareRoundCards extends RoundCardAlgorithm {
     readonly id = 'runes-spare';
     describe(): string {
         return t('settings:cardsSpare', {
-            defaultValue: 'Runes Only (Spare) — base runes on rounds 2, 4, 6, 8, 10',
+            defaultValue: 'Runes Only (Spare) — advanced runes on rounds 2, 4, 6, 8, 10',
         });
     }
     shouldOffer(round: number): boolean {
@@ -65,12 +65,12 @@ class RunesSpareRoundCards extends RoundCardAlgorithm {
     }
 }
 
-/** Base runes every round from round 2. */
+/** Advanced runes every round from round 2. */
 class RunesEveryRoundCards extends RoundCardAlgorithm {
     readonly id = 'runes-every';
     describe(): string {
         return t('settings:cardsEvery', {
-            defaultValue: 'Runes Only (Every Round) — base runes every round from round 2',
+            defaultValue: 'Runes Only (Every Round) — advanced runes every round from round 2',
         });
     }
     shouldOffer(round: number): boolean {
@@ -83,13 +83,13 @@ class RunesEveryRoundCards extends RoundCardAlgorithm {
 
 /**
  * Escalating pools across the match:
- * rounds 2–4 runes → 5–7 unit packs → 8–10 spells.
+ * rounds 2–4 advanced runes → 5–7 unit packs → 8–10 spells.
  */
 class FullRoundCards extends RoundCardAlgorithm {
     readonly id = 'full';
     describe(): string {
         return t('settings:cardsFull', {
-            defaultValue: 'Full — rounds 2–4 runes, 5–7 unit packs, 8–10 spells',
+            defaultValue: 'Full — rounds 2–4 advanced runes, 5–7 unit packs, 8–10 spells',
         });
     }
     shouldOffer(round: number): boolean {

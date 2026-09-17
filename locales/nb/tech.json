@@ -82,7 +82,7 @@
   },
   "bloodfeast": {
     "name": "Blodfest",
-    "description": "Leger 25% av skaden som gjøres (fordelt på Packets levende medlemmer)."
+    "description": "Leger {{pct}}% av skaden som gjøres (fordelt på Packets levende medlemmer)."
   },
   "carrionFeast": {
     "name": "Åtselfest",

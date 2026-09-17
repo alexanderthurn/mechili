@@ -91,7 +91,7 @@
   },
   "bloodfeast": {
     "name": "Bloodfeast",
-    "description": "Heals for 25% of damage dealt (shared among living pack members)."
+    "description": "Heals for {{pct}}% of damage dealt (shared among living pack members)."
   },
   "carrionFeast": {
     "name": "Carrion Feast",
