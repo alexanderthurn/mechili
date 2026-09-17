@@ -3455,9 +3455,9 @@ export class Game {
         this.rallyRoutes.length = 0;
         this.cancelTacticPlacement();
         // oil + acid: expire old cells, snapshot baseline for this deployment's
-        // undo, clear stamps (this round's oil is outline-only until battle;
-        // acid's spellStamps persist across rounds already — only its expiry
-        // and baseline snapshot need to run here)
+        // undo, clear oil stamps (outline-only until battle). Oil cooldown lives
+        // on the action log, not on stamps. Acid spellStamps persist already —
+        // only expiry + baseline snapshot need to run here.
         this.oilField.expireOilBefore(this.round);
         this.oilField.expireAcidBefore(this.round);
         this.oilBaseline.oilExpires.set(this.oilField.oilExpires);
@@ -3695,6 +3695,9 @@ export class Game {
                 oilField: this.oilField,
                 oilBaseline: this.oilBaseline,
             });
+        }
+        if (grants.has(OIL_SPILL_ID)) {
+            this.dispatcher.clearTacticChargeSpends(seat, OIL_SPILL_ID);
         }
 
         // this-round stamps block a charge; older ones only grey the strip —
@@ -7523,8 +7526,9 @@ export class Game {
                               s.placedRound === this.round,
                       )
                     : (placementsOf[tactic.id]?.() ?? []);
-                // spells fired in past rounds still cool their charge down
-                const cooling = usesSpellPlacement(tactic)
+                // spells: past stamps cool the charge. oil: stamps wipe each round,
+                // so past uses come from the action log (same as one-shot).
+                const coolingStamps = usesSpellPlacement(tactic)
                     ? this.spellStamps.filter(
                           (s) =>
                               s.seat === this.humanSeat &&
@@ -7533,12 +7537,22 @@ export class Game {
                               s.placedRound >= this.round - tactic.cooldownRounds,
                       )
                     : [];
+                const oilUseRounds =
+                    tactic.id === OIL_SPILL_ID
+                        ? this.dispatcher
+                              .tacticUseRounds(
+                                  this.humanSeat,
+                                  OIL_SPILL_ID,
+                                  this.round - tactic.cooldownRounds,
+                              )
+                              .filter((r) => r < this.round)
+                        : [];
                 placedEntries = [
                     ...placements.map((p) => ({
                         routeId: p.id,
                         badge: 'cancel' as const,
                     })),
-                    ...cooling.map((s) => {
+                    ...coolingStamps.map((s) => {
                         const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
                         const name = tacticName(tactic.id, tactic.name);
                         return {
@@ -7549,13 +7563,29 @@ export class Game {
                             }),
                         };
                     }),
+                    ...oilUseRounds.map((r) => {
+                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
+                        const name = tacticName(tactic.id, tactic.name);
+                        return {
+                            badge: readyIn,
+                            hint: t('hud:tacticCoolingDown', {
+                                name,
+                                ready: t('hud:tacticReadyAgain', { n: readyIn }),
+                            }),
+                        };
+                    }),
                 ];
-                avail =
-                    inventory +
-                    ability.max -
-                    ability.used -
-                    placements.length -
-                    cooling.length;
+                // oil: this-round spend is on the stamp (cancel) AND the log —
+                // count inventory against log uses so we don't double-subtract
+                const blocked =
+                    tactic.id === OIL_SPILL_ID
+                        ? this.dispatcher.tacticUseRounds(
+                              this.humanSeat,
+                              OIL_SPILL_ID,
+                              this.round - tactic.cooldownRounds,
+                          ).length
+                        : placements.length + coolingStamps.length;
+                avail = inventory + ability.max - ability.used - blocked;
             } else {
                 // one-shot: the charge stays in the inventory but cools down
                 // after use — both derived from the action log (undo restores)

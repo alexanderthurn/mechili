@@ -61,8 +61,9 @@ export const TACTIC_SAFE_ZONE_MARGIN = 4 * CELL;
  * `kind` (charge accounting):
  *  - 'placement': the charge stays bound to a standing placement (rally
  *    route, oil stamp) that the player can right-click in the strip to
- *    reset. Available = charges − standing placements; the charge frees up
- *    when the placement expires/clears (that IS its cooldown).
+ *    reset. Available = charges − standing placements; for Oil, stamps wipe
+ *    each round while cooldown still comes from the action log
+ *    (`usedTactic`). Spell stamps keep history for their cooldown window.
  *  - 'oneShot': the charge stays in the inventory forever; using it in
  *    round R makes it unavailable until round R + 1 + cooldownRounds. The
  *    uses are derived from the ACTION LOG, so undo, reload and multiplayer
