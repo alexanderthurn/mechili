@@ -2560,7 +2560,7 @@ export class ProjectileRenderer {
                     this.stoneTint.setXYZW(slot, 1, 1, 1, 1);
                 }
             }
-            if (emitTrail && trailTier && p.trail === 'cloud') {
+            if (emitTrail && trailTier && p.trail === 'cloud' && !p.stone?.landed) {
                 // puff slightly behind the stone so the head stays readable
                 const bx = this.pos.x - this.dir.x * 0.55;
                 const by = this.pos.y - this.dir.y * 0.55;
@@ -2574,6 +2574,18 @@ export class ProjectileRenderer {
                     up: 0.35,
                     spread: 0.7,
                     dir: { x: -this.dir.x, y: -this.dir.y * 0.4, z: -this.dir.z },
+                });
+            } else if (emitTrail && trailTier && p.stone?.rolling && Math.hypot(p.vx, p.vz) > 1.5) {
+                // a rolling stone kicks up low brown dust where it touches the ground
+                this.ensureTrail(trailTier.pool).burst(this.pos.x, this.pos.y - p.stone.radius * 0.7, this.pos.z, {
+                    count: Math.max(1, Math.ceil(trailTier.puffs / 2)),
+                    color: 0x8a6f4d,
+                    colorEnd: 0x6b5a45,
+                    speed: 0.35,
+                    life: 0.6,
+                    up: 0.15,
+                    spread: 0.45,
+                    dir: { x: -this.dir.x, y: 0.2, z: -this.dir.z },
                 });
             }
         }
