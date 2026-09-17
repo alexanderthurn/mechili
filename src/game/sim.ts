@@ -1764,7 +1764,7 @@ export class BattleSim {
         const profile = this.empProfileOf(source);
         if (!profile || !target.alive) return;
         if (target.unit.type.structure || target.unit.type.extra) return;
-        if (this.isGolden(target)) return;
+        if (this.isDebuffImmune(target)) return;
         const already = target.empUntil > this.elapsed + 1e-9;
         target.empUntil = Math.max(target.empUntil, this.elapsed + profile.duration);
         target.empSpeedMult = already
@@ -3717,9 +3717,9 @@ export class BattleSim {
     /** tower-destruction or storm-bolt debuff is active for this mech right now.
      *  Seat tower loss affects the whole combat seat ({@link actorSeat} — so a
      *  converted mech follows its new owner, not the deploy seat); storm bolts
-     *  are personal. Golden aura / debuff-immune items shrug both off. */
+     *  are personal. Golden / Sunward shrug both off. */
     private isDebuffed(actor: Actor): boolean {
-        if (this.isGolden(actor)) return false;
+        if (this.isDebuffImmune(actor)) return false;
         if (actor.stormDebuffUntil > this.elapsed + 1e-9) return true;
         const until = this.debuffUntil.get(actorSeat(actor)) ?? 0;
         return this.elapsed < until - 1e-9;
@@ -3727,7 +3727,7 @@ export class BattleSim {
 
     /** refresh personal storm debuff (same multipliers as tower loss) */
     private applyStormDebuff(actor: Actor): void {
-        if (this.isGolden(actor) || actor.unit.type.structure || actor.unit.type.extra) return;
+        if (this.isDebuffImmune(actor) || actor.unit.type.structure || actor.unit.type.extra) return;
         actor.stormDebuffUntil = Math.max(actor.stormDebuffUntil, this.elapsed + STORM_DEBUFF_SEC);
     }
 
@@ -3754,12 +3754,26 @@ export class BattleSim {
         return factor;
     }
 
-    /** golden item on the pack, or a recent ballista aura buff */
+    /** Sunstone rune or a recent golden-aura buff (−30% taken, convert→damage, full shrug). */
     isGolden(actor: Actor): boolean {
         for (const id of actor.unit.items) {
             if (this.config.types.rune(id)?.debuffImmune) return true;
         }
         return actor.goldenUntil > this.elapsed + 1e-9;
+    }
+
+    /**
+     * Hex / tower / storm shrug — golden pack, or a talent with `debuffImmune`
+     * (Sunward: immunity only, no damage cut / convert block).
+     */
+    private isDebuffImmune(actor: Actor): boolean {
+        if (this.isGolden(actor)) return true;
+        for (const tech of this.config.types.talentsOf(actor.unit.type)) {
+            if (!tech.debuffImmune) continue;
+            // Seat research, not actorHasTech — hex must never strip this shield.
+            if (this.config.hasTech(actor.unit.seat, actor.unit.type.id, tech.id)) return true;
+        }
+        return false;
     }
 
     /**

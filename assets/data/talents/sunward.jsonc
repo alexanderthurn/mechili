@@ -1,0 +1,10 @@
+// Debuff / disable shrug only — not full Sunstone (−30% / convert block).
+{
+    "id": "sunward",
+    "name": "Sunward",
+    "cost": 50,
+    "mods": {},
+    "debuffImmune": true,
+    "icon": "tech-sunward",
+    "description": "Immune to hex, tower debuffs, and storm disable.",
+}

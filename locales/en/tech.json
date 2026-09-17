@@ -109,6 +109,10 @@
     "name": "Loose Rank",
     "description": "At battle start, pack members push farther apart for 2s (3× personal space), then tighten again."
   },
+  "sunward": {
+    "name": "Sunward",
+    "description": "Immune to hex, tower debuffs, and storm disable."
+  },
   "massBinding": {
     "name": "Mass Binding",
     "description": "Beam or convert up to 4 enemies at once; each channel deals 18% intensity."
