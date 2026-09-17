@@ -330,7 +330,7 @@ export function slopeGroundGlsl(opts: {
 	vec3 slopeP = ${worldPos};
 	float slopeVar = slopeNoise( slopeP.xz / 7.0 ) * 0.65 + slopeNoise( slopeP.xz / 2.3 + 17.0 ) * 0.35 - 0.5;
 	float slopeFade = ${fade};
-	float slopeDryT = smoothstep( 0.08, 0.3, slopeGrade + slopeVar * 0.14 ) * slopeFade;
+	float slopeDryT = smoothstep( 0.16, 0.45, slopeGrade + slopeVar * 0.14 ) * slopeFade;
 	// the same brown in loose patches on flat grass: big soft drifts with a smaller breakup
 	float slopePatchN = slopeNoise( slopeP.xz / 26.0 + 41.3 ) * 0.7 + slopeNoise( slopeP.xz / 8.5 + 3.7 ) * 0.3;
 	float slopePatchT = smoothstep( 0.52, 0.8, slopePatchN ) * ${FLAT_BROWN_PATCHES.toFixed(2)} * slopeFade;
@@ -345,7 +345,7 @@ export function slopeGroundGlsl(opts: {
         glsl += `	slopeEarth = mix( slopeEarth, texture2D( ${earth.sampler}, ${earth.uv} ).rgb * vec3( 0.9, 0.82, 0.72 ), 0.55 );
 `;
     }
-    glsl += `	vec3 slopeCol = mix( slopeBase, slopeDry, slopeDryT * 0.9 );
+    glsl += `	vec3 slopeCol = mix( slopeBase, slopeDry, slopeDryT * 0.7 );
 	slopeCol = mix( slopeCol, slopeEarth, slopeEarthT * 0.9 );
 `;
     if (rock) {
