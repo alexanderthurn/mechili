@@ -164,6 +164,7 @@ import {
     clearDeathClip,
     clearDeathFall,
     clearDeathTip,
+    alignSettledCorpse,
     settleCorpsePose,
     tickDeathClip,
     tickDeathFall,
@@ -1978,7 +1979,8 @@ export class Game {
         };
         this.placement.rangeOf = (unit, x, z) => {
             const base = this.resolvedStatsView(unit).range;
-            if (!unit.type.projectileSpeed) return base;
+            // ground shooters only: a flyer's altitude is not high ground (see BattleSim.elevationCounts)
+            if (!unit.type.projectileSpeed || unit.flightCeiling() > 0) return base;
             // ranged: reach per direction, same elevation rule as the sim
             const feetY = unit.pinnedY ?? simGroundSupportAt(x, z) + GROUND_UNIT_Y;
             return (dx, dz) => reachToward(feetY, x, z, dx, dz, base, 0);
@@ -9802,8 +9804,13 @@ export class Game {
                         mesh.userData.corpseSettled = true;
                         clearDeathClip(mesh);
                     }
-                } else if (collapse && !tickBuildingCollapse(mesh, collapse, this.time)) {
-                    clearBuildingCollapse(mesh);
+                } else if (collapse) {
+                    if (!tickBuildingCollapse(mesh, collapse, this.time)) clearBuildingCollapse(mesh);
+                } else if (mesh.userData.corpseSettled && !mesh.userData.hammerCrushed) {
+                    // settled out here (the sim's own dead loop is gone) — still hug terrain + slope
+                    const wx = unit.world.x + mesh.position.x;
+                    const wz = unit.world.z + mesh.position.z;
+                    alignSettledCorpse(mesh, wx, wz, worldHeightAt(wx, wz) + GROUND_UNIT_Y);
                 }
                 if (usesWingFlapModel(unit.type.modelId ?? unit.type.id) && mesh.userData.instanced) {
                     setCrowWingDeathSplay(mesh, crowWingDeathSplay(this.time, fall, tip));
@@ -11141,9 +11148,10 @@ export class Game {
         const range = this.resolvedStats(a.unit).range;
         const own = a.unit.type.collisionRadius;
         // ranged: the ring bulges down onto low ground and pulls in up a slope, like the sim's reach
-        const radius: RangeShape = a.unit.type.projectileSpeed
-            ? (dx, dz) => reachToward(a.footY, a.rx, a.rz, dx, dz, range, own)
-            : range + own;
+        const radius: RangeShape =
+            a.unit.type.projectileSpeed && a.altitude === 0
+                ? (dx, dz) => reachToward(a.footY, a.rx, a.rz, dx, dz, range, own)
+                : range + own;
         const tint = colorForBattleTeam(actorTeam(a)).hex;
         if (fov !== null) {
             placeFovWedge(this.battleFovMesh, a.rx, a.rz, radius, fov, STRONGHOLD_ARCHER_FOV_HALF);

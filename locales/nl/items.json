@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Aarde",
-    "description": "+10% HP."
+    "name": "Aarde"
   },
   "fire": {
-    "name": "Vuur",
-    "description": "+10% aanvalskracht."
+    "name": "Vuur"
   },
   "water": {
-    "name": "Water",
-    "description": "+5% aanval en HP."
+    "name": "Water"
   },
   "wind": {
-    "name": "Wind",
-    "description": "+10% bereik."
+    "name": "Wind"
   },
   "addi": {
     "name": "Moed",

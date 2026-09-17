@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Bumi",
-    "description": "+10% HP."
+    "name": "Bumi"
   },
   "fire": {
-    "name": "Kebakaran",
-    "description": "Serangan +10%."
+    "name": "Kebakaran"
   },
   "water": {
-    "name": "Air",
-    "description": "+5% serangan dan HP."
+    "name": "Air"
   },
   "wind": {
-    "name": "Angin",
-    "description": "Julat +10%."
+    "name": "Angin"
   },
   "addi": {
     "name": "Keberanian",

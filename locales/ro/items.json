@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Pământ",
-    "description": "+10% HP."
+    "name": "Pământ"
   },
   "fire": {
-    "name": "Foc",
-    "description": "+10% atac."
+    "name": "Foc"
   },
   "water": {
-    "name": "Apă",
-    "description": "+5% atac și HP."
+    "name": "Apă"
   },
   "wind": {
-    "name": "Vânt",
-    "description": "+10% rază de acțiune."
+    "name": "Vânt"
   },
   "addi": {
     "name": "Curaj",

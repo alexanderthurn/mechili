@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "ดิน",
-    "description": "+10% HP"
+    "name": "ดิน"
   },
   "fire": {
-    "name": "ไฟ",
-    "description": "+10% การโจมตี"
+    "name": "ไฟ"
   },
   "water": {
-    "name": "น้ำ",
-    "description": "+5% การโจมตีและ HP"
+    "name": "น้ำ"
   },
   "wind": {
-    "name": "ลม",
-    "description": "+10% ระยะ"
+    "name": "ลม"
   },
   "addi": {
     "name": "ความกล้า",

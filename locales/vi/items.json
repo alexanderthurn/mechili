@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Trái đất",
-    "description": "Tăng 10% HP."
+    "name": "Trái đất"
   },
   "fire": {
-    "name": "Ngọn lửa",
-    "description": "Tăng 10% sức tấn công."
+    "name": "Ngọn lửa"
   },
   "water": {
-    "name": "Nước",
-    "description": "Tăng 5% sức tấn công và máu."
+    "name": "Nước"
   },
   "wind": {
-    "name": "Gió",
-    "description": "Khoảng +10%."
+    "name": "Gió"
   },
   "addi": {
     "name": "Lòng dũng cảm",

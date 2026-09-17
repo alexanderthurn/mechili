@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Terre",
-    "description": "+10% PV."
+    "name": "Terre"
   },
   "fire": {
-    "name": "Feu",
-    "description": "+10% d'attaque."
+    "name": "Feu"
   },
   "water": {
-    "name": "Eau",
-    "description": "+5% d'attaque et de PV."
+    "name": "Eau"
   },
   "wind": {
-    "name": "Vent",
-    "description": "+10 % de portée."
+    "name": "Vent"
   },
   "addi": {
     "name": "Vaillance",

@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Föld",
-    "description": "+10% ÉP."
+    "name": "Föld"
   },
   "fire": {
-    "name": "Tűz",
-    "description": "+10% támadás."
+    "name": "Tűz"
   },
   "water": {
-    "name": "Víz",
-    "description": "+5% támadás és HP."
+    "name": "Víz"
   },
   "wind": {
-    "name": "Szél",
-    "description": "+10%-os tartomány."
+    "name": "Szél"
   },
   "addi": {
     "name": "Bátorság",

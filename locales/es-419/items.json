@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Tierra",
-    "description": "+10% HP."
+    "name": "Tierra"
   },
   "fire": {
-    "name": "Fuego",
-    "description": "+10% de ataque."
+    "name": "Fuego"
   },
   "water": {
-    "name": "Agua",
-    "description": "+5% de ataque y HP."
+    "name": "Agua"
   },
   "wind": {
-    "name": "Viento",
-    "description": "+10% de rango."
+    "name": "Viento"
   },
   "addi": {
     "name": "Valor",

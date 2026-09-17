@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Erde",
-    "description": "+10% HP."
+    "name": "Erde"
   },
   "fire": {
-    "name": "Feuer",
-    "description": "+10% Angriff."
+    "name": "Feuer"
   },
   "water": {
-    "name": "Wasser",
-    "description": "+5% Angriff und HP."
+    "name": "Wasser"
   },
   "wind": {
-    "name": "Wind",
-    "description": "+10% Reichweite."
+    "name": "Wind"
   },
   "addi": {
     "name": "Tapferkeit",
