@@ -618,13 +618,23 @@ export class BattleMap {
             const d = hypot(dx, dz);
             const ux = d > 1e-6 ? dx / d : 0;
             const uz = d > 1e-6 ? dz / d : 0;
-            const radius = HIGHLAND_RADIUS + (this.reliefNoise(ux * 1.3 + 40.2, uz * 1.3 + 7.7) - 0.5) * 9;
-            // the flanks: mostly a steady climb like the steep ramp, with a few short cliff sections
+            // an uneven outline: a broad and a finer wobble around the top
+            const radius =
+                HIGHLAND_RADIUS +
+                (this.reliefNoise(ux * 1.3 + 40.2, uz * 1.3 + 7.7) - 0.5) * 10 +
+                (this.reliefNoise(ux * 3.4 + 9.7, uz * 3.4 + 61.1) - 0.5) * 5;
+            // the flanks: about half the way round a long, grassy slope, the rest a
+            // steady climb like the steep ramp, with a few short cliff sections
+            const gentleN = this.reliefNoise(ux * 1.6 + 77.7, uz * 1.6 + 33.3);
             const cliffN = this.reliefNoise(ux * 1.1 + 12.3, uz * 1.1 + 5.5);
-            const flankW = 28 - 18 * smooth01((cliffN - 0.56) / 0.1);
-            const flankT = Math.min(1, Math.max(0, (d - radius) / flankW));
+            const flankW = 28 + 22 * smooth01((gentleN - 0.42) / 0.16) - 18 * smooth01((cliffN - 0.6) / 0.1);
+            let flankT = Math.min(1, Math.max(0, (d - radius) / flankW));
+            // wobble the contour lines and scatter knolls over the slope so it doesn't read as a lathe-turned cone
+            const onFlank = flankT * (1 - flankT) * 4;
+            flankT = Math.min(1, Math.max(0, flankT + (this.reliefNoise(xs / 9 + 1.3, zs / 9 + 8.8) - 0.5) * 0.3 * onFlank));
+            const knolls = smooth01((this.reliefNoise(xs / 6.5 + 23.1, zs / 6.5 + 4.2) - 0.55) / 0.3) * 1.8 * onFlank;
             // near-linear so the climb is even (a pure smoothstep is 1.5× steeper mid-slope)
-            const plateau = HIGHLAND_HEIGHT * (1 - (flankT + (smooth01(flankT) - flankT) * 0.4));
+            const plateau = HIGHLAND_HEIGHT * (1 - (flankT + (smooth01(flankT) - flankT) * 0.4)) + knolls;
             // two ways up, one to each front flank: a wide, gentle ramp and a
             // narrower, steeper one (both from inside the top, out and down)
             // `top`: where along the line the plateau's edge is — the descent starts there, so there is no step at the top
