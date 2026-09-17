@@ -29,7 +29,7 @@ export const TERRAIN_HEAL_PER_ROUND = 0;
  * can't be pushed further out.
  */
 export const BOARD_MIN_Y = 0;
-export const BOARD_MAX_Y = 8;
+export const BOARD_MAX_Y = 24;
 
 /** a deformation's new height, kept inside [{@link BOARD_MIN_Y}, {@link BOARD_MAX_Y}] */
 export function clampBoardY(before: number, after: number): number {
