@@ -9,13 +9,15 @@ import { GROUND_UNIT_Y } from './groundQuality';
 
 /**
  * Horizontal range gained per world-unit of height ABOVE the target: shooting
- * downhill carries far, so high ground (a keep, a plateau) is worth a lot.
+ * downhill carries, so high ground (a keep, a plateau) is worth taking.
+ * Ground fighting only — see {@link elevationRangeBonus}'s callers: a flyer's
+ * altitude is not "high ground".
  */
-export const RANGE_PER_WU_DOWN = 4.5;
+export const RANGE_PER_WU_DOWN = 0.9;
 /** Range lost per world-unit the target stands above the shooter — shooting up costs little but adds up. */
 export const RANGE_PER_WU_UP = 0.45;
 /** Caps so sculpted cliffs / tall keeps stay readable. */
-export const RANGE_ELEV_MAX_BONUS = 100;
+export const RANGE_ELEV_MAX_BONUS = 20;
 export const RANGE_ELEV_MAX_PENALTY = 8;
 
 /** Rise/run above this → prefer slide / crawl instead of full forward step. */

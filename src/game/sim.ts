@@ -4511,7 +4511,7 @@ export class BattleSim {
                         target.radius,
                         this.feetY(a),
                         this.feetY(target),
-                        !!a.unit.type.projectileSpeed,
+                        this.elevationCounts(a, target),
                     );
                     const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
                     if (
@@ -4588,7 +4588,7 @@ export class BattleSim {
                 target.radius,
                 this.feetY(a),
                 this.feetY(target),
-                !!a.unit.type.projectileSpeed,
+                this.elevationCounts(a, target),
             );
             const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
 
@@ -5139,6 +5139,15 @@ export class BattleSim {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether the high-ground range rule applies to this pair: ranged, and both
+     * on the ground. A flyer hovers wherever it likes, so neither its altitude
+     * nor a ground unit's hill should change reach against it.
+     */
+    private elevationCounts(shooter: Actor, target: Actor): boolean {
+        return !!shooter.unit.type.projectileSpeed && shooter.altitude === 0 && target.altitude === 0;
     }
 
     /** whether this unit's attack (shot or beam) can reach the target over the terrain */
@@ -6937,7 +6946,7 @@ export class BattleSim {
                 cached.radius,
                 this.feetY(from),
                 this.feetY(cached),
-                !!from.unit.type.projectileSpeed,
+                this.elevationCounts(from, cached),
             );
             const dx = cached.x - from.x;
             const dz = cached.z - from.z;
@@ -7009,7 +7018,7 @@ export class BattleSim {
                         a.radius,
                         this.feetY(from),
                         this.feetY(a),
-                        !!from.unit.type.projectileSpeed,
+                        this.elevationCounts(from, a),
                     );
                     aside = d <= reach * reach && !this.attackLineOpen(from, a);
                 }
