@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Hvirvelvind",
     "description": "Bredere hug — rammer hver fjende i en stor cirkel omkring enheden."
+  },
+  "sunward": {
+    "name": "Solvagt",
+    "description": "Immun over for forheksning, tårnsvækkelser og stormlammelse."
   }
 }

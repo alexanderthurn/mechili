@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Angin Puyuh",
     "description": "Tebasan lebih lebar — mengenai setiap musuh dalam lingkaran besar di sekitar unit ini."
+  },
+  "sunward": {
+    "name": "Penjaga Surya",
+    "description": "Kebal terhadap kutukan, pelemahan menara, dan lumpuh badai."
   }
 }

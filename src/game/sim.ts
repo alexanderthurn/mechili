@@ -3719,10 +3719,10 @@ export class BattleSim {
      *  converted mech follows its new owner, not the deploy seat); storm bolts
      *  are personal. Golden / Sunward shrug both off. */
     private isDebuffed(actor: Actor): boolean {
-        if (this.isDebuffImmune(actor)) return false;
-        if (actor.stormDebuffUntil > this.elapsed + 1e-9) return true;
-        const until = this.debuffUntil.get(actorSeat(actor)) ?? 0;
-        return this.elapsed < until - 1e-9;
+        // cheap timers first — the immunity check walks talents, and most mechs aren't debuffed at all
+        const storm = actor.stormDebuffUntil > this.elapsed + 1e-9;
+        if (!storm && this.elapsed >= (this.debuffUntil.get(actorSeat(actor)) ?? 0) - 1e-9) return false;
+        return !this.isDebuffImmune(actor);
     }
 
     /** refresh personal storm debuff (same multipliers as tower loss) */

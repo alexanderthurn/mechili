@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Tourbillon",
     "description": "Frappe plus large — touche chaque ennemi dans un grand disque autour de cette unité."
+  },
+  "sunward": {
+    "name": "Garde solaire",
+    "description": "Immunisé contre le maléfice, les malus de tour et la paralysie de tempête."
   }
 }

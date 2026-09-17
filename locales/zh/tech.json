@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "旋风",
     "description": "更宽的劈砍 — 命中该单位周围大圆内的所有敌人。"
+  },
+  "sunward": {
+    "name": "日之庇护",
+    "description": "免疫诅咒、塔楼削弱和风暴瘫痪。"
   }
 }

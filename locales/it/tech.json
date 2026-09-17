@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Turbine",
     "description": "Fendente più ampio: colpisce ogni nemico in un grande cerchio attorno a questa unità."
+  },
+  "sunward": {
+    "name": "Guardia solare",
+    "description": "Immune a maledizione, indebolimenti delle torri e blocco della tempesta."
   }
 }

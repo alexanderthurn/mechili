@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Virvelvind",
     "description": "Bredere hugg — treffer hver fiende i en stor sirkel rundt enheten."
+  },
+  "sunward": {
+    "name": "Solvakt",
+    "description": "Immun mot forheksing, tårnsvekkelser og stormlammelse."
   }
 }

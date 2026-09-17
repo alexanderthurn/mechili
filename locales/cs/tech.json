@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Vír",
     "description": "Širší sek — zasáhne každého nepřítele ve velkém kruhu kolem této jednotky."
+  },
+  "sunward": {
+    "name": "Sluneční stráž",
+    "description": "Imunní vůči kletbě, oslabením od věží a ochromení bouří."
   }
 }

@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Wervelwind",
     "description": "Bredere houw — raakt elke vijand in een grote cirkel rond deze eenheid."
+  },
+  "sunward": {
+    "name": "Zonnewacht",
+    "description": "Immuun voor beheksing, torenverzwakkingen en stormverlamming."
   }
 }

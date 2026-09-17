@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Wirbelwind",
     "description": "Breiterer Hieb — trifft jeden Gegner in einem großen Kreis um diese Einheit."
+  },
+  "sunward": {
+    "name": "Sonnenwacht",
+    "description": "Immun gegen Verhexung, Turm-Schwächungen und Sturmlähmung."
   }
 }

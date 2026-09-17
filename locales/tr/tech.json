@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Kasırga",
     "description": "Daha geniş savuruş — bu birliğin etrafındaki büyük bir daire içindeki her düşmanı vurur."
+  },
+  "sunward": {
+    "name": "Güneş Muhafızı",
+    "description": "Lanete, kule zayıflatmalarına ve fırtına felcine karşı bağışık."
   }
 }

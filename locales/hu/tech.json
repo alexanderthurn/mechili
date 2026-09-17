@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Forgószél",
     "description": "Szélesebb suhintás — minden ellenséget eltalál egy nagy körben az egység körül."
+  },
+  "sunward": {
+    "name": "Napőrség",
+    "description": "Immunis az átokra, a tornyok gyengítéseire és a vihar bénítására."
   }
 }

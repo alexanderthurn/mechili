@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Wir",
     "description": "Szersze cięcie — trafia każdego wroga w dużym kręgu wokół tej jednostki."
+  },
+  "sunward": {
+    "name": "Słoneczna straż",
+    "description": "Odporność na klątwę, osłabienia od wież i paraliż burzy."
   }
 }

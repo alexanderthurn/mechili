@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Pyörremyrsky",
     "description": "Leveämpi isku — osuu jokaiseen viholliseen suuressa ympyrässä yksikön ympärillä."
+  },
+  "sunward": {
+    "name": "Auringonvartio",
+    "description": "Immuuni kiroukselle, tornien heikennyksille ja myrskyn lamautukselle."
   }
 }

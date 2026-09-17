@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Remoinho",
     "description": "Golpe mais amplo — atinge todos os inimigos num grande círculo à volta desta unidade."
+  },
+  "sunward": {
+    "name": "Guarda solar",
+    "description": "Imune a maldição, penalidades de torre e bloqueio da tempestade."
   }
 }

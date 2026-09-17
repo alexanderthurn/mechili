@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Torbellino",
     "description": "Tajo más amplio: golpea a todos los enemigos en un gran círculo alrededor de esta unidad."
+  },
+  "sunward": {
+    "name": "Guardia solar",
+    "description": "Inmune al maleficio, a los debilitamientos de torre y a la inhabilitación de la tormenta."
   }
 }

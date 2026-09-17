@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Vârtej",
     "description": "Lovitură mai largă — lovește fiecare inamic dintr-un cerc mare în jurul acestei unități."
+  },
+  "sunward": {
+    "name": "Straja Soarelui",
+    "description": "Imun la blestem, penalizările turnurilor și paralizia furtunii."
   }
 }

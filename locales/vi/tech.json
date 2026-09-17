@@ -135,5 +135,9 @@
   "whirlwind": {
     "name": "Gió lốc",
     "description": "Nhát chém rộng hơn — trúng mọi kẻ địch trong vòng tròn lớn quanh đơn vị này."
+  },
+  "sunward": {
+    "name": "Hộ vệ Mặt Trời",
+    "description": "Miễn nhiễm lời nguyền, hiệu ứng suy yếu từ tháp và tê liệt do bão."
   }
 }

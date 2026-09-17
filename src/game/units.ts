@@ -126,8 +126,8 @@ export interface TechDef {
     /** Owning it gives every mech of the pack a shield pool equal to its max HP (Aegis). */
     grantsShieldHp?: boolean;
     /**
-     * Permanent Sunstone effect: immune to hex / tower / storm debuffs, −30%
-     * damage taken, and convert ray deals damage instead of flipping allegiance.
+     * Talent (Sunward): immune to hex, tower-loss and storm debuffs — the
+     * immunity only, without the Sunstone rune's −30% damage taken or convert block.
      */
     debuffImmune?: boolean;
     /**
