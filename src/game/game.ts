@@ -1198,7 +1198,7 @@ export class Game {
         }
         // Exit cinema: restore deploy chrome only while freely placing
         if (this.phase === 'build' && !this.deployReady.player && !this.matchOver) {
-            if (!this.mountainEditor) this.placement.enabled = true;
+            if (!this.mountainEditor?.active) this.placement.enabled = true;
             this.gridOverlay.visible = true;
             this.placement.beginDeployment();
             this.syncTacticVisuals();
@@ -1670,6 +1670,12 @@ export class Game {
                     map: this.map,
                     landscape: this.landscape,
                     onLandscapeChanged: () => this.bindLandscapeHeights(),
+                    // Play: the match's own controls (placing, spells) get the board back
+                    onActiveChange: (active) => {
+                        this.placement.enabled = !active && this.phase === 'build' && !this.deployReady.player && !this.matchOver;
+                        // back to sculpting: drop whatever the match's controls were carrying
+                        if (active) this.placement.deselect();
+                    },
                     plants: {
                         getPlants: () => this.scenery.getAuthoredPlants(),
                         getClears: () => this.scenery.getPlantClears(),
@@ -3434,7 +3440,7 @@ export class Game {
         if (this.round > 1) this.map.fadeWear(0.68);
         this.stoneChips.clear(); // high-setting collapse rubble lives until here
         this.placement.beginDeployment();
-        this.placement.enabled = !this.mountainEditor;
+        this.placement.enabled = !this.mountainEditor?.active;
         this.placement.hiddenPlacements = true;
         this.placement.currentRound = this.round; // earlier deployments are locked now
         this.refreshFlightAlts();

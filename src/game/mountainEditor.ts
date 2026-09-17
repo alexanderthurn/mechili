@@ -99,6 +99,8 @@ export interface MountainEditorOpts {
     landscape: LandscapeData | null;
     /** After a sculpt stroke / load / reset — rebind sim heights + deploy grid. */
     onLandscapeChanged?: () => void;
+    /** Terrain editing switched on (true) or off to play the match normally (false). */
+    onActiveChange?: (active: boolean) => void;
     /** Live plant paint/erase against scenery pools. */
     plants?: {
         getPlants: () => AuthoredPlant[];
@@ -123,6 +125,13 @@ export class MountainEditor {
     private readonly raycaster = new Raycaster();
     private readonly ndc = new Vector2();
     private painting = false;
+    /**
+     * Terrain editing takes the board's left clicks and the brush keys; off
+     * ("Play"), the match's own controls get them back — placing units,
+     * casting spells — with the landscape as it is.
+     */
+    private editing = true;
+    private readonly onActiveChange: ((active: boolean) => void) | null;
     private readonly panel: HTMLDivElement;
     private readonly disposers: (() => void)[] = [];
     /** the landscape as the editor opened — Reset returns to it, on any mesh */
@@ -152,6 +161,7 @@ export class MountainEditor {
         this.halfW = opts.map.halfW;
         this.halfH = opts.map.halfH;
         this.onLandscapeChanged = opts.onLandscapeChanged ?? null;
+        this.onActiveChange = opts.onActiveChange ?? null;
         this.plantsApi = opts.plants ?? null;
         ensureOuterMaterialAttrs(this.mesh.geometry);
 
@@ -164,7 +174,7 @@ export class MountainEditor {
         document.body.appendChild(this.panel);
 
         const onDown = (e: PointerEvent) => {
-            if (e.button !== 0) return;
+            if (!this.editing || e.button !== 0) return;
             if ((e.target as HTMLElement).closest?.('.mtn-editor')) return;
             this.painting = true;
             this.dom.setPointerCapture(e.pointerId);
@@ -173,6 +183,7 @@ export class MountainEditor {
             e.stopPropagation();
         };
         const onMove = (e: PointerEvent) => {
+            if (!this.editing) return;
             if ((e.target as HTMLElement).closest?.('.mtn-editor')) return;
             this.onPointer(e.clientX, e.clientY, this.painting);
             if (this.painting) {
@@ -242,6 +253,14 @@ export class MountainEditor {
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         const t = e.target as HTMLElement | null;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        // the key left of 1 (` on US, ^ on German keyboards) switches between editing the terrain and playing the match
+        if (e.code === 'Backquote') {
+            this.setEditing(!this.editing);
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        if (!this.editing) return;
 
         const brushByKey: Record<string, MountainBrush> = {
             '1': 'raise',
@@ -740,6 +759,25 @@ export class MountainEditor {
         }
     }
 
+    /** whether terrain editing currently owns the board's clicks and brush keys */
+    get active(): boolean {
+        return this.editing;
+    }
+
+    setEditing(on: boolean): void {
+        if (this.editing === on) return;
+        this.editing = on;
+        if (!on) {
+            this.painting = false;
+            this.hover = null;
+            this.cursor.visible = false;
+        }
+        this.panel.classList.toggle('playing', !on);
+        const toggle = this.panel.querySelector<HTMLButtonElement>('.mode');
+        if (toggle) toggle.textContent = on ? 'Editing terrain — Play (^ / `)' : 'Playing — Edit terrain (^ / `)';
+        this.onActiveChange?.(on);
+    }
+
     resetToBase(): void {
         if (this.baseline) this.applyData(this.baseline);
     }
@@ -770,10 +808,13 @@ export class MountainEditor {
 .mtn-editor kbd{font:10px/1 ui-monospace,monospace;opacity:.65;margin-left:2px}
 .mtn-editor .sliders{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;margin-top:8px}
 .mtn-editor .hint{margin-top:8px;opacity:.7;font-size:11px}
+.mtn-editor.playing > :not(h3):not(.row:first-of-type){display:none}
+.mtn-editor .mode{width:100%}
 .mtn-editor .status{margin-top:6px;font-size:11px;color:#d4b878;min-height:1em;max-width:320px}
 .mtn-editor input[type=text]{background:#2a221a;border:1px solid #5c4634;color:#f0e8d8;border-radius:4px;padding:3px 6px;font:inherit}
 </style>
 <h3>Mountain editor</h3>
+<div class="row"><button type="button" class="mode" title="The key left of 1">Editing terrain — Play (^ / \`)</button></div>
 <div class="row tools">
   <label class="tool active"><input type="radio" name="mtn-brush" value="raise" checked>Raise <kbd>1</kbd></label>
   <label class="tool"><input type="radio" name="mtn-brush" value="lower">Lower <kbd>2</kbd></label>
@@ -833,6 +874,7 @@ export class MountainEditor {
         this.idInput = el.querySelector<HTMLInputElement>('.map-id')!;
         this.nameInput = el.querySelector<HTMLInputElement>('.map-name')!;
         this.statusEl = el.querySelector<HTMLDivElement>('.status')!;
+        el.querySelector('.mode')!.addEventListener('click', () => this.setEditing(!this.editing));
         el.querySelector('.save')!.addEventListener('click', () => this.save());
         el.querySelector('.load')!.addEventListener('click', () => this.loadFromFile());
         el.querySelector('.reset')!.addEventListener('click', () => this.resetToBase());
