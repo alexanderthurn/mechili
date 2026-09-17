@@ -4595,7 +4595,7 @@ export class BattleSim {
 
             // a ranged unit only stands and shoots when the shot clears the relief
             const lineBlocked =
-                (!!a.unit.type.projectileSpeed || !!a.unit.type.convertRay) &&
+                (!!a.unit.type.projectileSpeed || !!a.unit.type.convertRay || !!a.unit.type.rampBeam) &&
                 tDist <= reach &&
                 !this.attackLineOpen(a, target);
             if (lineBlocked) a.terrainHinderedAt = this.elapsed;
@@ -5124,7 +5124,7 @@ export class BattleSim {
     /** whether this unit's attack (shot or beam) can reach the target over the terrain */
     private attackLineOpen(a: Actor, target: Actor): boolean {
         if (a.unit.type.projectileSpeed) return this.shotLoft(a, target) > 0;
-        if (a.unit.type.convertRay) return this.rayLineOpen(a, target);
+        if (a.unit.type.convertRay || a.unit.type.rampBeam) return this.rayLineOpen(a, target);
         return true;
     }
 
@@ -6497,7 +6497,8 @@ export class BattleSim {
                     this.weaponRange(caster, target, stats.range) + caster.radius + target.radius;
                 const dx = target.x - caster.x;
                 const dz = target.z - caster.z;
-                if (dx * dx + dz * dz > reach * reach) {
+                // out of reach, or a hill / building now stands between them
+                if (dx * dx + dz * dz > reach * reach || !this.rayLineOpen(caster, target)) {
                     target = null;
                 }
             } else {
@@ -6875,7 +6876,7 @@ export class BattleSim {
         // foes we'd only fall back on: in range but behind terrain, or one we got stuck on
         let bestAside: Actor | null = null;
         let bestAsideD = Infinity;
-        const ranged = !!from.unit.type.projectileSpeed || !!from.unit.type.convertRay;
+        const ranged = !!from.unit.type.projectileSpeed || !!from.unit.type.convertRay || !!from.unit.type.rampBeam;
         const cx = Math.floor(from.x / HASH_CELL);
         const cz = Math.floor(from.z / HASH_CELL);
 
