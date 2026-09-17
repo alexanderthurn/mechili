@@ -38,14 +38,14 @@
             },
             "projectileCountAdd": {
               "type": "number",
-              "description": "Extra projectiles per attack (summed). Base is the unit's `projectileCount` or 1."
+              "description": "extra projectiles per attack (summed across owned talents)"
             },
             "splashRadius": {
               "type": "number"
             }
           },
           "additionalProperties": false,
-          "description": "Stat changes. Multipliers (attackInterval < 1 = faster) unless noted. `rangeAdd` is a flat bonus applied after any `range` multiplier. `projectileCountAdd` is summed after multipliers."
+          "description": "Stat changes. Multipliers (attackInterval < 1 = faster) unless noted. `rangeAdd` is a flat bonus applied after any `range` multiplier."
         },
         "fire": {
           "$ref": "#/definitions/FireProfile",
