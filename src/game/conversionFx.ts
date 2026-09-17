@@ -55,6 +55,8 @@ const PRISM_SKY_H = 440;
 /** Attack beam matches the previous sky look (soft sunlight pipe). */
 const PRISM_ATTACK_W = 3.2;
 const PRISM_ATTACK_HDR = 1.85;
+/** prism pipe gain with bloom on (bloom off uses 1.25): lower, since bloom adds the glow */
+const PRISM_BLOOM_GAIN = 0.9;
 /** Sky shaft: much wider / much fainter than the attack pipe. */
 const PRISM_SKY_W = PRISM_ATTACK_W * 27;
 const PRISM_SKY_HDR = PRISM_ATTACK_HDR / 50;
@@ -381,12 +383,13 @@ export class ConversionFx {
         if (bloom === 'high') {
             this.bloomBoost = 2.1;
             this.convert.glowWidthMul = 2.35;
-            this.prismMat.uniforms.uGain!.value = 1.65;
+            // bloom draws the prism's halo — a hotter pipe on top just blows it out
+            this.prismMat.uniforms.uGain!.value = PRISM_BLOOM_GAIN;
         } else {
             // ultra — push HDR so selective bloom wraps the pipe in a yellow halo
             this.bloomBoost = 2.6;
             this.convert.glowWidthMul = 2.55;
-            this.prismMat.uniforms.uGain!.value = 2.15;
+            this.prismMat.uniforms.uGain!.value = PRISM_BLOOM_GAIN;
         }
         const b = this.bloomBoost;
         this.convert.coreMat.color.setRGB(b, b, b);
@@ -416,13 +419,10 @@ export class ConversionFx {
             const from = beamFxOrigin(caster);
 
             if (isRamp) {
-                const bloomOn = this.bloom !== 'off';
-                const bloomUltra = this.bloom === 'ultra';
                 if (pn < MAX_PRISM) {
                     const skyPulse = 0.88 + 0.12 * Math.sin(simTime * 2.2 + caster.index);
                     const skyW = PRISM_SKY_W * skyPulse;
-                    const skyHdr =
-                        PRISM_SKY_HDR * (bloomUltra ? 1.35 : bloomOn ? 1.15 : 1);
+                    const skyHdr = PRISM_SKY_HDR;
                     placePrismPipe(
                         this.prismMesh,
                         pn++,
@@ -447,8 +447,7 @@ export class ConversionFx {
                           : [];
                 const atkPulse = 0.88 + 0.12 * Math.sin(simTime * 2.2 + caster.index);
                 const atkW = PRISM_ATTACK_W * atkPulse;
-                const atkHdr =
-                    PRISM_ATTACK_HDR * (bloomUltra ? 1.35 : bloomOn ? 1.15 : 1);
+                const atkHdr = PRISM_ATTACK_HDR;
                 for (let vi = 0; vi < victims.length; vi++) {
                     const victim = victims[vi]!;
                     if (!victim.alive) continue;
