@@ -22,7 +22,7 @@ import type { SeatId } from './seats';
 import { detAtan2, detCos, detSin, hypot, wrapPi } from './detMath';
 import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
-import { effectiveWeaponReach, resolveSlopeMove } from './terrainCombat';
+import { effectiveWeaponReach, RANGE_ELEV_MAX_BONUS, resolveSlopeMove, SLOPE_STRUGGLE } from './terrainCombat';
 import type { TerrainGrid } from './terrainGrid';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
@@ -374,6 +374,17 @@ export interface Actor {
     approachOz: number;
     /** sim time until the approach lane expires (0 = none) */
     approachOffsetUntil: number;
+    /** sim time the terrain last bent this unit's walk or blocked its shot */
+    terrainHinderedAt: number;
+    /** flips which way a steep face is skirted (toggled when stuck) */
+    slideFlip: boolean;
+    /** progress tracking for {@link BattleSim.trackProgress} */
+    progressTarget: Actor | null;
+    progressBest: number;
+    progressAt: number;
+    /** a target this unit got stuck on — passed over until shunUntil */
+    shunTarget: Actor | null;
+    shunUntil: number;
     /** burn DoT: sim time when it expires (0 = not burning) */
     burnUntil: number;
     /** burn damage per second while burnUntil > elapsed */
@@ -773,6 +784,41 @@ const COLLAPSE_SPEED = 78;
 /** ballista / catapult lob — strong enough to read as an arc at long range */
 const BALLISTIC_GRAVITY = 28;
 
+/** a planned shot: muzzle, launch velocity and the point it aims at */
+interface ShotPlan {
+    mx: number;
+    mz: number;
+    muzzleY: number;
+    vx: number;
+    vy: number;
+    vz: number;
+    gravity: number | undefined;
+    expectedFlight: number;
+    aimX: number;
+    aimZ: number;
+}
+
+/** classic lobs: flight-time stretch per loft level (slower across = higher arc) */
+const CLASSIC_LOFT_TIME = [1, 1.8, 2.6];
+/** fixed-angle lobs: the launch angle per loft level */
+function loftAngleDeg(base: number, loft: number): number {
+    if (loft <= 1) return base;
+    if (loft === 2) return Math.min(80, Math.max(base + 15, 55));
+    return Math.min(82, Math.max(base + 30, 70));
+}
+/** how long a line-of-fire verdict holds before it's checked again (s) */
+const LOS_RECHECK_S = 0.3;
+/** spacing of the terrain samples along a planned shot (wu) */
+const LOS_SAMPLE_WU = 1;
+/** a shot must pass at least this high over the ground (wu) */
+const LOS_CLEARANCE = 0.05;
+/** no progress toward the target for this long, with terrain in the way → stuck (s) */
+const STUCK_SECONDS = 3;
+/** getting this much closer counts as progress (wu) */
+const STUCK_PROGRESS_WU = 1;
+/** a target a unit got stuck on is passed over for this long (s) */
+const STUCK_SHUN_SECONDS = 6;
+
 /** Deterministic 0..1 from an integer seed (lockstep-safe; no Math.sin). */
 function detHash01(n: number): number {
     let x = Math.imul(n | 0, 1664525) + 1013904223;
@@ -914,6 +960,8 @@ export class BattleSim {
     private goldenAuraApplied = false;
     /** duration of the previous sim step — converts actor.mv* into velocity for lead aim */
     private prevStepDt = 1 / SIM_HZ;
+    /** line-of-fire verdicts per shooter→target pair: the loft that clears (0 = blocked) */
+    private readonly losCache = new Map<number, { until: number; loft: number }>();
     /** when true, step() accumulates timings into {@link lastProfile} */
     profileEnabled = false;
     /** ms spent in the last {@link update} call (summed across catch-up steps) */
@@ -1076,6 +1124,13 @@ export class BattleSim {
                     approachOx: 0,
                     approachOz: 0,
                     approachOffsetUntil: 0,
+                    terrainHinderedAt: -1e9,
+                    slideFlip: false,
+                    progressTarget: null,
+                    progressBest: Infinity,
+                    progressAt: 0,
+                    shunTarget: null,
+                    shunUntil: 0,
                     burnUntil: 0,
                     burnDps: 0,
                     corrodedUntil: 0,
@@ -2474,6 +2529,13 @@ export class BattleSim {
                 approachOx: 0,
                 approachOz: 0,
                 approachOffsetUntil: 0,
+                terrainHinderedAt: -1e9,
+                slideFlip: false,
+                progressTarget: null,
+                progressBest: Infinity,
+                progressAt: 0,
+                shunTarget: null,
+                shunUntil: 0,
                 burnUntil: 0,
                 burnDps: 0,
                 corrodedUntil: 0,
@@ -3994,6 +4056,9 @@ export class BattleSim {
         this.rebuildHash();
         this.rebuildTargetHash();
         this.rebuildStructureList();
+        if (this.stepIndex % 60 === 0) {
+            for (const [key, v] of this.losCache) if (v.until <= this.elapsed) this.losCache.delete(key);
+        }
         const bigs = this.actors.filter((a) => a.alive && a.radius >= BIG_RADIUS);
         add('hash');
 
@@ -4085,8 +4150,8 @@ export class BattleSim {
                                 continue;
                             }
                         }
-                        // ranged / convert-ray on a rally route: fire while marching
-                        if (a.unit.type.projectileSpeed) {
+                        // ranged / convert-ray on a rally route: fire while marching (over a clear line)
+                        if (a.unit.type.projectileSpeed && this.shotLoft(a, target) > 0) {
                             if (canAttack) a.cooldown -= dt;
                             if (canAttack && a.cooldown <= 0) {
                                 a.cooldown += stats.attackInterval;
@@ -4161,6 +4226,12 @@ export class BattleSim {
                 continue;
             }
 
+            // a ranged unit only stands and shoots when the shot clears the relief
+            const lineBlocked =
+                !!a.unit.type.projectileSpeed && tDist <= reach && this.shotLoft(a, target) === 0;
+            if (lineBlocked) a.terrainHinderedAt = this.elapsed;
+            this.trackProgress(a, target, tDist, tDist <= reach && !lineBlocked);
+
             if (this.tryMeleeRetreat(a, target, stats, d, bigs, dt, canAttack)) {
                 continue;
             }
@@ -4171,7 +4242,7 @@ export class BattleSim {
                 continue;
             }
 
-            if (tDist <= reach && tDist >= minReach) {
+            if (tDist <= reach && tDist >= minReach && !lineBlocked) {
                 // in range (and outside dead zone): stand and fire
                 if (a.unit.type.projectileSpeed) {
                     if (canAttack) a.cooldown -= dt;
@@ -4196,7 +4267,9 @@ export class BattleSim {
             const dx = goal.x - a.x;
             const dz = goal.z - a.z;
             const dist = hypot(dx, dz) || 1e-6;
-            this.steerToward(a, dx / dist, dz / dist, tDist, dt, stats, d, target, bigs, reach * 0.95);
+            // blocked: keep closing in (over or around the hill) instead of halting at range
+            const stopMargin = lineBlocked ? Math.min(reach * 0.95, a.radius + target.radius + 1) : reach * 0.95;
+            this.steerToward(a, dx / dist, dz / dist, tDist, dt, stats, d, target, bigs, stopMargin);
         }
         add('ai');
 
@@ -4331,8 +4404,11 @@ export class BattleSim {
                     moveX,
                     moveZ,
                     move,
-                    (a.index & 1) === 1,
+                    ((a.index & 1) === 1) !== a.slideFlip,
                 );
+                if (slope.factor <= SLOPE_STRUGGLE + 1e-4 || slope.mx !== moveX || slope.mz !== moveZ) {
+                    a.terrainHinderedAt = this.elapsed;
+                }
                 moveX = slope.mx;
                 moveZ = slope.mz;
                 move *= slope.factor;
@@ -4523,6 +4599,134 @@ export class BattleSim {
     /** spawns a bullet from the shooter's muzzle toward the target's primary hit volume */
     private fire(a: Actor, target: Actor, damage: number, speed: number, shotIndex = 0): void {
         const at = a.unit.type;
+        // the arc the line-of-fire check found clear (a blocked path still fires the low one)
+        const shot = this.planShot(a, target, speed, shotIndex, this.shotLoft(a, target) || 1, true)!;
+        const { mx, mz, muzzleY, vx, vy, vz, gravity, expectedFlight, aimX, aimZ } = shot;
+        this.projectiles.push({
+            x: mx,
+            y: muzzleY,
+            z: mz,
+            px: mx,
+            py: muzzleY,
+            pz: mz,
+            vx,
+            vy,
+            vz,
+            damage,
+            team: actorTeam(a),
+            source: a.unit,
+            style: at.projectileStyle ?? 'bolt',
+            scale: at.projectileScale,
+            ...(typeof at.projectileScaleEnd === 'number' &&
+            typeof at.projectileScale === 'number'
+                ? { scaleEnd: at.projectileScaleEnd, ox: mx, oz: mz, tx: aimX, tz: aimZ }
+                : {}),
+            ...(at.projectileTrail ? { trail: at.projectileTrail } : {}),
+            lit: (() => {
+                const style = at.projectileStyle ?? 'bolt';
+                if (style !== 'arrow' && style !== 'largeArrow') return false;
+                const fire = this.fireProfileOf(a.unit);
+                return !!(fire?.burn || fire?.ground);
+            })(),
+            gravity,
+            target: at.homing ? target : undefined,
+            // Long hang must outlive the default 3s TTL or stones vanish mid-arc.
+            ttl: Math.max(PROJECTILE_TTL, expectedFlight + 1),
+        });
+        this.events.push({ kind: 'muzzle', x: mx, y: muzzleY, z: mz });
+    }
+
+    /**
+     * Line of fire: the lowest arc (1 normal, 2–3 steeper lobs) whose flight
+     * clears the board relief on the way to the target, or 0 when a hill or a
+     * cliff eats every one. Read from the sim's terrain grid, so every machine
+     * agrees; held for {@link LOS_RECHECK_S}.
+     */
+    private shotLoft(a: Actor, target: Actor): number {
+        const speed = a.unit.type.projectileSpeed;
+        if (!speed) return 1;
+        const key = a.index * 1048576 + target.index;
+        const known = this.losCache.get(key);
+        if (known && known.until > this.elapsed) return known.loft;
+        let loft = 0;
+        for (let level = 1; level <= CLASSIC_LOFT_TIME.length; level++) {
+            const plan = this.planShot(a, target, speed, 0, level, false);
+            if (!plan) break;
+            if (this.shotClears(plan, a, target)) {
+                loft = level;
+                break;
+            }
+        }
+        this.losCache.set(key, { until: this.elapsed + LOS_RECHECK_S, loft });
+        return loft;
+    }
+
+    /** whether a planned flight stays above the ground between the shooter and the target */
+    private shotClears(p: ShotPlan, a: Actor, target: Actor): boolean {
+        const flat = hypot(p.vx, p.vz);
+        const flight = p.expectedFlight;
+        if (flat < 1e-6 || flight <= 0) return true;
+        const g = p.gravity ?? 0;
+        // stepProjectiles integrates velocity first, so the bullet sits ½·g·dt·t below the exact parabola
+        const dt = this.prevStepDt;
+        const total = flat * flight;
+        const skipStart = a.radius + 0.5;
+        const skipEnd = target.radius + 0.8;
+        const n = Math.min(160, Math.max(2, Math.ceil(total / LOS_SAMPLE_WU)));
+        for (let i = 1; i < n; i++) {
+            const t = (flight * i) / n;
+            const along = flat * t;
+            if (along < skipStart || total - along < skipEnd) continue;
+            const y = p.muzzleY + p.vy * t - 0.5 * g * t * (t + dt);
+            if (y < simGroundHeightAt(p.mx + p.vx * t, p.mz + p.vz * t) + LOS_CLEARANCE) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Stuck detection: a unit that hasn't closed on its target (or fought it)
+     * for {@link STUCK_SECONDS} while the terrain was in its way passes that
+     * target over for a while and tries the other way around the slope.
+     * Units held up by crowds or waiting in formation are left alone.
+     */
+    private trackProgress(a: Actor, target: Actor, dist: number, engaged: boolean): void {
+        if (a.progressTarget !== target) {
+            a.progressTarget = target;
+            a.progressBest = dist;
+            a.progressAt = this.elapsed;
+            return;
+        }
+        if (engaged || dist < a.progressBest - STUCK_PROGRESS_WU) {
+            if (dist < a.progressBest) a.progressBest = dist;
+            a.progressAt = this.elapsed;
+            return;
+        }
+        if (this.elapsed - a.progressAt < STUCK_SECONDS) return;
+        a.progressAt = this.elapsed;
+        a.progressBest = dist;
+        if (this.elapsed - a.terrainHinderedAt > 1) return;
+        a.shunTarget = target;
+        a.shunUntil = this.elapsed + STUCK_SHUN_SECONDS;
+        a.slideFlip = !a.slideFlip;
+        a.cachedEnemy = null;
+    }
+
+    /**
+     * Where a shot leaves the muzzle and how fast — no side effects, so the
+     * line-of-fire check can plan shots it never fires. `loft` 1 is the normal
+     * arc; 2 and 3 are steeper lobs for ballistic shooters (straight shooters
+     * have none: null).
+     */
+    private planShot(
+        a: Actor,
+        target: Actor,
+        speed: number,
+        shotIndex: number,
+        loft: number,
+        spread: boolean,
+    ): ShotPlan | null {
+        const at = a.unit.type;
+        if (loft > 1 && !at.projectileBallistic) return null;
         const tt = target.unit.type;
         const dirX = target.x - a.x;
         const dirZ = target.z - a.z;
@@ -4571,6 +4775,7 @@ export class BattleSim {
 
         const volley = Math.max(1, Math.floor(at.projectileCount ?? 1));
         const useSpread =
+            spread &&
             !at.homing &&
             (at.projectileStyle === 'arrow' ||
                 at.aimSpread != null ||
@@ -4613,7 +4818,7 @@ export class BattleSim {
             if (useFixedAngle) {
                 // Fixed elevation: solve muzzle speed from range so near and far
                 // shots share the same lob angle (farther ⇒ faster).
-                const theta = (fixedAngleDeg! * Math.PI) / 180;
+                const theta = (loftAngleDeg(fixedAngleDeg!, loft) * Math.PI) / 180;
                 // detCos/detSin, never Math.*: this sets the stone's velocity,
                 // and ECMAScript lets V8, JavaScriptCore and SpiderMonkey
                 // round cos/sin differently — Safari and Chrome would throw
@@ -4691,8 +4896,10 @@ export class BattleSim {
                 }
             } else {
                 // Classic: fixed horizontal speed; loft grows with range.
+                // A steeper lob flies the same distance slower, so it climbs higher.
+                const hSpeed = speed / CLASSIC_LOFT_TIME[loft - 1]!;
                 // honest time-to-target (no artificial floor — that lofted short shots past the aim)
-                flightTime = Math.max(1e-3, flatDist / speed);
+                flightTime = Math.max(1e-3, flatDist / hSpeed);
                 // one refine so closing enemies still get clipped without homing
                 for (let i = 0; i < 2; i++) {
                     aimX = target.x + tvx * flightTime;
@@ -4701,7 +4908,7 @@ export class BattleSim {
                     dx = aimX - mx;
                     dz = aimZ - mz;
                     flatDist = hypot(dx, dz) || 1e-6;
-                    flightTime = Math.max(1e-3, flatDist / speed);
+                    flightTime = Math.max(1e-3, flatDist / hSpeed);
                 }
                 // scatter after lead so successive arrows / mortar stones don't stack
                 if (useSpread) {
@@ -4712,12 +4919,12 @@ export class BattleSim {
                     dx = aimX - mx;
                     dz = aimZ - mz;
                     flatDist = hypot(dx, dz) || 1e-6;
-                    flightTime = Math.max(1e-3, flatDist / speed);
+                    flightTime = Math.max(1e-3, flatDist / hSpeed);
                 }
                 resolveAimHeight();
                 gravity = BALLISTIC_GRAVITY;
-                vx = (dx / flatDist) * speed;
-                vz = (dz / flatDist) * speed;
+                vx = (dx / flatDist) * hSpeed;
+                vz = (dz / flatDist) * hSpeed;
                 vy = dy / flightTime + 0.5 * gravity * flightTime;
                 expectedFlight = flightTime;
 
@@ -4748,38 +4955,7 @@ export class BattleSim {
             expectedFlight = len / speed;
         }
 
-        this.projectiles.push({
-            x: mx,
-            y: muzzleY,
-            z: mz,
-            px: mx,
-            py: muzzleY,
-            pz: mz,
-            vx,
-            vy,
-            vz,
-            damage,
-            team: actorTeam(a),
-            source: a.unit,
-            style: at.projectileStyle ?? 'bolt',
-            scale: at.projectileScale,
-            ...(typeof at.projectileScaleEnd === 'number' &&
-            typeof at.projectileScale === 'number'
-                ? { scaleEnd: at.projectileScaleEnd, ox: mx, oz: mz, tx: aimX, tz: aimZ }
-                : {}),
-            ...(at.projectileTrail ? { trail: at.projectileTrail } : {}),
-            lit: (() => {
-                const style = at.projectileStyle ?? 'bolt';
-                if (style !== 'arrow' && style !== 'largeArrow') return false;
-                const fire = this.fireProfileOf(a.unit);
-                return !!(fire?.burn || fire?.ground);
-            })(),
-            gravity,
-            target: at.homing ? target : undefined,
-            // Long hang must outlive the default 3s TTL or stones vanish mid-arc.
-            ttl: Math.max(PROJECTILE_TTL, expectedFlight + 1),
-        });
-        this.events.push({ kind: 'muzzle', x: mx, y: muzzleY, z: mz });
+        return { mx, mz, muzzleY, vx, vy, vz, gravity, expectedFlight, aimX, aimZ };
     }
 
     /**
@@ -5665,6 +5841,8 @@ export class BattleSim {
             if (d2 > reach * reach) return false;
             if (inDeadZone(cached)) return false;
             if (!this.inFieldOfFire(from, cached)) return false;
+            // a hill between us: not a fight we're in — walk, or pick another
+            if (from.unit.type.projectileSpeed && this.shotLoft(from, cached) === 0) return false;
             return true;
         };
 
@@ -5690,6 +5868,10 @@ export class BattleSim {
         let bestD = Infinity;
         let bestAny: Actor | null = null;
         let bestAnyD = Infinity;
+        // foes we'd only fall back on: in range but behind terrain, or one we got stuck on
+        let bestAside: Actor | null = null;
+        let bestAsideD = Infinity;
+        const ranged = !!from.unit.type.projectileSpeed;
         const cx = Math.floor(from.x / HASH_CELL);
         const cz = Math.floor(from.z / HASH_CELL);
 
@@ -5709,6 +5891,28 @@ export class BattleSim {
             if (minRange > 0) {
                 const minReach = minRange + from.radius + a.radius;
                 if (d < minReach * minReach) return; // dead zone — not a walk/shoot pick
+            }
+            let aside = from.shunTarget === a && from.shunUntil > this.elapsed;
+            if (!aside && ranged) {
+                const outer = stats.range + from.radius + a.radius + RANGE_ELEV_MAX_BONUS;
+                if (d <= outer * outer) {
+                    const reach = effectiveWeaponReach(
+                        stats.range,
+                        from.radius,
+                        a.radius,
+                        this.feetY(from),
+                        this.feetY(a),
+                        true,
+                    );
+                    aside = d <= reach * reach && this.shotLoft(from, a) === 0;
+                }
+            }
+            if (aside) {
+                if (d < bestAsideD || (d === bestAsideD && bestAside !== null && a.index < bestAside.index)) {
+                    bestAsideD = d;
+                    bestAside = a;
+                }
+                return;
             }
             if (d < bestD || (d === bestD && best !== null && a.index < best.index)) {
                 bestD = d;
@@ -5743,7 +5947,7 @@ export class BattleSim {
         }
         // Prefer outside-dead-zone (shoot or approach); only then kite the
         // closest too-close foe.
-        const result = best ?? bestAny;
+        const result = best ?? bestAside ?? bestAny;
         if (!anyLayer) {
             if (from.cachedEnemy !== result) {
                 from.approachOx = 0;
