@@ -192,9 +192,10 @@ const PRISM_FRAG = /* glsl */ `
     }
 
     void main() {
-        // Scroll opposite the wizard bolt; dense along-beam fire churn.
+        // Dense along-beam fire churn flowing away from each pipe's origin (uv.y = 0):
+        // the sky pillar pours down onto the cannon, the attack beam out onto the enemy.
         float t = uTime * 1.55;
-        vec2 nUv = vec2(vUv.x * 2.6, vUv.y * 14.0 + t);
+        vec2 nUv = vec2(vUv.x * 2.6, vUv.y * 14.0 - t);
         float n = fNoise(nUv) * 0.6 + fNoise(nUv * 2.4 + 9.3) * 0.4;
 
         float r = abs(vUv.x - 0.5) * 2.0;
