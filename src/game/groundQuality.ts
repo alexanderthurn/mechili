@@ -335,7 +335,7 @@ export function slopeGroundGlsl(opts: {
 	float slopePatchN = slopeNoise( slopeP.xz / 26.0 + 41.3 ) * 0.7 + slopeNoise( slopeP.xz / 8.5 + 3.7 ) * 0.3;
 	float slopePatchT = smoothstep( 0.52, 0.8, slopePatchN ) * ${FLAT_BROWN_PATCHES.toFixed(2)} * slopeFade;
 	slopeDryT = max( slopeDryT, slopePatchT );
-	float slopeEarthT = smoothstep( 0.3, 0.64, slopeGrade + slopeVar * 0.2 ) * slopeFade;
+	float slopeEarthT = smoothstep( 0.45, 0.85, slopeGrade + slopeVar * 0.2 ) * slopeFade;
 	vec3 slopeBase = diffuseColor.rgb;
 	float slopeLum = max( dot( slopeBase, vec3( 0.299, 0.587, 0.114 ) ), 0.03 );
 	vec3 slopeDry = mix( slopeBase, vec3( slopeLum ), 0.6 ) * vec3( 1.3, 0.82, 0.42 );
