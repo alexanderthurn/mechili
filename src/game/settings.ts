@@ -149,6 +149,12 @@ export interface GameSettings {
      * those are commander powers, not the economy dial.
      */
     moneyFactor: number;
+    /**
+     * One-time supply credited to every seat at match start (before round-1
+     * income). 0 = none. Does not change {@link EconomySettings.startingSupply}
+     * or later rounds — see {@link moneyFactor} for income scaling.
+     */
+    startMoney: number;
     /** what the Stronghold is worth this match (see {@link StrongholdMode}) */
     strongholdMode: StrongholdMode;
     economy: EconomySettings;
@@ -550,6 +556,43 @@ export function formatMoneyFactorOption(o: MoneyFactorOption): string {
     });
 }
 
+/** Custom Game one-time start-money options — both teams share one bonus. */
+export interface StartMoneyOption {
+    amount: number;
+    label: string;
+}
+
+export const START_MONEY_OPTIONS: readonly StartMoneyOption[] = [
+    { amount: 0, label: '+0' },
+    { amount: 300, label: '+300' },
+    { amount: 1000, label: '+1000' },
+    { amount: 5000, label: '+5000' },
+    { amount: 50000, label: '+50000' },
+];
+
+export const DEFAULT_START_MONEY = 0;
+
+/** Snap unknown / legacy values onto a known lobby option (default +0). */
+export function startMoneyOption(raw: unknown): number {
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (START_MONEY_OPTIONS.some((o) => o.amount === n)) return n;
+    return DEFAULT_START_MONEY;
+}
+
+/** Any non-negative finite amount for live GameSettings (wire / URL / saves). */
+export function resolveStartMoney(raw: unknown): number {
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (Number.isFinite(n) && n >= 0) return n;
+    return DEFAULT_START_MONEY;
+}
+
+export function formatStartMoneyOption(o: StartMoneyOption): string {
+    return t('settings:sheet.startMoneyOption', {
+        label: o.label,
+        defaultValue: `${o.label} start money (both teams)`,
+    });
+}
+
 export const DEFAULT_SETTINGS: GameSettings = {
     map: STANDARD_MAP,
     buildTimeSeconds: 90,
@@ -558,6 +601,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     cardTimeSeconds: 15,
     commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
     moneyFactor: DEFAULT_MONEY_FACTOR,
+    startMoney: DEFAULT_START_MONEY,
     strongholdMode: DEFAULT_STRONGHOLD_MODE,
     economy: {
         startingSupply: 200,
@@ -689,6 +733,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         hordePreset: resolveHordePreset(legacy),
         commanderHpFactor: resolveCommanderHpFactor(settings.commanderHpFactor),
         moneyFactor: resolveMoneyFactor(settings.moneyFactor),
+        startMoney: resolveStartMoney(settings.startMoney),
         strongholdMode: strongholdModeOption(settings.strongholdMode),
         climb: settings.climb
             ? {
@@ -754,8 +799,11 @@ export class Economy {
         seatCount = 2,
         /** see {@link GameSettings.moneyFactor} — scales round income only */
         private readonly moneyFactor = 1,
+        /** see {@link GameSettings.startMoney} — one-time purse before round income */
+        startMoney = 0,
     ) {
-        this.balances = new Array(seatCount).fill(0);
+        const bonus = Number.isFinite(startMoney) && startMoney > 0 ? Math.round(startMoney) : 0;
+        this.balances = new Array(seatCount).fill(bonus);
     }
 
     get seatCount(): number {
@@ -966,6 +1014,16 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     }),
                     note: t('settings:sheet.moneyFactorNote', {
                         defaultValue: 'scales every round’s income for both teams',
+                    }),
+                },
+                {
+                    label: t('settings:sheet.startMoney', { defaultValue: 'Start money' }),
+                    value: t('settings:sheet.startMoneyValue', {
+                        amount: settings.startMoney,
+                        defaultValue: `+${settings.startMoney}`,
+                    }),
+                    note: t('settings:sheet.startMoneyNote', {
+                        defaultValue: 'one-time supply at match start for both teams',
                     }),
                 },
                 {

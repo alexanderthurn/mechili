@@ -138,18 +138,23 @@ import {
     DEFAULT_CUSTOM_GAME_PACE_ID,
     DEFAULT_HORDE_PRESET_ID,
     DEFAULT_MONEY_FACTOR,
+    DEFAULT_START_MONEY,
     DEFAULT_SETTINGS,
     HORDE_ALGORITHMS,
     MONEY_FACTOR_OPTIONS,
+    START_MONEY_OPTIONS,
     commanderHpFactorOption,
     customGamePaceById,
     formatCommanderHpFactorOption,
     formatCustomGamePaceOption,
     formatMoneyFactorOption,
+    formatStartMoneyOption,
     hordeAlgorithmById,
     moneyFactorOption,
+    startMoneyOption,
     resolveCommanderHpFactor,
     resolveMoneyFactor,
+    resolveStartMoney,
     type GameSettings,
 } from './game/settings';
 import { applyTutorialMode } from './game/tutorial';
@@ -250,6 +255,7 @@ const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
     commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
     moneyFactor: DEFAULT_MONEY_FACTOR,
+    startMoney: DEFAULT_START_MONEY,
     strongholdMode: DEFAULT_STRONGHOLD_MODE,
     terrainShape: DEFAULT_TERRAIN_SHAPE,
 };
@@ -307,6 +313,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             roundCardPreset: roundCardAlgorithmById(roundCardPreset).id,
             commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor),
             moneyFactor: moneyFactorOption(parsed.moneyFactor),
+            startMoney: startMoneyOption(parsed.startMoney),
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
             yearRoles: yearRolesOption(parsed.yearRoles),
             yearKomtur: parsed.yearKomtur === true,
@@ -336,6 +343,7 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.hordePreset = hordeAlgorithmById(cfg.hordePreset).id;
     settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
     settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
+    settings.startMoney = resolveStartMoney(cfg.startMoney);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
     settings.terrainShape = terrainShapeOption(cfg.terrainShape);
     // Custom Game rooms play the base game (scenarios are single player: Single Player → Editor)
@@ -351,6 +359,8 @@ function settingsFromUrl(): GameSettings {
     if (hpFactor > 0) settings.commanderHpFactor = hpFactor;
     const moneyFactor = Number(params.get('moneyFactor') ?? params.get('money'));
     if (moneyFactor > 0) settings.moneyFactor = moneyFactor;
+    const startMoney = Number(params.get('startMoney'));
+    if (Number.isFinite(startMoney) && startMoney >= 0) settings.startMoney = startMoney;
     const seed = Number(params.get('seed'));
     if (seed > 0) settings.seed = seed;
     // no ?horde=1 opt-in anymore — the menu forces applyHordeMode itself
@@ -1211,6 +1221,9 @@ menu.innerHTML = `
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:money"></span>
                     <select class="cg-money"></select>
                 </label>
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:startMoney"></span>
+                    <select class="cg-start-money"></select>
+                </label>
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
                 </label>
@@ -1430,6 +1443,7 @@ const cgHordeEl = menu.querySelector<HTMLSelectElement>('.cg-horde')!;
 const cgRoundCardsEl = menu.querySelector<HTMLSelectElement>('.cg-roundcards')!;
 const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp')!;
 const cgMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-money')!;
+const cgStartMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-start-money')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
 const cgLandscapeEl = menu.querySelector<HTMLSelectElement>('.cg-landscape')!;
 const cgTerrainEl = menu.querySelector<HTMLSelectElement>('.cg-terrain')!;
@@ -1894,6 +1908,14 @@ for (const optMoney of MONEY_FACTOR_OPTIONS) {
 }
 wireSelectShortLabels(cgMoneyEl);
 
+for (const optStart of START_MONEY_OPTIONS) {
+    const opt = document.createElement('option');
+    opt.value = String(optStart.amount);
+    fillSelectOption(opt, optStart.label, formatStartMoneyOption(optStart));
+    cgStartMoneyEl.appendChild(opt);
+}
+wireSelectShortLabels(cgStartMoneyEl);
+
 for (const optSh of STRONGHOLD_MODE_OPTIONS) {
     const opt = document.createElement('option');
     opt.value = optSh.mode;
@@ -1980,7 +2002,7 @@ function landscapeOption(value: unknown): string {
 
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'terrainShape'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape'
 > {
     return {
         pace: DEFAULT_CUSTOM_GAME_PACE_ID,
@@ -1988,6 +2010,7 @@ function defaultLobbySettings(): Pick<
         roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
         commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
         moneyFactor: DEFAULT_MONEY_FACTOR,
+        startMoney: DEFAULT_START_MONEY,
         strongholdMode: DEFAULT_STRONGHOLD_MODE,
         terrainShape: DEFAULT_TERRAIN_SHAPE,
     };
@@ -2000,6 +2023,7 @@ function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobb
         cfg.roundCardPreset !== defaults.roundCardPreset ||
         cfg.commanderHpFactor !== defaults.commanderHpFactor ||
         cfg.moneyFactor !== defaults.moneyFactor ||
+        cfg.startMoney !== defaults.startMoney ||
         cfg.strongholdMode !== defaults.strongholdMode ||
         terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape
     );
@@ -2016,6 +2040,7 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgRoundCardsEl.value = roundCardAlgorithmById(cfg.roundCardPreset).id;
     cgCommanderHpEl.value = String(commanderHpFactorOption(cfg.commanderHpFactor));
     cgMoneyEl.value = String(moneyFactorOption(cfg.moneyFactor));
+    cgStartMoneyEl.value = String(startMoneyOption(cfg.startMoney));
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
     refreshYearLobbyOptions();
     cgYearAttackerEl.value = yearRolesOption(cfg.yearRoles);
@@ -2028,7 +2053,7 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     for (const field of menu.querySelectorAll<HTMLElement>('.m-year-field')) field.style.display = cfg.mode === 'year' ? '' : 'none';
     // Always short in the closed box — hosts open the list for details;
     // guests get a hover/tap tip (see wireLobbySettingTips).
-    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl]) {
+    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl, cgStartMoneyEl]) {
         syncSelectOptionLabels(sel, false);
     }
     syncLobbySettingsResetVisibility(cfg);
@@ -2097,7 +2122,7 @@ function showLobbySettingTip(anchor: HTMLElement, text: string, sticky: boolean)
  *  tap — disabled <select>s don't receive pointer events, so the parent
  *  .m-field owns the interaction. */
 function wireLobbySettingTips(): void {
-    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl]) {
+    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl, cgStartMoneyEl]) {
         const field = sel.closest<HTMLElement>('.m-field');
         if (!field) continue;
         field.addEventListener('pointerenter', (e) => {
@@ -2131,7 +2156,7 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'landscape' | 'terrainShape'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'landscape' | 'terrainShape'
 > {
     return {
         yearRoles: yearRolesOption(cgYearAttackerEl.value),
@@ -2143,6 +2168,7 @@ function readLobbySettingsForm(): Pick<
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
         commanderHpFactor: commanderHpFactorOption(Number(cgCommanderHpEl.value)),
         moneyFactor: moneyFactorOption(Number(cgMoneyEl.value)),
+        startMoney: startMoneyOption(Number(cgStartMoneyEl.value)),
         strongholdMode: strongholdModeOption(cgStrongholdEl.value),
     };
 }
@@ -2634,6 +2660,7 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
     cgRoundCardsEl.addEventListener('change', onChange);
     cgCommanderHpEl.addEventListener('change', onChange);
     cgMoneyEl.addEventListener('change', onChange);
+    cgStartMoneyEl.addEventListener('change', onChange);
     cgStrongholdEl.addEventListener('change', onChange);
     cgYearAttackerEl.addEventListener('change', onChange);
     cgLandscapeEl.addEventListener('change', onChange);
@@ -2673,6 +2700,7 @@ function showHostLobbySettings(
     cgRoundCardsEl.disabled = false;
     cgCommanderHpEl.disabled = false;
     cgMoneyEl.disabled = false;
+    cgStartMoneyEl.disabled = false;
     cgStrongholdEl.disabled = false;
     cgYearAttackerEl.disabled = false;
     cgLandscapeEl.disabled = false;
@@ -2701,6 +2729,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgRoundCardsEl.disabled = true;
     cgCommanderHpEl.disabled = true;
     cgMoneyEl.disabled = true;
+    cgStartMoneyEl.disabled = true;
     cgStrongholdEl.disabled = true;
     cgYearAttackerEl.disabled = true;
     cgLandscapeEl.disabled = true;
@@ -4863,6 +4892,7 @@ function loadPracticeConfig(): CustomGameConfig {
             roundCardPreset: roundCardAlgorithmById(parsed.roundCardPreset ?? defaults.roundCardPreset).id,
             commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor ?? defaults.commanderHpFactor),
             moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
+            startMoney: startMoneyOption(parsed.startMoney ?? defaults.startMoney),
             strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
             landscape: landscapeOption(parsed.landscape),
             terrainShape: terrainShapeOption(parsed.terrainShape ?? defaults.terrainShape),

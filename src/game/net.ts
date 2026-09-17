@@ -332,6 +332,8 @@ export interface CustomGameConfig {
     commanderHpFactor: number;
     /** multiplies each round’s supply income (both teams); see GameSettings.moneyFactor */
     moneyFactor: number;
+    /** one-time supply at match start (both teams); see GameSettings.startMoney */
+    startMoney: number;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
     /**

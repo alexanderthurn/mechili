@@ -49,6 +49,7 @@
   "roundCards": "Round cards",
   "hp": "HP",
   "money": "Supply",
+  "startMoney": "Start money",
   "stronghold": "Stronghold",
   "resetDefaults": "Reset to defaults",
   "unitLoadout": "Unit loadout",

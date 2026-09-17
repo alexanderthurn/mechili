@@ -36,6 +36,7 @@
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (both teams)",
     "moneyOption": "{{label}} supply income (both teams)",
+    "startMoneyOption": "{{label}} start money (both teams)",
     "timersTitle": "Timers & HP",
     "deploymentPhase": "Deployment phase",
     "battlePhase": "Battle phase",
@@ -60,6 +61,9 @@
     "moneyFactor": "Supply factor",
     "moneyFactorValue": "×{{factor}}",
     "moneyFactorNote": "scales every round’s income for both teams",
+    "startMoney": "Start money",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "one-time supply at match start for both teams",
     "techCostEscalation": "{{tech}} cost escalation",
     "techCostEscalationValue": "+{{amount}}",
     "techCostEscalationNote": "added to a {{tech}}’s price per {{tech}} already owned of that unit type",
