@@ -38,6 +38,11 @@ export function clampBoardY(before: number, after: number): number {
     return after < floor ? floor : after > ceiling ? ceiling : after;
 }
 
+/** hammer footprint: rounded corners as a share of the short half-extent (matches the painted scar) */
+const FLATTEN_CORNER = 0.28;
+/** hammer footprint: the easing rim as a share of the short half-extent (the rest is pressed fully flat) */
+const FLATTEN_RIM = 0.08;
+
 /** inclusive node rectangle */
 export interface TerrainRect {
     x0: number;
@@ -138,12 +143,17 @@ export class TerrainGrid {
     }
 
     /**
-     * Press an oriented rectangle toward `targetY` (Hammer of the Gods): full
-     * inside 82 % of the half extents, easing out linearly to the edge.
+     * Press an oriented rectangle toward `targetY` (Hammer of the Gods): the
+     * same rounded footprint the ground scar is painted with (corners ¼ of the
+     * short side), fully pressed up to a thin rim that eases back to the
+     * untouched ground at the footprint's edge.
      */
     flattenRect(cx: number, cz: number, halfWidth: number, halfDepth: number, yaw: number, targetY: number): void {
         const hw = Math.max(1e-3, halfWidth);
         const hd = Math.max(1e-3, halfDepth);
+        const short = hw < hd ? hw : hd;
+        const corner = short * FLATTEN_CORNER;
+        const rim = Math.max(1e-3, short * FLATTEN_RIM);
         const c = detCos(yaw);
         const s = detSin(yaw);
         const reach = Math.sqrt(hw * hw + hd * hd);
@@ -154,11 +164,15 @@ export class TerrainGrid {
             const row = iz * this.nx;
             for (let ix = rect.x0; ix <= rect.x1; ix++) {
                 const dx = -this.halfW + ix * this.cellX - cx;
-                const ax = Math.abs(dx * c + dz * s) / hw;
-                const az = Math.abs(-dx * s + dz * c) / hd;
-                if (ax > 1 || az > 1) continue;
-                const edge = ax > az ? ax : az;
-                const w = edge <= 0.82 ? 1 : 1 - (edge - 0.82) / 0.18;
+                // signed distance to the rounded rectangle (negative inside)
+                const qx = Math.abs(dx * c + dz * s) - (hw - corner);
+                const qz = Math.abs(-dx * s + dz * c) - (hd - corner);
+                const ox = qx > 0 ? qx : 0;
+                const oz = qz > 0 ? qz : 0;
+                const inner = qx > qz ? qx : qz;
+                const dist = Math.sqrt(ox * ox + oz * oz) + (inner < 0 ? inner : 0) - corner;
+                if (dist >= 0) continue;
+                const w = dist <= -rim ? 1 : -dist / rim;
                 const i = row + ix;
                 this.heights[i] = clampBoardY(this.heights[i]!, this.heights[i]! + (targetY - this.heights[i]!) * w);
             }
