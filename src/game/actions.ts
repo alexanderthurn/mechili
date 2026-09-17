@@ -467,8 +467,8 @@ interface LogEntry extends LoggedAction {
     /** buyStrongholdArcher: the archer that was raised (for undo) */
     strongholdArcherUnit?: Unit;
     /**
-     * clearArmy: packs removed (items already returned to the bag — restored
-     * onto the pack on undo from {@link clearedPackItems})
+     * clearArmy / sellUnit: packs removed (items already returned to the bag —
+     * restored onto the pack on undo from {@link clearedPackItems})
      */
     clearedPackItems?: { unitId: number; items: string[]; itemRounds: number[] }[];
     /** clearArmy: techs removed with the supply that was refunded for each */
@@ -1032,6 +1032,14 @@ export class ActionDispatcher {
                 const refund = Math.round(
                     economy.costOf(unit.type) * this.ctx.sellSettings.refundFactor,
                 );
+                // Runes come back to the bag (fused or not) — selling the pack
+                // does not destroy them.
+                const items = [...unit.items];
+                const itemRounds = [...unit.itemAppliedRound];
+                for (const itemId of items) this.ctx.items[seat]!.push(itemId);
+                unit.items.length = 0;
+                unit.itemAppliedRound.length = 0;
+                entry.clearedPackItems = [{ unitId: unit.id, items, itemRounds }];
                 entry.unit = unit;
                 entry.paid = refund;
                 placement.removeUnit(unit);
@@ -1770,14 +1778,29 @@ export class ActionDispatcher {
                 economy.credit(seat, e.paid!);
                 break;
             }
-            case 'sellUnit':
-                placement.restoreUnit(e.unit!);
+            case 'sellUnit': {
+                const unit = e.unit!;
+                const snap = e.clearedPackItems?.[0];
+                if (snap) {
+                    const bag = this.ctx.items[seat]!;
+                    for (let i = snap.items.length - 1; i >= 0; i--) {
+                        const id = snap.items[i]!;
+                        const at = bag.lastIndexOf(id);
+                        if (at >= 0) bag.splice(at, 1);
+                    }
+                    unit.items.length = 0;
+                    unit.itemAppliedRound.length = 0;
+                    for (const id of snap.items) unit.items.push(id);
+                    for (const r of snap.itemRounds) unit.itemAppliedRound.push(r);
+                }
+                placement.restoreUnit(unit);
                 economy.spend(seat, e.paid!); // take the refund back
                 // a spent one-shot charge frees up when undoLast drops the log
                 // entry (its use record IS the log entry) — only the per-round
                 // ability counter needs rolling back by hand
                 if (e.usedTactic === undefined) this.ctx.sellState.used[seat]!--;
                 break;
+            }
             case 'buyForgeSpell': {
                 const owned = this.ctx.forgeSpellOwned[seat];
                 for (const id of e.grantedTactics ?? []) {

@@ -2,8 +2,8 @@
  * Stronghold forge: shared oven per side. Each player may fill up to
  * {@link FORGE_SLOTS_PER_PLAYER} (duo → up to 6).
  *
- * Default bake: merge elemental runes (union of mixes + min level, or add
- * levels when the mix matches; cap 9). Forging is free.
+ * Default bake: same-mix inputs add levels first (cap 9), then different
+ * mix groups union and take min of those group totals. Forging is free.
  * Any **advanced** rune in the oven returns that advanced unchanged
  * (elementals consumed). Optional exact multiset recipes still override when
  * defined on data.

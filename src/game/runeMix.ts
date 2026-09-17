@@ -135,8 +135,10 @@ export function elementalLevel(id: string): number {
 
 /**
  * Merge 2+ elemental oven runes:
- * - same mix → add levels (cap {@link RUNE_MAX_LEVEL})
- * - different mixes → union of elements, level = min
+ * 1. Same-mix inputs add levels first (cap {@link RUNE_MAX_LEVEL})
+ * 2. Different mix groups → union of elements, level = min of those group totals
+ *
+ * e.g. fire:3 + fire:2 + earth:8 → fire group 5 + earth 8 → earth-fire:5
  */
 export function mergeElementalIds(ids: readonly string[]): string | null {
     if (ids.length < 2) return null;
@@ -146,17 +148,26 @@ export function mergeElementalIds(ids: readonly string[]): string | null {
         if (!p) return null;
         parts.push(p);
     }
-    const key0 = parts[0]!.elements.join('-');
-    const sameMix = parts.every((p) => p.elements.join('-') === key0);
-    if (sameMix) {
-        const sum = Math.min(
-            RUNE_MAX_LEVEL,
-            parts.reduce((s, p) => s + p.level, 0),
+
+    // Collapse each mix identity to one summed level before union/min.
+    const groupLevels = new Map<string, number>();
+    const groupMix = new Map<string, readonly RuneElement[]>();
+    for (const p of parts) {
+        const key = p.elements.join('-');
+        groupMix.set(key, p.elements);
+        groupLevels.set(
+            key,
+            Math.min(RUNE_MAX_LEVEL, (groupLevels.get(key) ?? 0) + p.level),
         );
-        return encodeElementalId(parts[0]!.elements, sum);
     }
-    const union = normalizeMix(parts.flatMap((p) => p.elements));
-    const level = Math.min(...parts.map((p) => p.level));
+
+    if (groupLevels.size === 1) {
+        const [key, level] = [...groupLevels.entries()][0]!;
+        return encodeElementalId(groupMix.get(key)!, level);
+    }
+
+    const union = normalizeMix([...groupMix.values()].flat());
+    const level = Math.min(...groupLevels.values());
     return encodeElementalId(union, level);
 }
 
