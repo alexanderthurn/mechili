@@ -295,6 +295,9 @@ float slopeNoise( vec2 p ) {
 }
 `;
 
+/** how brown the loose patches on flat grass get at most (0 = none) */
+const FLAT_BROWN_PATCHES = 0.6;
+
 /** rock texture size on board cliffs (wu per repeat) */
 const SLOPE_ROCK_TILE = 6;
 /** how far the steepest cliffs lean toward rock (the rest stays earth) */
@@ -328,6 +331,10 @@ export function slopeGroundGlsl(opts: {
 	float slopeVar = slopeNoise( slopeP.xz / 7.0 ) * 0.65 + slopeNoise( slopeP.xz / 2.3 + 17.0 ) * 0.35 - 0.5;
 	float slopeFade = ${fade};
 	float slopeDryT = smoothstep( 0.08, 0.3, slopeGrade + slopeVar * 0.14 ) * slopeFade;
+	// the same brown in loose patches on flat grass: big soft drifts with a smaller breakup
+	float slopePatchN = slopeNoise( slopeP.xz / 26.0 + 41.3 ) * 0.7 + slopeNoise( slopeP.xz / 8.5 + 3.7 ) * 0.3;
+	float slopePatchT = smoothstep( 0.52, 0.8, slopePatchN ) * ${FLAT_BROWN_PATCHES.toFixed(2)} * slopeFade;
+	slopeDryT = max( slopeDryT, slopePatchT );
 	float slopeEarthT = smoothstep( 0.3, 0.64, slopeGrade + slopeVar * 0.2 ) * slopeFade;
 	vec3 slopeBase = diffuseColor.rgb;
 	float slopeLum = max( dot( slopeBase, vec3( 0.299, 0.587, 0.114 ) ), 0.03 );
