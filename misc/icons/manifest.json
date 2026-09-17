@@ -1,0 +1,134 @@
+{
+  "style": "stamped-relief-strong",
+  "sourceSize": 128,
+  "reference": "misc/concepts/icon-styles/style-d-stamped-relief-strong.png",
+  "sheets": [
+    {
+      "file": "sheet-chrome-1.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["ui-supply", "ui-undo", "ui-settings", "ui-menu"]
+    },
+    {
+      "file": "sheet-chrome-2.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["ui-deploy-cap", "ui-level-up", "ui-chat", "ui-shop"]
+    },
+    {
+      "file": "sheet-chrome-3.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["ui-unit", "ui-tactics", "ui-move", "ui-rotate"]
+    },
+    {
+      "file": "sheet-chrome-4.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["ui-spectate", "ui-suggest", "ui-lock", "ui-unknown"]
+    },
+    {
+      "file": "sheet-chrome-5.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["ui-end-deploy", "ui-speed", "ui-empty-slot", "ui-invite"]
+    },
+    {
+      "file": "sheet-items.png",
+      "cols": 3,
+      "rows": 2,
+      "ids": ["item-addi", "item-power", "item-vigor", "item-colossus", "item-wrath", "item-golden"]
+    },
+    {
+      "file": "sheet-tactics-1.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["tactic-rally", "tactic-oil", "tactic-sell", "tactic-summon-dwarves"]
+    },
+    {
+      "file": "sheet-tactics-2.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["tactic-meteor", "tactic-summon-crows", "tactic-hammer", "tactic-storm"]
+    },
+    {
+      "file": "sheet-tactics-3.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["tactic-shower", "tactic-acid", "tactic-fire", "tactic-dragon"]
+    },
+    {
+      "file": "sheet-tactics-4.png",
+      "cols": 2,
+      "rows": 1,
+      "ids": ["tactic-poison", "ability-gift-supply"]
+    },
+    {
+      "file": "sheet-abilities-1.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["ability-upgrade", "ability-selling", "ability-atk-boost", "ability-hp-boost"]
+    },
+    {
+      "file": "sheet-abilities-2.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["ability-rally", "ability-recruit-l2", "ability-plus-deploy", "ability-range"]
+    },
+    {
+      "file": "sheet-abilities-3.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["ability-speed", "ability-credit", "ability-ward", "ability-firebolt"]
+    },
+    {
+      "file": "sheet-abilities-4.png",
+      "cols": 2,
+      "rows": 1,
+      "ids": ["ability-level-all", "ability-plus"]
+    },
+    {
+      "file": "sheet-techs.png",
+      "cols": 3,
+      "rows": 3,
+      "ids": [
+        "tech-fire-arrows",
+        "tech-golden-aura",
+        "tech-pitch-bolts",
+        "mod-damage",
+        "mod-hp",
+        "mod-range",
+        "mod-speed",
+        "mod-firerate",
+        "mod-default"
+      ]
+    },
+    {
+      "file": "sheet-emotes.png",
+      "cols": 4,
+      "rows": 2,
+      "ids": [
+        "emote-hello",
+        "emote-gg",
+        "emote-lol",
+        "emote-wow",
+        "emote-cry",
+        "emote-angry",
+        "emote-think",
+        "emote-incoming"
+      ]
+    },
+    {
+      "file": "sheet-stats.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["ui-hp", "ui-damage", "ui-range", "ui-speed-stat"]
+    },
+    {
+      "file": "sheet-misc.png",
+      "cols": 2,
+      "rows": 2,
+      "ids": ["ui-xp", "ui-room", "ui-pin", "state-locked"]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+ability-firebolt|flaming fantasy arrow / magical fire bolt with flame tip — medieval archery magic, NOT a rocket
+ability-recruit-l2|two small soldier silhouettes standing under a blank arched banner
+emote-incoming|fantasy war horn / bugle sounding an alarm meaning incoming attack — medieval, NOT a rocket
+emote-think|simple thinking face with hand on chin, stamped bronze emoji-style glyph
+item-addi|clenched armored fist meaning valor / balanced strength boost — NO plus sign, NO cross
+item-power|two crossed swords meaning attack power / carnage
+item-vigor|carved life-tree heart with emerald glow meaning vitality / extra HP (jade stone rune)
+item-colossus|massive tower shield / strong kite shield meaning mithril plating / huge HP
+item-wrath|fierce skull in flames meaning huge attack wrath
+item-golden|protective radiant aura / glowing ward circle meaning sunstone protection — NOT a star alone
+item-earth|simple carved mountain peaks — weak BASE earth rune, muted ochre glow, primitive stone
+item-fire|simple single flame tongue — weak BASE fire rune, soft ember glow, NOT a skull
+item-water|simple water droplet with ripple rings — weak BASE water rune, cool blue glow
+item-wind|three curved wind gusts — weak BASE wind rune, pale cyan glow
+mod-damage|sword blade meaning damage stat modifier
+mod-hp|heart or sturdy shield meaning HP modifier
+mod-range|archery target with rings meaning range modifier
+mod-speed|winged boot meaning speed modifier
+mod-firerate|bundle of arrows or rapid volley meaning fire rate
+mod-default|simple blank gear cog meaning default / generic mod
+tech-fire-arrows|flaming arrows on fire meaning fire arrows tech
+tech-golden-aura|radiant golden ring aura around a small shield meaning golden aura
+tech-pitch-bolts|ballista bolt coated in dripping pitch / tar
+tactic-acid|tilted potion flask pouring liquid into a puddle — acid spill
+ui-damage|crossed swords meaning damage stat
+ui-empty-slot|empty recessed rounded square frame meaning empty inventory slot
+ui-end-deploy|sealed scroll or checkmark banner meaning end deployment
+ui-hp|heart meaning health points
+ui-invite|person silhouette with a geometric plus mark meaning invite
+ui-lock|closed padlock with keyhole
+ui-menu|three horizontal bars or castle gate meaning menu
+ui-move|four-way directional arrows meaning move
+ui-pin|angled pushpin / thumbtack
+ui-range|archery target meaning range stat
+ui-rotate|circular rotate arrows meaning rotate
+ui-settings|gear cog meaning settings
+ui-spectate|open eye meaning spectate / watch
+ui-speed-stat|winged boot meaning speed stat
