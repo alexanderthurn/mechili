@@ -164,6 +164,7 @@ import {
     clearDeathClip,
     clearDeathFall,
     clearDeathTip,
+    alignSettledCorpse,
     settleCorpsePose,
     tickDeathClip,
     tickDeathFall,
@@ -9797,8 +9798,13 @@ export class Game {
                         mesh.userData.corpseSettled = true;
                         clearDeathClip(mesh);
                     }
-                } else if (collapse && !tickBuildingCollapse(mesh, collapse, this.time)) {
-                    clearBuildingCollapse(mesh);
+                } else if (collapse) {
+                    if (!tickBuildingCollapse(mesh, collapse, this.time)) clearBuildingCollapse(mesh);
+                } else if (mesh.userData.corpseSettled && !mesh.userData.hammerCrushed) {
+                    // settled out here (the sim's own dead loop is gone) — still hug terrain + slope
+                    const wx = unit.world.x + mesh.position.x;
+                    const wz = unit.world.z + mesh.position.z;
+                    alignSettledCorpse(mesh, wx, wz, worldHeightAt(wx, wz) + GROUND_UNIT_Y);
                 }
                 if (usesWingFlapModel(unit.type.modelId ?? unit.type.id) && mesh.userData.instanced) {
                     setCrowWingDeathSplay(mesh, crowWingDeathSplay(this.time, fall, tip));

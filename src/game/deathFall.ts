@@ -1,4 +1,4 @@
-import type { Group } from 'three';
+import { Quaternion, Vector3, type Group } from 'three';
 import { worldHeightAt } from './map';
 
 /** Render-only air-unit crash — sim death stays instant. */
@@ -318,9 +318,17 @@ export function clearCorpsePose(mesh: Group): void {
     delete mesh.userData.corpseTipZ;
 }
 
+const _corpseUp = new Vector3(0, 1, 0);
+const _corpseNormal = new Vector3();
+const _corpseSlope = new Quaternion();
+
 /**
  * Keep a settled wreck flat on the lawn and tilted with the local slope
  * (same central-difference normal idea as blob shadows).
+ *
+ * The slope turn is applied in WORLD space, on top of the corpse's own pose:
+ * folding it into the mesh's own pitch / roll angles mixes it with the yaw the
+ * body fell at, which left corpses lying across the slope at odd angles.
  */
 export function alignSettledCorpse(
     mesh: Group,
@@ -336,10 +344,12 @@ export function alignSettledCorpse(
     const h = 0.85;
     const dyx = worldHeightAt(worldX + h, worldZ) - worldHeightAt(worldX - h, worldZ);
     const dyz = worldHeightAt(worldX, worldZ + h) - worldHeightAt(worldX, worldZ - h);
-    const slopePitch = Math.atan2(dyz, 2 * h);
-    const slopeRoll = Math.atan2(-dyx, 2 * h);
-    mesh.rotation.x = tipX + slopePitch;
-    mesh.rotation.z = tipZ + slopeRoll;
+    // ground normal from the two central differences
+    _corpseNormal.set(-dyx / (2 * h), 1, -dyz / (2 * h)).normalize();
+    mesh.rotation.x = tipX;
+    mesh.rotation.z = tipZ;
+    _corpseSlope.setFromUnitVectors(_corpseUp, _corpseNormal);
+    mesh.quaternion.premultiply(_corpseSlope);
     // Slight sink so the silhouette kisses the grass instead of hovering
     mesh.position.y = groundY - 0.06;
 }
