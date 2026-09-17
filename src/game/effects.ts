@@ -2338,6 +2338,9 @@ export class ProjectileRenderer {
     private readonly dir = new Vector3();
     private readonly quat = new Quaternion();
     private readonly fwd = new Vector3(0, 0, 1);
+    /** a rolling stone's spin about its sideways axis */
+    private readonly spinQuat = new Quaternion();
+    private readonly sideAxis = new Vector3(1, 0, 0);
     /** disc yaw axis — separate so `fwd` is never left pointing up */
     private readonly up = new Vector3(0, 1, 0);
     private readonly one = new Vector3(1, 1, 1);
@@ -2532,6 +2535,9 @@ export class ProjectileRenderer {
             } else {
                 applyProjectileScale(this.scratchScale, base, p.scale);
                 this.quat.setFromUnitVectors(this.fwd, this.dir);
+                if (p.stone && p.stone.spin !== 0) {
+                    this.quat.multiply(this.spinQuat.setFromAxisAngle(this.sideAxis, p.stone.spin));
+                }
             }
             this.matrix.compose(this.pos, this.quat, this.scratchScale);
             const style = p.style;

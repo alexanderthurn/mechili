@@ -566,6 +566,8 @@ export interface Projectile {
     /** homing shots chase this actor and hit nothing else */
     target?: Actor;
     ttl: number;
+    /** a physical stone (bounces, rolls, keeps striking) — see {@link StoneState} */
+    stone?: StoneState;
 }
 
 /** visual happenings the renderer turns into particles (drained per frame) */
@@ -797,6 +799,54 @@ interface ShotPlan {
     aimX: number;
     aimZ: number;
 }
+
+/**
+ * A thrown stone as a body: after its landing blast it bounces off slopes,
+ * rolls downhill and keeps striking what it runs into, slowed by each unit's
+ * mass. Physics belong to the projectile (style `stone`), not the thrower.
+ */
+interface StoneState {
+    /** touched the ground once (the landing blast is spent) */
+    landed: boolean;
+    rolling: boolean;
+    bounces: number;
+    /** damage share of the next bounce blast */
+    blastMult: number;
+    /** speed at the first landing — strikes scale with speed against it */
+    refSpeed: number;
+    /** rock radius (render mesh r ≈ 0.84 × scale) */
+    radius: number;
+    /** roll angle (render-only) */
+    spin: number;
+    /** actors this stone already struck */
+    hit: Set<number>;
+}
+/** ground flatter than this stops a stone instead of bouncing it (rise / run) */
+const STONE_MIN_GRADE = 0.25;
+const STONE_MAX_BOUNCES = 3;
+/** share of the into-ground speed a bounce gives back */
+const STONE_RESTITUTION = 0.35;
+/** share of the along-ground speed kept per bounce */
+const STONE_BOUNCE_FRICTION = 0.78;
+/** a bounce weaker than this (wu/s up) turns into rolling */
+const STONE_ROLL_VN = 3;
+/** rolling deceleration (wu/s²) */
+const STONE_ROLL_FRICTION = 9;
+const STONE_STOP_SPEED = 1.2;
+/** rolling off a drop deeper than this goes airborne again (wu) */
+const STONE_LEDGE_DROP = 0.8;
+/** how long a landed stone may keep moving (s) */
+const STONE_MAX_MOVE_S = 6;
+/** bounce blasts: damage share per bounce, and splash radius share */
+const STONE_BOUNCE_DAMAGE = 0.5;
+const STONE_BOUNCE_SPLASH = 0.6;
+/** a bounce needs this much into-ground speed to blast (wu/s) */
+const STONE_BLAST_MIN_IMPACT = 4;
+/** stone mass in unit-radius² terms: a dwarf (0.36) barely slows it, an ogre (2.6) mostly stops it */
+const STONE_MASS = 1;
+const STONE_MIN_STRIKE_DAMAGE = 1;
+/** stone render mesh radius at scale 1 */
+const STONE_MESH_RADIUS = 0.84;
 
 /** classic lobs: flight-time stretch per loft level (slower across = higher arc) */
 const CLASSIC_LOFT_TIME = [1, 1.8, 2.6];
@@ -4633,6 +4683,21 @@ export class BattleSim {
             })(),
             gravity,
             target: at.homing ? target : undefined,
+            // a real rock (not the hammerer's swelling blast disc) is a body once it lands
+            ...((at.projectileStyle ?? 'bolt') === 'stone' && at.projectileScaleEnd == null && !at.homing
+                ? {
+                      stone: {
+                          landed: false,
+                          rolling: false,
+                          bounces: 0,
+                          blastMult: 1,
+                          refSpeed: 1,
+                          radius: STONE_MESH_RADIUS * (typeof at.projectileScale === 'number' ? at.projectileScale : 1),
+                          spin: 0,
+                          hit: new Set<number>(),
+                      },
+                  }
+                : {}),
             // Long hang must outlive the default 3s TTL or stones vanish mid-arc.
             ttl: Math.max(PROJECTILE_TTL, expectedFlight + 1),
         });
@@ -5115,11 +5180,22 @@ export class BattleSim {
                 p.vy = (dy / len) * speed;
                 p.vz = (dz / len) * speed;
             }
-            // lobbed shots tip over under gravity (arrow mesh follows velocity)
-            if (p.gravity) p.vy -= p.gravity * dt;
-            const nx = p.x + p.vx * dt;
-            const ny = p.y + p.vy * dt;
-            const nz = p.z + p.vz * dt;
+            let nx: number;
+            let ny: number;
+            let nz: number;
+            if (p.stone?.rolling) {
+                const next = this.rollStone(p, dt);
+                if (!next) continue; // came to rest
+                nx = next.x;
+                ny = next.y;
+                nz = next.z;
+            } else {
+                // lobbed shots tip over under gravity (arrow mesh follows velocity)
+                if (p.gravity) p.vy -= p.gravity * dt;
+                nx = p.x + p.vx * dt;
+                ny = p.y + p.vy * dt;
+                nz = p.z + p.vz * dt;
+            }
             const sx = nx - p.x;
             const sy = ny - p.y;
             const sz = nz - p.z;
@@ -5134,6 +5210,7 @@ export class BattleSim {
                 : this.actorsNearSegment(p.x, p.z, nx, nz, reach, p.team);
             for (const a of candidates) {
                 if (!a.alive || actorTeam(a) === p.team) continue;
+                if (p.stone?.hit.has(a.index)) continue; // a stone strikes each body once
                 const bx = a.x - p.x;
                 const bz = a.z - p.z;
                 if (bx * bx + bz * bz > reach * reach) continue;
@@ -5209,6 +5286,11 @@ export class BattleSim {
                 this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, wall.building, p.scale);
                 continue; // bullet stopped
             }
+            // a landed stone runs into bodies instead of bursting on them
+            if (hit && p.stone?.landed) {
+                if (!this.stoneStrike(p, hit, p.x + sx * hitT, p.y + sy * hitT, p.z + sz * hitT, sx, sz)) continue;
+                hit = null;
+            }
             if (hit) {
                 const ix = p.x + sx * hitT;
                 const iy = p.y + sy * hitT;
@@ -5278,6 +5360,10 @@ export class BattleSim {
             }
             // gameplay collision — must be identical on all machines
             const groundY = simGroundHeightAt(nx, nz);
+            if (p.stone && !p.stone.rolling && ny <= groundY + (p.stone.landed ? p.stone.radius : 0)) {
+                if (this.landStone(p, nx, nz, groundY, sx, sy, sz, splash)) this.projectiles[write++] = p;
+                continue;
+            }
             if (ny <= groundY) {
                 // splash shells detonate on the ground too — a miss still hurts
                 if (splash > 0) {
@@ -5332,10 +5418,234 @@ export class BattleSim {
             p.y = ny;
             p.z = nz;
             p.ttl -= dt;
-            if (p.ttl <= 0) continue;
+            if (p.ttl <= 0) {
+                if (p.stone?.landed) this.restStone(p, p.x, p.z);
+                continue;
+            }
             this.projectiles[write++] = p;
         }
         this.projectiles.length = write;
+    }
+
+    /** the board's slope at a point (rise per run along x and z) */
+    private groundGradient(x: number, z: number): { gx: number; gz: number } {
+        return {
+            gx: (simGroundHeightAt(x + 1, z) - simGroundHeightAt(x - 1, z)) * 0.5,
+            gz: (simGroundHeightAt(x, z + 1) - simGroundHeightAt(x, z - 1)) * 0.5,
+        };
+    }
+
+    /**
+     * A stone meets the ground. The first time it bursts like any stone
+     * always has (full splash); on a slope it then bounces — each later
+     * bounce a smaller blast — and once the bounces are too weak it rolls.
+     * Returns whether it is still moving.
+     */
+    private landStone(
+        p: Projectile,
+        nx: number,
+        nz: number,
+        groundY: number,
+        sx: number,
+        sy: number,
+        sz: number,
+        splash: number,
+    ): boolean {
+        const st = p.stone!;
+        const { gx, gz } = this.groundGradient(nx, nz);
+        const grade = hypot(gx, gz);
+        const inv = 1 / Math.sqrt(gx * gx + gz * gz + 1);
+        const nxN = -gx * inv;
+        const nyN = inv;
+        const nzN = -gz * inv;
+        const vn = p.vx * nxN + p.vy * nyN + p.vz * nzN;
+        const into = vn < 0 ? -vn : 0;
+        const first = !st.landed;
+        if (first) {
+            st.landed = true;
+            st.refSpeed = Math.max(1, hypot(p.vx, p.vy, p.vz));
+            // the rest of its life runs on real time and gravity (mortar lobs hang in slow motion)
+            p.gravity = BALLISTIC_GRAVITY;
+            p.ttl = STONE_MAX_MOVE_S;
+            if (splash > 0) {
+                this.explode(p, nx, nz, splash, { x: sx, z: sz });
+                this.events.push({
+                    kind: 'explosion',
+                    x: nx,
+                    y: groundY + 0.15,
+                    z: nz,
+                    radius: splash,
+                    scar: p.source.type.splashScar !== false,
+                });
+            }
+        } else if (splash > 0 && into >= STONE_BLAST_MIN_IMPACT) {
+            st.blastMult *= STONE_BOUNCE_DAMAGE;
+            this.explode(
+                { damage: p.damage * st.blastMult, team: p.team, source: p.source },
+                nx,
+                nz,
+                splash * STONE_BOUNCE_SPLASH,
+                { x: sx, z: sz },
+            );
+            this.events.push({
+                kind: 'explosion',
+                x: nx,
+                y: groundY + 0.15,
+                z: nz,
+                radius: splash * STONE_BOUNCE_SPLASH,
+                scar: false,
+            });
+        }
+        if (first && splash <= 0) {
+            this.applyFireAt(p.source, nx, nz, 0, this.fireProfileOf(p.source), { shotDir: { x: sx, z: sz } });
+        }
+        if (first && grade < STONE_MIN_GRADE) {
+            // flat lawn swallows it, as ever
+            this.restStone(p, nx, nz, true);
+            return false;
+        }
+        const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+        if (first || into >= STONE_BLAST_MIN_IMPACT) {
+            this.events.push({
+                kind: 'impact',
+                x: nx,
+                y: groundY + 0.15,
+                z: nz,
+                dx: sx / slen,
+                dy: sy / slen,
+                dz: sz / slen,
+                sod: true,
+                scar: first && p.source.type.splashScar !== false,
+            });
+        }
+        // reflect: the into-ground part comes back weakened, the along-ground part mostly stays
+        const tx = (p.vx - vn * nxN) * STONE_BOUNCE_FRICTION;
+        const ty = (p.vy - vn * nyN) * STONE_BOUNCE_FRICTION;
+        const tz = (p.vz - vn * nzN) * STONE_BOUNCE_FRICTION;
+        const up = into * STONE_RESTITUTION;
+        st.bounces++;
+        if (up < STONE_ROLL_VN || st.bounces > STONE_MAX_BOUNCES) {
+            st.rolling = true;
+            p.vx = tx;
+            p.vy = ty;
+            p.vz = tz;
+        } else {
+            p.vx = tx + nxN * up;
+            p.vy = ty + nyN * up;
+            p.vz = tz + nzN * up;
+        }
+        if (hypot(p.vx, p.vz) < STONE_STOP_SPEED && grade < STONE_MIN_GRADE) {
+            this.restStone(p, nx, nz);
+            return false;
+        }
+        p.x = nx;
+        p.y = groundY + st.radius;
+        p.z = nz;
+        p.ttl -= this.prevStepDt;
+        if (p.ttl <= 0) {
+            this.restStone(p, nx, nz);
+            return false;
+        }
+        return true;
+    }
+
+    /** one step of a rolling stone: pulled downhill, slowed by friction; null once it rests */
+    private rollStone(p: Projectile, dt: number): { x: number; y: number; z: number } | null {
+        const st = p.stone!;
+        const { gx, gz } = this.groundGradient(p.x, p.z);
+        const grade2 = gx * gx + gz * gz;
+        const pull = BALLISTIC_GRAVITY / (1 + grade2);
+        p.vx -= gx * pull * dt;
+        p.vz -= gz * pull * dt;
+        let speed = hypot(p.vx, p.vz);
+        const slow = STONE_ROLL_FRICTION * dt;
+        if (speed <= slow) {
+            p.vx = 0;
+            p.vz = 0;
+            speed = 0;
+        } else {
+            const k = (speed - slow) / speed;
+            p.vx *= k;
+            p.vz *= k;
+            speed -= slow;
+        }
+        if (speed < STONE_STOP_SPEED && grade2 < STONE_MIN_GRADE * STONE_MIN_GRADE) {
+            this.restStone(p, p.x, p.z);
+            return null;
+        }
+        const x = p.x + p.vx * dt;
+        const z = p.z + p.vz * dt;
+        const y = simGroundHeightAt(x, z) + st.radius;
+        if (p.y - y > STONE_LEDGE_DROP) {
+            // rolled off an edge: airborne until the next landing
+            st.rolling = false;
+            p.vy = 0;
+            return { x, y: p.y, z };
+        }
+        p.vy = (y - p.y) / dt;
+        st.spin += (speed * dt) / st.radius;
+        return { x, y, z };
+    }
+
+    /**
+     * A moving stone runs into a body: damage scales with its speed, and it
+     * keeps stoneMass / (stoneMass + unitMass) of that speed. A building
+     * stops it. Returns whether it keeps going.
+     */
+    private stoneStrike(p: Projectile, hit: Actor, ix: number, iy: number, iz: number, sx: number, sz: number): boolean {
+        const st = p.stone!;
+        st.hit.add(hit.index);
+        const speed = hypot(p.vx, p.vy, p.vz);
+        const f = Math.min(1, speed / st.refSpeed);
+        const dealt = p.damage * f * this.damageTakenMult(hit);
+        if (dealt >= STONE_MIN_STRIKE_DAMAGE) {
+            this.applyDamage(p.source, hit, dealt, { x: sx, z: sz }, p.source.type.piercesShield ? 'direct' : 'shielded');
+            const slen = hypot(p.vx, p.vy, p.vz) || 1;
+            this.events.push({
+                kind: 'impact',
+                x: ix,
+                y: iy,
+                z: iz,
+                blood: bloodColorOf(hit.unit.type),
+                flesh: resolveDeathWear(hit.unit.type) === 'blood',
+                masonry: !!hit.unit.type.structure,
+                cx: hit.unit.type.structure ? hit.x : undefined,
+                cz: hit.unit.type.structure ? hit.z : undefined,
+                dx: p.vx / slen,
+                dy: p.vy / slen,
+                dz: p.vz / slen,
+                bloodScale: hit.unit.type.bloodScale,
+            });
+        }
+        if (hit.unit.type.structure) {
+            this.restStone(p, ix, iz);
+            return false;
+        }
+        const keep = STONE_MASS / (STONE_MASS + hit.radius * hit.radius);
+        p.vx *= keep;
+        p.vy *= keep;
+        p.vz *= keep;
+        if (speed * keep < STONE_STOP_SPEED) {
+            this.restStone(p, ix, iz);
+            return false;
+        }
+        return true;
+    }
+
+    /** a stone comes to rest: the rock the renderer leaves lying on the lawn */
+    private restStone(p: Projectile, x: number, z: number, landing = false): void {
+        this.events.push({
+            kind: 'impact',
+            x,
+            y: simGroundHeightAt(x, z) + 0.15,
+            z,
+            dx: landing ? p.vx : 0,
+            dy: landing ? p.vy : -1,
+            dz: landing ? p.vz : 0,
+            sod: landing,
+            ...stoneDropFields(p),
+            scar: landing && p.source.type.splashScar !== false,
+        });
     }
 
     /**
