@@ -22,7 +22,13 @@ import type { SeatId } from './seats';
 import { detAtan2, detCos, detPow2, detSin, hypot, wrapPi } from './detMath';
 import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
-import { effectiveWeaponReach, RANGE_ELEV_MAX_BONUS, resolveSlopeMove, SLOPE_STRUGGLE } from './terrainCombat';
+import {
+    effectiveWeaponReach,
+    RANGE_ELEV_MAX_BONUS,
+    resolveSlopeMove,
+    SLOPE_STRUGGLE,
+    type ElevationMode,
+} from './terrainCombat';
 import type { TerrainGrid } from './terrainGrid';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
@@ -5141,13 +5147,15 @@ export class BattleSim {
         return false;
     }
 
-    /**
-     * Whether the high-ground range rule applies to this pair: ranged, and both
-     * on the ground. A flyer hovers wherever it likes, so neither its altitude
-     * nor a ground unit's hill should change reach against it.
+/**
+     * How the high-ground rule counts for this pair. A flyer hovers wherever it
+     * likes, so its altitude is never high ground: an airborne shooter gains
+     * nothing, and a flyer climbing above a ground shooter costs that shooter
+     * nothing — but a hill still helps against a flyer below it.
      */
-    private elevationCounts(shooter: Actor, target: Actor): boolean {
-        return !!shooter.unit.type.projectileSpeed && shooter.altitude === 0 && target.altitude === 0;
+    private elevationCounts(shooter: Actor, target: Actor): ElevationMode {
+        if (!shooter.unit.type.projectileSpeed || shooter.altitude > 0) return 'none';
+        return target.altitude > 0 ? 'gainOnly' : 'full';
     }
 
     /** whether this unit's attack (shot or beam) can reach the target over the terrain */

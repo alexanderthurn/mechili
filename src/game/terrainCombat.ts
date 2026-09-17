@@ -35,8 +35,17 @@ export function elevationRangeBonus(shooterY: number, targetY: number): number {
 }
 
 /**
- * Surface-to-surface weapon reach. When `elevation` is true (ranged), high
- * ground extends reach and low ground shortens it.
+ * How the height difference counts for a shot:
+ * - `none`: not at all (melee, or a shooter that is itself airborne — hovering is not high ground)
+ * - `full`: ground vs ground — reach grows downhill and shrinks uphill
+ * - `gainOnly`: ground shooter vs an air target — a hill still helps against a
+ *   flyer BELOW it, but a flyer climbing higher costs the shooter nothing
+ */
+export type ElevationMode = 'none' | 'full' | 'gainOnly';
+
+/**
+ * Surface-to-surface weapon reach, with the height rule applied per
+ * {@link ElevationMode}.
  */
 export function effectiveWeaponReach(
     baseRange: number,
@@ -44,9 +53,10 @@ export function effectiveWeaponReach(
     toRadius: number,
     shooterY: number,
     targetY: number,
-    elevation = false,
+    elevation: ElevationMode = 'none',
 ): number {
-    const bonus = elevation ? elevationRangeBonus(shooterY, targetY) : 0;
+    let bonus = elevation === 'none' ? 0 : elevationRangeBonus(shooterY, targetY);
+    if (elevation === 'gainOnly' && bonus < 0) bonus = 0;
     return Math.max(0.5, baseRange + bonus) + fromRadius + toRadius;
 }
 
