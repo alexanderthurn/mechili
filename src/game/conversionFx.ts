@@ -437,22 +437,6 @@ export class ConversionFx {
                         _skyCore,
                         skyHdr,
                     );
-                    if (bloomOn && pn < MAX_PRISM) {
-                        placePrismPipe(
-                            this.prismMesh,
-                            pn++,
-                            from.x,
-                            from.y + PRISM_SKY_H,
-                            from.z,
-                            0,
-                            -1,
-                            0,
-                            PRISM_SKY_H,
-                            skyW * (bloomUltra ? 3.2 : 2.4),
-                            _skyCore,
-                            skyHdr * (bloomUltra ? 0.38 : 0.22),
-                        );
-                    }
                 }
 
                 const victims =
@@ -487,22 +471,6 @@ export class ConversionFx {
                             atkW,
                             _skyCore,
                             atkHdr,
-                        );
-                    }
-                    if (bloomOn && pn < MAX_PRISM) {
-                        placePrismPipe(
-                            this.prismMesh,
-                            pn++,
-                            from.x,
-                            from.y,
-                            from.z,
-                            _dir.x,
-                            _dir.y,
-                            _dir.z,
-                            len,
-                            atkW * (bloomUltra ? 3.2 : 2.4),
-                            _skyCore,
-                            atkHdr * (bloomUltra ? 0.38 : 0.22),
                         );
                     }
                 }
