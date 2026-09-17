@@ -51,10 +51,6 @@
     "name": "Églift",
     "description": "A levegőbe emeli ezt az egységet (harci repülő)."
   },
-  "earthbound": {
-    "name": "Földhözragadt",
-    "description": "A földön tartja az egységet (felülbírálja az égliftet / természetes repülést)."
-  },
   "spiderMother": {
     "name": "Pókok anyja"
   },

@@ -51,10 +51,6 @@
     "name": "Lif Langit",
     "description": "Mengangkat unit ini ke udara (penerbang tempur)."
   },
-  "earthbound": {
-    "name": "Terikat di Bumi",
-    "description": "Mengekalkan unit ini di atas tanah (mengatasi Sky Lift / penerbangan semula jadi)."
-  },
   "spiderMother": {
     "name": "Ibu Labah-labah"
   },

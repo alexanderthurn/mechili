@@ -51,10 +51,6 @@
     "name": "Alzavuelo",
     "description": "Eleva esta unidad por los aires (volador de combate)."
   },
-  "earthbound": {
-    "name": "Terrestre",
-    "description": "Mantiene esta unidad en el suelo (anula Alzavuelo / el vuelo natural)."
-  },
   "spiderMother": {
     "name": "Madre de las arañas"
   },

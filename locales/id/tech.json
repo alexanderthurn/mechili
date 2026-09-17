@@ -51,10 +51,6 @@
     "name": "Lift Langit",
     "description": "Mengangkat unit ini ke udara (pesawat tempur)."
   },
-  "earthbound": {
-    "name": "Terbatas pd bumi",
-    "description": "Menjaga unit ini tetap di tanah (menggantikan Sky Lift / penerbangan alami)."
-  },
   "spiderMother": {
     "name": "Ibu dari Laba-laba"
   },

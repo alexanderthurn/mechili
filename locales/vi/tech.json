@@ -51,10 +51,6 @@
     "name": "Thang máy trên không",
     "description": "Nâng thiết bị này lên không trung (máy bay chiến đấu)."
   },
-  "earthbound": {
-    "name": "Trái đất",
-    "description": "Giữ thiết bị này trên mặt đất (vô hiệu hóa chế độ bay tự do/bay tự nhiên)."
-  },
   "spiderMother": {
     "name": "Mẹ của loài nhện"
   },

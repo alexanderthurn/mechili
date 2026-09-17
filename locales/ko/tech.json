@@ -51,10 +51,6 @@
     "name": "공중 부양",
     "description": "이 유닛을 공중으로 올립니다 (전투 비행체)."
   },
-  "earthbound": {
-    "name": "대지 속박",
-    "description": "이 유닛을 지상에 유지합니다 (공중 부양 / 고유 비행을 덮어씀)."
-  },
   "spiderMother": {
     "name": "거미의 어머니"
   },

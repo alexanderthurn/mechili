@@ -20,7 +20,7 @@
     "walkCadence": 1.5,
     "turnRate": 12,
     "proceduralModel": "dwarf",
-    "talents": ["legs", "carapace"],
+    "talents": ["legs", "carapace", "bloodRage", "aegis"],
     "talentSlots": 2,
     "itemSlots": 2,
 }

@@ -51,10 +51,6 @@
     "name": "空中浮揚",
     "description": "このユニットを空中へ引き上げる（戦闘飛行者）。"
   },
-  "earthbound": {
-    "name": "地縛り",
-    "description": "このユニットを地上に留める（空中浮揚 / 本来の飛行を上書き）。"
-  },
   "spiderMother": {
     "name": "蜘蛛の母"
   },

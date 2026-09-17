@@ -51,10 +51,6 @@
     "name": "Ascesa celeste",
     "description": "Solleva quest'unità in aria (volante da combattimento)."
   },
-  "earthbound": {
-    "name": "Terrestre",
-    "description": "Mantiene questa unità a terra (annulla Ascesa celeste / il volo naturale)."
-  },
   "spiderMother": {
     "name": "Madre dei ragni"
   },

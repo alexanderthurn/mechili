@@ -51,10 +51,6 @@
     "name": "Himmelslift",
     "description": "Hebt diese Einheit in die Luft (Kampfflieger)."
   },
-  "earthbound": {
-    "name": "Erdgebunden",
-    "description": "Hält diese Einheit am Boden (überschreibt Himmelslift / natürlichen Flug)."
-  },
   "spiderMother": {
     "name": "Mutter der Spinnen"
   },

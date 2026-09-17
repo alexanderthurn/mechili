@@ -51,10 +51,6 @@
     "name": "Skylift",
     "description": "Nostaa tämän yksikön ilmaan (taistelulentäjä)."
   },
-  "earthbound": {
-    "name": "Maanläheinen",
-    "description": "Pitää tämän laitteen maassa (ohittaa Sky Liftin / luonnollisen lennon)."
-  },
   "spiderMother": {
     "name": "Hämähäkkien äiti"
   },

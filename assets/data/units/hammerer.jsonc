@@ -28,7 +28,7 @@
     "speed": 4.5,
     "turnRate": 5,
     "proceduralModel": "hammerer",
-    // Arclight-style range enhancement
-    "talents": ["barrel"],
-    "talentSlots": 1,
+    // range / damage pivots
+    "talents": ["barrel", "ap"],
+    "talentSlots": 2,
 }

@@ -51,10 +51,6 @@
     "name": "Envol céleste",
     "description": "Fait décoller cette unité (voltigeur de combat)."
   },
-  "earthbound": {
-    "name": "Attaché à la terre",
-    "description": "Maintient cette unité au sol (annule Envol céleste / le vol naturel)."
-  },
   "spiderMother": {
     "name": "Mère des araignées"
   },

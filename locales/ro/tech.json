@@ -51,10 +51,6 @@
     "name": "Liftul de la cer",
     "description": "Ridică această unitate în aer (avion de luptă)."
   },
-  "earthbound": {
-    "name": "Legat de Pământ",
-    "description": "Menține această unitate la sol (anulează Sky Lift / zborul natural)."
-  },
   "spiderMother": {
     "name": "Mama păianjenilor"
   },

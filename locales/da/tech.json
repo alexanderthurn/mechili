@@ -51,10 +51,6 @@
     "name": "Sky Lift",
     "description": "Løfter denne enhed op i luften (kampflyver)."
   },
-  "earthbound": {
-    "name": "Jordbunden",
-    "description": "Holder denne enhed på jorden (tilsidesætter Sky Lift / naturlig flyvning)."
-  },
   "spiderMother": {
     "name": "Edderkoppernes mor"
   },

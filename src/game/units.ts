@@ -1183,7 +1183,7 @@ export class Unit {
     /** 0 on the ground in deployment, animates to 1 at full combat altitude */
     flightLift = 0;
     /**
-     * Flight altitude from Sky Lift / Earthbound. `null` = use {@link UnitType.flying}.
+     * Flight altitude from Sky Lift (or other `flight` talents). `null` = use {@link UnitType.flying}.
      * Refresh via the match when those techs change.
      */
     techFlying: number | null = null;

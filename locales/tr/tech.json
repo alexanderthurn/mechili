@@ -51,10 +51,6 @@
     "name": "Göğe Yükseliş",
     "description": "Bu birimi havaya kaldırır (uçan savaşçı)."
   },
-  "earthbound": {
-    "name": "Toprağa bağlı",
-    "description": "Bu birimi yerde tutar (Göğe Yükseliş / doğal uçuşu iptal eder)."
-  },
   "spiderMother": {
     "name": "Örümceklerin Annesi"
   },

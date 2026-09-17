@@ -51,10 +51,6 @@
     "name": "Sky Lift",
     "description": "Lyfter denna enhet upp i luften (stridsflygplan)."
   },
-  "earthbound": {
-    "name": "Jordbundna",
-    "description": "Håller enheten på marken (åsidosätter Sky Lift / naturlig flygning)."
-  },
   "spiderMother": {
     "name": "Spindlarnas mor"
   },

@@ -51,10 +51,6 @@
     "name": "Hemelvlucht",
     "description": "Tilt deze eenheid de lucht in (vechtende vlieger)."
   },
-  "earthbound": {
-    "name": "Aardgebonden",
-    "description": "Houdt deze eenheid op de grond (overschrijft Hemelvlucht / natuurlijke vlucht)."
-  },
   "spiderMother": {
     "name": "Moeder van de spinnen"
   },

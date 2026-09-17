@@ -51,10 +51,6 @@
     "name": "Wzlot",
     "description": "Podnosi tę jednostkę w powietrze (bojowy lotnik)."
   },
-  "earthbound": {
-    "name": "Przykuty do ziemi",
-    "description": "Trzyma tę jednostkę na ziemi (zastępuje Wzlot / naturalny lot)."
-  },
   "spiderMother": {
     "name": "Matka Pająków"
   },

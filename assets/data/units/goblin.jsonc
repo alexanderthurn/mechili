@@ -26,7 +26,7 @@
     "walkCadence": 1.45,
     "turnRate": 11,
     "proceduralModel": "goblin",
-    // Longbow — same range talent as the archer
-    "talents": ["barrel"],
-    "talentSlots": 1,
+    // Ranged chaff pivots: range, shield, damage
+    "talents": ["barrel", "aegis", "ap"],
+    "talentSlots": 2,
 }

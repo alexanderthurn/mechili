@@ -3962,7 +3962,7 @@ export class Game {
         return seat >= 0 ? this.seats[seat]?.loadout : undefined;
     }
 
-    /** Apply Sky Lift / Earthbound to pack hover altitude during deployment. */
+    /** Apply Sky Lift (flight talents) to pack hover altitude during deployment. */
     private refreshFlightAlts(): void {
         const has = (seat: SeatId, typeId: string, techId: string) =>
             this.unitHasTech(seat, typeId, techId);

@@ -55,10 +55,6 @@
     "name": "Sky Lift",
     "description": "Lifts this unit into the air (combat flyer)."
   },
-  "earthbound": {
-    "name": "Earthbound",
-    "description": "Keeps this unit on the ground (overrides Sky Lift / natural flight)."
-  },
   "spiderMother": {
     "name": "Mother of Spiders"
   },

@@ -51,10 +51,6 @@
     "name": "Voo Elevado",
     "description": "Eleva esta unidade ao ar (voador de combate)."
   },
-  "earthbound": {
-    "name": "Preso ao Solo",
-    "description": "Mantém esta unidade no chão (anula Voo Elevado / o voo natural)."
-  },
   "spiderMother": {
     "name": "Mãe das Aranhas"
   },

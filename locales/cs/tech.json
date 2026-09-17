@@ -51,10 +51,6 @@
     "name": "Vzlet",
     "description": "Zvedne tuto jednotku do vzduchu (bojový letec)."
   },
-  "earthbound": {
-    "name": "Připoutaný k zemi",
-    "description": "Udrží tuto jednotku na zemi (přepíše Vzlet / přirozený let)."
-  },
   "spiderMother": {
     "name": "Matka pavouků"
   },

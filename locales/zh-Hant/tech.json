@@ -51,10 +51,6 @@
     "name": "升空",
     "description": "將此單位升入空中（戰鬥飛行單位）。"
   },
-  "earthbound": {
-    "name": "縛地",
-    "description": "使此單位留在地面（覆蓋升空 / 天生飛行）。"
-  },
   "spiderMother": {
     "name": "蛛母"
   },
