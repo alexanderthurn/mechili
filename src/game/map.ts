@@ -11,7 +11,7 @@ import {
     Vector3,
 } from 'three';
 
-import { hypot } from './detMath';
+import { detCos, detSin, hypot } from './detMath';
 import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
@@ -508,9 +508,8 @@ export class BattleMap {
     private readonly reliefNoise = makeValueNoise(9241);
 
     /**
-     * Visual-only relief: gentle mounds rising up to `reliefDepth`, never
-     * below 0. The sim keeps walking on the flat y=0 plane — feet wade a bit
-     * into a mound, which the grass hides (better than hovering over dips).
+     * Board relief under a world XZ. Sim locomotion samples slope from this;
+     * ballistics and feetY read the same field so every peer agrees.
      * Flat across the outer rim (to meet the outer meadow at y=0) and under
      * the base buildings (so the castles sit cleanly).
      */
@@ -524,6 +523,14 @@ export class BattleMap {
      * buildings, ballistics and the deploy grid all follow the sculpt.
      */
     private reliefOverride: ((x: number, z: number) => number) | null = null;
+    private readonly flattenStamps: {
+        x: number;
+        z: number;
+        halfWidth: number;
+        halfDepth: number;
+        yaw: number;
+        targetY: number;
+    }[] = [];
 
     setReliefOverride(fn: ((x: number, z: number) => number) | null): void {
         this.reliefOverride = fn;
@@ -534,9 +541,50 @@ export class BattleMap {
         return this.reliefOverride ?? ((x, z) => this.proceduralHeightAt(x, z));
     }
 
+    /** Hammer-of-Gods board flatten — lasts until {@link clearFlattenStamps}. */
+    addFlattenStamp(
+        x: number,
+        z: number,
+        halfWidth: number,
+        halfDepth: number,
+        yaw: number,
+        targetY: number,
+    ): void {
+        this.flattenStamps.push({ x, z, halfWidth, halfDepth, yaw, targetY });
+    }
+
+    clearFlattenStamps(): void {
+        this.flattenStamps.length = 0;
+    }
+
     heightAt(x: number, z: number): number {
-        if (this.reliefOverride) return this.reliefOverride(x, z);
-        return this.proceduralHeightAt(x, z);
+        let h = this.reliefOverride ? this.reliefOverride(x, z) : this.proceduralHeightAt(x, z);
+        for (const stamp of this.flattenStamps) {
+            const w = this.flattenWeight(x, z, stamp);
+            if (w <= 0) continue;
+            h = h * (1 - w) + stamp.targetY * w;
+        }
+        return h;
+    }
+
+    /** Soft edge weight inside an oriented flatten rect (1 = full flatten). */
+    private flattenWeight(
+        x: number,
+        z: number,
+        stamp: { x: number; z: number; halfWidth: number; halfDepth: number; yaw: number },
+    ): number {
+        const dx = x - stamp.x;
+        const dz = z - stamp.z;
+        const c = detCos(stamp.yaw);
+        const s = detSin(stamp.yaw);
+        const lx = dx * c + dz * s;
+        const lz = -dx * s + dz * c;
+        const ax = Math.abs(lx) / Math.max(1e-3, stamp.halfWidth);
+        const az = Math.abs(lz) / Math.max(1e-3, stamp.halfDepth);
+        if (ax > 1 || az > 1) return 0;
+        const edge = Math.max(ax, az);
+        if (edge <= 0.82) return 1;
+        return 1 - (edge - 0.82) / 0.18;
     }
 
     /** Procedural board mounds (used when no landscape override is set). */

@@ -22,6 +22,7 @@ import type { SeatId } from './seats';
 import { detAtan2, detCos, detSin, hypot, wrapPi } from './detMath';
 import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
+import { effectiveWeaponReach, resolveSlopeMove } from './terrainCombat';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
     METEOR_SHARD_FALL_SEC,
@@ -626,6 +627,8 @@ export type SimEvent =
           halfWidth: number;
           halfDepth: number;
           yaw: number;
+          /** Deterministic flatten height for the footprint (board relief). */
+          flattenY: number;
       }
     | {
           kind: 'death';
@@ -3032,6 +3035,13 @@ export class BattleSim {
                 halfWidth: rect?.halfWidth ?? s.radius,
                 halfDepth: rect?.halfDepth ?? s.radius,
                 yaw: s.yaw ?? 0,
+                flattenY: this.sampleHammerFlattenY(
+                    s.x,
+                    s.z,
+                    rect?.halfWidth ?? s.radius,
+                    rect?.halfDepth ?? s.radius,
+                    s.yaw ?? 0,
+                ),
             });
             // No blast shove — impulse was sliding pancakes (and their meshes)
             // outside the scar while blood stayed at the kill seat.
@@ -3039,6 +3049,33 @@ export class BattleSim {
             this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
             this.applyBlastImpulse(s.x, s.z, visualRadius, bigMeteor ? 2.6 : 1.5);
         }
+    }
+
+    /** Mean board height in the hammer footprint — deterministic flatten target. */
+    private sampleHammerFlattenY(
+        cx: number,
+        cz: number,
+        halfW: number,
+        halfD: number,
+        yaw: number,
+    ): number {
+        const c = detCos(yaw);
+        const s = detSin(yaw);
+        let sum = 0;
+        let n = 0;
+        const stepsW = 6;
+        const stepsD = 8;
+        for (let iw = 0; iw <= stepsW; iw++) {
+            for (let id = 0; id <= stepsD; id++) {
+                const lx = -halfW + (halfW * 2 * iw) / stepsW;
+                const lz = -halfD + (halfD * 2 * id) / stepsD;
+                const x = cx + lx * c - lz * s;
+                const z = cz + lx * s + lz * c;
+                sum += simGroundHeightAt(x, z);
+                n++;
+            }
+        }
+        return n > 0 ? sum / n : simGroundHeightAt(cx, cz);
     }
 
     /**
@@ -4014,7 +4051,14 @@ export class BattleSim {
                     const tdx = target.x - a.x;
                     const tdz = target.z - a.z;
                     const tDist = hypot(tdx, tdz) || 1e-6;
-                    const reach = stats.range + a.radius + target.radius;
+                    const reach = effectiveWeaponReach(
+                        stats.range,
+                        a.radius,
+                        target.radius,
+                        this.feetY(a),
+                        this.feetY(target),
+                        !!a.unit.type.projectileSpeed,
+                    );
                     const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
                     if (
                         this.tryMeleeRetreat(a, target, stats, d, bigs, dt, canAttack)
@@ -4085,7 +4129,14 @@ export class BattleSim {
             const tDist = hypot(tdx, tdz) || 1e-6;
             // range is surface-to-surface: collision circles must not keep
             // melee mechs from ever "reaching" wide targets like towers
-            const reach = stats.range + a.radius + target.radius;
+            const reach = effectiveWeaponReach(
+                stats.range,
+                a.radius,
+                target.radius,
+                this.feetY(a),
+                this.feetY(target),
+                !!a.unit.type.projectileSpeed,
+            );
             const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
 
             // dead zone: no foe outside min range to shoot or walk toward
@@ -4270,7 +4321,21 @@ export class BattleSim {
                 stats.speed *
                 this.debuff(a, d.speedMult) *
                 (a.altitude === 0 && this.hazards.hasOilAt(a.x, a.z) ? OIL_SPEED_MULT : 1);
-            const move = Math.min(speed * dt, Math.max(0, goalDist - stopMargin));
+            let move = Math.min(speed * dt, Math.max(0, goalDist - stopMargin));
+            // Ground units: uphill slows; steep faces slide sideways instead of freezing.
+            if (a.altitude === 0 && move > 1e-6) {
+                const slope = resolveSlopeMove(
+                    a.x,
+                    a.z,
+                    moveX,
+                    moveZ,
+                    move,
+                    (a.index & 1) === 1,
+                );
+                moveX = slope.mx;
+                moveZ = slope.mz;
+                move *= slope.factor;
+            }
             a.x += moveX * move;
             a.z += moveZ * move;
         }
@@ -5585,7 +5650,14 @@ export class BattleSim {
             if (cached.altitude > 0 && !native.air) {
                 return this.isOpportunisticGroundSwat(from, cached, native);
             }
-            const reach = stats.range + from.radius + cached.radius;
+            const reach = effectiveWeaponReach(
+                stats.range,
+                from.radius,
+                cached.radius,
+                this.feetY(from),
+                this.feetY(cached),
+                !!from.unit.type.projectileSpeed,
+            );
             const dx = cached.x - from.x;
             const dz = cached.z - from.z;
             const d2 = dx * dx + dz * dz;
