@@ -7,10 +7,15 @@ import { hypot } from './detMath';
 import { simGroundHeightAt } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
 
-/** Horizontal range gained/lost per world-unit of height difference. */
-export const RANGE_PER_WU = 0.45;
-/** Cap so sculpted cliffs / tall keeps stay readable. */
-export const RANGE_ELEV_MAX_BONUS = 10;
+/**
+ * Horizontal range gained per world-unit of height ABOVE the target: shooting
+ * downhill carries far, so high ground (a keep, a plateau) is worth a lot.
+ */
+export const RANGE_PER_WU_DOWN = 4.5;
+/** Range lost per world-unit the target stands above the shooter — shooting up costs little but adds up. */
+export const RANGE_PER_WU_UP = 0.45;
+/** Caps so sculpted cliffs / tall keeps stay readable. */
+export const RANGE_ELEV_MAX_BONUS = 100;
 export const RANGE_ELEV_MAX_PENALTY = 8;
 
 /** Rise/run above this → prefer slide / crawl instead of full forward step. */
@@ -23,7 +28,7 @@ export const SLOPE_STRUGGLE = 0.12;
 /** Elevation delta → range delta (positive = high-ground advantage). */
 export function elevationRangeBonus(shooterY: number, targetY: number): number {
     const dh = shooterY - targetY;
-    const raw = dh * RANGE_PER_WU;
+    const raw = dh * (dh >= 0 ? RANGE_PER_WU_DOWN : RANGE_PER_WU_UP);
     return Math.min(RANGE_ELEV_MAX_BONUS, Math.max(-RANGE_ELEV_MAX_PENALTY, raw));
 }
 
