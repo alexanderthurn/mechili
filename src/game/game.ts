@@ -1979,6 +1979,7 @@ export class Game {
             return (dx, dz) => reachToward(feetY, x, z, dx, dz, base, 0);
         };
         this.placement.minRangeOf = (unit) => this.resolvedStatsView(unit).minRange;
+        this.placement.itemArmed = () => this.armedItem !== null;
         this.placement.auraRangeOf = (unit) => this.auraRadiusOf(unit);
         this.controls.onRightClick = () => {
             if (this.cancelTacticPlacement()) return;
@@ -11049,9 +11050,13 @@ export class Game {
         let bestScreen: Actor | null = null;
         let bestScreenD = Infinity;
 
+        // garrison posts (Stronghold archers) only once their keep or a fellow post is selected
+        const sel = this.selectedActor?.unit ?? null;
         for (const a of this.sim.actors) {
             if (!a.alive) continue;
             const t = a.unit.type;
+            const host = a.unit.hostUnitId;
+            if (host != null && !(sel && (sel.id === host || sel.hostUnitId === host))) continue;
 
             forEachPickSphere(t, a.rx, a.footY, a.rz, (cx, cy, cz, r) => {
                 const hitT = raySphereT(ray, cx, cy, cz, r);

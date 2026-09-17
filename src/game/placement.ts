@@ -2152,9 +2152,27 @@ export class PlacementController {
         });
     }
 
-    /** the pack under a surface point — for tactics that target units (e.g. sell) */
+    /** the pack under a surface point — for tactics that target units (e.g. sell) and rune drops */
     unitAtPoint(x: number, y: number): Unit | undefined {
         return this.pickUnitAt(x, y);
+    }
+
+    /** true while the player holds an inventory item (rune drops pick garrison posts more strictly) */
+    itemArmed: (() => boolean) | null = null;
+
+    /**
+     * A garrison post (a Stronghold archer standing on its keep) is only
+     * pickable while its building or a fellow post is selected — otherwise a
+     * click or rune drop on the keep would land on the archer in front of it.
+     * With an item in hand only a selected fellow post opens them up, so a rune
+     * dragged onto a selected keep still reaches the keep.
+     */
+    garrisonPickable(unit: Unit): boolean {
+        if (unit.hostUnitId == null) return true;
+        const sel = this.selectedUnit;
+        if (!sel || sel.destroyed) return false;
+        if (sel.hostUnitId === unit.hostUnitId) return true;
+        return sel.id === unit.hostUnitId && !(this.itemArmed?.() ?? false);
     }
 
     /**
@@ -2187,6 +2205,7 @@ export class PlacementController {
 
         const unit = this.occupied.get(cellKey(cell)) ?? (opts?.skipExtras ? undefined : this.extraAt(cell));
         if (!unit || unit.destroyed) return undefined;
+        if (!this.garrisonPickable(unit)) return undefined;
         // live fogged cell may be a hidden post-move position — ignore
         if (this.isFogged(unit)) return undefined;
         return unit;
@@ -2211,6 +2230,7 @@ export class PlacementController {
         const consider = (unit: Unit): void => {
             if (unit.destroyed) return;
             if (opts?.skipExtras && unit.type.extra) return;
+            if (!this.garrisonPickable(unit)) return; // the keep, not the archer on it
             // selectable: own packs, or enemy packs visible in intel
             if (unit.team !== 'player' && !this.enemyIntelVisible(unit)) return;
 
