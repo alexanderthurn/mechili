@@ -36,7 +36,7 @@
     // Commanders a player can be offered, in draw order (offers are dealt from this list by seed).
     "commanders": ["air", "cost", "elite", "archer", "addi", "meteor", "speed", "giant", "tutor", "money", "flanky"],
     // Loaded and addressable by id, never offered (tutorial lessons and scenarios pick them).
-    "hiddenCommanders": ["tutorial", "tutorial2", "tutorial3", "tutorial4", "none", "cursed"],
+    "hiddenCommanders": ["tutorial", "tutorial2", "tutorial3", "tutorial4", "tutorial5", "none", "cursed"],
     // Between-round unit and spell cards, in draw order. Rune cards come from data/runes.
     "roundCards": ["dwarves4", "archers4", "crowRiders2", "ballista1", "flanky", "rallyRoute", "sellPack", "movePack"],
     // Spells (tactics) in catalog order: settings sheet and homepage lists follow it.

@@ -39,8 +39,6 @@ export type Tutorial4Step =
     | 'r4SelectArcher'
     | 'r4BuyLongbow'
     | 'r4End'
-    | 'r5Intro'
-    | 'r5End'
     | 'done';
 
 export interface Tutorial4BoardState {
@@ -57,8 +55,6 @@ export interface Tutorial4BoardState {
     forgedApplied: boolean;
     archerSelected: boolean;
     longbowOwned: boolean;
-    hammerArmed: boolean;
-    hammerPlaced: boolean;
     keepSelected: boolean;
 }
 
@@ -67,7 +63,6 @@ const READ_STEPS: readonly Tutorial4Step[] = [
     'r2Intro',
     'r3Intro',
     'r4Intro',
-    'r5Intro',
 ];
 
 const RUNE_HIGHLIGHT: Record<string, Tutorial4Highlight> = {
@@ -78,7 +73,7 @@ const RUNE_HIGHLIGHT: Record<string, Tutorial4Highlight> = {
 };
 
 /**
- * Soft-hint overlay for Tutorial 4 (Units: runes, forge, talent, height).
+ * Soft-hint overlay for Tutorial 4 (Units: runes, forge, talent).
  */
 export class TutorialGuide4 extends TutorialPanel {
     private step: Tutorial4Step = 'r1Intro';
@@ -110,7 +105,6 @@ export class TutorialGuide4 extends TutorialPanel {
         if (round === 2) this.step = 'r2Intro';
         else if (round === 3) this.step = 'r3Intro';
         else if (round === 4) this.step = 'r4Intro';
-        else if (round === 5) this.step = 'r5Intro';
         else return;
         this.paint();
     }
@@ -175,9 +169,6 @@ export class TutorialGuide4 extends TutorialPanel {
         if (state.round === 4) {
             return this.step === 'r4End' && state.longbowOwned;
         }
-        if (state.round === 5) {
-            return this.step === 'r5End';
-        }
         return false;
     }
 
@@ -205,9 +196,6 @@ export class TutorialGuide4 extends TutorialPanel {
                 break;
             case 'r4Intro':
                 this.step = 'r4SelectArcher';
-                break;
-            case 'r5Intro':
-                this.step = 'r5End';
                 break;
             default:
                 return;
@@ -308,15 +296,6 @@ export class TutorialGuide4 extends TutorialPanel {
             case 'r4End':
                 this.titleEl.textContent = t('tutorial:tutorial4R4EndTitle');
                 this.bodyEl.textContent = t('tutorial:tutorial4R4EndBody');
-                highlight = 'end-deploy';
-                break;
-            case 'r5Intro':
-                this.titleEl.textContent = t('tutorial:tutorial4R5IntroTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial4R5IntroBody');
-                break;
-            case 'r5End':
-                this.titleEl.textContent = t('tutorial:tutorial4R5EndTitle');
-                this.bodyEl.textContent = t('tutorial:tutorial4R5EndBody');
                 highlight = 'end-deploy';
                 break;
             case 'done':

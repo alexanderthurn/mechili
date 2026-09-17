@@ -1,0 +1,12 @@
+// Hidden tutorial commander (Tutorial 5): terrain lesson — no buildings / forge.
+{
+    "id": "tutorial5",
+    "title": "Tutorial Commander",
+    "portrait": "spec-elite",
+    "speciality": "tutorial",
+    "units": [],
+    "unitsLabel": "",
+    "startingHp": 1,
+    "forgeSpells": [],
+    "description": "",
+}

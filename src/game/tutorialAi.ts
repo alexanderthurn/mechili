@@ -3,6 +3,7 @@ import {
     TUTORIAL_2_START_CARD_ID,
     TUTORIAL_3_START_CARD_ID,
     TUTORIAL_4_START_CARD_ID,
+    TUTORIAL_5_START_CARD_ID,
     TUTORIAL_START_CARD_ID,
     type RoundCard,
     type SpecialityId,
@@ -22,6 +23,8 @@ import {
     TUTORIAL_2_ID,
     TUTORIAL_3_ID,
     TUTORIAL_4_ID,
+    TUTORIAL_5_ARCHERS,
+    TUTORIAL_5_ID,
     TUTORIAL_ARCHER_ID,
     TUTORIAL_DWARF_ID,
     TUTORIAL_OGRE_ID,
@@ -70,7 +73,9 @@ export class TutorialAi implements Opponent {
                   ? TUTORIAL_3_START_CARD_ID
                   : this.tutorialLessonId === TUTORIAL_4_ID
                     ? TUTORIAL_4_START_CARD_ID
-                    : TUTORIAL_START_CARD_ID;
+                    : this.tutorialLessonId === TUTORIAL_5_ID
+                      ? TUTORIAL_5_START_CARD_ID
+                      : TUTORIAL_START_CARD_ID;
         this.ctx.dispatch({
             kind: 'chooseCard',
             team: this.team,
@@ -103,6 +108,10 @@ export class TutorialAi implements Opponent {
         }
         if (this.tutorialLessonId === TUTORIAL_4_ID) {
             this.runTutorial4(round);
+            return;
+        }
+        if (this.tutorialLessonId === TUTORIAL_5_ID) {
+            this.runTutorial5(round);
             return;
         }
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
@@ -174,8 +183,22 @@ export class TutorialAi implements Opponent {
         } else if (round === 3) {
             const ogre = this.ctx.types.byId(TUTORIAL_OGRE_ID);
             if (ogre) this.buyAt(ogre, tutorial4OgreCell(this.ctx.placement.map, 'enemy'));
-        } else if (round === 4 || round === 5) {
+        } else if (round === 4) {
             for (const cell of tutorial4CenterArcherCells(this.ctx.placement.map, 'enemy')) {
+                if (archer) this.buyAt(archer, cell);
+            }
+        }
+        this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
+    }
+
+    private runTutorial5(round: number): void {
+        const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
+        if (round === 1) {
+            for (const cell of tutorial4CenterArcherCells(
+                this.ctx.placement.map,
+                'enemy',
+                TUTORIAL_5_ARCHERS,
+            )) {
                 if (archer) this.buyAt(archer, cell);
             }
         }

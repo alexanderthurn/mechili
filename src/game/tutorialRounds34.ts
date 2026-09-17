@@ -27,6 +27,7 @@ import {
     TUTORIAL_4_ARCHERS,
     TUTORIAL_4_FORGE_PRODUCT,
     TUTORIAL_4_RUNE_LESSON,
+    TUTORIAL_5_ARCHERS,
     TUTORIAL_ARCHER_ID,
     TUTORIAL_BALLISTA_ID,
     TUTORIAL_DWARF_ID,
@@ -301,32 +302,29 @@ export function setupTutorial4Round(
         host.hud.setShopColumnVisible(false);
         host.hud.setShopRunesVisible(false);
         creditSeat(host, human, 400);
-    } else {
+    }
+    host.refreshShopHud();
+}
+
+/** Tutorial 5 round 1: mirrored center archers on the height slope. */
+export function setupTutorial5Round(host: TutorialRoundHost, round: number): void {
+    const human = host.humanSeat;
+    const enemy = primarySeatOf(host.seats, 'enemy');
+    host.unlockedUnits[enemy] = [TUTORIAL_ARCHER_ID];
+    creditSeat(host, enemy, 2500);
+
+    if (round === 1) {
         clearFieldUnits(host);
         clearStructures(host);
-        // Strip Range so both lines fight with the same talent — height is the edge.
-        host.techTree.remove(human, TUTORIAL_ARCHER_ID, TUTORIAL_4_ARCHER_RANGE_TECH);
-        const seat = host.seats[human];
-        if (seat?.loadout) {
-            const archerTechs = (seat.loadout.techs.archer ?? []).filter(
-                (id) => id !== TUTORIAL_4_ARCHER_RANGE_TECH,
-            );
-            host.seats[human] = {
-                ...seat,
-                loadout: {
-                    techs: { ...seat.loadout.techs, archer: archerTechs },
-                },
-            };
-        }
         const type = host.types.byId(TUTORIAL_ARCHER_ID);
         if (type) {
-            for (const cell of tutorial4CenterArcherCells(host.map, 'player', TUTORIAL_4_ARCHERS)) {
+            for (const cell of tutorial4CenterArcherCells(host.map, 'player', TUTORIAL_5_ARCHERS)) {
                 host.placement.spawn(type, cell, 'player', false, true, human);
             }
         }
         host.unlockedUnits[human] = [];
         host.deployState.limit[human] = 0;
-        host.deployState.limit[enemy] = TUTORIAL_4_ARCHERS;
+        host.deployState.limit[enemy] = TUTORIAL_5_ARCHERS;
         host.hud.setShopColumnVisible(false);
         host.hud.setShopRunesVisible(false);
         creditSeat(host, human, 200);
@@ -426,8 +424,6 @@ export function boardState4(host: TutorialRoundHost, strongholdType: UnitType): 
         archerSelected:
             !!selected && selected.seat === human && selected.type.id === TUTORIAL_ARCHER_ID,
         longbowOwned: host.techTree.has(human, TUTORIAL_ARCHER_ID, TUTORIAL_4_ARCHER_RANGE_TECH),
-        hammerArmed: false,
-        hammerPlaced: false,
         keepSelected: !!keep && selected?.id === keep.id,
     };
 }

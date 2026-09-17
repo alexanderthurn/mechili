@@ -10,6 +10,7 @@ import type { Hud, SelectionInfo } from '../ui/hud';
 import type { Tutorial2BoardState } from '../ui/tutorialGuide2';
 import type { Tutorial3BoardState, Tutorial3Highlight } from '../ui/tutorialGuide3';
 import type { Tutorial4BoardState, Tutorial4Highlight } from '../ui/tutorialGuide4';
+import type { Tutorial5BoardState, Tutorial5Highlight } from '../ui/tutorialGuide5';
 import type { TutorialCameraSnap, TutorialSlotMask } from '../ui/tutorialGuide';
 import { primarySeatOf } from './seats';
 import { t } from '../i18n';
@@ -17,10 +18,12 @@ import { TutorialGuide } from '../ui/tutorialGuide';
 import { TutorialGuide2 } from '../ui/tutorialGuide2';
 import { TutorialGuide3 } from '../ui/tutorialGuide3';
 import { TutorialGuide4 } from '../ui/tutorialGuide4';
+import { TutorialGuide5 } from '../ui/tutorialGuide5';
 import {
     TUTORIAL_2_START_CARD_ID,
     TUTORIAL_3_START_CARD_ID,
     TUTORIAL_4_START_CARD_ID,
+    TUTORIAL_5_START_CARD_ID,
     TUTORIAL_START_CARD_ID,
 } from './cards';
 import { BASE_ANCHORS } from './map';
@@ -61,6 +64,8 @@ import {
     TUTORIAL_4_ID,
     TUTORIAL_4_ROUNDS,
     TUTORIAL_4_RUNE_LESSON,
+    TUTORIAL_5_ID,
+    TUTORIAL_5_ROUNDS,
     TUTORIAL_ARCHER_ID,
     TUTORIAL_DWARF_ID,
     TUTORIAL_OGRE_ID,
@@ -75,6 +80,7 @@ import {
     r3PadTargets,
     setupTutorial3Round,
     setupTutorial4Round,
+    setupTutorial5Round,
 } from './tutorialRounds34';
 import type { TypeRegistry } from './content/typeRegistry';
 
@@ -165,6 +171,8 @@ export class TutorialRuntime {
     private guide3: TutorialGuide3 | null = null;
     /** Soft-hint overlay for Tutorial 4; null outside that lesson. */
     private guide4: TutorialGuide4 | null = null;
+    /** Soft-hint overlay for Tutorial 5; null outside that lesson. */
+    private guide5: TutorialGuide5 | null = null;
     /** Tutorial 1 forced pads (exact cell + rotation). */
     private placeSlots1: TutorialPlaceSlot[] = [];
     /** Tutorial 3 round-1 forced pads: [0] = dwarf (left), [1] = ballista (right). */
@@ -210,7 +218,9 @@ export class TutorialRuntime {
                   ? TUTORIAL_3_START_CARD_ID
                   : this.lesson === TUTORIAL_4_ID
                     ? TUTORIAL_4_START_CARD_ID
-                    : TUTORIAL_START_CARD_ID;
+                    : this.lesson === TUTORIAL_5_ID
+                      ? TUTORIAL_5_START_CARD_ID
+                      : TUTORIAL_START_CARD_ID;
         host.dispatchPlayer({
             kind: 'chooseCard',
             team: 'player',
@@ -238,7 +248,7 @@ export class TutorialRuntime {
     maybeStartGuide(): void {
         const host = this.host;
         if (host.watching) return;
-        if (this.guide1 || this.guide2 || this.guide3 || this.guide4) return;
+        if (this.guide1 || this.guide2 || this.guide3 || this.guide4 || this.guide5) return;
         // Wait until build chrome is up (after intro / starter assign).
         if (host.introActive || host.round < 1) return;
         const mount = this.mount();
@@ -272,6 +282,13 @@ export class TutorialRuntime {
             this.guide4 = this.newGuide4(mount);
             this.guide4.start();
             this.sync4();
+            return;
+        }
+        if (this.lesson === TUTORIAL_5_ID) {
+            host.placement.deselect();
+            this.guide5 = this.newGuide5(mount);
+            this.guide5.start();
+            this.sync5();
         }
     }
 
@@ -284,6 +301,8 @@ export class TutorialRuntime {
         this.guide3 = null;
         this.guide4?.destroy();
         this.guide4 = null;
+        this.guide5?.destroy();
+        this.guide5 = null;
         this.host.placement.clearTutorialTargets();
     }
 
@@ -318,6 +337,12 @@ export class TutorialRuntime {
 
     private newGuide4(mount: HTMLElement): TutorialGuide4 {
         return new TutorialGuide4(mount, (target) => this.onGuide4Highlight(target));
+    }
+
+    private newGuide5(mount: HTMLElement): TutorialGuide5 {
+        return new TutorialGuide5(mount, (target) => {
+            this.host.hud.setTutorial3Highlight(target);
+        });
     }
 
     /** Boost / Garrison panel steps need the right building selected. */
@@ -399,6 +424,10 @@ export class TutorialRuntime {
             this.clearFieldUnits();
             this.setupRound4(round);
         }
+        if (this.lesson === TUTORIAL_5_ID) {
+            this.clearFieldUnits();
+            this.setupRound5(round);
+        }
     }
 
     /** Pre-staged armies freeze after both sides have spawned. */
@@ -407,7 +436,7 @@ export class TutorialRuntime {
             this.freezeFieldPacks();
             return;
         }
-        if (this.lesson === TUTORIAL_4_ID) {
+        if (this.lesson === TUTORIAL_4_ID || this.lesson === TUTORIAL_5_ID) {
             this.freezeFieldPacks();
         }
     }
@@ -973,6 +1002,11 @@ export class TutorialRuntime {
         this.sync4();
     }
 
+    private setupRound5(round: number): void {
+        setupTutorial5Round(this.host, round);
+        this.sync5();
+    }
+
     private board3(): Tutorial3BoardState {
         return boardState3(
             this.host,
@@ -1002,6 +1036,16 @@ export class TutorialRuntime {
         if (!this.guide4 || this.lesson !== TUTORIAL_4_ID) return;
         this.guide4.syncFromBoard(this.board4());
         this.refresh4Zones();
+        this.host.updateSelectionUi();
+    }
+
+    private board5(): Tutorial5BoardState {
+        return { round: this.host.round };
+    }
+
+    sync5(): void {
+        if (!this.guide5 || this.lesson !== TUTORIAL_5_ID) return;
+        this.guide5.syncFromBoard(this.board5());
         this.host.updateSelectionUi();
     }
 
@@ -1140,7 +1184,7 @@ export class TutorialRuntime {
     }
 
     private nudge(message: string): void {
-        (this.guide1 ?? this.guide2 ?? this.guide3 ?? this.guide4)?.nudge(message);
+        (this.guide1 ?? this.guide2 ?? this.guide3 ?? this.guide4 ?? this.guide5)?.nudge(message);
     }
 
     syncFromBoard(): void {
@@ -1148,6 +1192,7 @@ export class TutorialRuntime {
         this.sync2();
         this.sync3();
         this.sync4();
+        this.sync5();
     }
 
     onPlayerEndedDeployment(): void {
@@ -1155,6 +1200,7 @@ export class TutorialRuntime {
         this.guide2?.onPlayerEndedDeployment();
         this.guide3?.onPlayerEndedDeployment();
         this.guide4?.onPlayerEndedDeployment();
+        this.guide5?.onPlayerEndedDeployment();
         this.host.placement.clearTutorialTargets();
     }
 
@@ -1234,8 +1280,14 @@ export class TutorialRuntime {
                 if (state.round === 1) this.guide4.nudge(t('tutorial:tutorial4NudgeRune'));
                 else if (state.round === 2) this.guide4.nudge(t('tutorial:tutorial4NudgeForge'));
                 else if (state.round === 3) this.guide4.nudge(t('tutorial:tutorial4NudgeApply'));
-                else if (state.round === 4) this.guide4.nudge(t('tutorial:tutorial4NudgeLongbow'));
-                else this.guide4.nudge(t('tutorial:tutorial4NudgeHeight'));
+                else this.guide4.nudge(t('tutorial:tutorial4NudgeLongbow'));
+                return false;
+            }
+        }
+        if (this.lesson === TUTORIAL_5_ID && this.guide5) {
+            const state = this.board5();
+            if (!this.guide5.canEndDeploy(state)) {
+                this.guide5.nudge(t('tutorial:tutorial5NudgeHeight'));
                 return false;
             }
         }
@@ -1342,6 +1394,7 @@ export class TutorialRuntime {
 
     /** Battles this lesson must win to finish (Tutorial 1 is a single round). */
     private get roundsToWin(): number {
+        if (this.lesson === TUTORIAL_5_ID) return TUTORIAL_5_ROUNDS;
         if (this.lesson === TUTORIAL_4_ID) return TUTORIAL_4_ROUNDS;
         if (this.lesson === TUTORIAL_3_ID) return TUTORIAL_3_ROUNDS;
         if (this.lesson === TUTORIAL_2_ID) return TUTORIAL_2_ROUNDS;

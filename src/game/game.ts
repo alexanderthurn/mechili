@@ -47,11 +47,12 @@ import {
     isTutorial,
     nextTutorialId,
     tutorialId,
-    tutorial4HeightAt,
+    tutorial5HeightAt,
     TUTORIAL_1_ID,
     TUTORIAL_2_ID,
     TUTORIAL_3_ID,
     TUTORIAL_4_ID,
+    TUTORIAL_5_ID,
 } from './tutorial';
 import { TutorialRuntime, type TutorialHost } from './tutorialRuntime';
 import {
@@ -1418,9 +1419,9 @@ export class Game {
                         : `[landscape] "${settings.landscape}" is not loaded — playing the procedural terrain`,
                 );
             }
-        } else if (tutorialId(settings) === TUTORIAL_4_ID) {
-            // Asymmetric slope for the Units height lesson (whole match).
-            this.map.setReliefOverride((x, z) => tutorial4HeightAt(this.map, x, z));
+        } else if (tutorialId(settings) === TUTORIAL_5_ID) {
+            // Asymmetric slope for the Terrain height lesson.
+            this.map.setReliefOverride((x, z) => tutorial5HeightAt(this.map, x, z));
         }
         // sized to THIS match's board — a hardcoded default here silently
         // drops every oil/acid/fire effect placed outside the standard

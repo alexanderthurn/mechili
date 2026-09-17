@@ -255,6 +255,7 @@ export const TUTORIAL_START_CARD_ID = 'tutorial';
 export const TUTORIAL_2_START_CARD_ID = 'tutorial2';
 export const TUTORIAL_3_START_CARD_ID = 'tutorial3';
 export const TUTORIAL_4_START_CARD_ID = 'tutorial4';
+export const TUTORIAL_5_START_CARD_ID = 'tutorial5';
 /** hidden commander a scenario without commanders picks for every seat */
 export const NO_COMMANDER_CARD_ID = 'none';
 

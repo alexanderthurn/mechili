@@ -4,6 +4,7 @@ import {
     TUTORIAL_2_START_CARD_ID,
     TUTORIAL_3_START_CARD_ID,
     TUTORIAL_4_START_CARD_ID,
+    TUTORIAL_5_START_CARD_ID,
     TUTORIAL_START_CARD_ID,
 } from './cards';
 import type { GameSettings, TutorialSettings } from './settings';
@@ -21,10 +22,14 @@ export const TUTORIAL_2_ROUNDS = 3;
 export const TUTORIAL_3_ID = 3;
 
 export const TUTORIAL_3_ROUNDS = 4;
-/** Tutorial 4: Units — runes, forge, forged apply, Longbow, height. */
+/** Tutorial 4: Units — runes, forge, forged apply, Longbow. */
 export const TUTORIAL_4_ID = 4;
 
-export const TUTORIAL_4_ROUNDS = 5;
+export const TUTORIAL_4_ROUNDS = 4;
+/** Tutorial 5: Terrain — high ground (unwired; not in the menu yet). */
+export const TUTORIAL_5_ID = 5;
+
+export const TUTORIAL_5_ROUNDS = 1;
 
 /** Lesson order, as the Tutorial menu lists them. */
 export const TUTORIAL_LESSON_IDS = [TUTORIAL_1_ID, TUTORIAL_2_ID, TUTORIAL_3_ID, TUTORIAL_4_ID] as const;
@@ -48,8 +53,11 @@ export const TUTORIAL_3_R4_TOWER_LEVEL = 5;
 /** Tutorial 4: Longbow talent id on archers (`techCatalog` barrel). */
 export const TUTORIAL_4_ARCHER_RANGE_TECH = 'barrel';
 
-/** Tutorial 4 range / height rounds: archers lined up in each half's center. */
+/** Tutorial 4 range round: archers lined up in each half's center. */
 export const TUTORIAL_4_ARCHERS = 5;
+
+/** Tutorial 5 height round: same center archer line-up. */
+export const TUTORIAL_5_ARCHERS = 5;
 
 /** Tutorial 4 round 1: shop rune → pack assign (goblin fire/wind, dwarf earth/water). */
 export const TUTORIAL_4_RUNE_LESSON = [
@@ -62,8 +70,8 @@ export const TUTORIAL_4_RUNE_LESSON = [
 /** Tutorial 4 forge product id. */
 export const TUTORIAL_4_FORGE_PRODUCT = 'fire:3';
 
-/** Tutorial 4 height shelf (world units) — player high ground in R5. */
-export const TUTORIAL_4_SHELF_HEIGHT = 22;
+/** Tutorial 5 height shelf (world units) — player high ground. */
+export const TUTORIAL_5_SHELF_HEIGHT = 22;
 
 /** Round-2/3 forge spells: oil + dragon in R2, summon unlocked in R3. */
 export const TUTORIAL_2_SPELL_IDS = [OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID] as const;
@@ -144,6 +152,14 @@ export function applyTutorialMode(settings: GameSettings, id: number): void {
             ...settings.economy,
             startingSupply: 4000,
         };
+    } else if (id === TUTORIAL_5_ID) {
+        settings.strongholdMode = 'none';
+        lesson.roundsToWin = TUTORIAL_5_ROUNDS;
+        settings.deploy = { ...settings.deploy, unitsPerRound: 0 };
+        settings.economy = {
+            ...settings.economy,
+            startingSupply: 500,
+        };
     } else {
         settings.strongholdMode = 'none';
         settings.deploy = { ...settings.deploy, unitsPerRound: 4 };
@@ -222,6 +238,7 @@ export function tutorialContentProblems(types: TypeRegistry): string[] {
         TUTORIAL_2_START_CARD_ID,
         TUTORIAL_3_START_CARD_ID,
         TUTORIAL_4_START_CARD_ID,
+        TUTORIAL_5_START_CARD_ID,
     ]) {
         if (!types.commander(id)) problems.push(`tutorials need hidden commander "${id}"`);
     }
@@ -453,10 +470,10 @@ export function tutorial3R4MortarSlot(map: BattleMap): TutorialPlaceSlot {
 }
 
 /**
- * Asymmetric relief for Tutorial 4: continuous slope from the enemy line (low)
- * up to the player's shelf (high). No mid ridge — height alone is the lesson.
+ * Asymmetric relief for Tutorial 5: continuous slope from the enemy line (low)
+ * up to the player's shelf (high).
  */
-export function tutorial4HeightAt(map: BattleMap, x: number, z: number): number {
+export function tutorial5HeightAt(map: BattleMap, x: number, z: number): number {
     void x;
     const halfH = map.halfH;
     const playerSign = map.ownAtFar ? 1 : -1;
@@ -465,7 +482,7 @@ export function tutorial4HeightAt(map: BattleMap, x: number, z: number): number 
     // Smoothstep from enemy (~+0.55) up to player (~−0.55).
     const t = Math.min(1, Math.max(0, (-along + 0.55) / 1.1));
     const s = t * t * (3 - 2 * t);
-    return 0.35 + (TUTORIAL_4_SHELF_HEIGHT - 0.35) * s;
+    return 0.35 + (TUTORIAL_5_SHELF_HEIGHT - 0.35) * s;
 }
 
 /**
