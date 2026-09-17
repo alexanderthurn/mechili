@@ -130,7 +130,7 @@ import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
 import { itemSlotLimit } from './items';
-import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt } from './map';
+import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, simGroundSupportAt, worldHeightAt } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
 import {
@@ -180,6 +180,7 @@ import {
 } from './buildingCollapse';
 import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay } from './crowWingFlap';
 import { GROUND_UNIT_Y, setCloseCameraY } from './groundQuality';
+import { rangePreviewBonus } from './terrainCombat';
 import { modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery, MOUNTAIN_PEAK_END } from './scenery';
@@ -1939,7 +1940,12 @@ export class Game {
             if (this.armedTactic) return;
             this.placement.rotateSelected();
         };
-        this.placement.rangeOf = (unit) => this.resolvedStatsView(unit).range;
+        this.placement.rangeOf = (unit) => {
+            const base = this.resolvedStatsView(unit).range;
+            if (!unit.type.projectileSpeed) return base;
+            const feetY = unit.pinnedY ?? simGroundSupportAt(unit.world.x, unit.world.z) + GROUND_UNIT_Y;
+            return base + rangePreviewBonus(feetY, unit.world.x, unit.world.z);
+        };
         this.placement.minRangeOf = (unit) => this.resolvedStatsView(unit).minRange;
         this.placement.auraRangeOf = (unit) => this.auraRadiusOf(unit);
         this.controls.onRightClick = () => {
@@ -9618,6 +9624,7 @@ export class Game {
         this.conversionFx.clear();
         this.oilDripFx.clear();
         this.scenery.clearHammerCrush();
+        this.clearHammerFlatten();
         this.spellChargeMarkers = [];
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
@@ -10581,6 +10588,14 @@ export class Game {
                             ev.yaw,
                             sceneryShields,
                         );
+                        this.applyHammerFlatten(
+                            ev.x,
+                            ev.z,
+                            ev.halfWidth,
+                            ev.halfDepth,
+                            ev.yaw,
+                            ev.flattenY,
+                        );
                     } else if (ev.kind === 'hazardDrip') {
                         this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at, {
                             scale: ev.dripScale,
@@ -10986,6 +11001,28 @@ export class Game {
         }
     }
 
+    /** Flatten board relief under a Hammer of the Gods scar until battle ends. */
+    private applyHammerFlatten(
+        x: number,
+        z: number,
+        halfWidth: number,
+        halfDepth: number,
+        yaw: number,
+        flattenY: number,
+    ): void {
+        this.map.addFlattenStamp(x, z, halfWidth, halfDepth, yaw, flattenY);
+        this.map.applyReliefToMesh(this.groundMesh);
+        this.map.applyReliefToMesh(this.gridOverlay);
+        this.bindLandscapeHeights();
+    }
+
+    private clearHammerFlatten(): void {
+        this.map.clearFlattenStamps();
+        this.map.applyReliefToMesh(this.groundMesh);
+        this.map.applyReliefToMesh(this.gridOverlay);
+        this.bindLandscapeHeights();
+    }
+
     /**
      * Living mech under the click: 3D collider / structure-mesh ray first,
      * then a soft screen-distance fallback so tiny mechs stay easy to tap.
@@ -11060,7 +11097,11 @@ export class Game {
         this.battleMinRangeMesh.visible = a !== null && minRange > 0;
         if (!a) return;
         const radius =
-            this.resolvedStats(a.unit).range + a.unit.type.collisionRadius;
+            this.resolvedStats(a.unit).range +
+            a.unit.type.collisionRadius +
+            (a.unit.type.projectileSpeed
+                ? rangePreviewBonus(a.footY, a.rx, a.rz)
+                : 0);
         const tint = colorForBattleTeam(actorTeam(a)).hex;
         if (fov !== null) {
             placeFovWedge(this.battleFovMesh, a.rx, a.rz, radius, fov, STRONGHOLD_ARCHER_FOV_HALF);
