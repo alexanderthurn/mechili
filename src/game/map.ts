@@ -14,12 +14,13 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, SLOPE_GROUND_FNS, slopeGroundGlsl, textureBombGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
     sandAlbedoUrl,
     loadGrassTextures,
+    loadRockTextures,
     loadWearGroundTextures,
     loadWorldTexture,
 } from './worldTextures';
@@ -1475,6 +1476,9 @@ export class BattleMap {
             // Soft circular field-photo accents (texture bombing + multiply).
             photoGrass?: readonly [import('three').Texture, import('three').Texture] | null;
             detail?: boolean;
+            /** hillside look: dirt on slopes, rock on cliffs (null = tint only) */
+            slopeEarth?: import('three').Texture | null;
+            slopeRock?: import('three').Texture | null;
         },
     ): void {
         const {
@@ -1485,6 +1489,8 @@ export class BattleMap {
             bloodTintMask = null,
             photoGrass = null,
             detail = false,
+            slopeEarth = null,
+            slopeRock = null,
         } = opts;
         const profile = groundMaterialProfile();
         const useDetail = detail && profile.detailStrength > 0;
@@ -1515,6 +1521,14 @@ export class BattleMap {
                     '#include <uv_vertex>\n\tvMacroUv = uv;\n\tvBoardXZ = position.xz;',
                 );
             shader.vertexShader = closeTileVertexShader(shader.vertexShader, profile);
+            shader.vertexShader =
+                'varying vec3 vGroundWorld;\n' +
+                shader.vertexShader.replace(
+                    '#include <project_vertex>',
+                    '#include <project_vertex>\n\tvGroundWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;',
+                );
+            if (slopeEarth) shader.uniforms.uSlopeEarth = { value: slopeEarth };
+            if (slopeRock) shader.uniforms.uSlopeRock = { value: slopeRock };
             let inject = '';
             let extraUniforms =
                 'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uFireCharcoalGround;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n' +
@@ -1611,6 +1625,18 @@ export class BattleMap {
                 '\tfloat dryPatch = 0.52 + 0.48 * fract( sin( dot( vBoardXZ * 0.072, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );\n' +
                 '\tvec3 dryCol = mix( diffuseColor.rgb * vec3( 1.18, 1.05, 0.55 ), vec3( 0.72, 0.64, 0.28 ), 0.16 );\n' +
                 '\tdiffuseColor.rgb = mix( diffuseColor.rgb, dryCol, uDryGrass * dryPatch );\n';
+            // Hillsides: drier, browner grass the steeper it gets, then earth, then rock (before mud and snow)
+            extraUniforms +=
+                'varying vec3 vGroundWorld;\n' +
+                (slopeEarth ? 'uniform sampler2D uSlopeEarth;\n' : '') +
+                (slopeRock ? 'uniform sampler2D uSlopeRock;\n' : '') +
+                SLOPE_GROUND_FNS;
+            inject += slopeGroundGlsl({
+                worldPos: 'vGroundWorld',
+                worldNormal: 'transformDirectionByInverseViewMatrix( normalize( vNormal ), viewMatrix )',
+                earth: slopeEarth ? { sampler: 'uSlopeEarth', uv: 'vMapUv * 0.7' } : null,
+                rock: slopeRock ? 'uSlopeRock' : null,
+            });
             if (sand && (baseSandMask || sandMask)) {
                 shader.uniforms.uSand = { value: sand };
                 extraUniforms += 'uniform sampler2D uSand;\n';
@@ -1712,7 +1738,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         material.customProgramCacheKey = () =>
             `ground-hazard-v62${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
-            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg`;
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}`;
     }
 
     /**
@@ -1801,6 +1827,14 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         // Wear surface: HQ dirt on high/ultra, sand on lower tiers
         const wear = await loadWearGroundTextures();
         const sand = wear?.albedo ?? (await loadWorldTexture(sandAlbedoUrl()));
+        // hillside dirt + cliff rock (Low keeps the slope tint only)
+        const rockPack = profile.tier === 'low' ? null : await loadRockTextures();
+        const slopeRock = rockPack?.albedo ?? null;
+        if (slopeRock) {
+            slopeRock.wrapS = slopeRock.wrapT = RepeatWrapping;
+            slopeRock.colorSpace = SRGBColorSpace;
+            slopeRock.anisotropy = profile.anisotropy;
+        }
         const tileSize = profile.detailTile;
         const repeat = new Vector2(this.width / tileSize, this.height / tileSize);
         const tile = (t: typeof albedo) => {
@@ -1854,6 +1888,8 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             bloodTintMask: this.bloodTintMask,
             photoGrass,
             detail: true,
+            slopeEarth: profile.tier === 'low' ? null : sand,
+            slopeRock,
         });
 
         const previous = mesh.material as MeshStandardMaterial;

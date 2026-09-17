@@ -279,6 +279,83 @@ export function textureBombGlsl(sample: (uv: string) => string): string {
 /** how far a bombing patch leans toward the rotated copy (was 0.55: too patchy) */
 const BOMB_STRENGTH = 0.25;
 
+/**
+ * GLSL (global scope): smooth value noise for the slope look's ragged edges.
+ */
+export const SLOPE_GROUND_FNS = `
+float slopeNoise( vec2 p ) {
+	vec2 i = floor( p );
+	vec2 f = fract( p );
+	f = f * f * ( 3.0 - 2.0 * f );
+	float a = fract( sin( dot( i, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+	float b = fract( sin( dot( i + vec2( 1.0, 0.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+	float c = fract( sin( dot( i + vec2( 0.0, 1.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+	float d = fract( sin( dot( i + vec2( 1.0, 1.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+	return mix( mix( a, b, f.x ), mix( c, d, f.x ), f.y );
+}
+`;
+
+/** rock texture size on board cliffs (wu per repeat) */
+const SLOPE_ROCK_TILE = 14;
+
+/**
+ * GLSL: hillsides look like hillsides — the steeper the ground, the drier and
+ * browner the grass, then bare earth, and around the grade units can't walk
+ * up (0.72, see terrainCombat's SLOPE_BLOCK_GRADE) rock. Edges are broken up
+ * with noise. Visual only; works on whatever colour the lawn has at that point.
+ *
+ * - `worldPos` / `worldNormal`: GLSL expressions for the fragment's world
+ *   position (vec3) and a smooth world normal (vec3)
+ * - `earth`: sampler for a dirt texture (+ its UV), or null for a tint only
+ * - `rock`: sampler for the rock texture (triplanar), or null for no rock
+ * - `fade`: optional GLSL float that scales the whole effect (1 = full)
+ */
+export function slopeGroundGlsl(opts: {
+    worldPos: string;
+    worldNormal: string;
+    earth: { sampler: string; uv: string } | null;
+    rock: string | null;
+    fade?: string;
+}): string {
+    const { worldPos, worldNormal, earth, rock, fade = '1.0' } = opts;
+    let glsl = `
+	vec3 slopeN = normalize( ${worldNormal} );
+	float slopeUp = max( abs( slopeN.y ), 0.05 );
+	float slopeGrade = sqrt( max( 0.0, 1.0 - slopeUp * slopeUp ) ) / slopeUp;
+	vec3 slopeP = ${worldPos};
+	float slopeVar = slopeNoise( slopeP.xz / 7.0 ) * 0.65 + slopeNoise( slopeP.xz / 2.3 + 17.0 ) * 0.35 - 0.5;
+	float slopeFade = ${fade};
+	float slopeDryT = smoothstep( 0.16, 0.38, slopeGrade + slopeVar * 0.14 ) * slopeFade;
+	float slopeEarthT = smoothstep( 0.3, 0.64, slopeGrade + slopeVar * 0.2 ) * slopeFade;
+	vec3 slopeBase = diffuseColor.rgb;
+	float slopeLum = max( dot( slopeBase, vec3( 0.299, 0.587, 0.114 ) ), 0.03 );
+	vec3 slopeDry = slopeBase * vec3( 1.1, 0.96, 0.66 );
+	vec3 slopeEarth = vec3( 0.34, 0.26, 0.17 ) * clamp( slopeLum / 0.3, 0.7, 1.3 );
+`;
+    if (earth) {
+        glsl += `	slopeEarth = mix( slopeEarth, texture2D( ${earth.sampler}, ${earth.uv} ).rgb * vec3( 0.9, 0.82, 0.72 ), 0.55 );
+`;
+    }
+    glsl += `	vec3 slopeCol = mix( slopeBase, slopeDry, slopeDryT * 0.75 );
+	slopeCol = mix( slopeCol, slopeEarth, slopeEarthT * 0.9 );
+`;
+    if (rock) {
+        const tile = SLOPE_ROCK_TILE.toFixed(1);
+        glsl += `	float slopeRockT = smoothstep( 0.62, 0.95, slopeGrade + slopeVar * 0.24 ) * slopeFade;
+	vec3 slopeRw = pow( abs( slopeN ), vec3( 4.0 ) );
+	slopeRw /= max( slopeRw.x + slopeRw.y + slopeRw.z, 1e-4 );
+	vec3 slopeRock =
+		texture2D( ${rock}, slopeP.xz / ${tile} ).rgb * slopeRw.y +
+		texture2D( ${rock}, slopeP.zy / ${tile} ).rgb * slopeRw.x +
+		texture2D( ${rock}, slopeP.xy / ${tile} ).rgb * slopeRw.z;
+	slopeCol = mix( slopeCol, slopeRock * vec3( 0.95, 0.9, 0.85 ), slopeRockT );
+`;
+    }
+    glsl += `	diffuseColor.rgb = slopeCol;
+`;
+    return glsl;
+}
+
 /** Declare closeW=0 when close-tile is off so later GLSL can always reference it. */
 export function closeTileWeightFallbackGlsl(profile: GroundMaterialProfile): string {
     if (profile.closeRepeat > 1.01) return '';

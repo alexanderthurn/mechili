@@ -47,7 +47,7 @@ import {
     worldHeightAt,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, SLOPE_GROUND_FNS, slopeGroundGlsl, textureBombGlsl } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -1853,6 +1853,14 @@ ${pgClose}`;
     // gravel shore where the geometry says so: lake banks + rare dry patches
     diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uShore, vWorldXZ / ${shoreTile.toFixed(1)}).rgb, vBeach);`;
             }
+            // meadow hills get the same drier / browner hillsides as the board; the mountains keep their own rock
+            inject += slopeGroundGlsl({
+                worldPos: 'vec3( vWorldXZ.x, vTerrainH, vWorldXZ.y )',
+                worldNormal: 'vWorldN',
+                earth: null,
+                rock: null,
+                fade: '1.0 - smoothstep( 10.0, 30.0, vTerrainH )',
+            });
             inject += `
 ${OUTER_MOUNTAIN_SNOW_GLSL}
     float rockF = 0.0;`;
@@ -1915,6 +1923,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (shore ? 'uniform sampler2D uShore;\n' : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
                 closeTileUniformDecls(profile) +
+                SLOPE_GROUND_FNS +
                 'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
                 (needBlob ? softBlobFn : '') +
                 shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
@@ -1947,7 +1956,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v51${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v52-slope${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
