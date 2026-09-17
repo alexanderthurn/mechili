@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} bezig",
   "mapSetting": "Kaart",
   "mapProcedural": "Gegenereerd",
-  "landscapeUnavailable": "Deze wedstrijd gebruikt een kaart die niet beschikbaar is."
+  "landscapeUnavailable": "Deze wedstrijd gebruikt een kaart die niet beschikbaar is.",
+  "terrainSetting": "Terrein",
+  "terrainStandard": "Standaard",
+  "terrainStandardDesc": "een paar lage heuvels",
+  "terrainHills": "Glooiende heuvels",
+  "terrainHillsDesc": "meer en hogere heuvels, allemaal zacht",
+  "terrainHighlands": "Hooglanden",
+  "terrainHighlandsDesc": "elke vesting op hoge grond",
+  "terrainRidges": "Bergkammen",
+  "terrainRidgesDesc": "vlak midden, een steile kam beschermt elke basis"
 }

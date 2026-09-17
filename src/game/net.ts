@@ -12,6 +12,7 @@ import type { CanonicalSeatDef, SeatId } from './seats';
 import type { LevelRef } from './level';
 import { answerLevelMessage, LevelDownload, matchLevelOffer } from './levelSync';
 import type { GameSettings, StrongholdMode } from './settings';
+import type { TerrainShape } from './terrainShapes';
 import type { Team } from './units';
 import { t } from '../i18n';
 import { activeAssetOverlay } from './assets';
@@ -343,6 +344,8 @@ export interface CustomGameConfig {
     yearKomtur?: boolean;
     /** a static map (assets/data/landscapes/<id>.json); unset / '' = the procedural terrain */
     landscape?: string;
+    /** the generated board relief; see GameSettings.terrainShape */
+    terrainShape?: TerrainShape;
 }
 
 /**

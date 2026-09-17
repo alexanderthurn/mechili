@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} i gang",
   "mapSetting": "Kort",
   "mapProcedural": "Genereret",
-  "landscapeUnavailable": "Denne kamp bruger et kort, der ikke er tilgængeligt."
+  "landscapeUnavailable": "Denne kamp bruger et kort, der ikke er tilgængeligt.",
+  "terrainSetting": "Terræn",
+  "terrainStandard": "Standard",
+  "terrainStandardDesc": "et par lave høje",
+  "terrainHills": "Bakker",
+  "terrainHillsDesc": "flere og højere bakker, alle bløde",
+  "terrainHighlands": "Højland",
+  "terrainHighlandsDesc": "hver fæstning på højt terræn",
+  "terrainRidges": "Højderygge",
+  "terrainRidgesDesc": "flad midte, en stejl ryg beskytter hver base"
 }

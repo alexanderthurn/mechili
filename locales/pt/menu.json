@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} a decorrer",
   "mapSetting": "Mapa",
   "mapProcedural": "Gerado",
-  "landscapeUnavailable": "Esta partida usa um mapa que não está disponível."
+  "landscapeUnavailable": "Esta partida usa um mapa que não está disponível.",
+  "terrainSetting": "Terreno",
+  "terrainStandard": "Padrão",
+  "terrainStandardDesc": "alguns montes baixos",
+  "terrainHills": "Colinas",
+  "terrainHillsDesc": "mais colinas e mais altas, todas suaves",
+  "terrainHighlands": "Planaltos",
+  "terrainHighlandsDesc": "cada fortaleza em terreno elevado",
+  "terrainRidges": "Cumeadas",
+  "terrainRidgesDesc": "centro plano, uma cumeada íngreme protege cada base"
 }

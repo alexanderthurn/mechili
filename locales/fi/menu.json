@@ -169,5 +169,14 @@
   "mpRunningCount": "Käynnissä: {{n}}",
   "mapSetting": "Kartta",
   "mapProcedural": "Luotu",
-  "landscapeUnavailable": "Tämä ottelu käyttää karttaa, joka ei ole saatavilla."
+  "landscapeUnavailable": "Tämä ottelu käyttää karttaa, joka ei ole saatavilla.",
+  "terrainSetting": "Maasto",
+  "terrainStandard": "Tavallinen",
+  "terrainStandardDesc": "muutama matala kumpu",
+  "terrainHills": "Kumpuilevat mäet",
+  "terrainHillsDesc": "enemmän ja korkeampia mäkiä, kaikki loivia",
+  "terrainHighlands": "Ylänkö",
+  "terrainHighlandsDesc": "jokainen linnake korkealla",
+  "terrainRidges": "Harjanteet",
+  "terrainRidgesDesc": "tasainen keskusta, jyrkkä harjanne suojaa kutakin tukikohtaa"
 }

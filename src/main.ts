@@ -118,6 +118,7 @@ import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefa
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { cssUrl, iconHtml } from './ui/iconAtlas';
+import { DEFAULT_TERRAIN_SHAPE, TERRAIN_SHAPES, terrainShapeOption, type TerrainShape } from './game/terrainShapes';
 import {
     COMMANDER_HP_FACTOR_OPTIONS,
     STRONGHOLD_MODE_OPTIONS,
@@ -250,6 +251,7 @@ const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
     moneyFactor: DEFAULT_MONEY_FACTOR,
     strongholdMode: DEFAULT_STRONGHOLD_MODE,
+    terrainShape: DEFAULT_TERRAIN_SHAPE,
 };
 
 const CUSTOM_GAME_KEY = 'mechili-custom-game';
@@ -309,6 +311,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             yearRoles: yearRolesOption(parsed.yearRoles),
             yearKomtur: parsed.yearKomtur === true,
             landscape: landscapeOption(parsed.landscape),
+            terrainShape: terrainShapeOption(parsed.terrainShape),
         };
     } catch {
         return { ...DEFAULT_CUSTOM_GAME };
@@ -334,6 +337,7 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
     settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
+    settings.terrainShape = terrainShapeOption(cfg.terrainShape);
     // Custom Game rooms play the base game (scenarios are single player: Single Player → Editor)
     // deleted, not set to undefined: the room's transport turns undefined into null
     delete settings.level;
@@ -356,6 +360,9 @@ function settingsFromUrl(): GameSettings {
     // ?landscape=<id>: play (or, with ?editor=true, edit) a map from assets/data/landscapes/
     const landscape = params.get('landscape');
     if (landscape) settings.landscape = landscape;
+    // ?terrain=hills|highlands|ridges: the generated board relief
+    const terrain = params.get('terrain');
+    if (terrain) settings.terrainShape = terrainShapeOption(terrain);
 
     const parseTimer = (raw: string | null): number | number[] | null => {
         if (!raw) return null;
@@ -1207,6 +1214,9 @@ menu.innerHTML = `
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
                 </label>
+                <label class="m-field"><span class="m-field-label" data-i18n="menu:terrainSetting"></span>
+                    <select class="cg-terrain"></select>
+                </label>
                 <label class="m-field m-landscape-field"><span class="m-field-label" data-i18n="menu:mapSetting"></span>
                     <select class="cg-landscape"></select>
                 </label>
@@ -1422,6 +1432,7 @@ const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp'
 const cgMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-money')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
 const cgLandscapeEl = menu.querySelector<HTMLSelectElement>('.cg-landscape')!;
+const cgTerrainEl = menu.querySelector<HTMLSelectElement>('.cg-terrain')!;
 const cgYearAttackerEl = menu.querySelector<HTMLSelectElement>('.cg-year-attacker')!;
 const cgYearKomturEl = menu.querySelector<HTMLSelectElement>('.cg-year-komtur')!;
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
@@ -1917,6 +1928,32 @@ function refreshYearLobbyOptions(): void {
 }
 refreshYearLobbyOptions();
 
+const TERRAIN_SHAPE_TEXT: Record<TerrainShape, { name: [string, string]; desc: [string, string] }> = {
+    standard: { name: ['terrainStandard', 'Standard'], desc: ['terrainStandardDesc', 'a few low mounds'] },
+    hills: { name: ['terrainHills', 'Rolling hills'], desc: ['terrainHillsDesc', 'more and taller hills, all gentle'] },
+    highlands: { name: ['terrainHighlands', 'Highlands'], desc: ['terrainHighlandsDesc', 'each Stronghold on high ground'] },
+    ridges: { name: ['terrainRidges', 'Ridges'], desc: ['terrainRidgesDesc', 'a flat middle, a steep ridge guarding each base'] },
+};
+
+/** the lobby's terrain choice — labels follow the language */
+function refreshTerrainOptions(): void {
+    const value = cgTerrainEl.value;
+    cgTerrainEl.replaceChildren(
+        ...TERRAIN_SHAPES.map((shape) => {
+            const text = TERRAIN_SHAPE_TEXT[shape];
+            const name = t(`menu:${text.name[0]}`, { defaultValue: text.name[1] });
+            const desc = t(`menu:${text.desc[0]}`, { defaultValue: text.desc[1] });
+            const opt = document.createElement('option');
+            opt.value = shape;
+            fillSelectOption(opt, name, `${name} — ${desc}`);
+            return opt;
+        }),
+    );
+    cgTerrainEl.value = value ? terrainShapeOption(value) : DEFAULT_TERRAIN_SHAPE;
+}
+refreshTerrainOptions();
+wireSelectShortLabels(cgTerrainEl);
+
 /** the lobby's map choice: the procedural terrain, or one of the bundled static maps (shown only when there are any) */
 function refreshLandscapeOptions(): void {
     const value = cgLandscapeEl.value;
@@ -1943,7 +1980,7 @@ function landscapeOption(value: unknown): string {
 
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'terrainShape'
 > {
     return {
         pace: DEFAULT_CUSTOM_GAME_PACE_ID,
@@ -1952,6 +1989,7 @@ function defaultLobbySettings(): Pick<
         commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
         moneyFactor: DEFAULT_MONEY_FACTOR,
         strongholdMode: DEFAULT_STRONGHOLD_MODE,
+        terrainShape: DEFAULT_TERRAIN_SHAPE,
     };
 }
 
@@ -1962,7 +2000,8 @@ function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobb
         cfg.roundCardPreset !== defaults.roundCardPreset ||
         cfg.commanderHpFactor !== defaults.commanderHpFactor ||
         cfg.moneyFactor !== defaults.moneyFactor ||
-        cfg.strongholdMode !== defaults.strongholdMode
+        cfg.strongholdMode !== defaults.strongholdMode ||
+        terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape
     );
 }
 
@@ -1983,6 +2022,9 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgYearKomturEl.value = cfg.yearKomtur ? 'komtur' : 'army';
     refreshLandscapeOptions();
     cgLandscapeEl.value = landscapeOption(cfg.landscape);
+    refreshTerrainOptions();
+    cgTerrainEl.value = terrainShapeOption(cfg.terrainShape);
+    syncSelectOptionLabels(cgTerrainEl, false);
     for (const field of menu.querySelectorAll<HTMLElement>('.m-year-field')) field.style.display = cfg.mode === 'year' ? '' : 'none';
     // Always short in the closed box — hosts open the list for details;
     // guests get a hover/tap tip (see wireLobbySettingTips).
@@ -2089,12 +2131,13 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'landscape'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'landscape' | 'terrainShape'
 > {
     return {
         yearRoles: yearRolesOption(cgYearAttackerEl.value),
         yearKomtur: cgYearKomturEl.value === 'komtur',
         landscape: landscapeOption(cgLandscapeEl.value),
+        terrainShape: terrainShapeOption(cgTerrainEl.value),
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
@@ -2594,6 +2637,7 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
     cgStrongholdEl.addEventListener('change', onChange);
     cgYearAttackerEl.addEventListener('change', onChange);
     cgLandscapeEl.addEventListener('change', onChange);
+    cgTerrainEl.addEventListener('change', onChange);
     cgYearKomturEl.addEventListener('change', onChange);
     cgResetEl.addEventListener('click', () => {
         if (!activeLobbyHost) return;
@@ -2632,6 +2676,7 @@ function showHostLobbySettings(
     cgStrongholdEl.disabled = false;
     cgYearAttackerEl.disabled = false;
     cgLandscapeEl.disabled = false;
+    cgTerrainEl.disabled = false;
     cgYearKomturEl.disabled = false;
     cgResetEl.disabled = false;
     populateLobbySettingsForm(config);
@@ -2659,6 +2704,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgStrongholdEl.disabled = true;
     cgYearAttackerEl.disabled = true;
     cgLandscapeEl.disabled = true;
+    cgTerrainEl.disabled = true;
     cgYearKomturEl.disabled = true;
     cgResetEl.disabled = true;
     populateLobbySettingsForm(config);
@@ -4858,6 +4904,7 @@ function loadPracticeConfig(): CustomGameConfig {
             moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
             strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
             landscape: landscapeOption(parsed.landscape),
+            terrainShape: terrainShapeOption(parsed.terrainShape ?? defaults.terrainShape),
         };
     } catch {
         return { mode: '1v1', ...defaultPracticeSettings() };

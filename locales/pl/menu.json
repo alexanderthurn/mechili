@@ -169,5 +169,14 @@
   "mpRunningCount": "Trwające: {{n}}",
   "mapSetting": "Mapa",
   "mapProcedural": "Generowana",
-  "landscapeUnavailable": "Ten mecz używa niedostępnej mapy."
+  "landscapeUnavailable": "Ten mecz używa niedostępnej mapy.",
+  "terrainSetting": "Teren",
+  "terrainStandard": "Standardowy",
+  "terrainStandardDesc": "kilka niskich pagórków",
+  "terrainHills": "Pagórki",
+  "terrainHillsDesc": "więcej wyższych wzgórz, wszystkie łagodne",
+  "terrainHighlands": "Wyżyny",
+  "terrainHighlandsDesc": "każda twierdza na wzniesieniu",
+  "terrainRidges": "Grzbiety",
+  "terrainRidgesDesc": "płaski środek, stromy grzbiet osłania każdą bazę"
 }

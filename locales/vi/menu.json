@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} đang chơi",
   "mapSetting": "Bản đồ",
   "mapProcedural": "Tự tạo",
-  "landscapeUnavailable": "Trận này dùng một bản đồ không có sẵn."
+  "landscapeUnavailable": "Trận này dùng một bản đồ không có sẵn.",
+  "terrainSetting": "Địa hình",
+  "terrainStandard": "Tiêu chuẩn",
+  "terrainStandardDesc": "vài gò đất thấp",
+  "terrainHills": "Đồi thoải",
+  "terrainHillsDesc": "nhiều đồi hơn và cao hơn, đều thoải",
+  "terrainHighlands": "Cao nguyên",
+  "terrainHighlandsDesc": "mỗi pháo đài nằm trên cao",
+  "terrainRidges": "Sống núi",
+  "terrainRidgesDesc": "giữa bằng phẳng, sống núi dốc bảo vệ mỗi căn cứ"
 }

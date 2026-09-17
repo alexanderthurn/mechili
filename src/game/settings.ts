@@ -1,4 +1,5 @@
 import { BASE_TYPES } from './units';
+import { terrainShapeOption, type TerrainShape } from './terrainShapes';
 import type { LevelRef } from './level';
 import type { ScenarioDef } from './scenario/scenarioDef';
 import { STANDARD_MAP, type MapSize } from './map';
@@ -177,6 +178,8 @@ export interface GameSettings {
      * a board it wasn't made for (a wider 2v2 board) plays procedural.
      */
     landscape?: string;
+    /** the generated board relief ({@link TerrainShape}); unset = standard. A static landscape replaces it. */
+    terrainShape?: TerrainShape;
     /**
      * A scenario match (plan §2.2): 'play' reads the board and rules from the
      * level's `scenario.jsonc`; 'author' / 'test' carry the editor draft here
@@ -658,6 +661,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         // a match that arrived over a room connection may carry null for "no level"
         ...(rest.level == null ? { level: undefined } : {}),
         ...(typeof rest.landscape === 'string' && rest.landscape ? {} : { landscape: undefined }),
+        terrainShape: rest.terrainShape == null ? undefined : terrainShapeOption(rest.terrainShape),
         economy: {
             ...DEFAULT_SETTINGS.economy,
             ...settings.economy,

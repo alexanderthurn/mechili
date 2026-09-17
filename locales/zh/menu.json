@@ -169,5 +169,14 @@
   "mpRunningCount": "进行中 {{n}}",
   "mapSetting": "地图",
   "mapProcedural": "自动生成",
-  "landscapeUnavailable": "本场对局使用了不可用的地图。"
+  "landscapeUnavailable": "本场对局使用了不可用的地图。",
+  "terrainSetting": "地形",
+  "terrainStandard": "标准",
+  "terrainStandardDesc": "几处低矮土丘",
+  "terrainHills": "丘陵",
+  "terrainHillsDesc": "更多更高的山丘，坡度都很缓",
+  "terrainHighlands": "高地",
+  "terrainHighlandsDesc": "双方要塞都在高处",
+  "terrainRidges": "山脊",
+  "terrainRidgesDesc": "中央平坦，陡峭山脊守护各自基地"
 }

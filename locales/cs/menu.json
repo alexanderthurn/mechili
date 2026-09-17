@@ -169,5 +169,14 @@
   "mpRunningCount": "Probíhající: {{n}}",
   "mapSetting": "Mapa",
   "mapProcedural": "Generovaná",
-  "landscapeUnavailable": "Tento zápas používá nedostupnou mapu."
+  "landscapeUnavailable": "Tento zápas používá nedostupnou mapu.",
+  "terrainSetting": "Terén",
+  "terrainStandard": "Standardní",
+  "terrainStandardDesc": "pár nízkých pahorků",
+  "terrainHills": "Kopce",
+  "terrainHillsDesc": "více vyšších kopců, všechny mírné",
+  "terrainHighlands": "Vysočina",
+  "terrainHighlandsDesc": "každá pevnost na vyvýšenině",
+  "terrainRidges": "Hřebeny",
+  "terrainRidgesDesc": "rovný střed, strmý hřeben chrání každou základnu"
 }

@@ -169,5 +169,14 @@
   "mpRunningCount": "対戦中 {{n}}",
   "mapSetting": "マップ",
   "mapProcedural": "自動生成",
-  "landscapeUnavailable": "この対戦は利用できないマップを使っています。"
+  "landscapeUnavailable": "この対戦は利用できないマップを使っています。",
+  "terrainSetting": "地形",
+  "terrainStandard": "標準",
+  "terrainStandardDesc": "低い丘が少し",
+  "terrainHills": "なだらかな丘",
+  "terrainHillsDesc": "丘が多く高め、どれもゆるやか",
+  "terrainHighlands": "高地",
+  "terrainHighlandsDesc": "各要塞が高台に",
+  "terrainRidges": "尾根",
+  "terrainRidgesDesc": "中央は平ら、急な尾根が各拠点を守る"
 }

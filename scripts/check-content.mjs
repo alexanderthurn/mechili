@@ -848,6 +848,29 @@ try {
             for (let i = 0; i < deep.terrain.heights.length; i++) highest = Math.max(highest, deep.terrain.heights[i]);
             texpect(highest <= 21 + 1e-5, `ground piled above the ceiling: ${highest}`);
         }
+        // generated terrain shapes: fair (point symmetric), meet the meadow at y 0, stay inside the board's height band
+        {
+            const { TERRAIN_SHAPES } = await server.ssrLoadModule('/src/game/terrainShapes.ts');
+            for (const shape of TERRAIN_SHAPES) {
+                const sm = new BattleMap({ ...STANDARD_MAP }, shape);
+                let asym = 0;
+                let edge = 0;
+                let lo = Infinity;
+                let hi = -Infinity;
+                for (let z = -sm.halfH; z <= sm.halfH; z += 4) {
+                    for (let x = -sm.halfW; x <= sm.halfW; x += 4) {
+                        const h = sm.proceduralHeightAt(x, z);
+                        if (shape !== 'standard') asym = Math.max(asym, Math.abs(h - sm.proceduralHeightAt(-x, -z)));
+                        if (Math.abs(x) === sm.halfW || Math.abs(z) === sm.halfH) edge = Math.max(edge, Math.abs(h));
+                        lo = Math.min(lo, h);
+                        hi = Math.max(hi, h);
+                    }
+                }
+                texpect(asym < 1e-9, `terrain ${shape}: sides differ by ${asym}`);
+                texpect(edge < 1e-6, `terrain ${shape}: board edge at ${edge}, the meadow is at 0`);
+                texpect(lo >= -1e-9 && hi <= 21, `terrain ${shape}: heights ${lo}…${hi} outside 0…21`);
+            }
+        }
         // healing between rounds: 0 keeps it, 0.5 halfway back, 1 back to normal
         const deformed = Float32Array.from(grid.heights);
         grid.heal(0);

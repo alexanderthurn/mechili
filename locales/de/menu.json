@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} laufend",
   "mapSetting": "Karte",
   "mapProcedural": "Generiert",
-  "landscapeUnavailable": "Dieses Match nutzt eine Karte, die nicht verfügbar ist."
+  "landscapeUnavailable": "Dieses Match nutzt eine Karte, die nicht verfügbar ist.",
+  "terrainSetting": "Gelände",
+  "terrainStandard": "Standard",
+  "terrainStandardDesc": "ein paar flache Hügel",
+  "terrainHills": "Hügelland",
+  "terrainHillsDesc": "mehr und höhere Hügel, alle sanft",
+  "terrainHighlands": "Hochland",
+  "terrainHighlandsDesc": "jede Festung auf einer Anhöhe",
+  "terrainRidges": "Bergrücken",
+  "terrainRidgesDesc": "flache Mitte, ein steiler Kamm schützt jede Basis"
 }

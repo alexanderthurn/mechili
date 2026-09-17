@@ -169,5 +169,14 @@
   "mpRunningCount": "Σε εξέλιξη: {{n}}",
   "mapSetting": "Χάρτης",
   "mapProcedural": "Παραγόμενος",
-  "landscapeUnavailable": "Αυτός ο αγώνας χρησιμοποιεί χάρτη που δεν είναι διαθέσιμος."
+  "landscapeUnavailable": "Αυτός ο αγώνας χρησιμοποιεί χάρτη που δεν είναι διαθέσιμος.",
+  "terrainSetting": "Έδαφος",
+  "terrainStandard": "Κανονικό",
+  "terrainStandardDesc": "λίγοι χαμηλοί λόφοι",
+  "terrainHills": "Λοφώδες",
+  "terrainHillsDesc": "περισσότεροι και ψηλότεροι λόφοι, όλοι ομαλοί",
+  "terrainHighlands": "Υψίπεδα",
+  "terrainHighlandsDesc": "κάθε φρούριο σε ύψωμα",
+  "terrainRidges": "Κορυφογραμμές",
+  "terrainRidgesDesc": "επίπεδο κέντρο, απότομη κορυφογραμμή προστατεύει κάθε βάση"
 }

@@ -169,5 +169,14 @@
   "mpRunningCount": "กำลังเล่น {{n}}",
   "mapSetting": "แผนที่",
   "mapProcedural": "สร้างอัตโนมัติ",
-  "landscapeUnavailable": "แมตช์นี้ใช้แผนที่ที่ไม่พร้อมใช้งาน"
+  "landscapeUnavailable": "แมตช์นี้ใช้แผนที่ที่ไม่พร้อมใช้งาน",
+  "terrainSetting": "ภูมิประเทศ",
+  "terrainStandard": "มาตรฐาน",
+  "terrainStandardDesc": "เนินเตี้ยไม่กี่ลูก",
+  "terrainHills": "เนินเขา",
+  "terrainHillsDesc": "เนินมากขึ้นและสูงขึ้น ลาดไม่ชัน",
+  "terrainHighlands": "ที่ราบสูง",
+  "terrainHighlandsDesc": "ป้อมปราการแต่ละฝั่งอยู่บนที่สูง",
+  "terrainRidges": "สันเขา",
+  "terrainRidgesDesc": "ตรงกลางราบ มีสันเขาชันป้องกันแต่ละฐาน"
 }

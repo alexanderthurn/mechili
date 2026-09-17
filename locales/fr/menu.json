@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} en cours",
   "mapSetting": "Carte",
   "mapProcedural": "Générée",
-  "landscapeUnavailable": "Cette partie utilise une carte indisponible."
+  "landscapeUnavailable": "Cette partie utilise une carte indisponible.",
+  "terrainSetting": "Terrain",
+  "terrainStandard": "Standard",
+  "terrainStandardDesc": "quelques buttes basses",
+  "terrainHills": "Collines",
+  "terrainHillsDesc": "plus de collines, plus hautes, toutes douces",
+  "terrainHighlands": "Hautes terres",
+  "terrainHighlandsDesc": "chaque forteresse en hauteur",
+  "terrainRidges": "Crêtes",
+  "terrainRidgesDesc": "un centre plat, une crête abrupte devant chaque base"
 }

@@ -169,5 +169,14 @@
   "mpRunningCount": "Идёт: {{n}}",
   "mapSetting": "Карта",
   "mapProcedural": "Сгенерированная",
-  "landscapeUnavailable": "В этом матче используется недоступная карта."
+  "landscapeUnavailable": "В этом матче используется недоступная карта.",
+  "terrainSetting": "Местность",
+  "terrainStandard": "Стандартная",
+  "terrainStandardDesc": "несколько низких холмиков",
+  "terrainHills": "Холмы",
+  "terrainHillsDesc": "больше холмов и выше, все пологие",
+  "terrainHighlands": "Возвышенности",
+  "terrainHighlandsDesc": "каждая крепость на возвышенности",
+  "terrainRidges": "Гряды",
+  "terrainRidgesDesc": "ровный центр, крутая гряда прикрывает каждую базу"
 }

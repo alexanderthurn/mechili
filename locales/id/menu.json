@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} berlangsung",
   "mapSetting": "Peta",
   "mapProcedural": "Dihasilkan",
-  "landscapeUnavailable": "Pertandingan ini memakai peta yang tidak tersedia."
+  "landscapeUnavailable": "Pertandingan ini memakai peta yang tidak tersedia.",
+  "terrainSetting": "Medan",
+  "terrainStandard": "Standar",
+  "terrainStandardDesc": "beberapa gundukan rendah",
+  "terrainHills": "Perbukitan",
+  "terrainHillsDesc": "lebih banyak bukit yang lebih tinggi, semuanya landai",
+  "terrainHighlands": "Dataran tinggi",
+  "terrainHighlandsDesc": "setiap benteng di tempat tinggi",
+  "terrainRidges": "Punggung bukit",
+  "terrainRidgesDesc": "tengah datar, punggung bukit curam melindungi tiap markas"
 }

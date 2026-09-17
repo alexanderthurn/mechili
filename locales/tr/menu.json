@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} süren",
   "mapSetting": "Harita",
   "mapProcedural": "Oluşturulan",
-  "landscapeUnavailable": "Bu maç kullanılamayan bir harita kullanıyor."
+  "landscapeUnavailable": "Bu maç kullanılamayan bir harita kullanıyor.",
+  "terrainSetting": "Arazi",
+  "terrainStandard": "Standart",
+  "terrainStandardDesc": "birkaç alçak tümsek",
+  "terrainHills": "Tepelik",
+  "terrainHillsDesc": "daha çok ve daha yüksek tepeler, hepsi yumuşak",
+  "terrainHighlands": "Yayla",
+  "terrainHighlandsDesc": "her kale yüksek bir yerde",
+  "terrainRidges": "Sırtlar",
+  "terrainRidgesDesc": "düz orta, her üssü dik bir sırt korur"
 }

@@ -13,6 +13,7 @@ import {
 
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
+import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
 import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
@@ -184,6 +185,9 @@ export function makeValueNoise(seed: number): (x: number, y: number) => number {
         return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
     };
 }
+
+/** how far a building pad blends into the surrounding shape (wu) */
+const PAD_BLEND = 10;
 
 /** Cheap hash/fbm for high/ultra ground hazards (declared once at shader top). */
 const HAZARD_NOISE_GLSL =
@@ -415,7 +419,11 @@ export class BattleMap {
         return this.groundEffects === 'high' || this.groundEffects === 'medium';
     }
 
-    constructor(readonly size: MapSize = STANDARD_MAP) {
+    constructor(
+        readonly size: MapSize = STANDARD_MAP,
+        /** the generated board relief ({@link TerrainShape}); a static landscape overrides it */
+        readonly shape: TerrainShape = DEFAULT_TERRAIN_SHAPE,
+    ) {
         this.cols = size.zoneCols + 2 * size.flankCols + 2 * size.rimCells;
         this.rows = 2 * size.zoneRows + size.neutralRows + 2 * size.rimCells;
         this.width = this.cols * CELL;
@@ -548,8 +556,96 @@ export class BattleMap {
         return this.terrain.sample(x, z);
     }
 
-    /** Procedural board mounds (used when no landscape override is set). */
+    /** The generated board relief for this match's {@link shape} (used when no landscape override is set). */
     proceduralHeightAt(x: number, z: number): number {
+        if (this.shape === 'standard') return this.standardHeightAt(x, z);
+        const raw = this.shapeRawHeight(x, z);
+        // buildings stand on flat pads at the height the shape gives their center
+        let h = raw;
+        for (const pad of this.shapePads()) {
+            const d = hypot(x - pad.x, z - pad.z);
+            if (d >= pad.r + PAD_BLEND) continue;
+            h = pad.y + (h - pad.y) * smooth01((d - pad.r) / PAD_BLEND);
+        }
+        return h;
+    }
+
+    private padCache: { x: number; z: number; r: number; y: number }[] | null = null;
+    private shapePads(): { x: number; z: number; r: number; y: number }[] {
+        if (!this.padCache) {
+            this.padCache = this.baseAnchors().map((a) => ({ ...a, y: this.shapeRawHeight(a.x, a.z) }));
+        }
+        return this.padCache;
+    }
+
+    /**
+     * Value noise that looks the same from both sides: the board is point
+     * symmetric (x, z) → (−x, −z), so neither player gets the better hills.
+     * Averaging two samples narrows the spread; it is stretched back around 0.5.
+     */
+    private symNoise(x: number, z: number, wave: number, ox: number, oz: number): number {
+        const a = this.reliefNoise(x / wave + ox, z / wave + oz);
+        const b = this.reliefNoise(-x / wave + ox, -z / wave + oz);
+        return Math.min(1, Math.max(0, 0.5 + ((a + b) * 0.5 - 0.5) * 1.8));
+    }
+
+    /** the shape before building pads — every shape keeps the board's outer edge at y 0 so the meadow meets it */
+    private shapeRawHeight(x: number, z: number): number {
+        const rimW = this.size.rimCells * CELL;
+        const edge = Math.min(this.halfW - Math.abs(x), this.halfH - Math.abs(z));
+        const zoneDepth = this.size.zoneRows * CELL;
+        const zoneWidth = this.size.zoneCols * CELL;
+        const neutralHalf = (this.size.neutralRows * CELL) / 2;
+        if (this.shape === 'hills') {
+            // more and taller rolling hills than standard, still gentle (grade ≲ 0.4)
+            const n = this.symNoise(x, z, 44, 37.2, 11.7) * 0.75 + this.symNoise(x, z, 24, 5.1, 91.3) * 0.25;
+            const hill = smooth01((n - 0.3) / 0.6);
+            return 5.5 * hill * smooth01((edge - rimW * 0.5) / 22);
+        }
+        if (this.shape === 'highlands') {
+            // each side's ground rises toward its Stronghold: a broad incline
+            // with the keep on a knoll at the top; buildings on the way up get
+            // flat terraces, the flanks stay lower
+            const low = smooth01((this.symNoise(x, z, 44, 17.3, 3.9) - 0.45) / 0.45) * 2;
+            const side = z >= 0 ? 1 : -1;
+            const back = z * side; // distance toward this side's own back edge
+            const keepZ = this.halfH - rimW - zoneDepth * BASE_ANCHORS.stronghold.rowFrac;
+            const rise = smooth01((back - neutralHalf - 30) / (keepZ - neutralHalf - 22));
+            const flanks = 1 - smooth01((Math.abs(x) - zoneWidth * 0.3) / (zoneWidth * 0.22));
+            const knoll = 1 - smooth01((hypot(x, back - keepZ) - 18) / 22);
+            const lift = 9 * rise * flanks + 2.5 * knoll;
+            const h = lift + low * (1 - rise * 0.6);
+            // the back eases down to the meadow over the rim
+            return h * smooth01(edge / (rimW + 18));
+        }
+        // 'ridges': a band across the middle (about 13 tiles): flat at the
+        // center line, low gentle hills either side, then a ridge whose steep
+        // face guards each side's base — a wall in places, walkable in others,
+        // cut by two passes. Behind the ridges the bases sit in rolling hills.
+        const az = Math.abs(z);
+        const side = z >= 0 ? 1 : -1;
+        const xs = x * side; // the enemy's ridge is the mirror image of ours
+        const ridgeZ = neutralHalf + 16;
+        const top = 3;
+        // foothills: from the flat center a low, easy rise up to the ridge's foot
+        const valley = (1.4 + this.symNoise(x, z, 22, 8.4, 44.1) * 1.4) * smooth01((az - 5) / 9);
+        const along = this.reliefNoise(xs / 38 + 3.3, 71.5);
+        const steepW = 5 + 7 * along; // front face: 5 wu (a wall) … 12 wu (walkable)
+        const dz = az - ridgeZ;
+        const ridgeProfile =
+            dz < 0
+                ? 1 - smooth01((-dz - top) / steepW) // front, toward the middle
+                : 1 - smooth01((dz - top) / 16) * 0.7; // back: a long easy slope toward the base
+        let passes = 1;
+        for (const px of [-zoneWidth * 0.3, zoneWidth * 0.15]) passes = Math.min(passes, smooth01((Math.abs(xs - px) - 5) / 10));
+        const ridge = (5.5 + (this.reliefNoise(xs / 21 + 9.1, 13.3) - 0.5) * 3) * ridgeProfile * passes;
+        const baseHills = smooth01((this.symNoise(x, z, 34, 2.2, 66.6) - 0.4) / 0.45) * 3.5 * smooth01((dz - 6) / 14);
+        const h = Math.max(valley, ridge) + baseHills;
+        return h * smooth01((edge - rimW * 0.5) / 22);
+    }
+
+    /** the classic relief: sparse low mounds, flat around every building */
+    private standardHeightAt(x: number, z: number): number {
         const WAVE = 46;
         const n =
             this.reliefNoise(x / WAVE + 37.2, z / WAVE + 11.7) * 0.72 +

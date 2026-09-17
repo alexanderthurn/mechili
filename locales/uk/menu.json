@@ -169,5 +169,14 @@
   "mpRunningCount": "Триває: {{n}}",
   "mapSetting": "Мапа",
   "mapProcedural": "Згенерована",
-  "landscapeUnavailable": "Цей матч використовує недоступну мапу."
+  "landscapeUnavailable": "Цей матч використовує недоступну мапу.",
+  "terrainSetting": "Місцевість",
+  "terrainStandard": "Стандартна",
+  "terrainStandardDesc": "кілька низьких пагорбів",
+  "terrainHills": "Пагорби",
+  "terrainHillsDesc": "більше і вищі пагорби, усі пологі",
+  "terrainHighlands": "Височини",
+  "terrainHighlandsDesc": "кожна фортеця на височині",
+  "terrainRidges": "Гряди",
+  "terrainRidgesDesc": "рівний центр, крута гряда захищає кожну базу"
 }

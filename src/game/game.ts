@@ -1399,7 +1399,7 @@ export class Game {
         this.threeCanvas = threeCanvas;
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
-        this.map = new BattleMap(settings.map);
+        this.map = new BattleMap(settings.map, settings.terrainShape);
         // a static map replaces the procedural relief before anything reads it
         // (ground mesh, deploy grid, sim) — main loaded the file before building the match
         if (settings.landscape) {

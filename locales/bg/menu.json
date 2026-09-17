@@ -169,5 +169,14 @@
   "mpRunningCount": "В ход: {{n}}",
   "mapSetting": "Карта",
   "mapProcedural": "Генерирана",
-  "landscapeUnavailable": "Този мач използва недостъпна карта."
+  "landscapeUnavailable": "Този мач използва недостъпна карта.",
+  "terrainSetting": "Терен",
+  "terrainStandard": "Стандартен",
+  "terrainStandardDesc": "няколко ниски могили",
+  "terrainHills": "Хълмове",
+  "terrainHillsDesc": "повече и по-високи хълмове, всички полегати",
+  "terrainHighlands": "Планини",
+  "terrainHighlandsDesc": "всяка крепост на възвишение",
+  "terrainRidges": "Хребети",
+  "terrainRidgesDesc": "равен център, стръмен хребет пази всяка база"
 }

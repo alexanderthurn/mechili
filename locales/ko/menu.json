@@ -169,5 +169,14 @@
   "mpRunningCount": "진행 중 {{n}}",
   "mapSetting": "맵",
   "mapProcedural": "자동 생성",
-  "landscapeUnavailable": "이 매치는 사용할 수 없는 맵을 사용합니다."
+  "landscapeUnavailable": "이 매치는 사용할 수 없는 맵을 사용합니다.",
+  "terrainSetting": "지형",
+  "terrainStandard": "표준",
+  "terrainStandardDesc": "낮은 둔덕 몇 개",
+  "terrainHills": "구릉지",
+  "terrainHillsDesc": "더 많고 높은 언덕, 모두 완만함",
+  "terrainHighlands": "고지대",
+  "terrainHighlandsDesc": "각 요새가 높은 곳에",
+  "terrainRidges": "능선",
+  "terrainRidgesDesc": "평평한 중앙, 가파른 능선이 각 기지를 지킴"
 }

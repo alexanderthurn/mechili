@@ -170,5 +170,14 @@
   "mpRunningCount": "{{n}} running",
   "mapSetting": "Map",
   "mapProcedural": "Generated",
-  "landscapeUnavailable": "This match uses a map that is not available."
+  "landscapeUnavailable": "This match uses a map that is not available.",
+  "terrainSetting": "Terrain",
+  "terrainStandard": "Standard",
+  "terrainStandardDesc": "a few low mounds",
+  "terrainHills": "Rolling hills",
+  "terrainHillsDesc": "more and taller hills, all gentle",
+  "terrainHighlands": "Highlands",
+  "terrainHighlandsDesc": "each Stronghold on high ground",
+  "terrainRidges": "Ridges",
+  "terrainRidgesDesc": "a flat middle, a steep ridge guarding each base"
 }

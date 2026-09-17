@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} folyamatban",
   "mapSetting": "Térkép",
   "mapProcedural": "Generált",
-  "landscapeUnavailable": "Ez a meccs nem elérhető térképet használ."
+  "landscapeUnavailable": "Ez a meccs nem elérhető térképet használ.",
+  "terrainSetting": "Terep",
+  "terrainStandard": "Normál",
+  "terrainStandardDesc": "néhány alacsony halom",
+  "terrainHills": "Dombvidék",
+  "terrainHillsDesc": "több és magasabb domb, mind szelíd",
+  "terrainHighlands": "Felföld",
+  "terrainHighlandsDesc": "minden erőd magaslaton",
+  "terrainRidges": "Gerincek",
+  "terrainRidgesDesc": "sík közép, meredek gerinc védi a bázisokat"
 }

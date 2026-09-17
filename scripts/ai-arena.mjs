@@ -2,7 +2,7 @@
 // real AI code, real BattleSim — no renderer, no HUD. Measures how an AI does
 // round after round against a stand-in for the human.
 //
-//   node scripts/ai-arena.mjs [--games 6] [--rounds 9] [--variant attack|defend|komtur-attack|komtur-defend|all]
+//   node scripts/ai-arena.mjs [--games 6] [--rounds 9] [--variant attack|defend|komtur-attack|komtur-defend|all] [--terrain standard|hills|highlands|ridges]
 //                             [--ai year|classic] [--human classic|year] [--seed 1] [--verbose]
 //
 // The AI side rebuilds its army every round (as in the game); the human side
@@ -89,7 +89,7 @@ function newMatch(variantName, seed, brains) {
     const settings = structuredClone(DEFAULT_SETTINGS);
     settings.climb = { rounds: 9, sideHp: 1, playerSupplyGrowthPerRound: CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND, ...variant };
     const attackerTeam = variant.humanRole === 'defender' ? 'enemy' : 'player';
-    const map = new BattleMap({ ...STANDARD_MAP });
+    const map = new BattleMap({ ...STANDARD_MAP }, arg('terrain', 'standard'));
     const seats = [
         { team: 'player', side: 0, controller: 'ai', name: 'Human' },
         { team: 'enemy', side: 1, controller: 'ai', name: 'AI' },

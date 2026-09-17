@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} pågår",
   "mapSetting": "Kart",
   "mapProcedural": "Generert",
-  "landscapeUnavailable": "Denne kampen bruker et kart som ikke er tilgjengelig."
+  "landscapeUnavailable": "Denne kampen bruker et kart som ikke er tilgjengelig.",
+  "terrainSetting": "Terreng",
+  "terrainStandard": "Standard",
+  "terrainStandardDesc": "noen få lave hauger",
+  "terrainHills": "Åser",
+  "terrainHillsDesc": "flere og høyere åser, alle slake",
+  "terrainHighlands": "Høyland",
+  "terrainHighlandsDesc": "hver festning på høyden",
+  "terrainRidges": "Rygger",
+  "terrainRidgesDesc": "flat midte, en bratt rygg vokter hver base"
 }

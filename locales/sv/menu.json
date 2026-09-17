@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} pågår",
   "mapSetting": "Karta",
   "mapProcedural": "Genererad",
-  "landscapeUnavailable": "Den här matchen använder en karta som inte är tillgänglig."
+  "landscapeUnavailable": "Den här matchen använder en karta som inte är tillgänglig.",
+  "terrainSetting": "Terräng",
+  "terrainStandard": "Standard",
+  "terrainStandardDesc": "några låga kullar",
+  "terrainHills": "Böljande kullar",
+  "terrainHillsDesc": "fler och högre kullar, alla flacka",
+  "terrainHighlands": "Högland",
+  "terrainHighlandsDesc": "varje fästning på höjden",
+  "terrainRidges": "Åsar",
+  "terrainRidgesDesc": "platt mitt, en brant ås skyddar varje bas"
 }

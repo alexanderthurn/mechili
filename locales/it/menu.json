@@ -169,5 +169,14 @@
   "mpRunningCount": "{{n}} in corso",
   "mapSetting": "Mappa",
   "mapProcedural": "Generata",
-  "landscapeUnavailable": "Questa partita usa una mappa non disponibile."
+  "landscapeUnavailable": "Questa partita usa una mappa non disponibile.",
+  "terrainSetting": "Terreno",
+  "terrainStandard": "Standard",
+  "terrainStandardDesc": "qualche collinetta bassa",
+  "terrainHills": "Colline",
+  "terrainHillsDesc": "più colline e più alte, tutte dolci",
+  "terrainHighlands": "Altopiani",
+  "terrainHighlandsDesc": "ogni fortezza in altura",
+  "terrainRidges": "Creste",
+  "terrainRidgesDesc": "centro piatto, una cresta ripida protegge ogni base"
 }

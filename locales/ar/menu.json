@@ -169,5 +169,14 @@
   "mpRunningCount": "جارية: {{n}}",
   "mapSetting": "الخريطة",
   "mapProcedural": "مُولَّدة",
-  "landscapeUnavailable": "تستخدم هذه المباراة خريطة غير متاحة."
+  "landscapeUnavailable": "تستخدم هذه المباراة خريطة غير متاحة.",
+  "terrainSetting": "التضاريس",
+  "terrainStandard": "قياسية",
+  "terrainStandardDesc": "بعض التلال المنخفضة",
+  "terrainHills": "تلال متموجة",
+  "terrainHillsDesc": "تلال أكثر وأعلى، كلها لطيفة",
+  "terrainHighlands": "مرتفعات",
+  "terrainHighlandsDesc": "كل حصن على أرض مرتفعة",
+  "terrainRidges": "سلاسل",
+  "terrainRidgesDesc": "وسط مستوٍ، وسلسلة شديدة الانحدار تحمي كل قاعدة"
 }
