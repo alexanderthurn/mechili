@@ -1,10 +1,7 @@
-# Icon bank (not packed)
+# Icon bank
 
-Glyphs kept for reuse / future talents. **Not** fed to `npm run icons:pack`
-(only `misc/icons/src/` is packed).
+Unused / speculative Melodan icons — **not packed**. All PNGs live **directly in this folder** (no subfolders).
 
-| Path | Contents |
-|------|----------|
-| `tech/` | Leftover or unused tech glyphs (e.g. Earthbound, Gale Wings, Quick Winch, Stone Hide) |
+Promote into `misc/icons/src/` only when wired. `QUEUE.md` is the generation list.
 
-Add future Mechabellum-gap / speculative tech icons here until wired into a talent.
+`alt-*` naming: if an id also exists in `src/`, the bank copy is a proposed upgrade (e.g. compare `tech-regeneration.png` here vs `src/`).
