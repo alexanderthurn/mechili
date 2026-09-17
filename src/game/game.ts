@@ -180,7 +180,7 @@ import {
 } from './buildingCollapse';
 import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay } from './crowWingFlap';
 import { GROUND_UNIT_Y } from './groundQuality';
-import { rangePreviewBonus } from './terrainCombat';
+import { reachToward } from './terrainCombat';
 import { modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery, MOUNTAIN_PEAK_END } from './scenery';
@@ -198,6 +198,7 @@ import type { Weather } from './weather';
 import {
     createFovWedge,
     createRangeRing,
+    type RangeShape,
     placeFovWedge,
     placeRangeRing,
     pulseAuraRing,
@@ -1970,11 +1971,12 @@ export class Game {
             if (this.armedTactic) return;
             this.placement.rotateSelected();
         };
-        this.placement.rangeOf = (unit) => {
+        this.placement.rangeOf = (unit, x, z) => {
             const base = this.resolvedStatsView(unit).range;
             if (!unit.type.projectileSpeed) return base;
-            const feetY = unit.pinnedY ?? simGroundSupportAt(unit.world.x, unit.world.z) + GROUND_UNIT_Y;
-            return base + rangePreviewBonus(feetY, unit.world.x, unit.world.z);
+            // ranged: reach per direction, same elevation rule as the sim
+            const feetY = unit.pinnedY ?? simGroundSupportAt(x, z) + GROUND_UNIT_Y;
+            return (dx, dz) => reachToward(feetY, x, z, dx, dz, base, 0);
         };
         this.placement.minRangeOf = (unit) => this.resolvedStatsView(unit).minRange;
         this.placement.auraRangeOf = (unit) => this.auraRadiusOf(unit);
@@ -11101,12 +11103,12 @@ export class Game {
         const minRange = a ? this.resolvedStats(a.unit).minRange : 0;
         this.battleMinRangeMesh.visible = a !== null && minRange > 0;
         if (!a) return;
-        const radius =
-            this.resolvedStats(a.unit).range +
-            a.unit.type.collisionRadius +
-            (a.unit.type.projectileSpeed
-                ? rangePreviewBonus(a.footY, a.rx, a.rz)
-                : 0);
+        const range = this.resolvedStats(a.unit).range;
+        const own = a.unit.type.collisionRadius;
+        // ranged: the ring bulges down onto low ground and pulls in up a slope, like the sim's reach
+        const radius: RangeShape = a.unit.type.projectileSpeed
+            ? (dx, dz) => reachToward(a.footY, a.rx, a.rz, dx, dz, range, own)
+            : range + own;
         const tint = colorForBattleTeam(actorTeam(a)).hex;
         if (fov !== null) {
             placeFovWedge(this.battleFovMesh, a.rx, a.rz, radius, fov, STRONGHOLD_ARCHER_FOV_HALF);

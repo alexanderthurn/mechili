@@ -5,6 +5,7 @@
 
 import { hypot } from './detMath';
 import { simGroundHeightAt } from './map';
+import { GROUND_UNIT_Y } from './groundQuality';
 
 /** Horizontal range gained/lost per world-unit of height difference. */
 export const RANGE_PER_WU = 0.45;
@@ -43,12 +44,29 @@ export function effectiveWeaponReach(
 }
 
 /**
- * Ring / FOV preview radius bonus: how much farther this shooter reaches vs
- * a target standing on local board ground (Stronghold battlements light up).
+ * How far a shooter standing at (x, z) with its feet at `shooterFeetY` reaches
+ * toward (dirX, dirZ) against ground targets — the same elevation rule as
+ * {@link effectiveWeaponReach}: further down onto lower ground, shorter up onto
+ * higher ground. `extra` is added on top (the shooter's own radius for the
+ * ring). Solved per direction by a few damped fixed-point steps, since the
+ * target height depends on the distance being found. Visual preview only.
  */
-export function rangePreviewBonus(shooterFeetY: number, x: number, z: number): number {
-    const ground = simGroundHeightAt(x, z);
-    return Math.max(0, elevationRangeBonus(shooterFeetY, ground));
+export function reachToward(
+    shooterFeetY: number,
+    x: number,
+    z: number,
+    dirX: number,
+    dirZ: number,
+    baseRange: number,
+    extra: number,
+): number {
+    let r = baseRange + extra;
+    for (let k = 0; k < 5; k++) {
+        const targetFeetY = simGroundHeightAt(x + dirX * r, z + dirZ * r) + GROUND_UNIT_Y;
+        const next = Math.max(0.5, baseRange + elevationRangeBonus(shooterFeetY, targetFeetY)) + extra;
+        r = k === 0 ? next : (r + next) * 0.5;
+    }
+    return r;
 }
 
 /**

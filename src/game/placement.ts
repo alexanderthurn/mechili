@@ -174,16 +174,16 @@ export function placeFovWedge(
     mesh: Mesh,
     x: number,
     z: number,
-    radius: number,
+    radius: RangeShape,
     yaw: number,
     half: number,
 ): void {
     const anchorY = worldHeightAt(x, z);
     const pos = mesh.geometry.attributes.position as BufferAttribute;
-    const put = (i: number, ux: number, uz: number): void => {
-        const wx = x + ux * radius;
-        const wz = z + uz * radius;
-        pos.setXYZ(i, ux, worldHeightAt(wx, wz) - anchorY, uz);
+    const reach = typeof radius === 'number' ? () => radius : radius;
+    // local (world-sized) offsets from the archer; the mesh stays unscaled
+    const put = (i: number, lx: number, lz: number): void => {
+        pos.setXYZ(i, lx, worldHeightAt(x + lx, z + lz) - anchorY, lz);
     };
 
     for (let i = 0; i <= FOV_SEGMENTS; i++) {
@@ -191,22 +191,24 @@ export function placeFovWedge(
         const a = yaw - half + (i / FOV_SEGMENTS) * half * 2;
         const sx = Math.sin(a);
         const sz = Math.cos(a);
-        put(i * 2, sx * FOV_INNER, sz * FOV_INNER);
-        put(i * 2 + 1, sx, sz);
+        const r = reach(sx, sz);
+        put(i * 2, sx * FOV_INNER * r, sz * FOV_INNER * r);
+        put(i * 2 + 1, sx * r, sz * r);
     }
 
     // the two spokes home to the archer, so the sector reads as a sector —
     // walked in steps like the arc so they follow the ground on the way out
-    const hw = FOV_SPOKE_W / (2 * Math.max(radius, 1e-3));
+    const hw = FOV_SPOKE_W / 2;
     for (let spoke = 0; spoke < 2; spoke++) {
         const a = spoke === 0 ? yaw - half : yaw + half;
         const sx = Math.sin(a);
         const sz = Math.cos(a);
+        const len = reach(sx, sz);
         const px = Math.cos(a) * hw;
         const pz = -Math.sin(a) * hw;
         const base = FOV_ARC_VERTS + spoke * FOV_SPOKE_VERTS;
         for (let i = 0; i <= FOV_SPOKE_SEGMENTS; i++) {
-            const r = i / FOV_SPOKE_SEGMENTS;
+            const r = (i / FOV_SPOKE_SEGMENTS) * len;
             put(base + i * 2, sx * r - px, sz * r - pz);
             put(base + i * 2 + 1, sx * r + px, sz * r + pz);
         }
@@ -214,26 +216,62 @@ export function placeFovWedge(
 
     pos.needsUpdate = true;
     mesh.position.set(x, 0.12 + anchorY, z);
-    mesh.scale.set(radius, 1, radius);
+    mesh.scale.set(1, 1, 1);
     mesh.renderOrder = 10;
     mesh.visible = true;
 }
 
 /**
- * Position + size a range ring, draping its band over the ground relief so
- * it hugs the terrain (and units occlude it) instead of floating.
+ * A range: one radius, or the reach toward each direction (unit dirX, dirZ) —
+ * a shooter on a hill reaches further down onto low ground than up a slope.
  */
-export function placeRangeRing(mesh: Mesh, x: number, z: number, radius: number): void {
+export type RangeShape = number | ((dirX: number, dirZ: number) => number);
+
+/**
+ * Position + size a range ring, draping its band over the ground relief so
+ * it hugs the terrain (and units occlude it) instead of floating. With a
+ * per-direction {@link RangeShape} the ring bulges toward lower ground.
+ */
+export function placeRangeRing(mesh: Mesh, x: number, z: number, radius: RangeShape): void {
     const anchorY = groundHeightAt(x, z);
-    const pos = mesh.geometry.attributes.position!;
+    const geo = mesh.geometry;
+    const pos = geo.attributes.position!;
+    // the ring's unit-circle layout, kept aside: vertices are rewritten in world size below
+    let unit = geo.userData.unitXZ as Float32Array | undefined;
+    if (!unit) {
+        unit = new Float32Array(pos.count * 2);
+        for (let i = 0; i < pos.count; i++) {
+            unit[i * 2] = pos.getX(i);
+            unit[i * 2 + 1] = pos.getZ(i);
+        }
+        geo.userData.unitXZ = unit;
+    }
+    let lastDx = NaN;
+    let lastDz = NaN;
+    let lastR = typeof radius === 'number' ? radius : 0;
     for (let i = 0; i < pos.count; i++) {
-        const wx = x + pos.getX(i) * radius;
-        const wz = z + pos.getZ(i) * radius;
-        pos.setY(i, groundHeightAt(wx, wz) - anchorY);
+        const ux = unit[i * 2]!;
+        const uz = unit[i * 2 + 1]!;
+        let r = lastR;
+        if (typeof radius !== 'number') {
+            const len = Math.hypot(ux, uz) || 1;
+            const dx = ux / len;
+            const dz = uz / len;
+            // inner and outer band vertices share a direction — solve it once
+            if (Math.abs(dx - lastDx) > 1e-6 || Math.abs(dz - lastDz) > 1e-6) {
+                lastR = radius(dx, dz);
+                lastDx = dx;
+                lastDz = dz;
+            }
+            r = lastR;
+        }
+        const lx = ux * r;
+        const lz = uz * r;
+        pos.setXYZ(i, lx, groundHeightAt(x + lx, z + lz) - anchorY, lz);
     }
     pos.needsUpdate = true;
     mesh.position.set(x, 0.12 + anchorY, z);
-    mesh.scale.set(radius, 1, radius);
+    mesh.scale.set(1, 1, 1);
     mesh.renderOrder = 10;
     mesh.visible = true;
 }
@@ -297,7 +335,8 @@ export class PlacementController {
     currentRound = 0;
     selectedUnit: Unit | null = null;
     /** effective attack range of a pack (tech-resolved), for the range circle */
-    rangeOf: ((unit: Unit) => number) | null = null;
+    /** a selected pack's attack range drawn around (x, z) — a number, or the reach per direction on relief */
+    rangeOf: ((unit: Unit, x: number, z: number) => RangeShape) | null = null;
     /** min engagement range (dead zone) of a pack, or 0 — drives the inner ring */
     minRangeOf: ((unit: Unit) => number) | null = null;
     /**
@@ -2698,7 +2737,9 @@ export class PlacementController {
 
         // attack / min-range rings for any selected pack (own or enemy)
         if (!sel.type.structure && this.rangeOf) {
-            const radius = this.rangeOf(sel) + sel.type.collisionRadius;
+            const shape = this.rangeOf(sel, markerCenter.x, markerCenter.z);
+            const own = sel.type.collisionRadius;
+            const radius: RangeShape = typeof shape === 'number' ? shape + own : (dx, dz) => shape(dx, dz) + own;
             if (sel.fovYaw != null) {
                 placeFovWedge(
                     this.fovMesh,
