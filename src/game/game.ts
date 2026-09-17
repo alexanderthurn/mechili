@@ -8745,11 +8745,20 @@ export class Game {
     private buyRune(itemId: string): boolean {
         if (!this.playerCanAct) return false;
         if (this.tutorial?.blocksBuyRune()) return false;
-        return this.dispatchPlayer({
+        const ok = this.dispatchPlayer({
             kind: 'buyRune',
             team: 'player',
             itemId,
         });
+        if (ok) {
+            // Pick it up immediately so the player can drop onto a pack
+            // without an extra click on the bag strip.
+            this.cancelTacticPlacement();
+            const bag = this.itemInventory[this.humanSeat]!;
+            this.armedItem = itemId;
+            this.armedItemIndex = bag.length - 1;
+        }
+        return ok;
     }
 
     /**

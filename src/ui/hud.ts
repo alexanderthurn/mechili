@@ -850,7 +850,7 @@ export class Hud {
             this.writeRuneTip(btn, itemId);
             btn.addEventListener('click', () => {
                 if (btn.classList.contains('unaffordable')) return;
-                this.onBuyRune?.(itemId);
+                if (this.onBuyRune?.(itemId)) this.setPhoneTab(null);
             });
             this.shopRuneButtons.push({ el: btn, itemId });
             this.shopRuneRow.appendChild(btn);
