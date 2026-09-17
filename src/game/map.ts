@@ -191,7 +191,7 @@ export function makeValueNoise(seed: number): (x: number, y: number) => number {
 const PAD_BLEND = 10;
 /** Highlands: plateau height and mean radius around each Stronghold (wu) */
 const HIGHLAND_HEIGHT = 15;
-const HIGHLAND_RADIUS = 22;
+const HIGHLAND_RADIUS = 20;
 
 /** Cheap hash/fbm for high/ultra ground hazards (declared once at shader top). */
 const HAZARD_NOISE_GLSL =
@@ -619,7 +619,12 @@ export class BattleMap {
             const ux = d > 1e-6 ? dx / d : 0;
             const uz = d > 1e-6 ? dz / d : 0;
             const radius = HIGHLAND_RADIUS + (this.reliefNoise(ux * 1.3 + 40.2, uz * 1.3 + 7.7) - 0.5) * 9;
-            const plateau = HIGHLAND_HEIGHT * (1 - smooth01((d - radius) / 7));
+            // the flanks: mostly a steady climb like the steep ramp, with a few short cliff sections
+            const cliffN = this.reliefNoise(ux * 1.1 + 12.3, uz * 1.1 + 5.5);
+            const flankW = 28 - 18 * smooth01((cliffN - 0.56) / 0.1);
+            const flankT = Math.min(1, Math.max(0, (d - radius) / flankW));
+            // near-linear so the climb is even (a pure smoothstep is 1.5× steeper mid-slope)
+            const plateau = HIGHLAND_HEIGHT * (1 - (flankT + (smooth01(flankT) - flankT) * 0.4));
             // two ways up, one to each front flank: a wide, gentle ramp and a
             // narrower, steeper one (both from inside the top, out and down)
             // `top`: where along the line the plateau's edge is — the descent starts there, so there is no step at the top
@@ -632,8 +637,8 @@ export class BattleMap {
                 const across = Math.abs((xs - ax) * lz - (zs - az) * lx) / len;
                 return HIGHLAND_HEIGHT * Math.min(1, Math.max(0, 1 - (t - top) / (1 - top))) * (1 - smooth01((across - half) / blend));
             };
-            const wide = ramp(-6, cz - 10, -78, cz - 42, 10, 6, 0.17);
-            const steep = ramp(6, cz - 10, 38, cz - 24, 6, 3, 0.3);
+            const wide = ramp(-8, cz - 6, -84, cz - 28, 10, 12, 0.17);
+            const steep = ramp(8, cz - 6, 44, cz - 16, 6, 7, 0.3);
             const low = smooth01((this.symNoise(x, z, 44, 17.3, 3.9) - 0.45) / 0.45) * 1.5;
             return (Math.max(plateau, wide, steep) + low) * smooth01(edge / 12);
         }
