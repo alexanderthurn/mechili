@@ -47,7 +47,7 @@ import {
     worldHeightAt,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, SLOPE_GROUND_FNS, slopeGroundGlsl, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -1646,6 +1646,7 @@ export class Scenery {
                 );
 
             const inject = `
+    float meadowSnowHold = 1.0;
 ${OUTER_MOUNTAIN_SNOW_GLSL}
     snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
     float rockTint = clamp( vRock * ( 1.0 - vGrass ) * ( 1.0 - snowF ), 0.0, 1.0 );
@@ -1664,7 +1665,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v13-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v14-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -1861,7 +1862,8 @@ ${pgClose}`;
                 rock: null,
                 fade: '1.0 - smoothstep( 10.0, 30.0, vTerrainH )',
             });
-            inject += `
+            inject += `${SNOW_SLOPE_HOLD_GLSL}
+    float meadowSnowHold = snowSlopeHold;
 ${OUTER_MOUNTAIN_SNOW_GLSL}
     float rockF = 0.0;`;
             if (rock) {
@@ -1956,7 +1958,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v52-slope${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -2871,7 +2873,7 @@ const OUTER_MOUNTAIN_SNOW_GLSL = `
     float alpineSnow = smoothstep(148.0, 215.0, vTerrainH) * snowHold * uAlpineCap;
     float snowLine = mix(220.0, -15.0, uSnowCover);
     float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH);
-    float meadowSnow = weatherSnow * 0.82;
+    float meadowSnow = weatherSnow * 0.82 * meadowSnowHold;
     float winterAmp = mix(1.05, 1.68, smoothstep(0.72, 1.0, uSnowCover));
     float mountainLift = smoothstep(40.0, 170.0, vTerrainH) * deepWinter * 0.48;
     float mountainSnow = min(1.0, max(alpineSnow, weatherSnow * snowHold * 0.92) * winterAmp + mountainLift);
@@ -2881,7 +2883,7 @@ const OUTER_MOUNTAIN_SNOW_GLSL = `
     float cliffStrip = smoothstep(0.42, 0.86, vSlope) * smoothstep(40.0, 170.0, vTerrainH);
     mountainSnow = clamp(mountainSnow - cliffStrip * (0.2 + breakup * 0.4), 0.0, 1.0);
     float snowF = mix(meadowSnow, mountainSnow, mountainZone);
-    vec3 meadowCol = vec3(0.92, 0.95, 0.98);
+    vec3 meadowCol = ${LAWN_SNOW_COLOR_GLSL};
     vec3 snowHi = mix(meadowCol, vec3(1.0, 1.0, 1.0), deepWinter);
     vec3 snowLo = mix(meadowCol, vec3(0.86, 0.9, 0.96), deepWinter);
     float sunLit = clamp(dot(normalize(vWorldN), normalize(vec3(0.4, 0.82, 0.25))) * 0.5 + 0.5, 0.0, 1.0);

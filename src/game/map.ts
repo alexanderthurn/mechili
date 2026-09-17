@@ -14,7 +14,7 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, SLOPE_GROUND_FNS, slopeGroundGlsl, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -1656,7 +1656,9 @@ export class BattleMap {
             inject +=
                 '\tfloat snowLine = mix( 220.0, -15.0, uSnowCover );\n' +
                 '\tfloat snowMask = smoothstep( snowLine - 40.0, snowLine + 15.0, 0.0 );\n' +
-                '\tdiffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.92, 0.95, 0.98 ), snowMask * 0.82 );\n';
+                SNOW_SLOPE_HOLD_GLSL +
+                '\tsnowMask *= snowSlopeHold;\n' +
+                `\tdiffuseColor.rgb = mix( diffuseColor.rgb, ${LAWN_SNOW_COLOR_GLSL}, snowMask * 0.82 );\n`;
             if (sand && sandMask) {
                 shader.uniforms.uSandMask = { value: sandMask };
                 extraUniforms += 'uniform sampler2D uSandMask;\n';

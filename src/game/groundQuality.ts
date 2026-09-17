@@ -365,6 +365,20 @@ export function slopeGroundGlsl(opts: {
     return glsl;
 }
 
+/**
+ * GLSL: how much weather snow a spot holds (0…1) — steep ground sheds it, so
+ * hillsides show their brown earth and rock through the white and the hills
+ * stay readable in winter; loose drifts break up the edges. Needs
+ * {	link slopeGroundGlsl} earlier in the same shader (slopeGrade, slopeVar, slopeP).
+ */
+export const SNOW_SLOPE_HOLD_GLSL = `
+	float snowSlopeHold = 1.0 - smoothstep( 0.3, 0.85, slopeGrade + slopeVar * 0.3 );
+	snowSlopeHold *= mix( 1.0, smoothstep( 0.2, 0.55, slopeNoise( slopeP.xz / 13.0 + 71.9 ) ), 0.3 );
+`;
+
+/** weather snow colour on the lawn — a touch below pure white so light and shade still shape the hills */
+export const LAWN_SNOW_COLOR_GLSL = 'vec3( 0.86, 0.89, 0.93 )';
+
 /** Declare closeW=0 when close-tile is off so later GLSL can always reference it. */
 export function closeTileWeightFallbackGlsl(profile: GroundMaterialProfile): string {
     if (profile.closeRepeat > 1.01) return '';
