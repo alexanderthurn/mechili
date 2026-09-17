@@ -55,6 +55,8 @@ const PRISM_SKY_H = 440;
 /** Attack beam matches the previous sky look (soft sunlight pipe). */
 const PRISM_ATTACK_W = 3.2;
 const PRISM_ATTACK_HDR = 1.85;
+/** a prism beam looks fully ramped (today's full width, brightness, bloom) after this many damage doublings */
+const PRISM_FULL_DOUBLINGS = 10;
 /** prism pipe gain with bloom on (bloom off uses 1.25): lower, since bloom adds the glow */
 const PRISM_BLOOM_GAIN = 0.9;
 /** brightest a prism pipe channel gets (soft cap): just over the bloom threshold with bloom on; effectively none without */
@@ -430,10 +432,18 @@ export class ConversionFx {
             const from = beamFxOrigin(caster);
 
             if (isRamp) {
+                // how far each beam's damage has ramped (0 = just locked, 1 = PRISM_FULL_DOUBLINGS doublings)
+                const doubleEvery = Math.max(1e-3, caster.unit.type.rampBeam!.doubleEvery);
+                const rampOf = (i: number): number =>
+                    Math.min(1, Math.max(0, (caster.rampBeamLockTs?.[i] ?? 0) / doubleEvery / PRISM_FULL_DOUBLINGS));
+                let hottest = 0;
+                const lockCount = Math.max(1, caster.rampBeamTargets?.length ?? 0);
+                for (let i = 0; i < lockCount; i++) hottest = Math.max(hottest, rampOf(i));
                 if (pn < MAX_PRISM) {
                     const skyPulse = 0.88 + 0.12 * Math.sin(simTime * 2.2 + caster.index);
-                    const skyW = PRISM_SKY_W * skyPulse;
-                    const skyHdr = PRISM_SKY_HDR;
+                    // the sky pillar swells with the cannon's hottest beam
+                    const skyW = PRISM_SKY_W * skyPulse * (0.4 + 0.6 * hottest);
+                    const skyHdr = PRISM_SKY_HDR * (0.2 + 0.8 * hottest);
                     placePrismPipe(
                         this.prismMesh,
                         pn++,
@@ -468,6 +478,9 @@ export class ConversionFx {
                     const len = Math.max(_dir.length(), 0.35);
                     _dir.multiplyScalar(1 / len);
                     if (pn < MAX_PRISM) {
+                        // thin and dim while the damage is still low, today's full beam once ramped;
+                        // below the bloom threshold at first, so the halo only grows in with the damage
+                        const ramp = rampOf(vi);
                         placePrismPipe(
                             this.prismMesh,
                             pn++,
@@ -478,9 +491,9 @@ export class ConversionFx {
                             _dir.y,
                             _dir.z,
                             len,
-                            atkW,
+                            atkW * (0.3 + 0.7 * ramp),
                             _skyCore,
-                            atkHdr,
+                            atkHdr * (0.15 + 0.85 * ramp),
                         );
                     }
                 }
