@@ -47,7 +47,7 @@ import {
     worldHeightAt,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -1796,6 +1796,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                     '#include <begin_vertex>',
                     '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvScree = aScree;\n\tvMoss = aMoss;\n\tvGrass = aGrass;\n\tvRock = aRock;\n\tvSnow = aSnow;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
                 );
+            shader.vertexShader = closeTileVertexShader(shader.vertexShader, profile);
             let inject = `
     diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
             if (profile.closeRepeat > 1.01) {

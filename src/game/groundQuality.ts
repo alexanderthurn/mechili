@@ -89,14 +89,14 @@ export interface GroundMaterialProfile {
     /** world-UV texture bombing to break wallpaper tiling (high/ultra) */
     textureBomb: boolean;
     /**
-     * When the camera is low (zoomed in), blend in a tighter UV repeat so grass
-     * blades don't look human-sized. Driven by camera world-Y (whole lawn),
-     * not per-fragment distance. 1 = off.
+     * Ground near the camera blends in a tighter UV repeat so grass blades
+     * don't look human-sized up close. Per pixel, by distance to the camera,
+     * so hills that are close get it and distant slopes never do. 1 = off.
      */
     closeRepeat: number;
-    /** camera Y at/below which close tiling is fully on */
+    /** distance to the camera (wu) within which close tiling is fully on */
     closeNear: number;
-    /** camera Y at/above which far tiling takes over */
+    /** distance (wu) beyond which only the normal tiling shows */
     closeFar: number;
 }
 
@@ -113,8 +113,8 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         macroStrength: 1,
         textureBomb: false,
         closeRepeat: 1,
-        closeNear: 26,
-        closeFar: 64,
+        closeNear: 30,
+        closeFar: 85,
     },
     medium: {
         tier: 'medium',
@@ -129,8 +129,8 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         textureBomb: false,
         // Mild close refine — enough to shrink blades, not wallpaper density.
         closeRepeat: 1.85,
-        closeNear: 28,
-        closeFar: 62,
+        closeNear: 32,
+        closeFar: 80,
     },
     high: {
         tier: 'high',
@@ -145,8 +145,8 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         macroStrength: 0.48,
         textureBomb: true,
         closeRepeat: 3.8,
-        closeNear: 26,
-        closeFar: 64,
+        closeNear: 30,
+        closeFar: 85,
     },
     ultra: {
         tier: 'ultra',
@@ -160,8 +160,8 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         macroStrength: 0.35,
         textureBomb: true,
         closeRepeat: 4.8,
-        closeNear: 26,
-        closeFar: 68,
+        closeNear: 30,
+        closeFar: 90,
     },
 };
 
@@ -207,16 +207,22 @@ export function groundDetailCacheKey(profile: GroundMaterialProfile): string {
         `rk${r.density}-${r.strength}-${r.worldScale}`;
 }
 
-/** GLSL: finer grass UVs when the camera is low (zoomed in) — whole lawn. */
+/**
+ * GLSL: finer grass UVs on the ground near the camera. The weight is per pixel
+ * — distance from the camera, softened into a wide blend — so a nearby hilltop
+ * gets fine blades, far slopes keep the normal tile, and zooming never flips
+ * the whole lawn at once. Steep slopes (where the top-down projection
+ * stretches) back off the fine tile.
+ */
 export function closeTileInjectGlsl(profile: GroundMaterialProfile): string {
     if (profile.closeRepeat <= 1.01) return '';
     return `
-\t// Camera world-Y: low orbit → fine tile on the whole lawn.
-\tfloat closeW = 1.0 - smoothstep( uCloseNear, uCloseFar, uCameraWorldY );
-\tcloseW = closeW * closeW;
-\tvec2 closeUv = vMapUv * uCloseRepeat;
-\tvec3 closeAlb = texture2D( map, closeUv ).rgb;
-\tdiffuseColor.rgb = mix( diffuseColor.rgb, closeAlb, closeW );
+	float closeW = 1.0 - smoothstep( uCloseNear, uCloseFar, distance( cameraPosition, vCloseWorld ) );
+	vec3 closeFaceN = normalize( cross( dFdx( vCloseWorld ), dFdy( vCloseWorld ) ) );
+	closeW *= 1.0 - smoothstep( 0.1, 0.3, 1.0 - abs( closeFaceN.y ) );
+	vec2 closeUv = vMapUv * uCloseRepeat;
+	vec3 closeAlb = texture2D( map, closeUv ).rgb;
+	diffuseColor.rgb = mix( diffuseColor.rgb, closeAlb, closeW );
 `;
 }
 
@@ -226,16 +232,23 @@ export function closeTileWeightFallbackGlsl(profile: GroundMaterialProfile): str
     return '\tfloat closeW = 0.0;\n';
 }
 
+/** fragment declarations for the close tile */
 export function closeTileUniformDecls(profile: GroundMaterialProfile): string {
     if (profile.closeRepeat <= 1.01) return '';
-    return (
-        'uniform float uCloseRepeat;\nuniform float uCloseNear;\nuniform float uCloseFar;\n' +
-        'uniform float uCameraWorldY;\n'
-    );
+    return 'uniform float uCloseRepeat;\nuniform float uCloseNear;\nuniform float uCloseFar;\nvarying vec3 vCloseWorld;\n';
 }
 
-/** Shared live camera-Y for board + meadow close-tile (updated each frame). */
-export const closeCameraYUniform = { value: 80 };
+/** vertex side of the close tile: hands each fragment its world position */
+export function closeTileVertexShader(vertexShader: string, profile: GroundMaterialProfile): string {
+    if (profile.closeRepeat <= 1.01) return vertexShader;
+    return (
+        'varying vec3 vCloseWorld;\n' +
+        vertexShader.replace(
+            '#include <project_vertex>',
+            '#include <project_vertex>\n\tvCloseWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;',
+        )
+    );
+}
 
 export function bindCloseTileUniforms(
     uniforms: Record<string, { value: unknown }>,
@@ -245,12 +258,6 @@ export function bindCloseTileUniforms(
     uniforms.uCloseRepeat = { value: profile.closeRepeat };
     uniforms.uCloseNear = { value: profile.closeNear };
     uniforms.uCloseFar = { value: profile.closeFar };
-    // Same object everywhere — one write updates all grass shaders.
-    uniforms.uCameraWorldY = closeCameraYUniform;
-}
-
-export function setCloseCameraY(y: number): void {
-    closeCameraYUniform.value = y;
 }
 
 export function graphicsPresetOrFallback(): GraphicsPreset {

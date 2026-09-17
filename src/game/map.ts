@@ -14,7 +14,7 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -1514,6 +1514,7 @@ export class BattleMap {
                     '#include <uv_vertex>',
                     '#include <uv_vertex>\n\tvMacroUv = uv;\n\tvBoardXZ = position.xz;',
                 );
+            shader.vertexShader = closeTileVertexShader(shader.vertexShader, profile);
             let inject = '';
             let extraUniforms =
                 'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uFireCharcoalGround;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n' +
