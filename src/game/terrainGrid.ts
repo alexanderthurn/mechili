@@ -23,6 +23,18 @@ import { detCos, detSin } from './detMath';
  */
 export const TERRAIN_HEAL_PER_ROUND = 0;
 
+/**
+ * Sea level: nothing pushes the board below this. Ground that already lies
+ * lower stays where it is, it just can't be dug any deeper.
+ */
+export const BOARD_MIN_Y = 0;
+
+/** a deformation's new height, kept from sinking below {@link BOARD_MIN_Y} */
+export function floorBoardY(before: number, after: number): number {
+    const floor = before < BOARD_MIN_Y ? before : BOARD_MIN_Y;
+    return after < floor ? floor : after;
+}
+
 /** inclusive node rectangle */
 export interface TerrainRect {
     x0: number;
@@ -145,7 +157,7 @@ export class TerrainGrid {
                 const edge = ax > az ? ax : az;
                 const w = edge <= 0.82 ? 1 : 1 - (edge - 0.82) / 0.18;
                 const i = row + ix;
-                this.heights[i] = this.heights[i]! + (targetY - this.heights[i]!) * w;
+                this.heights[i] = floorBoardY(this.heights[i]!, this.heights[i]! + (targetY - this.heights[i]!) * w);
             }
         }
         this.noteDeformed(rect);
@@ -168,7 +180,8 @@ export class TerrainGrid {
                 const d2 = dx * dx + dz * dz;
                 if (d2 >= r2) continue;
                 const t = 1 - d2 / r2;
-                this.heights[row + ix] = this.heights[row + ix]! - depth * t * t;
+                const i = row + ix;
+                this.heights[i] = floorBoardY(this.heights[i]!, this.heights[i]! - depth * t * t);
             }
         }
         this.noteDeformed(rect);

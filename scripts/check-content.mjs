@@ -809,7 +809,9 @@ try {
         const dirty = grid.takeDirty();
         texpect(!!dirty && dirty.x1 - dirty.x0 < 14 && dirty.z1 - dirty.z0 < 14, `dirty rect too large: ${JSON.stringify(dirty)}`);
         grid.crater(-40, 50, 6, 2);
-        texpect(Math.abs(map.heightAt(-40, 50) - (map.proceduralHeightAt(-40, 50) - 2)) < 0.05, 'crater depth');
+        const craterBase = map.proceduralHeightAt(-40, 50);
+        const craterWant = Math.max(craterBase - 2, Math.min(craterBase, 0));
+        texpect(Math.abs(map.heightAt(-40, 50) - craterWant) < 0.05, `crater depth ${map.heightAt(-40, 50)}, want ${craterWant}`);
         texpect(grid.checksum() !== sumBefore, 'checksum ignores deformation');
         // the same effects in the same order give the same ground (determinism)
         const twin = new BattleMap({ ...STANDARD_MAP });
@@ -826,6 +828,21 @@ try {
         for (let i = 0; i < gp.count; i += 97) worstMesh = Math.max(worstMesh, Math.abs(gp.getY(i) - map.heightAt(gp.getX(i), gp.getZ(i))));
         texpect(worstMesh < 1e-4, `mesh vertices off the grid by ${worstMesh}`);
         texpect(Math.abs(geo.attributes.normal.getY(0) - 1) < 0.2, 'normals not pointing up');
+        // sea level: no crater or hammer digs the board below y 0
+        {
+            const deep = new BattleMap({ ...STANDARD_MAP });
+            deep.terrain.crater(10, 10, 12, 50);
+            deep.terrain.flattenRect(-30, -20, 10, 6, 0.3, -20);
+            let lowest = Infinity;
+            let lowestBase = Infinity;
+            for (let i = 0; i < deep.terrain.heights.length; i++) {
+                const x = -deep.halfW + (i % deep.terrain.nx) * deep.terrain.cellX;
+                const z = -deep.halfH + Math.floor(i / deep.terrain.nx) * deep.terrain.cellZ;
+                lowest = Math.min(lowest, deep.terrain.heights[i]);
+                lowestBase = Math.min(lowestBase, deep.proceduralHeightAt(x, z));
+            }
+            texpect(lowest >= Math.min(0, lowestBase) - 1e-5, `ground dug below sea level: ${lowest}`);
+        }
         // healing between rounds: 0 keeps it, 0.5 halfway back, 1 back to normal
         const deformed = Float32Array.from(grid.heights);
         grid.heal(0);

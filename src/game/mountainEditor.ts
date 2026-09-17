@@ -38,6 +38,7 @@ import {
     type LandscapeBoard,
     type LandscapeData,
 } from './landscape';
+import { floorBoardY } from './terrainGrid';
 import { ensureOuterMaterialAttrs, paintOuterMaterial, type OuterMaterialKind } from './landscapeMaterials';
 import {
     defaultPlantScale,
@@ -644,6 +645,10 @@ export class MountainEditor {
                 const lean = str * 3 * w * hLean * hLean;
                 x -= fwdX * lean;
                 z -= fwdZ * lean;
+            }
+            // the board (and the outer ground over it, so the edge stays seamless) never sinks below sea level
+            if (Math.abs(pos.getX(i)) <= this.halfW && Math.abs(pos.getZ(i)) <= this.halfH) {
+                yWorld = floorBoardY(pos.getY(i) + yOff, yWorld);
             }
             pos.setXYZ(i, x, yWorld - yOff, z);
         }
