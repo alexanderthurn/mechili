@@ -4228,7 +4228,9 @@ export class BattleSim {
 
             // a ranged unit only stands and shoots when the shot clears the relief
             const lineBlocked =
-                !!a.unit.type.projectileSpeed && tDist <= reach && this.shotLoft(a, target) === 0;
+                (!!a.unit.type.projectileSpeed || !!a.unit.type.convertRay) &&
+                tDist <= reach &&
+                !this.attackLineOpen(a, target);
             if (lineBlocked) a.terrainHinderedAt = this.elapsed;
             this.trackProgress(a, target, tDist, tDist <= reach && !lineBlocked);
 
@@ -4659,6 +4661,42 @@ export class BattleSim {
         }
         this.losCache.set(key, { until: this.elapsed + LOS_RECHECK_S, loft });
         return loft;
+    }
+
+    /**
+     * Line of fire for a beam (the wizard's convert ray): a straight segment
+     * from the caster's staff height to the target's hit point must stay above
+     * the board relief. Uses sim positions only; held for {@link LOS_RECHECK_S}.
+     */
+    private rayLineOpen(a: Actor, target: Actor): boolean {
+        const key = a.index * 1048576 + target.index;
+        const known = this.losCache.get(key);
+        if (known && known.until > this.elapsed) return known.loft > 0;
+        const fy = this.feetY(a) + Math.max(1.6, a.unit.type.meshScale * 1.15);
+        const tt = target.unit.type;
+        const ty = this.feetY(target) + projectileAimY(tt) * tt.meshScale;
+        const dx = target.x - a.x;
+        const dz = target.z - a.z;
+        const total = hypot(dx, dz);
+        const skipStart = a.radius + 0.5;
+        const skipEnd = target.radius + 0.8;
+        const n = Math.min(160, Math.max(2, Math.ceil(total / LOS_SAMPLE_WU)));
+        let open = true;
+        for (let i = 1; i < n && open; i++) {
+            const f = i / n;
+            const along = total * f;
+            if (along < skipStart || total - along < skipEnd) continue;
+            if (fy + (ty - fy) * f < simGroundHeightAt(a.x + dx * f, a.z + dz * f) + LOS_CLEARANCE) open = false;
+        }
+        this.losCache.set(key, { until: this.elapsed + LOS_RECHECK_S, loft: open ? 1 : 0 });
+        return open;
+    }
+
+    /** whether this unit's attack (shot or beam) can reach the target over the terrain */
+    private attackLineOpen(a: Actor, target: Actor): boolean {
+        if (a.unit.type.projectileSpeed) return this.shotLoft(a, target) > 0;
+        if (a.unit.type.convertRay) return this.rayLineOpen(a, target);
+        return true;
     }
 
     /** whether a planned flight stays above the ground between the shooter and the target */
@@ -5558,7 +5596,8 @@ export class BattleSim {
                 const reach = ray.range + caster.radius + target.radius;
                 const dx = target.x - caster.x;
                 const dz = target.z - caster.z;
-                if (dx * dx + dz * dz > reach * reach) {
+                // out of reach, or a hill now stands between them
+                if (dx * dx + dz * dz > reach * reach || !this.rayLineOpen(caster, target)) {
                     target.convertProgress = 0;
                     caster.convertTarget = null;
                     target = null;
@@ -5673,10 +5712,11 @@ export class BattleSim {
             const d = dx * dx + dz * dz;
             const maxR = reach + a.radius;
             if (d > maxR * maxR) continue;
-            if (d < bestD || (d === bestD && best !== null && a.index < best.index)) {
-                bestD = d;
-                best = a;
-            }
+            const closer = d < bestD || (d === bestD && best !== null && a.index < best.index);
+            if (!closer) continue;
+            if (!this.rayLineOpen(from, a)) continue; // the beam can't bend over a hill
+            bestD = d;
+            best = a;
         }
         return best;
     }
@@ -5842,7 +5882,7 @@ export class BattleSim {
             if (inDeadZone(cached)) return false;
             if (!this.inFieldOfFire(from, cached)) return false;
             // a hill between us: not a fight we're in — walk, or pick another
-            if (from.unit.type.projectileSpeed && this.shotLoft(from, cached) === 0) return false;
+            if (!this.attackLineOpen(from, cached)) return false;
             return true;
         };
 
@@ -5871,7 +5911,7 @@ export class BattleSim {
         // foes we'd only fall back on: in range but behind terrain, or one we got stuck on
         let bestAside: Actor | null = null;
         let bestAsideD = Infinity;
-        const ranged = !!from.unit.type.projectileSpeed;
+        const ranged = !!from.unit.type.projectileSpeed || !!from.unit.type.convertRay;
         const cx = Math.floor(from.x / HASH_CELL);
         const cz = Math.floor(from.z / HASH_CELL);
 
@@ -5902,9 +5942,9 @@ export class BattleSim {
                         a.radius,
                         this.feetY(from),
                         this.feetY(a),
-                        true,
+                        !!from.unit.type.projectileSpeed,
                     );
-                    aside = d <= reach * reach && this.shotLoft(from, a) === 0;
+                    aside = d <= reach * reach && !this.attackLineOpen(from, a);
                 }
             }
             if (aside) {
