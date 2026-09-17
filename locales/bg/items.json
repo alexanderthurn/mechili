@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Земя",
-    "description": "+10% здраве."
+    "name": "Земя"
   },
   "fire": {
-    "name": "Огън",
-    "description": "+10% атака."
+    "name": "Огън"
   },
   "water": {
-    "name": "Вода",
-    "description": "+5% атака и здраве."
+    "name": "Вода"
   },
   "wind": {
-    "name": "Вятър",
-    "description": "+10% обхват."
+    "name": "Вятър"
   },
   "addi": {
     "name": "Храброст",

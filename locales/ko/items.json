@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "대지",
-    "description": "+10% 체력."
+    "name": "대지"
   },
   "fire": {
-    "name": "화염",
-    "description": "+10% 공격력."
+    "name": "화염"
   },
   "water": {
-    "name": "물",
-    "description": "+5% 공격력과 체력."
+    "name": "물"
   },
   "wind": {
-    "name": "바람",
-    "description": "+10% 사거리."
+    "name": "바람"
   },
   "addi": {
     "name": "용맹",

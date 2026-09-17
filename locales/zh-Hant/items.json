@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "大地",
-    "description": "+10% 生命。"
+    "name": "大地"
   },
   "fire": {
-    "name": "火焰",
-    "description": "+10% 攻擊。"
+    "name": "火焰"
   },
   "water": {
-    "name": "流水",
-    "description": "+5% 攻擊與生命。"
+    "name": "流水"
   },
   "wind": {
-    "name": "疾風",
-    "description": "+10% 射程。"
+    "name": "疾風"
   },
   "addi": {
     "name": "勇毅",

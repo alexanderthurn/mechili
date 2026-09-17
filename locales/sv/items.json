@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Jorden",
-    "description": "+10 % HP."
+    "name": "Jorden"
   },
   "fire": {
-    "name": "Brand",
-    "description": "+10% attack."
+    "name": "Brand"
   },
   "water": {
-    "name": "Vatten",
-    "description": "+5% attack och HP."
+    "name": "Vatten"
   },
   "wind": {
-    "name": "Vind",
-    "description": "+10% intervall."
+    "name": "Vind"
   },
   "addi": {
     "name": "Tapperhet",

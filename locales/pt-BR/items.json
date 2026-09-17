@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Terra",
-    "description": "+10% HP."
+    "name": "Terra"
   },
   "fire": {
-    "name": "Fogo",
-    "description": "+10% de ataque."
+    "name": "Fogo"
   },
   "water": {
-    "name": "Água",
-    "description": "+5% de ataque e HP."
+    "name": "Água"
   },
   "wind": {
-    "name": "Vento",
-    "description": "+10% de alcance."
+    "name": "Vento"
   },
   "addi": {
     "name": "Valentia",

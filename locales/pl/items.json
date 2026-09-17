@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Ziemia",
-    "description": "+10% HP."
+    "name": "Ziemia"
   },
   "fire": {
-    "name": "Ogień",
-    "description": "+10% ataku."
+    "name": "Ogień"
   },
   "water": {
-    "name": "Woda",
-    "description": "+5% ataku i HP."
+    "name": "Woda"
   },
   "wind": {
-    "name": "Wiatr",
-    "description": "+10% zasięgu."
+    "name": "Wiatr"
   },
   "addi": {
     "name": "Dzielność",

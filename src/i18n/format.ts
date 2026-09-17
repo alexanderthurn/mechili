@@ -48,14 +48,17 @@ export function unitName(id: string, fallback?: string): string {
  * Pure level-1 runes keep their authored, translated entry.
  */
 function elementalRune(id: string): { elements: string[]; level: number } | null {
-    const parsed = parseElementalId(id);
-    if (!parsed || (parsed.elements.length === 1 && parsed.level === 1)) return null;
-    return parsed;
+    return parseElementalId(id);
+}
+
+/** pure level-1 runes (earth / fire / water / wind) keep their authored, translated name */
+function authoredElementalName(mix: { elements: string[]; level: number }): boolean {
+    return mix.elements.length === 1 && mix.level === 1;
 }
 
 export function itemName(id: string, fallback?: string): string {
     const mix = elementalRune(id);
-    if (mix) {
+    if (mix && !authoredElementalName(mix)) {
         const names = mix.elements.map((e) => t(`items:${e}.name`, { defaultValue: e })).join(' ');
         return mix.level > 1 ? `${names} ${mix.level}` : names;
     }

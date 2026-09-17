@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Jord",
-    "description": "+10% HK."
+    "name": "Jord"
   },
   "fire": {
-    "name": "Brand",
-    "description": "+10% angreb."
+    "name": "Brand"
   },
   "water": {
-    "name": "Vand",
-    "description": "+5% angreb og HP."
+    "name": "Vand"
   },
   "wind": {
-    "name": "Vind",
-    "description": "+10% interval."
+    "name": "Vind"
   },
   "addi": {
     "name": "Tapperhed",

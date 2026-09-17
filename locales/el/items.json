@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Γη",
-    "description": "+10% HP."
+    "name": "Γη"
   },
   "fire": {
-    "name": "Φωτιά",
-    "description": "+10% επίθεση."
+    "name": "Φωτιά"
   },
   "water": {
-    "name": "Νερό",
-    "description": "+5% επίθεση και HP."
+    "name": "Νερό"
   },
   "wind": {
-    "name": "Άνεμος",
-    "description": "+10% εμβέλεια."
+    "name": "Άνεμος"
   },
   "addi": {
     "name": "Ανδρεία",

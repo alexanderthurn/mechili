@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "أرض",
-    "description": "+10% صحة."
+    "name": "أرض"
   },
   "fire": {
-    "name": "نار",
-    "description": "+10% هجوم."
+    "name": "نار"
   },
   "water": {
-    "name": "ماء",
-    "description": "+5% هجوم وصحة."
+    "name": "ماء"
   },
   "wind": {
-    "name": "ريح",
-    "description": "+10% مدى."
+    "name": "ريح"
   },
   "addi": {
     "name": "بسالة",

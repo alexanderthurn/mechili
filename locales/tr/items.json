@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Toprak",
-    "description": "+%10 HP."
+    "name": "Toprak"
   },
   "fire": {
-    "name": "Ateş",
-    "description": "+%10 saldırı gücü."
+    "name": "Ateş"
   },
   "water": {
-    "name": "Su",
-    "description": "+%5 saldırı ve can puanı."
+    "name": "Su"
   },
   "wind": {
-    "name": "Rüzgâr",
-    "description": "+%10 menzil."
+    "name": "Rüzgâr"
   },
   "addi": {
     "name": "Cesaret",

@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "大地",
-    "description": "+10% HP。"
+    "name": "大地"
   },
   "fire": {
-    "name": "炎",
-    "description": "+10% 攻撃。"
+    "name": "炎"
   },
   "water": {
-    "name": "水",
-    "description": "+5% 攻撃と HP。"
+    "name": "水"
   },
   "wind": {
-    "name": "風",
-    "description": "+10% 射程。"
+    "name": "風"
   },
   "addi": {
     "name": "勇気",

@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Maa",
-    "description": "+10 % HP:tä."
+    "name": "Maa"
   },
   "fire": {
-    "name": "Palo",
-    "description": "+10% hyökkäys."
+    "name": "Palo"
   },
   "water": {
-    "name": "Vesi",
-    "description": "+5 % hyökkäys ja HP."
+    "name": "Vesi"
   },
   "wind": {
-    "name": "Tuuli",
-    "description": "+10 %:n vaihteluväli."
+    "name": "Tuuli"
   },
   "addi": {
     "name": "Rohkeus",

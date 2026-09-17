@@ -1,19 +1,15 @@
 {
   "earth": {
-    "name": "Země",
-    "description": "+10% zdraví."
+    "name": "Země"
   },
   "fire": {
-    "name": "Oheň",
-    "description": "+10% útok."
+    "name": "Oheň"
   },
   "water": {
-    "name": "Voda",
-    "description": "+5% k útoku a HP."
+    "name": "Voda"
   },
   "wind": {
-    "name": "Vítr",
-    "description": "+10% dosah."
+    "name": "Vítr"
   },
   "addi": {
     "name": "Chrabrost",
