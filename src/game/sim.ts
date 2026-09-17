@@ -962,6 +962,7 @@ export class BattleSim {
     private prevStepDt = 1 / SIM_HZ;
     /** line-of-fire verdicts per shooter→target pair: the loft that clears (0 = blocked) */
     private readonly losCache = new Map<number, { until: number; loft: number }>();
+    private readonly buildingScratch: Actor[] = [];
     /** when true, step() accumulates timings into {@link lastProfile} */
     profileEnabled = false;
     /** ms spent in the last {@link update} call (summed across catch-up steps) */
@@ -4681,15 +4682,61 @@ export class BattleSim {
         const skipStart = a.radius + 0.5;
         const skipEnd = target.radius + 0.8;
         const n = Math.min(160, Math.max(2, Math.ceil(total / LOS_SAMPLE_WU)));
+        const buildings = this.buildingsNearLine(a, target, a.x, a.z, target.x, target.z);
         let open = true;
         for (let i = 1; i < n && open; i++) {
             const f = i / n;
+            const x = a.x + dx * f;
+            const y = fy + (ty - fy) * f;
+            const z = a.z + dz * f;
+            if (buildings.length > 0 && this.insideBuilding(buildings, x, y, z)) open = false;
             const along = total * f;
             if (along < skipStart || total - along < skipEnd) continue;
-            if (fy + (ty - fy) * f < simGroundHeightAt(a.x + dx * f, a.z + dz * f) + LOS_CLEARANCE) open = false;
+            if (y < simGroundHeightAt(x, z) + LOS_CLEARANCE) open = false;
         }
         this.losCache.set(key, { until: this.elapsed + LOS_RECHECK_S, loft: open ? 1 : 0 });
         return open;
+    }
+
+    /**
+     * Buildings (either side) whose hit volumes come near the xz line from
+     * the shooter to the target — the ones a line-of-fire check must test.
+     * The target itself doesn't block, and neither does the building a
+     * garrison stands on: its archers lean over their own battlements.
+     */
+    private buildingsNearLine(a: Actor, target: Actor, x0: number, z0: number, x1: number, z1: number): Actor[] {
+        const result = this.buildingScratch;
+        result.length = 0;
+        const lx = x1 - x0;
+        const lz = z1 - z0;
+        const len2 = lx * lx + lz * lz || 1e-9;
+        for (const b of this.structures) {
+            if (b === target || b === a || b.unit.id === a.unit.hostUnitId) continue;
+            const type = b.unit.type;
+            if (type.colliders.length === 0) continue;
+            let reach = 0;
+            for (const c of type.colliders) reach = Math.max(reach, c.r * type.meshScale);
+            const t = Math.max(0, Math.min(1, ((b.x - x0) * lx + (b.z - z0) * lz) / len2));
+            const qx = x0 + lx * t - b.x;
+            const qz = z0 + lz * t - b.z;
+            if (qx * qx + qz * qz <= (reach + 0.5) * (reach + 0.5)) result.push(b);
+        }
+        return result;
+    }
+
+    /** whether a point lies inside one of these buildings' hit volumes */
+    private insideBuilding(buildings: Actor[], x: number, y: number, z: number): boolean {
+        for (const b of buildings) {
+            const type = b.unit.type;
+            for (const c of type.colliders) {
+                const r = c.r * type.meshScale;
+                const dy = y - (b.footY + c.y * type.meshScale);
+                const dx = x - b.x;
+                const dz = z - b.z;
+                if (dx * dx + dy * dy + dz * dz < r * r) return true;
+            }
+        }
+        return false;
     }
 
     /** whether this unit's attack (shot or beam) can reach the target over the terrain */
@@ -4711,12 +4758,16 @@ export class BattleSim {
         const skipStart = a.radius + 0.5;
         const skipEnd = target.radius + 0.8;
         const n = Math.min(160, Math.max(2, Math.ceil(total / LOS_SAMPLE_WU)));
+        const buildings = this.buildingsNearLine(a, target, p.mx, p.mz, p.mx + p.vx * flight, p.mz + p.vz * flight);
         for (let i = 1; i < n; i++) {
             const t = (flight * i) / n;
+            const x = p.mx + p.vx * t;
+            const z = p.mz + p.vz * t;
+            const y = p.muzzleY + p.vy * t - 0.5 * g * t * (t + dt);
+            if (buildings.length > 0 && this.insideBuilding(buildings, x, y, z)) return false;
             const along = flat * t;
             if (along < skipStart || total - along < skipEnd) continue;
-            const y = p.muzzleY + p.vy * t - 0.5 * g * t * (t + dt);
-            if (y < simGroundHeightAt(p.mx + p.vx * t, p.mz + p.vz * t) + LOS_CLEARANCE) return false;
+            if (y < simGroundHeightAt(x, z) + LOS_CLEARANCE) return false;
         }
         return true;
     }
@@ -5122,6 +5173,42 @@ export class BattleSim {
             }
 
             const splash = this.resolved.get(p.source)?.splashRadius ?? p.source.type.splashRadius ?? 0;
+            // own buildings are solid too: a shot that reaches one first stops in the stone, harmlessly
+            // (homing shots steer to their victim; a garrison shoots over its own walls)
+            const wall = p.target ? null : this.ownBuildingOnSegment(p, sx, sy, sz, segLen2);
+            if (wall && (!hit || wall.t < hitT)) {
+                const ix = p.x + sx * wall.t;
+                const iy = p.y + sy * wall.t;
+                const iz = p.z + sz * wall.t;
+                const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+                if (splash > 0) {
+                    this.explode(p, ix, iz, splash, { x: sx, z: sz });
+                    this.events.push({
+                        kind: 'explosion',
+                        x: ix,
+                        y: iy,
+                        z: iz,
+                        radius: splash,
+                        scar: p.source.type.splashScar !== false,
+                    });
+                }
+                this.events.push({
+                    kind: 'impact',
+                    x: ix,
+                    y: iy,
+                    z: iz,
+                    flesh: false,
+                    masonry: true,
+                    cx: wall.building.x,
+                    cz: wall.building.z,
+                    dx: sx / slen,
+                    dy: sy / slen,
+                    dz: sz / slen,
+                    ...stoneDropFields(p),
+                });
+                this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, wall.building, p.scale);
+                continue; // bullet stopped
+            }
             if (hit) {
                 const ix = p.x + sx * hitT;
                 const iy = p.y + sy * hitT;
@@ -5509,6 +5596,34 @@ export class BattleSim {
      * Actors whose cells overlap the xz AABB of a flight segment (plus pad).
      * Sorted by canonical index so hit-ties match a full-array scan.
      */
+    /** the first own-side building hit volume this step's flight segment enters (not the shooter's host) */
+    private ownBuildingOnSegment(
+        p: Projectile,
+        sx: number,
+        sy: number,
+        sz: number,
+        segLen2: number,
+    ): { building: Actor; t: number } | null {
+        let best: { building: Actor; t: number } | null = null;
+        for (const b of this.structures) {
+            if (actorTeam(b) !== p.team || b.unit === p.source || b.unit.id === p.source.hostUnitId) continue;
+            const type = b.unit.type;
+            const bx = b.x - p.x;
+            const bz = b.z - p.z;
+            for (const c of type.colliders) {
+                const cy = b.footY + c.y * type.meshScale;
+                const cr = c.r * type.meshScale + PROJECTILE_RADIUS;
+                let t = (bx * sx + (cy - p.y) * sy + bz * sz) / segLen2;
+                t = Math.max(0, Math.min(1, t));
+                const qx = p.x + sx * t - b.x;
+                const qy = p.y + sy * t - cy;
+                const qz = p.z + sz * t - b.z;
+                if (qx * qx + qy * qy + qz * qz <= cr * cr && (!best || t < best.t)) best = { building: b, t };
+            }
+        }
+        return best;
+    }
+
     private actorsNearSegment(
         x0: number,
         z0: number,
