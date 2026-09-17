@@ -845,6 +845,8 @@ const STONE_BLAST_MIN_IMPACT = 4;
 /** stone mass in unit-radius² terms: a dwarf (0.36) barely slows it, an ogre (2.6) mostly stops it */
 const STONE_MASS = 1;
 const STONE_MIN_STRIKE_DAMAGE = 1;
+/** push on a unit a stone runs into, at full speed (the stone's landing blast pushes 0.55) */
+const STONE_STRIKE_PUSH = 1.2;
 /** stone render mesh radius at scale 1 */
 const STONE_MESH_RADIUS = 0.84;
 
@@ -5622,6 +5624,19 @@ export class BattleSim {
             return false;
         }
         const keep = STONE_MASS / (STONE_MASS + hit.radius * hit.radius);
+        // knocked along the roll: a light unit takes most of the push, a heavy one barely moves
+        const flat = hypot(p.vx, p.vz);
+        if (flat > 1e-6) {
+            const power = STONE_STRIKE_PUSH * f * keep;
+            const px = (p.vx / flat) * power;
+            const pz = (p.vz / flat) * power;
+            if (hit.alive) {
+                hit.impulseX = (hit.impulseX ?? 0) + px;
+                hit.impulseZ = (hit.impulseZ ?? 0) + pz;
+            } else {
+                this.nudgeWreck(hit, px, pz);
+            }
+        }
         p.vx *= keep;
         p.vy *= keep;
         p.vz *= keep;
