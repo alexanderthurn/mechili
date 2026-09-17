@@ -2,30 +2,25 @@
   "legs": {
     "name": "Fleet Feet"
   },
-  "carapace": {
-    "name": "Kőbőr"
-  },
   "barrel": {
-    "name": "Hosszúíj"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Piercing nyilak"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Tűznyilak",
-    "description": "A nyilak rövid ideig tartó tüzet hagynak maguk után a földön, és elégnek – annyira, hogy olajtócsákat gyújtsanak fel."
-  },
-  "engines": {
-    "name": "Gale Wings"
-  },
-  "stingers": {
-    "name": "Varjúkarmok"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Vasbevonat"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Gyors csörlő"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Égisz",
@@ -51,10 +46,6 @@
     "name": "Églift",
     "description": "A levegőbe emeli ezt az egységet (harci repülő)."
   },
-  "earthbound": {
-    "name": "Földhözragadt",
-    "description": "A földön tartja az egységet (felülbírálja az égliftet / természetes repülést)."
-  },
   "spiderMother": {
     "name": "Pókok anyja"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": "Az utódok megegyeznek a szülő szintjével.",
     "onKill": "Amikor ez az egység megöl, emelj egy {{child}}-t",
     "cleave": "Minden ellenséget eltalál a {{radius}} körzetben (ennek az egységnek a környékén)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

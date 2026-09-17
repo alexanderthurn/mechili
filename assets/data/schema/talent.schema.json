@@ -97,6 +97,150 @@
           "type": "boolean",
           "description": "Owning it gives every mech of the pack a shield pool equal to its max HP (Aegis)."
         },
+        "emp": {
+          "type": "object",
+          "properties": {
+            "duration": {
+              "type": "number"
+            },
+            "speedMult": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "duration"
+          ],
+          "additionalProperties": false,
+          "description": "On hit: hex the target — researched talents stop applying and move speed is multiplied by `speedMult` (default 0.6) for `duration` seconds. Golden / debuff-immune shrugs it off. Innate talents still apply."
+        },
+        "vsAir": {
+          "type": "object",
+          "properties": {
+            "damage": {
+              "type": "number"
+            },
+            "range": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Extra damage / range vs airborne foes (`altitude > 0`). Multipliers."
+        },
+        "vsGround": {
+          "type": "object",
+          "properties": {
+            "damage": {
+              "type": "number"
+            },
+            "range": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Extra damage / range vs grounded foes (`altitude <= 0`). Multipliers."
+        },
+        "levelScale": {
+          "type": "object",
+          "properties": {
+            "damagePerLevel": {
+              "type": "number"
+            },
+            "rangePerLevel": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Extra per-level scaling on top of the global veterancy mult. `damagePerLevel` / `rangePerLevel` are added per level above 1 (e.g. 0.1 → +10% per level)."
+        },
+        "regen": {
+          "type": "object",
+          "properties": {
+            "hpPerSecond": {
+              "type": "number"
+            },
+            "maxHpFractionPerSecond": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Passive HP regen while alive in battle."
+        },
+        "lifesteal": {
+          "type": "number",
+          "description": "Fraction of HP/shield damage dealt returned as pack HP (split among living members)."
+        },
+        "onKillHeal": {
+          "type": "object",
+          "properties": {
+            "ofVictimMaxHp": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "ofVictimMaxHp"
+          ],
+          "additionalProperties": false,
+          "description": "On kill: heal this pack for `ofVictimMaxHp` × victim max HP (split among living members)."
+        },
+        "onDeath": {
+          "type": "object",
+          "properties": {
+            "explode": {
+              "type": "object",
+              "properties": {
+                "splash": {
+                  "type": "number"
+                },
+                "damageMult": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "splash"
+              ],
+              "additionalProperties": false
+            },
+            "acid": {
+              "type": "object",
+              "properties": {
+                "radius": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "radius"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false,
+          "description": "On death: splash nova and/or acid puddle. Explode damage = dying body's maxHp × `damageMult` (default 1)."
+        },
+        "formationSpreadAdd": {
+          "type": "number",
+          "description": "Added to UnitType.formationSpread when laying out pack members (looser spacing vs splash). Applied at spawn time."
+        },
+        "convert": {
+          "type": "object",
+          "properties": {
+            "maxTargets": {
+              "type": "number"
+            },
+            "intensityMult": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Convert-ray extras (wizard). `maxTargets` channels at once; `intensityMult` scales each channel (weaker multi-bind)."
+        },
+        "convertHealFull": {
+          "type": "boolean",
+          "description": "After a successful convert, restore the victim to full HP."
+        },
+        "freeRedeploy": {
+          "type": "boolean",
+          "description": "Every deploy round this pack may be repositioned without Move Pack."
+        },
         "description": {
           "type": "string",
           "description": "shown on hover; auto-derived from `mods` when omitted (see techDescription)"

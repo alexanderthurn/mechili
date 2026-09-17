@@ -2,30 +2,25 @@
   "legs": {
     "name": "捷足"
   },
-  "carapace": {
-    "name": "石肤"
-  },
   "barrel": {
-    "name": "长弓"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "穿甲箭"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "火焰箭",
-    "description": "箭矢在地面留下短暂火焰并灼烧——足以点燃油潭。"
-  },
-  "engines": {
-    "name": "疾风之翼"
-  },
-  "stingers": {
-    "name": "鸦爪"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "铁甲"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "速绞盘"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "神盾",
@@ -51,10 +46,6 @@
     "name": "升空",
     "description": "将此单位升入空中（战斗飞行单位）。"
   },
-  "earthbound": {
-    "name": "缚地",
-    "description": "使此单位留在地面（覆盖升空 / 天生飞行）。"
-  },
   "spiderMother": {
     "name": "蛛母"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": "。子嗣与亲本等级相同",
     "onKill": "当此单位击杀时，唤出 {{child}}",
     "cleave": "命中此单位周围 {{radius}} 内的每个敌人"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

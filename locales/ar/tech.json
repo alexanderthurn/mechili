@@ -2,30 +2,25 @@
   "legs": {
     "name": "أقدام سريعة"
   },
-  "carapace": {
-    "name": "جلد حجري"
-  },
   "barrel": {
-    "name": "قوس طويل"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "سهام خارقة"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "سهام نارية",
-    "description": "تترك السهام نارًا أرضية قصيرة وتحرق — كافية لإشعال برك الزيت."
-  },
-  "engines": {
-    "name": "أجنحة العاصفة"
-  },
-  "stingers": {
-    "name": "مخالب الغراب"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "تصفيح حديدي"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "ونش سريع"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "درع إيجيس",
@@ -51,10 +46,6 @@
     "name": "رفع سماوي",
     "description": "يرفع هذه الوحدة في الهواء (وحدة طائرة مقاتلة)."
   },
-  "earthbound": {
-    "name": "مربوط بالأرض",
-    "description": "يبقي هذه الوحدة على الأرض (يتجاوز الرفع السماوي / الطيران الطبيعي)."
-  },
   "spiderMother": {
     "name": "أم العناكب"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": ". النسل يطابق مستوى الأب",
     "onKill": "عندما تقتل هذه الوحدة عدوًا، تُنشئ {{child}}",
     "cleave": "تصيب كل عدو ضمن {{radius}} (حول هذه الوحدة)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

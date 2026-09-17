@@ -2,30 +2,25 @@
   "legs": {
     "name": "俊足"
   },
-  "carapace": {
-    "name": "石の皮"
-  },
   "barrel": {
-    "name": "長弓"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "貫通の矢"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "火炎の矢",
-    "description": "矢が短い地上の炎と燃焼を残す——油溜まりに火をつけるのに十分。"
-  },
-  "engines": {
-    "name": "疾風の翼"
-  },
-  "stingers": {
-    "name": "鴉の爪"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "鉄板装甲"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "素早い巻き上げ"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "イージス",
@@ -51,10 +46,6 @@
     "name": "空中浮揚",
     "description": "このユニットを空中へ引き上げる（戦闘飛行者）。"
   },
-  "earthbound": {
-    "name": "地縛り",
-    "description": "このユニットを地上に留める（空中浮揚 / 本来の飛行を上書き）。"
-  },
   "spiderMother": {
     "name": "蜘蛛の母"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": "。子供は親と同じレベル",
     "onKill": "このユニットが倒したとき、{{child}}を呼び出す",
     "cleave": "このユニット周囲 {{radius}} 内の全敵に命中"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

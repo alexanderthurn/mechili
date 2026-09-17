@@ -1,7 +1,8 @@
 {
     "id": "autoloader",
-    "name": "Quick Winch",
+    "name": "Quick Draw",
     "cost": 300,
     "mods": { "attackInterval": 0.7 },
-    "icon": "tech-quick-winch",
+    "icon": "tech-quick-draw",
+    "description": "+43% attack speed.",
 }

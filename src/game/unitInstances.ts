@@ -144,7 +144,7 @@ export class UnitInstanceRenderer {
      */
     setTint(
         proxy: Group,
-        tint: 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning',
+        tint: 'normal' | 'golden' | 'hex' | 'debuff' | 'acid' | 'burn' | 'spawning',
         timeSeconds: number,
         debuffStacks = 1,
         spawnProgress = 0,
@@ -161,6 +161,11 @@ export class UnitInstanceRenderer {
             // saturated gold; the pulse swings the whole body's glow
             const pulse = 1.0 + Math.sin(timeSeconds * 4.5) * 0.45;
             _color.setRGB(pulse * 2.6, pulse * 1.75, 0.0);
+        } else if (tint === 'hex') {
+            // Hard binary on/off cyan flicker
+            const on = Math.sin(timeSeconds * 14) >= 0;
+            if (on) _color.setRGB(0.45, 1.6, 3.0);
+            else _color.setRGB(0.2, 0.45, 0.7);
         } else if (tint === 'debuff') {
             const t = timeSeconds * 7;
             const amp = Math.min(1, 0.55 + debuffStacks * 0.2);

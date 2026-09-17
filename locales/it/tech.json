@@ -2,30 +2,25 @@
   "legs": {
     "name": "Piedi veloci"
   },
-  "carapace": {
-    "name": "Pelle di pietra"
-  },
   "barrel": {
-    "name": "Arco lungo"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Frecce perforanti"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Frecce di fuoco",
-    "description": "Le frecce provocano un breve incendio a terra e bruciano, abbastanza da incendiare pozze di olio."
-  },
-  "engines": {
-    "name": "Ali di tempesta"
-  },
-  "stingers": {
-    "name": "Artigli di corvo"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Placcatura in ferro"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Verricello rapido"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Egida",
@@ -51,10 +46,6 @@
     "name": "Ascesa celeste",
     "description": "Solleva quest'unità in aria (volante da combattimento)."
   },
-  "earthbound": {
-    "name": "Terrestre",
-    "description": "Mantiene questa unità a terra (annulla Ascesa celeste / il volo naturale)."
-  },
   "spiderMother": {
     "name": "Madre dei ragni"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": "La prole corrisponde al livello del genitore",
     "onKill": "Quando questa unità uccide, genera un {{child}}",
     "cleave": "Colpisce tutti i nemici entro {{radius}} (intorno a questa unità)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

@@ -1,7 +1,9 @@
+// Shared +40% damage talent (arrows, claws, bolts, clubs).
 {
     "id": "ap",
-    "name": "Piercing Arrows",
+    "name": "Piercing",
     "cost": 250,
     "mods": { "damage": 1.4 },
-    "icon": "tech-piercing-arrows",
+    "icon": "tech-piercing",
+    "description": "+40% damage.",
 }

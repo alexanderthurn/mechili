@@ -21,6 +21,7 @@
     "speed": 3.2,
     "turnRate": 5,
     "proceduralModel": "wizard",
-    "talents": ["skyBind", "skyLift"],
-    "talentSlots": 2,
+    // Sky Bind / Sky Lift; Piercing speeds convert (uses damage)
+    "talents": ["skyBind", "skyLift", "ap", "massBinding", "soulRestore"],
+    "talentSlots": 3,
 }

@@ -2,30 +2,25 @@
   "legs": {
     "name": "Rychlé nohy"
   },
-  "carapace": {
-    "name": "Kamenná kůže"
-  },
   "barrel": {
-    "name": "Dlouhý luk"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Průbojné šípy"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Ohnivé šípy",
-    "description": "Šípy zanechávají krátký oheň na zemi a hoří – dost na to, aby se zapálily kaluže oleje."
-  },
-  "engines": {
-    "name": "Křídla vichru"
-  },
-  "stingers": {
-    "name": "Vraní drápy"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Železné pláty"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Rychlý naviják"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Aegis",
@@ -51,10 +46,6 @@
     "name": "Vzlet",
     "description": "Zvedne tuto jednotku do vzduchu (bojový letec)."
   },
-  "earthbound": {
-    "name": "Připoutaný k zemi",
-    "description": "Udrží tuto jednotku na zemi (přepíše Vzlet / přirozený let)."
-  },
   "spiderMother": {
     "name": "Matka pavouků"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": ". Potomci mají úroveň rodiče",
     "onKill": "Když tato jednotka zabije, povstane {{child}}",
     "cleave": "Zasáhne každého nepřítele v okruhu {{radius}} (kolem této jednotky)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

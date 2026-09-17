@@ -38,6 +38,6 @@
     "turnMove": "cruise",
     "proceduralModel": "dwarf",
     // standard talents for The Komtur's side
-    "talents": ["stingers", "armor"],
-    "talentSlots": 2,
+    "talents": ["ap", "armor"],
+    "talentSlots": 4,
 }

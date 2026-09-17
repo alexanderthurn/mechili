@@ -2,30 +2,25 @@
   "legs": {
     "name": "Pieds véloces"
   },
-  "carapace": {
-    "name": "Peau de pierre"
-  },
   "barrel": {
-    "name": "Arc long"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Flèches perforantes"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Flèches de feu",
-    "description": "Les flèches provoquent un bref incendie au sol et brûlent — suffisamment pour enflammer les flaques d'huile."
-  },
-  "engines": {
-    "name": "Ailes de vent"
-  },
-  "stingers": {
-    "name": "Serres de corbeau"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Placage de fer"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Treuil rapide"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Égide",
@@ -51,10 +46,6 @@
     "name": "Envol céleste",
     "description": "Fait décoller cette unité (voltigeur de combat)."
   },
-  "earthbound": {
-    "name": "Attaché à la terre",
-    "description": "Maintient cette unité au sol (annule Envol céleste / le vol naturel)."
-  },
   "spiderMother": {
     "name": "Mère des araignées"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": "La progéniture atteint le niveau des parents.",
     "onKill": "Lorsque cette unité tue, déclenchez un {{child}}",
     "cleave": "Touche tous les ennemis à portée de {{radius}} (autour de cette unité)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

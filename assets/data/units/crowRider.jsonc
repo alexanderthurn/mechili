@@ -23,7 +23,7 @@
     "turnRate": 0.5,
     "turnMove": "cruise",
     "proceduralModel": "crowRider",
-    "talents": ["engines", "stingers", "aegis"],
-    "talentSlots": 3, // engines + stingers + aegis (slots must cover the list)
+    "talents": ["legs", "ap", "aegis", "galeGate", "skyhunt", "groundhunt", "veteranAim", "regeneration", "carrionFeast"],
+    "talentSlots": 4,
     "itemSlots": 2,
 }

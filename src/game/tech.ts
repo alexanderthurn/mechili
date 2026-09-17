@@ -40,8 +40,8 @@ export function effectiveTargets(
 export const SKY_LIFT_ALTITUDE = 18;
 
 /**
- * Flight altitude after talents with `flight`: `ground` (Earthbound) wins over
- * `lift` (Sky Lift) and natural flight. Structures and board extras are unchanged.
+ * Flight altitude after talents with `flight`: `ground` wins over `lift`
+ * (Sky Lift) and natural flight. Structures and board extras are unchanged.
  */
 export function effectiveFlying(
     type: UnitType,

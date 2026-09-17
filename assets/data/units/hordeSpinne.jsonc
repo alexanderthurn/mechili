@@ -40,5 +40,5 @@
     "walkLean": 1.5,
     // standard talents for The Komtur's side (Spider Mother stays innate)
     "talents": ["barrel", "armor"],
-    "talentSlots": 2,
+    "talentSlots": 4,
 }

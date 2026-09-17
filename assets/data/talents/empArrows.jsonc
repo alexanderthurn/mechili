@@ -1,0 +1,13 @@
+// Hex — Mechabellum Electromagnetic Shot: disable talents + slow on hit.
+{
+    "id": "empArrows",
+    "name": "Hexing",
+    "cost": 250,
+    "mods": {},
+    "emp": {
+        "duration": 3.5,
+        "speedMult": 0.6,
+    },
+    "icon": "tech-hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off.",
+}

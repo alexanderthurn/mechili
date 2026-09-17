@@ -3963,7 +3963,7 @@ export class Game {
         return seat >= 0 ? this.seats[seat]?.loadout : undefined;
     }
 
-    /** Apply Sky Lift / Earthbound to pack hover altitude during deployment. */
+    /** Apply Sky Lift (flight talents) to pack hover altitude during deployment. */
     private refreshFlightAlts(): void {
         const has = (seat: SeatId, typeId: string, techId: string) =>
             this.unitHasTech(seat, typeId, techId);
@@ -11248,22 +11248,23 @@ export class Game {
 
     private actorInfo(a: Actor): SelectionInfo {
         const u = a.unit;
-        const rs = this.resolvedStats(u);
+        const empDisabled = !!this.sim && a.empUntil > this.sim.elapsed + 1e-9;
+        const rs = empDisabled
+            ? TechTree.statsWithOwned(u.type, new Set(u.type.innateTechs ?? []), this.types)
+            : this.resolvedStats(u);
         const lv = this.levelInfo(u);
         const team = actorTeam(a);
         const seat = actorSeat(a);
+        const hasTech = (s: SeatId, typeId: string, techId: string) => {
+            if (u.type.innateTechs?.includes(techId)) return true;
+            if (empDisabled) return false;
+            return this.techTree.has(s, typeId, techId);
+        };
         return {
             name: unitName(u.type.id, u.type.name),
             team,
             owner: this.ownerName(team, seat),
-            hits: targetsLabel(
-                effectiveTargets(
-                    u.type,
-                    seat,
-                    (s, typeId, techId) => this.techTree.has(s, typeId, techId),
-                    this.types,
-                ),
-            ),
+            hits: targetsLabel(effectiveTargets(u.type, seat, hasTech, this.types)),
             hp: a.hp,
             maxHp: a.maxHp,
             damage: rs.damage * lv.statMult,
@@ -11287,7 +11288,7 @@ export class Game {
             level: lv.level,
             xp: lv.xp,
             xpNext: lv.xpNext,
-            techs: this.techSelection(u),
+            techs: this.techSelection(u, empDisabled),
             ...this.researchCenterSelection(u),
             ...this.commandTowerSelection(u),
             ...this.strongholdSelection(u),
@@ -11410,9 +11411,11 @@ export class Game {
     }
 
     /** pack tech slots — always that unit's {@link techSlotLimit}; empty pads unused picks.
-     *  Horde / innate packs list owned techs (e.g. Mother of Spiders) with live produce %. */
-    private techSelection(u: Unit): SelectionInfo['techs'] {
+     *  Horde / innate packs list owned techs (e.g. Mother of Spiders) with live produce %.
+     *  `hexDisableResearched`: battle EMP — every talent slot shows as inactive. */
+    private techSelection(u: Unit, hexDisableResearched = false): SelectionInfo['techs'] {
         if (u.type.structure || u.type.extra) return undefined;
+        const markDisabled = (_id: string, _owned: boolean) => hexDisableResearched;
         const isHorde = u.team === 'horde' || u.seat < 0;
         if (isHorde) {
             const ids = new Set<string>([...(u.type.innateTechs ?? []), ...allowedTechIds(u.type)]);
@@ -11430,6 +11433,7 @@ export class Game {
                     owned: true,
                     affordable: false,
                     produce: this.produceProgressInfo(u, t.id),
+                    disabled: markDisabled(t.id, true) || undefined,
                 });
             }
             return slots.length ? slots : undefined;
@@ -11462,6 +11466,7 @@ export class Game {
                     owned: isOwned,
                     affordable: canBuy && !isOwned && bal >= cost,
                     produce: isOwned ? this.produceProgressInfo(u, only.id) : undefined,
+                    disabled: markDisabled(only.id, isOwned) || undefined,
                 },
             ];
         }
@@ -11482,6 +11487,7 @@ export class Game {
                 owned: isOwned,
                 affordable: canBuy && !isOwned && bal >= cost,
                 produce: isOwned ? this.produceProgressInfo(u, t.id) : undefined,
+                disabled: markDisabled(t.id, isOwned) || undefined,
             });
         }
         return slots;

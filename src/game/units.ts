@@ -123,6 +123,50 @@ export interface TechDef {
     flight?: 'lift' | 'ground';
     /** Owning it gives every mech of the pack a shield pool equal to its max HP (Aegis). */
     grantsShieldHp?: boolean;
+    /**
+     * On hit: hex the target — researched talents stop applying and move speed
+     * is multiplied by `speedMult` (default 0.6) for `duration` seconds.
+     * Golden / debuff-immune shrugs it off. Innate talents still apply.
+     */
+    emp?: { duration: number; speedMult?: number };
+    /** Extra damage / range vs airborne foes (`altitude > 0`). Multipliers. */
+    vsAir?: { damage?: number; range?: number };
+    /** Extra damage / range vs grounded foes (`altitude <= 0`). Multipliers. */
+    vsGround?: { damage?: number; range?: number };
+    /**
+     * Extra per-level scaling on top of the global veterancy mult.
+     * `damagePerLevel` / `rangePerLevel` are added per level above 1
+     * (e.g. 0.1 → +10% per level).
+     */
+    levelScale?: { damagePerLevel?: number; rangePerLevel?: number };
+    /** Passive HP regen while alive in battle. */
+    regen?: { hpPerSecond?: number; maxHpFractionPerSecond?: number };
+    /** Fraction of HP/shield damage dealt returned as pack HP (split among living members). */
+    lifesteal?: number;
+    /** On kill: heal this pack for `ofVictimMaxHp` × victim max HP (split among living members). */
+    onKillHeal?: { ofVictimMaxHp: number };
+    /**
+     * On death: splash nova and/or acid puddle.
+     * Explode damage = dying body's maxHp × `damageMult` (default 1).
+     */
+    onDeath?: {
+        explode?: { splash: number; damageMult?: number };
+        acid?: { radius: number };
+    };
+    /**
+     * Added to {@link UnitType.formationSpread} when laying out pack members
+     * (looser spacing vs splash). Applied at spawn time.
+     */
+    formationSpreadAdd?: number;
+    /**
+     * Convert-ray extras (wizard). `maxTargets` channels at once;
+     * `intensityMult` scales each channel (weaker multi-bind).
+     */
+    convert?: { maxTargets?: number; intensityMult?: number };
+    /** After a successful convert, restore the victim to full HP. */
+    convertHealFull?: boolean;
+    /** Every deploy round this pack may be repositioned without Move Pack. */
+    freeRedeploy?: boolean;
     /** shown on hover; auto-derived from `mods` when omitted (see {@link techDescription}) */
     description?: string;
     /** atlas glyph; omit to show `tech-default` (question mark — missing icon) */
@@ -227,6 +271,16 @@ export function techDescription(tech: TechDef): string {
             t('tech:_auto.cleave', {
                 radius: tech.cleave.radius,
                 defaultValue: `Hits every enemy within ${tech.cleave.radius} (around this unit)`,
+            }).replace(/[.。．]+$/u, ''),
+        );
+    }
+    if (tech.emp) {
+        const slowPct = Math.round((1 - (tech.emp.speedMult ?? 0.6)) * 100);
+        parts.push(
+            t('tech:_auto.emp', {
+                duration: formatTechSeconds(tech.emp.duration),
+                slow: slowPct,
+                defaultValue: `Hex on hit: talents off and −${slowPct}% move speed for ${formatTechSeconds(tech.emp.duration)}`,
             }).replace(/[.。．]+$/u, ''),
         );
     }
@@ -1167,7 +1221,7 @@ export class Unit {
     /** 0 on the ground in deployment, animates to 1 at full combat altitude */
     flightLift = 0;
     /**
-     * Flight altitude from Sky Lift / Earthbound. `null` = use {@link UnitType.flying}.
+     * Flight altitude from Sky Lift (or other `flight` talents). `null` = use {@link UnitType.flying}.
      * Refresh via the match when those techs change.
      */
     techFlying: number | null = null;
@@ -1184,6 +1238,10 @@ export class Unit {
         readonly world: Vector3,
         /** placement rotated 90°: footprint and formation use swapped cols/rows */
         public rotated = false,
+        /**
+         * Member scatter multiplier (Loose Rank etc.). Omit = {@link UnitType.formationSpread}.
+         */
+        formationSpread?: number,
     ) {
         // Fire Bolt hovers at combat altitude from the moment it's placed —
         // unlike crow riders, it never hugs the ground during deployment
@@ -1192,6 +1250,7 @@ export class Unit {
         const formation = rotated ? swapExtent(type.formation) : type.formation;
         const spacingX = (footprint.cols * CELL) / formation.cols;
         const spacingZ = (footprint.rows * CELL) / formation.rows;
+        const spread = formationSpread ?? type.formationSpread ?? 0;
         // which model/instance-pool asset to use — defaults to the type's own
         // id, but a horde-only variant (e.g. HORDE_ZOMBIE) can point this at a
         // dedicated GLB via modelId (see UnitType.modelId)
@@ -1237,10 +1296,10 @@ export class Unit {
                 mesh.scale.setScalar(type.meshScale);
                 let ox = (i - (formation.cols - 1) / 2) * spacingX;
                 let oz = (j - (formation.rows - 1) / 2) * spacingZ;
-                if (type.formationSpread) {
+                if (spread > 0) {
                     const key = i * 131 + j * 7919;
-                    ox += (hash01(key + 1) - 0.5) * spacingX * type.formationSpread;
-                    oz += (hash01(key + 104729) - 0.5) * spacingZ * type.formationSpread;
+                    ox += (hash01(key + 1) - 0.5) * spacingX * spread;
+                    oz += (hash01(key + 104729) - 0.5) * spacingZ * spread;
                 }
                 mesh.position.set(ox, 0, oz);
                 this.view.add(mesh);
@@ -1647,8 +1706,8 @@ function applyMeshLevelTint(root: Group, level: number): void {
     });
 }
 
-/** tints a mech during battle — golden > debuff > acid > burn > spawning > normal */
-export type BattleTint = 'normal' | 'golden' | 'debuff' | 'acid' | 'burn' | 'spawning';
+/** tints a mech during battle — golden > hex > debuff > acid > burn > spawning > normal */
+export type BattleTint = 'normal' | 'golden' | 'hex' | 'debuff' | 'acid' | 'burn' | 'spawning';
 
 export function syncBattleTint(
     mesh: Group,
@@ -1666,6 +1725,7 @@ export function syncBattleTint(
     const grey = TINT_GREY;
     const goldPulse = 1.15 + Math.sin(timeSeconds * 4.5) * 0.4;
     const debuffT = timeSeconds * 7;
+    const hexT = timeSeconds * 14;
     const acidT = timeSeconds * 5.5;
     const burnT = timeSeconds * 6.2;
     const spawnGlow = tintScratch;
@@ -1693,6 +1753,31 @@ export function syncBattleTint(
                 child.userData.goldenMat = tinted;
             }
             tinted.emissiveIntensity = goldPulse;
+            child.material = tinted;
+            return;
+        }
+
+        if (tint === 'hex') {
+            // Cold electric cyan — hard binary on/off flicker
+            let tinted = child.userData.hexMat as MeshStandardMaterial | undefined;
+            const base = child.userData.battleOrigMat as MeshStandardMaterial;
+            if (!tinted) {
+                tinted = base.clone();
+                preserveBuildingSnow(base, tinted);
+                child.userData.hexMat = tinted;
+            }
+            const on = Math.sin(hexT) >= 0;
+            const frost = new Color(0.25, 0.65, 1.0);
+            const dim = new Color(0.12, 0.28, 0.45);
+            if (on) {
+                tinted.color.lerpColors(base.color, frost, 0.95);
+                tinted.emissive.setRGB(0.15, 0.7, 1.0);
+                tinted.emissiveIntensity = 1.6;
+            } else {
+                tinted.color.lerpColors(base.color, dim, 0.55);
+                tinted.emissive.setRGB(0.05, 0.2, 0.4);
+                tinted.emissiveIntensity = 0.15;
+            }
             child.material = tinted;
             return;
         }
@@ -1791,17 +1876,20 @@ export function clearBattleTint(mesh: Group): void {
         const orig = child.userData.battleOrigMat as MeshStandardMaterial | undefined;
         if (orig) child.material = orig;
         const golden = child.userData.goldenMat as MeshStandardMaterial | undefined;
+        const hex = child.userData.hexMat as MeshStandardMaterial | undefined;
         const debuff = child.userData.debuffMat as MeshStandardMaterial | undefined;
         const acid = child.userData.acidMat as MeshStandardMaterial | undefined;
         const burn = child.userData.burnMat as MeshStandardMaterial | undefined;
         const spawn = child.userData.spawnMat as MeshStandardMaterial | undefined;
         golden?.dispose();
+        hex?.dispose();
         debuff?.dispose();
         acid?.dispose();
         burn?.dispose();
         spawn?.dispose();
         delete child.userData.battleOrigMat;
         delete child.userData.goldenMat;
+        delete child.userData.hexMat;
         delete child.userData.debuffMat;
         delete child.userData.acidMat;
         delete child.userData.burnMat;

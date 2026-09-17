@@ -626,7 +626,7 @@ try {
             const settings = structuredClone(setMod.DEFAULT_SETTINGS);
             settings.seed = 77;
             const tree = new techMod.TechTree(2, T);
-            tree.add(1, 'ogre', 'carapace');
+            tree.add(1, 'ogre', 'armor');
             const fake = (id, typeId, team, col, row, extra = {}) => ({
                 id, type: T.require(typeId), team, cell: { col, row }, rotated: false, level: 1, items: [],
                 consumed: false, summoned: false, hostUnitId: null, gridless: false, world: { x: 0, z: 0 }, ...extra,
@@ -653,7 +653,7 @@ try {
             zexpect(checked.def !== null && !scen.hasErrors(checked.issues), `captured scenario has errors: ${checked.issues.map((i) => i.message).join('; ')}`);
             zexpect(def.scene.units.length === 2 && def.scene.units[0].team === 'player' && def.scene.units[0].items?.join() === 'fire' && def.scene.units[1].at.rotated === true, `captured units: ${JSON.stringify(def.scene.units)}`);
             zexpect(def.scene.buildings.enemy.stronghold?.level === 2 && def.scene.buildings.enemy.stronghold.garrison === 1 && def.scene.buildings.player.stronghold === false, `captured buildings: ${JSON.stringify(def.scene.buildings)}`);
-            zexpect(def.scene.techs.enemy.ogre?.join() === 'carapace' && def.rules.sideHp.enemy === 1 && def.rules.commander.mode === 'fixed' && def.rules.flanksOpenFromRound === 1 && def.rules.atmosphere.weather === 'snow' && def.rules.income.round1 === settings.economy.startingSupply + 2 * settings.economy.supplyGrowthPerRound, `captured rules: ${JSON.stringify(def.rules)}`);
+            zexpect(def.scene.techs.enemy.ogre?.join() === 'armor' && def.rules.sideHp.enemy === 1 && def.rules.commander.mode === 'fixed' && def.rules.flanksOpenFromRound === 1 && def.rules.atmosphere.weather === 'snow' && def.rules.income.round1 === settings.economy.startingSupply + 2 * settings.economy.supplyGrowthPerRound, `captured rules: ${JSON.stringify(def.rules)}`);
             const files = pkgMod.scenarioPackageFiles(def);
             const { ref: capRef } = await levels.loadLevel(def.id, files);
             const act = await levels.prepareLevel(capRef);
@@ -757,15 +757,15 @@ try {
             const lo = await server.ssrLoadModule('/src/game/loadouts.ts');
             const own = { techs: { ogre: ['whirlwind', 'bloodRage'], mortar: ['barrel', 'autoloader'] } };
             const opened = lo.scenarioLoadout({ mode: 'open' }, own, T);
-            const fixed = lo.scenarioLoadout({ mode: 'fixed', techs: { ogre: ['carapace', 'nope'] } }, own, T);
-            const narrowed = lo.scenarioLoadout({ mode: 'restrict', allow: { ogre: ['bloodRage', 'carapace'], mortar: ['ap'] } }, own, T);
-            zexpect(lo.scenarioLoadout({ mode: 'player' }, own, T) === own && opened.techs.ogre.length === 3 && opened.techs.mortar.length === 3, `open loadout: ${JSON.stringify(opened.techs.ogre)}`);
-            zexpect(fixed.techs.ogre.join() === 'carapace' && fixed.techs.mortar.join() === 'barrel,autoloader', `fixed loadout: ${JSON.stringify(fixed.techs)}`);
+            const fixed = lo.scenarioLoadout({ mode: 'fixed', techs: { ogre: ['armor', 'nope'] } }, own, T);
+            const narrowed = lo.scenarioLoadout({ mode: 'restrict', allow: { ogre: ['bloodRage', 'armor'], mortar: ['ap'] } }, own, T);
+            zexpect(lo.scenarioLoadout({ mode: 'player' }, own, T) === own && opened.techs.ogre.length === T.byId('ogre').talents.length && opened.techs.mortar.length === T.byId('mortar').talents.length, `open loadout: ${JSON.stringify(opened.techs.ogre)}`);
+            zexpect(fixed.techs.ogre.join() === 'armor' && fixed.techs.mortar.join() === 'barrel,autoloader', `fixed loadout: ${JSON.stringify(fixed.techs)}`);
             zexpect(narrowed.techs.ogre.join() === 'bloodRage' && narrowed.techs.mortar.join() === 'ap', `restricted loadout: ${JSON.stringify(narrowed.techs)}`);
             const fixedRule = structuredClone(blank);
-            fixedRule.rules.loadout = { mode: 'fixed', techs: { ogre: ['carapace', 'legs'], nobody: ['x'] } };
+            fixedRule.rules.loadout = { mode: 'fixed', techs: { ogre: ['armor', 'legs'], nobody: ['x'] } };
             const fixedCheck = scen.normalizeScenario(fixedRule, T);
-            zexpect(!scen.hasErrors(fixedCheck.issues) && fixedCheck.def.rules.loadout.techs.ogre.join() === 'carapace' && !('nobody' in fixedCheck.def.rules.loadout.techs), `loadout rule normalize: ${JSON.stringify(fixedCheck.def?.rules.loadout)}`);
+            zexpect(!scen.hasErrors(fixedCheck.issues) && fixedCheck.def.rules.loadout.techs.ogre.join() === 'armor' && !('nobody' in fixedCheck.def.rules.loadout.techs), `loadout rule normalize: ${JSON.stringify(fixedCheck.def?.rules.loadout)}`);
         }
         if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; share codes; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rules and purse, horde ring, side swap, mirror, loadout rules)');
     }

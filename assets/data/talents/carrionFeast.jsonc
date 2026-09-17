@@ -1,0 +1,10 @@
+// Heal on kill from the victim's max HP.
+{
+    "id": "carrionFeast",
+    "name": "Carrion Feast",
+    "cost": 200,
+    "mods": {},
+    "onKillHeal": { "ofVictimMaxHp": 0.3 },
+    "icon": "tech-carrion-feast",
+    "description": "On kill, heal this pack for 30% of the victim's max HP (shared among living members).",
+}

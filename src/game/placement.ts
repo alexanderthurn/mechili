@@ -849,10 +849,30 @@ export class PlacementController {
         // a fixture (e.g. a battlement archer) is bolted to its building — not
         // on the grid at all, so there is nowhere for a drag to put it down
         if (unit.type.fixture) return false;
-        return (
-            (!unit.type.structure || !!unit.type.extra) &&
-            unit.deployedRound === this.currentRound
-        );
+        if (!(!unit.type.structure || !!unit.type.extra)) return false;
+        if (unit.deployedRound === this.currentRound) return true;
+        return this.unitHasFreeRedeploy(unit);
+    }
+
+    /** Gale Gate etc. — reposition every round without Move Pack. */
+    private unitHasFreeRedeploy(unit: Unit): boolean {
+        if (!this.hasTech) return false;
+        for (const tech of this.types.talentsOf(unit.type)) {
+            if (tech.freeRedeploy && this.hasTech(unit.seat, unit.type.id, tech.id)) return true;
+        }
+        return false;
+    }
+
+    /** Type spread + Loose Rank talent adds (spawn-time member scatter). */
+    private formationSpreadFor(seat: SeatId, type: UnitType): number {
+        let spread = type.formationSpread ?? 0;
+        if (!this.hasTech) return spread;
+        for (const tech of this.types.talentsOf(type)) {
+            if (!tech.formationSpreadAdd) continue;
+            if (!this.hasTech(seat, type.id, tech.id)) continue;
+            spread += tech.formationSpreadAdd;
+        }
+        return spread;
     }
 
     /**
@@ -1108,7 +1128,14 @@ export class PlacementController {
         const actorSeat = team === 'horde' ? -1 : (seat ?? primarySeatOf(this.roster, team));
         // horde units are always free — they have no economy to charge
         if (!free && (team === 'horde' || !this.economy.charge(actorSeat, type))) return null;
-        const unit = new Unit(type, anchor, team, this.map.areaCenter(anchor, fp.cols, fp.rows), rotated);
+        const unit = new Unit(
+            type,
+            anchor,
+            team,
+            this.map.areaCenter(anchor, fp.cols, fp.rows),
+            rotated,
+            this.formationSpreadFor(actorSeat, type) || undefined,
+        );
         unit.seat = actorSeat;
         // Canonical per-seat id: counter*rosterLength+seat. For the classic
         // 2-seat roster this is byte-identical to the old team-parity

@@ -2,30 +2,25 @@
   "legs": {
     "name": "เท้าไว"
   },
-  "carapace": {
-    "name": "หนังหิน"
-  },
   "barrel": {
-    "name": "ธนูยาว"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "ลูกธนูเจาะ"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "ลูกธนูไฟ",
-    "description": "ลูกธนูทิ้งไฟพื้นสั้นๆ และเผา — พอจุดแอ่งน้ำมันได้"
-  },
-  "engines": {
-    "name": "ปีกลมกรรโชก"
-  },
-  "stingers": {
-    "name": "เล็บกา"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "เกราะเหล็ก"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "วินช์เร็ว"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "เอจิส",
@@ -51,10 +46,6 @@
     "name": "ยกฟ้า",
     "description": "ยกยูนิตนี้ขึ้นอากาศ (นักบินรบ)"
   },
-  "earthbound": {
-    "name": "ผูกดิน",
-    "description": "บังคับยูนิตนี้ให้อยู่พื้น (ทับยกฟ้า / บินธรรมชาติ)"
-  },
   "spiderMother": {
     "name": "มารดาแมงมุม"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": " ลูกหลานตามเลเวลพ่อแม่",
     "onKill": "เมื่อยูนิตนี้ฆ่า จะเรียก {{child}}",
     "cleave": "โจมตีศัตรูทุกตัวในรัศมี {{radius}} (รอบยูนิตนี้)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

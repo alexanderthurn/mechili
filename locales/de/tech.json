@@ -2,30 +2,25 @@
   "legs": {
     "name": "Schnelle Füße"
   },
-  "carapace": {
-    "name": "Steinhaut"
-  },
   "barrel": {
-    "name": "Langbogen"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Durchdringende Pfeile"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Feuerpfeile",
-    "description": "Die Pfeile hinterlassen ein kurzes Bodenfeuer, das ausreicht, um Ölpfützen zu entzünden."
-  },
-  "engines": {
-    "name": "Sturmflügel"
-  },
-  "stingers": {
-    "name": "Krähenkrallen"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Eisenplattierung"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Schnellwinde"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Ägide",
@@ -51,10 +46,6 @@
     "name": "Himmelslift",
     "description": "Hebt diese Einheit in die Luft (Kampfflieger)."
   },
-  "earthbound": {
-    "name": "Erdgebunden",
-    "description": "Hält diese Einheit am Boden (überschreibt Himmelslift / natürlichen Flug)."
-  },
   "spiderMother": {
     "name": "Mutter der Spinnen"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": "Nachkommen entsprechen dem Level der Eltern.",
     "onKill": "Wenn diese Einheit tötet, erscheint ein {{child}}.",
     "cleave": "Trifft alle Gegner im Umkreis von {{radius}} (um diese Einheit herum)."
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

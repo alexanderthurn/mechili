@@ -1,7 +1,0 @@
-{
-    "id": "stingers",
-    "name": "Crow Talons",
-    "cost": 200,
-    "mods": { "damage": 1.4 },
-    "icon": "tech-crow-talons",
-}

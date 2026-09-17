@@ -2,30 +2,25 @@
   "legs": {
     "name": "Kaki Cepat"
   },
-  "carapace": {
-    "name": "Kulit Batu"
-  },
   "barrel": {
-    "name": "Busur besar"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Panah Penembus"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Panah Api",
-    "description": "Anak panah meninggalkan api kecil di tanah dan membakar — cukup untuk menyulut genangan minyak."
-  },
-  "engines": {
-    "name": "Sayap Angin Kencang"
-  },
-  "stingers": {
-    "name": "Cakar Gagak"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Pelapisan Besi"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Derek Cepat"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Perlindungan",
@@ -51,10 +46,6 @@
     "name": "Lift Langit",
     "description": "Mengangkat unit ini ke udara (pesawat tempur)."
   },
-  "earthbound": {
-    "name": "Terbatas pd bumi",
-    "description": "Menjaga unit ini tetap di tanah (menggantikan Sky Lift / penerbangan alami)."
-  },
   "spiderMother": {
     "name": "Ibu dari Laba-laba"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": "Keturunan sesuai dengan tingkat orang tua.",
     "onKill": "Saat unit ini membunuh, bangkitkan {{child}}",
     "cleave": "Menyerang setiap musuh dalam radius {{radius}} (di sekitar unit ini)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

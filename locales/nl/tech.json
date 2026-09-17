@@ -2,30 +2,25 @@
   "legs": {
     "name": "Snelle voeten"
   },
-  "carapace": {
-    "name": "Steenhuid"
-  },
   "barrel": {
-    "name": "Langboog"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Doorborende pijlen"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Vuurpijlen",
-    "description": "De pijlen veroorzaken een kortstondig vuur op de grond en branden – genoeg om olievlekken te ontsteken."
-  },
-  "engines": {
-    "name": "Stormvleugels"
-  },
-  "stingers": {
-    "name": "Kraaienklauwen"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "IJzerbeplating"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Snelle lier"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Aegis",
@@ -51,10 +46,6 @@
     "name": "Hemelvlucht",
     "description": "Tilt deze eenheid de lucht in (vechtende vlieger)."
   },
-  "earthbound": {
-    "name": "Aardgebonden",
-    "description": "Houdt deze eenheid op de grond (overschrijft Hemelvlucht / natuurlijke vlucht)."
-  },
   "spiderMother": {
     "name": "Moeder van de spinnen"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": ". Nakomelingen evenaren het ouderniveau",
     "onKill": "Wanneer deze eenheid doodt, verrijst er een {{child}}",
     "cleave": "Raakt elke vijand binnen {{radius}} (rondom deze eenheid)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

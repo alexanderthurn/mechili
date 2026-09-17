@@ -1,0 +1,10 @@
+// Slow combat regen.
+{
+    "id": "regeneration",
+    "name": "Regeneration",
+    "cost": 200,
+    "mods": {},
+    "regen": { "maxHpFractionPerSecond": 0.02 },
+    "icon": "tech-regeneration",
+    "description": "Regenerates 2% of max HP per second in battle.",
+}

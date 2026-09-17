@@ -1,6 +1,6 @@
 {
     "id": "fireArrows",
-    "name": "Fire Arrows",
+    "name": "Fire",
     "cost": 250,
     "mods": {},
     "fire": {
@@ -8,5 +8,5 @@
         "ground": { "radius": 2.5, "duration": 8, "intensity": 21 },
     },
     "icon": "tech-fire-arrows",
-    "description": "Arrows leave a brief ground fire and burn — enough to ignite oil puddles.",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles.",
 }

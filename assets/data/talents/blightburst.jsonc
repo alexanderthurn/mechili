@@ -1,0 +1,10 @@
+// Leave an acid puddle on death.
+{
+    "id": "blightburst",
+    "name": "Blightburst",
+    "cost": 200,
+    "mods": {},
+    "onDeath": { "acid": { "radius": 4 } },
+    "icon": "tech-blightburst",
+    "description": "On death, leaves an acid puddle.",
+}

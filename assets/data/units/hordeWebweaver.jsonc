@@ -35,5 +35,5 @@
     "proceduralModel": "dwarf",
     // standard talents for The Komtur's side
     "talents": ["barrel", "ap", "autoloader"],
-    "talentSlots": 2,
+    "talentSlots": 4,
 }

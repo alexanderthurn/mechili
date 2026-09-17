@@ -2,30 +2,25 @@
   "legs": {
     "name": "Γρήγορα πόδια"
   },
-  "carapace": {
-    "name": "Πέτρινο δέρμα"
-  },
   "barrel": {
-    "name": "Μακρύ τόξο"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Διαπεραστικά βέλη"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Βέλη φωτιάς",
-    "description": "Τα βέλη αφήνουν σύντομη φωτιά εδάφους και καίνε — αρκετά για να ανάψουν λιμνούλες λαδιού."
-  },
-  "engines": {
-    "name": "Φτερά ανέμου"
-  },
-  "stingers": {
-    "name": "Νύχια κορακιού"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Σιδερένια επένδυση"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Γρήγορο βαρούλκο"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Αιγίδα",
@@ -51,10 +46,6 @@
     "name": "Ανύψωση ουρανού",
     "description": "Ανεβάζει αυτή τη μονάδα στον αέρα (μαχητικό ιπτάμενο)."
   },
-  "earthbound": {
-    "name": "Δεμένος στη γη",
-    "description": "Κρατά αυτή τη μονάδα στο έδαφος (υπερκαλύπτει Ανύψωση ουρανού / φυσική πτήση)."
-  },
   "spiderMother": {
     "name": "Μητέρα των αραχνών"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": ". Οι απόγονοι έχουν το επίπεδο του γονέα",
     "onKill": "Όταν αυτή η μονάδα σκοτώνει, ανασταίνει {{child}}",
     "cleave": "Χτυπά κάθε εχθρό εντός {{radius}} (γύρω από αυτή τη μονάδα)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

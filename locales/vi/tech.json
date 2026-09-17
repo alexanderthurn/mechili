@@ -2,30 +2,25 @@
   "legs": {
     "name": "Đôi chân nhanh nhẹn"
   },
-  "carapace": {
-    "name": "Da Đá"
-  },
   "barrel": {
-    "name": "Cung"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Mũi tên xuyên thấu"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Mũi tên lửa",
-    "description": "Mũi tên tạo ra một đám cháy nhỏ trên mặt đất, đủ để đốt cháy các vũng dầu."
-  },
-  "engines": {
-    "name": "Cánh gió"
-  },
-  "stingers": {
-    "name": "Móng Quạ"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Mạ sắt"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Tời nhanh"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Aegis",
@@ -51,10 +46,6 @@
     "name": "Thang máy trên không",
     "description": "Nâng thiết bị này lên không trung (máy bay chiến đấu)."
   },
-  "earthbound": {
-    "name": "Trái đất",
-    "description": "Giữ thiết bị này trên mặt đất (vô hiệu hóa chế độ bay tự do/bay tự nhiên)."
-  },
   "spiderMother": {
     "name": "Mẹ của loài nhện"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": "Con cái đạt cấp độ tương ứng với cha mẹ.",
     "onKill": "Khi đơn vị này tiêu diệt kẻ địch, hãy nâng {{child}} lên.",
     "cleave": "Tấn công mọi kẻ địch trong phạm vi {{radius}} (xung quanh đơn vị này)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

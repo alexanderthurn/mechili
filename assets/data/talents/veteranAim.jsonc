@@ -1,0 +1,10 @@
+// Veterancy sharpens aim — range and damage grow with pack level.
+{
+    "id": "veteranAim",
+    "name": "Veteran Aim",
+    "cost": 250,
+    "mods": {},
+    "levelScale": { "damagePerLevel": 0.12, "rangePerLevel": 0.1 },
+    "icon": "tech-veteran-aim",
+    "description": "Each level above 1: +12% damage and +10% range (on top of normal veterancy).",
+}

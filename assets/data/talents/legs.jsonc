@@ -4,4 +4,5 @@
     "cost": 150,
     "mods": { "speed": 1.35 },
     "icon": "tech-fleet-feet",
+    "description": "+35% move speed.",
 }

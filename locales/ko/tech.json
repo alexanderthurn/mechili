@@ -2,30 +2,25 @@
   "legs": {
     "name": "질주하는 발"
   },
-  "carapace": {
-    "name": "돌가죽"
-  },
   "barrel": {
-    "name": "장궁"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "관통 화살"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "화염 화살",
-    "description": "화살이 짧은 지상 불길을 남기고 불태웁니다 — 기름 웅덩이를 점화하기에 충분합니다."
-  },
-  "engines": {
-    "name": "돌풍 날개"
-  },
-  "stingers": {
-    "name": "까마귀 발톱"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "철판 장갑"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "빠른 윈치"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "이지스",
@@ -51,10 +46,6 @@
     "name": "공중 부양",
     "description": "이 유닛을 공중으로 올립니다 (전투 비행체)."
   },
-  "earthbound": {
-    "name": "대지 속박",
-    "description": "이 유닛을 지상에 유지합니다 (공중 부양 / 고유 비행을 덮어씀)."
-  },
   "spiderMother": {
     "name": "거미의 어머니"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": ". 자손은 부모와 같은 레벨",
     "onKill": "이 유닛이 처치하면 {{child}}를 되살립니다",
     "cleave": "이 유닛 주변 {{radius}} 안의 모든 적에게 타격"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }

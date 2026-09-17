@@ -2,30 +2,25 @@
   "legs": {
     "name": "Fleet Feet"
   },
-  "carapace": {
-    "name": "Stenhud"
-  },
   "barrel": {
-    "name": "Pilbåge"
+    "name": "Range",
+    "description": "+20 range."
   },
   "ap": {
-    "name": "Piercingpilar"
+    "name": "Piercing",
+    "description": "+40% damage."
   },
   "fireArrows": {
-    "name": "Eldpilar",
-    "description": "Pilar lämnar en kort markeld och brinner – tillräckligt för att antända oljepölar."
-  },
-  "engines": {
-    "name": "Gale Wings"
-  },
-  "stingers": {
-    "name": "Kråkklor"
+    "name": "Fire",
+    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
   },
   "armor": {
-    "name": "Järnplätering"
+    "name": "Iron Plating",
+    "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Snabbvinsch"
+    "name": "Quick Draw",
+    "description": "+43% attack speed."
   },
   "aegis": {
     "name": "Aegis",
@@ -51,10 +46,6 @@
     "name": "Sky Lift",
     "description": "Lyfter denna enhet upp i luften (stridsflygplan)."
   },
-  "earthbound": {
-    "name": "Jordbundna",
-    "description": "Håller enheten på marken (åsidosätter Sky Lift / naturlig flygning)."
-  },
   "spiderMother": {
     "name": "Spindlarnas mor"
   },
@@ -73,5 +64,9 @@
     "produceOffspring": "Avkommamatchning på föräldranivå",
     "onKill": "När denna enhet dödar, höj en {{child}}",
     "cleave": "Träffar alla fiender inom {{radius}} (runt denna enhet)"
+  },
+  "empArrows": {
+    "name": "Hexing",
+    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
   }
 }
