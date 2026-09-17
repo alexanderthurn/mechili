@@ -331,14 +331,14 @@ export function slopeGroundGlsl(opts: {
 	float slopeEarthT = smoothstep( 0.3, 0.64, slopeGrade + slopeVar * 0.2 ) * slopeFade;
 	vec3 slopeBase = diffuseColor.rgb;
 	float slopeLum = max( dot( slopeBase, vec3( 0.299, 0.587, 0.114 ) ), 0.03 );
-	vec3 slopeDry = slopeBase * vec3( 1.1, 0.96, 0.66 );
+	vec3 slopeDry = mix( slopeBase, vec3( slopeLum ), 0.35 ) * vec3( 1.2, 0.9, 0.55 );
 	vec3 slopeEarth = vec3( 0.34, 0.26, 0.17 ) * clamp( slopeLum / 0.3, 0.7, 1.3 );
 `;
     if (earth) {
         glsl += `	slopeEarth = mix( slopeEarth, texture2D( ${earth.sampler}, ${earth.uv} ).rgb * vec3( 0.9, 0.82, 0.72 ), 0.55 );
 `;
     }
-    glsl += `	vec3 slopeCol = mix( slopeBase, slopeDry, slopeDryT * 0.75 );
+    glsl += `	vec3 slopeCol = mix( slopeBase, slopeDry, slopeDryT * 0.9 );
 	slopeCol = mix( slopeCol, slopeEarth, slopeEarthT * 0.9 );
 `;
     if (rock) {
