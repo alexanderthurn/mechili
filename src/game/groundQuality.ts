@@ -327,7 +327,7 @@ export function slopeGroundGlsl(opts: {
 	vec3 slopeP = ${worldPos};
 	float slopeVar = slopeNoise( slopeP.xz / 7.0 ) * 0.65 + slopeNoise( slopeP.xz / 2.3 + 17.0 ) * 0.35 - 0.5;
 	float slopeFade = ${fade};
-	float slopeDryT = smoothstep( 0.16, 0.38, slopeGrade + slopeVar * 0.14 ) * slopeFade;
+	float slopeDryT = smoothstep( 0.08, 0.3, slopeGrade + slopeVar * 0.14 ) * slopeFade;
 	float slopeEarthT = smoothstep( 0.3, 0.64, slopeGrade + slopeVar * 0.2 ) * slopeFade;
 	vec3 slopeBase = diffuseColor.rgb;
 	float slopeLum = max( dot( slopeBase, vec3( 0.299, 0.587, 0.114 ) ), 0.03 );
@@ -343,7 +343,7 @@ export function slopeGroundGlsl(opts: {
 `;
     if (rock) {
         const tile = SLOPE_ROCK_TILE.toFixed(1);
-        glsl += `	float slopeRockT = smoothstep( 0.62, 0.95, slopeGrade + slopeVar * 0.24 ) * slopeFade;
+        glsl += `	float slopeRockT = smoothstep( 0.8, 1.15, slopeGrade + slopeVar * 0.24 ) * slopeFade;
 	vec3 slopeRw = pow( abs( slopeN ), vec3( 4.0 ) );
 	slopeRw /= max( slopeRw.x + slopeRw.y + slopeRw.z, 1e-4 );
 	vec3 slopeRock =
