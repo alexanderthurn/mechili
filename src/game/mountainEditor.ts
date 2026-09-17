@@ -954,6 +954,10 @@ export class MountainEditor {
 .mtn-editor .sliders{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;margin-top:8px}
 .mtn-editor .hint{margin-top:8px;opacity:.7;font-size:11px}
 .mtn-editor.playing > :not(h3):not(.row:first-of-type){display:none}
+/* collapsed: a small box beside the chat button (bottom center) instead of the far left */
+.mtn-editor.playing{left:calc(50% + 64px);bottom:4px;min-width:0;padding:6px 8px}
+.mtn-editor.playing h3{margin-bottom:4px}
+.mtn-editor.playing .row{margin:0}
 .mtn-editor .mode{width:100%}
 .mtn-editor .steep.on{background:#4a3828;border-color:#d4b878;color:#d4b878}
 .mtn-editor .slot-tags{margin-left:4px;font:700 10px/1 ui-monospace,monospace;color:#d4b878;letter-spacing:.05em}
