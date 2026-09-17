@@ -16,6 +16,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
+import { detCos, detSin } from './detMath';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import { touchFirstDevice } from './inputCapabilities';
 import { attachBuildingSnow, attachBuildingSnowToObject } from './buildingSnow';
@@ -312,8 +313,9 @@ export function attackNodeWorld(
     yaw: number,
     meshScale: number,
 ): { x: number; y: number; z: number } {
-    const c = Math.cos(yaw);
-    const s = Math.sin(yaw);
+    // detCos/detSin: this sets projectile muzzles and beam origins in the sim
+    const c = detCos(yaw);
+    const s = detSin(yaw);
     const lx = local.x * meshScale;
     const ly = local.y * meshScale;
     const lz = local.z * meshScale;

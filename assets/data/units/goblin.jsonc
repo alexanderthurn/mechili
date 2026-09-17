@@ -27,6 +27,6 @@
     "turnRate": 11,
     "proceduralModel": "goblin",
     // Ranged chaff pivots: range, shield, damage
-    "talents": ["barrel", "aegis", "ap", "powerDraw", "skyhunt", "veteranAim", "looseRank", "blightburst", "ruinousEnd"],
+    "talents": ["barrel", "aegis", "ap", "veteranAim"],
     "talentSlots": 4,
 }

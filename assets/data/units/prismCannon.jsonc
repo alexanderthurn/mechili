@@ -1,15 +1,14 @@
 {
-    // First giant: Melting Point–style ramping sunlight beam on a static mortar hull.
-    // One mech, no anims — muzzle from rampBeam.muzzleLocal (barrel mouth).
+    // First giant: Melting Point–style ramping sunlight beam.
+    // Static prismcannon.glb — beam origin from GLB AttackNode (Tripo +X front).
     "id": "prismCannon",
-    "name": "Arcane Prism Cannon",
+    "name": "Prism Cannon",
     "cost": 400,
     "unlockCost": 200,
     "hpWithdraw": 400,
     "footprint": { "cols": 4, "rows": 4 },
     "formation": { "cols": 1, "rows": 1 },
-    "meshScale": 3.6,
-    "modelId": "mortar",
+    "meshScale": 5.0,
     "targets": { "ground": true, "air": true },
     "collisionRadius": 2.6,
     "colliders": [
@@ -17,12 +16,11 @@
         { "y": 2.2, "r": 0.7 },
     ],
     "rampBeam": {
-        "range": 105,
         "doubleEvery": 1.25,
         "maxDps": 1000000,
         "splashRadius": 3,
-        // Rest-local barrel mouth on mortar mesh (before meshScale); toward −Z.
-        "muzzleLocal": { "x": 0, "y": 1.95, "z": -1.35 },
+        // Tight horizontal cone — must yaw to engage flanks; pitch free.
+        "fireYawHalfDeg": 18,
     },
     "sandWeight": 1.15,
     "deathWear": "ash",
@@ -31,12 +29,13 @@
     "hp": 1000,
     // Also rampBeam starting DPS (talents like AP scale this via resolved stats).
     "damage": 10,
-    "range": 105,
+    "range": 52,
     "attackInterval": 0.2,
     "speed": 2.0,
-    "turnRate": 0.9,
+    // Slow traverse: flankers can outrun the cone and break the lock.
+    "turnRate": 0.1,
     "turnMove": "pivot",
     "proceduralModel": "mortar",
-    "talents": ["barrel", "armor", "ap", "powerDraw", "skyhunt", "groundhunt", "veteranAim"],
+    "talents": ["barrel", "armor", "massBinding", "bloodfeast"],
     "talentSlots": 4,
 }

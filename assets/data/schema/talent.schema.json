@@ -231,7 +231,7 @@
             }
           },
           "additionalProperties": false,
-          "description": "Convert-ray extras (wizard). `maxTargets` channels at once; `intensityMult` scales each channel (weaker multi-bind)."
+          "description": "Convert-ray / ramp-beam extras (wizard Mass Binding, Prism Cannon). `maxTargets` channels at once; `intensityMult` scales each channel."
         },
         "convertHealFull": {
           "type": "boolean",

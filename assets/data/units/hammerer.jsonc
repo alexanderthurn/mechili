@@ -29,6 +29,6 @@
     "turnRate": 5,
     "proceduralModel": "hammerer",
     // range / damage pivots
-    "talents": ["barrel", "ap", "powerDraw", "groundhunt", "veteranAim"],
+    "talents": ["barrel", "ap", "powerDraw", "veteranAim"],
     "talentSlots": 4,
 }

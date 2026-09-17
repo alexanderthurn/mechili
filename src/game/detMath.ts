@@ -96,3 +96,28 @@ export function detAtan2(y: number, x: number): number {
     // -0 and +0 are different bit patterns to stateHash's Float64 view
     return r === 0 ? 0 : r;
 }
+
+/**
+ * Deterministic `2 ** x` (x ≥ 0): whole doublings multiply exactly, the
+ * fractional part is e^(f·ln2) from a fixed-length Taylor series — no
+ * `Math.pow`/`Math.exp`. Saturates at Infinity past 2^1024.
+ */
+export function detPow2(x: number): number {
+    if (!(x > 0)) return 1;
+    let whole = Math.floor(x);
+    const f = x - whole;
+    let out = 1;
+    while (whole > 0 && out < Infinity) {
+        out *= 2;
+        whole--;
+    }
+    // e^y for y = f·ln2 in [0, 0.694): 16 terms leave an error far below one ulp of the result's scale
+    const y = f * 0.6931471805599453;
+    let term = 1;
+    let sum = 1;
+    for (let k = 1; k <= 16; k++) {
+        term = (term * y) / k;
+        sum += term;
+    }
+    return out * sum;
+}
