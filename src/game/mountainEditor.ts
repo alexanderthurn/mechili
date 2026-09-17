@@ -13,6 +13,7 @@
 import {
     Mesh,
     MeshBasicMaterial,
+    Plane,
     Raycaster,
     Vector2,
     Vector3,
@@ -126,6 +127,14 @@ export class MountainEditor {
     private readonly ndc = new Vector2();
     private painting = false;
     /**
+     * A height-changing stroke aims on a flat plane at the height it started
+     * on: raising the ground under the brush would otherwise pull the ray's
+     * hit toward the camera and walk the brush away from where you point.
+     */
+    private readonly strokePlane = new Plane(new Vector3(0, 1, 0), 0);
+    private strokeLocked = false;
+    private readonly strokeHit = new Vector3();
+    /**
      * Terrain editing takes the board's left clicks and the brush keys; off
      * ("Play"), the match's own controls get them back — placing units,
      * casting spells — with the landscape as it is.
@@ -194,6 +203,7 @@ export class MountainEditor {
         const onUp = (e: PointerEvent) => {
             if (!this.painting) return;
             this.painting = false;
+            this.strokeLocked = false;
             try {
                 this.dom.releasePointerCapture(e.pointerId);
             } catch {
@@ -367,7 +377,7 @@ export class MountainEditor {
     }
 
     private onPointer(clientX: number, clientY: number, paint: boolean): void {
-        const hit = this.pick(clientX, clientY);
+        const hit = this.pick(clientX, clientY, paint);
         if (!hit) {
             this.hover = null;
             this.cursor.visible = false;
@@ -378,13 +388,28 @@ export class MountainEditor {
         this.drapeCursor(hit.x, hit.z);
     }
 
-    private pick(clientX: number, clientY: number): Vector3 | null {
+    private pick(clientX: number, clientY: number, painting = false): Vector3 | null {
         const rect = this.dom.getBoundingClientRect();
         this.ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
         this.ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.ndc, this.camera);
+        // mid-stroke with a height brush: stay on the plane the stroke started on
+        if (painting && this.strokeLocked) {
+            const onPlane = this.raycaster.ray.intersectPlane(this.strokePlane, this.strokeHit);
+            if (onPlane) return onPlane;
+        }
         const hits = this.raycaster.intersectObjects([this.board, this.mesh], false);
-        return hits.length ? hits[0]!.point : null;
+        const hit = hits.length ? hits[0]!.point : null;
+        if (painting && hit && !this.strokeLocked && this.changesHeight()) {
+            this.strokePlane.constant = -hit.y;
+            this.strokeLocked = true;
+        }
+        return hit;
+    }
+
+    /** raise / lower / flatten / lean move the surface itself (paint and plants don't) */
+    private changesHeight(): boolean {
+        return !this.isMaterialBrush() && !this.isObjectBrush();
     }
 
     private gatherNear(cx: number, cz: number, gatherR2: number): void {
@@ -769,6 +794,7 @@ export class MountainEditor {
         this.editing = on;
         if (!on) {
             this.painting = false;
+            this.strokeLocked = false;
             this.hover = null;
             this.cursor.visible = false;
         }
