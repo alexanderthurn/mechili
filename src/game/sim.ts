@@ -419,11 +419,13 @@ export interface Actor {
     /** true this sim step while the convert beam is on (incl. shield-blocked) */
     convertRayActive: boolean;
     /**
-     * Seconds of unbroken ramp-beam lock on {@link rampBeamTarget}. Resets when
-     * the beam breaks (target lost / ward block). Melting Point–style DPS ramp.
+     * Sticky ramp-beam locks (Mass Binding → multiple). Parallel
+     * {@link rampBeamLockTs}; {@link rampBeamTarget} mirrors [0].
      */
-    rampBeamLockT: number;
-    /** sticky ramp-beam victim (null = hunting) */
+    rampBeamTargets: Actor[];
+    /** Seconds of unbroken lock per {@link rampBeamTargets} entry. */
+    rampBeamLockTs: number[];
+    /** Primary sticky ramp-beam victim (null = hunting); mirrors targets[0]. */
     rampBeamTarget: Actor | null;
     /**
      * Attack windup: damage (melee) or volley (ranged) waiting to resolve
@@ -1114,7 +1116,8 @@ export class BattleSim {
                     convertRayTipY: 0,
                     convertRayTipZ: 0,
                     convertRayActive: false,
-                    rampBeamLockT: 0,
+                    rampBeamTargets: [],
+                    rampBeamLockTs: [],
                     rampBeamTarget: null,
                     meleePendingDamage: 0,
                     meleePendingAt: 0,
@@ -1553,7 +1556,7 @@ export class BattleSim {
         return best;
     }
 
-    /** Convert-ray extras: channel count, intensity scale, full heal on flip. */
+    /** Convert / ramp-beam extras: channel count, intensity scale, full heal on flip. */
     private convertTuning(caster: Actor): {
         maxTargets: number;
         intensityMult: number;
@@ -2787,7 +2790,8 @@ export class BattleSim {
                 convertRayTipY: 0,
                 convertRayTipZ: 0,
                 convertRayActive: false,
-                rampBeamLockT: 0,
+                rampBeamTargets: [],
+                rampBeamLockTs: [],
                 rampBeamTarget: null,
                 meleePendingDamage: 0,
                 meleePendingAt: 0,
@@ -5803,8 +5807,8 @@ export class BattleSim {
     }
 
     /**
-     * Arcane Prism / Melting Point beam: sticky lock, exponential DPS ramp,
-     * soft tip splash. Reuses convertRay tip/active for the yellow ray VFX.
+     * Prism Cannon / Melting Point beam: sticky lock(s), exponential DPS ramp,
+     * soft tip splash. Mass Binding ({@link convertTuning}) adds extra channels.
      * Horizontal fire is gated by {@link UnitType.rampBeam.fireYawHalfDeg} —
      * pitch is free; flankers that outrun turnRate break the lock.
      */
@@ -5822,7 +5826,9 @@ export class BattleSim {
                 this.config.types,
             );
             const team = actorTeam(caster);
+            const tuning = this.convertTuning(caster);
             const fireHalf = Math.max(1e-3, ((beam.fireYawHalfDeg ?? 20) * Math.PI) / 180);
+            const stats = this.statsOf(caster);
 
             const stillOk = (target: Actor): boolean =>
                 target.alive &&
@@ -5832,9 +5838,9 @@ export class BattleSim {
                 (target.unit.type.structure ||
                     (target.altitude > 0 ? targets.air : targets.ground));
 
-            const inReach = (target: Actor, range: number): boolean => {
+            const inReach = (target: Actor): boolean => {
                 const reach =
-                    this.weaponRange(caster, target, range) + caster.radius + target.radius;
+                    this.weaponRange(caster, target, stats.range) + caster.radius + target.radius;
                 const dx = target.x - caster.x;
                 const dz = target.z - caster.z;
                 return dx * dx + dz * dz <= reach * reach;
@@ -5846,121 +5852,121 @@ export class BattleSim {
             const inFireYaw = (target: Actor): boolean =>
                 Math.abs(deltaAngle(caster.facing, aimYawOf(target))) <= fireHalf;
 
-            const stats = this.statsOf(caster);
-            let target = caster.rampBeamTarget;
-            if (target && stillOk(target) && inReach(target, stats.range)) {
-                // Keep turning toward the sticky lock (overrides AI closestEnemy).
-                faceToward(caster, aimYawOf(target), dt);
-                if (!inFireYaw(target)) {
-                    // Flanker slipped the cone before the barrel caught up.
-                    target = null;
-                }
-            } else {
-                target = null;
+            // Turn first so this step's fire cone matches the barrel.
+            const faceFocus =
+                caster.rampBeamTargets.find((t) => stillOk(t) && inReach(t)) ??
+                this.closestConvertTarget(caster, stats.range, targets);
+            if (faceFocus) faceToward(caster, aimYawOf(faceFocus), dt);
+
+            // Keep sticky channels that are still valid + in the fire cone.
+            const kept: Actor[] = [];
+            const keptLock: number[] = [];
+            for (let i = 0; i < caster.rampBeamTargets.length; i++) {
+                const target = caster.rampBeamTargets[i]!;
+                const lockT = caster.rampBeamLockTs[i] ?? 0;
+                if (!stillOk(target) || !inReach(target) || !inFireYaw(target)) continue;
+                kept.push(target);
+                keptLock.push(lockT);
             }
+            caster.rampBeamTargets = kept;
+            caster.rampBeamLockTs = keptLock;
 
-            if (!target) {
-                // Target lost (death / OOR / out of yaw cone) — ramp resets.
-                caster.rampBeamLockT = 0;
-                caster.rampBeamTarget = null;
-                caster.convertRayActive = false;
-
-                // Turn toward the nearest threat even outside the cone so the
-                // prism can bring flanks into the fire wedge.
-                const anyNear = this.closestConvertTarget(caster, stats.range, targets);
-                if (anyNear) faceToward(caster, aimYawOf(anyNear), dt);
-
-                target = this.closestConvertTarget(
+            // Fill up to Mass Binding maxTargets with in-cone foes.
+            while (caster.rampBeamTargets.length < tuning.maxTargets) {
+                const exclude = new Set(caster.rampBeamTargets);
+                const next = this.closestConvertTarget(
                     caster,
                     stats.range,
                     targets,
-                    undefined,
+                    exclude,
                     fireHalf,
                 );
-                if (!target) continue;
-                caster.rampBeamTarget = target;
-                caster.rampBeamLockT = 0;
+                if (!next) break;
+                caster.rampBeamTargets.push(next);
+                caster.rampBeamLockTs.push(0);
             }
 
-            const from = this.beamRayOrigin(caster);
-            const tt = target.unit.type;
-            const toY = target.footY + projectileAimY(tt) * tt.meshScale;
-            // Beam tracks the barrel (facing), not a chord to the target — otherwise
-            // the laser looks like it yaws faster than turnRate. Pitch stays free.
-            const flat = hypot(target.x - from.x, target.z - from.z) || 1e-6;
-            const fwdX = -detSin(caster.facing);
-            const fwdZ = -detCos(caster.facing);
-            const tipX = from.x + fwdX * flat;
-            const tipY = toY;
-            const tipZ = from.z + fwdZ * flat;
-            const sx = tipX - from.x;
-            const sy = tipY - from.y;
-            const sz = tipZ - from.z;
-            const block = this.enemyShieldHitOnSegment(from.x, from.y, from.z, sx, sy, sz, team);
-
-            // Exponential ramp: unit damage × 2^(t / doubleEvery), capped.
-            const doubleEvery = Math.max(1e-3, beam.doubleEvery);
-            const startDps = Math.max(0, stats.damage);
-            const maxDps = beam.maxDps != null ? Math.max(startDps, beam.maxDps) : Infinity;
-            const rawDps = Math.min(
-                maxDps,
-                startDps * Math.pow(2, caster.rampBeamLockT / doubleEvery),
-            );
-            const intensity = this.hitDamage(caster, target, rawDps, d.attackMult);
-
-            if (block) {
-                // Ward break pauses the ramp (beam never reached the victim).
-                caster.rampBeamLockT = 0;
-                caster.convertRayTipX = block.x;
-                caster.convertRayTipY = block.y;
-                caster.convertRayTipZ = block.z;
-                caster.convertRayActive = true;
-                block.shield.hp -= intensity * dt;
-                block.shield.hurtTimer = HURT_BAR_SECONDS;
-                if (block.shield.hp <= 0) this.breakShield(block.shield);
+            caster.rampBeamTarget = caster.rampBeamTargets[0] ?? null;
+            if (caster.rampBeamTargets.length === 0) {
+                caster.convertRayActive = false;
                 continue;
             }
 
-            caster.rampBeamLockT += dt;
-            caster.convertRayTipX = tipX;
-            caster.convertRayTipY = tipY;
-            caster.convertRayTipZ = tipZ;
-            caster.convertRayActive = true;
-
+            const from = this.beamRayOrigin(caster);
+            const doubleEvery = Math.max(1e-3, beam.doubleEvery);
+            const startDps = Math.max(0, stats.damage);
+            const maxDps = beam.maxDps != null ? Math.max(startDps, beam.maxDps) : Infinity;
             const splash = beam.splashRadius ?? 0;
-            // Tip splash is a soft fringe (not full primary DPS) — otherwise a
-            // ramped beam multi-kills the whole pack and the sticky lock
-            // constantly hops onto a full-HP neighbour (looks like HP "jumped").
             const splashFrac = 0.25;
-            if (splash > 0) {
-                const shootTargets = effectiveTargets(
-                    caster.unit.type,
-                    actorSeat(caster),
-                    (_s, _t, techId) => this.actorHasTech(caster, techId),
-                    this.config.types,
+            let tipSet = false;
+            let anyActive = false;
+
+            for (let i = 0; i < caster.rampBeamTargets.length; i++) {
+                const target = caster.rampBeamTargets[i]!;
+                const tt = target.unit.type;
+                const toY = target.footY + projectileAimY(tt) * tt.meshScale;
+                // Multi-channel: aim each ray at its victim (all within the fire cone).
+                const sx = target.x - from.x;
+                const sy = toY - from.y;
+                const sz = target.z - from.z;
+                const block = this.enemyShieldHitOnSegment(from.x, from.y, from.z, sx, sy, sz, team);
+
+                const rawDps = Math.min(
+                    maxDps,
+                    startDps * Math.pow(2, (caster.rampBeamLockTs[i] ?? 0) / doubleEvery),
                 );
-                for (const a of this.actors) {
-                    if (!a.alive || actorTeam(a) === team) continue;
-                    if (a.unit.type.extra) continue;
-                    if (a.altitude > 0 ? !shootTargets.air : !shootTargets.ground) continue;
-                    if (hypot(a.x - target.x, a.z - target.z) > splash + a.radius) continue;
-                    const frac = a === target ? 1 : splashFrac;
-                    const dealt = intensity * dt * frac * this.damageTakenMult(a);
-                    if (dealt <= 0) continue;
-                    this.applyDamage(
-                        caster.unit,
-                        a,
-                        dealt,
-                        { x: a.x - from.x, z: a.z - from.z },
-                        'direct',
-                    );
+                const intensity =
+                    this.hitDamage(caster, target, rawDps, d.attackMult) * tuning.intensityMult;
+
+                anyActive = true;
+                if (block) {
+                    caster.rampBeamLockTs[i] = 0;
+                    if (!tipSet) {
+                        caster.convertRayTipX = block.x;
+                        caster.convertRayTipY = block.y;
+                        caster.convertRayTipZ = block.z;
+                        tipSet = true;
+                    }
+                    block.shield.hp -= intensity * dt;
+                    block.shield.hurtTimer = HURT_BAR_SECONDS;
+                    if (block.shield.hp <= 0) this.breakShield(block.shield);
+                    continue;
                 }
-            } else {
-                const dealt = intensity * dt * this.damageTakenMult(target);
-                if (dealt > 0) {
-                    this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz }, 'direct');
+
+                caster.rampBeamLockTs[i] = (caster.rampBeamLockTs[i] ?? 0) + dt;
+                if (!tipSet) {
+                    caster.convertRayTipX = target.x;
+                    caster.convertRayTipY = toY;
+                    caster.convertRayTipZ = target.z;
+                    tipSet = true;
+                }
+
+                if (splash > 0) {
+                    for (const a of this.actors) {
+                        if (!a.alive || actorTeam(a) === team) continue;
+                        if (a.unit.type.extra) continue;
+                        if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
+                        if (hypot(a.x - target.x, a.z - target.z) > splash + a.radius) continue;
+                        const frac = a === target ? 1 : splashFrac;
+                        const dealt = intensity * dt * frac * this.damageTakenMult(a);
+                        if (dealt <= 0) continue;
+                        this.applyDamage(
+                            caster.unit,
+                            a,
+                            dealt,
+                            { x: a.x - from.x, z: a.z - from.z },
+                            'direct',
+                        );
+                    }
+                } else {
+                    const dealt = intensity * dt * this.damageTakenMult(target);
+                    if (dealt > 0) {
+                        this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz }, 'direct');
+                    }
                 }
             }
+
+            if (anyActive) caster.convertRayActive = true;
         }
     }
 

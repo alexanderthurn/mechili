@@ -2,7 +2,7 @@
     // First giant: Melting Point–style ramping sunlight beam.
     // Static prismcannon.glb — beam origin from GLB AttackNode (Tripo +X front).
     "id": "prismCannon",
-    "name": "Arcane Prism Cannon",
+    "name": "Prism Cannon",
     "cost": 400,
     "unlockCost": 200,
     "hpWithdraw": 400,
@@ -29,13 +29,13 @@
     "hp": 1000,
     // Also rampBeam starting DPS (talents like AP scale this via resolved stats).
     "damage": 10,
-    "range": 105,
+    "range": 52,
     "attackInterval": 0.2,
     "speed": 2.0,
     // Slow traverse: flankers can outrun the cone and break the lock.
     "turnRate": 0.1,
     "turnMove": "pivot",
     "proceduralModel": "mortar",
-    "talents": ["barrel", "armor", "ap", "powerDraw", "skyhunt", "groundhunt", "veteranAim"],
+    "talents": ["barrel", "armor", "massBinding", "bloodfeast"],
     "talentSlots": 4,
 }

@@ -20,7 +20,7 @@
     "walkCadence": 1.5,
     "turnRate": 12,
     "proceduralModel": "dwarf",
-    "talents": ["legs", "armor", "bloodRage", "aegis", "looseRank", "regeneration", "bloodfeast", "blightburst", "ruinousEnd", "groundhunt"],
+    "talents": ["legs", "armor", "bloodRage","looseRank", "blightburst"],
     "talentSlots": 4,
     "itemSlots": 2,
 }

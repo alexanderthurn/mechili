@@ -159,8 +159,8 @@ export interface TechDef {
      */
     formationSpreadAdd?: number;
     /**
-     * Convert-ray extras (wizard). `maxTargets` channels at once;
-     * `intensityMult` scales each channel (weaker multi-bind).
+     * Convert-ray / ramp-beam extras (wizard Mass Binding, Prism Cannon).
+     * `maxTargets` channels at once; `intensityMult` scales each channel.
      */
     convert?: { maxTargets?: number; intensityMult?: number };
     /** After a successful convert, restore the victim to full HP. */

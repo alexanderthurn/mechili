@@ -29,7 +29,7 @@ import { THEME } from '../theme';
 import { assetUrl } from './assets';
 
 const MAX_CONVERT = 64;
-const MAX_PRISM = 32;
+const MAX_PRISM = 48;
 /** half-width of each lightning card (world units before instance scale) */
 const CORE_HALF_W = 0.28;
 const GLOW_HALF_W = 0.55;
@@ -455,49 +455,56 @@ export class ConversionFx {
                     }
                 }
 
-                _dir.set(
-                    caster.convertRayTipX - from.x,
-                    caster.convertRayTipY - from.y,
-                    caster.convertRayTipZ - from.z,
-                );
-                const len = Math.max(_dir.length(), 0.35);
-                _dir.multiplyScalar(1 / len);
-                // Same soft pulse / scale the sky shaft used before it went wide+faint.
+                const victims =
+                    caster.rampBeamTargets?.length > 0
+                        ? caster.rampBeamTargets
+                        : caster.rampBeamTarget
+                          ? [caster.rampBeamTarget]
+                          : [];
                 const atkPulse = 0.88 + 0.12 * Math.sin(simTime * 2.2 + caster.index);
                 const atkW = PRISM_ATTACK_W * atkPulse;
                 const atkHdr =
                     PRISM_ATTACK_HDR * (bloomUltra ? 1.35 : bloomOn ? 1.15 : 1);
-                if (pn < MAX_PRISM) {
-                    placePrismPipe(
-                        this.prismMesh,
-                        pn++,
-                        from.x,
-                        from.y,
-                        from.z,
-                        _dir.x,
-                        _dir.y,
-                        _dir.z,
-                        len,
-                        atkW,
-                        _skyCore,
-                        atkHdr,
-                    );
-                }
-                if (bloomOn && pn < MAX_PRISM) {
-                    placePrismPipe(
-                        this.prismMesh,
-                        pn++,
-                        from.x,
-                        from.y,
-                        from.z,
-                        _dir.x,
-                        _dir.y,
-                        _dir.z,
-                        len,
-                        atkW * (bloomUltra ? 3.2 : 2.4),
-                        _skyCore,
-                        atkHdr * (bloomUltra ? 0.38 : 0.22),
-                    );
+                for (let vi = 0; vi < victims.length; vi++) {
+                    const victim = victims[vi]!;
+                    if (!victim.alive) continue;
+                    const vt = victim.unit.type;
+                    const toY = victim.footY + projectileAimY(vt) * vt.meshScale;
+                    _dir.set(victim.rx - from.x, toY - from.y, victim.rz - from.z);
+                    const len = Math.max(_dir.length(), 0.35);
+                    _dir.multiplyScalar(1 / len);
+                    if (pn < MAX_PRISM) {
+                        placePrismPipe(
+                            this.prismMesh,
+                            pn++,
+                            from.x,
+                            from.y,
+                            from.z,
+                            _dir.x,
+                            _dir.y,
+                            _dir.z,
+                            len,
+                            atkW,
+                            _skyCore,
+                            atkHdr,
+                        );
+                    }
+                    if (bloomOn && pn < MAX_PRISM) {
+                        placePrismPipe(
+                            this.prismMesh,
+                            pn++,
+                            from.x,
+                            from.y,
+                            from.z,
+                            _dir.x,
+                            _dir.y,
+                            _dir.z,
+                            len,
+                            atkW * (bloomUltra ? 3.2 : 2.4),
+                            _skyCore,
+                            atkHdr * (bloomUltra ? 0.38 : 0.22),
+                        );
+                    }
                 }
                 continue;
             }

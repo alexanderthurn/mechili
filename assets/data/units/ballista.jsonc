@@ -42,13 +42,7 @@
         "barrel",
         "ap",
         "fireArrows",
-        "wideBlast",
         "empArrows",
-        "legs",
-        "powerDraw",
-        "skyhunt",
-        "groundhunt",
-        "veteranAim"
     ],
     // 4 of N — pick a siege, anti-air, fire, or hex build.
     "talentSlots": 4,
