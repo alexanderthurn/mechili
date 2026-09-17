@@ -128,7 +128,11 @@
     "moneyFactor": "Fattore scorte",
     "moneyFactorNote": "scala le entrate di ogni round per entrambe le squadre",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Entrate di scorte {{label}} (entrambe le squadre)"
+    "moneyOption": "Entrate di scorte {{label}} (entrambe le squadre)",
+    "startMoney": "Scorte iniziali",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "scorte una tantum a inizio partita per entrambe le squadre",
+    "startMoneyOption": "Scorte iniziali {{label}} (entrambe le squadre)"
   },
   "mpHintSteam": "Accesso consentito solo alle lobby di Steam. È necessario che Steam sia in esecuzione all'avvio.",
   "mpHintMatchmaking": "Stanze online tramite PeerJS + elenco server. Richiede connessione a Internet.",

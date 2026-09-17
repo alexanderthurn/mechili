@@ -128,7 +128,11 @@
     "moneyFactor": "Множитель припасов",
     "moneyFactorNote": "меняет доход каждого раунда для обеих команд",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} доход припасов (обе команды)"
+    "moneyOption": "{{label}} доход припасов (обе команды)",
+    "startMoney": "Стартовые припасы",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "разовые припасы в начале матча для обеих команд",
+    "startMoneyOption": "Стартовые припасы {{label}} (обе команды)"
   },
   "mpHintSteam": "Только лобби Steam. При запуске Steam должен быть включён.",
   "mpHintMatchmaking": "Онлайн-комнаты через PeerJS и список серверов. Нужен интернет.",

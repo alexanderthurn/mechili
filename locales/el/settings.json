@@ -128,7 +128,11 @@
     "moneyFactor": "Συντελεστής εφοδίων",
     "moneyFactorNote": "κλιμακώνει το εισόδημα κάθε γύρου και για τις δύο ομάδες",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} εισόδημα εφοδίων (και οι δύο ομάδες)"
+    "moneyOption": "{{label}} εισόδημα εφοδίων (και οι δύο ομάδες)",
+    "startMoney": "Αρχικά εφόδια",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "εφάπαξ εφόδια στην αρχή του αγώνα και για τις δύο ομάδες",
+    "startMoneyOption": "Αρχικά εφόδια {{label}} (και οι δύο ομάδες)"
   },
   "mpHintSteam": "Μόνο Steam lobbies. Χρειάζεται το Steam ανοιχτό στην εκκίνηση.",
   "mpHintMatchmaking": "Online δωμάτια μέσω PeerJS + λίστας διακομιστών. Χρειάζεται ίντερνετ.",

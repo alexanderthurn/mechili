@@ -128,7 +128,11 @@
     "moneyFactor": "Mnożnik zapasów",
     "moneyFactorNote": "skaluje dochód z każdej rundy dla obu drużyn",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Dochód z zapasów {{label}} (obie drużyny)"
+    "moneyOption": "Dochód z zapasów {{label}} (obie drużyny)",
+    "startMoney": "Zapasy początkowe",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "jednorazowe zapasy na starcie meczu dla obu drużyn",
+    "startMoneyOption": "Zapasy początkowe {{label}} (obie drużyny)"
   },
   "mpHintSteam": "Tylko w lobby Steam. Wymaga uruchomienia Steama w momencie premiery.",
   "mpHintMatchmaking": "Pokoje online przez PeerJS + lista serwerów. Wymagany internet.",

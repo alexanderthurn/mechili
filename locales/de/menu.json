@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "jede Festung auf einem hohen Plateau mit einer Rampe",
   "terrainWall": "Wall",
   "terrainWallDesc": "ein hügeliger Wall mit Lücken in der Mitte, sonst flach",
-  "money": "Vorrat"
+  "money": "Vorrat",
+  "startMoney": "Startvorrat"
 }

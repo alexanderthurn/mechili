@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "cada fortaleza en una meseta alta con una sola rampa",
   "terrainWall": "Muralla",
   "terrainWallDesc": "una muralla de colinas con huecos en el centro, el resto plano",
-  "money": "Suministros"
+  "money": "Suministros",
+  "startMoney": "Suministros iniciales"
 }

@@ -128,7 +128,11 @@
     "moneyFactor": "Forsyningsfaktor",
     "moneyFactorNote": "skalerer inntekten hver runde for begge lag",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} forsyningsinntekt (begge lag)"
+    "moneyOption": "{{label}} forsyningsinntekt (begge lag)",
+    "startMoney": "Startforsyninger",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "engangsforsyninger ved kampstart for begge lag",
+    "startMoneyOption": "{{label}} startforsyninger (begge lag)"
   },
   "mpHintSteam": "Kun Steam-lobbyer. Krever at Steam kjører ved oppstart.",
   "mpHintMatchmaking": "Online rom via PeerJS + serverliste. Trenger internett.",

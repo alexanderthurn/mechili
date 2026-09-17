@@ -128,7 +128,11 @@
     "moneyFactor": "Factor de provizii",
     "moneyFactorNote": "scalează venitul fiecărei runde pentru ambele echipe",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Venit din provizii {{label}} (ambele echipe)"
+    "moneyOption": "Venit din provizii {{label}} (ambele echipe)",
+    "startMoney": "Provizii inițiale",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "provizii unice la începutul meciului pentru ambele echipe",
+    "startMoneyOption": "Provizii inițiale {{label}} (ambele echipe)"
   },
   "mpHintSteam": "Doar pentru lobby-urile Steam. Necesită ca Steam să ruleze la lansare.",
   "mpHintMatchmaking": "Camere online prin PeerJS + listă de servere. Necesită internet.",

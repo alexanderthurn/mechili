@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "각 요새가 높은 고원 위, 오르막은 하나뿐",
   "terrainWall": "방벽",
   "terrainWallDesc": "중앙에 틈이 있는 언덕 방벽, 나머지는 평지",
-  "money": "보급"
+  "money": "보급",
+  "startMoney": "시작 보급"
 }

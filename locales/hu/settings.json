@@ -128,7 +128,11 @@
     "moneyFactor": "Ellátmányszorzó",
     "moneyFactorNote": "mindkét csapat minden körös bevételét skálázza",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} ellátmánybevétel (mindkét csapat)"
+    "moneyOption": "{{label}} ellátmánybevétel (mindkét csapat)",
+    "startMoney": "Kezdő ellátmány",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "egyszeri ellátmány a meccs elején mindkét csapatnak",
+    "startMoneyOption": "{{label}} kezdő ellátmány (mindkét csapat)"
   },
   "mpHintSteam": "Csak Steam lobbik. Indításkor Steam futtatása szükséges.",
   "mpHintMatchmaking": "Online szobák PeerJS-en + szerverlista. Internetkapcsolat szükséges.",

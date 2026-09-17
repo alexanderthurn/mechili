@@ -128,7 +128,11 @@
     "moneyFactor": "Faktor bekalan",
     "moneyFactorNote": "melaraskan pendapatan setiap pusingan untuk kedua-dua pasukan",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Pendapatan bekalan {{label}} (kedua-dua pasukan)"
+    "moneyOption": "Pendapatan bekalan {{label}} (kedua-dua pasukan)",
+    "startMoney": "Bekalan permulaan",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "bekalan sekali sahaja pada permulaan perlawanan untuk kedua-dua pasukan",
+    "startMoneyOption": "Bekalan permulaan {{label}} (kedua-dua pasukan)"
   },
   "mpHintSteam": "Lobi Steam sahaja. Memerlukan Steam berjalan semasa pelancaran.",
   "mpHintMatchmaking": "Bilik dalam talian melalui senarai pelayan PeerJS +. Memerlukan internet.",

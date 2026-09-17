@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "hver festning på et høyt platå med én rampe opp",
   "terrainWall": "Voll",
   "terrainWallDesc": "en kupert voll med åpninger i midten, resten flatt",
-  "money": "Forsyninger"
+  "money": "Forsyninger",
+  "startMoney": "Startforsyninger"
 }

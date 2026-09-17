@@ -128,7 +128,11 @@
     "moneyFactor": "Множител на провизиите",
     "moneyFactorNote": "променя дохода от всеки рунд за двата отбора",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} доход от провизии (двата отбора)"
+    "moneyOption": "{{label}} доход от провизии (двата отбора)",
+    "startMoney": "Начални провизии",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "еднократни провизии в началото на мача за двата отбора",
+    "startMoneyOption": "Начални провизии {{label}} (двата отбора)"
   },
   "mpHintSteam": "Само лобита в Steam. Изисква Steam да е стартиран при стартиране.",
   "mpHintMatchmaking": "Онлайн стаи чрез PeerJS + списък със сървъри. Необходим е интернет.",

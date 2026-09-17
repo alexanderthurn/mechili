@@ -128,7 +128,11 @@
     "moneyFactor": "補給倍率",
     "moneyFactorNote": "両チームの毎ラウンドの収入を調整",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} 補給収入（両チーム）"
+    "moneyOption": "{{label}} 補給収入（両チーム）",
+    "startMoney": "開始時の補給",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "試合開始時に両チームへ一度だけ入る補給",
+    "startMoneyOption": "{{label}} 開始時の補給（両チーム）"
   },
   "mpHintSteam": "Steam ロビーのみ。起動時に Steam が必要。",
   "mpHintMatchmaking": "PeerJS + サーバーリスト経由のオンラインルーム。インターネットが必要。",

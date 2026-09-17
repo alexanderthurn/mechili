@@ -128,7 +128,11 @@
     "moneyFactor": "Vorratsfaktor",
     "moneyFactorNote": "skaliert das Einkommen jeder Runde für beide Teams",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} Vorratseinkommen (beide Teams)"
+    "moneyOption": "{{label}} Vorratseinkommen (beide Teams)",
+    "startMoney": "Startvorrat",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "einmaliger Vorrat zu Matchbeginn für beide Teams",
+    "startMoneyOption": "{{label}} Startvorrat (beide Teams)"
   },
   "mpHintSteam": "Nur Steam-Lobbys. Steam muss beim Start ausgeführt werden.",
   "mpHintLan": "Nur lokales Netzwerk (Electron). Kein Internetanschluss erforderlich.",

@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "každá pevnost na vysoké plošině s jedinou rampou",
   "terrainWall": "Val",
   "terrainWallDesc": "kopcovitý val s průchody uprostřed, jinde rovina",
-  "money": "Zásoby"
+  "money": "Zásoby",
+  "startMoney": "Počáteční zásoby"
 }

@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "her kale tek rampalı yüksek bir platoda",
   "terrainWall": "Sur",
   "terrainWallDesc": "ortada geçitli tepelik bir sur, gerisi düz",
-  "money": "Tedarik"
+  "money": "Tedarik",
+  "startMoney": "Başlangıç tedariki"
 }

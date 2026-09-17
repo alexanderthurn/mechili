@@ -128,7 +128,11 @@
     "moneyFactor": "Voorraadfactor",
     "moneyFactorNote": "schaalt het inkomen van elke ronde voor beide teams",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} voorraadinkomen (beide teams)"
+    "moneyOption": "{{label}} voorraadinkomen (beide teams)",
+    "startMoney": "Startvoorraad",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "eenmalige voorraad bij aanvang van de match voor beide teams",
+    "startMoneyOption": "{{label}} startvoorraad (beide teams)"
   },
   "mpHintSteam": "Alleen beschikbaar in Steam-lobby's. Steam moet bij het opstarten actief zijn.",
   "mpHintMatchmaking": "Online chatrooms via PeerJS + serverlijst. Internetverbinding vereist.",

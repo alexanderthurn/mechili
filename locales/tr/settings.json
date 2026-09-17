@@ -128,7 +128,11 @@
     "moneyFactor": "Tedarik çarpanı",
     "moneyFactorNote": "her turun gelirini iki takım için ölçekler",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} tedarik geliri (iki takım)"
+    "moneyOption": "{{label}} tedarik geliri (iki takım)",
+    "startMoney": "Başlangıç tedariki",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "maç başında iki takıma da bir kerelik tedarik",
+    "startMoneyOption": "{{label}} başlangıç tedariki (iki takım)"
   },
   "mpHintSteam": "Sadece Steam lobilerinde kullanılabilir. Oyun başlatıldığında Steam'in çalışır durumda olması gerekir.",
   "mpHintMatchmaking": "PeerJS + sunucu listesi üzerinden çevrimiçi odalar. İnternet bağlantısı gereklidir.",

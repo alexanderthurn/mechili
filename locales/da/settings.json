@@ -128,7 +128,11 @@
     "moneyFactor": "Forsyningsfaktor",
     "moneyFactorNote": "skalerer hver rundes indkomst for begge hold",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} forsyningsindkomst (begge hold)"
+    "moneyOption": "{{label}} forsyningsindkomst (begge hold)",
+    "startMoney": "Startforsyninger",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "engangsforsyninger ved kampstart for begge hold",
+    "startMoneyOption": "{{label}} startforsyninger (begge hold)"
   },
   "mpHintSteam": "Kun Steam-lobbyer. Kræver, at Steam kører ved opstart.",
   "mpHintMatchmaking": "Online rum via PeerJS + serverliste. Kræver internet.",

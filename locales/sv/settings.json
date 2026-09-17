@@ -128,7 +128,11 @@
     "moneyFactor": "Förrådsfaktor",
     "moneyFactorNote": "skalar varje rundas inkomst för båda lagen",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} förrådsinkomst (båda lagen)"
+    "moneyOption": "{{label}} förrådsinkomst (båda lagen)",
+    "startMoney": "Startförråd",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "engångsförråd vid matchstart för båda lagen",
+    "startMoneyOption": "{{label}} startförråd (båda lagen)"
   },
   "mpHintSteam": "Endast Steam-lobbyer. Kräver att Steam körs vid lansering.",
   "mpHintMatchmaking": "Onlinerum via PeerJS + serverlista. Kräver internet.",

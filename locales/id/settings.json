@@ -128,7 +128,11 @@
     "moneyFactor": "Faktor persediaan",
     "moneyFactorNote": "mengatur pendapatan setiap ronde untuk kedua tim",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Pendapatan persediaan {{label}} (kedua tim)"
+    "moneyOption": "Pendapatan persediaan {{label}} (kedua tim)",
+    "startMoney": "Persediaan awal",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "persediaan sekali di awal pertandingan untuk kedua tim",
+    "startMoneyOption": "Persediaan awal {{label}} (kedua tim)"
   },
   "mpHintSteam": "Hanya lobi Steam. Membutuhkan Steam yang berjalan saat peluncuran.",
   "mpHintMatchmaking": "Ruang obrolan online melalui PeerJS + daftar server. Membutuhkan koneksi internet.",

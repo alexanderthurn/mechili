@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "ogni fortezza su un altopiano con una sola rampa",
   "terrainWall": "Muraglia",
   "terrainWallDesc": "una muraglia collinosa con varchi al centro, il resto piatto",
-  "money": "Scorte"
+  "money": "Scorte",
+  "startMoney": "Scorte iniziali"
 }

@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "varje fästning på en hög platå med en enda ramp",
   "terrainWall": "Vall",
   "terrainWallDesc": "en kuperad vall med luckor i mitten, resten platt",
-  "money": "Förråd"
+  "money": "Förråd",
+  "startMoney": "Startförråd"
 }

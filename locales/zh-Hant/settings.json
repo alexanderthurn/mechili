@@ -128,7 +128,11 @@
     "moneyFactor": "補給倍率",
     "moneyFactorNote": "調整雙方每回合的收入",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} 補給收入（雙方）"
+    "moneyOption": "{{label}} 補給收入（雙方）",
+    "startMoney": "初始補給",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "開局時給雙方各一次性發放的補給",
+    "startMoneyOption": "{{label}} 初始補給（雙方）"
   },
   "mpHintSteam": "僅使用 Steam 大廳。啟動時需要 Steam 正在運行。",
   "mpHintMatchmaking": "透過 PeerJS 與伺服器列表進行線上連線。需要連網。",

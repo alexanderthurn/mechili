@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "hver fæstning på et højt plateau med én rampe op",
   "terrainWall": "Vold",
   "terrainWallDesc": "en bakket vold med huller i midten, resten fladt",
-  "money": "Forsyninger"
+  "money": "Forsyninger",
+  "startMoney": "Startforsyninger"
 }

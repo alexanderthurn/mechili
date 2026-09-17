@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "cada fortaleza num planalto alto com uma única rampa",
   "terrainWall": "Muralha",
   "terrainWallDesc": "uma muralha de colinas com brechas no centro, o resto plano",
-  "money": "Provisões"
+  "money": "Provisões",
+  "startMoney": "Provisões iniciais"
 }

@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "fiecare fortăreață pe un platou înalt cu o singură rampă",
   "terrainWall": "Val",
   "terrainWallDesc": "un val deluros cu breșe la mijloc, restul plat",
-  "money": "Provizii"
+  "money": "Provizii",
+  "startMoney": "Provizii inițiale"
 }

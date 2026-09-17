@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "każda twierdza na wysokim płaskowyżu z jednym podjazdem",
   "terrainWall": "Wał",
   "terrainWallDesc": "pagórkowaty wał z przerwami pośrodku, reszta płaska",
-  "money": "Zapasy"
+  "money": "Zapasy",
+  "startMoney": "Zapasy początkowe"
 }

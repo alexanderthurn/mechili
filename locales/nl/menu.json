@@ -179,5 +179,6 @@
   "terrainHighlandsDesc": "elke vesting op een hoog plateau met één helling omhoog",
   "terrainWall": "Wal",
   "terrainWallDesc": "een heuvelachtige wal met gaten in het midden, de rest vlak",
-  "money": "Voorraad"
+  "money": "Voorraad",
+  "startMoney": "Startvoorraad"
 }

@@ -128,7 +128,11 @@
     "moneyFactor": "Factor de suministros",
     "moneyFactorNote": "escala los ingresos de cada ronda para ambos equipos",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Ingresos de suministros {{label}} (ambos equipos)"
+    "moneyOption": "Ingresos de suministros {{label}} (ambos equipos)",
+    "startMoney": "Suministros iniciales",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "suministros únicos al empezar la partida para ambos equipos",
+    "startMoneyOption": "Suministros iniciales {{label}} (ambos equipos)"
   },
   "mpHintSteam": "Solo para salas de Steam. Requiere que Steam esté en ejecución al iniciar.",
   "mpHintMatchmaking": "Salas online mediante PeerJS + lista de servidores. Requiere conexión a internet.",

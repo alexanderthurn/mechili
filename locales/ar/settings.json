@@ -128,7 +128,11 @@
     "moneyFactor": "معامل الإمداد",
     "moneyFactorNote": "يضبط دخل كل جولة للفريقين",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "دخل إمداد {{label}} (الفريقان)"
+    "moneyOption": "دخل إمداد {{label}} (الفريقان)",
+    "startMoney": "إمداد البداية",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "إمداد لمرة واحدة عند بدء المباراة للفريقين",
+    "startMoneyOption": "إمداد البداية {{label}} (الفريقان)"
   },
   "mpHintSteam": "لوبيات Steam فقط. يحتاج تشغيل Steam عند الإطلاق.",
   "mpHintMatchmaking": "غرف عبر الإنترنت عبر PeerJS + قائمة خوادم. تحتاج إنترنت.",

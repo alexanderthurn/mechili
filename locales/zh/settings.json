@@ -128,7 +128,11 @@
     "moneyFactor": "补给倍率",
     "moneyFactorNote": "调整双方每回合的收入",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} 补给收入（双方）"
+    "moneyOption": "{{label}} 补给收入（双方）",
+    "startMoney": "初始补给",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "开局时给双方各一次性发放的补给",
+    "startMoneyOption": "{{label}} 初始补给（双方）"
   },
   "mpHintSteam": "仅使用 Steam 大厅。启动时需要 Steam 正在运行。",
   "mpHintMatchmaking": "通过 PeerJS 与服务器列表进行在线联机。需要联网。",

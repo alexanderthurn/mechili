@@ -128,7 +128,11 @@
     "moneyFactor": "Множник припасів",
     "moneyFactorNote": "змінює дохід кожного раунду для обох команд",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} дохід припасів (обидві команди)"
+    "moneyOption": "{{label}} дохід припасів (обидві команди)",
+    "startMoney": "Стартові припаси",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "одноразові припаси на початку матчу для обох команд",
+    "startMoneyOption": "Стартові припаси {{label}} (обидві команди)"
   },
   "mpHintSteam": "Тільки лобі Steam. Steam має бути запущений під час запуску.",
   "mpHintMatchmaking": "Онлайн-кімнати через PeerJS + список серверів. Потрібен інтернет.",

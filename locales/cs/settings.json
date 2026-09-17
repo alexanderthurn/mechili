@@ -128,7 +128,11 @@
     "moneyFactor": "Násobek zásob",
     "moneyFactorNote": "upravuje příjem každého kola pro oba týmy",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} příjem zásob (oba týmy)"
+    "moneyOption": "{{label}} příjem zásob (oba týmy)",
+    "startMoney": "Počáteční zásoby",
+    "startMoneyValue": "+{{amount}}",
+    "startMoneyNote": "jednorázové zásoby na začátku zápasu pro oba týmy",
+    "startMoneyOption": "Počáteční zásoby {{label}} (oba týmy)"
   },
   "mpHintSteam": "Pouze ve Steam lobby. Vyžaduje spuštění Steamu při spuštění.",
   "mpHintMatchmaking": "Online místnosti přes PeerJS + seznam serverů. Vyžaduje internet.",
