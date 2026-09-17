@@ -6492,6 +6492,8 @@ export class Game {
         // sides the roster actually has, not just today's pair.
         marks.models = h >>> 0;
         for (const v of this.hp) mix(v);
+        // the board relief (a static map, a battle's deformation) — the sim walks on it
+        mix(this.map.terrain.checksum());
         marks.hp = h >>> 0;
         for (let s = 0; s < sideCount(this.seats); s++) {
             for (const seat of sideIdsOf(this.seats, s)) mix(this.economy.balance(seat));
@@ -9165,7 +9167,11 @@ export class Game {
             if (unit.team !== 'horde' || unit.type.structure) continue;
             if (Math.abs(unit.world.x) > this.map.halfW || Math.abs(unit.world.z) > this.map.halfH) unit.marchIn = true;
         }
+        // every battle starts on the undeformed board (a spectator or reconnect
+        // rebuilding this battle starts from the same ground)
+        this.map.terrain.reset();
         this.sim = new BattleSim(this.placement.allUnits(), {
+            terrain: this.map.terrain,
             towers: this.settings.towers,
             leveling: this.settings.leveling,
             battleSeconds: this.battleSeconds(),
@@ -9614,7 +9620,8 @@ export class Game {
         this.conversionFx.clear();
         this.oilDripFx.clear();
         this.scenery.clearHammerCrush();
-        this.clearHammerFlatten();
+        // hammer flattening lasts for the battle it happened in
+        this.map.terrain.reset();
         this.spellChargeMarkers = [];
         this.oilVisuals.setDraft(null);
         this.oilVisuals.sync(this.oilField, 0, [], false);
@@ -10412,6 +10419,8 @@ export class Game {
 
     private tick(dtSeconds: number): void {
         if (this.disposed) return;
+        // the board relief may have changed since last frame (battle reset, editor)
+        this.syncTerrainMeshes();
         // The sim's OWN elapsed time must be the TRUE, unclamped wall-clock
         // gap since the last tick, not dtSeconds — PixiJS's ticker clamps
         // its own deltaMS to at most 100ms by default (minFPS=10),
@@ -10562,6 +10571,8 @@ export class Game {
                     this.collapseEndedRound = true;
                 }
                 this.stampWearFromEvents(battleEvents);
+                // this frame's craters / flattening, without a frame of lag
+                this.syncTerrainMeshes();
                 const sceneryShields = livingShieldDisks(this.placement.allUnits());
                 for (const ev of battleEvents) {
                     if (ev.kind === 'spellMeteor') {
@@ -10577,14 +10588,6 @@ export class Game {
                             ev.halfDepth,
                             ev.yaw,
                             sceneryShields,
-                        );
-                        this.applyHammerFlatten(
-                            ev.x,
-                            ev.z,
-                            ev.halfWidth,
-                            ev.halfDepth,
-                            ev.yaw,
-                            ev.flattenY,
                         );
                     } else if (ev.kind === 'hazardDrip') {
                         this.oilDripFx.spawnDrip(ev.hazard, ev.x, ev.z, ev.at, {
@@ -10991,26 +10994,17 @@ export class Game {
         }
     }
 
-    /** Flatten board relief under a Hammer of the Gods scar until battle ends. */
-    private applyHammerFlatten(
-        x: number,
-        z: number,
-        halfWidth: number,
-        halfDepth: number,
-        yaw: number,
-        flattenY: number,
-    ): void {
-        this.map.addFlattenStamp(x, z, halfWidth, halfDepth, yaw, flattenY);
-        this.map.applyReliefToMesh(this.groundMesh);
-        this.map.applyReliefToMesh(this.gridOverlay);
-        this.bindLandscapeHeights();
-    }
-
-    private clearHammerFlatten(): void {
-        this.map.clearFlattenStamps();
-        this.map.applyReliefToMesh(this.groundMesh);
-        this.map.applyReliefToMesh(this.gridOverlay);
-        this.bindLandscapeHeights();
+    /**
+     * Once per frame: copy whatever part of the board relief changed (a battle
+     * effect, a reset, an editor stroke) into the board and deploy-grid meshes,
+     * and move the board's decorations onto it — just that rectangle.
+     */
+    private syncTerrainMeshes(): void {
+        const rect = this.map.terrain.takeDirty();
+        if (!rect) return;
+        this.map.terrain.writeToGeometry(this.groundMesh.geometry, rect);
+        this.map.terrain.writeToGeometry(this.gridOverlay.geometry, rect);
+        this.scenery.reseatGroundedDecorations(this.map.terrain.worldBounds(rect));
     }
 
     /**

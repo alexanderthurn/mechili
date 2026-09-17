@@ -770,6 +770,91 @@ try {
         if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; share codes; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rules and purse, horde ring, side swap, mirror, loadout rules)');
     }
 
+    // ---- deformable board relief (terrainGrid.ts): exact, local, reversible, cheap
+    {
+        const three = await import('three');
+        const { BattleMap, STANDARD_MAP } = await server.ssrLoadModule('/src/game/map.ts');
+        let tk = true;
+        const texpect = (cond, msg) => {
+            if (!cond) {
+                tk = false;
+                console.error(`FAIL terrain: ${msg}`);
+            }
+        };
+        const map = new BattleMap({ ...STANDARD_MAP });
+        const grid = map.terrain;
+        // nodes carry the procedural relief exactly; the sim reads the grid
+        let worstNode = 0;
+        for (let iz = 0; iz < grid.nz; iz += 5) {
+            for (let ix = 0; ix < grid.nx; ix += 5) {
+                const x = -map.halfW + ix * grid.cellX;
+                const z = -map.halfH + iz * grid.cellZ;
+                worstNode = Math.max(worstNode, Math.abs(map.heightAt(x, z) - map.proceduralHeightAt(x, z)));
+            }
+        }
+        texpect(worstNode < 1e-5, `grid nodes differ from the relief by ${worstNode}`);
+        grid.takeDirty();
+        const before = Float32Array.from(grid.heights);
+        const sumBefore = grid.checksum();
+        // a hammer: flat inside, untouched outside its reach
+        grid.flattenRect(20, -30, 10, 6, 0.4, 5);
+        texpect(Math.abs(map.heightAt(20, -30) - 5) < 1e-4, `flatten center at ${map.heightAt(20, -30)}`);
+        let outsideChanged = 0;
+        for (let i = 0; i < before.length; i++) {
+            const x = -map.halfW + (i % grid.nx) * grid.cellX;
+            const z = -map.halfH + Math.floor(i / grid.nx) * grid.cellZ;
+            if (Math.hypot(x - 20, z + 30) > Math.hypot(10, 6) + 0.01 && grid.heights[i] !== before[i]) outsideChanged++;
+        }
+        texpect(outsideChanged === 0, `${outsideChanged} nodes changed outside the hammer`);
+        const dirty = grid.takeDirty();
+        texpect(!!dirty && dirty.x1 - dirty.x0 < 14 && dirty.z1 - dirty.z0 < 14, `dirty rect too large: ${JSON.stringify(dirty)}`);
+        grid.crater(-40, 50, 6, 2);
+        texpect(Math.abs(map.heightAt(-40, 50) - (map.proceduralHeightAt(-40, 50) - 2)) < 0.05, 'crater depth');
+        texpect(grid.checksum() !== sumBefore, 'checksum ignores deformation');
+        // the same effects in the same order give the same ground (determinism)
+        const twin = new BattleMap({ ...STANDARD_MAP });
+        twin.terrain.flattenRect(20, -30, 10, 6, 0.4, 5);
+        twin.terrain.crater(-40, 50, 6, 2);
+        texpect(twin.terrain.checksum() === grid.checksum(), 'same effects, different ground');
+        // mesh copy: vertices = grid, only the changed rows uploaded
+        const geo = new three.PlaneGeometry(map.width, map.height, map.cols * 2, map.rows * 2);
+        geo.rotateX(-Math.PI / 2);
+        const rect = { x0: 0, z0: 0, x1: grid.nx - 1, z1: grid.nz - 1 };
+        grid.writeToGeometry(geo, rect);
+        const gp = geo.attributes.position;
+        let worstMesh = 0;
+        for (let i = 0; i < gp.count; i += 97) worstMesh = Math.max(worstMesh, Math.abs(gp.getY(i) - map.heightAt(gp.getX(i), gp.getZ(i))));
+        texpect(worstMesh < 1e-4, `mesh vertices off the grid by ${worstMesh}`);
+        texpect(Math.abs(geo.attributes.normal.getY(0) - 1) < 0.2, 'normals not pointing up');
+        // reset: exactly the undeformed relief again
+        grid.reset();
+        texpect(grid.checksum() === sumBefore && grid.heights.every((v, i) => v === before[i]), 'reset does not restore the relief');
+        // cost: lookups and many craters
+        const lookups = 2_000_000;
+        let t0 = performance.now();
+        let acc = 0;
+        for (let i = 0; i < lookups; i++) acc += map.heightAt(((i * 37) % 300) - 150, ((i * 53) % 270) - 135);
+        const lookupNs = ((performance.now() - t0) * 1e6) / lookups;
+        t0 = performance.now();
+        let proc = 0;
+        for (let i = 0; i < lookups / 4; i++) proc += map.proceduralHeightAt(((i * 37) % 300) - 150, ((i * 53) % 270) - 135);
+        const procNs = ((performance.now() - t0) * 1e6) / (lookups / 4);
+        t0 = performance.now();
+        for (let i = 0; i < 1000; i++) grid.crater(((i * 31) % 280) - 140, ((i * 17) % 250) - 125, 3 + (i % 4), 0.6);
+        const cratersMs = performance.now() - t0;
+        t0 = performance.now();
+        const full = grid.takeDirty();
+        if (full) grid.writeToGeometry(geo, full);
+        const uploadMs = performance.now() - t0;
+        grid.reset();
+        texpect(Number.isFinite(acc + proc), 'lookup produced NaN');
+        if (!tk) failed = true;
+        else
+            console.log(
+                `ok   terrain grid: nodes exact, hammer flat inside / untouched outside, crater, deterministic, mesh copy, reset exact · lookup ${lookupNs.toFixed(0)} ns (procedural ${procNs.toFixed(0)} ns) · 1000 craters ${cratersMs.toFixed(1)} ms · full-board mesh write ${uploadMs.toFixed(1)} ms`,
+            );
+    }
+
     // ---- static maps (assets/data/landscapes/): capture → file → apply keeps every height in place
     {
         const three = await import('three');

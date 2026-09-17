@@ -23,6 +23,7 @@ import { detAtan2, detCos, detSin, hypot, wrapPi } from './detMath';
 import { mulberry32, simGroundHeightAt, simGroundSupportAt, worldHeightAt } from './map';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { effectiveWeaponReach, resolveSlopeMove } from './terrainCombat';
+import type { TerrainGrid } from './terrainGrid';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
     METEOR_SHARD_FALL_SEC,
@@ -98,6 +99,12 @@ export const STORM_DEBUFF_SEC = 5;
 export const BATTLE_START_FREEZE = 1.0;
 
 export interface SimConfig {
+    /**
+     * The board relief grid battle effects deform (a Hammer of the Gods
+     * flattens it). The sim changes it inside the step an effect lands in, so
+     * every client derives the same ground; omit to leave the ground as it is.
+     */
+    terrain?: TerrainGrid;
     towers: TowerSettings;
     leveling: LevelingSettings;
     /** the battle's fixed length — the sim refuses to step past it */
@@ -3028,21 +3035,14 @@ export class BattleSim {
             this.crushingHammer = true;
             this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
             this.crushingHammer = false;
-            this.events.push({
-                kind: 'hammerCrush',
-                x: s.x,
-                z: s.z,
-                halfWidth: rect?.halfWidth ?? s.radius,
-                halfDepth: rect?.halfDepth ?? s.radius,
-                yaw: s.yaw ?? 0,
-                flattenY: this.sampleHammerFlattenY(
-                    s.x,
-                    s.z,
-                    rect?.halfWidth ?? s.radius,
-                    rect?.halfDepth ?? s.radius,
-                    s.yaw ?? 0,
-                ),
-            });
+            const halfWidth = rect?.halfWidth ?? s.radius;
+            const halfDepth = rect?.halfDepth ?? s.radius;
+            const yaw = s.yaw ?? 0;
+            const flattenY = this.sampleHammerFlattenY(s.x, s.z, halfWidth, halfDepth, yaw);
+            // the ground under the hammer is pressed flat now, in this step —
+            // from here on every unit walks and shoots on the flattened board
+            this.config.terrain?.flattenRect(s.x, s.z, halfWidth, halfDepth, yaw, flattenY);
+            this.events.push({ kind: 'hammerCrush', x: s.x, z: s.z, halfWidth, halfDepth, yaw, flattenY });
             // No blast shove — impulse was sliding pancakes (and their meshes)
             // outside the scar while blood stayed at the kill seat.
         } else {

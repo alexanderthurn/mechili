@@ -1557,11 +1557,12 @@ export class Scenery {
     }
 
     /**
-     * After a landscape sculpt: move trees, bushes and meadow props onto the
-     * current {@link worldHeightAt} while keeping how far each sat above or
-     * below its ground.
+     * After the ground changed (a sculpt, a hammer's flattening): move trees,
+     * bushes and meadow props onto the current {@link worldHeightAt} while
+     * keeping how far each sat above or below its ground. `area` limits it to
+     * the decorations standing in that world rectangle.
      */
-    reseatGroundedDecorations(): void {
+    reseatGroundedDecorations(area?: { minX: number; maxX: number; minZ: number; maxZ: number }): void {
         const WATER_Y = -1.1;
         this.forEachDecorationMesh((mesh) => {
             let cache = this.instanceGroundY.get(mesh);
@@ -1579,8 +1580,15 @@ export class Scenery {
                 this.instanceGroundY.set(mesh, cache);
             }
 
+            let moved = false;
             for (let i = 0; i < mesh.count; i++) {
                 mesh.getMatrixAt(i, this.reseatMat);
+                if (area) {
+                    this.reseatPos.setFromMatrixPosition(this.reseatMat);
+                    const { x, z } = this.reseatPos;
+                    if (x < area.minX || x > area.maxX || z < area.minZ || z > area.maxZ) continue;
+                }
+                moved = true;
                 this.reseatMat.decompose(this.reseatPos, this.reseatQuat, this.reseatScale);
                 // Lily pads / blossoms sit on the water plane, not terrain.
                 if (Math.abs(this.reseatPos.y - WATER_Y) < 0.35) continue;
@@ -1591,7 +1599,7 @@ export class Scenery {
                 this.reseatMat.compose(this.reseatPos, this.reseatQuat, this.reseatScale);
                 mesh.setMatrixAt(i, this.reseatMat);
             }
-            mesh.instanceMatrix.needsUpdate = true;
+            if (moved) mesh.instanceMatrix.needsUpdate = true;
         });
         this.reseatAuthoredPlants();
         this.treeShadows.invalidate();

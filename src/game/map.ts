@@ -11,7 +11,8 @@ import {
     Vector3,
 } from 'three';
 
-import { detCos, detSin, hypot } from './detMath';
+import { hypot } from './detMath';
+import { TerrainGrid } from './terrainGrid';
 import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileUniformDecls, closeTileWeightFallbackGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
@@ -421,7 +422,9 @@ export class BattleMap {
         this.height = this.rows * CELL;
         this.halfW = this.width / 2;
         this.halfH = this.height / 2;
-        groundHeightFn = (x, z) => this.heightAt(x, z);
+        this.terrain = new TerrainGrid(this);
+        this.terrain.setBase((x, z) => this.proceduralHeightAt(x, z));
+        groundHeightFn = (x, z) => this.terrain.sample(x, z);
     }
 
     cellCenter(col: number, row: number): Vector3 {
@@ -523,68 +526,26 @@ export class BattleMap {
      * buildings, ballistics and the deploy grid all follow the sculpt.
      */
     private reliefOverride: ((x: number, z: number) => number) | null = null;
-    private readonly flattenStamps: {
-        x: number;
-        z: number;
-        halfWidth: number;
-        halfDepth: number;
-        yaw: number;
-        targetY: number;
-    }[] = [];
+    /**
+     * The relief the match plays on, as a grid at the board mesh's vertices:
+     * sim, ballistics and visuals all read it, battle effects deform it (see
+     * terrainGrid.ts).
+     */
+    readonly terrain: TerrainGrid;
 
     setReliefOverride(fn: ((x: number, z: number) => number) | null): void {
         this.reliefOverride = fn;
+        this.terrain.setBase(this.reliefSampler());
     }
 
-    /** the relief function in effect right now (a later override doesn't change the returned one) */
+    /** the undeformed relief function in effect right now (a later override doesn't change the returned one) */
     reliefSampler(): (x: number, z: number) => number {
         return this.reliefOverride ?? ((x, z) => this.proceduralHeightAt(x, z));
     }
 
-    /** Hammer-of-Gods board flatten — lasts until {@link clearFlattenStamps}. */
-    addFlattenStamp(
-        x: number,
-        z: number,
-        halfWidth: number,
-        halfDepth: number,
-        yaw: number,
-        targetY: number,
-    ): void {
-        this.flattenStamps.push({ x, z, halfWidth, halfDepth, yaw, targetY });
-    }
-
-    clearFlattenStamps(): void {
-        this.flattenStamps.length = 0;
-    }
-
+    /** the board height at a world point (deformations included) */
     heightAt(x: number, z: number): number {
-        let h = this.reliefOverride ? this.reliefOverride(x, z) : this.proceduralHeightAt(x, z);
-        for (const stamp of this.flattenStamps) {
-            const w = this.flattenWeight(x, z, stamp);
-            if (w <= 0) continue;
-            h = h * (1 - w) + stamp.targetY * w;
-        }
-        return h;
-    }
-
-    /** Soft edge weight inside an oriented flatten rect (1 = full flatten). */
-    private flattenWeight(
-        x: number,
-        z: number,
-        stamp: { x: number; z: number; halfWidth: number; halfDepth: number; yaw: number },
-    ): number {
-        const dx = x - stamp.x;
-        const dz = z - stamp.z;
-        const c = detCos(stamp.yaw);
-        const s = detSin(stamp.yaw);
-        const lx = dx * c + dz * s;
-        const lz = -dx * s + dz * c;
-        const ax = Math.abs(lx) / Math.max(1e-3, stamp.halfWidth);
-        const az = Math.abs(lz) / Math.max(1e-3, stamp.halfDepth);
-        if (ax > 1 || az > 1) return 0;
-        const edge = Math.max(ax, az);
-        if (edge <= 0.82) return 1;
-        return 1 - (edge - 0.82) / 0.18;
+        return this.terrain.sample(x, z);
     }
 
     /** Procedural board mounds (used when no landscape override is set). */
