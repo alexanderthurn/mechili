@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Tidak ada resep yang cocok — semua rune kembali ke pemiliknya pada penyebaran berikutnya.",
   "forgeReadyThis": "Siapkan penyebaran ini",
   "forgeReadyNext": "Siap untuk penyebaran selanjutnya",
-  "forgeFireToStart": "Nyalakan tungku untuk memulainya — siap untuk penempatan berikutnya."
+  "forgeFireToStart": "Nyalakan tungku untuk memulainya — siap untuk penempatan berikutnya.",
+  "techHexed": "Terkutuk — talenta ini mati sampai kutukan berakhir.",
+  "techHexedShort": "✕ Terkutuk — tidak aktif"
 }

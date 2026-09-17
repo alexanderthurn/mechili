@@ -124,7 +124,11 @@
     "boostsTitle": "强化",
     "tier": "第 {{n}} 阶",
     "tierValue": "{{cost}} 补给 → +{{attack}} 伤害，+{{hp}} 生命",
-    "tierNote": "先锋 — 为总值，不与上一阶叠加"
+    "tierNote": "先锋 — 为总值，不与上一阶叠加",
+    "moneyFactor": "补给倍率",
+    "moneyFactorNote": "调整双方每回合的收入",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} 补给收入（双方）"
   },
   "mpHintSteam": "仅使用 Steam 大厅。启动时需要 Steam 正在运行。",
   "mpHintMatchmaking": "通过 PeerJS 与服务器列表进行在线联机。需要联网。",
@@ -178,7 +182,8 @@
     "rotate": "旋转所选部队",
     "pause": "暂停菜单。在影院模式下会先恢复 HUD。",
     "chat": "发送聊天",
-    "fullscreen": "全屏（桌面版）"
+    "fullscreen": "全屏（桌面版）",
+    "zoom": "朝指针方向放大 / 缩小"
   },
   "controlsGamepad": {
     "head": "手柄",
@@ -243,6 +248,12 @@
     "shadowsHint": "光斑 / 日照图",
     "showDead": "显示阵亡单位",
     "antialias": "抗锯齿",
-    "antialiasHint": "更平滑边缘 · 下一场生效"
+    "antialiasHint": "更平滑边缘 · 下一场生效",
+    "ao": "环境光遮蔽",
+    "aoHint": "让单位更贴合棋盘",
+    "bloom": "泛光",
+    "bloomHint": "火焰与魔法的光晕 · 战斗",
+    "vignette": "暗角",
+    "vignetteHint": "战斗中边缘变暗"
   }
 }

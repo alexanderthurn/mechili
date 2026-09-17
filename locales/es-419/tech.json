@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Pies veloces"
+    "name": "Pies veloces",
+    "description": "+35% de velocidad de movimiento."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Alcance",
+    "description": "+20 de alcance."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Perforación",
+    "description": "+40% de daño."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Fuego",
+    "description": "Los ataques dejan fuego breve en el suelo y queman: suficiente para prender charcos de aceite."
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "Placas de hierro",
+    "description": "+50% de PV."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Tiro rápido",
+    "description": "+43% de velocidad de ataque."
   },
   "aegis": {
     "name": "Égida",
@@ -63,10 +64,76 @@
     "produceFirst": ", primero después de {{delay}}",
     "produceOffspring": ". La descendencia coincide con el nivel de los padres",
     "onKill": "Cuando esta unidad mate, levanta un {{child}}",
-    "cleave": "Ataca a todos los enemigos dentro de {{radius}} (alrededor de esta unidad)"
+    "cleave": "Ataca a todos los enemigos dentro de {{radius}} (alrededor de esta unidad)",
+    "emp": "Maleficio al impactar: talentos desactivados y −{{slow}}% de velocidad durante {{duration}}",
+    "modRangeAdd": "{{amount}} de alcance"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Maleficio",
+    "description": "Los impactos maldicen al objetivo: sus talentos se apagan y se mueve un 40% más lento durante 3,5 s. Aura dorada / Piedra solar lo resisten."
+  },
+  "blightburst": {
+    "name": "Estallido pútrido",
+    "description": "Al morir, deja un charco de ácido."
+  },
+  "bloodRage": {
+    "name": "Furia sangrienta",
+    "description": "+30% de velocidad de movimiento y +33% de velocidad de ataque."
+  },
+  "bloodfeast": {
+    "name": "Festín de sangre",
+    "description": "Cura el 25% del daño infligido (repartido entre los miembros vivos del Pack)."
+  },
+  "carrionFeast": {
+    "name": "Festín de carroña",
+    "description": "Al matar, cura a este Pack el 30% de los PV máximos de la víctima (repartido entre los miembros vivos)."
+  },
+  "doubleShot": {
+    "name": "Disparo doble",
+    "description": "Dispara 2 proyectiles por ataque (+1 extra en armas de ráfaga). +10% de tiempo de recarga."
+  },
+  "galeGate": {
+    "name": "Puerta del vendaval",
+    "description": "Puede reubicarse en cada ronda de despliegue sin usar Mover Pack."
+  },
+  "groundhunt": {
+    "name": "Caza terrestre",
+    "description": "+50% de daño y +15% de alcance contra unidades terrestres."
+  },
+  "looseRank": {
+    "name": "Filas abiertas",
+    "description": "Los miembros del Pack se separan más: menos vulnerables al daño en área."
+  },
+  "massBinding": {
+    "name": "Vínculo masivo",
+    "description": "Irradia o convierte hasta 4 enemigos a la vez; cada canal actúa con un 18% de intensidad."
+  },
+  "powerDraw": {
+    "name": "Tensión máxima",
+    "description": "+70% de daño, −15% de alcance y disparos más lentos."
+  },
+  "regeneration": {
+    "name": "Regeneración",
+    "description": "Regenera el 2% de los PV máximos por segundo en batalla."
+  },
+  "ruinousEnd": {
+    "name": "Final ruinoso",
+    "description": "Al morir, explota con daño igual a los PV máximos de esta unidad."
+  },
+  "skyhunt": {
+    "name": "Caza aérea",
+    "description": "+50% de daño y +25% de alcance contra unidades aéreas."
+  },
+  "soulRestore": {
+    "name": "Restauración del alma",
+    "description": "Las unidades convertidas recuperan todos sus PV."
+  },
+  "veteranAim": {
+    "name": "Puntería veterana",
+    "description": "Cada nivel por encima de 1: +12% de daño y +10% de alcance (además de la veteranía normal)."
+  },
+  "whirlwind": {
+    "name": "Torbellino",
+    "description": "Tajo más amplio: golpea a todos los enemigos en un gran círculo alrededor de esta unidad."
   }
 }

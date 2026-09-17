@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "검은 무리"
+  },
+  "goblin": {
+    "name": "고블린"
+  },
+  "hammerer": {
+    "name": "망치병"
+  },
+  "ogre": {
+    "name": "오우거"
+  },
+  "bat": {
+    "name": "박쥐"
+  },
+  "mortar": {
+    "name": "박격포"
+  },
+  "prismCannon": {
+    "name": "프리즘 캐논"
   }
 }

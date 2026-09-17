@@ -178,5 +178,6 @@
   "terrainHighlands": "Felföld",
   "terrainHighlandsDesc": "minden erőd magas fennsíkon, egyetlen feljáróval",
   "terrainWall": "Sánc",
-  "terrainWallDesc": "dombos sánc réseken át középen, a többi sík"
+  "terrainWallDesc": "dombos sánc réseken át középen, a többi sík",
+  "money": "Ellátmány"
 }

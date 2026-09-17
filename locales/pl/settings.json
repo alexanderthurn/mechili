@@ -124,7 +124,11 @@
     "boostsTitle": "Wzmacnia",
     "tier": "Poziom {{n}}",
     "tierValue": "{{cost}} zaopatrzenie → +{{attack}} obrażenia, +{{hp}} HP",
-    "tierNote": "Vanguard — sumy, nie są naliczane na podstawie poprzedniego poziomu"
+    "tierNote": "Vanguard — sumy, nie są naliczane na podstawie poprzedniego poziomu",
+    "moneyFactor": "Mnożnik zapasów",
+    "moneyFactorNote": "skaluje dochód z każdej rundy dla obu drużyn",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "Dochód z zapasów {{label}} (obie drużyny)"
   },
   "mpHintSteam": "Tylko w lobby Steam. Wymaga uruchomienia Steama w momencie premiery.",
   "mpHintMatchmaking": "Pokoje online przez PeerJS + lista serwerów. Wymagany internet.",
@@ -178,7 +182,8 @@
     "rotate": "Obróć wybrany Pack",
     "pause": "Menu pauzy. W trybie kinowym najpierw przywraca HUD.",
     "chat": "Wyślij czat",
-    "fullscreen": "Pełny ekran (aplikacja komputerowa)"
+    "fullscreen": "Pełny ekran (aplikacja komputerowa)",
+    "zoom": "Przybliż / oddal w stronę kursora"
   },
   "controlsGamepad": {
     "head": "Gamepad",
@@ -243,6 +248,12 @@
     "shadowsHint": "plamy / mapa słońca",
     "showDead": "Pokaż martwe jednostki",
     "antialias": "Antyaliasing",
-    "antialiasHint": "gładsze krawędzie · następne dopasowanie"
+    "antialiasHint": "gładsze krawędzie · następne dopasowanie",
+    "ao": "Okluzja otoczenia",
+    "aoHint": "osadza jednostki na planszy",
+    "bloom": "Poświata",
+    "bloomHint": "blask ognia i magii · bitwa",
+    "vignette": "Winieta",
+    "vignetteHint": "ciemniejsze brzegi w bitwie"
   }
 }

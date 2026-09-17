@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Kein passendes Rezept – alle Runen kehren beim nächsten Einsatz zu ihren Besitzern zurück.",
   "forgeReadyThis": "Bereit in diesem Einsatz",
   "forgeReadyNext": "Bereit für den nächsten Einsatz",
-  "forgeFireToStart": "Zünde die Schmiede an, um sie in Gang zu bringen – bereit für den nächsten Einsatz."
+  "forgeFireToStart": "Zünde die Schmiede an, um sie in Gang zu bringen – bereit für den nächsten Einsatz.",
+  "techHexed": "Verhext — dieses Talent ist aus, bis der Fluch endet.",
+  "techHexedShort": "✕ Verhext — inaktiv"
 }

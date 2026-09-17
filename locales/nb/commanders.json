@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Himmeltrollmann",
-    "description": "Luftenheter får +12 % angrep og HP."
+    "description": "Luftenheter får +12 % angrep og HP.",
+    "unitsLabel": "3× Nisser · 1× Kråkeryttere"
   },
   "cost": {
     "title": "Grådig prins",
-    "description": "Alle enheter −12 % angrep og HP, men +100 i forsyning hver runde."
+    "description": "Alle enheter −12 % angrep og HP, men +100 i forsyning hver runde.",
+    "unitsLabel": "3× Dverger · 1× Kråkeryttere"
   },
   "elite": {
     "title": "Eliteprinsen",
-    "description": "Rekruttering på nivå 2. +100 i forsyning i runde 1."
+    "description": "Rekruttering på nivå 2. +100 i forsyning i runde 1.",
+    "unitsLabel": "3× Nisser · 1× Troll"
   },
   "archer": {
     "title": "Bueskytterkommandør",
-    "description": "En gratis nivå 3-bueskytter ankommer i runde 2."
+    "description": "En gratis nivå 3-bueskytter ankommer i runde 2.",
+    "unitsLabel": "3× Dverger · 2× Bueskyttere"
   },
   "addi": {
     "title": "Relikviebevarer",
-    "description": "Får 3× Tapperhetsrune i runde 1."
+    "description": "Får 3× Tapperhetsrune i runde 1.",
+    "unitsLabel": "3× Hammersvingere · 2× Dverger"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Får 2 meteorladninger i runde 2."
+    "description": "Får 2 meteorladninger i runde 2.",
+    "unitsLabel": "3× Nisser · 1× Morterer"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Dverger · 1× Troll"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Nisser · 2× Hammersvingere"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Starter med én feltleksjon."
+    "description": "Starter med én feltleksjon.",
+    "unitsLabel": "3× Nisser · 2× Bueskyttere"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Dverger · 1× Morterer"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Får én gratis svart yngel-edderkopp hver runde."
+    "description": "Får én gratis svart yngel-edderkopp hver runde.",
+    "unitsLabel": "3× Svart yngel · 2× Flaggermus"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Førstegangs flankegytinger tar halvparten av tiden."
+    "description": "Førstegangs flankegytinger tar halvparten av tiden.",
+    "unitsLabel": "3× Dverger · 2× Hammersvingere"
   }
 }

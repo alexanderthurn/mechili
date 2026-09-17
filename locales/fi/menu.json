@@ -178,5 +178,6 @@
   "terrainHighlands": "Ylänkö",
   "terrainHighlandsDesc": "jokainen linnake korkealla tasanteella, yksi luiska ylös",
   "terrainWall": "Valli",
-  "terrainWallDesc": "mäkinen valli keskellä aukkoineen, muuten tasaista"
+  "terrainWallDesc": "mäkinen valli keskellä aukkoineen, muuten tasaista",
+  "money": "Tarvikkeet"
 }

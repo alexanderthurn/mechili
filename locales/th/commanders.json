@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "จอมเวทท้องฟ้า",
-    "description": "ยูนิตอากาศได้ +12% การโจมตีและ HP"
+    "description": "ยูนิตอากาศได้ +12% การโจมตีและ HP",
+    "unitsLabel": "3× ก็อบลิน · 1× ผู้ขี่กา"
   },
   "cost": {
     "title": "เจ้าชายโลภ",
-    "description": "ยูนิตทั้งหมด −12% การโจมตีและ HP แต่ +100 เสบียงทุกรอบ"
+    "description": "ยูนิตทั้งหมด −12% การโจมตีและ HP แต่ +100 เสบียงทุกรอบ",
+    "unitsLabel": "3× คนแคระ · 1× ผู้ขี่กา"
   },
   "elite": {
     "title": "เจ้าชายชั้นยอด",
-    "description": "รับสมัครที่เลเวล 2 +100 เสบียงในรอบ 1"
+    "description": "รับสมัครที่เลเวล 2 +100 เสบียงในรอบ 1",
+    "unitsLabel": "3× ก็อบลิน · 1× ยักษ์โอเกอร์"
   },
   "archer": {
     "title": "ผู้บัญชาการนักธนู",
-    "description": "นักธนูเลเวล 3 ฟรีมาในรอบ 2"
+    "description": "นักธนูเลเวล 3 ฟรีมาในรอบ 2",
+    "unitsLabel": "3× คนแคระ · 2× นักธนู"
   },
   "addi": {
     "title": "ผู้พิทักษ์ของเก่า",
-    "description": "ได้รูนความกล้า 3× ในรอบ 1"
+    "description": "ได้รูนความกล้า 3× ในรอบ 1",
+    "unitsLabel": "3× นักทุบค้อน · 2× คนแคระ"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "ได้ชาร์จอุกกาบาต 2 ในรอบ 2"
+    "description": "ได้ชาร์จอุกกาบาต 2 ในรอบ 2",
+    "unitsLabel": "3× ก็อบลิน · 1× ปืนครก"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× คนแคระ · 1× ยักษ์โอเกอร์"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× ก็อบลิน · 2× นักทุบค้อน"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "เริ่มด้วยบทเรียนสนามหนึ่งครั้ง"
+    "description": "เริ่มด้วยบทเรียนสนามหนึ่งครั้ง",
+    "unitsLabel": "3× ก็อบลิน · 2× นักธนู"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× คนแคระ · 1× ปืนครก"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "ได้แมงมุมฝูงดำฟรีหนึ่งตัวทุกรอบ"
+    "description": "ได้แมงมุมฝูงดำฟรีหนึ่งตัวทุกรอบ",
+    "unitsLabel": "3× ฝูงดำ · 2× ค้างคาว"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "การเกิดปีกข้างครั้งแรกใช้เวลาน้อยลงครึ่งหนึ่ง"
+    "description": "การเกิดปีกข้างครั้งแรกใช้เวลาน้อยลงครึ่งหนึ่ง",
+    "unitsLabel": "3× คนแคระ · 2× นักทุบค้อน"
   }
 }

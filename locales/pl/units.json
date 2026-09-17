@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "Czarny lęg"
+  },
+  "goblin": {
+    "name": "Goblin"
+  },
+  "hammerer": {
+    "name": "Młotnik"
+  },
+  "ogre": {
+    "name": "Ogr"
+  },
+  "bat": {
+    "name": "Nietoperz"
+  },
+  "mortar": {
+    "name": "Moździerz"
+  },
+  "prismCannon": {
+    "name": "Działo pryzmatyczne"
   }
 }

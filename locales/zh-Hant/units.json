@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "黑巢幼體"
+  },
+  "goblin": {
+    "name": "哥布林"
+  },
+  "hammerer": {
+    "name": "錘兵"
+  },
+  "ogre": {
+    "name": "食人魔"
+  },
+  "bat": {
+    "name": "蝙蝠"
+  },
+  "mortar": {
+    "name": "臼砲"
+  },
+  "prismCannon": {
+    "name": "稜鏡砲"
   }
 }

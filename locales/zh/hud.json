@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "无匹配配方——下次部署时所有符文将退回所有者",
   "forgeReadyThis": "本回合部署就绪",
   "forgeReadyNext": "下次部署就绪",
-  "forgeFireToStart": "点燃熔炉以开始——下次部署就绪。"
+  "forgeFireToStart": "点燃熔炉以开始——下次部署就绪。",
+  "techHexed": "受诅咒 — 诅咒结束前该天赋无效。",
+  "techHexedShort": "✕ 受诅咒 — 无效"
 }

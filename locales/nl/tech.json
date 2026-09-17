@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Snelle voeten"
+    "name": "Snelle voeten",
+    "description": "+35% bewegingssnelheid."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Bereik",
+    "description": "+20 bereik."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Doorboring",
+    "description": "+40% schade."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Vuur",
+    "description": "Aanvallen laten kort grondvuur achter en branden — genoeg om olieplassen aan te steken."
   },
   "armor": {
-    "name": "Iron Plating",
+    "name": "IJzeren platen",
     "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Snelschot",
+    "description": "+43% aanvalssnelheid."
   },
   "aegis": {
     "name": "Aegis",
@@ -63,10 +64,76 @@
     "produceFirst": ", eerst na {{delay}}",
     "produceOffspring": ". Nakomelingen evenaren het ouderniveau",
     "onKill": "Wanneer deze eenheid doodt, verrijst er een {{child}}",
-    "cleave": "Raakt elke vijand binnen {{radius}} (rondom deze eenheid)"
+    "cleave": "Raakt elke vijand binnen {{radius}} (rondom deze eenheid)",
+    "emp": "Vloek bij treffer: talenten uit en −{{slow}}% bewegingssnelheid gedurende {{duration}}",
+    "modRangeAdd": "{{amount}} bereik"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Beheksing",
+    "description": "Treffers beheksen het doel: zijn talenten vallen uit en hij beweegt 3,5 s lang 40% trager. Gouden Aura / Zonnesteen weerstaan het."
+  },
+  "blightburst": {
+    "name": "Rotuitbarsting",
+    "description": "Laat bij de dood een zuurplas achter."
+  },
+  "bloodRage": {
+    "name": "Bloedrazernij",
+    "description": "+30% bewegingssnelheid en +33% aanvalssnelheid."
+  },
+  "bloodfeast": {
+    "name": "Bloedfeest",
+    "description": "Geneest 25% van de toegebrachte schade (verdeeld over de levende Pack-leden)."
+  },
+  "carrionFeast": {
+    "name": "Aasfeest",
+    "description": "Bij een kill geneest dit Pack 30% van de max. HP van het slachtoffer (verdeeld over de levende leden)."
+  },
+  "doubleShot": {
+    "name": "Dubbelschot",
+    "description": "Vuurt 2 projectielen per aanval af (+1 extra voor salvowapens). +10% herlaadtijd."
+  },
+  "galeGate": {
+    "name": "Stormpoort",
+    "description": "Mag zich elke opstellingsronde herpositioneren zonder Pack verplaatsen te gebruiken."
+  },
+  "groundhunt": {
+    "name": "Grondjacht",
+    "description": "+50% schade en +15% bereik tegen grondeenheden."
+  },
+  "looseRank": {
+    "name": "Losse rijen",
+    "description": "Pack-leden staan verder uit elkaar — minder kwetsbaar voor gebiedsschade."
+  },
+  "massBinding": {
+    "name": "Massabinding",
+    "description": "Straalt of bekeert tot 4 vijanden tegelijk; elk kanaal werkt met 18% intensiteit."
+  },
+  "powerDraw": {
+    "name": "Krachttrek",
+    "description": "+70% schade, −15% bereik en tragere schoten."
+  },
+  "regeneration": {
+    "name": "Regeneratie",
+    "description": "Regenereert in gevecht 2% van de max. HP per seconde."
+  },
+  "ruinousEnd": {
+    "name": "Verwoestend einde",
+    "description": "Explodeert bij de dood met schade gelijk aan de max. HP van deze eenheid."
+  },
+  "skyhunt": {
+    "name": "Luchtjacht",
+    "description": "+50% schade en +25% bereik tegen luchteenheden."
+  },
+  "soulRestore": {
+    "name": "Zielsherstel",
+    "description": "Bekeerde eenheden worden hersteld tot volle HP."
+  },
+  "veteranAim": {
+    "name": "Veteraanvizier",
+    "description": "Elk niveau boven 1: +12% schade en +10% bereik (bovenop de normale veteranenstatus)."
+  },
+  "whirlwind": {
+    "name": "Wervelwind",
+    "description": "Bredere houw — raakt elke vijand in een grote cirkel rond deze eenheid."
   }
 }

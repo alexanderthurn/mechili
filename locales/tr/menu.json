@@ -178,5 +178,6 @@
   "terrainHighlands": "Yayla",
   "terrainHighlandsDesc": "her kale tek rampalı yüksek bir platoda",
   "terrainWall": "Sur",
-  "terrainWallDesc": "ortada geçitli tepelik bir sur, gerisi düz"
+  "terrainWallDesc": "ortada geçitli tepelik bir sur, gerisi düz",
+  "money": "Tedarik"
 }

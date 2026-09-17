@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Tez Ayaklar"
+    "name": "Tez Ayaklar",
+    "description": "+35% hareket hızı."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Menzil",
+    "description": "+20 menzil."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Delici",
+    "description": "+40% hasar."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Ateş",
+    "description": "Saldırılar kısa süreli yer ateşi bırakır ve yakar — yağ birikintilerini tutuşturmaya yeter."
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "Demir zırh",
+    "description": "+50% CP."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Hızlı atış",
+    "description": "+43% saldırı hızı."
   },
   "aegis": {
     "name": "Aegis",
@@ -63,10 +64,76 @@
     "produceFirst": ", önce {{delay}}'dan sonra",
     "produceOffspring": ". Yavrular ebeveyn seviyesindedir",
     "onKill": "Bu birim öldürdüğünde bir {{child}} diriltir",
-    "cleave": "{{radius}} içindeki (bu birimin etrafındaki) tüm düşmanlara vurur."
+    "cleave": "{{radius}} içindeki (bu birimin etrafındaki) tüm düşmanlara vurur.",
+    "emp": "İsabette lanet: yetenekler kapalı ve {{duration}} boyunca −{{slow}}% hareket hızı",
+    "modRangeAdd": "{{amount}} menzil"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Lanet",
+    "description": "İsabetler hedefi lanetler: yetenekleri kapanır ve 3,5 sn boyunca %40 daha yavaş hareket eder. Altın Aura / Güneştaşı buna direnir."
+  },
+  "blightburst": {
+    "name": "Çürüme patlaması",
+    "description": "Öldüğünde bir asit birikintisi bırakır."
+  },
+  "bloodRage": {
+    "name": "Kan öfkesi",
+    "description": "+30% hareket hızı ve +33% saldırı hızı."
+  },
+  "bloodfeast": {
+    "name": "Kan şöleni",
+    "description": "Verilen hasarın %25’i kadar iyileştirir (Pack’in yaşayan üyeleri arasında paylaşılır)."
+  },
+  "carrionFeast": {
+    "name": "Leş şöleni",
+    "description": "Öldürdüğünde bu Pack’i kurbanın azami CP’sinin %30’u kadar iyileştirir (yaşayan üyeler arasında paylaşılır)."
+  },
+  "doubleShot": {
+    "name": "Çift atış",
+    "description": "Saldırı başına 2 mermi atar (yaylım silahlarında +1 ek). +10% yeniden doldurma süresi."
+  },
+  "galeGate": {
+    "name": "Fırtına Kapısı",
+    "description": "Pack hareketi kullanmadan her konuşlanma turunda yer değiştirebilir."
+  },
+  "groundhunt": {
+    "name": "Kara avı",
+    "description": "Kara birliklerine karşı +50% hasar ve +15% menzil."
+  },
+  "looseRank": {
+    "name": "Seyrek saf",
+    "description": "Pack üyeleri birbirinden daha uzakta durur — alan hasarına karşı daha az savunmasız."
+  },
+  "massBinding": {
+    "name": "Toplu bağ",
+    "description": "Aynı anda en fazla 4 düşmanı ışınlar ya da döndürür; her kanal %18 yoğunlukla etki eder."
+  },
+  "powerDraw": {
+    "name": "Tam germe",
+    "description": "+70% hasar, −15% menzil ve daha yavaş atışlar."
+  },
+  "regeneration": {
+    "name": "Yenilenme",
+    "description": "Savaşta saniyede azami CP’nin %2’sini yeniler."
+  },
+  "ruinousEnd": {
+    "name": "Yıkıcı son",
+    "description": "Öldüğünde bu birliğin azami CP’sine eşit hasarla patlar."
+  },
+  "skyhunt": {
+    "name": "Hava avı",
+    "description": "Hava birliklerine karşı +50% hasar ve +25% menzil."
+  },
+  "soulRestore": {
+    "name": "Ruh onarımı",
+    "description": "Döndürülen birlikler tam CP’ye kavuşur."
+  },
+  "veteranAim": {
+    "name": "Kıdemli nişan",
+    "description": "1’in üzerindeki her seviye: +12% hasar ve +10% menzil (normal kıdemin üstüne)."
+  },
+  "whirlwind": {
+    "name": "Kasırga",
+    "description": "Daha geniş savuruş — bu birliğin etrafındaki büyük bir daire içindeki her düşmanı vurur."
   }
 }

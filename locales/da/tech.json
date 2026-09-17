@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Fleet Feet"
+    "name": "Fleet Feet",
+    "description": "+35% bevægelseshastighed."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Rækkevidde",
+    "description": "+20 rækkevidde."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Gennemslag",
+    "description": "+40% skade."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Ild",
+    "description": "Angreb efterlader kort ild på jorden og brænder — nok til at antænde oliepytter."
   },
   "armor": {
-    "name": "Iron Plating",
+    "name": "Jernplader",
     "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Hurtigskud",
+    "description": "+43% angrebshastighed."
   },
   "aegis": {
     "name": "Aegis",
@@ -63,10 +64,76 @@
     "produceFirst": ", først efter {{delay}}",
     "produceOffspring": ". Afkomsmatch på forældreniveau",
     "onKill": "Når denne enhed dræber, hæv en {{child}}",
-    "cleave": "Rammer alle fjender inden for {{radius}} (omkring denne enhed)"
+    "cleave": "Rammer alle fjender inden for {{radius}} (omkring denne enhed)",
+    "emp": "Forheksning ved træf: talenter slået fra og −{{slow}}% bevægelseshastighed i {{duration}}",
+    "modRangeAdd": "{{amount}} rækkevidde"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Forheksning",
+    "description": "Træf forhekser målet: dets talenter slås fra, og det bevæger sig 40% langsommere i 3,5 s. Gylden Aura / Solsten modstår det."
+  },
+  "blightburst": {
+    "name": "Rådneudbrud",
+    "description": "Efterlader en syrepyt, når den dør."
+  },
+  "bloodRage": {
+    "name": "Blodraseri",
+    "description": "+30% bevægelseshastighed og +33% angrebshastighed."
+  },
+  "bloodfeast": {
+    "name": "Blodfest",
+    "description": "Heler 25% af den uddelte skade (fordelt på Packets levende medlemmer)."
+  },
+  "carrionFeast": {
+    "name": "Ådselsfest",
+    "description": "Ved et drab heles dette Pack med 30% af offerets maks. HP (fordelt på levende medlemmer)."
+  },
+  "doubleShot": {
+    "name": "Dobbeltskud",
+    "description": "Affyrer 2 projektiler pr. angreb (+1 ekstra for salvevåben). +10% genladningstid."
+  },
+  "galeGate": {
+    "name": "Stormport",
+    "description": "Må omplacere sig i hver opstillingsrunde uden at bruge Flyt Pack."
+  },
+  "groundhunt": {
+    "name": "Jordjagt",
+    "description": "+50% skade og +15% rækkevidde mod jordenheder."
+  },
+  "looseRank": {
+    "name": "Løse rækker",
+    "description": "Packets medlemmer står længere fra hinanden — mindre sårbare over for områdeskade."
+  },
+  "massBinding": {
+    "name": "Massebinding",
+    "description": "Rammer med stråle eller omvender op til 4 fjender på én gang; hver kanal virker med 18% intensitet."
+  },
+  "powerDraw": {
+    "name": "Fuldt træk",
+    "description": "+70% skade, −15% rækkevidde og langsommere skud."
+  },
+  "regeneration": {
+    "name": "Regeneration",
+    "description": "Genvinder 2% af maks. HP pr. sekund i kamp."
+  },
+  "ruinousEnd": {
+    "name": "Ødelæggende endeligt",
+    "description": "Eksploderer ved døden med skade svarende til enhedens maks. HP."
+  },
+  "skyhunt": {
+    "name": "Luftjagt",
+    "description": "+50% skade og +25% rækkevidde mod luftenheder."
+  },
+  "soulRestore": {
+    "name": "Sjælegenoprettelse",
+    "description": "Omvendte enheder genoprettes til fuld HP."
+  },
+  "veteranAim": {
+    "name": "Veteransigte",
+    "description": "Hvert niveau over 1: +12% skade og +10% rækkevidde (oven i normal veteranstatus)."
+  },
+  "whirlwind": {
+    "name": "Hvirvelvind",
+    "description": "Bredere hug — rammer hver fjende i en stor cirkel omkring enheden."
   }
 }

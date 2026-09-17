@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Phù thủy bầu trời",
-    "description": "Các đơn vị không quân nhận được +12% tấn công và HP."
+    "description": "Các đơn vị không quân nhận được +12% tấn công và HP.",
+    "unitsLabel": "3× Yêu tinh · 1× Kỵ sĩ Quạ"
   },
   "cost": {
     "title": "Hoàng tử tham lam",
-    "description": "Tất cả đơn vị giảm 12% sức tấn công và HP, nhưng được cộng thêm 100 nguồn cung mỗi vòng."
+    "description": "Tất cả đơn vị giảm 12% sức tấn công và HP, nhưng được cộng thêm 100 nguồn cung mỗi vòng.",
+    "unitsLabel": "3× Người lùn · 1× Kỵ sĩ Quạ"
   },
   "elite": {
     "title": "Hoàng tử ưu tú",
-    "description": "Tuyển quân ở cấp độ 2. +100 nguồn cung trong vòng 1."
+    "description": "Tuyển quân ở cấp độ 2. +100 nguồn cung trong vòng 1.",
+    "unitsLabel": "3× Yêu tinh · 1× Quỷ khổng lồ"
   },
   "archer": {
     "title": "Chỉ huy cung thủ",
-    "description": "Một cung thủ cấp 3 miễn phí sẽ xuất hiện ở vòng 2."
+    "description": "Một cung thủ cấp 3 miễn phí sẽ xuất hiện ở vòng 2.",
+    "unitsLabel": "3× Người lùn · 2× Cung thủ"
   },
   "addi": {
     "title": "Người giữ di vật",
-    "description": "Nhận được 3 viên ngọc Valor ở vòng 1."
+    "description": "Nhận được 3 viên ngọc Valor ở vòng 1.",
+    "unitsLabel": "3× Chiến binh búa · 2× Người lùn"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Nhận được 2 lượt sử dụng Meteor ở vòng 2."
+    "description": "Nhận được 2 lượt sử dụng Meteor ở vòng 2.",
+    "unitsLabel": "3× Yêu tinh · 1× Súng cối"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Người lùn · 1× Quỷ khổng lồ"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Yêu tinh · 2× Chiến binh búa"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Bắt đầu bằng một bài học thực hành ngoài hiện trường."
+    "description": "Bắt đầu bằng một bài học thực hành ngoài hiện trường.",
+    "unitsLabel": "3× Yêu tinh · 2× Cung thủ"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Người lùn · 1× Súng cối"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Mỗi vòng chơi, bạn sẽ nhận được một con nhện Black Brood miễn phí."
+    "description": "Mỗi vòng chơi, bạn sẽ nhận được một con nhện Black Brood miễn phí.",
+    "unitsLabel": "3× Bầy đen · 2× Dơi"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Lần đầu tiên xuất hiện từ sườn, thời gian chỉ bằng một nửa."
+    "description": "Lần đầu tiên xuất hiện từ sườn, thời gian chỉ bằng một nửa.",
+    "unitsLabel": "3× Người lùn · 2× Chiến binh búa"
   }
 }

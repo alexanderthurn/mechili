@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Himmelssorceraren",
-    "description": "Luftenheter får +12% attack och HP."
+    "description": "Luftenheter får +12% attack och HP.",
+    "unitsLabel": "3× Vättar · 1× Kråkryttare"
   },
   "cost": {
     "title": "Giriga prinsen",
-    "description": "Alla enheter −12% attack och HP, men +100 i förnödenheter varje runda."
+    "description": "Alla enheter −12% attack och HP, men +100 i förnödenheter varje runda.",
+    "unitsLabel": "3× Dvärgar · 1× Kråkryttare"
   },
   "elite": {
     "title": "Elitprinsen",
-    "description": "Rekryterar på nivå 2. +100 i utbudet i omgång 1."
+    "description": "Rekryterar på nivå 2. +100 i utbudet i omgång 1.",
+    "unitsLabel": "3× Vättar · 1× Troll"
   },
   "archer": {
     "title": "Bågskyttebefälhavare",
-    "description": "En gratis nivå-3-bågskytt anländer i rond 2."
+    "description": "En gratis nivå-3-bågskytt anländer i rond 2.",
+    "unitsLabel": "3× Dvärgar · 2× Bågskyttar"
   },
   "addi": {
     "title": "Relikbevarare",
-    "description": "Får 3× Valor-runan i omgång 1."
+    "description": "Får 3× Valor-runan i omgång 1.",
+    "unitsLabel": "3× Hammarbärare · 2× Dvärgar"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Får 2 meteorladdningar i rond 2."
+    "description": "Får 2 meteorladdningar i rond 2.",
+    "unitsLabel": "3× Vättar · 1× Mörsare"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Dvärgar · 1× Troll"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Vättar · 2× Hammarbärare"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Börjar med en fältlektion."
+    "description": "Börjar med en fältlektion.",
+    "unitsLabel": "3× Vättar · 2× Bågskyttar"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Dvärgar · 1× Mörsare"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Får en gratis svart yngelspindel varje runda."
+    "description": "Får en gratis svart yngelspindel varje runda.",
+    "unitsLabel": "3× Svart yngel · 2× Fladdermöss"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Första gången flank-spawns tar halva tiden."
+    "description": "Första gången flank-spawns tar halva tiden.",
+    "unitsLabel": "3× Dvärgar · 2× Hammarbärare"
   }
 }

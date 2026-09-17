@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "捷足"
+    "name": "捷足",
+    "description": "移动速度 +35%。"
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "射程",
+    "description": "射程 +20。"
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "穿透",
+    "description": "伤害 +40%。"
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "火焰",
+    "description": "攻击会在地面短暂留下火焰并灼烧 — 足以点燃油池。"
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "铁甲",
+    "description": "生命值 +50%。"
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "快射",
+    "description": "攻击速度 +43%。"
   },
   "aegis": {
     "name": "神盾",
@@ -63,10 +64,76 @@
     "produceFirst": "，首次在 {{delay}} 后",
     "produceOffspring": "。子嗣与亲本等级相同",
     "onKill": "当此单位击杀时，唤出 {{child}}",
-    "cleave": "命中此单位周围 {{radius}} 内的每个敌人"
+    "cleave": "命中此单位周围 {{radius}} 内的每个敌人",
+    "emp": "命中施加诅咒：天赋失效，移动速度 −{{slow}}%，持续 {{duration}}",
+    "modRangeAdd": "射程 {{amount}}"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "诅咒",
+    "description": "命中会诅咒目标：其天赋失效，3.5 秒内移动速度降低 40%。金辉光环 / 日耀石可以抵御。"
+  },
+  "blightburst": {
+    "name": "腐败爆发",
+    "description": "死亡时留下一滩酸液。"
+  },
+  "bloodRage": {
+    "name": "血怒",
+    "description": "移动速度 +30%，攻击速度 +33%。"
+  },
+  "bloodfeast": {
+    "name": "血宴",
+    "description": "按造成伤害的 25% 回复生命（由存活的编队成员分摊）。"
+  },
+  "carrionFeast": {
+    "name": "腐肉盛宴",
+    "description": "击杀时，该编队回复受害者最大生命值的 30%（由存活成员分摊）。"
+  },
+  "doubleShot": {
+    "name": "双发射击",
+    "description": "每次攻击发射 2 枚投射物（齐射武器额外 +1）。装填时间 +10%。"
+  },
+  "galeGate": {
+    "name": "疾风之门",
+    "description": "每个部署回合都可以重新布置位置，无需使用移动编队。"
+  },
+  "groundhunt": {
+    "name": "猎地",
+    "description": "对地面单位伤害 +50%，射程 +15%。"
+  },
+  "looseRank": {
+    "name": "松散阵列",
+    "description": "编队成员站得更分散 — 更不容易受到范围伤害。"
+  },
+  "massBinding": {
+    "name": "群体束缚",
+    "description": "同时对最多 4 名敌人发射光束或转化；每条通道强度为 18%。"
+  },
+  "powerDraw": {
+    "name": "满弦",
+    "description": "伤害 +70%，射程 −15%，射击更慢。"
+  },
+  "regeneration": {
+    "name": "再生",
+    "description": "战斗中每秒回复最大生命值的 2%。"
+  },
+  "ruinousEnd": {
+    "name": "毁灭终结",
+    "description": "死亡时爆炸，造成等同于该单位最大生命值的伤害。"
+  },
+  "skyhunt": {
+    "name": "猎空",
+    "description": "对空中单位伤害 +50%，射程 +25%。"
+  },
+  "soulRestore": {
+    "name": "灵魂复原",
+    "description": "被转化的单位恢复全部生命值。"
+  },
+  "veteranAim": {
+    "name": "老兵瞄准",
+    "description": "1 级以上每升一级：伤害 +12%，射程 +10%（叠加在正常老兵加成之上）。"
+  },
+  "whirlwind": {
+    "name": "旋风",
+    "description": "更宽的劈砍 — 命中该单位周围大圆内的所有敌人。"
   }
 }

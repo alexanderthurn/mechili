@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Inget matchande recept — alla runor återvänder till sina ägare vid nästa utplacering",
   "forgeReadyThis": "Förbered denna utplacering",
   "forgeReadyNext": "Klar för nästa utplacering",
-  "forgeFireToStart": "Avfyra smedjan för att starta den — redo för nästa utplacering."
+  "forgeFireToStart": "Avfyra smedjan för att starta den — redo för nästa utplacering.",
+  "techHexed": "Förhäxad — den här talangen är avstängd tills förbannelsen upphör.",
+  "techHexedShort": "✕ Förhäxad — inaktiv"
 }

@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "No hay receta coincidente: todas las runas regresan a sus dueños en el próximo despliegue.",
   "forgeReadyThis": "Prepara este despliegue",
   "forgeReadyNext": "Listo para el próximo despliegue.",
-  "forgeFireToStart": "Enciende la fragua para ponerla en marcha; estará lista para el próximo despliegue."
+  "forgeFireToStart": "Enciende la fragua para ponerla en marcha; estará lista para el próximo despliegue.",
+  "techHexed": "Maldito — este talento está desactivado hasta que acabe el maleficio.",
+  "techHexedShort": "✕ Maldito — inactivo"
 }

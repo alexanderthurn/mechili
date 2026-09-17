@@ -178,5 +178,6 @@
   "terrainHighlands": "高地",
   "terrainHighlandsDesc": "双方要塞各在高台上，只有一条坡道",
   "terrainWall": "城墙",
-  "terrainWallDesc": "中央一道带缺口的丘陵墙，其余平坦"
+  "terrainWallDesc": "中央一道带缺口的丘陵墙，其余平坦",
+  "money": "补给"
 }

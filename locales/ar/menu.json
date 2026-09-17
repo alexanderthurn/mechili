@@ -178,5 +178,6 @@
   "terrainHighlands": "مرتفعات",
   "terrainHighlandsDesc": "كل حصن على هضبة عالية لها منحدر واحد للصعود",
   "terrainWall": "سور",
-  "terrainWallDesc": "سور من التلال في الوسط به فجوات، والباقي مستوٍ"
+  "terrainWallDesc": "سور من التلال في الوسط به فجوات، والباقي مستوٍ",
+  "money": "إمداد"
 }

@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Rychlé nohy"
+    "name": "Rychlé nohy",
+    "description": "+35% rychlosti pohybu."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Dostřel",
+    "description": "+20 dostřelu."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Průraz",
+    "description": "+40% poškození."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Oheň",
+    "description": "Útoky zanechají krátký oheň na zemi a pálí — dost na zapálení olejových louží."
   },
   "armor": {
-    "name": "Iron Plating",
+    "name": "Železné pláty",
     "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Rychlý výstřel",
+    "description": "+43% rychlosti útoku."
   },
   "aegis": {
     "name": "Aegis",
@@ -63,10 +64,76 @@
     "produceFirst": ", první po {{delay}}",
     "produceOffspring": ". Potomci mají úroveň rodiče",
     "onKill": "Když tato jednotka zabije, povstane {{child}}",
-    "cleave": "Zasáhne každého nepřítele v okruhu {{radius}} (kolem této jednotky)"
+    "cleave": "Zasáhne každého nepřítele v okruhu {{radius}} (kolem této jednotky)",
+    "emp": "Kletba při zásahu: talenty vypnuté a −{{slow}}% rychlosti pohybu na {{duration}}",
+    "modRangeAdd": "{{amount}} dostřelu"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Kletba",
+    "description": "Zásahy zakletí cíl: jeho talenty se vypnou a 3,5 s se pohybuje o 40% pomaleji. Zlatá aura / Sluneční kámen tomu odolají."
+  },
+  "blightburst": {
+    "name": "Hnilobný výbuch",
+    "description": "Po smrti zanechá kaluž kyseliny."
+  },
+  "bloodRage": {
+    "name": "Krvavá zuřivost",
+    "description": "+30% rychlosti pohybu a +33% rychlosti útoku."
+  },
+  "bloodfeast": {
+    "name": "Krvavá hostina",
+    "description": "Léčí 25% způsobeného poškození (rozděleno mezi živé členy Packu)."
+  },
+  "carrionFeast": {
+    "name": "Hostina mršin",
+    "description": "Při zabití vyléčí tento Pack o 30% max. HP oběti (rozděleno mezi živé členy)."
+  },
+  "doubleShot": {
+    "name": "Dvojitý výstřel",
+    "description": "Vystřelí 2 projektily na útok (+1 navíc u salvových zbraní). +10% doby nabíjení."
+  },
+  "galeGate": {
+    "name": "Brána vichru",
+    "description": "Může se přemístit v každém kole rozmístění bez použití Přesunu Packu."
+  },
+  "groundhunt": {
+    "name": "Pozemní lov",
+    "description": "+50% poškození a +15% dostřelu proti pozemním jednotkám."
+  },
+  "looseRank": {
+    "name": "Volné řady",
+    "description": "Členové Packu stojí dál od sebe — méně zranitelní plošným poškozením."
+  },
+  "massBinding": {
+    "name": "Hromadné spoutání",
+    "description": "Zasáhne paprskem nebo obrátí až 4 nepřátele najednou; každý kanál působí s 18% intenzitou."
+  },
+  "powerDraw": {
+    "name": "Plný nátah",
+    "description": "+70% poškození, −15% dostřelu a pomalejší střely."
+  },
+  "regeneration": {
+    "name": "Regenerace",
+    "description": "V bitvě regeneruje 2% max. HP za sekundu."
+  },
+  "ruinousEnd": {
+    "name": "Zhoubný konec",
+    "description": "Po smrti vybuchne s poškozením rovným max. HP této jednotky."
+  },
+  "skyhunt": {
+    "name": "Vzdušný lov",
+    "description": "+50% poškození a +25% dostřelu proti vzdušným jednotkám."
+  },
+  "soulRestore": {
+    "name": "Obnova duše",
+    "description": "Obrácené jednotky se vyléčí na plné HP."
+  },
+  "veteranAim": {
+    "name": "Veteránská mušká",
+    "description": "Každá úroveň nad 1: +12% poškození a +10% dostřelu (navíc k běžnému veteránství)."
+  },
+  "whirlwind": {
+    "name": "Vír",
+    "description": "Širší sek — zasáhne každého nepřítele ve velkém kruhu kolem této jednotky."
   }
 }

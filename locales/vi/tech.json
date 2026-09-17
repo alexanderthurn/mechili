@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Đôi chân nhanh nhẹn"
+    "name": "Đôi chân nhanh nhẹn",
+    "description": "+35% tốc độ di chuyển."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Tầm bắn",
+    "description": "+20 tầm bắn."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Xuyên giáp",
+    "description": "+40% sát thương."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Lửa",
+    "description": "Đòn đánh để lại lửa ngắn trên mặt đất và thiêu đốt — đủ để châm các vũng dầu."
   },
   "armor": {
-    "name": "Iron Plating",
+    "name": "Giáp sắt",
     "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Bắn nhanh",
+    "description": "+43% tốc độ tấn công."
   },
   "aegis": {
     "name": "Aegis",
@@ -63,10 +64,76 @@
     "produceFirst": ", đầu tiên sau {{delay}}",
     "produceOffspring": "Con cái đạt cấp độ tương ứng với cha mẹ.",
     "onKill": "Khi đơn vị này tiêu diệt kẻ địch, hãy nâng {{child}} lên.",
-    "cleave": "Tấn công mọi kẻ địch trong phạm vi {{radius}} (xung quanh đơn vị này)"
+    "cleave": "Tấn công mọi kẻ địch trong phạm vi {{radius}} (xung quanh đơn vị này)",
+    "emp": "Nguyền khi trúng: tắt tài năng và −{{slow}}% tốc độ di chuyển trong {{duration}}",
+    "modRangeAdd": "{{amount}} tầm bắn"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Nguyền rủa",
+    "description": "Đòn trúng nguyền mục tiêu: tài năng của nó bị tắt và di chuyển chậm hơn 40% trong 3,5 giây. Hào quang vàng / Đá Mặt Trời chống lại được."
+  },
+  "blightburst": {
+    "name": "Bùng nổ thối rữa",
+    "description": "Khi chết, để lại một vũng axit."
+  },
+  "bloodRage": {
+    "name": "Cuồng huyết",
+    "description": "+30% tốc độ di chuyển và +33% tốc độ tấn công."
+  },
+  "bloodfeast": {
+    "name": "Tiệc máu",
+    "description": "Hồi 25% sát thương gây ra (chia cho các thành viên Pack còn sống)."
+  },
+  "carrionFeast": {
+    "name": "Tiệc xác thối",
+    "description": "Khi hạ gục, hồi cho Pack này 30% HP tối đa của nạn nhân (chia cho các thành viên còn sống)."
+  },
+  "doubleShot": {
+    "name": "Bắn đôi",
+    "description": "Bắn 2 đạn mỗi đòn (+1 cho vũ khí bắn loạt). +10% thời gian nạp đạn."
+  },
+  "galeGate": {
+    "name": "Cổng Cuồng Phong",
+    "description": "Có thể đổi vị trí mỗi vòng triển khai mà không cần Di chuyển Pack."
+  },
+  "groundhunt": {
+    "name": "Săn mặt đất",
+    "description": "+50% sát thương và +15% tầm bắn với đơn vị mặt đất."
+  },
+  "looseRank": {
+    "name": "Đội hình thưa",
+    "description": "Thành viên Pack đứng cách xa nhau hơn — ít bị sát thương diện rộng."
+  },
+  "massBinding": {
+    "name": "Trói buộc hàng loạt",
+    "description": "Chiếu tia hoặc cải đạo tối đa 4 kẻ địch cùng lúc; mỗi kênh có cường độ 18%."
+  },
+  "powerDraw": {
+    "name": "Kéo căng hết sức",
+    "description": "+70% sát thương, −15% tầm bắn và bắn chậm hơn."
+  },
+  "regeneration": {
+    "name": "Hồi phục",
+    "description": "Hồi 2% HP tối đa mỗi giây trong trận."
+  },
+  "ruinousEnd": {
+    "name": "Kết cục hủy diệt",
+    "description": "Khi chết, phát nổ gây sát thương bằng HP tối đa của đơn vị này."
+  },
+  "skyhunt": {
+    "name": "Săn trên không",
+    "description": "+50% sát thương và +25% tầm bắn với đơn vị trên không."
+  },
+  "soulRestore": {
+    "name": "Phục hồi linh hồn",
+    "description": "Đơn vị bị cải đạo được hồi đầy HP."
+  },
+  "veteranAim": {
+    "name": "Ngắm bắn lão luyện",
+    "description": "Mỗi cấp trên 1: +12% sát thương và +10% tầm bắn (cộng thêm vào cấp kinh nghiệm thường)."
+  },
+  "whirlwind": {
+    "name": "Gió lốc",
+    "description": "Nhát chém rộng hơn — trúng mọi kẻ địch trong vòng tròn lớn quanh đơn vị này."
   }
 }

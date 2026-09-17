@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Piedi veloci"
+    "name": "Piedi veloci",
+    "description": "+35% di velocità di movimento."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Gittata",
+    "description": "+20 di gittata."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Perforazione",
+    "description": "+40% di danni."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Fuoco",
+    "description": "Gli attacchi lasciano un breve fuoco a terra e bruciano: abbastanza da incendiare le pozze d’olio."
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "Piastre di ferro",
+    "description": "+50% PS."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Tiro rapido",
+    "description": "+43% di velocità d’attacco."
   },
   "aegis": {
     "name": "Egida",
@@ -63,10 +64,76 @@
     "produceFirst": ", prima dopo {{delay}}",
     "produceOffspring": "La prole corrisponde al livello del genitore",
     "onKill": "Quando questa unità uccide, genera un {{child}}",
-    "cleave": "Colpisce tutti i nemici entro {{radius}} (intorno a questa unità)"
+    "cleave": "Colpisce tutti i nemici entro {{radius}} (intorno a questa unità)",
+    "emp": "Maledizione a segno: talenti disattivati e −{{slow}}% di velocità per {{duration}}",
+    "modRangeAdd": "{{amount}} di gittata"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Maledizione",
+    "description": "I colpi maledicono il bersaglio: i suoi talenti si spengono e si muove più lento del 40% per 3,5 s. Aura dorata / Pietra del Sole resistono."
+  },
+  "blightburst": {
+    "name": "Scoppio putrido",
+    "description": "Alla morte lascia una pozza di acido."
+  },
+  "bloodRage": {
+    "name": "Furia sanguinaria",
+    "description": "+30% di velocità di movimento e +33% di velocità d’attacco."
+  },
+  "bloodfeast": {
+    "name": "Banchetto di sangue",
+    "description": "Cura il 25% dei danni inflitti (diviso tra i membri vivi del Pack)."
+  },
+  "carrionFeast": {
+    "name": "Banchetto di carogne",
+    "description": "A ogni uccisione cura questo Pack del 30% dei PS massimi della vittima (diviso tra i membri vivi)."
+  },
+  "doubleShot": {
+    "name": "Doppio colpo",
+    "description": "Spara 2 proiettili per attacco (+1 extra per le armi a raffica). +10% tempo di ricarica."
+  },
+  "galeGate": {
+    "name": "Porta della burrasca",
+    "description": "Può riposizionarsi a ogni round di schieramento senza usare Muovi Pack."
+  },
+  "groundhunt": {
+    "name": "Caccia a terra",
+    "description": "+50% di danni e +15% di gittata contro le unità di terra."
+  },
+  "looseRank": {
+    "name": "Ranghi larghi",
+    "description": "I membri del Pack stanno più distanti: meno vulnerabili ai danni ad area."
+  },
+  "massBinding": {
+    "name": "Vincolo di massa",
+    "description": "Irradia o converte fino a 4 nemici insieme; ogni canale agisce al 18% di intensità."
+  },
+  "powerDraw": {
+    "name": "Tensione massima",
+    "description": "+70% di danni, −15% di gittata e colpi più lenti."
+  },
+  "regeneration": {
+    "name": "Rigenerazione",
+    "description": "Rigenera il 2% dei PS massimi al secondo in battaglia."
+  },
+  "ruinousEnd": {
+    "name": "Fine rovinosa",
+    "description": "Alla morte esplode infliggendo danni pari ai PS massimi di questa unità."
+  },
+  "skyhunt": {
+    "name": "Caccia aerea",
+    "description": "+50% di danni e +25% di gittata contro le unità aeree."
+  },
+  "soulRestore": {
+    "name": "Ristoro dell’anima",
+    "description": "Le unità convertite tornano ai PS massimi."
+  },
+  "veteranAim": {
+    "name": "Mira del veterano",
+    "description": "Ogni livello oltre l’1: +12% di danni e +10% di gittata (oltre alla normale esperienza)."
+  },
+  "whirlwind": {
+    "name": "Turbine",
+    "description": "Fendente più ampio: colpisce ogni nemico in un grande cerchio attorno a questa unità."
   }
 }

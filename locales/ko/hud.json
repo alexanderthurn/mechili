@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "맞는 레시피 없음 — 다음 배치에 모든 룬이 주인에게 반환됨",
   "forgeReadyThis": "이번 배치에 준비됨",
   "forgeReadyNext": "다음 배치에 준비됨",
-  "forgeFireToStart": "대장간을 가동해 시작하세요 — 다음 배치에 준비됩니다."
+  "forgeFireToStart": "대장간을 가동해 시작하세요 — 다음 배치에 준비됩니다.",
+  "techHexed": "저주 — 저주가 끝날 때까지 이 특성은 꺼집니다.",
+  "techHexedShort": "✕ 저주 — 비활성"
 }

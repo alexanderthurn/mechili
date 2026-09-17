@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "俊足"
+    "name": "俊足",
+    "description": "移動速度+35%。"
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "射程",
+    "description": "射程+20。"
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "貫通",
+    "description": "ダメージ+40%。"
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "炎",
+    "description": "攻撃が短時間地面に炎を残して燃やす — 油溜まりに火をつけるには十分。"
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "鉄板装甲",
+    "description": "HP+50%。"
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "早撃ち",
+    "description": "攻撃速度+43%。"
   },
   "aegis": {
     "name": "イージス",
@@ -63,10 +64,76 @@
     "produceFirst": "、最初は {{delay}} 後",
     "produceOffspring": "。子供は親と同じレベル",
     "onKill": "このユニットが倒したとき、{{child}}を呼び出す",
-    "cleave": "このユニット周囲 {{radius}} 内の全敵に命中"
+    "cleave": "このユニット周囲 {{radius}} 内の全敵に命中",
+    "emp": "命中時に呪い：才能無効、{{duration}}の間移動速度−{{slow}}%",
+    "modRangeAdd": "射程 {{amount}}"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "呪縛",
+    "description": "命中した相手を呪う：才能が止まり、3.5秒間移動が40%遅くなる。黄金のオーラ / 太陽石は防ぐ。"
+  },
+  "blightburst": {
+    "name": "腐敗の爆発",
+    "description": "倒れると酸の水たまりを残す。"
+  },
+  "bloodRage": {
+    "name": "血の激昂",
+    "description": "移動速度+30%、攻撃速度+33%。"
+  },
+  "bloodfeast": {
+    "name": "血の饗宴",
+    "description": "与ダメージの25%を回復（生存中のパックメンバーで分配）。"
+  },
+  "carrionFeast": {
+    "name": "屍肉の饗宴",
+    "description": "撃破時、このパックを犠牲者の最大HPの30%回復（生存メンバーで分配）。"
+  },
+  "doubleShot": {
+    "name": "ツインショット",
+    "description": "1回の攻撃で弾を2発撃つ（斉射武器は+1）。装填時間+10%。"
+  },
+  "galeGate": {
+    "name": "疾風の門",
+    "description": "パック移動を使わずに、毎配置ラウンドで位置を変えられる。"
+  },
+  "groundhunt": {
+    "name": "地上狩り",
+    "description": "地上ユニットに対してダメージ+50%、射程+15%。"
+  },
+  "looseRank": {
+    "name": "散開陣形",
+    "description": "パックメンバーが間隔をあけて立つ — 範囲ダメージを受けにくい。"
+  },
+  "massBinding": {
+    "name": "集団束縛",
+    "description": "最大4体の敵に同時にビームまたは改宗；各チャネルの強度は18%。"
+  },
+  "powerDraw": {
+    "name": "全力引き",
+    "description": "ダメージ+70%、射程−15%、弾速低下。"
+  },
+  "regeneration": {
+    "name": "再生",
+    "description": "戦闘中、毎秒最大HPの2%を回復。"
+  },
+  "ruinousEnd": {
+    "name": "破滅の最期",
+    "description": "倒れるとこのユニットの最大HPと同じダメージで爆発する。"
+  },
+  "skyhunt": {
+    "name": "空中狩り",
+    "description": "航空ユニットに対してダメージ+50%、射程+25%。"
+  },
+  "soulRestore": {
+    "name": "魂の復元",
+    "description": "改宗したユニットはHPが全回復する。"
+  },
+  "veteranAim": {
+    "name": "熟練の狙い",
+    "description": "レベル1を超える1段階ごとに：ダメージ+12%、射程+10%（通常の熟練度に加算）。"
+  },
+  "whirlwind": {
+    "name": "旋風",
+    "description": "より広い斬撃 — このユニットの周囲の大きな円内のすべての敵に当たる。"
   }
 }

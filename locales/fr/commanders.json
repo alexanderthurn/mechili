@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Sorcier du Ciel",
-    "description": "Les unités aériennes gagnent +12% d'attaque et de PV."
+    "description": "Les unités aériennes gagnent +12% d'attaque et de PV.",
+    "unitsLabel": "3× Gobelins · 1× Cavaliers corbeaux"
   },
   "cost": {
     "title": "Prince avide",
-    "description": "Toutes les unités subissent une réduction de 12 % de leur attaque et de leurs PV, mais une augmentation de 100 points de ravitaillement à chaque tour."
+    "description": "Toutes les unités subissent une réduction de 12 % de leur attaque et de leurs PV, mais une augmentation de 100 points de ravitaillement à chaque tour.",
+    "unitsLabel": "3× Nains · 1× Cavaliers corbeaux"
   },
   "elite": {
     "title": "Prince d'élite",
-    "description": "Recrutement au niveau 2. +100 de ravitaillement au tour 1."
+    "description": "Recrutement au niveau 2. +100 de ravitaillement au tour 1.",
+    "unitsLabel": "3× Gobelins · 1× Ogre"
   },
   "archer": {
     "title": "Commandant des archers",
-    "description": "Un archer de niveau 3 gratuit arrive au deuxième tour."
+    "description": "Un archer de niveau 3 gratuit arrive au deuxième tour.",
+    "unitsLabel": "3× Nains · 2× Archers"
   },
   "addi": {
     "title": "Gardien des reliques",
-    "description": "Obtient 3 runes de Vaillance au premier tour."
+    "description": "Obtient 3 runes de Vaillance au premier tour.",
+    "unitsLabel": "3× Marteleurs · 2× Nains"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Obtient 2 charges de Météore au tour 2."
+    "description": "Obtient 2 charges de Météore au tour 2.",
+    "unitsLabel": "3× Gobelins · 1× Mortiers"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Nains · 1× Ogre"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Gobelins · 2× Marteleurs"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Commence avec une Leçon sur le terrain."
+    "description": "Commence avec une Leçon sur le terrain.",
+    "unitsLabel": "3× Gobelins · 2× Archers"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Nains · 1× Mortiers"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Obtient une araignée de la couvée noire gratuite à chaque tour."
+    "description": "Obtient une araignée de la couvée noire gratuite à chaque tour.",
+    "unitsLabel": "3× Couvée noire · 2× Chauves-souris"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Les premières apparitions sur les flancs prennent deux fois moins de temps."
+    "description": "Les premières apparitions sur les flancs prennent deux fois moins de temps.",
+    "unitsLabel": "3× Nains · 2× Marteleurs"
   }
 }

@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Brak pasującego przepisu — wszystkie runy wracają do swoich właścicieli po następnym użyciu",
   "forgeReadyThis": "Przygotuj to wdrożenie",
   "forgeReadyNext": "Gotowy do następnego wdrożenia",
-  "forgeFireToStart": "Uruchom kuźnię, aby była gotowa do następnego użycia."
+  "forgeFireToStart": "Uruchom kuźnię, aby była gotowa do następnego użycia.",
+  "techHexed": "Przeklęty — ten talent jest wyłączony, dopóki klątwa nie minie.",
+  "techHexedShort": "✕ Przeklęty — nieaktywny"
 }

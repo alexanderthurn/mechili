@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Pieds véloces"
+    "name": "Pieds véloces",
+    "description": "+35% de vitesse de déplacement."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Portée",
+    "description": "+20 de portée."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Perforation",
+    "description": "+40% de dégâts."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Feu",
+    "description": "Les attaques laissent un bref feu au sol et brûlent — assez pour enflammer les flaques d’huile."
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "Plaques de fer",
+    "description": "+50% de PV."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Tir rapide",
+    "description": "+43% de vitesse d’attaque."
   },
   "aegis": {
     "name": "Égide",
@@ -63,10 +64,76 @@
     "produceFirst": ", premier après {{delay}}",
     "produceOffspring": "La progéniture atteint le niveau des parents.",
     "onKill": "Lorsque cette unité tue, déclenchez un {{child}}",
-    "cleave": "Touche tous les ennemis à portée de {{radius}} (autour de cette unité)"
+    "cleave": "Touche tous les ennemis à portée de {{radius}} (autour de cette unité)",
+    "emp": "Maléfice à l’impact : talents coupés et −{{slow}}% de vitesse pendant {{duration}}",
+    "modRangeAdd": "{{amount}} de portée"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Maléfice",
+    "description": "Les coups maudissent la cible : ses talents s’éteignent et elle se déplace 40% plus lentement pendant 3,5 s. Aura dorée / Pierre de soleil y résistent."
+  },
+  "blightburst": {
+    "name": "Éclat putride",
+    "description": "À sa mort, laisse une flaque d’acide."
+  },
+  "bloodRage": {
+    "name": "Rage sanguine",
+    "description": "+30% de vitesse de déplacement et +33% de vitesse d’attaque."
+  },
+  "bloodfeast": {
+    "name": "Festin de sang",
+    "description": "Soigne de 25% des dégâts infligés (répartis entre les membres vivants du Pack)."
+  },
+  "carrionFeast": {
+    "name": "Festin de charogne",
+    "description": "À chaque élimination, soigne ce Pack de 30% des PV max de la victime (répartis entre les membres vivants)."
+  },
+  "doubleShot": {
+    "name": "Tir double",
+    "description": "Tire 2 projectiles par attaque (+1 pour les armes à salve). +10% de temps de rechargement."
+  },
+  "galeGate": {
+    "name": "Porte des vents",
+    "description": "Peut se repositionner à chaque manche de déploiement sans utiliser Déplacer un Pack."
+  },
+  "groundhunt": {
+    "name": "Chasse au sol",
+    "description": "+50% de dégâts et +15% de portée contre les unités au sol."
+  },
+  "looseRank": {
+    "name": "Rangs espacés",
+    "description": "Les membres du Pack se tiennent plus écartés — moins vulnérables aux dégâts de zone."
+  },
+  "massBinding": {
+    "name": "Lien de masse",
+    "description": "Rayonne ou convertit jusqu’à 4 ennemis à la fois ; chaque canal agit à 18% d’intensité."
+  },
+  "powerDraw": {
+    "name": "Tension maximale",
+    "description": "+70% de dégâts, −15% de portée et tirs plus lents."
+  },
+  "regeneration": {
+    "name": "Régénération",
+    "description": "Régénère 2% des PV max par seconde en bataille."
+  },
+  "ruinousEnd": {
+    "name": "Fin ruineuse",
+    "description": "À sa mort, explose en infligeant des dégâts égaux à ses PV max."
+  },
+  "skyhunt": {
+    "name": "Chasse aérienne",
+    "description": "+50% de dégâts et +25% de portée contre les unités aériennes."
+  },
+  "soulRestore": {
+    "name": "Restauration d’âme",
+    "description": "Les unités converties retrouvent tous leurs PV."
+  },
+  "veteranAim": {
+    "name": "Visée de vétéran",
+    "description": "Chaque niveau au-delà de 1 : +12% de dégâts et +10% de portée (en plus du vétéranat normal)."
+  },
+  "whirlwind": {
+    "name": "Tourbillon",
+    "description": "Frappe plus large — touche chaque ennemi dans un grand disque autour de cette unité."
   }
 }

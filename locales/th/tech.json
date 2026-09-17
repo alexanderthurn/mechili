@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "เท้าไว"
+    "name": "เท้าไว",
+    "description": "ความเร็วเคลื่อนที่ +35%"
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "ระยะยิง",
+    "description": "ระยะยิง +20"
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "เจาะเกราะ",
+    "description": "ความเสียหาย +40%"
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "ไฟ",
+    "description": "การโจมตีทิ้งไฟไว้บนพื้นชั่วครู่และเผาไหม้ — พอจะจุดแอ่งน้ำมันได้"
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "แผ่นเกราะเหล็ก",
+    "description": "HP +50%"
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "ยิงไว",
+    "description": "ความเร็วโจมตี +43%"
   },
   "aegis": {
     "name": "เอจิส",
@@ -63,10 +64,76 @@
     "produceFirst": " ครั้งแรกหลัง {{delay}}",
     "produceOffspring": " ลูกหลานตามเลเวลพ่อแม่",
     "onKill": "เมื่อยูนิตนี้ฆ่า จะเรียก {{child}}",
-    "cleave": "โจมตีศัตรูทุกตัวในรัศมี {{radius}} (รอบยูนิตนี้)"
+    "cleave": "โจมตีศัตรูทุกตัวในรัศมี {{radius}} (รอบยูนิตนี้)",
+    "emp": "สาปเมื่อโจมตีโดน: ปิดความสามารถ และความเร็วเคลื่อนที่ −{{slow}}% เป็นเวลา {{duration}}",
+    "modRangeAdd": "ระยะยิง {{amount}}"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "คำสาป",
+    "description": "การโจมตีสาปเป้าหมาย: ความสามารถของมันดับลง และเคลื่อนที่ช้าลง 40% นาน 3.5 วินาที ออร่าทอง / หินอาทิตย์ต้านทานได้"
+  },
+  "blightburst": {
+    "name": "ระเบิดเน่า",
+    "description": "เมื่อตาย จะทิ้งแอ่งกรดไว้"
+  },
+  "bloodRage": {
+    "name": "โทสะเลือด",
+    "description": "ความเร็วเคลื่อนที่ +30% และความเร็วโจมตี +33%"
+  },
+  "bloodfeast": {
+    "name": "งานเลี้ยงเลือด",
+    "description": "ฟื้นฟู 25% ของความเสียหายที่ทำ (แบ่งให้สมาชิกแพ็กที่ยังรอด)"
+  },
+  "carrionFeast": {
+    "name": "งานเลี้ยงซากศพ",
+    "description": "เมื่อสังหาร แพ็กนี้ฟื้นฟู 30% ของ HP สูงสุดของเหยื่อ (แบ่งให้สมาชิกที่ยังรอด)"
+  },
+  "doubleShot": {
+    "name": "ยิงคู่",
+    "description": "ยิงกระสุน 2 ลูกต่อการโจมตี (+1 สำหรับอาวุธยิงชุด) เวลาบรรจุ +10%"
+  },
+  "galeGate": {
+    "name": "ประตูพายุ",
+    "description": "เปลี่ยนตำแหน่งได้ทุกรอบวางกำลังโดยไม่ต้องใช้ย้ายแพ็ก"
+  },
+  "groundhunt": {
+    "name": "ล่าภาคพื้น",
+    "description": "ความเสียหาย +50% และระยะยิง +15% ต่อยูนิตภาคพื้น"
+  },
+  "looseRank": {
+    "name": "แถวหลวม",
+    "description": "สมาชิกแพ็กยืนห่างกันมากขึ้น — โดนความเสียหายวงกว้างน้อยลง"
+  },
+  "massBinding": {
+    "name": "พันธนาการหมู่",
+    "description": "ยิงลำแสงหรือชักจูงศัตรูได้พร้อมกันสูงสุด 4 ตัว แต่ละช่องมีความแรง 18%"
+  },
+  "powerDraw": {
+    "name": "ง้างสุดแรง",
+    "description": "ความเสียหาย +70% ระยะยิง −15% และยิงช้าลง"
+  },
+  "regeneration": {
+    "name": "ฟื้นฟูตัวเอง",
+    "description": "ฟื้นฟู 2% ของ HP สูงสุดทุกวินาทีระหว่างรบ"
+  },
+  "ruinousEnd": {
+    "name": "จุดจบแห่งหายนะ",
+    "description": "เมื่อตาย จะระเบิดสร้างความเสียหายเท่ากับ HP สูงสุดของยูนิตนี้"
+  },
+  "skyhunt": {
+    "name": "ล่าเวหา",
+    "description": "ความเสียหาย +50% และระยะยิง +25% ต่อยูนิตทางอากาศ"
+  },
+  "soulRestore": {
+    "name": "ฟื้นคืนวิญญาณ",
+    "description": "ยูนิตที่ถูกชักจูงจะฟื้น HP เต็ม"
+  },
+  "veteranAim": {
+    "name": "เล็งแบบทหารผ่านศึก",
+    "description": "ทุกเลเวลที่เกิน 1: ความเสียหาย +12% และระยะยิง +10% (เพิ่มจากค่าประสบการณ์ปกติ)"
+  },
+  "whirlwind": {
+    "name": "ลมหมุน",
+    "description": "ฟันกว้างขึ้น — โดนศัตรูทุกตัวในวงกลมใหญ่รอบยูนิตนี้"
   }
 }

@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "Черно потомство"
+  },
+  "goblin": {
+    "name": "Гоблин"
+  },
+  "hammerer": {
+    "name": "Чукар"
+  },
+  "ogre": {
+    "name": "Огър"
+  },
+  "bat": {
+    "name": "Прилеп"
+  },
+  "mortar": {
+    "name": "Минохвъргачка"
+  },
+  "prismCannon": {
+    "name": "Призмено оръдие"
   }
 }

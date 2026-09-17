@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Kaki Cepat"
+    "name": "Kaki Cepat",
+    "description": "+35% kecepatan gerak."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Jangkauan",
+    "description": "+20 jangkauan."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Tembus",
+    "description": "+40% kerusakan."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Api",
+    "description": "Serangan meninggalkan api singkat di tanah dan membakar — cukup untuk menyulut genangan minyak."
   },
   "armor": {
-    "name": "Iron Plating",
+    "name": "Lapis Besi",
     "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Tembak Cepat",
+    "description": "+43% kecepatan serang."
   },
   "aegis": {
     "name": "Perlindungan",
@@ -63,10 +64,76 @@
     "produceFirst": ", pertama setelah {{delay}}",
     "produceOffspring": "Keturunan sesuai dengan tingkat orang tua.",
     "onKill": "Saat unit ini membunuh, bangkitkan {{child}}",
-    "cleave": "Menyerang setiap musuh dalam radius {{radius}} (di sekitar unit ini)"
+    "cleave": "Menyerang setiap musuh dalam radius {{radius}} (di sekitar unit ini)",
+    "emp": "Kutukan saat mengenai: talenta mati dan −{{slow}}% kecepatan gerak selama {{duration}}",
+    "modRangeAdd": "{{amount}} jangkauan"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Kutukan",
+    "description": "Serangan mengutuk target: talentanya mati dan bergerak 40% lebih lambat selama 3,5 dtk. Aura Emas / Batu Matahari menahannya."
+  },
+  "blightburst": {
+    "name": "Ledakan Busuk",
+    "description": "Saat mati, meninggalkan genangan asam."
+  },
+  "bloodRage": {
+    "name": "Amukan Darah",
+    "description": "+30% kecepatan gerak dan +33% kecepatan serang."
+  },
+  "bloodfeast": {
+    "name": "Pesta Darah",
+    "description": "Memulihkan 25% dari kerusakan yang diberikan (dibagi ke anggota Pack yang masih hidup)."
+  },
+  "carrionFeast": {
+    "name": "Pesta Bangkai",
+    "description": "Saat membunuh, memulihkan Pack ini sebesar 30% HP maks korban (dibagi ke anggota yang masih hidup)."
+  },
+  "doubleShot": {
+    "name": "Tembakan Ganda",
+    "description": "Menembakkan 2 proyektil per serangan (+1 untuk senjata rentetan). +10% waktu isi ulang."
+  },
+  "galeGate": {
+    "name": "Gerbang Badai",
+    "description": "Boleh berpindah posisi setiap ronde penempatan tanpa memakai Pindahkan Pack."
+  },
+  "groundhunt": {
+    "name": "Buru Darat",
+    "description": "+50% kerusakan dan +15% jangkauan melawan unit darat."
+  },
+  "looseRank": {
+    "name": "Barisan Renggang",
+    "description": "Anggota Pack berdiri lebih berjauhan — lebih tahan terhadap kerusakan area."
+  },
+  "massBinding": {
+    "name": "Ikatan Massal",
+    "description": "Menyinari atau mengonversi hingga 4 musuh sekaligus; tiap kanal berintensitas 18%."
+  },
+  "powerDraw": {
+    "name": "Tarikan Penuh",
+    "description": "+70% kerusakan, −15% jangkauan, dan tembakan lebih lambat."
+  },
+  "regeneration": {
+    "name": "Regenerasi",
+    "description": "Memulihkan 2% HP maks per detik dalam pertempuran."
+  },
+  "ruinousEnd": {
+    "name": "Akhir Pembinasa",
+    "description": "Saat mati, meledak dengan kerusakan sebesar HP maks unit ini."
+  },
+  "skyhunt": {
+    "name": "Buru Udara",
+    "description": "+50% kerusakan dan +25% jangkauan melawan unit udara."
+  },
+  "soulRestore": {
+    "name": "Pemulihan Jiwa",
+    "description": "Unit yang dikonversi pulih ke HP penuh."
+  },
+  "veteranAim": {
+    "name": "Bidikan Veteran",
+    "description": "Setiap level di atas 1: +12% kerusakan dan +10% jangkauan (di atas veteran biasa)."
+  },
+  "whirlwind": {
+    "name": "Angin Puyuh",
+    "description": "Tebasan lebih lebar — mengenai setiap musuh dalam lingkaran besar di sekitar unit ini."
   }
 }

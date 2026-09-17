@@ -124,7 +124,11 @@
     "boostsTitle": "Tehosteet",
     "tier": "Taso {{n}}",
     "tierValue": "{{cost}} tarvike → +{{attack}} vahinko, +{{hp}} kyky",
-    "tierNote": "Vanguard — kokonaismäärät, ei pinottu edellisen tason päälle"
+    "tierNote": "Vanguard — kokonaismäärät, ei pinottu edellisen tason päälle",
+    "moneyFactor": "Tarvikekerroin",
+    "moneyFactorNote": "skaalaa jokaisen kierroksen tulot molemmille joukkueille",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} tarviketulot (molemmat joukkueet)"
   },
   "mpHintSteam": "Vain Steam-aulat. Vaatii Steamin käynnissä käynnistyksen yhteydessä.",
   "mpHintMatchmaking": "Online-huoneet PeerJS:n + palvelinlistan kautta. Vaatii internetyhteyden.",
@@ -178,7 +182,8 @@
     "rotate": "Kierrä valittua pakkausta",
     "pause": "Taukovalikko. Elokuvatilassa palauttaa ensin HUDin.",
     "chat": "Lähetä keskustelu",
-    "fullscreen": "Koko näyttö (työpöytäsovellus)"
+    "fullscreen": "Koko näyttö (työpöytäsovellus)",
+    "zoom": "Lähennä / loitonna osoitinta kohti"
   },
   "controlsGamepad": {
     "head": "Peliohjain",
@@ -243,6 +248,12 @@
     "shadowsHint": "möykkyjä / aurinkokartta",
     "showDead": "Näytä kuolleet yksiköt",
     "antialias": "Reunanpehmennys",
-    "antialiasHint": "tasaisemmat reunat · seuraava osuma"
+    "antialiasHint": "tasaisemmat reunat · seuraava osuma",
+    "ao": "Ympäristön varjostus",
+    "aoHint": "kiinnittää yksiköt pelilaudalle",
+    "bloom": "Hehku",
+    "bloomHint": "tulen ja taikuuden hehku · taistelu",
+    "vignette": "Vinjetti",
+    "vignetteHint": "tummemmat reunat taistelussa"
   }
 }

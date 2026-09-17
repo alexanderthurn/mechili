@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "一致するレシピなし — 次の配備ですべてのルーンを所有者へ返却",
   "forgeReadyThis": "この配備で準備完了",
   "forgeReadyNext": "次の配備で準備完了",
-  "forgeFireToStart": "鍛造を起動して開始 — 次の配備で準備完了。"
+  "forgeFireToStart": "鍛造を起動して開始 — 次の配備で準備完了。",
+  "techHexed": "呪い — 呪いが解けるまでこの才能は無効です。",
+  "techHexedShort": "✕ 呪い — 無効"
 }

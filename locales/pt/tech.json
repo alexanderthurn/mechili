@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Pés ligeiros"
+    "name": "Pés ligeiros",
+    "description": "+35% de velocidade de movimento."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Alcance",
+    "description": "+20 de alcance."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Perfuração",
+    "description": "+40% de dano."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Fogo",
+    "description": "Os ataques deixam fogo breve no chão e queimam — o suficiente para incendiar poças de óleo."
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "Placas de ferro",
+    "description": "+50% de PV."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Tiro rápido",
+    "description": "+43% de velocidade de ataque."
   },
   "aegis": {
     "name": "Égide",
@@ -63,10 +64,76 @@
     "produceFirst": ", primeiro após {{delay}}",
     "produceOffspring": "A prole corresponde ao nível dos pais.",
     "onKill": "Quando esta unidade mata, ergue-se um {{child}}",
-    "cleave": "Atinge todos os inimigos dentro de {{radius}} (ao redor desta unidade)"
+    "cleave": "Atinge todos os inimigos dentro de {{radius}} (ao redor desta unidade)",
+    "emp": "Maldição ao acertar: talentos desligados e −{{slow}}% de velocidade durante {{duration}}",
+    "modRangeAdd": "{{amount}} de alcance"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Maldição",
+    "description": "Os golpes amaldiçoam o alvo: os talentos dele desligam-se e move-se 40% mais devagar durante 3,5 s. Aura Dourada / Pedra do Sol resistem."
+  },
+  "blightburst": {
+    "name": "Explosão pútrida",
+    "description": "Ao morrer, deixa uma poça de ácido."
+  },
+  "bloodRage": {
+    "name": "Fúria sangrenta",
+    "description": "+30% de velocidade de movimento e +33% de velocidade de ataque."
+  },
+  "bloodfeast": {
+    "name": "Banquete de sangue",
+    "description": "Cura 25% do dano causado (dividido pelos membros vivos do Pack)."
+  },
+  "carrionFeast": {
+    "name": "Banquete de carniça",
+    "description": "Ao abater, cura este Pack em 30% dos PV máximos da vítima (dividido pelos membros vivos)."
+  },
+  "doubleShot": {
+    "name": "Tiro duplo",
+    "description": "Dispara 2 projéteis por ataque (+1 extra em armas de rajada). +10% de tempo de recarga."
+  },
+  "galeGate": {
+    "name": "Portão do vendaval",
+    "description": "Pode reposicionar-se em cada ronda de posicionamento sem usar Mover Pack."
+  },
+  "groundhunt": {
+    "name": "Caça terrestre",
+    "description": "+50% de dano e +15% de alcance contra unidades terrestres."
+  },
+  "looseRank": {
+    "name": "Fileiras abertas",
+    "description": "Os membros do Pack ficam mais afastados — menos vulneráveis a dano em área."
+  },
+  "massBinding": {
+    "name": "Vínculo em massa",
+    "description": "Irradia ou converte até 4 inimigos ao mesmo tempo; cada canal atua com 18% de intensidade."
+  },
+  "powerDraw": {
+    "name": "Tensão máxima",
+    "description": "+70% de dano, −15% de alcance e disparos mais lentos."
+  },
+  "regeneration": {
+    "name": "Regeneração",
+    "description": "Regenera 2% dos PV máximos por segundo em batalha."
+  },
+  "ruinousEnd": {
+    "name": "Fim ruinoso",
+    "description": "Ao morrer, explode causando dano igual aos PV máximos desta unidade."
+  },
+  "skyhunt": {
+    "name": "Caça aérea",
+    "description": "+50% de dano e +25% de alcance contra unidades aéreas."
+  },
+  "soulRestore": {
+    "name": "Restauração da alma",
+    "description": "As unidades convertidas recuperam todos os PV."
+  },
+  "veteranAim": {
+    "name": "Pontaria veterana",
+    "description": "Cada nível acima de 1: +12% de dano e +10% de alcance (além da veterania normal)."
+  },
+  "whirlwind": {
+    "name": "Remoinho",
+    "description": "Golpe mais amplo — atinge todos os inimigos num grande círculo à volta desta unidade."
   }
 }

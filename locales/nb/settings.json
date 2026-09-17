@@ -124,7 +124,11 @@
     "boostsTitle": "Booster",
     "tier": "Nivå {{n}}",
     "tierValue": "{{cost}} forsyning → +{{attack}} skade, +{{hp}} hk",
-    "tierNote": "Vanguard – totaler, ikke stablet oppå forrige nivå"
+    "tierNote": "Vanguard – totaler, ikke stablet oppå forrige nivå",
+    "moneyFactor": "Forsyningsfaktor",
+    "moneyFactorNote": "skalerer inntekten hver runde for begge lag",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} forsyningsinntekt (begge lag)"
   },
   "mpHintSteam": "Kun Steam-lobbyer. Krever at Steam kjører ved oppstart.",
   "mpHintMatchmaking": "Online rom via PeerJS + serverliste. Trenger internett.",
@@ -178,7 +182,8 @@
     "rotate": "Roter den valgte pakken",
     "pause": "Pausemeny. Gjenoppretter først HUD-en i kinomodus.",
     "chat": "Send chat",
-    "fullscreen": "Fullskjerm (skrivebordsapp)"
+    "fullscreen": "Fullskjerm (skrivebordsapp)",
+    "zoom": "Zoom inn / ut mot pekeren"
   },
   "controlsGamepad": {
     "head": "Gamepad",
@@ -243,6 +248,12 @@
     "shadowsHint": "klatter / solkart",
     "showDead": "Vis døde enheter",
     "antialias": "Antialiasing",
-    "antialiasHint": "glattere kanter · neste kamp"
+    "antialiasHint": "glattere kanter · neste kamp",
+    "ao": "Ambient occlusion",
+    "aoHint": "forankrer enheter på brettet",
+    "bloom": "Bloom",
+    "bloomHint": "glød fra ild og magi · kamp",
+    "vignette": "Vignett",
+    "vignetteHint": "mørkere kanter i kamp"
   }
 }

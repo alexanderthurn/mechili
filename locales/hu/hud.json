@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Nincs egyező recept — minden rúna visszakerül a tulajdonosához a következő telepítéskor.",
   "forgeReadyThis": "Készülj fel erre a telepítésre",
   "forgeReadyNext": "Készen áll a következő bevetésre",
-  "forgeFireToStart": "Gyújtsd be a kovácsműhelyt az indításhoz – készen áll a következő bevetésre."
+  "forgeFireToStart": "Gyújtsd be a kovácsműhelyt az indításhoz – készen áll a következő bevetésre.",
+  "techHexed": "Megátkozva — ez a képesség kikapcsolva, amíg az átok tart.",
+  "techHexedShort": "✕ Megátkozva — inaktív"
 }

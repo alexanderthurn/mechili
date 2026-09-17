@@ -124,7 +124,11 @@
     "boostsTitle": "Potenziamenti",
     "tier": "Livello {{n}}",
     "tierValue": "{{cost}} scorte → +{{attack}} danno, +{{hp}} hp",
-    "tierNote": "Avanguardia: totali, non sommati al livello precedente."
+    "tierNote": "Avanguardia: totali, non sommati al livello precedente.",
+    "moneyFactor": "Fattore scorte",
+    "moneyFactorNote": "scala le entrate di ogni round per entrambe le squadre",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "Entrate di scorte {{label}} (entrambe le squadre)"
   },
   "mpHintSteam": "Accesso consentito solo alle lobby di Steam. È necessario che Steam sia in esecuzione all'avvio.",
   "mpHintMatchmaking": "Stanze online tramite PeerJS + elenco server. Richiede connessione a Internet.",
@@ -178,7 +182,8 @@
     "rotate": "Ruotare la Pack selezionata",
     "pause": "Menu Pausa. In modalità cinema, ripristina prima l'HUD.",
     "chat": "Invia chat",
-    "fullscreen": "Schermo intero (applicazione desktop)"
+    "fullscreen": "Schermo intero (applicazione desktop)",
+    "zoom": "Zoom avanti / indietro verso il puntatore"
   },
   "controlsGamepad": {
     "head": "Gamepad",
@@ -243,6 +248,12 @@
     "shadowsHint": "macchie / mappa solare",
     "showDead": "Mostra le unità morte",
     "antialias": "Antialiasing",
-    "antialiasHint": "bordi più lisci · prossima partita"
+    "antialiasHint": "bordi più lisci · prossima partita",
+    "ao": "Occlusione ambientale",
+    "aoHint": "radica le unità sul campo",
+    "bloom": "Bagliore",
+    "bloomHint": "bagliore di fuoco e magia · battaglia",
+    "vignette": "Vignettatura",
+    "vignetteHint": "bordi più scuri in battaglia"
   }
 }

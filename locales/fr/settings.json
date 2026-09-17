@@ -124,7 +124,11 @@
     "boostsTitle": "Boosts",
     "tier": "Niveau {{n}}",
     "tierValue": "{{cost}} approvisionnement → +{{attack}} dégâts, +{{hp}} PV",
-    "tierNote": "Vanguard — totaux, non superposés au niveau précédent"
+    "tierNote": "Vanguard — totaux, non superposés au niveau précédent",
+    "moneyFactor": "Facteur de ravitaillement",
+    "moneyFactorNote": "modifie le revenu de chaque manche pour les deux équipes",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "Revenu de ravitaillement {{label}} (les deux équipes)"
   },
   "mpHintSteam": "Accès uniquement aux salons Steam. Steam doit être lancé au démarrage.",
   "mpHintMatchmaking": "Salles en ligne via PeerJS + liste de serveurs. Connexion internet requise.",
@@ -178,7 +182,8 @@
     "rotate": "Faites tourner le Pack sélectionné",
     "pause": "Menu Pause. En mode cinéma, restaure d'abord l'interface.",
     "chat": "Envoyer un chat",
-    "fullscreen": "Plein écran (application de bureau)"
+    "fullscreen": "Plein écran (application de bureau)",
+    "zoom": "Zoomer / dézoomer vers le pointeur"
   },
   "controlsGamepad": {
     "head": "Manette de jeu",
@@ -243,6 +248,12 @@
     "shadowsHint": "blobs / carte du soleil",
     "showDead": "Afficher les unités mortes",
     "antialias": "Antialiasing",
-    "antialiasHint": "bords plus lisses · prochain match"
+    "antialiasHint": "bords plus lisses · prochain match",
+    "ao": "Occlusion ambiante",
+    "aoHint": "ancre les unités sur le plateau",
+    "bloom": "Bloom",
+    "bloomHint": "lueur du feu et de la magie · bataille",
+    "vignette": "Vignette",
+    "vignetteHint": "bords plus sombres en bataille"
   }
 }

@@ -124,7 +124,11 @@
     "boostsTitle": "Zvyšuje",
     "tier": "Úroveň {{n}}",
     "tierValue": "{{cost}} zásoby → +{{attack}} poškození, +{{hp}} zdraví",
-    "tierNote": "Vanguard – součty, které se nespočítávají na předchozí úroveň"
+    "tierNote": "Vanguard – součty, které se nespočítávají na předchozí úroveň",
+    "moneyFactor": "Násobek zásob",
+    "moneyFactorNote": "upravuje příjem každého kola pro oba týmy",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} příjem zásob (oba týmy)"
   },
   "mpHintSteam": "Pouze ve Steam lobby. Vyžaduje spuštění Steamu při spuštění.",
   "mpHintMatchmaking": "Online místnosti přes PeerJS + seznam serverů. Vyžaduje internet.",
@@ -178,7 +182,8 @@
     "rotate": "Otočit vybraný Pack",
     "pause": "Nabídka pozastavení. V režimu kina nejprve obnoví HUD.",
     "chat": "Odeslat chat",
-    "fullscreen": "Celá obrazovka (aplikace pro stolní počítače)"
+    "fullscreen": "Celá obrazovka (aplikace pro stolní počítače)",
+    "zoom": "Přiblížit / oddálit k ukazateli"
   },
   "controlsGamepad": {
     "head": "Gamepad",
@@ -243,6 +248,12 @@
     "shadowsHint": "bloby / mapa slunce",
     "showDead": "Zobrazit mrtvé jednotky",
     "antialias": "Antialiasing",
-    "antialiasHint": "hladší okraje · další zápas"
+    "antialiasHint": "hladší okraje · další zápas",
+    "ao": "Okolní okluze",
+    "aoHint": "ukotví jednotky na hrací ploše",
+    "bloom": "Záře",
+    "bloomHint": "záře ohně a magie · bitva",
+    "vignette": "Vinětace",
+    "vignetteHint": "tmavší okraje v bitvě"
   }
 }

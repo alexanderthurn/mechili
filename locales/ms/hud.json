@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Tiada resipi yang sepadan — semua rune kembali kepada pemiliknya selepas penggunaan",
   "forgeReadyThis": "Sediakan penggunaan ini",
   "forgeReadyNext": "Sedia untuk pelaksanaan seterusnya",
-  "forgeFireToStart": "Tembak bengkel untuk memulakannya — sedia untuk penggunaan seterusnya."
+  "forgeFireToStart": "Tembak bengkel untuk memulakannya — sedia untuk penggunaan seterusnya.",
+  "techHexed": "Disumpah — bakat ini dimatikan sehingga sumpahan tamat.",
+  "techHexedShort": "✕ Disumpah — tidak aktif"
 }

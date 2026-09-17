@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "ساحر السماء",
-    "description": "وحدات الجو تحصل على +12% هجوم وصحة."
+    "description": "وحدات الجو تحصل على +12% هجوم وصحة.",
+    "unitsLabel": "3× غوبلن · 1× فرسان الغربان"
   },
   "cost": {
     "title": "الأمير الطماع",
-    "description": "كل الوحدات −12% هجوم وصحة، لكن +100 إمداد كل جولة."
+    "description": "كل الوحدات −12% هجوم وصحة، لكن +100 إمداد كل جولة.",
+    "unitsLabel": "3× أقزام · 1× فرسان الغربان"
   },
   "elite": {
     "title": "أمير النخبة",
-    "description": "التجنيد عند المستوى 2. +100 إمداد في الجولة 1."
+    "description": "التجنيد عند المستوى 2. +100 إمداد في الجولة 1.",
+    "unitsLabel": "3× غوبلن · 1× غول"
   },
   "archer": {
     "title": "قائد الرماة",
-    "description": "رامٍ مجاني من المستوى 3 يصل في الجولة 2."
+    "description": "رامٍ مجاني من المستوى 3 يصل في الجولة 2.",
+    "unitsLabel": "3× أقزام · 2× رماة"
   },
   "addi": {
     "title": "حارس الآثار",
-    "description": "يحصل على 3× رون البسالة في الجولة 1."
+    "description": "يحصل على 3× رون البسالة في الجولة 1.",
+    "unitsLabel": "3× حاملو المطارق · 2× أقزام"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "يحصل على شحنتي نيزك في الجولة 2."
+    "description": "يحصل على شحنتي نيزك في الجولة 2.",
+    "unitsLabel": "3× غوبلن · 1× مدافع هاون"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× أقزام · 1× غول"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× غوبلن · 2× حاملو المطارق"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "تبدأ بدرس ميداني واحد."
+    "description": "تبدأ بدرس ميداني واحد.",
+    "unitsLabel": "3× غوبلن · 2× رماة"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× أقزام · 1× مدافع هاون"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "تحصل على عنكبوت حضنة سوداء مجاني كل جولة."
+    "description": "تحصل على عنكبوت حضنة سوداء مجاني كل جولة.",
+    "unitsLabel": "3× الحضنة السوداء · 2× خفافيش"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "أول ظهور من الجناح يستغرق نصف الوقت."
+    "description": "أول ظهور من الجناح يستغرق نصف الوقت.",
+    "unitsLabel": "3× أقزام · 2× حاملو المطارق"
   }
 }

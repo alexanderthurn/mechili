@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "Fekete fészekalj"
+  },
+  "goblin": {
+    "name": "Goblin"
+  },
+  "hammerer": {
+    "name": "Pörölyös"
+  },
+  "ogre": {
+    "name": "Ogre"
+  },
+  "bat": {
+    "name": "Denevér"
+  },
+  "mortar": {
+    "name": "Mozsárágyú"
+  },
+  "prismCannon": {
+    "name": "Prizmaágyú"
   }
 }

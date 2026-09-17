@@ -124,7 +124,11 @@
     "boostsTitle": "Impulsos",
     "tier": "Nivel {{n}}",
     "tierValue": "{{cost}} suministro → +{{attack}} daño, +{{hp}} puntos de vida",
-    "tierNote": "Vanguardia: totales, no acumulados sobre el nivel anterior."
+    "tierNote": "Vanguardia: totales, no acumulados sobre el nivel anterior.",
+    "moneyFactor": "Factor de suministros",
+    "moneyFactorNote": "escala los ingresos de cada ronda para ambos equipos",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "Ingresos de suministros {{label}} (ambos equipos)"
   },
   "mpHintSteam": "Solo para salas de Steam. Requiere que Steam esté en ejecución al iniciar.",
   "mpHintMatchmaking": "Salas online mediante PeerJS + lista de servidores. Requiere conexión a internet.",
@@ -178,7 +182,8 @@
     "rotate": "Gire el Pack seleccionado",
     "pause": "Menú de pausa. En el modo cine, primero restaura la interfaz de usuario (HUD).",
     "chat": "Enviar chat",
-    "fullscreen": "Pantalla completa (aplicación de escritorio)"
+    "fullscreen": "Pantalla completa (aplicación de escritorio)",
+    "zoom": "Acercar / alejar hacia el puntero"
   },
   "controlsGamepad": {
     "head": "Gamepad",
@@ -243,6 +248,12 @@
     "shadowsHint": "manchas / mapa solar",
     "showDead": "Mostrar unidades muertas",
     "antialias": "Suavizado de bordes",
-    "antialiasHint": "bordes más suaves · siguiente partido"
+    "antialiasHint": "bordes más suaves · siguiente partido",
+    "ao": "Oclusión ambiental",
+    "aoHint": "asienta las unidades en el tablero",
+    "bloom": "Resplandor",
+    "bloomHint": "brillo del fuego y la magia · batalla",
+    "vignette": "Viñeta",
+    "vignetteHint": "bordes más oscuros en batalla"
   }
 }

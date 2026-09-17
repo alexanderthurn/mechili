@@ -178,5 +178,6 @@
   "terrainHighlands": "Vysočina",
   "terrainHighlandsDesc": "každá pevnost na vysoké plošině s jedinou rampou",
   "terrainWall": "Val",
-  "terrainWallDesc": "kopcovitý val s průchody uprostřed, jinde rovina"
+  "terrainWallDesc": "kopcovitý val s průchody uprostřed, jinde rovina",
+  "money": "Zásoby"
 }

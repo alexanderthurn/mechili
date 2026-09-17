@@ -178,5 +178,6 @@
   "terrainHighlands": "Dataran tinggi",
   "terrainHighlandsDesc": "setiap benteng di dataran tinggi dengan satu tanjakan",
   "terrainWall": "Tembok",
-  "terrainWallDesc": "tembok perbukitan bercelah di tengah, sisanya datar"
+  "terrainWallDesc": "tembok perbukitan bercelah di tengah, sisanya datar",
+  "money": "Persediaan"
 }

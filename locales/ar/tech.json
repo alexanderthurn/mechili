@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "أقدام سريعة"
+    "name": "أقدام سريعة",
+    "description": "+35% سرعة حركة."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "المدى",
+    "description": "+20 مدى."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "الاختراق",
+    "description": "+40% ضرر."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "النار",
+    "description": "تترك الهجمات نارًا قصيرة على الأرض وتحرق — بما يكفي لإشعال برك الزيت."
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "صفائح حديدية",
+    "description": "+50% نقاط صحة."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "الرمي السريع",
+    "description": "+43% سرعة هجوم."
   },
   "aegis": {
     "name": "درع إيجيس",
@@ -63,10 +64,76 @@
     "produceFirst": "، الأول بعد {{delay}}",
     "produceOffspring": ". النسل يطابق مستوى الأب",
     "onKill": "عندما تقتل هذه الوحدة عدوًا، تُنشئ {{child}}",
-    "cleave": "تصيب كل عدو ضمن {{radius}} (حول هذه الوحدة)"
+    "cleave": "تصيب كل عدو ضمن {{radius}} (حول هذه الوحدة)",
+    "emp": "لعنة عند الإصابة: تعطيل المواهب و−{{slow}}% من سرعة الحركة لمدة {{duration}}",
+    "modRangeAdd": "{{amount}} مدى"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "اللعنة",
+    "description": "الإصابات تلعن الهدف: تتعطل مواهبه ويتحرك أبطأ بنسبة 40% لمدة 3.5 ث. الهالة الذهبية / حجر الشمس يقاومانها."
+  },
+  "blightburst": {
+    "name": "انفجار العفن",
+    "description": "عند الموت، يترك بركة حمض."
+  },
+  "bloodRage": {
+    "name": "غضب الدم",
+    "description": "+30% سرعة حركة و+33% سرعة هجوم."
+  },
+  "bloodfeast": {
+    "name": "وليمة الدم",
+    "description": "يشفي بمقدار 25% من الضرر المُحدث (يُوزَّع على أفراد الفرقة الأحياء)."
+  },
+  "carrionFeast": {
+    "name": "وليمة الجيف",
+    "description": "عند القتل، يشفي هذه الفرقة بمقدار 30% من أقصى صحة الضحية (يُوزَّع على الأفراد الأحياء)."
+  },
+  "doubleShot": {
+    "name": "الرمية المزدوجة",
+    "description": "يطلق مقذوفين في كل هجوم (+1 إضافي لأسلحة الوابل). +10% زمن إعادة التعبئة."
+  },
+  "galeGate": {
+    "name": "بوابة العاصفة",
+    "description": "يمكنه تغيير موقعه في كل جولة نشر دون استخدام نقل الفرقة."
+  },
+  "groundhunt": {
+    "name": "صيد الأرض",
+    "description": "+50% ضرر و+15% مدى ضد الوحدات الأرضية."
+  },
+  "looseRank": {
+    "name": "صفوف متباعدة",
+    "description": "يقف أفراد الفرقة متباعدين أكثر — أقل عرضة للضرر الواسع."
+  },
+  "massBinding": {
+    "name": "الربط الجماعي",
+    "description": "يضرب بالشعاع أو يحوّل حتى 4 أعداء في آن واحد؛ كل قناة تعمل بشدة 18%."
+  },
+  "powerDraw": {
+    "name": "الشد الكامل",
+    "description": "+70% ضرر، −15% مدى، ورميات أبطأ."
+  },
+  "regeneration": {
+    "name": "التجدد",
+    "description": "يستعيد 2% من أقصى الصحة كل ثانية في المعركة."
+  },
+  "ruinousEnd": {
+    "name": "نهاية مدمّرة",
+    "description": "عند الموت، ينفجر بضرر يساوي أقصى صحة هذه الوحدة."
+  },
+  "skyhunt": {
+    "name": "صيد الجو",
+    "description": "+50% ضرر و+25% مدى ضد الوحدات الجوية."
+  },
+  "soulRestore": {
+    "name": "استعادة الروح",
+    "description": "تُستعاد صحة الوحدات المُحوَّلة بالكامل."
+  },
+  "veteranAim": {
+    "name": "تصويب المخضرم",
+    "description": "كل مستوى فوق 1: +12% ضرر و+10% مدى (إضافة إلى الخبرة المعتادة)."
+  },
+  "whirlwind": {
+    "name": "الزوبعة",
+    "description": "ضربة أوسع — تصيب كل عدو في دائرة كبيرة حول هذه الوحدة."
   }
 }

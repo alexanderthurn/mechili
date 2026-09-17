@@ -124,7 +124,11 @@
     "boostsTitle": "Boosts",
     "tier": "Niveau {{n}}",
     "tierValue": "{{cost}} voeding → +{{attack}} schade, +{{hp}} hp",
-    "tierNote": "Vanguard — totalen, niet bovenop de vorige laag gestapeld"
+    "tierNote": "Vanguard — totalen, niet bovenop de vorige laag gestapeld",
+    "moneyFactor": "Voorraadfactor",
+    "moneyFactorNote": "schaalt het inkomen van elke ronde voor beide teams",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} voorraadinkomen (beide teams)"
   },
   "mpHintSteam": "Alleen beschikbaar in Steam-lobby's. Steam moet bij het opstarten actief zijn.",
   "mpHintMatchmaking": "Online chatrooms via PeerJS + serverlijst. Internetverbinding vereist.",
@@ -178,7 +182,8 @@
     "rotate": "Draai het geselecteerde Pack.",
     "pause": "Pauzemenu. In de bioscoopmodus wordt eerst de HUD hersteld.",
     "chat": "Chat verzenden",
-    "fullscreen": "Volledig scherm (desktop-app)"
+    "fullscreen": "Volledig scherm (desktop-app)",
+    "zoom": "In- / uitzoomen naar de aanwijzer"
   },
   "controlsGamepad": {
     "head": "Gamepad",
@@ -243,6 +248,12 @@
     "shadowsHint": "vlekken / zonnekaart",
     "showDead": "Toon dode eenheden",
     "antialias": "Antialiasing",
-    "antialiasHint": "gladdere randen · volgende wedstrijd"
+    "antialiasHint": "gladdere randen · volgende wedstrijd",
+    "ao": "Ambient occlusion",
+    "aoHint": "zet eenheden stevig op het bord",
+    "bloom": "Bloom",
+    "bloomHint": "gloed van vuur en magie · gevecht",
+    "vignette": "Vignet",
+    "vignetteHint": "donkerdere randen in gevecht"
   }
 }

@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "Couvée noire"
+  },
+  "goblin": {
+    "name": "Gobelin"
+  },
+  "hammerer": {
+    "name": "Marteleur"
+  },
+  "ogre": {
+    "name": "Ogre"
+  },
+  "bat": {
+    "name": "Chauve-souris"
+  },
+  "mortar": {
+    "name": "Mortier"
+  },
+  "prismCannon": {
+    "name": "Canon à prisme"
   }
 }

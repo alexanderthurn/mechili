@@ -124,7 +124,11 @@
     "boostsTitle": "Boosts",
     "tier": "Stufe {{n}}",
     "tierValue": "{{cost}} Vorräte → +{{attack}} Schaden, +{{hp}} Trefferpunkte",
-    "tierNote": "Vorhut – Gesamtwerte, nicht zusätzlich zur vorherigen Stufe"
+    "tierNote": "Vorhut – Gesamtwerte, nicht zusätzlich zur vorherigen Stufe",
+    "moneyFactor": "Vorratsfaktor",
+    "moneyFactorNote": "skaliert das Einkommen jeder Runde für beide Teams",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} Vorratseinkommen (beide Teams)"
   },
   "mpHintSteam": "Nur Steam-Lobbys. Steam muss beim Start ausgeführt werden.",
   "mpHintLan": "Nur lokales Netzwerk (Electron). Kein Internetanschluss erforderlich.",
@@ -177,7 +181,8 @@
     "rotate": "Drehe das ausgewählte Pack",
     "pause": "Pausenmenü. Im Kinomodus wird zuerst das HUD wiederhergestellt.",
     "chat": "Chat senden",
-    "fullscreen": "Vollbild (Desktop-App)"
+    "fullscreen": "Vollbild (Desktop-App)",
+    "zoom": "Zum Mauszeiger hinein- / herauszoomen"
   },
   "controlsGamepad": {
     "head": "Gamepad",
@@ -244,11 +249,11 @@
     "antialias": "Kantenglättung",
     "antialiasHint": "glattere Kanten · nächstes Spiel",
     "vignette": "Vignette",
-    "vignetteHint": "dunklere Ränder im Kampf",
+    "vignetteHint": "dunklere Ränder in der Schlacht",
     "bloom": "Bloom",
-    "bloomHint": "Leuchten bei Feuer & Magie · Kampf",
+    "bloomHint": "Leuchten bei Feuer & Magie · Schlacht",
     "ao": "Umgebungsverdeckung",
-    "aoHint": "Einheiten sitzen fester auf dem Boden"
+    "aoHint": "erdet Einheiten auf dem Spielfeld"
   },
   "mpHintMatchmaking": "Online-Räume über PeerJS + Serverliste. Internetverbindung erforderlich."
 }

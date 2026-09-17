@@ -124,7 +124,11 @@
     "boostsTitle": "Penggalak",
     "tier": "Peringkat {{n}}",
     "tierValue": "{{cost}} bekalan → +{{attack}} kerosakan, +{{hp}} hp",
-    "tierNote": "Vanguard — jumlah, tidak disusun di atas peringkat sebelumnya"
+    "tierNote": "Vanguard — jumlah, tidak disusun di atas peringkat sebelumnya",
+    "moneyFactor": "Faktor bekalan",
+    "moneyFactorNote": "melaraskan pendapatan setiap pusingan untuk kedua-dua pasukan",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "Pendapatan bekalan {{label}} (kedua-dua pasukan)"
   },
   "mpHintSteam": "Lobi Steam sahaja. Memerlukan Steam berjalan semasa pelancaran.",
   "mpHintMatchmaking": "Bilik dalam talian melalui senarai pelayan PeerJS +. Memerlukan internet.",
@@ -178,7 +182,8 @@
     "rotate": "Putar Pack yang dipilih",
     "pause": "Menu jeda. Dalam mod pawagam, mula-mula pulihkan HUD.",
     "chat": "Hantar sembang",
-    "fullscreen": "Skrin penuh (aplikasi desktop)"
+    "fullscreen": "Skrin penuh (aplikasi desktop)",
+    "zoom": "Zum masuk / keluar ke arah penuding"
   },
   "controlsGamepad": {
     "head": "Pad permainan",
@@ -243,6 +248,12 @@
     "shadowsHint": "gumpalan / peta matahari",
     "showDead": "Tunjukkan unit mati",
     "antialias": "Antialiasing",
-    "antialiasHint": "tepi yang lebih licin · padanan seterusnya"
+    "antialiasHint": "tepi yang lebih licin · padanan seterusnya",
+    "ao": "Oklusi ambien",
+    "aoHint": "menapakkan unit pada papan",
+    "bloom": "Bloom",
+    "bloomHint": "cahaya api & sihir · pertempuran",
+    "vignette": "Vinyet",
+    "vignetteHint": "tepi lebih gelap semasa bertempur"
   }
 }

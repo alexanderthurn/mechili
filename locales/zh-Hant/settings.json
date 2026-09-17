@@ -124,7 +124,11 @@
     "boostsTitle": "強化",
     "tier": "第 {{n}} 階",
     "tierValue": "{{cost}} 補給 → +{{attack}} 傷害，+{{hp}} 生命",
-    "tierNote": "先鋒 — 為總值，不與上一階疊加"
+    "tierNote": "先鋒 — 為總值，不與上一階疊加",
+    "moneyFactor": "補給倍率",
+    "moneyFactorNote": "調整雙方每回合的收入",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} 補給收入（雙方）"
   },
   "mpHintSteam": "僅使用 Steam 大廳。啟動時需要 Steam 正在運行。",
   "mpHintMatchmaking": "透過 PeerJS 與伺服器列表進行線上連線。需要連網。",
@@ -178,7 +182,8 @@
     "rotate": "旋轉所選編隊",
     "pause": "暫停菜單。在影院模式下會先恢復 HUD。",
     "chat": "發送聊天",
-    "fullscreen": "全屏（桌面版）"
+    "fullscreen": "全屏（桌面版）",
+    "zoom": "朝指標方向放大 / 縮小"
   },
   "controlsGamepad": {
     "head": "手柄",
@@ -243,6 +248,12 @@
     "shadowsHint": "光斑 / 日照圖",
     "showDead": "顯示陣亡單位",
     "antialias": "抗鋸齒",
-    "antialiasHint": "更平滑邊緣 · 下一場生效"
+    "antialiasHint": "更平滑邊緣 · 下一場生效",
+    "ao": "環境光遮蔽",
+    "aoHint": "讓單位更貼合棋盤",
+    "bloom": "泛光",
+    "bloomHint": "火焰與魔法的光暈 · 戰鬥",
+    "vignette": "暗角",
+    "vignetteHint": "戰鬥中邊緣變暗"
   }
 }

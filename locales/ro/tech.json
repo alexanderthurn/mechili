@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Picioare de flotă"
+    "name": "Picioare de flotă",
+    "description": "+35% viteză de mișcare."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Rază",
+    "description": "+20 rază."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Străpungere",
+    "description": "+40% daune."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Foc",
+    "description": "Atacurile lasă pentru scurt timp foc pe sol și ard — destul cât să aprindă bălțile de ulei."
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "Plăci de fier",
+    "description": "+50% PV."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Tragere rapidă",
+    "description": "+43% viteză de atac."
   },
   "aegis": {
     "name": "Aegis",
@@ -63,10 +64,76 @@
     "produceFirst": ", primul după {{delay}}",
     "produceOffspring": "Nivelul părintelui potrivit pentru urmași",
     "onKill": "Când această unitate ucide, ridică un {{child}}",
-    "cleave": "Lovește toți inamicii aflați în raza de {{radius}} (în jurul acestei unități)"
+    "cleave": "Lovește toți inamicii aflați în raza de {{radius}} (în jurul acestei unități)",
+    "emp": "Blestem la lovire: talente oprite și −{{slow}}% viteză de mișcare timp de {{duration}}",
+    "modRangeAdd": "{{amount}} rază"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Blestem",
+    "description": "Loviturile blestemă ținta: talentele ei se opresc și se mișcă cu 40% mai încet timp de 3,5 s. Aura de Aur / Piatra solară rezistă."
+  },
+  "blightburst": {
+    "name": "Izbucnire putredă",
+    "description": "La moarte, lasă o baltă de acid."
+  },
+  "bloodRage": {
+    "name": "Furie sângeroasă",
+    "description": "+30% viteză de mișcare și +33% viteză de atac."
+  },
+  "bloodfeast": {
+    "name": "Ospăț de sânge",
+    "description": "Vindecă 25% din daunele provocate (împărțit între membrii în viață ai Pack-ului)."
+  },
+  "carrionFeast": {
+    "name": "Ospăț de hoit",
+    "description": "La o ucidere, vindecă acest Pack cu 30% din PV maxime ale victimei (împărțit între membrii în viață)."
+  },
+  "doubleShot": {
+    "name": "Tragere dublă",
+    "description": "Trage 2 proiectile pe atac (+1 în plus pentru armele cu salvă). +10% timp de reîncărcare."
+  },
+  "galeGate": {
+    "name": "Poarta vijeliei",
+    "description": "Se poate repoziționa în fiecare rundă de desfășurare fără a folosi Mută Pack."
+  },
+  "groundhunt": {
+    "name": "Vânătoare terestră",
+    "description": "+50% daune și +15% rază împotriva unităților terestre."
+  },
+  "looseRank": {
+    "name": "Rânduri rare",
+    "description": "Membrii Pack-ului stau mai depărtați — mai puțin vulnerabili la daune de zonă."
+  },
+  "massBinding": {
+    "name": "Legare în masă",
+    "description": "Iradiază sau convertește până la 4 inamici deodată; fiecare canal acționează cu 18% intensitate."
+  },
+  "powerDraw": {
+    "name": "Încordare maximă",
+    "description": "+70% daune, −15% rază și trageri mai lente."
+  },
+  "regeneration": {
+    "name": "Regenerare",
+    "description": "Regenerează 2% din PV maxime pe secundă în luptă."
+  },
+  "ruinousEnd": {
+    "name": "Sfârșit ruinător",
+    "description": "La moarte, explodează cu daune egale cu PV maxime ale acestei unități."
+  },
+  "skyhunt": {
+    "name": "Vânătoare aeriană",
+    "description": "+50% daune și +25% rază împotriva unităților aeriene."
+  },
+  "soulRestore": {
+    "name": "Restaurarea sufletului",
+    "description": "Unitățile convertite sunt readuse la PV maxime."
+  },
+  "veteranAim": {
+    "name": "Țintire de veteran",
+    "description": "Fiecare nivel peste 1: +12% daune și +10% rază (pe lângă veterania normală)."
+  },
+  "whirlwind": {
+    "name": "Vârtej",
+    "description": "Lovitură mai largă — lovește fiecare inamic dintr-un cerc mare în jurul acestei unități."
   }
 }

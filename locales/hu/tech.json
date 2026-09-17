@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Fleet Feet"
+    "name": "Fleet Feet",
+    "description": "+35% mozgási sebesség."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Hatótáv",
+    "description": "+20 hatótáv."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Átütés",
+    "description": "+40% sebzés."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Tűz",
+    "description": "A támadások rövid ideig tüzet hagynak a földön és égetnek — elég az olajtócsák meggyújtásához."
   },
   "armor": {
-    "name": "Iron Plating",
+    "name": "Vaslemezek",
     "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Gyorslövés",
+    "description": "+43% támadási sebesség."
   },
   "aegis": {
     "name": "Égisz",
@@ -63,10 +64,76 @@
     "produceFirst": ", először a {{delay}} után",
     "produceOffspring": "Az utódok megegyeznek a szülő szintjével.",
     "onKill": "Amikor ez az egység megöl, emelj egy {{child}}-t",
-    "cleave": "Minden ellenséget eltalál a {{radius}} körzetben (ennek az egységnek a környékén)"
+    "cleave": "Minden ellenséget eltalál a {{radius}} körzetben (ennek az egységnek a környékén)",
+    "emp": "Átok találatkor: képességek ki és −{{slow}}% mozgási sebesség {{duration}} időre",
+    "modRangeAdd": "{{amount}} hatótáv"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Átok",
+    "description": "A találatok megátkozzák a célpontot: képességei kikapcsolnak, és 3,5 mp-ig 40%-kal lassabban mozog. Az Arany aura / Avanturin ellenáll."
+  },
+  "blightburst": {
+    "name": "Rothadásrobbanás",
+    "description": "Halálakor savtócsát hagy maga után."
+  },
+  "bloodRage": {
+    "name": "Vérdüh",
+    "description": "+30% mozgási sebesség és +33% támadási sebesség."
+  },
+  "bloodfeast": {
+    "name": "Véres lakoma",
+    "description": "Az okozott sebzés 25%-át gyógyítja (a Pack élő tagjai között elosztva)."
+  },
+  "carrionFeast": {
+    "name": "Dögevő lakoma",
+    "description": "Öléskor a Pack az áldozat max. HP-jának 30%-át gyógyítja (az élő tagok között elosztva)."
+  },
+  "doubleShot": {
+    "name": "Dupla lövés",
+    "description": "Támadásonként 2 lövedéket lő (+1 extra sorozatfegyvereknél). +10% újratöltési idő."
+  },
+  "galeGate": {
+    "name": "Szélkapu",
+    "description": "Minden felállási körben áthelyezheti magát a Pack mozgatása nélkül."
+  },
+  "groundhunt": {
+    "name": "Földi vadászat",
+    "description": "+50% sebzés és +15% hatótáv földi egységek ellen."
+  },
+  "looseRank": {
+    "name": "Laza sorok",
+    "description": "A Pack tagjai távolabb állnak egymástól — kevésbé sebezhetők területi sebzéssel."
+  },
+  "massBinding": {
+    "name": "Tömeges kötés",
+    "description": "Egyszerre akár 4 ellenséget sugároz be vagy térít meg; minden csatorna 18% intenzitással hat."
+  },
+  "powerDraw": {
+    "name": "Teljes feszítés",
+    "description": "+70% sebzés, −15% hatótáv és lassabb lövések."
+  },
+  "regeneration": {
+    "name": "Regeneráció",
+    "description": "Csatában másodpercenként a max. HP 2%-át regenerálja."
+  },
+  "ruinousEnd": {
+    "name": "Pusztító vég",
+    "description": "Halálakor felrobban, az egység max. HP-jával egyenlő sebzést okozva."
+  },
+  "skyhunt": {
+    "name": "Légi vadászat",
+    "description": "+50% sebzés és +25% hatótáv légi egységek ellen."
+  },
+  "soulRestore": {
+    "name": "Lélek-helyreállítás",
+    "description": "A megtérített egységek teljes HP-ra gyógyulnak."
+  },
+  "veteranAim": {
+    "name": "Veterán célzás",
+    "description": "Minden 1 feletti szint: +12% sebzés és +10% hatótáv (a szokásos veteránság mellett)."
+  },
+  "whirlwind": {
+    "name": "Forgószél",
+    "description": "Szélesebb suhintás — minden ellenséget eltalál egy nagy körben az egység körül."
   }
 }

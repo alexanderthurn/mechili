@@ -178,5 +178,6 @@
   "terrainHighlands": "Tanah tinggi",
   "terrainHighlandsDesc": "setiap kubu di dataran tinggi dengan satu tanjakan",
   "terrainWall": "Tembok",
-  "terrainWallDesc": "tembok berbukit dengan celah di tengah, selebihnya rata"
+  "terrainWallDesc": "tembok berbukit dengan celah di tengah, selebihnya rata",
+  "money": "Bekalan"
 }

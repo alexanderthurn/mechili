@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Aucune recette correspondante — toutes les runes retournent à leurs propriétaires lors du prochain déploiement",
   "forgeReadyThis": "Préparez ce déploiement",
   "forgeReadyNext": "Prêt pour le prochain déploiement",
-  "forgeFireToStart": "Mettez la forge en marche pour la démarrer — prête pour le prochain déploiement."
+  "forgeFireToStart": "Mettez la forge en marche pour la démarrer — prête pour le prochain déploiement.",
+  "techHexed": "Maudit — ce talent est désactivé jusqu’à la fin du maléfice.",
+  "techHexedShort": "✕ Maudit — inactif"
 }

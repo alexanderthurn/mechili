@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Penyihir Langit",
-    "description": "Unit udara mendapatkan tambahan +12% serangan dan HP."
+    "description": "Unit udara mendapatkan tambahan +12% serangan dan HP.",
+    "unitsLabel": "3× Goblin · 1× Penunggang Gagak"
   },
   "cost": {
     "title": "Pangeran Serakah",
-    "description": "Semua unit mengalami pengurangan serangan dan HP sebesar 12%, tetapi mendapatkan tambahan 100 suplai setiap putaran."
+    "description": "Semua unit mengalami pengurangan serangan dan HP sebesar 12%, tetapi mendapatkan tambahan 100 suplai setiap putaran.",
+    "unitsLabel": "3× Kerdil · 1× Penunggang Gagak"
   },
   "elite": {
     "title": "Pangeran Elit",
-    "description": "Rekrutmen di level 2. Pasokan +100 di putaran 1."
+    "description": "Rekrutmen di level 2. Pasokan +100 di putaran 1.",
+    "unitsLabel": "3× Goblin · 1× Ogre"
   },
   "archer": {
     "title": "Komandan Pemanah",
-    "description": "Seorang Archer level 3 gratis hadir di ronde 2."
+    "description": "Seorang Archer level 3 gratis hadir di ronde 2.",
+    "unitsLabel": "3× Kerdil · 2× Pemanah"
   },
   "addi": {
     "title": "Penjaga Relik",
-    "description": "Mendapatkan 3 rune Valor di ronde 1."
+    "description": "Mendapatkan 3 rune Valor di ronde 1.",
+    "unitsLabel": "3× Pemukul Palu · 2× Kerdil"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Mendapatkan 2 muatan Meteor di ronde 2."
+    "description": "Mendapatkan 2 muatan Meteor di ronde 2.",
+    "unitsLabel": "3× Goblin · 1× Mortir"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Kerdil · 1× Ogre"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Goblin · 2× Pemukul Palu"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Dimulai dengan satu Pelajaran Lapangan."
+    "description": "Dimulai dengan satu Pelajaran Lapangan.",
+    "unitsLabel": "3× Goblin · 2× Pemanah"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Kerdil · 1× Mortir"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Dapatkan satu laba-laba Black Brood gratis di setiap putaran."
+    "description": "Dapatkan satu laba-laba Black Brood gratis di setiap putaran.",
+    "unitsLabel": "3× Black Brood · 2× Kelelawar"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Kemunculan pertama dari sisi sayap membutuhkan setengah waktu."
+    "description": "Kemunculan pertama dari sisi sayap membutuhkan setengah waktu.",
+    "unitsLabel": "3× Kerdil · 2× Pemukul Palu"
   }
 }

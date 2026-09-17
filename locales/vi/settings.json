@@ -124,7 +124,11 @@
     "boostsTitle": "Tăng cường",
     "tier": "Cấp độ {{n}}",
     "tierValue": "{{cost}} nguồn cung → +{{attack}} sát thương, +{{hp}} máu",
-    "tierNote": "Vanguard — tổng số, không cộng dồn với cấp độ trước đó"
+    "tierNote": "Vanguard — tổng số, không cộng dồn với cấp độ trước đó",
+    "moneyFactor": "Hệ số tiếp tế",
+    "moneyFactorNote": "điều chỉnh thu nhập mỗi vòng cho cả hai đội",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "Thu nhập tiếp tế {{label}} (cả hai đội)"
   },
   "mpHintSteam": "Chỉ có thể sử dụng sảnh chờ Steam. Cần Steam đang chạy khi khởi động.",
   "mpHintMatchmaking": "Phòng chat trực tuyến qua PeerJS + danh sách máy chủ. Cần có kết nối internet.",
@@ -178,7 +182,8 @@
     "rotate": "Xoay Pack đã chọn",
     "pause": "Menu tạm dừng. Ở chế độ điện ảnh, thao tác này trước tiên khôi phục giao diện HUD.",
     "chat": "Gửi tin nhắn",
-    "fullscreen": "Chế độ toàn màn hình (ứng dụng máy tính)"
+    "fullscreen": "Chế độ toàn màn hình (ứng dụng máy tính)",
+    "zoom": "Phóng to / thu nhỏ về phía con trỏ"
   },
   "controlsGamepad": {
     "head": "Tay cầm chơi game",
@@ -243,6 +248,12 @@
     "shadowsHint": "bản đồ mặt trời/hình khối",
     "showDead": "Hiển thị các đơn vị đã chết",
     "antialias": "Khử răng cưa",
-    "antialiasHint": "các cạnh mượt mà hơn · trận đấu tiếp theo"
+    "antialiasHint": "các cạnh mượt mà hơn · trận đấu tiếp theo",
+    "ao": "Che khuất môi trường",
+    "aoHint": "giúp đơn vị bám trên bàn cờ",
+    "bloom": "Phát sáng",
+    "bloomHint": "ánh sáng của lửa và phép thuật · trận đánh",
+    "vignette": "Làm tối viền",
+    "vignetteHint": "viền tối hơn khi giao tranh"
   }
 }

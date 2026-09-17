@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Ingen samsvarende oppskrift – alle runer returneres til eierne sine ved neste utplassering",
   "forgeReadyThis": "Klargjør denne utplasseringen",
   "forgeReadyNext": "Klar for neste utplassering",
-  "forgeFireToStart": "Tenn opp smia for å starte den – klar for neste utplassering."
+  "forgeFireToStart": "Tenn opp smia for å starte den – klar for neste utplassering.",
+  "techHexed": "Forhekset — dette talentet er slått av til forbannelsen tar slutt.",
+  "techHexedShort": "✕ Forhekset — inaktiv"
 }

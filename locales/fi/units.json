@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "Musta sikiö"
+  },
+  "goblin": {
+    "name": "Peikko"
+  },
+  "hammerer": {
+    "name": "Vasaramies"
+  },
+  "ogre": {
+    "name": "Hiisi"
+  },
+  "bat": {
+    "name": "Lepakko"
+  },
+  "mortar": {
+    "name": "Kranaatinheitin"
+  },
+  "prismCannon": {
+    "name": "Prismatykki"
   }
 }

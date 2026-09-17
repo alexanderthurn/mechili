@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "질주하는 발"
+    "name": "질주하는 발",
+    "description": "이동 속도 +35%."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "사거리",
+    "description": "사거리 +20."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "관통",
+    "description": "피해 +40%."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "화염",
+    "description": "공격이 잠시 땅에 불을 남기고 태웁니다 — 기름 웅덩이에 불을 붙이기에 충분합니다."
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "철판 장갑",
+    "description": "HP +50%."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "속사",
+    "description": "공격 속도 +43%."
   },
   "aegis": {
     "name": "이지스",
@@ -63,10 +64,76 @@
     "produceFirst": ", 첫 생산은 {{delay}} 후",
     "produceOffspring": ". 자손은 부모와 같은 레벨",
     "onKill": "이 유닛이 처치하면 {{child}}를 되살립니다",
-    "cleave": "이 유닛 주변 {{radius}} 안의 모든 적에게 타격"
+    "cleave": "이 유닛 주변 {{radius}} 안의 모든 적에게 타격",
+    "emp": "적중 시 저주: 특성 비활성, {{duration}} 동안 이동 속도 −{{slow}}%",
+    "modRangeAdd": "사거리 {{amount}}"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "저주",
+    "description": "적중하면 대상을 저주합니다: 특성이 꺼지고 3.5초 동안 40% 느리게 이동합니다. 황금 오라 / 태양석은 이를 막습니다."
+  },
+  "blightburst": {
+    "name": "부패 폭발",
+    "description": "죽으면 산성 웅덩이를 남깁니다."
+  },
+  "bloodRage": {
+    "name": "피의 격노",
+    "description": "이동 속도 +30%, 공격 속도 +33%."
+  },
+  "bloodfeast": {
+    "name": "피의 향연",
+    "description": "가한 피해의 25%만큼 회복 (살아 있는 편대원에게 분배)."
+  },
+  "carrionFeast": {
+    "name": "썩은 고기의 향연",
+    "description": "처치 시 이 편대가 대상 최대 HP의 30%만큼 회복 (살아 있는 편대원에게 분배)."
+  },
+  "doubleShot": {
+    "name": "쌍발 사격",
+    "description": "공격마다 투사체 2발 발사 (일제 사격 무기는 +1). 재장전 시간 +10%."
+  },
+  "galeGate": {
+    "name": "돌풍의 문",
+    "description": "편대 이동 없이 매 배치 라운드마다 위치를 바꿀 수 있습니다."
+  },
+  "groundhunt": {
+    "name": "지상 사냥",
+    "description": "지상 유닛 상대로 피해 +50%, 사거리 +15%."
+  },
+  "looseRank": {
+    "name": "느슨한 대열",
+    "description": "편대원이 더 멀리 떨어져 섭니다 — 범위 피해에 덜 취약합니다."
+  },
+  "massBinding": {
+    "name": "대량 속박",
+    "description": "최대 4명의 적에게 동시에 광선을 쏘거나 개종시킵니다. 각 채널은 18% 강도."
+  },
+  "powerDraw": {
+    "name": "최대 당김",
+    "description": "피해 +70%, 사거리 −15%, 투사체 속도 감소."
+  },
+  "regeneration": {
+    "name": "재생",
+    "description": "전투 중 초당 최대 HP의 2% 회복."
+  },
+  "ruinousEnd": {
+    "name": "파멸의 최후",
+    "description": "죽으면 이 유닛의 최대 HP만큼의 피해로 폭발합니다."
+  },
+  "skyhunt": {
+    "name": "공중 사냥",
+    "description": "공중 유닛 상대로 피해 +50%, 사거리 +25%."
+  },
+  "soulRestore": {
+    "name": "영혼 복원",
+    "description": "개종한 유닛은 HP가 완전히 회복됩니다."
+  },
+  "veteranAim": {
+    "name": "베테랑 조준",
+    "description": "레벨 1을 넘는 단계마다: 피해 +12%, 사거리 +10% (일반 숙련도에 추가)."
+  },
+  "whirlwind": {
+    "name": "회오리바람",
+    "description": "더 넓은 베기 — 이 유닛 주변 큰 원 안의 모든 적을 공격합니다."
   }
 }

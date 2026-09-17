@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Rącze Stopy"
+    "name": "Rącze Stopy",
+    "description": "+35% prędkości ruchu."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Zasięg",
+    "description": "+20 zasięgu."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Przebicie",
+    "description": "+40% obrażeń."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Ogień",
+    "description": "Ataki zostawiają krótki ogień na ziemi i podpalają — wystarczająco, by zapalić kałuże oleju."
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "Żelazne płyty",
+    "description": "+50% PŻ."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Szybki strzał",
+    "description": "+43% szybkości ataku."
   },
   "aegis": {
     "name": "Egida",
@@ -63,10 +64,76 @@
     "produceFirst": ", pierwszy po {{delay}}",
     "produceOffspring": ". Potomstwo ma poziom rodzica",
     "onKill": "Gdy ta jednostka zabija, podnosi {{child}}",
-    "cleave": "Trafia każdego wroga w promieniu {{radius}} (wokół tej jednostki)"
+    "cleave": "Trafia każdego wroga w promieniu {{radius}} (wokół tej jednostki)",
+    "emp": "Klątwa przy trafieniu: talenty wyłączone i −{{slow}}% prędkości ruchu przez {{duration}}",
+    "modRangeAdd": "{{amount}} zasięgu"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Klątwa",
+    "description": "Trafienia przeklinają cel: jego talenty się wyłączają i przez 3,5 s porusza się o 40% wolniej. Złota Aura / Kamień słoneczny chronią przed tym."
+  },
+  "blightburst": {
+    "name": "Zgniły wybuch",
+    "description": "Po śmierci zostawia kałużę kwasu."
+  },
+  "bloodRage": {
+    "name": "Krwawy szał",
+    "description": "+30% prędkości ruchu i +33% szybkości ataku."
+  },
+  "bloodfeast": {
+    "name": "Krwawa uczta",
+    "description": "Leczy o 25% zadanych obrażeń (dzielone między żywych członków Packa)."
+  },
+  "carrionFeast": {
+    "name": "Uczta padlinożercy",
+    "description": "Po zabiciu leczy ten Pack o 30% maks. PŻ ofiary (dzielone między żywych członków)."
+  },
+  "doubleShot": {
+    "name": "Podwójny strzał",
+    "description": "Wystrzeliwuje 2 pociski na atak (+1 dodatkowy dla broni salwowych). +10% czasu przeładowania."
+  },
+  "galeGate": {
+    "name": "Brama wichury",
+    "description": "Może zmieniać pozycję w każdej rundzie rozstawienia bez użycia Przeniesienia Packa."
+  },
+  "groundhunt": {
+    "name": "Łowy naziemne",
+    "description": "+50% obrażeń i +15% zasięgu przeciw jednostkom naziemnym."
+  },
+  "looseRank": {
+    "name": "Luźny szyk",
+    "description": "Członkowie Packa stoją dalej od siebie — mniej podatni na obrażenia obszarowe."
+  },
+  "massBinding": {
+    "name": "Masowe spętanie",
+    "description": "Razi lub nawraca do 4 wrogów naraz; każdy kanał działa z 18% intensywności."
+  },
+  "powerDraw": {
+    "name": "Pełny naciąg",
+    "description": "+70% obrażeń, −15% zasięgu i wolniejsze strzały."
+  },
+  "regeneration": {
+    "name": "Regeneracja",
+    "description": "W bitwie regeneruje 2% maks. PŻ na sekundę."
+  },
+  "ruinousEnd": {
+    "name": "Zgubny koniec",
+    "description": "Po śmierci wybucha, zadając obrażenia równe maks. PŻ tej jednostki."
+  },
+  "skyhunt": {
+    "name": "Łowy powietrzne",
+    "description": "+50% obrażeń i +25% zasięgu przeciw jednostkom powietrznym."
+  },
+  "soulRestore": {
+    "name": "Przywrócenie duszy",
+    "description": "Nawrócone jednostki odzyskują pełne PŻ."
+  },
+  "veteranAim": {
+    "name": "Celność weterana",
+    "description": "Każdy poziom powyżej 1: +12% obrażeń i +10% zasięgu (ponad zwykłe doświadczenie)."
+  },
+  "whirlwind": {
+    "name": "Wir",
+    "description": "Szersze cięcie — trafia każdego wroga w dużym kręgu wokół tej jednostki."
   }
 }

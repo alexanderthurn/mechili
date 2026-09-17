@@ -124,7 +124,11 @@
     "boostsTitle": "Impulsos",
     "tier": "Nível {{n}}",
     "tierValue": "{{cost}} fornecimento → +{{attack}} dano, +{{hp}} HP",
-    "tierNote": "Vanguarda — totais, não acumulados sobre o nível anterior."
+    "tierNote": "Vanguarda — totais, não acumulados sobre o nível anterior.",
+    "moneyFactor": "Fator de provisões",
+    "moneyFactorNote": "ajusta o rendimento de cada ronda para ambas as equipas",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "Rendimento de provisões {{label}} (ambas as equipas)"
   },
   "mpHintSteam": "Apenas salas de espera do Steam. Requer que o Steam esteja aberto no momento da inicialização.",
   "mpHintMatchmaking": "Salas online via PeerJS + lista de servidores. Requer internet.",
@@ -178,7 +182,8 @@
     "rotate": "Gire o Pack selecionado",
     "pause": "Menu de pausa. No modo cinema, primeiro restaura o HUD.",
     "chat": "Enviar mensagem",
-    "fullscreen": "Ecrã completo (aplicativo para desktop)"
+    "fullscreen": "Ecrã completo (aplicativo para desktop)",
+    "zoom": "Aproximar / afastar em direção ao cursor"
   },
   "controlsGamepad": {
     "head": "gamepad",
@@ -243,6 +248,12 @@
     "shadowsHint": "manchas / mapa solar",
     "showDead": "Mostrar unidades mortas",
     "antialias": "Antisserrilhamento",
-    "antialiasHint": "bordas mais suaves · próxima partida"
+    "antialiasHint": "bordas mais suaves · próxima partida",
+    "ao": "Oclusão ambiente",
+    "aoHint": "assenta as unidades no tabuleiro",
+    "bloom": "Brilho",
+    "bloomHint": "brilho do fogo e da magia · batalha",
+    "vignette": "Vinheta",
+    "vignetteHint": "margens mais escuras em batalha"
   }
 }

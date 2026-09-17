@@ -178,5 +178,6 @@
   "terrainHighlands": "Wyżyny",
   "terrainHighlandsDesc": "każda twierdza na wysokim płaskowyżu z jednym podjazdem",
   "terrainWall": "Wał",
-  "terrainWallDesc": "pagórkowaty wał z przerwami pośrodku, reszta płaska"
+  "terrainWallDesc": "pagórkowaty wał z przerwami pośrodku, reszta płaska",
+  "money": "Zapasy"
 }

@@ -124,7 +124,11 @@
     "boostsTitle": "Boostar",
     "tier": "Nivå {{n}}",
     "tierValue": "{{cost}} försörjning → +{{attack}} skada, +{{hp}} hk",
-    "tierNote": "Vanguard — totaler, inte staplade ovanpå föregående nivå"
+    "tierNote": "Vanguard — totaler, inte staplade ovanpå föregående nivå",
+    "moneyFactor": "Förrådsfaktor",
+    "moneyFactorNote": "skalar varje rundas inkomst för båda lagen",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} förrådsinkomst (båda lagen)"
   },
   "mpHintSteam": "Endast Steam-lobbyer. Kräver att Steam körs vid lansering.",
   "mpHintMatchmaking": "Onlinerum via PeerJS + serverlista. Kräver internet.",
@@ -178,7 +182,8 @@
     "rotate": "Rotera det valda paketet",
     "pause": "Pausmeny. I bioläge återställs först HUD:n.",
     "chat": "Skicka chatt",
-    "fullscreen": "Helskärm (skrivbordsapp)"
+    "fullscreen": "Helskärm (skrivbordsapp)",
+    "zoom": "Zooma in / ut mot pekaren"
   },
   "controlsGamepad": {
     "head": "Gamepad",
@@ -243,6 +248,12 @@
     "shadowsHint": "blobbar / solkarta",
     "showDead": "Visa döda enheter",
     "antialias": "Antialiasing",
-    "antialiasHint": "mjukare kanter · nästa match"
+    "antialiasHint": "mjukare kanter · nästa match",
+    "ao": "Ambient ocklusion",
+    "aoHint": "förankrar enheter på spelplanen",
+    "bloom": "Bloom",
+    "bloomHint": "glöd från eld och magi · strid",
+    "vignette": "Vinjett",
+    "vignetteHint": "mörkare kanter i strid"
   }
 }

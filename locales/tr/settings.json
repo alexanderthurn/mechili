@@ -124,7 +124,11 @@
     "boostsTitle": "Güçlendirir",
     "tier": "Kademe {{n}}",
     "tierValue": "{{cost}} tedarik → +{{attack}} hasar, +{{hp}} can",
-    "tierNote": "Vanguard — toplamlar, önceki kademenin üzerine eklenmemiştir."
+    "tierNote": "Vanguard — toplamlar, önceki kademenin üzerine eklenmemiştir.",
+    "moneyFactor": "Tedarik çarpanı",
+    "moneyFactorNote": "her turun gelirini iki takım için ölçekler",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} tedarik geliri (iki takım)"
   },
   "mpHintSteam": "Sadece Steam lobilerinde kullanılabilir. Oyun başlatıldığında Steam'in çalışır durumda olması gerekir.",
   "mpHintMatchmaking": "PeerJS + sunucu listesi üzerinden çevrimiçi odalar. İnternet bağlantısı gereklidir.",
@@ -178,7 +182,8 @@
     "rotate": "Seçilen Packi döndürün",
     "pause": "Duraklatma menüsü. Sinema modunda, önce HUD'ı geri yükler.",
     "chat": "Sohbet gönder",
-    "fullscreen": "Tam ekran (masaüstü uygulaması)"
+    "fullscreen": "Tam ekran (masaüstü uygulaması)",
+    "zoom": "İmlece doğru yakınlaştır / uzaklaştır"
   },
   "controlsGamepad": {
     "head": "Oyun kumandası",
@@ -243,6 +248,12 @@
     "shadowsHint": "lekeler / güneş haritası",
     "showDead": "Ölü birimleri göster",
     "antialias": "Kenar yumuşatma",
-    "antialiasHint": "daha pürüzsüz kenarlar · sonraki maç"
+    "antialiasHint": "daha pürüzsüz kenarlar · sonraki maç",
+    "ao": "Ortam örtmesi",
+    "aoHint": "birlikleri tahtaya oturtur",
+    "bloom": "Parlama",
+    "bloomHint": "ateş ve büyü parıltısı · savaş",
+    "vignette": "Vinyet",
+    "vignetteHint": "savaşta daha koyu kenarlar"
   }
 }

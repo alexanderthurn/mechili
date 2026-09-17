@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Nessuna ricetta corrispondente: tutte le rune tornano ai rispettivi proprietari al prossimo utilizzo",
   "forgeReadyThis": "Prepara questa distribuzione",
   "forgeReadyNext": "Pronto per la prossima distribuzione",
-  "forgeFireToStart": "Accendi la forgia per avviarla: pronta per la prossima missione."
+  "forgeFireToStart": "Accendi la forgia per avviarla: pronta per la prossima missione.",
+  "techHexed": "Maledetto — questo talento è disattivato finché dura la maledizione.",
+  "techHexedShort": "✕ Maledetto — inattivo"
 }

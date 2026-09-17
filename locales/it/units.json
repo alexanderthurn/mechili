@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "Covata Nera"
+  },
+  "goblin": {
+    "name": "Goblin"
+  },
+  "hammerer": {
+    "name": "Martellatore"
+  },
+  "ogre": {
+    "name": "Orco"
+  },
+  "bat": {
+    "name": "Pipistrello"
+  },
+  "mortar": {
+    "name": "Mortaio"
+  },
+  "prismCannon": {
+    "name": "Cannone a prisma"
   }
 }

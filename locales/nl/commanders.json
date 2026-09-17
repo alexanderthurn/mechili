@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Hemeltovenaar",
-    "description": "Luchteenheden krijgen +12% aanvalskracht en HP."
+    "description": "Luchteenheden krijgen +12% aanvalskracht en HP.",
+    "unitsLabel": "3× Goblins · 1× Kraaienrijders"
   },
   "cost": {
     "title": "Gierige Prins",
-    "description": "Alle eenheden verliezen 12% aanvalskracht en HP, maar krijgen elke ronde 100 extra voorraden."
+    "description": "Alle eenheden verliezen 12% aanvalskracht en HP, maar krijgen elke ronde 100 extra voorraden.",
+    "unitsLabel": "3× Dwergen · 1× Kraaienrijders"
   },
   "elite": {
     "title": "Elite Prins",
-    "description": "+100 voorraad in ronde 1. Werven op niveau 2."
+    "description": "+100 voorraad in ronde 1. Werven op niveau 2.",
+    "unitsLabel": "3× Goblins · 1× Oger"
   },
   "archer": {
     "title": "Boogschuttercommandant",
-    "description": "In ronde 2 ontvang je een gratis boogschutter van niveau 3."
+    "description": "In ronde 2 ontvang je een gratis boogschutter van niveau 3.",
+    "unitsLabel": "3× Dwergen · 2× Boogschutters"
   },
   "addi": {
     "title": "Relikwiehouder",
-    "description": "Krijgt 3× Moed-rune in ronde 1."
+    "description": "Krijgt 3× Moed-rune in ronde 1.",
+    "unitsLabel": "3× Hamerslagers · 2× Dwergen"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Krijgt 2 Meteor-ladingen in ronde 2."
+    "description": "Krijgt 2 Meteor-ladingen in ronde 2.",
+    "unitsLabel": "3× Goblins · 1× Mortieren"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Dwergen · 1× Oger"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Goblins · 2× Hamerslagers"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Begint met één praktijkles."
+    "description": "Begint met één praktijkles.",
+    "unitsLabel": "3× Goblins · 2× Boogschutters"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Dwergen · 1× Mortieren"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Je krijgt elke ronde één gratis Zwarte Broedspin."
+    "description": "Je krijgt elke ronde één gratis Zwarte Broedspin.",
+    "unitsLabel": "3× Zwarte Broed · 2× Vleermuizen"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Bij de eerste keer spawnen vanaf de flank duurt het de helft van de tijd."
+    "description": "Bij de eerste keer spawnen vanaf de flank duurt het de helft van de tijd.",
+    "unitsLabel": "3× Dwergen · 2× Hamerslagers"
   }
 }

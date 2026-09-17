@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "Induk Hitam"
+  },
+  "goblin": {
+    "name": "Goblin"
+  },
+  "hammerer": {
+    "name": "Pemukul Tukul"
+  },
+  "ogre": {
+    "name": "Ogre"
+  },
+  "bat": {
+    "name": "Kelawar"
+  },
+  "mortar": {
+    "name": "Mortar"
+  },
+  "prismCannon": {
+    "name": "Meriam Prisma"
   }
 }

@@ -124,7 +124,11 @@
     "boostsTitle": "강화",
     "tier": "{{n}}단계",
     "tierValue": "보급 {{cost}} → 공격력 +{{attack}}, 체력 +{{hp}}",
-    "tierNote": "선봉 — 합산값이며, 이전 단계 위에 중첩되지 않음"
+    "tierNote": "선봉 — 합산값이며, 이전 단계 위에 중첩되지 않음",
+    "moneyFactor": "보급 배율",
+    "moneyFactorNote": "두 팀의 매 라운드 수입을 조정",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} 보급 수입 (두 팀)"
   },
   "mpHintSteam": "Steam 로비만. 실행 시 Steam이 켜져 있어야 합니다.",
   "mpHintMatchmaking": "PeerJS + 서버 목록으로 온라인 방. 인터넷 필요.",
@@ -178,7 +182,8 @@
     "rotate": "선택한 편대 회전",
     "pause": "일시정지 메뉴. 시네마 모드에서는 먼저 HUD를 복원.",
     "chat": "채팅 보내기",
-    "fullscreen": "전체 화면 (데스크톱 앱)"
+    "fullscreen": "전체 화면 (데스크톱 앱)",
+    "zoom": "포인터 쪽으로 확대 / 축소"
   },
   "controlsGamepad": {
     "head": "게임패드",
@@ -243,6 +248,12 @@
     "shadowsHint": "블롭 / 태양광 맵",
     "showDead": "죽은 유닛 표시",
     "antialias": "안티앨리어싱",
-    "antialiasHint": "더 부드러운 가장자리 · 다음 매치"
+    "antialiasHint": "더 부드러운 가장자리 · 다음 매치",
+    "ao": "앰비언트 오클루전",
+    "aoHint": "유닛을 보드에 자연스럽게 안착",
+    "bloom": "블룸",
+    "bloomHint": "불과 마법의 빛 · 전투",
+    "vignette": "비네트",
+    "vignetteHint": "전투 중 가장자리 어둡게"
   }
 }

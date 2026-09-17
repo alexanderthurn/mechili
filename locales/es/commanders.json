@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Hechicero del cielo",
-    "description": "Las unidades aéreas obtienen un +12% de ataque y puntos de vida."
+    "description": "Las unidades aéreas obtienen un +12% de ataque y puntos de vida.",
+    "unitsLabel": "3× Goblins · 1× Jinetes de cuervo"
   },
   "cost": {
     "title": "Príncipe codicioso",
-    "description": "Todas las unidades tienen un -12% de ataque y puntos de vida, pero +100 de suministro cada ronda."
+    "description": "Todas las unidades tienen un -12% de ataque y puntos de vida, pero +100 de suministro cada ronda.",
+    "unitsLabel": "3× Enanos · 1× Jinetes de cuervo"
   },
   "elite": {
     "title": "Príncipe de élite",
-    "description": "Reclutamiento en el nivel 2. +100 de suministro en la ronda 1."
+    "description": "Reclutamiento en el nivel 2. +100 de suministro en la ronda 1.",
+    "unitsLabel": "3× Goblins · 1× Ogro"
   },
   "archer": {
     "title": "Comandante Arquero",
-    "description": "Un arquero de nivel 3 llega gratis en la ronda 2."
+    "description": "Un arquero de nivel 3 llega gratis en la ronda 2.",
+    "unitsLabel": "3× Enanos · 2× Arqueros"
   },
   "addi": {
     "title": "Guardián de las reliquias",
-    "description": "Obtiene 3 runas de Valor en la ronda 1."
+    "description": "Obtiene 3 runas de Valor en la ronda 1.",
+    "unitsLabel": "3× Martilleros · 2× Enanos"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Obtiene 2 cargas de Meteorito en la ronda 2."
+    "description": "Obtiene 2 cargas de Meteorito en la ronda 2.",
+    "unitsLabel": "3× Goblins · 1× Morteros"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Enanos · 1× Ogro"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Goblins · 2× Martilleros"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Comienza con una Lección de campo."
+    "description": "Comienza con una Lección de campo.",
+    "unitsLabel": "3× Goblins · 2× Arqueros"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Enanos · 1× Morteros"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Obtiene una araña de la Progenie negra gratis cada ronda."
+    "description": "Obtiene una araña de la Progenie negra gratis cada ronda.",
+    "unitsLabel": "3× Progenie negra · 2× Murciélagos"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "La primera aparición por el flanco tarda la mitad de tiempo."
+    "description": "La primera aparición por el flanco tarda la mitad de tiempo.",
+    "unitsLabel": "3× Enanos · 2× Martilleros"
   }
 }

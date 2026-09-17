@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Sem receita correspondente — todas as runas retornam aos seus donos na próxima utilização.",
   "forgeReadyThis": "Prepare esta implantação.",
   "forgeReadyNext": "Preparar para a próxima implantação",
-  "forgeFireToStart": "Acenda a forja para iniciá-la — pronta para a próxima implantação."
+  "forgeFireToStart": "Acenda a forja para iniciá-la — pronta para a próxima implantação.",
+  "techHexed": "Amaldiçoado — este talento fica desligado até a maldição acabar.",
+  "techHexedShort": "✕ Amaldiçoado — inativo"
 }

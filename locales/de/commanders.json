@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Himmelszauberer",
-    "description": "Lufteinheiten erhalten +12 % Angriff und Trefferpunkte."
+    "description": "Lufteinheiten erhalten +12 % Angriff und Trefferpunkte.",
+    "unitsLabel": "3× Goblins · 1× Krähenreiter"
   },
   "cost": {
     "title": "Gieriger Prinz",
-    "description": "Alle Einheiten −12% Angriff und HP, aber +100 Vorräte pro Runde."
+    "description": "Alle Einheiten −12% Angriff und HP, aber +100 Vorräte pro Runde.",
+    "unitsLabel": "3× Zwerge · 1× Krähenreiter"
   },
   "elite": {
     "title": "Eliteprinz",
-    "description": "Rekrutierung auf Stufe 2. +100 Vorräte in Runde 1."
+    "description": "Rekrutierung auf Stufe 2. +100 Vorräte in Runde 1.",
+    "unitsLabel": "3× Goblins · 1× Oger"
   },
   "archer": {
     "title": "Bogenschützenkommandant",
-    "description": "In Runde 2 erscheint ein kostenloser Bogenschütze der Stufe 3."
+    "description": "In Runde 2 erscheint ein kostenloser Bogenschütze der Stufe 3.",
+    "unitsLabel": "3× Zwerge · 2× Bogenschützen"
   },
   "addi": {
     "title": "Reliquienbewahrer",
-    "description": "Erhält in Runde 1 3x Tapferkeitsrune."
+    "description": "Erhält in Runde 1 3x Tapferkeitsrune.",
+    "unitsLabel": "3× Hammerschwinger · 2× Zwerge"
   },
   "meteor": {
     "title": "Fürst Hitzkopf",
-    "description": "Erhält in Runde 2 zwei Meteor-Aufladungen."
+    "description": "Erhält in Runde 2 zwei Meteor-Aufladungen.",
+    "unitsLabel": "3× Goblins · 1× Mörser"
   },
   "speed": {
-    "title": "Schnelle Witwe"
+    "title": "Schnelle Witwe",
+    "unitsLabel": "3× Zwerge · 1× Oger"
   },
   "giant": {
-    "title": "Gräfin Chonk"
+    "title": "Gräfin Chonk",
+    "unitsLabel": "3× Goblins · 2× Hammerschwinger"
   },
   "tutor": {
     "title": "Frau Vortrag",
-    "description": "Beginnt mit einer Feldlektion."
+    "description": "Beginnt mit einer Feldlektion.",
+    "unitsLabel": "3× Goblins · 2× Bogenschützen"
   },
   "money": {
-    "title": "Geldkönigin"
+    "title": "Geldkönigin",
+    "unitsLabel": "3× Zwerge · 1× Mörser"
   },
   "cursed": {
     "title": "Verfluchte Christine",
-    "description": "Erhält in jeder Runde eine kostenlose Schwarze Brutspinne."
+    "description": "Erhält in jeder Runde eine kostenlose Schwarze Brutspinne.",
+    "unitsLabel": "3× Schwarze Brut · 2× Fledermäuse"
   },
   "flanky": {
     "title": "Flankenschatten",
-    "description": "Beim ersten Flankenangriff dauert das Spawnen nur halb so lange."
+    "description": "Beim ersten Flankenangriff dauert das Spawnen nur halb so lange.",
+    "unitsLabel": "3× Zwerge · 2× Hammerschwinger"
   }
 }

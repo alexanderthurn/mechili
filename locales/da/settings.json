@@ -124,7 +124,11 @@
     "boostsTitle": "Boosts",
     "tier": "Niveau {{n}}",
     "tierValue": "{{cost}} forsyning → +{{attack}} skade, +{{hp}} hk",
-    "tierNote": "Vanguard — totaler, ikke stablet oven på det forrige niveau"
+    "tierNote": "Vanguard — totaler, ikke stablet oven på det forrige niveau",
+    "moneyFactor": "Forsyningsfaktor",
+    "moneyFactorNote": "skalerer hver rundes indkomst for begge hold",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} forsyningsindkomst (begge hold)"
   },
   "mpHintSteam": "Kun Steam-lobbyer. Kræver, at Steam kører ved opstart.",
   "mpHintMatchmaking": "Online rum via PeerJS + serverliste. Kræver internet.",
@@ -178,7 +182,8 @@
     "rotate": "Roter den valgte pakke",
     "pause": "Pausemenu. I biograftilstand gendannes først HUD'en.",
     "chat": "Send chat",
-    "fullscreen": "Fuldskærm (desktop-app)"
+    "fullscreen": "Fuldskærm (desktop-app)",
+    "zoom": "Zoom ind / ud mod markøren"
   },
   "controlsGamepad": {
     "head": "Gamepad",
@@ -243,6 +248,12 @@
     "shadowsHint": "klatter / solkort",
     "showDead": "Vis døde enheder",
     "antialias": "Antialiasing",
-    "antialiasHint": "glattere kanter · næste kamp"
+    "antialiasHint": "glattere kanter · næste kamp",
+    "ao": "Ambient occlusion",
+    "aoHint": "forankrer enheder på brættet",
+    "bloom": "Bloom",
+    "bloomHint": "glød fra ild og magi · kamp",
+    "vignette": "Vignet",
+    "vignetteHint": "mørkere kanter i kamp"
   }
 }

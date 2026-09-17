@@ -124,7 +124,11 @@
     "boostsTitle": "ブースト",
     "tier": "段階 {{n}}",
     "tierValue": "補給 {{cost}} → ダメージ +{{attack}}、hp +{{hp}}",
-    "tierNote": "前衛 — 合計値であり、前段階への積み上げではない"
+    "tierNote": "前衛 — 合計値であり、前段階への積み上げではない",
+    "moneyFactor": "補給倍率",
+    "moneyFactorNote": "両チームの毎ラウンドの収入を調整",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} 補給収入（両チーム）"
   },
   "mpHintSteam": "Steam ロビーのみ。起動時に Steam が必要。",
   "mpHintMatchmaking": "PeerJS + サーバーリスト経由のオンラインルーム。インターネットが必要。",
@@ -178,7 +182,8 @@
     "rotate": "選択中のパックを回転",
     "pause": "ポーズメニュー。シネマモードではまず HUD を復元。",
     "chat": "チャット送信",
-    "fullscreen": "フルスクリーン（デスクトップアプリ）"
+    "fullscreen": "フルスクリーン（デスクトップアプリ）",
+    "zoom": "ポインターに向かってズームイン / アウト"
   },
   "controlsGamepad": {
     "head": "ゲームパッド",
@@ -243,6 +248,12 @@
     "shadowsHint": "ブロブ / 太陽光マップ",
     "showDead": "死亡ユニットを表示",
     "antialias": "アンチエイリアス",
-    "antialiasHint": "エッジを滑らかに · 次のマッチから"
+    "antialiasHint": "エッジを滑らかに · 次のマッチから",
+    "ao": "アンビエントオクルージョン",
+    "aoHint": "ユニットを盤面になじませる",
+    "bloom": "ブルーム",
+    "bloomHint": "炎と魔法の輝き · 戦闘",
+    "vignette": "ビネット",
+    "vignetteHint": "戦闘中は画面の端を暗く"
   }
 }

@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "捷足"
+    "name": "捷足",
+    "description": "移動速度 +35%。"
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "射程",
+    "description": "射程 +20。"
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "穿透",
+    "description": "傷害 +40%。"
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "火焰",
+    "description": "攻擊會在地面短暫留下火焰並灼燒 — 足以點燃油池。"
   },
   "armor": {
-    "name": "Iron Plating",
-    "description": "+50% HP."
+    "name": "鐵甲",
+    "description": "生命值 +50%。"
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "快射",
+    "description": "攻擊速度 +43%。"
   },
   "aegis": {
     "name": "神盾",
@@ -63,10 +64,76 @@
     "produceFirst": "，首次在 {{delay}} 後",
     "produceOffspring": "。子嗣與親本等級相同",
     "onKill": "當此單位擊殺時，喚出 {{child}}",
-    "cleave": "命中此單位周圍 {{radius}} 內的每個敵人"
+    "cleave": "命中此單位周圍 {{radius}} 內的每個敵人",
+    "emp": "命中施加詛咒：天賦失效，移動速度 −{{slow}}%，持續 {{duration}}",
+    "modRangeAdd": "射程 {{amount}}"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "詛咒",
+    "description": "命中會詛咒目標：其天賦失效，3.5 秒內移動速度降低 40%。金輝光環 / 日耀石可以抵禦。"
+  },
+  "blightburst": {
+    "name": "腐敗爆發",
+    "description": "死亡時留下一灘酸液。"
+  },
+  "bloodRage": {
+    "name": "血怒",
+    "description": "移動速度 +30%，攻擊速度 +33%。"
+  },
+  "bloodfeast": {
+    "name": "血宴",
+    "description": "按造成傷害的 25% 回復生命（由存活的編隊成員分攤）。"
+  },
+  "carrionFeast": {
+    "name": "腐肉盛宴",
+    "description": "擊殺時，該編隊回復受害者最大生命值的 30%（由存活成員分攤）。"
+  },
+  "doubleShot": {
+    "name": "雙發射擊",
+    "description": "每次攻擊發射 2 枚投射物（齊射武器額外 +1）。裝填時間 +10%。"
+  },
+  "galeGate": {
+    "name": "疾風之門",
+    "description": "每個部署回合都可以重新布置位置，無需使用移動編隊。"
+  },
+  "groundhunt": {
+    "name": "獵地",
+    "description": "對地面單位傷害 +50%，射程 +15%。"
+  },
+  "looseRank": {
+    "name": "鬆散陣列",
+    "description": "編隊成員站得更分散 — 更不容易受到範圍傷害。"
+  },
+  "massBinding": {
+    "name": "群體束縛",
+    "description": "同時對最多 4 名敵人發射光束或轉化；每條通道強度為 18%。"
+  },
+  "powerDraw": {
+    "name": "滿弦",
+    "description": "傷害 +70%，射程 −15%，射擊更慢。"
+  },
+  "regeneration": {
+    "name": "再生",
+    "description": "戰鬥中每秒回復最大生命值的 2%。"
+  },
+  "ruinousEnd": {
+    "name": "毀滅終結",
+    "description": "死亡時爆炸，造成等同於該單位最大生命值的傷害。"
+  },
+  "skyhunt": {
+    "name": "獵空",
+    "description": "對空中單位傷害 +50%，射程 +25%。"
+  },
+  "soulRestore": {
+    "name": "靈魂復原",
+    "description": "被轉化的單位恢復全部生命值。"
+  },
+  "veteranAim": {
+    "name": "老兵瞄準",
+    "description": "1 級以上每升一級：傷害 +12%，射程 +10%（疊加在正常老兵加成之上）。"
+  },
+  "whirlwind": {
+    "name": "旋風",
+    "description": "更寬的劈砍 — 命中該單位周圍大圓內的所有敵人。"
   }
 }

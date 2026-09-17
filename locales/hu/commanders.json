@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Égi varázsló",
-    "description": "A légi egységek +12% támadást és HP-t kapnak."
+    "description": "A légi egységek +12% támadást és HP-t kapnak.",
+    "unitsLabel": "3× Goblin · 1× Varjúlovas"
   },
   "cost": {
     "title": "Kapzsi herceg",
-    "description": "Minden egységnek -12% támadása és HP-ja van, de +100 ellátmánya minden körben."
+    "description": "Minden egységnek -12% támadása és HP-ja van, de +100 ellátmánya minden körben.",
+    "unitsLabel": "3× Törpe · 1× Varjúlovas"
   },
   "elite": {
     "title": "Elit herceg",
-    "description": "2. szinten toborozunk. +100 utánpótlás az 1. körben."
+    "description": "2. szinten toborozunk. +100 utánpótlás az 1. körben.",
+    "unitsLabel": "3× Goblin · 1× Ogre"
   },
   "archer": {
     "title": "Íjászparancsnok",
-    "description": "Egy ingyenes 3. szintű íjász érkezik a 2. körben."
+    "description": "Egy ingyenes 3. szintű íjász érkezik a 2. körben.",
+    "unitsLabel": "3× Törpe · 2× Íjász"
   },
   "addi": {
     "title": "Ereklyeőrző",
-    "description": "3× Bátorság rúnát kap az 1. körben."
+    "description": "3× Bátorság rúnát kap az 1. körben.",
+    "unitsLabel": "3× Pörölyös · 2× Törpe"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "2 meteor töltetet kap a 2. körben."
+    "description": "2 meteor töltetet kap a 2. körben.",
+    "unitsLabel": "3× Goblin · 1× Mozsárágyú"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Törpe · 1× Ogre"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Goblin · 2× Pörölyös"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Egy terepórával kezdődik."
+    "description": "Egy terepórával kezdődik.",
+    "unitsLabel": "3× Goblin · 2× Íjász"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Törpe · 1× Mozsárágyú"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Minden körben kap egy ingyen Fekete fészekalj pókot."
+    "description": "Minden körben kap egy ingyen Fekete fészekalj pókot.",
+    "unitsLabel": "3× Fekete fészekalj · 2× Denevér"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Az első oldalra érkezés fele annyi időt vesz igénybe."
+    "description": "Az első oldalra érkezés fele annyi időt vesz igénybe.",
+    "unitsLabel": "3× Törpe · 2× Pörölyös"
   }
 }

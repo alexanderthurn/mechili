@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Nicio rețetă potrivită — toate runele se întorc la proprietarii lor la următoarea desfășurare",
   "forgeReadyThis": "Pregătește această implementare",
   "forgeReadyNext": "Gata pentru următoarea implementare",
-  "forgeFireToStart": "Pornește forja — gata pentru următoarea desfășurare."
+  "forgeFireToStart": "Pornește forja — gata pentru următoarea desfășurare.",
+  "techHexed": "Blestemat — acest talent este oprit până se termină blestemul.",
+  "techHexedShort": "✕ Blestemat — inactiv"
 }

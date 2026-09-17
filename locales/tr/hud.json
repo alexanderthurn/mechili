@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Eşleşen tarif yok — tüm rünler bir sonraki kullanımda sahiplerine geri döner.",
   "forgeReadyThis": "Bu dağıtımı hazır hale getirin",
   "forgeReadyNext": "Sonraki dağıtıma hazır",
-  "forgeFireToStart": "Ocağı ateşleyerek çalıştırın; bir sonraki görevlendirmeye hazır."
+  "forgeFireToStart": "Ocağı ateşleyerek çalıştırın; bir sonraki görevlendirmeye hazır.",
+  "techHexed": "Lanetli — lanet bitene kadar bu yetenek kapalı.",
+  "techHexedShort": "✕ Lanetli — etkin değil"
 }

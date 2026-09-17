@@ -178,5 +178,6 @@
   "terrainHighlands": "高地",
   "terrainHighlandsDesc": "各要塞が高台の上、登り坂は一本だけ",
   "terrainWall": "壁",
-  "terrainWallDesc": "中央に切れ目のある丘の壁、他は平ら"
+  "terrainWallDesc": "中央に切れ目のある丘の壁、他は平ら",
+  "money": "補給"
 }

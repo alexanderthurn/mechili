@@ -124,7 +124,11 @@
     "boostsTitle": "Növeli",
     "tier": "{{n}} szint",
     "tierValue": "{{cost}} utánpótlás → +{{attack}} sebzés, +{{hp}} életerő",
-    "tierNote": "Élcsapat – összesítések, nem az előző szintre halmozódnak"
+    "tierNote": "Élcsapat – összesítések, nem az előző szintre halmozódnak",
+    "moneyFactor": "Ellátmányszorzó",
+    "moneyFactorNote": "mindkét csapat minden körös bevételét skálázza",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "{{label}} ellátmánybevétel (mindkét csapat)"
   },
   "mpHintSteam": "Csak Steam lobbik. Indításkor Steam futtatása szükséges.",
   "mpHintMatchmaking": "Online szobák PeerJS-en + szerverlista. Internetkapcsolat szükséges.",
@@ -178,7 +182,8 @@
     "rotate": "A kiválasztott Pack elforgatása",
     "pause": "Szünet menü. Mozi módban először visszaállítja a HUD-ot.",
     "chat": "Csevegés küldése",
-    "fullscreen": "Teljes képernyős (asztali alkalmazás)"
+    "fullscreen": "Teljes képernyős (asztali alkalmazás)",
+    "zoom": "Nagyítás / kicsinyítés a mutató felé"
   },
   "controlsGamepad": {
     "head": "Játékvezérlő",
@@ -243,6 +248,12 @@
     "shadowsHint": "foltok / naptérkép",
     "showDead": "Halott egységek megjelenítése",
     "antialias": "Élsimítás",
-    "antialiasHint": "simább élek · következő találat"
+    "antialiasHint": "simább élek · következő találat",
+    "ao": "Környezeti takarás",
+    "aoHint": "a táblához köti az egységeket",
+    "bloom": "Ragyogás",
+    "bloomHint": "tűz és mágia fénye · csata",
+    "vignette": "Vignetta",
+    "vignetteHint": "sötétebb szélek csatában"
   }
 }

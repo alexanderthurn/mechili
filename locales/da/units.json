@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "Sort yngel"
+  },
+  "goblin": {
+    "name": "Nisse"
+  },
+  "hammerer": {
+    "name": "Hammersvinger"
+  },
+  "ogre": {
+    "name": "Trold"
+  },
+  "bat": {
+    "name": "Flagermus"
+  },
+  "mortar": {
+    "name": "Morter"
+  },
+  "prismCannon": {
+    "name": "Prismekanon"
   }
 }

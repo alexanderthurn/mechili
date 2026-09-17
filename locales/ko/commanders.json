@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "하늘 마법사",
-    "description": "공중 유닛이 +12% 공격력과 체력을 얻습니다."
+    "description": "공중 유닛이 +12% 공격력과 체력을 얻습니다.",
+    "unitsLabel": "3× 고블린 · 1× 까마귀 기수"
   },
   "cost": {
     "title": "탐욕의 왕자",
-    "description": "모든 유닛 −12% 공격력과 체력, 대신 매 라운드 +100 보급."
+    "description": "모든 유닛 −12% 공격력과 체력, 대신 매 라운드 +100 보급.",
+    "unitsLabel": "3× 드워프 · 1× 까마귀 기수"
   },
   "elite": {
     "title": "정예 왕자",
-    "description": "2레벨로 모집. 1라운드에 +100 보급."
+    "description": "2레벨로 모집. 1라운드에 +100 보급.",
+    "unitsLabel": "3× 고블린 · 1× 오우거"
   },
   "archer": {
     "title": "궁수 지휘관",
-    "description": "2라운드에 무료 3레벨 궁수가 도착합니다."
+    "description": "2라운드에 무료 3레벨 궁수가 도착합니다.",
+    "unitsLabel": "3× 드워프 · 2× 궁수"
   },
   "addi": {
     "title": "성물 수호자",
-    "description": "1라운드에 용맹 룬 3개를 받습니다."
+    "description": "1라운드에 용맹 룬 3개를 받습니다.",
+    "unitsLabel": "3× 망치병 · 2× 드워프"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "2라운드에 운석 충전 2회를 받습니다."
+    "description": "2라운드에 운석 충전 2회를 받습니다.",
+    "unitsLabel": "3× 고블린 · 1× 박격포"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× 드워프 · 1× 오우거"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× 고블린 · 2× 망치병"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "전장 교습 하나로 시작한다."
+    "description": "전장 교습 하나로 시작한다.",
+    "unitsLabel": "3× 고블린 · 2× 궁수"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× 드워프 · 1× 박격포"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "매 라운드 무료 검은 무리 거미 1마리를 받습니다."
+    "description": "매 라운드 무료 검은 무리 거미 1마리를 받습니다.",
+    "unitsLabel": "3× 검은 무리 · 2× 박쥐"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "첫 측면 출현 시간이 절반으로 줄습니다."
+    "description": "첫 측면 출현 시간이 절반으로 줄습니다.",
+    "unitsLabel": "3× 드워프 · 2× 망치병"
   }
 }

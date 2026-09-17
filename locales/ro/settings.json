@@ -124,7 +124,11 @@
     "boostsTitle": "Boost-uri",
     "tier": "Nivel {{n}}",
     "tierValue": "{{cost}} aprovizionare → +{{attack}} daune, +{{hp}} hp",
-    "tierNote": "Vanguard — totaluri, neadunate peste nivelul anterior"
+    "tierNote": "Vanguard — totaluri, neadunate peste nivelul anterior",
+    "moneyFactor": "Factor de provizii",
+    "moneyFactorNote": "scalează venitul fiecărei runde pentru ambele echipe",
+    "moneyFactorValue": "×{{factor}}",
+    "moneyOption": "Venit din provizii {{label}} (ambele echipe)"
   },
   "mpHintSteam": "Doar pentru lobby-urile Steam. Necesită ca Steam să ruleze la lansare.",
   "mpHintMatchmaking": "Camere online prin PeerJS + listă de servere. Necesită internet.",
@@ -178,7 +182,8 @@
     "rotate": "Rotește Packul selectat",
     "pause": "Meniu de pauză. În modul cinema, mai întâi restaurează HUD-ul.",
     "chat": "Trimite chat",
-    "fullscreen": "Ecran complet (aplicație desktop)"
+    "fullscreen": "Ecran complet (aplicație desktop)",
+    "zoom": "Mărește / micșorează spre cursor"
   },
   "controlsGamepad": {
     "head": "Gamepad",
@@ -243,6 +248,12 @@
     "shadowsHint": "pete / hartă solară",
     "showDead": "Afișează unitățile inactive",
     "antialias": "Antialiasing",
-    "antialiasHint": "margini mai netede · următorul meci"
+    "antialiasHint": "margini mai netede · următorul meci",
+    "ao": "Ocluzie ambientală",
+    "aoHint": "ancorează unitățile pe tablă",
+    "bloom": "Strălucire",
+    "bloomHint": "strălucirea focului și a magiei · luptă",
+    "vignette": "Vignetă",
+    "vignetteHint": "margini mai întunecate în luptă"
   }
 }

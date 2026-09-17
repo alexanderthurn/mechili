@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Geen overeenkomend recept — alle runen keren bij de volgende inzet terug naar hun eigenaar.",
   "forgeReadyThis": "Maak deze implementatie gereed",
   "forgeReadyNext": "Klaar voor de volgende implementatie",
-  "forgeFireToStart": "Steek de smederij aan om hem te starten — klaar voor de volgende inzet."
+  "forgeFireToStart": "Steek de smederij aan om hem te starten — klaar voor de volgende inzet.",
+  "techHexed": "Behekst — dit talent staat uit tot de vloek voorbij is.",
+  "techHexedShort": "✕ Behekst — inactief"
 }

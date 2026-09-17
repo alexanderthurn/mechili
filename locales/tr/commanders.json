@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Gökyüzü Büyücüsü",
-    "description": "Hava birimleri +%12 saldırı ve can puanı kazanır."
+    "description": "Hava birimleri +%12 saldırı ve can puanı kazanır.",
+    "unitsLabel": "3× Goblin · 1× Karga Binicisi"
   },
   "cost": {
     "title": "Açgözlü Prens",
-    "description": "Tüm birimlerin saldırı ve can puanları %12 azalır, ancak her turda +100 erzak kazanırlar."
+    "description": "Tüm birimlerin saldırı ve can puanları %12 azalır, ancak her turda +100 erzak kazanırlar.",
+    "unitsLabel": "3× Cüce · 1× Karga Binicisi"
   },
   "elite": {
     "title": "Seçkin Prens",
-    "description": "2. seviyeden asker alımı. 1. turda +100 erzak."
+    "description": "2. seviyeden asker alımı. 1. turda +100 erzak.",
+    "unitsLabel": "3× Goblin · 1× Dev"
   },
   "archer": {
     "title": "Okçu Komutanı",
-    "description": "2. turda ücretsiz 3. seviye bir Okçu geliyor."
+    "description": "2. turda ücretsiz 3. seviye bir Okçu geliyor.",
+    "unitsLabel": "3× Cüce · 2× Okçu"
   },
   "addi": {
     "title": "Emanet Koruyucusu",
-    "description": "1. turda 3 adet Cesaret rünü kazanır."
+    "description": "1. turda 3 adet Cesaret rünü kazanır.",
+    "unitsLabel": "3× Balyozcu · 2× Cüce"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "2. turda 2 meteor yükü kazanır."
+    "description": "2. turda 2 meteor yükü kazanır.",
+    "unitsLabel": "3× Goblin · 1× Havan"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Cüce · 1× Dev"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Goblin · 2× Balyozcu"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Bir saha dersiyle başlar."
+    "description": "Bir saha dersiyle başlar.",
+    "unitsLabel": "3× Goblin · 2× Okçu"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Cüce · 1× Havan"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Her turda bir adet ücretsiz Kara Yavru Örümcek kazanır."
+    "description": "Her turda bir adet ücretsiz Kara Yavru Örümcek kazanır.",
+    "unitsLabel": "3× Kara Yavru · 2× Yarasa"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "İlk kez yandan doğmak, yarı sürede gerçekleşir."
+    "description": "İlk kez yandan doğmak, yarı sürede gerçekleşir.",
+    "unitsLabel": "3× Cüce · 2× Balyozcu"
   }
 }

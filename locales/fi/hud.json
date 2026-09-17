@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Ei sopivaa reseptiä — kaikki riimut palautuvat omistajilleen seuraavassa käyttöönotossa",
   "forgeReadyThis": "Valmistele tämä käyttöönotto",
   "forgeReadyNext": "Valmis seuraavaan käyttöönottoon",
-  "forgeFireToStart": "Käynnistä ahjo käynnistääksesi sen – valmiina seuraavaan käyttöönottoon."
+  "forgeFireToStart": "Käynnistä ahjo käynnistääksesi sen – valmiina seuraavaan käyttöönottoon.",
+  "techHexed": "Kirottu — tämä kyky on pois päältä, kunnes kirous päättyy.",
+  "techHexedShort": "✕ Kirottu — ei käytössä"
 }

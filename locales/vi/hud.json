@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Không có công thức phù hợp — tất cả các rune sẽ trở lại chủ sở hữu của chúng trong lần triển khai tiếp theo.",
   "forgeReadyThis": "Sẵn sàng triển khai",
   "forgeReadyNext": "Sẵn sàng cho lần triển khai tiếp theo",
-  "forgeFireToStart": "Khởi động lò rèn — sẵn sàng cho lần triển khai tiếp theo."
+  "forgeFireToStart": "Khởi động lò rèn — sẵn sàng cho lần triển khai tiếp theo.",
+  "techHexed": "Bị nguyền — tài năng này tắt cho đến khi lời nguyền hết.",
+  "techHexedShort": "✕ Bị nguyền — không hoạt động"
 }

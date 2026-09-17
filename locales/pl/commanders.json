@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Niebiański Czarodziej",
-    "description": "Jednostki powietrzne otrzymują +12% ataku i HP."
+    "description": "Jednostki powietrzne otrzymują +12% ataku i HP.",
+    "unitsLabel": "3× Gobliny · 1× Jeźdźcy kruków"
   },
   "cost": {
     "title": "Chciwy książę",
-    "description": "Wszystkie jednostki otrzymują −12% ataku i HP, ale +100 zaopatrzenia w każdej rundzie."
+    "description": "Wszystkie jednostki otrzymują −12% ataku i HP, ale +100 zaopatrzenia w każdej rundzie.",
+    "unitsLabel": "3× Krasnoludy · 1× Jeźdźcy kruków"
   },
   "elite": {
     "title": "Elitarny Książę",
-    "description": "Rekrutacja na poziomie 2. +100 zaopatrzenia w rundzie 1."
+    "description": "Rekrutacja na poziomie 2. +100 zaopatrzenia w rundzie 1.",
+    "unitsLabel": "3× Gobliny · 1× Ogr"
   },
   "archer": {
     "title": "Dowódca Łuczników",
-    "description": "Darmowy Łucznik 3 poziomu pojawia się w rundzie 2."
+    "description": "Darmowy Łucznik 3 poziomu pojawia się w rundzie 2.",
+    "unitsLabel": "3× Krasnoludy · 2× Łucznicy"
   },
   "addi": {
     "title": "Strażnik relikwii",
-    "description": "Otrzymuje 3× runę Dzielności w rundzie 1."
+    "description": "Otrzymuje 3× runę Dzielności w rundzie 1.",
+    "unitsLabel": "3× Młotnicy · 2× Krasnoludy"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Otrzymuje 2 ładunki Meteorów w rundzie 2."
+    "description": "Otrzymuje 2 ładunki Meteorów w rundzie 2.",
+    "unitsLabel": "3× Gobliny · 1× Moździerze"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Krasnoludy · 1× Ogr"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Gobliny · 2× Młotnicy"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Zaczyna się od jednej lekcji terenowej."
+    "description": "Zaczyna się od jednej lekcji terenowej.",
+    "unitsLabel": "3× Gobliny · 2× Łucznicy"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Krasnoludy · 1× Moździerze"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Otrzymuje jednego darmowego pająka Czarnego lęgu co rundę."
+    "description": "Otrzymuje jednego darmowego pająka Czarnego lęgu co rundę.",
+    "unitsLabel": "3× Czarny lęg · 2× Nietoperze"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Pierwsze pojawienie się flanki zajmuje połowę czasu."
+    "description": "Pierwsze pojawienie się flanki zajmuje połowę czasu.",
+    "unitsLabel": "3× Krasnoludy · 2× Młotnicy"
   }
 }

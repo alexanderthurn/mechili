@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Schnelle Füße"
+    "name": "Schnelle Füße",
+    "description": "+35% Bewegungstempo."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Reichweite",
+    "description": "+20 Reichweite."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Durchschlag",
+    "description": "+40% Schaden."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Feuer",
+    "description": "Angriffe hinterlassen kurz Bodenfeuer und Brand — genug, um Ölpfützen zu entzünden."
   },
   "armor": {
-    "name": "Iron Plating",
+    "name": "Eisenpanzer",
     "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Schnellschuss",
+    "description": "+43% Angriffstempo."
   },
   "aegis": {
     "name": "Ägide",
@@ -63,10 +64,76 @@
     "produceFirst": "zuerst nach {{delay}}",
     "produceOffspring": "Nachkommen entsprechen dem Level der Eltern.",
     "onKill": "Wenn diese Einheit tötet, erscheint ein {{child}}.",
-    "cleave": "Trifft alle Gegner im Umkreis von {{radius}} (um diese Einheit herum)."
+    "cleave": "Trifft alle Gegner im Umkreis von {{radius}} (um diese Einheit herum).",
+    "emp": "Verhexen bei Treffer: Talente aus und −{{slow}}% Bewegungstempo für {{duration}}",
+    "modRangeAdd": "{{amount}} Reichweite"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Verhexung",
+    "description": "Treffer verhexen das Ziel: Seine Talente fallen aus und es bewegt sich 3,5 s lang 40% langsamer. Goldene Aura / Sonnenstein wehren das ab."
+  },
+  "blightburst": {
+    "name": "Fäulnisausbruch",
+    "description": "Hinterlässt beim Tod eine Säurepfütze."
+  },
+  "bloodRage": {
+    "name": "Blutrausch",
+    "description": "+30% Bewegungstempo und +33% Angriffstempo."
+  },
+  "bloodfeast": {
+    "name": "Blutmahl",
+    "description": "Heilt um 25% des verursachten Schadens (verteilt auf die lebenden Pack-Mitglieder)."
+  },
+  "carrionFeast": {
+    "name": "Aasfest",
+    "description": "Bei einem Kill heilt dieses Pack um 30% der max. HP des Opfers (verteilt auf die lebenden Mitglieder)."
+  },
+  "doubleShot": {
+    "name": "Doppelschuss",
+    "description": "Feuert 2 Geschosse pro Angriff (+1 zusätzlich bei Salvenwaffen). +10% Nachladezeit."
+  },
+  "galeGate": {
+    "name": "Sturmtor",
+    "description": "Darf sich jede Aufstellungsrunde neu positionieren, ohne Bewegungs-Pack zu verbrauchen."
+  },
+  "groundhunt": {
+    "name": "Bodenjagd",
+    "description": "+50% Schaden und +15% Reichweite gegen Bodeneinheiten."
+  },
+  "looseRank": {
+    "name": "Lockere Reihen",
+    "description": "Pack-Mitglieder stehen weiter auseinander — weniger anfällig für Flächenschaden."
+  },
+  "massBinding": {
+    "name": "Massenbann",
+    "description": "Strahlt oder bekehrt bis zu 4 Gegner gleichzeitig; jeder Kanal wirkt mit 18% Intensität."
+  },
+  "powerDraw": {
+    "name": "Kraftzug",
+    "description": "+70% Schaden, −15% Reichweite und langsamere Schüsse."
+  },
+  "regeneration": {
+    "name": "Regeneration",
+    "description": "Regeneriert in der Schlacht 2% der max. HP pro Sekunde."
+  },
+  "ruinousEnd": {
+    "name": "Verheerendes Ende",
+    "description": "Explodiert beim Tod mit Schaden in Höhe der max. HP dieser Einheit."
+  },
+  "skyhunt": {
+    "name": "Himmelsjagd",
+    "description": "+50% Schaden und +25% Reichweite gegen Lufteinheiten."
+  },
+  "soulRestore": {
+    "name": "Seelenheilung",
+    "description": "Bekehrte Einheiten werden auf volle HP geheilt."
+  },
+  "veteranAim": {
+    "name": "Veteranenzielen",
+    "description": "Jede Stufe über 1: +12% Schaden und +10% Reichweite (zusätzlich zur normalen Veteranenstufe)."
+  },
+  "whirlwind": {
+    "name": "Wirbelwind",
+    "description": "Breiterer Hieb — trifft jeden Gegner in einem großen Kreis um diese Einheit."
   }
 }

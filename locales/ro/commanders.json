@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Vrăjitorul Cerului",
-    "description": "Unitățile aeriene primesc +12% atac și HP."
+    "description": "Unitățile aeriene primesc +12% atac și HP.",
+    "unitsLabel": "3× Goblini · 1× Călăreți de corbi"
   },
   "cost": {
     "title": "Prinț lacom",
-    "description": "Toate unitățile primesc -12% atac și HP, dar +100 provizii în fiecare rundă."
+    "description": "Toate unitățile primesc -12% atac și HP, dar +100 provizii în fiecare rundă.",
+    "unitsLabel": "3× Pitici · 1× Călăreți de corbi"
   },
   "elite": {
     "title": "Prinț de Elită",
-    "description": "Recrutare la nivelul 2. +100 provizii în runda 1."
+    "description": "Recrutare la nivelul 2. +100 provizii în runda 1.",
+    "unitsLabel": "3× Goblini · 1× Căpcăun"
   },
   "archer": {
     "title": "Comandantul Arcașului",
-    "description": "Un arcaș gratuit de nivel 3 sosește în runda 2."
+    "description": "Un arcaș gratuit de nivel 3 sosește în runda 2.",
+    "unitsLabel": "3× Pitici · 2× Arcași"
   },
   "addi": {
     "title": "Păstrător de relicve",
-    "description": "Obține 3× runa Valor în runda 1."
+    "description": "Obține 3× runa Valor în runda 1.",
+    "unitsLabel": "3× Ciocănari · 2× Pitici"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Obține 2 încărcături Meteor în runda 2."
+    "description": "Obține 2 încărcături Meteor în runda 2.",
+    "unitsLabel": "3× Goblini · 1× Mortiere"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Pitici · 1× Căpcăun"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Goblini · 2× Ciocănari"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Începe cu o lecție pe teren."
+    "description": "Începe cu o lecție pe teren.",
+    "unitsLabel": "3× Goblini · 2× Arcași"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Pitici · 1× Mortiere"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Primește un păianjen Black Brood gratuit în fiecare rundă."
+    "description": "Primește un păianjen Black Brood gratuit în fiecare rundă.",
+    "unitsLabel": "3× Puiet negru · 2× Lilieci"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Prima apariție pe flancuri durează jumătate din timp."
+    "description": "Prima apariție pe flancuri durează jumătate din timp.",
+    "unitsLabel": "3× Pitici · 2× Ciocănari"
   }
 }

@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Ahli Sihir Langit",
-    "description": "Unit udara mendapat +12% serangan dan HP."
+    "description": "Unit udara mendapat +12% serangan dan HP.",
+    "unitsLabel": "3× Goblin · 1× Penunggang Gagak"
   },
   "cost": {
     "title": "Putera Tamak",
-    "description": "Semua unit −12% serangan dan HP, tetapi +100 dibekalkan setiap pusingan."
+    "description": "Semua unit −12% serangan dan HP, tetapi +100 dibekalkan setiap pusingan.",
+    "unitsLabel": "3× Orang kerdil · 1× Penunggang Gagak"
   },
   "elite": {
     "title": "Putera Elit",
-    "description": "Merekrut pada tahap 2. Bekalan +100 dalam pusingan 1."
+    "description": "Merekrut pada tahap 2. Bekalan +100 dalam pusingan 1.",
+    "unitsLabel": "3× Goblin · 1× Ogre"
   },
   "archer": {
     "title": "Komander Pemanah",
-    "description": "Seorang Pemanah tahap-3 percuma tiba di pusingan 2."
+    "description": "Seorang Pemanah tahap-3 percuma tiba di pusingan 2.",
+    "unitsLabel": "3× Orang kerdil · 2× Pemanah"
   },
   "addi": {
     "title": "Penjaga Relik",
-    "description": "Mendapat 3× rune Valor dalam pusingan 1."
+    "description": "Mendapat 3× rune Valor dalam pusingan 1.",
+    "unitsLabel": "3× Pemukul Tukul · 2× Orang kerdil"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Mendapat 2 cas Meteor dalam pusingan 2."
+    "description": "Mendapat 2 cas Meteor dalam pusingan 2.",
+    "unitsLabel": "3× Goblin · 1× Mortar"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Orang kerdil · 1× Ogre"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Goblin · 2× Pemukul Tukul"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Bermula dengan satu Pelajaran Lapangan."
+    "description": "Bermula dengan satu Pelajaran Lapangan.",
+    "unitsLabel": "3× Goblin · 2× Pemanah"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Orang kerdil · 1× Mortar"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Dapat seekor labah-labah Black Brood percuma setiap pusingan."
+    "description": "Dapat seekor labah-labah Black Brood percuma setiap pusingan.",
+    "unitsLabel": "3× Induk Hitam · 2× Kelawar"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Pembiakan sayap kali pertama mengambil separuh masa."
+    "description": "Pembiakan sayap kali pertama mengambil separuh masa.",
+    "unitsLabel": "3× Orang kerdil · 2× Pemukul Tukul"
   }
 }

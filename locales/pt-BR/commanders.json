@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Feiticeiro do Céu",
-    "description": "Unidades aéreas recebem +12% de ataque e HP."
+    "description": "Unidades aéreas recebem +12% de ataque e HP.",
+    "unitsLabel": "3× Goblins · 1× Cavaleiros Corvo"
   },
   "cost": {
     "title": "Príncipe Ganancioso",
-    "description": "Todas as unidades têm -12% de ataque e HP, mas +100 de suprimentos a cada rodada."
+    "description": "Todas as unidades têm -12% de ataque e HP, mas +100 de suprimentos a cada rodada.",
+    "unitsLabel": "3× Anões · 1× Cavaleiros Corvo"
   },
   "elite": {
     "title": "Príncipe de Elite",
-    "description": "Recrutamento no nível 2. +100 de suprimentos na rodada 1."
+    "description": "Recrutamento no nível 2. +100 de suprimentos na rodada 1.",
+    "unitsLabel": "3× Goblins · 1× Ogro"
   },
   "archer": {
     "title": "Comandante Arqueiro",
-    "description": "Um arqueiro de nível 3 gratuito chega na rodada 2."
+    "description": "Um arqueiro de nível 3 gratuito chega na rodada 2.",
+    "unitsLabel": "3× Anões · 2× Arqueiros"
   },
   "addi": {
     "title": "Guardião das Relíquias",
-    "description": "Recebe 3 runas Valentia na rodada 1."
+    "description": "Recebe 3 runas Valentia na rodada 1.",
+    "unitsLabel": "3× Marteladores · 2× Anões"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Recebe 2 cargas de Meteoro na rodada 2."
+    "description": "Recebe 2 cargas de Meteoro na rodada 2.",
+    "unitsLabel": "3× Goblins · 1× Morteiros"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Anões · 1× Ogro"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Goblins · 2× Marteladores"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Começa com uma Lição de Campo."
+    "description": "Começa com uma Lição de Campo.",
+    "unitsLabel": "3× Goblins · 2× Arqueiros"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Anões · 1× Morteiros"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Recebe uma aranha da Ninhada Negra grátis a cada rodada."
+    "description": "Recebe uma aranha da Ninhada Negra grátis a cada rodada.",
+    "unitsLabel": "3× Ninhada Negra · 2× Morcegos"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "As primeiras aparições no flanco levam metade do tempo."
+    "description": "As primeiras aparições no flanco levam metade do tempo.",
+    "unitsLabel": "3× Anões · 2× Marteladores"
   }
 }

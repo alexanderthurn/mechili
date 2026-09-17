@@ -1,26 +1,27 @@
 {
   "legs": {
-    "name": "Fleet Feet"
+    "name": "Fleet Feet",
+    "description": "+35% liikenopeutta."
   },
   "barrel": {
-    "name": "Range",
-    "description": "+20 range."
+    "name": "Kantama",
+    "description": "+20 kantamaa."
   },
   "ap": {
-    "name": "Piercing",
-    "description": "+40% damage."
+    "name": "Läpäisy",
+    "description": "+40% vahinkoa."
   },
   "fireArrows": {
-    "name": "Fire",
-    "description": "Attacks leave brief ground fire and burn — enough to ignite oil puddles."
+    "name": "Tuli",
+    "description": "Hyökkäykset jättävät hetkeksi tulta maahan ja polttavat — riittää sytyttämään öljylätäköt."
   },
   "armor": {
-    "name": "Iron Plating",
+    "name": "Rautalevyt",
     "description": "+50% HP."
   },
   "autoloader": {
-    "name": "Quick Draw",
-    "description": "+43% attack speed."
+    "name": "Pikalaukaus",
+    "description": "+43% hyökkäysnopeutta."
   },
   "aegis": {
     "name": "Aegis",
@@ -63,10 +64,76 @@
     "produceFirst": ", ensimmäinen {{delay}}:n jälkeen",
     "produceOffspring": "Jälkeläiset vastaavat vanhempien tasoa.",
     "onKill": "Kun tämä yksikkö tappaa, nosta {{child}}",
-    "cleave": "Osuu jokaiseen viholliseen {{radius}}-etäisyydellä (tämän yksikön ympärillä)"
+    "cleave": "Osuu jokaiseen viholliseen {{radius}}-etäisyydellä (tämän yksikön ympärillä)",
+    "emp": "Kirous osumasta: kyvyt pois ja −{{slow}}% liikenopeutta ajaksi {{duration}}",
+    "modRangeAdd": "{{amount}} kantamaa"
   },
   "empArrows": {
-    "name": "Hexing",
-    "description": "Hits hex the target: its talents shut off and it moves 40% slower for 3.5s. Golden Aura / Sunstone shrug it off."
+    "name": "Kirous",
+    "description": "Osumat kiroavat kohteen: sen kyvyt sammuvat ja se liikkuu 40% hitaammin 3,5 s ajan. Kultainen aura / Aurinkokivi torjuvat sen."
+  },
+  "blightburst": {
+    "name": "Mätäpurkaus",
+    "description": "Kuollessaan jättää happolätäkön."
+  },
+  "bloodRage": {
+    "name": "Verivimma",
+    "description": "+30% liikenopeutta ja +33% hyökkäysnopeutta."
+  },
+  "bloodfeast": {
+    "name": "Veripidot",
+    "description": "Parantaa 25% aiheutetusta vahingosta (jaetaan Packin elävien jäsenten kesken)."
+  },
+  "carrionFeast": {
+    "name": "Raatopidot",
+    "description": "Tappaessaan parantaa tätä Packia 30% uhrin maksimi-HP:sta (jaetaan elävien jäsenten kesken)."
+  },
+  "doubleShot": {
+    "name": "Kaksoislaukaus",
+    "description": "Ampuu 2 ammusta hyökkäystä kohden (+1 lisää sarja-aseille). +10% latausaikaa."
+  },
+  "galeGate": {
+    "name": "Myrskyportti",
+    "description": "Voi siirtyä joka sijoituskierroksella käyttämättä Pack-siirtoa."
+  },
+  "groundhunt": {
+    "name": "Maajahti",
+    "description": "+50% vahinkoa ja +15% kantamaa maayksiköitä vastaan."
+  },
+  "looseRank": {
+    "name": "Harva rivistö",
+    "description": "Packin jäsenet seisovat kauempana toisistaan — vähemmän alttiita aluevahingolle."
+  },
+  "massBinding": {
+    "name": "Joukkosidonta",
+    "description": "Säteilee tai käännyttää jopa 4 vihollista kerralla; jokainen kanava toimii 18% teholla."
+  },
+  "powerDraw": {
+    "name": "Täysi veto",
+    "description": "+70% vahinkoa, −15% kantamaa ja hitaammat laukaukset."
+  },
+  "regeneration": {
+    "name": "Uusiutuminen",
+    "description": "Palauttaa taistelussa 2% maksimi-HP:sta sekunnissa."
+  },
+  "ruinousEnd": {
+    "name": "Tuhoisa loppu",
+    "description": "Kuollessaan räjähtää vahingolla, joka vastaa yksikön maksimi-HP:ta."
+  },
+  "skyhunt": {
+    "name": "Ilmajahti",
+    "description": "+50% vahinkoa ja +25% kantamaa ilmayksiköitä vastaan."
+  },
+  "soulRestore": {
+    "name": "Sielun palautus",
+    "description": "Käännytetyt yksiköt palautetaan täyteen HP:hen."
+  },
+  "veteranAim": {
+    "name": "Veteraanin tähtäys",
+    "description": "Jokainen taso yli 1: +12% vahinkoa ja +10% kantamaa (tavallisen kokemuksen lisäksi)."
+  },
+  "whirlwind": {
+    "name": "Pyörremyrsky",
+    "description": "Leveämpi isku — osuu jokaiseen viholliseen suuressa ympyrässä yksikön ympärillä."
   }
 }

@@ -236,5 +236,7 @@
   "forgeNoMatchNext": "Ingen matchende opskrift — alle runer vender tilbage til deres ejere ved næste udrulning",
   "forgeReadyThis": "Klargør denne implementering",
   "forgeReadyNext": "Klar til næste udrulning",
-  "forgeFireToStart": "Tænd smedjen for at starte den — klar til næste indsættelse."
+  "forgeFireToStart": "Tænd smedjen for at starte den — klar til næste indsættelse.",
+  "techHexed": "Forhekset — dette talent er slået fra, indtil forbandelsen ophører.",
+  "techHexedShort": "✕ Forhekset — inaktiv"
 }

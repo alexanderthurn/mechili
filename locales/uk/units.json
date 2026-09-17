@@ -52,5 +52,23 @@
   },
   "hordeZombie": {
     "name": "Чорний виводок"
+  },
+  "goblin": {
+    "name": "Гоблін"
+  },
+  "hammerer": {
+    "name": "Молотобоєць"
+  },
+  "ogre": {
+    "name": "Огр"
+  },
+  "bat": {
+    "name": "Кажан"
+  },
+  "mortar": {
+    "name": "Мортира"
+  },
+  "prismCannon": {
+    "name": "Призмова гармата"
   }
 }

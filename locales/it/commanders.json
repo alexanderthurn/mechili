@@ -1,47 +1,59 @@
 {
   "air": {
     "title": "Stregone del Cielo",
-    "description": "Le unità aeree ottengono +12% di attacco e punti vita."
+    "description": "Le unità aeree ottengono +12% di attacco e punti vita.",
+    "unitsLabel": "3× Goblin · 1× Cavalieri del Corvo"
   },
   "cost": {
     "title": "Principe avido",
-    "description": "Tutte le unità subiscono una riduzione del 12% all'attacco e ai punti vita, ma ottengono +100 di rifornimento a ogni turno."
+    "description": "Tutte le unità subiscono una riduzione del 12% all'attacco e ai punti vita, ma ottengono +100 di rifornimento a ogni turno.",
+    "unitsLabel": "3× Nani · 1× Cavalieri del Corvo"
   },
   "elite": {
     "title": "Principe d'élite",
-    "description": "Reclutamento al livello 2. +100 di rifornimenti nel round 1."
+    "description": "Reclutamento al livello 2. +100 di rifornimenti nel round 1.",
+    "unitsLabel": "3× Goblin · 1× Orco"
   },
   "archer": {
     "title": "Comandante degli arcieri",
-    "description": "Un arciere di livello 3 gratuito arriva al secondo round."
+    "description": "Un arciere di livello 3 gratuito arriva al secondo round.",
+    "unitsLabel": "3× Nani · 2× Arcieri"
   },
   "addi": {
     "title": "Custode delle reliquie",
-    "description": "Ottiene 3 rune Valore nel round 1."
+    "description": "Ottiene 3 rune Valore nel round 1.",
+    "unitsLabel": "3× Martellatori · 2× Nani"
   },
   "meteor": {
     "title": "Lord Hitzkopf",
-    "description": "Ottiene 2 cariche Meteora nel round 2."
+    "description": "Ottiene 2 cariche Meteora nel round 2.",
+    "unitsLabel": "3× Goblin · 1× Mortai"
   },
   "speed": {
-    "title": "Speedy Widow"
+    "title": "Speedy Widow",
+    "unitsLabel": "3× Nani · 1× Orco"
   },
   "giant": {
-    "title": "Countess Chonk"
+    "title": "Countess Chonk",
+    "unitsLabel": "3× Goblin · 2× Martellatori"
   },
   "tutor": {
     "title": "Lady Lecture",
-    "description": "Inizia con una Lezione sul campo."
+    "description": "Inizia con una Lezione sul campo.",
+    "unitsLabel": "3× Goblin · 2× Arcieri"
   },
   "money": {
-    "title": "Money Queen"
+    "title": "Money Queen",
+    "unitsLabel": "3× Nani · 1× Mortai"
   },
   "cursed": {
     "title": "Cursed Christine",
-    "description": "Ottiene un ragno Covata Nera gratis ogni round."
+    "description": "Ottiene un ragno Covata Nera gratis ogni round.",
+    "unitsLabel": "3× Covata Nera · 2× Pipistrelli"
   },
   "flanky": {
     "title": "Flanky Shadow",
-    "description": "Le prime apparizioni sui fianchi richiedono la metà del tempo."
+    "description": "Le prime apparizioni sui fianchi richiedono la metà del tempo.",
+    "unitsLabel": "3× Nani · 2× Martellatori"
   }
 }
