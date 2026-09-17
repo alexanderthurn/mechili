@@ -130,7 +130,7 @@ import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
 import { itemSlotLimit } from './items';
-import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, worldHeightAt } from './map';
+import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, registerOuterHeight, worldHeightAt } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
 import {
@@ -183,8 +183,15 @@ import { GROUND_UNIT_Y, setCloseCameraY } from './groundQuality';
 import { modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery, MOUNTAIN_PEAK_END } from './scenery';
-import { MountainEditor, mountainEditorEnabled, applyBoardBakeToMesh, readMountainBakeFromStorage } from './mountainEditor';
-import { syncLandscapeHeights, clearLandscapeHeightOverrides } from './landscapeHeight';
+import { MountainEditor, mountainEditorEnabled } from './mountainEditor';
+import {
+    boardSamplerFromMesh,
+    landscapeBoardSampler,
+    landscapeFits,
+    loadedLandscape,
+    outerSamplerFromMesh,
+    type LandscapeData,
+} from './landscape';
 import type { Weather } from './weather';
 import {
     createFovWedge,
@@ -431,6 +438,11 @@ export class Game {
     private scenery: Scenery;
     /** Dev mountain sculptor — only when `?editor=true`. */
     private mountainEditor: MountainEditor | null = null;
+    /**
+     * The static map this match plays ({@link GameSettings.landscape}), or null
+     * for the procedural terrain. Its board relief is the sim's ground.
+     */
+    private landscape: LandscapeData | null = null;
     private weather: Weather | null;
     /** last season the cinema hint flashed for — drives auto-flash on season change */
     private lastHintSeason: string | null = null;
@@ -1386,6 +1398,21 @@ export class Game {
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
         this.map = new BattleMap(settings.map);
+        // a static map replaces the procedural relief before anything reads it
+        // (ground mesh, deploy grid, sim) — main loaded the file before building the match
+        if (settings.landscape) {
+            const data = loadedLandscape(settings.landscape);
+            if (data && landscapeFits(data, this.map)) {
+                this.landscape = data;
+                this.map.setReliefOverride(landscapeBoardSampler(data));
+            } else {
+                console.warn(
+                    data
+                        ? `[landscape] "${settings.landscape}" is made for a ${data.map.cols}×${data.map.rows} board — playing the procedural terrain`
+                        : `[landscape] "${settings.landscape}" is not loaded — playing the procedural terrain`,
+                );
+            }
+        }
         // sized to THIS match's board — a hardcoded default here silently
         // drops every oil/acid/fire effect placed outside the standard
         // map's extent on any non-standard map (horde's belt, duo's width)
@@ -1535,11 +1562,7 @@ export class Game {
         this.blobShadows = new BlobShadows(this.scene);
         this.groundMesh = this.map.createMesh();
         this.scene.add(this.groundMesh);
-        if (!mountainEditorEnabled()) {
-            const bake = readMountainBakeFromStorage();
-            if (bake) applyBoardBakeToMesh(this.groundMesh, bake);
-        }
-        this.scenery = new Scenery(this.map);
+        this.scenery = new Scenery(this.map, undefined, this.landscape);
         this.scene.add(this.scenery.group);
         this.inputDisposers.push(onPrefsChange(() => this.applyPrefs()));
         this.rallyVisuals = new RallyVisuals(this.scene, this.map);
@@ -1643,8 +1666,8 @@ export class Game {
                     scene: this.scene,
                     camera: this.rig.camera,
                     domElement: surface,
-                    halfW: this.map.halfW,
-                    halfH: this.map.halfH,
+                    map: this.map,
+                    landscape: this.landscape,
                     onLandscapeChanged: () => this.bindLandscapeHeights(),
                     plants: {
                         getPlants: () => this.scenery.getAuthoredPlants(),
@@ -2768,42 +2791,18 @@ export class Game {
     }
 
     /**
-     * Bind sculpted board + outer meshes to sim/visual height queries, and
-     * re-drape the deploy grid so units, buildings, ballistics and the wire
-     * overlay all follow the landscape bake / live editor sculpt.
+     * Editor only: the meshes being sculpted are the truth — point the sim's
+     * board relief and the outer height at them, re-drape the deploy grid and
+     * move decorations and units onto the new ground. (A match on a static map
+     * set its heights once, before the ground was built.)
      */
     private bindLandscapeHeights(): void {
-        const procedural = (x: number, z: number) => this.scenery.proceduralOuterHeightAt(x, z);
-        const outer = this.scenery.getOuterGroundMesh();
-        const editing = !!this.mountainEditor;
-        const bake = readMountainBakeFromStorage();
-        if (editing) {
-            // Live sculpt: meshes are the truth until the next Save.
-            syncLandscapeHeights({
-                map: this.map,
-                boardMesh: this.groundMesh,
-                outerMesh: outer,
-                proceduralOuter: procedural,
-            });
-        } else if (bake?.heightfield) {
-            // Play: quality-independent heightfield drives sim + grid.
-            syncLandscapeHeights({
-                map: this.map,
-                boardMesh: this.groundMesh,
-                outerMesh: outer,
-                proceduralOuter: procedural,
-                heightfield: bake.heightfield,
-            });
-        } else if (bake) {
-            syncLandscapeHeights({
-                map: this.map,
-                boardMesh: this.groundMesh,
-                outerMesh: outer,
-                proceduralOuter: procedural,
-            });
-        } else {
-            clearLandscapeHeightOverrides(this.map, procedural);
-        }
+        if (!this.mountainEditor) return;
+        const board = boardSamplerFromMesh(this.groundMesh, this.map);
+        if (board) this.map.setReliefOverride(board);
+        const outerMesh = this.scenery.getOuterGroundMesh();
+        const outer = outerMesh ? outerSamplerFromMesh(outerMesh, this.map) : null;
+        registerOuterHeight(outer ?? ((x, z) => this.scenery.outerHeightAt(x, z)));
         this.map.applyReliefToMesh(this.gridOverlay);
         this.scenery.reseatGroundedDecorations();
         for (const u of this.placement.allUnits()) {
@@ -2838,15 +2837,15 @@ export class Game {
                 for (const mat of Array.isArray(m.material) ? m.material : [m.material]) mat.dispose();
             });
 
+        // the editor's unsaved work survives the rebuild: rebuild from it, as if it were the map
+        const editing = this.mountainEditor?.capture() ?? null;
+        if (editing) this.map.setReliefOverride(landscapeBoardSampler(editing));
+
         // battlefield ground + grid overlay (keep its current visibility)
         this.scene.remove(this.groundMesh);
         disposeTree(this.groundMesh);
         this.groundMesh = this.map.createMesh();
         this.scene.add(this.groundMesh);
-        if (!this.mountainEditor) {
-            const bake = readMountainBakeFromStorage();
-            if (bake) applyBoardBakeToMesh(this.groundMesh, bake);
-        }
         const gridVisible = this.gridOverlay.visible;
         this.scene.remove(this.gridOverlay);
         disposeTree(this.gridOverlay);
@@ -2856,19 +2855,10 @@ export class Game {
 
         // outer world + weather (restore the current atmosphere)
         const weatherSnapshot = this.weather?.snapshot ?? null;
-        const editorPlants = this.mountainEditor
-            ? {
-                  plants: this.scenery.getAuthoredPlants(),
-                  clears: this.scenery.getPlantClears(),
-              }
-            : null;
         this.scene.remove(this.scenery.group);
         disposeTree(this.scenery.group);
-        this.scenery = new Scenery(this.map);
+        this.scenery = new Scenery(this.map, undefined, editing ?? this.landscape);
         this.scene.add(this.scenery.group);
-        if (editorPlants) {
-            this.scenery.setAuthoredPlants(editorPlants.plants, editorPlants.clears);
-        }
         if (sceneryWeatherFx(scenery)) {
             if (!this.scene.fog) this.scene.fog = new Fog(THEME.sky, THEME.fogNear, THEME.fogFar);
             this.weather = this.scenery.createWeather(

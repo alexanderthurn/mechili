@@ -1,7 +1,13 @@
 /**
- * Dev mountain sculptor — activate with `?editor=true` on a match URL.
- * Left-drag brushes outer ground + battle board for a continuous landscape;
- * Save / Load via the floating panel.
+ * Dev landscape editor — open a match with `?editor=true` (add
+ * `&landscape=<id>` to edit a bundled map). Left-drag brushes the outer ground
+ * and the battle board as one landscape; paint surface and plants; Save
+ * downloads `<id>.json` for `assets/data/landscapes/` (a static map a match
+ * can name), Load opens such a file (or an older mountain-sculpt bake).
+ *
+ * Nothing is kept in the browser: while editing, the meshes are the truth (the
+ * sim samples them live); outside the editor a match only ever plays a
+ * bundled map file.
  */
 
 import {
@@ -18,19 +24,20 @@ import {
 import { createRangeRing } from './placement';
 import { worldHeightAt } from './map';
 import {
-    applyHeightfieldToMesh,
-    applyHeightfieldToPositions,
-    rasterizeLandscapeHeightfield,
-    type LandscapeHeightfield,
-} from './landscapeHeight';
-import {
-    applyMaterialFieldsToMesh,
-    ensureOuterMaterialAttrs,
-    paintOuterMaterial,
-    rasterizeOuterMaterials,
-    type OuterMaterialFields,
-    type OuterMaterialKind,
-} from './landscapeMaterials';
+    applyLandscapeToBoardMesh,
+    applyLandscapeToOuterGeometry,
+    captureLandscape,
+    decodeLandscape,
+    encodeLandscape,
+    isLandscapeFile,
+    landscapeFits,
+    latticeOf,
+    MATERIAL_ATTR,
+    MATERIAL_CHANNELS,
+    type LandscapeBoard,
+    type LandscapeData,
+} from './landscape';
+import { ensureOuterMaterialAttrs, paintOuterMaterial, type OuterMaterialKind } from './landscapeMaterials';
 import {
     defaultPlantScale,
     plantMinSpacing,
@@ -56,34 +63,21 @@ export type MountainBrush =
     | 'obj-bushTall'
     | 'obj-erase';
 
-export interface MountainBakeBoard {
-    vertCount: number;
-    positions: number[];
-}
-
-/**
- * Authored landscape. `heightfield` is the quality-independent source of truth
- * (sim + any-quality mesh drape). Optional vert dumps help Ultra editor reload
- * when the mesh topology still matches.
- */
-export interface MountainBake {
+/** the bake the first editor wrote (browser storage, v1/v2) — import-only now */
+interface LegacyBake {
     version: 1 | 2;
     kind: 'mountain-sculpt';
-    /** @deprecated v1 — use heightfield. Kept for Ultra exact reload when counts match. */
     vertCount?: number;
     positions?: number[];
-    board?: MountainBakeBoard;
-    /** World Y grid — preferred apply path on every scenery tier. */
-    heightfield?: LandscapeHeightfield;
-    /** Outer material weights (grass/rock/snow/beach/scree), same grid as heightfield. */
-    materials?: OuterMaterialFields;
-    /** Hand-placed trees/bushes (XZ + scale); Y from world height on load. */
+    board?: { vertCount: number; positions: number[] };
+    heightfield?: { originX: number; originZ: number; size: number; res: number; heights: number[] };
+    materials?: { originX: number; originZ: number; size: number; res: number } & Partial<Record<(typeof MATERIAL_CHANNELS)[number], number[]>>;
     plants?: AuthoredPlant[];
-    /** Disks that suppress procedural vegetation on reload + live erase. */
     plantClears?: PlantClearDisk[];
 }
 
-const STORAGE_KEY = 'melodan.mountainBake.v1';
+/** where the first editor kept its bake — read once for the import button, then removed */
+const LEGACY_STORAGE_KEY = 'melodan.mountainBake.v1';
 
 export function mountainEditorEnabled(): boolean {
     try {
@@ -100,8 +94,9 @@ export interface MountainEditorOpts {
     scene: Scene;
     camera: PerspectiveCamera;
     domElement: HTMLElement;
-    halfW: number;
-    halfH: number;
+    map: LandscapeBoard;
+    /** the map being edited (its id / name), null for the procedural terrain */
+    landscape: LandscapeData | null;
     /** After a sculpt stroke / load / reset — rebind sim heights + deploy grid. */
     onLandscapeChanged?: () => void;
     /** Live plant paint/erase against scenery pools. */
@@ -122,6 +117,7 @@ export class MountainEditor {
     private board: Mesh;
     private readonly camera: Camera;
     private readonly dom: HTMLElement;
+    private readonly map: LandscapeBoard;
     private readonly halfW: number;
     private readonly halfH: number;
     private readonly raycaster = new Raycaster();
@@ -129,13 +125,8 @@ export class MountainEditor {
     private painting = false;
     private readonly panel: HTMLDivElement;
     private readonly disposers: (() => void)[] = [];
-    private basePositions: Float32Array;
-    private boardBasePositions: Float32Array;
-    private matBaseGrass: Float32Array;
-    private matBaseRock: Float32Array;
-    private matBaseSnow: Float32Array;
-    private matBaseBeach: Float32Array;
-    private matBaseScree: Float32Array;
+    /** the landscape as the editor opened — Reset returns to it, on any mesh */
+    private baseline: LandscapeData | null = null;
     private readonly cursor: Mesh;
     private hover: { x: number; z: number } | null = null;
     /** Scratch lists for draping the cursor over nearby mesh verts. */
@@ -144,11 +135,11 @@ export class MountainEditor {
     private readonly nearZ: number[] = [];
     private radiusInput!: HTMLInputElement;
     private strengthInput!: HTMLInputElement;
+    private idInput!: HTMLInputElement;
+    private nameInput!: HTMLInputElement;
+    private statusEl!: HTMLDivElement;
     private readonly onLandscapeChanged: (() => void) | null;
     private readonly plantsApi: NonNullable<MountainEditorOpts['plants']> | null;
-    /** Authored plants snapshot at construct / reattach (Reset). */
-    private basePlants: AuthoredPlant[] = [];
-    private basePlantClears: PlantClearDisk[] = [];
     /** Min time between plant stamps while dragging. */
     private lastPlantStampMs = 0;
 
@@ -157,24 +148,12 @@ export class MountainEditor {
         this.board = opts.boardMesh;
         this.camera = opts.camera;
         this.dom = opts.domElement;
-        this.halfW = opts.halfW;
-        this.halfH = opts.halfH;
+        this.map = opts.map;
+        this.halfW = opts.map.halfW;
+        this.halfH = opts.map.halfH;
         this.onLandscapeChanged = opts.onLandscapeChanged ?? null;
         this.plantsApi = opts.plants ?? null;
-        if (this.plantsApi) {
-            this.basePlants = this.plantsApi.getPlants().map((p) => ({ ...p }));
-            this.basePlantClears = this.plantsApi.getClears().map((c) => ({ ...c }));
-        }
-        const pos = this.mesh.geometry.attributes.position!;
-        this.basePositions = new Float32Array(pos.array as ArrayLike<number>);
-        const bpos = this.board.geometry.attributes.position!;
-        this.boardBasePositions = new Float32Array(bpos.array as ArrayLike<number>);
-        this.matBaseGrass = new Float32Array(0);
-        this.matBaseRock = new Float32Array(0);
-        this.matBaseSnow = new Float32Array(0);
-        this.matBaseBeach = new Float32Array(0);
-        this.matBaseScree = new Float32Array(0);
-        this.captureMaterialBases();
+        ensureOuterMaterialAttrs(this.mesh.geometry);
 
         this.cursor = createRangeRing(opts.scene);
         const mat = this.cursor.material as MeshBasicMaterial;
@@ -235,21 +214,18 @@ export class MountainEditor {
             this.dom.removeEventListener('pointerleave', onLeave);
             window.removeEventListener('keydown', onKey, true);
         });
+
+        this.idInput.value = opts.landscape?.id || 'landscape';
+        this.nameInput.value = opts.landscape?.name || opts.landscape?.id || 'New landscape';
+        // Reset returns here — also after a quality change rebuilt the meshes
+        this.baseline = this.capture();
     }
 
-    /** After scenery / ground rebuild — point at the new meshes. */
+    /** After scenery / ground rebuild (quality change) — point at the new meshes; Reset still returns to the start. */
     reattach(mesh: Mesh, boardMesh: Mesh): void {
         this.mesh = mesh;
         this.board = boardMesh;
-        const pos = mesh.geometry.attributes.position!;
-        this.basePositions = new Float32Array(pos.array as ArrayLike<number>);
-        const bpos = boardMesh.geometry.attributes.position!;
-        this.boardBasePositions = new Float32Array(bpos.array as ArrayLike<number>);
-        this.captureMaterialBases();
-        if (this.plantsApi) {
-            this.basePlants = this.plantsApi.getPlants().map((p) => ({ ...p }));
-            this.basePlantClears = this.plantsApi.getClears().map((c) => ({ ...c }));
-        }
+        ensureOuterMaterialAttrs(this.mesh.geometry);
         if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
     }
 
@@ -584,107 +560,58 @@ export class MountainEditor {
         pos.needsUpdate = true;
     }
 
-    private serializeMesh(mesh: Mesh): MountainBakeBoard {
-        const pos = mesh.geometry.attributes.position!;
-        const positions: number[] = [];
-        for (let i = 0; i < pos.count; i++) {
-            positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
-        }
-        return { vertCount: pos.count, positions };
-    }
-
-    private serialize(): MountainBake {
-        const outer = this.serializeMesh(this.mesh);
-        const heightfield = rasterizeLandscapeHeightfield(this.board, this.mesh, {
-            halfW: this.halfW,
-            halfH: this.halfH,
+    /** the landscape the editor shows right now (null if the meshes can't be read) */
+    capture(): LandscapeData | null {
+        return captureLandscape({
+            id: this.currentId(),
+            name: this.nameInput?.value.trim() || this.currentId(),
+            map: this.map,
+            boardMesh: this.board,
+            outerMesh: this.mesh,
+            plants: this.plantsApi?.getPlants() ?? [],
+            plantClears: this.plantsApi?.getClears() ?? [],
         });
-        return {
-            version: 2,
-            kind: 'mountain-sculpt',
-            heightfield,
-            materials: rasterizeOuterMaterials(this.mesh, {
-                halfW: this.halfW,
-                halfH: this.halfH,
-            }),
-            plants: this.plantsApi?.getPlants().map((p) => ({ ...p })) ?? [],
-            plantClears: this.plantsApi?.getClears().map((c) => ({ ...c })) ?? [],
-            // Ultra vert dumps — exact reload when topology matches.
-            vertCount: outer.vertCount,
-            positions: outer.positions,
-            board: this.serializeMesh(this.board),
-        };
     }
 
-    private applyMeshBake(mesh: Mesh, part: MountainBakeBoard, label: string): boolean {
-        const pos = mesh.geometry.attributes.position!;
-        if (part.vertCount !== pos.count || part.positions.length !== pos.count * 3) {
-            return false;
-        }
-        for (let i = 0; i < pos.count; i++) {
-            pos.setXYZ(i, part.positions[i * 3]!, part.positions[i * 3 + 1]!, part.positions[i * 3 + 2]!);
-        }
-        pos.needsUpdate = true;
-        mesh.geometry.computeVertexNormals();
-        return true;
+    private currentId(): string {
+        const raw = this.idInput?.value ?? '';
+        return raw.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'landscape';
     }
 
-    private applyBake(bake: MountainBake): void {
-        // Prefer heightfield (works on any scenery tier). Vert dumps only when counts match.
-        if (bake.heightfield) {
-            applyHeightfieldToMesh(this.mesh, bake.heightfield);
-            applyHeightfieldToMesh(this.board, bake.heightfield);
-            // Restore Ultra XZ lean when the outer dump still matches.
-            if (
-                bake.vertCount != null &&
-                bake.positions &&
-                bake.vertCount === this.mesh.geometry.attributes.position!.count
-            ) {
-                this.applyMeshBake(
-                    this.mesh,
-                    { vertCount: bake.vertCount, positions: bake.positions },
-                    'Outer',
-                );
-            }
-        } else if (bake.vertCount != null && bake.positions) {
-            if (
-                !this.applyMeshBake(
-                    this.mesh,
-                    { vertCount: bake.vertCount, positions: bake.positions },
-                    'Outer',
-                )
-            ) {
-                alert(
-                    `Outer vertex count mismatch (file ${bake.vertCount}, mesh ${this.mesh.geometry.attributes.position!.count}). Re-save on Ultra to write a heightfield.`,
-                );
-                return;
-            }
-            if (bake.board) this.applyMeshBake(this.board, bake.board, 'Board');
-        } else {
-            alert('Bake has no heightfield or vertex data');
+    private setStatus(text: string): void {
+        if (this.statusEl) this.statusEl.textContent = text;
+    }
+
+    /** show a landscape on the meshes: board relief, outer heights / lean / paint, plants */
+    private applyData(data: LandscapeData): void {
+        if (!landscapeFits(data, this.map)) {
+            this.setStatus(`"${data.id}" is made for a ${data.map.cols}×${data.map.rows} board, this one is ${this.map.cols}×${this.map.rows}`);
             return;
         }
-        if (bake.materials) {
-            applyMaterialFieldsToMesh(this.mesh, bake.materials);
-        }
-        this.plantsApi?.setAll(bake.plants ?? [], bake.plantClears ?? []);
+        applyLandscapeToBoardMesh(this.board, data);
+        ensureOuterMaterialAttrs(this.mesh.geometry);
+        applyLandscapeToOuterGeometry(this.mesh.geometry, data, { heights: true });
+        this.mesh.geometry.computeVertexNormals();
+        this.plantsApi?.setAll(data.plants, data.plantClears);
         this.onLandscapeChanged?.();
         if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
     }
 
     save(): void {
-        const bake = this.serialize();
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(bake));
-        } catch {
-            /* quota */
+        const data = this.capture();
+        if (!data) {
+            this.setStatus('Could not read the landscape from the meshes');
+            return;
         }
-        const blob = new Blob([JSON.stringify(bake)], { type: 'application/json' });
+        const text = JSON.stringify(encodeLandscape(data));
+        const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'mountain-ring.json';
+        a.href = url;
+        a.download = `${data.id}.json`;
         a.click();
-        URL.revokeObjectURL(a.href);
+        // revoking right away can cancel the download in some browsers
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        this.setStatus(`Saved ${data.id}.json (${Math.round(text.length / 1024)} KB) — put it in assets/data/landscapes/`);
     }
 
     loadFromFile(): void {
@@ -696,84 +623,133 @@ export class MountainEditor {
             if (!file) return;
             void file.text().then((text) => {
                 try {
-                    const bake = JSON.parse(text) as MountainBake;
-                    if (bake.kind !== 'mountain-sculpt' || (bake.version !== 1 && bake.version !== 2)) {
-                        alert('Not a mountain-sculpt v1/v2 file');
-                        return;
-                    }
-                    this.applyBake(bake);
-                    try {
-                        localStorage.setItem(STORAGE_KEY, text);
-                    } catch {
-                        /* ignore */
-                    }
+                    this.loadJson(JSON.parse(text), file.name.replace(/\.json$/i, ''));
                 } catch (e) {
-                    alert(`Load failed: ${e}`);
+                    this.setStatus(`Load failed: ${e instanceof Error ? e.message : String(e)}`);
                 }
             });
         };
         input.click();
     }
 
-    loadFromStorage(): boolean {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return false;
+    private loadJson(raw: unknown, fallbackId: string): void {
+        if (isLandscapeFile(raw)) {
+            const data = decodeLandscape(raw);
+            if (!data.id) data.id = fallbackId;
+            this.idInput.value = data.id;
+            this.nameInput.value = data.name || data.id;
+            this.applyData(data);
+            this.setStatus(`Loaded ${data.id}`);
+            return;
+        }
+        const legacy = raw as Partial<LegacyBake> | null;
+        if (legacy?.kind === 'mountain-sculpt' && (legacy.version === 1 || legacy.version === 2)) {
+            this.importLegacy(legacy as LegacyBake);
+            return;
+        }
+        throw new Error('not a landscape file');
+    }
+
+    /**
+     * An older bake: its heightfield was rounded down into 5 wu cells (so each
+     * value belongs half a cell further +X/+Z) — sampled back at the right
+     * place; vertex dumps restore the exact meshes when their topology matches.
+     */
+    private importLegacy(bake: LegacyBake): void {
+        const boardPos = this.board.geometry.attributes.position as BufferAttribute;
+        const outerPos = this.mesh.geometry.attributes.position as BufferAttribute;
+        const dumpFits = (dump: { vertCount?: number; positions?: number[] } | undefined, pos: BufferAttribute) =>
+            !!dump?.positions && dump.vertCount === pos.count && dump.positions.length === pos.count * 3;
+        const restore = (dump: { positions?: number[] }, pos: BufferAttribute) => {
+            for (let i = 0; i < pos.count; i++) pos.setXYZ(i, dump.positions![i * 3]!, dump.positions![i * 3 + 1]!, dump.positions![i * 3 + 2]!);
+            pos.needsUpdate = true;
+        };
+        const hf = bake.heightfield;
+        const shifted = (grid: { originX: number; originZ: number; size: number; res: number }, values: number[]) => {
+            const cell = grid.size / Math.max(1, grid.res - 1);
+            return (x: number, z: number) => {
+                const fx = (x - cell * 0.5 - grid.originX) / cell;
+                const fz = (z - cell * 0.5 - grid.originZ) / cell;
+                const x0 = Math.min(grid.res - 2, Math.max(0, Math.floor(fx)));
+                const z0 = Math.min(grid.res - 2, Math.max(0, Math.floor(fz)));
+                const tx = Math.min(1, Math.max(0, fx - x0));
+                const tz = Math.min(1, Math.max(0, fz - z0));
+                const i = z0 * grid.res + x0;
+                const y0 = values[i]! * (1 - tx) + values[i + 1]! * tx;
+                const y1 = values[i + grid.res]! * (1 - tx) + values[i + grid.res + 1]! * tx;
+                return y0 * (1 - tz) + y1 * tz;
+            };
+        };
+        if (dumpFits(bake.board, boardPos)) restore(bake.board!, boardPos);
+        else if (hf) {
+            const h = shifted(hf, hf.heights);
+            for (let i = 0; i < boardPos.count; i++) boardPos.setY(i, h(boardPos.getX(i), boardPos.getZ(i)) - this.board.position.y);
+            boardPos.needsUpdate = true;
+        } else {
+            this.setStatus('This bake has neither a heightfield nor matching vertex data');
+            return;
+        }
+        if (dumpFits(bake, outerPos)) restore(bake, outerPos);
+        else if (hf) {
+            const lat = latticeOf(this.mesh.geometry);
+            const h = shifted(hf, hf.heights);
+            for (let v = 0; v < outerPos.count; v++) {
+                const x = lat ? lat.xs[lat.vix[v]!]! : outerPos.getX(v);
+                const z = lat ? lat.zs[lat.viz[v]!]! : outerPos.getZ(v);
+                const inside = Math.abs(x) <= this.halfW && Math.abs(z) <= this.halfH;
+                outerPos.setXYZ(v, x, inside ? 0 : h(x, z), z);
+            }
+            outerPos.needsUpdate = true;
+        }
+        if (bake.materials) {
+            ensureOuterMaterialAttrs(this.mesh.geometry);
+            const lat = latticeOf(this.mesh.geometry);
+            for (const ch of MATERIAL_CHANNELS) {
+                const values = bake.materials[ch];
+                if (!values) continue;
+                const sample = shifted(bake.materials, values);
+                const attr = this.mesh.geometry.getAttribute(MATERIAL_ATTR[ch]) as BufferAttribute;
+                for (let v = 0; v < attr.count; v++) {
+                    const x = lat ? lat.xs[lat.vix[v]!]! : outerPos.getX(v);
+                    const z = lat ? lat.zs[lat.viz[v]!]! : outerPos.getZ(v);
+                    attr.setX(v, sample(x, z));
+                }
+                attr.needsUpdate = true;
+            }
+        }
+        this.board.geometry.computeVertexNormals();
+        this.mesh.geometry.computeVertexNormals();
+        this.plantsApi?.setAll(bake.plants ?? [], bake.plantClears ?? []);
+        this.onLandscapeChanged?.();
+        this.setStatus('Imported an older bake — Save writes it as a landscape file');
+    }
+
+    /** the bake the first editor left in browser storage: import it once, then drop it */
+    private importBrowserBake(): void {
         try {
-            const bake = JSON.parse(raw) as MountainBake;
-            if (bake.kind !== 'mountain-sculpt' || (bake.version !== 1 && bake.version !== 2)) return false;
-            this.applyBake(bake);
-            return true;
-        } catch {
-            return false;
+            const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+            if (!raw) {
+                this.setStatus('No browser bake found');
+                return;
+            }
+            this.loadJson(JSON.parse(raw), 'landscape');
+            localStorage.removeItem(LEGACY_STORAGE_KEY);
+            this.panel.querySelector<HTMLButtonElement>('.import-browser')?.remove();
+        } catch (e) {
+            this.setStatus(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
         }
     }
 
     resetToBase(): void {
-        const restore = (mesh: Mesh, base: Float32Array) => {
-            const pos = mesh.geometry.attributes.position!;
-            for (let i = 0; i < pos.count; i++) {
-                pos.setXYZ(i, base[i * 3]!, base[i * 3 + 1]!, base[i * 3 + 2]!);
-            }
-            pos.needsUpdate = true;
-            mesh.geometry.computeVertexNormals();
-        };
-        restore(this.mesh, this.basePositions);
-        restore(this.board, this.boardBasePositions);
-        this.restoreMaterialBases();
-        this.plantsApi?.setAll(
-            this.basePlants.map((p) => ({ ...p })),
-            this.basePlantClears.map((c) => ({ ...c })),
-        );
-        this.onLandscapeChanged?.();
-        if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
+        if (this.baseline) this.applyData(this.baseline);
     }
 
-    private captureMaterialBases(): void {
-        ensureOuterMaterialAttrs(this.mesh.geometry);
-        const copy = (name: string): Float32Array => {
-            const attr = this.mesh.geometry.getAttribute(name) as BufferAttribute;
-            return new Float32Array(attr.array as ArrayLike<number>);
-        };
-        this.matBaseGrass = copy('aGrass');
-        this.matBaseRock = copy('aRock');
-        this.matBaseSnow = copy('aSnow');
-        this.matBaseBeach = copy('aBeach');
-        this.matBaseScree = copy('aScree');
-    }
-
-    private restoreMaterialBases(): void {
-        ensureOuterMaterialAttrs(this.mesh.geometry);
-        const write = (name: string, base: Float32Array) => {
-            const attr = this.mesh.geometry.getAttribute(name) as BufferAttribute;
-            if (base.length !== attr.count) return;
-            for (let i = 0; i < attr.count; i++) attr.setX(i, base[i]!);
-            attr.needsUpdate = true;
-        };
-        write('aGrass', this.matBaseGrass);
-        write('aRock', this.matBaseRock);
-        write('aSnow', this.matBaseSnow);
-        write('aBeach', this.matBaseBeach);
-        write('aScree', this.matBaseScree);
+    private hasLegacyBrowserBake(): boolean {
+        try {
+            return localStorage.getItem(LEGACY_STORAGE_KEY) !== null;
+        } catch {
+            return false;
+        }
     }
 
     private buildPanel(): HTMLDivElement {
@@ -794,6 +770,8 @@ export class MountainEditor {
 .mtn-editor kbd{font:10px/1 ui-monospace,monospace;opacity:.65;margin-left:2px}
 .mtn-editor .sliders{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;margin-top:8px}
 .mtn-editor .hint{margin-top:8px;opacity:.7;font-size:11px}
+.mtn-editor .status{margin-top:6px;font-size:11px;color:#d4b878;min-height:1em;max-width:320px}
+.mtn-editor input[type=text]{background:#2a221a;border:1px solid #5c4634;color:#f0e8d8;border-radius:4px;padding:3px 6px;font:inherit}
 </style>
 <h3>Mountain editor</h3>
 <div class="row tools">
@@ -820,12 +798,18 @@ export class MountainEditor {
   <span>Radius <kbd>5</kbd>/<kbd>6</kbd></span><input type="range" class="r" min="8" max="120" value="28">
   <span>Strength <kbd>7</kbd>/<kbd>8</kbd></span><input type="range" class="s" min="5" max="80" value="22">
 </div>
+<div class="sliders">
+  <span>Map id</span><input type="text" class="map-id" spellcheck="false" autocomplete="off">
+  <span>Name</span><input type="text" class="map-name" spellcheck="false" autocomplete="off">
+</div>
 <div class="row">
   <button type="button" class="save">Save</button>
   <button type="button" class="load">Load</button>
   <button type="button" class="reset">Reset</button>
+  <button type="button" class="import-browser" hidden>Import browser bake</button>
 </div>
-<div class="hint">Sculpt · materials · plants (outer/board) · Save packs height + mats + plants</div>`;
+<div class="status"></div>
+<div class="hint">Sculpt · paint · plants (outer + board) · Save downloads &lt;id&gt;.json for assets/data/landscapes/ · play it with ?landscape=&lt;id&gt;</div>`;
 
         const tools = el.querySelectorAll<HTMLInputElement>('input[name="mtn-brush"]');
         for (const input of tools) {
@@ -846,74 +830,34 @@ export class MountainEditor {
         this.radius = Number(this.radiusInput.value);
         this.strength = Number(this.strengthInput.value) / 10;
 
+        this.idInput = el.querySelector<HTMLInputElement>('.map-id')!;
+        this.nameInput = el.querySelector<HTMLInputElement>('.map-name')!;
+        this.statusEl = el.querySelector<HTMLDivElement>('.status')!;
         el.querySelector('.save')!.addEventListener('click', () => this.save());
         el.querySelector('.load')!.addEventListener('click', () => this.loadFromFile());
         el.querySelector('.reset')!.addEventListener('click', () => this.resetToBase());
+        const importBrowser = el.querySelector<HTMLButtonElement>('.import-browser')!;
+        importBrowser.hidden = !this.hasLegacyBrowserBake();
+        importBrowser.addEventListener('click', () => this.importBrowserBake());
 
         // Don't let panel clicks hit the canvas
         el.addEventListener('pointerdown', (e) => e.stopPropagation());
-        return el;
-    }
-}
-
-/** Apply a previously saved bake onto a position attribute (same vert count). */
-export function applyMountainBakeToPositions(
-    pos: BufferAttribute | { count: number; setXYZ: (i: number, x: number, y: number, z: number) => void; needsUpdate: boolean },
-    bake: Pick<MountainBake, 'vertCount' | 'positions'>,
-): boolean {
-    if (bake.vertCount == null || !bake.positions) return false;
-    if (bake.vertCount !== pos.count || bake.positions.length !== pos.count * 3) return false;
-    for (let i = 0; i < pos.count; i++) {
-        pos.setXYZ(i, bake.positions[i * 3]!, bake.positions[i * 3 + 1]!, bake.positions[i * 3 + 2]!);
-    }
-    pos.needsUpdate = true;
-    return true;
-}
-
-/** Apply authored landscape onto the battle ground mesh (any scenery quality). */
-export function applyBoardBakeToMesh(mesh: Mesh, bake: MountainBake): boolean {
-    if (bake.heightfield) {
-        applyHeightfieldToMesh(mesh, bake.heightfield);
-        return true;
-    }
-    const board = bake.board;
-    if (!board) return false;
-    const pos = mesh.geometry.attributes.position!;
-    if (!applyMountainBakeToPositions(pos, board)) return false;
-    mesh.geometry.computeVertexNormals();
-    return true;
-}
-
-/**
- * Apply authored landscape onto the outer-ground positions (any scenery tier).
- * Heightfield drapes Y; matching Ultra vert dumps also restore XZ lean.
- */
-export function applyOuterBakeToPositions(pos: BufferAttribute, bake: MountainBake, yOff = -0.05): boolean {
-    if (bake.heightfield) {
-        applyHeightfieldToPositions(pos, bake.heightfield, yOff);
-        if (bake.vertCount === pos.count && bake.positions && bake.positions.length === pos.count * 3) {
-            applyMountainBakeToPositions(pos, bake);
+        // A slider or button keeps keyboard focus after a click, and the camera
+        // ignores keys aimed at inputs — hand focus back so WASD keeps working.
+        // Text fields keep it while typing (Enter / Escape give it back).
+        const release = () => {
+            const active = document.activeElement as HTMLElement | null;
+            if (!active || !el.contains(active)) return;
+            if (active instanceof HTMLInputElement && active.type === 'text') return;
+            active.blur();
+        };
+        el.addEventListener('pointerup', () => requestAnimationFrame(release));
+        el.addEventListener('change', () => requestAnimationFrame(release));
+        for (const field of [this.idInput, this.nameInput]) {
+            field.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === 'Escape') field.blur();
+            });
         }
-        return true;
-    }
-    return applyMountainBakeToPositions(pos, bake);
-}
-
-/** Drape authored outer material weights onto a mesh (any scenery tier). */
-export function applyOuterMaterialBake(mesh: Mesh, bake: MountainBake): boolean {
-    if (!bake.materials) return false;
-    applyMaterialFieldsToMesh(mesh, bake.materials);
-    return true;
-}
-
-export function readMountainBakeFromStorage(): MountainBake | null {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return null;
-        const bake = JSON.parse(raw) as MountainBake;
-        if (bake.kind !== 'mountain-sculpt' || (bake.version !== 1 && bake.version !== 2)) return null;
-        return bake;
-    } catch {
-        return null;
+        return el;
     }
 }

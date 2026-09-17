@@ -166,5 +166,8 @@
   "tutorial2": "2\nТвердиня",
   "tutorial3": "3\nВежі",
   "mpOpenCount": "Відкрито: {{n}}",
-  "mpRunningCount": "Триває: {{n}}"
+  "mpRunningCount": "Триває: {{n}}",
+  "mapSetting": "Мапа",
+  "mapProcedural": "Згенерована",
+  "landscapeUnavailable": "Цей матч використовує недоступну мапу."
 }

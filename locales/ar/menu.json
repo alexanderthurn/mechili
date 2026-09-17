@@ -166,5 +166,8 @@
   "tutorial2": "2\nالقلعة",
   "tutorial3": "3\nالأبراج",
   "mpOpenCount": "مفتوحة: {{n}}",
-  "mpRunningCount": "جارية: {{n}}"
+  "mpRunningCount": "جارية: {{n}}",
+  "mapSetting": "الخريطة",
+  "mapProcedural": "مُولَّدة",
+  "landscapeUnavailable": "تستخدم هذه المباراة خريطة غير متاحة."
 }

@@ -166,5 +166,8 @@
   "tutorial2": "2\nBastion",
   "tutorial3": "3\nTurnuri",
   "mpOpenCount": "Deschise: {{n}}",
-  "mpRunningCount": "În desfășurare: {{n}}"
+  "mpRunningCount": "În desfășurare: {{n}}",
+  "mapSetting": "Hartă",
+  "mapProcedural": "Generată",
+  "landscapeUnavailable": "Acest meci folosește o hartă indisponibilă."
 }

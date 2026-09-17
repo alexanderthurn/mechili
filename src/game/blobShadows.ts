@@ -128,6 +128,18 @@ export class BillboardTreeShadows {
         this.parent = parent;
     }
 
+    /** drop the footprints inside a disk (erased trees) */
+    removeWithin(cx: number, cz: number, radius: number): void {
+        const r2 = radius * radius;
+        const kept = this.sources.filter((s) => (s.x - cx) ** 2 + (s.z - cz) ** 2 > r2);
+        if (kept.length !== this.sources.length) this.setSources(kept);
+    }
+
+    /** the ground under the footprints changed: lay them out again on the next update */
+    invalidate(): void {
+        this.lastKey = '';
+    }
+
     /** Replace all registered billboard footprints (call after placement / LOD). */
     setSources(sources: readonly BlobShadowSource[]): void {
         const next = sources.length > MAX_TREE_BLOBS ? sources.slice(0, MAX_TREE_BLOBS) : sources.slice();
@@ -233,6 +245,8 @@ export class BillboardTreeShadows {
         this.mesh.frustumCulled = false;
         this.mesh.renderOrder = 1;
         this.mesh.count = 0;
+        // laid out from its sources each update — decoration passes leave it alone
+        this.mesh.userData.treeShadows = true;
         this.parent.add(this.mesh);
     }
 }

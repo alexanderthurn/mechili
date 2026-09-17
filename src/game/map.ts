@@ -529,6 +529,11 @@ export class BattleMap {
         this.reliefOverride = fn;
     }
 
+    /** the relief function in effect right now (a later override doesn't change the returned one) */
+    reliefSampler(): (x: number, z: number) => number {
+        return this.reliefOverride ?? ((x, z) => this.proceduralHeightAt(x, z));
+    }
+
     heightAt(x: number, z: number): number {
         if (this.reliefOverride) return this.reliefOverride(x, z);
         return this.proceduralHeightAt(x, z);

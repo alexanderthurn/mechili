@@ -341,6 +341,8 @@ export interface CustomGameConfig {
     yearRoles?: 'choose' | 'host' | 'guest';
     /** The Year: the attacker fields the Komtur's forest roster (Cursed Christine) */
     yearKomtur?: boolean;
+    /** a static map (assets/data/landscapes/<id>.json); unset / '' = the procedural terrain */
+    landscape?: string;
 }
 
 /**

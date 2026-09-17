@@ -111,6 +111,7 @@ import type { ScenarioDef } from './game/scenario/scenarioDef';
 import { decodeShareCode, encodeShareCode } from './game/scenario/shareCode';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { builtInCampaigns, campaignLevel, campaignSummary, completedLevels, isBuiltInCampaign, markLevelCompleted } from './game/campaign';
+import { landscapeIds, loadedLandscape, loadLandscape } from './game/landscape';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
@@ -307,6 +308,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
             yearRoles: yearRolesOption(parsed.yearRoles),
             yearKomtur: parsed.yearKomtur === true,
+            landscape: landscapeOption(parsed.landscape),
         };
     } catch {
         return { ...DEFAULT_CUSTOM_GAME };
@@ -351,6 +353,9 @@ function settingsFromUrl(): GameSettings {
     // now that Horde is the only mode; ?hordeFactor= (including `off`)
     // overrides the level — see applyHordeMode
     if (params.get('duo')) applyDuoMode(settings);
+    // ?landscape=<id>: play (or, with ?editor=true, edit) a map from assets/data/landscapes/
+    const landscape = params.get('landscape');
+    if (landscape) settings.landscape = landscape;
 
     const parseTimer = (raw: string | null): number | number[] | null => {
         if (!raw) return null;
@@ -1202,6 +1207,9 @@ menu.innerHTML = `
                 <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                     <select class="cg-stronghold"></select>
                 </label>
+                <label class="m-field m-landscape-field"><span class="m-field-label" data-i18n="menu:mapSetting"></span>
+                    <select class="cg-landscape"></select>
+                </label>
                 <label class="m-field m-year-field"><span class="m-field-label" data-i18n="menu:yearRolesSetting"></span>
                     <select class="cg-year-attacker"></select>
                 </label>
@@ -1413,6 +1421,7 @@ const cgRoundCardsEl = menu.querySelector<HTMLSelectElement>('.cg-roundcards')!;
 const cgCommanderHpEl = menu.querySelector<HTMLSelectElement>('.cg-commander-hp')!;
 const cgMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-money')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
+const cgLandscapeEl = menu.querySelector<HTMLSelectElement>('.cg-landscape')!;
 const cgYearAttackerEl = menu.querySelector<HTMLSelectElement>('.cg-year-attacker')!;
 const cgYearKomturEl = menu.querySelector<HTMLSelectElement>('.cg-year-komtur')!;
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
@@ -1908,6 +1917,30 @@ function refreshYearLobbyOptions(): void {
 }
 refreshYearLobbyOptions();
 
+/** the lobby's map choice: the procedural terrain, or one of the bundled static maps (shown only when there are any) */
+function refreshLandscapeOptions(): void {
+    const value = cgLandscapeEl.value;
+    const ids = landscapeIds();
+    const label = (id: string) => id.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    cgLandscapeEl.replaceChildren(
+        ...[['', t('menu:mapProcedural', { defaultValue: 'Generated' })] as const, ...ids.map((id) => [id, label(id)] as const)].map(([v, text]) => {
+            const opt = document.createElement('option');
+            opt.value = v;
+            opt.textContent = text;
+            return opt;
+        }),
+    );
+    cgLandscapeEl.value = ids.includes(value) ? value : '';
+    const field = cgLandscapeEl.closest<HTMLElement>('.m-field');
+    if (field) field.style.display = ids.length > 0 ? '' : 'none';
+}
+refreshLandscapeOptions();
+
+/** a stored / received map choice that this build has, else '' (procedural) */
+function landscapeOption(value: unknown): string {
+    return typeof value === 'string' && landscapeIds().includes(value) ? value : '';
+}
+
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
     'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode'
@@ -1948,6 +1981,8 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     refreshYearLobbyOptions();
     cgYearAttackerEl.value = yearRolesOption(cfg.yearRoles);
     cgYearKomturEl.value = cfg.yearKomtur ? 'komtur' : 'army';
+    refreshLandscapeOptions();
+    cgLandscapeEl.value = landscapeOption(cfg.landscape);
     for (const field of menu.querySelectorAll<HTMLElement>('.m-year-field')) field.style.display = cfg.mode === 'year' ? '' : 'none';
     // Always short in the closed box — hosts open the list for details;
     // guests get a hover/tap tip (see wireLobbySettingTips).
@@ -2054,11 +2089,12 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'yearRoles' | 'yearKomtur'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'landscape'
 > {
     return {
         yearRoles: yearRolesOption(cgYearAttackerEl.value),
         yearKomtur: cgYearKomturEl.value === 'komtur',
+        landscape: landscapeOption(cgLandscapeEl.value),
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
@@ -2557,6 +2593,7 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
     cgMoneyEl.addEventListener('change', onChange);
     cgStrongholdEl.addEventListener('change', onChange);
     cgYearAttackerEl.addEventListener('change', onChange);
+    cgLandscapeEl.addEventListener('change', onChange);
     cgYearKomturEl.addEventListener('change', onChange);
     cgResetEl.addEventListener('click', () => {
         if (!activeLobbyHost) return;
@@ -2594,6 +2631,7 @@ function showHostLobbySettings(
     cgMoneyEl.disabled = false;
     cgStrongholdEl.disabled = false;
     cgYearAttackerEl.disabled = false;
+    cgLandscapeEl.disabled = false;
     cgYearKomturEl.disabled = false;
     cgResetEl.disabled = false;
     populateLobbySettingsForm(config);
@@ -2620,6 +2658,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgMoneyEl.disabled = true;
     cgStrongholdEl.disabled = true;
     cgYearAttackerEl.disabled = true;
+    cgLandscapeEl.disabled = true;
     cgYearKomturEl.disabled = true;
     cgResetEl.disabled = true;
     populateLobbySettingsForm(config);
@@ -3446,6 +3485,18 @@ function startGame(
                     }),
                     6000,
                 );
+            },
+        );
+        return;
+    }
+    // a static map: its file is loaded before the match is built (the sim reads its heights)
+    if (settings.landscape && !loadedLandscape(settings.landscape)) {
+        void loadLandscape(settings.landscape).then(
+            () => startGame(settings, side, names, resume, star, replay, spectate),
+            (e: unknown) => {
+                console.error(e);
+                setMenuChromeVisible(true);
+                setStatus(t('menu:landscapeUnavailable', { defaultValue: 'This match uses a map that is not available.' }), 6000);
             },
         );
         return;
@@ -4735,6 +4786,8 @@ function lobbyMatchSettings(
     delete settings.seats; // the roster travels separately (localized per client)
     if (config) applyCustomGameConfig(settings, config);
     else if (horde) applyHordeMode(settings);
+    // the lobby's map choice (a board it doesn't fit — 2v2 is wider — plays procedural)
+    if (config?.landscape && landscapeIds().includes(config.landscape)) settings.landscape = config.landscape;
     const seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
     if (config?.mode === 'year') {
         applyClimbMode(settings, {
@@ -4804,6 +4857,7 @@ function loadPracticeConfig(): CustomGameConfig {
             commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor ?? defaults.commanderHpFactor),
             moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
             strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
+            landscape: landscapeOption(parsed.landscape),
         };
     } catch {
         return { mode: '1v1', ...defaultPracticeSettings() };

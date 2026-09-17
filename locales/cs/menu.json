@@ -166,5 +166,8 @@
   "tutorial2": "2\nPevnost",
   "tutorial3": "3\nVěže",
   "mpOpenCount": "Otevřené: {{n}}",
-  "mpRunningCount": "Probíhající: {{n}}"
+  "mpRunningCount": "Probíhající: {{n}}",
+  "mapSetting": "Mapa",
+  "mapProcedural": "Generovaná",
+  "landscapeUnavailable": "Tento zápas používá nedostupnou mapu."
 }

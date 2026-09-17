@@ -166,5 +166,8 @@
   "tutorial2": "2\nFæstning",
   "tutorial3": "3\nTårne",
   "mpOpenCount": "{{n}} åbne",
-  "mpRunningCount": "{{n}} i gang"
+  "mpRunningCount": "{{n}} i gang",
+  "mapSetting": "Kort",
+  "mapProcedural": "Genereret",
+  "landscapeUnavailable": "Denne kamp bruger et kort, der ikke er tilgængeligt."
 }

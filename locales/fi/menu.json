@@ -166,5 +166,8 @@
   "tutorial2": "2\nLinnake",
   "tutorial3": "3\nTornit",
   "mpOpenCount": "Avoimia: {{n}}",
-  "mpRunningCount": "Käynnissä: {{n}}"
+  "mpRunningCount": "Käynnissä: {{n}}",
+  "mapSetting": "Kartta",
+  "mapProcedural": "Luotu",
+  "landscapeUnavailable": "Tämä ottelu käyttää karttaa, joka ei ole saatavilla."
 }

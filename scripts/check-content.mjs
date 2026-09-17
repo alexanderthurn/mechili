@@ -770,6 +770,114 @@ try {
         if (zk) console.log('ok   scenarios: zip (stored, deflated, wrapper folder vs flat data/, junk skipped, no-op level rejected) → known level → prepareLevel plays it, base restored, invalid/unknown rejected; scenario format validated; match rules resolve (normal, climb, scenario); scenarios/ + meta.jsonc; zip write/read; share codes; replay capture round-trips and inherits rules; editor draft (new board valid, undo/redo, map change, editor rules and purse, horde ring, side swap, mirror, loadout rules)');
     }
 
+    // ---- static maps (assets/data/landscapes/): capture → file → apply keeps every height in place
+    {
+        const three = await import('three');
+        const land = await server.ssrLoadModule('/src/game/landscape.ts');
+        const grid = await server.ssrLoadModule('/src/game/outerGroundGrid.ts');
+        const { BattleMap, STANDARD_MAP } = await server.ssrLoadModule('/src/game/map.ts');
+        let lk = true;
+        const lexpect = (cond, msg) => {
+            if (!cond) {
+                lk = false;
+                console.error(`FAIL landscape: ${msg}`);
+            }
+        };
+        const map = new BattleMap({ ...STANDARD_MAP });
+        // a smooth test surface — a hill that isn't symmetric, so a shift would show
+        // (0 at the board edge like the real terrain; the hill sits where the ultra mesh is fine)
+        const past = (x, z) => Math.hypot(Math.max(0, Math.abs(x) - map.halfW), Math.max(0, Math.abs(z) - map.halfH));
+        const f = (x, z) => Math.min(1, past(x, z) / 40) * (30 * Math.exp(-(((x - 380) / 60) ** 2) - (((z + 90) / 45) ** 2)) + 0.02 * past(x, z));
+        const g = (x, z) => 2 * Math.sin(x / 20) * Math.cos(z / 17);
+        const boardGeo = new three.PlaneGeometry(map.width, map.height, map.cols * 2, map.rows * 2);
+        boardGeo.rotateX(-Math.PI / 2);
+        const bp = boardGeo.attributes.position;
+        for (let i = 0; i < bp.count; i++) bp.setY(i, g(bp.getX(i), bp.getZ(i)));
+        const boardMesh = new three.Mesh(boardGeo);
+        const size = 2 * (Math.max(map.halfW, map.halfH) + 500);
+        const outerOf = (dense, sparse) => {
+            const geo = grid.createOuterGroundGeometry(size, 170, { dense, mountainSparse: sparse, halfW: map.halfW, halfH: map.halfH });
+            const pos = geo.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const z = pos.getZ(i);
+                pos.setY(i, Math.abs(x) <= map.halfW && Math.abs(z) <= map.halfH ? 0 : f(x, z));
+            }
+            const grass = new Float32Array(pos.count);
+            for (let i = 0; i < pos.count; i++) grass[i] = pos.getX(i) > 300 ? 1 : 0;
+            geo.setAttribute('aGrass', new three.BufferAttribute(grass, 1));
+            return new three.Mesh(geo);
+        };
+        const ultra = outerOf(true, false);
+        const plants = [{ kind: 'oak', x: 250, z: -80, sc: 1, yaw: 0.5 }];
+        const data = land.captureLandscape({ id: 'test', name: 'Test', map, boardMesh, outerMesh: ultra, plants, plantClears: [{ x: 1, z: 2, r: 3 }] });
+        lexpect(!!data, 'capture failed');
+        if (data) {
+            const file = JSON.parse(JSON.stringify(land.encodeLandscape(data)));
+            const back = land.decodeLandscape(file);
+            lexpect(land.landscapeFits(back, map), 'decoded landscape does not fit its board');
+            lexpect(back.plants.length === 1 && back.plantClears.length === 1, 'plants lost');
+            // board: exact at its vertices (up to the 0.02 storage step)
+            const board = land.landscapeBoardSampler(back);
+            let worstBoard = 0;
+            for (let i = 0; i < bp.count; i += 7) worstBoard = Math.max(worstBoard, Math.abs(board(bp.getX(i), bp.getZ(i)) - bp.getY(i)));
+            lexpect(worstBoard < 0.011, `board heights off by ${worstBoard.toFixed(3)}`);
+            // outer: no shift, no inflation — the hilltop stays where and how high it was
+            const outer = land.landscapeOuterSampler(back);
+            let worstOuter = 0;
+            let bias = 0;
+            let n = 0;
+            for (let x = map.halfW + 20; x < map.halfW + 480; x += 13) {
+                for (let z = -map.halfH - 400; z < map.halfH + 400; z += 11) {
+                    const err = outer(x, z) - f(x, z);
+                    worstOuter = Math.max(worstOuter, Math.abs(err));
+                    bias += err;
+                    n++;
+                }
+            }
+            lexpect(worstOuter < 0.6 && Math.abs(bias / n) < 0.05, `outer heights off by up to ${worstOuter.toFixed(3)} (mean ${(bias / n).toFixed(3)})`);
+            lexpect(Math.abs(outer(380, -90) - f(380, -90)) < 0.3, 'hilltop moved');
+            lexpect(outer(0, 0) === 0 && outer(map.halfW - 1, 0) === 0, 'outer height under the board');
+            // another tier's mesh (high: coarser mountains) stands exactly on the map at its vertices
+            const high = outerOf(false, true);
+            land.applyLandscapeToOuterGeometry(high.geometry, back, { heights: true });
+            const hp = high.geometry.attributes.position;
+            let worstHigh = 0;
+            for (let i = 0; i < hp.count; i += 5) {
+                const x = hp.getX(i);
+                const z = hp.getZ(i);
+                worstHigh = Math.max(worstHigh, Math.abs(hp.getY(i) - outer(x, z)));
+            }
+            lexpect(worstHigh < 1e-4, `high-tier drape off by ${worstHigh.toFixed(4)}`);
+            const paint = high.geometry.getAttribute('aGrass');
+            lexpect(paint.getX(hp.count - 1) > 0.9, 'paint lost on the other tier');
+            // load → save → load on the same tier: nothing drifts or grows
+            const reload = outerOf(true, false);
+            land.applyLandscapeToOuterGeometry(reload.geometry, back, { heights: true });
+            const again = land.captureLandscape({ id: 'test', name: 'Test', map, boardMesh, outerMesh: reload, plants, plantClears: [] });
+            let drift = 0;
+            let growth = 0;
+            for (let i = 0; i < back.outerHeights.length; i++) {
+                const d = again.outerHeights[i] - back.outerHeights[i];
+                drift = Math.max(drift, Math.abs(d));
+                growth += d;
+            }
+            growth /= back.outerHeights.length;
+            lexpect(drift < 0.35 && Math.abs(growth) < 0.01, `heights drift by up to ${drift.toFixed(3)} (mean ${growth.toFixed(4)}) on a second save`);
+        }
+        // the maps that ship: every file decodes
+        for (const id of land.landscapeIds()) {
+            try {
+                const loadedMap = await land.loadLandscape(id);
+                lexpect(loadedMap.board.length > 0, `${id}: empty board`);
+            } catch (e) {
+                lexpect(false, `${id}: ${e instanceof Error ? e.message : e}`);
+            }
+        }
+        if (!lk) failed = true;
+        else console.log(`ok   landscapes: capture → file → decode keeps board heights exact and outer hills in place (no shift, no inflation, no drift), drapes any tier; ${land.landscapeIds().length} bundled map(s) decode`);
+    }
+
     // ---- bundled campaigns (assets/campaign/<id>/): every level parses, meta names them in order
     {
         const camp = await server.ssrLoadModule('/src/game/campaign.ts');

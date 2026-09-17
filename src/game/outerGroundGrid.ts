@@ -118,6 +118,9 @@ function buildRectilinearXZ(
             keep[iz * nx + ix] = vertCount++;
         }
     }
+    // each vertex's lattice point — landscapes sample and drape through it (landscape.ts)
+    const vix = new Int32Array(vertCount);
+    const viz = new Int32Array(vertCount);
 
     const positions = new Float32Array(vertCount * 3);
     const uvs = new Float32Array(vertCount * 2);
@@ -127,6 +130,8 @@ function buildRectilinearXZ(
             const vi = keep[iz * nx + ix]!;
             if (vi < 0) continue;
             const x = xs[ix]!;
+            vix[vi] = ix;
+            viz[vi] = iz;
             positions[vi * 3] = x;
             positions[vi * 3 + 1] = 0;
             positions[vi * 3 + 2] = z;
@@ -151,5 +156,6 @@ function buildRectilinearXZ(
     geo.setAttribute('position', new BufferAttribute(positions, 3));
     geo.setAttribute('uv', new BufferAttribute(uvs, 2));
     geo.setIndex(new BufferAttribute(new Uint32Array(indices), 1));
+    geo.userData.lattice = { xs: Float64Array.from(xs), zs: Float64Array.from(zs), keep, vix, viz };
     return geo;
 }

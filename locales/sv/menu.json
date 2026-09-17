@@ -166,5 +166,8 @@
   "tutorial2": "2\nFäste",
   "tutorial3": "3\nTorn",
   "mpOpenCount": "{{n}} öppna",
-  "mpRunningCount": "{{n}} pågår"
+  "mpRunningCount": "{{n}} pågår",
+  "mapSetting": "Karta",
+  "mapProcedural": "Genererad",
+  "landscapeUnavailable": "Den här matchen använder en karta som inte är tillgänglig."
 }

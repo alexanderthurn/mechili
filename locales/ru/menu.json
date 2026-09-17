@@ -166,5 +166,8 @@
   "tutorial2": "2\nЦитадель",
   "tutorial3": "3\nБашни",
   "mpOpenCount": "Открыто: {{n}}",
-  "mpRunningCount": "Идёт: {{n}}"
+  "mpRunningCount": "Идёт: {{n}}",
+  "mapSetting": "Карта",
+  "mapProcedural": "Сгенерированная",
+  "landscapeUnavailable": "В этом матче используется недоступная карта."
 }

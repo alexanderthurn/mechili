@@ -166,5 +166,8 @@
   "tutorial2": "2\n要塞",
   "tutorial3": "3\n塔",
   "mpOpenCount": "募集中 {{n}}",
-  "mpRunningCount": "対戦中 {{n}}"
+  "mpRunningCount": "対戦中 {{n}}",
+  "mapSetting": "マップ",
+  "mapProcedural": "自動生成",
+  "landscapeUnavailable": "この対戦は利用できないマップを使っています。"
 }

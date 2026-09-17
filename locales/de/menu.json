@@ -166,5 +166,8 @@
   "tutorial2": "2\nHochburg",
   "tutorial3": "3\nTürme",
   "mpOpenCount": "{{n}} offen",
-  "mpRunningCount": "{{n}} laufend"
+  "mpRunningCount": "{{n}} laufend",
+  "mapSetting": "Karte",
+  "mapProcedural": "Generiert",
+  "landscapeUnavailable": "Dieses Match nutzt eine Karte, die nicht verfügbar ist."
 }

@@ -166,5 +166,8 @@
   "tutorial2": "2\nThành trì",
   "tutorial3": "3\nTháp",
   "mpOpenCount": "{{n}} đang mở",
-  "mpRunningCount": "{{n}} đang chơi"
+  "mpRunningCount": "{{n}} đang chơi",
+  "mapSetting": "Bản đồ",
+  "mapProcedural": "Tự tạo",
+  "landscapeUnavailable": "Trận này dùng một bản đồ không có sẵn."
 }

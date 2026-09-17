@@ -171,6 +171,13 @@ export interface GameSettings {
      */
     level?: LevelRef;
     /**
+     * A static map (`assets/data/landscapes/<id>.json`) instead of the
+     * procedural terrain: board relief, mountains, paint and plants. Unset =
+     * procedural. The sim reads its heights, so it travels with the settings;
+     * a board it wasn't made for (a wider 2v2 board) plays procedural.
+     */
+    landscape?: string;
+    /**
      * A scenario match (plan §2.2): 'play' reads the board and rules from the
      * level's `scenario.jsonc`; 'author' / 'test' carry the editor draft here
      * instead (single player only, never sent to peers).
@@ -650,6 +657,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         ...rest,
         // a match that arrived over a room connection may carry null for "no level"
         ...(rest.level == null ? { level: undefined } : {}),
+        ...(typeof rest.landscape === 'string' && rest.landscape ? {} : { landscape: undefined }),
         economy: {
             ...DEFAULT_SETTINGS.economy,
             ...settings.economy,

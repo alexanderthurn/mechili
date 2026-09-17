@@ -166,5 +166,8 @@
   "tutorial2": "2\n요새",
   "tutorial3": "3\n탑",
   "mpOpenCount": "모집 중 {{n}}",
-  "mpRunningCount": "진행 중 {{n}}"
+  "mpRunningCount": "진행 중 {{n}}",
+  "mapSetting": "맵",
+  "mapProcedural": "자동 생성",
+  "landscapeUnavailable": "이 매치는 사용할 수 없는 맵을 사용합니다."
 }

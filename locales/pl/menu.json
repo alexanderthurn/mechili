@@ -166,5 +166,8 @@
   "tutorial2": "2\nTwierdza",
   "tutorial3": "3\nWieże",
   "mpOpenCount": "Otwarte: {{n}}",
-  "mpRunningCount": "Trwające: {{n}}"
+  "mpRunningCount": "Trwające: {{n}}",
+  "mapSetting": "Mapa",
+  "mapProcedural": "Generowana",
+  "landscapeUnavailable": "Ten mecz używa niedostępnej mapy."
 }

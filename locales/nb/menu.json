@@ -166,5 +166,8 @@
   "tutorial2": "2\nHøyborg",
   "tutorial3": "3\nTårn",
   "mpOpenCount": "{{n}} åpne",
-  "mpRunningCount": "{{n}} pågår"
+  "mpRunningCount": "{{n}} pågår",
+  "mapSetting": "Kart",
+  "mapProcedural": "Generert",
+  "landscapeUnavailable": "Denne kampen bruker et kart som ikke er tilgjengelig."
 }

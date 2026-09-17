@@ -166,5 +166,8 @@
   "tutorial2": "2\nKubu",
   "tutorial3": "3\nMenara",
   "mpOpenCount": "{{n}} terbuka",
-  "mpRunningCount": "{{n}} berlangsung"
+  "mpRunningCount": "{{n}} berlangsung",
+  "mapSetting": "Peta",
+  "mapProcedural": "Dihasilkan",
+  "landscapeUnavailable": "Pertandingan ini memakai peta yang tidak tersedia."
 }

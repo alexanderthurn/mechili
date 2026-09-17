@@ -166,5 +166,8 @@
   "tutorial2": "2\nFortaleza",
   "tutorial3": "3\nTorres",
   "mpOpenCount": "{{n}} abertas",
-  "mpRunningCount": "{{n}} em andamento"
+  "mpRunningCount": "{{n}} em andamento",
+  "mapSetting": "Mapa",
+  "mapProcedural": "Gerado",
+  "landscapeUnavailable": "Esta partida usa um mapa que não está disponível."
 }

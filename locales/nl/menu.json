@@ -166,5 +166,8 @@
   "tutorial2": "2\nBurcht",
   "tutorial3": "3\nTorens",
   "mpOpenCount": "{{n}} open",
-  "mpRunningCount": "{{n}} bezig"
+  "mpRunningCount": "{{n}} bezig",
+  "mapSetting": "Kaart",
+  "mapProcedural": "Gegenereerd",
+  "landscapeUnavailable": "Deze wedstrijd gebruikt een kaart die niet beschikbaar is."
 }

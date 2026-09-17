@@ -166,5 +166,8 @@
   "tutorial2": "2\nErőd",
   "tutorial3": "3\nTornyok",
   "mpOpenCount": "{{n}} nyitott",
-  "mpRunningCount": "{{n}} folyamatban"
+  "mpRunningCount": "{{n}} folyamatban",
+  "mapSetting": "Térkép",
+  "mapProcedural": "Generált",
+  "landscapeUnavailable": "Ez a meccs nem elérhető térképet használ."
 }

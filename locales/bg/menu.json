@@ -166,5 +166,8 @@
   "tutorial2": "2\nКрепост",
   "tutorial3": "3\nКули",
   "mpOpenCount": "Отворени: {{n}}",
-  "mpRunningCount": "В ход: {{n}}"
+  "mpRunningCount": "В ход: {{n}}",
+  "mapSetting": "Карта",
+  "mapProcedural": "Генерирана",
+  "landscapeUnavailable": "Този мач използва недостъпна карта."
 }

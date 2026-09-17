@@ -167,5 +167,8 @@
   "scopeRoom": "room",
   "scopeLanRoomNamed": "LAN room \"{{name}}\"",
   "mpOpenCount": "{{n}} open",
-  "mpRunningCount": "{{n}} running"
+  "mpRunningCount": "{{n}} running",
+  "mapSetting": "Map",
+  "mapProcedural": "Generated",
+  "landscapeUnavailable": "This match uses a map that is not available."
 }

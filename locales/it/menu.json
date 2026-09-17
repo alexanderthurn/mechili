@@ -166,5 +166,8 @@
   "tutorial2": "2\nRoccaforte",
   "tutorial3": "3\nTorri",
   "mpOpenCount": "{{n}} aperte",
-  "mpRunningCount": "{{n}} in corso"
+  "mpRunningCount": "{{n}} in corso",
+  "mapSetting": "Mappa",
+  "mapProcedural": "Generata",
+  "landscapeUnavailable": "Questa partita usa una mappa non disponibile."
 }

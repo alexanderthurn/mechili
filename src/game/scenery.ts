@@ -10,6 +10,7 @@ import {
     Group,
     IcosahedronGeometry,
     InstancedMesh,
+    type InstancedBufferAttribute,
     Matrix4,
     Mesh,
     MeshBasicMaterial,
@@ -85,8 +86,8 @@ import {
 } from './sceneryFloorPieces';
 import { createOuterGroundGeometry } from './outerGroundGrid';
 import { sculptUltraMountainPositions } from './mountainSculpt';
-import { applyOuterBakeToPositions, applyOuterMaterialBake, readMountainBakeFromStorage, mountainEditorEnabled } from './mountainEditor';
 import { ensureOuterMaterialAttrs } from './landscapeMaterials';
+import { applyLandscapeToOuterGeometry, landscapeOuterSampler, type HeightSampler, type LandscapeData } from './landscape';
 import {
     pointInPlantClear,
     type AuthoredPlant,
@@ -342,10 +343,20 @@ export class Scenery {
     private readonly density = sceneryDensity(this.quality);
     /** scenery RNG seed — ultra mountain overhang sites stay stable */
     private readonly seed: number;
+    /** the static map this world shows, or null for the procedural terrain */
+    private readonly landscape: LandscapeData | null;
+    /**
+     * Ground height (board + outer) as the decorations were placed on it —
+     * a sculpt later moves them by how much the ground under them changed.
+     */
+    private buildGround: HeightSampler = () => 0;
+    /** bumps whenever authored plant meshes are rebuilt — an older, still-loading rebuild then gives up */
+    private authoredRebuildGen = 0;
 
-    constructor(map: BattleMap, seed = 20260709) {
+    constructor(map: BattleMap, seed = 20260709, landscape: LandscapeData | null = null) {
         const rng = mulberry32(seed);
         this.seed = seed;
+        this.landscape = landscape;
         this.map = map;
         this.worldSize = outerWorldSize(map.halfW, map.halfH);
         this.cloudBoundsX = map.halfW + MOUNTAIN_PEAK_END;
@@ -360,7 +371,7 @@ export class Scenery {
             const basinN = noise(x / 270 + 77.7, z / 270 + 31.3);
             return smooth01((basinN - 0.52) / 0.14) * ring;
         };
-        this.terrainHeight = (x, z) => {
+        const proceduralHeight: HeightSampler = (x, z) => {
             // keep the playable AABB flat — field mesh owns that surface
             if (Math.abs(x) <= map.halfW && Math.abs(z) <= map.halfH) return 0;
 
@@ -412,6 +423,11 @@ export class Scenery {
             const depth = -7 * smooth01((dClimb - 25) / 45);
             return (base + wrinkles) * (1 - lake) + depth * lake;
         };
+        // a static map replaces the procedural ring outright — placement,
+        // paint and the gameplay height below all read the same surface
+        this.terrainHeight = landscape ? landscapeOuterSampler(landscape) : proceduralHeight;
+        const boardAtBuild = map.reliefSampler();
+        this.buildGround = (x, z) => boardAtBuild(x, z) + this.terrainHeight(x, z);
 
         // NOTE: terrainHeight/lakeAt stay real at every quality tier (including
         // 'low'/'off') — this feeds registerOuterHeight below, which in turn
@@ -431,13 +447,9 @@ export class Scenery {
         this.skyGroup.add(this.createSkyDome(), this.createSunGlow());
         this.group.add(this.skyGroup);
         this.group.add(this.createOuterGround(map));
-        // If a landscape bake was applied to the outer mesh, gameplay height
-        // is re-bound by Game via syncLandscapeHeights (board + outer).
-        // Authored plants apply on normal play; editor starts empty until Load.
-        if (!mountainEditorEnabled()) {
-            const bake = readMountainBakeFromStorage();
-            if (bake?.plants) this.authoredPlants = bake.plants.map((p) => ({ ...p }));
-            if (bake?.plantClears) this.plantClears = bake.plantClears.map((c) => ({ ...c }));
+        if (landscape) {
+            this.authoredPlants = landscape.plants.map((p) => ({ ...p }));
+            this.plantClears = landscape.plantClears.map((c) => ({ ...c }));
         }
         if (this.detailed) {
             this.group.add(this.createWater());
@@ -1332,10 +1344,9 @@ export class Scenery {
             colors[i * 3 + 1] = c.g;
             colors[i * 3 + 2] = c.b;
         }
-        // Ultra procedural folds only when there is no authored bake yet.
-        // Authored maps use a quality-independent heightfield (sim + every tier).
-        const bake = !mountainEditorEnabled() ? readMountainBakeFromStorage() : null;
-        if (this.quality === 'ultra' && !bake) {
+        // Ultra procedural folds on the procedural terrain; a static map brings
+        // its own overhangs (lean) and paint, the same on every tier.
+        if (this.quality === 'ultra' && !this.landscape) {
             sculptUltraMountainPositions(pos, {
                 halfW: map.halfW,
                 halfH: map.halfH,
@@ -1343,12 +1354,12 @@ export class Scenery {
                 seed: this.seed,
             });
         }
-        if (bake) applyOuterBakeToPositions(pos as BufferAttribute, bake, -0.05);
         pos.needsUpdate = true;
         geometry.setAttribute('color', new BufferAttribute(colors, 3));
         geometry.setAttribute('aBeach', new BufferAttribute(beach, 1));
         geometry.setAttribute('aScree', new BufferAttribute(scree, 1));
         ensureOuterMaterialAttrs(geometry);
+        if (this.landscape) applyLandscapeToOuterGeometry(geometry, this.landscape, { heights: false });
         geometry.computeVertexNormals();
         const normalAttr = geometry.attributes.normal!;
         const mossArr = new Float32Array(pos.count);
@@ -1377,7 +1388,6 @@ export class Scenery {
         mesh.receiveShadow = true;
         mesh.name = 'outer-ground';
         this.outerGroundMesh = mesh;
-        if (bake) applyOuterMaterialBake(mesh, bake);
         if (this.detailed) void this.applyMeadowTexture(material, map, SIZE);
         else this.applyOuterGroundSnowOnly(material);
         return mesh;
@@ -1399,12 +1409,11 @@ export class Scenery {
     /** Replace authored plant list + clears (Load / Reset). */
     setAuthoredPlants(plants: AuthoredPlant[], clears: PlantClearDisk[] = []): void {
         this.authoredPlants = plants.map((p) => ({ ...p }));
-        this.plantClears = clears.map((c) => ({ ...c }));
+        this.plantClears = [];
+        for (const c of clears) this.addPlantClear(c);
         void this.rebuildAuthoredPlantMeshes();
         // Live-remove procedural instances that fall inside clear disks.
-        for (const c of this.plantClears) {
-            this.removeDecorationInstancesInRadius(c.x, c.z, c.r, /*skipAuthored*/ true);
-        }
+        for (const c of this.plantClears) this.removeDecorationInstancesInRadius(c.x, c.z, c.r);
     }
 
     paintAuthoredPlant(kind: VegetationKind, x: number, z: number, sc: number, yaw: number): void {
@@ -1415,16 +1424,8 @@ export class Scenery {
             void this.rebuildAuthoredPlantMeshes();
             return;
         }
-        const drawSc = sc * BILLBOARD_SCALE;
-        placeVegetationInstance(
-            mesh,
-            x,
-            worldHeightAt(x, z) - BILLBOARD_Y_SINK,
-            z,
-            drawSc,
-            yaw,
-            this.plantDummy,
-        );
+        // instance i of an authored mesh is the i-th plant of its kind (see reseatAuthoredPlants)
+        placeVegetationInstance(mesh, x, worldHeightAt(x, z) - BILLBOARD_Y_SINK, z, sc * BILLBOARD_SCALE, yaw, this.plantDummy);
         mesh.instanceMatrix.needsUpdate = true;
     }
 
@@ -1435,9 +1436,21 @@ export class Scenery {
             const dz = p.z - cz;
             return dx * dx + dz * dz > r2;
         });
-        this.plantClears.push({ x: cx, z: cz, r: radius });
+        this.addPlantClear({ x: cx, z: cz, r: radius });
         void this.rebuildAuthoredPlantMeshes();
-        this.removeDecorationInstancesInRadius(cx, cz, radius, /*skipAuthored*/ true);
+        this.removeDecorationInstancesInRadius(cx, cz, radius);
+    }
+
+    /**
+     * Remember a cleared disk. A drag stamps many overlapping disks — one
+     * already inside another adds nothing, so the list (checked for every tree
+     * the scenery places) stays short.
+     */
+    private addPlantClear(disk: PlantClearDisk): void {
+        const inside = (a: PlantClearDisk, b: PlantClearDisk) => Math.hypot(a.x - b.x, a.z - b.z) + a.r <= b.r + 1e-6;
+        if (this.plantClears.some((c) => inside(disk, c))) return;
+        this.plantClears = this.plantClears.filter((c) => !inside(c, disk));
+        this.plantClears.push({ ...disk });
     }
 
     private plantClearedAt(x: number, z: number): boolean {
@@ -1446,13 +1459,17 @@ export class Scenery {
 
     private async rebuildAuthoredPlantMeshes(): Promise<void> {
         if (!this.detailed) return;
+        // a newer rebuild supersedes this one — only the latest may add meshes
+        const gen = ++this.authoredRebuildGen;
         for (const mesh of this.authoredMeshes.values()) {
             this.group.remove(mesh);
+            mesh.dispose(); // instance buffers only; geometry + material are the shared billboard asset
         }
         this.authoredMeshes.clear();
         if (this.authoredPlants.length === 0) return;
 
         await loadSceneryBillboards();
+        if (gen !== this.authoredRebuildGen) return;
         const kinds: VegetationKind[] = ['oak', 'pine', 'bushRound', 'bushTall'];
         for (const kind of kinds) {
             const list = this.authoredPlants.filter((p) => p.kind === kind);
@@ -1479,24 +1496,25 @@ export class Scenery {
         }
     }
 
-    /** Drop decoration instances inside a disk (procedural trees/props). */
-    private removeDecorationInstancesInRadius(
-        cx: number,
-        cz: number,
-        radius: number,
-        skipAuthored: boolean,
-    ): void {
-        const r2 = radius * radius;
-        const scratch = this.reseatMat;
+    /** decoration meshes a sculpt or erase may touch: not the sky, not the tree shadow layout, not authored plants */
+    private forEachDecorationMesh(visit: (mesh: InstancedMesh) => void): void {
         this.group.traverse((o) => {
             const mesh = o as InstancedMesh;
             if (!mesh.isInstancedMesh || mesh.count <= 0) return;
-            if (skipAuthored && mesh.userData.authoredPlants) return;
-            // Sky / horizon clouds live under skyGroup — leave them alone.
+            if (mesh.userData.authoredPlants || mesh.userData.treeShadows) return;
             for (let p: Object3D | null = mesh; p; p = p.parent) {
                 if (p === this.skyGroup) return;
             }
+            visit(mesh);
+        });
+    }
 
+    /** Drop decoration instances inside a disk (procedural trees/props) and their shadows. */
+    private removeDecorationInstancesInRadius(cx: number, cz: number, radius: number): void {
+        const r2 = radius * radius;
+        const scratch = this.reseatMat;
+        this.forEachDecorationMesh((mesh) => {
+            const cache = this.instanceGroundY.get(mesh);
             let i = 0;
             while (i < mesh.count) {
                 mesh.getMatrixAt(i, scratch);
@@ -1504,17 +1522,21 @@ export class Scenery {
                 const dx = this.reseatPos.x - cx;
                 const dz = this.reseatPos.z - cz;
                 if (dx * dx + dz * dz <= r2) {
+                    // swap-remove: the last instance takes this slot, with everything it carries
                     const last = mesh.count - 1;
                     if (i < last) {
                         mesh.getMatrixAt(last, scratch);
                         mesh.setMatrixAt(i, scratch);
                         if (mesh.instanceColor) {
-                            const cr = mesh.instanceColor.getX(last);
-                            const cg = mesh.instanceColor.getY(last);
-                            const cb = mesh.instanceColor.getZ(last);
-                            mesh.instanceColor.setXYZ(i, cr, cg, cb);
+                            mesh.instanceColor.setXYZ(i, mesh.instanceColor.getX(last), mesh.instanceColor.getY(last), mesh.instanceColor.getZ(last));
                         }
-                        const cache = this.instanceGroundY.get(mesh);
+                        for (const attr of Object.values(mesh.geometry.attributes)) {
+                            const inst = attr as InstancedBufferAttribute;
+                            // per-instance data sized for this mesh (a geometry shared by other pools is left alone)
+                            if (!inst.isInstancedBufferAttribute || inst.count !== mesh.instanceMatrix.count) continue;
+                            for (let k = 0; k < inst.itemSize; k++) inst.setComponent(i, k, inst.getComponent(last, k));
+                            inst.needsUpdate = true;
+                        }
                         if (cache && last < cache.length) cache[i] = cache[last]!;
                     }
                     mesh.count--;
@@ -1525,48 +1547,45 @@ export class Scenery {
             mesh.instanceMatrix.needsUpdate = true;
             if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         });
+        this.treeShadows.removeWithin(cx, cz, radius);
+        if (this.sunLight) this.treeShadows.update(this.sunLight.position, this.sunLight.intensity);
     }
 
-    /** Procedural outer height (pre-bake / pre-sculpt) — for restoring overrides. */
-    proceduralOuterHeightAt(x: number, z: number): number {
+    /** the outer ground height this world was built with (static map or procedural) */
+    outerHeightAt(x: number, z: number): number {
         return this.terrainHeight(x, z);
     }
 
     /**
-     * After landscape sculpt / bake bind: move trees, bushes, meadow props onto
-     * the current {@link worldHeightAt} while keeping their original lifts.
+     * After a landscape sculpt: move trees, bushes and meadow props onto the
+     * current {@link worldHeightAt} while keeping how far each sat above or
+     * below its ground.
      */
     reseatGroundedDecorations(): void {
         const WATER_Y = -1.1;
-        this.group.traverse((o) => {
-            const mesh = o as InstancedMesh;
-            if (!mesh.isInstancedMesh || mesh.count <= 0) return;
-            // Sky / horizon clouds live under skyGroup — leave them alone.
-            for (let p: Object3D | null = mesh; p; p = p.parent) {
-                if (p === this.skyGroup) return;
-            }
-
+        this.forEachDecorationMesh((mesh) => {
             let cache = this.instanceGroundY.get(mesh);
-            const init = !cache;
-            if (!cache) {
-                cache = new Float32Array(mesh.count);
+            const known = cache?.length ?? 0;
+            if (!cache || known < mesh.count) {
+                // first sight of these instances (or more of them): the ground they were placed on
+                const grown = new Float32Array(mesh.count);
+                if (cache) grown.set(cache);
+                for (let i = known; i < mesh.count; i++) {
+                    mesh.getMatrixAt(i, this.reseatMat);
+                    this.reseatPos.setFromMatrixPosition(this.reseatMat);
+                    grown[i] = this.buildGround(this.reseatPos.x, this.reseatPos.z);
+                }
+                cache = grown;
                 this.instanceGroundY.set(mesh, cache);
             }
 
             for (let i = 0; i < mesh.count; i++) {
                 mesh.getMatrixAt(i, this.reseatMat);
                 this.reseatMat.decompose(this.reseatPos, this.reseatQuat, this.reseatScale);
-                const x = this.reseatPos.x;
-                const z = this.reseatPos.z;
                 // Lily pads / blossoms sit on the water plane, not terrain.
                 if (Math.abs(this.reseatPos.y - WATER_Y) < 0.35) continue;
-
-                if (init) {
-                    cache[i] =
-                        this.proceduralOuterHeightAt(x, z) + this.map.proceduralHeightAt(x, z);
-                }
                 const lift = this.reseatPos.y - cache[i]!;
-                const ground = worldHeightAt(x, z);
+                const ground = worldHeightAt(this.reseatPos.x, this.reseatPos.z);
                 this.reseatPos.y = ground + lift;
                 cache[i] = ground;
                 this.reseatMat.compose(this.reseatPos, this.reseatQuat, this.reseatScale);
@@ -1574,7 +1593,26 @@ export class Scenery {
             }
             mesh.instanceMatrix.needsUpdate = true;
         });
+        this.reseatAuthoredPlants();
+        this.treeShadows.invalidate();
         if (this.sunLight) this.treeShadows.update(this.sunLight.position, this.sunLight.intensity);
+    }
+
+    /** authored plants stand on worldHeightAt by construction — put them there again */
+    private reseatAuthoredPlants(): void {
+        for (const [kind, mesh] of this.authoredMeshes) {
+            const list = this.authoredPlants.filter((p) => p.kind === kind);
+            const n = Math.min(list.length, mesh.count);
+            for (let i = 0; i < n; i++) {
+                const p = list[i]!;
+                mesh.getMatrixAt(i, this.reseatMat);
+                this.reseatMat.decompose(this.reseatPos, this.reseatQuat, this.reseatScale);
+                this.reseatPos.set(p.x, worldHeightAt(p.x, p.z) - BILLBOARD_Y_SINK, p.z);
+                this.reseatMat.compose(this.reseatPos, this.reseatQuat, this.reseatScale);
+                mesh.setMatrixAt(i, this.reseatMat);
+            }
+            mesh.instanceMatrix.needsUpdate = true;
+        }
     }
 
     /**
@@ -1954,8 +1992,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 if (h < -0.4) continue; // no trees in the lakes
                 if (!this.isGrassy(x, z)) continue; // no trees on rock/snow
                 if (this.plantClearedAt(x, z)) continue;
-                // thin near the field, dense toward foothills — hard stop at crest
-                if (d > beltFar) continue;
+                // thin near the field, dense toward foothills, easing out past
+                // beltFar (the crest cut above stops it for good)
                 const belt =
                     smooth01((d - dens.beltNear) / dens.beltRamp) *
                     (1 - smooth01((d - beltFar) / 80));
@@ -1980,7 +2018,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
                 if (distOut(x, z) >= keepOut) return { x, z };
             }
-            return { x: forestHalfW + keepOut + 4, z: 0 };
+            // spread out, so repeated fallbacks don't stack trees on one spot
+            return { x: (rng() < 0.5 ? -1 : 1) * (forestHalfW + keepOut + 4 + rng() * 40), z: (rng() * 2 - 1) * forestHalfH };
         };
         // on the battlefield, but never in a base's courtyard
         const anchors = map.baseAnchors();

@@ -166,5 +166,8 @@
   "tutorial2": "2\nKale",
   "tutorial3": "3\nKuleler",
   "mpOpenCount": "{{n}} açık",
-  "mpRunningCount": "{{n}} süren"
+  "mpRunningCount": "{{n}} süren",
+  "mapSetting": "Harita",
+  "mapProcedural": "Oluşturulan",
+  "landscapeUnavailable": "Bu maç kullanılamayan bir harita kullanıyor."
 }

@@ -166,5 +166,8 @@
   "tutorial2": "2\nป้อมหลัก",
   "tutorial3": "3\nหอคอย",
   "mpOpenCount": "เปิดอยู่ {{n}}",
-  "mpRunningCount": "กำลังเล่น {{n}}"
+  "mpRunningCount": "กำลังเล่น {{n}}",
+  "mapSetting": "แผนที่",
+  "mapProcedural": "สร้างอัตโนมัติ",
+  "landscapeUnavailable": "แมตช์นี้ใช้แผนที่ที่ไม่พร้อมใช้งาน"
 }
