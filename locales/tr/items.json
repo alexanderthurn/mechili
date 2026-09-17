@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Siper",
     "description": "Kalkan: Her birim, HP'sine eşit ikinci bir sağlık havuzu kazanır. Menzilli saldırılar kalkanı önce tüketir; yakın dövüş, ateş ve asit saldırıları kalkanı görmezden gelir."
+  },
+  "mix": {
+    "forged": "{{elements}} karışımından dövülmüş.",
+    "attackHp": "{{pct}} saldırı ve CP",
+    "attack": "{{pct}} saldırı",
+    "hp": "{{pct}} CP",
+    "range": "{{pct}} menzil",
+    "speed": "{{pct}} hız",
+    "interval": "{{pct}} saldırı aralığı"
   }
 }

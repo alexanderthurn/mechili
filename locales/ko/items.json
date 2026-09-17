@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "성벽",
     "description": "보호막: 모든 유닛이 자신의 체력과 같은 두 번째 체력 풀을 얻습니다. 원거리 공격은 먼저 보호막을 소모하고, 근접·화염·산은 보호막을 무시합니다."
+  },
+  "mix": {
+    "forged": "{{elements}}을(를) 단조한 혼합 룬.",
+    "attackHp": "공격력과 HP {{pct}}",
+    "attack": "공격력 {{pct}}",
+    "hp": "HP {{pct}}",
+    "range": "사거리 {{pct}}",
+    "speed": "속도 {{pct}}",
+    "interval": "공격 간격 {{pct}}"
   }
 }

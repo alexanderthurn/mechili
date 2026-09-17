@@ -103,7 +103,10 @@
     "shopTitle": "Comprato in negozio o estratto da una carta del round",
     "shopLabel": "Prezzo al dettaglio",
     "forgeTitle": "Forgiato presso il {{building}}",
-    "forgeLabel": "Prezzo forgiato"
+    "forgeLabel": "Prezzo forgiato",
+    "mixForgeLabel": "Prezzo di forgia",
+    "mixForgeTitle": "Forgiata alla Roccaforte",
+    "mixed": "Mista"
   },
   "tactics": {
     "sub": "Queste sono le abilità della tua barra {{tactics}} {{sep}} raduni, pozze, evocazioni e incantesimi di battaglia come il soffio di fuoco del drago. Gli incantesimi di battaglia si comprano alla Roccaforte, una volta ciascuno, e solo i tre che conosce il tuo comandante. Le icone corrispondono a quelle di gioco.",

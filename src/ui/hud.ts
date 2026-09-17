@@ -1357,7 +1357,7 @@ export class Hud {
         if (!def) return;
         el.dataset.spellTip = '1';
         el.dataset.ttitle = itemName(itemId, def.name);
-        const desc = itemDescription(itemId, def.description);
+        const desc = itemDescription(itemId, def.description, def.mods);
         el.dataset.tdesc = extra ? `${desc}\n${extra}` : desc;
         el.dataset.ticon = def.icon;
         el.removeAttribute('title');
@@ -1846,7 +1846,7 @@ export class Hud {
                       const tip =
                           def
                               ? ` data-spell-tip="1" data-ttitle="${escapeAttr(itemName(i.id, def.name))}" ` +
-                                `data-tdesc="${escapeAttr(`${itemDescription(i.id, def.description)}\n${extra}`)}" ` +
+                                `data-tdesc="${escapeAttr(`${itemDescription(i.id, def.description, def.mods)}\n${extra}`)}" ` +
                                 `data-ticon="${escapeAttr(def.icon)}"`
                               : ` title="${escapeAttr(`${itemName(i.id, i.name)}\n${extra}`)}"`;
                       const lvl = this.runeLevelMark(i.id);

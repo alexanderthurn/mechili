@@ -103,7 +103,10 @@
     "shopTitle": "ショップで購入、またはラウンドカードからドラフト",
     "shopLabel": "ショップ価格",
     "forgeTitle": "{{building}} で鍛造",
-    "forgeLabel": "鍛造価格"
+    "forgeLabel": "鍛造価格",
+    "mixForgeLabel": "鍛造価格",
+    "mixForgeTitle": "要塞で鍛造",
+    "mixed": "混合"
   },
   "tactics": {
     "sub": "これらは{{tactics}}バーのスキルです {{sep}} 集結、散布、召喚、そしてドラゴンの火の息のような戦闘詠唱。戦闘呪文は砦で各1回だけ購入でき、指揮官が知る3つだけ。アイコンはゲーム内と同じです。",

@@ -103,7 +103,10 @@
     "shopTitle": "在商店購買，或從回合卡抽取",
     "shopLabel": "商店價格",
     "forgeTitle": "在{{building}}鍛造",
-    "forgeLabel": "鍛造價格"
+    "forgeLabel": "鍛造價格",
+    "mixForgeLabel": "鍛造價格",
+    "mixForgeTitle": "在要塞鍛造",
+    "mixed": "混合"
   },
   "tactics": {
     "sub": "這些是你{{tactics}}欄上的技能 {{sep}} 集結、潑灑、召喚，以及像巨龍火焰吐息這樣的戰鬥施法。戰鬥法術在你的要塞購買，每個僅一次，且只能買你的指揮官掌握的那三個。圖標與遊戲內一致。",

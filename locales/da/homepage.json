@@ -103,7 +103,10 @@
     "shopTitle": "Købt i butikken eller trukket fra et rundekort",
     "shopLabel": "Butikspris",
     "forgeTitle": "Smedet ved {{building}}",
-    "forgeLabel": "Smedjepris"
+    "forgeLabel": "Smedjepris",
+    "mixForgeLabel": "Smedepris",
+    "mixForgeTitle": "Smedet i Fæstningen",
+    "mixed": "Blandet"
   },
   "tactics": {
     "sub": "Disse er færdighederne på din {{tactics}} stribe {{sep}} samlinger, spild, indkaldelser og kampkast som dragens ildånde. Kampbesværgelser købes i din Fæstning, én gang hver, og kun de tre, din kommandør kender. Ikonerne matcher det, du ser i spillet.",

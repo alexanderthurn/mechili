@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Bastion",
     "description": "Scut: fiecare unitate primește o a doua rezervă de viață egală cu HP-ul său. Loviturile la distanță drenează mai întâi scutul; atacurile corp la corp, focul și acidul îl ignoră."
+  },
+  "mix": {
+    "forged": "Amestec forjat din {{elements}}.",
+    "attackHp": "{{pct}} atac și PV",
+    "attack": "{{pct}} atac",
+    "hp": "{{pct}} PV",
+    "range": "{{pct}} rază",
+    "speed": "{{pct}} viteză",
+    "interval": "{{pct}} interval de atac"
   }
 }

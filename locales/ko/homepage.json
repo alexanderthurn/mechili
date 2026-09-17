@@ -103,7 +103,10 @@
     "shopTitle": "상점에서 구매하거나 라운드 카드에서 고름",
     "shopLabel": "상점 가격",
     "forgeTitle": "{{building}}에서 단조",
-    "forgeLabel": "단조 가격"
+    "forgeLabel": "단조 가격",
+    "mixForgeLabel": "단조 비용",
+    "mixForgeTitle": "요새에서 단조",
+    "mixed": "혼합"
   },
   "tactics": {
     "sub": "{{tactics}} 바에 있는 기술입니다 {{sep}} 집결, 살포, 소환, 용의 불숨 같은 전투 시전. 전투 주문은 요새에서 각 한 번씩만 구매하며, 지휘관이 아는 세 가지만 가능합니다. 아이콘은 게임 안에서 보이는 것과 같습니다.",

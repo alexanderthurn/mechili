@@ -107,7 +107,7 @@ export function forgeProductInfo(
     return {
         icon: it.icon,
         name: itemName(product.id, it.name),
-        desc: itemDescription(product.id, it.description),
+        desc: itemDescription(product.id, it.description, it.mods),
     };
 }
 

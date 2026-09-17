@@ -2,6 +2,7 @@
  * Content display helpers. English on defs remains the fallback when a key is missing.
  */
 import { getLanguage, t } from './index';
+import { parseElementalId } from '../game/runeMix';
 
 /**
  * Casing for vocabulary terms interpolated mid-sentence.
@@ -41,11 +42,72 @@ export function unitName(id: string, fallback?: string): string {
     return t(`units:${id}.name`, { defaultValue: fallback ?? id });
 }
 
+/**
+ * A generated elemental rune (a mix, or level 2+) — its name and description are
+ * built in code, so they are composed from translated pieces here instead.
+ * Pure level-1 runes keep their authored, translated entry.
+ */
+function elementalRune(id: string): { elements: string[]; level: number } | null {
+    const parsed = parseElementalId(id);
+    if (!parsed || (parsed.elements.length === 1 && parsed.level === 1)) return null;
+    return parsed;
+}
+
 export function itemName(id: string, fallback?: string): string {
+    const mix = elementalRune(id);
+    if (mix) {
+        const names = mix.elements.map((e) => t(`items:${e}.name`, { defaultValue: e })).join(' ');
+        return mix.level > 1 ? `${names} ${mix.level}` : names;
+    }
     return t(`items:${id}.name`, { defaultValue: fallback ?? id });
 }
 
-export function itemDescription(id: string, fallback?: string): string {
+/** "+30%" / "−10%" from a multiplier */
+function modPercent(value: number): string {
+    const v = Math.round((value - 1) * 100);
+    return `${v >= 0 ? '+' : '−'}${Math.abs(v)}%`;
+}
+
+function elementalModText(mods: RuneMods): string {
+    const bits: string[] = [];
+    const line = (key: string, pct: string, fallback: string): string =>
+        t(`items:mix.${key}`, { pct, defaultValue: fallback });
+    if (mods.damage !== undefined && mods.hp !== undefined && mods.damage === mods.hp) {
+        bits.push(line('attackHp', modPercent(mods.damage), `${modPercent(mods.damage)} attack and HP`));
+    } else {
+        if (mods.damage !== undefined) bits.push(line('attack', modPercent(mods.damage), `${modPercent(mods.damage)} attack`));
+        if (mods.hp !== undefined) bits.push(line('hp', modPercent(mods.hp), `${modPercent(mods.hp)} HP`));
+    }
+    if (mods.range !== undefined) bits.push(line('range', modPercent(mods.range), `${modPercent(mods.range)} range`));
+    if (mods.speed !== undefined) bits.push(line('speed', modPercent(mods.speed), `${modPercent(mods.speed)} speed`));
+    if (mods.attackInterval !== undefined) {
+        bits.push(line('interval', modPercent(mods.attackInterval), `${modPercent(mods.attackInterval)} attack interval`));
+    }
+    return bits.length === 0 ? '' : `${bits.join('. ')}.`;
+}
+
+export type RuneMods = Partial<{
+    hp: number;
+    damage: number;
+    range: number;
+    speed: number;
+    attackInterval: number;
+}>;
+
+export function itemDescription(id: string, fallback?: string, mods?: RuneMods): string {
+    const mix = elementalRune(id);
+    if (mix) {
+        const parts: string[] = [];
+        if (mix.elements.length > 1) {
+            const names = mix.elements.map((e) => t(`items:${e}.name`, { defaultValue: e })).join(' ');
+            parts.push(t('items:mix.forged', { elements: names, defaultValue: `Forged mix of ${names}.` }));
+        }
+        if (mods) {
+            const stats = elementalModText(mods);
+            if (stats) parts.push(stats);
+        }
+        if (parts.length > 0) return parts.join(' ');
+    }
     return t(`items:${id}.description`, { defaultValue: fallback ?? '' });
 }
 

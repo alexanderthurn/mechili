@@ -308,9 +308,17 @@ try {
         return '';
     };
     const addi = readBase('data/runes/addi.jsonc');
-    const dupRecipe = runeErrorOf([['data/runes/addi.jsonc', addi.replace('["earth", "earth"]', '["fire", "fire"]')]]);
+    // authored recipes are optional overrides now (the oven merges elementals by default),
+    // so the overlay adds the recipes these two checks are about
+    const withForge = (text, ingredients) =>
+        text.replace('"tier": "advanced",', `"tier": "advanced", "forge": { "ingredients": ${ingredients} },`);
+    const vigor = readBase('data/runes/vigor.jsonc');
+    const dupRecipe = runeErrorOf([
+        ['data/runes/addi.jsonc', withForge(addi, '["earth", "earth"]')],
+        ['data/runes/vigor.jsonc', withForge(vigor, '["earth", "earth"]')],
+    ]);
     ok = expect(dupRecipe.includes('already make "'), `duplicate forge recipe not reported (${dupRecipe.split('\n')[0]})`) && ok;
-    const badIngredient = runeErrorOf([['data/runes/addi.jsonc', addi.replace('["earth", "earth"]', '["earth", "eart"]')]]);
+    const badIngredient = runeErrorOf([['data/runes/addi.jsonc', withForge(addi, '["earth", "eart"]')]]);
     ok = expect(badIngredient.includes('forge ingredient "eart" is no rune'), `unknown forge ingredient not reported (${badIngredient.split('\n')[0]})`) && ok;
     const badArmy = runeErrorOf([['data/commanders/air.jsonc', readBase('data/commanders/air.jsonc').replace('"goblin", "goblin", "goblin"', '"goblin", "gobiln", "goblin"')]]);
     ok = expect(badArmy.includes('names unit "gobiln"'), `unknown commander unit not reported (${badArmy.split('\n')[0]})`) && ok;

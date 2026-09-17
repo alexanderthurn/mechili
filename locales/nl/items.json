@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Bolwerk",
     "description": "Schild: elke eenheid krijgt een tweede levensbalk gelijk aan zijn HP. Aanvallen van afstand putten het schild eerst uit; mêlee-aanvallen, vuur en zuur negeren het."
+  },
+  "mix": {
+    "forged": "Gesmede mix van {{elements}}.",
+    "attackHp": "{{pct}} aanval en HP",
+    "attack": "{{pct}} aanval",
+    "hp": "{{pct}} HP",
+    "range": "{{pct}} bereik",
+    "speed": "{{pct}} snelheid",
+    "interval": "{{pct}} aanvalsinterval"
   }
 }

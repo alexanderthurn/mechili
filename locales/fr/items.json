@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Rempart",
     "description": "Bouclier : chaque unité gagne une seconde réserve de points de vie égale à ses PV. Les attaques à distance vident le bouclier en premier ; les attaques de mêlée, de feu et d’acide l’ignorent."
+  },
+  "mix": {
+    "forged": "Mélange forgé de {{elements}}.",
+    "attackHp": "{{pct}} attaque et PV",
+    "attack": "{{pct}} attaque",
+    "hp": "{{pct}} PV",
+    "range": "{{pct}} portée",
+    "speed": "{{pct}} vitesse",
+    "interval": "{{pct}} intervalle d’attaque"
   }
 }

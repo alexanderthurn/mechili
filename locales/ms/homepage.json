@@ -103,7 +103,10 @@
     "shopTitle": "Dibeli di kedai atau diambil daripada kad pusingan",
     "shopLabel": "Harga kedai",
     "forgeTitle": "Ditempa di {{building}}",
-    "forgeLabel": "Harga tempa"
+    "forgeLabel": "Harga tempa",
+    "mixForgeLabel": "Harga tempaan",
+    "mixForgeTitle": "Ditempa di Kubu",
+    "mixed": "Campuran"
   },
   "tactics": {
     "sub": "Ini adalah kemahiran pada jalur {{tactics}} {{sep}} anda, rali, tumpahan, saman dan lontaran pertempuran seperti nafas api naga. Jampi pertempuran dibeli di Kubu kuat anda, sekali setiap satu, dan hanya tiga komander anda yang tahu. Ikon sepadan dengan apa yang anda lihat dalam permainan.",

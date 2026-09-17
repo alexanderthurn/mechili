@@ -103,7 +103,10 @@
     "shopTitle": "Mua ở cửa hàng hoặc rút từ thẻ vòng",
     "shopLabel": "Giá bán tại cửa hàng",
     "forgeTitle": "Được rèn tại {{building}}",
-    "forgeLabel": "Giá rèn"
+    "forgeLabel": "Giá rèn",
+    "mixForgeLabel": "Giá rèn",
+    "mixForgeTitle": "Rèn tại Thành trì",
+    "mixed": "Pha trộn"
   },
   "tactics": {
     "sub": "Đây là các kỹ năng trên dải {{tactics}} của bạn, bao gồm các đòn tấn công, hiệu ứng tràn lan, triệu hồi và các phép thuật chiến đấu như hơi thở lửa của rồng. Các phép thuật chiến đấu được mua tại Thành trì của bạn, mỗi loại một lần và chỉ có ba phép thuật mà chỉ huy của bạn biết. Các biểu tượng khớp với những gì bạn thấy trong trò chơi. {{sep}}",

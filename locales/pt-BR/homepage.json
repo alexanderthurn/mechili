@@ -103,7 +103,10 @@
     "shopTitle": "Comprado na loja ou tirado de uma carta de rodada",
     "shopLabel": "Preço de tabela",
     "forgeTitle": "Forjado no {{building}}",
-    "forgeLabel": "Preço da forja"
+    "forgeLabel": "Preço da forja",
+    "mixForgeLabel": "Preço de forja",
+    "mixForgeTitle": "Forjada na Fortaleza",
+    "mixed": "Mista"
   },
   "tactics": {
     "sub": "Essas são as habilidades da sua faixa {{tactics}} {{sep}} rotas de Rally, derramamentos, invocações e feitiços de batalha como o sopro de fogo do dragão. Feitiços de batalha são comprados na Fortaleza, uma vez cada, e só os três que seu comandante conhece. Os ícones batem com os do jogo.",

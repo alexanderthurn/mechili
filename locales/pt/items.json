@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Baluarte",
     "description": "Escudo: todos os ataques à distância atingem o escudo primeiro. Concede um segundo pool de HP igual ao HP da unidade; quando o escudo chega a 0, a unidade morre. Não pode ser vendido."
+  },
+  "mix": {
+    "forged": "Mistura forjada de {{elements}}.",
+    "attackHp": "{{pct}} ataque e PV",
+    "attack": "{{pct}} ataque",
+    "hp": "{{pct}} PV",
+    "range": "{{pct}} alcance",
+    "speed": "{{pct}} velocidade",
+    "interval": "{{pct}} intervalo de ataque"
   }
 }

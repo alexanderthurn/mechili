@@ -103,7 +103,10 @@
     "shopTitle": "Kupione w sklepie lub wylosowane z karty rundy",
     "shopLabel": "Cena sklepowa",
     "forgeTitle": "Wykute w {{building}}",
-    "forgeLabel": "Cena kuźni"
+    "forgeLabel": "Cena kuźni",
+    "mixForgeLabel": "Cena kucia",
+    "mixForgeTitle": "Wykute w Twierdzy",
+    "mixed": "Mieszane"
   },
   "tactics": {
     "sub": "To umiejętności z twojego paska {{tactics}} {{sep}} zbiórki, kałuże, przywołania i zaklęcia bojowe jak oddech smoka. Zaklęcia bojowe kupujesz w Fortecy, każde raz, i tylko te trzy, które zna twój dowódca. Ikony odpowiadają tym w grze.",

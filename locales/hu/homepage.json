@@ -103,7 +103,10 @@
     "shopTitle": "Boltban vásárolva vagy körkártyából húzva",
     "shopLabel": "Vásárlási ár",
     "forgeTitle": "Kovácsolva a {{building}}-nál",
-    "forgeLabel": "Kovácsolt ár"
+    "forgeLabel": "Kovácsolt ár",
+    "mixForgeLabel": "Kovácsolási ár",
+    "mixForgeTitle": "Az Erődben kovácsolva",
+    "mixed": "Kevert"
   },
   "tactics": {
     "sub": "Ezek a képességek a {{tactics}} csíkodon {{sep}}: gyülekezések, kiszóródások, idézések és harci varázslatok, mint például a sárkány tűzlehelete. A harci varázslatokat az erődítményedben lehet megvásárolni, mindegyiket egyszer, és csak azt a hármat, amit a parancsnokod ismer. Az ikonok megegyeznek azzal, amit a játékban látsz.",

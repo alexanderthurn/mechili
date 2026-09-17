@@ -103,7 +103,10 @@
     "shopTitle": "Ostettu kaupasta tai nostettu kierroskortista",
     "shopLabel": "Kauppahinta",
     "forgeTitle": "Taottu {{building}}:ssa",
-    "forgeLabel": "Forgen hinta"
+    "forgeLabel": "Forgen hinta",
+    "mixForgeLabel": "Takomishinta",
+    "mixForgeTitle": "Taottu Linnakkeessa",
+    "mixed": "Sekoitettu"
   },
   "tactics": {
     "sub": "Nämä ovat {{tactics}}-nauhallasi {{sep}} olevat taidot: kokoontumiset, leviämiset, kutsumiset ja taistelulahjaukset, kuten lohikäärmeen tulenhenkäys. Taisteluloitsuja ostetaan linnoituksestasi, kerran kukin, ja vain ne kolme, jotka komentajasi osaa. Kuvakkeet vastaavat pelissä näkemääsi.",

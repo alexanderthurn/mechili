@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Bollwerk",
     "description": "Schild: Jede Einheit erhält einen zweiten Lebenspunktepool in Höhe ihrer Gesamt-LP. Fernkampfangriffe verbrauchen zuerst den Schild; Nahkampfangriffe, Feuer und Säure ignorieren ihn."
+  },
+  "mix": {
+    "forged": "Geschmiedete Mischung aus {{elements}}.",
+    "attackHp": "{{pct}} Angriff und HP",
+    "attack": "{{pct}} Angriff",
+    "hp": "{{pct}} HP",
+    "range": "{{pct}} Reichweite",
+    "speed": "{{pct}} Tempo",
+    "interval": "{{pct}} Angriffsintervall"
   }
 }

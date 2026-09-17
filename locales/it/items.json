@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Baluardo",
     "description": "Scudo: ogni unità ottiene una seconda riserva di salute pari ai suoi HP. I colpi a distanza consumano prima lo scudo; mischia, fuoco e acido lo ignorano."
+  },
+  "mix": {
+    "forged": "Miscela forgiata di {{elements}}.",
+    "attackHp": "{{pct}} attacco e PS",
+    "attack": "{{pct}} attacco",
+    "hp": "{{pct}} PS",
+    "range": "{{pct}} gittata",
+    "speed": "{{pct}} velocità",
+    "interval": "{{pct}} intervallo d’attacco"
   }
 }

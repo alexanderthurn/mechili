@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Bastion",
     "description": "Tarcza: każda jednostka zyskuje drugą pulę zdrowia równą jej HP. Ciosy dystansowe najpierw wyczerpują tarczę; walka wręcz, ogień i kwas ją ignorują."
+  },
+  "mix": {
+    "forged": "Wykuta mieszanka {{elements}}.",
+    "attackHp": "{{pct}} ataku i PŻ",
+    "attack": "{{pct}} ataku",
+    "hp": "{{pct}} PŻ",
+    "range": "{{pct}} zasięgu",
+    "speed": "{{pct}} prędkości",
+    "interval": "{{pct}} przerwy między atakami"
   }
 }

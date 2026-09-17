@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Baluarte",
     "description": "Escudo: cada unidade ganha uma segunda reserva de vida igual ao seu HP. Ataques à distância drenam o escudo primeiro; corpo a corpo, fogo e ácido o ignoram."
+  },
+  "mix": {
+    "forged": "Mistura forjada de {{elements}}.",
+    "attackHp": "{{pct}} ataque e PV",
+    "attack": "{{pct}} ataque",
+    "hp": "{{pct}} PV",
+    "range": "{{pct}} alcance",
+    "speed": "{{pct}} velocidade",
+    "interval": "{{pct}} intervalo de ataque"
   }
 }

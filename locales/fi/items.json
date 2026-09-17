@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Bulwark",
     "description": "Kilpi: jokainen yksikkö saa toisen terveysvarannon, joka vastaa sen HP:tä. Kauko-osumat kuluttavat kilven ensin; lähitaistelu, tuli ja happo jättävät sen huomiotta."
+  },
+  "mix": {
+    "forged": "Taottu seos: {{elements}}.",
+    "attackHp": "{{pct}} hyökkäystä ja HP",
+    "attack": "{{pct}} hyökkäystä",
+    "hp": "{{pct}} HP",
+    "range": "{{pct}} kantamaa",
+    "speed": "{{pct}} nopeutta",
+    "interval": "{{pct}} hyökkäysväliä"
   }
 }

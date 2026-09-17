@@ -103,7 +103,10 @@
     "shopTitle": "Cumpărat din magazin sau extras dintr-o carte de rundă",
     "shopLabel": "Preț de magazin",
     "forgeTitle": "Forjată la {{building}}",
-    "forgeLabel": "Preț forjare"
+    "forgeLabel": "Preț forjare",
+    "mixForgeLabel": "Preț de forjare",
+    "mixForgeTitle": "Forjat la Bastion",
+    "mixed": "Amestecat"
   },
   "tactics": {
     "sub": "Acestea sunt abilitățile de pe banda ta {{tactics}} {{sep}}: adunări, revărsări, invocări și folosiri de luptă, cum ar fi respirația de foc a dragonului. Vrăjile de luptă se cumpără la Fortăreața ta, o singură dată, și doar cele trei pe care le cunoaște comandantul tău. Pictogramele se potrivesc cu ceea ce vezi în joc.",

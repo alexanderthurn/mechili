@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "防壁",
     "description": "シールド：各ユニットが HP と同じ第二ライフプールを得る。遠隔攻撃は先にシールドを削り、近接・炎・酸は無視する。"
+  },
+  "mix": {
+    "forged": "{{elements}} を鍛えた混合ルーン。",
+    "attackHp": "攻撃とHP {{pct}}",
+    "attack": "攻撃 {{pct}}",
+    "hp": "HP {{pct}}",
+    "range": "射程 {{pct}}",
+    "speed": "速度 {{pct}}",
+    "interval": "攻撃間隔 {{pct}}"
   }
 }

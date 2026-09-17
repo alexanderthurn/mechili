@@ -103,7 +103,10 @@
     "shopTitle": "Im Shop gekauft",
     "shopLabel": "Shop-Preis",
     "forgeTitle": "Aus einer Rundenkarte gezogen",
-    "forgeLabel": "Kartenpreis"
+    "forgeLabel": "Kartenpreis",
+    "mixForgeLabel": "Schmiedepreis",
+    "mixForgeTitle": "In der Hochburg geschmiedet",
+    "mixed": "Gemischt"
   },
   "tactics": {
     "sub": "Dies sind die Fähigkeiten auf deinem {{tactics}}-Streifen {{sep}}: Angriffe, Zauber, Beschwörungen und Kampfzauber wie der Feueratem des Drachen. Kampfzauber kannst du in deiner Hochburg kaufen, jeweils nur einmal, und nur die drei, die dein Kommandant kennt. Die Symbole entsprechen denen im Spiel.",

@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "壁壘",
     "description": "護盾：每個單位獲得等於其生命值的第二層生命。遠程攻擊先消耗護盾；近戰、火焰與酸液無視護盾。"
+  },
+  "mix": {
+    "forged": "由 {{elements}} 鍛造的混合符文。",
+    "attackHp": "攻擊與生命值 {{pct}}",
+    "attack": "攻擊 {{pct}}",
+    "hp": "生命值 {{pct}}",
+    "range": "射程 {{pct}}",
+    "speed": "速度 {{pct}}",
+    "interval": "攻擊間隔 {{pct}}"
   }
 }

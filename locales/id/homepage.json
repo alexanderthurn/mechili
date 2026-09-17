@@ -103,7 +103,10 @@
     "shopTitle": "Dibeli di toko atau diambil dari kartu ronde",
     "shopLabel": "Harga toko",
     "forgeTitle": "Ditempa di {{building}}",
-    "forgeLabel": "Harga tempa"
+    "forgeLabel": "Harga tempa",
+    "mixForgeLabel": "Harga tempa",
+    "mixForgeTitle": "Ditempa di Kubu",
+    "mixed": "Campuran"
   },
   "tactics": {
     "sub": "Ini adalah kemampuan pada strip {{tactics}} Anda. {{sep}} melakukan serangan, melancarkan mantra, memanggil, dan melancarkan serangan tempur seperti semburan api naga. Mantra tempur dibeli di Benteng Anda, masing-masing satu kali, dan hanya tiga yang diketahui oleh komandan Anda. Ikon sesuai dengan yang Anda lihat di dalam game.",

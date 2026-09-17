@@ -103,7 +103,10 @@
     "shopTitle": "Dükkândan satın alınmış veya tur kartından çekilmiş.",
     "shopLabel": "Mağaza fiyatı",
     "forgeTitle": "{{building}}'da dövüldü",
-    "forgeLabel": "Dövme fiyatı"
+    "forgeLabel": "Dövme fiyatı",
+    "mixForgeLabel": "Dövme fiyatı",
+    "mixForgeTitle": "Kalede dövüldü",
+    "mixed": "Karışık"
   },
   "tactics": {
     "sub": "Bunlar {{tactics}} şeridindeki beceriler {{sep}} toplanmalar, birikintiler, çağırmalar ve ejderhanın ateş nefesi gibi savaş büyüleri. Savaş büyüleri Kalenden birer kez alınır ve yalnızca komutanının bildiği üç tanedir. Simgeler oyundakiyle aynıdır.",

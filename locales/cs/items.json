@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Val",
     "description": "Štít: každá jednotka získává druhý objem zdraví odpovídající jejím HP. Zásahy na dálku nejprve vysávají štít; útoky zblízka, oheň a kyselina jej ignorují."
+  },
+  "mix": {
+    "forged": "Vykovaná směs {{elements}}.",
+    "attackHp": "{{pct}} útoku a HP",
+    "attack": "{{pct}} útoku",
+    "hp": "{{pct}} HP",
+    "range": "{{pct}} dostřelu",
+    "speed": "{{pct}} rychlosti",
+    "interval": "{{pct}} intervalu útoku"
   }
 }

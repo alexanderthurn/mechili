@@ -1532,9 +1532,10 @@ export class ActionDispatcher {
                     (s) => s.id === action.stampId && s.seat === seat,
                 );
                 if (i < 0) return false;
-                entry.oilStamp = this.ctx.oilStamps[i];
+                const removed = this.ctx.oilStamps[i]!;
+                entry.oilStamp = removed;
                 this.ctx.oilStamps.splice(i, 1);
-                this.clearOilChargeSpend(entry.oilStamp.id);
+                this.clearOilChargeSpend(removed.id);
                 resetOilFieldToBaseline(this.ctx);
                 return true;
             }

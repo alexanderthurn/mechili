@@ -103,7 +103,10 @@
     "shopTitle": "Koupeno v obchodě nebo vylosováno z karty kola",
     "shopLabel": "Cena v obchodě",
     "forgeTitle": "Kováno na {{building}}",
-    "forgeLabel": "Cena kovárny"
+    "forgeLabel": "Cena kovárny",
+    "mixForgeLabel": "Cena kování",
+    "mixForgeTitle": "Vykováno v Pevnosti",
+    "mixed": "Smíšené"
   },
   "tactics": {
     "sub": "Toto jsou dovednosti na vašem {{tactics}} pásu {{sep}}: shromáždění, rozlití, přivolání a seslání kouzla v boji, jako je ohnivý dech draka. Bojová kouzla se kupují ve vaší pevnosti, každé jednou, a zná je pouze váš velitel. Ikony odpovídají tomu, co vidíte ve hře.",

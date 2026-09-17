@@ -17,7 +17,7 @@
             "base",
             "advanced"
           ],
-          "description": "`base`: weak elemental rune — round-card pool, always in the shop. `advanced`: between-round cards or commander grants (not forgeable)."
+          "description": "`base`: weak elemental rune — always in the shop. `advanced`: between-round cards or commander grants (not shop)."
         },
         "icon": {
           "type": "string",
@@ -71,7 +71,7 @@
             "ingredients"
           ],
           "additionalProperties": false,
-          "description": "Optional forge recipe producing this rune. Advanced runes omit this — they come from cards."
+          "description": "Optional forge recipe producing this rune (exact multiset of oven ingredients). Unused for advanced runes — they come from cards."
         },
         "forgeCost": {
           "type": "number",

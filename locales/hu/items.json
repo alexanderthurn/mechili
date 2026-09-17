@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Bástya",
     "description": "Pajzs: minden egység kap egy második életerő-készletet, amely megegyezik az életerejének értékével. A távolsági találatok először a pajzsot merítik le; a közelharci, tűz és sav esetén ez nem számít."
+  },
+  "mix": {
+    "forged": "Kovácsolt keverék: {{elements}}.",
+    "attackHp": "{{pct}} sebzés és HP",
+    "attack": "{{pct}} sebzés",
+    "hp": "{{pct}} HP",
+    "range": "{{pct}} hatótáv",
+    "speed": "{{pct}} sebesség",
+    "interval": "{{pct}} támadási időköz"
   }
 }

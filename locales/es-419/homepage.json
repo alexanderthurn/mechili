@@ -103,7 +103,10 @@
     "shopTitle": "Comprado en la tienda o sacado de una carta de ronda",
     "shopLabel": "Precio de la tienda",
     "forgeTitle": "Forjado en el {{building}}",
-    "forgeLabel": "Precio de forja"
+    "forgeLabel": "Precio de forja",
+    "mixForgeLabel": "Precio de forja",
+    "mixForgeTitle": "Forjado en la Fortaleza",
+    "mixed": "Mezclada"
   },
   "tactics": {
     "sub": "Estas son las habilidades de tu barra de {{tactics}} {{sep}} rutas de Rally, derrames, invocaciones y hechizos de batalla como el aliento de fuego del dragón. Los hechizos de batalla se compran en tu Fortaleza, una vez cada uno, y solo los tres que conoce tu comandante. Los iconos coinciden con los del juego.",

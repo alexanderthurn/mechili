@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Bolværk",
     "description": "Skjold: Hver enhed får en anden livspulje svarende til dens HP. Fjernangreb dræner skjoldet først; nærkamp, ild og syre ignorerer det."
+  },
+  "mix": {
+    "forged": "Smedet blanding af {{elements}}.",
+    "attackHp": "{{pct}} angreb og HP",
+    "attack": "{{pct}} angreb",
+    "hp": "{{pct}} HP",
+    "range": "{{pct}} rækkevidde",
+    "speed": "{{pct}} hastighed",
+    "interval": "{{pct}} angrebsinterval"
   }
 }

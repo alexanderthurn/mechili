@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Thành lũy",
     "description": "Khiên: Mỗi đơn vị nhận thêm một lượng máu thứ hai bằng với lượng máu hiện có. Các đòn tấn công tầm xa sẽ làm giảm khiên trước; các đòn tấn công cận chiến, lửa và axit sẽ bỏ qua hiệu ứng này."
+  },
+  "mix": {
+    "forged": "Rune pha trộn được rèn từ {{elements}}.",
+    "attackHp": "{{pct}} tấn công và HP",
+    "attack": "{{pct}} tấn công",
+    "hp": "{{pct}} HP",
+    "range": "{{pct}} tầm bắn",
+    "speed": "{{pct}} tốc độ",
+    "interval": "{{pct}} nhịp tấn công"
   }
 }

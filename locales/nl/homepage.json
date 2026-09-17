@@ -103,7 +103,10 @@
     "shopTitle": "Gekocht in de winkel of getrokken uit een rondekaart",
     "shopLabel": "Winkelprijs",
     "forgeTitle": "Gesmeed bij de {{building}}",
-    "forgeLabel": "Smeedprijs"
+    "forgeLabel": "Smeedprijs",
+    "mixForgeLabel": "Smeedprijs",
+    "mixForgeTitle": "Gesmeed in de Burcht",
+    "mixed": "Gemengd"
   },
   "tactics": {
     "sub": "Dit zijn de vaardigheden op je {{tactics}}-strip: {{sep}}-oproepen, spreuken, summons en gevechtsspreuken zoals de vuuradem van de draak. Gevechtsspreuken worden in je vesting gekocht, één keer per stuk, en alleen de drie die je commandant kent. De pictogrammen komen overeen met wat je in het spel ziet.",

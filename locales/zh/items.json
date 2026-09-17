@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "壁垒",
     "description": "护盾：每个单位获得等于其生命值的第二层生命。远程攻击先消耗护盾；近战、火焰与酸液无视护盾。"
+  },
+  "mix": {
+    "forged": "由 {{elements}} 锻造的混合符文。",
+    "attackHp": "攻击与生命值 {{pct}}",
+    "attack": "攻击 {{pct}}",
+    "hp": "生命值 {{pct}}",
+    "range": "射程 {{pct}}",
+    "speed": "速度 {{pct}}",
+    "interval": "攻击间隔 {{pct}}"
   }
 }

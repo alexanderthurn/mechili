@@ -324,7 +324,7 @@ function homepageRuneFromDef(item: ItemDef, kind: 'base' | 'advanced'): Homepage
     return {
         id: item.id,
         name: itemName(item.id, item.name),
-        description: itemDescription(item.id, item.description),
+        description: itemDescription(item.id, item.description, item.mods),
         icon: item.icon,
         kind,
         forgeCost: item.forgeCost,

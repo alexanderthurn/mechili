@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Benteng",
     "description": "Perisai: setiap unit memperoleh himpunan kesihatan kedua yang bersamaan dengan HPnya. Serangan jarak jauh akan menghabiskan perisai terlebih dahulu; serangan jarak dekat, api dan asid mengabaikannya."
+  },
+  "mix": {
+    "forged": "Campuran tempaan daripada {{elements}}.",
+    "attackHp": "{{pct}} serangan dan HP",
+    "attack": "{{pct}} serangan",
+    "hp": "{{pct}} HP",
+    "range": "{{pct}} jarak",
+    "speed": "{{pct}} kelajuan",
+    "interval": "{{pct}} selang serangan"
   }
 }

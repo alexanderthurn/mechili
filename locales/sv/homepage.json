@@ -103,7 +103,10 @@
     "shopTitle": "Köpt i butiken eller draget från ett rundkort",
     "shopLabel": "Butikspris",
     "forgeTitle": "Smidd vid {{building}}",
-    "forgeLabel": "Smidningspris"
+    "forgeLabel": "Smidningspris",
+    "mixForgeLabel": "Smidespris",
+    "mixForgeTitle": "Smidd i Fästet",
+    "mixed": "Blandad"
   },
   "tactics": {
     "sub": "Det här är färdigheterna på din {{tactics}}-remsa {{sep}}: samlingar, spill, kallelser och stridskast som drakens eldandedräkt. Stridsformler köps i ditt fäste, en gång per förmåga, och bara de tre som din befälhavare känner till. Ikonerna matchar det du ser i spelet.",

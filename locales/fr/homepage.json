@@ -103,7 +103,10 @@
     "shopTitle": "Acheté en boutique ou tiré d'une carte de manche",
     "shopLabel": "Prix en magasin",
     "forgeTitle": "Forgé au {{building}}",
-    "forgeLabel": "Prix de la forge"
+    "forgeLabel": "Prix de la forge",
+    "mixForgeLabel": "Prix de forge",
+    "mixForgeTitle": "Forgé au Bastion",
+    "mixed": "Mixte"
   },
   "tactics": {
     "sub": "Voici les compétences de ta barre {{tactics}} {{sep}} ralliements, nappes, invocations et sorts de combat, comme le souffle de feu du dragon. Les sorts de combat s’achètent à ton Bastion, une fois chacun, et seulement les trois que ton commandant connaît. Les icônes correspondent à celles du jeu.",

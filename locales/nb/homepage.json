@@ -103,7 +103,10 @@
     "shopTitle": "Kjøpt i butikken eller trukket fra et rundekort",
     "shopLabel": "Butikkpris",
     "forgeTitle": "Smidd på {{building}}",
-    "forgeLabel": "Smipris"
+    "forgeLabel": "Smipris",
+    "mixForgeLabel": "Smiepris",
+    "mixForgeTitle": "Smidd i Høyborgen",
+    "mixed": "Blandet"
   },
   "tactics": {
     "sub": "Dette er ferdighetene på din {{tactics}} stripe {{sep}} samlinger, spill, innkallinger og kampkast som dragens ildpust. Kampformler kjøpes i ditt festningssted, én gang hver, og bare de tre kommandøren din kjenner. Ikonene samsvarer med det du ser i spillet.",

@@ -42,5 +42,14 @@
   "bulwark": {
     "name": "Bålverk",
     "description": "Sköld: varje enhet får en andra hälsopool som motsvarar dess HP. Avståndsträffar dränerar skölden först; närstrid, eld och syra ignorerar det."
+  },
+  "mix": {
+    "forged": "Smidd blandning av {{elements}}.",
+    "attackHp": "{{pct}} attack och HP",
+    "attack": "{{pct}} attack",
+    "hp": "{{pct}} HP",
+    "range": "{{pct}} räckvidd",
+    "speed": "{{pct}} hastighet",
+    "interval": "{{pct}} attackintervall"
   }
 }

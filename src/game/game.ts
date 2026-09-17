@@ -11413,7 +11413,7 @@ export class Game {
             id,
             icon: this.types.rune(id)?.icon ?? '?',
             name: itemName(id, this.types.rune(id)?.name ?? id),
-            desc: itemDescription(id, this.types.rune(id)?.description ?? ''),
+            desc: itemDescription(id, this.types.rune(id)?.description ?? '', this.types.rune(id)?.mods),
             removable:
                 allowRemove &&
                 u.seat === this.humanSeat &&
@@ -11944,7 +11944,7 @@ export class Game {
                         id,
                         icon: this.types.rune(id)?.icon ?? '?',
                         name: itemName(id, this.types.rune(id)?.name ?? id),
-                        desc: itemDescription(id, this.types.rune(id)?.description ?? ''),
+                        desc: itemDescription(id, this.types.rune(id)?.description ?? '', this.types.rune(id)?.mods),
                         removable: false,
                     };
                 }
@@ -11954,7 +11954,7 @@ export class Game {
                     id: s.itemId,
                     icon: this.types.rune(s.itemId)?.icon ?? '?',
                     name: itemName(s.itemId, this.types.rune(s.itemId)?.name ?? s.itemId),
-                    desc: itemDescription(s.itemId, this.types.rune(s.itemId)?.description ?? ''),
+                    desc: itemDescription(s.itemId, this.types.rune(s.itemId)?.description ?? '', this.types.rune(s.itemId)?.mods),
                     removable:
                         canBuy && s.seat === this.humanSeat && s.round === this.round,
                 };
