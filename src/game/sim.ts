@@ -419,6 +419,13 @@ export interface Actor {
     /** true this sim step while the convert beam is on (incl. shield-blocked) */
     convertRayActive: boolean;
     /**
+     * Seconds of unbroken ramp-beam lock on {@link rampBeamTarget}. Resets when
+     * the beam breaks (target lost / ward block). Melting Point–style DPS ramp.
+     */
+    rampBeamLockT: number;
+    /** sticky ramp-beam victim (null = hunting) */
+    rampBeamTarget: Actor | null;
+    /**
      * Attack windup: damage (melee) or volley (ranged) waiting to resolve
      * ({@link UnitType.meleeHitDelay}). 0 = none pending. Anim starts on
      * cooldown bump; the hit / shot resolves later.
@@ -1107,6 +1114,8 @@ export class BattleSim {
                     convertRayTipY: 0,
                     convertRayTipZ: 0,
                     convertRayActive: false,
+                    rampBeamLockT: 0,
+                    rampBeamTarget: null,
                     meleePendingDamage: 0,
                     meleePendingAt: 0,
                     meleePendingFocus: 0,
@@ -1877,7 +1886,7 @@ export class BattleSim {
         tdz: number,
         tDist: number,
     ): boolean {
-        if (a.unit.type.projectileSpeed || a.unit.type.convertRay) return false;
+        if (a.unit.type.projectileSpeed || a.unit.type.convertRay || a.unit.type.rampBeam) return false;
         const reach = this.weaponRange(a, target, stats.range) + a.radius + target.radius;
         const commit = reach + (a.unit.type.meleeLunge ?? 0);
         if (tDist > commit) return false;
@@ -2778,6 +2787,8 @@ export class BattleSim {
                 convertRayTipY: 0,
                 convertRayTipZ: 0,
                 convertRayActive: false,
+                rampBeamLockT: 0,
+                rampBeamTarget: null,
                 meleePendingDamage: 0,
                 meleePendingAt: 0,
                 meleePendingFocus: 0,
@@ -4320,7 +4331,7 @@ export class BattleSim {
             if (onPath && a.pathDestX !== null && a.pathDestZ !== null) {
                 const destX = a.pathDestX;
                 const destZ = a.pathDestZ;
-                const isMelee = !a.unit.type.projectileSpeed && !a.unit.type.convertRay;
+                const isMelee = !a.unit.type.projectileSpeed && !a.unit.type.convertRay && !a.unit.type.rampBeam;
 
                 if (a.unit.type.freeFlight) {
                     // A pass already underway finishes — its heading is locked —
@@ -4507,6 +4518,7 @@ export class BattleSim {
 
         mark();
         this.stepConversionRays(dt);
+        this.stepRampBeams(dt);
         add('convert');
 
         mark();
@@ -5791,11 +5803,141 @@ export class BattleSim {
     }
 
     /**
-     * Convert-ray muzzle: GLB `AttackNode` when present, else chest-height fallback.
-     * Uses sim xz + mesh yaw so the beam tracks facing.
+     * Arcane Prism / Melting Point beam: sticky lock, exponential DPS ramp,
+     * soft tip splash. Reuses convertRay tip/active for the yellow ray VFX.
      */
-    private convertRayOrigin(caster: Actor): { x: number; y: number; z: number } {
+    private stepRampBeams(dt: number): void {
+        const d = this.config.towers.debuffPerLostTower;
+        for (const caster of this.actors) {
+            const beam = caster.unit.type.rampBeam;
+            if (!beam || !caster.alive || caster.unit.type.structure) continue;
+            if (this.isSpawning(caster) || caster.unit.marchIn) continue;
+
+            const targets = effectiveTargets(
+                caster.unit.type,
+                actorSeat(caster),
+                (_s, _t, techId) => this.actorHasTech(caster, techId),
+                this.config.types,
+            );
+            const team = actorTeam(caster);
+
+            const stillOk = (target: Actor): boolean =>
+                target.alive &&
+                actorTeam(target) !== team &&
+                !target.unit.type.extra &&
+                !target.unit.type.notAcquired &&
+                (target.unit.type.structure ||
+                    (target.altitude > 0 ? targets.air : targets.ground));
+
+            const stats = this.statsOf(caster);
+            let target = caster.rampBeamTarget;
+            if (target && stillOk(target)) {
+                const reach =
+                    this.weaponRange(caster, target, stats.range) + caster.radius + target.radius;
+                const dx = target.x - caster.x;
+                const dz = target.z - caster.z;
+                if (dx * dx + dz * dz > reach * reach) {
+                    target = null;
+                }
+            } else {
+                target = null;
+            }
+
+            if (!target) {
+                // Target lost (death / OOR) — ramp resets. A full-HP next victim
+                // is intentional Melting Point behaviour, not an HP rewind.
+                caster.rampBeamLockT = 0;
+                caster.rampBeamTarget = null;
+                target = this.closestConvertTarget(caster, stats.range, targets);
+                if (!target) continue;
+                caster.rampBeamTarget = target;
+                caster.rampBeamLockT = 0;
+            }
+
+            const from = this.beamRayOrigin(caster);
+            const tt = target.unit.type;
+            const toY = target.footY + projectileAimY(tt) * tt.meshScale;
+            const sx = target.x - from.x;
+            const sy = toY - from.y;
+            const sz = target.z - from.z;
+            const block = this.enemyShieldHitOnSegment(from.x, from.y, from.z, sx, sy, sz, team);
+
+            // Exponential ramp: unit damage × 2^(t / doubleEvery), capped.
+            const doubleEvery = Math.max(1e-3, beam.doubleEvery);
+            const startDps = Math.max(0, stats.damage);
+            const maxDps = beam.maxDps != null ? Math.max(startDps, beam.maxDps) : Infinity;
+            const rawDps = Math.min(
+                maxDps,
+                startDps * Math.pow(2, caster.rampBeamLockT / doubleEvery),
+            );
+            const intensity = this.hitDamage(caster, target, rawDps, d.attackMult);
+
+            if (block) {
+                // Ward break pauses the ramp (beam never reached the victim).
+                caster.rampBeamLockT = 0;
+                caster.convertRayTipX = block.x;
+                caster.convertRayTipY = block.y;
+                caster.convertRayTipZ = block.z;
+                caster.convertRayActive = true;
+                block.shield.hp -= intensity * dt;
+                block.shield.hurtTimer = HURT_BAR_SECONDS;
+                if (block.shield.hp <= 0) this.breakShield(block.shield);
+                continue;
+            }
+
+            caster.rampBeamLockT += dt;
+            caster.convertRayTipX = target.x;
+            caster.convertRayTipY = toY;
+            caster.convertRayTipZ = target.z;
+            caster.convertRayActive = true;
+
+            const splash = beam.splashRadius ?? 0;
+            // Tip splash is a soft fringe (not full primary DPS) — otherwise a
+            // ramped beam multi-kills the whole pack and the sticky lock
+            // constantly hops onto a full-HP neighbour (looks like HP "jumped").
+            const splashFrac = 0.25;
+            if (splash > 0) {
+                const shootTargets = effectiveTargets(
+                    caster.unit.type,
+                    actorSeat(caster),
+                    (_s, _t, techId) => this.actorHasTech(caster, techId),
+                    this.config.types,
+                );
+                for (const a of this.actors) {
+                    if (!a.alive || actorTeam(a) === team) continue;
+                    if (a.unit.type.extra) continue;
+                    if (a.altitude > 0 ? !shootTargets.air : !shootTargets.ground) continue;
+                    if (hypot(a.x - target.x, a.z - target.z) > splash + a.radius) continue;
+                    const frac = a === target ? 1 : splashFrac;
+                    const dealt = intensity * dt * frac * this.damageTakenMult(a);
+                    if (dealt <= 0) continue;
+                    this.applyDamage(
+                        caster.unit,
+                        a,
+                        dealt,
+                        { x: a.x - from.x, z: a.z - from.z },
+                        'direct',
+                    );
+                }
+            } else {
+                const dealt = intensity * dt * this.damageTakenMult(target);
+                if (dealt > 0) {
+                    this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz }, 'direct');
+                }
+            }
+        }
+    }
+
+    /**
+     * Convert-ray / ramp-beam muzzle: unit `muzzleLocal`, else GLB `AttackNode`,
+     * else chest-height fallback. Uses sim xz + mesh yaw so the beam tracks facing.
+     */
+    private beamRayOrigin(caster: Actor): { x: number; y: number; z: number } {
         const t = caster.unit.type;
+        const authored = t.rampBeam?.muzzleLocal;
+        if (authored) {
+            return attackNodeWorld(authored, caster.x, caster.footY, caster.z, caster.mesh.rotation.y, t.meshScale);
+        }
         const modelKey = t.modelId ?? t.id;
         const local = getUnitAttackNodeLocal(modelKey);
         if (local) {
@@ -5806,6 +5948,14 @@ export class BattleSim {
             y: caster.footY + Math.max(1.6, t.meshScale * 1.15),
             z: caster.z,
         };
+    }
+
+    /**
+     * Convert-ray muzzle: GLB `AttackNode` when present, else chest-height fallback.
+     * Uses sim xz + mesh yaw so the beam tracks facing.
+     */
+    private convertRayOrigin(caster: Actor): { x: number; y: number; z: number } {
+        return this.beamRayOrigin(caster);
     }
 
     private closestConvertTarget(

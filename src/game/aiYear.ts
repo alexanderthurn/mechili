@@ -275,7 +275,7 @@ export function groupOf(
         air: targets.air,
         flying,
         ranged: !!type.projectileSpeed,
-        convert: !!type.convertRay,
+        convert: !!type.convertRay || !!type.rampBeam,
         corrode: !!type.corrodeOnHit,
         shield,
         structure: !!type.structure,
@@ -650,7 +650,7 @@ export class YearBrain {
                     if (cost > left) continue;
                     const flying = effectiveFlying(type, this.seat, this.hasTech, types) > 0;
                     const stats = TechTree.statsWithOwned(type, ownedTechs.get(type.id) ?? new Set(), types);
-                    const depth = preferredDepth(type, { range: stats.range, minRange: stats.minRange, flying, convert: !!type.convertRay });
+                    const depth = preferredDepth(type, { range: stats.range, minRange: stats.minRange, flying, convert: !!type.convertRay || !!type.rampBeam });
                     const group = this.plannedGroup(type, depth, ownedTechs.get(type.id));
                     const s = this.score([...army, group], theirs, counter);
                     // gain per supply; a small tilt toward packs we have few of keeps the army flexible
@@ -805,7 +805,7 @@ export class YearBrain {
                 }
             }
             if (!best) break;
-            const depth = preferredDepth(best, { range: best.range, minRange: best.minRange ?? 0, flying: (best.flying ?? 0) > 0, convert: !!best.convertRay });
+            const depth = preferredDepth(best, { range: best.range, minRange: best.minRange ?? 0, flying: (best.flying ?? 0) > 0, convert: !!best.convertRay || !!best.rampBeam });
             if (!this.placeOne(best, depth, this.enemyLanes(), [])) break;
         }
         // talents for fielded types, cheapest first

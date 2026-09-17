@@ -84,9 +84,46 @@ function quatFromUpTo(dir: Vector3, out: Quaternion): void {
     out.setFromUnitVectors(_up, dir);
 }
 
+/** Beam muzzle for FX (interpolated xz) — matches sim {@link beamRayOrigin} policy. */
+function beamFxOrigin(caster: Actor): { x: number; y: number; z: number } {
+    const ut = caster.unit.type;
+    const authored = ut.rampBeam?.muzzleLocal;
+    if (authored) {
+        return attackNodeWorld(
+            authored,
+            caster.rx,
+            caster.footY,
+            caster.rz,
+            caster.mesh.rotation.y,
+            ut.meshScale,
+        );
+    }
+    const modelKey = ut.modelId ?? ut.id;
+    const local = getUnitAttackNodeLocal(modelKey);
+    if (local) {
+        return attackNodeWorld(
+            local,
+            caster.rx,
+            caster.footY,
+            caster.rz,
+            caster.mesh.rotation.y,
+            ut.meshScale,
+        );
+    }
+    return {
+        x: caster.rx,
+        y: caster.footY + Math.max(1.6, ut.meshScale * 1.15),
+        z: caster.rz,
+    };
+}
+
+const _sunCore = new Color(0xfff4c0);
+const _sunGlow = new Color(0xffc44d);
+
 /**
  * Sustained conversion beams — textured lightning cards + soft glow.
- * Visual-only; sim owns progress / allegiance.
+ * Also draws Melting Point–style ramp beams (yellow sunlight) for units with
+ * {@link UnitType.rampBeam}. Visual-only; sim owns progress / DPS.
  */
 export class ConversionFx {
     private readonly group = new Group();
@@ -173,9 +210,9 @@ export class ConversionFx {
     }
 
     /**
-     * Draw a beam from every living caster with an active convert ray.
+     * Draw a beam from every living caster with an active convert / ramp ray.
      * Tip comes from the sim (`convertRayTip*`) so ward blocks clip the beam.
-     * Origin prefers GLB `AttackNode` (else chest height); uses interpolated rx/rz.
+     * Origin prefers unit `muzzleLocal`, else GLB `AttackNode`, else chest height.
      * `simTime` is battle elapsed seconds so scroll/pulse freeze when the sim pauses.
      */
     update(actors: readonly Actor[], simTime = 0): void {
@@ -189,32 +226,23 @@ export class ConversionFx {
         let n = 0;
         for (const caster of actors) {
             if (n >= MAX_RAYS) break;
-            if (!caster.alive || !caster.convertRayActive || !caster.unit.type.convertRay) continue;
+            if (!caster.alive || !caster.convertRayActive) continue;
+            const isRamp = !!caster.unit.type.rampBeam;
+            const isConvert = !!caster.unit.type.convertRay;
+            if (!isRamp && !isConvert) continue;
 
             const ut = caster.unit.type;
-            const modelKey = ut.modelId ?? ut.id;
-            const local = getUnitAttackNodeLocal(modelKey);
-            const from = local
-                ? attackNodeWorld(
-                      local,
-                      caster.rx,
-                      caster.footY,
-                      caster.rz,
-                      caster.mesh.rotation.y,
-                      ut.meshScale,
-                  )
-                : {
-                      x: caster.rx,
-                      y: caster.footY + Math.max(1.6, ut.meshScale * 1.15),
-                      z: caster.rz,
-                  };
+            const from = beamFxOrigin(caster);
 
-            const victims =
-                caster.convertTargets?.length > 0
-                    ? caster.convertTargets
-                    : caster.convertTarget
-                      ? [caster.convertTarget]
-                      : [null];
+            const victims = isRamp
+                ? caster.rampBeamTarget
+                    ? [caster.rampBeamTarget]
+                    : [null]
+                : caster.convertTargets?.length > 0
+                  ? caster.convertTargets
+                  : caster.convertTarget
+                    ? [caster.convertTarget]
+                    : [null];
 
             const team = actorTeam(caster);
             const seat = actorSeat(caster);
@@ -225,7 +253,7 @@ export class ConversionFx {
                 const victim = victims[vi];
                 _pos.set(from.x, from.y, from.z);
                 // unblocked: stick tip to the victim mesh; blocked: sim tip on the ward skin
-                if (victim?.alive && victim.convertBy === caster) {
+                if (!isRamp && victim?.alive && victim.convertBy === caster) {
                     const vt = victim.unit.type;
                     const toY = victim.footY + projectileAimY(vt) * vt.meshScale;
                     _dir.set(victim.rx - from.x, toY - from.y, victim.rz - from.z);
@@ -246,7 +274,9 @@ export class ConversionFx {
                 _dir.multiplyScalar(1 / len);
                 quatFromUpTo(_dir, _quat);
 
-                const width = 1.05 + 0.12 * Math.sin(simTime * 10 + caster.index + vi);
+                // Sunlight beam reads slightly thicker; convert stays bolt-thin.
+                const width =
+                    (isRamp ? 1.35 : 1.05) + 0.12 * Math.sin(simTime * 10 + caster.index + vi);
                 _scale.set(width, len, width);
                 _mat.compose(_pos, _quat, _scale);
                 this.core.setMatrixAt(n, _mat);
@@ -255,9 +285,14 @@ export class ConversionFx {
                 _mat.compose(_pos, _quat, _scale);
                 this.glow.setMatrixAt(n, _mat);
 
-                this.core.setColorAt(n, _white);
-                _color.setHex(teamHex);
-                this.glow.setColorAt(n, _color.lerp(_orb, 0.5));
+                if (isRamp) {
+                    this.core.setColorAt(n, _sunCore);
+                    this.glow.setColorAt(n, _sunGlow);
+                } else {
+                    this.core.setColorAt(n, _white);
+                    _color.setHex(teamHex);
+                    this.glow.setColorAt(n, _color.lerp(_orb, 0.5));
+                }
                 n++;
             }
         }
