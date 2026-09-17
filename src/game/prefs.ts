@@ -99,7 +99,7 @@ export interface Prefs {
      * - low: blob discs under units (no shadow-map pass)
      * - medium: 1024 PCF map, structures only
      * - high: 2048 soft map, all units
-     * - ultra: up to 4096 soft map, all units, wider penumbra
+     * - ultra: up to 4096 soft map, all units, wider penumbra, and the board's relief shadows itself
      */
     shadows: ShadowQuality;
     /** When false, dead/wrecked mechs are not drawn (still revive next round). */

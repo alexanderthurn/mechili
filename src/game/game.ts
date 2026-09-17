@@ -2744,6 +2744,13 @@ export class Game {
             });
         }
 
+        // Ultra: the board's own hills throw shadows onto it, so slopes read on plain grass
+        const groundCasts = useMap && tier === 'ultra';
+        if (this.groundMesh.castShadow !== groundCasts) {
+            this.groundMesh.castShadow = groundCasts;
+            if (useMap) this.sun.shadow.needsUpdate = true;
+        }
+
         this.unitInstances.applyShadowPref(tier);
         this.meteorFx.applyShadowPref(tier);
         this.appliedShadows = tier;
