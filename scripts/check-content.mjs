@@ -828,7 +828,7 @@ try {
         for (let i = 0; i < gp.count; i += 97) worstMesh = Math.max(worstMesh, Math.abs(gp.getY(i) - map.heightAt(gp.getX(i), gp.getZ(i))));
         texpect(worstMesh < 1e-4, `mesh vertices off the grid by ${worstMesh}`);
         texpect(Math.abs(geo.attributes.normal.getY(0) - 1) < 0.2, 'normals not pointing up');
-        // sea level: no crater or hammer digs the board below y 0
+        // height band: no crater or hammer digs the board below y 0 or piles it above y 8
         {
             const deep = new BattleMap({ ...STANDARD_MAP });
             deep.terrain.crater(10, 10, 12, 50);
@@ -842,6 +842,11 @@ try {
                 lowestBase = Math.min(lowestBase, deep.proceduralHeightAt(x, z));
             }
             texpect(lowest >= Math.min(0, lowestBase) - 1e-5, `ground dug below sea level: ${lowest}`);
+            deep.terrain.crater(40, -10, 12, -50);
+            deep.terrain.flattenRect(-60, 20, 10, 6, 0.3, 30);
+            let highest = -Infinity;
+            for (let i = 0; i < deep.terrain.heights.length; i++) highest = Math.max(highest, deep.terrain.heights[i]);
+            texpect(highest <= 8 + 1e-5, `ground piled above the ceiling: ${highest}`);
         }
         // healing between rounds: 0 keeps it, 0.5 halfway back, 1 back to normal
         const deformed = Float32Array.from(grid.heights);

@@ -24,15 +24,18 @@ import { detCos, detSin } from './detMath';
 export const TERRAIN_HEAL_PER_ROUND = 0;
 
 /**
- * Sea level: nothing pushes the board below this. Ground that already lies
- * lower stays where it is, it just can't be dug any deeper.
+ * The board's height band: nothing digs it below sea level or piles it above
+ * the ceiling. Ground already outside the band stays where it is, it just
+ * can't be pushed further out.
  */
 export const BOARD_MIN_Y = 0;
+export const BOARD_MAX_Y = 8;
 
-/** a deformation's new height, kept from sinking below {@link BOARD_MIN_Y} */
-export function floorBoardY(before: number, after: number): number {
+/** a deformation's new height, kept inside [{@link BOARD_MIN_Y}, {@link BOARD_MAX_Y}] */
+export function clampBoardY(before: number, after: number): number {
     const floor = before < BOARD_MIN_Y ? before : BOARD_MIN_Y;
-    return after < floor ? floor : after;
+    const ceiling = before > BOARD_MAX_Y ? before : BOARD_MAX_Y;
+    return after < floor ? floor : after > ceiling ? ceiling : after;
 }
 
 /** inclusive node rectangle */
@@ -157,7 +160,7 @@ export class TerrainGrid {
                 const edge = ax > az ? ax : az;
                 const w = edge <= 0.82 ? 1 : 1 - (edge - 0.82) / 0.18;
                 const i = row + ix;
-                this.heights[i] = floorBoardY(this.heights[i]!, this.heights[i]! + (targetY - this.heights[i]!) * w);
+                this.heights[i] = clampBoardY(this.heights[i]!, this.heights[i]! + (targetY - this.heights[i]!) * w);
             }
         }
         this.noteDeformed(rect);
@@ -181,7 +184,7 @@ export class TerrainGrid {
                 if (d2 >= r2) continue;
                 const t = 1 - d2 / r2;
                 const i = row + ix;
-                this.heights[i] = floorBoardY(this.heights[i]!, this.heights[i]! - depth * t * t);
+                this.heights[i] = clampBoardY(this.heights[i]!, this.heights[i]! - depth * t * t);
             }
         }
         this.noteDeformed(rect);
