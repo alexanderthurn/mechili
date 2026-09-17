@@ -211,17 +211,37 @@ export function groundDetailCacheKey(profile: GroundMaterialProfile): string {
  * GLSL: finer grass UVs on the ground near the camera. The weight is per pixel
  * — distance from the camera, softened into a wide blend — so a nearby hilltop
  * gets fine blades, far slopes keep the normal tile, and zooming never flips
- * the whole lawn at once. Steep slopes (where the top-down projection
- * stretches) back off the fine tile.
+ * the whole lawn at once.
+ *
+ * Steep ground: the lawn UV is a top-down projection, which stretches blades
+ * down a slope. There the grass is sampled triplanar — from the side along x
+ * and z as well — for both the normal and the fine tile, so a hillside shows
+ * the same blade size as flat ground.
  */
 export function closeTileInjectGlsl(profile: GroundMaterialProfile): string {
     if (profile.closeRepeat <= 1.01) return '';
     return `
 	float closeW = 1.0 - smoothstep( uCloseNear, uCloseFar, distance( cameraPosition, vCloseWorld ) );
-	vec3 closeFaceN = normalize( cross( dFdx( vCloseWorld ), dFdy( vCloseWorld ) ) );
-	closeW *= 1.0 - smoothstep( 0.1, 0.3, 1.0 - abs( closeFaceN.y ) );
+	vec3 closeWorldN = normalize( transformDirectionByInverseViewMatrix( normalize( vNormal ), viewMatrix ) );
+	float steepT = smoothstep( 0.06, 0.22, 1.0 - abs( closeWorldN.y ) );
 	vec2 closeUv = vMapUv * uCloseRepeat;
 	vec3 closeAlb = texture2D( map, closeUv ).rgb;
+	if ( steepT > 0.0 ) {
+		// lawn UV per world unit along x and z (the UV is a planar xz projection)
+		float kx = ( abs( dFdx( vMapUv.x ) ) + abs( dFdy( vMapUv.x ) ) ) / max( abs( dFdx( vCloseWorld.x ) ) + abs( dFdy( vCloseWorld.x ) ), 1e-4 );
+		float kz = ( abs( dFdx( vMapUv.y ) ) + abs( dFdy( vMapUv.y ) ) ) / max( abs( dFdx( vCloseWorld.z ) ) + abs( dFdy( vCloseWorld.z ) ), 1e-4 );
+		float k = clamp( 0.5 * ( kx + kz ), 1e-4, 10.0 );
+		vec3 tw = pow( abs( closeWorldN ), vec3( 4.0 ) );
+		tw /= max( tw.x + tw.y + tw.z, 1e-4 );
+		vec2 uvX = vec2( vCloseWorld.z, vCloseWorld.y ) * k;
+		vec2 uvZ = vec2( vCloseWorld.x, vCloseWorld.y ) * k;
+		vec3 planar = texture2D( map, vMapUv ).rgb;
+		vec3 tri = planar * tw.y + texture2D( map, uvX ).rgb * tw.x + texture2D( map, uvZ ).rgb * tw.z;
+		// swap the stretched sample for the side-projected one (keeps any tint already applied)
+		diffuseColor.rgb *= mix( vec3( 1.0 ), ( tri + 0.04 ) / ( planar + 0.04 ), steepT );
+		vec3 closeTri = closeAlb * tw.y + texture2D( map, uvX * uCloseRepeat ).rgb * tw.x + texture2D( map, uvZ * uCloseRepeat ).rgb * tw.z;
+		closeAlb = mix( closeAlb, closeTri, steepT );
+	}
 	diffuseColor.rgb = mix( diffuseColor.rgb, closeAlb, closeW );
 `;
 }
