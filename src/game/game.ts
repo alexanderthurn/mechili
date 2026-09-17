@@ -198,6 +198,7 @@ import type { Weather } from './weather';
 import {
     createFovWedge,
     createRangeRing,
+    screenToTerrain,
     type RangeShape,
     placeFovWedge,
     placeRangeRing,
@@ -7764,7 +7765,7 @@ export class Game {
         margin = RALLY_ROUTE_RADIUS,
     ): { x: number; z: number } | null {
         const rect = this.pixiApp.canvas.getBoundingClientRect();
-        const ground = this.rig.screenToGround(x, y, rect.width, rect.height);
+        const ground = screenToTerrain(this.rig, x, y, rect.width, rect.height);
         if (!ground) return null;
         return clampTacticPoint(ground.x, ground.z, this.map.halfW, this.map.halfH, margin);
     }

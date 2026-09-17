@@ -83,6 +83,36 @@ const STATUS_BADGE_CLEARANCE = 0.35;
  * The attack-range ring visual, shared by deployment selection and the
  * battle-phase mech selection. Unit scale = range in world units.
  */
+const _terrainHit = new Vector3();
+
+/**
+ * Screen point → board ground, following the relief. The flat y = 0 plane the
+ * camera rig uses misses by whole tiles once units stand on hills: the plate a
+ * player clicks is drawn on the raised ground, the ray crosses y = 0 well
+ * behind it. Solved in a few steps, since the height depends on the hit point.
+ */
+export function screenToTerrain(
+    rig: CameraRig,
+    x: number,
+    y: number,
+    viewW: number,
+    viewH: number,
+): Vector3 | null {
+    const ray = rig.setPickRay(x, y, viewW, viewH).ray;
+    if (Math.abs(ray.direction.y) < 1e-6) return null;
+    let t = -ray.origin.y / ray.direction.y;
+    if (t < 0) return null;
+    for (let i = 0; i < 4; i++) {
+        _terrainHit.copy(ray.direction).multiplyScalar(t).add(ray.origin);
+        const next = (groundHeightAt(_terrainHit.x, _terrainHit.z) - ray.origin.y) / ray.direction.y;
+        if (!Number.isFinite(next) || next < 0) break;
+        const done = Math.abs(next - t) < 1e-3;
+        t = next;
+        if (done) break;
+    }
+    return _terrainHit.copy(ray.direction).multiplyScalar(t).add(ray.origin).clone();
+}
+
 export function createRangeRing(scene: Scene): Mesh {
     const ringGeo = new RingGeometry(0.985, 1, 96);
     ringGeo.rotateX(-Math.PI / 2);
@@ -2131,7 +2161,7 @@ export class PlacementController {
     /** the ground point under a surface point (world space), or null */
     groundAtPoint(x: number, y: number): Vector3 | null {
         const rect = this.surface.getBoundingClientRect();
-        return this.rig.screenToGround(x, y, rect.width, rect.height);
+        return screenToTerrain(this.rig, x, y, rect.width, rect.height);
     }
 
     /** the anchor that centers a footprint on `center` */
@@ -2538,7 +2568,7 @@ export class PlacementController {
 
     private cellAt(x: number, y: number): Cell | null {
         const rect = this.surface.getBoundingClientRect();
-        const ground = this.rig.screenToGround(x, y, rect.width, rect.height);
+        const ground = screenToTerrain(this.rig, x, y, rect.width, rect.height);
         return ground ? this.map.worldToCell(ground) : null;
     }
 
