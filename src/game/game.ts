@@ -220,6 +220,7 @@ import {
     hordeCountMult,
     climbAttackerTeam,
     yearBoardExtraAllowed,
+    rallyRouteBuyMax,
     yearWinner,
     type YearRoundWinner,
     hordeEnabled,
@@ -746,8 +747,8 @@ export class Game {
     private readonly recruitLevel: number[]; // per seat
     /** per-SEAT sell ability: `owned` is a permanent unlock, `used` resets per round */
     private readonly sellState: { owned: boolean[]; used: number[] };
-    /** per-SEAT: one-time rally-route purchase (permanent flag) */
-    private readonly rallyRouteOwned: boolean[];
+    /** per-SEAT: how many Rally Route unlocks bought this match (Tent: up to 2) */
+    private readonly rallyRouteBought: number[];
     /** per seat: which of its commander's spells it has bought at the Stronghold */
     private readonly forgeSpellOwned: string[][];
     private readonly movePackOwned: boolean[];
@@ -1757,7 +1758,7 @@ export class Game {
             runesBought: this.seats.map(() => 0),
         };
         this.sellState = { owned: this.seats.map(() => false), used: this.seats.map(() => 0) };
-        this.rallyRouteOwned = this.seats.map(() => false);
+        this.rallyRouteBought = this.seats.map(() => 0);
         this.forgeSpellOwned = this.seats.map(() => []);
         this.movePackOwned = this.seats.map(() => false);
         this.boostState = { attack: this.seats.map(() => 0), hp: this.seats.map(() => 0) };
@@ -1765,8 +1766,7 @@ export class Game {
         this.unlockedUnits = this.seats.map(() => []);
         this.unlockUsedThisRound = this.seats.map(() => false);
         // The Year: attacker seats get two free Rally Route charges (same as
-        // card-granted one-shots — do not set rallyRouteOwned, or the Tent
-        // panel shows the buy as already owned).
+        // card-granted one-shots — Tent buy slots stay separate, up to 2 more).
         if (settings.climb) {
             const attacker = this.yearAttackerTeam();
             for (let seat = 0; seat < this.seats.length; seat++) {
@@ -1796,7 +1796,7 @@ export class Game {
             boostSettings: settings.boosts,
             recruitLevel: this.recruitLevel,
             sellState: this.sellState,
-            rallyRouteOwned: this.rallyRouteOwned,
+            rallyRouteBought: this.rallyRouteBought,
             forgeSpellOwned: this.forgeSpellOwned,
             forgeSpellsOf: (seat: SeatId) => this.forgeSpellsOf(seat),
             movePackOwned: this.movePackOwned,
@@ -11836,7 +11836,11 @@ export class Game {
             },
             rallyRouteAbility: {
                 cost: this.settings.rallyRoute.abilityCost,
-                owned: intel.rallyOwned,
+                owned: intel.rallyBought,
+                max: rallyRouteBuyMax(
+                    this.settings.climb ? this.yearAttackerTeam() : null,
+                    u.team === 'horde' ? 'player' : u.team,
+                ),
                 affordable: canBuy && bal >= this.settings.rallyRoute.abilityCost,
             },
             movePackAbility: {
@@ -11867,7 +11871,7 @@ export class Game {
                 boostAttack: s.boostAttack[seat] ?? 0,
                 boostHp: s.boostHp[seat] ?? 0,
                 sellOwned: s.sellOwned[seat] ?? false,
-                rallyOwned: s.rallyOwned[seat] ?? false,
+                rallyBought: s.rallyBought[seat] ?? 0,
                 movePackOwned: s.movePackOwned[seat] ?? false,
             };
         }
@@ -11880,7 +11884,7 @@ export class Game {
             boostAttack: this.boostState.attack[seat]!,
             boostHp: this.boostState.hp[seat]!,
             sellOwned: this.sellState.owned[seat]!,
-            rallyOwned: this.rallyRouteOwned[seat]!,
+            rallyBought: this.rallyRouteBought[seat]!,
             movePackOwned: this.movePackOwned[seat]!,
         };
     }
@@ -11895,7 +11899,7 @@ export class Game {
             boostAttack: this.boostState.attack.slice(),
             boostHp: this.boostState.hp.slice(),
             sellOwned: this.sellState.owned.slice(),
-            rallyOwned: this.rallyRouteOwned.slice(),
+            rallyBought: this.rallyRouteBought.slice(),
             movePackOwned: this.movePackOwned.slice(),
             forgeSpellOwned: this.forgeSpellOwned.map((list) => list.slice()),
             strongholdArchers: {
@@ -12153,7 +12157,7 @@ interface BuildingIntelSnapshot {
     boostAttack: number[];
     boostHp: number[];
     sellOwned: boolean[];
-    rallyOwned: boolean[];
+    rallyBought: number[];
     movePackOwned: boolean[];
     /** Stronghold commander spells bought (per seat) at phase start — fogged view */
     forgeSpellOwned: string[][];
@@ -12175,7 +12179,7 @@ interface BuildingIntelSeat {
     boostAttack: number;
     boostHp: number;
     sellOwned: boolean;
-    rallyOwned: boolean;
+    rallyBought: number;
     movePackOwned: boolean;
 }
 

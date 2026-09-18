@@ -104,6 +104,17 @@ export function yearBoardExtraAllowed(
 }
 
 /**
+ * How many times a seat may buy Rally Route from its building this match.
+ * The Year attacker (Tent): 2; everyone else (Vanguard): 1.
+ */
+export function rallyRouteBuyMax(
+    climbAttacker: 'player' | 'enemy' | null,
+    team: 'player' | 'enemy',
+): number {
+    return climbAttacker !== null && climbAttacker === team ? 2 : 1;
+}
+
+/**
  * The attacking side (0 / 1) from the roles two players asked for: a wish the
  * other side doesn't contest is granted; the same wish on both sides, or none,
  * is a coin flip on the match seed.

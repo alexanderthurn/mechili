@@ -48,7 +48,7 @@ import type {
     SellSettings,
     TowerSettings,
 } from './settings';
-import { yearBoardExtraAllowed } from './settings';
+import { yearBoardExtraAllowed, rallyRouteBuyMax } from './settings';
 import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
 import { detAtan2 } from './detMath';
@@ -498,7 +498,7 @@ export interface ActionContext {
     /** per-SEAT sell state (own Command Tower): `owned` is permanent, `used` resets each round */
     sellState: { owned: boolean[]; used: number[] };
     /** per-SEAT Research Center: one-time rally-route purchase (permanent flag) */
-    rallyRouteOwned: boolean[];
+    rallyRouteBought: number[];
     /** per-SEAT Vanguard: one-time move-pack purchase (permanent flag) */
     movePackOwned: boolean[];
     /** per seat: which of its commander's spells it has already bought */
@@ -1013,11 +1013,12 @@ export class ActionDispatcher {
                 return true;
             }
             case 'buyRallyRouteAbility': {
-                if (this.ctx.rallyRouteOwned[seat]) return false; // once per match, per seat
+                const max = rallyRouteBuyMax(this.ctx.climbAttacker, action.team);
+                if ((this.ctx.rallyRouteBought[seat] ?? 0) >= max) return false;
                 const cost = this.ctx.rallyRouteSettings.abilityCost;
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
-                this.ctx.rallyRouteOwned[seat] = true;
+                this.ctx.rallyRouteBought[seat] = (this.ctx.rallyRouteBought[seat] ?? 0) + 1;
                 // tactics are per-seat now too — your own charge, your own pool
                 this.ctx.tactics[seat]!.push(RALLY_ROUTE_ID);
                 entry.grantedTactics = [RALLY_ROUTE_ID];
@@ -1802,7 +1803,7 @@ export class ActionDispatcher {
                 economy.credit(seat, e.paid!);
                 break;
             case 'buyRallyRouteAbility': {
-                this.ctx.rallyRouteOwned[seat] = false;
+                this.ctx.rallyRouteBought[seat] = Math.max(0, (this.ctx.rallyRouteBought[seat] ?? 0) - 1);
                 for (const id of e.grantedTactics ?? []) {
                     const i = this.ctx.tactics[seat]!.lastIndexOf(id);
                     if (i >= 0) this.ctx.tactics[seat]!.splice(i, 1);

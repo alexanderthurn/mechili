@@ -277,7 +277,7 @@ export interface SelectionInfo {
     /** the permanent sell-ability unlock (Research Center only) */
     sellAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** one-time rally-route charge purchase (Research Center only) */
-    rallyRouteAbility?: { cost: number; owned: boolean; affordable: boolean };
+    rallyRouteAbility?: { cost: number; owned: number; max: number; affordable: boolean };
     /** Stronghold: your own commander's spells, buyable once each */
     forgeSpells?: {
         tacticId: string;
@@ -3128,18 +3128,18 @@ export class Hud {
             });
         }
         if (info.rallyRouteAbility) {
-            tiles.push({
-                data: 'data-rallyroute="1"',
-                icon: 'tactic-rally',
-                title: t('hud:buyRally'),
-                desc: t('hud:buyRallyDesc', { tactics: DISPLAY.tactics }),
-                cost: info.rallyRouteAbility.cost,
-                state: info.rallyRouteAbility.owned
-                    ? 'owned'
-                    : info.rallyRouteAbility.affordable
-                      ? 'buy'
-                      : 'locked',
-            });
+            const rally = info.rallyRouteAbility;
+            for (let i = 0; i < rally.max; i++) {
+                const slotOwned = i < rally.owned;
+                tiles.push({
+                    data: 'data-rallyroute="1"',
+                    icon: 'tactic-rally',
+                    title: t('hud:buyRally'),
+                    desc: t('hud:buyRallyDesc', { tactics: DISPLAY.tactics }),
+                    cost: rally.cost,
+                    state: slotOwned ? 'owned' : rally.affordable ? 'buy' : 'locked',
+                });
+            }
         }
         if (info.movePackAbility) {
             tiles.push({
