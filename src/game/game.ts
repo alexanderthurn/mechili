@@ -10623,17 +10623,19 @@ export class Game {
                 this.round === 0 &&
                 this.starterPicked[this.humanSeat] &&
                 !this.starterPicked.every(Boolean);
-            // freeze once I've locked in — solo used to keep draining the
-            // timer (and re-firing onDeployTimerExpired) while waiting on the
-            // AI / an ally, which is how a stuck resume showed 0:00 forever
+            // once I've locked in, the clock keeps running so I can see how
+            // long the others still have — it stops at 0:00 and does not
+            // re-fire onDeployTimerExpired (that is what used to leave a
+            // stuck resume on 0:00 forever); their own clocks end them
             const waitingForDeployPeer =
                 this.phase === 'build' && !!this.seatReady[this.humanSeat];
-            if (!waitingForStarterPeer && !waitingForDeployPeer) {
+            if (!waitingForStarterPeer) {
                 this.phaseRemaining -= gameDt;
+                if (waitingForDeployPeer) this.phaseRemaining = Math.max(0, this.phaseRemaining);
             }
             if (this.phase === 'build') {
                 if (this.watching) this.tickReplayPlayback();
-                if (this.phaseRemaining <= 0) this.onDeployTimerExpired();
+                if (this.phaseRemaining <= 0 && !waitingForDeployPeer) this.onDeployTimerExpired();
             } else if (this.phase === 'hpDraw') {
                 // solo pause freezes the drain too — otherwise the souls keep
                 // flying behind the menu and proceedAfterHpDraw starts the next
