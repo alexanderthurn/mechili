@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Vincolo di massa",
-    "description": "Irradia o converte fino a 4 nemici insieme; ogni canale agisce al 18% di intensità."
+    "description": "Irradia o converte fino a 4 nemici insieme; ogni canale agisce al 18% di intensità. −18% di gittata."
   },
   "powerDraw": {
     "name": "Tensione massima",

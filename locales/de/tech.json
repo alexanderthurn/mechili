@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Massenbann",
-    "description": "Strahlt oder bekehrt bis zu 4 Gegner gleichzeitig; jeder Kanal wirkt mit 18% Intensität."
+    "description": "Strahlt oder bekehrt bis zu 4 Gegner gleichzeitig; jeder Kanal wirkt mit 18% Intensität. −18% Reichweite."
   },
   "powerDraw": {
     "name": "Kraftzug",

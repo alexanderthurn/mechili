@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Hromadné spoutání",
-    "description": "Zasáhne paprskem nebo obrátí až 4 nepřátele najednou; každý kanál působí s 18% intenzitou."
+    "description": "Zasáhne paprskem nebo obrátí až 4 nepřátele najednou; každý kanál působí s 18% intenzitou. −18% dostřelu."
   },
   "powerDraw": {
     "name": "Plný nátah",

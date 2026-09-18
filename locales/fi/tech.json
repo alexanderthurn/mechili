@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Joukkosidonta",
-    "description": "Säteilee tai käännyttää jopa 4 vihollista kerralla; jokainen kanava toimii 18% teholla."
+    "description": "Säteilee tai käännyttää jopa 4 vihollista kerralla; jokainen kanava toimii 18% teholla. −18% kantamaa."
   },
   "powerDraw": {
     "name": "Täysi veto",

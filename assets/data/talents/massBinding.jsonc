@@ -1,10 +1,10 @@
-// Multi-channel beam/convert: several foes at once, each channel much weaker.
+// Multi-channel beam/convert: several foes at once, each channel much weaker; shorter reach.
 {
     "id": "massBinding",
     "name": "Mass Binding",
     "cost": 300,
-    "mods": {},
+    "mods": { "range": 0.82 },
     "convert": { "maxTargets": 4, "intensityMult": 0.18 },
     "icon": "tech-mass-binding",
-    "description": "Beam or convert up to 4 enemies at once; each channel deals 18% intensity.",
+    "description": "Beam or convert up to 4 enemies at once; each channel deals 18% intensity. −18% range.",
 }

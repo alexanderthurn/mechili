@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Massebinding",
-    "description": "Rammer med stråle eller omvender op til 4 fjender på én gang; hver kanal virker med 18% intensitet."
+    "description": "Rammer med stråle eller omvender op til 4 fjender på én gang; hver kanal virker med 18% intensitet. −18% rækkevidde."
   },
   "powerDraw": {
     "name": "Fuldt træk",

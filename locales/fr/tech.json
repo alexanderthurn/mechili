@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Lien de masse",
-    "description": "Rayonne ou convertit jusqu’à 4 ennemis à la fois ; chaque canal agit à 18% d’intensité."
+    "description": "Rayonne ou convertit jusqu’à 4 ennemis à la fois ; chaque canal agit à 18% d’intensité. −18% de portée."
   },
   "powerDraw": {
     "name": "Tension maximale",

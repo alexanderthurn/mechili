@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Ikatan Beramai",
-    "description": "Memancar atau menukar sehingga 4 musuh serentak; setiap saluran berkeamatan 18%."
+    "description": "Memancar atau menukar sehingga 4 musuh serentak; setiap saluran berkeamatan 18%. −18% jarak."
   },
   "powerDraw": {
     "name": "Tarikan Penuh",

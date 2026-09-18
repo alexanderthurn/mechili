@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Masowe spętanie",
-    "description": "Razi lub nawraca do 4 wrogów naraz; każdy kanał działa z 18% intensywności."
+    "description": "Razi lub nawraca do 4 wrogów naraz; każdy kanał działa z 18% intensywności. −18% zasięgu."
   },
   "powerDraw": {
     "name": "Pełny naciąg",

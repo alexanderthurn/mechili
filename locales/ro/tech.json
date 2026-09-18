@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Legare în masă",
-    "description": "Iradiază sau convertește până la 4 inamici deodată; fiecare canal acționează cu 18% intensitate."
+    "description": "Iradiază sau convertește până la 4 inamici deodată; fiecare canal acționează cu 18% intensitate. −18% rază."
   },
   "powerDraw": {
     "name": "Încordare maximă",
