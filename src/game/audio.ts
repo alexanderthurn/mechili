@@ -166,6 +166,13 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    /** Proximity bed while a stronghold collapse front rolls near the camera. */
+    collapse_thunder: {
+        paths: ['audio/collapse_thunder_1.ogg'],
+        group: 'sfx',
+        maxVoices: 1,
+        gain: 0.62,
+    },
     convert: {
         paths: [
             'audio/convert_1.ogg',
@@ -512,19 +519,21 @@ const CUES: Record<string, CueDef> = {
     },
     phase_battle: {
         paths: [
-            'audio/phase_battle_1.ogg',
+            'audio/phase_gong_1.ogg',
+            'audio/phase_gong_2.ogg',
         ],
         group: 'ui',
         maxVoices: 2,
-        gain: 0.42,
+        gain: 0.72,
     },
     phase_deploy: {
         paths: [
-            'audio/phase_deploy_1.ogg',
+            'audio/phase_gong_1.ogg',
+            'audio/phase_gong_2.ogg',
         ],
         group: 'ui',
         maxVoices: 2,
-        gain: 0.4,
+        gain: 0.72,
     },
     ramp_beam: {
         paths: [
@@ -699,14 +708,15 @@ const CUES: Record<string, CueDef> = {
     stronghold_collapse: {
         paths: [
             'audio/stronghold_collapse_1.ogg',
+            'audio/stronghold_collapse_2.ogg',
         ],
         group: 'sfx',
-        maxVoices: 4,
+        maxVoices: 2,
         spatial: true,
         refDistance: SPATIAL_REF,
         maxDistance: SPATIAL_MAX,
         rolloff: SPATIAL_ROLLOFF,
-        gain: 0.85,
+        gain: 1.0,
     },
     summon_flying: {
         paths: [
@@ -909,8 +919,9 @@ void [
     assetUrl('audio/orb_shot_1.ogg'),
     assetUrl('audio/orb_shot_2.ogg'),
     assetUrl('audio/orb_shot_3.ogg'),
-    assetUrl('audio/phase_battle_1.ogg'),
-    assetUrl('audio/phase_deploy_1.ogg'),
+    assetUrl('audio/phase_gong_1.ogg'),
+    assetUrl('audio/phase_gong_2.ogg'),
+    assetUrl('audio/collapse_thunder_1.ogg'),
     assetUrl('audio/ramp_beam_1.ogg'),
     assetUrl('audio/rocket_blast_1.ogg'),
     assetUrl('audio/rocket_blast_2.ogg'),
@@ -933,6 +944,7 @@ void [
     assetUrl('audio/stone_throw_3.ogg'),
     assetUrl('audio/stone_whistle_1.ogg'),
     assetUrl('audio/stronghold_collapse_1.ogg'),
+    assetUrl('audio/stronghold_collapse_2.ogg'),
     assetUrl('audio/summon_flying_1.ogg'),
     assetUrl('audio/summon_flying_2.ogg'),
     assetUrl('audio/summon_ground_1.ogg'),
@@ -1372,6 +1384,42 @@ class AudioBus {
         this.setLoop('fire_loop', false, 0, 0, 0);
         this.setLoop('acid_loop', false, 0, 0, 0);
         this.setLoop('stone_whistle', false, 0, 0, 0);
+        this.setLoop('collapse_thunder', false, 0, 0, 0);
+    }
+
+    /**
+     * Proximity bed on the expanding stronghold-collapse rim (fire/acid family).
+     * Loudest when the camera is near the dust front; keeps playing at 0× speed.
+     */
+    syncCollapseThunder(
+        fronts: readonly { x: number; z: number; radius: number }[],
+    ): void {
+        const lx = this.listenerX;
+        const lz = this.listenerZ;
+        let bestRim = COLLAPSE_THUNDER_MAX_DIST + 1;
+        let sx = lx;
+        let sz = lz;
+        let energy = 0;
+        for (const f of fronts) {
+            const dCenter = distXZ(f.x, f.z, lx, lz);
+            const rimDist = Math.abs(dCenter - f.radius);
+            const cell = hazardCellFalloff(rimDist, COLLAPSE_THUNDER_MAX_DIST);
+            if (cell <= 0) continue;
+            energy += cell;
+            if (rimDist < bestRim) {
+                bestRim = rimDist;
+                // park the bed on the nearest point on the rim
+                if (dCenter < 1e-3) {
+                    sx = f.x + f.radius;
+                    sz = f.z;
+                } else {
+                    const s = f.radius / dCenter;
+                    sx = f.x + (lx - f.x) * s;
+                    sz = f.z + (lz - f.z) * s;
+                }
+            }
+        }
+        this.setLoop('collapse_thunder', true, sx, sz, hazardMassGain(energy));
     }
 
     /**
@@ -1726,6 +1774,8 @@ const FIRE_LOOP_MAX_DIST = 28;
 const ACID_LOOP_MAX_DIST = 16;
 /** Ballistic stones — hear the air whoosh when flying near the camera. */
 const STONE_FLY_MAX_DIST = 36;
+/** Stronghold collapse dust front — thunder bed near the expanding rim. */
+const COLLAPSE_THUNDER_MAX_DIST = 30;
 
 function hazardCellFalloff(dist: number, maxDist: number): number {
     if (dist >= maxDist) return 0;
