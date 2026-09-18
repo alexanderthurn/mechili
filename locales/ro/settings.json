@@ -43,7 +43,7 @@
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (ambele echipe)",
     "timersTitle": "Cronometre și CP",
-    "deploymentPhase": "Faza de implementare",
+    "deploymentPhase": "Faza de desfășurare",
     "battlePhase": "Faza de luptă",
     "commanderPick": "{{commander}} alege",
     "roundCardPick": "Alegere carte de rundă",
@@ -82,7 +82,7 @@
     "upgradeCost": "Costul actualizării",
     "upgradeCostValue": "{{base}} aprovizionare, +{{step}}/nivel",
     "upgradeCostNote": "până la nivelul {{max}}",
-    "deployTitle": "Implementează",
+    "deployTitle": "Desfășoară",
     "buysPerRound": "Achiziții per rundă",
     "buysPerRoundNote": "doar Pack-uri de unități",
     "baseRune": "Rună de bază",

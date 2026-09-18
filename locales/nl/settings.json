@@ -43,7 +43,7 @@
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (beide teams)",
     "timersTitle": "Timers en HP",
-    "deploymentPhase": "Implementatiefase",
+    "deploymentPhase": "Opstellingsfase",
     "battlePhase": "Gevechtsfase",
     "commanderPick": "{{commander}} pick",
     "roundCardPick": "Rondekaart kiezen",

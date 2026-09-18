@@ -26,7 +26,7 @@
   "paceStandard": "Standard",
   "paceRelaxed": "Afslappet",
   "paceLong": "Lang",
-  "paceOption": "{{label}} — Implementer {{build}}s · Kamp {{battle}}s · {{commander}} {{specialist}}s · Kort {{cards}}s",
+  "paceOption": "{{label}} — Opstil {{build}}s · Kamp {{battle}}s · {{commander}} {{specialist}}s · Kort {{cards}}s",
   "strongholdLifeline": "Hæren falder med den",
   "strongholdStandard": "Bare en bygning",
   "strongholdNone": "Ingen på tavlen",
@@ -43,7 +43,7 @@
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (begge hold)",
     "timersTitle": "Timere og HP",
-    "deploymentPhase": "Implementeringsfase",
+    "deploymentPhase": "Opstillingsfase",
     "battlePhase": "Kampfase",
     "commanderPick": "{{commander}} valg",
     "roundCardPick": "Valg af rundekort",

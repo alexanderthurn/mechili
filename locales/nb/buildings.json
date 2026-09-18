@@ -44,7 +44,7 @@
     "description": "Legg til én trekkpakke til trylleformularlisten din: én pakke fra en tidligere runde blir flyttbar igjen. Én gang per kamp."
   },
   "1_deployment": {
-    "name": "+1 Implementering",
+    "name": "+1 Oppstilling",
     "description": "Kjøp av én ekstra enhet kun denne runden."
   },
   "veteran_training": {

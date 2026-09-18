@@ -5,7 +5,7 @@
   },
   "oilSpill": {
     "name": "Poça de óleo",
-    "description": "Coloque dois círculos de óleo — contorne-os durante a implantação; logo após o início da batalha, o óleo pinga da esquerda para a direita no caminho (os discos de proteção permanecem livres). O óleo conectado se inflama como um único campo quando o fogo o toca."
+    "description": "Coloque dois círculos de óleo — contorne-os durante a mobilização; logo após o início da batalha, o óleo pinga da esquerda para a direita no caminho (os discos de proteção permanecem livres). O óleo conectado se inflama como um único campo quando o fogo o toca."
   },
   "sellUnit": {
     "name": "Vender Pack",

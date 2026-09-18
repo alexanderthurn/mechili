@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Venda",
-    "description": "Desbloqueia permanentemente a venda de Packs (até {{maxPerRound}} por fase de implantação). O reembolso é {{refundPct}}% do custo base."
+    "description": "Desbloqueia permanentemente a venda de Packs (até {{maxPerRound}} por fase de mobilização). O reembolso é {{refundPct}}% do custo base."
   },
   "attack_boost": {
     "name": "Aumento de ataque",
@@ -25,7 +25,7 @@
   },
   "loan": {
     "name": "Empréstimo",
-    "description": "+{{gain}} fornecimento agora. Próxima implantação: −{{debt}}. Uma vez por rodada."
+    "description": "+{{gain}} fornecimento agora. Próxima mobilização: −{{debt}}. Uma vez por rodada."
   },
   "ward_dome": {
     "name": "Cúpula protetora",
@@ -44,7 +44,7 @@
     "description": "Adicione uma carga de Pack de movimento à sua faixa de feitiços: um Pack de uma rodada anterior torna-se móvel novamente. Uma vez por partida."
   },
   "1_deployment": {
-    "name": "+1 Implantação",
+    "name": "+1 Mobilização",
     "description": "Uma compra de unidade extra só nesta rodada."
   },
   "veteran_training": {

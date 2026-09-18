@@ -43,7 +43,7 @@
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (begge lag)",
     "timersTitle": "Timere og HP",
-    "deploymentPhase": "Implementeringsfase",
+    "deploymentPhase": "Oppstillingsfase",
     "battlePhase": "Kampfase",
     "commanderPick": "{{commander}} valg",
     "roundCardPick": "Valg av rundekort",
