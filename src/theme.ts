@@ -5392,8 +5392,14 @@ ${chatFloatStyles(u, pc, ec)}
 }
 
 .mechili-panel .item-row { display: flex; gap: 6px; margin: 4px 0 8px; }
-/* a shared 2v2 oven has 6 slots (+ the buy tile) — wrap onto a second line instead of squeezing */
-.mechili-panel .forge-row { flex-wrap: wrap; }
+/* oven slots three to a line (a shared 2v2 oven: 3 + 3); the buy tile / product sit beside them */
+.mechili-panel .forge-row { align-items: center; }
+.mechili-panel .forge-row .forge-slots {
+    display: grid;
+    grid-template-columns: repeat(3, 44px);
+    gap: 6px;
+    flex: 0 0 auto;
+}
 .mechili-panel .forge-block { margin: 4px 0 10px; }
 .mechili-panel .forge-block.ready {
     padding: 8px 8px 6px;
