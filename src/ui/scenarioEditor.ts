@@ -298,6 +298,8 @@ export class ScenarioEditor {
     /** the terrain went back to the generated one: a new board shows it, the terrain history is gone */
     restartForTerrain(): void {
         this.dropTerrainSteps();
+        // the strokes were made on the terrain that is gone — none of them carries over
+        this.host.terrain?.importHistory({ undo: [], redo: [] });
         this.restartWith(this.draft);
     }
 
