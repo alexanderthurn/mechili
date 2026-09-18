@@ -28,7 +28,7 @@ import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
 import {
     emptyForgeSlots,
     forgeHintText,
@@ -11876,14 +11876,20 @@ export class Game {
         // count follows the same fog window the forge and the spells do: an
         // archer the enemy posted THIS round is not on their wall yet as far
         // as you know, and the panel must not be the one place that says so.
+        // Your own keep shows YOUR posts (each seat mans and pays for its own
+        // block, see garrisonSeatSlots); an enemy keep shows the side's total.
         const garrison = u.type.garrison;
         if (garrison) {
-            const manned =
-                fogged && this.buildingIntelSnapshot
-                    ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
-                    : this.strongholdArcherCount(team);
+            const own = u.team === 'player';
+            const manned = own
+                ? garrisonSeatManned(this.placement, u, this.humanSeat)
+                : fogged && this.buildingIntelSnapshot
+                  ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
+                  : this.strongholdArcherCount(team);
             const nextCost = this.types.garrisonPostCost(u.type, manned);
-            const slotMax = garrison.slots.length;
+            const slotMax = own
+                ? garrisonSeatSlots(u, this.seats, this.humanSeat).length
+                : Math.min(garrison.slots.length, garrison.perSeat * teamSeats.length);
             out.strongholdArchers = {
                 cost: nextCost,
                 owned: manned,

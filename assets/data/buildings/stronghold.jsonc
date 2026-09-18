@@ -28,5 +28,5 @@
     "onDestroyed": { "collapseOwnArmy": true },
     "abilities": ["forge", "forgeSpells", "sendSupply"],
     // all five authored battlement pads; 100, 150, 200, 250, 300
-    "garrison": { "slots": [1, 2, 3, 4, 5], "unitTypeId": "stronghold-archer", "priceStep": 50 },
+    "garrison": { "slots": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "perSeat": 5, "unitTypeId": "stronghold-archer", "priceStep": 50 },
 }

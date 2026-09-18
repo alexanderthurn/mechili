@@ -496,6 +496,12 @@ export interface UnitType {
     garrison?: {
         /** `UnitN` pad numbers on the model, in fill order */
         slots: readonly number[];
+        /**
+         * Pads per seat: a side's first seat mans the first `perSeat` of
+         * `slots`, the next seat the next block, … — each seat fills and pays
+         * for its own posts only, so allies never race for one
+         */
+        perSeat: number;
         /** type posted on each pad (looked up in the match's type registry) */
         unitTypeId: string;
         priceStep: number;
