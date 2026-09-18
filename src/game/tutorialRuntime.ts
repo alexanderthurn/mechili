@@ -1529,12 +1529,36 @@ export class TutorialRuntime {
         return false;
     }
 
-    blocksBuyRune(): boolean {
-        if (this.lesson === TUTORIAL_4_ID && (this.host.round === 1 || this.host.round === 2)) {
-            return false;
+    blocksBuyRune(itemId?: string): boolean {
+        if (this.lesson === TUTORIAL_4_ID && this.host.round === 2) return false;
+        if (this.lesson === TUTORIAL_4_ID && this.host.round === 1) {
+            const step = this.guide4?.currentStep ?? '';
+            const buy = /^r1Buy(\d)$/.exec(step);
+            const assign = /^r1Assign(\d)$/.exec(step);
+            const i = buy ? Number(buy[1]) : assign ? Number(assign[1]) : -1;
+            const want = i >= 0 ? TUTORIAL_4_RUNE_LESSON[i]?.runeId : undefined;
+            if (want && itemId === want) return false;
+            this.guide4?.nudge(t('tutorial:tutorial4NudgeRune'));
+            return true;
         }
         this.nudge(t('tutorial:tutorialNudgeRunes'));
         return true;
+    }
+
+    /**
+     * Tutorial 4 R1: each base rune may only land on its scripted pack
+     * (Goblin gets fire/wind, Dwarf gets earth/water) so a mis-drop can't
+     * fill the wrong pack's two slots.
+     */
+    allowsItemDrop(unit: Unit, itemId: string): boolean {
+        if (this.lesson !== TUTORIAL_4_ID || this.host.round !== 1) return true;
+        const lesson = TUTORIAL_4_RUNE_LESSON.find((s) => s.runeId === itemId);
+        if (!lesson) return true;
+        const expected = tutorial4MirroredArmy(this.host.map, 'player')[lesson.packIndex];
+        if (!expected) return false;
+        const ok = unit.type.id === expected.typeId && cellEq(unit.cell, expected.cell);
+        if (!ok) this.guide4?.nudge(t('tutorial:tutorial4NudgeRune'));
+        return ok;
     }
 
     blocksBuyTech(techId: string): boolean {

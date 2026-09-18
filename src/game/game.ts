@@ -1957,10 +1957,11 @@ export class Game {
         // an armed inventory item lands on the next own pack that gets clicked
         this.placement.onSelect = (unit, previous) => {
             if (this.armedItem) {
-                const applied =
-                    hasAbility(unit.type, 'forge') && unit.team === 'player'
-                        ? this.forgeInsertItem(this.armedItem)
-                        : this.applyItemTo(unit, this.armedItem);
+                const applied = this.canDropForgeOn(unit)
+                    ? this.forgeInsertItem(this.armedItem)
+                    : this.canDropArmedItemOn(unit)
+                      ? this.applyItemTo(unit, this.armedItem)
+                      : false;
                 if (applied) {
                     this.armedItem = null;
                     this.armedItemIndex = null;
@@ -8318,7 +8319,9 @@ export class Game {
         if (!this.armedItem || !this.playerCanAct) return false;
         if (unit.seat !== this.humanSeat || unit.type.structure) return false;
         if (unit.items.length >= itemSlotLimit(unit.type)) return false;
-        return !!this.types.rune(this.armedItem);
+        if (!this.types.rune(this.armedItem)) return false;
+        if (this.tutorial && !this.tutorial.allowsItemDrop(unit, this.armedItem)) return false;
+        return true;
     }
 
     /**
@@ -8378,6 +8381,7 @@ export class Game {
     private applyItemTo(unit: Unit, itemId: string): boolean {
         if (!this.playerCanAct || unit.seat !== this.humanSeat || unit.type.structure) return false;
         if (unit.items.length >= itemSlotLimit(unit.type) || !this.types.rune(itemId)) return false;
+        if (this.tutorial && !this.tutorial.allowsItemDrop(unit, itemId)) return false;
         if (!this.dispatchPlayer({ kind: 'applyItem', team: 'player', unitId: unit.id, itemId })) {
             return false;
         }
@@ -8812,7 +8816,7 @@ export class Game {
     /** HUD: buy a base rune into the bag — no per-round purchase-slot limit. */
     private buyRune(itemId: string): boolean {
         if (!this.playerCanAct) return false;
-        if (this.tutorial?.blocksBuyRune()) return false;
+        if (this.tutorial?.blocksBuyRune(itemId)) return false;
         const ok = this.dispatchPlayer({
             kind: 'buyRune',
             team: 'player',
