@@ -15,8 +15,8 @@ import { itemSlotLimit } from './items';
 import {
     FORGE_SLOTS_PER_PLAYER,
     forgeProductCost,
-    forgeSeatCanInsert,
-    forgeSeatFilledCount,
+    forgeSeatFirstFree,
+    forgeSeatSlotRange,
     resolveForge,
     type ForgeSlot,
     type ForgeSpellPool,
@@ -49,7 +49,7 @@ import type {
     TowerSettings,
 } from './settings';
 import type { TechTree } from './tech';
-import { primarySeatOf, type SeatDef, type SeatId } from './seats';
+import { primarySeatOf, seatIdsOf, type SeatDef, type SeatId } from './seats';
 import { detAtan2 } from './detMath';
 import {
     strongholdArcherSlotWorld,
@@ -1312,12 +1312,16 @@ export class ActionDispatcher {
                 // was bought, so it is sealed until it resolves
                 if (this.ctx.forgeLitBy[action.team] !== null) return false;
                 const oven = this.ctx.forgeSlots[action.team]!;
-                if (!forgeSeatCanInsert(oven, seat)) return false;
-                let slot = action.slot;
-                if (slot === undefined) {
-                    slot = oven.findIndex((s) => s === null);
-                }
-                if (slot < 0 || slot >= oven.length || oven[slot] !== null) return false;
+                // own block only (see forgeSeatSlotRange): a drop on any slot —
+                // an ally's included — lands in this seat's first free one
+                const range = forgeSeatSlotRange(seatIdsOf(this.ctx.seats, action.team), seat);
+                if (!range) return false;
+                const asked = action.slot;
+                const slot =
+                    asked !== undefined && asked >= range.start && asked < range.end && oven[asked] === null
+                        ? asked
+                        : forgeSeatFirstFree(oven, range);
+                if (slot < 0 || slot >= oven.length) return false;
                 const inventory = this.ctx.items[seat]!;
                 const held = inventory.indexOf(action.itemId);
                 if (held < 0) return false;
@@ -1334,11 +1338,12 @@ export class ActionDispatcher {
                     if (!this.ctx.types.rune(id)) return false;
                 }
                 const oven = this.ctx.forgeSlots[action.team]!;
-                if (forgeSeatFilledCount(oven, seat) + ids.length > FORGE_SLOTS_PER_PLAYER) {
-                    return false;
-                }
-                const emptyCount = oven.reduce((n, s) => n + (s === null ? 1 : 0), 0);
-                if (emptyCount < ids.length) return false;
+                const range = forgeSeatSlotRange(seatIdsOf(this.ctx.seats, action.team), seat);
+                if (!range) return false;
+                // own block only (see forgeSeatSlotRange)
+                const free: number[] = [];
+                for (let i = range.start; i < range.end && i < oven.length; i++) if (oven[i] === null) free.push(i);
+                if (free.length < ids.length) return false;
                 const inventory = this.ctx.items[seat]!;
                 const bag = new Map<string, number>();
                 for (const id of inventory) bag.set(id, (bag.get(id) ?? 0) + 1);
@@ -1348,9 +1353,9 @@ export class ActionDispatcher {
                     if ((bag.get(id) ?? 0) < n) return false;
                 }
                 const placed: { slot: number; itemId: string }[] = [];
-                for (const itemId of ids) {
-                    const slot = oven.findIndex((s) => s === null);
-                    if (slot < 0) return false;
+                for (let k = 0; k < ids.length; k++) {
+                    const itemId = ids[k]!;
+                    const slot = free[k]!;
                     const held = inventory.indexOf(itemId);
                     if (held < 0) return false;
                     inventory.splice(held, 1);
@@ -1364,7 +1369,10 @@ export class ActionDispatcher {
                 if (this.ctx.forgeLitBy[action.team] !== null) return false; // sealed, see forgeInsert
                 const oven = this.ctx.forgeSlots[action.team]!;
                 const { slot, itemId } = action;
-                if (slot < 0 || slot >= oven.length) return false;
+                // own block only: only this seat's own actions ever change it,
+                // so the index names the same rune on every machine
+                const range = forgeSeatSlotRange(seatIdsOf(this.ctx.seats, action.team), seat);
+                if (!range || slot < range.start || slot >= range.end || slot >= oven.length) return false;
                 const cur = oven[slot];
                 if (!cur || cur.itemId !== itemId) return false;
                 // only the inserter, and only this deploy (same as pack remove)

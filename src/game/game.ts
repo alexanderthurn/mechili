@@ -8349,7 +8349,7 @@ export class Game {
         if (!this.armedItem || !this.playerCanAct) return false;
         if (!hasAbility(unit.type, 'forge') || unit.team !== 'player') return false;
         if (!this.types.rune(this.armedItem)) return false;
-        return forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat);
+        return forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat, seatIdsOf(this.seats, 'player'));
     }
 
     /** press-drag release over the board — equip if the pack under the cursor is valid */
@@ -8412,7 +8412,7 @@ export class Game {
     /** slot a rune into the shared Stronghold forge */
     private forgeInsertItem(itemId: string): boolean {
         if (!this.playerCanAct || !this.types.rune(itemId)) return false;
-        if (!forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat)) return false;
+        if (!forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat, seatIdsOf(this.seats, 'player'))) return false;
         return this.dispatchPlayer({ kind: 'forgeInsert', team: 'player', itemId });
     }
 

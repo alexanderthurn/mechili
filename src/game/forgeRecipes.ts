@@ -54,25 +54,47 @@ export function forgeTeamCapacity(teamSeatCount: number): number {
     return Math.max(1, teamSeatCount) * FORGE_SLOTS_PER_PLAYER;
 }
 
-/** How many oven runes this seat currently owns. */
-export function forgeSeatFilledCount(
-    oven: readonly (ForgeSlot | null)[],
+/**
+ * The oven slots a seat may use: its own block of {@link FORGE_SLOTS_PER_PLAYER},
+ * by its place on the side (the side's first seat 0–2, the next 3–5, …).
+ *
+ * A shared 2v2 oven is written by two machines' actions that can arrive in
+ * either order. If both drew from one pool of slots ("first empty"), each
+ * machine would seat the runes differently and a later removal by slot index
+ * would point at a different rune. With fixed blocks a seat only ever touches
+ * its own slots, which every machine changes in that seat's own order — the
+ * tray is identical everywhere, whatever the ally does meanwhile. The bake
+ * reads the whole tray, so the product stays combined.
+ */
+export function forgeSeatSlotRange(
+    teamSeats: readonly SeatId[],
     seat: SeatId,
-): number {
-    let n = 0;
-    for (const s of oven) {
-        if (s && s.seat === seat) n++;
-    }
-    return n;
+): { start: number; end: number } | null {
+    const rank = teamSeats.indexOf(seat);
+    if (rank < 0) return null;
+    const start = rank * FORGE_SLOTS_PER_PLAYER;
+    return { start, end: start + FORGE_SLOTS_PER_PLAYER };
 }
 
-/** True if this seat may insert another rune (empty tray slot + under personal cap). */
+/** the seat's first empty slot inside its own block, or -1 */
+export function forgeSeatFirstFree(
+    oven: readonly (ForgeSlot | null)[],
+    range: { start: number; end: number },
+): number {
+    for (let i = range.start; i < range.end && i < oven.length; i++) {
+        if (oven[i] === null) return i;
+    }
+    return -1;
+}
+
+/** True if this seat may insert another rune: a free slot in its own block. */
 export function forgeSeatCanInsert(
     oven: readonly (ForgeSlot | null)[],
     seat: SeatId,
+    teamSeats: readonly SeatId[],
 ): boolean {
-    if (forgeSeatFilledCount(oven, seat) >= FORGE_SLOTS_PER_PLAYER) return false;
-    return oven.some((s) => s === null);
+    const range = forgeSeatSlotRange(teamSeats, seat);
+    return !!range && forgeSeatFirstFree(oven, range) >= 0;
 }
 
 /** one empty tray sized for the side (default = solo / per-player size) */

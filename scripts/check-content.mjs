@@ -1027,6 +1027,65 @@ try {
         else console.log(`ok   landscapes: capture → file → decode keeps board heights exact and outer hills in place (no shift, no inflation, no drift), drapes any tier; ${land.landscapeIds().length} bundled map(s) decode`);
     }
 
+    // ---- shared 2v2 forge: each seat owns its own block of oven slots, so the
+    // two seats' actions give the same oven in any arrival order
+    {
+        const { ActionDispatcher } = await server.ssrLoadModule('/src/game/actions.ts');
+        const RUNES = ['earth', 'fire', 'wind', 'water'];
+        let seed = 7;
+        const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+        const pick = () => RUNES[(rnd() * 4) | 0];
+        const script = (seat) =>
+            Array.from({ length: 10 }, () => {
+                const r = rnd();
+                if (r < 0.45) return { kind: 'forgeInsert', team: 'player', seat, itemId: pick(), ...(rnd() < 0.5 ? { slot: (rnd() * 7) | 0 } : {}) };
+                if (r < 0.6) return { kind: 'forgeFill', team: 'player', seat, itemIds: [pick(), pick()].slice(0, 1 + ((rnd() * 2) | 0)) };
+                if (r < 0.85) return { kind: 'forgeRemove', team: 'player', seat, slot: (rnd() * 6) | 0, itemId: pick() };
+                return { undo: true, seat };
+            });
+        const run = (seats, bags, order) => {
+            const ctx = {
+                types: { rune: (id) => (RUNES.includes(id) ? { id } : undefined) },
+                seats,
+                clock: () => ({ round: 3, phase: 'deploy' }),
+                forgeLitBy: { player: null, enemy: null },
+                forgeSlots: { player: Array(6).fill(null), enemy: [] },
+                items: bags.map((b) => b.slice()),
+            };
+            const d = new ActionDispatcher(ctx);
+            const res = {};
+            for (const a of order) (res[a.seat] ??= []).push(a.undo ? d.undoLast(3, a.seat) : d.dispatch(a));
+            return JSON.stringify([ctx.forgeSlots.player, ctx.items.map((b) => b.slice().sort()), res]);
+        };
+        let bad = '';
+        for (const seats of [
+            [{ team: 'player' }, { team: 'player' }, { team: 'enemy' }, { team: 'enemy' }],
+            [{ team: 'enemy' }, { team: 'player' }, { team: 'enemy' }, { team: 'player' }],
+        ]) {
+            const ids = seats.flatMap((s, i) => (s.team === 'player' ? [i] : []));
+            for (let trial = 0; trial < 500 && !bad; trial++) {
+                const bags = seats.map(() => Array.from({ length: 5 }, pick));
+                const a = script(ids[0]);
+                const b = script(ids[1]);
+                const base = run(seats, bags, [...a, ...b]);
+                const oven = JSON.parse(base)[0];
+                oven.forEach((s, i) => {
+                    if (s && ids.indexOf(s.seat) !== Math.floor(i / 3)) bad ||= `seat ${s.seat} rune in slot ${i}`;
+                });
+                for (let k = 0; k < 4 && !bad; k++) {
+                    const order = [];
+                    let i = 0, j = 0;
+                    while (i < a.length || j < b.length) order.push(j >= b.length || (i < a.length && rnd() < 0.5) ? a[i++] : b[j++]);
+                    if (run(seats, bags, order) !== base) bad = `interleaving changed the oven (${JSON.stringify(order)})`;
+                }
+            }
+        }
+        if (bad) {
+            failed = true;
+            console.error(`FAIL forge order: ${bad}`);
+        } else console.log('ok   forge: 2v2 oven identical in every arrival order, each seat stays in its own slots');
+    }
+
     // ---- bundled campaigns (assets/campaign/<id>/): every level parses, meta names them in order
     {
         const camp = await server.ssrLoadModule('/src/game/campaign.ts');
