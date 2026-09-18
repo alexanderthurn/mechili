@@ -102,7 +102,7 @@
     "advanced": "Zaawansowany",
     "shopTitle": "Kupione w sklepie lub wylosowane z karty rundy",
     "shopLabel": "Cena sklepowa",
-    "forgeTitle": "Wykute w {{building}}",
+    "forgeTitle": "Wylosowane z karty rundy",
     "forgeLabel": "Cena kuźni",
     "mixForgeLabel": "Cena kucia",
     "mixForgeTitle": "Wykute w Twierdzy",

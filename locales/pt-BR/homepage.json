@@ -102,7 +102,7 @@
     "advanced": "Avançado",
     "shopTitle": "Comprado na loja ou tirado de uma carta de rodada",
     "shopLabel": "Preço de tabela",
-    "forgeTitle": "Forjado no {{building}}",
+    "forgeTitle": "Obtido de uma carta de rodada",
     "forgeLabel": "Preço da forja",
     "mixForgeLabel": "Preço de forja",
     "mixForgeTitle": "Forjada na Fortaleza",

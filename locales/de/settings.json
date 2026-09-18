@@ -52,7 +52,7 @@
     "strongholdNoneNote": "Keine Hochburg, also auch keine Schmiede.",
     "economyTitle": "Wirtschaft",
     "round1Income": "Einkommen aus Runde 1",
-    "supplyAmount": "Vorräte",
+    "supplyAmount": "{{amount}} Vorräte",
     "incomeGrowth": "Einkommenswachstum",
     "incomeGrowthValue": "+{{amount}}/Runde",
     "incomeGrowthNote": "Runde N gewährt Startvorrat + (N-1) × Wachstum",

@@ -102,7 +102,7 @@
     "advanced": "Розширений",
     "shopTitle": "Куплено в магазині або вибрано з карти раунду",
     "shopLabel": "Ціна в магазині",
-    "forgeTitle": "Викувано на {{building}}",
+    "forgeTitle": "Отримано з картки раунду",
     "forgeLabel": "Ціна кузні",
     "mixForgeLabel": "Ціна кування",
     "mixForgeTitle": "Викуто у Твердині",
