@@ -2332,15 +2332,58 @@ ${chatFloatStyles(u, pc, ec)}
 }
 /* Narrow / single-column lobby: use more horizontal room so advanced
    settings (2-col selects) and the main button stack aren't tiny. */
+/* Phone / narrow: submenu sheets go edge-to-edge; the root main menu
+   stays a floating console. Corner chrome + lobby chat stay above. */
 @media (max-width: 719px) {
-    .mechili-menu {
+    html .mechili-menu:has([data-view="main"].is-active) {
         width: min(92vw, 420px);
     }
-    .mechili-menu:has(.m-session.is-active) {
-        width: min(94vw, 460px);
+    html .mechili-menu:not(:has([data-view="main"].is-active)) {
+        position: absolute;
+        inset: 0;
+        left: 0;
+        top: 0;
+        transform: none;
+        width: auto;
+        max-width: none;
+        height: auto;
+        max-height: none;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+        gap: 10px;
+        overflow: hidden;
+        padding:
+            max(56px, calc(10px + env(safe-area-inset-top) + 44px))
+            max(16px, env(safe-area-inset-right))
+            max(64px, calc(14px + env(safe-area-inset-bottom) + 48px))
+            max(16px, env(safe-area-inset-left));
     }
-    .mechili-menu:has(.m-session.is-active.m-has-lobby-settings.m-lobby-settings-open) {
-        width: min(96vw, 520px);
+    .mechili-menu:not(:has([data-view="main"].is-active))::before {
+        left: 16px;
+        right: 16px;
+    }
+    .mechili-menu:not(:has([data-view="main"].is-active)) .m-view.is-active {
+        flex: 1;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .mechili-menu:not(:has([data-view="main"].is-active)) .m-room-list,
+    .mechili-menu:not(:has([data-view="main"].is-active)) .m-scenario-list {
+        max-height: none;
+        flex: 1;
+        min-height: 120px;
+    }
+    .mechili-corner-actions,
+    .mechili-username,
+    .mechili-loadout-btn,
+    .mechili-lobby-chat {
+        z-index: 35;
+    }
+    .mechili-lobby-chat {
+        width: min(420px, calc(100vw - 24px));
     }
 }
 .mechili-menu .m-lobby-ready-check { width: 18px; height: 18px; accent-color: ${u.brass}; cursor: pointer; }
@@ -3213,7 +3256,12 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     border-radius: 4px;
     min-width: 280px;
     max-width: min(360px, 92vw);
+    max-height: min(88vh, calc(100dvh - 32px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     color: ${u.text};
+    box-sizing: border-box;
 }
 .mechili-name-edit .title {
     font-size: 14px;
@@ -3654,12 +3702,89 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     }
 }
 .mechili-settings .s-row input:focus-visible { outline: 2px solid ${u.bronze}; outline-offset: 1px; }
+/* Phone / narrow: edge-to-edge sheet — more room for tabs + graphics advanced. */
+@media (max-width: 719px) {
+    .mechili-settings {
+        padding: 0;
+        align-items: stretch;
+        justify-content: stretch;
+        background: rgba(0, 0, 0, 0.72);
+    }
+    .mechili-settings .box {
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        max-height: none;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+        gap: 12px;
+        padding:
+            max(14px, env(safe-area-inset-top))
+            max(16px, env(safe-area-inset-right))
+            max(14px, env(safe-area-inset-bottom))
+            max(16px, env(safe-area-inset-left));
+    }
+    .mechili-settings .box::before { display: none; }
+    .mechili-settings .s-tab {
+        padding: 10px 8px;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+    }
+    .mechili-settings .s-row {
+        font-size: 14px;
+        gap: 10px;
+        min-height: 28px;
+    }
+    .mechili-settings .actions {
+        padding-top: 4px;
+        flex-shrink: 0;
+    }
+}
 @media (min-width: 720px) {
     .mechili-settings .box {
         width: min(480px, calc(100vw - 48px));
         padding: 22px 24px 18px;
     }
     .mechili-settings .s-title { font-size: 17px; letter-spacing: 0.26em; }
+}
+
+/* Shared phone sheet: profile / suggest / pause match settings fullscreen. */
+@media (max-width: 719px) {
+    .mechili-name-edit,
+    .mechili-suggest,
+    .mechili-pause {
+        padding: 0;
+        align-items: stretch;
+        justify-content: stretch;
+        background: rgba(0, 0, 0, 0.72);
+    }
+    html .mechili-name-edit .box,
+    html .mechili-suggest .box,
+    html .mechili-pause .pause-box {
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        height: 100%;
+        max-height: none;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+        gap: 12px;
+        padding:
+            max(14px, env(safe-area-inset-top))
+            max(16px, env(safe-area-inset-right))
+            max(14px, env(safe-area-inset-bottom))
+            max(16px, env(safe-area-inset-left));
+    }
+    html .mechili-name-edit .box::before,
+    html .mechili-suggest .box::before,
+    html .mechili-pause .pause-box::before {
+        display: none;
+    }
+    .mechili-pause .pause-box {
+        justify-content: center;
+    }
 }
 
 /* Community Suggest — shared by game menu / pause / homepage */
@@ -3684,8 +3809,13 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     border: 2px solid ${u.border};
     border-radius: 4px;
     width: min(420px, 100%);
+    max-height: min(88vh, calc(100dvh - 32px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     color: ${u.text};
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    box-sizing: border-box;
 }
 .mechili-suggest .s-title {
     font-size: 15px;
