@@ -3131,13 +3131,15 @@ export class Hud {
             const rally = info.rallyRouteAbility;
             for (let i = 0; i < rally.max; i++) {
                 const slotOwned = i < rally.owned;
+                // only the next slot is for sale; the ones after it wait their turn
+                const next = i === rally.owned;
                 tiles.push({
                     data: 'data-rallyroute="1"',
                     icon: 'tactic-rally',
                     title: t('hud:buyRally'),
                     desc: t('hud:buyRallyDesc', { tactics: DISPLAY.tactics }),
                     cost: rally.cost,
-                    state: slotOwned ? 'owned' : rally.affordable ? 'buy' : 'locked',
+                    state: slotOwned ? 'owned' : next && rally.affordable ? 'buy' : 'locked',
                 });
             }
         }

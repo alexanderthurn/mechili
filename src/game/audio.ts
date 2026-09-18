@@ -922,6 +922,10 @@ class AudioBus {
     private musicGain: GainNode | null = null;
     /** Bumps when a newer playMusic request supersedes an in-flight load. */
     private musicGen = 0;
+    /** The bed the game's current state asks for (menu / match / none) — see {@link playMusic}. */
+    private wantedMusic: string | null = null;
+    /** The bed being decoded right now (not yet audible), so a repeat ask doesn't restart it. */
+    private loadingMusic: string | null = null;
     private unsubPrefs: (() => void) | null = null;
     /** Sustained beam loops keyed by cue id. */
     private loops = new Map<string, { source: AudioBufferSourceNode; gain: GainNode }>();
@@ -931,6 +935,8 @@ class AudioBus {
         const ctx = this.ensureCtx();
         if (ctx.state === 'suspended') void ctx.resume();
         this.unlocked = true;
+        // the state may have asked for music before there was a context
+        this.syncMusic();
     }
 
     get isUnlocked(): boolean {
@@ -991,6 +997,8 @@ class AudioBus {
         this.groups.sfx.gain.value = clamp01(p.sfxVolume);
         this.groups.music.gain.value = clamp01(p.musicVolume);
         this.groups.ui.gain.value = clamp01(p.uiVolume);
+        // mute stops the bed, unmute brings back whatever the state wants
+        this.syncMusic();
     }
 
     play(cueId: string, worldX?: number, worldZ?: number): boolean {
@@ -1050,18 +1058,29 @@ class AudioBus {
     }
 
     /**
-     * Start / switch / stop a looping music bed.
-     * Pass `null` to stop. Beds lazy-load; a newer call cancels an older load.
+     * Declare the bed the game's current state wants (`null` = silence).
+     * Called from state changes only — menu shown, match started — never
+     * from buttons. Playback follows on its own: it waits for the first
+     * gesture's context, stops on mute and comes back on unmute, and asking
+     * again for the bed already playing or loading changes nothing.
      */
     playMusic(cueId: string | null): void {
-        // Always resume — browsers suspend the context until a user gesture.
-        this.unlock();
-        if (cueId === this.musicCueId && this.musicSource) return;
+        this.wantedMusic = cueId;
+        this.syncMusic();
+    }
+
+    /** make what plays match {@link wantedMusic} (and mute) */
+    private syncMusic(): void {
+        const want = prefs().audioMuted ? null : this.wantedMusic;
+        const current = this.musicSource ? this.musicCueId : this.loadingMusic;
+        if (want === current) return;
         const gen = ++this.musicGen;
         this.stopMusicImmediate();
-        if (!cueId) return;
-        if (prefs().audioMuted) return;
-        void this.startMusic(cueId, gen);
+        this.loadingMusic = null;
+        // no context before the first gesture — unlock() syncs again then
+        if (!want || !this.ctx) return;
+        this.loadingMusic = want;
+        void this.startMusic(want, gen);
     }
 
     get currentMusic(): string | null {
@@ -1073,6 +1092,7 @@ class AudioBus {
         if (!cue || cue.group !== 'music') return;
         await this.decodeAll([...cue.paths]);
         if (gen !== this.musicGen) return;
+        this.loadingMusic = null;
         if (!this.ctx || prefs().audioMuted) return;
         const path = cue.paths[0];
         if (!path) return;
