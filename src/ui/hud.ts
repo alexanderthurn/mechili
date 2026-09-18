@@ -865,6 +865,7 @@ export class Hud {
         const shopGrid = document.createElement('div');
         shopGrid.className = 'shop-grid';
         this.shopGrid = shopGrid;
+        window.addEventListener('resize', this.onShopResize);
         for (const type of shopUnits) {
             const i = this.types.roster.indexOf(type);
             const tile = makeShopTile(type, i);
@@ -2383,6 +2384,28 @@ export class Hud {
         }
     }
 
+    /**
+     * Two rows of unit tiles, a new column per two units growing left — until
+     * that would pass the panel's max width (half the screen): then as many rows
+     * as it takes to stay inside, so no tile ends up outside the frame.
+     */
+    /** a narrower window may need the grid's third row (and a wider one lets it go) */
+    private readonly onShopResize = (): void => this.fitShopRows();
+
+    private fitShopRows(): void {
+        let tiles = 0;
+        for (const el of Array.from(this.shopGrid.children) as HTMLElement[]) {
+            if (el.style.display !== 'none') tiles++;
+        }
+        const TILE = 78;
+        const GAP = 6;
+        const PAD = 26; // panel side padding
+        const maxWidth = window.innerWidth * 0.5 - PAD;
+        const maxCols = Math.max(1, Math.floor((maxWidth + GAP) / (TILE + GAP)));
+        const rows = Math.max(2, Math.ceil(Math.ceil(tiles / 2) > maxCols ? tiles / maxCols : 2));
+        this.shopGrid.style.setProperty('--shop-rows', String(rows));
+    }
+
     setShopRuneCost(cost: number, balance: number): void {
         this.shopRuneCost = cost;
         this.shopRuneBalance = balance;
@@ -2769,6 +2792,7 @@ export class Hud {
         const showUnlock = commanderChosen && unlockAvailable && hasLocked;
         this.unlockTile.style.display = showUnlock ? '' : 'none';
         this.unlockTile.classList.toggle('available', showUnlock);
+        this.fitShopRows();
         this.refreshCosts();
         for (const { el, type } of this.buttons) {
             if (type.extra) continue;
@@ -4849,6 +4873,7 @@ export class Hud {
 
     /** removes every HUD element from the page */
     destroy(): void {
+        window.removeEventListener('resize', this.onShopResize);
         this.unregisterHoverClear?.();
         this.unregisterHoverClear = null;
         this.clearTutorialHighlight();

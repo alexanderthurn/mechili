@@ -4322,8 +4322,13 @@ ${chatFloatStyles(u, pc, ec)}
 .shop-toolbar .level-all-global.unaffordable,
 .mechili-phone-status .level-all-global.unaffordable { opacity: 0.35; pointer-events: none; }
 .mechili-shop {
-    /* 3× ~80% tiles vs prior 2-col (~97px → ~78px) */
-    width: 274px;
+    /* sized by its unit grid (2 rows, a column per 2 units, growing left) —
+       at least the old 3-column width so the header / rune row keep room,
+       at most half the screen; past that the grid goes to 3 rows (hud.ts fitShopRows) */
+    width: max-content;
+    min-width: 274px;
+    max-width: 50vw;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -4458,13 +4463,14 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-cards .unlock-picker .shop-grid {
     display: grid;
     /* 2 vertical tiles per column; add columns as needed. */
-    grid-template-rows: repeat(2, 78px);
+    grid-template-rows: repeat(var(--shop-rows, 2), 78px);
     grid-auto-flow: column;
     /* Keep tile size stable. */
     grid-auto-columns: 78px;
     /* Fill columns from the right edge inward. */
     direction: rtl;
     width: 100%;
+    min-width: max-content;
     box-sizing: border-box;
     gap: 6px;
 }
@@ -5386,6 +5392,8 @@ ${chatFloatStyles(u, pc, ec)}
 }
 
 .mechili-panel .item-row { display: flex; gap: 6px; margin: 4px 0 8px; }
+/* a shared 2v2 oven has 6 slots (+ the buy tile) — wrap onto a second line instead of squeezing */
+.mechili-panel .forge-row { flex-wrap: wrap; }
 .mechili-panel .forge-block { margin: 4px 0 10px; }
 .mechili-panel .forge-block.ready {
     padding: 8px 8px 6px;
@@ -5484,6 +5492,8 @@ ${chatFloatStyles(u, pc, ec)}
     position: relative;
     width: 44px;
     height: 44px;
+    /* never squeezed by a full row — a shrunk width turned the round slots into eggs */
+    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
