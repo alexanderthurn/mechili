@@ -168,7 +168,7 @@ import {
 import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { initI18n, onLanguageChange, t } from './i18n';
 import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
-import { assetUrl, type OverlayFile } from './game/assets';
+import { assetUrl, isScenarioTerrainFile, type OverlayFile } from './game/assets';
 
 const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
 /**
@@ -3988,7 +3988,11 @@ async function copyShareCode(id: string, files: readonly OverlayFile[]): Promise
         console.info('[scenario] share code:', code);
         return 'Could not reach the clipboard — the code is in the console';
     }
-    const note = skipped.length > 0 ? ` (without ${skipped.length} model/texture files)` : '';
+    const terrain = skipped.some((p) => isScenarioTerrainFile(p));
+    const media = skipped.filter((p) => !isScenarioTerrainFile(p)).length;
+    const note =
+        (terrain ? ' (without the terrain — too big for a code, share a zip for it)' : '') +
+        (media > 0 ? ` (without ${media} model/texture files)` : '');
     return `Code copied — ${Math.ceil(code.length / 1024)} KB${note}`;
 }
 
