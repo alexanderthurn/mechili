@@ -648,6 +648,34 @@ export function towerUpgradeCost(currentLevel: number, towers: TowerSettings): n
 }
 
 /**
+ * Who may upgrade base building `u`, and for what. A seat's own tower: its
+ * owner alone, up to `maxLevel`, priced by the tower's level. The Stronghold,
+ * which a whole side shares: every seat buys its own `maxLevel - 1` upgrades,
+ * priced by its own count, and the keep's level is their sum — so two allies
+ * upgrading at once land on the same level and prices in either order.
+ * Null = not this seat's to upgrade.
+ */
+export function buildingUpgradeFor(
+    u: Unit,
+    seat: SeatId,
+    towers: TowerSettings,
+): { cost: number; maxed: boolean; own: number; shared: boolean } | null {
+    const cap = towers.upgrade.maxLevel - 1;
+    if (u.type.baseAnchor === 'stronghold') {
+        const own = u.upgradesBySeat[seat] ?? 0;
+        return { cost: towerUpgradeCost(1 + own, towers), maxed: own >= cap, own, shared: true };
+    }
+    if (u.seat !== seat) return null;
+    return { cost: towerUpgradeCost(u.level, towers), maxed: u.level >= towers.upgrade.maxLevel, own: u.level - 1, shared: false };
+}
+
+/** highest level building `u` can reach: the Stronghold adds every seat's upgrades */
+export function buildingMaxLevel(u: Unit, roster: readonly SeatDef[], towers: TowerSettings): number {
+    if (u.type.baseAnchor !== 'stronghold' || u.team === 'horde') return towers.upgrade.maxLevel;
+    return 1 + (towers.upgrade.maxLevel - 1) * Math.max(1, seatIdsOf(roster, u.team).length);
+}
+
+/**
  * Validates actions against the current state, applies them, and keeps the
  * ordered log that doubles as undo history and replay data.
  */
@@ -994,10 +1022,11 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || !unit.type.structure || unit.type.extra) {
                     return false;
                 }
-                if (unit.level >= this.ctx.towers.upgrade.maxLevel) return false;
-                const cost = towerUpgradeCost(unit.level, this.ctx.towers);
-                if (!economy.spend(seat, cost)) return false;
-                entry.paid = cost;
+                const up = buildingUpgradeFor(unit, seat, this.ctx.towers);
+                if (!up || up.maxed) return false;
+                if (!economy.spend(seat, up.cost)) return false;
+                entry.paid = up.cost;
+                if (up.shared) unit.upgradesBySeat[seat] = up.own + 1;
                 unit.level++;
                 unit.refreshLevelBadge();
                 return true;
@@ -1797,6 +1826,7 @@ export class ActionDispatcher {
                 break;
             case 'upgradeTower': {
                 const unit = placement.unitById(action.unitId)!;
+                if (unit.type.baseAnchor === 'stronghold') unit.upgradesBySeat[seat] = (unit.upgradesBySeat[seat] ?? 1) - 1;
                 unit.level--;
                 unit.refreshLevelBadge();
                 economy.credit(seat, e.paid!);

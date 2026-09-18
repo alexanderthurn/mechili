@@ -28,7 +28,7 @@ import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, buildingMaxLevel, buildingUpgradeFor, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
 import {
     emptyForgeSlots,
     forgeHintText,
@@ -3281,6 +3281,7 @@ export class Game {
             if (!want(team, type.id)) return;
             const unit = this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
             if (unit) {
+                if (type.baseAnchor === 'stronghold' && seatIdsOf(this.seats, team).length > 1) unit.levelGrowth = 0.05;
                 placed.push(unit);
                 this.baseBuildingUnits.add(unit);
             }
@@ -11432,17 +11433,17 @@ export class Game {
             itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
-            towerUpgrade:
-                ownInteractive && u.type.structure && !u.type.extra && !this.tutorial?.boostLessonOnly
-                    ? {
-                          cost: towerUpgradeCost(u.level, this.settings.towers),
-                          affordable:
-                              this.economy.balance(this.humanSeat) >=
-                              towerUpgradeCost(u.level, this.settings.towers),
-                          maxed: u.level >= this.settings.towers.upgrade.maxLevel,
-                          maxLevel: this.settings.towers.upgrade.maxLevel,
-                      }
-                    : undefined,
+            towerUpgrade: (() => {
+                if (!ownInteractive || !u.type.structure || u.type.extra || this.tutorial?.boostLessonOnly) return undefined;
+                const up = buildingUpgradeFor(u, this.humanSeat, this.settings.towers);
+                if (!up) return undefined; // an ally's own tower
+                return {
+                    cost: up.cost,
+                    affordable: this.economy.balance(this.humanSeat) >= up.cost,
+                    maxed: up.maxed,
+                    maxLevel: buildingMaxLevel(u, this.seats, this.settings.towers),
+                };
+            })(),
             // the next level is a purchase: needs banked XP and supply
             levelUp: this.levelUpInfo(u, lv),
             techs: this.techSelection(u),

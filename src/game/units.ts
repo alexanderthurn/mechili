@@ -1261,6 +1261,17 @@ export class Unit {
     deployedRound = 0;
     /** veterancy, persists across rounds: kills grant XP, levels multiply hp & damage */
     level = 1;
+    /**
+     * Shared building (see `buildingUpgradeFor`): upgrades bought per seat.
+     * Its level is its starting level plus their sum.
+     */
+    readonly upgradesBySeat: number[] = [];
+    /**
+     * Base building growth per level above 1. 10%, but a 2v2 Stronghold (both
+     * seats' upgrades summed, up to level 9) grows 5% so it stays on its hill.
+     * Feeds the archer pads, so it must be log-derived: set at spawn only.
+     */
+    levelGrowth = 0.1;
     xp = 0;
     /** last level used for mesh tint (avoids re-applying every fog frame) */
     private lookDisplayLevel = -1;
@@ -1530,7 +1541,7 @@ export class Unit {
         const base = this.type.meshScale;
         if (this.type.structure && !this.type.extra) {
             // +10% per level above 1 → L5 ≈ 1.4× (tower upgrade max)
-            return base * (1 + (level - 1) * 0.1);
+            return base * (1 + (level - 1) * this.levelGrowth);
         }
         if (this.type.structure) return base; // extras (shield / rocket)
         // packs: +5% per level, only through L3 → max +10%
