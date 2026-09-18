@@ -3,8 +3,8 @@
     "name": "Ballista",
     // Golden Aura tech: allies within 40 are golden for 30s
     "aura": { "effect": "golden", "requiresTech": "golden", "radius": 40, "duration": 30 },
-    "cost": 400,
-    "unlockCost": 200,
+    "cost": 200,
+    "unlockCost": 50,
     "hpWithdraw": 400,
     "footprint": { "cols": 4, "rows": 4 },
     "formation": { "cols": 1, "rows": 1 },

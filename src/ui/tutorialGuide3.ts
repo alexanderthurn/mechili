@@ -46,6 +46,8 @@ export type Tutorial3Step =
     | 'r4Upgrade'
     | 'r4BuyMortar'
     | 'r4PlaceMortar'
+    | 'r4BuyMortar2'
+    | 'r4PlaceMortar2'
     | 'r4End'
     | 'done';
 
@@ -59,6 +61,9 @@ export interface Tutorial3BoardState {
     /** round 3: how many of the three pads are filled */
     r3PadsFilled: number;
     mortarPlaced: boolean;
+    mortarPadsFilled: number;
+    mortarPlaced0: boolean;
+    mortarPlaced1: boolean;
     vanguardSelected: boolean;
     garrisonSelected: boolean;
     boostAttack: number;
@@ -157,7 +162,15 @@ export class TutorialGuide3 extends TutorialPanel {
                 this.step = 'r4BuyMortar';
             } else if (this.step === 'r4BuyMortar' && state.mortarCount >= 1) {
                 this.step = 'r4PlaceMortar';
-            } else if (this.step === 'r4PlaceMortar' && state.mortarPlaced) {
+            } else if (this.step === 'r4PlaceMortar' && state.mortarPlaced0) {
+                this.step = 'r4BuyMortar2';
+            } else if (this.step === 'r4BuyMortar2' && state.mortarCount >= 2) {
+                this.step = 'r4PlaceMortar2';
+            } else if (
+                this.step === 'r4PlaceMortar2' &&
+                state.mortarPlaced0 &&
+                state.mortarPlaced1
+            ) {
                 this.step = 'r4End';
             }
         }
@@ -189,7 +202,8 @@ export class TutorialGuide3 extends TutorialPanel {
             return (
                 this.step === 'r4End' &&
                 state.towerLevel >= TUTORIAL_3_R4_TOWER_LEVEL &&
-                state.mortarPlaced
+                state.mortarPlaced0 &&
+                state.mortarPlaced1
             );
         }
         return false;
@@ -372,6 +386,15 @@ export class TutorialGuide3 extends TutorialPanel {
             case 'r4PlaceMortar':
                 this.titleEl.textContent = t('tutorial:tutorial3R4PlaceTitle');
                 this.bodyEl.textContent = t('tutorial:tutorial3R4PlaceBody');
+                break;
+            case 'r4BuyMortar2':
+                this.titleEl.textContent = t('tutorial:tutorial3R4Buy2Title');
+                this.bodyEl.textContent = t('tutorial:tutorial3R4Buy2Body');
+                highlight = 'shop-mortar';
+                break;
+            case 'r4PlaceMortar2':
+                this.titleEl.textContent = t('tutorial:tutorial3R4Place2Title');
+                this.bodyEl.textContent = t('tutorial:tutorial3R4Place2Body');
                 break;
             case 'r4End':
                 this.titleEl.textContent = t('tutorial:tutorial3R4EndTitle');

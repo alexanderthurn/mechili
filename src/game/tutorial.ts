@@ -462,10 +462,10 @@ export function tutorial3R3EnemyDwarfCells(map: BattleMap): Cell[] {
 }
 
 /**
- * Tutorial 3 round 4: mortar on the player's back deploy border (own rim),
- * lined up with the Garrison — artillery behind the tower.
+ * Tutorial 3 round 4: two mortar pads on the player's back rim, spaced apart
+ * behind the Garrison so both can shell the melee chewing the tower.
  */
-export function tutorial3R4MortarSlot(map: BattleMap): TutorialPlaceSlot {
+export function tutorial3R4MortarSlots(map: BattleMap): TutorialPlaceSlot[] {
     const fp = tutorialMortarFootprint(false);
     const { rimCells } = map.size;
     const garrison = tutorialBaseCell(
@@ -477,13 +477,15 @@ export function tutorial3R4MortarSlot(map: BattleMap): TutorialPlaceSlot {
     );
     const playerNear = !map.ownAtFar;
     const row = playerNear ? rimCells : map.rows - rimCells - fp.rows;
-    return {
-        anchor: {
-            col: Math.max(rimCells, Math.min(map.cols - rimCells - fp.cols, garrison.col)),
-            row,
-        },
-        rotated: false,
-    };
+    const gap = 3;
+    const leftCol = Math.max(
+        rimCells,
+        Math.min(map.cols - rimCells - fp.cols * 2 - gap, garrison.col - Math.floor(gap / 2) - fp.cols),
+    );
+    return [
+        { anchor: { col: leftCol, row }, rotated: false },
+        { anchor: { col: leftCol + fp.cols + gap, row }, rotated: false },
+    ];
 }
 
 /**

@@ -1256,11 +1256,29 @@ export class TutorialRuntime {
         }
         if (host.round === 4) {
             const step = guide.currentStep;
-            const slot = this.placeSlots3[0];
-            if (slot && (step === 'r4PlaceMortar' || step === 'r4End' || step === 'r4BuyMortar')) {
-                host.placement.setTutorialPlaceTargets([
-                    mortarPadTarget(slot, state.mortarPlaced),
-                ]);
+            const slot0 = this.placeSlots3[0];
+            const slot1 = this.placeSlots3[1];
+            if (step === 'r4BuyMortar' || step === 'r4PlaceMortar') {
+                if (slot0) {
+                    host.placement.setTutorialPlaceTargets([
+                        mortarPadTarget(slot0, state.mortarPlaced0),
+                    ]);
+                } else host.placement.clearTutorialTargets();
+            } else if (
+                step === 'r4BuyMortar2' ||
+                step === 'r4PlaceMortar2' ||
+                step === 'r4End'
+            ) {
+                const targets = [];
+                if (slot0) targets.push(mortarPadTarget(slot0, state.mortarPlaced0));
+                if (slot1) targets.push(mortarPadTarget(slot1, state.mortarPlaced1));
+                if (step === 'r4PlaceMortar2' && slot1) {
+                    host.placement.setTutorialPlaceTargets([
+                        mortarPadTarget(slot1, state.mortarPlaced1),
+                    ]);
+                } else if (targets.length > 0) {
+                    host.placement.setTutorialPlaceTargets(targets);
+                } else host.placement.clearTutorialTargets();
             } else {
                 host.placement.clearTutorialTargets();
             }
@@ -1370,25 +1388,34 @@ export class TutorialRuntime {
             return { recruit: false, deploySlot: false, extras: false, upgrade: false };
         }
         if (round === 3) {
+            // After Veteran is bought, keep that tile visible (owned) while
+            // teaching +1 Deploy Slot — don't strip the panel bare.
+            const afterRecruit =
+                step === 'r3SelectGarrisonAgain' ||
+                step === 'r3DeploySlot' ||
+                step === 'r3BuyThird' ||
+                step === 'r3End';
             return {
-                recruit: step === 'r3Recruit',
-                deploySlot: step === 'r3DeploySlot',
+                recruit: step === 'r3Recruit' || afterRecruit,
+                deploySlot:
+                    step === 'r3DeploySlot' || step === 'r3BuyThird' || step === 'r3End',
                 extras: false,
                 upgrade: false,
             };
         }
         if (round === 4) {
-            const upgrading =
-                step === 'r4SelectTower' ||
-                step === 'r4Upgrade' ||
-                step === 'r4BuyMortar' ||
-                step === 'r4PlaceMortar' ||
-                step === 'r4End';
             return {
                 recruit: false,
                 deploySlot: false,
                 extras: false,
-                upgrade: upgrading,
+                upgrade:
+                    step === 'r4SelectTower' ||
+                    step === 'r4Upgrade' ||
+                    step === 'r4BuyMortar' ||
+                    step === 'r4PlaceMortar' ||
+                    step === 'r4BuyMortar2' ||
+                    step === 'r4PlaceMortar2' ||
+                    step === 'r4End',
             };
         }
         // R1: player has no Garrison
@@ -1590,9 +1617,19 @@ export class TutorialRuntime {
                     );
                     return true;
                 }
-                if (step === 'r4BuyMortar' || step === 'r4PlaceMortar' || step === 'r4End') {
+                if (
+                    step === 'r4BuyMortar' ||
+                    step === 'r4PlaceMortar' ||
+                    step === 'r4BuyMortar2' ||
+                    step === 'r4PlaceMortar2' ||
+                    step === 'r4End'
+                ) {
                     if (_type.id !== TUTORIAL_MORTAR_ID) {
                         this.guide3?.nudge(t('tutorial:tutorial3NudgeMortar'));
+                        return true;
+                    }
+                    if (step === 'r4PlaceMortar' || step === 'r4PlaceMortar2') {
+                        this.guide3?.nudge(t('tutorial:tutorialNudgeFinishPad'));
                         return true;
                     }
                     return false;
