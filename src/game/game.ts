@@ -10920,6 +10920,11 @@ export class Game {
             const hazards =
                 this.phase === 'battle' && this.sim ? this.sim.hazards : this.oilField;
             audio.syncHazardLoops(hazards, this.sim?.elapsed ?? 0, cam.y);
+            if (this.phase === 'battle' && this.sim) {
+                audio.syncStoneWhistles(this.sim.projectiles);
+            } else {
+                audio.syncStoneWhistles([]);
+            }
         }
         // ambient motion runs on real time, unaffected by battle fast-forward
         // (solo pause freezes it with the rest of the match)

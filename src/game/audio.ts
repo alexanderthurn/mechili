@@ -6,7 +6,7 @@
  * drain + UI, same lifecycle as particles.
  */
 import { assetUrl } from './assets';
-import type { SimEvent } from './sim';
+import type { Projectile, SimEvent } from './sim';
 import { onPrefsChange, prefs } from './prefs';
 import { beamMuzzleWorld } from './conversionFx';
 import type { Actor } from './sim';
@@ -469,6 +469,21 @@ const CUES: Record<string, CueDef> = {
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
+    /** Siege mortar tube fire — not the generic stone_throw (crow/hammerer). */
+    mortar_shot: {
+        paths: [
+            'audio/mortar_shot_1.ogg',
+            'audio/mortar_shot_2.ogg',
+            'audio/mortar_shot_3.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 8,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.7,
+    },
     /** Default match bed — later: music_battle_winter / horde / etc. */
     music_battle: {
         paths: ['audio/music_battle_1.ogg'],
@@ -672,6 +687,13 @@ const CUES: Record<string, CueDef> = {
         refDistance: SPATIAL_REF,
         maxDistance: SPATIAL_MAX,
         rolloff: SPATIAL_ROLLOFF,
+        gain: 0.55,
+    },
+    /** Seamless airplane-air whoosh — proximity bed (same family as fire/acid). */
+    stone_whistle: {
+        paths: ['audio/stone_whistle_1.ogg'],
+        group: 'sfx',
+        maxVoices: 1,
         gain: 0.55,
     },
     stronghold_collapse: {
@@ -879,6 +901,9 @@ void [
     assetUrl('audio/melee_swing_1.ogg'),
     assetUrl('audio/melee_swing_2.ogg'),
     assetUrl('audio/melee_swing_3.ogg'),
+    assetUrl('audio/mortar_shot_1.ogg'),
+    assetUrl('audio/mortar_shot_2.ogg'),
+    assetUrl('audio/mortar_shot_3.ogg'),
     assetUrl('audio/music_battle_1.ogg'),
     assetUrl('audio/music_menu_1.ogg'),
     assetUrl('audio/orb_shot_1.ogg'),
@@ -906,6 +931,7 @@ void [
     assetUrl('audio/stone_throw_1.ogg'),
     assetUrl('audio/stone_throw_2.ogg'),
     assetUrl('audio/stone_throw_3.ogg'),
+    assetUrl('audio/stone_whistle_1.ogg'),
     assetUrl('audio/stronghold_collapse_1.ogg'),
     assetUrl('audio/summon_flying_1.ogg'),
     assetUrl('audio/summon_flying_2.ogg'),
@@ -1339,12 +1365,55 @@ class AudioBus {
 
     private timerWarnSecond = -1;
 
-    /** Stop convert / ramp / hazard loops (battle end / tear-down). */
+    /** Stop convert / ramp / hazard / stone-fly beds (battle end / tear-down). */
     stopBeamLoops(): void {
         this.setLoop('convert_beam', false, 0, 0, 0);
         this.setLoop('ramp_beam', false, 0, 0, 0);
         this.setLoop('fire_loop', false, 0, 0, 0);
         this.setLoop('acid_loop', false, 0, 0, 0);
+        this.setLoop('stone_whistle', false, 0, 0, 0);
+    }
+
+    /**
+     * Proximity bed while ballistic stones fly near the camera (same pattern
+     * as fire/acid). One loop; mild rate nudge from climb vs dive — mostly constant.
+     */
+    syncStoneWhistles(projectiles: readonly Projectile[]): void {
+        const lx = this.listenerX;
+        const lz = this.listenerZ;
+        let best = STONE_FLY_MAX_DIST + 1;
+        let sx = lx;
+        let sy = 8;
+        let sz = lz;
+        let energy = 0;
+        let nearestVy = 0;
+        for (const p of projectiles) {
+            if (p.style !== 'stone' || !p.gravity) continue;
+            if (p.stone?.rolling) continue;
+            if (p.stone?.landed && p.y < (p.stone.radius ?? 0.5) + 0.4) continue;
+            const d = distXZ(p.x, p.z, lx, lz);
+            const cell = hazardCellFalloff(d, STONE_FLY_MAX_DIST);
+            if (cell <= 0) continue;
+            energy += cell;
+            if (d < best) {
+                best = d;
+                sx = p.x;
+                sy = Math.max(1, p.y);
+                sz = p.z;
+                nearestVy = p.vy;
+            }
+        }
+        // Tiny climb/dive bias (~±8%) so it stays “constant” but reads direction.
+        const rate = 1 + Math.max(-0.08, Math.min(0.08, nearestVy * 0.004));
+        this.setLoop(
+            'stone_whistle',
+            true,
+            sx,
+            sz,
+            hazardMassGain(energy),
+            sy,
+            rate,
+        );
     }
 
     /**
@@ -1368,6 +1437,7 @@ class AudioBus {
         z: number,
         volume = 1,
         y = 1.5,
+        playbackRate = 1,
     ): void {
         const existing = this.loops.get(cueId);
         const cue = CUES[cueId];
@@ -1388,6 +1458,7 @@ class AudioBus {
         }
         if (existing) {
             existing.gain.gain.value = level;
+            existing.source.playbackRate.value = playbackRate;
             if (existing.panner) {
                 existing.panner.positionX.value = x;
                 existing.panner.positionY.value = y;
@@ -1404,6 +1475,7 @@ class AudioBus {
         const src = this.ctx.createBufferSource();
         src.buffer = buf;
         src.loop = true;
+        src.playbackRate.value = playbackRate;
         const gain = this.ctx.createGain();
         gain.gain.value = level;
         let panner: PannerNode | undefined;
@@ -1574,6 +1646,7 @@ function muzzleCue(
 ): string {
     if (unitTypeId === 'rocket') return 'rocket_launch';
     if (unitTypeId === 'hammerer') return 'hammerer_smash';
+    if (unitTypeId === 'mortar') return 'mortar_shot';
     switch (style) {
         case 'largeArrow':
             return 'ballista_shot';
@@ -1651,6 +1724,8 @@ function distXZ(ax: number, az: number, bx: number, bz: number): number {
 const FIRE_LOOP_MAX_DIST = 28;
 /** Acid: tighter — only loud when actually over it, not from high orbit. */
 const ACID_LOOP_MAX_DIST = 16;
+/** Ballistic stones — hear the air whoosh when flying near the camera. */
+const STONE_FLY_MAX_DIST = 36;
 
 function hazardCellFalloff(dist: number, maxDist: number): number {
     if (dist >= maxDist) return 0;
