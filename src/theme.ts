@@ -2657,7 +2657,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-scenario-editor .te-tool:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-scenario-editor .te-tool.active { border-color: ${u.brassLight}; background: rgba(212, 184, 120, 0.18); color: ${u.brassLight}; }
-.mechili-scenario-editor .te-tool input { display: none; }
 .mechili-scenario-editor .te-panel kbd { font: 10px/1 ui-monospace, monospace; opacity: 0.6; }
 .mechili-scenario-editor .te-panel .slot-tags { font: 700 10px/1 ui-monospace, monospace; color: ${u.brassLight}; letter-spacing: 0.05em; }
 .mechili-scenario-editor .te-panel .slot-tags:empty { display: none; }

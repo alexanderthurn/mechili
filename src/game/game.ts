@@ -189,8 +189,8 @@ import { reachToward } from './terrainCombat';
 import { modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery, MOUNTAIN_PEAK_END } from './scenery';
-import { MountainEditor } from './mountainEditor';
-import { draftTerrain, draftTerrainText, packagedTerrain, setDraftTerrain, terrainFileText } from './scenario/scenarioTerrain';
+import { draftTerrain, packagedTerrain, terrainFileText } from './scenario/scenarioTerrain';
+import { EditorSession, type EditorLinks } from './scenario/editorSession';
 import { TERRAIN_HEAL_PER_ROUND } from './terrainGrid';
 import {
     boardSamplerFromMesh,
@@ -316,7 +316,7 @@ import { resolveMatchRules, stripOpen, type MatchRules } from './matchRules';
 import { hasErrors, normalizeScenario } from './scenario/normalize';
 import type { ScenarioDef } from './scenario/scenarioDef';
 import { applyScenario, type AppliedScene, type ScenarioHost } from './scenario/applyScenario';
-import { ScenarioEditor, TestBattleBar, type TestBattleSummary } from '../ui/scenarioEditor';
+import type { TestBattleSummary } from '../ui/scenarioEditor';
 import { getUnitInstanceRenderer } from './unitInstances';
 import { storeDraft } from './scenario/editorDraft';
 
@@ -452,8 +452,6 @@ export class Game {
     private appliedFireVfx: FireVfxQuality = prefs().fireVfx;
     private readonly unitInstances: UnitInstanceRenderer;
     private scenery: Scenery;
-    /** the scenario editor's Terrain tool — author mode only */
-    private mountainEditor: MountainEditor | null = null;
     /**
      * The static map this match plays ({@link GameSettings.landscape}), or null
      * for the procedural terrain. Its board relief is the sim's ground.
@@ -878,10 +876,8 @@ export class Game {
      * tear this match down and boot that tutorial from scratch.
      */
     onStartTutorial: ((lesson: number) => void) | null = null;
-    /** scenario editor: start the editor ('author') or a test battle from a draft */
-    onScenarioEditor: ((mode: 'author' | 'test', draft: ScenarioDef) => void) | null = null;
-    /** scenario editor: package the draft for download; resolves to a status line */
-    onScenarioDownload: ((draft: ScenarioDef) => Promise<string>) | null = null;
+    /** an editor match: what the menu does with the draft (save, play, test…) — main wires it */
+    editorLinks: EditorLinks | null = null;
     /** The Year, not in a room: start the rematch with these settings (roles swapped, new seed) */
     onRematch: ((settings: GameSettings) => void) | null = null;
     /** The Year in a room, host: every player asked for the rematch — start it */
@@ -896,16 +892,6 @@ export class Game {
     onScenarioWon: ((scenarioId: string) => void) | null = null;
     /** a won scenario: play the next one of its package (meta.jsonc order) */
     onNextScenario: ((scenarioId: string) => void) | null = null;
-    /** scenario editor: copy the draft as a share code; resolves to a status line */
-    onScenarioShareCode: ((draft: ScenarioDef) => Promise<string>) | null = null;
-    /** scenario editor: play the draft as a scenario */
-    onScenarioPlay: ((draft: ScenarioDef) => void) | null = null;
-    /** scenario editor: put the draft into the package the board is made on */
-    onScenarioSaveInto:
-        | ((draft: ScenarioDef, packageName?: string) => Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }>)
-        | null = null;
-    /** scenario editor: keep the draft as a scenario package; resolves to a status line */
-    onScenarioSave: ((draft: ScenarioDef) => Promise<string>) | null = null;
     onRetryLastRound:
         | ((payload: {
               seed: number;
@@ -1213,7 +1199,7 @@ export class Game {
         }
         // Exit cinema: restore deploy chrome only while freely placing
         if (this.phase === 'build' && !this.deployReady.player && !this.matchOver) {
-            if (!this.mountainEditor?.active) this.placement.enabled = true;
+            if (!this.editorSession?.terrainActive) this.placement.enabled = true;
             this.gridOverlay.visible = true;
             this.placement.beginDeployment();
             this.syncTacticVisuals();
@@ -1269,12 +1255,12 @@ export class Game {
     private readonly scenario: ScenarioDef | null;
     /** the scenario editor's own matches: editing a draft, or its test battle */
     private readonly editorMode: 'author' | 'test' | null;
-    private scenarioEditor: ScenarioEditor | null = null;
+    /** an editor match's editing (window, Terrain tool, test strip) — null otherwise */
+    private editorSession: EditorSession | null = null;
     /** 3D thumbnails by type id (the roster; the editor adds everything else it lists) */
     private unitIconUrls: Map<string, string> = new Map();
     /** the base buildings standing at their anchors (placed ones of the same types aren't) */
     private readonly baseBuildingUnits = new Set<Unit>();
-    private testBattleBar: TestBattleBar | null = null;
     /** what this match does each round (plan §5) */
     private readonly rules: MatchRules;
     /** the match roster; localized so MY side always reads 'player' locally */
@@ -1640,13 +1626,13 @@ export class Game {
         // approaching through the forest ring (see spawnHordeWave)
         // the scenario editor places horde packs out there too
         // the scenario editor (its Terrain tool): free pan to the crest + 4× zoom-out
-        const mountainEdit = this.editorMode === 'author';
+        const terrainEdit = this.editorMode === 'author';
         const hordeReach =
-            !mountainEdit &&
+            !terrainEdit &&
             (hordeEnabled(this.settings) || this.editorMode || this.scenario?.scene.units.some((u) => u.team === 'horde'))
                 ? HORDE_RING_NEAR + HORDE_RING_SPAN
                 : 0;
-        if (mountainEdit) {
+        if (terrainEdit) {
             this.rig.setBounds(this.map.halfW + MOUNTAIN_PEAK_END, this.map.halfH + MOUNTAIN_PEAK_END);
             this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar(), 4);
         } else {
@@ -1691,37 +1677,6 @@ export class Game {
         // sync with the host's actual grants via 'visionUpdate' messages —
         // see onSpectateMessage.
         if (spectate) this.placement.spectatorLiveSeats = new Set();
-        if (mountainEdit) {
-            const outer = this.scenery.getOuterGroundMesh();
-            if (outer) {
-                this.mountainEditor = new MountainEditor({
-                    mesh: outer,
-                    boardMesh: this.groundMesh,
-                    scene: this.scene,
-                    camera: this.rig.camera,
-                    domElement: surface,
-                    map: this.map,
-                    // the scenario editor puts the panel into its window (Terrain tool)
-                    container: document.createElement('div'),
-                    name: () => this.scenarioEditor?.draftName ?? this.settings.scenario?.draft?.name ?? 'Terrain',
-                    onLandscapeChanged: () => this.bindLandscapeHeights(),
-                    onEdited: (kind) => this.onTerrainEdited(kind),
-                    onResetGenerated: () => this.resetScenarioTerrain(),
-                    // sculpting takes the board's clicks: drop whatever the match's controls were carrying
-                    onActiveChange: (active) => {
-                        if (active) this.placement.deselect();
-                    },
-                    plants: {
-                        getPlants: () => this.scenery.getAuthoredPlants(),
-                        getClears: () => this.scenery.getPlantClears(),
-                        paint: (kind, x, z, sc, yaw) =>
-                            this.scenery.paintAuthoredPlant(kind, x, z, sc, yaw),
-                        erase: (x, z, r) => this.scenery.erasePlantsAt(x, z, r),
-                        setAll: (plants, clears) => this.scenery.setAuthoredPlants(plants, clears),
-                    },
-                });
-            }
-        }
         this.bindLandscapeHeights();
         // one-finger drags aim the carried ghost/tactic instead of panning
         this.controls.suppressTouchPan = () => this.placement.pointerCarries;
@@ -2092,16 +2047,15 @@ export class Game {
         this.hud.onEndDeployment = () => {
             if (this.phase !== 'build') return;
             // editing: End Deployment runs the test battle
-            if (this.scenarioEditor) {
-                this.scenarioEditor.startTest();
-                return;
-            }
+            if (this.editorSession?.startTest()) return;
             if (this.tutorial && !this.tutorial.tryEndDeploy()) return;
             this.dispatchPlayer({ kind: 'endDeployment', team: 'player' });
         };
         this.hud.onSpeedUp = () => this.cycleSpeed(1);
         this.hud.onSpeedDown = () => this.cycleSpeed(-1);
-        this.hud.onUndo = () => (this.scenarioEditor ? this.scenarioEditor.undo() : this.undoLast());
+        this.hud.onUndo = () => {
+            if (!this.editorSession?.undo()) this.undoLast();
+        };
         this.hud.onSendChat = (item) => {
             const now = performance.now();
             if (now - this.lastChatSent < CHAT_COOLDOWN_MS) return;
@@ -2866,7 +2820,7 @@ export class Game {
      * set its heights once, before the ground was built.)
      */
     private bindLandscapeHeights(): void {
-        if (!this.mountainEditor) return;
+        if (this.editorMode !== 'author') return;
         const board = boardSamplerFromMesh(this.groundMesh, this.map);
         if (board) this.map.setReliefOverride(board);
         const outerMesh = this.scenery.getOuterGroundMesh();
@@ -2907,7 +2861,7 @@ export class Game {
             });
 
         // the editor's unsaved work survives the rebuild: rebuild from it, as if it were the map
-        const editing = this.mountainEditor?.capture() ?? null;
+        const editing = this.editorSession?.shownTerrain() ?? null;
         if (editing) this.map.setReliefOverride(landscapeBoardSampler(editing));
 
         // battlefield ground + grid overlay (keep its current visibility)
@@ -2955,7 +2909,7 @@ export class Game {
         }
 
         const outer = this.scenery.getOuterGroundMesh();
-        if (this.mountainEditor && outer) this.mountainEditor.reattach(outer, this.groundMesh);
+        if (outer) this.editorSession?.reattach(outer, this.groundMesh);
         this.bindLandscapeHeights();
 
         // shadow resolution (force the render target to reallocate)
@@ -3009,21 +2963,14 @@ export class Game {
         this.onReturnToMenu = null;
         this.onRetryLastRound = null;
         this.onStartTutorial = null;
-        this.onScenarioEditor = null;
-        this.onScenarioDownload = null;
-        this.onScenarioSave = null;
-        this.onScenarioPlay = null;
-        this.onScenarioShareCode = null;
+        this.editorLinks = null;
         this.onNextScenario = null;
         this.onScenarioWon = null;
         this.onRematch = null;
         this.onStarRematch = null;
         this.onStarRematchStart = null;
-        this.onScenarioSaveInto = null;
-        this.scenarioEditor?.destroy();
-        this.scenarioEditor = null;
-        this.testBattleBar?.remove();
-        this.testBattleBar = null;
+        this.editorSession?.dispose();
+        this.editorSession = null;
         this.onConnectionLost = null;
         // network/backend teardown FIRST, before any rendering/HUD disposal
         // below — those touch three.js/pixi resources and a stray exception
@@ -3059,8 +3006,6 @@ export class Game {
         for (const dispose of this.inputDisposers) dispose();
         this.inputDisposers.length = 0;
         this.placement.dispose();
-        this.mountainEditor?.dispose();
-        this.mountainEditor = null;
         this.blobShadows.dispose();
         this.unitInstances.dispose();
         setUnitInstanceRenderer(null);
@@ -3151,29 +3096,27 @@ export class Game {
     /**
      * The scenario editor's matches (plan §8): author mode mounts the editor
      * over a board that never leaves the build phase; a test battle gets the
-     * strip that leads back to it.
+     * strip that leads back to it. The editing itself is the session's.
      */
     private startScenarioEditing(wrapper: HTMLElement, surface: HTMLElement): void {
         const draft = this.settings.scenario?.draft;
-        if (!draft) return;
-        if (this.editorMode === 'test') {
-            this.testBattleBar = new TestBattleBar(wrapper, {
-                onBack: () => this.onScenarioEditor?.('author', draft),
-                onAgain: () => this.onScenarioEditor?.('test', draft),
-                onSkip: () => this.skipTestBattle(),
-            }, JSON.stringify(draft.scene) + JSON.stringify(draft.rules));
-            return;
+        if (!draft || !this.editorMode) return;
+        if (this.editorMode === 'author') {
+            // a sandbox deployment: every buyable unit, free purchases (the settings
+            // already lift the deploy caps and fill the purse)
+            this.economy.free = true;
+            this.unlockedUnits[this.humanSeat] = [...this.types.shopUnitIds];
+            this.refreshShopHud();
+            const missing = [...this.types.all()].filter((type) => !this.unitIconUrls.has(type.id));
+            for (const [id, url] of renderAllUnitIcons(this.renderer, missing)) this.unitIconUrls.set(id, url);
         }
-        // a sandbox deployment: every buyable unit, free purchases (the settings
-        // already lift the deploy caps and fill the purse)
-        this.economy.free = true;
-        this.unlockedUnits[this.humanSeat] = [...this.types.shopUnitIds];
-        this.refreshShopHud();
-        const missing = [...this.types.all()].filter((type) => !this.unitIconUrls.has(type.id));
-        for (const [id, url] of renderAllUnitIcons(this.renderer, missing)) this.unitIconUrls.set(id, url);
         const level = activeLevel().overlay;
-        this.scenarioEditor = new ScenarioEditor(
-            {
+        const game = this;
+        this.editorSession = new EditorSession({
+            mode: this.editorMode,
+            draft,
+            level: this.settings.level,
+            board: {
                 types: this.types,
                 placement: this.placement,
                 surface,
@@ -3186,8 +3129,6 @@ export class Game {
                 },
                 levelLabel: level ? level.id : 'Base game',
                 gameVersion: formatGameVersion(GAME_VERSION),
-                // main wires the download right after construction
-                canDownload: () => this.onScenarioDownload !== null,
                 unitIcon: (typeId) => this.unitIconUrls.get(typeId) ?? null,
                 rebuild: (def) => this.rebuildScenarioBoard(def),
                 capture: (baseBuildings) =>
@@ -3195,42 +3136,26 @@ export class Game {
                         { types: this.types, placement: this.placement, techTree: this.techTree, primarySeat: (team) => primarySeatOf(this.seats, team) },
                         baseBuildings,
                     ),
-                save: (def) => this.onScenarioSave?.(def) ?? Promise.resolve(''),
-                packageName: activeLevel().scenarios.size > 0 ? (activeLevel().meta?.def?.name ?? level?.id ?? null) : null,
-                saveInto: (def, packageName) =>
-                    this.onScenarioSaveInto?.(def, packageName) ?? Promise.resolve({ status: '', id: def.id, reopen: null }),
-                shareCode: (def) => this.onScenarioShareCode?.(def) ?? Promise.resolve(''),
                 issues: (def) => normalizeScenario(def, this.types).issues,
-                autosave: (def) => storeDraft(def, this.settings.level, draftTerrainText),
-                terrain: this.mountainEditor,
-                restart: (def) => this.onScenarioEditor?.('author', def),
-                test: (def) => this.onScenarioEditor?.('test', def),
-                play: (def) => this.onScenarioPlay?.(def),
-                download: (def) => this.onScenarioDownload?.(def) ?? Promise.resolve(''),
-                exit: () => this.quitToMenu(),
+                packageName: activeLevel().scenarios.size > 0 ? (activeLevel().meta?.def?.name ?? level?.id ?? null) : null,
             },
-            draft,
-        );
-    }
-
-    /** the Terrain tool changed the ground: that is the draft's terrain now */
-    private onTerrainEdited(kind: 'edit' | 'history'): void {
-        const data = this.mountainEditor?.capture() ?? null;
-        if (data) setDraftTerrain(data);
-        this.scenarioEditor?.terrainEdited(kind);
-    }
-
-    /** "Generated terrain": the draft goes back to the board's own terrain (a restart builds it) */
-    private resetScenarioTerrain(): void {
-        if (!draftTerrain() && !this.mountainEditor?.canUndo) return;
-        const ok = window.confirm(
-            t('editor:terrainGeneratedConfirm', {
-                defaultValue: 'Throw the sculpted terrain away? This can’t be undone.',
-            }),
-        );
-        if (!ok) return;
-        setDraftTerrain(null);
-        this.scenarioEditor?.restartForTerrain();
+            links: () => this.editorLinks,
+            quit: () => this.quitToMenu(),
+            skipTest: () => this.skipTestBattle(),
+            scene: this.scene,
+            camera: this.rig.camera,
+            map: this.map,
+            meshes: () => ({ outer: this.scenery.getOuterGroundMesh(), ground: this.groundMesh }),
+            plants: {
+                getPlants: () => game.scenery.getAuthoredPlants(),
+                getClears: () => game.scenery.getPlantClears(),
+                paint: (kind, x, z, sc, yaw) => game.scenery.paintAuthoredPlant(kind, x, z, sc, yaw),
+                erase: (x, z, r) => game.scenery.erasePlantsAt(x, z, r),
+                setAll: (plants, clears) => game.scenery.setAuthoredPlants(plants, clears),
+            },
+            landscapeChanged: () => this.bindLandscapeHeights(),
+            heightAt: (x, z) => this.map.heightAt(x, z),
+        });
     }
 
     /** a test battle straight to its result (the sim runs headless, then the board shows how it ended) */
@@ -3532,7 +3457,7 @@ export class Game {
         if (this.round > 1) this.map.fadeWear(0.68);
         this.stoneChips.clear(); // high-setting collapse rubble lives until here
         this.placement.beginDeployment();
-        this.placement.enabled = !this.mountainEditor?.active;
+        this.placement.enabled = !this.editorSession?.terrainActive;
         this.placement.hiddenPlacements = true;
         this.placement.currentRound = this.round; // earlier deployments are locked now
         this.refreshFlightAlts();
@@ -4004,7 +3929,7 @@ export class Game {
             audio.playPlayerAction(stamped.kind, true);
         }
         // the sandbox deployment: whatever the game UI changed goes into the draft
-        if (this.scenarioEditor && this.round >= 1) this.scenarioEditor.syncFromBoard();
+        if (this.editorSession && this.round >= 1) this.editorSession.syncFromBoard();
         if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
         // classic 1v1's starter pick (round 0) goes out via a dedicated
         // 'starter' message instead — this gate stays as-is for it. Star
@@ -8998,7 +8923,7 @@ export class Game {
     }
 
     private canUndo(): boolean {
-        if (this.editorMode === 'author') return this.scenarioEditor?.canUndo ?? false;
+        if (this.editorMode === 'author') return this.editorSession?.canUndo ?? false;
         return (
             this.phase === 'build' &&
             !this.matchOver &&
@@ -9845,7 +9770,7 @@ export class Game {
             // a test battle is one fight: the board stays as it ended, the strip shows the result
             this.phase = 'hpDraw';
             this.syncPostFx();
-            this.testBattleBar?.showResult(testSummary);
+            this.editorSession?.showTestResult(testSummary);
             return;
         }
         if (hash !== undefined && this.star) {

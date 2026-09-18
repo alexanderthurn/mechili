@@ -1,12 +1,12 @@
 /**
- * The scenario editor's Terrain tool: left-drag brushes the outer ground and
- * the battle board as one landscape — raise, lower, flatten, lean — and paints
- * surface and plants. The scenario editor hosts it (its panel sits in the
- * editor window under Terrain) and keeps the result as the draft's terrain,
- * packaged with the scenario.
+ * The terrain brushes behind the scenario editor's Terrain tool: left-drag
+ * works the outer ground and the battle board as one landscape — raise,
+ * lower, flatten, lean — and paints surface and plants. Mesh work, input and
+ * undo only: the panel is ui/terrainPanel.ts, and the editor session
+ * (scenario/editorSession.ts) turns the result into the draft's terrain.
  *
  * While editing, the meshes are the truth (the sim samples them live). Every
- * stroke is undoable: it records only the values it changed.
+ * edit is undoable: it records only the values it changed.
  */
 
 import {
@@ -29,9 +29,6 @@ import {
     applyLandscapeToBoardMesh,
     applyLandscapeToOuterGeometry,
     captureLandscape,
-    decodeLandscape,
-    encodeLandscape,
-    isLandscapeFile,
     landscapeFits,
     MATERIAL_ATTR,
     MATERIAL_CHANNELS,
@@ -48,9 +45,8 @@ import {
     type PlantClearDisk,
 } from './landscapePlants';
 import type { VegetationKind } from './sceneryVegetation';
-import { t } from '../i18n';
 
-export type MountainBrush =
+export type TerrainBrush =
     | 'raise'
     | 'lower'
     | 'flatten'
@@ -66,10 +62,10 @@ export type MountainBrush =
     | 'obj-bushTall'
     | 'obj-erase';
 
-type MouseSlot = 'left' | 'right' | 'middle';
+export type MouseSlot = 'left' | 'right' | 'middle';
 
 /** what a new left tool puts on the other buttons (a panel right/middle click overrides it) */
-function companions(left: MountainBrush): Partial<Record<Exclude<MouseSlot, 'left'>, MountainBrush>> {
+function companions(left: TerrainBrush): Partial<Record<Exclude<MouseSlot, 'left'>, TerrainBrush>> {
     if (left === 'raise') return { right: 'lower', middle: 'flatten' };
     if (left === 'lower') return { right: 'raise', middle: 'flatten' };
     if (left === 'flatten' || left === 'lean') return { right: 'lower', middle: 'flatten' };
@@ -92,12 +88,14 @@ interface PlantState {
 export interface TerrainHistory {
     undo: TerrainEdit[];
     redo: TerrainEdit[];
+    /** the oldest state the history reaches is the generated terrain */
+    fromGenerated: boolean;
 }
 
 /** strokes kept for undo — each holds only what it changed */
 const MAX_UNDO = 80;
 
-export interface MountainEditorOpts {
+export interface TerrainBrushesOpts {
     mesh: Mesh;
     /** Battle-map ground — brushed together with the outer ring. */
     boardMesh: Mesh;
@@ -105,9 +103,7 @@ export interface MountainEditorOpts {
     camera: PerspectiveCamera;
     domElement: HTMLElement;
     map: LandscapeBoard;
-    /** where the tool panel goes (the scenario editor window) */
-    container: HTMLElement;
-    /** the scenario's name — the terrain's name, and a saved file's */
+    /** the scenario's name — the captured terrain's name */
     name: () => string;
     /** After a sculpt stroke / load / undo — rebind sim heights + deploy grid. */
     onLandscapeChanged?: () => void;
@@ -116,8 +112,12 @@ export interface MountainEditorOpts {
      * file load) or a step through the history ('history').
      */
     onEdited?: (kind: 'edit' | 'history') => void;
-    /** "Generated terrain": drop the sculpted terrain for the board's own */
-    onResetGenerated?: () => void;
+    /** the history was dropped (a quality change rebuilt the meshes) */
+    onHistoryCleared?: () => void;
+    /** the meshes show the generated terrain (no sculpted one) as the editor opens */
+    fromGenerated: boolean;
+    /** a tool, the radius, the strength or the steep overlay changed (keys included) — the panel follows */
+    onSettingsChanged?: () => void;
     /** Terrain editing switched on (true) or off (false). */
     onActiveChange?: (active: boolean) => void;
     /** Live plant paint/erase against scenery pools. */
@@ -176,14 +176,17 @@ void main() {
     return mesh;
 }
 
-export class MountainEditor {
+export class TerrainBrushes {
     /** the brush a stroke paints with (the button's slot while a stroke runs, else the left slot) */
-    brush: MountainBrush = 'raise';
+    brush: TerrainBrush = 'raise';
     /**
      * A tool per mouse button: left paints with a plain drag; right and middle
      * need Shift (without it they stay the camera's pan and orbit).
      */
-    private readonly slots: Record<MouseSlot, MountainBrush> = { left: 'raise', right: 'lower', middle: 'flatten' };
+    private readonly slots: Record<MouseSlot, TerrainBrush> = { left: 'raise', right: 'lower', middle: 'flatten' };
+    static readonly RADIUS = { min: 8, max: 120 };
+    /** strength runs 0.5 … 8 */
+    static readonly STRENGTH = { min: 0.5, max: 8 };
     radius = 28;
     strength = 2.2;
     private mesh: Mesh;
@@ -211,12 +214,14 @@ export class MountainEditor {
      */
     private editing = false;
     private readonly steepOverlay = createSteepOverlay();
-    private showSteep = true;
+    private steepVisible = true;
     private readonly onActiveChange: ((active: boolean) => void) | null;
     private readonly onEdited: ((kind: 'edit' | 'history') => void) | null;
-    private readonly onResetGenerated: (() => void) | null;
+    private readonly onSettingsChanged: (() => void) | null;
+    private readonly onHistoryCleared: (() => void) | null;
+    /** the oldest state the undo history reaches is the generated terrain */
+    private fromGenerated: boolean;
     private readonly name: () => string;
-    readonly panel: HTMLDivElement;
     private readonly disposers: (() => void)[] = [];
     private undoStack: TerrainEdit[] = [];
     private redoStack: TerrainEdit[] = [];
@@ -228,15 +233,12 @@ export class MountainEditor {
     private readonly nearX: number[] = [];
     private readonly nearY: number[] = [];
     private readonly nearZ: number[] = [];
-    private radiusInput!: HTMLInputElement;
-    private strengthInput!: HTMLInputElement;
-    private statusEl!: HTMLDivElement;
     private readonly onLandscapeChanged: (() => void) | null;
-    private readonly plantsApi: NonNullable<MountainEditorOpts['plants']> | null;
+    private readonly plantsApi: NonNullable<TerrainBrushesOpts['plants']> | null;
     /** Min time between plant stamps while dragging. */
     private lastPlantStampMs = 0;
 
-    constructor(opts: MountainEditorOpts) {
+    constructor(opts: TerrainBrushesOpts) {
         this.mesh = opts.mesh;
         this.board = opts.boardMesh;
         this.attachSteepOverlay();
@@ -248,7 +250,9 @@ export class MountainEditor {
         this.onLandscapeChanged = opts.onLandscapeChanged ?? null;
         this.onActiveChange = opts.onActiveChange ?? null;
         this.onEdited = opts.onEdited ?? null;
-        this.onResetGenerated = opts.onResetGenerated ?? null;
+        this.onSettingsChanged = opts.onSettingsChanged ?? null;
+        this.onHistoryCleared = opts.onHistoryCleared ?? null;
+        this.fromGenerated = opts.fromGenerated;
         this.name = opts.name;
         this.plantsApi = opts.plants ?? null;
         ensureOuterMaterialAttrs(this.mesh.geometry);
@@ -258,13 +262,9 @@ export class MountainEditor {
         mat.color.setHex(0xd4b878);
         mat.opacity = 0.55;
 
-        this.panel = this.buildPanel();
-        opts.container.appendChild(this.panel);
-        this.renderSlots();
 
         const onDown = (e: PointerEvent) => {
             if (!this.editing) return;
-            if ((e.target as HTMLElement).closest?.('.te-panel')) return;
             // left paints; Shift+right / Shift+middle paint their slots — without
             // Shift those buttons stay the camera's (pan / orbit)
             const slot: MouseSlot | null =
@@ -281,7 +281,6 @@ export class MountainEditor {
         };
         const onMove = (e: PointerEvent) => {
             if (!this.editing) return;
-            if ((e.target as HTMLElement).closest?.('.te-panel')) return;
             this.onPointer(e.clientX, e.clientY, this.painting);
             if (this.painting) {
                 e.preventDefault();
@@ -327,7 +326,6 @@ export class MountainEditor {
         });
 
         this.updateSteepOverlay();
-        this.panel.classList.toggle('editing', this.editing);
     }
 
     /** After scenery / ground rebuild (quality change) — point at the new meshes; Reset still returns to the start. */
@@ -338,15 +336,18 @@ export class MountainEditor {
         ensureOuterMaterialAttrs(this.mesh.geometry);
         if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
         // the rebuilt meshes may have another resolution: old strokes no longer fit
+        const had = this.undoStack.length + this.redoStack.length > 0;
         this.undoStack = [];
         this.redoStack = [];
         this.before = null;
+        // what is shown now is the new start — generated only if nothing was sculpted
+        this.fromGenerated = this.fromGenerated && !had;
+        if (had) this.onHistoryCleared?.();
     }
 
     dispose(): void {
         for (const d of this.disposers) d();
         this.disposers.length = 0;
-        this.panel.remove();
         this.steepOverlay.removeFromParent();
         (this.steepOverlay.material as ShaderMaterial).dispose();
         this.cursor.removeFromParent();
@@ -360,7 +361,7 @@ export class MountainEditor {
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
         if (!this.editing) return;
 
-        const brushByKey: Record<string, MountainBrush> = {
+        const brushByKey: Record<string, TerrainBrush> = {
             '1': 'raise',
             '2': 'lower',
             '3': 'flatten',
@@ -386,10 +387,10 @@ export class MountainEditor {
 
         // 5/6 radius up/down · 7/8 strength up/down
         if (e.key === '5' || e.key === '6' || e.key === '7' || e.key === '8') {
-            if (e.key === '5') this.nudgeRadius(4);
-            else if (e.key === '6') this.nudgeRadius(-4);
-            else if (e.key === '7') this.nudgeStrength(5);
-            else this.nudgeStrength(-5);
+            if (e.key === '5') this.setRadius(this.radius + 4);
+            else if (e.key === '6') this.setRadius(this.radius - 4);
+            else if (e.key === '7') this.setStrength(this.strength + 0.5);
+            else this.setStrength(this.strength - 0.5);
             e.preventDefault();
             e.stopPropagation();
         }
@@ -438,50 +439,47 @@ export class MountainEditor {
     }
 
     /** a new left tool (key or panel click) — the other buttons follow with its companions */
-    private setBrush(brush: MountainBrush): void {
+    setBrush(brush: TerrainBrush): void {
         this.slots.left = brush;
         Object.assign(this.slots, companions(brush));
         if (!this.painting) this.brush = brush;
-        this.renderSlots();
+        this.onSettingsChanged?.();
     }
 
     /** put a tool on the right or middle button (panel right / middle click) */
-    private setSlot(slot: Exclude<MouseSlot, 'left'>, brush: MountainBrush): void {
+    setSlot(slot: Exclude<MouseSlot, 'left'>, brush: TerrainBrush): void {
         this.slots[slot] = brush;
-        this.renderSlots();
+        this.onSettingsChanged?.();
     }
 
-    /** the panel shows which button holds which tool */
-    private renderSlots(): void {
-        for (const lab of this.panel.querySelectorAll<HTMLLabelElement>('label.te-tool')) {
-            const input = lab.querySelector('input');
-            if (!input) continue;
-            input.checked = input.value === this.slots.left;
-            lab.classList.toggle('active', input.checked);
-            const tags = lab.querySelector('.slot-tags');
-            if (!tags) continue;
-            tags.textContent = (['left', 'right', 'middle'] as const)
-                .filter((slot) => this.slots[slot] === input.value)
-                .map((slot) => (slot === 'left' ? 'L' : slot === 'right' ? 'R' : 'M'))
-                .join('');
-        }
+    /** the mouse buttons that hold `brush` */
+    slotsOf(brush: TerrainBrush): MouseSlot[] {
+        return (['left', 'right', 'middle'] as const).filter((slot) => this.slots[slot] === brush);
     }
 
-    private nudgeRadius(delta: number): void {
-        const min = Number(this.radiusInput.min);
-        const max = Number(this.radiusInput.max);
-        this.radius = Math.min(max, Math.max(min, this.radius + delta));
-        this.radiusInput.value = String(Math.round(this.radius));
+    get leftBrush(): TerrainBrush {
+        return this.slots.left;
+    }
+
+    setRadius(radius: number): void {
+        this.radius = Math.min(TerrainBrushes.RADIUS.max, Math.max(TerrainBrushes.RADIUS.min, radius));
         if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
+        this.onSettingsChanged?.();
     }
 
-    private nudgeStrength(delta: number): void {
-        // Slider is strength×10 (min 5 … max 80).
-        const min = Number(this.strengthInput.min);
-        const max = Number(this.strengthInput.max);
-        const next = Math.min(max, Math.max(min, Math.round(this.strength * 10) + delta));
-        this.strength = next / 10;
-        this.strengthInput.value = String(next);
+    setStrength(strength: number): void {
+        this.strength = Math.min(TerrainBrushes.STRENGTH.max, Math.max(TerrainBrushes.STRENGTH.min, strength));
+        this.onSettingsChanged?.();
+    }
+
+    get steepShown(): boolean {
+        return this.steepVisible;
+    }
+
+    set steepShown(on: boolean) {
+        this.steepVisible = on;
+        this.updateSteepOverlay();
+        this.onSettingsChanged?.();
     }
 
     private onPointer(clientX: number, clientY: number, paint: boolean): void {
@@ -730,10 +728,6 @@ export class MountainEditor {
         });
     }
 
-    private setStatus(text: string): void {
-        if (this.statusEl) this.statusEl.textContent = text;
-    }
-
     // ---- undo: an edit keeps only the values it changed
 
     /** every value an edit can change, by a stable key */
@@ -826,6 +820,16 @@ export class MountainEditor {
         return this.undoStack.length > 0;
     }
 
+    /** a stroke is being painted — undo waits for it to end */
+    get busy(): boolean {
+        return this.painting;
+    }
+
+    /** every edit is undone and the start was the generated terrain */
+    get atGenerated(): boolean {
+        return this.fromGenerated && this.undoStack.length === 0;
+    }
+
     /** take the last terrain edit back (false = nothing to take back) */
     undo(): boolean {
         const edit = this.undoStack.pop();
@@ -852,7 +856,7 @@ export class MountainEditor {
     }
 
     exportHistory(): TerrainHistory {
-        return { undo: this.undoStack, redo: this.redoStack };
+        return { undo: this.undoStack, redo: this.redoStack, fromGenerated: this.fromGenerated };
     }
 
     /** the history from before a restart — dropped if it no longer fits the meshes */
@@ -862,25 +866,27 @@ export class MountainEditor {
         if (![...history.undo, ...history.redo].every(fits)) return;
         this.undoStack = history.undo;
         this.redoStack = history.redo;
+        this.fromGenerated = history.fromGenerated;
+    }
+
+    /** forget every stroke: what the meshes show now is the start */
+    clearHistory(generated: boolean): void {
+        this.undoStack = [];
+        this.redoStack = [];
+        this.fromGenerated = generated;
     }
 
     // ---- files
 
-    /** show a landscape on the meshes (one undoable edit): board relief, outer heights / lean / paint, plants */
-    private applyData(data: LandscapeData): boolean {
-        if (!landscapeFits(data, this.map)) {
-            this.setStatus(
-                t('editor:terrainWrongSize', {
-                    defaultValue: 'This terrain is made for a {{cols}}×{{rows}} board — this one is {{boardCols}}×{{boardRows}}',
-                    cols: data.map.cols,
-                    rows: data.map.rows,
-                    boardCols: this.map.cols,
-                    boardRows: this.map.rows,
-                }),
-            );
-            return false;
-        }
-        this.beginEdit();
+    /**
+     * Put a landscape on the meshes: board relief, outer heights / lean /
+     * paint, plants. `record`: as one undoable edit (a loaded file), else
+     * silently (the view turned, the history goes). False when it is made for
+     * another board size.
+     */
+    show(data: LandscapeData, record: boolean): boolean {
+        if (!landscapeFits(data, this.map)) return false;
+        if (record) this.beginEdit();
         applyLandscapeToBoardMesh(this.board, data);
         ensureOuterMaterialAttrs(this.mesh.geometry);
         applyLandscapeToOuterGeometry(this.mesh.geometry, data, { heights: true });
@@ -889,50 +895,8 @@ export class MountainEditor {
         this.plantsApi?.setAll(data.plants, data.plantClears);
         this.onLandscapeChanged?.();
         if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
-        this.endEdit();
+        if (record) this.endEdit();
         return true;
-    }
-
-    /** the terrain as a file of its own (to reuse it in another scenario) */
-    saveFile(): void {
-        const data = this.capture();
-        if (!data) {
-            this.setStatus(t('editor:terrainUnreadable', { defaultValue: 'Could not read the terrain' }));
-            return;
-        }
-        const text = JSON.stringify(encodeLandscape(data));
-        const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${data.id}.terrain.json`;
-        a.click();
-        // revoking right away can cancel the download in some browsers
-        setTimeout(() => URL.revokeObjectURL(url), 30_000);
-        this.setStatus(t('editor:terrainSaved', { defaultValue: 'Saved {{file}}', file: `${data.id}.terrain.json` }));
-    }
-
-    loadFile(): void {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'application/json,.json';
-        input.onchange = () => {
-            const file = input.files?.[0];
-            if (!file) return;
-            void file.text().then((text) => {
-                try {
-                    const raw: unknown = JSON.parse(text);
-                    if (!isLandscapeFile(raw)) throw new Error(t('editor:terrainNotAFile', { defaultValue: 'not a terrain file' }));
-                    if (this.applyData(decodeLandscape(raw))) {
-                        this.setStatus(t('editor:terrainLoaded', { defaultValue: 'Loaded {{file}}', file: file.name }));
-                    }
-                } catch (e) {
-                    this.setStatus(
-                        t('editor:terrainLoadFailed', { defaultValue: 'Load failed: {{reason}}', reason: e instanceof Error ? e.message : String(e) }),
-                    );
-                }
-            });
-        };
-        input.click();
     }
 
     /** hang the steep overlay on the current board mesh (it shares the board's geometry) */
@@ -943,9 +907,7 @@ export class MountainEditor {
     }
 
     private updateSteepOverlay(): void {
-        this.steepOverlay.visible = this.editing && this.showSteep;
-        const toggle = this.panel?.querySelector<HTMLButtonElement>('.te-steep');
-        if (toggle) toggle.classList.toggle('active', this.showSteep);
+        this.steepOverlay.visible = this.editing && this.steepVisible;
     }
 
     /** whether terrain editing currently owns the board's clicks and brush keys */
@@ -963,113 +925,8 @@ export class MountainEditor {
             this.hover = null;
             this.cursor.visible = false;
         }
-        this.panel.classList.toggle('editing', on);
         this.updateSteepOverlay();
         this.onActiveChange?.(on);
-    }
-
-    private buildPanel(): HTMLDivElement {
-        const el = document.createElement('div');
-        el.className = 'te-panel';
-        const tool = (value: MountainBrush, label: string, key: string) =>
-            `<label class="te-tool"><input type="radio" name="te-brush" value="${value}">${label} <kbd>${key}</kbd></label>`;
-        el.innerHTML =
-            `<div class="se-label">${t('editor:terrainShape', { defaultValue: 'Shape' })}</div>` +
-            `<div class="se-row">` +
-            tool('raise', t('editor:terrainRaise', { defaultValue: 'Raise' }), '1') +
-            tool('lower', t('editor:terrainLower', { defaultValue: 'Lower' }), '2') +
-            tool('flatten', t('editor:terrainFlatten', { defaultValue: 'Flatten' }), '3') +
-            tool('lean', t('editor:terrainLean', { defaultValue: 'Lean' }), '4') +
-            `</div>` +
-            `<div class="se-label">${t('editor:terrainPaint', { defaultValue: 'Paint' })}</div>` +
-            `<div class="se-row">` +
-            tool('mat-grass', t('editor:terrainGrass', { defaultValue: 'Grass' }), 'G') +
-            tool('mat-rock', t('editor:terrainRock', { defaultValue: 'Rock' }), 'K') +
-            tool('mat-snow', t('editor:terrainSnow', { defaultValue: 'Snow' }), 'N') +
-            tool('mat-beach', t('editor:terrainBeach', { defaultValue: 'Beach' }), 'H') +
-            tool('mat-scree', t('editor:terrainScree', { defaultValue: 'Scree' }), 'C') +
-            `</div>` +
-            `<div class="se-label">${t('editor:terrainPlants', { defaultValue: 'Plants' })}</div>` +
-            `<div class="se-row">` +
-            tool('obj-oak', t('editor:terrainOak', { defaultValue: 'Oak' }), 'O') +
-            tool('obj-pine', t('editor:terrainPine', { defaultValue: 'Pine' }), 'P') +
-            tool('obj-bushRound', t('editor:terrainBush', { defaultValue: 'Bush' }), 'B') +
-            tool('obj-bushTall', t('editor:terrainTallBush', { defaultValue: 'Tall bush' }), 'T') +
-            tool('obj-erase', t('editor:terrainErase', { defaultValue: 'Erase' }), 'X') +
-            `</div>` +
-            `<div class="te-sliders">` +
-            `<span>${t('editor:terrainRadius', { defaultValue: 'Radius' })} <kbd>5</kbd>/<kbd>6</kbd></span><input type="range" class="te-r" min="8" max="120" value="28">` +
-            `<span>${t('editor:terrainStrength', { defaultValue: 'Strength' })} <kbd>7</kbd>/<kbd>8</kbd></span><input type="range" class="te-s" min="5" max="80" value="22">` +
-            `</div>` +
-            `<div class="se-row">` +
-            `<button type="button" class="te-steep active" title="${esc(t('editor:terrainSteepTip', { defaultValue: 'Amber: slows units · red: too steep to walk up' }))}">${t('editor:terrainSteep', { defaultValue: 'Steep slopes' })}</button>` +
-            `<button type="button" class="te-generated" title="${esc(t('editor:terrainGeneratedTip', { defaultValue: 'Throw the sculpted terrain away and start from the board’s own' }))}">${t('editor:terrainGenerated', { defaultValue: 'Generated terrain' })}</button>` +
-            `</div>` +
-            `<div class="se-row">` +
-            `<button type="button" class="te-save" title="${esc(t('editor:terrainSaveTip', { defaultValue: 'The terrain as a file of its own — load it into another scenario' }))}">${t('editor:terrainSaveFile', { defaultValue: 'Save terrain file' })}</button>` +
-            `<button type="button" class="te-load">${t('editor:terrainLoadFile', { defaultValue: 'Load terrain file' })}</button>` +
-            `</div>` +
-            `<div class="te-status"></div>` +
-            `<div class="se-hint">${t('editor:terrainHint', {
-                defaultValue: 'Left drag: L tool · Shift+right drag: R · Shift+middle drag: M · right- or middle-click a tool to put it on that button',
-            })}</div>`;
-
-        const tools = el.querySelectorAll<HTMLInputElement>('input[name="te-brush"]');
-        for (const input of tools) {
-            input.addEventListener('change', () => {
-                if (!input.checked) return;
-                this.setBrush(input.value as MountainBrush);
-            });
-            const label = input.closest<HTMLLabelElement>('label.te-tool');
-            if (!label) continue;
-            const tags = document.createElement('span');
-            tags.className = 'slot-tags';
-            label.appendChild(tags);
-            // right-click a tool: the right button; middle-click: the middle button
-            label.addEventListener('contextmenu', (ev) => {
-                ev.preventDefault();
-                this.setSlot('right', input.value as MountainBrush);
-            });
-            label.addEventListener('mousedown', (ev) => {
-                if (ev.button === 1) ev.preventDefault(); // no autoscroll
-            });
-            label.addEventListener('auxclick', (ev) => {
-                if (ev.button !== 1) return;
-                ev.preventDefault();
-                this.setSlot('middle', input.value as MountainBrush);
-            });
-        }
-        this.radiusInput = el.querySelector<HTMLInputElement>('.te-r')!;
-        this.strengthInput = el.querySelector<HTMLInputElement>('.te-s')!;
-        this.radiusInput.addEventListener('input', () => {
-            this.radius = Number(this.radiusInput.value);
-            if (this.hover) this.drapeCursor(this.hover.x, this.hover.z);
-        });
-        this.strengthInput.addEventListener('input', () => {
-            this.strength = Number(this.strengthInput.value) / 10;
-        });
-        this.radius = Number(this.radiusInput.value);
-        this.strength = Number(this.strengthInput.value) / 10;
-
-        this.statusEl = el.querySelector<HTMLDivElement>('.te-status')!;
-        el.querySelector('.te-save')!.addEventListener('click', () => this.saveFile());
-        el.querySelector('.te-load')!.addEventListener('click', () => this.loadFile());
-        el.querySelector('.te-generated')!.addEventListener('click', () => this.onResetGenerated?.());
-        el.querySelector('.te-steep')!.addEventListener('click', () => {
-            this.showSteep = !this.showSteep;
-            this.updateSteepOverlay();
-        });
-
-        // A slider or button keeps keyboard focus after a click, and the camera
-        // ignores keys aimed at inputs — hand focus back so WASD keeps working.
-        const release = () => {
-            const active = document.activeElement as HTMLElement | null;
-            if (!active || !el.contains(active)) return;
-            active.blur();
-        };
-        el.addEventListener('pointerup', () => requestAnimationFrame(release));
-        el.addEventListener('change', () => requestAnimationFrame(release));
-        return el;
     }
 }
 
@@ -1077,5 +934,3 @@ export class MountainEditor {
 function fileSlug(name: string): string {
     return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'terrain';
 }
-
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);

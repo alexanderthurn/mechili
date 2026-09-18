@@ -38,8 +38,6 @@ import {
 import type { ScenarioIssue } from '../game/scenario/normalize';
 import type { ScenarioDef, SceneTeam, SceneUnit } from '../game/scenario/scenarioDef';
 import type { Unit, UnitType } from '../game/units';
-import type { MountainEditor, TerrainHistory } from '../game/mountainEditor';
-import { draftTerrain, setDraftTerrain } from '../game/scenario/scenarioTerrain';
 import { rulesHtml, wireRules } from './scenarioRulesPanel';
 
 export interface ScenarioEditorHost {
@@ -85,7 +83,31 @@ export interface ScenarioEditorHost {
     shareCode(def: ScenarioDef): Promise<string>;
     exit(): void;
     /** the Terrain tool (sculpt, paint, plants) — its panel goes into this window */
-    readonly terrain: MountainEditor | null;
+    readonly terrain: EditorTerrain | null;
+}
+
+/**
+ * The window's handle on the Terrain tool (the editor session implements it):
+ * the panel to show, editing on or off, its own undo steps, and the view —
+ * the ground turns with the armies when the enemy side is built.
+ */
+export interface EditorTerrain {
+    readonly panel: HTMLElement;
+    setEditing(on: boolean): void;
+    /** a stroke is being painted — undo waits */
+    readonly busy: boolean;
+    readonly canUndo: boolean;
+    undo(): boolean;
+    redo(): boolean;
+    /** carried across a restart (opaque here) */
+    exportHistory(): unknown;
+    importHistory(history: unknown): void;
+    /** show the ground with this side at the near edge (its history restarts) */
+    setView(side: 'player' | 'enemy'): void;
+    /** the draft has a sculpted terrain (a board-size change throws it away) */
+    readonly sculpted: boolean;
+    /** throw the sculpted terrain away (the board size changes) */
+    drop(): void;
 }
 
 /** 'play': the normal game UI; the others are the editor's own board tools */
@@ -109,7 +131,7 @@ interface Carried {
     /** the order of edits across both histories, so Ctrl+Z always takes back the last one */
     steps: Step[];
     redoSteps: Step[];
-    terrainHistory: TerrainHistory | null;
+    terrainHistory: unknown;
 }
 
 /** the editor's state across the restarts it causes (test battle, board size) */
@@ -172,8 +194,13 @@ export class ScenarioEditor {
             this.rulesOpen = carried.rulesOpen;
             this.steps = carried.steps;
             this.redoSteps = carried.redoSteps;
+            // the ground turned as the armies are first, then the strokes recorded that way
+            host.terrain?.setView(this.side);
             if (carried.terrainHistory) host.terrain?.importHistory(carried.terrainHistory);
-            if (!host.terrain?.canUndo) this.steps = this.steps.filter((s) => s !== 'terrain');
+            if (!host.terrain?.canUndo) {
+                this.steps = this.steps.filter((s) => s !== 'terrain');
+                this.redoSteps = this.redoSteps.filter((s) => s !== 'terrain');
+            }
             if (this.tool === 'terrain' && !host.terrain) this.tool = 'play';
         } else {
             this.history = new DraftHistory(tidy);
@@ -298,9 +325,13 @@ export class ScenarioEditor {
     /** the terrain went back to the generated one: a new board shows it, the terrain history is gone */
     restartForTerrain(): void {
         this.dropTerrainSteps();
-        // the strokes were made on the terrain that is gone — none of them carries over
-        this.host.terrain?.importHistory({ undo: [], redo: [] });
         this.restartWith(this.draft);
+    }
+
+    /** the terrain tool lost its history (meshes rebuilt): its steps are gone from the undo order */
+    terrainHistoryCleared(): void {
+        this.dropTerrainSteps();
+        this.render();
     }
 
     private dropTerrainSteps(): void {
@@ -363,7 +394,7 @@ export class ScenarioEditor {
 
     /** another board size: a sculpted terrain is made for the old one and goes */
     private changeBoardSize(def: ScenarioDef): void {
-        if (draftTerrain()) setDraftTerrain(null);
+        if (this.host.terrain?.sculpted) this.host.terrain.drop();
         this.dropTerrainSteps();
         this.restartWith(def);
     }
@@ -401,31 +432,53 @@ export class ScenarioEditor {
 
     /** take back the last edit — of the draft or of the terrain, whichever came last */
     undo(): void {
+        // mid-stroke: the stroke ends first
+        if (this.host.terrain?.busy) return;
         const step = this.steps.pop() ?? (this.history.canUndo ? 'draft' : null);
         if (!step) return;
-        this.redoSteps.push(step);
         if (step === 'terrain') {
+            this.redoSteps.push(step);
             if (!this.host.terrain?.undo()) this.dropTerrainSteps();
             this.render();
-        } else this.stepHistory(() => this.history.undo());
+        } else if (this.stepHistory(() => this.history.undo(), () => this.history.redo())) this.redoSteps.push(step);
+        else this.steps.push(step);
     }
 
     private redo(): void {
+        if (this.host.terrain?.busy) return;
         const step = this.redoSteps.pop();
         if (!step) return;
-        this.steps.push(step);
         if (step === 'terrain') {
+            this.steps.push(step);
             if (!this.host.terrain?.redo()) this.dropTerrainSteps();
             this.render();
-        } else this.stepHistory(() => this.history.redo());
+        } else if (this.stepHistory(() => this.history.redo(), () => this.history.undo())) this.steps.push(step);
+        else this.redoSteps.push(step);
     }
 
-    private stepHistory(step: () => ScenarioDef | null): void {
+    /**
+     * Step the draft history (`back` reverses the step). A step that changes
+     * the board size would throw a sculpted terrain away: asked first, and
+     * refused it is stepped back. False = nothing happened.
+     */
+    private stepHistory(step: () => ScenarioDef | null, back: () => ScenarioDef | null): boolean {
         const before = this.draft.map;
         const def = step();
-        if (!def) return;
-        if (JSON.stringify(def.map) !== JSON.stringify(before)) this.changeBoardSize(def);
-        else this.apply(null);
+        if (!def) return false;
+        if (JSON.stringify(def.map) === JSON.stringify(before)) {
+            this.apply(null);
+            return true;
+        }
+        if (this.host.terrain?.sculpted && !window.confirm(
+            t('editor:mapDropsTerrain', {
+                defaultValue: 'The sculpted terrain is made for this board size and will be thrown away. Continue?',
+            }),
+        )) {
+            back();
+            return false;
+        }
+        this.changeBoardSize(def);
+        return true;
     }
 
     startTest(): void {
@@ -435,8 +488,13 @@ export class ScenarioEditor {
     }
 
     private switchSide(): void {
+        // a stroke in progress ends where it is first
+        if (this.host.terrain?.busy) return;
         this.side = this.side === 'player' ? 'enemy' : 'player';
         if (this.team !== 'horde') this.team = this.side === 'player' ? 'enemy' : 'player';
+        // the ground turns with the armies; the terrain strokes so far can't be undone across that
+        this.host.terrain?.setView(this.side);
+        this.dropTerrainSteps();
         this.apply(null);
         this.flash(
             this.side === 'enemy'
@@ -1111,7 +1169,7 @@ export class ScenarioEditor {
                     return;
                 }
             }
-            if (draftTerrain()) {
+            if (this.host.terrain?.sculpted) {
                 const ok = window.confirm(
                     t('editor:mapDropsTerrain', {
                         defaultValue: 'The sculpted terrain is made for this board size and will be thrown away. Continue?',

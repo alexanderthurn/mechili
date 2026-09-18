@@ -28,6 +28,15 @@ export function draftTerrainText(): string | null {
     return draftText;
 }
 
+/**
+ * The draft terrain as it is now, made into text only when asked — a later
+ * change of the draft terrain (another scenario opened) doesn't reach it.
+ */
+export function draftTerrainSnapshot(): () => string | null {
+    const data = draft;
+    return () => (!data ? null : data === draft ? draftTerrainText() : terrainFileText(data));
+}
+
 /** a terrain as the text of its package file */
 export function terrainFileText(data: LandscapeData): string {
     return JSON.stringify(encodeLandscape(data));
