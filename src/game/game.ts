@@ -1421,7 +1421,7 @@ export class Game {
             ? draftTerrain()
             : this.settings.scenario?.mode === 'play'
               ? packagedTerrain(this.playedScenarioId())
-              : null;
+              : packagedTerrain(this.settings.terrainOf);
         if (scenarioTerrain || settings.landscape) {
             const data = scenarioTerrain ?? loadedLandscape(settings.landscape!);
             const label = scenarioTerrain ? 'the scenario terrain' : `"${settings.landscape}"`;

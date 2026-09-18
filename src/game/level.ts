@@ -23,9 +23,11 @@ import {
     baseAssetPaths,
     buildAssetOverlay,
     disposeAssetOverlay,
+    isScenarioTerrainFile,
     META_FILE,
     SCENARIO_FILE,
     SCENARIOS_DIR,
+    scenarioTerrainPath,
     switchAssetOverlay,
     type AssetOverlay,
     type OverlayFile,
@@ -34,6 +36,7 @@ import {
 import { BASE_PACK, loadPackWithOverlay } from './content/basePack';
 import { cacheLevel, cachedLevel, deleteCachedLevel, listCachedLevels } from './levelCache';
 import { parseJsonc } from './content/jsonc';
+import type { MapSize } from './map';
 import { parseMeta, parseScenario, type NormalizedMeta, type NormalizedScenario } from './scenario/normalize';
 import { TypeRegistry } from './content/typeRegistry';
 import { BASE_TYPES, proceduralHeightsOf } from './units';
@@ -218,8 +221,8 @@ export interface LevelSummary {
     ref: LevelRef;
     /** meta.jsonc's name, else the package id */
     name: string;
-    /** in meta.jsonc's order when it has one */
-    scenarios: { id: string; name: string }[];
+    /** in meta.jsonc's order when it has one; `terrain`: it has a sculpted terrain, made for `map` */
+    scenarios: { id: string; name: string; terrain: boolean; map: MapSize | null }[];
 }
 
 function nameIn(text: string, file: string): string | null {
@@ -231,10 +234,20 @@ function nameIn(text: string, file: string): string | null {
     }
 }
 
+function mapIn(text: string, file: string): MapSize | null {
+    try {
+        const raw = parseJsonc(text, file) as { map?: MapSize };
+        return raw?.map && typeof raw.map === 'object' && typeof raw.map.zoneCols === 'number' ? raw.map : null;
+    } catch {
+        return null;
+    }
+}
+
 /** What a package's files say about its scenarios (no registry, no validation). */
 export function summarizeLevel(ref: LevelRef, files: readonly OverlayFile[]): LevelSummary {
     const decoder = new TextDecoder();
-    const scenarios: { id: string; name: string }[] = [];
+    const scenarios: LevelSummary['scenarios'] = [];
+    const terrains = new Set(files.filter((f) => isScenarioTerrainFile(f.path)).map((f) => f.path));
     let name = ref.id;
     let order: string[] = [];
     for (const f of files) {
@@ -249,10 +262,12 @@ export function summarizeLevel(ref: LevelRef, files: readonly OverlayFile[]): Le
                 order = [];
             }
         } else if (f.path === SCENARIO_FILE) {
-            scenarios.push({ id: 'scenario', name: nameIn(text(), f.path) ?? ref.id });
+            const t = text();
+            scenarios.push({ id: 'scenario', name: nameIn(t, f.path) ?? ref.id, terrain: terrains.has(scenarioTerrainPath('scenario')), map: mapIn(t, f.path) });
         } else if (f.path.startsWith(SCENARIOS_DIR) && f.path.endsWith('.jsonc')) {
             const id = f.path.slice(SCENARIOS_DIR.length, -'.jsonc'.length);
-            scenarios.push({ id, name: nameIn(text(), f.path) ?? id });
+            const t = text();
+            scenarios.push({ id, name: nameIn(t, f.path) ?? id, terrain: terrains.has(scenarioTerrainPath(id)), map: mapIn(t, f.path) });
         }
     }
     const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);

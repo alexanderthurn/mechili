@@ -113,7 +113,7 @@ import type { ScenarioDef } from './game/scenario/scenarioDef';
 import { decodeShareCode, encodeShareCode } from './game/scenario/shareCode';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { builtInCampaigns, campaignLevel, campaignSummary, completedLevels, isBuiltInCampaign, markLevelCompleted } from './game/campaign';
-import { landscapeIds, loadedLandscape, loadLandscape } from './game/landscape';
+import { loadedLandscape, loadLandscape } from './game/landscape';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
@@ -319,7 +319,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
             yearRoles: yearRolesOption(parsed.yearRoles),
             yearKomtur: parsed.yearKomtur === true,
-            landscape: landscapeOption(parsed.landscape),
+            map: mapOption(parsed.map),
             terrainShape: terrainShapeOption(parsed.terrainShape),
         };
     } catch {
@@ -1992,35 +1992,67 @@ function refreshTerrainOptions(): void {
 refreshTerrainOptions();
 wireSelectShortLabels(cgTerrainEl);
 
-/** the lobby's map choice: the procedural terrain, or one of the bundled static maps (shown only when there are any) */
-function refreshLandscapeOptions(): void {
-    const value = cgLandscapeEl.value;
-    const ids = landscapeIds();
-    const label = (id: string) => id.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+/** the lobby's map choices by select value: saved scenarios that have a sculpted terrain */
+const mapChoices = new Map<string, NonNullable<CustomGameConfig['map']>>();
+
+function mapValue(map: CustomGameConfig['map']): string {
+    return map ? `${map.hash}:${map.scenario}` : '';
+}
+
+/** a stored / received map choice, checked for shape (whether this client has it is asked later) */
+function mapOption(value: unknown): CustomGameConfig['map'] {
+    const m = value as CustomGameConfig['map'] | null;
+    if (!m || typeof m !== 'object') return undefined;
+    if (typeof m.id !== 'string' || typeof m.hash !== 'string' || typeof m.scenario !== 'string' || typeof m.name !== 'string') return undefined;
+    if (!m.board || typeof m.board !== 'object' || typeof m.board.zoneCols !== 'number') return undefined;
+    return { id: m.id, hash: m.hash, scenario: m.scenario, name: m.name, board: m.board };
+}
+
+/**
+ * The lobby's map choice: the generated terrain, or the terrain of a saved
+ * scenario (Single Player → Editor). `current` stays listed even when this
+ * client doesn't have it (a guest shows the host's pick by name).
+ */
+function renderMapOptions(current: CustomGameConfig['map']): void {
+    const options: [string, string][] = [['', t('menu:mapProcedural', { defaultValue: 'Generated' })]];
+    for (const [value, map] of mapChoices) options.push([value, map.name]);
+    if (current && !mapChoices.has(mapValue(current))) options.push([mapValue(current), current.name]);
     cgLandscapeEl.replaceChildren(
-        ...[['', t('menu:mapProcedural', { defaultValue: 'Generated' })] as const, ...ids.map((id) => [id, label(id)] as const)].map(([v, text]) => {
+        ...options.map(([v, text]) => {
             const opt = document.createElement('option');
             opt.value = v;
             opt.textContent = text;
             return opt;
         }),
     );
-    cgLandscapeEl.value = ids.includes(value) ? value : '';
-    const field = cgLandscapeEl.closest<HTMLElement>('.m-field');
-    if (field) field.style.display = ids.length > 0 ? '' : 'none';
+    cgLandscapeEl.value = mapValue(current);
+}
+
+/** list the saved scenarios that have a terrain (async: the scenario cache), then redraw the choice */
+function refreshLandscapeOptions(current: CustomGameConfig['map'] = mapChoices.get(cgLandscapeEl.value)): void {
+    renderMapOptions(current);
+    void scenarioLevels().then((levels) => {
+        mapChoices.clear();
+        for (const level of levels) {
+            for (const sc of level.scenarios) {
+                if (!sc.terrain || !sc.map) continue;
+                const name = level.scenarios.length > 1 ? `${level.name} · ${sc.name}` : sc.name;
+                const map = { id: level.ref.id, hash: level.ref.hash, scenario: sc.id, name, board: sc.map };
+                mapChoices.set(mapValue(map), map);
+            }
+        }
+        // the form may have moved on while the list loaded — keep what it shows now
+        renderMapOptions(mapChoices.get(cgLandscapeEl.value) ?? current);
+    });
 }
 refreshLandscapeOptions();
 
-/** a stored / received map choice that this build has, else '' (procedural) */
-function landscapeOption(value: unknown): string {
-    return typeof value === 'string' && landscapeIds().includes(value) ? value : '';
-}
-
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape' | 'map'
 > {
     return {
+        map: undefined,
         pace: DEFAULT_CUSTOM_GAME_PACE_ID,
         hordePreset: DEFAULT_HORDE_PRESET_ID,
         roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
@@ -2041,7 +2073,8 @@ function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobb
         cfg.moneyFactor !== defaults.moneyFactor ||
         cfg.startMoney !== defaults.startMoney ||
         cfg.strongholdMode !== defaults.strongholdMode ||
-        terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape
+        terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape ||
+        mapValue(cfg.map) !== mapValue(defaults.map)
     );
 }
 
@@ -2061,8 +2094,7 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     refreshYearLobbyOptions();
     cgYearAttackerEl.value = yearRolesOption(cfg.yearRoles);
     cgYearKomturEl.value = cfg.yearKomtur ? 'komtur' : 'army';
-    refreshLandscapeOptions();
-    cgLandscapeEl.value = landscapeOption(cfg.landscape);
+    refreshLandscapeOptions(cfg.map);
     refreshTerrainOptions();
     cgTerrainEl.value = terrainShapeOption(cfg.terrainShape);
     syncSelectOptionLabels(cgTerrainEl, false);
@@ -2172,12 +2204,12 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'landscape' | 'terrainShape'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'map' | 'terrainShape'
 > {
     return {
         yearRoles: yearRolesOption(cgYearAttackerEl.value),
         yearKomtur: cgYearKomturEl.value === 'komtur',
-        landscape: landscapeOption(cgLandscapeEl.value),
+        map: mapChoices.get(cgLandscapeEl.value),
         terrainShape: terrainShapeOption(cgTerrainEl.value),
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
@@ -4560,8 +4592,20 @@ function wireHostedHub(
 
     // ---- the room's scenario: every joined guest must have it active before Start.
     // Only a Custom Game room plays one; any other room offers the base game.
-    // rooms play the base game for now; the hand-over below stays for future level sources
-    const roomLevel = (): LevelRef | null => null;
+    // the Custom Game's map: the saved scenario package its terrain lives in
+    const roomLevel = (): LevelRef | null => {
+        const map = customConfig?.map;
+        if (!map) return null;
+        const ref = { id: map.id, hash: map.hash };
+        if (isLevelAvailable(ref)) return ref;
+        // from the scenario cache first (once per pick), then offered
+        if (loadingMapHash !== ref.hash) {
+            loadingMapHash = ref.hash;
+            void ensureLevel(ref).then(() => refresh());
+        }
+        return null;
+    };
+    let loadingMapHash: string | null = null;
     const levelBySeat = new Map<SeatId, { name: string; offered: string | null; ready: string | null | undefined }>();
     /** offer the room's scenario to guests that haven't had this one offered; true when all have it active */
     const syncGuestLevels = (roster: CanonicalSeatDef[]): boolean => {
@@ -4849,8 +4893,16 @@ function lobbyMatchSettings(
     delete settings.seats; // the roster travels separately (localized per client)
     if (config) applyCustomGameConfig(settings, config);
     else if (horde) applyHordeMode(settings);
-    // the lobby's map choice (a board it doesn't fit — 2v2 is wider — plays procedural)
-    if (config?.landscape && landscapeIds().includes(config.landscape)) settings.landscape = config.landscape;
+    // the lobby's map: a saved scenario's terrain — its package is the match's
+    // level (every seat has it by now) and the board is the size it was made for
+    const map = config?.map;
+    const mapRef = map ? { id: map.id, hash: map.hash } : undefined;
+    const onMap = !!map && isLevelAvailable(mapRef);
+    if (onMap) {
+        settings.level = mapRef;
+        settings.terrainOf = map.scenario;
+        settings.map = { ...map.board };
+    }
     const seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
     if (config?.mode === 'year') {
         applyClimbMode(settings, {
@@ -4860,8 +4912,8 @@ function lobbyMatchSettings(
             ...(config.yearKomtur ? { komtur: true } : {}),
         });
     }
-    // 2v2 / duo only — 1v1 must keep the standard map width
-    if (roster.length > 2) widenMapForDuo(settings);
+    // 2v2 / duo only — 1v1 must keep the standard map width; a map keeps the board it was made for
+    if (roster.length > 2 && !onMap) widenMapForDuo(settings);
     return { ...settings, seed };
 }
 
@@ -4921,7 +4973,7 @@ function loadPracticeConfig(): CustomGameConfig {
             moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
             startMoney: startMoneyOption(parsed.startMoney ?? defaults.startMoney),
             strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
-            landscape: landscapeOption(parsed.landscape),
+            map: mapOption(parsed.map),
             terrainShape: terrainShapeOption(parsed.terrainShape ?? defaults.terrainShape),
         };
     } catch {
