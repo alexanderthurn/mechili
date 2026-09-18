@@ -15,7 +15,7 @@ import {
 } from './ui/introRoster';
 import { registerHoverTipClearer } from './ui/hoverTips';
 import { Game } from './game/game';
-import { audio } from './game/audio';
+import { audio, playMatchMusic, playMenuMusic } from './game/audio';
 import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
 import { GamepadCursor } from './engine/gamepadCursor';
@@ -1342,6 +1342,8 @@ function setMenuChromeVisible(visible: boolean): void {
         // showing at all, including while a sub-panel is open, so it's
         // never stale by the time the player gets back to the top level
         startRoomPoll();
+        // Resume menu bed when chrome returns (needs a prior unlock gesture).
+        if (audio.isUnlocked) playMenuMusic();
     } else {
         stopRoomPoll();
     }
@@ -3600,6 +3602,7 @@ function startGame(
     // with logo-only before `new Game()` — otherwise the main thread freezes
     // on the last menu frame and the cinematic never covers the hitch.
     menuChromeEl.remove();
+    playMatchMusic();
 
     if (star?.role === 'guest' && !resume?.local) {
         // Only a GUEST ever saves one — if the HOST's own tab reloads, its
@@ -5897,8 +5900,19 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
+wrapper.addEventListener(
+    'pointerdown',
+    () => {
+        if (started) return;
+        audio.unlock();
+        playMenuMusic();
+    },
+    { capture: true },
+);
+
 menu.addEventListener('click', (e) => {
     audio.unlock();
+    if (!started) playMenuMusic();
     const refreshBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-rooms-refresh');
     if (refreshBtn && !started) {
         e.preventDefault();

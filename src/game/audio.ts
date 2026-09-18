@@ -82,6 +82,72 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.5,
     },
+    commander_addi: {
+        paths: ['audio/commander_addi.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
+    commander_air: {
+        paths: ['audio/commander_air.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
+    commander_archer: {
+        paths: ['audio/commander_archer.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
+    commander_cost: {
+        paths: ['audio/commander_cost.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
+    commander_elite: {
+        paths: ['audio/commander_elite.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
+    commander_flanky: {
+        paths: ['audio/commander_flanky.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
+    commander_giant: {
+        paths: ['audio/commander_giant.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
+    commander_meteor: {
+        paths: ['audio/commander_meteor.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_money: {
+        paths: ['audio/commander_money.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
+    commander_speed: {
+        paths: ['audio/commander_speed.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
+    commander_tutor: {
+        paths: ['audio/commander_tutor.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     convert: {
         paths: [
             'audio/convert_1.ogg',
@@ -379,13 +445,13 @@ const CUES: Record<string, CueDef> = {
     },
     /** Default match bed — later: music_battle_winter / horde / etc. */
     music_battle: {
-        paths: ['audio/music/battle_1.ogg'],
+        paths: ['audio/music_battle_1.ogg'],
         group: 'music',
         gain: 0.38,
     },
     /** Main menu bed — later: seasonal menu variants. */
     music_menu: {
-        paths: ['audio/music/menu_1.ogg'],
+        paths: ['audio/music_menu_1.ogg'],
         group: 'music',
         gain: 0.42,
     },
@@ -724,6 +790,17 @@ void [
     assetUrl('audio/bolt_shot_3.ogg'),
     assetUrl('audio/card_pick_1.ogg'),
     assetUrl('audio/card_pick_2.ogg'),
+    assetUrl('audio/commander_addi.ogg'),
+    assetUrl('audio/commander_air.ogg'),
+    assetUrl('audio/commander_archer.ogg'),
+    assetUrl('audio/commander_cost.ogg'),
+    assetUrl('audio/commander_elite.ogg'),
+    assetUrl('audio/commander_flanky.ogg'),
+    assetUrl('audio/commander_giant.ogg'),
+    assetUrl('audio/commander_meteor.ogg'),
+    assetUrl('audio/commander_money.ogg'),
+    assetUrl('audio/commander_speed.ogg'),
+    assetUrl('audio/commander_tutor.ogg'),
     assetUrl('audio/convert_1.ogg'),
     assetUrl('audio/convert_2.ogg'),
     assetUrl('audio/convert_beam_1.ogg'),
@@ -775,8 +852,8 @@ void [
     assetUrl('audio/melee_swing_1.ogg'),
     assetUrl('audio/melee_swing_2.ogg'),
     assetUrl('audio/melee_swing_3.ogg'),
-    assetUrl('audio/music/battle_1.ogg'),
-    assetUrl('audio/music/menu_1.ogg'),
+    assetUrl('audio/music_battle_1.ogg'),
+    assetUrl('audio/music_menu_1.ogg'),
     assetUrl('audio/orb_shot_1.ogg'),
     assetUrl('audio/orb_shot_2.ogg'),
     assetUrl('audio/orb_shot_3.ogg'),
@@ -854,6 +931,10 @@ class AudioBus {
         const ctx = this.ensureCtx();
         if (ctx.state === 'suspended') void ctx.resume();
         this.unlocked = true;
+    }
+
+    get isUnlocked(): boolean {
+        return this.unlocked;
     }
 
     /**
@@ -973,16 +1054,13 @@ class AudioBus {
      * Pass `null` to stop. Beds lazy-load; a newer call cancels an older load.
      */
     playMusic(cueId: string | null): void {
+        // Always resume — browsers suspend the context until a user gesture.
+        this.unlock();
         if (cueId === this.musicCueId && this.musicSource) return;
         const gen = ++this.musicGen;
         this.stopMusicImmediate();
         if (!cueId) return;
-        if (!this.unlocked) this.unlock();
-        if (prefs().audioMuted) {
-            // Remember intent so unmute / later unlock can resume if desired —
-            // for now just leave stopped; caller can playMusic again.
-            return;
-        }
+        if (prefs().audioMuted) return;
         void this.startMusic(cueId, gen);
     }
 
@@ -1041,6 +1119,13 @@ class AudioBus {
     /** Non-spatial UI / phase / match stings. */
     playUi(cueId: string): void {
         this.play(cueId);
+    }
+
+    /** Human commander pick bark — falls back to card_pick if unknown. */
+    playCommanderPick(cardId: string): void {
+        const cueId = `commander_${cardId}`;
+        if (CUES[cueId]) this.playUi(cueId);
+        else this.playUi('card_pick');
     }
 
     playPhase(phase: 'deploy' | 'battle'): void {
@@ -1331,6 +1416,7 @@ function impactCue(e: Extract<SimEvent, { kind: 'impact' }>): string {
 function playerActionCue(kind: string): string | null {
     switch (kind) {
         case 'chooseCard':
+            return null; // voice bark via playCommanderPick
         case 'roundCard':
             return 'card_pick';
         case 'forgeLight':

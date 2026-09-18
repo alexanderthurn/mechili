@@ -1764,13 +1764,13 @@ export class Game {
         this.roundBoosts = { range: this.seats.map(() => false), speed: this.seats.map(() => false) };
         this.unlockedUnits = this.seats.map(() => []);
         this.unlockUsedThisRound = this.seats.map(() => false);
-        // The Year: attacker Tent comes with Rally Route unlocked and two free
-        // charges (not Sell / Move Pack — those stay off the Tent shop).
+        // The Year: attacker seats get two free Rally Route charges (same as
+        // card-granted one-shots — do not set rallyRouteOwned, or the Tent
+        // panel shows the buy as already owned).
         if (settings.climb) {
             const attacker = this.yearAttackerTeam();
             for (let seat = 0; seat < this.seats.length; seat++) {
                 if (this.seats[seat]!.team === attacker) {
-                    this.rallyRouteOwned[seat] = true;
                     this.tacticInventory[seat]!.push(RALLY_ROUTE_ID, RALLY_ROUTE_ID);
                 }
             }
@@ -3967,7 +3967,11 @@ export class Game {
             audio.playPlayerAction(stamped.kind, false);
             return false;
         }
-        audio.playPlayerAction(stamped.kind, true);
+        // chooseCard voice is fired from the card-click path before dispatch
+        // so it isn't delayed by army spawn / board setup.
+        if (stamped.kind !== 'chooseCard') {
+            audio.playPlayerAction(stamped.kind, true);
+        }
         // the sandbox deployment: whatever the game UI changed goes into the draft
         if (this.scenarioEditor && this.round >= 1) this.scenarioEditor.syncFromBoard();
         if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
@@ -4677,6 +4681,8 @@ export class Game {
                   : `You bring your own troops & gear — ${this.seats[primarySeatOf(this.seats, 'player')]!.name} decides the side's speciality.`;
         this.hud.showStartCards(offer, note, (cardId) => {
             this.playerStarterOffer = null;
+            // Bark immediately on click — chooseCard apply is heavy and would delay audio.
+            audio.playCommanderPick(cardId);
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.broadcast({ type: 'starter', cardId, side: this.localSeat() });
             this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
@@ -4724,6 +4730,7 @@ export class Game {
             ]!;
         this.hud.hideCardOverlay();
         this.playerStarterOffer = null;
+        audio.playCommanderPick(pick.id);
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
         this.broadcast({ type: 'starter', cardId: pick.id, side: this.localSeat() });
         this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
