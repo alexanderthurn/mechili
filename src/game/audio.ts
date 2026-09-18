@@ -362,14 +362,23 @@ const CUES: Record<string, CueDef> = {
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
-    hp_draw: {
-        paths: [
-            'audio/hp_draw_1.ogg',
-            'audio/hp_draw_2.ogg',
-        ],
+    hp_draw_high: {
+        paths: ['audio/hp_draw_high_1.ogg'],
         group: 'ui',
-        maxVoices: 2,
-        gain: 0.5,
+        maxVoices: 6,
+        gain: 1.0,
+    },
+    hp_draw_low: {
+        paths: ['audio/hp_draw_low_1.ogg'],
+        group: 'ui',
+        maxVoices: 8,
+        gain: 0.65,
+    },
+    hp_draw_medium: {
+        paths: ['audio/hp_draw_medium_1.ogg'],
+        group: 'ui',
+        maxVoices: 7,
+        gain: 0.82,
     },
     impact_flesh: {
         paths: [
@@ -888,8 +897,9 @@ void [
     assetUrl('audio/hazard_drip_1.ogg'),
     assetUrl('audio/hazard_drip_2.ogg'),
     assetUrl('audio/hazard_drip_3.ogg'),
-    assetUrl('audio/hp_draw_1.ogg'),
-    assetUrl('audio/hp_draw_2.ogg'),
+    assetUrl('audio/hp_draw_high_1.ogg'),
+    assetUrl('audio/hp_draw_low_1.ogg'),
+    assetUrl('audio/hp_draw_medium_1.ogg'),
     assetUrl('audio/impact_flesh_1.ogg'),
     assetUrl('audio/impact_flesh_2.ogg'),
     assetUrl('audio/impact_flesh_3.ogg'),
@@ -1250,12 +1260,20 @@ class AudioBus {
         else this.playUi('card_pick');
     }
 
+    /** Attack-phase sting only — deploy / match reload stay silent. */
     playPhase(phase: 'deploy' | 'battle'): void {
-        this.playUi(phase === 'deploy' ? 'phase_deploy' : 'phase_battle');
+        if (phase === 'battle') this.playUi('phase_battle');
     }
 
     playMatchEnd(result: 'victory' | 'defeat' | 'draw'): void {
         this.playUi(result === 'draw' ? 'draw_match' : result);
+    }
+
+    /** Soul hit on HP bar — fighting-game punch scaled to wave tier. */
+    playHpDrawHit(tier: 'low' | 'medium' | 'high'): void {
+        this.playUi(
+            tier === 'high' ? 'hp_draw_high' : tier === 'medium' ? 'hp_draw_medium' : 'hp_draw_low',
+        );
     }
 
     /**

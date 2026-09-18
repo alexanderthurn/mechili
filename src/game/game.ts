@@ -3491,7 +3491,7 @@ export class Game {
             );
         }
         this.phase = 'build';
-        audio.playPhase('deploy');
+        // Gong is attack-phase only — deploy / match reload stay silent
         // The Year: every round is sudden death from full side HP — whatever
         // the last battle left (a won round restores it already) never carries
         if (this.settings.climb) this.restoreClimbHp();
@@ -9015,7 +9015,8 @@ export class Game {
         this.collapseEndedRound = false;
         this.placement.beginBattle();
         this.phase = 'battle';
-        audio.playPhase('battle');
+        // Skip during hydrate/reload catch-up — only the live attack start rings
+        if (!this.hydrating) audio.playPhase('battle');
         this.syncPostFx();
         this.phaseRemaining = this.battleSeconds();
         this.placement.enabled = false;
@@ -9991,7 +9992,7 @@ export class Game {
         const hits = this.hpDrawFx.update(dtSeconds, this.rig.camera, w, h);
         for (const hit of hits) {
             const dmg = Math.round(hit.damage);
-            audio.playUi('hp_draw');
+            audio.playHpDrawHit(hit.tier);
             screenShake({
                 intensity: hpDrawShakeIntensity(hit.tier, dmg),
                 duration: hit.tier === 'high' ? 0.7 : hit.tier === 'medium' ? 0.55 : 0.44,
