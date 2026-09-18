@@ -1,0 +1,42 @@
+/**
+ * The Year attacker's camp: one lifeline building at mid-zone center.
+ * No baseAnchor — spawned only for the climb attacker (see game.ts).
+ * Shops: commander forge spells + Garrison + Rally Route
+ * (unlocked with two charges; no Sell / Move Pack / army boosts).
+ */
+{
+    "id": "tent",
+    "name": "Tent",
+    "cost": 0,
+    // grid collision footprint; the mesh is a bit bigger and overlaps it visually
+    "footprint": { "cols": 4, "rows": 4 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 2.25,
+    "structure": true,
+    // canvas / wood — burns like troops, not stone masonry
+    "targets": { "ground": false, "air": false },
+    "collisionRadius": 9.12, // footprint tiles × CELL × 0.57
+    "colliders": [
+        { "y": 0.18, "r": 0.85 },
+        { "y": 0.55, "r": 0.68 },
+        { "y": 0.95, "r": 0.45 },
+    ],
+    "hp": 2500,
+    "damage": 0,
+    "range": 0,
+    "attackInterval": 1,
+    "speed": 0,
+    "proceduralModel": "tower",
+    "sandPadScale": 1.45,
+    // lifeline matches only — see UnitType.onDestroyed
+    "onDestroyed": { "collapseOwnArmy": true },
+    "abilities": [
+        "forgeSpells",
+        "recruitLevel",
+        "deploySlot",
+        "rangeBoost",
+        "speedBoost",
+        "credit",
+        "rallyRoute",
+    ],
+}

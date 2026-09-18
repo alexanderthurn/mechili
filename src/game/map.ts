@@ -105,6 +105,8 @@ export const BASE_ANCHORS = {
     research: { xFrac: 0.25, rowFrac: 0.62, r: 9 },
     command: { xFrac: 0.75, rowFrac: 0.62, r: 9 },
     stronghold: { xFrac: 0.5, rowFrac: 0.22, r: 14 },
+    /** The Year attacker's Tent — mid-zone, horizontal center */
+    tent: { xFrac: 0.5, rowFrac: 0.5, r: 11 },
     outerTowerRowFrac: 0.36,
     outerTowerXFrac: 0.17,
 } as const;
@@ -707,6 +709,7 @@ export class BattleMap {
         const anchors: { x: number; z: number; r: number }[] = [];
         const specs = [
             BASE_ANCHORS.stronghold,
+            BASE_ANCHORS.tent,
             BASE_ANCHORS.research,
             BASE_ANCHORS.command,
             { xFrac: 0.375, rowFrac: 0.62, r: 9 },

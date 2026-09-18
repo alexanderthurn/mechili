@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Kale"
   },
+  "tent": {
+    "name": "Çadır"
+  },
   "hordeZombie": {
     "name": "Kara Yavru"
   },

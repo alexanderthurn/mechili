@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Цитадель"
   },
+  "tent": {
+    "name": "Палатка"
+  },
   "hordeZombie": {
     "name": "Чёрный выводок"
   },

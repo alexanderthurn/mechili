@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Twierdza"
   },
+  "tent": {
+    "name": "Namiot"
+  },
   "hordeZombie": {
     "name": "Czarny lęg"
   },

@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Roccaforte"
   },
+  "tent": {
+    "name": "Tenda"
+  },
   "hordeZombie": {
     "name": "Covata Nera"
   },

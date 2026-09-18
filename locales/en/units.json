@@ -68,6 +68,9 @@
   "stronghold": {
     "name": "Stronghold"
   },
+  "tent": {
+    "name": "Tent"
+  },
   "hordeZombie": {
     "name": "Black Brood"
   }

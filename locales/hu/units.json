@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Erőd"
   },
+  "tent": {
+    "name": "Sátor"
+  },
   "hordeZombie": {
     "name": "Fekete fészekalj"
   },

@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "ป้อมหลัก"
   },
+  "tent": {
+    "name": "เต็นท์"
+  },
   "hordeZombie": {
     "name": "ฝูงดำ"
   },

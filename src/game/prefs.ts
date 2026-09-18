@@ -45,6 +45,16 @@ export type AoQuality = 'off' | 'medium' | 'high' | 'ultra';
 export interface Prefs {
     /** show the in-match (combat) chat at all: bar, bubbles, messages */
     combatChat: boolean;
+    /** Master mute — silences sfx, music, and ui. */
+    audioMuted: boolean;
+    /** Master gain 0..1 (applied after mute). */
+    masterVolume: number;
+    /** Combat / world SFX group gain 0..1. */
+    sfxVolume: number;
+    /** Music bed group gain 0..1. */
+    musicVolume: number;
+    /** UI click / confirm group gain 0..1. */
+    uiVolume: number;
     /**
      * Outer world quality. Applies immediately (rebuilds scenery mid-match).
      * - ultra: dense forest + Tripo on the board, dense mountain grid + future cliff sculpt
@@ -332,6 +342,11 @@ export function prefsHadStoredLanguage(): boolean {
 }
 const DEFAULTS: Prefs = {
     combatChat: true,
+    audioMuted: false,
+    masterVolume: 1,
+    sfxVolume: 1,
+    musicVolume: 0.7,
+    uiVolume: 1,
     ...GRAPHICS_PRESETS.medium,
     controlScheme: 'auto',
     language: detectDeviceLanguage(),
@@ -699,8 +714,22 @@ function asWord(allowed: readonly string[]): Sanitizer {
 const QUALITY_5 = ['off', 'low', 'medium', 'high', 'ultra'] as const;
 const QUALITY_4 = ['off', 'low', 'medium', 'high'] as const;
 
+/** clamp a 0..1 slider; reject garbage */
+function asUnitInterval(): Sanitizer {
+    return (v) => {
+        const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+        if (!Number.isFinite(n)) return undefined;
+        return Math.max(0, Math.min(1, n));
+    };
+}
+
 const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     combatChat: asBool,
+    audioMuted: asBool,
+    masterVolume: asUnitInterval(),
+    sfxVolume: asUnitInterval(),
+    musicVolume: asUnitInterval(),
+    uiVolume: asUnitInterval(),
     debugOverlay: asBool,
     renderDeadUnits: asBool,
     antialias: asBool,

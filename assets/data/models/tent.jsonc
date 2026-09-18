@@ -1,0 +1,3 @@
+// The Year attacker's camp tent (Tripo) — feet at y=0, roughly unit-cube bounds.
+// Door faces along local +X as authored; +90° (on top of MODEL_FWD_YAW) aims it at the enemy.
+{ "file": "models/units/tent.glb", "yawDeg": 90 }

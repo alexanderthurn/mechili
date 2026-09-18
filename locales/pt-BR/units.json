@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Fortaleza"
   },
+  "tent": {
+    "name": "Tenda"
+  },
   "hordeZombie": {
     "name": "Ninhada Negra"
   },

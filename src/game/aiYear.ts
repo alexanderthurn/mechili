@@ -462,7 +462,7 @@ export class YearBrain {
         private readonly host: YearBrainHost,
         private readonly team: Team,
         private readonly seat: SeatId,
-        /** this side's role in The Year (the attacker has no base) */
+        /** this side's role in The Year (the attacker has a Tent, not the full base) */
         private readonly role: 'attacker' | 'defender',
         private readonly rng: () => number,
         overrides: Partial<typeof PLANNER> = {},

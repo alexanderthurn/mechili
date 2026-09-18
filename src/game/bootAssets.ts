@@ -11,6 +11,7 @@ import { loadFloorPieces } from './sceneryFloorPieces';
 import { prefs } from './prefs';
 import { t } from '../i18n';
 import { preloadIconAtlas } from '../ui/iconAtlas';
+import { audio } from './audio';
 
 export type BootProgress = {
     /** 0..1 overall */
@@ -61,6 +62,7 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
         preloadProjectileBolt(),
         preloadDebrisBrick(),
         preloadCrowRock(),
+        audio.preload(),
     ];
 
     const sceneryQ = prefs().scenery;

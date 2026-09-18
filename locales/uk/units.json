@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Твердиня"
   },
+  "tent": {
+    "name": "Намет"
+  },
   "hordeZombie": {
     "name": "Чорний виводок"
   },

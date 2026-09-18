@@ -597,7 +597,16 @@ export interface Projectile {
 
 /** visual happenings the renderer turns into particles (drained per frame) */
 export type SimEvent =
-    | { kind: 'muzzle'; x: number; y: number; z: number }
+    | {
+          kind: 'muzzle';
+          x: number;
+          y: number;
+          z: number;
+          /** {@link UnitType.projectileStyle} of the shooter (render SFX). */
+          style?: 'bolt' | 'arrow' | 'largeArrow' | 'stone' | 'orb';
+          /** Shooter {@link UnitType.id} — filter archer vs goblin (both use arrows). */
+          unitTypeId?: string;
+      }
     /** `blood` = victim gore tint when hitting flesh (omit = default red).
      *  `flesh` = the hit target bleeds (else gray debris — towers, ground, shields).
      *  `masonry` = structure facade hit — denser stone/dust than ground/shield chips.
@@ -630,7 +639,11 @@ export type SimEvent =
           scar?: boolean;
           /** Ward dome absorb — hull ripple (render-only). */
           ward?: boolean;
+          /** Melee contact (vs projectile) — drives melee_hit SFX. */
+          melee?: boolean;
       }
+    /** Melee swing windup / instant swing start (render SFX). */
+    | { kind: 'meleeSwing'; x: number; y: number; z: number }
     /** Arrow / ballista shaft planted at a hit (render-only stuck-bolt pool).
      *  `attachIndex` = actor whose mesh the shaft follows (tip/fall/walk). */
     | {
@@ -655,6 +668,8 @@ export type SimEvent =
           heavy?: boolean;
           /** hot flash + embers on top of the dust (meteor) */
           fire?: boolean;
+          /** rocket pad detonation (vs generic splash) */
+          rocket?: boolean;
           /** camera kick strength; omitted/0 = no shake (most explosions) */
           shake?: number;
           /**
@@ -1946,6 +1961,7 @@ export class BattleSim {
             dy: 0,
             dz: nz,
             bloodScale: target.unit.type.bloodScale,
+            melee: true,
         });
     }
 
@@ -1962,6 +1978,12 @@ export class BattleSim {
         dz: number,
         dist: number,
     ): void {
+        this.events.push({
+            kind: 'meleeSwing',
+            x: a.x,
+            y: a.footY + a.unit.type.meshScale * 0.8,
+            z: a.z,
+        });
         const delay = a.unit.type.meleeHitDelay ?? 0;
         if (delay <= 0) {
             this.strikeMelee(a, target, damage, dx, dz, dist);
@@ -2403,6 +2425,7 @@ export class BattleSim {
                 dx: adx / ad,
                 dy: 0,
                 dz: adz / ad,
+                melee: true,
             });
             return;
         }
@@ -4890,6 +4913,7 @@ export class BattleSim {
             y: Math.max(0.3, a.altitude),
             z: a.z,
             radius: spec.splash,
+            rocket: true,
         });
         a.alive = false;
         a.mesh.visible = false;
@@ -5044,7 +5068,14 @@ export class BattleSim {
             // Long hang must outlive the default 3s TTL or stones vanish mid-arc.
             ttl: Math.max(PROJECTILE_TTL, expectedFlight + 1),
         });
-        this.events.push({ kind: 'muzzle', x: mx, y: muzzleY, z: mz });
+        this.events.push({
+            kind: 'muzzle',
+            x: mx,
+            y: muzzleY,
+            z: mz,
+            style: at.projectileStyle ?? 'bolt',
+            unitTypeId: at.id,
+        });
     }
 
     /**

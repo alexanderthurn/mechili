@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Burcht"
   },
+  "tent": {
+    "name": "Tent"
+  },
   "hordeZombie": {
     "name": "Zwarte Broed"
   },

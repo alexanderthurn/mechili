@@ -3437,6 +3437,17 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     cursor: pointer;
     user-select: none;
 }
+.mechili-settings .s-audio-slider {
+    cursor: default;
+}
+.mechili-settings .s-audio-slider span {
+    min-width: 7.5em;
+}
+.mechili-settings .s-audio-slider input[type="range"] {
+    flex: 1;
+    min-width: 100px;
+    accent-color: ${u.brassLight};
+}
 .mechili-settings .s-lang-globe {
     flex-shrink: 0;
     width: 16px;

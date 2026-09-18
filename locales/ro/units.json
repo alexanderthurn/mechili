@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Bastion"
   },
+  "tent": {
+    "name": "Cort"
+  },
   "hordeZombie": {
     "name": "Puiet negru"
   },

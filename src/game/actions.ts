@@ -48,6 +48,7 @@ import type {
     SellSettings,
     TowerSettings,
 } from './settings';
+import { yearBoardExtraAllowed } from './settings';
 import type { TechTree } from './tech';
 import { primarySeatOf, type SeatDef, type SeatId } from './seats';
 import { detAtan2 } from './detMath';
@@ -602,7 +603,8 @@ export interface ActionContext {
     /** what the player side's round unlock may add (scenario); null = any buyable unit */
     playerUnlockable: string[] | null;
     /**
-     * The Year's attacking side (no board extras there); null outside The Year.
+     * The Year's attacking side; null outside The Year. Gates board extras
+     * (attacker → Fire Bolt, defender → Ward Stone).
      */
     climbAttacker: Team | null;
     /**
@@ -808,8 +810,10 @@ export class ActionDispatcher {
                 // army units come from the seat's shop (its commander's own, else the normal one)
                 const shop = this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[seat] ?? ''));
                 if (type.extra ? !isPlayerBuyable(type) : !shop.includes(type.id)) return false;
-                // The Year: the attacking side cannot buy board extras (Ward Stone, Fire Bolt, …)
-                if (type.extra && this.ctx.climbAttacker === action.team) return false;
+                // The Year: attacker Fire Bolt only, defender Ward Stone only
+                if (type.extra && !yearBoardExtraAllowed(this.ctx.climbAttacker, action.team, type.id)) {
+                    return false;
+                }
                 if (
                     !type.extra &&
                     !this.ctx.unlockedUnits[seat]!.includes(action.typeId)

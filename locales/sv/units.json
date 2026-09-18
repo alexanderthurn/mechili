@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Fäste"
   },
+  "tent": {
+    "name": "Tält"
+  },
   "hordeZombie": {
     "name": "Svart yngel"
   },
