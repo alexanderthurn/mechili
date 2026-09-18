@@ -190,6 +190,7 @@ import { modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery, MOUNTAIN_PEAK_END } from './scenery';
 import { MountainEditor, mountainEditorEnabled } from './mountainEditor';
+import { draftTerrain, packagedTerrain, terrainFileText } from './scenario/scenarioTerrain';
 import { TERRAIN_HEAL_PER_ROUND } from './terrainGrid';
 import {
     boardSamplerFromMesh,
@@ -1414,17 +1415,24 @@ export class Game {
         assignTeamColors(side);
         this.map = new BattleMap(settings.map, settings.terrainShape, !!settings.climb);
         // a static map replaces the procedural relief before anything reads it
-        // (ground mesh, deploy grid, sim) — main loaded the file before building the match
-        if (settings.landscape) {
-            const data = loadedLandscape(settings.landscape);
+        // (ground mesh, deploy grid, sim): a scenario's own terrain (packaged,
+        // or the editor's draft), else a bundled map main loaded beforehand
+        const scenarioTerrain = this.editorMode
+            ? draftTerrain()
+            : this.settings.scenario?.mode === 'play'
+              ? packagedTerrain(this.playedScenarioId())
+              : null;
+        if (scenarioTerrain || settings.landscape) {
+            const data = scenarioTerrain ?? loadedLandscape(settings.landscape!);
+            const label = scenarioTerrain ? 'the scenario terrain' : `"${settings.landscape}"`;
             if (data && landscapeFits(data, this.map)) {
                 this.landscape = data;
                 this.map.setReliefOverride(landscapeBoardSampler(data));
             } else {
                 console.warn(
                     data
-                        ? `[landscape] "${settings.landscape}" is made for a ${data.map.cols}×${data.map.rows} board — playing the procedural terrain`
-                        : `[landscape] "${settings.landscape}" is not loaded — playing the procedural terrain`,
+                        ? `[landscape] ${label} is made for a ${data.map.cols}×${data.map.rows} board — playing the procedural terrain`
+                        : `[landscape] ${label} is not loaded — playing the procedural terrain`,
                 );
             }
         } else if (tutorialId(settings) === TUTORIAL_1_ID) {
@@ -6844,7 +6852,9 @@ export class Game {
             name,
         );
         const level = activeLevelRef();
-        const files = scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []);
+        // the board keeps the terrain it was played on
+        const terrain = this.landscape ? terrainFileText({ ...this.landscape, id: def.id, name: def.name }) : null;
+        const files = scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : [], terrain);
         const { ref } = await loadLevel(def.id, files);
         return { ref, files };
     }

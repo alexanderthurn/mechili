@@ -56,9 +56,11 @@ export interface ActiveLevel {
     scenarios: ReadonlyMap<string, NormalizedScenario>;
     /** the package's `meta.jsonc`, if any */
     meta: NormalizedMeta | null;
+    /** scenario terrains by scenario id, as landscape-file text (decoded by the match that plays it) */
+    terrains: ReadonlyMap<string, string>;
 }
 
-let active: ActiveLevel = { overlay: null, types: BASE_TYPES, scenarios: new Map(), meta: null };
+let active: ActiveLevel = { overlay: null, types: BASE_TYPES, scenarios: new Map(), meta: null, terrains: new Map() };
 let queue: Promise<unknown> = Promise.resolve();
 
 /** The level whose files and model data are loaded right now. */
@@ -204,7 +206,7 @@ export function switchLevel(overlay: AssetOverlay | null): Promise<ActiveLevel> 
         setModelTypes(types.all());
         setProceduralModelHeights(proceduralHeightsOf(types));
         await switchAssetOverlay(overlay);
-        active = { overlay, types, scenarios, meta };
+        active = { overlay, types, scenarios, meta, terrains: overlay?.terrainTexts ?? new Map() };
         return active;
     });
     queue = run.catch(() => {});
