@@ -76,8 +76,10 @@ import {
     TUTORIAL_5_ID,
     TUTORIAL_5_ROUNDS,
     TUTORIAL_ARCHER_ID,
+    TUTORIAL_BALLISTA_ID,
     TUTORIAL_DWARF_ID,
     TUTORIAL_HAMMERER_ID,
+    TUTORIAL_MORTAR_ID,
     TUTORIAL_OGRE_ID,
     tutorialContentProblems,
     type TutorialPlaceSlot,
@@ -1163,6 +1165,16 @@ export class TutorialRuntime {
         if (prev === 'r3BuyTwo' && this.guide3.currentStep === 'r3SelectGarrisonAgain') {
             this.host.placement.deselect();
         }
+        const step = this.guide3.currentStep;
+        if (step === 'r2BoostAttack' || step === 'r2BoostHp' || step === 'r2End') {
+            this.ensurePlayerCommandTowerSelected();
+        } else if (
+            step === 'r3Recruit' ||
+            step === 'r3DeploySlot' ||
+            step === 'r4Upgrade'
+        ) {
+            this.ensurePlayerGarrisonSelected();
+        }
         this.refresh3Zones();
         this.host.updateSelectionUi();
     }
@@ -1308,6 +1320,103 @@ export class TutorialRuntime {
 
     get boostLessonOnly(): boolean {
         return this.lesson === TUTORIAL_3_ID && this.host.round === 2;
+    }
+
+    /**
+     * Tutorial 3 R2: which Vanguard boost rows are live. `null` = unrestricted.
+     * Attack first, then HP — never both at once.
+     */
+    allowedBoostIds(): ('attack' | 'hp')[] | null {
+        if (this.lesson !== TUTORIAL_3_ID || this.host.round !== 2) return null;
+        const step = this.guide3?.currentStep;
+        if (step === 'r2BoostHp') return ['hp'];
+        if (step === 'r2End') return ['attack', 'hp'];
+        // intro / select / attack / default — only attack is buyable
+        return ['attack'];
+    }
+
+    blocksBuyBoost(boost: 'attack' | 'hp'): boolean {
+        const allowed = this.allowedBoostIds();
+        if (allowed === null) {
+            if (this.lesson === TUTORIAL_3_ID && this.host.round !== 2) {
+                this.guide3?.nudge(t('tutorial:tutorial3NudgeNoShop'));
+                return true;
+            }
+            return false;
+        }
+        if (allowed.includes(boost)) return false;
+        this.guide3?.nudge(
+            boost === 'hp'
+                ? t('tutorial:tutorial3NudgeAttackFirst')
+                : t('tutorial:tutorial3NudgeHpNext'),
+        );
+        return true;
+    }
+
+    /**
+     * Tutorial 3 Garrison panel: only the scripted offer for the current step.
+     * `null` = unrestricted (non-T3).
+     */
+    allowedGarrisonOffers(): {
+        recruit: boolean;
+        deploySlot: boolean;
+        extras: boolean;
+        upgrade: boolean;
+    } | null {
+        if (this.lesson !== TUTORIAL_3_ID) return null;
+        const round = this.host.round;
+        const step = this.guide3?.currentStep;
+        if (round === 2) {
+            return { recruit: false, deploySlot: false, extras: false, upgrade: false };
+        }
+        if (round === 3) {
+            return {
+                recruit: step === 'r3Recruit',
+                deploySlot: step === 'r3DeploySlot',
+                extras: false,
+                upgrade: false,
+            };
+        }
+        if (round === 4) {
+            const upgrading =
+                step === 'r4SelectTower' ||
+                step === 'r4Upgrade' ||
+                step === 'r4BuyMortar' ||
+                step === 'r4PlaceMortar' ||
+                step === 'r4End';
+            return {
+                recruit: false,
+                deploySlot: false,
+                extras: false,
+                upgrade: upgrading,
+            };
+        }
+        // R1: player has no Garrison
+        return { recruit: false, deploySlot: false, extras: false, upgrade: false };
+    }
+
+    blocksGarrisonAction(
+        action: 'recruit' | 'deploySlot' | 'rangeBoost' | 'speedBoost' | 'credit' | 'upgrade',
+    ): boolean {
+        const offers = this.allowedGarrisonOffers();
+        if (!offers) return false;
+        let ok = false;
+        if (action === 'recruit') ok = offers.recruit;
+        else if (action === 'deploySlot') ok = offers.deploySlot;
+        else if (action === 'upgrade') ok = offers.upgrade;
+        else ok = offers.extras;
+        if (ok) return false;
+        if (action === 'recruit') this.guide3?.nudge(t('tutorial:tutorial3NudgeRecruit'));
+        else if (action === 'deploySlot') this.guide3?.nudge(t('tutorial:tutorial3NudgeSlot'));
+        else if (action === 'upgrade') {
+            this.guide3?.nudge(
+                t('tutorial:tutorial3NudgeUpgrade', {
+                    level: this.board3().towerLevel,
+                    max: TUTORIAL_3_R4_TOWER_LEVEL,
+                }),
+            );
+        } else this.guide3?.nudge(t('tutorial:tutorial3NudgeGarrison'));
+        return true;
     }
 
     soleTechFor(unit: Unit): string | null {
@@ -1462,6 +1571,13 @@ export class TutorialRuntime {
                     this.guide3?.nudge(t('tutorial:tutorial3NudgeGarrison'));
                     return true;
                 }
+                if (step === 'r3BuyTwo' || step === 'r3BuyThird' || step === 'r3End') {
+                    if (_type.id !== TUTORIAL_DWARF_ID) {
+                        this.guide3?.nudge(t('tutorial:tutorial3NudgeDwarfOnly'));
+                        return true;
+                    }
+                    return false;
+                }
             }
             if (round === 4) {
                 const step = this.guide3?.currentStep;
@@ -1474,6 +1590,13 @@ export class TutorialRuntime {
                     );
                     return true;
                 }
+                if (step === 'r4BuyMortar' || step === 'r4PlaceMortar' || step === 'r4End') {
+                    if (_type.id !== TUTORIAL_MORTAR_ID) {
+                        this.guide3?.nudge(t('tutorial:tutorial3NudgeMortar'));
+                        return true;
+                    }
+                    return false;
+                }
             }
             if (round === 1) {
                 const step = this.guide3?.currentStep;
@@ -1483,6 +1606,24 @@ export class TutorialRuntime {
                 }
                 if (step === 'r1PlaceDwarf' || step === 'r1PlaceBallista') {
                     this.guide3?.nudge(t('tutorial:tutorialNudgeFinishPad'));
+                    return true;
+                }
+                if (step === 'r1BuyDwarf') {
+                    if (_type.id !== TUTORIAL_DWARF_ID) {
+                        this.guide3?.nudge(t('tutorial:tutorial3NudgeBuyDwarf'));
+                        return true;
+                    }
+                    return false;
+                }
+                if (step === 'r1BuyBallista') {
+                    if (_type.id !== TUTORIAL_BALLISTA_ID) {
+                        this.guide3?.nudge(t('tutorial:tutorial3NudgeBuyBallista'));
+                        return true;
+                    }
+                    return false;
+                }
+                if (step === 'r1DebuffExplain' || step === 'r1End') {
+                    this.guide3?.nudge(t('tutorial:tutorial3NudgeEndRound'));
                     return true;
                 }
             }

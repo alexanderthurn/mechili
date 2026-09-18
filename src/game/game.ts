@@ -2220,6 +2220,7 @@ export class Game {
             // offered in the Command Tower's menu
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'recruitLevel') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksGarrisonAction('recruit')) return;
             if (this.dispatchPlayer({ kind: 'recruitLevel', team: 'player' })) {
                 this.hud.refreshCosts(); // unit buttons now show the level-2 price
             }
@@ -2227,11 +2228,13 @@ export class Game {
         this.hud.onUpgradeTower = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.structure) return;
+            if (this.tutorial?.blocksGarrisonAction('upgrade')) return;
             this.dispatchPlayer({ kind: 'upgradeTower', team: 'player', unitId: unit.id });
         };
         this.hud.onBuyBoost = (boost) => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'armyBoosts') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksBuyBoost(boost)) return;
             this.dispatchPlayer({ kind: 'buyBoost', team: 'player', boost });
         };
         this.hud.onBuySellAbility = () => {
@@ -2252,21 +2255,25 @@ export class Game {
         this.hud.onBuyDeploySlot = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'deploySlot') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksGarrisonAction('deploySlot')) return;
             this.dispatchPlayer({ kind: 'buyDeploySlot', team: 'player' });
         };
         this.hud.onBuyRoundRangeBoost = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'rangeBoost') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksGarrisonAction('rangeBoost')) return;
             this.dispatchPlayer({ kind: 'buyRoundRangeBoost', team: 'player' });
         };
         this.hud.onBuyRoundSpeedBoost = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'speedBoost') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksGarrisonAction('speedBoost')) return;
             this.dispatchPlayer({ kind: 'buyRoundSpeedBoost', team: 'player' });
         };
         this.hud.onBuyCredit = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'credit') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksGarrisonAction('credit')) return;
             this.dispatchPlayer({ kind: 'buyCredit', team: 'player' });
         };
         this.hud.onForgeLight = () => {
@@ -11433,7 +11440,11 @@ export class Game {
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade:
-                ownInteractive && u.type.structure && !u.type.extra && !this.tutorial?.boostLessonOnly
+                ownInteractive &&
+                u.type.structure &&
+                !u.type.extra &&
+                !this.tutorial?.boostLessonOnly &&
+                (this.tutorial?.allowedGarrisonOffers()?.upgrade !== false)
                     ? {
                           cost: towerUpgradeCost(u.level, this.settings.towers),
                           affordable:
@@ -11658,6 +11669,16 @@ export class Game {
                 affordable: canBuy,
             },
         };
+        const gated = this.tutorial?.allowedGarrisonOffers() ?? null;
+        if (gated) {
+            return {
+                recruit: has('recruitLevel') && gated.recruit ? all.recruit : undefined,
+                deploySlot: has('deploySlot') && gated.deploySlot ? all.deploySlot : undefined,
+                rangeBoost: has('rangeBoost') && gated.extras ? all.rangeBoost : undefined,
+                speedBoost: has('speedBoost') && gated.extras ? all.speedBoost : undefined,
+                credit: has('credit') && gated.extras ? all.credit : undefined,
+            };
+        }
         return {
             recruit: has('recruitLevel') ? all.recruit : undefined,
             deploySlot: has('deploySlot') ? all.deploySlot : undefined,
@@ -11687,6 +11708,8 @@ export class Game {
             const maxed = tier >= tiers.length;
             const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
             const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
+            const allowed = this.tutorial?.allowedBoostIds();
+            const unlocked = allowed == null || allowed.includes(id);
             return {
                 id,
                 label:
@@ -11694,13 +11717,24 @@ export class Game {
                         ? t('hud:armyAttackBoost', { pct })
                         : t('hud:armyHpBoost', { pct }),
                 cost,
-                affordable: canBuy && !maxed && bal >= cost,
+                affordable: canBuy && !maxed && unlocked && bal >= cost,
                 maxed,
             };
         });
         // Tutorial 3 round 2 is the boost lesson — the other tracks would only
         // drain the supply its End Deployment gate needs.
-        if (this.tutorial?.boostLessonOnly) return { boosts: has('armyBoosts') ? boosts : undefined };
+        if (this.tutorial?.boostLessonOnly) {
+            const allowed = this.tutorial.allowedBoostIds();
+            const shown =
+                allowed === null
+                    ? boosts
+                    : boosts?.filter((b) => allowed.includes(b.id) || b.maxed);
+            return { boosts: has('armyBoosts') ? shown : undefined };
+        }
+        // Later Tutorial 3 rounds: hide Vanguard buys entirely (Garrison lesson).
+        if (this.tutorial?.allowedGarrisonOffers()) {
+            return {};
+        }
         const all = {
             sellAbility: {
                 cost: this.settings.sell.abilityCost,
