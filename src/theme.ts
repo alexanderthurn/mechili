@@ -6937,6 +6937,10 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-note { font-size: 13px; color: ${u.text}; opacity: 0.85; max-width: 32em; text-align: center; }
 .mechili-cards .reconnect-timer { font-size: 32px; font-variant-numeric: tabular-nums; }
 .mechili-cards .reconnect-timer.urgent { animation: mechili-timer-pulse 0.7s ease-in-out infinite; }
+@keyframes mechili-timer-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 200, 60, 0.35); }
+    50% { opacity: 0.55; transform: scale(1.12); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8), 0 0 18px rgba(255, 216, 64, 0.85); }
+}
 .mechili-gameover .go-actions {
     display: flex;
     flex-direction: column;
@@ -7369,11 +7373,19 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
 .mechili-topbar .round { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
 .mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
 .mechili-topbar .timer.urgent {
-    animation: mechili-timer-pulse 0.7s ease-in-out infinite;
+    animation: mechili-timer-urgent 1s steps(1, end) infinite;
 }
-@keyframes mechili-timer-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 200, 60, 0.35); }
-    50% { opacity: 0.55; transform: scale(1.12); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8), 0 0 18px rgba(255, 216, 64, 0.85); }
+@keyframes mechili-timer-urgent {
+    0%, 49% {
+        color: #e24b3c;
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.85), 0 0 14px rgba(226, 75, 60, 0.55);
+        transform: scale(1.06);
+    }
+    50%, 100% {
+        color: ${u.brassLight};
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+        transform: scale(1);
+    }
 }
 .mechili-topbar .end-deploy {
     padding: 10px 24px;

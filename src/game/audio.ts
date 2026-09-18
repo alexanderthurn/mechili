@@ -31,6 +31,15 @@ export type CueDef = {
     gain?: number;
 };
 
+/**
+ * Default battlefield spatial falloff.
+ * Inverse model: full volume inside {@link SPATIAL_REF}, then steeper drop;
+ * hard-silent past {@link SPATIAL_MAX}.
+ */
+const SPATIAL_REF = 11;
+const SPATIAL_MAX = 34;
+const SPATIAL_ROLLOFF = 2.2;
+
 const CUES: Record<string, CueDef> = {
     /** Proximity bed while camera is near acid puddles. */
     acid_loop: {
@@ -49,9 +58,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 10,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     ballista_shot: {
@@ -63,9 +72,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 6,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     bolt_shot: {
@@ -77,9 +86,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     card_pick: {
@@ -165,9 +174,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     convert_beam: {
@@ -190,9 +199,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     death_unit: {
@@ -203,9 +212,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     death_unit_big: {
@@ -216,9 +225,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     defeat: {
@@ -245,9 +254,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 6,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     explosion_fire: {
@@ -258,9 +267,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     explosion_heavy: {
@@ -271,9 +280,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     forge_light: {
@@ -301,9 +310,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     hammer_crush: {
@@ -314,9 +323,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     hammerer_smash: {
@@ -327,9 +336,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     hazard_drip: {
@@ -341,9 +350,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     hp_draw: {
@@ -364,9 +373,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 14,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     impact_ground: {
@@ -378,9 +387,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 10,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     impact_masonry: {
@@ -392,9 +401,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 10,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     impact_stone_drop: {
@@ -405,9 +414,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 6,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     impact_ward: {
@@ -418,9 +427,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     levelup: {
@@ -441,9 +450,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 10,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     melee_swing: {
@@ -455,9 +464,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 10,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     /** Default match bed — later: music_battle_winter / horde / etc. */
@@ -481,9 +490,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     phase_battle: {
@@ -522,9 +531,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     rocket_launch: {
@@ -535,9 +544,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_acid_spill: {
@@ -547,9 +556,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_dragon_approach: {
@@ -559,9 +568,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_dragon_breath: {
@@ -571,9 +580,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.7,
     },
     spell_fire_spill: {
@@ -583,9 +592,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_lightning: {
@@ -597,9 +606,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 6,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_meteor_fall: {
@@ -610,9 +619,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_oil_spill: {
@@ -622,9 +631,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_poison_cloud: {
@@ -634,9 +643,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_storm: {
@@ -646,9 +655,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     stone_throw: {
@@ -660,9 +669,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     stronghold_collapse: {
@@ -672,9 +681,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.85,
     },
     summon_flying: {
@@ -685,9 +694,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     summon_ground: {
@@ -698,9 +707,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     tactic_move: {
@@ -737,12 +746,11 @@ const CUES: Record<string, CueDef> = {
     },
     timer_warn: {
         paths: [
-            'audio/timer_warn_1.ogg',
             'audio/timer_warn_2.ogg',
         ],
         group: 'ui',
-        maxVoices: 2,
-        gain: 0.5,
+        maxVoices: 1,
+        gain: 0.62,
     },
     tower_debuff: {
         paths: [
@@ -751,9 +759,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     ui_click: {
@@ -907,7 +915,6 @@ void [
     assetUrl('audio/tactic_rally_1.ogg'),
     assetUrl('audio/tactic_sell_1.ogg'),
     assetUrl('audio/tactic_tutor_1.ogg'),
-    assetUrl('audio/timer_warn_1.ogg'),
     assetUrl('audio/timer_warn_2.ogg'),
     assetUrl('audio/tower_debuff_1.ogg'),
     assetUrl('audio/ui_click_1.ogg'),
@@ -1065,7 +1072,7 @@ class AudioBus {
         if ((this.voiceCount.get(cueId) ?? 0) >= maxV) return false;
 
         if (cue.spatial && worldX != null && worldZ != null) {
-            const maxD = cue.maxDistance ?? 50;
+            const maxD = cue.maxDistance ?? SPATIAL_MAX;
             if (distXZ(worldX, worldZ, this.listenerX, this.listenerZ) > maxD) return false;
         }
 
@@ -1086,9 +1093,9 @@ class AudioBus {
             panner = this.ctx.createPanner();
             panner.panningModel = 'HRTF';
             panner.distanceModel = 'inverse';
-            panner.refDistance = cue.refDistance ?? 10;
-            panner.maxDistance = cue.maxDistance ?? 50;
-            panner.rolloffFactor = cue.rolloff ?? 1;
+            panner.refDistance = cue.refDistance ?? SPATIAL_REF;
+            panner.maxDistance = cue.maxDistance ?? SPATIAL_MAX;
+            panner.rolloffFactor = cue.rolloff ?? SPATIAL_ROLLOFF;
             panner.positionX.value = worldX;
             panner.positionY.value = 1.2;
             panner.positionZ.value = worldZ;
@@ -1315,19 +1322,22 @@ class AudioBus {
         this.setLoop('acid_loop', true, ax, az, hazardMassGain(acidEnergy) * heightMul);
     }
 
-    /** Edge-trigger timer warning when remaining seconds first enter `<= until`. */
+    /**
+     * Deployment hurry-up: one beep per whole second while remaining is in
+     * (0, until] — i.e. at 5, 4, 3, 2, 1. Silent outside that window.
+     */
     tickTimerWarn(phaseRemaining: number, until = 5): void {
         if (phaseRemaining <= 0 || phaseRemaining > until) {
-            this.timerWarnArmed = true;
+            this.timerWarnSecond = -1;
             return;
         }
-        if (this.timerWarnArmed) {
-            this.timerWarnArmed = false;
-            this.playUi('timer_warn');
-        }
+        const sec = Math.ceil(phaseRemaining);
+        if (sec === this.timerWarnSecond) return;
+        this.timerWarnSecond = sec;
+        this.playUi('timer_warn');
     }
 
-    private timerWarnArmed = true;
+    private timerWarnSecond = -1;
 
     /** Stop convert / ramp / hazard loops (battle end / tear-down). */
     stopBeamLoops(): void {

@@ -10726,8 +10726,9 @@ export class Game {
                 this.phaseRemaining -= gameDt;
                 if (waitingForDeployPeer) this.phaseRemaining = Math.max(0, this.phaseRemaining);
             }
-            // no "time's up" warning for a clock I've already locked in on
-            if (this.phase === 'battle' || (this.phase === 'build' && !waitingForDeployPeer)) {
+            // Deployment last-5s beeps (visual is HUD `.timer.urgent`). Skip once
+            // we've locked in — the clock may still run for peers.
+            if (this.phase === 'build' && !waitingForDeployPeer) {
                 audio.tickTimerWarn(this.phaseRemaining);
             }
             if (this.phase === 'build') {
