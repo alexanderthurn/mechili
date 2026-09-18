@@ -5392,6 +5392,8 @@ ${chatFloatStyles(u, pc, ec)}
 }
 
 .mechili-panel .item-row { display: flex; gap: 6px; margin: 4px 0 8px; }
+/* a shared 2v2 oven has 6 slots (+ the buy tile) — wrap onto a second line instead of squeezing */
+.mechili-panel .forge-row { flex-wrap: wrap; }
 .mechili-panel .forge-block { margin: 4px 0 10px; }
 .mechili-panel .forge-block.ready {
     padding: 8px 8px 6px;
@@ -5490,6 +5492,8 @@ ${chatFloatStyles(u, pc, ec)}
     position: relative;
     width: 44px;
     height: 44px;
+    /* never squeezed by a full row — a shrunk width turned the round slots into eggs */
+    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
