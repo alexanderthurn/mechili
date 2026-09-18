@@ -4,7 +4,7 @@
     "name": "Wind",
     "tier": "base",
     "icon": "item-wind",
-    "mods": { "range": 1.05 },
+    "mods": { "range": 1.15 },
     "cardCost": 0, // base runes are free on round cards
-    "description": "+5% range.",
+    "description": "+15% range.",
 }
