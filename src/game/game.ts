@@ -6074,7 +6074,11 @@ export class Game {
             settings: this.settings,
             actions: this.actionsForPeerResume(),
             battleElapsed: this.phase === 'battle' && this.sim ? this.sim.elapsed : null,
-            phaseRemaining: this.phaseRemaining,
+            // only the build clock is restored (after the rebuild lands in a
+            // build phase) — during the battle or the soul drain this was the
+            // BATTLE's leftover, so a reload there gave a few-second deploy;
+            // send the time the build phase they land in actually gets
+            phaseRemaining: this.phase === 'build' ? this.phaseRemaining : this.deploySeconds(),
             speedMultiplier: this.speedSteps[this.speedIndex]!,
             yearRounds: [...this.yearRounds],
         };
