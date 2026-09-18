@@ -49,7 +49,8 @@ import type {
     TowerSettings,
 } from './settings';
 import type { TechTree } from './tech';
-import { primarySeatOf, seatIdsOf, type SeatDef, type SeatId } from './seats';
+import { isSecondarySeat, primarySeatOf, seatIdsOf, type SeatDef, type SeatId } from './seats';
+import { colorForUnit } from './colors';
 import { detAtan2 } from './detMath';
 import {
     strongholdArcherSlotWorld,
@@ -2230,6 +2231,10 @@ export function spawnGarrisonPost(
     const spot = strongholdArcherSlotWorld(keep, post.slot)!;
     const archer = placement.spawnAtWorld(postedType, spot.x, spot.z, team, seat);
     archer.strongholdArcherSlot = post.slot;
+    // a shared keep: each seat's archers wear its own colour
+    if (seatIdsOf(placement.roster, team).length > 1) {
+        archer.addSeatPennant(colorForUnit(team, isSecondarySeat(placement.roster, seat)).hex);
+    }
     archer.hostUnitId = keep.id;
     archer.pinnedY = spot.y;
     // outward from the keep's middle — the wedge behind him is the

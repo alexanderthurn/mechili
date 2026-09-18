@@ -1,10 +1,14 @@
 import {
     Box3,
     BoxGeometry,
+    BufferGeometry,
     Color,
     CylinderGeometry,
+    DoubleSide,
+    Float32BufferAttribute,
     Group,
     Mesh,
+    MeshLambertMaterial,
     MeshStandardMaterial,
     SphereGeometry,
     Vector3,
@@ -1535,6 +1539,32 @@ export class Unit {
     }
 
     /** Mesh tint by level (packs only); base buildings scale up instead. */
+    /**
+     * A small pennant in its seat's colour on each member's back, so an
+     * ally's otherwise identical Stronghold archers can be told apart. Pure
+     * decoration, a child of the member (it follows his turn, level growth and
+     * fall). Lambert, not Standard: the level and battle tints only dye
+     * MeshStandardMaterial, so the colour stays true.
+     */
+    addSeatPennant(hex: number): void {
+        const h = getUnitVisualHeight(this.type.modelId ?? this.type.id);
+        const { pole, flag } = pennantGeometries();
+        const mat = pennantMaterial(hex);
+        for (const m of this.members) {
+            if (m.mesh.userData.pennant) continue;
+            const g = new Group();
+            g.userData.pennant = true;
+            // on his back (the model looks down −z), a little off-centre
+            g.position.set(h * 0.14, h * 0.45, h * 0.16);
+            g.scale.setScalar(h);
+            const p = new Mesh(pole, POLE_MATERIAL);
+            const f = new Mesh(flag, mat);
+            g.add(p, f);
+            m.mesh.add(g);
+            m.mesh.userData.pennant = g;
+        }
+    }
+
     applyLevelLook(level = this.level): void {
         const scale = this.visualMeshScale(level);
         for (const m of this.members) {
@@ -1683,6 +1713,43 @@ const TINT_GREY = new Color(0x888890);
 const tintScratch = new Color();
 
 /** Apply veterancy color to a non-instanced mech (GLB clone or procedural). */
+let pennantGeo: { pole: BufferGeometry; flag: BufferGeometry } | null = null;
+const POLE_MATERIAL = new MeshLambertMaterial({ color: 0x5a4028 });
+const pennantMats = new Map<number, MeshLambertMaterial>();
+
+/** shared pennant parts in unit-height units (the group scales by the model's height) */
+function pennantGeometries(): { pole: BufferGeometry; flag: BufferGeometry } {
+    if (pennantGeo) return pennantGeo;
+    const pole = new CylinderGeometry(0.012, 0.012, 0.9, 5);
+    pole.translate(0, 0.45, 0);
+    // a swallow-tailed pennant off the pole top, streaming sideways: two
+    // tails (top, bottom) meeting at a notch short of the far edge
+    const top = 0.9;
+    const low = 0.68;
+    const len = 0.32;
+    const flag = new BufferGeometry();
+    flag.setAttribute(
+        'position',
+        new Float32BufferAttribute(
+            [0, top, 0, 0, low, 0, len, top, 0, len, low, 0, len * 0.68, (top + low) / 2, 0],
+            3,
+        ),
+    );
+    flag.setIndex([0, 1, 4, 0, 4, 2, 1, 3, 4]);
+    flag.computeVertexNormals();
+    pennantGeo = { pole, flag };
+    return pennantGeo;
+}
+
+function pennantMaterial(hex: number): MeshLambertMaterial {
+    let m = pennantMats.get(hex);
+    if (!m) {
+        m = new MeshLambertMaterial({ color: hex, side: DoubleSide, emissive: hex, emissiveIntensity: 0.25 });
+        pennantMats.set(hex, m);
+    }
+    return m;
+}
+
 function applyMeshLevelTint(root: Group, level: number): void {
     const hex =
         level >= 2 && level < LEVEL_TINT_COLORS.length ? LEVEL_TINT_COLORS[level]! : null;
