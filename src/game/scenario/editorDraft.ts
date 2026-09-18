@@ -266,31 +266,130 @@ export class DraftHistory {
     }
 }
 
-// ---- autosave (browser storage; best effort)
+// ---- autosave (IndexedDB; best effort)
+//
+// The draft carries its terrain (a landscape file, up to a megabyte or two)
+// — too big for localStorage's few megabytes, so it lives in IndexedDB. The
+// menu reads it synchronously: {@link initDraftStore} loads it once at boot,
+// every save updates that copy at once and writes it behind.
 
-const DRAFT_KEY = 'melodan-scenario-draft';
+const DB_NAME = 'melodan-editor';
+const STORE = 'draft';
+const KEY = 'current';
+/** where the draft lived before (localStorage) — moved over once, then removed */
+const LEGACY_DRAFT_KEY = 'melodan-scenario-draft';
 
 export interface StoredDraft {
     def: ScenarioDef;
     /** the level the draft was made on; absent = base game */
     level?: LevelRef;
+    /** the draft's terrain as landscape-file text; absent = the generated terrain */
+    terrain?: string;
+}
+
+let stored: StoredDraft | null = null;
+/** the terrain of {@link stored}, made into text only when it is written or read */
+let terrainOf: (() => string | null) | null = null;
+let dbPromise: Promise<IDBDatabase | null> | null = null;
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function openDb(): Promise<IDBDatabase | null> {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise((resolve) => {
+        try {
+            if (typeof indexedDB === 'undefined') return resolve(null);
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => resolve(null);
+            req.onblocked = () => resolve(null);
+        } catch {
+            resolve(null);
+        }
+    });
+    return dbPromise;
+}
+
+function valid(raw: unknown): StoredDraft | null {
+    const d = raw as StoredDraft | null;
+    return d && typeof d === 'object' && d.def?.version === SCENARIO_VERSION ? d : null;
+}
+
+/** load the autosaved draft (once, at boot) — {@link loadStoredDraft} answers from it */
+export async function initDraftStore(): Promise<void> {
+    if (typeof window !== 'undefined') {
+        window.addEventListener('pagehide', () => {
+            if (writeTimer) flushDraft();
+        });
+    }
+    const db = await openDb();
+    if (db) {
+        try {
+            const raw = await new Promise<unknown>((resolve, reject) => {
+                const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(KEY);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            stored = valid(raw);
+        } catch {
+            stored = null;
+        }
+    }
+    // a draft from before the move: take it over and clear the old key
+    try {
+        const legacy = localStorage.getItem(LEGACY_DRAFT_KEY);
+        if (legacy !== null) {
+            if (!stored) {
+                stored = valid(JSON.parse(legacy));
+                if (stored) writeBehind(0);
+            }
+            localStorage.removeItem(LEGACY_DRAFT_KEY);
+        }
+    } catch {
+        /* no storage */
+    }
 }
 
 export function loadStoredDraft(): StoredDraft | null {
-    try {
-        const raw = localStorage.getItem(DRAFT_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw) as StoredDraft;
-        return parsed && typeof parsed === 'object' && parsed.def?.version === SCENARIO_VERSION ? parsed : null;
-    } catch {
-        return null;
-    }
+    resolveTerrain();
+    return stored;
 }
 
-export function storeDraft(def: ScenarioDef, level: LevelRef | undefined): void {
-    try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({ def, ...(level ? { level } : {}) } satisfies StoredDraft));
-    } catch {
-        /* private window / quota: the draft just isn't kept */
-    }
+/**
+ * Keep the draft. The terrain is asked for when it is written — a burst of
+ * strokes encodes it once.
+ */
+export function storeDraft(def: ScenarioDef, level: LevelRef | undefined, terrain: () => string | null): void {
+    stored = { def, ...(level ? { level } : {}) };
+    terrainOf = terrain;
+    writeBehind(400);
+}
+
+function resolveTerrain(): void {
+    if (!stored || !terrainOf) return;
+    const text = terrainOf();
+    terrainOf = null;
+    stored = { def: stored.def, ...(stored.level ? { level: stored.level } : {}), ...(text !== null ? { terrain: text } : {}) };
+}
+
+/** write the current draft soon — a burst of edits is written once */
+function writeBehind(delayMs: number): void {
+    if (writeTimer) clearTimeout(writeTimer);
+    writeTimer = setTimeout(flushDraft, delayMs);
+}
+
+/** write the draft now (a reload right after an edit must not lose it) */
+function flushDraft(): void {
+    if (writeTimer) clearTimeout(writeTimer);
+    writeTimer = null;
+    resolveTerrain();
+    const value = stored;
+    void openDb().then((db) => {
+        if (!db || !value) return;
+        try {
+            db.transaction(STORE, 'readwrite').objectStore(STORE).put(value, KEY);
+        } catch {
+            /* quota / closed: the draft just isn't kept */
+        }
+    });
 }

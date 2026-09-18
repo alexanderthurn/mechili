@@ -8,14 +8,24 @@ import { activeLevel } from '../level';
 import { decodeLandscape, encodeLandscape, type LandscapeData } from '../landscape';
 
 let draft: LandscapeData | null = null;
+/** {@link draft} as file text, made when first asked for (saves and autosaves share it) */
+let draftText: string | null = null;
 
 /** the terrain the editor's draft is sculpted to (null = the generated terrain) */
 export function draftTerrain(): LandscapeData | null {
     return draft;
 }
 
-export function setDraftTerrain(data: LandscapeData | null): void {
+export function setDraftTerrain(data: LandscapeData | null, text: string | null = null): void {
     draft = data;
+    draftText = text;
+}
+
+/** the draft terrain as file text (null = none) */
+export function draftTerrainText(): string | null {
+    if (!draft) return null;
+    draftText ??= terrainFileText(draft);
+    return draftText;
 }
 
 /** a terrain as the text of its package file */

@@ -105,7 +105,8 @@ import {
 } from './game/level';
 import { readZip, writeZip } from './game/content/zip';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
-import { loadStoredDraft, newDraft } from './game/scenario/editorDraft';
+import { initDraftStore, loadStoredDraft, newDraft } from './game/scenario/editorDraft';
+import { decodeTerrainText, draftTerrainText, packagedTerrain, setDraftTerrain } from './game/scenario/scenarioTerrain';
 import { BASE_TYPES } from './game/units';
 import { packageScenarioIds, scenarioPackageFiles, scenarioSlug, withScenarioInPackage } from './game/scenario/package';
 import type { ScenarioDef } from './game/scenario/scenarioDef';
@@ -368,7 +369,7 @@ function settingsFromUrl(): GameSettings {
     // now that Horde is the only mode; ?hordeFactor= (including `off`)
     // overrides the level — see applyHordeMode
     if (params.get('duo')) applyDuoMode(settings);
-    // ?landscape=<id>: play (or, with ?editor=true, edit) a map from assets/data/landscapes/
+    // ?landscape=<id>: play a map from assets/data/landscapes/
     const landscape = params.get('landscape');
     if (landscape) settings.landscape = landscape;
     // ?terrain=hills|highlands|wall: the generated board relief
@@ -1393,6 +1394,7 @@ spEditorContinueEl.addEventListener('click', () => {
 spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-new')!.addEventListener('click', () => {
     if (loadStoredDraft() && !window.confirm('Start a new board? It replaces the draft you were editing.')) return;
     showMenuView('main');
+    setDraftTerrain(null);
     void openScenarioEditor('author', newDraft(`v${__APP_VERSION__}`, BASE_TYPES), undefined);
 });
 const spScenarioCodeEl = spScenariosEl.querySelector<HTMLInputElement>('.m-scenario-code')!;
@@ -1631,6 +1633,8 @@ async function editSavedScenario(ref: LevelRef, id: string): Promise<void> {
     const def = await savedScenarioDef(ref, id).catch(() => null);
     if (!def) return;
     showMenuView('main');
+    // its terrain comes along (savedScenarioDef made the package active)
+    setDraftTerrain(packagedTerrain(id));
     // the scenario keeps its id in the package, so "Save into package" replaces it
     await openScenarioEditor('author', { ...def, id }, ref);
 }
@@ -1643,6 +1647,13 @@ async function editSavedScenario(ref: LevelRef, id: string): Promise<void> {
 function openStoredScenarioEditor(): void {
     const stored = loadStoredDraft();
     const draft = stored?.def ?? newDraft(`v${__APP_VERSION__}`, activeLevel().types);
+    let terrain = null;
+    try {
+        terrain = stored?.terrain ? decodeTerrainText(stored.terrain) : null;
+    } catch (e) {
+        console.warn('[editor] the autosaved terrain does not load — starting from the generated terrain', e);
+    }
+    setDraftTerrain(terrain, terrain ? stored!.terrain! : null);
     const wanted = stored?.level;
     void (async () => {
         // a package saved again since has a new hash under the same id
@@ -3934,7 +3945,7 @@ async function playNextScenario(level: LevelRef | undefined, id: string): Promis
 function scenarioDraftPackage(draft: ScenarioDef, level: LevelRef | undefined): { id: string; files: OverlayFile[] } {
     const id = scenarioSlug(draft.name, draft.id);
     const def = { ...draft, id, updatedAt: new Date().toISOString() };
-    return { id, files: scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []) };
+    return { id, files: scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : [], draftTerrainText()) };
 }
 
 /**
@@ -3950,7 +3961,13 @@ async function saveScenarioIntoLevel(
     if (!level || !(await ensureLevel(level))) throw new Error('the package this board is made on is not available');
     const files = levelFiles(level.hash);
     if (!files) throw new Error('the package this board is made on is not available');
-    const { files: merged, id } = withScenarioInPackage(files, { ...draft, updatedAt: new Date().toISOString() }, level.id, packageName);
+    const { files: merged, id } = withScenarioInPackage(
+        files,
+        { ...draft, updatedAt: new Date().toISOString() },
+        level.id,
+        packageName,
+        draftTerrainText(),
+    );
     const { ref } = await loadLevel(level.id, merged);
     if (ref.hash === level.hash) return { status: 'Nothing changed', id, reopen: null };
     await forgetLevel(level);
@@ -6282,6 +6299,8 @@ const verifyId = watchParams.get('verify');
 const bulkVerify = watchParams.get('bulkverify');
 const starMpMarker = loadStarResumeMarker();
 const spSave = loadSinglePlayer();
+// the editor's autosaved draft (IndexedDB) — the menu and a reload into the editor read it
+await initDraftStore();
 if (bulkVerify) {
     // seeded by replays.html's Bulk Verify button just before navigating
     // here — outranks stale local state for the same reason ?verify=/

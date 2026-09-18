@@ -189,8 +189,8 @@ import { reachToward } from './terrainCombat';
 import { modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery, MOUNTAIN_PEAK_END } from './scenery';
-import { MountainEditor, mountainEditorEnabled } from './mountainEditor';
-import { draftTerrain, packagedTerrain, terrainFileText } from './scenario/scenarioTerrain';
+import { MountainEditor } from './mountainEditor';
+import { draftTerrain, draftTerrainText, packagedTerrain, setDraftTerrain, terrainFileText } from './scenario/scenarioTerrain';
 import { TERRAIN_HEAL_PER_ROUND } from './terrainGrid';
 import {
     boardSamplerFromMesh,
@@ -452,7 +452,7 @@ export class Game {
     private appliedFireVfx: FireVfxQuality = prefs().fireVfx;
     private readonly unitInstances: UnitInstanceRenderer;
     private scenery: Scenery;
-    /** Dev mountain sculptor — only when `?editor=true`. */
+    /** the scenario editor's Terrain tool — author mode only */
     private mountainEditor: MountainEditor | null = null;
     /**
      * The static map this match plays ({@link GameSettings.landscape}), or null
@@ -1639,8 +1639,8 @@ export class Game {
         // horde mode widens this so the player can pan out far enough to see the wave
         // approaching through the forest ring (see spawnHordeWave)
         // the scenario editor places horde packs out there too
-        // mountain editor (`?editor=true`): free pan to the crest + 4× zoom-out
-        const mountainEdit = mountainEditorEnabled();
+        // the scenario editor (its Terrain tool): free pan to the crest + 4× zoom-out
+        const mountainEdit = this.editorMode === 'author';
         const hordeReach =
             !mountainEdit &&
             (hordeEnabled(this.settings) || this.editorMode || this.scenario?.scene.units.some((u) => u.team === 'horde'))
@@ -1701,12 +1701,14 @@ export class Game {
                     camera: this.rig.camera,
                     domElement: surface,
                     map: this.map,
-                    landscape: this.landscape,
+                    // the scenario editor puts the panel into its window (Terrain tool)
+                    container: document.createElement('div'),
+                    name: () => this.scenarioEditor?.draftName ?? this.settings.scenario?.draft?.name ?? 'Terrain',
                     onLandscapeChanged: () => this.bindLandscapeHeights(),
-                    // Play: the match's own controls (placing, spells) get the board back
+                    onEdited: (kind) => this.onTerrainEdited(kind),
+                    onResetGenerated: () => this.resetScenarioTerrain(),
+                    // sculpting takes the board's clicks: drop whatever the match's controls were carrying
                     onActiveChange: (active) => {
-                        this.placement.enabled = !active && this.phase === 'build' && !this.deployReady.player && !this.matchOver;
-                        // back to sculpting: drop whatever the match's controls were carrying
                         if (active) this.placement.deselect();
                     },
                     plants: {
@@ -1718,7 +1720,6 @@ export class Game {
                         setAll: (plants, clears) => this.scenery.setAuthoredPlants(plants, clears),
                     },
                 });
-                this.placement.enabled = false;
             }
         }
         this.bindLandscapeHeights();
@@ -3200,7 +3201,8 @@ export class Game {
                     this.onScenarioSaveInto?.(def, packageName) ?? Promise.resolve({ status: '', id: def.id, reopen: null }),
                 shareCode: (def) => this.onScenarioShareCode?.(def) ?? Promise.resolve(''),
                 issues: (def) => normalizeScenario(def, this.types).issues,
-                autosave: (def) => storeDraft(def, this.settings.level),
+                autosave: (def) => storeDraft(def, this.settings.level, draftTerrainText),
+                terrain: this.mountainEditor,
                 restart: (def) => this.onScenarioEditor?.('author', def),
                 test: (def) => this.onScenarioEditor?.('test', def),
                 play: (def) => this.onScenarioPlay?.(def),
@@ -3209,6 +3211,26 @@ export class Game {
             },
             draft,
         );
+    }
+
+    /** the Terrain tool changed the ground: that is the draft's terrain now */
+    private onTerrainEdited(kind: 'edit' | 'history'): void {
+        const data = this.mountainEditor?.capture() ?? null;
+        if (data) setDraftTerrain(data);
+        this.scenarioEditor?.terrainEdited(kind);
+    }
+
+    /** "Generated terrain": the draft goes back to the board's own terrain (a restart builds it) */
+    private resetScenarioTerrain(): void {
+        if (!draftTerrain() && !this.mountainEditor?.canUndo) return;
+        const ok = window.confirm(
+            t('editor:terrainGeneratedConfirm', {
+                defaultValue: 'Throw the sculpted terrain away? This can’t be undone.',
+            }),
+        );
+        if (!ok) return;
+        setDraftTerrain(null);
+        this.scenarioEditor?.restartForTerrain();
     }
 
     /** a test battle straight to its result (the sim runs headless, then the board shows how it ended) */
