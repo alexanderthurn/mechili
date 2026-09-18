@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Høyborg"
   },
+  "tent": {
+    "name": "Telt"
+  },
   "hordeZombie": {
     "name": "Svart yngel"
   },

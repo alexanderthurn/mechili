@@ -15,6 +15,7 @@ import {
 } from './ui/introRoster';
 import { registerHoverTipClearer } from './ui/hoverTips';
 import { Game } from './game/game';
+import { audio } from './game/audio';
 import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
 import { GamepadCursor } from './engine/gamepadCursor';
@@ -5897,6 +5898,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 menu.addEventListener('click', (e) => {
+    audio.unlock();
     const refreshBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-rooms-refresh');
     if (refreshBtn && !started) {
         e.preventDefault();

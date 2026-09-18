@@ -5,7 +5,7 @@
 {
     "id": "hordeSpinne",
     "name": "Black Spider",
-    "cost": 800, // bought by The Komtur's side (was 500 as a wave value)
+    "cost": 400, // bought by The Komtur's side (was 500 as a wave value)
     "unlockCost": 200,
     "xpValue": 500.0, // kill XP as before the price change
     "hpWithdraw": 70,

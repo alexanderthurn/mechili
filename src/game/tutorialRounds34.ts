@@ -15,7 +15,7 @@ import {
     cellEq,
     tutorial3CenterDwarfCell,
     tutorial3R3DwarfSlots,
-    tutorial3R4MortarSlot,
+    tutorial3R4MortarSlots,
     tutorial4CenterArcherCells,
     tutorial4MirroredArmy,
     tutorial4OgreCell,
@@ -206,14 +206,14 @@ export function setupTutorial3Round(
             BASE_ANCHORS.research.rowFrac,
             'player',
         );
-        placeSlots = [tutorial3R4MortarSlot(host.map)];
+        placeSlots = tutorial3R4MortarSlots(host.map);
         host.unlockedUnits[human] = [TUTORIAL_MORTAR_ID];
-        host.deployState.limit[human] = 1;
+        host.deployState.limit[human] = 2;
         host.deployState.limit[enemy] = 2;
         host.hud.setShopColumnVisible(true);
         host.hud.setShopRunesVisible(false);
-        // upgrades to L5 (100+150+200+250) + mortar 200
-        creditSeat(host, human, 1500);
+        // upgrades to L5 (100+150+200+250) + 2× mortar 200
+        creditSeat(host, human, 1700);
     }
     host.refreshShopHud();
     return placeSlots;
@@ -353,11 +353,16 @@ export function boardState3(
         .find((u) => u.type === vanguardType && u.team === 'player' && !u.destroyed);
     const dwarfSlot = placeSlots[0];
     const ballistaSlot = placeSlots[1];
-    const mortarSlot = placeSlots[0];
     let r3PadsFilled = 0;
     if (host.round === 3) {
         for (const slot of placeSlots) {
             if (dwarves.some((u) => unitMatchesTutorialSlot(u, slot))) r3PadsFilled++;
+        }
+    }
+    let mortarPadsFilled = 0;
+    if (host.round === 4) {
+        for (const slot of placeSlots) {
+            if (mortars.some((u) => cellEq(u.cell, slot.anchor))) mortarPadsFilled++;
         }
     }
     return {
@@ -369,10 +374,12 @@ export function boardState3(
         ballistaPlaced:
             !!ballistaSlot && ballistas.some((u) => cellEq(u.cell, ballistaSlot.anchor)),
         r3PadsFilled,
-        mortarPlaced:
-            host.round === 4 &&
-            !!mortarSlot &&
-            mortars.some((u) => cellEq(u.cell, mortarSlot.anchor)),
+        mortarPlaced: mortarPadsFilled >= 1,
+        mortarPadsFilled,
+        mortarPlaced0:
+            !!placeSlots[0] && mortars.some((u) => cellEq(u.cell, placeSlots[0]!.anchor)),
+        mortarPlaced1:
+            !!placeSlots[1] && mortars.some((u) => cellEq(u.cell, placeSlots[1]!.anchor)),
         vanguardSelected: !!vanguard && selected?.id === vanguard.id,
         garrisonSelected: !!garrison && selected?.id === garrison.id,
         boostAttack: host.boostState.attack[host.humanSeat]!,

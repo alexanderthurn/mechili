@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "القلعة"
   },
+  "tent": {
+    "name": "خيمة"
+  },
   "hordeZombie": {
     "name": "الحضنة السوداء"
   },

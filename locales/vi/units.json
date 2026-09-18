@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Thành trì"
   },
+  "tent": {
+    "name": "Lều"
+  },
   "hordeZombie": {
     "name": "Bầy đen"
   },

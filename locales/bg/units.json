@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Крепост"
   },
+  "tent": {
+    "name": "Палатка"
+  },
   "hordeZombie": {
     "name": "Черно потомство"
   },

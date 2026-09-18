@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Οχυρό"
   },
+  "tent": {
+    "name": "Σκηνή"
+  },
   "hordeZombie": {
     "name": "Μαύρος γόνος"
   },

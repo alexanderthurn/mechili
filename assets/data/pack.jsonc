@@ -30,7 +30,8 @@
     // (e.g. posted from a building panel instead of bought in the shop).
     "offRoster": ["stronghold-archer"],
     // Base buildings, in construction / preload order.
-    "buildings": ["command-tower", "research-center", "stronghold"],
+    // tent: The Year attacker only (no baseAnchor — spawned in game.ts).
+    "buildings": ["command-tower", "research-center", "stronghold", "tent"],
     // Runes in catalog order: inventories, shop and round-card lists sort by it.
     "runes": ["earth", "fire", "water", "wind", "addi", "power", "vigor", "colossus", "wrath", "golden", "bulwark"],
     // Commanders a player can be offered, in draw order (offers are dealt from this list by seed).

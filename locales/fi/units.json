@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Linnake"
   },
+  "tent": {
+    "name": "Teltta"
+  },
   "hordeZombie": {
     "name": "Musta sikiö"
   },

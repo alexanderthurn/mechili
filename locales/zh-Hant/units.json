@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "要塞"
   },
+  "tent": {
+    "name": "帳篷"
+  },
   "hordeZombie": {
     "name": "黑巢幼體"
   },

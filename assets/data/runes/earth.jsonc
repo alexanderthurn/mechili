@@ -4,7 +4,7 @@
     "name": "Earth",
     "tier": "base",
     "icon": "item-earth",
-    "mods": { "hp": 1.15 },
+    "mods": { "hp": 1.4 },
     "cardCost": 0, // base runes are free on round cards
-    "description": "+15% HP.",
+    "description": "+40% HP.",
 }

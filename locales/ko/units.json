@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "요새"
   },
+  "tent": {
+    "name": "텐트"
+  },
   "hordeZombie": {
     "name": "검은 무리"
   },

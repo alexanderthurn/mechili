@@ -58,9 +58,9 @@ export interface ClimbSettings {
      */
     playerSupplyGrowthPerRound: number;
     /**
-     * The human's role (omit = attacker, as the mode began): the attacker has no
-     * base buildings and no board extras, the defender keeps its base and wins
-     * a tied round.
+     * The human's role (omit = attacker, as the mode began): the attacker has a
+     * Tent (lifeline + shops) and Fire Bolt only; the defender keeps its full
+     * base and Ward Stone only, and wins a tied round.
      */
     humanRole?: ClimbRole;
     /**
@@ -81,13 +81,26 @@ export type ClimbRole = 'attacker' | 'defender';
 export type YearRoundWinner = ClimbRole;
 
 /**
- * The side that attacks in The Year (no base, no board extras, must outscore
- * to win a round), as the local team label. `localSide` is the local seat's
- * canonical side — needed when the settings name the attacker by side.
+ * The side that attacks in The Year (Tent + Fire Bolt, must outscore to win a
+ * round), as the local team label. `localSide` is the local seat's canonical
+ * side — needed when the settings name the attacker by side.
  */
 export function climbAttackerTeam(climb: ClimbSettings, localSide = 0): 'player' | 'enemy' {
     if (climb.attackerSide !== undefined) return climb.attackerSide === localSide ? 'player' : 'enemy';
     return climb.humanRole === 'defender' ? 'enemy' : 'player';
+}
+
+/**
+ * The Year board extras: attacker may buy Fire Bolt (`rocket`) only, defender
+ * Ward Stone (`shield`) only. Outside The Year every extra is allowed.
+ */
+export function yearBoardExtraAllowed(
+    climbAttacker: 'player' | 'enemy' | null,
+    team: 'player' | 'enemy',
+    typeId: string,
+): boolean {
+    if (climbAttacker === null) return true;
+    return team === climbAttacker ? typeId === 'rocket' : typeId === 'shield';
 }
 
 /**

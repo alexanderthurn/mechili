@@ -31,7 +31,7 @@
     "deathAshScorch": { "radius": 1, "strength": 0.2 },
     "burn": { "takenMult": 3.2 }, // timber siege frame
     "hp": 260, // fragile — dies if crawlers/ogres close the gap
-    "damage": 24, // per stone; ×5 ≈ 120 / volley / tube
+    "damage": 12, // per stone; ×5 ≈ 60 / volley / tube
     "range": 92, // longer than ballista — artillery king
     "minRange": 42, // larger dead zone than ballista
     "attackInterval": 5.8,

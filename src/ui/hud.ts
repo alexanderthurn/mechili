@@ -646,8 +646,8 @@ export class Hud {
     private enemyInventoryCollapsed = true;
     private deploysLeft = Infinity;
     private extrasBudgetLeft = Infinity;
-    /** Campaign: hide Ward Stone / Fire Bolt row (any `UnitType.extra`) */
-    private boardExtrasAllowed = true;
+    /** null = every buyable board extra; else whitelist of type ids */
+    private boardExtraIdSet: Set<string> | null = null;
     private readonly unlockable: readonly string[] | null;
     private readonly costOf: (type: UnitType) => number;
     private readonly buttons: { el: HTMLButtonElement; type: UnitType }[] = [];
@@ -726,7 +726,11 @@ export class Hud {
         onBuy: (type: UnitType) => boolean,
         opts: {
             types: TypeRegistry;
-            boardExtrasAllowed?: boolean;
+            /**
+             * Board extras in the shop: omit/`null` = all buyable extras;
+             * `[]` = none; otherwise only these type ids (e.g. Year roles).
+             */
+            boardExtraIds?: readonly string[] | null;
             /** what the round unlock may add (match rules); null / omitted = any buyable unit */
             unlockable?: readonly string[] | null;
         },
@@ -735,8 +739,11 @@ export class Hud {
         this.unlockable = opts.unlockable ?? null;
         this.overlayParent = overlayParent;
         this.costOf = costOf;
-        // Explicit false hides Ward Stone / Fire Bolt / any future board extras.
-        this.boardExtrasAllowed = opts.boardExtrasAllowed ?? true;
+        if (opts.boardExtraIds !== undefined && opts.boardExtraIds !== null) {
+            this.boardExtraIdSet = new Set(opts.boardExtraIds);
+        } else {
+            this.boardExtraIdSet = null;
+        }
 
         // Permanent shared sheet (also seeded from menu boot) — refresh team
         // colors for this match, never tear down so orphans stay laid out.
@@ -744,9 +751,11 @@ export class Hud {
 
         // a tile for every unit any shop can hold — the seat's own shop decides which show
         const shopUnits = this.types.roster.filter((t) => !t.extra && this.types.allShopUnitIds.includes(t.id));
-        const extraTypes = this.boardExtrasAllowed
-            ? this.types.roster.filter((t) => t.extra && isPlayerBuyable(t))
-            : [];
+        const allExtras = this.types.roster.filter((t) => t.extra && isPlayerBuyable(t));
+        const extraTypes =
+            this.boardExtraIdSet === null
+                ? allExtras
+                : allExtras.filter((t) => this.boardExtraIdSet!.has(t.id));
 
         const makeShopTile = (type: UnitType, index: number): HTMLButtonElement => {
             const button = document.createElement('button');
@@ -765,6 +774,7 @@ export class Hud {
             // copy so Fire Bolt / Ward Stone aren't title-only.
             button.dataset.spellTip = '1';
             button.dataset.ttitle = name;
+            button.dataset.typeId = type.id;
             if (type.extra) {
                 const abs = buildingAbilities(type);
                 if (abs.length > 0) {
@@ -777,7 +787,7 @@ export class Hud {
                 // the refusal has to happen here rather than via pointer-events
                 if (button.classList.contains('unaffordable')) return;
                 const bought = this.types.roster[index]!;
-                if (bought.extra && !this.boardExtrasAllowed) return;
+                if (bought.extra && !this.extraTypeAllowed(bought)) return;
                 // extras need the field for the place-ghost; regular packs only
                 // dismiss the sheet when this buy fills the last deploy slot
                 const lastSlot = !bought.extra && this.deploysLeft <= 1;
@@ -2350,15 +2360,27 @@ export class Hud {
         this.deploysEl.title = t('hud:deploysTitleExtras', { n: extrasBudgetLeft });
     }
 
-    /** Campaign: hide board-extra shop tiles (Ward Stone, Fire Bolt, …). */
-    setBoardExtrasAllowed(allowed: boolean): void {
-        this.boardExtrasAllowed = allowed;
+    /** Campaign / The Year: which board-extra shop tiles stay available. */
+    setBoardExtraIds(ids: readonly string[] | null): void {
+        this.boardExtraIdSet = ids === null ? null : new Set(ids);
         for (const el of this.boardExtraButtons) {
-            el.style.display = allowed ? '' : 'none';
-            el.hidden = !allowed;
-            el.classList.toggle('unaffordable', !allowed);
-            el.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+            const typeId = el.dataset.typeId ?? '';
+            const show = this.boardExtraIdSet === null || this.boardExtraIdSet.has(typeId);
+            el.style.display = show ? '' : 'none';
+            el.hidden = !show;
+            el.classList.toggle('unaffordable', !show);
+            el.setAttribute('aria-hidden', show ? 'false' : 'true');
         }
+    }
+
+    /** @deprecated use {@link setBoardExtraIds} */
+    setBoardExtrasAllowed(allowed: boolean): void {
+        this.setBoardExtraIds(allowed ? null : []);
+    }
+
+    private extraTypeAllowed(type: UnitType): boolean {
+        if (!type.extra) return true;
+        return this.boardExtraIdSet === null || this.boardExtraIdSet.has(type.id);
     }
 
     /** supply price of each always-available base rune in the shop header */
@@ -4725,7 +4747,7 @@ export class Hud {
         for (const { el, type } of this.buttons) {
             const cost = this.costOf(type);
             const blocked = type.extra
-                ? !this.boardExtrasAllowed || cost > this.extrasBudgetLeft
+                ? !this.extraTypeAllowed(type) || cost > this.extrasBudgetLeft
                 : this.deploysLeft <= 0;
             const locked = !type.extra && !this.shopUnlocked.includes(type.id);
             el.classList.toggle('unaffordable', cost > amount || blocked || locked);

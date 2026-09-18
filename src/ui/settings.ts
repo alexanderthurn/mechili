@@ -21,6 +21,7 @@ import {
 } from '../i18n';
 import { applyLanguageFont } from '../theme';
 import { removeWithDialogFade, withDialogFade } from './dialogFade';
+import { audio } from '../game/audio';
 
 const STEAM_URL = 'https://steam.melodan.com';
 
@@ -48,6 +49,7 @@ export function closeSettings(immediate = false): void {
 
 export function openSettings(parent: HTMLElement): void {
     if (document.querySelector('.mechili-settings')) return; // already open
+    audio.unlock();
 
     const langOptions = LANGUAGE_IDS.map(
         (id) => `<option value="${id}">${LANGUAGE_NATIVE_NAMES[id]}</option>`,
@@ -67,6 +69,12 @@ export function openSettings(parent: HTMLElement): void {
         overlay.querySelector('[data-act="controls-help"]')!.textContent = t('settings:controlsHelp');
         overlay.querySelector('.s-chat-head')!.textContent = t('settings:chat');
         overlay.querySelector('.s-combat-text')!.textContent = t('settings:combatChat');
+        overlay.querySelector('.s-audio-head')!.textContent = t('settings:audio');
+        overlay.querySelector('.s-audio-mute-text')!.textContent = t('settings:audioMuted');
+        overlay.querySelector('.s-master-vol-label')!.textContent = t('settings:masterVolume');
+        overlay.querySelector('.s-sfx-vol-label')!.textContent = t('settings:sfxVolume');
+        overlay.querySelector('.s-music-vol-label')!.textContent = t('settings:musicVolume');
+        overlay.querySelector('.s-ui-vol-label')!.textContent = t('settings:uiVolume');
         overlay.querySelector('.s-mp-head')!.textContent = t('settings:multiplayer');
         overlay.querySelector('.s-mp-label')!.textContent = t('settings:connection');
         overlay.querySelector('.s-debug-head')!.textContent = t('settings:debug');
@@ -203,6 +211,14 @@ export function openSettings(parent: HTMLElement): void {
         `<label class="s-row"><input type="checkbox" class="s-combat" /> <span class="s-combat-text"></span></label>` +
         `</section>` +
         `<section class="s-section">` +
+        `<div class="s-section-head s-audio-head"></div>` +
+        `<label class="s-row"><input type="checkbox" class="s-audio-mute" /> <span class="s-audio-mute-text"></span></label>` +
+        `<label class="s-row s-audio-slider"><span class="s-master-vol-label"></span> <input type="range" class="s-master-vol" min="0" max="100" step="1" /></label>` +
+        `<label class="s-row s-audio-slider"><span class="s-sfx-vol-label"></span> <input type="range" class="s-sfx-vol" min="0" max="100" step="1" /></label>` +
+        `<label class="s-row s-audio-slider"><span class="s-music-vol-label"></span> <input type="range" class="s-music-vol" min="0" max="100" step="1" /></label>` +
+        `<label class="s-row s-audio-slider"><span class="s-ui-vol-label"></span> <input type="range" class="s-ui-vol" min="0" max="100" step="1" /></label>` +
+        `</section>` +
+        `<section class="s-section">` +
         `<div class="s-section-head s-mp-head"></div>` +
         `<label class="s-row"><span class="s-mp-label"></span> <select class="s-mp">` +
         `<option value="steam">Steam</option>` +
@@ -332,6 +348,11 @@ export function openSettings(parent: HTMLElement): void {
     const fullscreen = overlay.querySelector<HTMLInputElement>('.s-fullscreen');
     const debugToggle = overlay.querySelector<HTMLInputElement>('.s-debug')!;
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;
+    const audioMute = overlay.querySelector<HTMLInputElement>('.s-audio-mute')!;
+    const masterVol = overlay.querySelector<HTMLInputElement>('.s-master-vol')!;
+    const sfxVol = overlay.querySelector<HTMLInputElement>('.s-sfx-vol')!;
+    const musicVol = overlay.querySelector<HTMLInputElement>('.s-music-vol')!;
+    const uiVol = overlay.querySelector<HTMLInputElement>('.s-ui-vol')!;
     const mpSel = overlay.querySelector<HTMLSelectElement>('.s-mp')!;
     const mpHint = overlay.querySelector<HTMLElement>('.s-mp-hint')!;
     const langSel = overlay.querySelector<HTMLSelectElement>('.s-lang')!;
@@ -363,6 +384,11 @@ export function openSettings(parent: HTMLElement): void {
         const p = prefs();
         debugToggle.checked = p.debugOverlay;
         combat.checked = p.combatChat;
+        audioMute.checked = p.audioMuted;
+        masterVol.value = String(Math.round(p.masterVolume * 100));
+        sfxVol.value = String(Math.round(p.sfxVolume * 100));
+        musicVol.value = String(Math.round(p.musicVolume * 100));
+        uiVol.value = String(Math.round(p.uiVolume * 100));
         mpSel.value = p.multiplayerTransport;
         mpHint.textContent = t(mpHintKeys[p.multiplayerTransport]);
         langSel.value = p.language;
@@ -448,6 +474,16 @@ export function openSettings(parent: HTMLElement): void {
 
     debugToggle.addEventListener('change', () => updatePrefs({ debugOverlay: debugToggle.checked }));
     combat.addEventListener('change', () => updatePrefs({ combatChat: combat.checked }));
+    audioMute.addEventListener('change', () => updatePrefs({ audioMuted: audioMute.checked }));
+    const onVol = (el: HTMLInputElement, key: 'masterVolume' | 'sfxVolume' | 'musicVolume' | 'uiVolume') => {
+        el.addEventListener('input', () => {
+            updatePrefs({ [key]: Math.max(0, Math.min(1, Number(el.value) / 100)) });
+        });
+    };
+    onVol(masterVol, 'masterVolume');
+    onVol(sfxVol, 'sfxVolume');
+    onVol(musicVol, 'musicVolume');
+    onVol(uiVol, 'uiVolume');
     mpSel.addEventListener('change', () => {
         updatePrefs({
             multiplayerTransport: mpSel.value as Prefs['multiplayerTransport'],

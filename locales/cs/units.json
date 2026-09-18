@@ -50,6 +50,9 @@
   "stronghold": {
     "name": "Pevnost"
   },
+  "tent": {
+    "name": "Stan"
+  },
   "hordeZombie": {
     "name": "Černý potěr"
   },

@@ -29,7 +29,7 @@
     "fire": {
         "ground": { "radius": 8, "duration": 8, "intensity": 21 },
     },
-    "hp": 12000, // 10× prior boss weight
+    "hp": 48000, // 10× prior boss weight
     "damage": 550,
     "range": 8,
     "attackInterval": 0.85,

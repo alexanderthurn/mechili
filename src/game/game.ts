@@ -125,6 +125,7 @@ import { hasFlagNode, StrongholdFlags } from './strongholdFlags';
 import { StrongholdCommanders } from './strongholdCommander';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
+import { audio } from './audio';
 import { CloudFx, type CloudCue } from './cloudFx';
 import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
@@ -218,6 +219,7 @@ import {
     Economy,
     hordeCountMult,
     climbAttackerTeam,
+    yearBoardExtraAllowed,
     yearWinner,
     type YearRoundWinner,
     hordeEnabled,
@@ -245,6 +247,10 @@ import {
     DRAGON_APPROACH_SEC,
     DRAGON_POUR_DURATION_SEC,
     OIL_SPILL_ID,
+    FIRE_SPILL_ID,
+    ACID_ID,
+    STORM_ID,
+    POISON_CLOUD_ID,
     RALLY_ROUTE_ID,
     RALLY_ROUTE_RADIUS,
     MOVE_UNIT_ID,
@@ -1758,11 +1764,15 @@ export class Game {
         this.roundBoosts = { range: this.seats.map(() => false), speed: this.seats.map(() => false) };
         this.unlockedUnits = this.seats.map(() => []);
         this.unlockUsedThisRound = this.seats.map(() => false);
-        // Campaign: one free Sell Pack charge in the left tactics strip (same
-        // as a card-granted one-shot — not the Command Tower unlock).
+        // The Year: attacker Tent comes with Rally Route unlocked and two free
+        // charges (not Sell / Move Pack — those stay off the Tent shop).
         if (settings.climb) {
+            const attacker = this.yearAttackerTeam();
             for (let seat = 0; seat < this.seats.length; seat++) {
-                if (!this.seatIsBot(seat)) this.tacticInventory[seat]!.push(SELL_UNIT_ID);
+                if (this.seats[seat]!.team === attacker) {
+                    this.rallyRouteOwned[seat] = true;
+                    this.tacticInventory[seat]!.push(RALLY_ROUTE_ID, RALLY_ROUTE_ID);
+                }
             }
         }
         this.placement.roster = this.seats;
@@ -2012,7 +2022,7 @@ export class Game {
             (type) => this.buyUnit(type),
             {
                 types: this.types,
-                boardExtrasAllowed: this.humanMayBuyExtras(),
+                boardExtraIds: this.humanBoardExtraIds(),
                 unlockable: this.rules.playerUnlockable,
             },
         );
@@ -2038,7 +2048,6 @@ export class Game {
         }
         this.unitIconUrls = renderAllUnitIcons(this.renderer, this.types.roster);
         this.hud.setUnitIcons(this.unitIconUrls);
-        this.hud.setBoardExtrasAllowed(this.humanMayBuyExtras());
         this.tutorial?.applyInitialChrome();
         // this match's real settings (including any ?hordeFactor= override) —
         // fixed for the match's lifetime, so a one-time snapshot is enough
@@ -2100,6 +2109,7 @@ export class Game {
                 this.armedItem = null;
                 this.armedItemIndex = null;
             } else {
+                audio.playUi('ui_click');
                 this.armedItem = itemId;
                 this.armedItemIndex = index;
             }
@@ -2192,6 +2202,7 @@ export class Game {
                 this.cancelTacticPlacement();
                 return;
             }
+            audio.playUi('ui_click');
             this.armedItem = null;
             this.armedItemIndex = null;
             this.placement.deselect();
@@ -2220,6 +2231,7 @@ export class Game {
             // offered in the Command Tower's menu
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'recruitLevel') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksGarrisonAction('recruit')) return;
             if (this.dispatchPlayer({ kind: 'recruitLevel', team: 'player' })) {
                 this.hud.refreshCosts(); // unit buttons now show the level-2 price
             }
@@ -2227,11 +2239,13 @@ export class Game {
         this.hud.onUpgradeTower = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.structure) return;
+            if (this.tutorial?.blocksGarrisonAction('upgrade')) return;
             this.dispatchPlayer({ kind: 'upgradeTower', team: 'player', unitId: unit.id });
         };
         this.hud.onBuyBoost = (boost) => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'armyBoosts') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksBuyBoost(boost)) return;
             this.dispatchPlayer({ kind: 'buyBoost', team: 'player', boost });
         };
         this.hud.onBuySellAbility = () => {
@@ -2252,21 +2266,25 @@ export class Game {
         this.hud.onBuyDeploySlot = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'deploySlot') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksGarrisonAction('deploySlot')) return;
             this.dispatchPlayer({ kind: 'buyDeploySlot', team: 'player' });
         };
         this.hud.onBuyRoundRangeBoost = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'rangeBoost') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksGarrisonAction('rangeBoost')) return;
             this.dispatchPlayer({ kind: 'buyRoundRangeBoost', team: 'player' });
         };
         this.hud.onBuyRoundSpeedBoost = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'speedBoost') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksGarrisonAction('speedBoost')) return;
             this.dispatchPlayer({ kind: 'buyRoundSpeedBoost', team: 'player' });
         };
         this.hud.onBuyCredit = () => {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'credit') || unit.team !== 'player') return;
+            if (this.tutorial?.blocksGarrisonAction('credit')) return;
             this.dispatchPlayer({ kind: 'buyCredit', team: 'player' });
         };
         this.hud.onForgeLight = () => {
@@ -2684,6 +2702,8 @@ export class Game {
         this.syncDebugDumpButton();
         this.applyRenderPrefs();
         this.applySceneryQuality();
+        audio.applyPrefs();
+        audio.unlock();
         if (gpuDirty) this.warmGpuPrograms();
     }
 
@@ -3104,8 +3124,8 @@ export class Game {
      * left/right split already used for deploy zones), so a 2-seat side
      * gets two independent tower pairs flanking the one shared Stronghold,
      * instead of a single pair both teammates used to share.
-     * Campaign: the human side fields army only — no player Stronghold / towers
-     * (enemy base still spawns so the climb has a visible keep to fight).
+     * The Year: the attacker gets a Tent (lifeline + shops) at the stronghold
+     * pad instead of the full base; the defender keeps Stronghold + towers.
      */
     private spawnTowers(): void {
         if (this.tutorial) {
@@ -3256,7 +3276,7 @@ export class Game {
         const placed: Unit[] = [];
         const { rimCells, flankCols, zoneCols, zoneRows } = this.map.size;
         const ownFar = this.map.ownAtFar;
-        // The Year: the attacking side fields its army only
+        // The Year: the attacker skips the full base and gets a Tent instead
         const skipTeam: Team | null = this.settings.climb ? this.yearAttackerTeam() : null;
         const spawnBuilding = (
             xFrac: number,
@@ -3309,6 +3329,18 @@ export class Game {
                     primarySeatOf(this.seats, 'enemy'),
                 );
             }
+        }
+
+        // The Year attacker: Tent at mid-zone center
+        if (skipTeam) {
+            const tentType = this.types.byId('tent');
+            spawnBuilding(
+                BASE_ANCHORS.tent.xFrac,
+                BASE_ANCHORS.tent.rowFrac,
+                tentType,
+                skipTeam,
+                primarySeatOf(this.seats, skipTeam),
+            );
         }
 
         for (const team of ['player', 'enemy'] as const) {
@@ -3459,6 +3491,7 @@ export class Game {
             );
         }
         this.phase = 'build';
+        audio.playPhase('deploy');
         // The Year: every round is sudden death from full side HP — whatever
         // the last battle left (a won round restores it already) never carries
         if (this.settings.climb) this.restoreClimbHp();
@@ -3931,7 +3964,11 @@ export class Game {
         // equals humanSeat when the human is their side's FIRST seat — false
         // for a star guest assigned to seat 1/2/3
         const stamped: Action = action.seat === this.humanSeat ? action : { ...action, seat: this.humanSeat };
-        if (!this.dispatcher.dispatch(stamped)) return false;
+        if (!this.dispatcher.dispatch(stamped)) {
+            audio.playPlayerAction(stamped.kind, false);
+            return false;
+        }
+        audio.playPlayerAction(stamped.kind, true);
         // the sandbox deployment: whatever the game UI changed goes into the draft
         if (this.scenarioEditor && this.round >= 1) this.scenarioEditor.syncFromBoard();
         if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
@@ -8393,6 +8430,7 @@ export class Game {
             z: unit.world.z + m.home.z,
         }));
         this.particles.spawnFromEvents(bursts);
+        audio.spawnFromEvents(bursts);
         return true;
     }
 
@@ -8690,6 +8728,7 @@ export class Game {
             z: unit.world.z + m.home.z,
         }));
         this.particles.spawnFromEvents(bursts);
+        audio.spawnFromEvents(bursts);
         return true;
     }
 
@@ -8719,7 +8758,10 @@ export class Game {
                 });
             }
         }
-        if (bursts.length) this.particles.spawnFromEvents(bursts);
+        if (bursts.length) {
+            this.particles.spawnFromEvents(bursts);
+            audio.spawnFromEvents(bursts);
+        }
         return true;
     }
 
@@ -8776,16 +8818,30 @@ export class Game {
         return this.settings.seats ? this.seats[seat]?.controller === 'ai' : seat !== this.humanSeat;
     }
 
-    /** board extras for the local player: not in tutorials, not as The Year's attacker */
-    private humanMayBuyExtras(): boolean {
+    /**
+     * Board extras the local player may buy. `null` = all buyable extras
+     * (normal matches); empty = none (tutorials); otherwise a whitelist.
+     * The Year: attacker → Fire Bolt, defender → Ward Stone.
+     */
+    private humanBoardExtraIds(): readonly string[] | null {
+        if (isTutorial(this.settings)) return [];
+        if (!this.settings.climb) return null;
+        return this.yearAttackerTeam() === 'player' ? ['rocket'] : ['shield'];
+    }
+
+    private humanMayBuyExtra(type: UnitType): boolean {
+        if (!type.extra) return true;
         if (isTutorial(this.settings)) return false;
-        return !this.settings.climb || this.yearAttackerTeam() !== 'player';
+        return yearBoardExtraAllowed(
+            this.settings.climb ? this.yearAttackerTeam() : null,
+            'player',
+            type.id,
+        );
     }
 
     private buyUnit(type: UnitType): boolean {
         if (!this.playerCanAct) return false;
-        // The Year's attacker and the tutorials: no board extras (Ward Stone, Fire Bolt, …)
-        if (type.extra && !this.humanMayBuyExtras()) return false;
+        if (type.extra && !this.humanMayBuyExtra(type)) return false;
         if (this.tutorial?.blocksBuyEarly(type)) return false;
         if (!type.extra && !this.unlockedUnits[this.humanSeat]!.includes(type.id)) return false;
         if (this.economy.balance(this.humanSeat) < this.effectiveCost(type)) return false;
@@ -8952,6 +9008,7 @@ export class Game {
         this.collapseEndedRound = false;
         this.placement.beginBattle();
         this.phase = 'battle';
+        audio.playPhase('battle');
         this.syncPostFx();
         this.phaseRemaining = this.battleSeconds();
         this.placement.enabled = false;
@@ -9104,6 +9161,23 @@ export class Game {
                 ];
             }),
         );
+        for (const s of pendingSpells) {
+            if (spellOf(s)?.fx === 'dragon' && s.endX !== undefined) {
+                audio.play('spell_dragon_approach', s.x, s.z);
+                audio.play('spell_dragon_breath', (s.x + s.endX) * 0.5, (s.z + (s.endZ ?? s.z)) * 0.5);
+            } else if (s.tacticId === ACID_ID) {
+                audio.play('spell_acid_spill', s.x, s.z);
+            } else if (s.tacticId === FIRE_SPILL_ID) {
+                audio.play('spell_fire_spill', s.x, s.z);
+            } else if (s.tacticId === STORM_ID) {
+                audio.play('spell_storm', s.x, s.z);
+            } else if (s.tacticId === POISON_CLOUD_ID) {
+                audio.play('spell_poison_cloud', s.x, s.z);
+            }
+        }
+        for (const s of this.oilStamps) {
+            audio.play('spell_oil_spill', s.startX, s.startZ);
+        }
         // charge markers: outer + growing inner until readyAt, then gone
         // (zones keep a pulsing ring via activeZoneMarkers after readyAt)
         const pourReadyAt = BATTLE_START_FREEZE + HAZARD_POUR_DELAY_SEC;
@@ -9700,6 +9774,7 @@ export class Game {
             // this.sim.actors, so this MUST run before `this.sim = null`.
             if (this.star && !this.hydrating) hash = this.stateHash();
         }
+        audio.stopBeamLoops();
         this.sim = null;
         this.selectedActor = null;
         this.projectileRenderer.clear();
@@ -9909,6 +9984,7 @@ export class Game {
         const hits = this.hpDrawFx.update(dtSeconds, this.rig.camera, w, h);
         for (const hit of hits) {
             const dmg = Math.round(hit.damage);
+            audio.playUi('hp_draw');
             screenShake({
                 intensity: hpDrawShakeIntensity(hit.tier, dmg),
                 duration: hit.tier === 'high' ? 0.7 : hit.tier === 'medium' ? 0.55 : 0.44,
@@ -10194,6 +10270,7 @@ export class Game {
     ): void {
         if (this.matchOver) return;
         this.matchOver = true;
+        audio.playMatchEnd(result);
         // whatever ended the match, a "Waiting…"/reconnect notice must
         // never survive it — otherwise it can be left mounted (and, on
         // the next tick's countdown re-render, re-shown) after the game
@@ -10633,6 +10710,10 @@ export class Game {
                 this.phaseRemaining -= gameDt;
                 if (waitingForDeployPeer) this.phaseRemaining = Math.max(0, this.phaseRemaining);
             }
+            // no "time's up" warning for a clock I've already locked in on
+            if (this.phase === 'battle' || (this.phase === 'build' && !waitingForDeployPeer)) {
+                audio.tickTimerWarn(this.phaseRemaining);
+            }
             if (this.phase === 'build') {
                 if (this.watching) this.tickReplayPlayback();
                 if (this.phaseRemaining <= 0 && !waitingForDeployPeer) this.onDeployTimerExpired();
@@ -10655,6 +10736,8 @@ export class Game {
                 }
                 const battleEvents = this.sim.consumeEvents();
                 this.particles.spawnFromEvents(battleEvents);
+                audio.spawnFromEvents(battleEvents);
+                audio.syncBeamLoops(this.sim.actors);
                 this.stuckBolts.spawnFromEvents(battleEvents, (i) => {
                     const a = this.sim?.actors[i];
                     if (!a) return null;
@@ -10806,6 +10889,17 @@ export class Game {
             this.gamepad.update(dtSeconds);
             this.rig.update(dtSeconds);
             this.tutorial?.tickCamera();
+        }
+        // Audio listener follows the camera look-at on the board (stable under orbit).
+        {
+            const t = this.rig.target;
+            audio.setListener(t.x, t.z);
+            const cam = this.rig.camera.position;
+            const fx = t.x - cam.x;
+            const fy = 0 - cam.y;
+            const fz = t.z - cam.z;
+            const len = Math.hypot(fx, fy, fz) || 1;
+            audio.setListenerOrientation(fx / len, fy / len, fz / len);
         }
         // ambient motion runs on real time, unaffected by battle fast-forward
         // (solo pause freezes it with the rest of the match)
@@ -11437,6 +11531,7 @@ export class Game {
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade: (() => {
                 if (!ownInteractive || !u.type.structure || u.type.extra || this.tutorial?.boostLessonOnly) return undefined;
+                if (this.tutorial?.allowedGarrisonOffers()?.upgrade === false) return undefined;
                 const up = buildingUpgradeFor(u, this.humanSeat, this.settings.towers);
                 if (!up) return undefined; // an ally's own tower
                 return {
@@ -11661,6 +11756,16 @@ export class Game {
                 affordable: canBuy,
             },
         };
+        const gated = this.tutorial?.allowedGarrisonOffers() ?? null;
+        if (gated) {
+            return {
+                recruit: has('recruitLevel') && gated.recruit ? all.recruit : undefined,
+                deploySlot: has('deploySlot') && gated.deploySlot ? all.deploySlot : undefined,
+                rangeBoost: has('rangeBoost') && gated.extras ? all.rangeBoost : undefined,
+                speedBoost: has('speedBoost') && gated.extras ? all.speedBoost : undefined,
+                credit: has('credit') && gated.extras ? all.credit : undefined,
+            };
+        }
         return {
             recruit: has('recruitLevel') ? all.recruit : undefined,
             deploySlot: has('deploySlot') ? all.deploySlot : undefined,
@@ -11690,6 +11795,8 @@ export class Game {
             const maxed = tier >= tiers.length;
             const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
             const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
+            const allowed = this.tutorial?.allowedBoostIds();
+            const unlocked = allowed == null || allowed.includes(id);
             return {
                 id,
                 label:
@@ -11697,13 +11804,24 @@ export class Game {
                         ? t('hud:armyAttackBoost', { pct })
                         : t('hud:armyHpBoost', { pct }),
                 cost,
-                affordable: canBuy && !maxed && bal >= cost,
+                affordable: canBuy && !maxed && unlocked && bal >= cost,
                 maxed,
             };
         });
         // Tutorial 3 round 2 is the boost lesson — the other tracks would only
         // drain the supply its End Deployment gate needs.
-        if (this.tutorial?.boostLessonOnly) return { boosts: has('armyBoosts') ? boosts : undefined };
+        if (this.tutorial?.boostLessonOnly) {
+            const allowed = this.tutorial.allowedBoostIds();
+            const shown =
+                allowed === null
+                    ? boosts
+                    : boosts?.filter((b) => allowed.includes(b.id) || b.maxed);
+            return { boosts: has('armyBoosts') ? shown : undefined };
+        }
+        // Later Tutorial 3 rounds: hide Vanguard buys entirely (Garrison lesson).
+        if (this.tutorial?.allowedGarrisonOffers()) {
+            return {};
+        }
         const all = {
             sellAbility: {
                 cost: this.settings.sell.abilityCost,

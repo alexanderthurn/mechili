@@ -4,7 +4,7 @@
     "name": "Water",
     "tier": "base",
     "icon": "item-water",
-    "mods": { "speed": 1.05 },
+    "mods": { "speed": 1.2 },
     "cardCost": 0, // base runes are free on round cards
-    "description": "+5% speed.",
+    "description": "+20% speed.",
 }
