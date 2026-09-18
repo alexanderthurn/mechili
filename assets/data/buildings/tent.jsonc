@@ -1,8 +1,8 @@
 /**
  * The Year attacker's camp: one lifeline building at mid-zone center.
  * No baseAnchor — spawned only for the climb attacker (see game.ts).
- * Shops: commander forge spells + Garrison + Rally Route
- * (unlocked with two charges; no Sell / Move Pack / army boosts).
+ * Shops: commander forge spells + Garrison + two buyable Rally Route slots.
+ * Year attackers also start with two free Rally Route charges.
  */
 {
     "id": "tent",

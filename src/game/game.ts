@@ -220,6 +220,7 @@ import {
     hordeCountMult,
     climbAttackerTeam,
     yearBoardExtraAllowed,
+    rallyRouteBuyMax,
     yearWinner,
     type YearRoundWinner,
     hordeEnabled,
@@ -746,8 +747,8 @@ export class Game {
     private readonly recruitLevel: number[]; // per seat
     /** per-SEAT sell ability: `owned` is a permanent unlock, `used` resets per round */
     private readonly sellState: { owned: boolean[]; used: number[] };
-    /** per-SEAT: one-time rally-route purchase (permanent flag) */
-    private readonly rallyRouteOwned: boolean[];
+    /** per-SEAT: how many Rally Route unlocks bought this match (Tent: up to 2) */
+    private readonly rallyRouteBought: number[];
     /** per seat: which of its commander's spells it has bought at the Stronghold */
     private readonly forgeSpellOwned: string[][];
     private readonly movePackOwned: boolean[];
@@ -1757,20 +1758,19 @@ export class Game {
             runesBought: this.seats.map(() => 0),
         };
         this.sellState = { owned: this.seats.map(() => false), used: this.seats.map(() => 0) };
-        this.rallyRouteOwned = this.seats.map(() => false);
+        this.rallyRouteBought = this.seats.map(() => 0);
         this.forgeSpellOwned = this.seats.map(() => []);
         this.movePackOwned = this.seats.map(() => false);
         this.boostState = { attack: this.seats.map(() => 0), hp: this.seats.map(() => 0) };
         this.roundBoosts = { range: this.seats.map(() => false), speed: this.seats.map(() => false) };
         this.unlockedUnits = this.seats.map(() => []);
         this.unlockUsedThisRound = this.seats.map(() => false);
-        // The Year: attacker Tent comes with Rally Route unlocked and two free
-        // charges (not Sell / Move Pack — those stay off the Tent shop).
+        // The Year: attacker seats get two free Rally Route charges (same as
+        // card-granted one-shots — Tent buy slots stay separate, up to 2 more).
         if (settings.climb) {
             const attacker = this.yearAttackerTeam();
             for (let seat = 0; seat < this.seats.length; seat++) {
                 if (this.seats[seat]!.team === attacker) {
-                    this.rallyRouteOwned[seat] = true;
                     this.tacticInventory[seat]!.push(RALLY_ROUTE_ID, RALLY_ROUTE_ID);
                 }
             }
@@ -1796,7 +1796,7 @@ export class Game {
             boostSettings: settings.boosts,
             recruitLevel: this.recruitLevel,
             sellState: this.sellState,
-            rallyRouteOwned: this.rallyRouteOwned,
+            rallyRouteBought: this.rallyRouteBought,
             forgeSpellOwned: this.forgeSpellOwned,
             forgeSpellsOf: (seat: SeatId) => this.forgeSpellsOf(seat),
             movePackOwned: this.movePackOwned,
@@ -3968,7 +3968,11 @@ export class Game {
             audio.playPlayerAction(stamped.kind, false);
             return false;
         }
-        audio.playPlayerAction(stamped.kind, true);
+        // chooseCard voice is fired from the card-click path before dispatch
+        // so it isn't delayed by army spawn / board setup.
+        if (stamped.kind !== 'chooseCard') {
+            audio.playPlayerAction(stamped.kind, true);
+        }
         // the sandbox deployment: whatever the game UI changed goes into the draft
         if (this.scenarioEditor && this.round >= 1) this.scenarioEditor.syncFromBoard();
         if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
@@ -4678,6 +4682,8 @@ export class Game {
                   : `You bring your own troops & gear — ${this.seats[primarySeatOf(this.seats, 'player')]!.name} decides the side's speciality.`;
         this.hud.showStartCards(offer, note, (cardId) => {
             this.playerStarterOffer = null;
+            // Bark immediately on click — chooseCard apply is heavy and would delay audio.
+            audio.playCommanderPick(cardId);
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.broadcast({ type: 'starter', cardId, side: this.localSeat() });
             this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
@@ -4725,6 +4731,7 @@ export class Game {
             ]!;
         this.hud.hideCardOverlay();
         this.playerStarterOffer = null;
+        audio.playCommanderPick(pick.id);
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
         this.broadcast({ type: 'starter', cardId: pick.id, side: this.localSeat() });
         this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
@@ -11830,7 +11837,11 @@ export class Game {
             },
             rallyRouteAbility: {
                 cost: this.settings.rallyRoute.abilityCost,
-                owned: intel.rallyOwned,
+                owned: intel.rallyBought,
+                max: rallyRouteBuyMax(
+                    this.settings.climb ? this.yearAttackerTeam() : null,
+                    u.team === 'horde' ? 'player' : u.team,
+                ),
                 affordable: canBuy && bal >= this.settings.rallyRoute.abilityCost,
             },
             movePackAbility: {
@@ -11861,7 +11872,7 @@ export class Game {
                 boostAttack: s.boostAttack[seat] ?? 0,
                 boostHp: s.boostHp[seat] ?? 0,
                 sellOwned: s.sellOwned[seat] ?? false,
-                rallyOwned: s.rallyOwned[seat] ?? false,
+                rallyBought: s.rallyBought[seat] ?? 0,
                 movePackOwned: s.movePackOwned[seat] ?? false,
             };
         }
@@ -11874,7 +11885,7 @@ export class Game {
             boostAttack: this.boostState.attack[seat]!,
             boostHp: this.boostState.hp[seat]!,
             sellOwned: this.sellState.owned[seat]!,
-            rallyOwned: this.rallyRouteOwned[seat]!,
+            rallyBought: this.rallyRouteBought[seat]!,
             movePackOwned: this.movePackOwned[seat]!,
         };
     }
@@ -11889,7 +11900,7 @@ export class Game {
             boostAttack: this.boostState.attack.slice(),
             boostHp: this.boostState.hp.slice(),
             sellOwned: this.sellState.owned.slice(),
-            rallyOwned: this.rallyRouteOwned.slice(),
+            rallyBought: this.rallyRouteBought.slice(),
             movePackOwned: this.movePackOwned.slice(),
             forgeSpellOwned: this.forgeSpellOwned.map((list) => list.slice()),
             strongholdArchers: {
@@ -12153,7 +12164,7 @@ interface BuildingIntelSnapshot {
     boostAttack: number[];
     boostHp: number[];
     sellOwned: boolean[];
-    rallyOwned: boolean[];
+    rallyBought: number[];
     movePackOwned: boolean[];
     /** Stronghold commander spells bought (per seat) at phase start — fogged view */
     forgeSpellOwned: string[][];
@@ -12175,7 +12186,7 @@ interface BuildingIntelSeat {
     boostAttack: number;
     boostHp: number;
     sellOwned: boolean;
-    rallyOwned: boolean;
+    rallyBought: number;
     movePackOwned: boolean;
 }
 

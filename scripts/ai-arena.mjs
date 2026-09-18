@@ -136,7 +136,7 @@ function newMatch(variantName, seed, brains) {
         boostSettings: settings.boosts,
         recruitLevel: [1, 1],
         sellState: { owned: [false, false], used: [0, 0] },
-        rallyRouteOwned: [false, false],
+        rallyRouteBought: [0, 0],
         forgeSpellOwned: [[], []],
         forgeSpellsOf: () => [],
         movePackOwned: [false, false],
