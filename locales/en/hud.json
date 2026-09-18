@@ -28,6 +28,8 @@
   "yearDefender": "Defender",
   "yearYou": "you",
   "yearSideWins": "{{side}} wins",
+  "yearRoundWon": "{{side}} won",
+  "yearBegins": "The Year begins",
   "yearRoundTo": "Round {{n}}: {{side}}",
   "rematchSwapped": "Rematch, roles swapped",
   "rematchWaiting": "Waiting for opponent…",

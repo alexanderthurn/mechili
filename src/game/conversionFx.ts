@@ -109,8 +109,8 @@ function quatFromUpTo(dir: Vector3, out: Quaternion): void {
     out.setFromUnitVectors(_up, dir);
 }
 
-/** Beam muzzle for FX (interpolated xz) — matches sim {@link beamRayOrigin} policy. */
-function beamFxOrigin(caster: Actor): { x: number; y: number; z: number } {
+/** Beam muzzle for FX / audio — matches sim {@link beamRayOrigin} policy. */
+export function beamMuzzleWorld(caster: Actor): { x: number; y: number; z: number } {
     const ut = caster.unit.type;
     const authored = ut.rampBeam?.muzzleLocal;
     if (authored) {
@@ -430,7 +430,7 @@ export class ConversionFx {
             const isConvert = !!caster.unit.type.convertRay;
             if (!isRamp && !isConvert) continue;
 
-            const from = beamFxOrigin(caster);
+            const from = beamMuzzleWorld(caster);
 
             if (isRamp) {
                 // how far each beam's damage has ramped (0 = just locked, 1 = PRISM_FULL_DOUBLINGS doublings)

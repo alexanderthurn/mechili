@@ -10683,6 +10683,15 @@ export class Game {
             : this.phase === 'battle' || this.watching
               ? trueDtSeconds * this.speedSteps[this.speedIndex]!
               : trueDtSeconds;
+        // SFX follow effective sim rate (slo-mo stretch; fast stays natural pitch).
+        // Build phase stays 1× unless watching a replay. Music/UI ignore this.
+        audio.setTimeScale(
+            soloPaused
+                ? 0
+                : this.phase === 'battle' || this.watching
+                  ? this.speedSteps[this.speedIndex]!
+                  : 1,
+        );
         this.time += gameDt;
 
         if (this.hpDrawSettleRemaining > 0 || this.hasPendingDeathVisuals()) {
@@ -10907,6 +10916,9 @@ export class Game {
             const fz = t.z - cam.z;
             const len = Math.hypot(fx, fy, fz) || 1;
             audio.setListenerOrientation(fx / len, fy / len, fz / len);
+            const hazards =
+                this.phase === 'battle' && this.sim ? this.sim.hazards : this.oilField;
+            audio.syncHazardLoops(hazards, this.sim?.elapsed ?? 0, cam.y);
         }
         // ambient motion runs on real time, unaffected by battle fast-forward
         // (solo pause freezes it with the rest of the match)

@@ -5,6 +5,7 @@
 
 const RAW = import.meta.glob(
     [
+        '../../assets/audio/acid_loop_1.ogg',
         '../../assets/audio/archer_shot_1.ogg',
         '../../assets/audio/archer_shot_2.ogg',
         '../../assets/audio/archer_shot_3.ogg',
@@ -45,6 +46,7 @@ const RAW = import.meta.glob(
         '../../assets/audio/explosion_fire_2.ogg',
         '../../assets/audio/explosion_heavy_1.ogg',
         '../../assets/audio/explosion_heavy_2.ogg',
+        '../../assets/audio/fire_loop_1.ogg',
         '../../assets/audio/forge_light_1.ogg',
         '../../assets/audio/forge_light_2.ogg',
         '../../assets/audio/ground_fire_1.ogg',

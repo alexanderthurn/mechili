@@ -4669,8 +4669,8 @@ export class Hud {
         el.classList.add('mechili-climb-splash', 'is-year');
         const last = p.rounds[p.rounds.length - 1];
         const title = last
-            ? t('hud:yearRoundTo', { defaultValue: 'Round {{n}}: {{side}}', n: p.rounds.length, side: yearRoleName(last) })
-            : t('hud:climbRoundShort', { n: 1, total: p.total });
+            ? t('hud:yearRoundWon', { defaultValue: '{{side}} won', side: yearRoleName(last) })
+            : t('hud:yearBegins', { defaultValue: 'The Year begins' });
         el.innerHTML = yearProgressHtml(p, { title, fresh: true });
         this.mount(el);
         window.setTimeout(() => {
@@ -4724,13 +4724,16 @@ export class Hud {
         const nextBtn = opts?.allowNext
             ? `<button type="button" class="go-next">${escapeHtml(t('hud:continue'))}</button>`
             : '';
+        // The Year end block already names the winner ("Attacker wins") — skip the
+        // generic VICTORY/DEFEAT headline so it isn't said twice.
+        const titleEl = opts?.year ? '' : `<div class="go-title">${escapeHtml(title)}</div>`;
         return (
             `<div class="go-bg" aria-hidden="true">` +
             `<span class="go-bg-glow go-bg-glow-player"></span>` +
             `<span class="go-bg-glow go-bg-glow-enemy"></span>` +
             `<span class="go-bg-core"></span>` +
             `</div>` +
-            `<div class="go-title">${escapeHtml(title)}</div>${year}${teams}${noteEl}` +
+            `${titleEl}${year}${teams}${noteEl}` +
             `<div class="go-actions">${rematchBtn}${nextBtn}${retryBtn}` +
             `<button type="button" class="go-restart">${escapeHtml(t('hud:backToMainMenu'))}</button>` +
             `</div>`

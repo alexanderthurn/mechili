@@ -8,6 +8,8 @@
 import { assetUrl } from './assets';
 import type { SimEvent } from './sim';
 import { onPrefsChange, prefs } from './prefs';
+import { beamMuzzleWorld } from './conversionFx';
+import type { Actor } from './sim';
 
 export type AudioGroupId = 'sfx' | 'music' | 'ui';
 
@@ -30,6 +32,13 @@ export type CueDef = {
 };
 
 const CUES: Record<string, CueDef> = {
+    /** Proximity bed while camera is near acid puddles. */
+    acid_loop: {
+        paths: ['audio/acid_loop_1.ogg'],
+        group: 'sfx',
+        maxVoices: 1,
+        gain: 0.4,
+    },
     archer_shot: {
         paths: [
             'audio/archer_shot_1.ogg',
@@ -166,12 +175,12 @@ const CUES: Record<string, CueDef> = {
             'audio/convert_beam_1.ogg',
         ],
         group: 'sfx',
-        maxVoices: 4,
+        maxVoices: 1,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
-        gain: 0.4,
+        refDistance: 4,
+        maxDistance: 22,
+        rolloff: 1.4,
+        gain: 0.32,
     },
     death_structure: {
         paths: [
@@ -275,6 +284,14 @@ const CUES: Record<string, CueDef> = {
         group: 'ui',
         maxVoices: 2,
         gain: 0.5,
+    },
+    /** Proximity bed while camera is near burning ground. */
+    fire_loop: {
+        paths: ['audio/fire_loop_1.ogg'],
+        group: 'sfx',
+        maxVoices: 1,
+        // asset is quieter than acid_loop — matched by ear to acid's presence
+        gain: 0.72,
     },
     ground_fire: {
         paths: [
@@ -490,12 +507,12 @@ const CUES: Record<string, CueDef> = {
             'audio/ramp_beam_1.ogg',
         ],
         group: 'sfx',
-        maxVoices: 4,
+        maxVoices: 1,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
-        gain: 0.45,
+        refDistance: 4,
+        maxDistance: 22,
+        rolloff: 1.4,
+        gain: 0.38,
     },
     rocket_blast: {
         paths: [
@@ -778,6 +795,7 @@ const CUES: Record<string, CueDef> = {
 
 // Literal assetUrl() calls so `npm run assets:manifest` ships these files.
 void [
+    assetUrl('audio/acid_loop_1.ogg'),
     assetUrl('audio/archer_shot_1.ogg'),
     assetUrl('audio/archer_shot_2.ogg'),
     assetUrl('audio/archer_shot_3.ogg'),
@@ -820,6 +838,7 @@ void [
     assetUrl('audio/explosion_heavy_2.ogg'),
     assetUrl('audio/forge_light_1.ogg'),
     assetUrl('audio/forge_light_2.ogg'),
+    assetUrl('audio/fire_loop_1.ogg'),
     assetUrl('audio/ground_fire_1.ogg'),
     assetUrl('audio/ground_fire_2.ogg'),
     assetUrl('audio/hammer_crush_1.ogg'),
@@ -911,6 +930,8 @@ class AudioBus {
     private ctx: AudioContext | null = null;
     private master!: GainNode;
     private groups!: Record<AudioGroupId, GainNode>;
+    /** Hazard / beam beds — same SFX volume pref, never time-scaled or ducked. */
+    private loopBus!: GainNode;
     private buffers = new Map<string, AudioBuffer>();
     private voices: Voice[] = [];
     private voiceCount = new Map<string, number>();
@@ -927,8 +948,17 @@ class AudioBus {
     /** The bed being decoded right now (not yet audible), so a repeat ask doesn't restart it. */
     private loadingMusic: string | null = null;
     private unsubPrefs: (() => void) | null = null;
-    /** Sustained beam loops keyed by cue id. */
-    private loops = new Map<string, { source: AudioBufferSourceNode; gain: GainNode }>();
+    /** Sustained beam / hazard loops keyed by cue id. */
+    private loops = new Map<
+        string,
+        { source: AudioBufferSourceNode; gain: GainNode; panner?: PannerNode }
+    >;
+    /**
+     * Effective battle/replay speed (0 = paused, 0.25 = slo-mo, 1 = normal,
+     * 2/8/32 = fast-forward). Drives SFX playbackRate + soft duck only —
+     * music / UI / commander VO stay at real time.
+     */
+    private timeScale = 1;
 
     /** Idempotent — call from first pointer/click and again at match start. */
     unlock(): void {
@@ -994,11 +1024,35 @@ class AudioBus {
         const p = prefs();
         const mute = p.audioMuted ? 0 : 1;
         this.master.gain.value = mute * clamp01(p.masterVolume);
-        this.groups.sfx.gain.value = clamp01(p.sfxVolume);
+        const sfx = clamp01(p.sfxVolume);
+        this.groups.sfx.gain.value = sfx * sfxTimeDuck(this.timeScale);
+        this.loopBus.gain.value = sfx;
         this.groups.music.gain.value = clamp01(p.musicVolume);
         this.groups.ui.gain.value = clamp01(p.uiVolume);
         // mute stops the bed, unmute brings back whatever the state wants
         this.syncMusic();
+    }
+
+    /**
+     * Match one-shot SFX to battle/replay speed.
+     * Loops (fire/acid/beams) stay at real time and ignore the fast-forward duck.
+     */
+    setTimeScale(scale: number): void {
+        const next = Number.isFinite(scale) ? Math.max(0, scale) : 1;
+        if (Math.abs(next - this.timeScale) < 1e-4) return;
+        this.timeScale = next;
+        const oneShotRate = sfxPlaybackRate(next);
+        for (const v of this.voices) {
+            if (CUES[v.cueId]?.group !== 'sfx') continue;
+            try {
+                v.source.playbackRate.value = oneShotRate;
+            } catch {
+                /* ended */
+            }
+        }
+        if (this.ctx) {
+            this.groups.sfx.gain.value = clamp01(prefs().sfxVolume) * sfxTimeDuck(next);
+        }
     }
 
     play(cueId: string, worldX?: number, worldZ?: number): boolean {
@@ -1021,6 +1075,9 @@ class AudioBus {
 
         const src = this.ctx.createBufferSource();
         src.buffer = buf;
+        if (cue.group === 'sfx') {
+            src.playbackRate.value = sfxPlaybackRate(this.timeScale);
+        }
         const gain = this.ctx.createGain();
         gain.gain.value = cue.gain ?? 1;
 
@@ -1158,41 +1215,104 @@ class AudioBus {
 
     /**
      * Keep convert / ramp beam loops in sync with live actors.
-     * Call once per battle frame after sim update.
+     * Sound sits at the ray muzzle; volume is near-field only.
      */
-    syncBeamLoops(
-        actors: readonly {
-            alive: boolean;
-            convertRayActive?: boolean;
-            unit: { type: { convertRay?: unknown; rampBeam?: unknown } };
-            x: number;
-            z: number;
-        }[],
-    ): void {
-        let convert = false;
-        let ramp = false;
-        let cx = 0;
-        let cz = 0;
-        let rx = 0;
-        let rz = 0;
-        let cn = 0;
-        let rn = 0;
+    syncBeamLoops(actors: readonly Actor[]): void {
+        const lx = this.listenerX;
+        const lz = this.listenerZ;
+        let bestConvert = BEAM_LOOP_MAX_DIST + 1;
+        let cx = lx;
+        let cy = 1.5;
+        let cz = lz;
+        let bestRamp = BEAM_LOOP_MAX_DIST + 1;
+        let rx = lx;
+        let ry = 1.5;
+        let rz = lz;
         for (const a of actors) {
             if (!a.alive || !a.convertRayActive) continue;
+            const muzzle = beamMuzzleWorld(a);
+            const d = distXZ(muzzle.x, muzzle.z, lx, lz);
             if (a.unit.type.rampBeam) {
-                ramp = true;
-                rx += a.x;
-                rz += a.z;
-                rn++;
+                if (d < bestRamp) {
+                    bestRamp = d;
+                    rx = muzzle.x;
+                    ry = muzzle.y;
+                    rz = muzzle.z;
+                }
             } else if (a.unit.type.convertRay) {
-                convert = true;
-                cx += a.x;
-                cz += a.z;
-                cn++;
+                if (d < bestConvert) {
+                    bestConvert = d;
+                    cx = muzzle.x;
+                    cy = muzzle.y;
+                    cz = muzzle.z;
+                }
             }
         }
-        this.setLoop('convert_beam', convert, cn ? cx / cn : 0, cn ? cz / cn : 0);
-        this.setLoop('ramp_beam', ramp, rn ? rx / rn : 0, rn ? rz / rn : 0);
+        this.setLoop('convert_beam', true, cx, cz, beamLoopVolume(bestConvert), cy);
+        this.setLoop('ramp_beam', true, rx, rz, beamLoopVolume(bestRamp), ry);
+    }
+
+    /**
+     * Keep fire / acid crackle beds in sync with hazards near the listener.
+     * Loudness = soft-saturating sum of per-cell XZ falloffs × camera-height
+     * duck (zoomed-out / high in the sky stays quiet).
+     */
+    syncHazardLoops(
+        hazards: {
+            forEachFireCell: (
+                now: number,
+                fn: (x: number, z: number) => void,
+            ) => void;
+            forEachAcidCell: (fn: (x: number, z: number) => void) => void;
+        } | null,
+        now: number,
+        cameraY = 40,
+    ): void {
+        if (!hazards) {
+            this.setLoop('fire_loop', false, 0, 0, 0);
+            this.setLoop('acid_loop', false, 0, 0, 0);
+            return;
+        }
+        const lx = this.listenerX;
+        const lz = this.listenerZ;
+        const heightMul = hazardAltitudeGain(cameraY);
+        if (heightMul < 0.02) {
+            this.setLoop('fire_loop', false, 0, 0, 0);
+            this.setLoop('acid_loop', false, 0, 0, 0);
+            return;
+        }
+        let bestFire = FIRE_LOOP_MAX_DIST + 1;
+        let fx = lx;
+        let fz = lz;
+        let fireEnergy = 0;
+        hazards.forEachFireCell(now, (x, z) => {
+            const d = distXZ(x, z, lx, lz);
+            const cell = hazardCellFalloff(d, FIRE_LOOP_MAX_DIST);
+            if (cell <= 0) return;
+            fireEnergy += cell;
+            if (d < bestFire) {
+                bestFire = d;
+                fx = x;
+                fz = z;
+            }
+        });
+        let bestAcid = ACID_LOOP_MAX_DIST + 1;
+        let ax = lx;
+        let az = lz;
+        let acidEnergy = 0;
+        hazards.forEachAcidCell((x, z) => {
+            const d = distXZ(x, z, lx, lz);
+            const cell = hazardCellFalloff(d, ACID_LOOP_MAX_DIST);
+            if (cell <= 0) return;
+            acidEnergy += cell;
+            if (d < bestAcid) {
+                bestAcid = d;
+                ax = x;
+                az = z;
+            }
+        });
+        this.setLoop('fire_loop', true, fx, fz, hazardMassGain(fireEnergy) * heightMul);
+        this.setLoop('acid_loop', true, ax, az, hazardMassGain(acidEnergy) * heightMul);
     }
 
     /** Edge-trigger timer warning when remaining seconds first enter `<= until`. */
@@ -1209,10 +1329,12 @@ class AudioBus {
 
     private timerWarnArmed = true;
 
-    /** Stop convert / ramp beam loops (battle end / tear-down). */
+    /** Stop convert / ramp / hazard loops (battle end / tear-down). */
     stopBeamLoops(): void {
-        this.setLoop('convert_beam', false, 0, 0);
-        this.setLoop('ramp_beam', false, 0, 0);
+        this.setLoop('convert_beam', false, 0, 0, 0);
+        this.setLoop('ramp_beam', false, 0, 0, 0);
+        this.setLoop('fire_loop', false, 0, 0, 0);
+        this.setLoop('acid_loop', false, 0, 0, 0);
     }
 
     /**
@@ -1229,9 +1351,18 @@ class AudioBus {
         if (cue) this.playUi(cue);
     }
 
-    private setLoop(cueId: string, on: boolean, _x: number, _z: number): void {
+    private setLoop(
+        cueId: string,
+        on: boolean,
+        x: number,
+        z: number,
+        volume = 1,
+        y = 1.5,
+    ): void {
         const existing = this.loops.get(cueId);
-        if (!on) {
+        const cue = CUES[cueId];
+        const level = clamp01(volume) * (cue?.gain ?? 0.4);
+        if (!on || level < 0.02) {
             if (existing) {
                 try {
                     existing.source.stop();
@@ -1240,13 +1371,21 @@ class AudioBus {
                 }
                 existing.source.disconnect();
                 existing.gain.disconnect();
+                existing.panner?.disconnect();
                 this.loops.delete(cueId);
             }
             return;
         }
-        if (existing) return;
+        if (existing) {
+            existing.gain.gain.value = level;
+            if (existing.panner) {
+                existing.panner.positionX.value = x;
+                existing.panner.positionY.value = y;
+                existing.panner.positionZ.value = z;
+            }
+            return;
+        }
         if (!this.unlocked) this.unlock();
-        const cue = CUES[cueId];
         if (!cue || !this.ctx || prefs().audioMuted) return;
         const path = cue.paths[0];
         if (!path) return;
@@ -1256,15 +1395,31 @@ class AudioBus {
         src.buffer = buf;
         src.loop = true;
         const gain = this.ctx.createGain();
-        gain.gain.value = cue.gain ?? 0.4;
-        src.connect(gain);
-        gain.connect(this.groups[cue.group]);
+        gain.gain.value = level;
+        let panner: PannerNode | undefined;
+        if (cue.spatial) {
+            panner = this.ctx.createPanner();
+            panner.panningModel = 'HRTF';
+            panner.distanceModel = 'inverse';
+            panner.refDistance = cue.refDistance ?? 4;
+            panner.maxDistance = cue.maxDistance ?? 22;
+            panner.rolloffFactor = cue.rolloff ?? 1.4;
+            panner.positionX.value = x;
+            panner.positionY.value = y;
+            panner.positionZ.value = z;
+            src.connect(gain);
+            gain.connect(panner);
+            panner.connect(this.loopBus);
+        } else {
+            src.connect(gain);
+            gain.connect(this.loopBus);
+        }
         try {
             src.start(0);
         } catch {
             return;
         }
-        this.loops.set(cueId, { source: src, gain });
+        this.loops.set(cueId, { source: src, gain, panner });
     }
 
     /** Battle SimEvents → spatial SFX. */
@@ -1364,7 +1519,9 @@ class AudioBus {
             music: this.ctx.createGain(),
             ui: this.ctx.createGain(),
         };
+        this.loopBus = this.ctx.createGain();
         this.groups.sfx.connect(this.master);
+        this.loopBus.connect(this.master);
         this.groups.music.connect(this.master);
         this.groups.ui.connect(this.master);
         this.applyPrefs();
@@ -1478,6 +1635,65 @@ function distXZ(ax: number, az: number, bx: number, bz: number): number {
     const dx = ax - bx;
     const dz = az - bz;
     return Math.hypot(dx, dz);
+}
+
+/** Fire: hear it from a bit farther out. */
+const FIRE_LOOP_MAX_DIST = 28;
+/** Acid: tighter — only loud when actually over it, not from high orbit. */
+const ACID_LOOP_MAX_DIST = 16;
+
+function hazardCellFalloff(dist: number, maxDist: number): number {
+    if (dist >= maxDist) return 0;
+    const t = 1 - dist / maxDist;
+    // cubic — stays quiet until closer, then ramps
+    return t * t * t;
+}
+
+/**
+ * Soft-saturating gain from summed per-cell falloffs.
+ * One cell underfoot ≈ 0.75; a few nearby cells fill toward 1 without clipping.
+ */
+function hazardMassGain(energy: number): number {
+    if (energy <= 0) return 0;
+    return 1 - Math.exp(-energy * 1.4);
+}
+
+/**
+ * Quiet hazard beds when the camera is high (default zoom ~75 → height ~60).
+ * Low orbit / close-in stays full; bird's-eye drops out.
+ */
+function hazardAltitudeGain(cameraY: number): number {
+    const fullBelow = 36;
+    const silentAbove = 110;
+    if (cameraY <= fullBelow) return 1;
+    if (cameraY >= silentAbove) return 0;
+    const t = 1 - (cameraY - fullBelow) / (silentAbove - fullBelow);
+    return t * t;
+}
+
+/** Prism / convert beams — only loud when nearly on top of the caster. */
+const BEAM_LOOP_MAX_DIST = 20;
+
+function beamLoopVolume(dist: number): number {
+    if (dist >= BEAM_LOOP_MAX_DIST) return 0;
+    const t = 1 - dist / BEAM_LOOP_MAX_DIST;
+    return t * t * t; // steeper than hazards — “super close” only
+}
+
+/**
+ * SFX one-shot rate vs battle speed: stretch in slo-mo, natural pitch when fast.
+ * Near-zero freezes in-flight one-shots. Loops never use this.
+ */
+function sfxPlaybackRate(scale: number): number {
+    if (scale <= 0) return 0.0001;
+    if (scale < 1) return Math.max(0.05, scale);
+    return 1;
+}
+
+/** Soft one-shot SFX duck above 1× so fast-forward stays readable. */
+function sfxTimeDuck(scale: number): number {
+    if (scale <= 1) return 1;
+    return 1 / Math.sqrt(scale);
 }
 
 /** Singleton — one bus for the whole app. */

@@ -153,8 +153,14 @@ export function mountYearIntro(cover: HTMLElement, progress: YearProgress): void
     unmountClimbIntro(cover);
     const el = withDialogFade(document.createElement('div'));
     el.classList.add('mechili-climb-intro', 'is-year');
-    const n = Math.min(progress.rounds.length + 1, progress.total);
-    el.innerHTML = `<div class="ci-frame">${yearProgressHtml(progress, { title: t('hud:climbRoundShort', { n, total: progress.total }), current: true })}</div>`;
+    const title =
+        progress.rounds.length === 0
+            ? t('hud:yearBegins', { defaultValue: 'The Year begins' })
+            : t('hud:climbRoundShort', {
+                  n: Math.min(progress.rounds.length + 1, progress.total),
+                  total: progress.total,
+              });
+    el.innerHTML = `<div class="ci-frame">${yearProgressHtml(progress, { title, current: true })}</div>`;
     cover.appendChild(el);
 }
 
