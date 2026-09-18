@@ -1277,7 +1277,7 @@ class AudioBus {
         this.playUi(result === 'draw' ? 'draw_match' : result);
     }
 
-    /** Soul hit on HP bar — fighting-game punch scaled to wave tier. */
+    /** Soul hit on HP bar — short ethereal spirit tick scaled to wave tier. */
     playHpDrawHit(tier: 'low' | 'medium' | 'high'): void {
         this.playUi(
             tier === 'high' ? 'hp_draw_high' : tier === 'medium' ? 'hp_draw_medium' : 'hp_draw_low',
