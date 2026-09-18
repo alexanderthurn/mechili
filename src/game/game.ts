@@ -47,6 +47,7 @@ import {
     isTutorial,
     nextTutorialId,
     tutorialId,
+    tutorial1HeightAt,
     tutorial5HeightAt,
     TUTORIAL_1_ID,
     TUTORIAL_2_ID,
@@ -1419,6 +1420,9 @@ export class Game {
                         : `[landscape] "${settings.landscape}" is not loaded — playing the procedural terrain`,
                 );
             }
+        } else if (tutorialId(settings) === TUTORIAL_1_ID) {
+            // Small right-side knoll for the height lesson (visible whole match).
+            this.map.setReliefOverride((x, z) => tutorial1HeightAt(this.map, x, z));
         } else if (tutorialId(settings) === TUTORIAL_5_ID) {
             // Asymmetric slope for the Terrain height lesson.
             this.map.setReliefOverride((x, z) => tutorial5HeightAt(this.map, x, z));

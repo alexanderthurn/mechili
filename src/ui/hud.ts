@@ -2414,7 +2414,16 @@ export class Hud {
      * targets (life bars, shop tile, End Deployment, …).
      * `shop-dwarf` also opens the shop phone tab so the tile is visible.
      */
-    setTutorialHighlight(target: 'hp' | 'shop-dwarf' | 'end-deploy' | 'rotate' | null): void {
+    setTutorialHighlight(
+        target:
+            | 'hp'
+            | 'shop-dwarf'
+            | 'shop-archer'
+            | 'shop-hammerer'
+            | 'end-deploy'
+            | 'rotate'
+            | null,
+    ): void {
         this.clearTutorialHighlight();
         if (!target) return;
 
@@ -2432,9 +2441,15 @@ export class Hud {
             elements.push(this.endButton);
         } else if (target === 'rotate') {
             elements.push(this.touchRotateBtn);
-        } else if (target === 'shop-dwarf') {
+        } else if (
+            target === 'shop-dwarf' ||
+            target === 'shop-archer' ||
+            target === 'shop-hammerer'
+        ) {
             this.setPhoneTab('shop');
-            const tile = this.shopUnitTiles.get('dwarf');
+            const unitId =
+                target === 'shop-dwarf' ? 'dwarf' : target === 'shop-archer' ? 'archer' : 'hammerer';
+            const tile = this.shopUnitTiles.get(unitId);
             if (tile) elements.push(tile);
             else elements.push(this.shopPanel);
         }

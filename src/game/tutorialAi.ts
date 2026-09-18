@@ -20,6 +20,7 @@ import type { SeatId } from './seats';
 import type { Cell } from './map';
 import {
     TUTORIAL_1_ID,
+    TUTORIAL_1_R2_ENEMY_DWARVES,
     TUTORIAL_2_ID,
     TUTORIAL_3_ID,
     TUTORIAL_4_ID,
@@ -28,6 +29,9 @@ import {
     TUTORIAL_ARCHER_ID,
     TUTORIAL_DWARF_ID,
     TUTORIAL_OGRE_ID,
+    tutorial1R2EnemyDwarfCells,
+    tutorial1R3EnemyArmy,
+    tutorial1R4ArcherSlots,
     tutorial3R3EnemyDwarfCells,
     tutorial4CenterArcherCells,
     tutorial4MirroredArmy,
@@ -122,6 +126,33 @@ export class TutorialAi implements Opponent {
             this.ctx.unlockedUnits[this.seat] = [TUTORIAL_ARCHER_ID];
             const type = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
             if (type) this.placeNearCenter(type, 4);
+        } else if (round === 2) {
+            this.ctx.unlockedUnits[this.seat] = [TUTORIAL_DWARF_ID];
+            const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
+            if (dwarf) {
+                for (const cell of tutorial1R2EnemyDwarfCells(
+                    this.ctx.placement.map,
+                    TUTORIAL_1_R2_ENEMY_DWARVES,
+                )) {
+                    this.buyAt(dwarf, cell);
+                }
+            }
+        } else if (round === 3) {
+            this.ctx.unlockedUnits[this.seat] = [TUTORIAL_ARCHER_ID, TUTORIAL_DWARF_ID];
+            const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
+            const dwarf = this.ctx.types.byId(TUTORIAL_DWARF_ID);
+            const army = tutorial1R3EnemyArmy(this.ctx.placement.map);
+            if (archer) {
+                for (const cell of army.archers) this.buyAt(archer, cell);
+            }
+            if (dwarf) {
+                for (const cell of army.dwarves) this.buyAt(dwarf, cell);
+            }
+        } else if (round === 4) {
+            this.ctx.unlockedUnits[this.seat] = [TUTORIAL_ARCHER_ID];
+            const archer = this.ctx.types.byId(TUTORIAL_ARCHER_ID);
+            const { enemy } = tutorial1R4ArcherSlots(this.ctx.placement.map);
+            if (archer) this.buyAt(archer, enemy);
         }
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }

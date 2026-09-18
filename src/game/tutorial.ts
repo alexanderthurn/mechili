@@ -12,8 +12,17 @@ import type { BattleMap, Cell } from './map';
 import { BASE_ANCHORS, CELL } from './map';
 import { OIL_SPILL_ID, DRAGON_ID, SPAWN_DWARVES_ID, TACTIC_MAX_SPAN, TACTIC_SAFE_ZONE_MARGIN, clampTacticPoint } from './tactics';
 
-/** Tutorial 1: empty board, auto commander, soft UI lesson, 4 enemy archers. */
+/** Tutorial 1: camera + placement, income, closest-target, height. */
 export const TUTORIAL_1_ID = 1;
+export const TUTORIAL_1_ROUNDS = 4;
+/** Tutorial 1 round 2: enemy dwarf packs for Hammerer splash. */
+export const TUTORIAL_1_R2_ENEMY_DWARVES = 4;
+/** Tutorial 1 round 3: enemy archers in front (player shoots them first). */
+export const TUTORIAL_1_R3_ENEMY_ARCHERS = 1;
+/** Tutorial 1 round 3: enemy dwarf pack held behind the archers. */
+export const TUTORIAL_1_R3_ENEMY_DWARVES = 1;
+/** Tutorial 1 round 4: knoll height (wu) — tiny steep bump; ~+9 downhill range. */
+export const TUTORIAL_1_KNOLL_HEIGHT = 10;
 /** Tutorial 2: Stronghold-only lesson across three rounds (archers, spells, lifeline). */
 export const TUTORIAL_2_ID = 2;
 
@@ -120,6 +129,7 @@ export function applyTutorialMode(settings: GameSettings, id: number): void {
     settings.roundCardPreset = 'off';
     if (id === TUTORIAL_1_ID) {
         settings.strongholdMode = 'none';
+        lesson.roundsToWin = TUTORIAL_1_ROUNDS;
         settings.deploy = { ...settings.deploy, unitsPerRound: 2 };
         settings.economy = {
             ...settings.economy,
@@ -204,6 +214,7 @@ export const TUTORIAL_BALLISTA_ID = 'ballista';
 export const TUTORIAL_MORTAR_ID = 'mortar';
 export const TUTORIAL_GOBLIN_ID = 'goblin';
 export const TUTORIAL_OGRE_ID = 'ogre';
+export const TUTORIAL_HAMMERER_ID = 'hammerer';
 
 const TUTORIAL_FOOTPRINTS: Readonly<Record<string, { cols: number; rows: number }>> = {
     [TUTORIAL_DWARF_ID]: { cols: 5, rows: 2 },
@@ -212,6 +223,7 @@ const TUTORIAL_FOOTPRINTS: Readonly<Record<string, { cols: number; rows: number 
     [TUTORIAL_MORTAR_ID]: { cols: 5, rows: 2 },
     [TUTORIAL_GOBLIN_ID]: { cols: 4, rows: 2 },
     [TUTORIAL_OGRE_ID]: { cols: 2, rows: 2 },
+    [TUTORIAL_HAMMERER_ID]: { cols: 2, rows: 2 },
 };
 
 /** What would break a lesson in `types`: a missing unit or an unexpected footprint. Empty = fine. */
@@ -261,6 +273,11 @@ export function tutorialContentProblems(types: TypeRegistry): string[] {
 export function tutorialDwarfFootprint(rotated: boolean): { cols: number; rows: number } {
     const fp = TUTORIAL_FOOTPRINTS[TUTORIAL_DWARF_ID]!;
     return rotated ? { cols: fp.rows, rows: fp.cols } : { ...fp };
+}
+
+/** Archer footprint (rotation-symmetric 2×2). */
+export function tutorialArcherFootprint(): { cols: number; rows: number } {
+    return { ...TUTORIAL_FOOTPRINTS[TUTORIAL_ARCHER_ID]! };
 }
 
 /** Siege ballista footprint (rotation-symmetric). */
@@ -486,6 +503,39 @@ export function tutorial5HeightAt(map: BattleMap, x: number, z: number): number 
 }
 
 /**
+ * Tutorial 1 round 4: a tiny steep knoll on the player's right (inset from the
+ * rim) — enough height for a downhill range spike, soft apron so it reads natural.
+ */
+export function tutorial1HeightAt(map: BattleMap, x: number, z: number): number {
+    const peak = tutorial1KnollPeak(map);
+    const halfW = map.halfW;
+    const halfH = map.halfH;
+    const dx = (x - peak.x) / (halfW * 0.14);
+    const dz = (z - peak.z) / (halfH * 0.09);
+    const r2 = dx * dx + dz * dz;
+    // Sharp crest (the pad sits here) plus a low wide apron.
+    const crest = Math.exp(-r2 * 3.4);
+    const apronDx = (x - peak.x) / (halfW * 0.26);
+    const apronDz = (z - peak.z) / (halfH * 0.16);
+    const apron = Math.exp(-(apronDx * apronDx + apronDz * apronDz) * 1.35);
+    return TUTORIAL_1_KNOLL_HEIGHT * (0.82 * crest + 0.18 * apron);
+}
+
+/** World peak of the Tutorial 1 knoll (for pad placement). */
+export function tutorial1KnollPeak(map: BattleMap): { x: number; z: number } {
+    const halfW = map.halfW;
+    const halfH = map.halfH;
+    const playerSign = map.ownAtFar ? 1 : -1;
+    const rightSign = map.ownAtFar ? -1 : 1;
+    return {
+        // Player's right when facing the enemy — not at the flank rim.
+        x: rightSign * halfW * 0.3,
+        // Forward of mid-zone so elevated reach just clears flat range.
+        z: -playerSign * halfH * 0.25,
+    };
+}
+
+/**
  * Two pads in the player's forward zone: left unrotated, right rotated.
  * Computed from the live map so ownAtFar / flanks stay correct.
  */
@@ -511,6 +561,158 @@ export function tutorial1PlaceSlots(map: BattleMap): TutorialPlaceSlot[] {
         rotated: true,
     };
     return [slot0, slot1];
+}
+
+/** Tutorial 1 round 2: two Hammerer pads side by side in the forward zone. */
+export function tutorial1R2HammererSlots(map: BattleMap): TutorialPlaceSlot[] {
+    const fp = TUTORIAL_FOOTPRINTS[TUTORIAL_HAMMERER_ID]!;
+    const { rimCells, flankCols, zoneCols, zoneRows } = map.size;
+    const zoneLeft = rimCells + flankCols;
+    const midCol = zoneLeft + Math.floor(zoneCols / 2);
+    const playerNear = !map.ownAtFar;
+    const frontRow = playerNear
+        ? rimCells + zoneRows - fp.rows - 2
+        : map.rows - rimCells - zoneRows + 2;
+    const gap = 2;
+    const leftCol = midCol - fp.cols - Math.floor(gap / 2);
+    return [
+        { anchor: { col: leftCol, row: frontRow }, rotated: false },
+        { anchor: { col: leftCol + fp.cols + gap, row: frontRow }, rotated: false },
+    ];
+}
+
+/** Enemy dwarves for Tutorial 1 round 2 — a packed clump for Hammerer splash. */
+export function tutorial1R2EnemyDwarfCells(
+    map: BattleMap,
+    count = TUTORIAL_1_R2_ENEMY_DWARVES,
+): Cell[] {
+    const fp = tutorialDwarfFootprint(false);
+    const { rimCells, flankCols, zoneCols, zoneRows } = map.size;
+    const zoneLeft = rimCells + flankCols;
+    const midCol = zoneLeft + Math.floor(zoneCols / 2);
+    const enemyNear = map.ownAtFar;
+    const frontRow = enemyNear
+        ? rimCells + zoneRows - fp.rows - 1
+        : map.rows - rimCells - zoneRows + 1;
+    const stepC = fp.cols + 1;
+    const totalW = count * fp.cols + (count - 1);
+    let col = midCol - Math.floor(totalW / 2);
+    const cells: Cell[] = [];
+    for (let i = 0; i < count; i++) {
+        cells.push({ col, row: frontRow });
+        col += stepC;
+    }
+    return cells;
+}
+
+/**
+ * Tutorial 1 round 3: dwarf bait on the front center, archer centered
+ * two cells behind so the enemy blob always prefers the dwarf.
+ */
+export function tutorial1R3PlaceSlots(map: BattleMap): TutorialPlaceSlot[] {
+    const { rimCells, flankCols, zoneCols, zoneRows } = map.size;
+    const zoneLeft = rimCells + flankCols;
+    const midCol = zoneLeft + Math.floor(zoneCols / 2);
+    const playerNear = !map.ownAtFar;
+    const dwarfFp = tutorialDwarfFootprint(false);
+    const archerFp = tutorialArcherFootprint();
+    const frontRow = playerNear
+        ? rimCells + zoneRows - dwarfFp.rows - 1
+        : map.rows - rimCells - zoneRows + 1;
+    const archerRow = playerNear ? frontRow - 2 : frontRow + 2;
+    return [
+        {
+            anchor: { col: midCol - Math.floor(dwarfFp.cols / 2), row: frontRow },
+            rotated: false,
+        },
+        {
+            anchor: {
+                col: midCol - Math.floor(archerFp.cols / 2),
+                row: archerRow,
+            },
+            rotated: false,
+        },
+    ];
+}
+
+/**
+ * Tutorial 1 round 3 enemy line: archers on the front, dwarf pack behind —
+ * so the player's archer opens on the closer archers while enemy fire dumps
+ * into the player's bait dwarf.
+ */
+export function tutorial1R3EnemyArmy(map: BattleMap): {
+    archers: Cell[];
+    dwarves: Cell[];
+} {
+    const archerFp = tutorialArcherFootprint();
+    const dwarfFp = tutorialDwarfFootprint(false);
+    const { rimCells, flankCols, zoneCols, zoneRows } = map.size;
+    const zoneLeft = rimCells + flankCols;
+    const midCol = zoneLeft + Math.floor(zoneCols / 2);
+    const enemyNear = map.ownAtFar;
+    const archerFront = enemyNear
+        ? rimCells + zoneRows - archerFp.rows - 1
+        : map.rows - rimCells - zoneRows + 1;
+    const count = TUTORIAL_1_R3_ENEMY_ARCHERS;
+    const stepC = archerFp.cols + 1;
+    const totalW = count * archerFp.cols + (count - 1);
+    let col = midCol - Math.floor(totalW / 2);
+    const archers: Cell[] = [];
+    for (let i = 0; i < count; i++) {
+        archers.push({ col, row: archerFront });
+        col += stepC;
+    }
+    // Two cells behind the archer line (toward the enemy rim).
+    const dwarfRow = enemyNear
+        ? archerFront - archerFp.rows - 2
+        : archerFront + archerFp.rows + 2;
+    const dwarves: Cell[] = [];
+    for (let i = 0; i < TUTORIAL_1_R3_ENEMY_DWARVES; i++) {
+        dwarves.push({
+            col: midCol - Math.floor(dwarfFp.cols / 2),
+            row: dwarfRow,
+        });
+    }
+    return { archers, dwarves };
+}
+
+/**
+ * Tutorial 1 round 4: player archer on the knoll peak; enemy archer just
+ * behind their front line — out of flat archer range (~45) but inside the
+ * knoll's downhill reach (~45+7), so only high ground opens fire without marching.
+ */
+export function tutorial1R4ArcherSlots(map: BattleMap): {
+    player: TutorialPlaceSlot;
+    enemy: Cell;
+} {
+    const fp = tutorialArcherFootprint();
+    const peak = tutorial1KnollPeak(map);
+    const col = Math.floor((peak.x + map.halfW) / CELL);
+    const row = Math.floor((map.halfH - peak.z) / CELL);
+    const playerCell = {
+        col: Math.max(0, Math.min(map.cols - 1, col)),
+        row: Math.max(0, Math.min(map.rows - 1, row)),
+    };
+    const playerAnchor = {
+        col: Math.max(0, Math.min(map.cols - fp.cols, playerCell.col - Math.floor(fp.cols / 2))),
+        row: Math.max(0, Math.min(map.rows - fp.rows, playerCell.row - Math.floor(fp.rows / 2))),
+    };
+    const { rimCells, zoneRows, neutralRows } = map.size;
+    const enemyNear = map.ownAtFar;
+    // One tile behind the enemy front — out of flat reach, inside knoll reach.
+    const recess = 1;
+    const enemyFront = enemyNear
+        ? rimCells + zoneRows - fp.rows
+        : rimCells + zoneRows + neutralRows;
+    const enemyRow = enemyNear ? enemyFront - recess : enemyFront + recess;
+    const enemyCol = Math.max(
+        rimCells,
+        Math.min(map.cols - rimCells - fp.cols, playerAnchor.col),
+    );
+    return {
+        player: { anchor: playerAnchor, rotated: false },
+        enemy: { col: enemyCol, row: enemyRow },
+    };
 }
 
 function tutorial2MidField(map: BattleMap): { midCol: number; midRow: number } {

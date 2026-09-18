@@ -1,7 +1,14 @@
 import { t } from '../i18n';
 import { TutorialPanel } from './tutorialPanel';
 
-export type TutorialHighlight = 'hp' | 'shop-dwarf' | 'end-deploy' | 'rotate' | null;
+export type TutorialHighlight =
+    | 'hp'
+    | 'shop-dwarf'
+    | 'shop-archer'
+    | 'shop-hammerer'
+    | 'end-deploy'
+    | 'rotate'
+    | null;
 
 export type Tutorial1Step =
     | 'camLeft'
@@ -10,20 +17,45 @@ export type Tutorial1Step =
     | 'camBack'
     | 'camOrbit'
     | 'camZoom'
+    | 'camZoomOut'
     | 'buy1'
     | 'place1'
     | 'buy2'
     | 'place2'
     | 'goal'
     | 'end'
+    | 'r2Intro'
+    | 'r2Buy0'
+    | 'r2Place0'
+    | 'r2Buy1'
+    | 'r2Place1'
+    | 'r2End'
+    | 'r3Intro'
+    | 'r3BuyDwarf'
+    | 'r3PlaceDwarf'
+    | 'r3BuyArcher'
+    | 'r3PlaceArcher'
+    | 'r3Explain'
+    | 'r3End'
+    | 'r4Intro'
+    | 'r4BuyArcher'
+    | 'r4PlaceArcher'
+    | 'r4SelectOwn'
+    | 'r4SelectEnemy'
+    | 'r4End'
     | 'done';
 
 export type TutorialSlotMask = 'none' | 'first' | 'second' | 'both';
 
 export interface TutorialBoardState {
+    round: number;
     dwarfCount: number;
+    archerCount: number;
+    hammererCount: number;
     slot0Filled: boolean;
     slot1Filled: boolean;
+    ownArcherSelected: boolean;
+    enemyArcherSelected: boolean;
 }
 
 export interface TutorialCameraSnap {
@@ -44,6 +76,7 @@ const CAMERA_STEPS: readonly Tutorial1Step[] = [
     'camBack',
     'camOrbit',
     'camZoom',
+    'camZoomOut',
 ];
 
 function isCameraStep(step: Tutorial1Step): boolean {
@@ -55,9 +88,17 @@ const PAN_NEED = 18;
 const ORBIT_NEED = 0.32;
 const ZOOM_NEED = 14;
 
+const READ_STEPS: readonly Tutorial1Step[] = [
+    'goal',
+    'r2Intro',
+    'r3Intro',
+    'r3Explain',
+    'r4Intro',
+];
+
 /**
- * Soft-hint overlay for Tutorial 1. Teaches camera, forced pads, then
- * life bars / goal just before end deployment.
+ * Soft-hint overlay for Tutorial 1.
+ * R1 camera + pads · R2 income + Hammerers · R3 closest-target · R4 height.
  */
 export class TutorialGuide extends TutorialPanel {
     private readonly controlsEl: HTMLDivElement;
@@ -84,20 +125,27 @@ export class TutorialGuide extends TutorialPanel {
         return this.step === 'done';
     }
 
-    /** True while a camera lesson is waiting for a fresh pose baseline. */
     get needsCameraBaseline(): boolean {
         return !this.destroyed && isCameraStep(this.step) && this.camBase === null;
     }
 
-    /** True during camera lessons (blocks shop buys with a soft nudge). */
     get isCameraLesson(): boolean {
         return isCameraStep(this.step);
     }
 
-    /** Call once build chrome is visible (after match intro). */
     start(): void {
         if (this.destroyed) return;
         this.step = 'camLeft';
+        this.camBase = null;
+        this.paint();
+    }
+
+    startRound(round: number): void {
+        if (this.destroyed) return;
+        if (round === 2) this.step = 'r2Intro';
+        else if (round === 3) this.step = 'r3Intro';
+        else if (round === 4) this.step = 'r4Intro';
+        else return;
         this.camBase = null;
         this.paint();
     }
@@ -107,7 +155,6 @@ export class TutorialGuide extends TutorialPanel {
         this.camBase = snap;
     }
 
-    /** Poll after the rig updates — advances when the player moves enough. */
     tickCamera(live: TutorialCameraSnap): void {
         if (this.destroyed || !this.camBase || !isCameraStep(this.step)) return;
         const b = this.camBase;
@@ -115,13 +162,13 @@ export class TutorialGuide extends TutorialPanel {
         const dz = live.z - b.z;
         const alongRight = dx * b.right.x + dz * b.right.z;
         const alongForward = dx * b.forward.x + dz * b.forward.z;
-        // Pan left moves the look-target to the right in camera space.
         const panLeft = -alongRight;
         const panRight = alongRight;
         const panForward = alongForward;
         const panBack = -alongForward;
         const orbit = Math.abs(live.heading - b.heading);
         const zoomIn = b.zoom - live.zoom;
+        const zoomOut = live.zoom - b.zoom;
 
         let done = false;
         switch (this.step) {
@@ -143,6 +190,9 @@ export class TutorialGuide extends TutorialPanel {
             case 'camZoom':
                 done = zoomIn >= ZOOM_NEED;
                 break;
+            case 'camZoomOut':
+                done = zoomOut >= ZOOM_NEED;
+                break;
         }
         if (!done) return;
 
@@ -152,32 +202,68 @@ export class TutorialGuide extends TutorialPanel {
         this.paint();
     }
 
-    /** Reconcile the step with the live board after a buy / move / rotate. */
     syncFromBoard(state: TutorialBoardState): void {
         if (this.destroyed || this.step === 'done') return;
-        if (isCameraStep(this.step) || this.step === 'goal') return;
+        if (
+            isCameraStep(this.step) ||
+            (READ_STEPS as readonly string[]).includes(this.step)
+        ) {
+            return;
+        }
 
-        if (this.step === 'buy1' && state.dwarfCount >= 1) {
-            this.step = 'place1';
-            this.paint();
+        if (state.round === 1) {
+            if (this.step === 'buy1' && state.dwarfCount >= 1) this.step = 'place1';
+            else if (this.step === 'place1' && state.slot0Filled) this.step = 'buy2';
+            else if (this.step === 'buy2' && state.dwarfCount >= 2) this.step = 'place2';
+            else if (this.step === 'place2' && state.slot0Filled && state.slot1Filled) {
+                this.step = 'goal';
+            }
+        } else if (state.round === 2) {
+            if (this.step === 'r2Buy0' && state.hammererCount >= 1) this.step = 'r2Place0';
+            else if (this.step === 'r2Place0' && state.slot0Filled) this.step = 'r2Buy1';
+            else if (this.step === 'r2Buy1' && state.hammererCount >= 2) this.step = 'r2Place1';
+            else if (this.step === 'r2Place1' && state.slot0Filled && state.slot1Filled) {
+                this.step = 'r2End';
+            }
+        } else if (state.round === 3) {
+            if (this.step === 'r3BuyDwarf' && state.dwarfCount >= 1) this.step = 'r3PlaceDwarf';
+            else if (this.step === 'r3PlaceDwarf' && state.slot0Filled) this.step = 'r3BuyArcher';
+            else if (this.step === 'r3BuyArcher' && state.archerCount >= 1) {
+                this.step = 'r3PlaceArcher';
+            } else if (this.step === 'r3PlaceArcher' && state.slot0Filled && state.slot1Filled) {
+                this.step = 'r3Explain';
+            }
+        } else if (state.round === 4) {
+            if (this.step === 'r4BuyArcher' && state.archerCount >= 1) this.step = 'r4PlaceArcher';
+            else if (this.step === 'r4PlaceArcher' && state.slot0Filled) this.step = 'r4SelectOwn';
+            else if (this.step === 'r4SelectOwn' && state.ownArcherSelected) {
+                this.step = 'r4SelectEnemy';
+            } else if (this.step === 'r4SelectEnemy' && state.enemyArcherSelected) {
+                this.step = 'r4End';
+            }
         }
-        if (this.step === 'place1' && state.slot0Filled) {
-            this.step = 'buy2';
-            this.paint();
+        this.paint();
+    }
+
+    canEndDeploy(state: TutorialBoardState): boolean {
+        if (this.destroyed || this.step === 'done') return true;
+        if (state.round === 1) {
+            return this.step === 'end' && state.slot0Filled && state.slot1Filled;
         }
-        if (this.step === 'buy2' && state.dwarfCount >= 2) {
-            this.step = 'place2';
-            this.paint();
+        if (state.round === 2) {
+            return this.step === 'r2End' && state.slot0Filled && state.slot1Filled;
         }
-        if (this.step === 'place2' && state.slot0Filled && state.slot1Filled) {
-            this.step = 'goal';
-            this.paint();
+        if (state.round === 3) {
+            return this.step === 'r3End' && state.slot0Filled && state.slot1Filled;
         }
+        if (state.round === 4) {
+            return this.step === 'r4End' && state.slot0Filled;
+        }
+        return false;
     }
 
     onPlayerEndedDeployment(): void {
         if (this.destroyed) return;
-        // No post-fight dialog — battle runs on its own after End Deployment.
         this.step = 'done';
         this.onHighlight(null);
         this.onSlotMask('none');
@@ -190,14 +276,30 @@ export class TutorialGuide extends TutorialPanel {
     }
 
     protected override onNext(): void {
-        if (this.step === 'goal') {
-            this.step = 'end';
-            this.paint();
+        switch (this.step) {
+            case 'goal':
+                this.step = 'end';
+                break;
+            case 'r2Intro':
+                this.step = 'r2Buy0';
+                break;
+            case 'r3Intro':
+                this.step = 'r3BuyDwarf';
+                break;
+            case 'r3Explain':
+                this.step = 'r3End';
+                break;
+            case 'r4Intro':
+                this.step = 'r4BuyArcher';
+                break;
+            default:
+                return;
         }
+        this.paint();
     }
 
     private paint(): void {
-        this.setNextVisible(this.step === 'goal');
+        this.setNextVisible((READ_STEPS as readonly string[]).includes(this.step));
 
         this.controlsEl.replaceChildren();
         this.controlsEl.style.display = 'none';
@@ -257,6 +359,15 @@ export class TutorialGuide extends TutorialPanel {
                     t('tutorial:tutorial1CamZoomTouch'),
                 );
                 break;
+            case 'camZoomOut':
+                this.paintCameraStep(
+                    t('tutorial:tutorial1CamZoomOutTitle'),
+                    t('tutorial:tutorial1CamZoomOutBody'),
+                    t('tutorial:tutorial1CamZoomOutKeyboard'),
+                    t('tutorial:tutorial1CamZoomOutMouse'),
+                    t('tutorial:tutorial1CamZoomOutTouch'),
+                );
+                break;
             case 'buy1':
                 this.titleEl.textContent = t('tutorial:tutorial1Buy1Title');
                 this.bodyEl.textContent = t('tutorial:tutorial1Buy1Body');
@@ -293,12 +404,123 @@ export class TutorialGuide extends TutorialPanel {
                 this.setHighlight('end-deploy');
                 this.onSlotMask('both');
                 break;
+            case 'r2Intro':
+                this.titleEl.textContent = t('tutorial:tutorial1R2IntroTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R2IntroBody');
+                this.setHighlight(null);
+                this.onSlotMask('none');
+                break;
+            case 'r2Buy0':
+            case 'r2Buy1':
+                this.titleEl.textContent = t('tutorial:tutorial1R2BuyHammererTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R2BuyHammererBody');
+                this.setHighlight('shop-hammerer');
+                this.onSlotMask(this.step === 'r2Buy1' ? 'first' : 'none');
+                break;
+            case 'r2Place0':
+                this.titleEl.textContent = t('tutorial:tutorial1R2PlaceHammererTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R2PlaceHammererBody');
+                this.setHighlight(null);
+                this.onSlotMask('first');
+                break;
+            case 'r2Place1':
+                this.titleEl.textContent = t('tutorial:tutorial1R2PlaceHammerer2Title');
+                this.bodyEl.textContent = t('tutorial:tutorial1R2PlaceHammerer2Body');
+                this.setHighlight(null);
+                this.onSlotMask('both');
+                break;
+            case 'r2End':
+                this.titleEl.textContent = t('tutorial:tutorial1R2EndTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R2EndBody');
+                this.setHighlight('end-deploy');
+                this.onSlotMask('both');
+                break;
+            case 'r3Intro':
+                this.titleEl.textContent = t('tutorial:tutorial1R3IntroTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R3IntroBody');
+                this.setHighlight(null);
+                this.onSlotMask('none');
+                break;
+            case 'r3BuyDwarf':
+                this.titleEl.textContent = t('tutorial:tutorial1R3BuyDwarfTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R3BuyDwarfBody');
+                this.setHighlight('shop-dwarf');
+                this.onSlotMask('none');
+                break;
+            case 'r3PlaceDwarf':
+                this.titleEl.textContent = t('tutorial:tutorial1R3PlaceDwarfTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R3PlaceDwarfBody');
+                this.setHighlight(null);
+                this.onSlotMask('first');
+                break;
+            case 'r3BuyArcher':
+                this.titleEl.textContent = t('tutorial:tutorial1R3BuyArcherTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R3BuyArcherBody');
+                this.setHighlight('shop-archer');
+                this.onSlotMask('first');
+                break;
+            case 'r3PlaceArcher':
+                this.titleEl.textContent = t('tutorial:tutorial1R3PlaceArcherTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R3PlaceArcherBody');
+                this.setHighlight(null);
+                this.onSlotMask('both');
+                break;
+            case 'r3Explain':
+                this.titleEl.textContent = t('tutorial:tutorial1R3ExplainTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R3ExplainBody');
+                this.setHighlight(null);
+                this.onSlotMask('both');
+                break;
+            case 'r3End':
+                this.titleEl.textContent = t('tutorial:tutorial1R3EndTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R3EndBody');
+                this.setHighlight('end-deploy');
+                this.onSlotMask('both');
+                break;
+            case 'r4Intro':
+                this.titleEl.textContent = t('tutorial:tutorial1R4IntroTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R4IntroBody');
+                this.setHighlight(null);
+                this.onSlotMask('none');
+                break;
+            case 'r4BuyArcher':
+                this.titleEl.textContent = t('tutorial:tutorial1R4BuyArcherTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R4BuyArcherBody');
+                this.setHighlight('shop-archer');
+                this.onSlotMask('none');
+                break;
+            case 'r4PlaceArcher':
+                this.titleEl.textContent = t('tutorial:tutorial1R4PlaceArcherTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R4PlaceArcherBody');
+                this.setHighlight(null);
+                this.onSlotMask('first');
+                break;
+            case 'r4SelectOwn':
+                this.titleEl.textContent = t('tutorial:tutorial1R4SelectOwnTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R4SelectOwnBody');
+                this.setHighlight(null);
+                this.onSlotMask('none');
+                break;
+            case 'r4SelectEnemy':
+                this.titleEl.textContent = t('tutorial:tutorial1R4SelectEnemyTitle');
+                this.bodyEl.textContent = t('tutorial:tutorial1R4SelectEnemyBody');
+                this.setHighlight(null);
+                this.onSlotMask('none');
+                break;
+            case 'r4End':
+                this.titleEl.textContent = '';
+                this.titleEl.style.display = 'none';
+                this.bodyEl.textContent = t('tutorial:tutorial1R4EndBody');
+                this.setHighlight('end-deploy');
+                this.onSlotMask('none');
+                break;
             case 'done':
                 this.setPanelVisible(false);
                 this.setHighlight(null);
                 this.onSlotMask('none');
                 return;
         }
+        if (this.step !== 'r4End') this.titleEl.style.display = '';
         this.setPanelVisible(true);
     }
 

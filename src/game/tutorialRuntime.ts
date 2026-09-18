@@ -39,6 +39,10 @@ import {
     stampMatchesCorridor,
     stampMatchesPoint,
     tutorial1PlaceSlots,
+    tutorial1R2EnemyDwarfCells,
+    tutorial1R2HammererSlots,
+    tutorial1R3PlaceSlots,
+    tutorial1R4ArcherSlots,
     tutorial2DragonCorridor,
     tutorial2OilCorridor,
     tutorial2SummonNearKeep,
@@ -46,6 +50,7 @@ import {
     tutorial3DwarfSlot,
     tutorial4MirroredArmy,
     tutorial4OgreCell,
+    tutorialArcherFootprint,
     tutorialBallistaFootprint,
     tutorialBaseCell,
     tutorialDwarfFootprint,
@@ -53,6 +58,10 @@ import {
     unitMatchesTutorialSlot,
     zoneClickTol,
     TUTORIAL_1_ID,
+    TUTORIAL_1_R2_ENEMY_DWARVES,
+    TUTORIAL_1_R3_ENEMY_ARCHERS,
+    TUTORIAL_1_R3_ENEMY_DWARVES,
+    TUTORIAL_1_ROUNDS,
     TUTORIAL_2_ID,
     TUTORIAL_2_ROUNDS,
     TUTORIAL_2_STRONGHOLD_ROW_FRAC,
@@ -68,6 +77,7 @@ import {
     TUTORIAL_5_ROUNDS,
     TUTORIAL_ARCHER_ID,
     TUTORIAL_DWARF_ID,
+    TUTORIAL_HAMMERER_ID,
     TUTORIAL_OGRE_ID,
     tutorialContentProblems,
     type TutorialPlaceSlot,
@@ -391,27 +401,53 @@ export class TutorialRuntime {
         this.spawnPlayerStronghold();
     }
 
-    /** Tutorial 1: the player is capped at 2 packs; the AI still fields four archers. */
+    /** Tutorial 1: the player is capped at 2 packs (1 in R4); enemy cap per round. */
     applyDeployCaps(): void {
         if (this.lesson !== TUTORIAL_1_ID) return;
         const host = this.host;
+        const enemyCap =
+            host.round === 2
+                ? TUTORIAL_1_R2_ENEMY_DWARVES
+                : host.round === 3
+                  ? TUTORIAL_1_R3_ENEMY_ARCHERS + TUTORIAL_1_R3_ENEMY_DWARVES
+                  : host.round === 4
+                    ? 1
+                    : 4;
         for (let seat = 0; seat < host.seats.length; seat++) {
-            if (host.seats[seat]!.team === 'enemy') host.deployState.limit[seat] = 4;
+            if (host.seats[seat]!.team === 'enemy') host.deployState.limit[seat] = enemyCap;
+            if (host.seats[seat]!.team === 'player' && host.round === 4) {
+                host.deployState.limit[seat] = 1;
+            }
         }
     }
 
-    /** Tutorial 1: top up the enemy so four archers are affordable while the
-     *  human stays on the 200 starting purse. */
+    /** Tutorial 1: top up purses so the scripted armies are affordable. */
     topUpRoundIncome(): void {
-        if (this.lesson !== TUTORIAL_1_ID || this.host.round !== 1) return;
-        const enemySeat = primarySeatOf(this.host.seats, 'enemy');
-        const need = 400;
-        const have = this.host.economy.balance(enemySeat);
-        if (have < need) this.host.economy.credit(enemySeat, need - have);
+        if (this.lesson !== TUTORIAL_1_ID) return;
+        const host = this.host;
+        const enemySeat = primarySeatOf(host.seats, 'enemy');
+        const enemyNeed =
+            host.round === 2
+                ? TUTORIAL_1_R2_ENEMY_DWARVES * 100
+                : host.round === 3
+                  ? (TUTORIAL_1_R3_ENEMY_ARCHERS + TUTORIAL_1_R3_ENEMY_DWARVES) * 100
+                  : host.round === 4
+                    ? 100
+                    : 400;
+        const enemyHave = host.economy.balance(enemySeat);
+        if (enemyHave < enemyNeed) host.economy.credit(enemySeat, enemyNeed - enemyHave);
+        // Round income already grants 200/400/600/800 — ensure human can afford the script.
+        const humanNeed = host.round === 4 ? 100 : 200;
+        const humanHave = host.economy.balance(host.humanSeat);
+        if (humanHave < humanNeed) host.economy.credit(host.humanSeat, humanNeed - humanHave);
     }
 
     /** Stage the board for a deployment round (clears leftovers, re-arms the guide). */
     onBuildPhase(round: number): void {
+        if (this.lesson === TUTORIAL_1_ID && round >= 2) {
+            this.clearFieldUnits();
+            this.setupRound1(round);
+        }
         if (this.lesson === TUTORIAL_2_ID) {
             this.clearFieldUnits();
             this.setupRound2(round);
@@ -527,6 +563,7 @@ export class TutorialRuntime {
 
     /** A pack was clicked: the panel-driven lessons re-read the board. */
     onUnitSelected(): void {
+        this.sync1();
         this.sync2();
         this.sync3();
         this.sync4();
@@ -543,35 +580,113 @@ export class TutorialRuntime {
         guide.tickCamera(snap);
     }
 
-    private board1(): { dwarfCount: number; slot0Filled: boolean; slot1Filled: boolean } {
+    private board1(): {
+        round: number;
+        dwarfCount: number;
+        archerCount: number;
+        hammererCount: number;
+        slot0Filled: boolean;
+        slot1Filled: boolean;
+        ownArcherSelected: boolean;
+        enemyArcherSelected: boolean;
+    } {
         const slots = this.placeSlots1;
-        const dwarves = this.host.placement
+        const own = this.host.placement
             .allUnits()
-            .filter(
-                (u) =>
-                    u.seat === this.host.humanSeat && u.type.id === TUTORIAL_DWARF_ID && !u.type.structure,
-            );
+            .filter((u) => u.seat === this.host.humanSeat && !u.type.structure);
+        const dwarves = own.filter((u) => u.type.id === TUTORIAL_DWARF_ID);
+        const archers = own.filter((u) => u.type.id === TUTORIAL_ARCHER_ID);
+        const hammerers = own.filter((u) => u.type.id === TUTORIAL_HAMMERER_ID);
         const slot0 = slots[0];
         const slot1 = slots[1];
         let slot0Filled = false;
         let slot1Filled = false;
-        for (const u of dwarves) {
-            if (slot0 && unitMatchesTutorialSlot(u, slot0)) slot0Filled = true;
-            if (slot1 && unitMatchesTutorialSlot(u, slot1)) slot1Filled = true;
+        const round = this.host.round;
+        if (round === 2) {
+            if (slot0) slot0Filled = hammerers.some((u) => unitMatchesTutorialSlot(u, slot0));
+            if (slot1) slot1Filled = hammerers.some((u) => unitMatchesTutorialSlot(u, slot1));
+        } else if (round === 3) {
+            if (slot0) slot0Filled = dwarves.some((u) => unitMatchesTutorialSlot(u, slot0));
+            if (slot1) slot1Filled = archers.some((u) => unitMatchesTutorialSlot(u, slot1));
+        } else if (round === 4) {
+            if (slot0) slot0Filled = archers.some((u) => unitMatchesTutorialSlot(u, slot0));
+        } else {
+            for (const u of dwarves) {
+                if (slot0 && unitMatchesTutorialSlot(u, slot0)) slot0Filled = true;
+                if (slot1 && unitMatchesTutorialSlot(u, slot1)) slot1Filled = true;
+            }
         }
-        return { dwarfCount: dwarves.length, slot0Filled, slot1Filled };
+        const selected = this.host.placement.selectedUnit;
+        return {
+            round,
+            dwarfCount: dwarves.length,
+            archerCount: archers.length,
+            hammererCount: hammerers.length,
+            slot0Filled,
+            slot1Filled,
+            ownArcherSelected:
+                !!selected &&
+                selected.seat === this.host.humanSeat &&
+                selected.type.id === TUTORIAL_ARCHER_ID,
+            enemyArcherSelected:
+                !!selected &&
+                selected.team === 'enemy' &&
+                selected.type.id === TUTORIAL_ARCHER_ID,
+        };
+    }
+
+    private setupRound1(round: number): void {
+        const host = this.host;
+        if (round < 2) return;
+
+        if (round === 2) {
+            this.placeSlots1 = tutorial1R2HammererSlots(host.map);
+            host.unlockedUnits[host.humanSeat] = [TUTORIAL_HAMMERER_ID];
+            host.deployState.limit[host.humanSeat] = 2;
+        } else if (round === 3) {
+            this.placeSlots1 = tutorial1R3PlaceSlots(host.map);
+            host.unlockedUnits[host.humanSeat] = [TUTORIAL_DWARF_ID, TUTORIAL_ARCHER_ID];
+            host.deployState.limit[host.humanSeat] = 2;
+        } else {
+            const { player } = tutorial1R4ArcherSlots(host.map);
+            this.placeSlots1 = [player];
+            host.unlockedUnits[host.humanSeat] = [TUTORIAL_ARCHER_ID];
+            host.deployState.limit[host.humanSeat] = 1;
+        }
+
+        host.hud.setShopColumnVisible(true);
+        host.hud.setShopRunesVisible(false);
+        host.refreshShopHud();
+        if (!this.guide1 || this.guide1.currentStep === 'done') {
+            this.guide1?.destroy();
+            this.guide1 = new TutorialGuide(
+                this.mount(),
+                (target) => host.hud.setTutorialHighlight(target),
+                (mask) => this.applySlotMask(mask),
+            );
+        }
+        host.placement.deselect();
+        this.guide1.startRound(round);
+        this.sync1();
     }
 
     sync1(): void {
         if (!this.guide1 || this.lesson !== TUTORIAL_1_ID) return;
         const before = this.guide1.currentStep;
         this.guide1.syncFromBoard(this.board1());
+        const after = this.guide1.currentStep;
+        // Drop leftover place-selection so the inspect steps need a real click.
+        if (before === 'r4PlaceArcher' && after === 'r4SelectOwn') {
+            this.host.placement.deselect();
+            this.host.updateSelectionUi();
+        }
         this.refreshSlotMask();
         this.maybeNudgeRotation(before);
     }
 
     /** If a dwarf sits on pad 2's cell but isn't rotated yet, nudge rotate. */
     private maybeNudgeRotation(stepBefore: string): void {
+        if (this.host.round !== 1) return;
         if (this.guide1?.currentStep !== 'place2' && stepBefore !== 'place2') return;
         if (this.guide1?.currentStep !== 'place2') return;
         const slot1 = this.placeSlots1[1];
@@ -593,9 +708,22 @@ export class TutorialRuntime {
         const step = this.guide1?.currentStep;
         if (!step) return;
         const mask: TutorialSlotMask =
-            step === 'place1' || step === 'buy2'
+            step === 'place1' ||
+            step === 'buy2' ||
+            step === 'r2Place0' ||
+            step === 'r2Buy1' ||
+            step === 'r3PlaceDwarf' ||
+            step === 'r3BuyArcher' ||
+            step === 'r4PlaceArcher'
                 ? 'first'
-                : step === 'place2' || step === 'goal' || step === 'end'
+                : step === 'place2' ||
+                    step === 'goal' ||
+                    step === 'end' ||
+                    step === 'r2Place1' ||
+                    step === 'r2End' ||
+                    step === 'r3PlaceArcher' ||
+                    step === 'r3Explain' ||
+                    step === 'r3End'
                   ? 'both'
                   : 'none';
         this.applySlotMask(mask);
@@ -619,8 +747,15 @@ export class TutorialRuntime {
             rows: number;
             filled?: boolean;
         }[] = [];
-        const push = (slot: TutorialPlaceSlot, filled: boolean) => {
-            const fp = tutorialDwarfFootprint(slot.rotated);
+        const round = this.host.round;
+        const footprint = (slot: TutorialPlaceSlot, index: number) => {
+            if (round === 2) return { cols: 2, rows: 2 };
+            if (round === 4) return tutorialArcherFootprint();
+            if (round === 3 && index === 1) return tutorialArcherFootprint();
+            return tutorialDwarfFootprint(slot.rotated);
+        };
+        const push = (slot: TutorialPlaceSlot, filled: boolean, index: number) => {
+            const fp = footprint(slot, index);
             targets.push({
                 anchor: slot.anchor,
                 cols: fp.cols,
@@ -629,10 +764,10 @@ export class TutorialRuntime {
             });
         };
         if (mask === 'first' || mask === 'both') {
-            if (slots[0]) push(slots[0], board.slot0Filled);
+            if (slots[0]) push(slots[0], board.slot0Filled, 0);
         }
         if (mask === 'second' || mask === 'both') {
-            if (slots[1]) push(slots[1], board.slot1Filled);
+            if (slots[1]) push(slots[1], board.slot1Filled, 1);
         }
         placement.setTutorialPlaceTargets(targets);
     }
@@ -1205,10 +1340,20 @@ export class TutorialRuntime {
     }
 
     tryEndDeploy(): boolean {
-        if (this.lesson === TUTORIAL_1_ID) {
+        if (this.lesson === TUTORIAL_1_ID && this.guide1) {
             const board = this.board1();
-            if (!board.slot0Filled || !board.slot1Filled) {
-                this.guide1?.nudge(t('tutorial:tutorialNudgePlacePads'));
+            if (!this.guide1.canEndDeploy(board)) {
+                if (!board.slot0Filled || (board.round !== 4 && !board.slot1Filled)) {
+                    this.guide1.nudge(t('tutorial:tutorialNudgePlacePads'));
+                } else if (board.round === 2) {
+                    this.guide1.nudge(t('tutorial:tutorial1R2Nudge'));
+                } else if (board.round === 3) {
+                    this.guide1.nudge(t('tutorial:tutorial1R3Nudge'));
+                } else if (board.round === 4) {
+                    this.guide1.nudge(t('tutorial:tutorial1R4Nudge'));
+                } else {
+                    this.guide1.nudge(t('tutorial:tutorialNudgeReadGoal'));
+                }
                 return false;
             }
         }
@@ -1355,7 +1500,15 @@ export class TutorialRuntime {
 
     blocksBuyLate(): boolean {
         const step = this.guide1?.currentStep;
-        if (step === 'place1' || step === 'place2') {
+        if (
+            step === 'place1' ||
+            step === 'place2' ||
+            step === 'r2Place0' ||
+            step === 'r2Place1' ||
+            step === 'r3PlaceDwarf' ||
+            step === 'r3PlaceArcher' ||
+            step === 'r4PlaceArcher'
+        ) {
             this.guide1?.nudge(t('tutorial:tutorialNudgeFinishPad'));
             return true;
         }
@@ -1363,7 +1516,13 @@ export class TutorialRuntime {
             this.guide1?.nudge(t('tutorial:tutorialNudgeCameraFirst'));
             return true;
         }
-        if (step === 'goal') {
+        if (
+            step === 'goal' ||
+            step === 'r2Intro' ||
+            step === 'r3Intro' ||
+            step === 'r3Explain' ||
+            step === 'r4Intro'
+        ) {
             this.guide1?.nudge(t('tutorial:tutorialNudgeReadGoal'));
             return true;
         }
@@ -1398,6 +1557,7 @@ export class TutorialRuntime {
         if (this.lesson === TUTORIAL_4_ID) return TUTORIAL_4_ROUNDS;
         if (this.lesson === TUTORIAL_3_ID) return TUTORIAL_3_ROUNDS;
         if (this.lesson === TUTORIAL_2_ID) return TUTORIAL_2_ROUNDS;
+        if (this.lesson === TUTORIAL_1_ID) return TUTORIAL_1_ROUNDS;
         return 1;
     }
 
