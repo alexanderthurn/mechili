@@ -37,7 +37,7 @@ function esc(s: string): string {
 /**
  * The settings dialog — one shared overlay, opened from the main menu and
  * from the in-game top bar. Options apply immediately and persist.
- * Desktop: two columns (general | graphics). Narrow: single stacked column.
+ * Tabs: General · Audio · Graphics.
  */
 /** dismiss the shared settings overlay if open (menu or in-match). */
 export function closeSettings(immediate = false): void {
@@ -61,15 +61,25 @@ export function openSettings(parent: HTMLElement): void {
     // (opened from pause) looks fine but nothing inside is clickable.
     overlay.style.pointerEvents = 'auto';
 
+    type SettingsTab = 'general' | 'audio' | 'graphics';
+    const TAB_KEYS: Record<SettingsTab, string> = {
+        general: 'settings:general',
+        audio: 'settings:audio',
+        graphics: 'settings:graphics',
+    };
+
     const paintChrome = (): void => {
         overlay.querySelector('.s-title')!.textContent = t('settings:title');
+        for (const button of overlay.querySelectorAll<HTMLButtonElement>('.s-tab[data-tab]')) {
+            const id = button.dataset.tab as SettingsTab;
+            button.textContent = t(TAB_KEYS[id]);
+        }
         overlay.querySelector('.s-look-head')!.textContent = t('settings:look');
         overlay.querySelector('.s-lang-label')!.textContent = t('common:language');
         overlay.querySelector('.s-controls-head')!.textContent = t('settings:controls');
         overlay.querySelector('[data-act="controls-help"]')!.textContent = t('settings:controlsHelp');
         overlay.querySelector('.s-chat-head')!.textContent = t('settings:chat');
         overlay.querySelector('.s-combat-text')!.textContent = t('settings:combatChat');
-        overlay.querySelector('.s-audio-head')!.textContent = t('settings:audio');
         overlay.querySelector('.s-audio-mute-text')!.textContent = t('settings:audioMuted');
         overlay.querySelector('.s-master-vol-label')!.textContent = t('settings:masterVolume');
         overlay.querySelector('.s-sfx-vol-label')!.textContent = t('settings:sfxVolume');
@@ -80,7 +90,6 @@ export function openSettings(parent: HTMLElement): void {
         overlay.querySelector('.s-debug-head')!.textContent = t('settings:debug');
         overlay.querySelector('.s-debug-text')!.textContent = t('settings:debugOverlay');
         overlay.querySelector('.s-debug-hint')!.textContent = t('settings:debugHint');
-        overlay.querySelector('.s-gfx-head')!.textContent = t('settings:graphics');
         overlay.querySelector('[data-act="reset"]')!.textContent = t('settings:resetAll');
         overlay.querySelector('[data-act="close"]')!.textContent = t('settings:close');
         const note = overlay.querySelector<HTMLElement>('.s-mp-note');
@@ -190,8 +199,13 @@ export function openSettings(parent: HTMLElement): void {
     overlay.innerHTML =
         `<div class="box m-frame">` +
         `<div class="s-title"></div>` +
+        `<div class="s-tabs" role="tablist">` +
+        `<button type="button" class="s-tab active" role="tab" data-tab="general" aria-selected="true"></button>` +
+        `<button type="button" class="s-tab" role="tab" data-tab="audio" aria-selected="false"></button>` +
+        `<button type="button" class="s-tab" role="tab" data-tab="graphics" aria-selected="false"></button>` +
+        `</div>` +
         `<div class="s-body">` +
-        `<div class="s-col s-col-general">` +
+        `<div class="s-panel" data-panel="general" role="tabpanel">` +
         `<section class="s-section">` +
         `<div class="s-section-head s-look-head"></div>` +
         `<label class="s-row s-lang-row">` +
@@ -211,14 +225,6 @@ export function openSettings(parent: HTMLElement): void {
         `<label class="s-row"><input type="checkbox" class="s-combat" /> <span class="s-combat-text"></span></label>` +
         `</section>` +
         `<section class="s-section">` +
-        `<div class="s-section-head s-audio-head"></div>` +
-        `<label class="s-row"><input type="checkbox" class="s-audio-mute" /> <span class="s-audio-mute-text"></span></label>` +
-        `<label class="s-row s-audio-slider"><span class="s-master-vol-label"></span> <input type="range" class="s-master-vol" min="0" max="100" step="1" /></label>` +
-        `<label class="s-row s-audio-slider"><span class="s-sfx-vol-label"></span> <input type="range" class="s-sfx-vol" min="0" max="100" step="1" /></label>` +
-        `<label class="s-row s-audio-slider"><span class="s-music-vol-label"></span> <input type="range" class="s-music-vol" min="0" max="100" step="1" /></label>` +
-        `<label class="s-row s-audio-slider"><span class="s-ui-vol-label"></span> <input type="range" class="s-ui-vol" min="0" max="100" step="1" /></label>` +
-        `</section>` +
-        `<section class="s-section">` +
         `<div class="s-section-head s-mp-head"></div>` +
         `<label class="s-row"><span class="s-mp-label"></span> <select class="s-mp">` +
         `<option value="steam">Steam</option>` +
@@ -236,9 +242,17 @@ export function openSettings(parent: HTMLElement): void {
         ` <span class="s-hint s-debug-hint"></span></label>` +
         `</section>` +
         `</div>` +
-        `<div class="s-col s-col-graphics">` +
+        `<div class="s-panel" data-panel="audio" role="tabpanel" hidden>` +
         `<section class="s-section">` +
-        `<div class="s-section-head s-gfx-head"></div>` +
+        `<label class="s-row"><input type="checkbox" class="s-audio-mute" /> <span class="s-audio-mute-text"></span></label>` +
+        `<label class="s-row s-audio-slider"><span class="s-master-vol-label"></span> <input type="range" class="s-master-vol" min="0" max="100" step="1" /></label>` +
+        `<label class="s-row s-audio-slider"><span class="s-sfx-vol-label"></span> <input type="range" class="s-sfx-vol" min="0" max="100" step="1" /></label>` +
+        `<label class="s-row s-audio-slider"><span class="s-music-vol-label"></span> <input type="range" class="s-music-vol" min="0" max="100" step="1" /></label>` +
+        `<label class="s-row s-audio-slider"><span class="s-ui-vol-label"></span> <input type="range" class="s-ui-vol" min="0" max="100" step="1" /></label>` +
+        `</section>` +
+        `</div>` +
+        `<div class="s-panel" data-panel="graphics" role="tabpanel" hidden>` +
+        `<section class="s-section">` +
         // Desktop only: browsers refuse fullscreen without a user gesture, and
         // the window mode is remembered by the app (window-state.json), not prefs.
         (isElectron()
@@ -344,6 +358,23 @@ export function openSettings(parent: HTMLElement): void {
         `</div>`;
 
     paintChrome();
+
+    const showTab = (tab: SettingsTab): void => {
+        for (const button of overlay.querySelectorAll<HTMLButtonElement>('.s-tab[data-tab]')) {
+            const on = button.dataset.tab === tab;
+            button.classList.toggle('active', on);
+            button.setAttribute('aria-selected', on ? 'true' : 'false');
+        }
+        for (const panel of overlay.querySelectorAll<HTMLElement>('.s-panel[data-panel]')) {
+            panel.hidden = panel.dataset.panel !== tab;
+        }
+    };
+    for (const button of overlay.querySelectorAll<HTMLButtonElement>('.s-tab[data-tab]')) {
+        button.addEventListener('click', () => {
+            const tab = button.dataset.tab as SettingsTab | undefined;
+            if (tab) showTab(tab);
+        });
+    }
 
     const fullscreen = overlay.querySelector<HTMLInputElement>('.s-fullscreen');
     const debugToggle = overlay.querySelector<HTMLInputElement>('.s-debug')!;
