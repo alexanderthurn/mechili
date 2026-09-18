@@ -3205,7 +3205,7 @@ export class Hud {
                       ? t('hud:forgeLabelFiring')
                       : t('hud:forgeLabel')
               }</div>` +
-              `<div class="item-row forge-row">${Array.from({ length: forge.slotCount }, (_, i) => {
+              `<div class="item-row forge-row"><span class="forge-slots">${Array.from({ length: forge.slotCount }, (_, i) => {
                   const item = forge.slots[i];
                   if (!item) {
                       const suggest = forge.suggestions?.[i];
@@ -3249,7 +3249,7 @@ export class Hud {
                               : ''
                       }>${lvl.badge}</span>`
                   );
-              }).join('')}` +
+              }).join('')}</span>` +
               (forge.bake
                   ? (() => {
                         const lvl = this.runeLevelMark(forge.bake.id);
