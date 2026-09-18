@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Toplu bağ",
-    "description": "Aynı anda en fazla 4 düşmanı ışınlar ya da döndürür; her kanal %18 yoğunlukla etki eder."
+    "description": "Aynı anda en fazla 4 düşmanı ışınlar ya da döndürür; her kanal %18 yoğunlukla etki eder. −18% menzil."
   },
   "powerDraw": {
     "name": "Tam germe",

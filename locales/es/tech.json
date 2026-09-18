@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Vínculo masivo",
-    "description": "Irradia o convierte hasta 4 enemigos a la vez; cada canal actúa con un 18% de intensidad."
+    "description": "Irradia o convierte hasta 4 enemigos a la vez; cada canal actúa con un 18% de intensidad. −18% de alcance."
   },
   "powerDraw": {
     "name": "Tensión máxima",

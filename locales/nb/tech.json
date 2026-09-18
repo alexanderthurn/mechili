@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Massebinding",
-    "description": "Treffer med stråle eller omvender opptil 4 fiender samtidig; hver kanal virker med 18% intensitet."
+    "description": "Treffer med stråle eller omvender opptil 4 fiender samtidig; hver kanal virker med 18% intensitet. −18% rekkevidde."
   },
   "powerDraw": {
     "name": "Fullt drag",

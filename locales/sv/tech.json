@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Massbindning",
-    "description": "Strålar eller omvänder upp till 4 fiender samtidigt; varje kanal verkar med 18% intensitet."
+    "description": "Strålar eller omvänder upp till 4 fiender samtidigt; varje kanal verkar med 18% intensitet. −18% räckvidd."
   },
   "powerDraw": {
     "name": "Fullt drag",

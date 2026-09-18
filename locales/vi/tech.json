@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Trói buộc hàng loạt",
-    "description": "Chiếu tia hoặc cải đạo tối đa 4 kẻ địch cùng lúc; mỗi kênh có cường độ 18%."
+    "description": "Chiếu tia hoặc cải đạo tối đa 4 kẻ địch cùng lúc; mỗi kênh có cường độ 18%. −18% tầm bắn."
   },
   "powerDraw": {
     "name": "Kéo căng hết sức",

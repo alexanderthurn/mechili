@@ -115,7 +115,7 @@
   },
   "massBinding": {
     "name": "Mass Binding",
-    "description": "Beam or convert up to 4 enemies at once; each channel deals 18% intensity."
+    "description": "Beam or convert up to 4 enemies at once; each channel deals 18% intensity. −18% range."
   },
   "soulRestore": {
     "name": "Soul Restore",

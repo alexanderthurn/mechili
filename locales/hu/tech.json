@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Tömeges kötés",
-    "description": "Egyszerre akár 4 ellenséget sugároz be vagy térít meg; minden csatorna 18% intenzitással hat."
+    "description": "Egyszerre akár 4 ellenséget sugároz be vagy térít meg; minden csatorna 18% intenzitással hat. −18% hatótáv."
   },
   "powerDraw": {
     "name": "Teljes feszítés",

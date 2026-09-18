@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Ikatan Massal",
-    "description": "Menyinari atau mengonversi hingga 4 musuh sekaligus; tiap kanal berintensitas 18%."
+    "description": "Menyinari atau mengonversi hingga 4 musuh sekaligus; tiap kanal berintensitas 18%. −18% jangkauan."
   },
   "powerDraw": {
     "name": "Tarikan Penuh",

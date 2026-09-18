@@ -106,7 +106,7 @@
   },
   "massBinding": {
     "name": "Massabinding",
-    "description": "Straalt of bekeert tot 4 vijanden tegelijk; elk kanaal werkt met 18% intensiteit."
+    "description": "Straalt of bekeert tot 4 vijanden tegelijk; elk kanaal werkt met 18% intensiteit. −18% bereik."
   },
   "powerDraw": {
     "name": "Krachttrek",
