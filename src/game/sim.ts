@@ -701,6 +701,8 @@ export type SimEvent =
           blood?: number;
           /** structure ruin — masonry shower + collapse shake (vs unit ash/blood) */
           structure?: boolean;
+          /** UnitType.id — audio picks a per-building crush sting when set */
+          unitTypeId?: string;
           /** visual height / footprint for collapse stone shower */
           structureHeight?: number;
           structureRadius?: number;
@@ -4252,6 +4254,7 @@ export class BattleSim {
             fling: violent ? COLLAPSE_GORE_FLING : razed ? COLLAPSE_DEBRIS_FLING : undefined,
             wear,
             structure: !!t.structure,
+            unitTypeId: t.id,
             structureHeight,
             structureRadius: t.structure ? target.radius : undefined,
             blood: wear === 'blood' ? bloodColorOf(t) : undefined,
@@ -5003,6 +5006,7 @@ export class BattleSim {
             big: true,
             wear: resolveDeathWear(s.unit.type),
             structure: !!s.unit.type.structure,
+            unitTypeId: s.unit.type.id,
         });
     }
 

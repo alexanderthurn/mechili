@@ -198,18 +198,37 @@ const CUES: Record<string, CueDef> = {
         rolloff: 1.4,
         gain: 0.32,
     },
+    // Building ruin stings — non-spatial UI (heard everywhere, not FF-ducked).
+    // One take each; stronghold uses `stronghold_collapse` instead of a death cue.
+    death_command_tower: {
+        paths: ['audio/death_command_tower_1.ogg'],
+        group: 'ui',
+        maxVoices: 3,
+        gain: 1.05,
+    },
+    death_research_center: {
+        paths: ['audio/death_research_center_1.ogg'],
+        group: 'ui',
+        maxVoices: 3,
+        gain: 1.05,
+    },
+    death_shield: {
+        paths: ['audio/death_shield_1.ogg'],
+        group: 'ui',
+        maxVoices: 3,
+        gain: 1.0,
+    },
     death_structure: {
-        paths: [
-            'audio/death_structure_1.ogg',
-            'audio/death_structure_2.ogg',
-        ],
-        group: 'sfx',
+        paths: ['audio/death_structure_1.ogg'],
+        group: 'ui',
         maxVoices: 4,
-        spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        gain: 0.95,
+    },
+    death_tent: {
+        paths: ['audio/death_tent_1.ogg'],
+        group: 'ui',
+        maxVoices: 3,
+        gain: 1.0,
     },
     death_unit: {
         paths: [
@@ -325,15 +344,10 @@ const CUES: Record<string, CueDef> = {
     hammer_crush: {
         paths: [
             'audio/hammer_crush_1.ogg',
-            'audio/hammer_crush_2.ogg',
         ],
-        group: 'sfx',
-        maxVoices: 4,
-        spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        group: 'ui',
+        maxVoices: 2,
+        gain: 1.1,
     },
     hammerer_smash: {
         paths: [
@@ -715,17 +729,10 @@ const CUES: Record<string, CueDef> = {
         gain: 0.55,
     },
     stronghold_collapse: {
-        paths: [
-            'audio/stronghold_collapse_1.ogg',
-            'audio/stronghold_collapse_2.ogg',
-        ],
-        group: 'sfx',
-        maxVoices: 2,
-        spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 1.0,
+        paths: ['audio/stronghold_collapse_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 1.25,
     },
     summon_flying: {
         paths: [
@@ -871,8 +878,11 @@ void [
     assetUrl('audio/convert_1.ogg'),
     assetUrl('audio/convert_2.ogg'),
     assetUrl('audio/convert_beam_1.ogg'),
+    assetUrl('audio/death_command_tower_1.ogg'),
+    assetUrl('audio/death_research_center_1.ogg'),
+    assetUrl('audio/death_shield_1.ogg'),
     assetUrl('audio/death_structure_1.ogg'),
-    assetUrl('audio/death_structure_2.ogg'),
+    assetUrl('audio/death_tent_1.ogg'),
     assetUrl('audio/death_unit_1.ogg'),
     assetUrl('audio/death_unit_2.ogg'),
     assetUrl('audio/death_unit_big_1.ogg'),
@@ -891,7 +901,6 @@ void [
     assetUrl('audio/ground_fire_1.ogg'),
     assetUrl('audio/ground_fire_2.ogg'),
     assetUrl('audio/hammer_crush_1.ogg'),
-    assetUrl('audio/hammer_crush_2.ogg'),
     assetUrl('audio/hammerer_smash_1.ogg'),
     assetUrl('audio/hammerer_smash_2.ogg'),
     assetUrl('audio/hazard_drip_1.ogg'),
@@ -954,7 +963,6 @@ void [
     assetUrl('audio/stone_throw_3.ogg'),
     assetUrl('audio/stone_whistle_1.ogg'),
     assetUrl('audio/stronghold_collapse_1.ogg'),
-    assetUrl('audio/stronghold_collapse_2.ogg'),
     assetUrl('audio/summon_flying_1.ogg'),
     assetUrl('audio/summon_flying_2.ogg'),
     assetUrl('audio/summon_ground_1.ogg'),
@@ -1597,14 +1605,15 @@ class AudioBus {
                     );
                     break;
                 case 'death':
-                    this.play(
-                        e.structure ? 'death_structure' : e.big ? 'death_unit_big' : 'death_unit',
-                        e.x,
-                        e.z,
-                    );
+                    if (e.structure) {
+                        const cue = structureDeathCue(e.unitTypeId);
+                        if (cue) this.play(cue); // global — no spatial falloff
+                    } else {
+                        this.play(e.big ? 'death_unit_big' : 'death_unit', e.x, e.z);
+                    }
                     break;
                 case 'strongholdCollapse':
-                    this.play('stronghold_collapse', e.x, e.z);
+                    this.play('stronghold_collapse');
                     break;
                 case 'towerDebuff':
                     this.play('tower_debuff', e.x, e.z);
@@ -1631,7 +1640,7 @@ class AudioBus {
                     this.play('spell_meteor_fall', e.x, e.z);
                     break;
                 case 'hammerCrush':
-                    this.play('hammer_crush', e.x, e.z);
+                    this.play('hammer_crush');
                     break;
                 default:
                     break;
@@ -1703,6 +1712,24 @@ class AudioBus {
                 }
             }),
         );
+    }
+}
+
+function structureDeathCue(unitTypeId: string | undefined): string | null {
+    switch (unitTypeId) {
+        case 'command-tower':
+            return 'death_command_tower';
+        case 'research-center':
+            return 'death_research_center';
+        case 'tent':
+            return 'death_tent';
+        case 'shield':
+            return 'death_shield';
+        case 'stronghold':
+            // Covered by stronghold_collapse — avoid double bang
+            return null;
+        default:
+            return 'death_structure';
     }
 }
 
