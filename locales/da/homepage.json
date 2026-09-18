@@ -102,7 +102,7 @@
     "advanced": "Fremskreden",
     "shopTitle": "Købt i butikken eller trukket fra et rundekort",
     "shopLabel": "Butikspris",
-    "forgeTitle": "Smedet ved {{building}}",
+    "forgeTitle": "Trukket fra et rundekort",
     "forgeLabel": "Smedjepris",
     "mixForgeLabel": "Smedepris",
     "mixForgeTitle": "Smedet i Fæstningen",

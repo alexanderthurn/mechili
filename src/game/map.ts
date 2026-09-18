@@ -429,6 +429,11 @@ export class BattleMap {
         readonly size: MapSize = STANDARD_MAP,
         /** the generated board relief ({@link TerrainShape}); a static landscape overrides it */
         readonly shape: TerrainShape = DEFAULT_TERRAIN_SHAPE,
+        /**
+         * The Year: level a pad (and keep trees off it) for the attacker's
+         * Tent. Other matches have no Tent, so no flat circle mid-zone.
+         */
+        readonly tentPad = false,
     ) {
         this.cols = size.zoneCols + 2 * size.flankCols + 2 * size.rimCells;
         this.rows = 2 * size.zoneRows + size.neutralRows + 2 * size.rimCells;
@@ -709,7 +714,7 @@ export class BattleMap {
         const anchors: { x: number; z: number; r: number }[] = [];
         const specs = [
             BASE_ANCHORS.stronghold,
-            BASE_ANCHORS.tent,
+            ...(this.tentPad ? [BASE_ANCHORS.tent] : []),
             BASE_ANCHORS.research,
             BASE_ANCHORS.command,
             { xFrac: 0.375, rowFrac: 0.62, r: 9 },

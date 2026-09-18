@@ -102,7 +102,7 @@
     "advanced": "Продвинутая",
     "shopTitle": "Покупается в магазине или берётся из карты раунда",
     "shopLabel": "Цена в магазине",
-    "forgeTitle": "Выковывается в {{building}}",
+    "forgeTitle": "Получено с карты раунда",
     "forgeLabel": "Цена ковки",
     "mixForgeLabel": "Цена ковки",
     "mixForgeTitle": "Выковано в Цитадели",

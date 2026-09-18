@@ -1342,8 +1342,9 @@ function setMenuChromeVisible(visible: boolean): void {
         // showing at all, including while a sub-panel is open, so it's
         // never stale by the time the player gets back to the top level
         startRoomPoll();
-        // Resume menu bed when chrome returns (needs a prior unlock gesture).
-        if (audio.isUnlocked) playMenuMusic();
+        // the menu is showing: its bed is what the state wants (audio starts
+        // it once a gesture has unlocked sound, see the pointerdown below)
+        playMenuMusic();
     } else {
         stopRoomPoll();
     }
@@ -5900,19 +5901,12 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-wrapper.addEventListener(
-    'pointerdown',
-    () => {
-        if (started) return;
-        audio.unlock();
-        playMenuMusic();
-    },
-    { capture: true },
-);
+// Any gesture unlocks sound. It only unlocks: WHICH music plays is set by the
+// state changes (menu shown, match started), never by a click.
+wrapper.addEventListener('pointerdown', () => audio.unlock(), { capture: true });
 
 menu.addEventListener('click', (e) => {
     audio.unlock();
-    if (!started) playMenuMusic();
     const refreshBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.m-rooms-refresh');
     if (refreshBtn && !started) {
         e.preventDefault();

@@ -28,7 +28,7 @@ import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, buildingMaxLevel, buildingUpgradeFor, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
 import {
     emptyForgeSlots,
     forgeHintText,
@@ -1412,7 +1412,7 @@ export class Game {
         this.threeCanvas = threeCanvas;
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
-        this.map = new BattleMap(settings.map, settings.terrainShape);
+        this.map = new BattleMap(settings.map, settings.terrainShape, !!settings.climb);
         // a static map replaces the procedural relief before anything reads it
         // (ground mesh, deploy grid, sim) — main loaded the file before building the match
         if (settings.landscape) {
@@ -3301,6 +3301,7 @@ export class Game {
             if (!want(team, type.id)) return;
             const unit = this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
             if (unit) {
+                if (type.baseAnchor === 'stronghold' && seatIdsOf(this.seats, team).length > 1) unit.levelGrowth = 0.05;
                 placed.push(unit);
                 this.baseBuildingUnits.add(unit);
             }
@@ -8393,7 +8394,7 @@ export class Game {
         if (!this.armedItem || !this.playerCanAct) return false;
         if (!hasAbility(unit.type, 'forge') || unit.team !== 'player') return false;
         if (!this.types.rune(this.armedItem)) return false;
-        return forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat);
+        return forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat, seatIdsOf(this.seats, 'player'));
     }
 
     /** press-drag release over the board — equip if the pack under the cursor is valid */
@@ -8457,7 +8458,7 @@ export class Game {
     /** slot a rune into the shared Stronghold forge */
     private forgeInsertItem(itemId: string): boolean {
         if (!this.playerCanAct || !this.types.rune(itemId)) return false;
-        if (!forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat)) return false;
+        if (!forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat, seatIdsOf(this.seats, 'player'))) return false;
         return this.dispatchPlayer({ kind: 'forgeInsert', team: 'player', itemId });
     }
 
@@ -10706,20 +10707,23 @@ export class Game {
                 this.round === 0 &&
                 this.starterPicked[this.humanSeat] &&
                 !this.starterPicked.every(Boolean);
-            // freeze once I've locked in — solo used to keep draining the
-            // timer (and re-firing onDeployTimerExpired) while waiting on the
-            // AI / an ally, which is how a stuck resume showed 0:00 forever
+            // once I've locked in, the clock keeps running so I can see how
+            // long the others still have — it stops at 0:00 and does not
+            // re-fire onDeployTimerExpired (that is what used to leave a
+            // stuck resume on 0:00 forever); their own clocks end them
             const waitingForDeployPeer =
                 this.phase === 'build' && !!this.seatReady[this.humanSeat];
-            if (!waitingForStarterPeer && !waitingForDeployPeer) {
+            if (!waitingForStarterPeer) {
                 this.phaseRemaining -= gameDt;
+                if (waitingForDeployPeer) this.phaseRemaining = Math.max(0, this.phaseRemaining);
             }
-            if (this.phase === 'build' || this.phase === 'battle') {
+            // no "time's up" warning for a clock I've already locked in on
+            if (this.phase === 'battle' || (this.phase === 'build' && !waitingForDeployPeer)) {
                 audio.tickTimerWarn(this.phaseRemaining);
             }
             if (this.phase === 'build') {
                 if (this.watching) this.tickReplayPlayback();
-                if (this.phaseRemaining <= 0) this.onDeployTimerExpired();
+                if (this.phaseRemaining <= 0 && !waitingForDeployPeer) this.onDeployTimerExpired();
             } else if (this.phase === 'hpDraw') {
                 // solo pause freezes the drain too — otherwise the souls keep
                 // flying behind the menu and proceedAfterHpDraw starts the next
@@ -11532,21 +11536,18 @@ export class Game {
             itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
-            towerUpgrade:
-                ownInteractive &&
-                u.type.structure &&
-                !u.type.extra &&
-                !this.tutorial?.boostLessonOnly &&
-                (this.tutorial?.allowedGarrisonOffers()?.upgrade !== false)
-                    ? {
-                          cost: towerUpgradeCost(u.level, this.settings.towers),
-                          affordable:
-                              this.economy.balance(this.humanSeat) >=
-                              towerUpgradeCost(u.level, this.settings.towers),
-                          maxed: u.level >= this.settings.towers.upgrade.maxLevel,
-                          maxLevel: this.settings.towers.upgrade.maxLevel,
-                      }
-                    : undefined,
+            towerUpgrade: (() => {
+                if (!ownInteractive || !u.type.structure || u.type.extra || this.tutorial?.boostLessonOnly) return undefined;
+                if (this.tutorial?.allowedGarrisonOffers()?.upgrade === false) return undefined;
+                const up = buildingUpgradeFor(u, this.humanSeat, this.settings.towers);
+                if (!up) return undefined; // an ally's own tower
+                return {
+                    cost: up.cost,
+                    affordable: this.economy.balance(this.humanSeat) >= up.cost,
+                    maxed: up.maxed,
+                    maxLevel: buildingMaxLevel(u, this.seats, this.settings.towers),
+                };
+            })(),
             // the next level is a purchase: needs banked XP and supply
             levelUp: this.levelUpInfo(u, lv),
             techs: this.techSelection(u),
@@ -12007,14 +12008,20 @@ export class Game {
         // count follows the same fog window the forge and the spells do: an
         // archer the enemy posted THIS round is not on their wall yet as far
         // as you know, and the panel must not be the one place that says so.
+        // Your own keep shows YOUR posts (each seat mans and pays for its own
+        // block, see garrisonSeatSlots); an enemy keep shows the side's total.
         const garrison = u.type.garrison;
         if (garrison) {
-            const manned =
-                fogged && this.buildingIntelSnapshot
-                    ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
-                    : this.strongholdArcherCount(team);
+            const own = u.team === 'player';
+            const manned = own
+                ? garrisonSeatManned(this.placement, u, this.humanSeat)
+                : fogged && this.buildingIntelSnapshot
+                  ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
+                  : this.strongholdArcherCount(team);
             const nextCost = this.types.garrisonPostCost(u.type, manned);
-            const slotMax = garrison.slots.length;
+            const slotMax = own
+                ? garrisonSeatSlots(u, this.seats, this.humanSeat).length
+                : Math.min(garrison.slots.length, garrison.perSeat * teamSeats.length);
             out.strongholdArchers = {
                 cost: nextCost,
                 owned: manned,

@@ -15,8 +15,8 @@ import { itemSlotLimit } from './items';
 import {
     FORGE_SLOTS_PER_PLAYER,
     forgeProductCost,
-    forgeSeatCanInsert,
-    forgeSeatFilledCount,
+    forgeSeatFirstFree,
+    forgeSeatSlotRange,
     resolveForge,
     type ForgeSlot,
     type ForgeSpellPool,
@@ -50,7 +50,8 @@ import type {
 } from './settings';
 import { yearBoardExtraAllowed, rallyRouteBuyMax } from './settings';
 import type { TechTree } from './tech';
-import { primarySeatOf, type SeatDef, type SeatId } from './seats';
+import { isSecondarySeat, primarySeatOf, seatIdsOf, type SeatDef, type SeatId } from './seats';
+import { colorForUnit } from './colors';
 import { detAtan2 } from './detMath';
 import {
     strongholdArcherSlotWorld,
@@ -649,6 +650,34 @@ export function towerUpgradeCost(currentLevel: number, towers: TowerSettings): n
 }
 
 /**
+ * Who may upgrade base building `u`, and for what. A seat's own tower: its
+ * owner alone, up to `maxLevel`, priced by the tower's level. The Stronghold,
+ * which a whole side shares: every seat buys its own `maxLevel - 1` upgrades,
+ * priced by its own count, and the keep's level is their sum — so two allies
+ * upgrading at once land on the same level and prices in either order.
+ * Null = not this seat's to upgrade.
+ */
+export function buildingUpgradeFor(
+    u: Unit,
+    seat: SeatId,
+    towers: TowerSettings,
+): { cost: number; maxed: boolean; own: number; shared: boolean } | null {
+    const cap = towers.upgrade.maxLevel - 1;
+    if (u.type.baseAnchor === 'stronghold') {
+        const own = u.upgradesBySeat[seat] ?? 0;
+        return { cost: towerUpgradeCost(1 + own, towers), maxed: own >= cap, own, shared: true };
+    }
+    if (u.seat !== seat) return null;
+    return { cost: towerUpgradeCost(u.level, towers), maxed: u.level >= towers.upgrade.maxLevel, own: u.level - 1, shared: false };
+}
+
+/** highest level building `u` can reach: the Stronghold adds every seat's upgrades */
+export function buildingMaxLevel(u: Unit, roster: readonly SeatDef[], towers: TowerSettings): number {
+    if (u.type.baseAnchor !== 'stronghold' || u.team === 'horde') return towers.upgrade.maxLevel;
+    return 1 + (towers.upgrade.maxLevel - 1) * Math.max(1, seatIdsOf(roster, u.team).length);
+}
+
+/**
  * Validates actions against the current state, applies them, and keeps the
  * ordered log that doubles as undo history and replay data.
  */
@@ -870,21 +899,22 @@ export class ActionDispatcher {
             }
             case 'move': {
                 const unit = placement.unitById(action.unitId);
-                if (!unit || unit.team !== action.team || !placement.canReposition(unit)) return false;
+                // own packs only — an ally's lane is theirs to arrange
+                if (!unit || unit.team !== action.team || unit.seat !== seat || !placement.canReposition(unit)) return false;
                 entry.from = { ...unit.cell };
                 return placement.moveUnit(unit, action.anchor);
             }
             case 'moveGroup': {
                 const units = action.unitIds.map((id) => placement.unitById(id));
                 const valid = units.every(
-                    (u): u is Unit => !!u && u.team === action.team && placement.canReposition(u),
+                    (u): u is Unit => !!u && u.team === action.team && u.seat === seat && placement.canReposition(u),
                 );
                 if (!valid) return false;
                 return placement.moveUnits(units as Unit[], action.dc, action.dr);
             }
             case 'rotate': {
                 const unit = placement.unitById(action.unitId);
-                if (!unit || unit.team !== action.team || !placement.canReposition(unit)) return false;
+                if (!unit || unit.team !== action.team || unit.seat !== seat || !placement.canReposition(unit)) return false;
                 entry.from = { ...unit.cell };
                 return placement.rotateUnit(unit, action.anchor);
             }
@@ -928,7 +958,7 @@ export class ActionDispatcher {
                     cost,
                     balance: economy.balance(seat),
                 });
-                if (!unit || unit.team !== action.team || unit.type.structure) return false;
+                if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) return false;
                 if (unit.level >= leveling.maxLevel) return false;
                 if (unit.xp < threshold) return false;
                 if (!economy.spend(seat, cost)) return false;
@@ -940,9 +970,10 @@ export class ActionDispatcher {
                 return true;
             }
             case 'buyStrongholdArcher': {
-                // The side shares its keep, so the wall is filled and priced
-                // per SIDE, not per seat — an ally buying the third archer
-                // pays for the third, not for their own first.
+                // The side shares its keep, but every seat mans its own block
+                // of pads and pays by its own count (see garrisonSeatSlots):
+                // an ally's buy never changes where yours stands or its price,
+                // so the two land the same in either arrival order.
                 const keep = placement
                     .allUnits()
                     .find((u) => u.type.garrison && u.team === action.team && !u.destroyed);
@@ -950,11 +981,9 @@ export class ActionDispatcher {
                 const garrison = keep.type.garrison!;
                 const postedType = this.ctx.types.byId(garrison.unitTypeId);
                 if (!postedType) return false;
-                const slots = garrison.slots;
-                const taken = placement.allUnits().filter((u) => u.hostUnitId === keep.id).length;
-                if (taken >= slots.length) return false;
-                if (!strongholdArcherSlotWorld(keep, slots[taken]!)) return false; // keep model has no authored slots
-                const cost = this.ctx.types.garrisonPostCost(keep.type, taken);
+                const post = nextGarrisonPost(placement, keep, seat);
+                if (!post) return false; // own block full, or the model lacks the pad
+                const cost = this.ctx.types.garrisonPostCost(keep.type, post.manned);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 const archer = spawnGarrisonPost(placement, postedType, keep, action.team, seat)!;
@@ -965,7 +994,7 @@ export class ActionDispatcher {
                 const batch: { unitId: number; paid: number; xpBefore: number }[] = [];
                 for (const unitId of action.unitIds) {
                     const unit = placement.unitById(unitId);
-                    if (!unit || unit.team !== action.team || unit.type.structure) break;
+                    if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) break;
                     if (unit.level >= leveling.maxLevel) break;
                     const threshold = xpForNextLevel(unit, economy, leveling);
                     if (unit.xp < threshold) break;
@@ -997,10 +1026,11 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || !unit.type.structure || unit.type.extra) {
                     return false;
                 }
-                if (unit.level >= this.ctx.towers.upgrade.maxLevel) return false;
-                const cost = towerUpgradeCost(unit.level, this.ctx.towers);
-                if (!economy.spend(seat, cost)) return false;
-                entry.paid = cost;
+                const up = buildingUpgradeFor(unit, seat, this.ctx.towers);
+                if (!up || up.maxed) return false;
+                if (!economy.spend(seat, up.cost)) return false;
+                entry.paid = up.cost;
+                if (up.shared) unit.upgradesBySeat[seat] = up.own + 1;
                 unit.level++;
                 unit.refreshLevelBadge();
                 return true;
@@ -1317,12 +1347,16 @@ export class ActionDispatcher {
                 // was bought, so it is sealed until it resolves
                 if (this.ctx.forgeLitBy[action.team] !== null) return false;
                 const oven = this.ctx.forgeSlots[action.team]!;
-                if (!forgeSeatCanInsert(oven, seat)) return false;
-                let slot = action.slot;
-                if (slot === undefined) {
-                    slot = oven.findIndex((s) => s === null);
-                }
-                if (slot < 0 || slot >= oven.length || oven[slot] !== null) return false;
+                // own block only (see forgeSeatSlotRange): a drop on any slot —
+                // an ally's included — lands in this seat's first free one
+                const range = forgeSeatSlotRange(seatIdsOf(this.ctx.seats, action.team), seat);
+                if (!range) return false;
+                const asked = action.slot;
+                const slot =
+                    asked !== undefined && asked >= range.start && asked < range.end && oven[asked] === null
+                        ? asked
+                        : forgeSeatFirstFree(oven, range);
+                if (slot < 0 || slot >= oven.length) return false;
                 const inventory = this.ctx.items[seat]!;
                 const held = inventory.indexOf(action.itemId);
                 if (held < 0) return false;
@@ -1339,11 +1373,12 @@ export class ActionDispatcher {
                     if (!this.ctx.types.rune(id)) return false;
                 }
                 const oven = this.ctx.forgeSlots[action.team]!;
-                if (forgeSeatFilledCount(oven, seat) + ids.length > FORGE_SLOTS_PER_PLAYER) {
-                    return false;
-                }
-                const emptyCount = oven.reduce((n, s) => n + (s === null ? 1 : 0), 0);
-                if (emptyCount < ids.length) return false;
+                const range = forgeSeatSlotRange(seatIdsOf(this.ctx.seats, action.team), seat);
+                if (!range) return false;
+                // own block only (see forgeSeatSlotRange)
+                const free: number[] = [];
+                for (let i = range.start; i < range.end && i < oven.length; i++) if (oven[i] === null) free.push(i);
+                if (free.length < ids.length) return false;
                 const inventory = this.ctx.items[seat]!;
                 const bag = new Map<string, number>();
                 for (const id of inventory) bag.set(id, (bag.get(id) ?? 0) + 1);
@@ -1353,9 +1388,9 @@ export class ActionDispatcher {
                     if ((bag.get(id) ?? 0) < n) return false;
                 }
                 const placed: { slot: number; itemId: string }[] = [];
-                for (const itemId of ids) {
-                    const slot = oven.findIndex((s) => s === null);
-                    if (slot < 0) return false;
+                for (let k = 0; k < ids.length; k++) {
+                    const itemId = ids[k]!;
+                    const slot = free[k]!;
                     const held = inventory.indexOf(itemId);
                     if (held < 0) return false;
                     inventory.splice(held, 1);
@@ -1369,7 +1404,10 @@ export class ActionDispatcher {
                 if (this.ctx.forgeLitBy[action.team] !== null) return false; // sealed, see forgeInsert
                 const oven = this.ctx.forgeSlots[action.team]!;
                 const { slot, itemId } = action;
-                if (slot < 0 || slot >= oven.length) return false;
+                // own block only: only this seat's own actions ever change it,
+                // so the index names the same rune on every machine
+                const range = forgeSeatSlotRange(seatIdsOf(this.ctx.seats, action.team), seat);
+                if (!range || slot < range.start || slot >= range.end || slot >= oven.length) return false;
                 const cur = oven[slot];
                 if (!cur || cur.itemId !== itemId) return false;
                 // only the inserter, and only this deploy (same as pack remove)
@@ -1793,6 +1831,7 @@ export class ActionDispatcher {
                 break;
             case 'upgradeTower': {
                 const unit = placement.unitById(action.unitId)!;
+                if (unit.type.baseAnchor === 'stronghold') unit.upgradesBySeat[seat] = (unit.upgradesBySeat[seat] ?? 1) - 1;
                 unit.level--;
                 unit.refreshLevelBadge();
                 economy.credit(seat, e.paid!);
@@ -2165,10 +2204,55 @@ export function prepareHazardPours(
 
 /** quantize world coords so peers never disagree on float noise */
 /**
- * Man the next free post of a garrisoned building (`garrison` attribute):
- * the posted type stands on the model's next `UnitN` pad, pinned to it, facing
- * out. Shared by the purchase action and scenario setup. Null when every post
- * is taken or the model has no pad for the next one.
+ * The pads `seat` mans on a garrison building: its own block of `perSeat`
+ * out of `slots`, by its place on the side (first seat the first block, …).
+ * Empty for a seat past the last block.
+ */
+export function garrisonSeatSlots(
+    keep: Unit,
+    roster: readonly SeatDef[],
+    seat: SeatId,
+): readonly number[] {
+    const g = keep.type.garrison;
+    if (!g) return [];
+    const team = keep.team === 'horde' ? null : keep.team;
+    const rank = team ? seatIdsOf(roster, team).indexOf(seat) : -1;
+    if (rank < 0) return [];
+    return g.slots.slice(rank * g.perSeat, (rank + 1) * g.perSeat);
+}
+
+/** posts `seat` already mans on `keep` */
+export function garrisonSeatManned(placement: PlacementController, keep: Unit, seat: SeatId): number {
+    let n = 0;
+    for (const u of placement.allUnits()) if (u.hostUnitId === keep.id && u.seat === seat) n++;
+    return n;
+}
+
+/**
+ * `seat`'s next free pad on `keep` and how many it already mans (the price
+ * step) — null when its block is full or the model has no such pad. Reads
+ * only this seat's own posts, so an ally's never moves the answer.
+ */
+function nextGarrisonPost(
+    placement: PlacementController,
+    keep: Unit,
+    seat: SeatId,
+): { slot: number; manned: number } | null {
+    const own = garrisonSeatSlots(keep, placement.roster, seat);
+    const used = new Set<number>();
+    for (const u of placement.allUnits()) {
+        if (u.hostUnitId === keep.id && u.strongholdArcherSlot !== null) used.add(u.strongholdArcherSlot);
+    }
+    const slot = own.find((s) => !used.has(s));
+    if (slot === undefined || !strongholdArcherSlotWorld(keep, slot)) return null;
+    return { slot, manned: garrisonSeatManned(placement, keep, seat) };
+}
+
+/**
+ * Man `seat`'s next free post of a garrisoned building (`garrison`
+ * attribute): the posted type stands on the model's `UnitN` pad, pinned to
+ * it, facing out. Shared by the purchase action and scenario setup. Null
+ * when the seat's own posts are all taken or the model has no pad for it.
  */
 export function spawnGarrisonPost(
     placement: PlacementController,
@@ -2177,13 +2261,15 @@ export function spawnGarrisonPost(
     team: Team,
     seat: SeatId,
 ): Unit | null {
-    const slots = keep.type.garrison?.slots ?? [];
-    const taken = placement.allUnits().filter((u) => u.hostUnitId === keep.id).length;
-    if (taken >= slots.length) return null;
-    const spot = strongholdArcherSlotWorld(keep, slots[taken]!);
-    if (!spot) return null;
+    const post = nextGarrisonPost(placement, keep, seat);
+    if (!post) return null;
+    const spot = strongholdArcherSlotWorld(keep, post.slot)!;
     const archer = placement.spawnAtWorld(postedType, spot.x, spot.z, team, seat);
-    archer.strongholdArcherSlot = slots[taken]!;
+    archer.strongholdArcherSlot = post.slot;
+    // a shared keep: each seat's archers wear its own colour
+    if (seatIdsOf(placement.roster, team).length > 1) {
+        archer.addSeatPennant(colorForUnit(team, isSecondarySeat(placement.roster, seat)).hex);
+    }
     archer.hostUnitId = keep.id;
     archer.pinnedY = spot.y;
     // outward from the keep's middle — the wedge behind him is the

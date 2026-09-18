@@ -102,7 +102,7 @@
     "advanced": "Gelişmiş",
     "shopTitle": "Dükkândan satın alınmış veya tur kartından çekilmiş.",
     "shopLabel": "Mağaza fiyatı",
-    "forgeTitle": "{{building}}'da dövüldü",
+    "forgeTitle": "Tur kartından çekildi",
     "forgeLabel": "Dövme fiyatı",
     "mixForgeLabel": "Dövme fiyatı",
     "mixForgeTitle": "Kalede dövüldü",

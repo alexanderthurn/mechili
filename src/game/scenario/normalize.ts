@@ -215,7 +215,8 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
                 warn(`scene.buildings.${side}.${id}: "destroyed" is ignored — buildings stand again every round`);
             }
             if (state.garrison !== undefined) {
-                const slots = types.byId(id)?.garrison?.slots.length ?? 0;
+                // scenario posts go to the side's first seat, so its own block caps them
+                const slots = types.byId(id)?.garrison?.perSeat ?? 0;
                 if (state.garrison < 0 || state.garrison > slots) {
                     error(`scene.buildings.${side}.${id}: garrison ${state.garrison} but it has ${slots} posts`);
                 }

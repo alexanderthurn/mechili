@@ -102,7 +102,7 @@
     "advanced": "Edistynyt",
     "shopTitle": "Ostettu kaupasta tai nostettu kierroskortista",
     "shopLabel": "Kauppahinta",
-    "forgeTitle": "Taottu {{building}}:ssa",
+    "forgeTitle": "Nostettu kierroskortista",
     "forgeLabel": "Forgen hinta",
     "mixForgeLabel": "Takomishinta",
     "mixForgeTitle": "Taottu Linnakkeessa",

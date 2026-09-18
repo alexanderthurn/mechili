@@ -102,7 +102,7 @@
     "advanced": "進階",
     "shopTitle": "在商店購買，或從回合卡抽取",
     "shopLabel": "商店價格",
-    "forgeTitle": "在{{building}}鍛造",
+    "forgeTitle": "來自回合卡",
     "forgeLabel": "鍛造價格",
     "mixForgeLabel": "鍛造價格",
     "mixForgeTitle": "在要塞鍛造",

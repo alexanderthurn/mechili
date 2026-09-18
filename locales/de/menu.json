@@ -81,7 +81,7 @@
   "rosterReady": "Bereit",
   "rosterInvite": "Lade einen Freund ein",
   "rosterKick": "{{name}} rauswerfen",
-  "watchRoom": "{{name}} ansehen…",
+  "watchRoom": "{{name}}{{mode}}{{round}} ansehen",
   "openingSteam": "Steam-Lobby wird geöffnet…",
   "openingLan": "LAN-Raum wird geöffnet…",
   "openingLan2v2": "Öffne LAN 2v2-Raum…",
