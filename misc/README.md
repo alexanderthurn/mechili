@@ -15,6 +15,7 @@ The game only needs the processed files under `assets/` (webps / glbs).
 | `tripo-raw/high-poly/` | **Full Tripo PBR meshes (~57MB / ~1.9M tris each)** — use these to make your own low-poly |
 | `tripo-raw/{tree,bush}-*/` | Intermediate Tripo dumps (task folders, renders, JSON) |
 | `concepts/` | UI / icon style brainstorms (not shipped) |
+| `sfx/` | **SFX bank** (gitignored). Workflow: `misc/sfx/elevenlabs.md`. Promote keepers to `assets/` only when asked. |
 | `steam/` | Steam store/library art masters + upload sizes (`STYLE.md`, `store_center/`, `library_center/`) |
 | `icons/src/` | **Committed** 128×128 masters — only folder packed by `npm run icons:pack` |
 | `icons/bank/` | **Committed** unused / pick-from glyphs — **not** packed |
