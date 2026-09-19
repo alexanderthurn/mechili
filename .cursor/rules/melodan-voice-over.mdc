@@ -34,8 +34,9 @@ alwaysApply: true
 
 ## Gameplay wiring
 
-- **Select**: Generals-style — short acks, **sparse** (`playUnitSelect`: ~40% chance + ~2.2s cooldown). Homepage testing: `playUnitVoPreview` plays every select + death line in order.
+- **Select**: short acks on every pack select (`playUnitSelect`). Homepage testing: `playUnitVoPreview` plays every select + death line in order.
 - **Lazy VO**: unit/commander clips are **not** boot-preloaded (homepage or match). Fetch+decode on first play / preview for that cue only — scales to a large roster.
+- **Prefs**: `voicesEnabled` (Settings → Audio → “Unit & commander voices”) gates select/death/pick/win. Default on.
 - Play select in **deploy** (`placement.onSelect`) and **battle** (mech `selectedActor` click).
 - **Death**: cue `unit_<id>_death`, spatial, alongside `death_unit` SFX via `playUnitDeath` in `spawnFromEvents`.
 - Shared VO: `stronghold-archer` → `archer` (`UNIT_VOICE_ALIAS` in `audio.ts`).

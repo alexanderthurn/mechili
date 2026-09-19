@@ -39,8 +39,8 @@ export type CueDef = {
 const SPATIAL_REF = 11;
 const SPATIAL_MAX = 34;
 
-/** Fraction of new pack selects that may bark (Generals-style sparse acks). */
-const UNIT_SELECT_CHANCE = 0.4;
+/** Fraction of new pack selects that may bark (1 = always, subject to cooldown). */
+const UNIT_SELECT_CHANCE = 1;
 /** Min wall-clock gap between unit select barks. */
 const UNIT_SELECT_COOLDOWN_MS = 2200;
 /** Unit types that share another type's VO cue (e.g. stronghold archer → archer). */
@@ -109,7 +109,7 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.5,
     },
-    /** Unit select bark — distinct lines as path variants; play sparsely (see playUnitSelect). */
+    /** Unit select bark — distinct lines as path variants (see playUnitSelect). */
     unit_archer: {
         paths: [
             'audio/unit_archer_1.ogg',
@@ -1347,7 +1347,7 @@ class AudioBus {
      * music / UI / commander VO stay at real time.
      */
     private timeScale = 1;
-    /** Wall clock of last {@link playUnitSelect} that actually fired a bark. */
+    /** Wall-clock of last unit select bark that actually fired. */
     private lastUnitSelectAt = 0;
     /** Bumps to cancel an in-flight homepage VO preview sequence. */
     private unitPreviewGen = 0;
@@ -1619,11 +1619,17 @@ class AudioBus {
         this.play(cueId);
     }
 
+    /** True when spoken unit/commander VO may play (prefs toggle). */
+    private voicesOn(): boolean {
+        const p = prefs();
+        return !p.audioMuted && p.voicesEnabled;
+    }
+
     /** Human commander bark — stops any other commander VO so hover switches cleanly. */
     playCommanderPick(cardId: string): void {
         this.stopCommanderBarks();
         const cueId = `commander_${cardId}`;
-        if (!CUES[cueId]) {
+        if (!CUES[cueId] || !this.voicesOn()) {
             this.playUi('card_pick');
             return;
         }
@@ -1638,6 +1644,7 @@ class AudioBus {
      * three path variants — silent until those assets are shipped.
      */
     playCommanderWin(cardId: string): void {
+        if (!this.voicesOn()) return;
         const cueId = `commander_${cardId}_win`;
         if (!CUES[cueId]) return;
         this.stopCommanderBarks();
@@ -1647,11 +1654,12 @@ class AudioBus {
     }
 
     /**
-     * Unit pack select bark (Generals-style). Cue `unit_<typeId>`; aliases like
-     * stronghold-archer → archer. Not every click: chance + cooldown so it
-     * stays funny instead of grating. VO buffers load on first play.
+     * Unit pack select bark. Cue `unit_<typeId>`; aliases like
+     * stronghold-archer → archer. Always tries when voices are on, but
+     * cooldown keeps rapid re-selects from stacking. VO loads on first play.
      */
     playUnitSelect(typeId: string): void {
+        if (!this.voicesOn()) return;
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueId = `unit_${voiceId}`;
         if (!CUES[cueId]) return;
@@ -1671,6 +1679,7 @@ class AudioBus {
      * clips. Switching units cancels.
      */
     playUnitVoPreview(typeId: string): void {
+        if (!this.voicesOn()) return;
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueIds = [`unit_${voiceId}`, `unit_${voiceId}_death`];
         const queue: { cueId: string; path: string }[] = [];
@@ -1734,6 +1743,7 @@ class AudioBus {
 
     /** Spatial death yelp when a voiced unit dies — silent until that cue ships. */
     playUnitDeath(typeId: string, worldX: number, worldZ: number): void {
+        if (!this.voicesOn()) return;
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueId = `unit_${voiceId}_death`;
         if (!CUES[cueId]) return;

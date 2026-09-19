@@ -55,6 +55,8 @@ export interface Prefs {
     musicVolume: number;
     /** UI click / confirm group gain 0..1. */
     uiVolume: number;
+    /** Spoken unit + commander VO (select, death, pick, win). Off = silence those only. */
+    voicesEnabled: boolean;
     /**
      * Outer world quality. Applies immediately (rebuilds scenery mid-match).
      * - ultra: dense forest + Tripo on the board, dense mountain grid + future cliff sculpt
@@ -347,6 +349,7 @@ const DEFAULTS: Prefs = {
     sfxVolume: 1,
     musicVolume: 0.7,
     uiVolume: 1,
+    voicesEnabled: true,
     ...GRAPHICS_PRESETS.medium,
     controlScheme: 'auto',
     language: detectDeviceLanguage(),
@@ -730,6 +733,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     sfxVolume: asUnitInterval(),
     musicVolume: asUnitInterval(),
     uiVolume: asUnitInterval(),
+    voicesEnabled: asBool,
     debugOverlay: asBool,
     renderDeadUnits: asBool,
     antialias: asBool,

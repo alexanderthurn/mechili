@@ -641,7 +641,7 @@
               "type": "array",
               "items": { "type": "string" },
               "minItems": 1,
-              "description": "Short Generals-style select acknowledgements (Yes?/What?/character one-liners). Runtime plays sparsely, not every click."
+              "description": "Short Generals-style select acknowledgements (Yes?/What?/character one-liners)."
             },
             "death": {
               "type": "array",

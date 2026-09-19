@@ -8,6 +8,7 @@
   "combatChat": "Show combat chat",
   "audio": "Audio",
   "audioMuted": "Mute all sound",
+  "voicesEnabled": "Unit & commander voices",
   "masterVolume": "Master",
   "sfxVolume": "Sound effects",
   "musicVolume": "Music",

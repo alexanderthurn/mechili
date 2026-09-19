@@ -3994,6 +3994,10 @@ export class Game {
         if (stamped.kind !== 'chooseCard') {
             audio.playPlayerAction(stamped.kind, true);
         }
+        if (stamped.kind === 'buy') {
+            const bought = this.types.byId(stamped.typeId);
+            if (bought && !bought.structure) audio.playUnitSelect(stamped.typeId);
+        }
         // the sandbox deployment: whatever the game UI changed goes into the draft
         if (this.scenarioEditor && this.round >= 1) this.scenarioEditor.syncFromBoard();
         if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
