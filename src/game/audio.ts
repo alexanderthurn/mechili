@@ -463,13 +463,10 @@ const CUES: Record<string, CueDef> = {
         gain: 0.55,
     },
     levelup: {
-        paths: [
-            'audio/levelup_1.ogg',
-            'audio/levelup_2.ogg',
-        ],
+        paths: ['audio/levelup_1.ogg'],
         group: 'ui',
-        maxVoices: 2,
-        gain: 0.5,
+        maxVoices: 3,
+        gain: 0.72,
     },
     melee_hit: {
         paths: [
@@ -514,7 +511,7 @@ const CUES: Record<string, CueDef> = {
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.7,
     },
-    /** Default match bed — later: music_battle_winter / horde / etc. */
+    /** Default match bed — fallback when no seasonal phase track exists. */
     music_battle: {
         paths: ['audio/music_battle_1.ogg'],
         group: 'music',
@@ -525,6 +522,114 @@ const CUES: Record<string, CueDef> = {
         paths: ['audio/music_menu_1.ogg'],
         group: 'music',
         gain: 0.42,
+    },
+    /** The Year beat 1 — Spring morning, deployment. */
+    music_spring_morning_deploy: {
+        paths: ['audio/music_spring_morning_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 1 — Spring morning, battle. */
+    music_spring_morning_battle: {
+        paths: ['audio/music_spring_morning_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 2 — Spring rain, deployment. */
+    music_spring_rain_deploy: {
+        paths: ['audio/music_spring_rain_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 2 — Spring rain, battle. */
+    music_spring_rain_battle: {
+        paths: ['audio/music_spring_rain_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 3 — Summer noon, deployment. */
+    music_summer_noon_deploy: {
+        paths: ['audio/music_summer_noon_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 3 — Summer noon, battle. */
+    music_summer_noon_battle: {
+        paths: ['audio/music_summer_noon_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 4 — Summer golden, deployment. */
+    music_summer_golden_deploy: {
+        paths: ['audio/music_summer_golden_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 4 — Summer golden, battle. */
+    music_summer_golden_battle: {
+        paths: ['audio/music_summer_golden_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 5 — Summer night, deployment. */
+    music_summer_night_deploy: {
+        paths: ['audio/music_summer_night_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 5 — Summer night, battle. */
+    music_summer_night_battle: {
+        paths: ['audio/music_summer_night_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 6 — Autumn dusk, deployment. */
+    music_autumn_dusk_deploy: {
+        paths: ['audio/music_autumn_dusk_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 6 — Autumn dusk, battle. */
+    music_autumn_dusk_battle: {
+        paths: ['audio/music_autumn_dusk_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 7 — Autumn storm, deployment. */
+    music_autumn_storm_deploy: {
+        paths: ['audio/music_autumn_storm_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 7 — Autumn storm, battle. */
+    music_autumn_storm_battle: {
+        paths: ['audio/music_autumn_storm_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 8 — First snow, deployment. */
+    music_first_snow_deploy: {
+        paths: ['audio/music_first_snow_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 8 — First snow, battle. */
+    music_first_snow_battle: {
+        paths: ['audio/music_first_snow_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 9 — Deep winter, deployment. */
+    music_deep_winter_deploy: {
+        paths: ['audio/music_deep_winter_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 9 — Deep winter, battle. */
+    music_deep_winter_battle: {
+        paths: ['audio/music_deep_winter_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
     },
     orb_shot: {
         paths: [
@@ -923,7 +1028,6 @@ void [
     assetUrl('audio/impact_ward_1.ogg'),
     assetUrl('audio/impact_ward_2.ogg'),
     assetUrl('audio/levelup_1.ogg'),
-    assetUrl('audio/levelup_2.ogg'),
     assetUrl('audio/melee_hit_1.ogg'),
     assetUrl('audio/melee_hit_2.ogg'),
     assetUrl('audio/melee_hit_3.ogg'),
@@ -933,8 +1037,26 @@ void [
     assetUrl('audio/mortar_shot_1.ogg'),
     assetUrl('audio/mortar_shot_2.ogg'),
     assetUrl('audio/mortar_shot_3.ogg'),
+    assetUrl('audio/music_autumn_dusk_battle_1.ogg'),
+    assetUrl('audio/music_autumn_dusk_deploy_1.ogg'),
+    assetUrl('audio/music_autumn_storm_battle_1.ogg'),
+    assetUrl('audio/music_autumn_storm_deploy_1.ogg'),
     assetUrl('audio/music_battle_1.ogg'),
+    assetUrl('audio/music_deep_winter_battle_1.ogg'),
+    assetUrl('audio/music_deep_winter_deploy_1.ogg'),
+    assetUrl('audio/music_first_snow_battle_1.ogg'),
+    assetUrl('audio/music_first_snow_deploy_1.ogg'),
     assetUrl('audio/music_menu_1.ogg'),
+    assetUrl('audio/music_spring_morning_battle_1.ogg'),
+    assetUrl('audio/music_spring_morning_deploy_1.ogg'),
+    assetUrl('audio/music_spring_rain_battle_1.ogg'),
+    assetUrl('audio/music_spring_rain_deploy_1.ogg'),
+    assetUrl('audio/music_summer_golden_battle_1.ogg'),
+    assetUrl('audio/music_summer_golden_deploy_1.ogg'),
+    assetUrl('audio/music_summer_night_battle_1.ogg'),
+    assetUrl('audio/music_summer_night_deploy_1.ogg'),
+    assetUrl('audio/music_summer_noon_battle_1.ogg'),
+    assetUrl('audio/music_summer_noon_deploy_1.ogg'),
     assetUrl('audio/orb_shot_1.ogg'),
     assetUrl('audio/orb_shot_2.ogg'),
     assetUrl('audio/orb_shot_3.ogg'),
@@ -1580,6 +1702,8 @@ class AudioBus {
 
     /** Battle SimEvents → spatial SFX. */
     spawnFromEvents(events: readonly SimEvent[]): void {
+        // One Mario-style powerup for the whole batch (unit or multi-upgrade)
+        let levelup = false;
         for (const e of events) {
             switch (e.kind) {
                 case 'muzzle':
@@ -1619,7 +1743,7 @@ class AudioBus {
                     this.play('tower_debuff', e.x, e.z);
                     break;
                 case 'levelup':
-                    this.play('levelup', e.x, e.z);
+                    levelup = true;
                     break;
                 case 'summon':
                     this.play(e.flying ? 'summon_flying' : 'summon_ground', e.x, e.z);
@@ -1646,6 +1770,7 @@ class AudioBus {
                     break;
             }
         }
+        if (levelup) this.playUi('levelup');
     }
 
     private releaseVoice(voice: Voice): void {
@@ -1880,24 +2005,77 @@ function sfxTimeDuck(scale: number): number {
 export const audio = new AudioBus();
 
 /**
- * Music bed resolver — today menu vs match; later season / mode variants
- * (e.g. `music_battle_winter`, `music_menu_horde`) plug in here.
+ * Music bed resolver — menu, default battle, or seasonal phase tracks.
+ * Year-tour beats with deploy+battle variants; others fall back to music_battle.
  */
 export function resolveMusicBed(opts: {
     scene: 'menu' | 'match';
+    /** Year-tour atmosphere label, e.g. `Spring morning`. */
+    atmosphereLabel?: string | null;
+    /** Match phase — picks deploy vs battle seasonal bed when available. */
+    phase?: 'deploy' | 'battle';
     season?: string;
     mode?: string;
 }): string {
     void opts.season;
     void opts.mode;
-    return opts.scene === 'menu' ? 'music_menu' : 'music_battle';
+    if (opts.scene === 'menu') return 'music_menu';
+    const seasonal: Record<string, { deploy: string; battle: string }> = {
+        'Spring morning': {
+            deploy: 'music_spring_morning_deploy',
+            battle: 'music_spring_morning_battle',
+        },
+        'Spring rain': {
+            deploy: 'music_spring_rain_deploy',
+            battle: 'music_spring_rain_battle',
+        },
+        'Summer noon': {
+            deploy: 'music_summer_noon_deploy',
+            battle: 'music_summer_noon_battle',
+        },
+        'Summer golden': {
+            deploy: 'music_summer_golden_deploy',
+            battle: 'music_summer_golden_battle',
+        },
+        'Summer night': {
+            deploy: 'music_summer_night_deploy',
+            battle: 'music_summer_night_battle',
+        },
+        'Autumn dusk': {
+            deploy: 'music_autumn_dusk_deploy',
+            battle: 'music_autumn_dusk_battle',
+        },
+        'Autumn storm': {
+            deploy: 'music_autumn_storm_deploy',
+            battle: 'music_autumn_storm_battle',
+        },
+        'First snow': {
+            deploy: 'music_first_snow_deploy',
+            battle: 'music_first_snow_battle',
+        },
+        'Deep winter': {
+            deploy: 'music_deep_winter_deploy',
+            battle: 'music_deep_winter_battle',
+        },
+    };
+    const pair = opts.atmosphereLabel ? seasonal[opts.atmosphereLabel] : undefined;
+    if (pair) {
+        const cue = opts.phase === 'battle' ? pair.battle : pair.deploy;
+        if (CUES[cue]) return cue;
+    }
+    return 'music_battle';
 }
 
 export function playMenuMusic(): void {
     audio.playMusic(resolveMusicBed({ scene: 'menu' }));
 }
 
-export function playMatchMusic(opts?: { season?: string; mode?: string }): void {
+export function playMatchMusic(opts?: {
+    atmosphereLabel?: string | null;
+    phase?: 'deploy' | 'battle';
+    season?: string;
+    mode?: string;
+}): void {
     audio.playMusic(resolveMusicBed({ scene: 'match', ...opts }));
 }
 

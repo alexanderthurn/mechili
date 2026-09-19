@@ -125,7 +125,7 @@ import { hasFlagNode, StrongholdFlags } from './strongholdFlags';
 import { StrongholdCommanders } from './strongholdCommander';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
-import { audio } from './audio';
+import { audio, playMatchMusic } from './audio';
 import { CloudFx, type CloudCue } from './cloudFx';
 import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
@@ -3492,6 +3492,7 @@ export class Game {
         }
         this.phase = 'build';
         // Gong is attack-phase only — deploy / match reload stay silent
+        if (!this.hydrating) this.syncMatchMusic('deploy');
         // The Year: every round is sudden death from full side HP — whatever
         // the last battle left (a won round restores it already) never carries
         if (this.settings.climb) this.restoreClimbHp();
@@ -9006,6 +9007,17 @@ export class Game {
         };
     }
 
+    /**
+     * Seasonal match beds when available (Spring morning deploy/battle);
+     * otherwise the default `music_battle` fallback.
+     */
+    private syncMatchMusic(phase: 'deploy' | 'battle'): void {
+        playMatchMusic({
+            atmosphereLabel: this.weather?.atmosphereLabel() ?? null,
+            phase,
+        });
+    }
+
     /** Everything is revealed and the sim takes over; the player can only watch. */
     private startBattlePhase(): void {
         // last round's collapse rings are done being watched; a stale wave would
@@ -9016,7 +9028,10 @@ export class Game {
         this.placement.beginBattle();
         this.phase = 'battle';
         // Skip during hydrate/reload catch-up — only the live attack start rings
-        if (!this.hydrating) audio.playPhase('battle');
+        if (!this.hydrating) {
+            audio.playPhase('battle');
+            this.syncMatchMusic('battle');
+        }
         this.syncPostFx();
         this.phaseRemaining = this.battleSeconds();
         this.placement.enabled = false;
