@@ -31,5 +31,27 @@
                 "prompt": "A theatrical, over-the-top male archmage voice — grand, nasal-magical, and deliciously self-important. Speaks like every sentence is a spell finale, with sparkling arrogance and comic villain flair. Super dramatic, super fancy, never gravel-dwarf, never shy. Perfect audio quality.",
             },
         ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Speak.",
+                "Listening.",
+                "Magnificent.",
+            ],
+            // death yelps
+            "death": [
+                "Impossible!",
+                "My spell—!",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Ah!",
+                "Ow!",
+                "Tch!",
+                "Hn!",
+                "Oh!",
+            ],
+        },
+
     },
 }

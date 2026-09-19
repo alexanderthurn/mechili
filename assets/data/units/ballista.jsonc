@@ -54,5 +54,27 @@
                 "prompt": "A stern, mechanical siege-engineer male voice — tight, metallic, and obsessively precise. Speaks in clipped loading-bay commands with cold pride in big bolts. Super disciplined war-machine vibe, never goofy goblin, never soft. Perfect audio quality.",
             },
         ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Ready.",
+                "Target?",
+                "Bolt loaded.",
+            ],
+            // death yelps
+            "death": [
+                "Failure!",
+                "Crew!",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Ah!",
+                "Ow!",
+                "Ugh!",
+                "Hn!",
+                "Gah!",
+            ],
+        },
+
     },
 }

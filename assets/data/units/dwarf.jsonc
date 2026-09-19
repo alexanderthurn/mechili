@@ -30,5 +30,27 @@
                 "prompt": "A SUPER thick, ale-soaked male dwarf voice — booming belly laugh energy, proud to the point of absurdity. Heavy gravel, rolling R's, and stubborn bellowing like a pub anthem in human form. Loud, funny, unkillably confident, never whispery, never elegant. Perfect audio quality.",
             },
         ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Aye?",
+                "Ready!",
+                "For the clan!",
+            ],
+            // death yelps
+            "death": [
+                "Och!",
+                "Not today—!",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Ah!",
+                "Oof!",
+                "Gah!",
+                "Ow!",
+                "Ugh!",
+            ],
+        },
+
     },
 }

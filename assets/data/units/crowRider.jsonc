@@ -33,5 +33,27 @@
                 "prompt": "The crow itself speaking — a SUPER intelligent battle-bird voice, all harsh caws twisted into words. Raspy avian screech with wicked animal cunning, wingbeat rhythm in the cadence, gleefully cruel from the sky. Not a human rider; pure crow personality, chaotic and loud. Never soft human speech, never noble knight. Perfect audio quality.",
             },
         ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Caw?",
+                "Above!",
+                "We see you.",
+            ],
+            // death yelps
+            "death": [
+                "Caaaw—!",
+                "Falling!",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Caw!",
+                "Rak!",
+                "Krr!",
+                "Ah!",
+                "Skree!",
+            ],
+        },
+
     },
 }

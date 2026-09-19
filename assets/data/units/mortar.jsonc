@@ -49,5 +49,27 @@
                 "prompt": "A gravelly old siege-crew male voice — deaf from cannons, cheerfully pyromaniacal. Speaks loud and flat like shouting over explosions, loving every blast. Super industrial, super gallows-humor, never ethereal, never cute. Perfect audio quality.",
             },
         ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Loaded!",
+                "What?",
+                "Fire when ready.",
+            ],
+            // death yelps
+            "death": [
+                "Boom—wrong way!",
+                "Crew down!",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Ah!",
+                "Ow!",
+                "Gah!",
+                "Ugh!",
+                "Hey!",
+            ],
+        },
+
     },
 }

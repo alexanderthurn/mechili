@@ -47,5 +47,27 @@
                 "prompt": "A cold, crystalline techno-mage voice — glittering, inhuman, and beautifully cruel. Speaks with laser-clean diction and eerie calm, like light itself is judging you. Super sci-fantasy menace, never folksy, never booming ogre. Perfect audio quality.",
             },
         ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Aligned.",
+                "Speak.",
+                "I am listening.",
+            ],
+            // death yelps
+            "death": [
+                "Light… fails.",
+                "Refraction lost.",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Ah.",
+                "Oh.",
+                "Ih.",
+                "Tch.",
+                "Hn.",
+            ],
+        },
+
     },
 }

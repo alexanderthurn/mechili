@@ -44,5 +44,27 @@
                 "prompt": "An UNHOLY tiny-to-mid shrieking bat-creature voice — wet, fluttery, and nightmarishly gleeful. Speaks in skittering bursts with vampire-cartoon evil and comic hunger. Super creepy AND funny, never human-normal, never deep heroic. Perfect audio quality.",
             },
         ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Yesyes?",
+                "Hungry!",
+                "We fly!",
+            ],
+            // death yelps
+            "death": [
+                "Scree—!",
+                "Dark…!",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Eek!",
+                "Skree!",
+                "Ih!",
+                "Yip!",
+                "Ack!",
+            ],
+        },
+
     },
 }
