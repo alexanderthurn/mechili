@@ -134,6 +134,7 @@ import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
 import { itemSlotLimit } from './items';
+import { parseElementalId, RUNE_MAX_LEVEL } from './runeMix';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, registerOuterHeight, simGroundSupportAt, worldHeightAt } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
@@ -377,9 +378,9 @@ const CHEAT_TACTIC_GRANTS = [
 ] as const;
 /** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
 const CHEAT_TACTIC_COPIES = 1;
-/** Shift+U: max free base runes of each id in the left bag strip */
+/** Shift+U: max free L9 elemental runes of each mix in the left bag strip */
 const CHEAT_BASE_RUNE_COPIES = 1;
-/** Shift+U: max free advanced (and other) runes of each id in the left bag strip */
+/** Shift+U: max free advanced runes of each id in the left bag strip */
 const CHEAT_ADVANCED_RUNE_COPIES = 1;
 
 /** derives an independent, label-specific seed for a named rng stream */
@@ -1983,12 +1984,12 @@ export class Game {
                 return;
             }
             // Generals-style select bark: only on a fresh pack select (not re-click / carry)
-            if (
-                previous !== unit &&
-                unit.team === 'player' &&
-                !unit.type.structure
-            ) {
-                audio.playUnitSelect(unit.type.id);
+            if (previous !== unit) {
+                if (unit.type.id === 'stronghold') {
+                    this.playStrongholdSelectBark(unit.team);
+                } else if (unit.team === 'player' && !unit.type.structure) {
+                    audio.playUnitSelect(unit.type.id);
+                }
             }
             // buildings act through their details — auto-open the sheet (phone-only visual)
             if (unit.type.structure) this.hud.openUnitDetails();
@@ -2382,12 +2383,12 @@ export class Game {
             if (moved > 6) return;
             const next = this.pickActor(e);
             this.selectedActor = next;
-            if (
-                next &&
-                next.unit.team === 'player' &&
-                !next.unit.type.structure
-            ) {
-                audio.playUnitSelect(next.unit.type.id);
+            if (next) {
+                if (next.unit.type.id === 'stronghold') {
+                    this.playStrongholdSelectBark(next.unit.team);
+                } else if (next.unit.team === 'player' && !next.unit.type.structure) {
+                    audio.playUnitSelect(next.unit.type.id);
+                }
             }
         }) as EventListener);
 
@@ -3792,15 +3793,16 @@ export class Game {
 
     /**
      * SP cheat (Shift+U): top up free bag runes (left strip) for the human seat.
-     * Base runes fill to {@link CHEAT_BASE_RUNE_COPIES}; advanced/other to
-     * {@link CHEAT_ADVANCED_RUNE_COPIES}. Already-applied pack runes are ignored.
-     * Extra presses do not stack beyond the caps.
+     * Elemental: only max level ({@link RUNE_MAX_LEVEL}) of each mix — not L1–8.
+     * Advanced runes: one of each. Caps {@link CHEAT_BASE_RUNE_COPIES} /
+     * {@link CHEAT_ADVANCED_RUNE_COPIES}; extra presses do not stack past them.
      */
     private cheatGrantAllItems(): void {
         const bag = this.itemInventory[this.humanSeat]!;
-        const base = new Set<string>(this.types.baseRuneIds);
         for (const id of this.types.runes.keys()) {
-            const max = base.has(id) ? CHEAT_BASE_RUNE_COPIES : CHEAT_ADVANCED_RUNE_COPIES;
+            const elemental = parseElementalId(id);
+            if (elemental && elemental.level !== RUNE_MAX_LEVEL) continue;
+            const max = elemental ? CHEAT_BASE_RUNE_COPIES : CHEAT_ADVANCED_RUNE_COPIES;
             const have = bag.filter((x) => x === id).length;
             for (let i = have; i < max; i++) bag.push(id);
         }
@@ -4505,6 +4507,25 @@ export class Game {
     private starterCardOfSeat(seat: SeatId): StartCard | null {
         const id = this.commander[seat];
         return id ? this.types.commander(id) : null;
+    }
+
+    /**
+     * Stronghold click: bark from the first seat on that side with a real
+     * commander (2v2 → seat order; skips none / tutorial).
+     */
+    private playStrongholdSelectBark(team: BattleTeam): void {
+        if (team !== 'player' && team !== 'enemy') return;
+        for (const seat of seatIdsOf(this.seats, team)) {
+            const card = this.starterCardOfSeat(seat);
+            if (
+                card &&
+                card.id !== NO_COMMANDER_CARD_ID &&
+                card.speciality !== 'tutorial'
+            ) {
+                audio.playCommanderSelect(card.id);
+                return;
+            }
+        }
     }
 
     /** Forge spells buyable this round (a tutorial lesson narrows them per round). */
