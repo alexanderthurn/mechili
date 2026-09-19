@@ -190,6 +190,8 @@ const RAW = import.meta.glob(
         '../../assets/audio/unit_archer_1.ogg',
         '../../assets/audio/unit_archer_2.ogg',
         '../../assets/audio/unit_archer_3.ogg',
+        '../../assets/audio/unit_archer_death_1.ogg',
+        '../../assets/audio/unit_archer_death_2.ogg',
         '../../assets/audio/victory_1.ogg',
         '../../assets/fonts/Exo2-Variable.ttf',
         '../../assets/fonts/Marcellus-Regular.ttf',

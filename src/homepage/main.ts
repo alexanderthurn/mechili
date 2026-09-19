@@ -1200,7 +1200,7 @@ void preloadUnitVisuals().then(() => {
         viewer.show(showcaseModelKey(type), type.meshScale);
         statsEl.innerHTML = statsHtml(type);
         audio.unlock();
-        audio.playUnitSelect(id, { force: true });
+        audio.playUnitVoPreview(id);
     }
 
     function selectSpell(id: SpellAssetId): void {
@@ -1269,8 +1269,6 @@ if (specialistsSelect) {
         audio.playCommanderPick(specialistsSelect.value);
     });
 }
-void audio.preloadCommanderPicks();
-void audio.preloadUnitSelects();
 
 const musicSelect = document.getElementById('mh-music-select') as HTMLSelectElement | null;
 const musicPlay = document.getElementById('mh-music-play');

@@ -1,0 +1,49 @@
+---
+description: Melodan unit/commander voice-over — ElevenLabs v3 TTS, Voice Design, sparse Generals-style selects, death yelps
+alwaysApply: true
+---
+
+# Melodan VO (ElevenLabs)
+
+## Quota / variants
+
+- **Distinct lines OK** (e.g. 3 select lines: Yes? / What? / One shot…).
+- **Never** generate multiple takes of the *same* line (“variants”). One take per line.
+- Prefer regenerating only the line that changed.
+
+## TTS model (critical)
+
+- Always use **`model_id: "eleven_v3"`** — not `eleven_multilingual_v2`.
+- v2 drifts character (can sound like a different / more female voice) even with the same voice id.
+- Match UI defaults when regenerating: `stability: 0.5`, `similarity_boost: 0.75`.
+- Voice id from unit/commander jsonc `voice.externalIds[].id` (`type: "e"`). Never mix commander and unit voices (e.g. `melodan-archer` ≠ `melodan-unit-archer`).
+
+## Voice Design → permanent voice
+
+1. `POST /v1/text-to-voice/design` with jsonc `prompt` (preview text must be 100–1000 chars).
+2. Pick one preview → `POST /v1/text-to-voice` → save `voice_id` into jsonc.
+3. Delete old EL voice before redesigning to avoid duplicates.
+4. Design always returns ~3 previews (API); that is fine — still only **create one** voice and TTS one take per line.
+
+## Data / files
+
+- Lines live in `assets/data/units/<id>.jsonc` / `commanders/<id>.jsonc` → `voice.lines.pick|death|win`.
+- Ship Opus oggs: `assets/audio/unit_<id>_N.ogg`, `unit_<id>_death_N.ogg`, `commander_<id>.ogg`, `commander_<id>_win_N.ogg`.
+- Register cues + literal `assetUrl(...)` in `src/game/audio.ts`, then `npm run assets:manifest`.
+- Scratch bank: `misc/sfx/voice/` (gitignored). If the user gens in the ElevenLabs UI, copy from `~/Downloads` and convert — do not silently replace with a worse API take.
+
+## Gameplay wiring
+
+- **Select**: Generals-style — short acks, **sparse** (`playUnitSelect`: ~40% chance + ~2.2s cooldown). Homepage testing: `playUnitVoPreview` plays every select + death line in order.
+- **Lazy VO**: unit/commander clips are **not** boot-preloaded (homepage or match). Fetch+decode on first play / preview for that cue only — scales to a large roster.
+- Play select in **deploy** (`placement.onSelect`) and **battle** (mech `selectedActor` click).
+- **Death**: cue `unit_<id>_death`, spatial, alongside `death_unit` SFX via `playUnitDeath` in `spawnFromEvents`.
+- Shared VO: `stronghold-archer` → `archer` (`UNIT_VOICE_ALIAS` in `audio.ts`).
+
+## Ship encode
+
+```bash
+ffmpeg -y -i src.mp3 -af 'loudnorm=I=-16:TP=-1.5:LRA=8' -c:a libopus -b:a 64k assets/audio/NAME.ogg
+```
+
+API key: env `ELEVENLABS_API_KEY` only — never commit.

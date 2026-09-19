@@ -642,6 +642,12 @@
               "items": { "type": "string" },
               "minItems": 1,
               "description": "Short Generals-style select acknowledgements (Yes?/What?/character one-liners). Runtime plays sparsely, not every click."
+            },
+            "death": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1,
+              "description": "Short death yelps when this unit dies (Noo!/Uargh!). One take per line."
             }
           },
           "additionalProperties": false,

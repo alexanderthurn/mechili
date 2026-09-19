@@ -49,6 +49,7 @@
                 "What?",
                 "One shot, one opportunity",
             ],
+            "death": ["Noo!", "Uargh!"],
         },
     },
 }

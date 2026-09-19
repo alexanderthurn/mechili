@@ -120,6 +120,19 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_archer_death: {
+        paths: [
+            'audio/unit_archer_death_1.ogg',
+            'audio/unit_archer_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
     commander_addi: {
         paths: ['audio/commander_addi.ogg'],
         group: 'ui',
@@ -1287,6 +1300,8 @@ void [
     assetUrl('audio/unit_archer_1.ogg'),
     assetUrl('audio/unit_archer_2.ogg'),
     assetUrl('audio/unit_archer_3.ogg'),
+    assetUrl('audio/unit_archer_death_1.ogg'),
+    assetUrl('audio/unit_archer_death_2.ogg'),
     assetUrl('audio/victory_1.ogg'),
 ];
 
@@ -1304,6 +1319,8 @@ class AudioBus {
     /** Hazard / beam beds — same SFX volume pref, never time-scaled or ducked. */
     private loopBus!: GainNode;
     private buffers = new Map<string, AudioBuffer>();
+    /** In-flight fetches so parallel ensureCue / death storms share one decode. */
+    private inflightDecode = new Map<string, Promise<void>>();
     private voices: Voice[] = [];
     private voiceCount = new Map<string, number>();
     private listenerX = 0;
@@ -1332,6 +1349,8 @@ class AudioBus {
     private timeScale = 1;
     /** Wall clock of last {@link playUnitSelect} that actually fired a bark. */
     private lastUnitSelectAt = 0;
+    /** Bumps to cancel an in-flight homepage VO preview sequence. */
+    private unitPreviewGen = 0;
 
     /** Idempotent — call from first pointer/click and again at match start. */
     unlock(): void {
@@ -1346,7 +1365,7 @@ class AudioBus {
         return this.unlocked;
     }
 
-    /** Decode commander pick VO cues (homepage / pick overlay). */
+    /** Decode commander pick VO cues (optional — normally lazy on first play). */
     preloadCommanderPicks(): Promise<void> {
         const paths = new Set<string>();
         for (const [id, cue] of Object.entries(CUES)) {
@@ -1356,7 +1375,7 @@ class AudioBus {
         return this.decodeAll([...paths]);
     }
 
-    /** Decode unit select VO cues (homepage showcase preview). */
+    /** Decode unit VO cues (optional — normally lazy on first play). */
     preloadUnitSelects(): Promise<void> {
         const paths = new Set<string>();
         for (const [id, cue] of Object.entries(CUES)) {
@@ -1367,16 +1386,25 @@ class AudioBus {
     }
 
     /**
-     * Decode SFX/UI cue buffers. Music beds are lazy-loaded on
-     * {@link playMusic} so boot stays light.
+     * Decode SFX/UI cue buffers. Music beds and unit/commander VO are
+     * lazy-loaded on first play so boot (and a large VO roster) stay light.
      */
     preload(extraPaths: readonly string[] = []): Promise<void> {
         const paths = new Set<string>(extraPaths);
-        for (const cue of Object.values(CUES)) {
+        for (const [id, cue] of Object.entries(CUES)) {
             if (cue.group === 'music') continue;
+            if (id.startsWith('unit_') || id.startsWith('commander_')) continue;
             for (const p of cue.paths) paths.add(p);
         }
         return this.decodeAll([...paths]);
+    }
+
+    /** Decode one cue's paths (no-op if already buffered). */
+    private async ensureCue(cueId: string): Promise<boolean> {
+        const cue = CUES[cueId];
+        if (!cue) return false;
+        await this.decodeAll([...cue.paths]);
+        return true;
     }
 
     setListener(x: number, z: number): void {
@@ -1595,8 +1623,14 @@ class AudioBus {
     playCommanderPick(cardId: string): void {
         this.stopCommanderBarks();
         const cueId = `commander_${cardId}`;
-        if (CUES[cueId]) this.playUi(cueId);
-        else this.playUi('card_pick');
+        if (!CUES[cueId]) {
+            this.playUi('card_pick');
+            return;
+        }
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+            else this.playUi('card_pick');
+        });
     }
 
     /**
@@ -1607,27 +1641,105 @@ class AudioBus {
         const cueId = `commander_${cardId}_win`;
         if (!CUES[cueId]) return;
         this.stopCommanderBarks();
-        this.playUi(cueId);
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
     }
 
     /**
      * Unit pack select bark (Generals-style). Cue `unit_<typeId>`; aliases like
      * stronghold-archer → archer. Not every click: chance + cooldown so it
-     * stays funny instead of grating. Pass `{ force: true }` on the homepage
-     * to always play (preview / review).
+     * stays funny instead of grating. VO buffers load on first play.
      */
-    playUnitSelect(typeId: string, opts?: { force?: boolean }): void {
+    playUnitSelect(typeId: string): void {
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueId = `unit_${voiceId}`;
         if (!CUES[cueId]) return;
-        if (!opts?.force) {
-            const now = performance.now();
-            if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
-            if (Math.random() > UNIT_SELECT_CHANCE) return;
-            this.lastUnitSelectAt = now;
-        }
+        const now = performance.now();
+        if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
+        if (Math.random() > UNIT_SELECT_CHANCE) return;
+        this.lastUnitSelectAt = now;
         this.stopUnitBarks();
-        this.playUi(cueId);
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Homepage / testing: play every shipped select + death line for a unit
+     * in order (non-spatial UI), with a short gap. Loads only that unit's
+     * clips. Switching units cancels.
+     */
+    playUnitVoPreview(typeId: string): void {
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueIds = [`unit_${voiceId}`, `unit_${voiceId}_death`];
+        const queue: { cueId: string; path: string }[] = [];
+        for (const id of cueIds) {
+            const cue = CUES[id];
+            if (!cue) continue;
+            for (const path of cue.paths) queue.push({ cueId: id, path });
+        }
+        if (queue.length === 0) return;
+
+        this.stopUnitBarks();
+        const gen = ++this.unitPreviewGen;
+        const gapMs = 150;
+        const paths = queue.map((q) => q.path);
+
+        void this.decodeAll(paths).then(() => {
+            if (gen !== this.unitPreviewGen) return;
+            const playNext = (i: number) => {
+                if (gen !== this.unitPreviewGen) return;
+                if (i >= queue.length) return;
+                const item = queue[i]!;
+                const dur = this.playCuePathUi(item.cueId, item.path);
+                const waitMs = Math.max(200, (dur > 0 ? dur : 0.4) * 1000 + gapMs);
+                window.setTimeout(() => playNext(i + 1), waitMs);
+            };
+            playNext(0);
+        });
+    }
+
+    /**
+     * Play one specific cue path as UI (ignores spatial). Returns buffer
+     * duration in seconds, or 0 if it did not start.
+     */
+    private playCuePathUi(cueId: string, path: string): number {
+        if (!this.unlocked) this.unlock();
+        const cue = CUES[cueId];
+        if (!cue || !this.ctx) return 0;
+        if (prefs().audioMuted) return 0;
+        const buf = this.buffers.get(path);
+        if (!buf) return 0;
+
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        const gain = this.ctx.createGain();
+        gain.gain.value = cue.gain ?? 1;
+        src.connect(gain);
+        gain.connect(this.groups.ui);
+
+        const voice: Voice = { cueId, source: src, gain };
+        this.voices.push(voice);
+        this.voiceCount.set(cueId, (this.voiceCount.get(cueId) ?? 0) + 1);
+        src.onended = () => this.releaseVoice(voice);
+        try {
+            src.start(0);
+        } catch {
+            this.releaseVoice(voice);
+            return 0;
+        }
+        return buf.duration;
+    }
+
+    /** Spatial death yelp when a voiced unit dies — silent until that cue ships. */
+    playUnitDeath(typeId: string, worldX: number, worldZ: number): void {
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueId = `unit_${voiceId}_death`;
+        if (!CUES[cueId]) return;
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.play(cueId, worldX, worldZ);
+        });
     }
 
     /** Cut in-flight commander pick barks (hover preview / card change). */
@@ -1643,8 +1755,9 @@ class AudioBus {
         }
     }
 
-    /** Cut in-flight unit select barks. */
+    /** Cut in-flight unit select / preview barks. */
     stopUnitBarks(): void {
+        this.unitPreviewGen++;
         for (const v of [...this.voices]) {
             if (!v.cueId.startsWith('unit_')) continue;
             try {
@@ -2000,6 +2113,7 @@ class AudioBus {
                         if (cue) this.play(cue); // global — no spatial falloff
                     } else {
                         this.play(e.big ? 'death_unit_big' : 'death_unit', e.x, e.z);
+                        if (e.unitTypeId) this.playUnitDeath(e.unitTypeId, e.x, e.z);
                     }
                     break;
                 case 'strongholdCollapse':
@@ -2093,14 +2207,23 @@ class AudioBus {
         await Promise.all(
             paths.map(async (path) => {
                 if (this.buffers.has(path)) return;
-                try {
-                    const res = await fetch(assetUrl(path));
-                    const raw = await res.arrayBuffer();
-                    const buf = await this.ctx!.decodeAudioData(raw.slice(0));
-                    this.buffers.set(path, buf);
-                } catch (err) {
-                    console.warn(`[audio] failed to load ${path}`, err);
+                let inflight = this.inflightDecode.get(path);
+                if (!inflight) {
+                    inflight = (async () => {
+                        try {
+                            const res = await fetch(assetUrl(path));
+                            const raw = await res.arrayBuffer();
+                            const buf = await this.ctx!.decodeAudioData(raw.slice(0));
+                            this.buffers.set(path, buf);
+                        } catch (err) {
+                            console.warn(`[audio] failed to load ${path}`, err);
+                        } finally {
+                            this.inflightDecode.delete(path);
+                        }
+                    })();
+                    this.inflightDecode.set(path, inflight);
                 }
+                await inflight;
             }),
         );
     }
