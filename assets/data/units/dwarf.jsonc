@@ -23,4 +23,12 @@
     "talents": ["legs", "armor", "bloodRage", "looseRank", "blightburst"],
     "talentSlots": 4,
     "itemSlots": 2,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A SUPER thick, ale-soaked male dwarf voice — booming belly laugh energy, proud to the point of absurdity. Heavy gravel, rolling R's, and stubborn bellowing like a pub anthem in human form. Loud, funny, unkillably confident, never whispery, never elegant. Perfect audio quality.",
+            },
+        ],
+    },
 }

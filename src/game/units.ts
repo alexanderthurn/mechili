@@ -17,6 +17,7 @@ import { techBlurb, techName, unitName, t } from '../i18n';
 import { THEME } from '../theme';
 import { BASE_PACK } from './content/basePack';
 import { TypeRegistry } from './content/typeRegistry';
+import type { EntityVoice } from './cards';
 import type { BurnAffinity, FireProfile } from './fire';
 import { detAtan2 } from './detMath';
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
@@ -721,6 +722,11 @@ export interface UnitType {
     talentSlots?: number;
     /** how many runes a pack of this type can carry (default 2) */
     itemSlots?: number;
+    /**
+     * Spoken VO casting (authoring / future gen). Runtime still plays shipped
+     * cues; `externalIds` + `prompt` are for Voice Design / TTS tools.
+     */
+    voice?: EntityVoice;
     /** immune to poison-cloud spells (default: affected) */
     poisonImmune?: boolean;
     /** combat stats, per individual mech */

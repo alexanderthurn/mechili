@@ -11,7 +11,13 @@
     "effects": { "flankSpawnMult": 0.5 },
     "description": "First-time flank spawns take half the time.",
     "voice": {
-        "externalIds": [{ "type": "e", "id": "EXAVITQu4vr4xnSDxMaL" }],
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "uImW7hAsZrdW5Qdni9da",
+                "prompt": "A low, close, conspiratorial adult voice — soft-spoken and androgynous-leaning female. Quiet intimacy, almost a stage whisper with a sly smile; shadows and side doors in the tone. Speaks lightly and quickly, never booming, never lecturing. Stealthy amusement, as if sharing a secret you should not hear. Perfect audio quality.",
+            },
+        ],
         "lines": {
             "pick": ["They’ll never see us coming."],
         },

@@ -40,4 +40,12 @@
     // standard talents for The Komtur's side
     "talents": ["ap", "armor"],
     "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A LEGENDARY cursed knight-commander voice — aristocratic German-steel male, thunderous and apocalyptically proud. Speaks like a flying executioner-saint of the forest, absolute evil wrapped in honor. Super boss, super terrifying, never silly, never soft. Perfect audio quality.",
+            },
+        ],
+    },
 }

@@ -11,7 +11,13 @@
     "effects": { "speedBonus": 3 },
     "description": "All units move +3 faster.",
     "voice": {
-        "externalIds": [{ "type": "e", "id": "AZnzlk1XvdvUeBnXmlld" }],
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "9xXOm2Bu3eRZKyQ9gThR",
+                "prompt": "A sharp, impatient adult female voice — a widow who moves faster than everyone else. Bright mid-high tone, clipped consonants, almost no pause between thoughts. Cool, dry, and slightly lethal amusement; she sounds like she is already leaving while she talks. Not soft, not motherly, not breathy. Perfect audio quality.",
+            },
+        ],
         "lines": {
             "pick": ["Speed is the name of the game."],
         },

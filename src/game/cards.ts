@@ -239,14 +239,17 @@ export type VoiceLineEvent = 'pick';
 /** One provider voice binding — `type: "e"` = ElevenLabs. */
 export interface VoiceExternalId {
     type: VoiceProviderType;
-    id: string;
+    /** Provider voice id; omit until Voice Design has created one. */
+    id?: string;
+    /** Voice-design prompt used to create this id; omit for stock library voices. */
+    prompt?: string;
 }
 
 export interface EntityVoice {
     /** Provider voice ids used by regen / casting tools. */
     externalIds: VoiceExternalId[];
     /** English (and future locale-overridable) line pools per event. */
-    lines: Partial<Record<VoiceLineEvent, string[]>>;
+    lines?: Partial<Record<VoiceLineEvent, string[]>>;
 }
 
 /** atlas icons for a specialist's forge spell row */

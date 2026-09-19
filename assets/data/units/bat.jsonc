@@ -37,4 +37,12 @@
     "proceduralModel": "bat",
     "talents": ["legs", "ap", "aegis", "galeGate", "regeneration", "bloodfeast", "carrionFeast", "blightburst", "ruinousEnd"],
     "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "An UNHOLY tiny-to-mid shrieking bat-creature voice — wet, fluttery, and nightmarishly gleeful. Speaks in skittering bursts with vampire-cartoon evil and comic hunger. Super creepy AND funny, never human-normal, never deep heroic. Perfect audio quality.",
+            },
+        ],
+    },
 }

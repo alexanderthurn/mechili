@@ -32,4 +32,12 @@
     // standard talents for The Komtur's side (Dark Harvest stays innate)
     "talents": ["bloodRage", "armor"],
     "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A tragic-comic undead farmer voice — rural drawl warped by death, polite and wrong. Speaks like offering crops while dripping grave dirt, darkly funny and deeply cursed. Super uncanny valley humor-horror. Perfect audio quality.",
+            },
+        ],
+    },
 }

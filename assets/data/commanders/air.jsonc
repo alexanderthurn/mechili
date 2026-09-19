@@ -13,7 +13,13 @@
     "effects": { "flyingBonus": 0.12 },
     "description": "Air units get +12% attack and HP.",
     "voice": {
-        "externalIds": [{ "type": "e", "id": "pNInz6obpgDQGcFmaJgB" }],
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "CE83v7DRHPbaL5CfkPej",
+                "prompt": "A light, airy male voice of a middle-aged sky mage. Soft high-chest resonance with a whisper of wind in the tone — floating, elegant, and a little theatrical. Speaks at a calm measured pace with a lofty, amused confidence, as if looking down from the clouds. Not gravelly, not booming; ethereal and precise. Perfect audio quality.",
+            },
+        ],
         "lines": {
             "pick": ["The sky envies you."],
         },

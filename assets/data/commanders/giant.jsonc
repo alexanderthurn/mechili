@@ -11,7 +11,13 @@
     "effects": { "unlockDiscount": { "from": 200, "amount": 200 } },
     "description": "Shop unlocks of 200+ cost 200 less.",
     "voice": {
-        "externalIds": [{ "type": "e", "id": "XrExE9yKIg1WjnnlVkGX" }],
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "oD4QziMCqRTcngogI8bg",
+                "prompt": "A rich, ample adult female voice of a pleasure-loving countess. Warm low-mid tone with a languid, luxurious smile in it — big appetite, bigger bargains. Speaks unhurried, savoring words, amused and indulgent rather than sharp. Soft velvet authority, never shrill, never whispery stealth. Perfect audio quality.",
+            },
+        ],
         "lines": {
             "pick": ["Big shop, bigger bargains."],
         },

@@ -34,4 +34,12 @@
     // Breakthrough pivots
     "talents": ["whirlwind", "bloodRage", "armor", "regeneration", "bloodfeast", "carrionFeast", "ruinousEnd"],
     "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A GIGANTIC stupid-powerful male ogre voice — mountain-deep, wet, and hilariously blunt. Speaks with slow meaty enthusiasm, like violence is a snack. Booming, dumb, delightful, and slightly wet-mouthed. Ultra strong and ultra funny, never clever, never quiet. Perfect audio quality.",
+            },
+        ],
+    },
 }

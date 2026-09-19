@@ -41,4 +41,12 @@
     // standard talents for The Komtur's side (Spider Mother stays innate)
     "talents": ["barrel", "armor"],
     "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A MONSTROUS spider-mother voice — vast, wet, and exquisitely evil. Slow hissing female menace with silk-and-venom luxury, savoring fear. Super villainous, super patient, never funny goblin energy. Perfect audio quality.",
+            },
+        ],
+    },
 }

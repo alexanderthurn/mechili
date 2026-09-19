@@ -33,4 +33,12 @@
     ],
     "talentSlots": 4,
     "itemSlots": 2,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A razor-sharp adult male sniper voice — ice-cold precision with deadly swagger. Every syllable is an aimed shot: crisp, clipped, supremely confident. Super cool, slightly arrogant, zero panic. Lean and lethal, never soft, never booming ogre, never squeaky. Perfect audio quality.",
+            },
+        ],
+    },
 }

@@ -42,4 +42,12 @@
     // range / fire rate / damage / splash / fire / emp — artillery pivots
     "talents": ["barrel", "autoloader", "ap", "fireArrows", "empArrows"],
     "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A gravelly old siege-crew male voice — deaf from cannons, cheerfully pyromaniacal. Speaks loud and flat like shouting over explosions, loving every blast. Super industrial, super gallows-humor, never ethereal, never cute. Perfect audio quality.",
+            },
+        ],
+    },
 }

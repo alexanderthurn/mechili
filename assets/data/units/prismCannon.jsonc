@@ -40,4 +40,12 @@
     "proceduralModel": "mortar",
     "talents": ["barrel", "armor", "massBinding", "bloodfeast"],
     "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A cold, crystalline techno-mage voice — glittering, inhuman, and beautifully cruel. Speaks with laser-clean diction and eerie calm, like light itself is judging you. Super sci-fantasy menace, never folksy, never booming ogre. Perfect audio quality.",
+            },
+        ],
+    },
 }

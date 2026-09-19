@@ -104,10 +104,14 @@
         },
         "id": {
           "type": "string",
-          "description": "Provider voice id"
+          "description": "Provider voice id. Omit until Voice Design has created one."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Voice-design prompt used to create this id (Instant Voice Design / casting bible). Omit for stock library voices."
         }
       },
-      "required": ["type", "id"],
+      "required": ["type"],
       "additionalProperties": false
     },
     "EntityVoice": {
@@ -133,7 +137,7 @@
           "description": "English line pools per event; locales may override via commanders:<id>.voice.<event>"
         }
       },
-      "required": ["externalIds", "lines"],
+      "required": ["externalIds"],
       "additionalProperties": false
     },
     "SpecialityId": {

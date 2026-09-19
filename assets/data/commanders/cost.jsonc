@@ -11,7 +11,13 @@
     "effects": { "unitStatsBonus": -0.12, "incomePerRound": 100 },
     "description": "All units −12% attack and HP, but +100 supply every round.",
     "voice": {
-        "externalIds": [{ "type": "e", "id": "CYw3kZ02Hs0563khs1Fj" }],
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "tpO01qLit4MsV2iVhB6k",
+                "prompt": "A bright, sly young-adult male voice of a bargain-obsessed prince. Slightly nasal smirk, crisp diction, and a greedy little lilt on money words. Speaks quickly and clipped, like a merchant counting coins mid-sentence — charming, cheap, and pleased with himself. Not deep or noble; street-smart royalty. Perfect audio quality.",
+            },
+        ],
         "lines": {
             "pick": ["Cheap troops, rich pockets."],
         },

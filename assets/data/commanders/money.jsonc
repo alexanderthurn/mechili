@@ -11,7 +11,13 @@
     "effects": { "roundOneSupply": 200 },
     "description": "+200 supply in round 1.",
     "voice": {
-        "externalIds": [{ "type": "e", "id": "XB0fDUnXU5powFXDhCwa" }],
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "HAykpTv9QU7ateOgylp0",
+                "prompt": "A glamorous adult female voice of a gold-obsessed queen. Smooth silk mid-tone with a cool, glittering confidence — every line sounds like a transaction closing. Speaks with elegant pace and lightly drawn-out vowels on wealth words. Sophisticated, mercenary charm; not frantic, not folksy, not gravelly. Perfect audio quality.",
+            },
+        ],
         "lines": {
             "pick": ["Gold first, glory later."],
         },

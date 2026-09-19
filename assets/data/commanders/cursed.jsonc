@@ -13,4 +13,16 @@
     "forgeSpells": ["spawnDwarves", "poisonCloud", "hammerOfGods"],
     "effects": { "unitEachRound": "hordeBrutSpawn" },
     "description": "Gets one free Black Brood spider each round.",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "87fCqQ1EVv8yRDLiurWR",
+                "prompt": "A haunted adult female voice of a cursed forest noble. Thin cold mid-tone with a soft echo of sorrow and malice — elegant, damaged, quietly dangerous. Speaks slowly with uneven pauses, as if listening to something unseen. Not cute, not booming; gothic intimacy and spider-silk menace. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            "pick": ["One more spider for the brood."],
+        },
+    },
 }

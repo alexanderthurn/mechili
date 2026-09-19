@@ -36,4 +36,12 @@
     // standard talents for The Komtur's side
     "talents": ["barrel", "ap", "autoloader"],
     "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A sly, whispering web-assassin voice — thin, venomous, and wickedly amused. Speaks close and intimate like a trap closing, with cruel delight. Super sneaky evil, never booming, never dumb ogre. Perfect audio quality.",
+            },
+        ],
+    },
 }
