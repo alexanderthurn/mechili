@@ -220,6 +220,33 @@ export interface StartCard {
      */
     forgeSpells: string[];
     description: string;
+    /**
+     * Spoken VO casting + lines (authoring / future gen). Runtime still plays
+     * shipped cues; `externalIds` are for regen tools.
+     */
+    voice?: EntityVoice;
+}
+
+/**
+ * Provider-agnostic spoken voice block (commanders now; units/spells later).
+ * English lines live here as regen defaults; locales may override via i18n.
+ */
+export type VoiceProviderType = 'e';
+
+/** Spoken bark events — expand as select / death / scream land. */
+export type VoiceLineEvent = 'pick';
+
+/** One provider voice binding — `type: "e"` = ElevenLabs. */
+export interface VoiceExternalId {
+    type: VoiceProviderType;
+    id: string;
+}
+
+export interface EntityVoice {
+    /** Provider voice ids used by regen / casting tools. */
+    externalIds: VoiceExternalId[];
+    /** English (and future locale-overridable) line pools per event. */
+    lines: Partial<Record<VoiceLineEvent, string[]>>;
 }
 
 /** atlas icons for a specialist's forge spell row */

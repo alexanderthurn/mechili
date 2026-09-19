@@ -12,4 +12,10 @@
     "forgeSpells": ["fireSpill", "spawnCrows", "dragonAttack"],
     "effects": { "flyingBonus": 0.12 },
     "description": "Air units get +12% attack and HP.",
+    "voice": {
+        "externalIds": [{ "type": "e", "id": "pNInz6obpgDQGcFmaJgB" }],
+        "lines": {
+            "pick": ["The sky envies you."],
+        },
+    },
 }

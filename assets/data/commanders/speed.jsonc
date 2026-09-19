@@ -10,4 +10,10 @@
     "forgeSpells": ["oilSpill", "spawnCrows", "dragonAttack"],
     "effects": { "speedBonus": 3 },
     "description": "All units move +3 faster.",
+    "voice": {
+        "externalIds": [{ "type": "e", "id": "AZnzlk1XvdvUeBnXmlld" }],
+        "lines": {
+            "pick": ["Speed is the name of the game."],
+        },
+    },
 }

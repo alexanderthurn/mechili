@@ -150,6 +150,20 @@ export function commanderUnitsLabel(id: string, fallback?: string): string {
     return t(`commanders:${id}.unitsLabel`, { defaultValue: fallback ?? '' });
 }
 
+/**
+ * Spoken VO line for a commander event. English lives in commander jsonc
+ * (`voice.lines`); locales may override via `commanders:<id>.voice.<event>`.
+ * Provider bindings live in `voice.externalIds`. Returns '' when neither is set.
+ */
+export function commanderVoiceLine(
+    id: string,
+    event: string,
+    fallbacks?: readonly string[] | null,
+): string {
+    const fallback = fallbacks?.[0] ?? '';
+    return t(`commanders:${id}.voice.${event}`, { defaultValue: fallback });
+}
+
 export function roundCardTitle(id: string, fallback?: string): string {
     const fromItem = t(`items:${id}.name`, { defaultValue: '' });
     if (fromItem) return fromItem;

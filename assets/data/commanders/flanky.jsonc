@@ -10,4 +10,10 @@
     "forgeSpells": ["spawnDwarves", "poisonCloud", "meteorShower"],
     "effects": { "flankSpawnMult": 0.5 },
     "description": "First-time flank spawns take half the time.",
+    "voice": {
+        "externalIds": [{ "type": "e", "id": "EXAVITQu4vr4xnSDxMaL" }],
+        "lines": {
+            "pick": ["They’ll never see us coming."],
+        },
+    },
 }

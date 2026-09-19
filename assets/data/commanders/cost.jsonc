@@ -10,4 +10,10 @@
     "forgeSpells": ["oilSpill", "poisonCloud", "dragonAttack"],
     "effects": { "unitStatsBonus": -0.12, "incomePerRound": 100 },
     "description": "All units −12% attack and HP, but +100 supply every round.",
+    "voice": {
+        "externalIds": [{ "type": "e", "id": "CYw3kZ02Hs0563khs1Fj" }],
+        "lines": {
+            "pick": ["Cheap troops, rich pockets."],
+        },
+    },
 }

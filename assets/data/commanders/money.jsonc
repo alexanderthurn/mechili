@@ -10,4 +10,10 @@
     "forgeSpells": ["oilSpill", "storm", "dragonAttack"],
     "effects": { "roundOneSupply": 200 },
     "description": "+200 supply in round 1.",
+    "voice": {
+        "externalIds": [{ "type": "e", "id": "XB0fDUnXU5powFXDhCwa" }],
+        "lines": {
+            "pick": ["Gold first, glory later."],
+        },
+    },
 }

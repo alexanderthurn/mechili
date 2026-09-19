@@ -11,4 +11,10 @@
     "tacticsRound": 1,
     "forgeSpells": ["fireSpill", "storm", "meteorShower"],
     "description": "Starts with one Field Lesson.",
+    "voice": {
+        "externalIds": [{ "type": "e", "id": "pFZP5JQG7iQjIQuC4Bku" }],
+        "lines": {
+            "pick": ["Correct choice, now take notes!"],
+        },
+    },
 }

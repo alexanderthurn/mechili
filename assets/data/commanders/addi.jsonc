@@ -10,4 +10,10 @@
     "items": ["addi", "addi", "addi"],
     "forgeSpells": ["oilSpill", "acidSpill", "hammerOfGods"],
     "description": "Gets 3× Valor rune in round 1.",
+    "voice": {
+        "externalIds": [{ "type": "e", "id": "3mhloqFs4e2R6lsNG9MJ" }],
+        "lines": {
+            "pick": ["The relics need you."],
+        },
+    },
 }

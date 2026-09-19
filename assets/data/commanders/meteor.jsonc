@@ -10,4 +10,10 @@
     "tactics": ["bigMeteor", "bigMeteor"],
     "forgeSpells": ["fireSpill", "bigMeteor", "meteorShower"],
     "description": "Gets 2 Meteor charges in round 2.",
+    "voice": {
+        "externalIds": [{ "type": "e", "id": "N2lVS1w4EtoT3dr4eOWO" }],
+        "lines": {
+            "pick": ["Let’s drop some rocks!"],
+        },
+    },
 }

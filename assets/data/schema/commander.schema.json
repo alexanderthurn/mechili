@@ -75,6 +75,10 @@
         },
         "description": {
           "type": "string"
+        },
+        "voice": {
+          "$ref": "#/definitions/EntityVoice",
+          "description": "Spoken VO casting + English line pools (regen / future on-the-fly). Runtime plays shipped audio cues."
         }
       },
       "required": [
@@ -88,6 +92,48 @@
         "forgeSpells",
         "description"
       ],
+      "additionalProperties": false
+    },
+    "VoiceExternalId": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["e"],
+          "description": "Voice provider code — e = ElevenLabs"
+        },
+        "id": {
+          "type": "string",
+          "description": "Provider voice id"
+        }
+      },
+      "required": ["type", "id"],
+      "additionalProperties": false
+    },
+    "EntityVoice": {
+      "type": "object",
+      "properties": {
+        "externalIds": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/VoiceExternalId" },
+          "minItems": 1,
+          "description": "Provider voice bindings for regen / casting tools"
+        },
+        "lines": {
+          "type": "object",
+          "properties": {
+            "pick": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1,
+              "description": "Lines spoken when the commander is picked"
+            }
+          },
+          "additionalProperties": false,
+          "description": "English line pools per event; locales may override via commanders:<id>.voice.<event>"
+        }
+      },
+      "required": ["externalIds", "lines"],
       "additionalProperties": false
     },
     "SpecialityId": {

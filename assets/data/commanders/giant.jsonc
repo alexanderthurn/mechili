@@ -10,4 +10,10 @@
     "forgeSpells": ["spawnDwarves", "bigMeteor", "hammerOfGods"],
     "effects": { "unlockDiscount": { "from": 200, "amount": 200 } },
     "description": "Shop unlocks of 200+ cost 200 less.",
+    "voice": {
+        "externalIds": [{ "type": "e", "id": "XrExE9yKIg1WjnnlVkGX" }],
+        "lines": {
+            "pick": ["Big shop, bigger bargains."],
+        },
+    },
 }

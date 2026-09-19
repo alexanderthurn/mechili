@@ -10,4 +10,10 @@
     "forgeSpells": ["fireSpill", "spawnCrows", "hammerOfGods"],
     "effects": { "recruitLevel": 2, "roundOneSupply": 100 },
     "description": "Recruiting at level 2. +100 supply in round 1.",
+    "voice": {
+        "externalIds": [{ "type": "e", "id": "onwK4e9ZLuTAKqWW03F9" }],
+        "lines": {
+            "pick": ["Quality over quantity."],
+        },
+    },
 }
