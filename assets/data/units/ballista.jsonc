@@ -51,6 +51,7 @@
         "externalIds": [
             {
                 "type": "e",
+                "id": "qlhWynvapzGSKEV89z6y",
                 "prompt": "A stern, mechanical siege-engineer male voice — tight, metallic, and obsessively precise. Speaks in clipped loading-bay commands with cold pride in big bolts. Super disciplined war-machine vibe, never goofy goblin, never soft. Perfect audio quality.",
             },
         ],
@@ -61,10 +62,10 @@
                 "Target?",
                 "Bolt loaded.",
             ],
-            // death yelps
+            // death yelps (strained / breaking — not calm command tone)
             "death": [
-                "Failure!",
-                "Crew!",
+                "Failure…!",
+                "Crew…!",
             ],
             // hit flinches — one syllable
             "hurt": [
