@@ -648,6 +648,12 @@
               "items": { "type": "string" },
               "minItems": 1,
               "description": "Short death yelps when this unit dies (Noo!/Uargh!). One take per line."
+            },
+            "hurt": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1,
+              "description": "Ultra-short hit flinches (Ah!/Ow!). One syllable; played near-field on flesh impacts."
             }
           },
           "additionalProperties": false,

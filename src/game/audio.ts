@@ -43,6 +43,8 @@ const SPATIAL_MAX = 34;
 const UNIT_SELECT_CHANCE = 1;
 /** Min wall-clock gap between unit select barks. */
 const UNIT_SELECT_COOLDOWN_MS = 2200;
+/** Min wall-clock gap between unit hurt yelps (global — packs don't chorus). */
+const UNIT_HURT_COOLDOWN_MS = 450;
 /** Unit types that share another type's VO cue (e.g. stronghold archer → archer). */
 const UNIT_VOICE_ALIAS: Record<string, string> = {
     'stronghold-archer': 'archer',
@@ -132,6 +134,25 @@ const CUES: Record<string, CueDef> = {
         maxDistance: SPATIAL_MAX,
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.85,
+    },
+    unit_archer_hurt: {
+        paths: [
+            'audio/unit_archer_hurt_1.ogg',
+            'audio/unit_archer_hurt_2.ogg',
+            'audio/unit_archer_hurt_3.ogg',
+            'audio/unit_archer_hurt_4.ogg',
+            'audio/unit_archer_hurt_5.ogg',
+            'audio/unit_archer_hurt_6.ogg',
+            'audio/unit_archer_hurt_7.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        // near-field only — silent across the board
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
     },
     commander_addi: {
         paths: ['audio/commander_addi.ogg'],
@@ -1302,6 +1323,13 @@ void [
     assetUrl('audio/unit_archer_3.ogg'),
     assetUrl('audio/unit_archer_death_1.ogg'),
     assetUrl('audio/unit_archer_death_2.ogg'),
+    assetUrl('audio/unit_archer_hurt_1.ogg'),
+    assetUrl('audio/unit_archer_hurt_2.ogg'),
+    assetUrl('audio/unit_archer_hurt_3.ogg'),
+    assetUrl('audio/unit_archer_hurt_4.ogg'),
+    assetUrl('audio/unit_archer_hurt_5.ogg'),
+    assetUrl('audio/unit_archer_hurt_6.ogg'),
+    assetUrl('audio/unit_archer_hurt_7.ogg'),
     assetUrl('audio/victory_1.ogg'),
 ];
 
@@ -1323,6 +1351,8 @@ class AudioBus {
     private inflightDecode = new Map<string, Promise<void>>();
     private voices: Voice[] = [];
     private voiceCount = new Map<string, number>();
+    /** Last path played per cue — avoid immediate repeats when a cue has variants. */
+    private lastCuePath = new Map<string, string>();
     private listenerX = 0;
     private listenerZ = 0;
     private unlocked = false;
@@ -1349,6 +1379,8 @@ class AudioBus {
     private timeScale = 1;
     /** Wall-clock of last unit select bark that actually fired. */
     private lastUnitSelectAt = 0;
+    /** Wall-clock of last unit hurt yelp that actually fired. */
+    private lastUnitHurtAt = 0;
     /** Bumps to cancel an in-flight homepage VO preview sequence. */
     private unitPreviewGen = 0;
 
@@ -1490,7 +1522,7 @@ class AudioBus {
             if (distXZ(worldX, worldZ, this.listenerX, this.listenerZ) > maxD) return false;
         }
 
-        const path = cue.paths[(Math.random() * cue.paths.length) | 0]!;
+        const path = this.pickCuePath(cueId, cue);
         const buf = this.buffers.get(path);
         if (!buf) return false;
 
@@ -1524,6 +1556,7 @@ class AudioBus {
         const voice: Voice = { cueId, source: src, gain, panner };
         this.voices.push(voice);
         this.voiceCount.set(cueId, (this.voiceCount.get(cueId) ?? 0) + 1);
+        this.lastCuePath.set(cueId, path);
 
         src.onended = () => this.releaseVoice(voice);
         try {
@@ -1533,6 +1566,23 @@ class AudioBus {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Pick a variant path for a cue. With 2+ paths, never immediately
+     * re-play the last one (random among the rest). Single-path cues unchanged.
+     */
+    private pickCuePath(cueId: string, cue: CueDef): string {
+        const paths = cue.paths;
+        if (paths.length <= 1) return paths[0]!;
+        const last = this.lastCuePath.get(cueId);
+        let pick = paths[(Math.random() * paths.length) | 0]!;
+        if (pick === last) {
+            // re-roll among the others
+            const others = paths.filter((p) => p !== last);
+            pick = others[(Math.random() * others.length) | 0]!;
+        }
+        return pick;
     }
 
     /**
@@ -1674,14 +1724,14 @@ class AudioBus {
     }
 
     /**
-     * Homepage / testing: play every shipped select + death line for a unit
-     * in order (non-spatial UI), with a short gap. Loads only that unit's
+     * Homepage / testing: play every shipped select + death + hurt line for a
+     * unit in order (non-spatial UI), with a short gap. Loads only that unit's
      * clips. Switching units cancels.
      */
     playUnitVoPreview(typeId: string): void {
         if (!this.voicesOn()) return;
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
-        const cueIds = [`unit_${voiceId}`, `unit_${voiceId}_death`];
+        const cueIds = [`unit_${voiceId}`, `unit_${voiceId}_death`, `unit_${voiceId}_hurt`];
         const queue: { cueId: string; path: string }[] = [];
         for (const id of cueIds) {
             const cue = CUES[id];
@@ -1747,6 +1797,27 @@ class AudioBus {
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueId = `unit_${voiceId}_death`;
         if (!CUES[cueId]) return;
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.play(cueId, worldX, worldZ);
+        });
+    }
+
+    /**
+     * Short hurt yelp on a flesh hit. Near-field only (cue maxDistance) +
+     * global cooldown so packs don't chorus. Silent until that unit's cue ships.
+     */
+    playUnitHurt(typeId: string, worldX: number, worldZ: number): void {
+        if (!this.voicesOn()) return;
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueId = `unit_${voiceId}_hurt`;
+        if (!CUES[cueId]) return;
+        const now = performance.now();
+        if (now - this.lastUnitHurtAt < UNIT_HURT_COOLDOWN_MS) return;
+        // Early distance cull before ensureCue — don't wake buffers for far hits.
+        const cue = CUES[cueId]!;
+        const maxD = cue.maxDistance ?? SPATIAL_MAX;
+        if (distXZ(worldX, worldZ, this.listenerX, this.listenerZ) > maxD) return;
+        this.lastUnitHurtAt = now;
         void this.ensureCue(cueId).then((ok) => {
             if (ok) this.play(cueId, worldX, worldZ);
         });
@@ -2103,6 +2174,7 @@ class AudioBus {
                     break;
                 case 'impact':
                     this.play(impactCue(e), e.x, e.z);
+                    if (e.flesh && e.unitTypeId) this.playUnitHurt(e.unitTypeId, e.x, e.z);
                     break;
                 case 'explosion':
                     this.play(

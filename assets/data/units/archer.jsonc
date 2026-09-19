@@ -50,6 +50,8 @@
                 "One shot, one opportunity",
             ],
             "death": ["Noo!", "Uargh!"],
+            // hit flinch — one syllable each (near-field on flesh impacts)
+            "hurt": ["Ah!", "Ow!", "Eh!", "Ih!", "Oh!", "Uh!", "Auw!"],
         },
     },
 }

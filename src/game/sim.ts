@@ -641,6 +641,8 @@ export type SimEvent =
           ward?: boolean;
           /** Melee contact (vs projectile) — drives melee_hit SFX. */
           melee?: boolean;
+          /** Flesh victim {@link UnitType.id} — drives unit hurt VO when set. */
+          unitTypeId?: string;
       }
     /** Melee swing windup / instant swing start (render SFX). */
     | { kind: 'meleeSwing'; x: number; y: number; z: number }
@@ -1957,6 +1959,7 @@ export class BattleSim {
             blood: bloodColorOf(target.unit.type),
             flesh: resolveDeathWear(target.unit.type) === 'blood',
             masonry: !!target.unit.type.structure,
+            unitTypeId: target.unit.type.structure ? undefined : target.unit.type.id,
             cx: target.unit.type.structure ? target.x : undefined,
             cz: target.unit.type.structure ? target.z : undefined,
             dx: nx,
@@ -2424,6 +2427,7 @@ export class BattleSim {
                 blood: bloodColorOf(air.unit.type),
                 flesh: resolveDeathWear(air.unit.type) === 'blood',
                 masonry: !!air.unit.type.structure,
+                unitTypeId: air.unit.type.structure ? undefined : air.unit.type.id,
                 dx: adx / ad,
                 dy: 0,
                 dz: adz / ad,
@@ -5736,6 +5740,7 @@ export class BattleSim {
                         blood: bloodColorOf(hit.unit.type),
                         flesh: resolveDeathWear(hit.unit.type) === 'blood',
                         masonry: !!hit.unit.type.structure,
+                        unitTypeId: hit.unit.type.structure ? undefined : hit.unit.type.id,
                         cx: hit.unit.type.structure ? hit.x : undefined,
                         cz: hit.unit.type.structure ? hit.z : undefined,
                         dx: sx / slen,
@@ -6004,6 +6009,7 @@ export class BattleSim {
                 blood: bloodColorOf(hit.unit.type),
                 flesh: resolveDeathWear(hit.unit.type) === 'blood',
                 masonry: !!hit.unit.type.structure,
+                unitTypeId: hit.unit.type.structure ? undefined : hit.unit.type.id,
                 cx: hit.unit.type.structure ? hit.x : undefined,
                 cz: hit.unit.type.structure ? hit.z : undefined,
                 dx: p.vx / slen,
