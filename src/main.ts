@@ -145,6 +145,8 @@ import {
     MONEY_FACTOR_OPTIONS,
     START_MONEY_OPTIONS,
     commanderHpFactorOption,
+    commanderHpOptionById,
+    commanderHpSelectId,
     customGamePaceById,
     formatCommanderHpFactorOption,
     formatCustomGamePaceOption,
@@ -154,6 +156,7 @@ import {
     moneyFactorOption,
     startMoneyOption,
     resolveCommanderHpFactor,
+    resolveFixedSideHp,
     resolveMoneyFactor,
     resolveStartMoney,
     type GameSettings,
@@ -255,6 +258,7 @@ const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     hordePreset: DEFAULT_HORDE_PRESET_ID,
     roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
     commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+    fixedSideHp: null,
     moneyFactor: DEFAULT_MONEY_FACTOR,
     startMoney: DEFAULT_START_MONEY,
     strongholdMode: DEFAULT_STRONGHOLD_MODE,
@@ -313,6 +317,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             hordePreset: hordeAlgorithmById(hordePreset).id,
             roundCardPreset: roundCardAlgorithmById(roundCardPreset).id,
             commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor),
+            fixedSideHp: resolveFixedSideHp(parsed.fixedSideHp),
             moneyFactor: moneyFactorOption(parsed.moneyFactor),
             startMoney: startMoneyOption(parsed.startMoney),
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
@@ -343,6 +348,7 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.roundCardPreset = roundCardAlgorithmById(cfg.roundCardPreset).id;
     settings.hordePreset = hordeAlgorithmById(cfg.hordePreset).id;
     settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
+    settings.fixedSideHp = resolveFixedSideHp(cfg.fixedSideHp);
     settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
     settings.startMoney = resolveStartMoney(cfg.startMoney);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
@@ -1899,7 +1905,7 @@ wireSelectShortLabels(cgRoundCardsEl);
 
 for (const optHp of COMMANDER_HP_FACTOR_OPTIONS) {
     const opt = document.createElement('option');
-    opt.value = String(optHp.factor);
+    opt.value = optHp.id;
     fillSelectOption(opt, optHp.label, formatCommanderHpFactorOption(optHp));
     cgCommanderHpEl.appendChild(opt);
 }
@@ -2007,13 +2013,14 @@ function landscapeOption(value: unknown): string {
 
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape'
 > {
     return {
         pace: DEFAULT_CUSTOM_GAME_PACE_ID,
         hordePreset: DEFAULT_HORDE_PRESET_ID,
         roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
         commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+        fixedSideHp: null,
         moneyFactor: DEFAULT_MONEY_FACTOR,
         startMoney: DEFAULT_START_MONEY,
         strongholdMode: DEFAULT_STRONGHOLD_MODE,
@@ -2027,6 +2034,7 @@ function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobb
         cfg.hordePreset !== defaults.hordePreset ||
         cfg.roundCardPreset !== defaults.roundCardPreset ||
         cfg.commanderHpFactor !== defaults.commanderHpFactor ||
+        (cfg.fixedSideHp ?? null) !== (defaults.fixedSideHp ?? null) ||
         cfg.moneyFactor !== defaults.moneyFactor ||
         cfg.startMoney !== defaults.startMoney ||
         cfg.strongholdMode !== defaults.strongholdMode ||
@@ -2043,7 +2051,7 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgPaceEl.value = customGamePaceById(cfg.pace).id;
     cgHordeEl.value = hordeAlgorithmById(cfg.hordePreset).id;
     cgRoundCardsEl.value = roundCardAlgorithmById(cfg.roundCardPreset).id;
-    cgCommanderHpEl.value = String(commanderHpFactorOption(cfg.commanderHpFactor));
+    cgCommanderHpEl.value = commanderHpSelectId(cfg.commanderHpFactor, cfg.fixedSideHp);
     cgMoneyEl.value = String(moneyFactorOption(cfg.moneyFactor));
     cgStartMoneyEl.value = String(startMoneyOption(cfg.startMoney));
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
@@ -2161,8 +2169,9 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'landscape' | 'terrainShape'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'landscape' | 'terrainShape'
 > {
+    const hpOpt = commanderHpOptionById(cgCommanderHpEl.value);
     return {
         yearRoles: yearRolesOption(cgYearAttackerEl.value),
         yearKomtur: cgYearKomturEl.value === 'komtur',
@@ -2171,7 +2180,8 @@ function readLobbySettingsForm(): Pick<
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
         roundCardPreset: roundCardAlgorithmById(cgRoundCardsEl.value).id,
-        commanderHpFactor: commanderHpFactorOption(Number(cgCommanderHpEl.value)),
+        commanderHpFactor: hpOpt.factor,
+        fixedSideHp: hpOpt.fixedHp ?? null,
         moneyFactor: moneyFactorOption(Number(cgMoneyEl.value)),
         startMoney: startMoneyOption(Number(cgStartMoneyEl.value)),
         strongholdMode: strongholdModeOption(cgStrongholdEl.value),
@@ -4897,6 +4907,7 @@ function loadPracticeConfig(): CustomGameConfig {
             hordePreset: hordeAlgorithmById(parsed.hordePreset ?? defaults.hordePreset).id,
             roundCardPreset: roundCardAlgorithmById(parsed.roundCardPreset ?? defaults.roundCardPreset).id,
             commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor ?? defaults.commanderHpFactor),
+            fixedSideHp: resolveFixedSideHp(parsed.fixedSideHp ?? defaults.fixedSideHp),
             moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
             startMoney: startMoneyOption(parsed.startMoney ?? defaults.startMoney),
             strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),

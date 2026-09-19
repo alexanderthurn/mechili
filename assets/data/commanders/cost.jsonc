@@ -24,7 +24,13 @@
                 "Haha! Cheap win!",
                 "Ha! Profit AND glory!",
                 "Haha! Bargain victory!"
-            ]
+            ],
+            "victory": [
+                "A glorious bargain, paid in full."
+            ],
+            "defeat": [
+                "A costly loss — lesson learned."
+            ],
         },
     },
 }

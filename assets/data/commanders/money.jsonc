@@ -24,7 +24,13 @@
                 "Haha! Gold wins!",
                 "Ha! Paid in full!",
                 "Haha! Treasury sings!"
-            ]
+            ],
+            "victory": [
+                "Gold first, and glory too."
+            ],
+            "defeat": [
+                "The treasury takes a hit."
+            ],
         },
     },
 }

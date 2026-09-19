@@ -24,7 +24,13 @@
                 "Haha! Relics approve!",
                 "Ha! Vault secured!",
                 "Haha! Stones like me!"
-            ]
+            ],
+            "victory": [
+                "The vault remembers this day."
+            ],
+            "defeat": [
+                "The vault… closes for today."
+            ],
         },
     },
 }

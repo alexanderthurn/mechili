@@ -328,8 +328,11 @@ export interface CustomGameConfig {
     hordePreset: string;
     /** id into ROUND_CARD_ALGORITHMS */
     roundCardPreset: string;
-    /** multiplies each commander card’s starting HP (both teams); see GameSettings.commanderHpFactor */
+    /** multiplies each commander card’s starting HP (both teams); see GameSettings.commanderHpFactor.
+     *  Ignored when {@link fixedSideHp} is set. */
     commanderHpFactor: number;
+    /** absolute HP for both sides after commander pick; see GameSettings.fixedSideHp */
+    fixedSideHp?: number | null;
     /** multiplies each round’s supply income (both teams); see GameSettings.moneyFactor */
     moneyFactor: number;
     /** one-time supply at match start (both teams); see GameSettings.startMoney */

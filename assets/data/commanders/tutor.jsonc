@@ -25,7 +25,13 @@
                 "Haha! Class dismissed!",
                 "Ha! Correct — I win!",
                 "Haha! Take notes!"
-            ]
+            ],
+            "victory": [
+                "Class dismissed — perfect marks."
+            ],
+            "defeat": [
+                "Failed the exam. Retake next time."
+            ],
         },
     },
 }

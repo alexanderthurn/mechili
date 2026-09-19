@@ -268,7 +268,7 @@ import {
     type RallyRoute,
     type SpellStamp,
 } from './tactics';
-import { TechTree, effectiveTargets, effectiveFlying } from './tech';
+import { TechTree, effectiveTargets, effectiveFlying, levelScaleMult } from './tech';
 import { activeLoadout, loadoutShowsAll, openLoadout, randomLoadout, scenarioLoadout } from './loadouts';
 import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
@@ -1987,7 +1987,9 @@ export class Game {
             if (previous !== unit) {
                 if (unit.type.id === 'stronghold') {
                     this.playStrongholdSelectBark(unit.team);
-                } else if (unit.team === 'player' && !unit.type.structure) {
+                } else if (unit.type.structure) {
+                    audio.playBuildingSelect(unit.type.id);
+                } else if (unit.team === 'player') {
                     audio.playUnitSelect(unit.type.id);
                 }
             }
@@ -2009,7 +2011,9 @@ export class Game {
             this.placement.rotateSelected();
         };
         this.placement.rangeOf = (unit, x, z) => {
-            const base = this.resolvedStatsView(unit).range;
+            const base =
+                this.resolvedStatsView(unit).range *
+                this.levelScaleOf(unit, 'range');
             // ground shooters only: a flyer's altitude is not high ground (see BattleSim.elevationCounts)
             if (!unit.type.projectileSpeed || unit.flightCeiling() > 0) return base;
             // ranged: reach per direction, same elevation rule as the sim
@@ -2386,7 +2390,9 @@ export class Game {
             if (next) {
                 if (next.unit.type.id === 'stronghold') {
                     this.playStrongholdSelectBark(next.unit.team);
-                } else if (next.unit.team === 'player' && !next.unit.type.structure) {
+                } else if (next.unit.type.structure) {
+                    audio.playBuildingSelect(next.unit.type.id);
+                } else if (next.unit.team === 'player') {
                     audio.playUnitSelect(next.unit.type.id);
                 }
             }
@@ -10381,6 +10387,13 @@ export class Game {
         if (this.matchOver) return;
         this.matchOver = true;
         audio.playMatchEnd(result);
+        if (result === 'victory') {
+            const card = this.starterCardOfSeat(this.humanSeat);
+            if (card) audio.playCommanderVictory(card.id);
+        } else if (result === 'defeat') {
+            const card = this.starterCardOfSeat(this.humanSeat);
+            if (card) audio.playCommanderDefeat(card.id);
+        }
         // whatever ended the match, a "Waiting…"/reconnect notice must
         // never survive it — otherwise it can be left mounted (and, on
         // the next tick's countdown re-render, re-shown) after the game
@@ -11410,7 +11423,8 @@ export class Game {
         const minRange = a ? this.resolvedStats(a.unit).minRange : 0;
         this.battleMinRangeMesh.visible = a !== null && minRange > 0;
         if (!a) return;
-        const range = this.resolvedStats(a.unit).range;
+        const range =
+            this.resolvedStats(a.unit).range * this.levelScaleOf(a.unit, 'range');
         const own = a.unit.type.collisionRadius;
         // ranged: the ring bulges down onto low ground and pulls in up a slope, like the sim's reach
         const radius: RangeShape =
@@ -11571,6 +11585,26 @@ export class Game {
         return { level, xp, xpNext, statMult: 1 + (level - 1) * statBonusPerLevel };
     }
 
+    /**
+     * Veteran Aim etc. — same mult the sim applies on top of resolved stats.
+     * `innateOnly` matches EMP hex (researched talents stripped).
+     */
+    private levelScaleOf(
+        unit: Unit,
+        kind: 'damage' | 'range',
+        level?: number,
+        innateOnly = false,
+    ): number {
+        const lv = level ?? this.levelInfo(unit).level;
+        if (innateOnly || unit.team === 'horde') {
+            return levelScaleMult(unit.type, TechTree.EMPTY, lv, kind, this.types);
+        }
+        const owned = this.placement.isIntelFogged(unit)
+            ? this.intelTechOwned(unit)
+            : this.techTree.ownedFor(unit.seat, unit.type.id);
+        return levelScaleMult(unit.type, owned, lv, kind, this.types);
+    }
+
     private actorInfo(a: Actor): SelectionInfo {
         const u = a.unit;
         const empDisabled = !!this.sim && a.empUntil > this.sim.elapsed + 1e-9;
@@ -11592,8 +11626,8 @@ export class Game {
             hits: targetsLabel(effectiveTargets(u.type, seat, hasTech, this.types)),
             hp: a.hp,
             maxHp: a.maxHp,
-            damage: rs.damage * lv.statMult,
-            range: Math.round(rs.range),
+            damage: rs.damage * lv.statMult * this.levelScaleOf(u, 'damage', lv.level, empDisabled),
+            range: Math.round(rs.range * this.levelScaleOf(u, 'range', lv.level, empDisabled)),
             minRange: rs.minRange > 0 ? Math.round(rs.minRange) : undefined,
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,
@@ -11639,8 +11673,8 @@ export class Game {
             ),
             hp: rs.hp * lv.statMult,
             maxHp: rs.hp * lv.statMult,
-            damage: rs.damage * lv.statMult,
-            range: Math.round(rs.range),
+            damage: rs.damage * lv.statMult * this.levelScaleOf(u, 'damage', lv.level),
+            range: Math.round(rs.range * this.levelScaleOf(u, 'range', lv.level)),
             minRange: rs.minRange > 0 ? Math.round(rs.minRange) : undefined,
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,

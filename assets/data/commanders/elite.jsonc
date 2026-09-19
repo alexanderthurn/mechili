@@ -24,7 +24,13 @@
                 "Haha! Quality wins!",
                 "Ha! Naturally.",
                 "Haha! As expected!"
-            ]
+            ],
+            "victory": [
+                "Quality stands alone at the top."
+            ],
+            "defeat": [
+                "Even quality falls, sometimes."
+            ],
         },
     },
 }

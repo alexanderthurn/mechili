@@ -138,6 +138,20 @@
               "minItems": 3,
               "maxItems": 3,
               "description": "Proud funny taunts when this commander's side wins a round (3 variants)"
+            },
+            "victory": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1,
+              "maxItems": 1,
+              "description": "Longer match-win line when this commander's side wins the whole game (one take; ship as commander_<id>_victory.ogg)"
+            },
+            "defeat": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1,
+              "maxItems": 1,
+              "description": "Match-loss line when this commander's side loses the game (one take; ship as commander_<id>_defeat.ogg)"
             }
           },
           "additionalProperties": false,

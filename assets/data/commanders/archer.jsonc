@@ -24,7 +24,13 @@
                 "Haha! Bullseye!",
                 "Ha! Perfect aim!",
                 "Haha! Round secured!"
-            ]
+            ],
+            "victory": [
+                "Every arrow found its mark."
+            ],
+            "defeat": [
+                "I missed the final shot."
+            ],
         },
     },
 }

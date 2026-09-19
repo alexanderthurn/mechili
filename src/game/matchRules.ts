@@ -51,7 +51,8 @@ export function resolveMatchRules(settings: GameSettings, scenario: ScenarioDef 
         };
     }
     const tutorial = isTutorial(settings);
-    const sharedHp = settings.climb?.sideHp ?? settings.tutorial?.sideHp ?? null;
+    const sharedHp =
+        settings.climb?.sideHp ?? settings.tutorial?.sideHp ?? settings.fixedSideHp ?? null;
     return {
         // tutorials never open flanks (Tutorial 1 has no flank strips at all)
         flanksOpenFromRound: tutorial ? null : 2,

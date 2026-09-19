@@ -27,17 +27,20 @@ alwaysApply: true
 
 ## Data / files
 
-- Lines live in `assets/data/units/<id>.jsonc` / `commanders/<id>.jsonc` → `voice.lines.pick|death|win`.
-- Ship Opus oggs: `assets/audio/unit_<id>_N.ogg`, `unit_<id>_death_N.ogg`, `commander_<id>.ogg`, `commander_<id>_win_N.ogg`.
-- Register cues + literal `assetUrl(...)` in `src/game/audio.ts`, then `npm run assets:manifest`.
+- Lines live in `assets/data/units/<id>.jsonc` / `commanders/<id>.jsonc` → `voice.lines.pick|win|victory|defeat|death|hurt`.
+- Ship Opus oggs: `assets/audio/unit_<id>_N.ogg`, `unit_<id>_death_N.ogg`, `commander_<id>.ogg`, `commander_<id>_win_N.ogg`, `commander_<id>_victory.ogg`, `commander_<id>_defeat.ogg`.
+- Register cues + literal `assetUrl(...)` in `src/game/audio.ts`, then `npm run assets:manifest`. VO cues stay silent until the ogg is shipped + `assetUrl`’d (`isBaseAsset` gate).
 - Scratch bank: `misc/sfx/voice/` (gitignored). If the user gens in the ElevenLabs UI, copy from `~/Downloads` and convert — do not silently replace with a worse API take.
 
 ## Gameplay wiring
 
 - **Select**: short acks on every pack select (`playUnitSelect`). Homepage testing: `playUnitVoPreview` plays every select + death line in order.
 - **Lazy VO**: unit/commander clips are **not** boot-preloaded (homepage or match). Fetch+decode on first play / preview for that cue only — scales to a large roster.
-- **Prefs**: `voicesEnabled` (Settings → Audio → “Unit & commander voices”) gates select/death/pick/win. Default on.
+- **Prefs**: `voicesEnabled` (Settings → Audio → “Unit & commander voices”) gates select/death/pick/win/victory/defeat. Default on.
 - Play select in **deploy** (`placement.onSelect`) and **battle** (mech `selectedActor` click).
+- **Round win**: `playCommanderWin` — short.
+- **Match win**: `playCommanderVictory` on `presentMatchEnd('victory')` — one short sentence.
+- **Match loss**: `playCommanderDefeat` on `presentMatchEnd('defeat')` — one short sentence.
 - **Death**: cue `unit_<id>_death`, spatial, alongside `death_unit` SFX via `playUnitDeath` in `spawnFromEvents`.
 - Shared VO: `stronghold-archer` → `archer` (`UNIT_VOICE_ALIAS` in `audio.ts`).
 

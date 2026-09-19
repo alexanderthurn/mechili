@@ -27,7 +27,13 @@
                 "Haha… brood feasts!",
                 "Ha! Crawl for me!",
                 "Haha! Silk and spoil!"
-            ]
+            ],
+            "victory": [
+                "The brood keeps the board."
+            ],
+            "defeat": [
+                "The brood… retreats."
+            ],
         },
     },
 }

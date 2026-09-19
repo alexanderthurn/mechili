@@ -38,7 +38,13 @@ import {
     RALLY_ROUTE_STUCK_SEC,
     type RallyRoute,
 } from './tactics';
-import { effectiveFlying, effectiveTargets, TechTree, type ResolvedStats } from './tech';
+import {
+    effectiveFlying,
+    effectiveTargets,
+    levelScaleMultFromTechs,
+    TechTree,
+    type ResolvedStats,
+} from './tech';
 import { ownedCleaveTechs, ownedOnKillTechs, ownedProduceTechs, techsForUnit, type Loadout } from './techCatalog';
 import {
     DEPLOY_AIR_Y,
@@ -1631,13 +1637,7 @@ export class BattleSim {
 
     /** 1 + (level − 1) × sum of per-level talent bonuses. */
     private levelScaleMult(a: Actor, kind: 'damage' | 'range'): number {
-        let per = 0;
-        for (const tech of this.techProfiles(a)) {
-            if (!tech.levelScale) continue;
-            const v = kind === 'damage' ? tech.levelScale.damagePerLevel : tech.levelScale.rangePerLevel;
-            if (v != null) per += v;
-        }
-        return 1 + (a.unit.level - 1) * per;
+        return levelScaleMultFromTechs(this.techProfiles(a), a.unit.level, kind);
     }
 
     /** Weapon reach after levelScale + vsLayer range multipliers. */

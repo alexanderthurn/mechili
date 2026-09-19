@@ -24,7 +24,13 @@
                 "Haha! Big win!",
                 "Ha! Bigger bargains!",
                 "Haha! Chonk claims it!"
-            ]
+            ],
+            "victory": [
+                "The Countess takes the whole board."
+            ],
+            "defeat": [
+                "The Countess… stands down."
+            ],
         },
     },
 }

@@ -5,7 +5,7 @@
  * Render-only — never touch from the deterministic sim. Drive from SimEvent
  * drain + UI, same lifecycle as particles.
  */
-import { assetUrl } from './assets';
+import { assetUrl, isBaseAsset } from './assets';
 import type { Projectile, SimEvent } from './sim';
 import { onPrefsChange, prefs } from './prefs';
 import { beamMuzzleWorld } from './conversionFx';
@@ -48,6 +48,12 @@ const UNIT_HURT_COOLDOWN_MS = 450;
 /** Unit types that share another type's VO cue (e.g. stronghold archer → archer). */
 const UNIT_VOICE_ALIAS: Record<string, string> = {
     'stronghold-archer': 'archer',
+};
+/** Structure type id → select SFX cue (stronghold uses commander VO instead). */
+const BUILDING_SELECT_CUE: Record<string, string> = {
+    'command-tower': 'select_command_tower',
+    'research-center': 'select_research_center',
+    tent: 'select_tent',
 };
 const SPATIAL_ROLLOFF = 2.2;
 
@@ -520,6 +526,18 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.9,
     },
+    commander_addi_victory: {
+        paths: ['audio/commander_addi_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_addi_defeat: {
+        paths: ['audio/commander_addi_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_air: {
         paths: ['audio/commander_air.ogg'],
         group: 'ui',
@@ -535,6 +553,18 @@ const CUES: Record<string, CueDef> = {
         group: 'ui',
         maxVoices: 1,
         gain: 0.9,
+    },
+    commander_air_victory: {
+        paths: ['audio/commander_air_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_air_defeat: {
+        paths: ['audio/commander_air_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
     },
     commander_archer: {
         paths: ['audio/commander_archer.ogg'],
@@ -552,6 +582,18 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.9,
     },
+    commander_archer_victory: {
+        paths: ['audio/commander_archer_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_archer_defeat: {
+        paths: ['audio/commander_archer_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_cost: {
         paths: ['audio/commander_cost.ogg'],
         group: 'ui',
@@ -567,6 +609,18 @@ const CUES: Record<string, CueDef> = {
         group: 'ui',
         maxVoices: 1,
         gain: 0.9,
+    },
+    commander_cost_victory: {
+        paths: ['audio/commander_cost_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_cost_defeat: {
+        paths: ['audio/commander_cost_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
     },
     commander_cursed: {
         paths: ['audio/commander_cursed.ogg'],
@@ -584,6 +638,18 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.9,
     },
+    commander_cursed_victory: {
+        paths: ['audio/commander_cursed_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_cursed_defeat: {
+        paths: ['audio/commander_cursed_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_elite: {
         paths: ['audio/commander_elite.ogg'],
         group: 'ui',
@@ -599,6 +665,18 @@ const CUES: Record<string, CueDef> = {
         group: 'ui',
         maxVoices: 1,
         gain: 0.9,
+    },
+    commander_elite_victory: {
+        paths: ['audio/commander_elite_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_elite_defeat: {
+        paths: ['audio/commander_elite_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
     },
     commander_flanky: {
         paths: ['audio/commander_flanky.ogg'],
@@ -616,6 +694,18 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.9,
     },
+    commander_flanky_victory: {
+        paths: ['audio/commander_flanky_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_flanky_defeat: {
+        paths: ['audio/commander_flanky_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_giant: {
         paths: ['audio/commander_giant.ogg'],
         group: 'ui',
@@ -631,6 +721,18 @@ const CUES: Record<string, CueDef> = {
         group: 'ui',
         maxVoices: 1,
         gain: 0.9,
+    },
+    commander_giant_victory: {
+        paths: ['audio/commander_giant_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_giant_defeat: {
+        paths: ['audio/commander_giant_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
     },
     commander_meteor: {
         paths: ['audio/commander_meteor.ogg'],
@@ -648,6 +750,18 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.9,
     },
+    commander_meteor_victory: {
+        paths: ['audio/commander_meteor_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_meteor_defeat: {
+        paths: ['audio/commander_meteor_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_money: {
         paths: ['audio/commander_money.ogg'],
         group: 'ui',
@@ -663,6 +777,18 @@ const CUES: Record<string, CueDef> = {
         group: 'ui',
         maxVoices: 1,
         gain: 0.9,
+    },
+    commander_money_victory: {
+        paths: ['audio/commander_money_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_money_defeat: {
+        paths: ['audio/commander_money_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
     },
     commander_speed: {
         paths: ['audio/commander_speed.ogg'],
@@ -680,6 +806,18 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.9,
     },
+    commander_speed_victory: {
+        paths: ['audio/commander_speed_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_speed_defeat: {
+        paths: ['audio/commander_speed_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_tutor: {
         paths: ['audio/commander_tutor.ogg'],
         group: 'ui',
@@ -695,6 +833,18 @@ const CUES: Record<string, CueDef> = {
         group: 'ui',
         maxVoices: 1,
         gain: 0.9,
+    },
+    commander_tutor_victory: {
+        paths: ['audio/commander_tutor_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_tutor_defeat: {
+        paths: ['audio/commander_tutor_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
     },
     /** Proximity bed while a stronghold collapse front rolls near the camera. */
     collapse_thunder: {
@@ -1474,6 +1624,34 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.4,
     },
+    /** Building select — stone / canvas UI hits (not VO). */
+    select_command_tower: {
+        paths: [
+            'audio/select_command_tower_1.ogg',
+            'audio/select_command_tower_2.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.5,
+    },
+    select_research_center: {
+        paths: [
+            'audio/select_research_center_1.ogg',
+            'audio/select_research_center_2.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.5,
+    },
+    select_tent: {
+        paths: [
+            'audio/select_tent_1.ogg',
+            'audio/select_tent_2.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.48,
+    },
     victory: {
         paths: [
             'audio/victory_1.ogg',
@@ -1503,50 +1681,74 @@ void [
     assetUrl('audio/commander_addi_win_1.ogg'),
     assetUrl('audio/commander_addi_win_2.ogg'),
     assetUrl('audio/commander_addi_win_3.ogg'),
+    assetUrl('audio/commander_addi_victory.ogg'),
+    assetUrl('audio/commander_addi_defeat.ogg'),
     assetUrl('audio/commander_air.ogg'),
     assetUrl('audio/commander_air_win_1.ogg'),
     assetUrl('audio/commander_air_win_2.ogg'),
     assetUrl('audio/commander_air_win_3.ogg'),
+    assetUrl('audio/commander_air_victory.ogg'),
+    assetUrl('audio/commander_air_defeat.ogg'),
     assetUrl('audio/commander_archer.ogg'),
     assetUrl('audio/commander_archer_win_1.ogg'),
     assetUrl('audio/commander_archer_win_2.ogg'),
     assetUrl('audio/commander_archer_win_3.ogg'),
+    assetUrl('audio/commander_archer_victory.ogg'),
+    assetUrl('audio/commander_archer_defeat.ogg'),
     assetUrl('audio/commander_cost.ogg'),
     assetUrl('audio/commander_cost_win_1.ogg'),
     assetUrl('audio/commander_cost_win_2.ogg'),
     assetUrl('audio/commander_cost_win_3.ogg'),
+    assetUrl('audio/commander_cost_victory.ogg'),
+    assetUrl('audio/commander_cost_defeat.ogg'),
     assetUrl('audio/commander_cursed.ogg'),
     assetUrl('audio/commander_cursed_win_1.ogg'),
     assetUrl('audio/commander_cursed_win_2.ogg'),
     assetUrl('audio/commander_cursed_win_3.ogg'),
+    assetUrl('audio/commander_cursed_victory.ogg'),
+    assetUrl('audio/commander_cursed_defeat.ogg'),
     assetUrl('audio/commander_elite.ogg'),
     assetUrl('audio/commander_elite_win_1.ogg'),
     assetUrl('audio/commander_elite_win_2.ogg'),
     assetUrl('audio/commander_elite_win_3.ogg'),
+    assetUrl('audio/commander_elite_victory.ogg'),
+    assetUrl('audio/commander_elite_defeat.ogg'),
     assetUrl('audio/commander_flanky.ogg'),
     assetUrl('audio/commander_flanky_win_1.ogg'),
     assetUrl('audio/commander_flanky_win_2.ogg'),
     assetUrl('audio/commander_flanky_win_3.ogg'),
+    assetUrl('audio/commander_flanky_victory.ogg'),
+    assetUrl('audio/commander_flanky_defeat.ogg'),
     assetUrl('audio/commander_giant.ogg'),
     assetUrl('audio/commander_giant_win_1.ogg'),
     assetUrl('audio/commander_giant_win_2.ogg'),
     assetUrl('audio/commander_giant_win_3.ogg'),
+    assetUrl('audio/commander_giant_victory.ogg'),
+    assetUrl('audio/commander_giant_defeat.ogg'),
     assetUrl('audio/commander_meteor.ogg'),
     assetUrl('audio/commander_meteor_win_1.ogg'),
     assetUrl('audio/commander_meteor_win_2.ogg'),
     assetUrl('audio/commander_meteor_win_3.ogg'),
+    assetUrl('audio/commander_meteor_victory.ogg'),
+    assetUrl('audio/commander_meteor_defeat.ogg'),
     assetUrl('audio/commander_money.ogg'),
     assetUrl('audio/commander_money_win_1.ogg'),
     assetUrl('audio/commander_money_win_2.ogg'),
     assetUrl('audio/commander_money_win_3.ogg'),
+    assetUrl('audio/commander_money_victory.ogg'),
+    assetUrl('audio/commander_money_defeat.ogg'),
     assetUrl('audio/commander_speed.ogg'),
     assetUrl('audio/commander_speed_win_1.ogg'),
     assetUrl('audio/commander_speed_win_2.ogg'),
     assetUrl('audio/commander_speed_win_3.ogg'),
+    assetUrl('audio/commander_speed_victory.ogg'),
+    assetUrl('audio/commander_speed_defeat.ogg'),
     assetUrl('audio/commander_tutor.ogg'),
     assetUrl('audio/commander_tutor_win_1.ogg'),
     assetUrl('audio/commander_tutor_win_2.ogg'),
     assetUrl('audio/commander_tutor_win_3.ogg'),
+    assetUrl('audio/commander_tutor_victory.ogg'),
+    assetUrl('audio/commander_tutor_defeat.ogg'),
     assetUrl('audio/convert_1.ogg'),
     assetUrl('audio/convert_2.ogg'),
     assetUrl('audio/convert_beam_1.ogg'),
@@ -1662,6 +1864,12 @@ void [
     assetUrl('audio/tactic_tutor_1.ogg'),
     assetUrl('audio/timer_warn_2.ogg'),
     assetUrl('audio/tower_debuff_1.ogg'),
+    assetUrl('audio/select_command_tower_1.ogg'),
+    assetUrl('audio/select_command_tower_2.ogg'),
+    assetUrl('audio/select_research_center_1.ogg'),
+    assetUrl('audio/select_research_center_2.ogg'),
+    assetUrl('audio/select_tent_1.ogg'),
+    assetUrl('audio/select_tent_2.ogg'),
     assetUrl('audio/ui_click_1.ogg'),
     assetUrl('audio/ui_click_2.ogg'),
     assetUrl('audio/ui_confirm_1.ogg'),
@@ -2161,6 +2369,38 @@ class AudioBus {
     }
 
     /**
+     * Match-win line for a commander (`commander_<id>_victory`). Longer than
+     * round win. Silent until the ogg is shipped and listed in the asset
+     * manifest (`assetUrl` + `npm run assets:manifest`).
+     */
+    playCommanderVictory(cardId: string): void {
+        if (!this.voicesOn()) return;
+        const cueId = `commander_${cardId}_victory`;
+        const cue = CUES[cueId];
+        if (!cue) return;
+        if (!cue.paths.every((p) => isBaseAsset(p))) return;
+        this.stopCommanderBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Match-loss line for a commander (`commander_<id>_defeat`).
+     */
+    playCommanderDefeat(cardId: string): void {
+        if (!this.voicesOn()) return;
+        const cueId = `commander_${cardId}_defeat`;
+        const cue = CUES[cueId];
+        if (!cue) return;
+        if (!cue.paths.every((p) => isBaseAsset(p))) return;
+        this.stopCommanderBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
      * Unit pack select bark. Cue `unit_<typeId>`; aliases like
      * stronghold-archer → archer. Always tries when voices are on, but
      * cooldown keeps rapid re-selects from stacking. VO loads on first play.
@@ -2175,6 +2415,21 @@ class AudioBus {
         if (Math.random() > UNIT_SELECT_CHANCE) return;
         this.lastUnitSelectAt = now;
         this.stopUnitBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Building select SFX (towers / tent). Normal UI group — not gated by
+     * voicesEnabled. Shares the unit-select cooldown so rapid clicks stay tidy.
+     */
+    playBuildingSelect(typeId: string): void {
+        const cueId = BUILDING_SELECT_CUE[typeId];
+        if (!cueId || !CUES[cueId]) return;
+        const now = performance.now();
+        if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
+        this.lastUnitSelectAt = now;
         void this.ensureCue(cueId).then((ok) => {
             if (ok) this.playUi(cueId);
         });

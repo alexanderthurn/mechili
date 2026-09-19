@@ -24,7 +24,13 @@
                 "Haha! Too slow!",
                 "Ha! Catch me? Never!",
                 "Haha! Speed wins!"
-            ]
+            ],
+            "victory": [
+                "The widow finishes first."
+            ],
+            "defeat": [
+                "Caught at last."
+            ],
         },
     },
 }

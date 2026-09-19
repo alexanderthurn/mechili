@@ -26,7 +26,13 @@
                 "Haha! Sky's mine!",
                 "Ha! Clouds, applause!",
                 "Haha! Down you go!"
-            ]
+            ],
+            "victory": [
+                "The skies are ours."
+            ],
+            "defeat": [
+                "The skies turn against me."
+            ],
         },
     },
 }

@@ -24,7 +24,13 @@
                 "Haha! ROCKS WIN!",
                 "Ha! Boom! Told you!",
                 "Haha! More rocks!"
-            ]
+            ],
+            "victory": [
+                "Rocks win — the map is ours."
+            ],
+            "defeat": [
+                "Out of rocks. For now."
+            ],
         },
     },
 }

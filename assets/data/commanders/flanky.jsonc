@@ -24,7 +24,13 @@
                 "Haha! Never saw it!",
                 "Ha! Shadows win!",
                 "Haha! Outflanked!"
-            ]
+            ],
+            "victory": [
+                "They never saw the end coming."
+            ],
+            "defeat": [
+                "They saw us coming after all."
+            ],
         },
     },
 }
