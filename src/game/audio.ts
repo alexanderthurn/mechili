@@ -38,6 +38,15 @@ export type CueDef = {
  */
 const SPATIAL_REF = 11;
 const SPATIAL_MAX = 34;
+
+/** Fraction of new pack selects that may bark (Generals-style sparse acks). */
+const UNIT_SELECT_CHANCE = 0.4;
+/** Min wall-clock gap between unit select barks. */
+const UNIT_SELECT_COOLDOWN_MS = 2200;
+/** Unit types that share another type's VO cue (e.g. stronghold archer → archer). */
+const UNIT_VOICE_ALIAS: Record<string, string> = {
+    'stronghold-archer': 'archer',
+};
 const SPATIAL_ROLLOFF = 2.2;
 
 const CUES: Record<string, CueDef> = {
@@ -100,6 +109,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.5,
     },
+    /** Unit select bark — distinct lines as path variants; play sparsely (see playUnitSelect). */
+    unit_archer: {
+        paths: [
+            'audio/unit_archer_1.ogg',
+            'audio/unit_archer_2.ogg',
+            'audio/unit_archer_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
     commander_addi: {
         paths: ['audio/commander_addi.ogg'],
         group: 'ui',
@@ -122,11 +142,31 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_air_win: {
+        paths: [
+            'audio/commander_air_win_1.ogg',
+            'audio/commander_air_win_2.ogg',
+            'audio/commander_air_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
     commander_archer: {
         paths: ['audio/commander_archer.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
+    },
+    commander_archer_win: {
+        paths: [
+            'audio/commander_archer_win_1.ogg',
+            'audio/commander_archer_win_2.ogg',
+            'audio/commander_archer_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
     },
     commander_cost: {
         paths: ['audio/commander_cost.ogg'],
@@ -134,11 +174,31 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_cost_win: {
+        paths: [
+            'audio/commander_cost_win_1.ogg',
+            'audio/commander_cost_win_2.ogg',
+            'audio/commander_cost_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
     commander_cursed: {
         paths: ['audio/commander_cursed.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
+    },
+    commander_cursed_win: {
+        paths: [
+            'audio/commander_cursed_win_1.ogg',
+            'audio/commander_cursed_win_2.ogg',
+            'audio/commander_cursed_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
     },
     commander_elite: {
         paths: ['audio/commander_elite.ogg'],
@@ -146,11 +206,31 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_elite_win: {
+        paths: [
+            'audio/commander_elite_win_1.ogg',
+            'audio/commander_elite_win_2.ogg',
+            'audio/commander_elite_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
     commander_flanky: {
         paths: ['audio/commander_flanky.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
+    },
+    commander_flanky_win: {
+        paths: [
+            'audio/commander_flanky_win_1.ogg',
+            'audio/commander_flanky_win_2.ogg',
+            'audio/commander_flanky_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
     },
     commander_giant: {
         paths: ['audio/commander_giant.ogg'],
@@ -158,11 +238,31 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_giant_win: {
+        paths: [
+            'audio/commander_giant_win_1.ogg',
+            'audio/commander_giant_win_2.ogg',
+            'audio/commander_giant_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
     commander_meteor: {
         paths: ['audio/commander_meteor.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.95,
+    },
+    commander_meteor_win: {
+        paths: [
+            'audio/commander_meteor_win_1.ogg',
+            'audio/commander_meteor_win_2.ogg',
+            'audio/commander_meteor_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
     },
     commander_money: {
         paths: ['audio/commander_money.ogg'],
@@ -170,17 +270,47 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_money_win: {
+        paths: [
+            'audio/commander_money_win_1.ogg',
+            'audio/commander_money_win_2.ogg',
+            'audio/commander_money_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
     commander_speed: {
         paths: ['audio/commander_speed.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_speed_win: {
+        paths: [
+            'audio/commander_speed_win_1.ogg',
+            'audio/commander_speed_win_2.ogg',
+            'audio/commander_speed_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
     commander_tutor: {
         paths: ['audio/commander_tutor.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
+    },
+    commander_tutor_win: {
+        paths: [
+            'audio/commander_tutor_win_1.ogg',
+            'audio/commander_tutor_win_2.ogg',
+            'audio/commander_tutor_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
     },
     /** Proximity bed while a stronghold collapse front rolls near the camera. */
     collapse_thunder: {
@@ -990,16 +1120,49 @@ void [
     assetUrl('audio/commander_addi_win_2.ogg'),
     assetUrl('audio/commander_addi_win_3.ogg'),
     assetUrl('audio/commander_air.ogg'),
+    assetUrl('audio/commander_air_win_1.ogg'),
+    assetUrl('audio/commander_air_win_2.ogg'),
+    assetUrl('audio/commander_air_win_3.ogg'),
     assetUrl('audio/commander_archer.ogg'),
+    assetUrl('audio/commander_archer_win_1.ogg'),
+    assetUrl('audio/commander_archer_win_2.ogg'),
+    assetUrl('audio/commander_archer_win_3.ogg'),
     assetUrl('audio/commander_cost.ogg'),
+    assetUrl('audio/commander_cost_win_1.ogg'),
+    assetUrl('audio/commander_cost_win_2.ogg'),
+    assetUrl('audio/commander_cost_win_3.ogg'),
     assetUrl('audio/commander_cursed.ogg'),
+    assetUrl('audio/commander_cursed_win_1.ogg'),
+    assetUrl('audio/commander_cursed_win_2.ogg'),
+    assetUrl('audio/commander_cursed_win_3.ogg'),
     assetUrl('audio/commander_elite.ogg'),
+    assetUrl('audio/commander_elite_win_1.ogg'),
+    assetUrl('audio/commander_elite_win_2.ogg'),
+    assetUrl('audio/commander_elite_win_3.ogg'),
     assetUrl('audio/commander_flanky.ogg'),
+    assetUrl('audio/commander_flanky_win_1.ogg'),
+    assetUrl('audio/commander_flanky_win_2.ogg'),
+    assetUrl('audio/commander_flanky_win_3.ogg'),
     assetUrl('audio/commander_giant.ogg'),
+    assetUrl('audio/commander_giant_win_1.ogg'),
+    assetUrl('audio/commander_giant_win_2.ogg'),
+    assetUrl('audio/commander_giant_win_3.ogg'),
     assetUrl('audio/commander_meteor.ogg'),
+    assetUrl('audio/commander_meteor_win_1.ogg'),
+    assetUrl('audio/commander_meteor_win_2.ogg'),
+    assetUrl('audio/commander_meteor_win_3.ogg'),
     assetUrl('audio/commander_money.ogg'),
+    assetUrl('audio/commander_money_win_1.ogg'),
+    assetUrl('audio/commander_money_win_2.ogg'),
+    assetUrl('audio/commander_money_win_3.ogg'),
     assetUrl('audio/commander_speed.ogg'),
+    assetUrl('audio/commander_speed_win_1.ogg'),
+    assetUrl('audio/commander_speed_win_2.ogg'),
+    assetUrl('audio/commander_speed_win_3.ogg'),
     assetUrl('audio/commander_tutor.ogg'),
+    assetUrl('audio/commander_tutor_win_1.ogg'),
+    assetUrl('audio/commander_tutor_win_2.ogg'),
+    assetUrl('audio/commander_tutor_win_3.ogg'),
     assetUrl('audio/convert_1.ogg'),
     assetUrl('audio/convert_2.ogg'),
     assetUrl('audio/convert_beam_1.ogg'),
@@ -1121,6 +1284,9 @@ void [
     assetUrl('audio/ui_confirm_2.ogg'),
     assetUrl('audio/ui_deny_1.ogg'),
     assetUrl('audio/ui_deny_2.ogg'),
+    assetUrl('audio/unit_archer_1.ogg'),
+    assetUrl('audio/unit_archer_2.ogg'),
+    assetUrl('audio/unit_archer_3.ogg'),
     assetUrl('audio/victory_1.ogg'),
 ];
 
@@ -1164,6 +1330,8 @@ class AudioBus {
      * music / UI / commander VO stay at real time.
      */
     private timeScale = 1;
+    /** Wall clock of last {@link playUnitSelect} that actually fired a bark. */
+    private lastUnitSelectAt = 0;
 
     /** Idempotent — call from first pointer/click and again at match start. */
     unlock(): void {
@@ -1183,6 +1351,16 @@ class AudioBus {
         const paths = new Set<string>();
         for (const [id, cue] of Object.entries(CUES)) {
             if (!id.startsWith('commander_')) continue;
+            for (const p of cue.paths) paths.add(p);
+        }
+        return this.decodeAll([...paths]);
+    }
+
+    /** Decode unit select VO cues (homepage showcase preview). */
+    preloadUnitSelects(): Promise<void> {
+        const paths = new Set<string>();
+        for (const [id, cue] of Object.entries(CUES)) {
+            if (!id.startsWith('unit_')) continue;
             for (const p of cue.paths) paths.add(p);
         }
         return this.decodeAll([...paths]);
@@ -1432,10 +1610,43 @@ class AudioBus {
         this.playUi(cueId);
     }
 
+    /**
+     * Unit pack select bark (Generals-style). Cue `unit_<typeId>`; aliases like
+     * stronghold-archer → archer. Not every click: chance + cooldown so it
+     * stays funny instead of grating. Pass `{ force: true }` on the homepage
+     * to always play (preview / review).
+     */
+    playUnitSelect(typeId: string, opts?: { force?: boolean }): void {
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueId = `unit_${voiceId}`;
+        if (!CUES[cueId]) return;
+        if (!opts?.force) {
+            const now = performance.now();
+            if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
+            if (Math.random() > UNIT_SELECT_CHANCE) return;
+            this.lastUnitSelectAt = now;
+        }
+        this.stopUnitBarks();
+        this.playUi(cueId);
+    }
+
     /** Cut in-flight commander pick barks (hover preview / card change). */
     stopCommanderBarks(): void {
         for (const v of [...this.voices]) {
             if (!v.cueId.startsWith('commander_')) continue;
+            try {
+                v.source.stop();
+            } catch {
+                /* already ended */
+            }
+            this.releaseVoice(v);
+        }
+    }
+
+    /** Cut in-flight unit select barks. */
+    stopUnitBarks(): void {
+        for (const v of [...this.voices]) {
+            if (!v.cueId.startsWith('unit_')) continue;
             try {
                 v.source.stop();
             } catch {

@@ -641,7 +641,7 @@
               "type": "array",
               "items": { "type": "string" },
               "minItems": 1,
-              "description": "Lines spoken when selected / featured"
+              "description": "Short Generals-style select acknowledgements (Yes?/What?/character one-liners). Runtime plays sparsely, not every click."
             }
           },
           "additionalProperties": false,

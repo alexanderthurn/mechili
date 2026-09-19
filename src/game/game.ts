@@ -1982,6 +1982,14 @@ export class Game {
                 }
                 return;
             }
+            // Generals-style select bark: only on a fresh pack select (not re-click / carry)
+            if (
+                previous !== unit &&
+                unit.team === 'player' &&
+                !unit.type.structure
+            ) {
+                audio.playUnitSelect(unit.type.id);
+            }
             // buildings act through their details — auto-open the sheet (phone-only visual)
             if (unit.type.structure) this.hud.openUnitDetails();
             this.tutorial?.onUnitSelected();
@@ -2372,7 +2380,15 @@ export class Game {
             const moved = Math.hypot(e.clientX - this.battleDown.x, e.clientY - this.battleDown.y);
             this.battleDown = null;
             if (moved > 6) return;
-            this.selectedActor = this.pickActor(e);
+            const next = this.pickActor(e);
+            this.selectedActor = next;
+            if (
+                next &&
+                next.unit.team === 'player' &&
+                !next.unit.type.structure
+            ) {
+                audio.playUnitSelect(next.unit.type.id);
+            }
         }) as EventListener);
 
         // round 0: towers stand, then the loadout cards decide the starting

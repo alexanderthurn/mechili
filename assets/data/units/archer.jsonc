@@ -37,8 +37,18 @@
         "externalIds": [
             {
                 "type": "e",
-                "prompt": "A razor-sharp adult male sniper voice — ice-cold precision with deadly swagger. Every syllable is an aimed shot: crisp, clipped, supremely confident. Super cool, slightly arrogant, zero panic. Lean and lethal, never soft, never booming ogre, never squeaky. Perfect audio quality.",
+                "id": "evLGnCoTdWnLh7fJtLdf",
+                // snobby + a bit dim (Generals-style select bark)
+                "prompt": "A snobby, slightly dumb adult male sniper voice — ice-cold swagger with dim arrogance. Every syllable is an aimed shot: crisp, clipped, supremely confident but not especially bright. Super cool, arrogant, zero panic. Lean and lethal, never soft, never booming ogre, never squeaky. Perfect audio quality.",
             },
         ],
+        "lines": {
+            // distinct select acks (one take each — no same-line variants)
+            "pick": [
+                "Yes?",
+                "What?",
+                "One shot, one opportunity",
+            ],
+        },
     },
 }
