@@ -4683,8 +4683,6 @@ export class Game {
                   : `You bring your own troops & gear — ${this.seats[primarySeatOf(this.seats, 'player')]!.name} decides the side's speciality.`;
         this.hud.showStartCards(offer, note, (cardId) => {
             this.playerStarterOffer = null;
-            // Bark immediately on click — chooseCard apply is heavy and would delay audio.
-            audio.playCommanderPick(cardId);
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.broadcast({ type: 'starter', cardId, side: this.localSeat() });
             this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
@@ -4732,7 +4730,6 @@ export class Game {
             ]!;
         this.hud.hideCardOverlay();
         this.playerStarterOffer = null;
-        audio.playCommanderPick(pick.id);
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
         this.broadcast({ type: 'starter', cardId: pick.id, side: this.localSeat() });
         this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));

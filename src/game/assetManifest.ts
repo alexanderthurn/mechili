@@ -23,6 +23,7 @@ const RAW = import.meta.glob(
         '../../assets/audio/commander_air.ogg',
         '../../assets/audio/commander_archer.ogg',
         '../../assets/audio/commander_cost.ogg',
+        '../../assets/audio/commander_cursed.ogg',
         '../../assets/audio/commander_elite.ogg',
         '../../assets/audio/commander_flanky.ogg',
         '../../assets/audio/commander_giant.ogg',

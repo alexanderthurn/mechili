@@ -124,6 +124,12 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_cursed: {
+        paths: ['audio/commander_cursed.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_elite: {
         paths: ['audio/commander_elite.ogg'],
         group: 'ui',
@@ -973,6 +979,7 @@ void [
     assetUrl('audio/commander_air.ogg'),
     assetUrl('audio/commander_archer.ogg'),
     assetUrl('audio/commander_cost.ogg'),
+    assetUrl('audio/commander_cursed.ogg'),
     assetUrl('audio/commander_elite.ogg'),
     assetUrl('audio/commander_flanky.ogg'),
     assetUrl('audio/commander_giant.ogg'),
@@ -1383,11 +1390,25 @@ class AudioBus {
         this.play(cueId);
     }
 
-    /** Human commander pick bark — falls back to card_pick if unknown. */
+    /** Human commander bark — stops any other commander VO so hover switches cleanly. */
     playCommanderPick(cardId: string): void {
+        this.stopCommanderBarks();
         const cueId = `commander_${cardId}`;
         if (CUES[cueId]) this.playUi(cueId);
         else this.playUi('card_pick');
+    }
+
+    /** Cut in-flight commander pick barks (hover preview / card change). */
+    stopCommanderBarks(): void {
+        for (const v of [...this.voices]) {
+            if (!v.cueId.startsWith('commander_')) continue;
+            try {
+                v.source.stop();
+            } catch {
+                /* already ended */
+            }
+            this.releaseVoice(v);
+        }
     }
 
     /** Attack-phase sting only — deploy / match reload stay silent. */

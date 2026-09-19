@@ -37,6 +37,7 @@ import { speedKeyHint } from './speedKeys';
 import { hudStyles } from '../theme';
 import { yearMarksHtml, yearProgressHtml, yearRoleName, type YearProgress } from './yearTally';
 import { yearWinner } from '../game/settings';
+import { audio } from '../game/audio';
 
 export type Phase = 'build' | 'battle' | 'hpDraw';
 
@@ -4025,10 +4026,23 @@ export class Hud {
                 .join('') +
             `</div>`;
         if (note) overlay.querySelector('.cards-note')!.textContent = note;
+        // Preview bark on hover; if the player never hovered that card (touch /
+        // click-only), play on the confirming click instead.
+        const previewed = new Set<string>();
+        overlay.querySelectorAll<HTMLButtonElement>('.card[data-card]').forEach((button) => {
+            button.addEventListener('pointerenter', (e) => {
+                if (e.pointerType === 'touch') return;
+                const cardId = button.dataset.card;
+                if (!cardId) return;
+                previewed.add(cardId);
+                audio.playCommanderPick(cardId);
+            });
+        });
         overlay.addEventListener('click', (e) => {
             const button = (e.target as HTMLElement).closest<HTMLButtonElement>('.card');
             if (!button?.dataset.card) return;
             const cardId = button.dataset.card;
+            if (!previewed.has(cardId)) audio.playCommanderPick(cardId);
             this.confirmSpecialistPick(button, () => onPick(cardId));
         });
         this.showCardOverlay(overlay);
