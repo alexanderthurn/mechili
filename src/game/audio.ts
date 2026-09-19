@@ -1165,6 +1165,16 @@ class AudioBus {
         return this.unlocked;
     }
 
+    /** Decode commander pick VO cues (homepage / pick overlay). */
+    preloadCommanderPicks(): Promise<void> {
+        const paths = new Set<string>();
+        for (const [id, cue] of Object.entries(CUES)) {
+            if (!id.startsWith('commander_')) continue;
+            for (const p of cue.paths) paths.add(p);
+        }
+        return this.decodeAll([...paths]);
+    }
+
     /**
      * Decode SFX/UI cue buffers. Music beds are lazy-loaded on
      * {@link playMusic} so boot stays light.

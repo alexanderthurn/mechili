@@ -128,6 +128,17 @@
     "sub": "From round two onward, draft one of several offered {{items}} cards drawn from the match pool. Battle spells are bought at the Stronghold, not drafted from cards.",
     "select": "Choose a round card"
   },
+  "music": {
+    "title": "Music",
+    "sub": "Seasonal beds that follow The Year’s atmosphere tour — one deploy track and one battle track per scene, plus the menu and fallback battle bed.",
+    "select": "Choose a music track",
+    "play": "Play",
+    "stop": "Stop",
+    "menu": "Menu",
+    "fallback": "Battle (fallback)",
+    "deploy": "Deploy",
+    "battle": "Battle"
+  },
   "matchSettings": {
     "title": "Match settings",
     "sub": "The default rules for a match, pulled straight from the game's settings code so this can't drift from what actually ships. Everything here is tunable — it's open source."

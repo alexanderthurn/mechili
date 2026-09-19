@@ -48,6 +48,8 @@ import { applyLanguageFont, hudStyles, menuStyles } from '../theme';
 import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { roundCardFaceHtml } from '../ui/roundCardFace';
 import { cssUrl, iconHtml, moneyHtml } from '../ui/iconAtlas';
+import { audio, resolveMusicBed } from '../game/audio';
+import { ATMOSPHERE_SCENES } from '../game/weather';
 import { openSuggest } from '../suggest';
 import { createShowcaseViewer } from '../ui/modelViewer';
 import { homepageStyles } from './styles';
@@ -189,6 +191,48 @@ function esc(s: string): string {
 
 function startCardFace(c: StartCard): string {
     return startCardFaceHtml(c);
+}
+
+const ATMOSPHERE_LABEL_I18N: Record<string, string> = {
+    'Spring morning': 'hud:atmosphere.springMorning',
+    'Spring rain': 'hud:atmosphere.springRain',
+    'Summer noon': 'hud:atmosphere.summerNoon',
+    'Summer golden': 'hud:atmosphere.summerGolden',
+    'Summer night': 'hud:atmosphere.summerNight',
+    'Autumn dusk': 'hud:atmosphere.autumnDusk',
+    'Autumn storm': 'hud:atmosphere.autumnStorm',
+    'First snow': 'hud:atmosphere.firstSnow',
+    'Deep winter': 'hud:atmosphere.deepWinter',
+};
+
+function musicTrackOptionsHtml(): string {
+    const rows: { cueId: string; label: string }[] = [
+        { cueId: 'music_menu', label: t('homepage:music.menu') },
+        { cueId: 'music_battle', label: t('homepage:music.fallback') },
+    ];
+    for (const scene of ATMOSPHERE_SCENES) {
+        const nameKey = ATMOSPHERE_LABEL_I18N[scene.label];
+        const name = nameKey ? t(nameKey) : scene.label;
+        rows.push({
+            cueId: resolveMusicBed({
+                scene: 'match',
+                atmosphereLabel: scene.label,
+                phase: 'deploy',
+            }),
+            label: `${name} — ${t('homepage:music.deploy')}`,
+        });
+        rows.push({
+            cueId: resolveMusicBed({
+                scene: 'match',
+                atmosphereLabel: scene.label,
+                phase: 'battle',
+            }),
+            label: `${name} — ${t('homepage:music.battle')}`,
+        });
+    }
+    return rows
+        .map((r) => `<option value="${esc(r.cueId)}">${esc(r.label)}</option>`)
+        .join('');
 }
 
 function roundCardFace(c: RoundCard): string {
@@ -641,6 +685,20 @@ app.innerHTML = `
             (c, i) =>
                 `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${roundCardFace(c)}</div>`,
         ).join('')}
+      </div>
+    </div>
+  </section>
+
+  <section class="mh-section" id="music">
+    <h2>${esc(t('homepage:music.title'))}</h2>
+    <p class="mh-sub">${esc(t('homepage:music.sub'))}</p>
+    <div class="mh-music-player">
+      <select class="mh-music-select" id="mh-music-select" aria-label="${esc(t('homepage:music.select'))}">
+        ${musicTrackOptionsHtml()}
+      </select>
+      <div class="mh-music-actions">
+        <button type="button" class="mh-suggest-btn" id="mh-music-play">${esc(t('homepage:music.play'))}</button>
+        <button type="button" class="mh-suggest-btn" id="mh-music-stop">${esc(t('homepage:music.stop'))}</button>
       </div>
     </div>
   </section>
@@ -1184,13 +1242,52 @@ function wireCardSelect(selectId: string, cardSelector: string): void {
         }
     });
 }
-wireCardSelect('mh-specialists-select', '#mh-specialists-row > .card');
 wireCardSelect('mh-round-cards-select', '#mh-round-cards-row > .card');
 wireCardSelect('mh-runes-select', '#mh-runes-grid > .mh-tactic');
 wireCardSelect('mh-tactics-select', '#mh-tactics-grid > .mh-tactic');
 
 const commanderSpellTips = new CardSpellTips();
 const specialistsRow = document.getElementById('mh-specialists-row');
-if (specialistsRow) commanderSpellTips.bind(specialistsRow);
+if (specialistsRow) {
+    commanderSpellTips.bind(specialistsRow);
+    specialistsRow.querySelectorAll<HTMLElement>('.card[data-key]').forEach((card) => {
+        card.addEventListener('click', () => {
+            const id = card.dataset.key;
+            if (id) audio.playCommanderPick(id);
+        });
+    });
+}
+const specialistsSelect = document.getElementById('mh-specialists-select') as HTMLSelectElement | null;
+if (specialistsSelect) {
+    const cards = document.querySelectorAll<HTMLElement>('#mh-specialists-row > .card');
+    specialistsSelect.addEventListener('change', () => {
+        for (const card of cards) {
+            card.classList.toggle('mh-active', card.dataset.key === specialistsSelect.value);
+        }
+        audio.playCommanderPick(specialistsSelect.value);
+    });
+}
+void audio.preloadCommanderPicks();
+
+const musicSelect = document.getElementById('mh-music-select') as HTMLSelectElement | null;
+const musicPlay = document.getElementById('mh-music-play');
+const musicStop = document.getElementById('mh-music-stop');
+let homepageMusicOn = false;
+musicPlay?.addEventListener('click', () => {
+    const cueId = musicSelect?.value;
+    if (!cueId) return;
+    audio.unlock();
+    audio.playMusic(cueId);
+    homepageMusicOn = true;
+});
+musicStop?.addEventListener('click', () => {
+    audio.playMusic(null);
+    homepageMusicOn = false;
+});
+musicSelect?.addEventListener('change', () => {
+    if (!homepageMusicOn || !musicSelect.value) return;
+    audio.playMusic(musicSelect.value);
+});
+
 const roundCardsRow = document.getElementById('mh-round-cards-row');
 if (roundCardsRow) commanderSpellTips.bind(roundCardsRow);
