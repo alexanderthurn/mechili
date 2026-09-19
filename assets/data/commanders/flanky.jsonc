@@ -20,6 +20,11 @@
         ],
         "lines": {
             "pick": ["They’ll never see us coming."],
+            "win": [
+                "Haha! Never saw it!",
+                "Ha! Shadows win!",
+                "Haha! Outflanked!"
+            ]
         },
     },
 }

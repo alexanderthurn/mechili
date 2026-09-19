@@ -20,6 +20,11 @@
         ],
         "lines": {
             "pick": ["Speed is the name of the game."],
+            "win": [
+                "Haha! Too slow!",
+                "Ha! Catch me? Never!",
+                "Haha! Speed wins!"
+            ]
         },
     },
 }

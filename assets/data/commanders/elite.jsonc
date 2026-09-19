@@ -20,6 +20,11 @@
         ],
         "lines": {
             "pick": ["Quality over quantity."],
+            "win": [
+                "Haha! Quality wins!",
+                "Ha! Naturally.",
+                "Haha! As expected!"
+            ]
         },
     },
 }

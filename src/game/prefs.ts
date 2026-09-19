@@ -985,6 +985,19 @@ export function debugEnabled(): boolean {
 }
 
 /**
+ * Dev/test: offer every playable commander at the starter pick instead of four.
+ * `?allCommanders` or any {@link debugEnabled} path.
+ */
+export function offerAllCommanders(): boolean {
+    if (debugEnabled()) return true;
+    try {
+        return new URLSearchParams(location.search).has('allCommanders');
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Effective WebGL pixel ratio. renderScale is a fraction of the display's own
  * ratio, so the backing store works out to physicalPixels × renderScale
  * regardless of window size or UI zoom.

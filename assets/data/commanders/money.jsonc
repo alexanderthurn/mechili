@@ -20,6 +20,11 @@
         ],
         "lines": {
             "pick": ["Gold first, glory later."],
+            "win": [
+                "Haha! Gold wins!",
+                "Ha! Paid in full!",
+                "Haha! Treasury sings!"
+            ]
         },
     },
 }

@@ -22,6 +22,11 @@
         ],
         "lines": {
             "pick": ["The sky envies you."],
+            "win": [
+                "Haha! Sky's mine!",
+                "Ha! Clouds, applause!",
+                "Haha! Down you go!"
+            ]
         },
     },
 }

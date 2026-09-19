@@ -106,6 +106,16 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_addi_win: {
+        paths: [
+            'audio/commander_addi_win_1.ogg',
+            'audio/commander_addi_win_2.ogg',
+            'audio/commander_addi_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
     commander_air: {
         paths: ['audio/commander_air.ogg'],
         group: 'ui',
@@ -976,6 +986,9 @@ void [
     assetUrl('audio/card_pick_1.ogg'),
     assetUrl('audio/card_pick_2.ogg'),
     assetUrl('audio/commander_addi.ogg'),
+    assetUrl('audio/commander_addi_win_1.ogg'),
+    assetUrl('audio/commander_addi_win_2.ogg'),
+    assetUrl('audio/commander_addi_win_3.ogg'),
     assetUrl('audio/commander_air.ogg'),
     assetUrl('audio/commander_archer.ogg'),
     assetUrl('audio/commander_cost.ogg'),
@@ -1406,6 +1419,17 @@ class AudioBus {
         const cueId = `commander_${cardId}`;
         if (CUES[cueId]) this.playUi(cueId);
         else this.playUi('card_pick');
+    }
+
+    /**
+     * Round-win taunt for a commander. Cue id `commander_<id>_win` with up to
+     * three path variants — silent until those assets are shipped.
+     */
+    playCommanderWin(cardId: string): void {
+        const cueId = `commander_${cardId}_win`;
+        if (!CUES[cueId]) return;
+        this.stopCommanderBarks();
+        this.playUi(cueId);
     }
 
     /** Cut in-flight commander pick barks (hover preview / card change). */

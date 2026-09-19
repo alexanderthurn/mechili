@@ -20,6 +20,11 @@
         ],
         "lines": {
             "pick": ["Aim high!"],
+            "win": [
+                "Haha! Bullseye!",
+                "Ha! Perfect aim!",
+                "Haha! Round secured!"
+            ]
         },
     },
 }

@@ -20,6 +20,11 @@
         ],
         "lines": {
             "pick": ["The relics need you."],
+            "win": [
+                "Haha! Relics approve!",
+                "Ha! Vault secured!",
+                "Haha! Stones like me!"
+            ]
         },
     },
 }

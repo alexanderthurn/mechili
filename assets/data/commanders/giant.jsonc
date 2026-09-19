@@ -20,6 +20,11 @@
         ],
         "lines": {
             "pick": ["Big shop, bigger bargains."],
+            "win": [
+                "Haha! Big win!",
+                "Ha! Bigger bargains!",
+                "Haha! Chonk claims it!"
+            ]
         },
     },
 }

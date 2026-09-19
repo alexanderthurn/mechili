@@ -21,6 +21,11 @@
         ],
         "lines": {
             "pick": ["Correct choice, now take notes!"],
+            "win": [
+                "Haha! Class dismissed!",
+                "Ha! Correct — I win!",
+                "Haha! Take notes!"
+            ]
         },
     },
 }

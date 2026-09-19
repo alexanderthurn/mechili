@@ -20,6 +20,11 @@
         ],
         "lines": {
             "pick": ["Let’s drop some rocks!"],
+            "win": [
+                "Haha! ROCKS WIN!",
+                "Ha! Boom! Told you!",
+                "Haha! More rocks!"
+            ]
         },
     },
 }

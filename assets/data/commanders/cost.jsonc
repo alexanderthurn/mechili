@@ -20,6 +20,11 @@
         ],
         "lines": {
             "pick": ["Cheap troops, rich pockets."],
+            "win": [
+                "Haha! Cheap win!",
+                "Ha! Profit AND glory!",
+                "Haha! Bargain victory!"
+            ]
         },
     },
 }

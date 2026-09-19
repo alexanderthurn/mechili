@@ -23,6 +23,11 @@
         ],
         "lines": {
             "pick": ["One more spider for the brood."],
+            "win": [
+                "Haha… brood feasts!",
+                "Ha! Crawl for me!",
+                "Haha! Silk and spoil!"
+            ]
         },
     },
 }

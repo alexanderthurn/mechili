@@ -6056,6 +6056,16 @@ ${chatFloatStyles(u, pc, ec)}
         width: auto;
         justify-self: stretch;
     }
+    /* Full-roster test offers (5+) — keep a tidy 4-across wrap, no lonely full-row card. */
+    .mechili-cards .cards-row:has(> .card:nth-child(5)) {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        width: min(100%, 960px);
+    }
+    .mechili-cards .cards-row:has(> .card:nth-child(5)) > .card:last-child:nth-child(odd) {
+        grid-column: auto;
+        width: auto;
+        justify-self: stretch;
+    }
 }
 @media (max-width: 359px) {
     .mechili-cards .cards-row {

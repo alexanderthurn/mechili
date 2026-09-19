@@ -130,7 +130,14 @@
               "type": "array",
               "items": { "type": "string" },
               "minItems": 1,
-              "description": "Lines spoken when the commander is picked"
+              "description": "Lines spoken when the commander is picked / previewed"
+            },
+            "win": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 3,
+              "maxItems": 3,
+              "description": "Proud funny taunts when this commander's side wins a round (3 variants)"
             }
           },
           "additionalProperties": false,
