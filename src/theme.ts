@@ -6283,6 +6283,84 @@ ${chatFloatStyles(u, pc, ec)}
             0 0 0 0 rgba(255, 220, 120, 0);
     }
 }
+
+/* Round-win commander portrait: fly from fight bar → center, speak-shake, hard end */
+.mechili-victor-celebrate {
+    position: fixed;
+    z-index: 12000;
+    pointer-events: none;
+    margin: 0;
+    padding: 0;
+    transform-origin: center center;
+    transition:
+        transform 0.32s cubic-bezier(0.22, 1.15, 0.36, 1),
+        opacity 0.38s ease-in;
+    will-change: transform, opacity;
+}
+.mechili-victor-celebrate.leaving {
+    opacity: 0;
+}
+.mechili-victor-face {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(circle at 35% 28%, rgba(255, 230, 180, 0.22), transparent 55%),
+        linear-gradient(165deg, ${u.leatherHi}, ${u.leather});
+    border: 1.5px solid ${u.frameMid};
+    box-shadow:
+        0 0 0 1px ${u.frameLo},
+        0 0 0 3px ${u.frameHi},
+        inset 0 1px 2px rgba(255, 230, 180, 0.22),
+        0 10px 28px rgba(0, 0, 0, 0.45);
+}
+.mechili-victor-celebrate.player .mechili-victor-face {
+    box-shadow:
+        0 0 0 1px ${u.frameLo},
+        0 0 0 3px ${pc},
+        inset 0 1px 2px rgba(255, 230, 180, 0.22),
+        0 10px 28px rgba(0, 0, 0, 0.45),
+        0 0 36px color-mix(in srgb, ${pc} 45%, transparent);
+}
+.mechili-victor-celebrate.enemy .mechili-victor-face {
+    box-shadow:
+        0 0 0 1px ${u.frameLo},
+        0 0 0 3px ${ec},
+        inset 0 1px 2px rgba(255, 230, 180, 0.22),
+        0 10px 28px rgba(0, 0, 0, 0.45),
+        0 0 36px color-mix(in srgb, ${ec} 45%, transparent);
+}
+.mechili-victor-face .fighter-portrait-img,
+.mechili-victor-face .m-icon,
+.mechili-victor-face img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.mechili-victor-face .portrait-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 0;
+}
+.mechili-victor-celebrate.speaking .mechili-victor-face {
+    animation: mechili-victor-speak 0.28s ease-in-out infinite;
+}
+@keyframes mechili-victor-speak {
+    0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+    20% { transform: translate(-1.5%, 1.2%) rotate(-2.2deg) scale(1.03); }
+    45% { transform: translate(1.8%, -1%) rotate(2deg) scale(1.015); }
+    70% { transform: translate(-1%, -1.4%) rotate(-1.4deg) scale(1.04); }
+}
 .mechili-cards .c-owner {
     font-size: 14px;
     font-weight: bold;

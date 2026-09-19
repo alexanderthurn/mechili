@@ -427,6 +427,8 @@ export class Hud {
     private readonly playerStackEl: HTMLDivElement;
     private readonly enemyStackEl: HTMLDivElement;
     private commanderChips: CommanderChip[] = [];
+    private victorCelebrateEl: HTMLDivElement | null = null;
+    private readonly victorCelebrateTimers: number[] = [];
     private playerSpecEl: HTMLSpanElement | null = null;
     private enemySpecEl: HTMLSpanElement | null = null;
     private humanSeat = 0;
@@ -3862,6 +3864,83 @@ export class Hud {
         );
     }
 
+    /**
+     * Round-win: fly the seat's portrait to screen center, scale up, speak-shake,
+     * then hard-end. `onSpeak` fires after a short lead-in (animation first).
+     */
+    playVictorCelebrate(seat: number, onSpeak?: () => void): void {
+        this.clearVictorCelebrate();
+        const chip = this.commanderChips.find((c) => c.seat === seat);
+        if (!chip) {
+            onSpeak?.();
+            return;
+        }
+
+        const from = chip.portraitEl.getBoundingClientRect();
+        if (from.width < 2 || from.height < 2) {
+            onSpeak?.();
+            return;
+        }
+
+        const root = document.createElement('div');
+        root.className = `mechili-victor-celebrate ${chip.team}`;
+        root.setAttribute('aria-hidden', 'true');
+        root.style.left = `${from.left}px`;
+        root.style.top = `${from.top}px`;
+        root.style.width = `${from.width}px`;
+        root.style.height = `${from.height}px`;
+
+        const face = document.createElement('div');
+        face.className = 'mechili-victor-face';
+        face.innerHTML = chip.portraitEl.innerHTML;
+        root.appendChild(face);
+        document.body.appendChild(root);
+        this.victorCelebrateEl = root;
+
+        const cx = window.innerWidth * 0.5;
+        const cy = window.innerHeight * 0.5;
+        const scale = Math.min(3.4, (Math.min(window.innerWidth, window.innerHeight) * 0.28) / from.width);
+        const tx = cx - (from.left + from.width * 0.5);
+        const ty = cy - (from.top + from.height * 0.5);
+
+        // Force layout at source, then fly on next frame so the transition runs.
+        void root.offsetWidth;
+        const flyTransform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+        requestAnimationFrame(() => {
+            if (this.victorCelebrateEl !== root) return;
+            root.style.transform = flyTransform;
+            root.classList.add('flying');
+        });
+
+        const SPEAK_MS = 300;
+        const TOTAL_MS = 2400;
+        const FADE_MS = 380;
+
+        this.victorCelebrateTimers.push(
+            window.setTimeout(() => {
+                root.classList.add('speaking');
+                onSpeak?.();
+            }, SPEAK_MS),
+        );
+        this.victorCelebrateTimers.push(
+            window.setTimeout(() => {
+                root.classList.remove('speaking');
+                root.classList.add('leaving');
+                root.style.transform = `translate(${tx}px, ${ty}px) scale(${scale * 0.82})`;
+            }, Math.max(SPEAK_MS + 200, TOTAL_MS - FADE_MS)),
+        );
+        this.victorCelebrateTimers.push(
+            window.setTimeout(() => this.clearVictorCelebrate(), TOTAL_MS),
+        );
+    }
+
+    private clearVictorCelebrate(): void {
+        for (const id of this.victorCelebrateTimers) window.clearTimeout(id);
+        this.victorCelebrateTimers.length = 0;
+        this.victorCelebrateEl?.remove();
+        this.victorCelebrateEl = null;
+    }
+
     /** dismiss game-over, pause, notices, reconnect, and card pickers before the menu outro */
     hideMatchOverlays(): void {
         this.clearBlockingOverlays();
@@ -4935,6 +5014,7 @@ export class Hud {
         this.forgeSlotPreviewEl = null;
         this.forgeSlotPreviewAnchor = null;
         this.cardSpellTips.destroy();
+        this.clearVictorCelebrate();
         for (const el of this.mountedRoots) {
             el.remove();
         }

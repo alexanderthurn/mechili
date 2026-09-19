@@ -4567,19 +4567,18 @@ export class Game {
         }
         if (!winningTeam) return;
 
-        const cards = seatIdsOf(this.seats, winningTeam)
-            .map((seat) => this.starterCardOfSeat(seat))
-            .filter(
-                (card): card is StartCard =>
-                    !!card && card.id !== 'none' && card.speciality !== 'tutorial',
-            );
-        if (cards.length === 0) return;
-        // Deterministic across clients (same HP + round) so 2v2 hears the same bark.
+        const seats = seatIdsOf(this.seats, winningTeam).filter((seat) => {
+            const card = this.starterCardOfSeat(seat);
+            return !!card && card.id !== 'none' && card.speciality !== 'tutorial';
+        });
+        if (seats.length === 0) return;
+        // Deterministic across clients (same HP + round) so 2v2 hears/sees the same bark.
         const seed =
             ((completedRound * 10007) ^ (this.playerHp * 31) ^ (this.enemyHp * 17) ^ 0x9e3779b9) >>>
             0;
-        const card = cards[seed % cards.length]!;
-        audio.playCommanderWin(card.id);
+        const seat = seats[seed % seats.length]!;
+        const card = this.starterCardOfSeat(seat)!;
+        this.hud.playVictorCelebrate(seat, () => audio.playCommanderWin(card.id));
     }
 
     /** speciality names under each commander chip — enemy picks stay hidden
