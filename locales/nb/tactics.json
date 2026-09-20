@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Stormkall",
-    "description": "Merk en bred sirkel hvor som helst. Små stormskyer samler seg høyt over og slynger lyn mot tilfeldige steder – lyn gjør ingen skade, men støter enheter i et bredt plask med en tårnlignende debuff med mindre de har en gyllen aura. Avdelingskupler blokkerer fortsatt angrepene."
+    "description": "Merk en bred sirkel hvor som helst. Små tordenskyer samler seg høyt oppe og slynger lyn mot tilfeldige steder — lynene gjør ingen skade, men forhekser enheter i en bred radius (talenter slås av, saktere bevegelse), med mindre de har gyllen aura. Beskyttelseskupler blokkerer fortsatt nedslagene."
   },
   "meteorShower": {
     "name": "Meteorsverm",

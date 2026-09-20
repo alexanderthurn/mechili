@@ -6,5 +6,5 @@
     "mods": {},
     "debuffImmune": true,
     "icon": "tech-sunward",
-    "description": "Immune to hex, tower debuffs, and storm disable.",
+    "description": "Immune to hex (storm included) and tower debuffs.",
 }

@@ -138,6 +138,6 @@
   },
   "sunward": {
     "name": "Guardia solare",
-    "description": "Immune a maledizione, indebolimenti delle torri e blocco della tempesta."
+    "description": "Immune alla maledizione (tempesta inclusa) e agli indebolimenti delle torri."
   }
 }

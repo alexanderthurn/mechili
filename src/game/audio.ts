@@ -11,6 +11,7 @@ import { onPrefsChange, prefs } from './prefs';
 import { beamMuzzleWorld } from './conversionFx';
 import type { Actor } from './sim';
 import { BASE_TYPES } from './units';
+import type { TypeRegistry } from './content/typeRegistry';
 import { parseElementalId } from './runeMix';
 
 export type AudioGroupId = 'sfx' | 'music' | 'ui';
@@ -89,10 +90,22 @@ const ATTACK_REF = 16;
 const ATTACK_MAX = 96;
 const ATTACK_ROLLOFF = 1.35;
 
+/**
+ * The match's own unit definitions — a level package may change a unit's
+ * {@link UnitType.soundSize} or add units the base game has never heard of.
+ * Set at match start ({@link setUnitTypes}); the base game otherwise.
+ */
+let unitTypes: TypeRegistry = BASE_TYPES;
+
+/** the definitions sound sizes are read from (null = back to the base game) */
+export function setUnitTypes(types: TypeRegistry | null): void {
+    unitTypes = types ?? BASE_TYPES;
+}
+
 function soundSizeOf(typeId: string | undefined): SoundSize {
     if (!typeId) return 'medium';
     const id = UNIT_VOICE_ALIAS[typeId] ?? typeId;
-    const t = BASE_TYPES.byId(id);
+    const t = unitTypes.byId(id) ?? BASE_TYPES.byId(id);
     return t?.soundSize ?? 'medium';
 }
 
@@ -630,6 +643,59 @@ const CUES: Record<string, CueDef> = {
         gain: 0.8,
     },
 
+    // Komtur forest roster — same envelope as the pack-fodder deaths above
+    unit_bat_death: {
+        paths: [
+            'audio/unit_bat_death_1.ogg',
+            'audio/unit_bat_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: 34,
+        maxDistance: 68,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_hordeZombie_death: {
+        paths: [
+            'audio/unit_hordeZombie_death_1.ogg',
+            'audio/unit_hordeZombie_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: 34,
+        maxDistance: 68,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_hordeFarmer_death: {
+        paths: [
+            'audio/unit_hordeFarmer_death_1.ogg',
+            'audio/unit_hordeFarmer_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: 34,
+        maxDistance: 68,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_hordeFarmerSpawn_death: {
+        paths: [
+            'audio/unit_hordeFarmerSpawn_death_1.ogg',
+            'audio/unit_hordeFarmerSpawn_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: 34,
+        maxDistance: 68,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
     unit_goblin_death: {
         paths: [
             'audio/unit_goblin_death_1.ogg',

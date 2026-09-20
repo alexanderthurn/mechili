@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Wezwanie burzy",
-    "description": "Zaznacz szeroki okrąg w dowolnym miejscu. Małe chmury burzowe zbierają się wysoko nad nami i ciskają piorunami w losowe miejsca – pioruny nie zadają obrażeń, ale razą jednostki szerokim strumieniem, wywołując efekt osłabienia przypominający wieżę, chyba że mają złotą aurę. Kopuły strażnicze nadal blokują uderzenia."
+    "description": "Zaznacz szeroki krąg w dowolnym miejscu. Wysoko zbierają się małe burzowe chmury i ciskają błyskawice w losowe miejsca — błyskawice nie zadają obrażeń, ale przeklinają jednostki w szerokim promieniu (talenty się wyłączają, wolniejszy ruch), chyba że mają złotą aurę. Kopuły ochronne nadal blokują uderzenia."
   },
   "meteorShower": {
     "name": "Deszcz meteorów",

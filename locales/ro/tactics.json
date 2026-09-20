@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Chemarea furtunii",
-    "description": "Marchează un cerc lat oriunde. Nori mici de furtună se adună sus și aruncă fulgere în locuri aleatorii — fulgerele nu provoacă daune, dar șochează unitățile într-o împrăștiere largă cu un debuff asemănător unui turn, cu excepția cazului în care au aură aurie. Cupolele de gardă blochează în continuare loviturile."
+    "description": "Marchează un cerc larg oriunde. Sus se adună nori mici de furtună și aruncă fulgere în locuri aleatorii — fulgerele nu fac daune, dar blestemă unitățile pe o rază largă (talentele se opresc, mișcare mai lentă), dacă nu au aură aurie. Cupolele de protecție tot blochează loviturile."
   },
   "meteorShower": {
     "name": "Ploaia de meteoriți",

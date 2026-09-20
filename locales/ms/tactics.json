@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Panggilan ribut",
-    "description": "Tandakan bulatan lebar di mana-mana sahaja. Awan ribut kecil berkumpul tinggi di atas dan melontarkan kilat di tempat yang rawak — bolt tidak menghasilkan kerosakan tetapi unit kejutan dalam percikan lebar dengan debuff seperti menara melainkan ia mempunyai aura keemasan. Kubah wad masih menghalang serangan."
+    "description": "Tandakan bulatan lebar di mana-mana. Awan ribut kecil berkumpul tinggi di atas dan melemparkan kilat ke titik rawak — kilat tidak memberi kerosakan tetapi menyumpah unit dalam jejari lebar (bakat terpadam, pergerakan perlahan), melainkan mereka ada aura emas. Kubah pelindung masih menahan kilat."
   },
   "meteorShower": {
     "name": "Hujan Meteor",

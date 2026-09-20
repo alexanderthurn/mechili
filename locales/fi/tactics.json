@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Myrskykutsu",
-    "description": "Merkitse laaja ympyrä mihin tahansa. Pienet ukkospilvet kerääntyvät korkealle ja sinkoavat salamoita satunnaisiin kohtiin – nuolet eivät aiheuta vahinkoa, mutta iskevät yksiköihin laajalla roiskeella ja aiheuttavat tornimaisen heikkenemisen, ellei niillä ole kultaista auraa. Suojakupolit estävät silti iskut."
+    "description": "Merkitse leveä ympyrä mihin tahansa. Pieniä ukkospilviä kerääntyy korkealle ja ne sinkoavat salamoita satunnaisiin kohtiin — salamat eivät tee vahinkoa mutta kiroavat yksiköt laajalla alueella (kyvyt sammuvat, liike hidastuu), ellei niillä ole kultaista auraa. Suojakuvut torjuvat salamat edelleen."
   },
   "meteorShower": {
     "name": "Meteoriparvi",

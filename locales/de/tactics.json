@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Sturm rufen",
-    "description": "Zeichne einen großen Kreis an einer beliebigen Stelle. Kleine Gewitterwolken ziehen hoch oben auf und schleudern Blitze an zufälligen Stellen. Die Blitze verursachen keinen Schaden, betäuben aber Einheiten in einem weiten Wirkungsbereich mit einem turmartigen Debuff, es sei denn, sie besitzen eine goldene Aura. Schutzkuppeln blockieren die Blitze weiterhin."
+    "description": "Zeichne einen großen Kreis an einer beliebigen Stelle. Kleine Gewitterwolken ziehen hoch oben auf und schleudern Blitze an zufälligen Stellen. Die Blitze verursachen keinen Schaden, verhexen aber Einheiten in einem weiten Wirkungsbereich (Talente fallen aus, langsamere Bewegung), es sei denn, sie besitzen eine goldene Aura. Schutzkuppeln blockieren die Blitze weiterhin."
   },
   "meteorShower": {
     "name": "Meteorstrom",

@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Richiamo della tempesta",
-    "description": "Traccia un ampio cerchio in un punto qualsiasi. Piccole nuvole temporalesche si addensano in alto e scagliano fulmini in punti casuali: i fulmini non infliggono danni ma folgorano le unità in un'ampia area con un debuff simile a quello di una torre, a meno che non abbiano un'aura dorata. Le cupole di protezione bloccano comunque gli attacchi."
+    "description": "Segna un ampio cerchio ovunque. Piccole nubi temporalesche si radunano in alto e scagliano fulmini in punti casuali: i fulmini non fanno danno ma maledicono le unità in un'ampia area (talenti spenti, movimento più lento), a meno che non abbiano l'aura dorata. Le cupole di protezione bloccano ancora i fulmini."
   },
   "meteorShower": {
     "name": "Sciame meteorico",

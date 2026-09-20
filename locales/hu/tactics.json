@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Viharhívás",
-    "description": "Jelölj ki egy széles kört bárhol. Magasan gyűlnek a kis viharfelhők, és véletlenszerű pontokra villámokat szórnak – a villámok nem okoznak sebzést, de széles körben sokkolják az egységeket, toronyszerű gyengítéssel, kivéve, ha arany aurával rendelkeznek. Az őrszemek kupolái továbbra is blokkolják a csapásokat."
+    "description": "Jelölj ki bárhol egy széles kört. Magasan apró viharfelhők gyűlnek, és véletlenszerű pontokra csapnak le — a villámok nem sebeznek, de széles körben megátkozzák az egységeket (képességeik kikapcsolnak, lassabban mozognak), hacsak nincs arany aurájuk. A védőkupolák továbbra is felfogják a becsapódásokat."
   },
   "meteorShower": {
     "name": "Meteorraj",

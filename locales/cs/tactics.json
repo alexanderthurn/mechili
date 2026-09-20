@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Volání bouře",
-    "description": "Označte kdekoli široký kruh. Malé bouřkové mraky se shromažďují vysoko nad nimi a vrhají blesky na náhodná místa – blesky nezpůsobují žádné poškození, ale šokují jednotky v širokém záblesku věžovitým debuffem, pokud nemají zlatou auru. Kupole ochran stále blokují údery."
+    "description": "Označ široký kruh kdekoli. Vysoko nahoře se stahují malé bouřkové mraky a vrhají blesky na náhodná místa — blesky nedávají poškození, ale zaklejí jednotky v širokém okolí (talenty se vypnou, pomalejší pohyb), pokud nemají zlatou auru. Ochranné kupole blesky stále blokují."
   },
   "meteorShower": {
     "name": "Meteorický roj",

@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Stormanrop",
-    "description": "Markera en bred cirkel var som helst. Små stormmoln samlas högt ovanför och kastar blixtar på slumpmässiga platser – blixtar gör ingen skada men chockar enheter i ett brett plask med en tornliknande debuff om de inte har en gyllene aura. Avdelningskupoler blockerar fortfarande attackerna."
+    "description": "Markera en bred cirkel var som helst. Små åskmoln samlas högt uppe och slungar blixtar mot slumpmässiga platser — blixtarna gör ingen skada men förhäxar enheter i en bred radie (talanger stängs av, långsammare rörelse), om de inte har gyllene aura. Skyddskupoler blockerar fortfarande nedslagen."
   },
   "meteorShower": {
     "name": "Meteorregn",

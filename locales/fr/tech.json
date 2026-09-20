@@ -138,6 +138,6 @@
   },
   "sunward": {
     "name": "Garde solaire",
-    "description": "Immunisé contre le maléfice, les malus de tour et la paralysie de tempête."
+    "description": "Immunisé contre le maléfice (tempête comprise) et les malus de tour."
   }
 }

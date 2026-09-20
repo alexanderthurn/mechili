@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Stormkald",
-    "description": "Marker en bred cirkel hvor som helst. Små stormskyer samles højt oppe og slynger lyn mod tilfældige steder — bolte gør ingen skade, men chokerer enheder i et bredt plask med en tårnlignende debuff, medmindre de har en gylden aura. Afskærmningskupler blokerer stadig angrebene."
+    "description": "Markér en bred cirkel hvor som helst. Små tordenskyer samler sig højt oppe og slynger lyn mod tilfældige steder — lynene gør ingen skade, men forhekser enheder i en bred radius (talenter slås fra, langsommere bevægelse), medmindre de har gylden aura. Beskyttelseskupler blokerer stadig nedslagene."
   },
   "meteorShower": {
     "name": "Meteorregn",

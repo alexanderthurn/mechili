@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Llamada de tormenta",
-    "description": "Dibuja un círculo amplio en cualquier lugar. Pequeñas nubes de tormenta se acumulan en lo alto y lanzan rayos a puntos aleatorios; los rayos no infligen daño, pero electrocutan a las unidades en una amplia zona con un efecto negativo similar al de una torre, a menos que tengan un aura dorada. Las cúpulas protectoras siguen bloqueando los impactos."
+    "description": "Dibuja un círculo amplio en cualquier lugar. Pequeñas nubes de tormenta se acumulan en lo alto y lanzan rayos a puntos aleatorios; los rayos no infligen daño, pero maldicen a las unidades en un radio amplio (talentos apagados, movimiento más lento) salvo que tengan aura dorada. Las cúpulas de protección siguen bloqueando los rayos."
   },
   "meteorShower": {
     "name": "Lluvia de meteoritos",

@@ -103,7 +103,7 @@
         },
         "debuffImmune": {
           "type": "boolean",
-          "description": "Talent (Sunward): immune to hex, tower-loss and storm debuffs — the immunity only, without the Sunstone rune's −30% damage taken or convert block."
+          "description": "Talent (Sunward): immune to hex, tower-loss and storm hex — the immunity only, without the Sunstone rune's −30% damage taken or convert block."
         },
         "emp": {
           "type": "object",

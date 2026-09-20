@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Gọi bão",
-    "description": "Vẽ một vòng tròn rộng ở bất kỳ đâu. Những đám mây giông nhỏ tụ lại trên cao và phóng sét vào các vị trí ngẫu nhiên — sét không gây sát thương nhưng gây giật điện cho các đơn vị trong một vùng rộng với hiệu ứng suy yếu giống như tháp, trừ khi chúng có hào quang vàng. Các mái vòm phòng thủ vẫn chặn được các đòn tấn công."
+    "description": "Đánh dấu một vòng tròn rộng ở bất cứ đâu. Những đám mây giông nhỏ tụ lại trên cao và giáng sét xuống các điểm ngẫu nhiên — sét không gây sát thương nhưng nguyền rủa các đơn vị trong bán kính rộng (tài năng bị tắt, di chuyển chậm hơn), trừ khi chúng có hào quang vàng. Vòm bảo vệ vẫn chặn được sét."
   },
   "meteorShower": {
     "name": "Mưa sao băng",

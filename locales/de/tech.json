@@ -138,6 +138,6 @@
   },
   "sunward": {
     "name": "Sonnenwacht",
-    "description": "Immun gegen Verhexung, Turm-Schwächungen und Sturmlähmung."
+    "description": "Immun gegen Verhexung (auch Sturm) und Turm-Schwächungen."
   }
 }
