@@ -1985,7 +1985,7 @@ export class Game {
             // Generals-style select bark: only on a fresh pack select (not re-click / carry)
             if (previous !== unit) {
                 if (unit.type.id === 'stronghold') {
-                    this.playStrongholdSelectBark(unit.team);
+                    this.playStrongholdSelectBark(unit);
                 } else if (unit.type.structure) {
                     audio.playBuildingSelect(unit.type.id);
                 } else if (unit.team === 'player') {
@@ -2389,7 +2389,7 @@ export class Game {
             this.selectedActor = next;
             if (next) {
                 if (next.unit.type.id === 'stronghold') {
-                    this.playStrongholdSelectBark(next.unit.team);
+                    this.playStrongholdSelectBark(next.unit);
                 } else if (next.unit.type.structure) {
                     audio.playBuildingSelect(next.unit.type.id);
                 } else if (next.unit.team === 'player') {
@@ -4514,11 +4514,17 @@ export class Game {
     }
 
     /**
-     * Stronghold click: bark from the first seat on that side with a real
-     * commander (2v2 → seat order; skips none / tutorial).
+     * Stronghold click: if the oven will bake this deploy, play forge select
+     * (own vs rival) instead of the commander bark; otherwise bark from the
+     * first seat on that side with a real commander.
      */
-    private playStrongholdSelectBark(team: BattleTeam): void {
+    private playStrongholdSelectBark(unit: Unit): void {
+        const team = unit.team;
         if (team !== 'player' && team !== 'enemy') return;
+        if (this.strongholdForgeWillBake(unit)) {
+            audio.playForgeSelect(team === 'enemy');
+            return;
+        }
         for (const seat of seatIdsOf(this.seats, team)) {
             const card = this.starterCardOfSeat(seat);
             if (
@@ -4531,6 +4537,26 @@ export class Game {
                 return;
             }
         }
+    }
+
+    /**
+     * Oven has a resolvable bake product (same intel rules as chimney FX —
+     * fogged enemy keeps don't leak live oven state).
+     */
+    private strongholdForgeWillBake(unit: Unit): boolean {
+        if (!hasAbility(unit.type, 'forge') || unit.destroyed) return false;
+        const team: Team = unit.team === 'horde' ? 'player' : unit.team;
+        const fogged = this.placement.isIntelFogged(unit);
+        const snapIds =
+            fogged && this.buildingIntelSnapshot
+                ? this.buildingIntelSnapshot.forge[team]
+                : null;
+        const oven: (ForgeSlot | null)[] = snapIds
+            ? snapIds.map((id) =>
+                  id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null,
+              )
+            : this.forgeSlots[team]!;
+        return !!resolveForge(this.types, oven, this.teamForgePool(team)).product;
     }
 
     /** Forge spells buyable this round (a tutorial lesson narrows them per round). */

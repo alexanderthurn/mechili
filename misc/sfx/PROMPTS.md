@@ -56,6 +56,16 @@ exaggerated punch with box glove
 sci-fi energy shield impact hit, crystalline force field pulse, bright holographic shimmer transient, magical futuristic barrier deflect, short clean game SFX, no music, no voice
 ```
 
+### `forge_select` / `forge_select_rival`
+
+```
+three clear hammer strikes on a steel anvil in a row, ding ding ding, bright ringing metal blacksmith hammering steel, short game UI SFX, no fire no bellows no music no voice
+```
+
+```
+dark enemy forge select sting, cold iron forge, distant harsh bellows and dull anvil, ominous furnace, short game UI SFX, no music no voice
+```
+
 ### `spell_oil_drop` (falling blug)
 
 ```

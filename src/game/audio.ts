@@ -1489,6 +1489,27 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.5,
     },
+    /** Stronghold select while oven will bake this deploy — warm own forge. */
+    forge_select: {
+        paths: [
+            'audio/forge_select_1.ogg',
+            'audio/forge_select_2.ogg',
+            'audio/forge_select_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 2,
+        gain: 0.85,
+    },
+    /** Enemy keep select while its oven will bake — colder rival forge. */
+    forge_select_rival: {
+        paths: [
+            'audio/forge_select_rival_1.ogg',
+            'audio/forge_select_rival_2.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 2,
+        gain: 0.85,
+    },
     /** Proximity bed while camera is near burning ground. */
     fire_loop: {
         paths: ['audio/fire_loop_1.ogg'],
@@ -2441,6 +2462,11 @@ void [
     assetUrl('audio/explosion_heavy_2.ogg'),
     assetUrl('audio/forge_light_1.ogg'),
     assetUrl('audio/forge_light_2.ogg'),
+    assetUrl('audio/forge_select_1.ogg'),
+    assetUrl('audio/forge_select_2.ogg'),
+    assetUrl('audio/forge_select_3.ogg'),
+    assetUrl('audio/forge_select_rival_1.ogg'),
+    assetUrl('audio/forge_select_rival_2.ogg'),
     assetUrl('audio/fire_loop_1.ogg'),
     assetUrl('audio/ground_fire_1.ogg'),
     assetUrl('audio/ground_fire_2.ogg'),
@@ -3413,6 +3439,19 @@ class AudioBus {
         const now = performance.now();
         if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
         this.lastUnitSelectAt = now;
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Stronghold select while that side's oven will bake — warm own forge vs
+     * colder rival. UI group (not voicesEnabled). No select cooldown so it can
+     * layer with the commander bark.
+     */
+    playForgeSelect(rival: boolean): void {
+        const cueId = rival ? 'forge_select_rival' : 'forge_select';
+        if (!CUES[cueId]) return;
         void this.ensureCue(cueId).then((ok) => {
             if (ok) this.playUi(cueId);
         });
