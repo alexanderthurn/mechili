@@ -14,6 +14,7 @@ import {
     type Scene,
 } from 'three';
 import { groundHeightAt } from './map';
+import { prefs, type FireVfxQuality } from './prefs';
 import { ensureSpellTemplate } from './spellAssets';
 import {
     cloneSpellInstance,
@@ -35,6 +36,12 @@ const FLASH_CLOUD_FADE_OUT = 0.85;
 /** bolt fires after the cloud has mostly faded in */
 const BOLT_AFTER_CLOUD = 0.26;
 const BOLT_LIFE = 0.28;
+/**
+ * Bolts alive or waiting at once. A storm zone drops several strikes per tick;
+ * past this the extras (thunderhead, flickers) are dropped so a long storm
+ * can't pile geometry up — the strikes themselves still land.
+ */
+const BOLT_BUDGET = 24;
 /** sky-flicker bolts (no ground hit) — short additive flashes in the cloud */
 const SKY_FLASH_LIFE = 0.14;
 /** cylinder radius for the main flash column */
@@ -121,6 +128,28 @@ export class CloudFx {
     }
 
     /**
+     * What a strike is allowed to draw, by spell-VFX quality: the bolt always
+     * lands, the thunderhead and its flicker bolts are the part that adds up
+     * when a storm drops several bolts a tick.
+     */
+    private stormBudget(quality: FireVfxQuality = prefs().fireVfx): {
+        cloud: boolean;
+        flickers: number;
+        secondCloudChance: number;
+    } {
+        switch (quality) {
+            case 'off':
+            case 'low':
+                // weak machines: the strike itself, nothing around it
+                return { cloud: false, flickers: 0, secondCloudChance: 0 };
+            case 'medium':
+                return { cloud: true, flickers: 1, secondCloudChance: 0 };
+            case 'high':
+                return { cloud: true, flickers: 1 + Math.floor(Math.random() * 2), secondCloudChance: 0.35 };
+        }
+    }
+
+    /**
      * Spawn a translucent storm cloud above the strike, then fire a bolt from
      * that cloud down to the hit after a short gather delay.
      */
@@ -134,20 +163,27 @@ export class CloudFx {
             const cloudHeight = STORM_CLOUD_HEIGHT + (Math.random() - 0.5) * 5;
             const cloudY = gy + cloudHeight;
             const meshScale = FLASH_CLOUD_SCALE + Math.random() * 1.8;
+            // busy storm: strikes keep landing, the decoration around them stops
+            const crowded = this.bolts.length + this.pendingBolts.length >= BOLT_BUDGET;
+            const budget = crowded
+                ? { cloud: false, flickers: 0, secondCloudChance: 0 }
+                : this.stormBudget();
 
-            this.spawn({
-                kind: 'storm',
-                x: cloudX,
-                z: cloudZ,
-                radius: 28,
-                startAt: now + FLASH_CLOUD_FADE_IN,
-                endAt: now + FLASH_CLOUD_FADE_IN + FLASH_CLOUD_HOLD,
-                meshScale,
-                cloudHeight,
-                maxOpacity: FLASH_CLOUD_OPACITY,
-                fadeIn: FLASH_CLOUD_FADE_IN,
-                fadeOut: FLASH_CLOUD_FADE_OUT,
-            });
+            if (budget.cloud) {
+                this.spawn({
+                    kind: 'storm',
+                    x: cloudX,
+                    z: cloudZ,
+                    radius: 28,
+                    startAt: now + FLASH_CLOUD_FADE_IN,
+                    endAt: now + FLASH_CLOUD_FADE_IN + FLASH_CLOUD_HOLD,
+                    meshScale,
+                    cloudHeight,
+                    maxOpacity: FLASH_CLOUD_OPACITY,
+                    fadeIn: FLASH_CLOUD_FADE_IN,
+                    fadeOut: FLASH_CLOUD_FADE_OUT,
+                });
+            }
 
             // Main ground strike
             this.pendingBolts.push({
@@ -161,8 +197,7 @@ export class CloudFx {
             });
 
             // Extra in-cloud / near-cloud flashes so the storm feels busier
-            const flickers = 2 + Math.floor(Math.random() * 3);
-            for (let i = 0; i < flickers; i++) {
+            for (let i = 0; i < budget.flickers; i++) {
                 const fx = cloudX + (Math.random() - 0.5) * meshScale * 0.8;
                 const fz = cloudZ + (Math.random() - 0.5) * meshScale * 0.8;
                 const fy = cloudY - 0.5 - Math.random() * 4;
@@ -179,7 +214,7 @@ export class CloudFx {
             }
 
             // Occasional second cloud nearby (extra thunderhead flash)
-            if (Math.random() < 0.55) {
+            if (Math.random() < budget.secondCloudChance) {
                 const sx = cloudX + (Math.random() - 0.5) * 10;
                 const sz = cloudZ + (Math.random() - 0.5) * 10;
                 const sh = cloudHeight + (Math.random() - 0.5) * 3;
