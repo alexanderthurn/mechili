@@ -14,6 +14,8 @@ export const STORM_ID = 'storm';
 export const METEOR_SHOWER_ID = 'meteorShower';
 /** shared by sim (impact timing) and meteorFx (visual fall) — keep in sync */
 export const METEOR_SHARD_FALL_SEC = 0.55;
+/** Great Meteor visual fall before the sim strike — keep in sync with meteorFx. */
+export const METEOR_GREAT_FALL_SEC = 1.1;
 export const POISON_CLOUD_ID = 'poisonCloud';
 export const ACID_ID = 'acidSpill';
 export const FIRE_SPILL_ID = 'fireSpill';

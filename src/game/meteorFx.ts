@@ -8,7 +8,7 @@ import {
     disposeObject,
     setSpellOpacity,
 } from './spellMeshes';
-import { METEOR_SHARD_FALL_SEC } from './tactics';
+import { METEOR_GREAT_FALL_SEC, METEOR_SHARD_FALL_SEC } from './tactics';
 import { SHIELD_HEIGHT } from './units';
 
 /** Shards only cast on high/ultra — many concurrent casters are costly on the shadow map. */
@@ -27,7 +27,7 @@ function setRootCastShadow(root: Group, cast: boolean): void {
 }
 
 /** fall time so impact lines up with the sim strike */
-export const GREAT_METEOR_FALL_SEC = 1.1;
+export const GREAT_METEOR_FALL_SEC = METEOR_GREAT_FALL_SEC;
 const GREAT_DROP = 140;
 /**
  * The rock does not survive the landing: it is removed on the frame it lands

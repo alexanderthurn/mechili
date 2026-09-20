@@ -32,6 +32,7 @@ import {
 import type { TerrainGrid } from './terrainGrid';
 import { DEFAULT_SETTINGS, type LevelingSettings, type TowerSettings } from './settings';
 import {
+    METEOR_GREAT_FALL_SEC,
     METEOR_SHARD_FALL_SEC,
     RALLY_ROUTE_RADIUS,
     RALLY_ROUTE_REACH,
@@ -692,6 +693,8 @@ export type SimEvent =
           scar?: boolean;
           /** Attacker type when this blast is a melee cleave slam (ogre bat, etc.). */
           unitTypeId?: string;
+          /** Meteor strike — dedicated impact bank instead of generic explosion. */
+          meteor?: 'great' | 'shard';
       }
     /** Hammer smash: flatten scenery in the footprint (battle-phase only). */
     | {
@@ -766,6 +769,8 @@ export type SimEvent =
     | { kind: 'summon'; x: number; y: number; z: number; flying: boolean }
     /** meteor-shower shard cue — visual falls until `at`, then sim resolves hit */
     | { kind: 'spellMeteor'; x: number; z: number; at: number }
+    /** Great Meteor fall whoosh — starts METEOR_GREAT_FALL_SEC before impact */
+    | { kind: 'spellMeteorGreat'; x: number; z: number }
     /** oil/acid drip cue — blob falls until `at`, then that disc stamps on the ground */
     | {
           kind: 'hazardDrip';
@@ -1132,7 +1137,12 @@ export class BattleSim {
      */
     private readonly lastWardImpactAt = new Map<number, number>();
     /** scheduled spell strikes; each fires exactly once at its `at` time */
-    private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
+    private readonly strikes: (SpellStrike & {
+        at: number;
+        fired: boolean;
+        /** Great Meteor fall whoosh already announced */
+        fallAnnounced?: boolean;
+    })[];
     /** ticking spell zones with their private rng streams and tick clocks */
     private readonly zones: (SpellZone & {
         rng: () => number;
@@ -3133,6 +3143,14 @@ export class BattleSim {
      *  strikes/ignites (exactly once each), plus zone ticks */
     private stepSpellStrikes(): void {
         for (const s of this.strikes) {
+            if (
+                s.fx === 'meteor' &&
+                !s.fallAnnounced &&
+                this.elapsed >= s.at - METEOR_GREAT_FALL_SEC
+            ) {
+                s.fallAnnounced = true;
+                this.events.push({ kind: 'spellMeteorGreat', x: s.x, z: s.z });
+            }
             if (s.fired || this.elapsed < s.at) continue;
             s.fired = true;
             this.resolveStrike(s);
@@ -3494,6 +3512,7 @@ export class BattleSim {
             shake: bigMeteor ? 1 : 0,
             // Meteors: VFX only — no permanent wear scorch (hammer still scars).
             scar: bigMeteor || meteorShower ? false : undefined,
+            meteor: bigMeteor ? 'great' : meteorShower ? 'shard' : undefined,
             rect: rect
                 ? {
                       // scar = hit zone — ground + air damage use the same rect

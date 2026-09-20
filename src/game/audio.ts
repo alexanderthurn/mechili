@@ -2172,12 +2172,69 @@ const CUES: Record<string, CueDef> = {
             'audio/spell_meteor_fall_2.ogg',
         ],
         group: 'sfx',
-        maxVoices: 4,
+        maxVoices: 6,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        // Far-field like oil drops / great meteor — shower should read off-screen.
+        refDistance: 48,
+        maxDistance: 160,
+        rolloff: 1.05,
+        gain: 1.05,
+    },
+    /** Great Meteor sky whoosh — starts as the rock becomes visible. */
+    spell_meteor_great_fall: {
+        paths: [
+            'audio/spell_meteor_great_fall_1.ogg',
+            'audio/spell_meteor_great_fall_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 2,
+        spatial: true,
+        refDistance: 48,
+        maxDistance: 160,
+        rolloff: 1.0,
+        gain: 1.35,
+    },
+    /** Meteor Shower shard land — replaces generic explosion. */
+    spell_meteor_impact: {
+        paths: [
+            'audio/spell_meteor_impact_1.ogg',
+            'audio/spell_meteor_impact_2.ogg',
+            'audio/spell_meteor_impact_3.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 8,
+        spatial: true,
+        refDistance: 48,
+        maxDistance: 160,
+        rolloff: 1.05,
+        gain: 1.2,
+    },
+    /**
+     * Great Meteor crater slam — loud far-field blast + always-on UI stamp
+     * (same layering idea as hammer_crush).
+     */
+    spell_meteor_great_impact: {
+        paths: [
+            'audio/spell_meteor_great_impact_1.ogg',
+            'audio/spell_meteor_great_impact_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 2,
+        spatial: true,
+        refDistance: 48,
+        maxDistance: 160,
+        rolloff: 1.0,
+        gain: 1.7,
+    },
+    /** Great Meteor always-on stamp (non-spatial), like hammer_crush. */
+    meteor_crush: {
+        paths: [
+            'audio/spell_meteor_great_impact_1.ogg',
+            'audio/spell_meteor_great_impact_2.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 2,
+        gain: 1.1,
     },
     /** Oil blob falling through the air (blug) — plays at drip fall-start. */
     spell_oil_drop: {
@@ -2717,6 +2774,13 @@ void [
     assetUrl('audio/spell_lightning_3.ogg'),
     assetUrl('audio/spell_meteor_fall_1.ogg'),
     assetUrl('audio/spell_meteor_fall_2.ogg'),
+    assetUrl('audio/spell_meteor_great_fall_1.ogg'),
+    assetUrl('audio/spell_meteor_great_fall_2.ogg'),
+    assetUrl('audio/spell_meteor_impact_1.ogg'),
+    assetUrl('audio/spell_meteor_impact_2.ogg'),
+    assetUrl('audio/spell_meteor_impact_3.ogg'),
+    assetUrl('audio/spell_meteor_great_impact_1.ogg'),
+    assetUrl('audio/spell_meteor_great_impact_2.ogg'),
     assetUrl('audio/spell_oil_drop_1.ogg'),
     assetUrl('audio/spell_oil_drop_2.ogg'),
     assetUrl('audio/spell_oil_drop_3.ogg'),
@@ -4215,6 +4279,16 @@ class AudioBus {
                         this.play('ogre_smash', e.x, e.z);
                         break;
                     }
+                    if (e.meteor === 'great') {
+                        // Spatial blast + quieter UI stamp (hammer_crush pattern).
+                        this.play('spell_meteor_great_impact', e.x, e.z);
+                        this.playUi('meteor_crush');
+                        break;
+                    }
+                    if (e.meteor === 'shard') {
+                        this.play('spell_meteor_impact', e.x, e.z);
+                        break;
+                    }
                     this.play(
                         e.rocket
                             ? 'rocket_blast'
@@ -4285,6 +4359,9 @@ class AudioBus {
                     break;
                 case 'spellMeteor':
                     this.play('spell_meteor_fall', e.x, e.z);
+                    break;
+                case 'spellMeteorGreat':
+                    this.play('spell_meteor_great_fall', e.x, e.z);
                     break;
                 case 'hammerCrush':
                     this.play('hammer_crush');

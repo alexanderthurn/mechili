@@ -166,6 +166,24 @@ soft bright solar shimmer loop, quiet golden sunstone glint, gentle radiant spar
 soft stone shield thud-hum loop, quiet fortress barrier resonance, gentle bulwark stone bed, seamless game UI ambience loop, no crash no music no voice
 ```
 
+### Meteor spells
+
+```
+meteor shard falling whoosh, hot rock streaking through air, sharp fiery fall rush, game SFX, no impact yet, no music no voice
+```
+
+```
+huge flaming meteor roaring through sky, deep whoosh of massive burning rock falling, powerful air rush, loud game SFX, no impact no explosion yet, no music no voice
+```
+
+```
+small meteor rock impact hit, sharp fiery stone slam, crackling fire burst on ground, short punchy game SFX, no music no voice
+```
+
+```
+massive meteor crater impact, huge flaming rock slam into ground, deep earth-shaking boom with fire burst, catastrophic landing, loud game SFX, no music no voice
+```
+
 ### `spell_oil_drop` (falling blug)
 
 ```
