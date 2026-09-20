@@ -1,6 +1,6 @@
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
-import { applyTalentMod, type TechDef, type UnitType } from './units';
+import { techForUnit, type TechDef, type UnitType } from './units';
 
 /** a unit type's combat stats after tech multipliers (level scaling is separate) */
 export interface ResolvedStats {
@@ -47,7 +47,7 @@ export function levelScaleMult(
     const techs = types
         .talentsOf(type)
         .filter((t) => owned.has(t.id) || !!type.innateTechs?.includes(t.id))
-        .map((t) => applyTalentMod(t, type.talentMod?.[t.id]));
+        .map((t) => techForUnit(type, t));
     return levelScaleMultFromTechs(techs, level, kind);
 }
 
@@ -190,7 +190,7 @@ export class TechTree {
         for (const techId of techIds) {
             const raw = types.talent(techId);
             if (!raw) continue;
-            const tech = applyTalentMod(raw, type.talentMod?.[techId]);
+            const tech = techForUnit(type, raw);
             stats.hp *= tech.mods.hp ?? 1;
             stats.damage *= tech.mods.damage ?? 1;
             stats.range *= tech.mods.range ?? 1;
