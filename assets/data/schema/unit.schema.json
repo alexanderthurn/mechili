@@ -237,8 +237,12 @@
         },
         "soundSize": {
           "type": "string",
-          "enum": ["small", "medium", "large"],
-          "description": "Combat SFX presence tier (volume + hear distance). Independent of collisionRadius — pack fodder stays small even if radius varies."
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "description": "Combat SFX presence (volume + hear distance). Independent of collisionRadius — pack fodder stays `small` even when radius varies. Omit = `medium`."
         },
         "talentMod": {
           "type": "object",

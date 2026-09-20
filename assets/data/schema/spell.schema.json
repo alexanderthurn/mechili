@@ -139,7 +139,7 @@
                 },
                 "impactRadius": {
                   "type": "number",
-                  "description": "meteorShower / acidRain: splash or puddle radius per impact"
+                  "description": "meteorShower / acidRain / storm: splash or puddle radius per impact"
                 },
                 "igniteRadius": {
                   "type": "number",
@@ -147,7 +147,7 @@
                 },
                 "dropsPerTick": {
                   "type": "number",
-                  "description": "acidRain: how many drips spawn each tick"
+                  "description": "acidRain / storm: how many drips / bolts spawn each tick"
                 }
               },
               "required": [
@@ -157,7 +157,7 @@
                 "damage"
               ],
               "additionalProperties": false,
-              "description": "Ticking area effect running `duration` seconds after the delay, point-targeted only: 'storm' zaps one random unit per tick (wards absorb per bolt); 'meteorShower' drops a small strike on a random spot per tick (+ ignites fire); 'acidRain' rains small acid drips that stamp sparse ground acid (same rules as Acid Spill)."
+              "description": "Ticking area effect running `duration` seconds after the delay, point-targeted only: 'storm' flashes several bolts at random spots per tick (wards absorb; splash hexes); 'meteorShower' drops a small strike on a random spot per tick (+ ignites fire); 'acidRain' rains small acid drips that stamp sparse ground acid (same rules as Acid Spill)."
             },
             "igniteCapsule": {
               "type": "object",
