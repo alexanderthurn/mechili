@@ -32,6 +32,12 @@ export interface DebugPerfStats {
     weatherLines?: string[];
     /** EffectToggles.debugLines() — Shift+1…9 layer on/off */
     effectLines?: string[];
+    /** Camera Y above terrain under the camera (world units). */
+    camHeight?: number;
+    /** 3D distance camera → look-at target (world units). */
+    camLookDist?: number;
+    /** XZ-only distance camera → look-at (matches audio listener falloff). */
+    camLookXZ?: number;
 }
 
 /**
@@ -223,6 +229,11 @@ export class DebugOverlay {
                 : '') +
             `  objs ${sceneStats.drawables}\n` +
             `calls ${info.render.calls}  tris ${tris}\n` +
+            (stats.camHeight !== undefined
+                ? `cam ↑${stats.camHeight.toFixed(1)}  →look ${stats.camLookDist?.toFixed(1)}` +
+                  (stats.camLookXZ !== undefined ? ` (xz ${stats.camLookXZ.toFixed(1)})` : '') +
+                  `\n`
+                : '') +
             `geo ${info.memory.geometries}  tex ${info.memory.textures}` +
             (stats.instanceCount !== undefined
                 ? `\ninst ${stats.instanceCount} in ${stats.instancePools ?? 0} pools`
@@ -248,6 +259,14 @@ export class DebugOverlay {
                 ? `  softCrowd ${stats.softCrowd ? 'on' : 'throttled'} (limit ${stats.softCrowdLimit})`
                 : ''),
             `draw  calls=${info.render.calls}  tris=${info.render.triangles}  points=${info.render.points}  lines=${info.render.lines}`,
+            ...(stats.camHeight !== undefined
+                ? [
+                      `cam   height↑=${stats.camHeight.toFixed(2)}  lookDist=${stats.camLookDist?.toFixed(2)}` +
+                          (stats.camLookXZ !== undefined
+                              ? `  lookXZ=${stats.camLookXZ.toFixed(2)}`
+                              : ''),
+                  ]
+                : []),
             `mem3  geo=${info.memory.geometries}  tex=${info.memory.textures}`,
             `scene drawables=${sceneStats.drawables}  meshes=${sceneStats.meshes}  instancedMeshes=${sceneStats.instanced}  sprites=${sceneStats.sprites}`,
             `inst  count=${stats.instanceCount ?? 0}  pools=${stats.instancePools ?? 0}`,

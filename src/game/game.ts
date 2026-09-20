@@ -11160,6 +11160,12 @@ export class Game {
             softCrowd = mobile <= SOFT_CROWD_LIMIT;
         }
         const instSnap = this.unitInstances.debugSnapshot();
+        const cam = this.rig.camera.position;
+        const look = this.rig.target;
+        const groundUnderCam = this.rig.floorAt?.(cam.x, cam.z) ?? 0;
+        const dx = cam.x - look.x;
+        const dy = cam.y - look.y;
+        const dz = cam.z - look.z;
         this.debug.update(this.pixiApp, this.renderer, this.scene, {
             units: this.placement.unitCount,
             mechs,
@@ -11176,6 +11182,9 @@ export class Game {
             simSteps: simSteps || undefined,
             weatherLines: this.weather?.debugLines(),
             effectLines: this.effectToggles.debugLines(),
+            camHeight: cam.y - groundUnderCam,
+            camLookDist: Math.hypot(dx, dy, dz),
+            camLookXZ: Math.hypot(dx, dz),
         }, dtSeconds);
 
         if (this.onStateCheckpoint && !this.star && !this.matchOver && !this.hydrating) {
