@@ -27,6 +27,7 @@ import { t, techName, unitName as localizedUnitName } from '../i18n';
 import { CardSpellTips } from './cardSpellTip';
 import { iconHtml } from './iconAtlas';
 import { createShowcaseViewer, type ShowcaseViewer } from './modelViewer';
+import { audio } from '../game/audio';
 
 /** Trims the trailing `.0` that whole numbers pick up from toFixed. */
 function num(n: number): string {
@@ -349,7 +350,13 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
         const key = `${type.id}:${narrow ? 'n' : 'w'}`;
         if (shownUnitId === key) return;
         if (!hasUnitModel(type.id) && !hasAnimatedModel(type.id)) return;
-        if (!viewer) viewer = createShowcaseViewer(stage);
+        if (!viewer) {
+            viewer = createShowcaseViewer(stage);
+            viewer.onClick = () => {
+                const type = selected();
+                if (type) audio.playUnitSelect(type.id);
+            };
+        }
         viewer.show(type.id, type.meshScale * (narrow ? NARROW_MODEL_SCALE : 1));
         shownUnitId = key;
     }

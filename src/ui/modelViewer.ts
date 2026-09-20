@@ -30,6 +30,8 @@ export interface ShowcaseViewer {
     show(unitId: string, meshScale?: number): void;
     showSpell(spellId: SpellAssetId): Promise<void>;
     dispose(): void;
+    /** Short canvas click (not a drag). Loadout uses this for pick VO. */
+    onClick: (() => void) | null;
 }
 
 const DEFAULT_POLAR = 1.3; // ~74.5°, a touch above eye level — matches the old fixed camera look
@@ -95,9 +97,12 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
+    /** Cumulative pointer travel while dragging — distinguishes click from orbit. */
+    let dragTravel = 0;
     let resumeTimer = 0;
     let wingFlapActive = false;
     let animActive = false;
+    let clickHandler: (() => void) | null = null;
     let lastTickMs = performance.now();
     /** Ignores stale spell loads if the user clicked another pick mid-fetch. */
     let spellLoadGen = 0;
@@ -199,6 +204,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
     function onPointerDown(e: PointerEvent): void {
         if (!current) return;
         dragging = true;
+        dragTravel = 0;
         pauseAutoRotate();
         lastX = e.clientX;
         lastY = e.clientY;
@@ -212,6 +218,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         const dy = e.clientY - lastY;
         lastX = e.clientX;
         lastY = e.clientY;
+        dragTravel += Math.hypot(dx, dy);
         spherical.theta -= dx * DRAG_YAW_SPEED;
         spherical.phi = MathUtils.clamp(spherical.phi - dy * DRAG_PITCH_SPEED, MIN_POLAR, MAX_POLAR);
         updateCamera();
@@ -223,6 +230,8 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         canvas.classList.remove('dragging');
         if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
         scheduleAutoRotateResume();
+        // Click (not orbit) on the model — loadout pick bark, etc.
+        if (dragTravel < 6 && current) clickHandler?.();
     }
 
     function onWheel(e: WheelEvent): void {
@@ -252,6 +261,12 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
     tick();
 
     return {
+        get onClick() {
+            return clickHandler;
+        },
+        set onClick(fn: (() => void) | null) {
+            clickHandler = fn;
+        },
         show(unitId: string, meshScale = 1) {
             if (disposed) return;
             spellLoadGen++;
