@@ -189,6 +189,7 @@
   "tacticGroundFire": "Yerden ateş DPS {{n}}",
   "tacticGroundBurn": "Yer yanığı {{n}}s",
   "tacticFireDps": "Fire DPS {{n}}",
+  "tacticStormBolts": "Her çakışta {{count}} yıldırım",
   "tacticBurn": "{{n}}s'i yak",
   "tacticAcid": "Asit {{n}}% maks HP / s",
   "tacticLasts": "Süre {{n}}",

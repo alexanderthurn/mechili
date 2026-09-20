@@ -189,6 +189,7 @@
   "tacticGroundFire": "Maasta tulevan tulituksen DPS {{n}}",
   "tacticGroundBurn": "Maan palaminen {{n}}s",
   "tacticFireDps": "Tuli DPS {{n}}",
+  "tacticStormBolts": "{{count}} salamaa per isku",
   "tacticBurn": "Polta {{n}}s",
   "tacticAcid": "Happo {{n}}% maks. HP / s",
   "tacticLasts": "Kestää {{n}}",

@@ -125,7 +125,7 @@ import { hasFlagNode, StrongholdFlags } from './strongholdFlags';
 import { StrongholdCommanders } from './strongholdCommander';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
-import { audio, playMatchMusic } from './audio';
+import { audio, playMatchMusic, setUnitTypes as setAudioUnitTypes } from './audio';
 import { videoRecorder } from './videoRecorder';
 import { CloudFx, type CloudCue } from './cloudFx';
 import { ConversionFx } from './conversionFx';
@@ -1427,6 +1427,8 @@ export class Game {
             debugWindow.mechiliDebugClear = () => this.debugLog.clear();
         }
         this.settings = normalizeGameSettings(settingsInput);
+        // combat SFX read unit sound sizes from the definitions this match plays
+        setAudioUnitTypes(this.types);
         this.scenario = this.resolveScenario();
         this.rules = resolveMatchRules(this.settings, this.scenario);
         const scenarioMode = this.settings.scenario?.mode;
@@ -3018,6 +3020,7 @@ export class Game {
         // Audio is a process-wide singleton — stop battle beds here or they
         // keep looping after quit-to-menu (pause freezes sync, destroy must cut).
         audio.stopBeamLoops();
+        setAudioUnitTypes(null); // back to the base game's sound sizes
         this.introActive = false;
         this.outroActive = false;
         this.onMatchIntroProgress = null;

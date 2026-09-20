@@ -189,6 +189,7 @@
   "tacticGroundFire": "Sát thương mỗi giây (DPS) của hỏa lực mặt đất {{n}}",
   "tacticGroundBurn": "Đốt cháy trên mặt đất {{n}}s",
   "tacticFireDps": "Sát thương lửa {{n}}",
+  "tacticStormBolts": "{{count}} tia sét mỗi lần lóe",
   "tacticBurn": "Đốt cháy {{n}}s",
   "tacticAcid": "Axit {{n}}% HP tối đa / giây",
   "tacticLasts": "Kéo dài {{n}}",

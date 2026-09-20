@@ -189,6 +189,7 @@
   "tacticGroundFire": "Grunnbrann DPS {{n}}",
   "tacticGroundBurn": "Grunnforbrenning {{n}}s",
   "tacticFireDps": "Brann-DPS {{n}}",
+  "tacticStormBolts": "{{count}} lyn per glimt",
   "tacticBurn": "Brenn {{n}}s",
   "tacticAcid": "Syre {{n}}% maks HP / s",
   "tacticLasts": "Varer {{n}}",

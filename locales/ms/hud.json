@@ -189,6 +189,7 @@
   "tacticGroundFire": "DPS kebakaran darat {{n}}",
   "tacticGroundBurn": "Pembakaran tanah {{n}}s",
   "tacticFireDps": "DPS Kebakaran {{n}}",
+  "tacticStormBolts": "{{count}} kilat setiap denyar",
   "tacticBurn": "Bakar {{n}}s",
   "tacticAcid": "Asid {{n}}% HP maks / s",
   "tacticLasts": "Bertahan {{n}}",

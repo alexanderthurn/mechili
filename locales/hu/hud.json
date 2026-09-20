@@ -189,6 +189,7 @@
   "tacticGroundFire": "Földi tűz DPS {{n}}",
   "tacticGroundBurn": "Földi égés {{n}}s",
   "tacticFireDps": "Tűz DPS {{n}}",
+  "tacticStormBolts": "{{count}} villám csapásonként",
   "tacticBurn": "Égés {{n}}s",
   "tacticAcid": "Sav {{n}}% max HP / s",
   "tacticLasts": "Tart {{n}}",

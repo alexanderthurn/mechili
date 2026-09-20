@@ -189,6 +189,7 @@
   "tacticGroundFire": "DPS tembakan darat {{n}}",
   "tacticGroundBurn": "Luka bakar di tanah {{n}}s",
   "tacticFireDps": "DPS Api {{n}}",
+  "tacticStormBolts": "{{count}} petir per kilatan",
   "tacticBurn": "Bakar {{n}}s",
   "tacticAcid": "Asam {{n}}% maks HP / s",
   "tacticLasts": "Berakhir {{n}}",

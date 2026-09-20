@@ -189,6 +189,7 @@
   "tacticGroundFire": "DPS от наземния огън {{n}}",
   "tacticGroundBurn": "Изгаряне на земята {{n}}s",
   "tacticFireDps": "Огнен DPS {{n}}",
+  "tacticStormBolts": "{{count}} светкавици на удар",
   "tacticBurn": "Изгаряне {{n}}s",
   "tacticAcid": "Киселина {{n}}% макс. HP / s",
   "tacticLasts": "Трае {{n}}",

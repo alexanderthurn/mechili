@@ -189,6 +189,7 @@
   "tacticGroundFire": "Grondvuur DPS {{n}}",
   "tacticGroundBurn": "Grondverbranding {{n}}s",
   "tacticFireDps": "Vuur DPS {{n}}",
+  "tacticStormBolts": "{{count}} bliksems per flits",
   "tacticBurn": "Verbranden {{n}}s",
   "tacticAcid": "Zuur {{n}}% max HP / s",
   "tacticLasts": "Gaat lang mee {{n}}",

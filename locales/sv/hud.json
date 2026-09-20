@@ -189,6 +189,7 @@
   "tacticGroundFire": "Markbrand DPS {{n}}",
   "tacticGroundBurn": "Markbränna {{n}}s",
   "tacticFireDps": "Brand-DPS {{n}}",
+  "tacticStormBolts": "{{count}} blixtar per nedslag",
   "tacticBurn": "Bränn {{n}}s",
   "tacticAcid": "Syra {{n}}% max HP / s",
   "tacticLasts": "Varar {{n}}",

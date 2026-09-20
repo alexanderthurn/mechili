@@ -189,6 +189,7 @@
   "tacticGroundFire": "Огонь земли УВС {{n}}",
   "tacticGroundBurn": "Горение земли {{n}}с",
   "tacticFireDps": "Огонь УВС {{n}}",
+  "tacticStormBolts": "{{count}} молний за вспышку",
   "tacticBurn": "Горение {{n}}с",
   "tacticAcid": "Кислота {{n}}% макс. ОЗ / с",
   "tacticLasts": "Длится {{n}}",

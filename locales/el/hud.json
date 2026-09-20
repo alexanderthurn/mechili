@@ -189,6 +189,7 @@
   "tacticGroundFire": "Φωτιά εδάφους DPS {{n}}",
   "tacticGroundBurn": "Κάψιμο εδάφους {{n}}δ",
   "tacticFireDps": "Φωτιά DPS {{n}}",
+  "tacticStormBolts": "{{count}} κεραυνοί ανά λάμψη",
   "tacticBurn": "Κάψιμο {{n}}δ",
   "tacticAcid": "Οξύ {{n}}% μέγ. HP / δ",
   "tacticLasts": "Διαρκεί {{n}}",

@@ -189,6 +189,7 @@
   "tacticGroundFire": "ไฟพื้น DPS {{n}}",
   "tacticGroundBurn": "เผาพื้น {{n}} วินาที",
   "tacticFireDps": "ไฟ DPS {{n}}",
+  "tacticStormBolts": "ฟ้าผ่า {{count}} ครั้งต่อการฟาด",
   "tacticBurn": "เผา {{n}} วินาที",
   "tacticAcid": "กรด {{n}}% HP สูงสุด / วินาที",
   "tacticLasts": "อยู่ {{n}}",

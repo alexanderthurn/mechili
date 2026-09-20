@@ -189,6 +189,7 @@
   "tacticGroundFire": "DPS de feu au sol {{n}}",
   "tacticGroundBurn": "Brûlure au sol {{n}}s",
   "tacticFireDps": "DPS Feu {{n}}",
+  "tacticStormBolts": "{{count}} éclairs par salve",
   "tacticBurn": "Brûler {{n}}s",
   "tacticAcid": "Acide {{n}}% HP max / s",
   "tacticLasts": "Dure {{n}}",

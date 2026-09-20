@@ -189,6 +189,7 @@
   "tacticGroundFire": "地上炎 DPS {{n}}",
   "tacticGroundBurn": "地上燃焼 {{n}}秒",
   "tacticFireDps": "炎 DPS {{n}}",
+  "tacticStormBolts": "1回の閃光で{{count}}本の雷",
   "tacticBurn": "燃焼 {{n}}秒",
   "tacticAcid": "酸 最大 HP の {{n}}% / 秒",
   "tacticLasts": "持続 {{n}}",

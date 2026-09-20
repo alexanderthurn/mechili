@@ -189,6 +189,7 @@
   "tacticGroundFire": "Jordbrand DPS {{n}}",
   "tacticGroundBurn": "Jordforbrænding {{n}}s",
   "tacticFireDps": "Brand-DPS {{n}}",
+  "tacticStormBolts": "{{count}} lyn pr. glimt",
   "tacticBurn": "Brænd {{n}}s",
   "tacticAcid": "Syre {{n}}% maks. HP / s",
   "tacticLasts": "Varer {{n}}",

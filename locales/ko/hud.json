@@ -189,6 +189,7 @@
   "tacticGroundFire": "지상 화염 DPS {{n}}",
   "tacticGroundBurn": "지상 연소 {{n}}초",
   "tacticFireDps": "화염 DPS {{n}}",
+  "tacticStormBolts": "섬광당 번개 {{count}}개",
   "tacticBurn": "연소 {{n}}초",
   "tacticAcid": "산 {{n}}% 최대 체력 / 초",
   "tacticLasts": "지속 {{n}}",

@@ -189,6 +189,7 @@
   "tacticGroundFire": "DPS de fuego terrestre {{n}}",
   "tacticGroundBurn": "Quema de suelo {{n}}s",
   "tacticFireDps": "DPS de fuego {{n}}",
+  "tacticStormBolts": "{{count}} rayos por descarga",
   "tacticBurn": "Quemar {{n}}s",
   "tacticAcid": "Ácido {{n}}% máx. HP / s",
   "tacticLasts": "Dura {{n}}",

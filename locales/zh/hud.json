@@ -189,6 +189,7 @@
   "tacticGroundFire": "地面火焰 DPS {{n}}",
   "tacticGroundBurn": "地面燃烧 {{n}}秒",
   "tacticFireDps": "火焰 DPS {{n}}",
+  "tacticStormBolts": "每次闪击 {{count}} 道闪电",
   "tacticBurn": "燃烧 {{n}}秒",
   "tacticAcid": "酸蚀 {{n}}% 最大生命 / 秒",
   "tacticLasts": "持续 {{n}}",

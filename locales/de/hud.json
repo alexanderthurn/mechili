@@ -189,6 +189,7 @@
   "tacticGroundFire": "Bodenfeuer-DPS {{n}}",
   "tacticGroundBurn": "Bodenbrand {{n}}s",
   "tacticFireDps": "Feuer-DPS {{n}}",
+  "tacticStormBolts": "{{count}} Blitze pro Schlag",
   "tacticBurn": "Brennen {{n}}s",
   "tacticAcid": "Säure {{n}}% max HP / s",
   "tacticLasts": "Dauert {{n}}",

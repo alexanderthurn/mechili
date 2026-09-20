@@ -189,6 +189,7 @@
   "tacticGroundFire": "DPS při pozemní palbě {{n}}",
   "tacticGroundBurn": "Popáleniny {{n}}s",
   "tacticFireDps": "Ohnivé poškození {{n}}",
+  "tacticStormBolts": "{{count}} blesků na úder",
   "tacticBurn": "Vypálit {{n}}s",
   "tacticAcid": "Kyselina ⟦pH0⟧% max. HP/s {{n}}",
   "tacticLasts": "Trvá {{n}}",
