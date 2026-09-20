@@ -1917,7 +1917,7 @@ const CUES: Record<string, CueDef> = {
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
-    /** Acid droplet falling (hiss-drip) — same hear range as oil drop. */
+    /** Acid droplet falling (hiss-drip) — Acid Spill pour. */
     spell_acid_drop: {
         paths: [
             'audio/spell_acid_drop_1.ogg',
@@ -1931,6 +1931,22 @@ const CUES: Record<string, CueDef> = {
         maxDistance: ATTACK_MAX * 2,
         rolloff: 1.15,
         gain: 1.25,
+    },
+    /** Poison Cloud acid rain — thinner droppy plips (dripScale set on those drips). */
+    spell_acid_rain: {
+        paths: [
+            'audio/spell_acid_rain_1.ogg',
+            'audio/spell_acid_rain_2.ogg',
+            'audio/spell_acid_rain_3.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 12,
+        spatial: true,
+        // Huge zone + half gain — keep full volume across most of the board.
+        refDistance: 40,
+        maxDistance: 80,
+        rolloff: 1.05,
+        gain: 0.525,
     },
     spell_dragon_approach: {
         paths: [
@@ -2502,6 +2518,9 @@ void [
     assetUrl('audio/spell_acid_drop_1.ogg'),
     assetUrl('audio/spell_acid_drop_2.ogg'),
     assetUrl('audio/spell_acid_drop_3.ogg'),
+    assetUrl('audio/spell_acid_rain_1.ogg'),
+    assetUrl('audio/spell_acid_rain_2.ogg'),
+    assetUrl('audio/spell_acid_rain_3.ogg'),
     assetUrl('audio/spell_acid_spill_1.ogg'),
     assetUrl('audio/spell_dragon_approach_1.ogg'),
     assetUrl('audio/spell_dragon_breath_1.ogg'),
@@ -4008,7 +4027,10 @@ class AudioBus {
                         e.hazard === 'oil'
                             ? 'spell_oil_drop'
                             : e.hazard === 'acid'
-                              ? 'spell_acid_drop'
+                              ? // Poison Cloud acidRain sets dripScale; Acid Spill does not.
+                                e.dripScale != null
+                                  ? 'spell_acid_rain'
+                                  : 'spell_acid_drop'
                               : e.hazard === 'fire'
                                 ? 'spell_fire_drop'
                                 : 'hazard_drip';

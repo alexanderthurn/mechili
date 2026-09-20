@@ -68,6 +68,12 @@ thick oil blob falling through air, wet blugging glugging liquid whoosh, heavy v
 corrosive acid droplet falling through air, thin wet hissing sizzle drip, toxic green liquid fall whoosh, short game SFX, no splash landing, no music no voice
 ```
 
+### `spell_acid_rain` (droppy plip — Poison Cloud)
+
+```
+single water droplet falling through air, clear plip droppy whoosh, tiny liquid bead fall, short sharp drop sound, game SFX, no splash landing no music no voice
+```
+
 ### `spell_fire_drop` (candle zsssh)
 
 ```
