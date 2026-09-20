@@ -108,8 +108,10 @@ import type { CpuTimings } from '../ui/debug';
 export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
 /** battle clock time when golden auras ({@link UnitType.aura}) are applied once (after other pre-battle effects) */
 export const GOLDEN_AURA_APPLY_AT = 0.1;
-/** storm bolt: personal tower-like debuff duration (refreshed on each hit) */
-export const STORM_DEBUFF_SEC = 5;
+/** storm bolt: personal hex duration (refreshed on each hit) */
+export const STORM_HEX_SEC = 5;
+/** move-speed multiplier while storm-hexed (same as Hexing talent) */
+export const STORM_HEX_SPEED_MULT = 0.6;
 /** units stand still for this long at battle start before moving or firing */
 export const BATTLE_START_FREEZE = 1.0;
 
@@ -352,8 +354,8 @@ export interface Actor {
     /** sim time until which this mech ignores tower-destruction debuffs (ballista aura) */
     goldenUntil: number;
     /**
-     * Storm-bolt tower-like debuff on this actor (same multipliers as seat tower
-     * loss). Golden aura / debuff-immune items ignore it via {@link isGolden}.
+     * Legacy storm-bolt timer — storm now hexes via {@link empUntil}.
+     * Kept so actor shape stays stable for saves / replays.
      */
     stormDebuffUntil: number;
     /** battle time when flank spawn finishes (0 = already spawned) */
@@ -3335,7 +3337,7 @@ export class BattleSim {
                             hypot(a.x - d.x, a.z - d.z) <= d.unit.type.shield.radius,
                     );
                     if (underWard) continue;
-                    this.applyStormDebuff(a);
+                    this.applyStormHex(a);
                 }
                 this.events.push({
                     kind: 'spellLightning',
@@ -3782,21 +3784,24 @@ export class BattleSim {
         this.debuffUntil.set(seat, Math.max(this.debuffUntil.get(seat) ?? 0, this.elapsed) + add);
     }
 
-    /** tower-destruction or storm-bolt debuff is active for this mech right now.
+    /** tower-destruction debuff is active for this mech right now.
      *  Seat tower loss affects the whole combat seat ({@link actorSeat} — so a
-     *  converted mech follows its new owner, not the deploy seat); storm bolts
-     *  are personal. Golden / Sunward shrug both off. */
+     *  converted mech follows its new owner, not the deploy seat). Golden /
+     *  Sunward shrug it off. (Storm bolts hex via {@link applyStormHex}.) */
     private isDebuffed(actor: Actor): boolean {
-        // cheap timers first — the immunity check walks talents, and most mechs aren't debuffed at all
-        const storm = actor.stormDebuffUntil > this.elapsed + 1e-9;
-        if (!storm && this.elapsed >= (this.debuffUntil.get(actorSeat(actor)) ?? 0) - 1e-9) return false;
+        // cheap timer first — the immunity check walks talents
+        if (this.elapsed >= (this.debuffUntil.get(actorSeat(actor)) ?? 0) - 1e-9) return false;
         return !this.isDebuffImmune(actor);
     }
 
-    /** refresh personal storm debuff (same multipliers as tower loss) */
-    private applyStormDebuff(actor: Actor): void {
+    /** refresh personal storm hex (talents off + slow — same channel as Hexing) */
+    private applyStormHex(actor: Actor): void {
         if (this.isDebuffImmune(actor) || actor.unit.type.structure || actor.unit.type.extra) return;
-        actor.stormDebuffUntil = Math.max(actor.stormDebuffUntil, this.elapsed + STORM_DEBUFF_SEC);
+        const already = actor.empUntil > this.elapsed + 1e-9;
+        actor.empUntil = Math.max(actor.empUntil, this.elapsed + STORM_HEX_SEC);
+        actor.empSpeedMult = already
+            ? Math.min(actor.empSpeedMult, STORM_HEX_SPEED_MULT)
+            : STORM_HEX_SPEED_MULT;
     }
 
     /** flat tower-destruction multiplier — only while the debuff timer runs.

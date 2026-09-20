@@ -179,7 +179,7 @@
   "tacticDamage": "Damage {{n}}",
   "tacticBlast": "Blast {{n}}",
   "tacticSummon": "Summon {{count}}× {{unit}}",
-  "tacticLightning": "Lightning every {{n}}s (debuff only)",
+  "tacticLightning": "Lightning every {{n}}s (hex only)",
   "tacticSplash": "Splash {{n}}",
   "tacticAcidRain": "Acid rain ×{{count}} every {{n}}s",
   "tacticDrop": "Drop {{n}}",

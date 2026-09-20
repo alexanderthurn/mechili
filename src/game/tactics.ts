@@ -278,7 +278,7 @@ export function formatTacticStats(tactic: TacticDef): string[] {
                 lines.push(
                     t('hud:tacticLightning', {
                         n: z.interval,
-                        defaultValue: `Lightning every ${z.interval}s (debuff only)`,
+                        defaultValue: `Lightning every ${z.interval}s (hex only)`,
                     }),
                 );
                 if (z.impactRadius != null) {

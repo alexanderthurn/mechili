@@ -184,6 +184,18 @@ small meteor rock impact hit, sharp fiery stone slam, crackling fire burst on gr
 massive meteor crater impact, huge flaming rock slam into ground, deep earth-shaking boom with fire burst, catastrophic landing, loud game SFX, no music no voice
 ```
 
+### Storm Call
+
+Thunder for the flashes (visual bolt, audio boom).
+
+```
+far thunder rolling in over the hills, deep continuous thunder rumble, ominous storm approaching, loud game SFX, no zap no voice no music
+```
+
+```
+deep thunder clap boom, rolling thunder after distant lightning, low rumbling storm thunder, loud game SFX, no electric zap no crackle spark, no voice no music
+```
+
 ### `spell_oil_drop` (falling blug)
 
 ```
