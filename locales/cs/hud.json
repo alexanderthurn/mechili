@@ -28,6 +28,8 @@
   "yearDefender": "Obránce",
   "yearYou": "ty",
   "yearSideWins": "Vítězí: {{side}}",
+  "yearRoundWon": "{{side}} vyhrál",
+  "yearBegins": "Rok začíná",
   "yearRoundTo": "Kolo {{n}}: {{side}}",
   "rematchSwapped": "Odveta, prohozené role",
   "rematchWaiting": "Čekám na soupeře…",

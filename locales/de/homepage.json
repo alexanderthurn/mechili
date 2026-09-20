@@ -128,6 +128,17 @@
     "sub": "Ab der zweiten Runde wählst du eine der angebotenen {{items}}-Karten aus dem Spielpool. Kampfzauber werden in der Hochburg gekauft und nicht aus Karten gezogen.",
     "select": "Wähle eine Rundenkarte"
   },
+  "music": {
+    "title": "Musik",
+    "sub": "Saisonale Stücke, die der Atmosphären-Tour von Das Jahr folgen — pro Szene ein Einsatz- und ein Kampfstück, dazu das Menü- und das Ausweich-Kampfstück.",
+    "select": "Musikstück wählen",
+    "play": "Abspielen",
+    "stop": "Stopp",
+    "menu": "Menü",
+    "fallback": "Kampf (Ausweich)",
+    "deploy": "Einsatz",
+    "battle": "Kampf"
+  },
   "matchSettings": {
     "title": "Spieleinstellungen",
     "sub": "Die Standardregeln für ein Match stammen direkt aus dem Einstellungscode des Spiels, sodass sie nicht von der finalen Version abweichen können. Alles hier ist anpassbar – es ist Open Source."

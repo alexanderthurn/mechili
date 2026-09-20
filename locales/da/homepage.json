@@ -18,7 +18,7 @@
     "1": "Hærens indsættelse i skovrydningen",
     "2": "Udrulningsfase og enhedsbutik",
     "3": "Dragens ildånde over marken",
-    "4": "Side-om-side implementeringszoner",
+    "4": "Side-om-side opstillingszoner",
     "5": "Massekamp på sletterne",
     "6": "Vinterfæstning i sneen",
     "7": "Dobbelte baser på gitteret",
@@ -127,6 +127,17 @@
     "title": "Rundekort",
     "sub": "Fra runde to og fremefter skal du udvælge et af flere tilbudte {{items}}-kort, der trækkes fra kamppuljen. Kampbesværgelser købes i Fæstningen, ikke udvælges fra kort.",
     "select": "Vælg et rundekort"
+  },
+  "music": {
+    "title": "Musik",
+    "sub": "Årstidsmusik, der følger Årets stemningstur — et opstillings- og et kampnummer pr. scene, plus menuens og reservekampnummeret.",
+    "select": "Vælg et nummer",
+    "play": "Afspil",
+    "stop": "Stop",
+    "menu": "Menu",
+    "fallback": "Kamp (reserve)",
+    "deploy": "Opstilling",
+    "battle": "Kamp"
   },
   "matchSettings": {
     "title": "Matchindstillinger",

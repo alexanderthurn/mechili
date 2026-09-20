@@ -128,6 +128,17 @@
     "sub": "İkinci turdan itibaren, maç havuzundan çekilen çeşitli {{items}} kartlarından birini seçin. Savaş büyüleri Kale'den satın alınır, kartlardan seçilmez.",
     "select": "Bir tur kartı seçin"
   },
+  "music": {
+    "title": "Müzik",
+    "sub": "Yıl’ın atmosfer turunu izleyen mevsimlik parçalar — sahne başına bir dağıtım ve bir savaş parçası, ayrıca menü ve yedek savaş parçası.",
+    "select": "Bir parça seç",
+    "play": "Çal",
+    "stop": "Durdur",
+    "menu": "Menü",
+    "fallback": "Savaş (yedek)",
+    "deploy": "Dağıtım",
+    "battle": "Savaş"
+  },
   "matchSettings": {
     "title": "Maç ayarları",
     "sub": "Maç için varsayılan kurallar, oyunun ayarlar kodundan doğrudan alınmıştır, bu nedenle gerçekte piyasaya sürülenlerden sapması mümkün değildir. Buradaki her şey ayarlanabilir; açık kaynaklıdır."

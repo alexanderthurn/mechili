@@ -128,6 +128,17 @@
     "sub": "Od druhého kola si draftujte jednu z několika nabízených karet {{items}} vylosovaných z herního poolu. Bojová kouzla se kupují v pevnosti, ne draftují se z karet.",
     "select": "Vyberte kartu kola"
   },
+  "music": {
+    "title": "Hudba",
+    "sub": "Sezónní podkresy sledující náladovou pouť Roku — na scénu jedna skladba nasazení a jedna bitevní, plus menu a záložní bitevní.",
+    "select": "Vyber skladbu",
+    "play": "Přehrát",
+    "stop": "Zastavit",
+    "menu": "Menu",
+    "fallback": "Bitva (záloha)",
+    "deploy": "Nasazení",
+    "battle": "Bitva"
+  },
   "matchSettings": {
     "title": "Nastavení zápasu",
     "sub": "Výchozí pravidla pro zápas, převzatá přímo z kódu nastavení hry, takže se nemohou lišit od toho, co je skutečně součástí hry. Všechno zde je laditelné – je to open source."

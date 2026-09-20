@@ -18,7 +18,7 @@
     "1": "Desfășurarea armatei în defrișarea pădurii",
     "2": "Faza de desfășurare și magazinul de unități",
     "3": "Respirație de foc de dragon peste câmp",
-    "4": "Zone de implementare alăturate",
+    "4": "Zone de desfășurare alăturate",
     "5": "Bătălie în masă pe câmpie",
     "6": "Fortăreață de iarnă în zăpadă",
     "7": "Baze duble pe grilă",
@@ -127,6 +127,17 @@
     "title": "Cărți de rundă",
     "sub": "Din runda a doua încolo, alege una dintre cărțile {{items}} oferite, trase din rezerva de potrivire. Vrăjile de luptă se cumpără la Fortăreață, nu se draftează din cărți.",
     "select": "Alege o carte de rundă"
+  },
+  "music": {
+    "title": "Muzică",
+    "sub": "Fundaluri sezoniere care urmează turul de atmosferă al Anului — pe scenă o piesă de desfășurare și una de bătălie, plus meniul și piesa de rezervă.",
+    "select": "Alege o piesă",
+    "play": "Redă",
+    "stop": "Oprește",
+    "menu": "Meniu",
+    "fallback": "Bătălie (rezervă)",
+    "deploy": "Desfășurare",
+    "battle": "Bătălie"
   },
   "matchSettings": {
     "title": "Setările meciului",

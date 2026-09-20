@@ -3,7 +3,7 @@
  * (or a lone root `scenario.jsonc`), an optional `meta.jsonc`, next to the
  * content overrides (data, models, textures) they play with.
  */
-import { isScenarioPackageFile, META_FILE, SCENARIO_FILE, SCENARIOS_DIR, type OverlayFile } from '../assets';
+import { isScenarioPackageFile, META_FILE, SCENARIO_FILE, SCENARIOS_DIR, scenarioTerrainPath, type OverlayFile } from '../assets';
 import { parseJsonc } from '../content/jsonc';
 import type { PackageMeta } from './packageMeta';
 import type { ScenarioDef } from './scenarioDef';
@@ -19,13 +19,21 @@ export function scenarioFileText(def: ScenarioDef): string {
 }
 
 /**
- * A one-level package: `scenarios/<def.id>.jsonc` plus the content files of
- * the level it was made on — without that level's own scenarios or meta.
+ * A one-level package: `scenarios/<def.id>.jsonc` (and its terrain, when it
+ * has one) plus the content files of the level it was made on — without that
+ * level's own scenarios or meta.
  */
-export function scenarioPackageFiles(def: ScenarioDef, contentFiles: readonly OverlayFile[] = []): OverlayFile[] {
+export function scenarioPackageFiles(
+    def: ScenarioDef,
+    contentFiles: readonly OverlayFile[] = [],
+    /** the scenario's terrain as landscape-file text; null = the generated terrain */
+    terrain: string | null = null,
+): OverlayFile[] {
+    const encoder = new TextEncoder();
     return [
         ...contentFiles.filter((f) => !isScenarioPackageFile(f.path)),
-        { path: `${SCENARIOS_DIR}${def.id}.jsonc`, bytes: new TextEncoder().encode(scenarioFileText(def)) },
+        { path: `${SCENARIOS_DIR}${def.id}.jsonc`, bytes: encoder.encode(scenarioFileText(def)) },
+        ...(terrain !== null ? [{ path: scenarioTerrainPath(def.id), bytes: encoder.encode(terrain) }] : []),
     ];
 }
 
@@ -56,6 +64,8 @@ export function withScenarioInPackage(
     packageId: string,
     /** a new name for the package (meta.jsonc) */
     packageName?: string,
+    /** the scenario's terrain (landscape-file text): null removes it, undefined keeps what the package has */
+    terrain?: string | null,
 ): { files: OverlayFile[]; id: string } {
     const ids = packageScenarioIds(files);
     let id = def.id;
@@ -66,8 +76,10 @@ export function withScenarioInPackage(
     }
     const path = id === 'scenario' && files.some((f) => f.path === SCENARIO_FILE) ? SCENARIO_FILE : `${SCENARIOS_DIR}${id}.jsonc`;
     const encoder = new TextEncoder();
-    const out = files.filter((f) => f.path !== path && f.path !== META_FILE);
+    const terrainPath = scenarioTerrainPath(id);
+    const out = files.filter((f) => f.path !== path && f.path !== META_FILE && (terrain === undefined || f.path !== terrainPath));
     out.push({ path, bytes: encoder.encode(scenarioFileText({ ...def, id })) });
+    if (terrain) out.push({ path: terrainPath, bytes: encoder.encode(terrain) });
 
     const metaFile = files.find((f) => f.path === META_FILE);
     let meta: Record<string, unknown> | null = null;

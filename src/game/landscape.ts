@@ -79,6 +79,35 @@ export function outerGridFor(map: Pick<LandscapeBoard, 'halfW' | 'halfH'>): Land
     return { originX: -halfSpan, originZ: -halfSpan, cell: (halfSpan * 2) / (res - 1), res };
 }
 
+/**
+ * The landscape turned half around the board's middle: (x, z) → (−x, −z).
+ * The scenario editor shows the enemy side this way (its army turned to the
+ * near edge), so the ground has to turn with it. Every grid here is centred on
+ * the origin, so turning one is reversing its values; lean offsets point the
+ * other way, plants move to the mirrored spot.
+ */
+export function rotateLandscape180(data: LandscapeData): LandscapeData {
+    const reversed = (values: Float32Array) => values.slice().reverse();
+    const centred = Math.abs(data.outer.originX + ((data.outer.res - 1) * data.outer.cell) / 2) < 1e-6 && Math.abs(data.outer.originZ - data.outer.originX) < 1e-6;
+    if (!centred) throw new Error('landscape: the outer grid is not centred — it cannot be turned');
+    const materials: Partial<Record<MaterialChannel, Float32Array>> = {};
+    for (const ch of MATERIAL_CHANNELS) {
+        const values = data.materials[ch];
+        if (values) materials[ch] = reversed(values);
+    }
+    return {
+        ...data,
+        board: reversed(data.board),
+        outerHeights: reversed(data.outerHeights),
+        lean: data.lean
+            ? { dx: reversed(data.lean.dx).map((v) => -v), dz: reversed(data.lean.dz).map((v) => -v) }
+            : null,
+        materials,
+        plants: data.plants.map((p) => ({ ...p, x: -p.x, z: -p.z, yaw: p.yaw + Math.PI })),
+        plantClears: data.plantClears.map((c) => ({ ...c, x: -c.x, z: -c.z })),
+    };
+}
+
 /** does a landscape belong on this board? (a 2v2 board is wider, for one) */
 export function landscapeFits(data: LandscapeData, map: LandscapeBoard): boolean {
     return (

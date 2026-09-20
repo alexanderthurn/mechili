@@ -215,6 +215,12 @@ export interface GameSettings {
      * a board it wasn't made for (a wider 2v2 board) plays procedural.
      */
     landscape?: string;
+    /**
+     * Play on the terrain of this scenario of {@link level}'s package (its
+     * `scenarios/<id>.terrain.json`) — a Custom Game's map picked from a saved
+     * scenario. The package travels to every seat like any level.
+     */
+    terrainOf?: string;
     /** the generated board relief ({@link TerrainShape}); unset = standard. A static landscape replaces it. */
     terrainShape?: TerrainShape;
     /**
@@ -777,6 +783,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         // a match that arrived over a room connection may carry null for "no level"
         ...(rest.level == null ? { level: undefined } : {}),
         ...(typeof rest.landscape === 'string' && rest.landscape ? {} : { landscape: undefined }),
+        ...(typeof rest.terrainOf === 'string' && rest.terrainOf ? {} : { terrainOf: undefined }),
         terrainShape: rest.terrainShape == null ? undefined : terrainShapeOption(rest.terrainShape),
         economy: {
             ...DEFAULT_SETTINGS.economy,

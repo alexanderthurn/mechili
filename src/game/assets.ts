@@ -86,6 +86,8 @@ export interface AssetOverlay {
     scenarioTexts: ReadonlyMap<string, string>;
     /** `meta.jsonc` at the package root, if any (name, author, order of its scenarios) */
     metaText: string | null;
+    /** scenario terrains by scenario id: `scenarios/<id>.terrain.json` (a landscape file) */
+    terrainTexts: ReadonlyMap<string, string>;
     report: OverlayReport;
 }
 
@@ -96,10 +98,27 @@ export const SCENARIO_FILE = 'scenario.jsonc';
 export const SCENARIOS_DIR = 'scenarios/';
 /** optional package information: name, author, cover, order of its scenarios */
 export const META_FILE = 'meta.jsonc';
+/** a scenario's own terrain, next to it: `scenarios/<id>.terrain.json` */
+export const TERRAIN_SUFFIX = '.terrain.json';
 
-/** a scenario or package meta file (text, never a URL) */
+/** the package path of scenario `id`'s terrain (the root `scenario.jsonc` is id `scenario`) */
+export function scenarioTerrainPath(id: string): string {
+    return `${SCENARIOS_DIR}${id}${TERRAIN_SUFFIX}`;
+}
+
+/** a scenario's terrain file inside a package */
+export function isScenarioTerrainFile(path: string): boolean {
+    return path.startsWith(SCENARIOS_DIR) && path.endsWith(TERRAIN_SUFFIX);
+}
+
+/** a scenario, its terrain or the package meta file (text, never a URL) */
 export function isScenarioPackageFile(path: string): boolean {
-    return path === SCENARIO_FILE || path === META_FILE || (path.startsWith(SCENARIOS_DIR) && path.endsWith('.jsonc'));
+    return (
+        path === SCENARIO_FILE ||
+        path === META_FILE ||
+        (path.startsWith(SCENARIOS_DIR) && path.endsWith('.jsonc')) ||
+        isScenarioTerrainFile(path)
+    );
 }
 
 /** a copy on a plain ArrayBuffer — Blob and digest won't take SharedArrayBuffer views */
@@ -139,12 +158,14 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
     const dataFiles = new Map<string, string>();
     const referenced = new Set<string>();
     const scenarioTexts = new Map<string, string>();
+    const terrainTexts = new Map<string, string>();
     let metaText: string | null = null;
     for (const f of valid) {
         if (isScenarioPackageFile(f.path)) {
             const text = new TextDecoder().decode(toBytes(f.bytes));
             if (f.path === META_FILE) metaText = text;
             else if (f.path === SCENARIO_FILE) scenarioTexts.set('scenario', text);
+            else if (isScenarioTerrainFile(f.path)) terrainTexts.set(f.path.slice(SCENARIOS_DIR.length, -TERRAIN_SUFFIX.length), text);
             else scenarioTexts.set(f.path.slice(SCENARIOS_DIR.length, -'.jsonc'.length), text);
         }
         if (!f.path.startsWith('data/') || !TEXT_FILE.test(f.path)) continue;
@@ -178,7 +199,7 @@ export async function buildAssetOverlay(id: string, files: readonly OverlayFile[
         at += p.length;
     }
     const hash = hex(await crypto.subtle.digest('SHA-256', joined));
-    return { id, hash, urls, dataFiles, scenarioTexts, metaText, report };
+    return { id, hash, urls, dataFiles, scenarioTexts, metaText, terrainTexts, report };
 }
 
 /**

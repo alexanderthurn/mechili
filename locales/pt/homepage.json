@@ -16,9 +16,9 @@
   },
   "shot": {
     "1": "Desdobramento do exército na clareira da floresta",
-    "2": "Fase de implantação e loja de unidades",
+    "2": "Fase de mobilização e loja de unidades",
     "3": "Sopro de fogo de dragão sobre o campo",
-    "4": "Zonas de implantação lado a lado",
+    "4": "Zonas de mobilização lado a lado",
     "5": "Batalha em massa nas planícies",
     "6": "Fortaleza de inverno na neve",
     "7": "Duas bases na grade",
@@ -127,6 +127,17 @@
     "title": "Cartas de rodada",
     "sub": "A partir da segunda rodada, escolha uma das várias cartas {{items}} oferecidas, sorteadas do conjunto de cartas da partida. Feitiços de batalha são comprados na Fortaleza, não sorteados de cartas.",
     "select": "Escolha uma carta de rodada"
+  },
+  "music": {
+    "title": "Música",
+    "sub": "Ambientes sazonais que seguem a volta atmosférica de O Ano — uma faixa de mobilização e uma de batalha por cena, mais a do menu e a batalha de reserva.",
+    "select": "Escolher uma faixa",
+    "play": "Tocar",
+    "stop": "Parar",
+    "menu": "Menu",
+    "fallback": "Batalha (reserva)",
+    "deploy": "Mobilização",
+    "battle": "Batalha"
   },
   "matchSettings": {
     "title": "Definições da partida",

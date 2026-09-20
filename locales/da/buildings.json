@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Salg",
-    "description": "Lås op for pakker, der sælges, permanent (op til {{maxPerRound}} pr. implementeringsfase). Refusionen er {{refundPct}}% af basisprisen."
+    "description": "Lås op for pakker, der sælges, permanent (op til {{maxPerRound}} pr. opstillingsfase). Refusionen er {{refundPct}}% af basisprisen."
   },
   "attack_boost": {
     "name": "Angrebsboost",
@@ -44,7 +44,7 @@
     "description": "Tilføj én trækpakke til din trylleformularstribe: én pakke fra en tidligere runde bliver flytbar igen. Én gang pr. kamp."
   },
   "1_deployment": {
-    "name": "+1 Implementering",
+    "name": "+1 Opstilling",
     "description": "Køb kun én ekstra enhed i denne runde."
   },
   "veteran_training": {

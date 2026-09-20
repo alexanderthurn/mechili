@@ -431,9 +431,28 @@ export function applyTalentMod(tech: TechDef, mod: TalentMod | undefined): TechD
     return scaleTalentValue(tech, mod) as TechDef;
 }
 
+/**
+ * Scaled talents by unit type — the sim asks for these per attack check, per
+ * pack, per tick, and building the scaled copy every time made garbage of it.
+ * Keyed by the talent object too, so a level package's own talents (other
+ * objects, same ids) never read a stale copy.
+ */
+const scaledTalents = new WeakMap<UnitType, Map<string, { from: TechDef; scaled: TechDef }>>();
+
 /** TechDef with this unit's {@link UnitType.talentMod} for `tech.id` applied. */
 export function techForUnit(type: UnitType, tech: TechDef): TechDef {
-    return applyTalentMod(tech, type.talentMod?.[tech.id]);
+    const mod = type.talentMod?.[tech.id];
+    if (!mod) return tech;
+    let byId = scaledTalents.get(type);
+    if (!byId) {
+        byId = new Map();
+        scaledTalents.set(type, byId);
+    }
+    const known = byId.get(tech.id);
+    if (known?.from === tech) return known.scaled;
+    const scaled = applyTalentMod(tech, mod);
+    byId.set(tech.id, { from: tech, scaled });
+    return scaled;
 }
 
 /** Look up a unit's fine-tune blob for one talent (missing → undefined). */

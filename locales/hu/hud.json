@@ -28,6 +28,8 @@
   "yearDefender": "Védő",
   "yearYou": "te",
   "yearSideWins": "Győztes: {{side}}",
+  "yearRoundWon": "{{side}} nyert",
+  "yearBegins": "Az Év elkezdődik",
   "yearRoundTo": "{{n}}. kör: {{side}}",
   "rematchSwapped": "Visszavágó, cserélt szerepek",
   "rematchWaiting": "Várakozás az ellenfélre…",

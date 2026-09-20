@@ -2644,6 +2644,25 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-scenario-editor button:hover:not(:disabled), .mechili-test-battle button:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-scenario-editor button:disabled { opacity: 0.45; cursor: default; }
 .mechili-scenario-editor button.active { border-color: ${u.brassLight}; background: rgba(212, 184, 120, 0.18); color: ${u.brassLight}; }
+/* Terrain tool: the terrain editor's panel inside the window */
+.mechili-scenario-editor .te-panel { display: flex; flex-direction: column; gap: 5px; }
+.mechili-scenario-editor .te-tool {
+    padding: 3px 7px;
+    border: 1.5px solid ${u.border};
+    border-radius: 6px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    cursor: pointer;
+    white-space: nowrap;
+}
+.mechili-scenario-editor .te-tool:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-scenario-editor .te-tool.active { border-color: ${u.brassLight}; background: rgba(212, 184, 120, 0.18); color: ${u.brassLight}; }
+.mechili-scenario-editor .te-panel kbd { font: 10px/1 ui-monospace, monospace; opacity: 0.6; }
+.mechili-scenario-editor .te-panel .slot-tags { font: 700 10px/1 ui-monospace, monospace; color: ${u.brassLight}; letter-spacing: 0.05em; }
+.mechili-scenario-editor .te-panel .slot-tags:empty { display: none; }
+.mechili-scenario-editor .te-sliders { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; font-size: 12px; }
+.mechili-scenario-editor .te-sliders input[type='range'] { width: 100%; }
+.mechili-scenario-editor .te-status { min-height: 1em; font-size: 11px; color: ${u.brassLight}; }
 .mechili-scenario-editor .se-collapse { padding: 0 6px; border: none; background: none; font-size: 14px; }
 .mechili-scenario-editor .se-team { border-inline-start: 5px solid var(--se-team); }
 .mechili-scenario-editor .se-type { display: flex; align-items: center; gap: 5px; padding: 2px 6px 2px 2px; }

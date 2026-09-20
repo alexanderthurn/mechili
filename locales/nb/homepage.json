@@ -18,7 +18,7 @@
     "1": "Hærens utplassering i skogrydding",
     "2": "Utplasseringsfase og enhetsbutikk",
     "3": "Dragens ildpust over feltet",
-    "4": "Side-om-side distribusjonssoner",
+    "4": "Side-om-side oppstillingssoner",
     "5": "Massekamp på slettene",
     "6": "Vinterfestning i snøen",
     "7": "Doble baser på rutenettet",
@@ -127,6 +127,17 @@
     "title": "Rundekort",
     "sub": "Fra runde to og utover, draft ett av flere tilbudte {{items}}-kort trukket fra kamppotten. Kampformler kjøpes i Festningen, ikke draftes fra kort.",
     "select": "Velg et rundekort"
+  },
+  "music": {
+    "title": "Musikk",
+    "sub": "Årstidsmusikk som følger stemningsturen i Året — ett oppstillings- og ett kampspor per scene, pluss menyen og reservekampsporet.",
+    "select": "Velg et spor",
+    "play": "Spill av",
+    "stop": "Stopp",
+    "menu": "Meny",
+    "fallback": "Kamp (reserve)",
+    "deploy": "Oppstilling",
+    "battle": "Kamp"
   },
   "matchSettings": {
     "title": "Kampinnstillinger",

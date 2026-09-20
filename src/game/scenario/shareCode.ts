@@ -6,7 +6,7 @@
  *
  * Format: `MELODAN1:` + base64url(deflate-raw(JSON { id, files: [{ path, text }] })).
  */
-import type { OverlayFile } from '../assets';
+import { isScenarioTerrainFile, type OverlayFile } from '../assets';
 
 const PREFIX = 'MELODAN1:';
 /** text files that make up a package's rules and data */
@@ -60,11 +60,19 @@ async function pipe(bytes: Uint8Array<ArrayBuffer>, stream: CompressionStream | 
 
 export async function encodeShareCode(id: string, files: readonly OverlayFile[]): Promise<ShareCodeResult> {
     const decoder = new TextDecoder();
+    const encode = async (list: readonly OverlayFile[]) => {
+        const json = JSON.stringify({ id, files: list.map((f) => ({ path: f.path, text: decoder.decode(f.bytes) })) });
+        return PREFIX + toBase64Url(await pipe(new TextEncoder().encode(json), new CompressionStream('deflate-raw')));
+    };
     const shared = files.filter((f) => SHAREABLE.test(f.path));
     const skipped = files.filter((f) => !SHAREABLE.test(f.path)).map((f) => f.path);
-    const json = JSON.stringify({ id, files: shared.map((f) => ({ path: f.path, text: decoder.decode(f.bytes) })) });
-    const deflated = await pipe(new TextEncoder().encode(json), new CompressionStream('deflate-raw'));
-    return { code: PREFIX + toBase64Url(deflated), skipped };
+    let code = await encode(shared);
+    // a sculpted terrain is big: a code that could not be read back leaves it out (a zip carries it)
+    if (code.length > MAX_CODE_CHARS && shared.some((f) => isScenarioTerrainFile(f.path))) {
+        skipped.push(...shared.filter((f) => isScenarioTerrainFile(f.path)).map((f) => f.path));
+        code = await encode(shared.filter((f) => !isScenarioTerrainFile(f.path)));
+    }
+    return { code, skipped };
 }
 
 /** Whether a pasted text looks like a share code at all. */

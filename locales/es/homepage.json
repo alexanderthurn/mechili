@@ -128,6 +128,17 @@
     "sub": "A partir de la segunda ronda, elige una de las varias cartas {{items}} ofrecidas, extraídas del conjunto de cartas disponibles. Los hechizos de batalla se compran en la Fortaleza, no se eligen de las cartas.",
     "select": "Elige una carta de ronda"
   },
+  "music": {
+    "title": "Música",
+    "sub": "Ambientes por estación que siguen el recorrido atmosférico de El Año: una pista de despliegue y una de batalla por escena, más la del menú y la de batalla de reserva.",
+    "select": "Elegir una pista",
+    "play": "Reproducir",
+    "stop": "Parar",
+    "menu": "Menú",
+    "fallback": "Batalla (reserva)",
+    "deploy": "Despliegue",
+    "battle": "Batalla"
+  },
   "matchSettings": {
     "title": "Ajustes de coincidencia",
     "sub": "Las reglas predeterminadas para una partida, extraídas directamente del código de configuración del juego, por lo que no pueden diferir de la versión final. Todo es configurable; es de código abierto."

@@ -12,6 +12,7 @@ import type { CanonicalSeatDef, SeatId } from './seats';
 import type { LevelRef } from './level';
 import { answerLevelMessage, LevelDownload, matchLevelOffer } from './levelSync';
 import type { GameSettings, StrongholdMode } from './settings';
+import type { MapSize } from './map';
 import type { TerrainShape } from './terrainShapes';
 import type { Team } from './units';
 import { t } from '../i18n';
@@ -349,6 +350,11 @@ export interface CustomGameConfig {
     yearKomtur?: boolean;
     /** a static map (assets/data/landscapes/<id>.json); unset / '' = the procedural terrain */
     landscape?: string;
+    /**
+     * The map: a saved scenario's terrain (its package goes to every seat).
+     * Unset = the generated terrain. `board` is the size the terrain was made for.
+     */
+    map?: { id: string; hash: string; scenario: string; name: string; board: MapSize };
     /** the generated board relief; see GameSettings.terrainShape */
     terrainShape?: TerrainShape;
 }

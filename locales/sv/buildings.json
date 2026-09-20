@@ -44,7 +44,7 @@
     "description": "Lägg till en flyttpaketsladdning till din trollformelremsa: en paket från en tidigare runda blir flyttbart igen. En gång per match."
   },
   "1_deployment": {
-    "name": "+1 Implementering",
+    "name": "+1 Uppställning",
     "description": "Köp endast en extra enhet denna omgång."
   },
   "veteran_training": {

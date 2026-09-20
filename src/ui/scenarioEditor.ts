@@ -82,10 +82,38 @@ export interface ScenarioEditorHost {
     /** copy the draft as a share code; resolves to a status line */
     shareCode(def: ScenarioDef): Promise<string>;
     exit(): void;
+    /** the Terrain tool (sculpt, paint, plants) — its panel goes into this window */
+    readonly terrain: EditorTerrain | null;
+}
+
+/**
+ * The window's handle on the Terrain tool (the editor session implements it):
+ * the panel to show, editing on or off, its own undo steps, and the view —
+ * the ground turns with the armies when the enemy side is built.
+ */
+export interface EditorTerrain {
+    readonly panel: HTMLElement;
+    setEditing(on: boolean): void;
+    /** a stroke is being painted — undo waits */
+    readonly busy: boolean;
+    readonly canUndo: boolean;
+    undo(): boolean;
+    redo(): boolean;
+    /** carried across a restart (opaque here) */
+    exportHistory(): unknown;
+    importHistory(history: unknown): void;
+    /** show the ground with this side at the near edge (its history restarts) */
+    setView(side: 'player' | 'enemy'): void;
+    /** the draft has a sculpted terrain (a board-size change throws it away) */
+    readonly sculpted: boolean;
+    /** throw the sculpted terrain away (the board size changes) */
+    drop(): void;
 }
 
 /** 'play': the normal game UI; the others are the editor's own board tools */
-type Tool = 'play' | 'move' | 'place' | 'erase';
+type Tool = 'play' | 'move' | 'place' | 'erase' | 'terrain';
+/** which history an undo step belongs to: the draft (army, rules) or the terrain */
+type Step = 'draft' | 'terrain';
 type Side = 'player' | 'enemy';
 
 type Selection =
@@ -100,6 +128,10 @@ interface Carried {
     side: Side;
     collapsed: boolean;
     rulesOpen: boolean;
+    /** the order of edits across both histories, so Ctrl+Z always takes back the last one */
+    steps: Step[];
+    redoSteps: Step[];
+    terrainHistory: unknown;
 }
 
 /** the editor's state across the restarts it causes (test battle, board size) */
@@ -130,6 +162,8 @@ export class ScenarioEditor {
     private side: Side = 'player';
     private collapsed = false;
     private rulesOpen = false;
+    private steps: Step[] = [];
+    private redoSteps: Step[] = [];
     /** the package name as typed (applied on Save into package) */
     private packageNameDraft: string | null = null;
     private press: { x: number; y: number; unit: Unit | null; index: number | null; dragging: boolean } | null = null;
@@ -158,6 +192,16 @@ export class ScenarioEditor {
             this.side = carried.side;
             this.collapsed = carried.collapsed;
             this.rulesOpen = carried.rulesOpen;
+            this.steps = carried.steps;
+            this.redoSteps = carried.redoSteps;
+            // the ground turned as the armies are first, then the strokes recorded that way
+            host.terrain?.setView(this.side);
+            if (carried.terrainHistory) host.terrain?.importHistory(carried.terrainHistory);
+            if (!host.terrain?.canUndo) {
+                this.steps = this.steps.filter((s) => s !== 'terrain');
+                this.redoSteps = this.redoSteps.filter((s) => s !== 'terrain');
+            }
+            if (this.tool === 'terrain' && !host.terrain) this.tool = 'play';
         } else {
             this.history = new DraftHistory(tidy);
         }
@@ -249,7 +293,50 @@ export class ScenarioEditor {
     }
 
     get canUndo(): boolean {
-        return this.history.canUndo;
+        return this.history.canUndo || !!this.host.terrain?.canUndo;
+    }
+
+    /** the scenario's name as edited now */
+    get draftName(): string {
+        return this.draft.name;
+    }
+
+    /** a draft edit, recorded in the history (false = nothing changed) */
+    private push(next: ScenarioDef): boolean {
+        if (!this.history.push(next)) return false;
+        this.steps.push('draft');
+        this.redoSteps = [];
+        return true;
+    }
+
+    /**
+     * The Terrain tool changed the ground: the host has made it the draft's
+     * terrain — keep it. A new edit is one undo step.
+     */
+    terrainEdited(kind: 'edit' | 'history'): void {
+        if (kind === 'edit') {
+            this.steps.push('terrain');
+            this.redoSteps = [];
+        }
+        this.host.autosave(this.draft);
+        this.renderSoon();
+    }
+
+    /** the terrain went back to the generated one: a new board shows it, the terrain history is gone */
+    restartForTerrain(): void {
+        this.dropTerrainSteps();
+        this.restartWith(this.draft);
+    }
+
+    /** the terrain tool lost its history (meshes rebuilt): its steps are gone from the undo order */
+    terrainHistoryCleared(): void {
+        this.dropTerrainSteps();
+        this.render();
+    }
+
+    private dropTerrainSteps(): void {
+        this.steps = this.steps.filter((s) => s !== 'terrain');
+        this.redoSteps = this.redoSteps.filter((s) => s !== 'terrain');
     }
 
     /** canonical draft */
@@ -286,6 +373,9 @@ export class ScenarioEditor {
             side: this.side,
             collapsed: this.collapsed,
             rulesOpen: this.rulesOpen,
+            steps: this.steps,
+            redoSteps: this.redoSteps,
+            terrainHistory: this.host.terrain?.exportHistory() ?? null,
         };
     }
 
@@ -295,11 +385,18 @@ export class ScenarioEditor {
     private commitView(nextView: ScenarioDef): void {
         const next = this.toCanonical(nextView);
         if (JSON.stringify(next.map) !== JSON.stringify(this.draft.map)) {
-            this.history.push(next);
-            this.restartWith(next);
+            this.push(next);
+            this.changeBoardSize(next);
             return;
         }
-        if (this.history.push(next)) this.apply();
+        if (this.push(next)) this.apply();
+    }
+
+    /** another board size: a sculpted terrain is made for the old one and goes */
+    private changeBoardSize(def: ScenarioDef): void {
+        if (this.host.terrain?.sculpted) this.host.terrain.drop();
+        this.dropTerrainSteps();
+        this.restartWith(def);
     }
 
     private restartWith(def: ScenarioDef): void {
@@ -327,26 +424,61 @@ export class ScenarioEditor {
         this.applied = { units: captured.units, buildings: captured.buildings };
         const nextView = structuredClone(this.view);
         nextView.scene = captured.scene;
-        if (this.history.push(this.toCanonical(nextView))) {
+        if (this.push(this.toCanonical(nextView))) {
             this.host.autosave(this.draft);
             this.render();
         }
     }
 
+    /** take back the last edit — of the draft or of the terrain, whichever came last */
     undo(): void {
-        this.stepHistory(() => this.history.undo());
+        // mid-stroke: the stroke ends first
+        if (this.host.terrain?.busy) return;
+        const step = this.steps.pop() ?? (this.history.canUndo ? 'draft' : null);
+        if (!step) return;
+        if (step === 'terrain') {
+            this.redoSteps.push(step);
+            if (!this.host.terrain?.undo()) this.dropTerrainSteps();
+            this.render();
+        } else if (this.stepHistory(() => this.history.undo(), () => this.history.redo())) this.redoSteps.push(step);
+        else this.steps.push(step);
     }
 
     private redo(): void {
-        this.stepHistory(() => this.history.redo());
+        if (this.host.terrain?.busy) return;
+        const step = this.redoSteps.pop();
+        if (!step) return;
+        if (step === 'terrain') {
+            this.steps.push(step);
+            if (!this.host.terrain?.redo()) this.dropTerrainSteps();
+            this.render();
+        } else if (this.stepHistory(() => this.history.redo(), () => this.history.undo())) this.steps.push(step);
+        else this.redoSteps.push(step);
     }
 
-    private stepHistory(step: () => ScenarioDef | null): void {
+    /**
+     * Step the draft history (`back` reverses the step). A step that changes
+     * the board size would throw a sculpted terrain away: asked first, and
+     * refused it is stepped back. False = nothing happened.
+     */
+    private stepHistory(step: () => ScenarioDef | null, back: () => ScenarioDef | null): boolean {
         const before = this.draft.map;
         const def = step();
-        if (!def) return;
-        if (JSON.stringify(def.map) !== JSON.stringify(before)) this.restartWith(def);
-        else this.apply(null);
+        if (!def) return false;
+        if (JSON.stringify(def.map) === JSON.stringify(before)) {
+            this.apply(null);
+            return true;
+        }
+        if (this.host.terrain?.sculpted && !window.confirm(
+            t('editor:mapDropsTerrain', {
+                defaultValue: 'The sculpted terrain is made for this board size and will be thrown away. Continue?',
+            }),
+        )) {
+            back();
+            return false;
+        }
+        this.changeBoardSize(def);
+        return true;
     }
 
     startTest(): void {
@@ -356,8 +488,13 @@ export class ScenarioEditor {
     }
 
     private switchSide(): void {
+        // a stroke in progress ends where it is first
+        if (this.host.terrain?.busy) return;
         this.side = this.side === 'player' ? 'enemy' : 'player';
         if (this.team !== 'horde') this.team = this.side === 'player' ? 'enemy' : 'player';
+        // the ground turns with the armies; the terrain strokes so far can't be undone across that
+        this.host.terrain?.setView(this.side);
+        this.dropTerrainSteps();
         this.apply(null);
         this.flash(
             this.side === 'enemy'
@@ -393,6 +530,7 @@ export class ScenarioEditor {
     private applyTool(): void {
         this.host.placement.externalInput = this.tool !== 'play';
         this.host.placement.editorPlate = null;
+        this.host.terrain?.setEditing(this.tool === 'terrain');
     }
 
     private local(e: PointerEvent): { x: number; y: number } {
@@ -407,7 +545,7 @@ export class ScenarioEditor {
     }
 
     private onPointerDown(e: PointerEvent): void {
-        if (e.button !== 0 || this.tool === 'play') return;
+        if (e.button !== 0 || this.tool === 'play' || this.tool === 'terrain') return;
         const { x, y } = this.local(e);
         const hit = this.tool === 'move' ? this.hit(x, y) : null;
         this.press = { x, y, unit: hit?.unit ?? null, index: hit?.selection.kind === 'unit' ? hit.selection.index : null, dragging: false };
@@ -529,7 +667,7 @@ export class ScenarioEditor {
         const next = structuredClone(this.view);
         if (copy) next.scene.units.push(moved);
         else next.scene.units[index] = moved;
-        if (!this.history.push(this.toCanonical(next))) {
+        if (!this.push(this.toCanonical(next))) {
             this.apply();
             return;
         }
@@ -583,7 +721,7 @@ export class ScenarioEditor {
             const wanted = Math.max(1, Math.min(this.host.maxBuildingLevel, level + delta));
             next.scene.buildings[sel.team][sel.typeId] = { ...(state || {}), level: wanted };
         }
-        if (this.history.push(this.toCanonical(next))) this.apply(sel);
+        if (this.push(this.toCanonical(next))) this.apply(sel);
     }
 
     private rotateSelected(): void {
@@ -600,7 +738,7 @@ export class ScenarioEditor {
         }
         const next = structuredClone(this.view);
         next.scene.units[sel.index] = rotated;
-        if (this.history.push(this.toCanonical(next))) this.apply(sel);
+        if (this.push(this.toCanonical(next))) this.apply(sel);
     }
 
     private onKey(e: KeyboardEvent): void {
@@ -617,7 +755,7 @@ export class ScenarioEditor {
             if (sel) this.erase(sel);
         } else if (key === '[') this.changeLevel(-1);
         else if (key === ']') this.changeLevel(1);
-        else if (key === 'r' && this.tool !== 'play') this.rotateSelected();
+        else if (key === 'r' && this.tool !== 'play' && this.tool !== 'terrain') this.rotateSelected();
         else if (key === 'tab') this.switchSide();
         else handled = false;
         if (handled) {
@@ -629,7 +767,7 @@ export class ScenarioEditor {
     private setTool(tool: Tool): void {
         this.tool = tool;
         this.applyTool();
-        if (tool === 'place' || tool === 'erase') this.host.placement.deselect();
+        if (tool === 'place' || tool === 'erase' || tool === 'terrain') this.host.placement.deselect();
         this.render();
     }
 
@@ -787,7 +925,15 @@ export class ScenarioEditor {
             }) +
             btn('se-tool', t('editor:toolPlace', { defaultValue: 'Place' }), { active: this.tool === 'place', data: 'data-tool="place"' }) +
             btn('se-tool', t('editor:toolErase', { defaultValue: 'Erase' }), { active: this.tool === 'erase', data: 'data-tool="erase"' }) +
+            (this.host.terrain
+                ? btn('se-tool', t('editor:toolTerrain', { defaultValue: 'Terrain' }), {
+                      active: this.tool === 'terrain',
+                      data: 'data-tool="terrain"',
+                      title: t('editor:toolTerrainTip', { defaultValue: 'Sculpt the ground, paint it, plant trees — saved with the scenario' }),
+                  })
+                : '') +
             `</div>` +
+            (this.tool === 'terrain' ? `<div class="se-terrain-slot"></div>` : '') +
             (this.tool === 'place'
                 ? `<div class="se-row">` +
                   (['player', 'enemy', 'horde'] as const)
@@ -806,7 +952,10 @@ export class ScenarioEditor {
                   `</div>`
                 : '') +
             `</div>`;
-        this.bodyEl.appendChild(this.selectionEl);
+        // the terrain panel is the terrain editor's own (built once, kept across redraws)
+        const terrainSlot = this.bodyEl.querySelector('.se-terrain-slot');
+        if (terrainSlot && this.host.terrain) terrainSlot.replaceWith(this.host.terrain.panel);
+        if (this.tool !== 'terrain') this.bodyEl.appendChild(this.selectionEl);
         this.renderSelection();
         const rest = document.createElement('div');
         rest.innerHTML =
@@ -850,8 +999,8 @@ export class ScenarioEditor {
             `</details>` +
             `<div class="se-section">` +
             `<div class="se-row">` +
-            btn('se-undo', t('editor:undo', { defaultValue: 'Undo' }), { disabled: !this.history.canUndo, title: 'Ctrl+Z' }) +
-            btn('se-redo', t('editor:redo', { defaultValue: 'Redo' }), { disabled: !this.history.canRedo, title: 'Ctrl+Shift+Z' }) +
+            btn('se-undo', t('editor:undo', { defaultValue: 'Undo' }), { disabled: !this.canUndo, title: 'Ctrl+Z' }) +
+            btn('se-redo', t('editor:redo', { defaultValue: 'Redo' }), { disabled: this.redoSteps.length === 0 && !this.history.canRedo, title: 'Ctrl+Shift+Z' }) +
             btn('se-new', t('editor:new', { defaultValue: 'New' })) +
             `</div>` +
             `<div class="se-row se-run">` +
@@ -923,14 +1072,14 @@ export class ScenarioEditor {
             );
             if (!ok) return;
             const next = mirrorSide(this.host.types, this.draft, this.side);
-            if (this.history.push(next)) this.apply(null);
+            if (this.push(next)) this.apply(null);
         });
         on('.se-clear', () => {
             const next = withoutTeam(this.draft, this.side);
-            if (this.history.push(next)) this.apply(null);
+            if (this.push(next)) this.apply(null);
         });
         on('.se-clear-horde', () => {
-            if (this.history.push(withoutTeam(this.draft, 'horde'))) this.apply(null);
+            if (this.push(withoutTeam(this.draft, 'horde'))) this.apply(null);
         });
         on('.se-undo', () => this.undo());
         on('.se-redo', () => this.redo());
@@ -940,9 +1089,9 @@ export class ScenarioEditor {
             const next = newDraft(this.host.gameVersion, this.host.types);
             this.side = 'player';
             if (JSON.stringify(next.map) !== JSON.stringify(this.draft.map)) {
-                this.history.push(next);
-                this.restartWith(next);
-            } else if (this.history.push(next)) this.apply(null);
+                this.push(next);
+                this.changeBoardSize(next);
+            } else if (this.push(next)) this.apply(null);
         });
         on('.se-test', () => this.startTest());
         on('.se-play', () => {
@@ -965,7 +1114,7 @@ export class ScenarioEditor {
                 if (result.id !== this.draft.id) {
                     const next = structuredClone(this.draft);
                     next.id = result.id;
-                    this.history.push(next);
+                    this.push(next);
                 }
                 this.host.autosave(this.draft);
                 if (result.reopen) {
@@ -983,7 +1132,7 @@ export class ScenarioEditor {
             rules.addEventListener('toggle', () => (this.rulesOpen = rules.open));
             wireRules(rules, () => this.draft, this.host.types, (next) => {
                 // rules don't touch the board: record, keep, redraw
-                if (this.history.push(next)) {
+                if (this.push(next)) {
                     this.host.autosave(this.draft);
                     this.renderSoon();
                 }
@@ -998,7 +1147,7 @@ export class ScenarioEditor {
             if (!value || value === this.draft.name) return;
             const next = structuredClone(this.draft);
             next.name = value;
-            if (this.history.push(next)) {
+            if (this.push(next)) {
                 this.host.autosave(this.draft);
                 this.renderSoon();
             }
@@ -1020,13 +1169,24 @@ export class ScenarioEditor {
                     return;
                 }
             }
-            this.history.push(def);
-            this.restartWith(def);
+            if (this.host.terrain?.sculpted) {
+                const ok = window.confirm(
+                    t('editor:mapDropsTerrain', {
+                        defaultValue: 'The sculpted terrain is made for this board size and will be thrown away. Continue?',
+                    }),
+                );
+                if (!ok) {
+                    this.render();
+                    return;
+                }
+            }
+            this.push(def);
+            this.changeBoardSize(def);
         });
         for (const box of this.bodyEl.querySelectorAll<HTMLInputElement>('.se-base')) {
             box.addEventListener('change', () => {
                 const side = box.dataset.side as Side;
-                if (this.history.push(tidyDraft(withBaseBuildings(this.host.types, this.draft, side, box.checked)))) this.apply(null);
+                if (this.push(tidyDraft(withBaseBuildings(this.host.types, this.draft, side, box.checked)))) this.apply(null);
             });
         }
     }

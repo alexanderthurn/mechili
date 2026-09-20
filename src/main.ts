@@ -100,19 +100,19 @@ import {
     prepareLevel,
     forgetLevel,
     scenarioLevels,
-    supersedeLevel,
     type LevelRef,
 } from './game/level';
 import { readZip, writeZip } from './game/content/zip';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
-import { loadStoredDraft, newDraft } from './game/scenario/editorDraft';
+import { initDraftStore, loadStoredDraft } from './game/scenario/editorDraft';
+import { MapChoice, mapOption, mapValue } from './menu/mapChoice';
+import { copyShareCode, editorLinks, editSavedScenario, initEditorMenu, openNewScenarioEditor, openStoredScenarioEditor, savedScenarioDef } from './menu/editorMenu';
 import { BASE_TYPES } from './game/units';
-import { packageScenarioIds, scenarioPackageFiles, scenarioSlug, withScenarioInPackage } from './game/scenario/package';
 import type { ScenarioDef } from './game/scenario/scenarioDef';
-import { decodeShareCode, encodeShareCode } from './game/scenario/shareCode';
+import { decodeShareCode } from './game/scenario/shareCode';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { builtInCampaigns, campaignLevel, campaignSummary, completedLevels, isBuiltInCampaign, markLevelCompleted } from './game/campaign';
-import { landscapeIds, loadedLandscape, loadLandscape } from './game/landscape';
+import { loadedLandscape, loadLandscape } from './game/landscape';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
@@ -170,7 +170,7 @@ import {
 import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { initI18n, onLanguageChange, t } from './i18n';
 import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
-import { assetUrl, type OverlayFile } from './game/assets';
+import { assetUrl } from './game/assets';
 
 const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
 /**
@@ -323,7 +323,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
             yearRoles: yearRolesOption(parsed.yearRoles),
             yearKomtur: parsed.yearKomtur === true,
-            landscape: landscapeOption(parsed.landscape),
+            map: mapOption(parsed.map),
             terrainShape: terrainShapeOption(parsed.terrainShape),
         };
     } catch {
@@ -374,7 +374,7 @@ function settingsFromUrl(): GameSettings {
     // now that Horde is the only mode; ?hordeFactor= (including `off`)
     // overrides the level — see applyHordeMode
     if (params.get('duo')) applyDuoMode(settings);
-    // ?landscape=<id>: play (or, with ?editor=true, edit) a map from assets/data/landscapes/
+    // ?landscape=<id>: play a map from assets/data/landscapes/
     const landscape = params.get('landscape');
     if (landscape) settings.landscape = landscape;
     // ?terrain=hills|highlands|wall: the generated board relief
@@ -1394,12 +1394,12 @@ const spCampaignListEl = spCampaignsEl.querySelector<HTMLDivElement>('.m-campaig
 const spEditorContinueEl = spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-continue')!;
 spEditorContinueEl.addEventListener('click', () => {
     showMenuView('main');
-    openStoredScenarioEditor();
+    openStoredScenarioEditor(`v${__APP_VERSION__}`);
 });
 spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-new')!.addEventListener('click', () => {
     if (loadStoredDraft() && !window.confirm('Start a new board? It replaces the draft you were editing.')) return;
     showMenuView('main');
-    void openScenarioEditor('author', newDraft(`v${__APP_VERSION__}`, BASE_TYPES), undefined);
+    openNewScenarioEditor(`v${__APP_VERSION__}`, BASE_TYPES);
 });
 const spScenarioCodeEl = spScenariosEl.querySelector<HTMLInputElement>('.m-scenario-code')!;
 const spScenarioStatusEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-status')!;
@@ -1615,53 +1615,11 @@ async function renderCampaignList(): Promise<void> {
     }
 }
 
-async function savedScenarioDef(ref: LevelRef, id: string): Promise<ScenarioDef | null> {
-    await prepareLevel(ref);
-    const scenario = activeLevel().scenarios.get(id);
-    const errors = scenario?.issues.filter((i) => i.level === 'error') ?? [];
-    if (!scenario?.def || errors.length > 0) {
-        window.alert(`This scenario can't be played:\n${errors.map((i) => `• ${i.message}`).join('\n') || 'not found'}`);
-        return null;
-    }
-    return scenario.def;
-}
-
 async function playSavedScenario(ref: LevelRef, id: string): Promise<void> {
     const def = await savedScenarioDef(ref, id).catch(() => null);
     if (!def) return;
     showMenuView('main');
     startGame(applyScenarioToSettings(localMatchSettings(), def, ref, 'play', id));
-}
-
-async function editSavedScenario(ref: LevelRef, id: string): Promise<void> {
-    const def = await savedScenarioDef(ref, id).catch(() => null);
-    if (!def) return;
-    showMenuView('main');
-    // the scenario keeps its id in the package, so "Save into package" replaces it
-    await openScenarioEditor('author', { ...def, id }, ref);
-}
-
-/**
- * Single Player → Editor: the last draft (autosaved) on the level it was made
- * on when that level is still here, else on the active one (web testing may
- * have a zip level selected), else the base game.
- */
-function openStoredScenarioEditor(): void {
-    const stored = loadStoredDraft();
-    const draft = stored?.def ?? newDraft(`v${__APP_VERSION__}`, activeLevel().types);
-    const wanted = stored?.level;
-    void (async () => {
-        // a package saved again since has a new hash under the same id
-        const newer = async (ref: LevelRef) => (await scenarioLevels()).find((l) => l.ref.id === ref.id)?.ref;
-        const level = !stored
-            ? activeLevelRef()
-            : wanted && (await ensureLevel(wanted).catch(() => false))
-              ? wanted
-              : wanted
-                ? ((await newer(wanted)) ?? activeLevelRef())
-                : undefined;
-        await openScenarioEditor('author', draft, level);
-    })();
 }
 
 const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
@@ -1987,35 +1945,15 @@ function refreshTerrainOptions(): void {
 refreshTerrainOptions();
 wireSelectShortLabels(cgTerrainEl);
 
-/** the lobby's map choice: the procedural terrain, or one of the bundled static maps (shown only when there are any) */
-function refreshLandscapeOptions(): void {
-    const value = cgLandscapeEl.value;
-    const ids = landscapeIds();
-    const label = (id: string) => id.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-    cgLandscapeEl.replaceChildren(
-        ...[['', t('menu:mapProcedural', { defaultValue: 'Generated' })] as const, ...ids.map((id) => [id, label(id)] as const)].map(([v, text]) => {
-            const opt = document.createElement('option');
-            opt.value = v;
-            opt.textContent = text;
-            return opt;
-        }),
-    );
-    cgLandscapeEl.value = ids.includes(value) ? value : '';
-    const field = cgLandscapeEl.closest<HTMLElement>('.m-field');
-    if (field) field.style.display = ids.length > 0 ? '' : 'none';
-}
-refreshLandscapeOptions();
-
-/** a stored / received map choice that this build has, else '' (procedural) */
-function landscapeOption(value: unknown): string {
-    return typeof value === 'string' && landscapeIds().includes(value) ? value : '';
-}
+/** the lobby's Map setting (a saved scenario's terrain, or generated) */
+const mapChoice = new MapChoice(cgLandscapeEl);
 
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape' | 'map'
 > {
     return {
+        map: undefined,
         pace: DEFAULT_CUSTOM_GAME_PACE_ID,
         hordePreset: DEFAULT_HORDE_PRESET_ID,
         roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
@@ -2038,7 +1976,8 @@ function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobb
         cfg.moneyFactor !== defaults.moneyFactor ||
         cfg.startMoney !== defaults.startMoney ||
         cfg.strongholdMode !== defaults.strongholdMode ||
-        terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape
+        terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape ||
+        mapValue(cfg.map) !== mapValue(defaults.map)
     );
 }
 
@@ -2058,8 +1997,7 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     refreshYearLobbyOptions();
     cgYearAttackerEl.value = yearRolesOption(cfg.yearRoles);
     cgYearKomturEl.value = cfg.yearKomtur ? 'komtur' : 'army';
-    refreshLandscapeOptions();
-    cgLandscapeEl.value = landscapeOption(cfg.landscape);
+    mapChoice.refresh(cfg.map);
     refreshTerrainOptions();
     cgTerrainEl.value = terrainShapeOption(cfg.terrainShape);
     syncSelectOptionLabels(cgTerrainEl, false);
@@ -2169,13 +2107,13 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'landscape' | 'terrainShape'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'yearRoles' | 'yearKomtur' | 'map' | 'terrainShape'
 > {
     const hpOpt = commanderHpOptionById(cgCommanderHpEl.value);
     return {
         yearRoles: yearRolesOption(cgYearAttackerEl.value),
         yearKomtur: cgYearKomturEl.value === 'komtur',
-        landscape: landscapeOption(cgLandscapeEl.value),
+        map: mapChoice.value,
         terrainShape: terrainShapeOption(cgTerrainEl.value),
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
@@ -2237,6 +2175,15 @@ let started = false;
 let practiceLobby: { config: CustomGameConfig; roster: CanonicalSeatDef[] } | null = null;
 /** set while a scenario started from the editor runs: the menu hands back to the editor */
 let returnToEditorAfterMatch = false;
+initEditorMenu({
+    startGame: (settings) => startGame(settings),
+    hasActiveGame: () => activeGame !== null,
+    teardown: () => teardownForNextMatch(),
+    localMatchSettings: () => localMatchSettings(),
+    returnToEditorAfterMatch: () => (returnToEditorAfterMatch = true),
+    showMainMenu: () => showMenuView('main'),
+    zipDownloads: SCENARIO_ZIP_TESTING,
+});
 /** true after 3D assets finish loading — match starts wait for this */
 let bootReady = false;
 let roomPoll: ReturnType<typeof setTimeout> | null = null;
@@ -3234,7 +3181,7 @@ function finishReturnToMenu(): void {
     if (returnToEditorAfterMatch) {
         returnToEditorAfterMatch = false;
         // after the menu is back in place, go straight on to the editor
-        setTimeout(() => openStoredScenarioEditor(), 0);
+        setTimeout(() => openStoredScenarioEditor(`v${__APP_VERSION__}`), 0);
     }
     friendsPanel.hide();
     takeLobbyChatCarry();   // nothing pending can belong to a future match
@@ -3504,17 +3451,7 @@ function constructGame(
     if (!star && !replay && !spectate && !settings.tutorial && !editorMatch) {
         stopSinglePlayerPersist = wireSinglePlayerPersist(game);
     }
-    if (editorMatch) {
-        game.onScenarioEditor = (mode, draft) => void openScenarioEditor(mode, draft, settings.level);
-        if (SCENARIO_ZIP_TESTING) game.onScenarioDownload = (draft) => downloadScenarioDraft(draft, settings.level);
-        game.onScenarioSave = (draft) => saveScenarioDraft(draft, settings.level);
-        game.onScenarioSaveInto = (draft, packageName) => saveScenarioIntoLevel(draft, settings.level, packageName);
-        game.onScenarioPlay = (draft) => void playScenarioDraft(draft, settings.level);
-        game.onScenarioShareCode = async (draft) => {
-            const { id, files } = scenarioDraftPackage(draft, settings.level);
-            return copyShareCode(id, files);
-        };
-    }
+    if (editorMatch) game.editorLinks = editorLinks(settings.level);
     if (replayControlsPanel) {
         game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
     }
@@ -3854,15 +3791,6 @@ function resumeSinglePlayer(save: SinglePlayerSave): void {
  * scenario package in the scenario cache. Web builds also download the
  * package as a zip (loadable again with "Load zip…").
  */
-/**
- * Scenario editor: start editing a draft, or its test battle — from the menu,
- * or from the editor / test match that is running (which is torn down first).
- */
-async function openScenarioEditor(mode: 'author' | 'test', draft: ScenarioDef, level: LevelRef | undefined): Promise<void> {
-    if (activeGame) await teardownForNextMatch();
-    startGame(applyScenarioToSettings(localMatchSettings(), draft, level, mode));
-}
-
 /** The Year's rematch without a room: the same match again, roles swapped */
 async function startLocalRematch(next: GameSettings, side: 'a' | 'b', names: { local: string; opponent: string }): Promise<void> {
     await teardownForNextMatch();
@@ -3938,82 +3866,6 @@ async function playNextScenario(level: LevelRef | undefined, id: string): Promis
     if (!level || !def) return;
     await teardownForNextMatch();
     startGame(applyScenarioToSettings(localMatchSettings(), def, level, 'play', id));
-}
-
-/** the draft as a one-level package: named after the draft, with the content of the level it was made on */
-function scenarioDraftPackage(draft: ScenarioDef, level: LevelRef | undefined): { id: string; files: OverlayFile[] } {
-    const id = scenarioSlug(draft.name, draft.id);
-    const def = { ...draft, id, updatedAt: new Date().toISOString() };
-    return { id, files: scenarioPackageFiles(def, level ? (levelFiles(level.hash) ?? []) : []) };
-}
-
-/**
- * The editor's "Save into package": the draft goes into the package the board
- * is made on. The updated package replaces the old one (cache and list), and
- * the editor reopens on it so the next save builds on this one.
- */
-async function saveScenarioIntoLevel(
-    draft: ScenarioDef,
-    level: LevelRef | undefined,
-    packageName?: string,
-): Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }> {
-    if (!level || !(await ensureLevel(level))) throw new Error('the package this board is made on is not available');
-    const files = levelFiles(level.hash);
-    if (!files) throw new Error('the package this board is made on is not available');
-    const { files: merged, id } = withScenarioInPackage(files, { ...draft, updatedAt: new Date().toISOString() }, level.id, packageName);
-    const { ref } = await loadLevel(level.id, merged);
-    if (ref.hash === level.hash) return { status: 'Nothing changed', id, reopen: null };
-    await forgetLevel(level);
-    const replaced = packageScenarioIds(files).includes(id);
-    return {
-        status: replaced ? `Saved into “${level.id}”` : `Added to “${level.id}” as the next level`,
-        id,
-        reopen: (def) => void openScenarioEditor('author', def, ref),
-    };
-}
-
-/** a package as a share code on the clipboard; resolves to a status line */
-async function copyShareCode(id: string, files: readonly OverlayFile[]): Promise<string> {
-    const { code, skipped } = await encodeShareCode(id, files);
-    try {
-        await navigator.clipboard.writeText(code);
-    } catch {
-        console.info('[scenario] share code:', code);
-        return 'Could not reach the clipboard — the code is in the console';
-    }
-    const note = skipped.length > 0 ? ` (without ${skipped.length} model/texture files)` : '';
-    return `Code copied — ${Math.ceil(code.length / 1024)} KB${note}`;
-}
-
-/** keep the draft as a scenario package (scenario cache, like a saved replay situation) */
-async function saveScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
-    const { id, files } = scenarioDraftPackage(draft, level);
-    const { ref } = await loadLevel(id, files);
-    const replaced = await supersedeLevel(ref);
-    console.info(`[scenario] saved "${ref.id}" (${ref.hash.slice(0, 12)})`);
-    return `${replaced > 0 ? 'Replaced' : 'Saved'} “${ref.id}” — find it under Single Player → Editor`;
-}
-
-/** the editor's Play: keep the draft as a package, then play it as a single-player scenario */
-async function playScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<void> {
-    const { id, files } = scenarioDraftPackage(draft, level);
-    const { ref } = await loadLevel(id, files);
-    await supersedeLevel(ref);
-    const def = { ...draft, id };
-    returnToEditorAfterMatch = true;
-    if (activeGame) await teardownForNextMatch();
-    startGame(applyScenarioToSettings(localMatchSettings(), def, ref, 'play', id));
-}
-
-/** web: the draft as a one-level package zip */
-async function downloadScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
-    const { id, files } = scenarioDraftPackage(draft, level);
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([writeZip(files)], { type: 'application/zip' }));
-    link.download = `${id}.zip`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
-    return `Downloaded ${id}.zip`;
 }
 
 async function saveReplayScenario(): Promise<string> {
@@ -4549,8 +4401,20 @@ function wireHostedHub(
 
     // ---- the room's scenario: every joined guest must have it active before Start.
     // Only a Custom Game room plays one; any other room offers the base game.
-    // rooms play the base game for now; the hand-over below stays for future level sources
-    const roomLevel = (): LevelRef | null => null;
+    // the Custom Game's map: the saved scenario package its terrain lives in
+    const roomLevel = (): LevelRef | null => {
+        const map = customConfig?.map;
+        if (!map) return null;
+        const ref = { id: map.id, hash: map.hash };
+        if (isLevelAvailable(ref)) return ref;
+        // from the scenario cache first (once per pick), then offered
+        if (loadingMapHash !== ref.hash) {
+            loadingMapHash = ref.hash;
+            void ensureLevel(ref).then(() => refresh());
+        }
+        return null;
+    };
+    let loadingMapHash: string | null = null;
     const levelBySeat = new Map<SeatId, { name: string; offered: string | null; ready: string | null | undefined }>();
     /** offer the room's scenario to guests that haven't had this one offered; true when all have it active */
     const syncGuestLevels = (roster: CanonicalSeatDef[]): boolean => {
@@ -4838,8 +4702,16 @@ function lobbyMatchSettings(
     delete settings.seats; // the roster travels separately (localized per client)
     if (config) applyCustomGameConfig(settings, config);
     else if (horde) applyHordeMode(settings);
-    // the lobby's map choice (a board it doesn't fit — 2v2 is wider — plays procedural)
-    if (config?.landscape && landscapeIds().includes(config.landscape)) settings.landscape = config.landscape;
+    // the lobby's map: a saved scenario's terrain — its package is the match's
+    // level (every seat has it by now) and the board is the size it was made for
+    const map = config?.map;
+    const mapRef = map ? { id: map.id, hash: map.hash } : undefined;
+    const onMap = !!map && isLevelAvailable(mapRef);
+    if (onMap) {
+        settings.level = mapRef;
+        settings.terrainOf = map.scenario;
+        settings.map = { ...map.board };
+    }
     const seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
     if (config?.mode === 'year') {
         applyClimbMode(settings, {
@@ -4849,8 +4721,8 @@ function lobbyMatchSettings(
             ...(config.yearKomtur ? { komtur: true } : {}),
         });
     }
-    // 2v2 / duo only — 1v1 must keep the standard map width
-    if (roster.length > 2) widenMapForDuo(settings);
+    // 2v2 / duo only — 1v1 must keep the standard map width; a map keeps the board it was made for
+    if (roster.length > 2 && !onMap) widenMapForDuo(settings);
     return { ...settings, seed };
 }
 
@@ -4878,6 +4750,16 @@ function rosterWithBots(roster: readonly CanonicalSeatDef[]): CanonicalSeatDef[]
 
 /** a lobby match played on this machine only: no room, no spectators, single-player features on */
 function startLocalLobbyMatch(config: CustomGameConfig, roster: readonly CanonicalSeatDef[]): void {
+    // the map's package may only be in the scenario cache — load it first, or
+    // lobbyMatchSettings sees no level and plays the generated terrain
+    const map = config.map;
+    if (map && !isLevelAvailable({ id: map.id, hash: map.hash })) {
+        setMenuBusy(true);
+        // not here anymore: the generated terrain, rather than no match
+        const without = () => startLocalLobbyMatch({ ...config, map: undefined }, roster);
+        void ensureLevel({ id: map.id, hash: map.hash }).then((ok) => (ok ? startLocalLobbyMatch(config, roster) : without()), without);
+        return;
+    }
     const finalRoster = rosterWithBots(roster);
     const settings = lobbyMatchSettings(config, false, finalRoster);
     settings.seats = localizeRoster(finalRoster, 'a');
@@ -4911,7 +4793,7 @@ function loadPracticeConfig(): CustomGameConfig {
             moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
             startMoney: startMoneyOption(parsed.startMoney ?? defaults.startMoney),
             strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
-            landscape: landscapeOption(parsed.landscape),
+            map: mapOption(parsed.map),
             terrainShape: terrainShapeOption(parsed.terrainShape ?? defaults.terrainShape),
         };
     } catch {
@@ -6293,6 +6175,8 @@ const verifyId = watchParams.get('verify');
 const bulkVerify = watchParams.get('bulkverify');
 const starMpMarker = loadStarResumeMarker();
 const spSave = loadSinglePlayer();
+// the editor's autosaved draft (IndexedDB) — the menu and a reload into the editor read it
+await initDraftStore();
 if (bulkVerify) {
     // seeded by replays.html's Bulk Verify button just before navigating
     // here — outranks stale local state for the same reason ?verify=/
@@ -6337,7 +6221,7 @@ if (bulkVerify) {
     }
 } else if (editorWasOpen()) {
     // reloaded while editing: back into the editor with the autosaved draft
-    openStoredScenarioEditor();
+    openStoredScenarioEditor(`v${__APP_VERSION__}`);
 } else if (spSave) {
     // a save of a scenario match resumes once that scenario is back (scenario cache)
     const saveLevel = spSave.settings.level;

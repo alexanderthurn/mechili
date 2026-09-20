@@ -128,6 +128,17 @@
     "sub": "Dal secondo round in poi, scegli una delle diverse carte {{items}} offerte, pescate dal pool di carte della partita. Gli incantesimi di battaglia si acquistano alla Fortezza, non si scelgono dalle carte.",
     "select": "Scegli una carta del round"
   },
+  "music": {
+    "title": "Musica",
+    "sub": "Atmosfere stagionali che seguono il giro atmosferico de L’Anno: un brano di dispiegamento e uno di battaglia per scena, più quello del menu e la battaglia di riserva.",
+    "select": "Scegli un brano",
+    "play": "Riproduci",
+    "stop": "Ferma",
+    "menu": "Menu",
+    "fallback": "Battaglia (riserva)",
+    "deploy": "Dispiegamento",
+    "battle": "Battaglia"
+  },
   "matchSettings": {
     "title": "Impostazioni partita",
     "sub": "Le regole predefinite per una partita, prese direttamente dal codice delle impostazioni del gioco, quindi non possono discostarsi da quelle effettivamente rilasciate. Tutto è personalizzabile: è open source."

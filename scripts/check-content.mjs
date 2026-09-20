@@ -136,10 +136,19 @@ try {
             console.error('FAIL commander unlocks: signature unit missing or a tutorial commander unlocks units');
         }
         const giant = T.commander('giant');
-        const ballistaUnlock = T.unlockCost('ballista');
-        if (cards.unlockCostFor('ballista', giant, T) !== Math.max(0, ballistaUnlock - 200) || cards.unlockCostFor('ballista', air, T) !== ballistaUnlock) {
+        // any unit the discount reaches (prices move — don't name one here)
+        const discount = giant?.effects?.unlockDiscount;
+        const dear = discount ? T.roster.find((u) => T.unlockCost(u.id) >= discount.from) : undefined;
+        if (!discount || !dear) {
             ok = false;
-            console.error('FAIL commander unlock discount does not follow effects.unlockDiscount');
+            console.error(`FAIL the Giant has no unlock discount, or no unit costs its ${discount?.from ?? '?'} to unlock`);
+        } else {
+            const full = T.unlockCost(dear.id);
+            const cut = cards.unlockCostFor(dear.id, giant, T);
+            if (cut !== Math.max(0, full - discount.amount) || cards.unlockCostFor(dear.id, air, T) !== full) {
+                ok = false;
+                console.error(`FAIL commander unlock discount does not follow effects.unlockDiscount (${dear.id}: ${full} → ${cut})`);
+            }
         }
         if (T.commander('archer')?.effects?.giftUnit?.typeId !== 'archer' || T.commander('cost')?.effects?.unitStatsBonus !== -0.12) {
             ok = false;

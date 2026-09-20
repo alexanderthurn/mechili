@@ -28,6 +28,8 @@
   "yearDefender": "ฝ่ายรับ",
   "yearYou": "คุณ",
   "yearSideWins": "{{side}}ชนะ",
+  "yearRoundWon": "{{side}} ชนะ",
+  "yearBegins": "หนึ่งปีเริ่มต้นขึ้น",
   "yearRoundTo": "รอบ {{n}}: {{side}}",
   "rematchSwapped": "แข่งใหม่ สลับบทบาท",
   "rematchWaiting": "กำลังรอคู่แข่ง…",

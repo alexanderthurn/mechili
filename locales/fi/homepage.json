@@ -128,6 +128,17 @@
     "sub": "Toisesta kierroksesta eteenpäin nosta yksi useista tarjotuista {{items}}-korteista otteluvarastosta. Taisteluloitsuja ostetaan linnoituksesta, niitä ei nosteta korteista.",
     "select": "Valitse kierroskortti"
   },
+  "music": {
+    "title": "Musiikki",
+    "sub": "Vuodenaikojen taustat seuraavat Vuoden tunnelmakierrosta — kohtausta kohden yksi käyttöönotto- ja yksi taisteluraita, lisäksi valikko ja varataisteluraita.",
+    "select": "Valitse raita",
+    "play": "Toista",
+    "stop": "Pysäytä",
+    "menu": "Valikko",
+    "fallback": "Taistelu (vara)",
+    "deploy": "Käyttöönotto",
+    "battle": "Taistelu"
+  },
   "matchSettings": {
     "title": "Otteluasetukset",
     "sub": "Ottelun oletussäännöt, jotka on otettu suoraan pelin asetuskoodista, joten ne eivät voi poiketa alkuperäisestä sisällöstä. Kaikki täällä on viritettävää – se on avoimen lähdekoodin ohjelmistoa."

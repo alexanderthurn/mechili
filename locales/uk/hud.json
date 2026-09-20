@@ -28,6 +28,8 @@
   "yearDefender": "Захисник",
   "yearYou": "ви",
   "yearSideWins": "Перемога: {{side}}",
+  "yearRoundWon": "{{side}} переміг",
+  "yearBegins": "Рік починається",
   "yearRoundTo": "Раунд {{n}}: {{side}}",
   "rematchSwapped": "Реванш, ролі змінено",
   "rematchWaiting": "Очікування суперника…",

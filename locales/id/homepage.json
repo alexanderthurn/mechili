@@ -128,6 +128,17 @@
     "sub": "Mulai ronde kedua dan seterusnya, pilih salah satu dari beberapa kartu {{items}} yang ditawarkan yang diambil dari kumpulan kartu pertandingan. Mantra pertempuran dibeli di Benteng, bukan dipilih dari kartu.",
     "select": "Pilih kartu ronde"
   },
+  "music": {
+    "title": "Musik",
+    "sub": "Musik musiman yang mengikuti perjalanan suasana Tahun — tiap adegan satu lagu penyebaran dan satu lagu pertempuran, ditambah lagu menu dan lagu pertempuran cadangan.",
+    "select": "Pilih lagu",
+    "play": "Putar",
+    "stop": "Hentikan",
+    "menu": "Menu",
+    "fallback": "Pertempuran (cadangan)",
+    "deploy": "Penyebaran",
+    "battle": "Pertempuran"
+  },
   "matchSettings": {
     "title": "Pengaturan pertandingan",
     "sub": "Aturan default untuk sebuah pertandingan, diambil langsung dari kode pengaturan game sehingga tidak akan menyimpang dari apa yang sebenarnya dirilis. Semuanya di sini dapat disesuaikan — ini adalah perangkat lunak sumber terbuka."
