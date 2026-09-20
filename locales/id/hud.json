@@ -177,7 +177,7 @@
   "tacticDamage": "Kerusakan {{n}}",
   "tacticBlast": "Ledakan {{n}}",
   "tacticSummon": "Panggil {{count}}× {{unit}}",
-  "tacticLightning": "Petir setiap {{n}}s (hanya debuff)",
+  "tacticLightning": "Petir setiap {{n}}s (hanya kutukan)",
   "tacticSplash": "Percikan {{n}}",
   "tacticAcidRain": "Hujan asam ×{{count}} setiap {{n}} detik",
   "tacticDrop": "Jatuhkan {{n}}",

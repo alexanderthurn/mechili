@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Appel de la tempête",
-    "description": "Tracez un large cercle n'importe où. De petits nuages d'orage s'accumulent en altitude et projettent des éclairs aléatoires. Ces éclairs ne causent aucun dégât, mais électrocutent les unités dans une large zone, leur infligeant un malus similaire à celui d'une tour, à moins qu'elles ne soient protégées par une aura dorée. Les dômes de protection bloquent toujours les impacts."
+    "description": "Tracez un large cercle n'importe où. De petits nuages d'orage s'accumulent en altitude et projettent des éclairs aléatoires. Ces éclairs ne causent aucun dégât mais maudissent les unités dans un large rayon (talents éteints, déplacement ralenti), sauf si elles ont une aura dorée. Les dômes de protection bloquent toujours les éclairs."
   },
   "meteorShower": {
     "name": "Pluie de météores",

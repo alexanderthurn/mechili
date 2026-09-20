@@ -177,7 +177,7 @@
   "tacticDamage": "Щети {{n}}",
   "tacticBlast": "Взрив {{n}}",
   "tacticSummon": "Призоваване на {{count}}× {{unit}}",
-  "tacticLightning": "Светкавица на всеки {{n}}s (само за дебъф)",
+  "tacticLightning": "Светкавица на всеки {{n}}s (само проклятие)",
   "tacticSplash": "Пръскане {{n}}",
   "tacticAcidRain": "Киселинни дъждове ×{{count}} на всеки {{n}}s",
   "tacticDrop": "Капка {{n}}",

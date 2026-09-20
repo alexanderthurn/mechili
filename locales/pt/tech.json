@@ -138,6 +138,6 @@
   },
   "sunward": {
     "name": "Guarda solar",
-    "description": "Imune a maldição, penalidades de torre e bloqueio da tempestade."
+    "description": "Imune a maldição (tempestade incluída) e a penalidades de torre."
   }
 }

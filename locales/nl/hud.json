@@ -177,7 +177,7 @@
   "tacticDamage": "Schade {{n}}",
   "tacticBlast": "Blast {{n}}",
   "tacticSummon": "Roep {{count}}× {{unit}} op",
-  "tacticLightning": "Bliksem elke {{n}}s (alleen debuff)",
+  "tacticLightning": "Bliksem elke {{n}}s (alleen beheksing)",
   "tacticSplash": "Splash {{n}}",
   "tacticAcidRain": "Zure regen ×{{count}} elke {{n}}s",
   "tacticDrop": "Druppel {{n}}",

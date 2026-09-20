@@ -177,7 +177,7 @@
   "tacticDamage": "Vahinko {{n}}",
   "tacticBlast": "Räjähdys {{n}}",
   "tacticSummon": "Kutsu {{count}}× {{unit}}",
-  "tacticLightning": "Salama joka {{n}}s (vain heikennys)",
+  "tacticLightning": "Salama joka {{n}}s (vain kirous)",
   "tacticSplash": "Roiske {{n}}",
   "tacticAcidRain": "Happosade ×{{count}} joka {{n}}s",
   "tacticDrop": "Pudota {{n}}",

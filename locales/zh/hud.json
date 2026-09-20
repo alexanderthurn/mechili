@@ -177,7 +177,7 @@
   "tacticDamage": "伤害 {{n}}",
   "tacticBlast": "爆炸 {{n}}",
   "tacticSummon": "召唤 {{count}}× {{unit}}",
-  "tacticLightning": "每 {{n}}秒闪电（仅减益）",
+  "tacticLightning": "每 {{n}}秒闪电（仅诅咒）",
   "tacticSplash": "溅射 {{n}}",
   "tacticAcidRain": "酸雨 ×{{count}} 每 {{n}}秒",
   "tacticDrop": "落点 {{n}}",

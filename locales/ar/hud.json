@@ -177,7 +177,7 @@
   "tacticDamage": "ضرر {{n}}",
   "tacticBlast": "انفجار {{n}}",
   "tacticSummon": "استدعاء {{count}}× {{unit}}",
-  "tacticLightning": "برق كل {{n}} ث (إضعاف فقط)",
+  "tacticLightning": "برق كل {{n}} ث (لعنة فقط)",
   "tacticSplash": "رشاش {{n}}",
   "tacticAcidRain": "مطر حمضي ×{{count}} كل {{n}} ث",
   "tacticDrop": "إسقاط {{n}}",

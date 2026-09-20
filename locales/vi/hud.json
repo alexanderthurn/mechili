@@ -177,7 +177,7 @@
   "tacticDamage": "Thiệt hại {{n}}",
   "tacticBlast": "Vụ nổ {{n}}",
   "tacticSummon": "Triệu hồi {{count}}× {{unit}}",
-  "tacticLightning": "Sét mỗi {{n}}s (chỉ gây hiệu ứng suy yếu)",
+  "tacticLightning": "Sét mỗi {{n}}s (chỉ nguyền rủa)",
   "tacticSplash": "Splash {{n}}",
   "tacticAcidRain": "Mưa axit ×{{count}} mỗi {{n}}s",
   "tacticDrop": "Thả {{n}}",

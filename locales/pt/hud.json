@@ -177,7 +177,7 @@
   "tacticDamage": "Dano {{n}}",
   "tacticBlast": "Explosão {{n}}",
   "tacticSummon": "Invocar {{count}}× {{unit}}",
-  "tacticLightning": "Relâmpago a cada {{n}}s (apenas debuff)",
+  "tacticLightning": "Relâmpago a cada {{n}}s (apenas maldição)",
   "tacticSplash": "Splash {{n}}",
   "tacticAcidRain": "Chuva ácida ×{{count}} a cada {{n}}s",
   "tacticDrop": "Gota {{n}}",

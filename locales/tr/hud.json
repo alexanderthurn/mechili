@@ -177,7 +177,7 @@
   "tacticDamage": "Hasar {{n}}",
   "tacticBlast": "Patlama {{n}}",
   "tacticSummon": "{{count}}× {{unit}}'i çağır",
-  "tacticLightning": "Her {{n}} saniyede bir yıldırım (sadece olumsuz etki)",
+  "tacticLightning": "Her {{n}} saniyede bir yıldırım (sadece lanet)",
   "tacticSplash": "Sıçrama {{n}}",
   "tacticAcidRain": "Asit yağmuru ×{{count}} her {{n}} saniyede bir",
   "tacticDrop": "Drop {{n}}",

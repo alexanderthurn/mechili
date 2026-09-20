@@ -177,7 +177,7 @@
   "tacticDamage": "Skada {{n}}",
   "tacticBlast": "Sprängning {{n}}",
   "tacticSummon": "Kalla {{count}}× {{unit}}",
-  "tacticLightning": "Blixtar var {{n}}s (endast debuff)",
+  "tacticLightning": "Blixtar var {{n}}s (endast förhäxning)",
   "tacticSplash": "Stänk {{n}}",
   "tacticAcidRain": "Surt regn ×{{count}} var {{n}}s",
   "tacticDrop": "Släpp {{n}}",

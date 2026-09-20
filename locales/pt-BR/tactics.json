@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Chamado da tempestade",
-    "description": "Marque um círculo amplo em qualquer lugar. Pequenas nuvens de tempestade se formam no alto e lançam raios em pontos aleatórios — os raios não causam dano, mas eletrocutam as unidades em uma ampla área com um efeito negativo semelhante a uma torre, a menos que elas possuam aura dourada. Domos de proteção ainda bloqueiam os raios."
+    "description": "Marque um círculo amplo em qualquer lugar. Pequenas nuvens de tempestade se juntam lá no alto e lançam relâmpagos em pontos aleatórios — os relâmpagos não causam dano, mas amaldiçoam as unidades num raio largo (talentos desligados, movimento mais lento), a menos que tenham aura dourada. As cúpulas de proteção continuam bloqueando os relâmpagos."
   },
   "meteorShower": {
     "name": "Chuva de meteoros",

@@ -177,7 +177,7 @@
   "tacticDamage": "Skade {{n}}",
   "tacticBlast": "Eksplosion {{n}}",
   "tacticSummon": "Indkald {{count}}× {{unit}}",
-  "tacticLightning": "Lyn hvert {{n}}s (kun debuff)",
+  "tacticLightning": "Lyn hvert {{n}}s (kun forheksning)",
   "tacticSplash": "Plask {{n}}",
   "tacticAcidRain": "Sur regn ×{{count}} hvert {{n}}s",
   "tacticDrop": "Drop {{n}}",

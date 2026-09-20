@@ -177,7 +177,7 @@
   "tacticDamage": "Schaden {{n}}",
   "tacticBlast": "Explosion {{n}}",
   "tacticSummon": "Beschwöre {{count}}× {{unit}}",
-  "tacticLightning": "Blitz alle {{n}}s (nur Debuff)",
+  "tacticLightning": "Blitz alle {{n}}s (nur Verhexung)",
   "tacticSplash": "Splash {{n}}",
   "tacticAcidRain": "Saurer Regen ×{{count}} alle {{n}}s",
   "tacticDrop": "Abwurf {{n}}",

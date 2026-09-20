@@ -138,6 +138,6 @@
   },
   "sunward": {
     "name": "Zonnewacht",
-    "description": "Immuun voor beheksing, torenverzwakkingen en stormverlamming."
+    "description": "Immuun voor beheksing (ook door storm) en torenverzwakkingen."
   }
 }

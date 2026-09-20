@@ -177,7 +177,7 @@
   "tacticDamage": "Ζημιά {{n}}",
   "tacticBlast": "Έκρηξη {{n}}",
   "tacticSummon": "Κλήση {{count}}× {{unit}}",
-  "tacticLightning": "Κεραυνός κάθε {{n}}δ (μόνο debuff)",
+  "tacticLightning": "Κεραυνός κάθε {{n}}δ (μόνο κατάρα)",
   "tacticSplash": "Splash {{n}}",
   "tacticAcidRain": "Όξινη βροχή ×{{count}} κάθε {{n}}δ",
   "tacticDrop": "Πτώση {{n}}",

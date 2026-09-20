@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Panggilan badai",
-    "description": "Tandai lingkaran lebar di mana saja. Awan badai kecil berkumpul tinggi di atas dan melemparkan petir ke tempat-tempat acak — sambaran petir tidak menimbulkan kerusakan tetapi menyetrum unit dalam percikan luas dengan efek negatif seperti menara kecuali mereka memiliki aura emas. Kubah pelindung tetap memblokir sambaran petir."
+    "description": "Tandai lingkaran lebar di mana saja. Awan badai kecil berkumpul tinggi di atas dan melemparkan petir ke titik acak — petir tidak memberi kerusakan tetapi mengutuk unit dalam radius lebar (talenta mati, gerakan melambat), kecuali mereka punya aura emas. Kubah pelindung tetap menahan petir."
   },
   "meteorShower": {
     "name": "Hujan Meteor",

@@ -177,7 +177,7 @@
   "tacticDamage": "Daños {{n}}",
   "tacticBlast": "Explosión {{n}}",
   "tacticSummon": "Invocar {{count}}× {{unit}}",
-  "tacticLightning": "Rayo cada {{n}}s (solo desventaja)",
+  "tacticLightning": "Rayo cada {{n}}s (solo maleficio)",
   "tacticSplash": "Salpicadura {{n}}",
   "tacticAcidRain": "Lluvia ácida ×{{count}} cada {{n}}s",
   "tacticDrop": "Caída {{n}}",

@@ -37,7 +37,7 @@
   },
   "storm": {
     "name": "Stormoproep",
-    "description": "Teken een grote cirkel ergens. Kleine onweerswolken verzamelen zich hoog in de lucht en slingeren bliksem naar willekeurige plekken. De bliksemflitsen richten geen schade aan, maar veroorzaken een schokgolf in een wijd gebied met een torenachtig debuff-effect, tenzij ze een gouden aura hebben. De koepels van de verdedigingswerken blokkeren de blikseminslagen nog steeds."
+    "description": "Markeer ergens een brede cirkel. Kleine onweerswolken pakken zich hoog samen en slingeren bliksem naar willekeurige plekken — de bliksem doet geen schade maar behekst eenheden in een brede straal (talenten vallen uit, tragere beweging), tenzij ze een gouden aura hebben. Beschermkoepels blokkeren de inslagen nog steeds."
   },
   "meteorShower": {
     "name": "Meteorenregen",

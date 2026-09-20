@@ -177,7 +177,7 @@
   "tacticDamage": "피해 {{n}}",
   "tacticBlast": "폭발 {{n}}",
   "tacticSummon": "{{count}}× {{unit}} 소환",
-  "tacticLightning": "{{n}}초마다 번개 (디버프만)",
+  "tacticLightning": "{{n}}초마다 번개 (저주만)",
   "tacticSplash": "스플래시 {{n}}",
   "tacticAcidRain": "{{n}}초마다 산성비 ×{{count}}",
   "tacticDrop": "낙하 {{n}}",

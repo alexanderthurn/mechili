@@ -138,6 +138,6 @@
   },
   "sunward": {
     "name": "Sluneční stráž",
-    "description": "Imunní vůči kletbě, oslabením od věží a ochromení bouří."
+    "description": "Imunní vůči kletbě (i z bouře) a oslabením od věží."
   }
 }

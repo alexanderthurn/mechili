@@ -177,7 +177,7 @@
   "tacticDamage": "Poškození {{n}}",
   "tacticBlast": "Výbuch {{n}}",
   "tacticSummon": "Přivolat {{count}}× {{unit}}",
-  "tacticLightning": "Blesk každých {{n}}s (pouze debuff)",
+  "tacticLightning": "Blesk každých {{n}}s (pouze kletba)",
   "tacticSplash": "Šplouchnutí {{n}}",
   "tacticAcidRain": "Kyselý déšť ×{{count}} každých {{n}}s",
   "tacticDrop": "Kapka {{n}}",

@@ -177,7 +177,7 @@
   "tacticDamage": "Uszkodzenie {{n}}",
   "tacticBlast": "Wybuch {{n}}",
   "tacticSummon": "Przywołaj {{count}}× {{unit}}",
-  "tacticLightning": "Błyskawica co {{n}}s (tylko osłabienie)",
+  "tacticLightning": "Błyskawica co {{n}}s (tylko klątwa)",
   "tacticSplash": "Plusk {{n}}",
   "tacticAcidRain": "Kwaśny deszcz ×{{count}} co {{n}}s",
   "tacticDrop": "Upuść {{n}}",

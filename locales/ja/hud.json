@@ -177,7 +177,7 @@
   "tacticDamage": "ダメージ {{n}}",
   "tacticBlast": "爆発 {{n}}",
   "tacticSummon": "{{count}}× {{unit}} を召喚",
-  "tacticLightning": "{{n}}秒ごとに稲妻（デバフのみ）",
+  "tacticLightning": "{{n}}秒ごとに稲妻（呪縛のみ）",
   "tacticSplash": "スプラッシュ {{n}}",
   "tacticAcidRain": "酸の雨 ×{{count}}、{{n}}秒ごと",
   "tacticDrop": "落下 {{n}}",

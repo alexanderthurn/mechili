@@ -177,7 +177,7 @@
   "tacticDamage": "Пошкодження {{n}}",
   "tacticBlast": "Вибух {{n}}",
   "tacticSummon": "Викликати {{count}}× {{unit}}",
-  "tacticLightning": "Блискавка кожні {{n}}с (лише для дебаффу)",
+  "tacticLightning": "Блискавка кожні {{n}}с (лише прокляття)",
   "tacticSplash": "Сплеск {{n}}",
   "tacticAcidRain": "Кислотний дощ ×{{count}} кожні {{n}}с",
   "tacticDrop": "Падіння {{n}}",
