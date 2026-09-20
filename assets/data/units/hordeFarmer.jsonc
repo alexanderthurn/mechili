@@ -37,6 +37,7 @@
         "externalIds": [
             {
                 "type": "e",
+                "id": "M81OaVwHPJGMm34uTayT",
                 "prompt": "A tragic-comic undead farmer voice — rural drawl warped by death, polite and wrong. Speaks like offering crops while dripping grave dirt, darkly funny and deeply cursed. Super uncanny valley humor-horror. Perfect audio quality.",
             },
         ],
@@ -63,9 +64,10 @@
                 "Shoo."
             ],
             // death yelps
+            // pack unit: one syllable only
             "death": [
-                "Harvest's done…",
-                "Tell the missus…",
+                "Ah!",
+                "Urgh!",
             ],
             // hit flinches — one syllable
             "hurt": [

@@ -67,8 +67,9 @@
                 "Leave."
             ],
             // death yelps
+            // pack unit: one syllable only
             "death": [
-                "Silk… tears…",
+                "Silk—!",
                 "No—!",
             ],
             // hit flinches — one syllable

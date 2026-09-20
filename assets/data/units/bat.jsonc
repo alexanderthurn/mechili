@@ -45,6 +45,7 @@
         "externalIds": [
             {
                 "type": "e",
+                "id": "9VZaNevhiqC1wX0vmS51",
                 "prompt": "An UNHOLY tiny-to-mid shrieking bat-creature voice — wet, fluttery, and nightmarishly gleeful. Speaks in skittering bursts with vampire-cartoon evil and comic hunger. Super creepy AND funny, never human-normal, never deep heroic. Perfect audio quality.",
             },
         ],
@@ -71,9 +72,10 @@
                 "Shoo!"
             ],
             // death yelps
+            // pack flock: one syllable only
             "death": [
                 "Scree—!",
-                "Dark…!",
+                "Dark!",
             ],
             // hit flinches — one syllable
             "hurt": [

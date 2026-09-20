@@ -64,10 +64,10 @@
                 "That's me pie!",
                 "Short fuse, pal.",
             ],
-            // death yelps
+            // death yelps — pack unit: one syllable only (many die at once)
             "death": [
                 "Och!",
-                "Not today—!",
+                "Nae!",
             ],
             // hit flinches — one syllable
             "hurt": [

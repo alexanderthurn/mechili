@@ -443,6 +443,7 @@ const CUES: Record<string, CueDef> = {
         paths: [
             'audio/unit_crowRider_death_1.ogg',
             'audio/unit_crowRider_death_2.ogg',
+            'audio/unit_crowRider_death_3.ogg',
         ],
         group: 'sfx',
         maxVoices: 4,
@@ -2556,6 +2557,7 @@ void [
     assetUrl('audio/unit_crowRider_rival_3.ogg'),
     assetUrl('audio/unit_crowRider_death_1.ogg'),
     assetUrl('audio/unit_crowRider_death_2.ogg'),
+    assetUrl('audio/unit_crowRider_death_3.ogg'),
     assetUrl('audio/unit_crowRider_hurt_1.ogg'),
     assetUrl('audio/unit_crowRider_hurt_2.ogg'),
     assetUrl('audio/unit_crowRider_hurt_3.ogg'),

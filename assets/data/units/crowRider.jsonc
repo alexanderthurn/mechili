@@ -58,9 +58,11 @@
                 "Fly away."
             ],
             // death yelps
+            // sparse flock — short yelps + one longer line ok
             "death": [
                 "Caaaw—!",
                 "Falling!",
+                "Caw!",
             ],
             // hit flinches — one syllable
             "hurt": [

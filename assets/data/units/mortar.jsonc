@@ -73,9 +73,10 @@
                 "Hands off."
             ],
             // death yelps
+            // small pack (4): keep yelps short
             "death": [
-                "Boom—wrong way!",
-                "Crew down!",
+                "Boom!",
+                "Crew!",
             ],
             // hit flinches — one syllable
             "hurt": [

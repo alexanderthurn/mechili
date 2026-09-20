@@ -32,6 +32,7 @@
         "externalIds": [
             {
                 "type": "e",
+                "id": "cjzeyGY8r2N07tXVfpm7",
                 "prompt": "A pathetic-terrifying undead farmhand voice — thin, eager, and brokenly cheerful. Speaks like a loyal helper who should not exist, with cracked smiles in the tone. Super sad-funny horror, never bossy, never regal. Perfect audio quality.",
             },
         ],
@@ -58,9 +59,10 @@
                 "Help—elsewhere!"
             ],
             // death yelps
+            // swarm spawn: one syllable only
             "death": [
-                "Sorry…!",
-                "Still… helpful…?",
+                "Sor—!",
+                "Help—!",
             ],
             // hit flinches — one syllable
             "hurt": [

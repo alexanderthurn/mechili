@@ -67,9 +67,10 @@
                 "Mine-ish!",
             ],
             // death yelps
+            // pack unit: one syllable only
             "death": [
                 "Eeeek!",
-                "Nooo-ack!",
+                "Ack!",
             ],
             // hit flinches — one syllable
             "hurt": [

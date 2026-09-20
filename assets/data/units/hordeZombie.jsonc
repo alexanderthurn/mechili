@@ -38,6 +38,7 @@
         "externalIds": [
             {
                 "type": "e",
+                "id": "cwe571X5eMyxKhiBcUKp",
                 "prompt": "A HORRIFIC rotting swarm voice — wet gurgles, broken hunger, and relentless evil. Speaks in choked undead rasps with pack-animal craving. Super disgusting, super threatening, zero charm, zero comedy relief. Perfect audio quality.",
             },
         ],
@@ -64,9 +65,10 @@
                 "Uuuh—no."
             ],
             // death yelps
+            // huge pack: one syllable only
             "death": [
-                "Uuurgh…",
-                "Hung…er…",
+                "Urgh!",
+                "Ungh!",
             ],
             // hit flinches — one syllable
             "hurt": [

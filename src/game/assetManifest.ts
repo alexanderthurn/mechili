@@ -345,6 +345,7 @@ const RAW = import.meta.glob(
         '../../assets/audio/unit_crowRider_9.ogg',
         '../../assets/audio/unit_crowRider_death_1.ogg',
         '../../assets/audio/unit_crowRider_death_2.ogg',
+        '../../assets/audio/unit_crowRider_death_3.ogg',
         '../../assets/audio/unit_crowRider_hurt_1.ogg',
         '../../assets/audio/unit_crowRider_hurt_2.ogg',
         '../../assets/audio/unit_crowRider_hurt_3.ogg',
