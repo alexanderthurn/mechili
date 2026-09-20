@@ -19,7 +19,16 @@
             },
         ],
         "lines": {
-            "pick": ["Quality over quantity."],
+            "pick": [
+                "Quality over quantity.",
+                "Only the best.",
+                "Standards matter."
+            ],
+            "pickRival": [
+                "Beneath me.",
+                "Not invited.",
+                "Admire elsewhere."
+            ],
             "win": [
                 "Haha! Quality wins!",
                 "Ha! Naturally.",

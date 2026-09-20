@@ -19,7 +19,16 @@
             },
         ],
         "lines": {
-            "pick": ["Speed is the name of the game."],
+            "pick": [
+                "Speed is the name of the game.",
+                "Keep up.",
+                "Already gone."
+            ],
+            "pickRival": [
+                "Too slow.",
+                "Catch me?",
+                "Hands off."
+            ],
             "win": [
                 "Haha! Too slow!",
                 "Ha! Catch me? Never!",

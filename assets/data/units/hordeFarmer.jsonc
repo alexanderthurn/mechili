@@ -47,6 +47,12 @@
                 "Need a hand?",
                 "Crops.",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Wrong field.",
+                "Private.",
+                "Shoo."
+            ],
             // death yelps
             "death": [
                 "Harvest's done…",

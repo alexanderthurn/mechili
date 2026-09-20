@@ -63,6 +63,12 @@
                 "Target?",
                 "Bolt loaded.",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Wrong crew.",
+                "Stand clear.",
+                "Not yours."
+            ],
             // death yelps (strained / breaking — not calm command tone)
             "death": [
                 "Failure…!",

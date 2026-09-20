@@ -56,6 +56,12 @@
                 "Speak.",
                 "I am listening.",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Misaligned.",
+                "Leave.",
+                "Not for you."
+            ],
             // death yelps
             "death": [
                 "Light… fails.",

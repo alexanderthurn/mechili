@@ -55,6 +55,12 @@
                 "Hungry!",
                 "We fly!",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Not food!",
+                "Mine!",
+                "Shoo!"
+            ],
             // death yelps
             "death": [
                 "Scree—!",

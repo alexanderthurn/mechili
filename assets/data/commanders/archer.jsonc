@@ -19,7 +19,16 @@
             },
         ],
         "lines": {
-            "pick": ["Aim high!"],
+            "pick": [
+                "Aim high!",
+                "Fresh!",
+                "Nocked."
+            ],
+            "pickRival": [
+                "Wrong target.",
+                "Missed.",
+                "Aim elsewhere."
+            ],
             "win": [
                 "Haha! Bullseye!",
                 "Ha! Perfect aim!",

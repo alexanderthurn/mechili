@@ -240,6 +240,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_archer_rival: {
+        paths: [
+            'audio/unit_archer_rival_1.ogg',
+            'audio/unit_archer_rival_2.ogg',
+            'audio/unit_archer_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+
     unit_archer_death: {
         paths: [
             'audio/unit_archer_death_1.ogg',
@@ -282,6 +293,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_ballista_rival: {
+        paths: [
+            'audio/unit_ballista_rival_1.ogg',
+            'audio/unit_ballista_rival_2.ogg',
+            'audio/unit_ballista_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+
     unit_ballista_death: {
         paths: [
             'audio/unit_ballista_death_1.ogg',
@@ -321,6 +343,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_wizard_rival: {
+        paths: [
+            'audio/unit_wizard_rival_1.ogg',
+            'audio/unit_wizard_rival_2.ogg',
+            'audio/unit_wizard_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+
     unit_wizard_death: {
         paths: [
             'audio/unit_wizard_death_1.ogg',
@@ -360,6 +393,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_crowRider_rival: {
+        paths: [
+            'audio/unit_crowRider_rival_1.ogg',
+            'audio/unit_crowRider_rival_2.ogg',
+            'audio/unit_crowRider_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+
     unit_crowRider_death: {
         paths: [
             'audio/unit_crowRider_death_1.ogg',
@@ -399,6 +443,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_dwarf_rival: {
+        paths: [
+            'audio/unit_dwarf_rival_1.ogg',
+            'audio/unit_dwarf_rival_2.ogg',
+            'audio/unit_dwarf_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+
     unit_dwarf_death: {
         paths: [
             'audio/unit_dwarf_death_1.ogg',
@@ -438,6 +493,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_goblin_rival: {
+        paths: [
+            'audio/unit_goblin_rival_1.ogg',
+            'audio/unit_goblin_rival_2.ogg',
+            'audio/unit_goblin_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+
     unit_goblin_death: {
         paths: [
             'audio/unit_goblin_death_1.ogg',
@@ -477,6 +543,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_hammerer_rival: {
+        paths: [
+            'audio/unit_hammerer_rival_1.ogg',
+            'audio/unit_hammerer_rival_2.ogg',
+            'audio/unit_hammerer_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+
     unit_hammerer_death: {
         paths: [
             'audio/unit_hammerer_death_1.ogg',
@@ -515,6 +592,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_mortar_rival: {
+        paths: [
+            'audio/unit_mortar_rival_1.ogg',
+            'audio/unit_mortar_rival_2.ogg',
+            'audio/unit_mortar_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+
     unit_mortar_death: {
         paths: [
             'audio/unit_mortar_death_1.ogg',
@@ -554,6 +642,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_ogre_rival: {
+        paths: [
+            'audio/unit_ogre_rival_1.ogg',
+            'audio/unit_ogre_rival_2.ogg',
+            'audio/unit_ogre_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+
     unit_ogre_death: {
         paths: [
             'audio/unit_ogre_death_1.ogg',
@@ -593,6 +692,17 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.8,
     },
+    unit_prismCannon_rival: {
+        paths: [
+            'audio/unit_prismCannon_rival_1.ogg',
+            'audio/unit_prismCannon_rival_2.ogg',
+            'audio/unit_prismCannon_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+
     unit_prismCannon_death: {
         paths: [
             'audio/unit_prismCannon_death_1.ogg',
@@ -623,7 +733,11 @@ const CUES: Record<string, CueDef> = {
         gain: 0.7,
     },
     commander_addi: {
-        paths: ['audio/commander_addi.ogg'],
+        paths: [
+            'audio/commander_addi.ogg',
+            'audio/commander_addi_2.ogg',
+            'audio/commander_addi_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -650,8 +764,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_addi_rival: {
+        paths: [
+            'audio/commander_addi_rival_1.ogg',
+            'audio/commander_addi_rival_2.ogg',
+            'audio/commander_addi_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_air: {
-        paths: ['audio/commander_air.ogg'],
+        paths: [
+            'audio/commander_air.ogg',
+            'audio/commander_air_2.ogg',
+            'audio/commander_air_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -678,8 +806,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_air_rival: {
+        paths: [
+            'audio/commander_air_rival_1.ogg',
+            'audio/commander_air_rival_2.ogg',
+            'audio/commander_air_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_archer: {
-        paths: ['audio/commander_archer.ogg'],
+        paths: [
+            'audio/commander_archer.ogg',
+            'audio/commander_archer_2.ogg',
+            'audio/commander_archer_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -706,8 +848,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_archer_rival: {
+        paths: [
+            'audio/commander_archer_rival_1.ogg',
+            'audio/commander_archer_rival_2.ogg',
+            'audio/commander_archer_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_cost: {
-        paths: ['audio/commander_cost.ogg'],
+        paths: [
+            'audio/commander_cost.ogg',
+            'audio/commander_cost_2.ogg',
+            'audio/commander_cost_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -734,8 +890,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_cost_rival: {
+        paths: [
+            'audio/commander_cost_rival_1.ogg',
+            'audio/commander_cost_rival_2.ogg',
+            'audio/commander_cost_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_cursed: {
-        paths: ['audio/commander_cursed.ogg'],
+        paths: [
+            'audio/commander_cursed.ogg',
+            'audio/commander_cursed_2.ogg',
+            'audio/commander_cursed_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -762,8 +932,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_cursed_rival: {
+        paths: [
+            'audio/commander_cursed_rival_1.ogg',
+            'audio/commander_cursed_rival_2.ogg',
+            'audio/commander_cursed_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_elite: {
-        paths: ['audio/commander_elite.ogg'],
+        paths: [
+            'audio/commander_elite.ogg',
+            'audio/commander_elite_2.ogg',
+            'audio/commander_elite_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -790,8 +974,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_elite_rival: {
+        paths: [
+            'audio/commander_elite_rival_1.ogg',
+            'audio/commander_elite_rival_2.ogg',
+            'audio/commander_elite_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_flanky: {
-        paths: ['audio/commander_flanky.ogg'],
+        paths: [
+            'audio/commander_flanky.ogg',
+            'audio/commander_flanky_2.ogg',
+            'audio/commander_flanky_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -818,8 +1016,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_flanky_rival: {
+        paths: [
+            'audio/commander_flanky_rival_1.ogg',
+            'audio/commander_flanky_rival_2.ogg',
+            'audio/commander_flanky_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_giant: {
-        paths: ['audio/commander_giant.ogg'],
+        paths: [
+            'audio/commander_giant.ogg',
+            'audio/commander_giant_2.ogg',
+            'audio/commander_giant_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -846,8 +1058,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_giant_rival: {
+        paths: [
+            'audio/commander_giant_rival_1.ogg',
+            'audio/commander_giant_rival_2.ogg',
+            'audio/commander_giant_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_meteor: {
-        paths: ['audio/commander_meteor.ogg'],
+        paths: [
+            'audio/commander_meteor.ogg',
+            'audio/commander_meteor_2.ogg',
+            'audio/commander_meteor_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.95,
@@ -874,8 +1100,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_meteor_rival: {
+        paths: [
+            'audio/commander_meteor_rival_1.ogg',
+            'audio/commander_meteor_rival_2.ogg',
+            'audio/commander_meteor_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_money: {
-        paths: ['audio/commander_money.ogg'],
+        paths: [
+            'audio/commander_money.ogg',
+            'audio/commander_money_2.ogg',
+            'audio/commander_money_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -902,8 +1142,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_money_rival: {
+        paths: [
+            'audio/commander_money_rival_1.ogg',
+            'audio/commander_money_rival_2.ogg',
+            'audio/commander_money_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_speed: {
-        paths: ['audio/commander_speed.ogg'],
+        paths: [
+            'audio/commander_speed.ogg',
+            'audio/commander_speed_2.ogg',
+            'audio/commander_speed_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -930,8 +1184,22 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    commander_speed_rival: {
+        paths: [
+            'audio/commander_speed_rival_1.ogg',
+            'audio/commander_speed_rival_2.ogg',
+            'audio/commander_speed_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
     commander_tutor: {
-        paths: ['audio/commander_tutor.ogg'],
+        paths: [
+            'audio/commander_tutor.ogg',
+            'audio/commander_tutor_2.ogg',
+            'audio/commander_tutor_3.ogg',
+        ],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
@@ -957,6 +1225,16 @@ const CUES: Record<string, CueDef> = {
         group: 'ui',
         maxVoices: 1,
         gain: 0.95,
+    },
+    commander_tutor_rival: {
+        paths: [
+            'audio/commander_tutor_rival_1.ogg',
+            'audio/commander_tutor_rival_2.ogg',
+            'audio/commander_tutor_rival_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
     },
     /** Proximity bed while a stronghold collapse front rolls near the camera. */
     collapse_thunder: {
@@ -1808,77 +2086,137 @@ void [
     assetUrl('audio/card_pick_1.ogg'),
     assetUrl('audio/card_pick_2.ogg'),
     assetUrl('audio/commander_addi.ogg'),
+    assetUrl('audio/commander_addi_2.ogg'),
+    assetUrl('audio/commander_addi_3.ogg'),
     assetUrl('audio/commander_addi_win_1.ogg'),
     assetUrl('audio/commander_addi_win_2.ogg'),
     assetUrl('audio/commander_addi_win_3.ogg'),
     assetUrl('audio/commander_addi_victory.ogg'),
     assetUrl('audio/commander_addi_defeat.ogg'),
+    assetUrl('audio/commander_addi_rival_1.ogg'),
+    assetUrl('audio/commander_addi_rival_2.ogg'),
+    assetUrl('audio/commander_addi_rival_3.ogg'),
     assetUrl('audio/commander_air.ogg'),
+    assetUrl('audio/commander_air_2.ogg'),
+    assetUrl('audio/commander_air_3.ogg'),
     assetUrl('audio/commander_air_win_1.ogg'),
     assetUrl('audio/commander_air_win_2.ogg'),
     assetUrl('audio/commander_air_win_3.ogg'),
     assetUrl('audio/commander_air_victory.ogg'),
     assetUrl('audio/commander_air_defeat.ogg'),
+    assetUrl('audio/commander_air_rival_1.ogg'),
+    assetUrl('audio/commander_air_rival_2.ogg'),
+    assetUrl('audio/commander_air_rival_3.ogg'),
     assetUrl('audio/commander_archer.ogg'),
+    assetUrl('audio/commander_archer_2.ogg'),
+    assetUrl('audio/commander_archer_3.ogg'),
     assetUrl('audio/commander_archer_win_1.ogg'),
     assetUrl('audio/commander_archer_win_2.ogg'),
     assetUrl('audio/commander_archer_win_3.ogg'),
     assetUrl('audio/commander_archer_victory.ogg'),
     assetUrl('audio/commander_archer_defeat.ogg'),
+    assetUrl('audio/commander_archer_rival_1.ogg'),
+    assetUrl('audio/commander_archer_rival_2.ogg'),
+    assetUrl('audio/commander_archer_rival_3.ogg'),
     assetUrl('audio/commander_cost.ogg'),
+    assetUrl('audio/commander_cost_2.ogg'),
+    assetUrl('audio/commander_cost_3.ogg'),
     assetUrl('audio/commander_cost_win_1.ogg'),
     assetUrl('audio/commander_cost_win_2.ogg'),
     assetUrl('audio/commander_cost_win_3.ogg'),
     assetUrl('audio/commander_cost_victory.ogg'),
     assetUrl('audio/commander_cost_defeat.ogg'),
+    assetUrl('audio/commander_cost_rival_1.ogg'),
+    assetUrl('audio/commander_cost_rival_2.ogg'),
+    assetUrl('audio/commander_cost_rival_3.ogg'),
     assetUrl('audio/commander_cursed.ogg'),
+    assetUrl('audio/commander_cursed_2.ogg'),
+    assetUrl('audio/commander_cursed_3.ogg'),
     assetUrl('audio/commander_cursed_win_1.ogg'),
     assetUrl('audio/commander_cursed_win_2.ogg'),
     assetUrl('audio/commander_cursed_win_3.ogg'),
     assetUrl('audio/commander_cursed_victory.ogg'),
     assetUrl('audio/commander_cursed_defeat.ogg'),
+    assetUrl('audio/commander_cursed_rival_1.ogg'),
+    assetUrl('audio/commander_cursed_rival_2.ogg'),
+    assetUrl('audio/commander_cursed_rival_3.ogg'),
     assetUrl('audio/commander_elite.ogg'),
+    assetUrl('audio/commander_elite_2.ogg'),
+    assetUrl('audio/commander_elite_3.ogg'),
     assetUrl('audio/commander_elite_win_1.ogg'),
     assetUrl('audio/commander_elite_win_2.ogg'),
     assetUrl('audio/commander_elite_win_3.ogg'),
     assetUrl('audio/commander_elite_victory.ogg'),
     assetUrl('audio/commander_elite_defeat.ogg'),
+    assetUrl('audio/commander_elite_rival_1.ogg'),
+    assetUrl('audio/commander_elite_rival_2.ogg'),
+    assetUrl('audio/commander_elite_rival_3.ogg'),
     assetUrl('audio/commander_flanky.ogg'),
+    assetUrl('audio/commander_flanky_2.ogg'),
+    assetUrl('audio/commander_flanky_3.ogg'),
     assetUrl('audio/commander_flanky_win_1.ogg'),
     assetUrl('audio/commander_flanky_win_2.ogg'),
     assetUrl('audio/commander_flanky_win_3.ogg'),
     assetUrl('audio/commander_flanky_victory.ogg'),
     assetUrl('audio/commander_flanky_defeat.ogg'),
+    assetUrl('audio/commander_flanky_rival_1.ogg'),
+    assetUrl('audio/commander_flanky_rival_2.ogg'),
+    assetUrl('audio/commander_flanky_rival_3.ogg'),
     assetUrl('audio/commander_giant.ogg'),
+    assetUrl('audio/commander_giant_2.ogg'),
+    assetUrl('audio/commander_giant_3.ogg'),
     assetUrl('audio/commander_giant_win_1.ogg'),
     assetUrl('audio/commander_giant_win_2.ogg'),
     assetUrl('audio/commander_giant_win_3.ogg'),
     assetUrl('audio/commander_giant_victory.ogg'),
     assetUrl('audio/commander_giant_defeat.ogg'),
+    assetUrl('audio/commander_giant_rival_1.ogg'),
+    assetUrl('audio/commander_giant_rival_2.ogg'),
+    assetUrl('audio/commander_giant_rival_3.ogg'),
     assetUrl('audio/commander_meteor.ogg'),
+    assetUrl('audio/commander_meteor_2.ogg'),
+    assetUrl('audio/commander_meteor_3.ogg'),
     assetUrl('audio/commander_meteor_win_1.ogg'),
     assetUrl('audio/commander_meteor_win_2.ogg'),
     assetUrl('audio/commander_meteor_win_3.ogg'),
     assetUrl('audio/commander_meteor_victory.ogg'),
     assetUrl('audio/commander_meteor_defeat.ogg'),
+    assetUrl('audio/commander_meteor_rival_1.ogg'),
+    assetUrl('audio/commander_meteor_rival_2.ogg'),
+    assetUrl('audio/commander_meteor_rival_3.ogg'),
     assetUrl('audio/commander_money.ogg'),
+    assetUrl('audio/commander_money_2.ogg'),
+    assetUrl('audio/commander_money_3.ogg'),
     assetUrl('audio/commander_money_win_1.ogg'),
     assetUrl('audio/commander_money_win_2.ogg'),
     assetUrl('audio/commander_money_win_3.ogg'),
     assetUrl('audio/commander_money_victory.ogg'),
     assetUrl('audio/commander_money_defeat.ogg'),
+    assetUrl('audio/commander_money_rival_1.ogg'),
+    assetUrl('audio/commander_money_rival_2.ogg'),
+    assetUrl('audio/commander_money_rival_3.ogg'),
     assetUrl('audio/commander_speed.ogg'),
+    assetUrl('audio/commander_speed_2.ogg'),
+    assetUrl('audio/commander_speed_3.ogg'),
     assetUrl('audio/commander_speed_win_1.ogg'),
     assetUrl('audio/commander_speed_win_2.ogg'),
     assetUrl('audio/commander_speed_win_3.ogg'),
     assetUrl('audio/commander_speed_victory.ogg'),
     assetUrl('audio/commander_speed_defeat.ogg'),
+    assetUrl('audio/commander_speed_rival_1.ogg'),
+    assetUrl('audio/commander_speed_rival_2.ogg'),
+    assetUrl('audio/commander_speed_rival_3.ogg'),
     assetUrl('audio/commander_tutor.ogg'),
+    assetUrl('audio/commander_tutor_2.ogg'),
+    assetUrl('audio/commander_tutor_3.ogg'),
     assetUrl('audio/commander_tutor_win_1.ogg'),
     assetUrl('audio/commander_tutor_win_2.ogg'),
     assetUrl('audio/commander_tutor_win_3.ogg'),
     assetUrl('audio/commander_tutor_victory.ogg'),
     assetUrl('audio/commander_tutor_defeat.ogg'),
+    assetUrl('audio/commander_tutor_rival_1.ogg'),
+    assetUrl('audio/commander_tutor_rival_2.ogg'),
+    assetUrl('audio/commander_tutor_rival_3.ogg'),
     assetUrl('audio/convert_1.ogg'),
     assetUrl('audio/convert_2.ogg'),
     assetUrl('audio/convert_beam_1.ogg'),
@@ -2011,6 +2349,9 @@ void [
     assetUrl('audio/unit_archer_1.ogg'),
     assetUrl('audio/unit_archer_2.ogg'),
     assetUrl('audio/unit_archer_3.ogg'),
+    assetUrl('audio/unit_archer_rival_1.ogg'),
+    assetUrl('audio/unit_archer_rival_2.ogg'),
+    assetUrl('audio/unit_archer_rival_3.ogg'),
     assetUrl('audio/unit_archer_death_1.ogg'),
     assetUrl('audio/unit_archer_death_2.ogg'),
     assetUrl('audio/unit_archer_hurt_1.ogg'),
@@ -2023,6 +2364,9 @@ void [
     assetUrl('audio/unit_ballista_1.ogg'),
     assetUrl('audio/unit_ballista_2.ogg'),
     assetUrl('audio/unit_ballista_3.ogg'),
+    assetUrl('audio/unit_ballista_rival_1.ogg'),
+    assetUrl('audio/unit_ballista_rival_2.ogg'),
+    assetUrl('audio/unit_ballista_rival_3.ogg'),
     assetUrl('audio/unit_ballista_death_1.ogg'),
     assetUrl('audio/unit_ballista_death_2.ogg'),
     assetUrl('audio/unit_ballista_hurt_1.ogg'),
@@ -2033,6 +2377,9 @@ void [
     assetUrl('audio/unit_wizard_1.ogg'),
     assetUrl('audio/unit_wizard_2.ogg'),
     assetUrl('audio/unit_wizard_3.ogg'),
+    assetUrl('audio/unit_wizard_rival_1.ogg'),
+    assetUrl('audio/unit_wizard_rival_2.ogg'),
+    assetUrl('audio/unit_wizard_rival_3.ogg'),
     assetUrl('audio/unit_wizard_death_1.ogg'),
     assetUrl('audio/unit_wizard_death_2.ogg'),
     assetUrl('audio/unit_wizard_hurt_1.ogg'),
@@ -2043,6 +2390,9 @@ void [
     assetUrl('audio/unit_crowRider_1.ogg'),
     assetUrl('audio/unit_crowRider_2.ogg'),
     assetUrl('audio/unit_crowRider_3.ogg'),
+    assetUrl('audio/unit_crowRider_rival_1.ogg'),
+    assetUrl('audio/unit_crowRider_rival_2.ogg'),
+    assetUrl('audio/unit_crowRider_rival_3.ogg'),
     assetUrl('audio/unit_crowRider_death_1.ogg'),
     assetUrl('audio/unit_crowRider_death_2.ogg'),
     assetUrl('audio/unit_crowRider_hurt_1.ogg'),
@@ -2053,6 +2403,9 @@ void [
     assetUrl('audio/unit_dwarf_1.ogg'),
     assetUrl('audio/unit_dwarf_2.ogg'),
     assetUrl('audio/unit_dwarf_3.ogg'),
+    assetUrl('audio/unit_dwarf_rival_1.ogg'),
+    assetUrl('audio/unit_dwarf_rival_2.ogg'),
+    assetUrl('audio/unit_dwarf_rival_3.ogg'),
     assetUrl('audio/unit_dwarf_death_1.ogg'),
     assetUrl('audio/unit_dwarf_death_2.ogg'),
     assetUrl('audio/unit_dwarf_hurt_1.ogg'),
@@ -2063,6 +2416,9 @@ void [
     assetUrl('audio/unit_goblin_1.ogg'),
     assetUrl('audio/unit_goblin_2.ogg'),
     assetUrl('audio/unit_goblin_3.ogg'),
+    assetUrl('audio/unit_goblin_rival_1.ogg'),
+    assetUrl('audio/unit_goblin_rival_2.ogg'),
+    assetUrl('audio/unit_goblin_rival_3.ogg'),
     assetUrl('audio/unit_goblin_death_1.ogg'),
     assetUrl('audio/unit_goblin_death_2.ogg'),
     assetUrl('audio/unit_goblin_hurt_1.ogg'),
@@ -2073,6 +2429,9 @@ void [
     assetUrl('audio/unit_hammerer_1.ogg'),
     assetUrl('audio/unit_hammerer_2.ogg'),
     assetUrl('audio/unit_hammerer_3.ogg'),
+    assetUrl('audio/unit_hammerer_rival_1.ogg'),
+    assetUrl('audio/unit_hammerer_rival_2.ogg'),
+    assetUrl('audio/unit_hammerer_rival_3.ogg'),
     assetUrl('audio/unit_hammerer_death_1.ogg'),
     assetUrl('audio/unit_hammerer_death_2.ogg'),
     assetUrl('audio/unit_hammerer_hurt_1.ogg'),
@@ -2082,6 +2441,9 @@ void [
     assetUrl('audio/unit_mortar_1.ogg'),
     assetUrl('audio/unit_mortar_2.ogg'),
     assetUrl('audio/unit_mortar_3.ogg'),
+    assetUrl('audio/unit_mortar_rival_1.ogg'),
+    assetUrl('audio/unit_mortar_rival_2.ogg'),
+    assetUrl('audio/unit_mortar_rival_3.ogg'),
     assetUrl('audio/unit_mortar_death_1.ogg'),
     assetUrl('audio/unit_mortar_death_2.ogg'),
     assetUrl('audio/unit_mortar_hurt_1.ogg'),
@@ -2092,6 +2454,9 @@ void [
     assetUrl('audio/unit_ogre_1.ogg'),
     assetUrl('audio/unit_ogre_2.ogg'),
     assetUrl('audio/unit_ogre_3.ogg'),
+    assetUrl('audio/unit_ogre_rival_1.ogg'),
+    assetUrl('audio/unit_ogre_rival_2.ogg'),
+    assetUrl('audio/unit_ogre_rival_3.ogg'),
     assetUrl('audio/unit_ogre_death_1.ogg'),
     assetUrl('audio/unit_ogre_death_2.ogg'),
     assetUrl('audio/unit_ogre_hurt_1.ogg'),
@@ -2102,6 +2467,9 @@ void [
     assetUrl('audio/unit_prismCannon_1.ogg'),
     assetUrl('audio/unit_prismCannon_2.ogg'),
     assetUrl('audio/unit_prismCannon_3.ogg'),
+    assetUrl('audio/unit_prismCannon_rival_1.ogg'),
+    assetUrl('audio/unit_prismCannon_rival_2.ogg'),
+    assetUrl('audio/unit_prismCannon_rival_3.ogg'),
     assetUrl('audio/unit_prismCannon_death_1.ogg'),
     assetUrl('audio/unit_prismCannon_death_2.ogg'),
     assetUrl('audio/unit_prismCannon_hurt_1.ogg'),
@@ -2508,6 +2876,24 @@ class AudioBus {
     }
 
     /**
+     * Enemy/ally stronghold click — cheeky {@link VoiceLineEvent} `pickRival`
+     * bark (`commander_<id>_rival`). Silent until shipped.
+     */
+    playCommanderSelectRival(cardId: string): void {
+        if (!this.voicesOn()) return;
+        const cueId = `commander_${cardId}_rival`;
+        if (!CUES[cueId]) return;
+        const now = performance.now();
+        if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
+        this.lastUnitSelectAt = now;
+        this.stopUnitBarks();
+        this.stopCommanderBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
      * Round-win taunt for a commander. Cue id `commander_<id>_win` with up to
      * three path variants — silent until those assets are shipped.
      */
@@ -2574,6 +2960,24 @@ class AudioBus {
     }
 
     /**
+     * Rival pack click — frech {@link VoiceLineEvent} `pickRival` bark
+     * (`unit_<id>_rival`). Same cooldown as select; silent until shipped.
+     */
+    playUnitSelectRival(typeId: string): void {
+        if (!this.voicesOn()) return;
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueId = `unit_${voiceId}_rival`;
+        if (!CUES[cueId]) return;
+        const now = performance.now();
+        if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
+        this.lastUnitSelectAt = now;
+        this.stopUnitBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
      * Building select SFX (towers / tent). Normal UI group — not gated by
      * voicesEnabled. Shares the unit-select cooldown so rapid clicks stay tidy.
      */
@@ -2596,7 +3000,12 @@ class AudioBus {
     playUnitVoPreview(typeId: string): void {
         if (!this.voicesOn()) return;
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
-        const cueIds = [`unit_${voiceId}`, `unit_${voiceId}_death`, `unit_${voiceId}_hurt`];
+        const cueIds = [
+            `unit_${voiceId}`,
+            `unit_${voiceId}_rival`,
+            `unit_${voiceId}_death`,
+            `unit_${voiceId}_hurt`,
+        ];
         const queue: { cueId: string; path: string }[] = [];
         for (const id of cueIds) {
             const cue = CUES[id];

@@ -21,7 +21,16 @@
             },
         ],
         "lines": {
-            "pick": ["The sky envies you."],
+            "pick": [
+                "The sky envies you.",
+                "Wings up.",
+                "Look up."
+            ],
+            "pickRival": [
+                "Stay grounded.",
+                "Not your sky.",
+                "Clouds say no."
+            ],
             "win": [
                 "Haha! Sky's mine!",
                 "Ha! Clouds, applause!",

@@ -22,7 +22,16 @@
             },
         ],
         "lines": {
-            "pick": ["One more spider for the brood."],
+            "pick": [
+                "One more spider for the brood.",
+                "The brood stirs.",
+                "Silk ready."
+            ],
+            "pickRival": [
+                "Not your brood.",
+                "Crawl away.",
+                "Wrong nest."
+            ],
             "win": [
                 "Haha… brood feasts!",
                 "Ha! Crawl for me!",

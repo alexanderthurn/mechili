@@ -767,6 +767,12 @@
                 "type": "string"
               }
             },
+            "pickRival": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             "win": {
               "type": "array",
               "items": {

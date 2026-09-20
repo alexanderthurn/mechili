@@ -45,6 +45,12 @@
                 "Yesyesyes!",
                 "I fight!",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Not yours!",
+                "Hands off!",
+                "Go away!"
+            ],
             // death yelps
             "death": [
                 "Eeeek!",

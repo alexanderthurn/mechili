@@ -19,7 +19,16 @@
             },
         ],
         "lines": {
-            "pick": ["Cheap troops, rich pockets."],
+            "pick": [
+                "Cheap troops, rich pockets.",
+                "Bargain time.",
+                "Save a coin."
+            ],
+            "pickRival": [
+                "Not on sale.",
+                "Check your purse.",
+                "Wrong deal."
+            ],
             "win": [
                 "Haha! Cheap win!",
                 "Ha! Profit AND glory!",

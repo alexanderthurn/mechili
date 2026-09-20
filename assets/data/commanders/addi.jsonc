@@ -19,7 +19,16 @@
             },
         ],
         "lines": {
-            "pick": ["The relics need you."],
+            "pick": [
+                "The relics need you.",
+                "Vault calls.",
+                "Relics wait."
+            ],
+            "pickRival": [
+                "Hands off.",
+                "Not yours.",
+                "Vault’s closed."
+            ],
             "win": [
                 "Haha! Relics approve!",
                 "Ha! Vault secured!",

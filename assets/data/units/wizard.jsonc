@@ -40,6 +40,12 @@
                 "Listening.",
                 "Magnificent.",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Impudent.",
+                "Begone.",
+                "Not yours."
+            ],
             // death yelps
             "death": [
                 "Impossible!",

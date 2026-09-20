@@ -19,7 +19,16 @@
             },
         ],
         "lines": {
-            "pick": ["Big shop, bigger bargains."],
+            "pick": [
+                "Big shop, bigger bargains.",
+                "Go big.",
+                "Size matters."
+            ],
+            "pickRival": [
+                "Too small.",
+                "Not your size.",
+                "Shoo."
+            ],
             "win": [
                 "Haha! Big win!",
                 "Ha! Bigger bargains!",

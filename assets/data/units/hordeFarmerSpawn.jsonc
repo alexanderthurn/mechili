@@ -42,6 +42,12 @@
                 "Yes!",
                 "I can dig!",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Not yours!",
+                "Go!",
+                "Help—elsewhere!"
+            ],
             // death yelps
             "death": [
                 "Sorry…!",

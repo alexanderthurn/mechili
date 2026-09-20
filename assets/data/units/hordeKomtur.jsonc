@@ -55,6 +55,12 @@
                 "I am ready.",
                 "Judgment waits.",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Kneel elsewhere.",
+                "Not yours.",
+                "Begone."
+            ],
             // death yelps
             "death": [
                 "Honor… unbroken…",

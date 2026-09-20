@@ -50,6 +50,12 @@
                 "Smash?",
                 "Me ready!",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "No smash you.",
+                "Go away!",
+                "Not friend!"
+            ],
             // death yelps
             "death": [
                 "Owww…",

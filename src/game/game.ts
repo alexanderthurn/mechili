@@ -1955,6 +1955,8 @@ export class Game {
                     audio.playBuildingSelect(unit.type.id);
                 } else if (unit.team === 'player') {
                     audio.playUnitSelect(unit.type.id);
+                } else {
+                    audio.playUnitSelectRival(unit.type.id);
                 }
             }
             // buildings act through their details — auto-open the sheet (phone-only visual)
@@ -2357,6 +2359,8 @@ export class Game {
                     audio.playBuildingSelect(next.unit.type.id);
                 } else if (next.unit.team === 'player') {
                     audio.playUnitSelect(next.unit.type.id);
+                } else {
+                    audio.playUnitSelectRival(next.unit.type.id);
                 }
             }
         }) as EventListener);
@@ -4486,7 +4490,8 @@ export class Game {
                 card.id !== NO_COMMANDER_CARD_ID &&
                 card.speciality !== 'tutorial'
             ) {
-                audio.playCommanderSelect(card.id);
+                if (team === 'player') audio.playCommanderSelect(card.id);
+                else audio.playCommanderSelectRival(card.id);
                 return;
             }
         }

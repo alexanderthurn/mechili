@@ -20,7 +20,16 @@
             },
         ],
         "lines": {
-            "pick": ["Correct choice, now take notes!"],
+            "pick": [
+                "Correct choice, now take notes!",
+                "Class is in.",
+                "Pay attention."
+            ],
+            "pickRival": [
+                "Detention.",
+                "Not your desk.",
+                "Sit down."
+            ],
             "win": [
                 "Haha! Class dismissed!",
                 "Ha! Correct — I win!",

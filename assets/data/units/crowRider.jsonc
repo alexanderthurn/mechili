@@ -42,6 +42,12 @@
                 "Above!",
                 "We see you.",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Caw off!",
+                "Not yours.",
+                "Fly away."
+            ],
             // death yelps
             "death": [
                 "Caaaw—!",

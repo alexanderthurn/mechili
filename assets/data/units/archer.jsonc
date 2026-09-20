@@ -50,6 +50,12 @@
                 "What?",
                 "One shot, one opportunity",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Wrong side.",
+                "Buzz off.",
+                "Not yours."
+            ],
             "death": ["Noo!", "Uargh!"],
             // hit flinch — one syllable each (near-field on flesh impacts)
             "hurt": ["Ah!", "Ow!", "Eh!", "Ih!", "Oh!", "Uh!", "Auw!"],

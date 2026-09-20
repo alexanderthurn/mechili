@@ -51,6 +51,12 @@
                 "Closer.",
                 "I hear you.",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Closer—no.",
+                "Silk says no.",
+                "Leave."
+            ],
             // death yelps
             "death": [
                 "Silk… tears…",

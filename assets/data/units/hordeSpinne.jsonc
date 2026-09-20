@@ -56,6 +56,12 @@
                 "Speak.",
                 "I am waiting.",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Wrong child.",
+                "Not yours.",
+                "Away."
+            ],
             // death yelps
             "death": [
                 "My brood…!",

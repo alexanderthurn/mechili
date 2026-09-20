@@ -47,6 +47,12 @@
                 "Strike.",
                 "I am ready.",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "No.",
+                "Wrong.",
+                "Leave."
+            ],
             // death yelps
             "death": [
                 "…Falling.",

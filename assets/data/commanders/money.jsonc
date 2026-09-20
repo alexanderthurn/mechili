@@ -19,7 +19,16 @@
             },
         ],
         "lines": {
-            "pick": ["Gold first, glory later."],
+            "pick": [
+                "Gold first, glory later.",
+                "Show me the gold.",
+                "Coin talks."
+            ],
+            "pickRival": [
+                "Not for sale.",
+                "Keep walking.",
+                "Wrong vault."
+            ],
             "win": [
                 "Haha! Gold wins!",
                 "Ha! Paid in full!",

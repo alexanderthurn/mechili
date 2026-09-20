@@ -43,6 +43,12 @@
                 "Ready!",
                 "For the clan!",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Wrong clan.",
+                "Back off.",
+                "Not for ye."
+            ],
             // death yelps
             "death": [
                 "Och!",

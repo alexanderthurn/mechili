@@ -19,7 +19,16 @@
             },
         ],
         "lines": {
-            "pick": ["Let’s drop some rocks!"],
+            "pick": [
+                "Let’s drop some rocks!",
+                "Rocks ready!",
+                "Boom time."
+            ],
+            "pickRival": [
+                "Not your rock.",
+                "Duck.",
+                "Buzz off."
+            ],
             "win": [
                 "Haha! ROCKS WIN!",
                 "Ha! Boom! Told you!",

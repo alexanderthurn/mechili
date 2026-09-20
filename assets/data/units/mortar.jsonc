@@ -58,6 +58,12 @@
                 "What?",
                 "Fire when ready.",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Not your crew.",
+                "Scram.",
+                "Hands off."
+            ],
             // death yelps
             "death": [
                 "Boom—wrong way!",

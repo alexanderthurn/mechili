@@ -234,7 +234,14 @@ export interface StartCard {
 export type VoiceProviderType = 'e';
 
 /** Spoken bark events — expand as select / death / scream land. */
-export type VoiceLineEvent = 'pick' | 'win' | 'victory' | 'defeat' | 'death' | 'hurt';
+export type VoiceLineEvent =
+    | 'pick'
+    | 'pickRival'
+    | 'win'
+    | 'victory'
+    | 'defeat'
+    | 'death'
+    | 'hurt';
 
 /** One provider voice binding — `type: "e"` = ElevenLabs. */
 export interface VoiceExternalId {

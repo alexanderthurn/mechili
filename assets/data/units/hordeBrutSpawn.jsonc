@@ -43,6 +43,12 @@
                 "Yes!",
                 "Prey?",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "No!",
+                "Mine!",
+                "Skitter off!"
+            ],
             // death yelps
             "death": [
                 "Kii—!",

@@ -48,6 +48,12 @@
                 "Uuuh.",
                 "More…",
             ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "…No.",
+                "Not food.",
+                "Uuuh—no."
+            ],
             // death yelps
             "death": [
                 "Uuurgh…",
