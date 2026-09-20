@@ -37,17 +37,32 @@
             },
         ],
         "lines": {
-            // select acks
+            // select acks — hungry, ale-soaked, stubborn (the fun stereotypes)
             "pick": [
                 "Aye?",
                 "Ready!",
                 "For the clan!",
+                "At yer service!",
+                "Say the word!",
+                "Stone and steel!",
+                "I am Grumpy!",
+                "My name is Dumpy!",
+                "Where is Durin?",
+                "Where's the pie?",
+                "Ale first!",
+                "Got snacks?",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [
                 "Wrong clan.",
                 "Back off.",
-                "Not for ye."
+                "Not for ye.",
+                "Keep walkin'.",
+                "Nae chance.",
+                "Bugger off.",
+                "Hands off my lunch!",
+                "That's me pie!",
+                "Short fuse, pal.",
             ],
             // death yelps
             "death": [

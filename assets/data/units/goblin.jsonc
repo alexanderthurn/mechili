@@ -39,17 +39,32 @@
             },
         ],
         "lines": {
-            // select acks
+            // select acks — pack comedy + classic goblin vibes
             "pick": [
                 "Me?",
                 "Yesyesyes!",
                 "I fight!",
+                "Pick me!",
+                "Readyready!",
+                "Goblin go!",
+                "I am Puck!",
+                "Call me Hob!",
+                "Where is Dob?",
+                "Got shiny?",
+                "Can I bite it?",
+                "Sneaky time!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [
                 "Not yours!",
                 "Hands off!",
-                "Go away!"
+                "Go away!",
+                "Nono!",
+                "No touch!",
+                "Wrong goblin!",
+                "Steal your boots!",
+                "I bit first!",
+                "Mine-ish!",
             ],
             // death yelps
             "death": [
