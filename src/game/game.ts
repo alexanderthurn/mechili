@@ -10996,7 +10996,7 @@ export class Game {
             const camAlt = Math.max(0, cam.y - groundY);
             // 0 = pure look-at ear; 1 = full camera altitude. Mid blend.
             const listenY = 8 + camAlt * 0.55;
-            audio.setListener(t.x, t.z, listenY);
+            audio.setListener(t.x, t.z, listenY, camAlt);
             const fx = t.x - cam.x;
             const fy = 0 - cam.y;
             const fz = t.z - cam.z;

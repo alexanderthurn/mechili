@@ -2134,6 +2134,8 @@ class AudioBus {
     private lastCuePath = new Map<string, string>();
     private listenerX = 0;
     private listenerZ = 0;
+    /** Camera height above ground — used to duck close-cam-only cues (hurt/death). */
+    private listenerCamAlt = 0;
     private unlocked = false;
     private musicSource: AudioBufferSourceNode | null = null;
     private musicCueId: string | null = null;
@@ -2222,10 +2224,13 @@ class AudioBus {
      * Place the ear over the board look-at (xz), with optional height.
      * Default y≈8 keeps a mild airborne offset; game raises y with camera
      * zoom so max-altitude orbits duck ground combat without orbit wobble.
+     * {@link camAlt} is raw camera height above ground — hurt/death use it to
+     * stay close-orbit only (they ignore the milder listenY blend).
      */
-    setListener(x: number, z: number, y = 8): void {
+    setListener(x: number, z: number, y = 8, camAlt = 0): void {
         this.listenerX = x;
         this.listenerZ = z;
+        this.listenerCamAlt = camAlt;
         const ctx = this.ctx;
         if (!ctx) return;
         const l = ctx.listener;
@@ -2651,13 +2656,31 @@ class AudioBus {
         return buf.duration;
     }
 
+    /**
+     * Merge size presence with close-cam altitude duck.
+     * Returns null when the camera is too high (skip play).
+     */
+    private closeCamSpatialOpts(
+        typeId: string | undefined,
+    ): CombatSpatialOpts | null {
+        const altMul = closeCamAltitudeGain(this.listenerCamAlt);
+        if (altMul <= 0) return null;
+        const base = sizeSpatialOpts(typeId);
+        if (altMul >= 1) return base ?? {};
+        return {
+            ...base,
+            gainMul: (base?.gainMul ?? 1) * altMul,
+        };
+    }
+
     /** Spatial death yelp when a voiced unit dies — silent until that cue ships. */
     playUnitDeath(typeId: string, worldX: number, worldZ: number): void {
         if (!this.voicesOn()) return;
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueId = `unit_${voiceId}_death`;
         if (!CUES[cueId]) return;
-        const opts = sizeSpatialOpts(typeId);
+        const opts = this.closeCamSpatialOpts(typeId);
+        if (!opts) return;
         void this.ensureCue(cueId).then((ok) => {
             if (ok) this.play(cueId, worldX, worldZ, opts);
         });
@@ -2666,7 +2689,7 @@ class AudioBus {
     /**
      * Short hurt yelp on a flesh hit. Near-field only (cue maxDistance) +
      * global cooldown so packs don't chorus. Silent until that unit's cue ships.
-     * Scaled by {@link UnitType.soundSize}.
+     * Scaled by {@link UnitType.soundSize}. Close-cam only — ducks in the sky.
      */
     playUnitHurt(typeId: string, worldX: number, worldZ: number): void {
         if (!this.voicesOn()) return;
@@ -2675,9 +2698,10 @@ class AudioBus {
         if (!CUES[cueId]) return;
         const now = performance.now();
         if (now - this.lastUnitHurtAt < UNIT_HURT_COOLDOWN_MS) return;
-        const opts = sizeSpatialOpts(typeId);
+        const opts = this.closeCamSpatialOpts(typeId);
+        if (!opts) return;
         const cue = CUES[cueId]!;
-        const maxD = opts?.maxDistance ?? cue.maxDistance ?? SPATIAL_MAX;
+        const maxD = opts.maxDistance ?? cue.maxDistance ?? SPATIAL_MAX;
         if (distXZ(worldX, worldZ, this.listenerX, this.listenerZ) > maxD) return;
         this.lastUnitHurtAt = now;
         void this.ensureCue(cueId).then((ok) => {
@@ -3081,14 +3105,18 @@ class AudioBus {
                         if (cue) this.play(cue); // global — no spatial falloff
                     } else {
                         // soundSize drives which death bank + presence (VFX still uses e.big).
-                        const size = soundSizeOf(e.unitTypeId);
-                        this.play(
-                            size === 'large' ? 'death_unit_big' : 'death_unit',
-                            e.x,
-                            e.z,
-                            sizeSpatialOpts(e.unitTypeId),
-                        );
-                        if (e.unitTypeId) this.playUnitDeath(e.unitTypeId, e.x, e.z);
+                        // Close-cam only — sky orbits keep shots, not body thuds / yelps.
+                        const closeOpts = this.closeCamSpatialOpts(e.unitTypeId);
+                        if (closeOpts) {
+                            const size = soundSizeOf(e.unitTypeId);
+                            this.play(
+                                size === 'large' ? 'death_unit_big' : 'death_unit',
+                                e.x,
+                                e.z,
+                                closeOpts,
+                            );
+                            if (e.unitTypeId) this.playUnitDeath(e.unitTypeId, e.x, e.z);
+                        }
                     }
                     break;
                 case 'strongholdCollapse':
@@ -3342,6 +3370,19 @@ function hazardAltitudeGain(cameraY: number): number {
     if (cameraY <= fullBelow) return 1;
     if (cameraY >= silentAbove) return 0;
     const t = 1 - (cameraY - fullBelow) / (silentAbove - fullBelow);
+    return t * t;
+}
+
+/**
+ * Hurt / death body cues — close orbit only. Stricter than the listenY blend
+ * used for attacks: mid zoom already fades, high sky is silent.
+ */
+function closeCamAltitudeGain(camAlt: number): number {
+    const fullBelow = 26;
+    const silentAbove = 72;
+    if (camAlt <= fullBelow) return 1;
+    if (camAlt >= silentAbove) return 0;
+    const t = 1 - (camAlt - fullBelow) / (silentAbove - fullBelow);
     return t * t;
 }
 
