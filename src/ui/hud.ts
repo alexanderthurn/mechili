@@ -1380,6 +1380,7 @@ export class Hud {
         const def = this.types.rune(itemId);
         if (!def) return;
         el.dataset.spellTip = '1';
+        el.dataset.runeId = itemId;
         el.dataset.ttitle = itemName(itemId, def.name);
         const desc = itemDescription(itemId, def.description, def.mods);
         el.dataset.tdesc = extra ? `${desc}\n${extra}` : desc;
@@ -1883,7 +1884,7 @@ export class Hud {
                       });
                       const tip =
                           def
-                              ? ` data-spell-tip="1" data-ttitle="${escapeAttr(itemName(i.id, def.name))}" ` +
+                              ? ` data-spell-tip="1" data-rune-id="${escapeAttr(i.id)}" data-ttitle="${escapeAttr(itemName(i.id, def.name))}" ` +
                                 `data-tdesc="${escapeAttr(`${itemDescription(i.id, def.description, def.mods)}\n${extra}`)}" ` +
                                 `data-ticon="${escapeAttr(def.icon)}"`
                               : ` title="${escapeAttr(`${itemName(i.id, i.name)}\n${extra}`)}"`;
@@ -2261,7 +2262,7 @@ export class Hud {
                   .map((i) => {
                       const def = i.id ? this.types.rune(i.id) : undefined;
                       const tip = def
-                          ? ` data-spell-tip="1" data-ttitle="${escapeAttr(itemName(i.id!, def.name))}" ` +
+                          ? ` data-spell-tip="1" data-rune-id="${escapeAttr(i.id!)}" data-ttitle="${escapeAttr(itemName(i.id!, def.name))}" ` +
                             `data-tdesc="${escapeAttr(itemDescription(i.id!, def.description, def.mods))}" ` +
                             `data-ticon="${escapeAttr(def.icon)}"`
                           : ` title="${escapeAttr(i.name)}"`;
@@ -3267,7 +3268,7 @@ export class Hud {
                                   : t('hud:returnToBag', { item: DISPLAY.item.toLowerCase() });
                           const lvl = this.runeLevelMark(item.id);
                           return (
-                          `<span class="item-sq m-icon${item.removable ? ' removable' : ''}${lvl.badge ? ' rune-leveled' : ''}" style="${this.runeIconStyle(item.icon, lvl.borderStyle)}" data-spell-tip="1" data-tip-wide="1" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
+                          `<span class="item-sq m-icon${item.removable ? ' removable' : ''}${lvl.badge ? ' rune-leveled' : ''}" style="${this.runeIconStyle(item.icon, lvl.borderStyle)}" data-spell-tip="1" data-tip-wide="1" data-rune-id="${escapeAttr(item.id ?? '')}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
                               item.removable
                                   ? `${item.desc ?? item.name}\n${removeHint}`
                                   : (item.desc ?? item.name),
@@ -3321,7 +3322,7 @@ export class Hud {
                           : t('hud:returnToBag', { item: DISPLAY.item.toLowerCase() });
                   const lvl = this.runeLevelMark(item.id);
                   return (
-                      `<span class="item-sq m-icon${item.removable ? ' removable' : ''}${lvl.badge ? ' rune-leveled' : ''}" style="${this.runeIconStyle(item.icon, lvl.borderStyle)}" data-spell-tip="1" data-tip-wide="1" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
+                      `<span class="item-sq m-icon${item.removable ? ' removable' : ''}${lvl.badge ? ' rune-leveled' : ''}" style="${this.runeIconStyle(item.icon, lvl.borderStyle)}" data-spell-tip="1" data-tip-wide="1" data-rune-id="${escapeAttr(item.id ?? '')}" data-ttitle="${escapeAttr(item.name)}" data-tdesc="${escapeAttr(
                           item.removable
                               ? `${item.desc}\n${removeHint}`
                               : item.desc,
@@ -3340,6 +3341,7 @@ export class Hud {
                             `<span class="item-sq m-icon forge-bake${lvl.badge ? ' rune-leveled' : ''}" ` +
                             `style="${this.runeIconStyle(forge.bake.icon, lvl.borderStyle)}" ` +
                             `data-spell-tip="1" data-tip-wide="1" ` +
+                            `data-rune-id="${escapeAttr(forge.bake.id ?? '')}" ` +
                             `data-ttitle="${escapeAttr(forge.bake.name)}" ` +
                             `data-tdesc="${escapeAttr(
                                 `${forge.bake.desc}\n${t('hud:forgeFiringNext')}`,

@@ -11,6 +11,7 @@ import { onPrefsChange, prefs } from './prefs';
 import { beamMuzzleWorld } from './conversionFx';
 import type { Actor } from './sim';
 import { BASE_TYPES } from './units';
+import { parseElementalId } from './runeMix';
 
 export type AudioGroupId = 'sfx' | 'music' | 'ui';
 
@@ -1510,6 +1511,31 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.85,
     },
+    /** Base rune hover beds — seamless UI loops (mixes/advanced come later). */
+    rune_earth: {
+        paths: ['audio/rune_earth_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_fire: {
+        paths: ['audio/rune_fire_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_water: {
+        paths: ['audio/rune_water_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_wind: {
+        paths: ['audio/rune_wind_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
     /** Proximity bed while camera is near burning ground. */
     fire_loop: {
         paths: ['audio/fire_loop_1.ogg'],
@@ -2467,6 +2493,10 @@ void [
     assetUrl('audio/forge_select_3.ogg'),
     assetUrl('audio/forge_select_rival_1.ogg'),
     assetUrl('audio/forge_select_rival_2.ogg'),
+    assetUrl('audio/rune_earth_1.ogg'),
+    assetUrl('audio/rune_fire_1.ogg'),
+    assetUrl('audio/rune_water_1.ogg'),
+    assetUrl('audio/rune_wind_1.ogg'),
     assetUrl('audio/fire_loop_1.ogg'),
     assetUrl('audio/ground_fire_1.ogg'),
     assetUrl('audio/ground_fire_2.ogg'),
@@ -2889,6 +2919,8 @@ class AudioBus {
     private lastUnitHurtAt = 0;
     /** Bumps to cancel an in-flight homepage VO preview sequence. */
     private unitPreviewGen = 0;
+    /** Active base-rune hover loop cue id (`rune_earth` …), if any. */
+    private runeHoverCueId: string | null = null;
 
     /** Idempotent — call from first pointer/click and again at match start. */
     unlock(): void {
@@ -3458,6 +3490,31 @@ class AudioBus {
     }
 
     /**
+     * Soft hover bed for a rune tip. Pure base elements only for now
+     * (`earth` / `fire` / `water` / `wind`, any level). Mixes & advanced → silent.
+     * One loop at a time; call {@link stopRuneHover} on tip hide.
+     */
+    playRuneHover(itemId: string | null | undefined): void {
+        const cueId = runeHoverCueId(itemId);
+        if (cueId === this.runeHoverCueId) return;
+        this.stopRuneHover();
+        if (!cueId) return;
+        this.runeHoverCueId = cueId;
+        this.ensureLoopReady(cueId);
+        // Buffer may still be loading — retry once ready.
+        void this.ensureCue(cueId).then((ok) => {
+            if (!ok || this.runeHoverCueId !== cueId) return;
+            this.setLoop(cueId, true, 0, 0, 1);
+        });
+    }
+
+    stopRuneHover(): void {
+        if (!this.runeHoverCueId) return;
+        this.setLoop(this.runeHoverCueId, false, 0, 0, 0);
+        this.runeHoverCueId = null;
+    }
+
+    /**
      * Homepage / testing: play every shipped select + death + hurt line for a
      * unit in order (non-spatial UI), with a short gap. Loads only that unit's
      * clips. Switching units cancels.
@@ -3950,6 +4007,7 @@ class AudioBus {
         const gain = this.ctx.createGain();
         gain.gain.value = level;
         let panner: PannerNode | undefined;
+        const bus = cue.group === 'ui' ? this.groups.ui : this.loopBus;
         if (cue.spatial) {
             panner = this.ctx.createPanner();
             panner.panningModel = 'HRTF';
@@ -3962,10 +4020,10 @@ class AudioBus {
             panner.positionZ.value = z;
             src.connect(gain);
             gain.connect(panner);
-            panner.connect(this.loopBus);
+            panner.connect(bus);
         } else {
             src.connect(gain);
-            gain.connect(this.loopBus);
+            gain.connect(bus);
         }
         try {
             src.start(0);
@@ -4219,6 +4277,15 @@ function impactCue(e: Extract<SimEvent, { kind: 'impact' }>): string {
     if (e.flesh) return 'impact_flesh';
     if (e.sod) return 'impact_ground';
     return 'impact_ground';
+}
+
+/** Pure base elemental → hover loop cue; mixes / advanced / unknown → null. */
+function runeHoverCueId(itemId: string | null | undefined): string | null {
+    if (!itemId) return null;
+    const p = parseElementalId(itemId);
+    if (!p || p.elements.length !== 1) return null;
+    const cueId = `rune_${p.elements[0]}`;
+    return CUES[cueId] ? cueId : null;
 }
 
 /** Success cues for human actions. `null` = silent (caller plays richer SFX). */

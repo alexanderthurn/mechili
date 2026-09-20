@@ -634,7 +634,7 @@ app.innerHTML = `
       <div class="cards-row" id="mh-specialists-row">
         ${BASE_TYPES.commanders.map(
             (c, i) =>
-                `<div class="card static${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${startCardFace(c)}</div>`,
+                `<div class="card${i === 0 ? ' mh-active' : ''}" data-key="${esc(c.id)}">${startCardFace(c)}</div>`,
         ).join('')}
       </div>
     </div>
@@ -1260,6 +1260,58 @@ function wireCardSelect(selectId: string, cardSelector: string): void {
 wireCardSelect('mh-round-cards-select', '#mh-round-cards-row > .card');
 wireCardSelect('mh-runes-select', '#mh-runes-grid > .mh-tactic');
 wireCardSelect('mh-tactics-select', '#mh-tactics-grid > .mh-tactic');
+
+/** Press-and-hold a homepage rune card to preview its hover bed (base elements only for now).
+ *  Always plays at least 1s so a quick click still hears the loop. */
+const runesGrid = document.getElementById('mh-runes-grid');
+if (runesGrid) {
+    const MIN_PLAY_MS = 1000;
+    let runeHoldId: number | null = null;
+    let playStartedAt = 0;
+    let stopTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearStopTimer = (): void => {
+        if (stopTimer === null) return;
+        clearTimeout(stopTimer);
+        stopTimer = null;
+    };
+
+    const stopRunePreview = (): void => {
+        clearStopTimer();
+        audio.stopRuneHover();
+    };
+
+    const endRuneHold = (e: PointerEvent): void => {
+        if (runeHoldId !== e.pointerId) return;
+        runeHoldId = null;
+        const left = MIN_PLAY_MS - (performance.now() - playStartedAt);
+        clearStopTimer();
+        if (left <= 0) {
+            stopRunePreview();
+            return;
+        }
+        stopTimer = setTimeout(stopRunePreview, left);
+    };
+
+    runesGrid.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        const card = (e.target as Element | null)?.closest?.('.mh-rune[data-key]');
+        if (!(card instanceof HTMLElement) || !runesGrid.contains(card)) return;
+        clearStopTimer();
+        runeHoldId = e.pointerId;
+        playStartedAt = performance.now();
+        try {
+            card.setPointerCapture(e.pointerId);
+        } catch {
+            /* noop */
+        }
+        audio.unlock();
+        audio.playRuneHover(card.dataset.key);
+    });
+    runesGrid.addEventListener('pointerup', endRuneHold);
+    runesGrid.addEventListener('pointercancel', endRuneHold);
+    runesGrid.addEventListener('lostpointercapture', endRuneHold);
+}
 
 const commanderSpellTips = new CardSpellTips();
 const specialistsRow = document.getElementById('mh-specialists-row');

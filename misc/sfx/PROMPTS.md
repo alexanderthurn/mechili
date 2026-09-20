@@ -66,6 +66,26 @@ three clear hammer strikes on a steel anvil in a row, ding ding ding, bright rin
 dark enemy forge select sting, cold iron forge, distant harsh bellows and dull anvil, ominous furnace, short game UI SFX, no music no voice
 ```
 
+### `rune_earth` / `rune_fire` / `rune_water` / `rune_wind` (hover loops)
+
+Seamless ~3s UI beds for base rune tips. One take each; mixes/advanced later.
+
+```
+soft deep subterranean earth hum loop, quiet warm soil resonance, gentle underground stone tone, smooth seamless game UI ambience loop, no gravel scrape no crackle no music no voice
+```
+
+```
+soft candle flame hiss loop, quiet warm fire air rush, gentle continuous zsssh, seamless game UI ambience loop, dry no crackle no liquid no music no voice
+```
+
+```
+gentle water trickle and soft wet bubble loop, quiet liquid flow, seamless game UI ambience loop, no splash no music no voice
+```
+
+```
+airy soft wind whoosh and light silk flutter loop, quiet breeze texture, seamless game UI ambience loop, no music no voice
+```
+
 ### `spell_oil_drop` (falling blug)
 
 ```

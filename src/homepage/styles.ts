@@ -959,13 +959,34 @@ html, body {
     font-size: 13px;
     font-weight: 700;
     cursor: pointer;
-    transition: border-color 0.12s, background 0.12s;
+    transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease,
+        box-shadow 0.14s ease, color 0.14s ease;
 }
-.mh-pick:hover { border-color: ${u.hover}; }
+.mh-pick:hover {
+    border-color: ${u.brass};
+    background: ${u.techBuyBg};
+    color: ${u.brassLight};
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    animation: mh-await 1.15s ease-in-out infinite;
+}
+.mh-pick:focus-visible {
+    outline: none;
+    border-color: ${u.brass};
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
+}
+.mh-pick:active {
+    animation: none;
+    transform: translateY(0);
+    box-shadow: none;
+}
 .mh-pick.active {
     border-color: ${u.brass};
     background: ${u.techBuyBg};
     color: ${u.brassLight};
+}
+.mh-pick.active:hover {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    animation: mh-await 1.15s ease-in-out infinite;
 }
 
 .mh-unit-stats {
@@ -1105,6 +1126,47 @@ html, body {
     background: ${u.panelBgDark};
     overflow: hidden;
     user-select: text;
+}
+/* Sound-preview runes: press-and-hold plays the bed — lift + brass on hover/hold. */
+.mh-rune {
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease,
+        background 0.14s ease;
+}
+.mh-rune:hover {
+    border-color: ${u.brass};
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    background: linear-gradient(180deg, ${u.techBuyBg} 0%, ${u.panelBgDark} 70%);
+    animation: mh-await-rune 1.2s ease-in-out infinite;
+}
+.mh-rune:focus-visible {
+    outline: none;
+    border-color: ${u.brass};
+    box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.35);
+}
+.mh-rune:active {
+    animation: none;
+    border-color: ${u.brassLight};
+    transform: translateY(-1px);
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        inset 0 0 0 1px rgba(212, 184, 120, 0.35);
+}
+/* Commanders: soft bob while hovered (VO plays on click); press settles like runes. */
+.melodan-home #mh-specialists-row > .card:hover {
+    animation: mh-await-card 1.2s ease-in-out infinite;
+}
+.melodan-home #mh-specialists-row > .card:active {
+    animation: none;
+    border-color: ${u.bronze};
+    transform: translateY(-1px);
+    box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.48),
+        0 0 0 1px rgba(30, 18, 8, 0.4),
+        inset 0 0 0 1px rgba(232, 210, 160, 0.7),
+        inset 0 0 0 3px rgba(90, 60, 30, 0.5),
+        inset 0 0 40px rgba(80, 50, 20, 0.18);
 }
 .mh-tactic-icon {
     display: flex;
@@ -1474,6 +1536,36 @@ html, body {
     font-variant-numeric: normal;
     margin-top: 2px;
     white-space: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mh-pick,
+    .mh-pick:hover,
+    .mh-pick:active,
+    .mh-pick.active:hover,
+    .mh-rune,
+    .mh-rune:hover,
+    .mh-rune:active,
+    .melodan-home #mh-specialists-row > .card,
+    .melodan-home #mh-specialists-row > .card:hover,
+    .melodan-home #mh-specialists-row > .card:active {
+        transition: none;
+        transform: none;
+        animation: none;
+    }
+}
+
+@keyframes mh-await {
+    0%, 100% { transform: translateY(-1px); }
+    50% { transform: translateY(-4px); }
+}
+@keyframes mh-await-rune {
+    0%, 100% { transform: translateY(-2px); }
+    50% { transform: translateY(-6px); }
+}
+@keyframes mh-await-card {
+    0%, 100% { transform: translateY(-4px); }
+    50% { transform: translateY(-8px); }
 }
 `;
 }

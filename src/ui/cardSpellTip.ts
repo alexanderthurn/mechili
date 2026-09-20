@@ -13,6 +13,7 @@ import {
 import { THEME } from '../theme';
 import { iconHtml, moneyHtml } from './iconAtlas';
 import { registerHoverTipClearer } from './hoverTips';
+import { audio } from '../game/audio';
 
 function escapeAttr(s: string): string {
     return s
@@ -302,12 +303,14 @@ export class CardSpellTips {
         this.tip.style.left = `${left}px`;
         this.tip.style.top = `${top}px`;
         this.tip.style.visibility = 'visible';
+        audio.playRuneHover(el.dataset.runeId);
     }
 
     hide(): void {
         const shown = !!this.tip && this.tip.style.display !== 'none';
         this.hoverEl = null;
         if (this.tip) this.tip.style.display = 'none';
+        audio.stopRuneHover();
         if (shown) this.onHide?.();
     }
 
@@ -322,6 +325,7 @@ export class CardSpellTips {
         this.hoverEl = null;
         this.skipEl = null;
         this.onHide = null;
+        audio.stopRuneHover();
         if (this.tip) {
             this.tip.removeEventListener('pointerdown', this.onTipPointerDown, true);
             this.tip.removeEventListener('pointerleave', this.onTipLeave);
