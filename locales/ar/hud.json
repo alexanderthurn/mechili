@@ -28,6 +28,8 @@
   "yearDefender": "المدافع",
   "yearYou": "أنت",
   "yearSideWins": "فوز {{side}}",
+  "yearRoundWon": "فاز {{side}}",
+  "yearBegins": "تبدأ السنة",
   "yearRoundTo": "الجولة {{n}}: {{side}}",
   "rematchSwapped": "مباراة ثأرية بتبديل الأدوار",
   "rematchWaiting": "بانتظار الخصم…",

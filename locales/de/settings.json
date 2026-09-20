@@ -12,6 +12,7 @@
   "sfxVolume": "Soundeffekte",
   "musicVolume": "Musik",
   "uiVolume": "Oberfläche",
+  "voicesEnabled": "Einheiten- und Kommandantenstimmen",
   "multiplayer": "Mehrspieler",
   "connection": "Verbindung",
   "debug": "Debug",

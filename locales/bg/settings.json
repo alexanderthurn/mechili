@@ -12,6 +12,7 @@
   "sfxVolume": "Звукови ефекти",
   "musicVolume": "Музика",
   "uiVolume": "Интерфейс",
+  "voicesEnabled": "Гласове на единици и командири",
   "multiplayer": "Мултиплейър",
   "connection": "Връзка",
   "debug": "Отстраняване на грешки",

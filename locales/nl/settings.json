@@ -12,6 +12,7 @@
   "sfxVolume": "Geluidseffecten",
   "musicVolume": "Muziek",
   "uiVolume": "Interface",
+  "voicesEnabled": "Stemmen van eenheden en commandanten",
   "multiplayer": "Multiplayer",
   "connection": "Verbinding",
   "debug": "Foutopsporing",

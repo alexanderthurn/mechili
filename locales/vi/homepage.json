@@ -128,6 +128,17 @@
     "sub": "Từ vòng hai trở đi, hãy chọn một trong số các lá bài {{items}} được cung cấp từ bộ bài của trận đấu. Các lá bài phép thuật chiến đấu được mua tại Pháo đài, chứ không phải được chọn từ các lá bài.",
     "select": "Chọn một thẻ vòng"
   },
+  "music": {
+    "title": "Âm nhạc",
+    "sub": "Nhạc nền theo mùa đi cùng vòng bầu không khí của Một Năm — mỗi cảnh một bản triển khai và một bản trận chiến, thêm bản menu và bản trận chiến dự phòng.",
+    "select": "Chọn một bản nhạc",
+    "play": "Phát",
+    "stop": "Dừng",
+    "menu": "Menu",
+    "fallback": "Trận chiến (dự phòng)",
+    "deploy": "Triển khai",
+    "battle": "Trận chiến"
+  },
   "matchSettings": {
     "title": "Cài đặt trận đấu",
     "sub": "Các quy tắc mặc định cho một trận đấu được lấy trực tiếp từ mã cài đặt của trò chơi, vì vậy chúng không thể khác biệt so với phiên bản chính thức. Mọi thứ ở đây đều có thể tùy chỉnh — đây là mã nguồn mở."

@@ -28,6 +28,8 @@
   "yearDefender": "防守方",
   "yearYou": "你",
   "yearSideWins": "{{side}}獲勝",
+  "yearRoundWon": "{{side}}獲勝",
+  "yearBegins": "一年開始了",
   "yearRoundTo": "第 {{n}} 回合：{{side}}",
   "rematchSwapped": "交換角色再戰",
   "rematchWaiting": "等待對手…",

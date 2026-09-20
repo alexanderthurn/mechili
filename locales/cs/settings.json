@@ -12,6 +12,7 @@
   "sfxVolume": "Zvukové efekty",
   "musicVolume": "Hudba",
   "uiVolume": "Rozhraní",
+  "voicesEnabled": "Hlasy jednotek a velitelů",
   "multiplayer": "Vícehráčský režim",
   "connection": "Spojení",
   "debug": "Ladit",

@@ -28,6 +28,8 @@
   "yearDefender": "Bên phòng thủ",
   "yearYou": "bạn",
   "yearSideWins": "{{side}} thắng",
+  "yearRoundWon": "{{side}} đã thắng",
+  "yearBegins": "Một Năm bắt đầu",
   "yearRoundTo": "Vòng {{n}}: {{side}}",
   "rematchSwapped": "Tái đấu, đổi vai",
   "rematchWaiting": "Đang chờ đối thủ…",

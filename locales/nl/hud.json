@@ -28,6 +28,8 @@
   "yearDefender": "Verdediger",
   "yearYou": "jij",
   "yearSideWins": "{{side}} wint",
+  "yearRoundWon": "{{side}} heeft gewonnen",
+  "yearBegins": "Het Jaar begint",
   "yearRoundTo": "Ronde {{n}}: {{side}}",
   "rematchSwapped": "Revanche, rollen gewisseld",
   "rematchWaiting": "Wachten op tegenstander…",

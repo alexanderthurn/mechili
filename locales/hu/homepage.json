@@ -128,6 +128,17 @@
     "sub": "A második körtől kezdve húzz egyet a felkínált {{items}} lapok közül a meccskészletből. A harci varázslatokat az Erődben kell megvásárolni, nem kártyákból.",
     "select": "Válassz egy körkártyát"
   },
+  "music": {
+    "title": "Zene",
+    "sub": "Évszakos aláfestés, amely Az Év hangulattúráját követi — jelenetenként egy telepítési és egy csatazene, plusz a menü és a tartalék csatazene.",
+    "select": "Válassz zenét",
+    "play": "Lejátszás",
+    "stop": "Leállítás",
+    "menu": "Menü",
+    "fallback": "Csata (tartalék)",
+    "deploy": "Telepítés",
+    "battle": "Csata"
+  },
   "matchSettings": {
     "title": "Mérkőzésbeállítások",
     "sub": "A meccs alapértelmezett szabályai, közvetlenül a játék beállítási kódjából átvéve, így ezek nem térhetnek el a tényleges eredeti állapottól. Minden itt hangolható – nyílt forráskódú."

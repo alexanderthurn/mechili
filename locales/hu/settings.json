@@ -12,6 +12,7 @@
   "sfxVolume": "Hangeffektek",
   "musicVolume": "Zene",
   "uiVolume": "Felület",
+  "voicesEnabled": "Egység- és parancsnokhangok",
   "multiplayer": "Többjátékos mód",
   "connection": "Kapcsolat",
   "debug": "Hibakeresés",

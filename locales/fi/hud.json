@@ -28,6 +28,8 @@
   "yearDefender": "Puolustaja",
   "yearYou": "sinä",
   "yearSideWins": "{{side}} voittaa",
+  "yearRoundWon": "{{side}} voitti",
+  "yearBegins": "Vuosi alkaa",
   "yearRoundTo": "Kierros {{n}}: {{side}}",
   "rematchSwapped": "Uusintaottelu, roolit vaihdettu",
   "rematchWaiting": "Odotetaan vastustajaa…",

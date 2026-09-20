@@ -12,6 +12,7 @@
   "sfxVolume": "Efeitos sonoros",
   "musicVolume": "Música",
   "uiVolume": "Interface",
+  "voicesEnabled": "Vozes de unidades e comandantes",
   "multiplayer": "Multijogador",
   "connection": "Conexão",
   "debug": "Depurar",

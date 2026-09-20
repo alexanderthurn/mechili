@@ -128,6 +128,17 @@
     "sub": "Fra runde to og utover, draft ett av flere tilbudte {{items}}-kort trukket fra kamppotten. Kampformler kjøpes i Festningen, ikke draftes fra kort.",
     "select": "Velg et rundekort"
   },
+  "music": {
+    "title": "Musikk",
+    "sub": "Årstidsmusikk som følger stemningsturen i Året — ett oppstillings- og ett kampspor per scene, pluss menyen og reservekampsporet.",
+    "select": "Velg et spor",
+    "play": "Spill av",
+    "stop": "Stopp",
+    "menu": "Meny",
+    "fallback": "Kamp (reserve)",
+    "deploy": "Oppstilling",
+    "battle": "Kamp"
+  },
   "matchSettings": {
     "title": "Kampinnstillinger",
     "sub": "Standardreglene for en kamp, hentet rett fra spillets innstillingskode, slik at dette ikke kan avvike fra det som faktisk leveres. Alt her er justerbart – det er åpen kildekode."

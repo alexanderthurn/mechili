@@ -28,6 +28,8 @@
   "yearDefender": "Apărător",
   "yearYou": "tu",
   "yearSideWins": "Câștigă: {{side}}",
+  "yearRoundWon": "{{side}} a câștigat",
+  "yearBegins": "Anul începe",
   "yearRoundTo": "Runda {{n}}: {{side}}",
   "rematchSwapped": "Revanșă, roluri inversate",
   "rematchWaiting": "Se așteaptă adversarul…",

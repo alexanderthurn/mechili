@@ -128,6 +128,17 @@
     "sub": "Vanaf ronde twee kies je één van de verschillende aangeboden {{items}}-kaarten uit de wedstrijdpool. Gevechtsspreuken worden gekocht in de Stronghold, niet gekozen uit kaarten.",
     "select": "Kies een rondekaart"
   },
+  "music": {
+    "title": "Muziek",
+    "sub": "Seizoensmuziek die de sfeertour van Het Jaar volgt — per scène een opstellings- en een strijdnummer, plus dat van het menu en het reservenummer voor de strijd.",
+    "select": "Kies een nummer",
+    "play": "Afspelen",
+    "stop": "Stop",
+    "menu": "Menu",
+    "fallback": "Strijd (reserve)",
+    "deploy": "Opstelling",
+    "battle": "Strijd"
+  },
   "matchSettings": {
     "title": "Wedstrijdinstellingen",
     "sub": "De standaardregels voor een wedstrijd, rechtstreeks overgenomen uit de instellingen van het spel, zodat deze niet kunnen afwijken van de uiteindelijke versie. Alles is hier aanpasbaar — het is open source."

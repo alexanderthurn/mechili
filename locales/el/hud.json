@@ -28,6 +28,8 @@
   "yearDefender": "Αμυνόμενος",
   "yearYou": "εσύ",
   "yearSideWins": "Νίκη: {{side}}",
+  "yearRoundWon": "{{side}} νίκησε",
+  "yearBegins": "Η Χρονιά ξεκινά",
   "yearRoundTo": "Γύρος {{n}}: {{side}}",
   "rematchSwapped": "Ρεβάνς, αλλαγή ρόλων",
   "rematchWaiting": "Αναμονή για τον αντίπαλο…",

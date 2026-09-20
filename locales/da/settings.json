@@ -12,6 +12,7 @@
   "sfxVolume": "Lydeffekter",
   "musicVolume": "Musik",
   "uiVolume": "Brugerflade",
+  "voicesEnabled": "Enheds- og kommandantstemmer",
   "multiplayer": "Multiplayer",
   "connection": "Forbindelse",
   "debug": "Fejlfinding",

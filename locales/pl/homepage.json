@@ -128,6 +128,17 @@
     "sub": "Od drugiej rundy dobieraj jedną z kilku oferowanych kart {{items}} z puli meczowej. Zaklęcia bojowe kupuje się w Twierdzy, a nie dobiera z kart.",
     "select": "Wybierz kartę rundy"
   },
+  "music": {
+    "title": "Muzyka",
+    "sub": "Sezonowe podkłady podążające za trasą nastrojów Roku — na scenę jeden utwór rozstawienia i jeden bitewny, plus menu i zapasowy utwór bitewny.",
+    "select": "Wybierz utwór",
+    "play": "Odtwórz",
+    "stop": "Zatrzymaj",
+    "menu": "Menu",
+    "fallback": "Bitwa (zapas)",
+    "deploy": "Rozstawienie",
+    "battle": "Bitwa"
+  },
   "matchSettings": {
     "title": "Ustawienia dopasowania",
     "sub": "Domyślne zasady rozgrywki, zaczerpnięte prosto z kodu ustawień gry, więc nie mogą się różnić od tego, co faktycznie jest w grze. Wszystko jest tu konfigurowalne — to oprogramowanie open source."

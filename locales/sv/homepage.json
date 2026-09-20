@@ -128,6 +128,17 @@
     "sub": "Från och med runda två, drafta ett av flera erbjudna {{items}}-kort som dras från matchpoolen. Stridsformler köps vid Fästet, draftas inte från kort.",
     "select": "Välj ett rundkort"
   },
+  "music": {
+    "title": "Musik",
+    "sub": "Årstidsmusik som följer stämningsturen i Året — ett uppställnings- och ett stridsspår per scen, plus menyns och reservspåret för strid.",
+    "select": "Välj ett spår",
+    "play": "Spela",
+    "stop": "Stoppa",
+    "menu": "Meny",
+    "fallback": "Strid (reserv)",
+    "deploy": "Uppställning",
+    "battle": "Strid"
+  },
   "matchSettings": {
     "title": "Matchinställningar",
     "sub": "Standardreglerna för en match, hämtade direkt från spelets inställningskod så att det inte kan avvika från vad som faktiskt levereras. Allt här är justerbart – det är öppen källkod."

@@ -12,6 +12,7 @@
   "sfxVolume": "Efek suara",
   "musicVolume": "Musik",
   "uiVolume": "Antarmuka",
+  "voicesEnabled": "Suara unit dan komandan",
   "multiplayer": "Pemain multipemain",
   "connection": "Koneksi",
   "debug": "Debug",

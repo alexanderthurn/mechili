@@ -12,6 +12,7 @@
   "sfxVolume": "音效",
   "musicVolume": "音樂",
   "uiVolume": "介面",
+  "voicesEnabled": "單位與指揮官語音",
   "multiplayer": "多人遊戲",
   "connection": "連接方式",
   "debug": "調試",

@@ -28,6 +28,8 @@
   "yearDefender": "防衛側",
   "yearYou": "あなた",
   "yearSideWins": "{{side}}の勝利",
+  "yearRoundWon": "{{side}}の勝ち",
+  "yearBegins": "一年が始まる",
   "yearRoundTo": "ラウンド {{n}}: {{side}}",
   "rematchSwapped": "役割を入れ替えて再戦",
   "rematchWaiting": "相手を待っています…",

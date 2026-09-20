@@ -128,6 +128,17 @@
     "sub": "Din runda a doua încolo, alege una dintre cărțile {{items}} oferite, trase din rezerva de potrivire. Vrăjile de luptă se cumpără la Fortăreață, nu se draftează din cărți.",
     "select": "Alege o carte de rundă"
   },
+  "music": {
+    "title": "Muzică",
+    "sub": "Fundaluri sezoniere care urmează turul de atmosferă al Anului — pe scenă o piesă de desfășurare și una de bătălie, plus meniul și piesa de rezervă.",
+    "select": "Alege o piesă",
+    "play": "Redă",
+    "stop": "Oprește",
+    "menu": "Meniu",
+    "fallback": "Bătălie (rezervă)",
+    "deploy": "Desfășurare",
+    "battle": "Bătălie"
+  },
   "matchSettings": {
     "title": "Setările meciului",
     "sub": "Regulile implicite pentru un meci, extrase direct din codul setărilor jocului, astfel încât să nu se abate de la ceea ce este inclus în realitate. Totul aici este reglabil - este open source."

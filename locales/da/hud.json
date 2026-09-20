@@ -28,6 +28,8 @@
   "yearDefender": "Forsvarer",
   "yearYou": "dig",
   "yearSideWins": "{{side}} vinder",
+  "yearRoundWon": "{{side}} vandt",
+  "yearBegins": "Året begynder",
   "yearRoundTo": "Runde {{n}}: {{side}}",
   "rematchSwapped": "Revanche, roller byttet",
   "rematchWaiting": "Venter på modstanderen…",

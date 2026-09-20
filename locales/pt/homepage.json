@@ -128,6 +128,17 @@
     "sub": "A partir da segunda rodada, escolha uma das várias cartas {{items}} oferecidas, sorteadas do conjunto de cartas da partida. Feitiços de batalha são comprados na Fortaleza, não sorteados de cartas.",
     "select": "Escolha uma carta de rodada"
   },
+  "music": {
+    "title": "Música",
+    "sub": "Ambientes sazonais que seguem a volta atmosférica de O Ano — uma faixa de mobilização e uma de batalha por cena, mais a do menu e a batalha de reserva.",
+    "select": "Escolher uma faixa",
+    "play": "Tocar",
+    "stop": "Parar",
+    "menu": "Menu",
+    "fallback": "Batalha (reserva)",
+    "deploy": "Mobilização",
+    "battle": "Batalha"
+  },
   "matchSettings": {
     "title": "Definições da partida",
     "sub": "As regras padrão para uma partida, extraídas diretamente do código de definições do jogo, portanto, não divergem do que é lançado oficialmente. Tudo aqui é configurável — é código aberto."

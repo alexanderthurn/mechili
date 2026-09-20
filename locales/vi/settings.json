@@ -12,6 +12,7 @@
   "sfxVolume": "Hiệu ứng âm thanh",
   "musicVolume": "Nhạc",
   "uiVolume": "Giao diện",
+  "voicesEnabled": "Giọng nói của đơn vị và chỉ huy",
   "multiplayer": "Nhiều người chơi",
   "connection": "Sự liên quan",
   "debug": "Gỡ lỗi",

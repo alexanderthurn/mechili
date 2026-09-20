@@ -128,6 +128,17 @@
     "sub": "Dari pusingan kedua dan seterusnya, draf salah satu daripada beberapa kad {{items}} yang ditawarkan yang diambil dari kolam perlawanan. Jampi pertempuran dibeli di Stronghold, bukan didraf daripada kad.",
     "select": "Pilih kad pusingan"
   },
+  "music": {
+    "title": "Muzik",
+    "sub": "Muzik bermusim yang mengikut perjalanan suasana Tahun — setiap adegan satu lagu pelaksanaan dan satu lagu pertempuran, serta lagu menu dan lagu pertempuran sandaran.",
+    "select": "Pilih lagu",
+    "play": "Main",
+    "stop": "Henti",
+    "menu": "Menu",
+    "fallback": "Pertempuran (sandaran)",
+    "deploy": "Pelaksanaan",
+    "battle": "Pertempuran"
+  },
   "matchSettings": {
     "title": "Tetapan padanan",
     "sub": "Peraturan lalai untuk perlawanan, diambil terus daripada kod tetapan permainan supaya ini tidak boleh menyimpang daripada apa yang sebenarnya dihantar. Semuanya di sini boleh ditala — ia adalah sumber terbuka."

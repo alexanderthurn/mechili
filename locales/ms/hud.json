@@ -28,6 +28,8 @@
   "yearDefender": "Pertahanan",
   "yearYou": "anda",
   "yearSideWins": "{{side}} menang",
+  "yearRoundWon": "{{side}} menang",
+  "yearBegins": "Tahun bermula",
   "yearRoundTo": "Pusingan {{n}}: {{side}}",
   "rematchSwapped": "Perlawanan semula, peranan ditukar",
   "rematchWaiting": "Menunggu lawan…",

@@ -12,6 +12,7 @@
   "sfxVolume": "효과음",
   "musicVolume": "음악",
   "uiVolume": "인터페이스",
+  "voicesEnabled": "유닛과 지휘관 음성",
   "multiplayer": "멀티플레이어",
   "connection": "연결",
   "debug": "디버그",

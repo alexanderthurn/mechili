@@ -128,6 +128,17 @@
     "sub": "Fra runde to og fremefter skal du udvælge et af flere tilbudte {{items}}-kort, der trækkes fra kamppuljen. Kampbesværgelser købes i Fæstningen, ikke udvælges fra kort.",
     "select": "Vælg et rundekort"
   },
+  "music": {
+    "title": "Musik",
+    "sub": "Årstidsmusik, der følger Årets stemningstur — et opstillings- og et kampnummer pr. scene, plus menuens og reservekampnummeret.",
+    "select": "Vælg et nummer",
+    "play": "Afspil",
+    "stop": "Stop",
+    "menu": "Menu",
+    "fallback": "Kamp (reserve)",
+    "deploy": "Opstilling",
+    "battle": "Kamp"
+  },
   "matchSettings": {
     "title": "Matchindstillinger",
     "sub": "Standardreglerne for en kamp, hentet direkte fra spillets indstillingskode, så dette ikke kan afvige fra det, der rent faktisk leveres. Alt her kan justeres — det er open source."

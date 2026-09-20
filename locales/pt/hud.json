@@ -28,6 +28,8 @@
   "yearDefender": "Defensor",
   "yearYou": "tu",
   "yearSideWins": "Vence o {{side}}",
+  "yearRoundWon": "{{side}} venceu",
+  "yearBegins": "O Ano começa",
   "yearRoundTo": "Ronda {{n}}: {{side}}",
   "rematchSwapped": "Desforra, papéis trocados",
   "rematchWaiting": "À espera do adversário…",

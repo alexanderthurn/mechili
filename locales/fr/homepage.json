@@ -128,6 +128,17 @@
     "sub": "À partir du deuxième tour, choisissez une carte parmi celles proposées ({{items}}) issues de la réserve. Les sorts de combat s'achètent à la Forteresse et ne sont pas choisis parmi les cartes.",
     "select": "Choisis une carte de manche"
   },
+  "music": {
+    "title": "Musique",
+    "sub": "Des ambiances saisonnières qui suivent le tour d’atmosphères de L’Année — un morceau de déploiement et un de combat par scène, plus celui du menu et le combat de secours.",
+    "select": "Choisir un morceau",
+    "play": "Lecture",
+    "stop": "Stop",
+    "menu": "Menu",
+    "fallback": "Combat (secours)",
+    "deploy": "Déploiement",
+    "battle": "Combat"
+  },
   "matchSettings": {
     "title": "Paramètres du match",
     "sub": "Les règles par défaut d'une partie sont extraites directement du code source du jeu ; elles ne peuvent donc pas différer de la version officielle. Tout est paramétrable : le logiciel est libre."

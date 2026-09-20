@@ -28,6 +28,8 @@
   "yearDefender": "Savunan",
   "yearYou": "sen",
   "yearSideWins": "Kazanan: {{side}}",
+  "yearRoundWon": "{{side}} kazandı",
+  "yearBegins": "Yıl başlıyor",
   "yearRoundTo": "Tur {{n}}: {{side}}",
   "rematchSwapped": "Rövanş, roller değişir",
   "rematchWaiting": "Rakip bekleniyor…",
