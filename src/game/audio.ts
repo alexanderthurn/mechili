@@ -1564,19 +1564,19 @@ const CUES: Record<string, CueDef> = {
         paths: ['audio/hp_draw_high_1.ogg'],
         group: 'ui',
         maxVoices: 6,
-        gain: 1.0,
+        gain: 2.0,
     },
     hp_draw_low: {
         paths: ['audio/hp_draw_low_1.ogg'],
         group: 'ui',
         maxVoices: 8,
-        gain: 1.0,
+        gain: 2.0,
     },
     hp_draw_medium: {
         paths: ['audio/hp_draw_medium_1.ogg'],
         group: 'ui',
         maxVoices: 7,
-        gain: 1.0,
+        gain: 2.0,
     },
     impact_flesh: {
         paths: [
