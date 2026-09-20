@@ -1154,6 +1154,21 @@ const CUES: Record<string, CueDef> = {
         rolloff: ATTACK_ROLLOFF,
         gain: 0.95,
     },
+    /** Ogre wooden bat ground smash — replaces generic melee_swing for ogre. */
+    ogre_smash: {
+        paths: [
+            'audio/ogre_smash_1.ogg',
+            'audio/ogre_smash_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        // Soft falloff — stays strong at typical camera look-xz (~20–50).
+        refDistance: 48,
+        maxDistance: 160,
+        rolloff: 1.0,
+        gain: 2.8,
+    },
     hazard_drip: {
         paths: [
             'audio/hazard_drip_1.ogg',
@@ -1891,6 +1906,8 @@ void [
     assetUrl('audio/hammer_crush_1.ogg'),
     assetUrl('audio/hammerer_smash_1.ogg'),
     assetUrl('audio/hammerer_smash_2.ogg'),
+    assetUrl('audio/ogre_smash_1.ogg'),
+    assetUrl('audio/ogre_smash_2.ogg'),
     assetUrl('audio/hazard_drip_1.ogg'),
     assetUrl('audio/hazard_drip_2.ogg'),
     assetUrl('audio/hazard_drip_3.ogg'),
@@ -2289,8 +2306,14 @@ class AudioBus {
         }
 
         const path = this.pickCuePath(cueId, cue);
-        const buf = this.buffers.get(path);
-        if (!buf) return false;
+        let buf = this.buffers.get(path);
+        if (!buf) {
+            // New cues after boot / HMR — decode then play (same frame was silent).
+            void this.ensureCue(cueId).then((ok) => {
+                if (ok) this.play(cueId, worldX, worldZ, opts);
+            });
+            return false;
+        }
 
         const src = this.ctx.createBufferSource();
         src.buffer = buf;
@@ -3008,9 +3031,16 @@ class AudioBus {
                     this.play(muzzleCue(e.style, e.unitTypeId), e.x, e.z);
                     break;
                 case 'meleeSwing':
+                    // Ogre smash plays on cleave slam (explosion/impact), not windup.
+                    if (e.unitTypeId === 'ogre') break;
                     this.play('melee_swing', e.x, e.z, meleeSwingOpts(e.unitTypeId));
                     break;
                 case 'impact': {
+                    if (e.melee && e.attackerTypeId === 'ogre') {
+                        this.play('ogre_smash', e.x, e.z);
+                        if (e.flesh && e.unitTypeId) this.playUnitHurt(e.unitTypeId, e.x, e.z);
+                        break;
+                    }
                     const cue = impactCue(e);
                     // Melee contact uses melee hear ranges; other flesh hits keep sizeSpatialOpts.
                     const opts = e.melee
@@ -3023,6 +3053,10 @@ class AudioBus {
                     break;
                 }
                 case 'explosion':
+                    if (e.unitTypeId === 'ogre') {
+                        this.play('ogre_smash', e.x, e.z);
+                        break;
+                    }
                     this.play(
                         e.rocket
                             ? 'rocket_blast'

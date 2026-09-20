@@ -650,6 +650,8 @@ export type SimEvent =
           melee?: boolean;
           /** Flesh victim {@link UnitType.id} — drives unit hurt VO when set. */
           unitTypeId?: string;
+          /** Melee attacker type — dedicated smash cues (e.g. ogre bat). */
+          attackerTypeId?: string;
       }
     /** Melee swing windup / instant swing start (render SFX). */
     | { kind: 'meleeSwing'; x: number; y: number; z: number; unitTypeId?: string }
@@ -688,6 +690,8 @@ export type SimEvent =
           rect?: { halfWidth: number; halfDepth: number; yaw: number };
           /** Ground wear/scorch stamp. Omit/true = stamp; false = VFX only. */
           scar?: boolean;
+          /** Attacker type when this blast is a melee cleave slam (ogre bat, etc.). */
+          unitTypeId?: string;
       }
     /** Hammer smash: flatten scenery in the footprint (battle-phase only). */
     | {
@@ -2435,6 +2439,7 @@ export class BattleSim {
                 dy: 0,
                 dz: adz / ad,
                 melee: true,
+                attackerTypeId: a.unit.type.id,
             });
             return;
         }
@@ -2447,6 +2452,7 @@ export class BattleSim {
             heavy: true,
             shake: a.altitude > 0 ? (a.unit.type.cleaveShake ?? 0) : 0,
             scar: a.unit.type.cleaveScar !== false,
+            unitTypeId: a.unit.type.id,
         });
         if (a.altitude > 0) {
             a.stompAt = this.elapsed;
