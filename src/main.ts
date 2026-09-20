@@ -1459,6 +1459,17 @@ const MENU_PAGE_MODES = new Set([
     'cg-back',
 ]);
 
+/** Main-menu chrome that opens a full overlay (book page, not a click tick). */
+function opensMenuOverlay(hit: HTMLElement): boolean {
+    if (hit === settingsCornerEl || hit === suggestCornerEl) return true;
+    if (hit === loadoutCornerEl || hit === usernameEl) return true;
+    // Profile → Unit loadout
+    if (hit.getAttribute('data-act') === 'loadout' && hit.closest('.mechili-name-edit')) return true;
+    // Settings tabs (General / Audio / Graphics)
+    if (hit.classList.contains('s-tab') && hit.closest('.mechili-settings')) return true;
+    return false;
+}
+
 wrapper.addEventListener(
     'pointerdown',
     (e) => {
@@ -1468,6 +1479,10 @@ wrapper.addEventListener(
         const mode = hit.getAttribute('data-mode');
         if (mode && MENU_PAGE_MODES.has(mode)) return;
         audio.unlock();
+        if (opensMenuOverlay(hit)) {
+            audio.playUi('ui_page');
+            return;
+        }
         audio.playUi('ui_click');
     },
     true,
