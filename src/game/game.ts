@@ -1019,8 +1019,8 @@ export class Game {
             return;
         }
         if (e.code === 'KeyE' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            // Shift+E = save last ~6s from the rolling replay buffer
-            void this.saveReplayClip();
+            // Shift+E while recording: save last 6s, keep going
+            void this.saveReplayWhileRecording();
             return;
         }
         if (e.code === 'KeyO' && e.shiftKey) {
@@ -1060,8 +1060,7 @@ export class Game {
             this.toggleUiHidden();
             return;
         }
-        // Shift+R = toggle clip capture (start ↔ stop & save to Downloads)
-        // (bare R still rotates packs; cinema Shift+C for clean frames)
+        // Shift+R = start / stop full take (bare R still rotates packs)
         if (e.code === 'KeyR' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
             if (videoRecorder.recording) void this.stopVideoClip();
             else this.startVideoClip();
@@ -1103,9 +1102,8 @@ export class Game {
         this.togglePauseMenu();
     };
 
-    /** Shift+R — start clip, or stop & save if already recording. */
+    /** Shift+R — start a take (timer until second Shift+R). */
     private startVideoClip(): void {
-        // Manual take pauses the rolling buffer until stop.
         const result = videoRecorder.start(this.threeCanvas);
         if (!result.ok) {
             this.hud.flashCinemaHint('Recording not supported here', 2200);
@@ -1114,18 +1112,14 @@ export class Game {
         this.hud.beginRecordingHint();
     }
 
-    /** Shift+E — download the last ~6 seconds from the silent replay buffer. */
-    private async saveReplayClip(): Promise<void> {
-        if (videoRecorder.recording) {
-            // Don't yank chunks out from under a manual take.
-            this.hud.flashCinemaHint('Stop recording first', 1800);
-            return;
-        }
+    /** Shift+E while recording — save last 6s without stopping the take. */
+    private async saveReplayWhileRecording(): Promise<void> {
+        if (!videoRecorder.recording) return;
         const result = await videoRecorder.saveRecent(6);
-        this.hud.flashCinemaHint(result ? 'recording saved' : 'nothing to save', 2800);
+        this.hud.pulseRecordingHint(result ? 'recording saved' : 'nothing to save');
     }
 
-    /** Shift+R (while recording) — stop and download into ~/Downloads. */
+    /** Shift+R (while recording) — stop and download the full take. */
     private async stopVideoClip(): Promise<void> {
         const result = await videoRecorder.stop();
         this.hud.endRecordingHint(!!result);
@@ -2492,8 +2486,6 @@ export class Game {
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', this.onWindowResize);
-        // Silent last-6s replay buffer for Shift+E (paused during Shift+R takes).
-        videoRecorder.startBuffer(this.threeCanvas);
         // Compile remaining cold programs (ground + point-light variants, weather,
         // flame tongues) before the first tick — hides the hitch at match start
         // rather than mid-battle. Boot already warmed the shared context when possible.

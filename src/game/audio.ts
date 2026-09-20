@@ -1360,10 +1360,11 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 1,
         spatial: true,
-        refDistance: 4,
-        maxDistance: 22,
-        rolloff: 1.4,
-        gain: 0.32,
+        refDistance: 8,
+        maxDistance: 40,
+        rolloff: 1.2,
+        // Louder than prism_hum — the file is softer/duller and was vanishing in the mix.
+        gain: 0.85,
     },
     // Building ruin stings — non-spatial UI (heard everywhere, not FF-ducked).
     // One take each; stronghold uses `stronghold_collapse` instead of a death cue.
@@ -1861,9 +1862,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 1,
         spatial: true,
-        refDistance: 4,
-        maxDistance: 22,
-        rolloff: 1.4,
+        refDistance: 8,
+        maxDistance: 40,
+        rolloff: 1.2,
         gain: 0.42,
     },
     ramp_beam: {
@@ -4260,13 +4261,13 @@ function closeCamAltitudeGain(camAlt: number): number {
     return t * t;
 }
 
-/** Prism / convert beams — only loud when nearly on top of the caster. */
-const BEAM_LOOP_MAX_DIST = 20;
+/** Prism / convert beams — loud when near the caster; hear a bit farther than before. */
+const BEAM_LOOP_MAX_DIST = 32;
 
 function beamLoopVolume(dist: number): number {
     if (dist >= BEAM_LOOP_MAX_DIST) return 0;
     const t = 1 - dist / BEAM_LOOP_MAX_DIST;
-    return t * t * t; // steeper than hazards — “super close” only
+    return t * t; // gentler than cubic — stays audible at mid range
 }
 
 /**

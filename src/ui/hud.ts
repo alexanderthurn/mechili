@@ -664,6 +664,9 @@ export class Hud {
     /** Live Shift+R clip timer — interval id while recording. */
     private recordingHintInterval: number | null = null;
     private recordingHintStartedAt = 0;
+    /** While set, the live timer chip shows this text instead of the clock. */
+    private recordingHintHoldUntil = 0;
+    private recordingHintHoldText = '';
     /** Floating pulsating frames that point at tutorial UI targets. */
     private readonly tutCallouts: HTMLDivElement[] = [];
     private tutCalloutTargets: HTMLElement[] = [];
@@ -5060,6 +5063,8 @@ export class Hud {
             window.clearTimeout(this.cinemaHintTimer);
             this.cinemaHintTimer = null;
         }
+        this.recordingHintHoldUntil = 0;
+        this.recordingHintHoldText = '';
         this.recordingHintStartedAt = performance.now();
         const hint = this.ensureCinemaHint();
         hint.style.display = '';
@@ -5068,9 +5073,26 @@ export class Hud {
         this.recordingHintInterval = window.setInterval(() => this.tickRecordingHint(), 250);
     }
 
+    /**
+     * Brief message on the live timer chip (e.g. Shift+E mid-take "recording saved")
+     * without stopping the take or clearing the timer.
+     */
+    pulseRecordingHint(text: string, durationMs = 1800): void {
+        if (this.recordingHintInterval === null) {
+            this.flashCinemaHint(text, durationMs);
+            return;
+        }
+        this.recordingHintHoldText = text;
+        this.recordingHintHoldUntil = performance.now() + durationMs;
+        const hint = this.cinemaHint;
+        if (hint) hint.textContent = text;
+    }
+
     /** Stop the live timer and optionally flash "recording saved". */
     endRecordingHint(saved: boolean): void {
         this.clearRecordingHintInterval();
+        this.recordingHintHoldUntil = 0;
+        this.recordingHintHoldText = '';
         if (saved) this.flashCinemaHint('recording saved', 2800);
         else if (this.cinemaHint) {
             this.cinemaHint.classList.remove('is-visible');
@@ -5080,7 +5102,12 @@ export class Hud {
     private tickRecordingHint(): void {
         const hint = this.cinemaHint;
         if (!hint) return;
-        const elapsedMs = performance.now() - this.recordingHintStartedAt;
+        const now = performance.now();
+        if (now < this.recordingHintHoldUntil) {
+            hint.textContent = this.recordingHintHoldText;
+            return;
+        }
+        const elapsedMs = now - this.recordingHintStartedAt;
         const sec = Math.floor(elapsedMs / 1000);
         const t = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
         // Keep the start label briefly, then just the timer.

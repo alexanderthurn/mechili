@@ -1,12 +1,10 @@
 /**
- * In-match clip recorder.
+ * In-match clip recorder (opt-in only — nothing runs until Shift+R):
  *
- * - Rolling buffer: silently keeps the last ~6s (canvas + game audio).
- * - Shift+E saves that window to Downloads.
- * - Shift+R pauses the buffer for a manual start/stop take, then resumes.
+ * - Shift+R: start / stop a full take (download on stop)
+ * - Shift+E while recording: save the last ~6s without stopping
  *
- * Prefer H.264 MP4 when supported (QuickTime); else WebM. Chunk concat keeps
- * the MediaRecorder init segment plus recent media fragments.
+ * Prefer H.264 MP4 when supported (QuickTime); else WebM.
  */
 
 import { audio } from './audio';
@@ -20,9 +18,8 @@ export type RecordStopResult = {
     mimeType: string;
 };
 
-const BUFFER_SECONDS = 6;
-const BUFFER_FPS = 30;
-const MANUAL_FPS = 60;
+const REPLAY_SECONDS = 6;
+const RECORD_FPS = 60;
 const TIMESLICE_MS = 250;
 
 function pickMime(): { mimeType: string; ext: 'mp4' | 'webm' } {
@@ -70,164 +67,28 @@ function downloadBlob(blob: Blob, filename: string): void {
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-type SessionMode = 'buffer' | 'manual';
-
 class VideoRecorder {
-    private mode: SessionMode | null = null;
     private recorder: MediaRecorder | null = null;
     private videoTrack: MediaStreamTrack | null = null;
-    private canvas: HTMLCanvasElement | null = null;
     private chosenExt: 'mp4' | 'webm' = 'webm';
     private chosenMime = '';
-    /** First MediaRecorder blob — container init; always kept for buffer saves. */
+    /** Container init segment — required for both full and last-N saves. */
     private initChunk: Blob | null = null;
-    private ring: { t: number; data: Blob }[] = [];
-    private manualChunks: Blob[] = [];
+    /** Timed media fragments after the init (kept for the whole take). */
+    private chunks: { t: number; data: Blob }[] = [];
     private stopPromise: Promise<RecordStopResult | null> | null = null;
-    /** Resume rolling buffer after a manual take ends. */
-    private resumeBufferAfterManual = false;
 
-    /** True while Shift+R manual capture is active. */
     get recording(): boolean {
-        return this.mode === 'manual' && this.recorder !== null && this.recorder.state === 'recording';
+        return this.recorder !== null && this.recorder.state === 'recording';
     }
 
-    get buffering(): boolean {
-        return this.mode === 'buffer' && this.recorder !== null && this.recorder.state === 'recording';
-    }
-
-    /** Begin (or restart) the silent last-N-seconds buffer for this match canvas. */
-    startBuffer(canvas: HTMLCanvasElement): void {
-        this.canvas = canvas;
-        if (this.mode === 'manual') {
-            this.resumeBufferAfterManual = true;
-            return;
-        }
-        this.teardownSession();
-        this.beginSession('buffer', canvas, BUFFER_FPS);
-    }
-
-    /** Match teardown — drop buffer / manual without downloading. */
-    stopAll(): void {
-        this.resumeBufferAfterManual = false;
-        this.canvas = null;
-        this.teardownSession();
-    }
-
-    /**
-     * Save the last `seconds` from the rolling buffer (default 6).
-     * Does not stop buffering.
-     */
-    async saveRecent(seconds = BUFFER_SECONDS): Promise<RecordStopResult | null> {
-        if (this.mode !== 'buffer' || !this.recorder || !this.initChunk) return null;
-        try {
-            this.recorder.requestData();
-        } catch {
-            /* ignore */
-        }
-        await new Promise<void>((r) => window.setTimeout(r, TIMESLICE_MS + 50));
-        if (!this.initChunk) return null;
-
-        const cutoff = performance.now() - seconds * 1000;
-        const recent = this.ring.filter((c) => c.t >= cutoff).map((c) => c.data);
-        const mime = this.recorder.mimeType || this.chosenMime || 'video/webm';
-        const ext = mime.includes('mp4') ? 'mp4' : this.chosenExt;
-        const blob = new Blob([this.initChunk, ...recent], { type: mime });
-        if (blob.size < 512) return null;
-        const filename = stampFilename(ext, 'replay');
-        downloadBlob(blob, filename);
-        return { filename, mimeType: mime };
-    }
-
-    /** Shift+R start — pause buffer and record until {@link stop}. */
-    start(canvas: HTMLCanvasElement, fps = MANUAL_FPS): RecordStartResult {
+    /** Shift+R start. */
+    start(canvas: HTMLCanvasElement, fps = RECORD_FPS): RecordStartResult {
         if (typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') {
             return { ok: false, reason: 'unsupported' };
         }
+        if (this.recorder) return { ok: false, reason: 'busy' };
         if (!canvas.width || !canvas.height) return { ok: false, reason: 'no-canvas' };
-        if (this.mode === 'manual') return { ok: false, reason: 'busy' };
-
-        this.canvas = canvas;
-        this.resumeBufferAfterManual = this.mode === 'buffer' || this.resumeBufferAfterManual;
-        this.teardownSession();
-        if (!this.beginSession('manual', canvas, fps)) {
-            if (this.resumeBufferAfterManual && this.canvas) {
-                this.beginSession('buffer', this.canvas, BUFFER_FPS);
-                this.resumeBufferAfterManual = false;
-            }
-            return { ok: false, reason: 'unsupported' };
-        }
-        return { ok: true };
-    }
-
-    /** Shift+R stop — download the manual take, then resume the rolling buffer. */
-    stop(): Promise<RecordStopResult | null> {
-        if (this.stopPromise) return this.stopPromise;
-        if (this.mode !== 'manual') return Promise.resolve(null);
-        const recorder = this.recorder;
-        if (!recorder || recorder.state === 'inactive') {
-            this.finishManualTeardown();
-            return Promise.resolve(null);
-        }
-
-        this.stopPromise = new Promise((resolve) => {
-            const mime = recorder.mimeType || this.chosenMime || 'video/webm';
-            const ext = mime.includes('mp4') ? 'mp4' : this.chosenExt;
-            const filename = stampFilename(ext, 'clip');
-
-            recorder.onstop = () => {
-                const blob = new Blob(this.manualChunks, { type: mime });
-                this.manualChunks = [];
-                this.recorder = null;
-                this.stopPromise = null;
-                this.cleanupTracks();
-                this.mode = null;
-                const canvas = this.canvas;
-                const resume = this.resumeBufferAfterManual;
-                this.resumeBufferAfterManual = false;
-                if (resume && canvas) this.beginSession('buffer', canvas, BUFFER_FPS);
-                if (blob.size === 0) {
-                    resolve(null);
-                    return;
-                }
-                downloadBlob(blob, filename);
-                resolve({ filename, mimeType: mime });
-            };
-            try {
-                recorder.stop();
-            } catch (err) {
-                console.warn('[videoRecorder] stop failed', err);
-                this.stopPromise = null;
-                this.finishManualTeardown();
-                resolve(null);
-            }
-        });
-        return this.stopPromise;
-    }
-
-    /** Discard manual take (or buffer) without downloading. */
-    cancel(): void {
-        this.resumeBufferAfterManual = false;
-        this.teardownSession();
-    }
-
-    private finishManualTeardown(): void {
-        this.manualChunks = [];
-        this.recorder = null;
-        this.stopPromise = null;
-        this.cleanupTracks();
-        this.mode = null;
-        const canvas = this.canvas;
-        const resume = this.resumeBufferAfterManual;
-        this.resumeBufferAfterManual = false;
-        if (resume && canvas) this.beginSession('buffer', canvas, BUFFER_FPS);
-    }
-
-    private beginSession(mode: SessionMode, canvas: HTMLCanvasElement, fps: number): boolean {
-        if (typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') {
-            return false;
-        }
-        if (!canvas.width || !canvas.height) return false;
 
         audio.unlock();
         const { mimeType, ext } = pickMime();
@@ -252,27 +113,17 @@ class VideoRecorder {
         } catch (err) {
             console.warn('[videoRecorder] MediaRecorder failed', err);
             this.cleanupTracks();
-            return false;
+            return { ok: false, reason: 'unsupported' };
         }
 
         this.initChunk = null;
-        this.ring = [];
-        this.manualChunks = [];
-        this.mode = mode;
+        this.chunks = [];
         this.recorder = recorder;
 
         recorder.ondataavailable = (e) => {
             if (e.data.size === 0) return;
-            if (this.mode === 'buffer') {
-                if (!this.initChunk) this.initChunk = e.data;
-                else {
-                    const now = performance.now();
-                    this.ring.push({ t: now, data: e.data });
-                    this.pruneRing(now);
-                }
-            } else if (this.mode === 'manual') {
-                this.manualChunks.push(e.data);
-            }
+            if (!this.initChunk) this.initChunk = e.data;
+            else this.chunks.push({ t: performance.now(), data: e.data });
         };
 
         try {
@@ -280,38 +131,96 @@ class VideoRecorder {
         } catch (err) {
             console.warn('[videoRecorder] start failed', err);
             this.recorder = null;
-            this.mode = null;
             this.cleanupTracks();
-            return false;
+            return { ok: false, reason: 'unsupported' };
         }
 
-        if (mode === 'buffer') {
-            console.info(
-                `[videoRecorder] buffer ${BUFFER_SECONDS}s ${canvas.width}×${canvas.height}@${fps} ${(bits / 1e6).toFixed(1)}Mbps`,
-            );
-        } else {
-            console.info(
-                `[videoRecorder] manual ${canvas.width}×${canvas.height}@${fps} ${(bits / 1e6).toFixed(1)}Mbps`,
-            );
+        console.info(
+            `[videoRecorder] ${canvas.width}×${canvas.height}@${fps} ${(bits / 1e6).toFixed(1)}Mbps`,
+        );
+        return { ok: true };
+    }
+
+    /**
+     * Shift+E while recording — download the last `seconds` without stopping.
+     * No-op when idle.
+     */
+    async saveRecent(seconds = REPLAY_SECONDS): Promise<RecordStopResult | null> {
+        if (!this.recording || !this.recorder || !this.initChunk) return null;
+        try {
+            this.recorder.requestData();
+        } catch {
+            /* ignore */
         }
-        return true;
+        await new Promise<void>((r) => window.setTimeout(r, TIMESLICE_MS + 50));
+        if (!this.initChunk) return null;
+
+        const cutoff = performance.now() - seconds * 1000;
+        const recent = this.chunks.filter((c) => c.t >= cutoff).map((c) => c.data);
+        const mime = this.recorder.mimeType || this.chosenMime || 'video/webm';
+        const ext = mime.includes('mp4') ? 'mp4' : this.chosenExt;
+        const blob = new Blob([this.initChunk, ...recent], { type: mime });
+        if (blob.size < 512) return null;
+        const filename = stampFilename(ext, 'replay');
+        downloadBlob(blob, filename);
+        return { filename, mimeType: mime };
     }
 
-    private pruneRing(now: number): void {
-        const cutoff = now - BUFFER_SECONDS * 1000;
-        // Keep a little extra so saves aren't starved of the newest cluster.
-        while (this.ring.length > 1 && this.ring[0]!.t < cutoff) this.ring.shift();
+    /** Shift+R stop — download the full take. */
+    stop(): Promise<RecordStopResult | null> {
+        if (this.stopPromise) return this.stopPromise;
+        const recorder = this.recorder;
+        if (!recorder || recorder.state === 'inactive') {
+            this.teardown();
+            return Promise.resolve(null);
+        }
+
+        this.stopPromise = new Promise((resolve) => {
+            const mime = recorder.mimeType || this.chosenMime || 'video/webm';
+            const ext = mime.includes('mp4') ? 'mp4' : this.chosenExt;
+            const filename = stampFilename(ext, 'clip');
+
+            recorder.onstop = () => {
+                const parts: Blob[] = [];
+                if (this.initChunk) parts.push(this.initChunk);
+                for (const c of this.chunks) parts.push(c.data);
+                const blob = new Blob(parts, { type: mime });
+                this.initChunk = null;
+                this.chunks = [];
+                this.recorder = null;
+                this.stopPromise = null;
+                this.cleanupTracks();
+                if (blob.size === 0) {
+                    resolve(null);
+                    return;
+                }
+                downloadBlob(blob, filename);
+                resolve({ filename, mimeType: mime });
+            };
+            try {
+                recorder.stop();
+            } catch (err) {
+                console.warn('[videoRecorder] stop failed', err);
+                this.stopPromise = null;
+                this.teardown();
+                resolve(null);
+            }
+        });
+        return this.stopPromise;
     }
 
-    private teardownSession(): void {
+    /** Match teardown — discard without downloading. */
+    stopAll(): void {
+        this.teardown();
+    }
+
+    private teardown(): void {
         const recorder = this.recorder;
         const track = this.videoTrack;
         this.recorder = null;
         this.videoTrack = null;
-        this.mode = null;
         this.initChunk = null;
-        this.ring = [];
-        this.manualChunks = [];
+        this.chunks = [];
         this.stopPromise = null;
 
         const finish = () => {
@@ -348,5 +257,5 @@ class VideoRecorder {
     }
 }
 
-/** Process-wide — one session at a time across match swaps. */
+/** Process-wide — one take at a time across match swaps. */
 export const videoRecorder = new VideoRecorder();
