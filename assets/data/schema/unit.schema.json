@@ -802,6 +802,12 @@
               "items": {
                 "type": "string"
               }
+            },
+            "summon": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "additionalProperties": false,

@@ -77,6 +77,11 @@
                 "Ow!",
                 "Ugh!",
             ],
+            // lead summon emerge — short battle cry
+            "summon": [
+                "The clan rises!",
+                "Up from the deep!",
+            ],
         },
 
     },

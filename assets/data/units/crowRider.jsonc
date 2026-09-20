@@ -72,6 +72,11 @@
                 "Ah!",
                 "Skree!",
             ],
+            // lead summon dive — short battle cry
+            "summon": [
+                "From the sky!",
+                "Dive! Dive!",
+            ],
         },
 
     },

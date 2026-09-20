@@ -148,6 +148,45 @@ const BUILDING_SELECT_CUE: Record<string, string> = {
     'research-center': 'select_research_center',
     tent: 'select_tent',
 };
+
+/**
+ * Homepage 3D spell showcase (`SpellAssetId`) → one characteristic combat sting.
+ * Played as UI (non-spatial) so the marketing page hears it without a listener.
+ */
+const SPELL_SHOWCASE_CUE: Record<string, string> = {
+    dragon: 'spell_dragon_approach',
+    hammer: 'hammer_crush',
+    'meteor-great': 'spell_meteor_great_fall',
+    'meteor-shard': 'spell_meteor_fall',
+    storm: 'spell_storm',
+    poison: 'spell_poison_cloud',
+};
+
+/** Tactic card id → same spell showcase key (battle stamps on the homepage). */
+const TACTIC_SPELL_SHOWCASE: Record<string, string> = {
+    dragonAttack: 'dragon',
+    hammerOfGods: 'hammer',
+    bigMeteor: 'meteor-great',
+    meteorShower: 'meteor-shard',
+    storm: 'storm',
+    poisonCloud: 'poison',
+};
+
+/** Extra tactic → cue (not in the 3D spell showcase GLB set). */
+const TACTIC_EXTRA_CUE: Record<string, string> = {
+    acidSpill: 'spell_acid_spill',
+    fireSpill: 'spell_fire_spill',
+    spawnDwarves: 'summon_dwarf',
+    spawnCrows: 'summon_crow',
+};
+
+/** Core tactic cards → UI sting (move / sell / tutor / rally). */
+const TACTIC_PREVIEW_CUE: Record<string, string> = {
+    moveUnit: 'tactic_move',
+    sellUnit: 'tactic_sell',
+    tutor: 'tactic_tutor',
+    rallyRoute: 'tactic_rally',
+};
 const SPATIAL_ROLLOFF = 2.2;
 
 const CUES: Record<string, CueDef> = {
@@ -470,6 +509,16 @@ const CUES: Record<string, CueDef> = {
         rolloff: 2.4,
         gain: 0.7,
     },
+    /** Lead summon bark — layered over `summon_crow` SFX (beds stay separate). */
+    unit_crowRider_summon: {
+        paths: [
+            'audio/unit_crowRider_summon_1.ogg',
+            'audio/unit_crowRider_summon_2.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 1.05,
+    },
     unit_dwarf: {
         paths: [
             'audio/unit_dwarf_1.ogg',
@@ -534,6 +583,16 @@ const CUES: Record<string, CueDef> = {
         maxDistance: 32,
         rolloff: 2.4,
         gain: 0.7,
+    },
+    /** Lead summon bark — layered over `summon_dwarf` SFX (beds stay separate). */
+    unit_dwarf_summon: {
+        paths: [
+            'audio/unit_dwarf_summon_1.ogg',
+            'audio/unit_dwarf_summon_2.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 1.05,
     },
     unit_goblin: {
         paths: [
@@ -2342,6 +2401,34 @@ const CUES: Record<string, CueDef> = {
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
+    /** Lead dwarf emerge — epic ~4s fanfare, louder/farther than dirt pops. */
+    summon_dwarf: {
+        paths: [
+            'audio/summon_dwarf_1.ogg',
+            'audio/summon_dwarf_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 2,
+        spatial: true,
+        refDistance: ATTACK_REF + 8,
+        maxDistance: ATTACK_MAX + 24,
+        rolloff: 1.15,
+        gain: 1.7,
+    },
+    /** Lead crow dive — epic ~4s fanfare, louder/farther than wing flaps. */
+    summon_crow: {
+        paths: [
+            'audio/summon_crow_1.ogg',
+            'audio/summon_crow_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 2,
+        spatial: true,
+        refDistance: ATTACK_REF + 8,
+        maxDistance: ATTACK_MAX + 24,
+        rolloff: 1.15,
+        gain: 1.7,
+    },
     tactic_move: {
         paths: [
             'audio/tactic_move_1.ogg',
@@ -2800,6 +2887,10 @@ void [
     assetUrl('audio/summon_flying_2.ogg'),
     assetUrl('audio/summon_ground_1.ogg'),
     assetUrl('audio/summon_ground_2.ogg'),
+    assetUrl('audio/summon_dwarf_1.ogg'),
+    assetUrl('audio/summon_dwarf_2.ogg'),
+    assetUrl('audio/summon_crow_1.ogg'),
+    assetUrl('audio/summon_crow_2.ogg'),
     assetUrl('audio/tactic_move_1.ogg'),
     assetUrl('audio/tactic_rally_1.ogg'),
     assetUrl('audio/tactic_sell_1.ogg'),
@@ -2914,6 +3005,8 @@ void [
     assetUrl('audio/unit_crowRider_hurt_3.ogg'),
     assetUrl('audio/unit_crowRider_hurt_4.ogg'),
     assetUrl('audio/unit_crowRider_hurt_5.ogg'),
+    assetUrl('audio/unit_crowRider_summon_1.ogg'),
+    assetUrl('audio/unit_crowRider_summon_2.ogg'),
     assetUrl('audio/unit_dwarf_1.ogg'),
     assetUrl('audio/unit_dwarf_2.ogg'),
     assetUrl('audio/unit_dwarf_3.ogg'),
@@ -2942,6 +3035,8 @@ void [
     assetUrl('audio/unit_dwarf_hurt_3.ogg'),
     assetUrl('audio/unit_dwarf_hurt_4.ogg'),
     assetUrl('audio/unit_dwarf_hurt_5.ogg'),
+    assetUrl('audio/unit_dwarf_summon_1.ogg'),
+    assetUrl('audio/unit_dwarf_summon_2.ogg'),
     assetUrl('audio/unit_goblin_1.ogg'),
     assetUrl('audio/unit_goblin_2.ogg'),
     assetUrl('audio/unit_goblin_3.ogg'),
@@ -3117,6 +3212,13 @@ class AudioBus {
     private unitPreviewGen = 0;
     /** Active base-rune hover loop cue id (`rune_earth` …), if any. */
     private runeHoverCueId: string | null = null;
+    /** Homepage spell-showcase sting currently playing (for cancel-on-switch). */
+    private spellShowcaseCueId: string | null = null;
+    /**
+     * Type ids that already got the lead summon fanfare (loud emerge + VO)
+     * this battle. Cleared on {@link playPhase}('battle').
+     */
+    private summonFanfarePlayed = new Set<string>();
 
     /** Idempotent — call from first pointer/click and again at match start. */
     unlock(): void {
@@ -3596,6 +3698,22 @@ class AudioBus {
     }
 
     /**
+     * First summon of a type this battle — dedicated `unit_<id>_summon` bark.
+     * Played layered with the type emerge SFX (SFX + VO stay as separate files
+     * for later mix). Does not stop other unit VO so dwarf+crow leads can
+     * overlap when packs rise together.
+     */
+    playUnitSummonBark(typeId: string): void {
+        if (!this.voicesOn()) return;
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueId = `unit_${voiceId}_summon`;
+        if (!CUES[cueId]) return;
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
      * Unit pack select bark. Cue `unit_<typeId>`; aliases like
      * stronghold-archer → archer. Always tries when voices are on, but
      * cooldown keeps rapid re-selects from stacking. VO loads on first play.
@@ -3673,6 +3791,75 @@ class AudioBus {
     }
 
     /**
+     * Homepage / loadout testing: next building select variant (no random
+     * skip, short debounce). Stronghold has no select cue — use
+     * {@link playForgeSelect} there.
+     */
+    playBuildingSelectNext(typeId: string): void {
+        const cueId = BUILDING_SELECT_CUE[typeId];
+        const cue = cueId ? CUES[cueId] : undefined;
+        if (!cueId || !cue || cue.paths.length === 0) return;
+        const now = performance.now();
+        if (now - this.lastUnitSelectAt < 180) return;
+        this.lastUnitSelectAt = now;
+        const i = this.unitSelectNextIndex.get(cueId) ?? 0;
+        const path = cue.paths[i % cue.paths.length]!;
+        this.unitSelectNextIndex.set(cueId, i + 1);
+        void this.ensureCue(cueId).then((ok) => {
+            if (!ok) return;
+            this.playCuePathUi(cueId, path);
+        });
+    }
+
+    /**
+     * Homepage 3D spell showcase: play a characteristic combat sting as UI
+     * (non-spatial). Switches cancel the previous showcase sting.
+     */
+    playSpellShowcase(spellId: string): void {
+        const cueId = SPELL_SHOWCASE_CUE[spellId];
+        if (!cueId || !CUES[cueId]) return;
+        this.stopSpellShowcase();
+        this.spellShowcaseCueId = cueId;
+        void this.ensureCue(cueId).then((ok) => {
+            if (!ok || this.spellShowcaseCueId !== cueId) return;
+            this.playUi(cueId);
+        });
+    }
+
+    stopSpellShowcase(): void {
+        const cueId = this.spellShowcaseCueId;
+        this.spellShowcaseCueId = null;
+        if (!cueId) return;
+        for (const v of [...this.voices]) {
+            if (v.cueId !== cueId) continue;
+            try {
+                v.source.stop();
+            } catch {
+                /* already ended */
+            }
+            this.releaseVoice(v);
+        }
+    }
+
+    /**
+     * Homepage tactic card preview. Core tactics → their UI stings; battle
+     * spells → the same cues as {@link playSpellShowcase}.
+     */
+    playTacticPreview(tacticId: string): void {
+        const spellKey = TACTIC_SPELL_SHOWCASE[tacticId];
+        if (spellKey) {
+            this.playSpellShowcase(spellKey);
+            return;
+        }
+        const cueId =
+            TACTIC_EXTRA_CUE[tacticId] ?? TACTIC_PREVIEW_CUE[tacticId] ?? 'ui_confirm';
+        if (!CUES[cueId]) return;
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
      * Stronghold select while that side's oven will bake — warm own forge vs
      * colder rival. UI group (not voicesEnabled). No select cooldown so it can
      * layer with the commander bark.
@@ -3721,6 +3908,7 @@ class AudioBus {
         const cueIds = [
             `unit_${voiceId}`,
             `unit_${voiceId}_rival`,
+            `unit_${voiceId}_summon`,
             `unit_${voiceId}_death`,
             `unit_${voiceId}_hurt`,
         ];
@@ -3865,7 +4053,10 @@ class AudioBus {
 
     /** Attack-phase sting only — deploy / match reload stay silent. */
     playPhase(phase: 'deploy' | 'battle'): void {
-        if (phase === 'battle') this.playUi('phase_battle');
+        if (phase === 'battle') {
+            this.summonFanfarePlayed.clear();
+            this.playUi('phase_battle');
+        }
     }
 
     playMatchEnd(result: 'victory' | 'defeat' | 'draw'): void {
@@ -4334,9 +4525,30 @@ class AudioBus {
                 case 'levelup':
                     levelup = true;
                     break;
-                case 'summon':
-                    this.play(e.flying ? 'summon_flying' : 'summon_ground', e.x, e.z);
+                case 'summon': {
+                    const typeId = e.unitTypeId;
+                    const typeCue =
+                        typeId === 'dwarf'
+                            ? 'summon_dwarf'
+                            : typeId === 'crowRider'
+                              ? 'summon_crow'
+                              : null;
+                    const lead = !!typeId && !this.summonFanfarePlayed.has(typeId);
+                    if (lead) this.summonFanfarePlayed.add(typeId);
+                    if (lead && typeCue) {
+                        this.play(typeCue, e.x, e.z);
+                        this.playUnitSummonBark(typeId);
+                    } else {
+                        // Follow-up mechs: soft dirt / flaps only.
+                        this.play(
+                            e.flying ? 'summon_flying' : 'summon_ground',
+                            e.x,
+                            e.z,
+                            { gainMul: 0.55 },
+                        );
+                    }
                     break;
+                }
                 case 'convert':
                     this.play('convert', e.x, e.z);
                     break;

@@ -1192,6 +1192,19 @@ void preloadUnitVisuals().then(() => {
         }
     }
 
+    function playShowcaseUnitAudio(type: UnitType): void {
+        audio.unlock();
+        if (type.id === 'stronghold') {
+            audio.playForgeSelect(false);
+            return;
+        }
+        if (type.structure) {
+            audio.playBuildingSelectNext(type.id);
+            return;
+        }
+        audio.playUnitSelectNext(type.id);
+    }
+
     function selectUnit(id: string): void {
         const type = SHOWCASE_UNITS.find((t) => t.id === id);
         if (!type) return;
@@ -1204,16 +1217,22 @@ void preloadUnitVisuals().then(() => {
             viewer.show(showcaseModelKey(type), type.meshScale);
             statsEl.innerHTML = statsHtml(type);
         }
-        audio.unlock();
-        audio.playUnitSelectNext(id);
+        playShowcaseUnitAudio(type);
     }
 
     viewer.onClick = () => {
+        const activeSpell = app!.querySelector<HTMLButtonElement>('.mh-pick.active[data-spell-id]');
+        const spellId = activeSpell?.dataset.spellId as SpellAssetId | undefined;
+        if (spellId) {
+            audio.unlock();
+            audio.playSpellShowcase(spellId);
+            return;
+        }
         const active = app!.querySelector<HTMLButtonElement>('.mh-pick.active[data-unit-id]');
         const id = active?.dataset.unitId;
         if (!id) return;
-        audio.unlock();
-        audio.playUnitSelectNext(id);
+        const type = SHOWCASE_UNITS.find((t) => t.id === id);
+        if (type) playShowcaseUnitAudio(type);
     };
 
     function selectSpell(id: SpellAssetId): void {
@@ -1223,6 +1242,8 @@ void preloadUnitVisuals().then(() => {
         if (unitSelect) unitSelect.value = `spell:${id}`;
         statsEl.innerHTML = spellStatsHtml(spell);
         void viewer.showSpell(id);
+        audio.unlock();
+        audio.playSpellShowcase(id);
     }
 
     for (const btn of picks) {
@@ -1247,7 +1268,11 @@ void preloadUnitVisuals().then(() => {
 });
 
 /** Mobile-only: a <select> drives which single card/tactic stays visible (see .mh-card-select CSS). */
-function wireCardSelect(selectId: string, cardSelector: string): void {
+function wireCardSelect(
+    selectId: string,
+    cardSelector: string,
+    onPick?: (key: string) => void,
+): void {
     const select = document.getElementById(selectId) as HTMLSelectElement | null;
     if (!select) return;
     const cards = document.querySelectorAll<HTMLElement>(cardSelector);
@@ -1255,11 +1280,23 @@ function wireCardSelect(selectId: string, cardSelector: string): void {
         for (const card of cards) {
             card.classList.toggle('mh-active', card.dataset.key === select.value);
         }
+        onPick?.(select.value);
     });
 }
-wireCardSelect('mh-round-cards-select', '#mh-round-cards-row > .card');
-wireCardSelect('mh-runes-select', '#mh-runes-grid > .mh-tactic');
-wireCardSelect('mh-tactics-select', '#mh-tactics-grid > .mh-tactic');
+wireCardSelect('mh-round-cards-select', '#mh-round-cards-row > .card', () => {
+    audio.unlock();
+    audio.playUi('card_pick');
+});
+wireCardSelect('mh-runes-select', '#mh-runes-grid > .mh-tactic', (key) => {
+    audio.unlock();
+    audio.stopRuneHover();
+    audio.playRuneHover(key);
+    window.setTimeout(() => audio.stopRuneHover(), 1000);
+});
+wireCardSelect('mh-tactics-select', '#mh-tactics-grid > .mh-tactic', (key) => {
+    audio.unlock();
+    audio.playTacticPreview(key);
+});
 
 /** Press-and-hold a homepage rune card to preview its hover bed.
  *  Always plays at least 1s so a quick click still hears the loop. */
@@ -1313,6 +1350,28 @@ if (runesGrid) {
     runesGrid.addEventListener('lostpointercapture', endRuneHold);
 }
 
+const tacticsGrid = document.getElementById('mh-tactics-grid');
+if (tacticsGrid) {
+    tacticsGrid.querySelectorAll<HTMLElement>('.mh-tactic[data-key]').forEach((card) => {
+        card.addEventListener('click', () => {
+            const id = card.dataset.key;
+            if (!id) return;
+            audio.unlock();
+            audio.playTacticPreview(id);
+        });
+    });
+}
+
+const roundCardsRow = document.getElementById('mh-round-cards-row');
+if (roundCardsRow) {
+    roundCardsRow.querySelectorAll<HTMLElement>('.card[data-key]').forEach((card) => {
+        card.addEventListener('click', () => {
+            audio.unlock();
+            audio.playUi('card_pick');
+        });
+    });
+}
+
 const commanderSpellTips = new CardSpellTips();
 const specialistsRow = document.getElementById('mh-specialists-row');
 if (specialistsRow) {
@@ -1320,7 +1379,9 @@ if (specialistsRow) {
     specialistsRow.querySelectorAll<HTMLElement>('.card[data-key]').forEach((card) => {
         card.addEventListener('click', () => {
             const id = card.dataset.key;
-            if (id) audio.playCommanderPick(id);
+            if (!id) return;
+            audio.unlock();
+            audio.playCommanderPick(id);
         });
     });
 }
@@ -1331,6 +1392,7 @@ if (specialistsSelect) {
         for (const card of cards) {
             card.classList.toggle('mh-active', card.dataset.key === specialistsSelect.value);
         }
+        audio.unlock();
         audio.playCommanderPick(specialistsSelect.value);
     });
 }
@@ -1355,5 +1417,4 @@ musicSelect?.addEventListener('change', () => {
     audio.playMusic(musicSelect.value);
 });
 
-const roundCardsRow = document.getElementById('mh-round-cards-row');
 if (roundCardsRow) commanderSpellTips.bind(roundCardsRow);

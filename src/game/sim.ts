@@ -768,7 +768,15 @@ export type SimEvent =
           /** Permanent wear scorch seed. Omit/true = stamp on low fire VFX; false = skip. */
           scar?: boolean;
       }
-    | { kind: 'summon'; x: number; y: number; z: number; flying: boolean }
+    | {
+          kind: 'summon';
+          x: number;
+          y: number;
+          z: number;
+          flying: boolean;
+          /** Unit type for type-specific emerge SFX + first-appear VO. */
+          unitTypeId: string;
+      }
     /** meteor-shower shard cue — visual falls until `at`, then sim resolves hit */
     | { kind: 'spellMeteor'; x: number; z: number; at: number }
     /** Great Meteor fall whoosh — starts METEOR_GREAT_FALL_SEC before impact */
@@ -2737,6 +2745,7 @@ export class BattleSim {
                 y: a.altitude > 0 ? a.altitude : simGroundHeightAt(a.x, a.z),
                 z: a.z,
                 flying: a.altitude > 0,
+                unitTypeId: a.unit.type.id,
             });
         }
     }
@@ -2994,6 +3003,7 @@ export class BattleSim {
                 y: actor.altitude > 0 ? actor.altitude : simGroundHeightAt(ax, az),
                 z: az,
                 flying: actor.altitude > 0,
+                unitTypeId: child.type.id,
             });
             nth++;
         }
@@ -3129,6 +3139,7 @@ export class BattleSim {
                 y: a.altitude > 0 ? a.altitude : simGroundHeightAt(a.x, a.z),
                 z: a.z,
                 flying: a.altitude > 0,
+                unitTypeId: a.unit.type.id,
             });
         }
     }

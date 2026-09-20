@@ -220,6 +220,26 @@ single water droplet falling through air, clear plip droppy whoosh, tiny liquid 
 soft candle flame hiss whoosh, quiet zsssh of a candle being blown or leaning, gentle fire air rush, warm soft sibilant hiss, short game SFX, dry no crackle pop no liquid no oil no boom no music
 ```
 
+### `summon_dwarf` / `summon_crow` (lead emerge, ~4s epic)
+
+First mech of each type this battle. Follow-ups stay on quiet `summon_ground` / `summon_flying`.
+
+```
+epic fantasy warband summon fanfare, heavy dwarf army erupting from earth in slow powerful rise, deep seismic dirt crack and stone avalanche build, triumphant earth magic surge, enthusiastic heroic ground burst, long dramatic crescendo then settle, loud game SFX, no voice no speech no music melody
+```
+
+```
+epic fantasy dwarf summon, massive subterranean surge as stout warriors burst from soil, booming gravel landslide and deep earth punch, enthusiastic heroic rise with lingering rumble tail, long powerful game SFX about four seconds, no voice no speech no music
+```
+
+```
+epic fantasy aerial summon dive, mighty crow flock wings beating in powerful enthusiastic rush from the sky, deep air whoosh and leather wing thunder build, heroic flying warband entrance crescendo with long trailing wind, loud dramatic game SFX, no bird call no caw no voice no music
+```
+
+```
+epic crow rider dive summon, huge wingbeats and roaring wind as riders plunge into battle, enthusiastic heroic aerial surge with long air-rush tail, powerful fantasy game SFX about four seconds, no bird scream no caw no voice no music
+```
+
 ### `prism_hum`
 
 Copied from `stone_whistle_1.ogg` (mortar fly bed, disabled). Replace `stone_whistle_1.ogg` later without touching this cue.

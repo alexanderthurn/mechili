@@ -241,7 +241,8 @@ export type VoiceLineEvent =
     | 'victory'
     | 'defeat'
     | 'death'
-    | 'hurt';
+    | 'hurt'
+    | 'summon';
 
 /** One provider voice binding — `type: "e"` = ElevenLabs. */
 export interface VoiceExternalId {
