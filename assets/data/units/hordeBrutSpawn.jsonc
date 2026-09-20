@@ -33,7 +33,7 @@
         "externalIds": [
             {
                 "type": "e",
-                "id": "RY5Txp9RX9wuyGOUUik7",
+                // EL voice deleted to free Narrator slot — shipped unit_hordeBrutSpawn_*.ogg still play
                 "prompt": "A tiny newborn nightmare-spider voice — skittering, frantic, and SUPER EVIL. High insectile chirps with pure predatory baby malice. Creepy hatchling terror, never cute, never human, never heroic. Perfect audio quality.",
             },
         ],
