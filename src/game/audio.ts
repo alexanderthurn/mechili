@@ -2102,13 +2102,29 @@ const CUES: Record<string, CueDef> = {
         gain: 0.55,
     },
     ui_click: {
+        paths: ['audio/ui_click_1.ogg'],
+        group: 'ui',
+        maxVoices: 2,
+        gain: 0.45,
+    },
+    /** Soft menu hover (dedicated sample — quieter source than click). */
+    ui_hover: {
+        paths: ['audio/ui_hover_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.55,
+    },
+    /** Submenu open / back — book page turns (one of four). */
+    ui_page: {
         paths: [
-            'audio/ui_click_1.ogg',
-            'audio/ui_click_2.ogg',
+            'audio/ui_page_1.ogg',
+            'audio/ui_page_2.ogg',
+            'audio/ui_page_3.ogg',
+            'audio/ui_page_4.ogg',
         ],
         group: 'ui',
         maxVoices: 2,
-        gain: 0.35,
+        gain: 0.8,
     },
     ui_confirm: {
         paths: [
@@ -2439,7 +2455,11 @@ void [
     assetUrl('audio/select_tent_1.ogg'),
     assetUrl('audio/select_tent_2.ogg'),
     assetUrl('audio/ui_click_1.ogg'),
-    assetUrl('audio/ui_click_2.ogg'),
+    assetUrl('audio/ui_hover_1.ogg'),
+    assetUrl('audio/ui_page_1.ogg'),
+    assetUrl('audio/ui_page_2.ogg'),
+    assetUrl('audio/ui_page_3.ogg'),
+    assetUrl('audio/ui_page_4.ogg'),
     assetUrl('audio/ui_confirm_1.ogg'),
     assetUrl('audio/ui_confirm_2.ogg'),
     assetUrl('audio/ui_deny_1.ogg'),
@@ -3032,6 +3052,11 @@ class AudioBus {
     /** Non-spatial UI / phase / match stings. */
     playUi(cueId: string): void {
         this.play(cueId);
+    }
+
+    /** Soft menu hover tick (fine pointer only — callers gate that). */
+    playUiHover(): void {
+        this.play('ui_hover');
     }
 
     /** True when spoken unit/commander VO may play (prefs toggle). */

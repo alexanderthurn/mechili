@@ -1326,6 +1326,92 @@ suggestCornerEl.addEventListener('click', () => {
 });
 menuChromeEl.appendChild(suggestCornerEl);
 
+/** Interactive menu targets for hover/click SFX. */
+function menuSoundTarget(from: EventTarget | null): HTMLElement | null {
+    if (!(from instanceof Element)) return null;
+    // Only while the title chrome is up (not mid-match HUD).
+    if (!menuChromeVisible || menuChromeEl.style.display === 'none') return null;
+    if (!menuChromeEl.contains(from)) return null;
+    const hit = from.closest(
+        'button, a[href], select, .m-btn, .m-room, .m-scenario-btn, .mechili-username, .mechili-suggest-btn, [role="button"]',
+    );
+    if (!(hit instanceof HTMLElement) || !menuChromeEl.contains(hit)) return null;
+    if (hit.closest('.mechili-version')) return null;
+    if (hit.hasAttribute('disabled') || hit.getAttribute('aria-disabled') === 'true') return null;
+    return hit;
+}
+
+const menuHoverFine =
+    typeof window.matchMedia === 'function'
+        ? window.matchMedia('(hover: hover) and (pointer: fine)')
+        : null;
+let menuHoverEl: HTMLElement | null = null;
+let menuHoverAt = 0;
+
+// Listen on `wrapper`, not `menuChromeEl`: chrome is pointer-events:none so
+// some browsers skip listeners there even when children are clickable.
+wrapper.addEventListener('pointerover', (e) => {
+    if (!menuHoverFine?.matches) return;
+    if (e.pointerType && e.pointerType !== 'mouse') return;
+    const next = menuSoundTarget(e.target);
+    if (!next || next === menuHoverEl) return;
+    if (menuHoverEl && menuHoverEl.contains(next)) {
+        menuHoverEl = next;
+        return;
+    }
+    const from = e.relatedTarget;
+    if (from instanceof Node && next.contains(from)) return;
+    menuHoverEl = next;
+    const now = performance.now();
+    if (now - menuHoverAt < 70) return;
+    menuHoverAt = now;
+    audio.unlock();
+    audio.playUiHover();
+});
+
+wrapper.addEventListener('pointerout', (e) => {
+    if (!menuHoverEl) return;
+    const to = e.relatedTarget;
+    if (to instanceof Node && menuHoverEl.contains(to)) return;
+    if (to instanceof Element && menuHoverEl === menuSoundTarget(to)) return;
+    menuHoverEl = null;
+});
+
+/** Modes that only flip a menu page — `showMenuView` plays `ui_page` instead of click. */
+const MENU_PAGE_MODES = new Set([
+    'tutorial',
+    'tutorial-back',
+    'single',
+    'multiplayer',
+    'mp-back',
+    'sp-campaign',
+    'sp-year-back',
+    'sp-practice',
+    'sp-editor-back',
+    'sp-campaigns',
+    'sp-campaigns-back',
+    'sp-practice-back',
+    'sp-back',
+    'mms-back',
+    'mm-back',
+    'custom',
+    'cg-back',
+]);
+
+wrapper.addEventListener(
+    'pointerdown',
+    (e) => {
+        if (e.button !== 0) return;
+        const hit = menuSoundTarget(e.target);
+        if (!hit) return;
+        const mode = hit.getAttribute('data-mode');
+        if (mode && MENU_PAGE_MODES.has(mode)) return;
+        audio.unlock();
+        audio.playUi('ui_click');
+    },
+    true,
+);
+
 let menuGamepad: GamepadCursor | null = null;
 let menuGamepadRig: CameraRig | null = null;
 
@@ -1767,8 +1853,10 @@ function leavePracticeLobby(): void {
 /**
  * Switch to exactly one menu screen. Leaving `session` always clears its
  * chrome so connection drops / cancel / Escape can't leave mixed UI.
+ * `quiet` skips the page-turn SFX (match-start resets that also flip to main).
  */
-function showMenuView(view: MenuViewId): void {
+function showMenuView(view: MenuViewId, opts?: { quiet?: boolean }): void {
+    const prev = currentMenuView;
     if (currentMenuView === 'session' && view !== 'session') {
         resetSessionChrome();
     }
@@ -1779,6 +1867,10 @@ function showMenuView(view: MenuViewId): void {
         el.classList.toggle('is-active', id === view);
     }
     scheduleLayoutTitle();
+    if (!opts?.quiet && view !== prev && menuChromeVisible) {
+        audio.unlock();
+        audio.playUi('ui_page');
+    }
 }
 
 /** True while a live host/join wait is still owned by menu chrome. */
@@ -5891,19 +5983,19 @@ menu.addEventListener('click', (e) => {
             showMenuView('main');
             break;
         case 'tutorial-1':
-            showMenuView('main');
+            showMenuView('main', { quiet: true });
             startLocalMatch({ tutorial: 1 });
             break;
         case 'tutorial-2':
-            showMenuView('main');
+            showMenuView('main', { quiet: true });
             startLocalMatch({ tutorial: 2 });
             break;
         case 'tutorial-3':
-            showMenuView('main');
+            showMenuView('main', { quiet: true });
             startLocalMatch({ tutorial: 3 });
             break;
         case 'tutorial-4':
-            showMenuView('main');
+            showMenuView('main', { quiet: true });
             startLocalMatch({ tutorial: 4 });
             break;
         case 'single':
@@ -5919,19 +6011,19 @@ menu.addEventListener('click', (e) => {
             showMenuView('sp-year');
             break;
         case 'year-attack':
-            showMenuView('main');
+            showMenuView('main', { quiet: true });
             startLocalMatch({ climb: { role: 'attacker' } });
             break;
         case 'year-defend':
-            showMenuView('main');
+            showMenuView('main', { quiet: true });
             startLocalMatch({ climb: { role: 'defender' } });
             break;
         case 'year-komtur-attack':
-            showMenuView('main');
+            showMenuView('main', { quiet: true });
             startLocalMatch({ climb: { role: 'attacker', komtur: true } });
             break;
         case 'year-komtur-defend':
-            showMenuView('main');
+            showMenuView('main', { quiet: true });
             startLocalMatch({ climb: { role: 'defender', komtur: true } });
             break;
         case 'sp-year-back':
