@@ -9248,10 +9248,9 @@ export class Game {
             }),
         );
         for (const s of pendingSpells) {
-            if (spellOf(s)?.fx === 'dragon' && s.endX !== undefined) {
-                audio.play('spell_dragon_approach', s.x, s.z);
-                audio.play('spell_dragon_breath', (s.x + s.endX) * 0.5, (s.z + (s.endZ ?? s.z)) * 0.5);
-            } else if (s.tacticId === ACID_ID) {
+            // Dragon approach/breath are timed in DragonFx (spit / pour), not battle start.
+            if (spellOf(s)?.fx === 'dragon') continue;
+            if (s.tacticId === ACID_ID) {
                 audio.play('spell_acid_spill', s.x, s.z);
             } else if (s.tacticId === FIRE_SPILL_ID) {
                 audio.play('spell_fire_spill', s.x, s.z);

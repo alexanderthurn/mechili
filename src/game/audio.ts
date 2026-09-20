@@ -1687,6 +1687,8 @@ const CUES: Record<string, CueDef> = {
             'audio/mortar_shot_1.ogg',
             'audio/mortar_shot_2.ogg',
             'audio/mortar_shot_3.ogg',
+            'audio/mortar_shot_4.ogg',
+            'audio/mortar_shot_5.ogg',
         ],
         group: 'sfx',
         maxVoices: 8,
@@ -1904,11 +1906,10 @@ const CUES: Record<string, CueDef> = {
         ],
         group: 'sfx',
         maxVoices: 4,
-        spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        // Global bed — full volume everywhere (no spatial falloff).
+        spatial: false,
+        // Looped for the full dive/strafe (approach) and spit/pour (breath).
+        gain: 1.25,
     },
     spell_dragon_breath: {
         paths: [
@@ -1916,11 +1917,8 @@ const CUES: Record<string, CueDef> = {
         ],
         group: 'sfx',
         maxVoices: 4,
-        spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.7,
+        spatial: false,
+        gain: 1.35,
     },
     spell_fire_spill: {
         paths: [
@@ -2402,6 +2400,8 @@ void [
     assetUrl('audio/mortar_shot_1.ogg'),
     assetUrl('audio/mortar_shot_2.ogg'),
     assetUrl('audio/mortar_shot_3.ogg'),
+    assetUrl('audio/mortar_shot_4.ogg'),
+    assetUrl('audio/mortar_shot_5.ogg'),
     assetUrl('audio/music_autumn_dusk_battle_1.ogg'),
     assetUrl('audio/music_autumn_dusk_deploy_1.ogg'),
     assetUrl('audio/music_autumn_storm_battle_1.ogg'),
@@ -3589,6 +3589,53 @@ class AudioBus {
         this.setLoop('acid_loop', false, 0, 0, 0);
         this.setLoop('stone_whistle', false, 0, 0, 0);
         this.setLoop('collapse_thunder', false, 0, 0, 0);
+        this.setLoop('spell_dragon_approach', false, 0, 0, 0);
+        this.setLoop('spell_dragon_breath', false, 0, 0, 0);
+    }
+
+    /**
+     * Dragon flyover beds: wing whoosh while diving/strafing/exiting, breath
+     * while the fire tube is spitting/pouring/shrinking. Positions follow the
+     * mesh; pass null to stop.
+     */
+    syncDragonLoops(
+        approach: { x: number; z: number; y: number; volume?: number } | null,
+        breath: { x: number; z: number; y: number; volume?: number } | null,
+    ): void {
+        this.ensureLoopReady('spell_dragon_approach');
+        this.ensureLoopReady('spell_dragon_breath');
+        if (approach) {
+            this.setLoop(
+                'spell_dragon_approach',
+                true,
+                approach.x,
+                approach.z,
+                approach.volume ?? 1,
+                approach.y,
+            );
+        } else {
+            this.setLoop('spell_dragon_approach', false, 0, 0, 0);
+        }
+        if (breath) {
+            this.setLoop(
+                'spell_dragon_breath',
+                true,
+                breath.x,
+                breath.z,
+                breath.volume ?? 1,
+                breath.y,
+            );
+        } else {
+            this.setLoop('spell_dragon_breath', false, 0, 0, 0);
+        }
+    }
+
+    /** Decode a loop cue if the buffer is not yet ready (first flyover after boot). */
+    private ensureLoopReady(cueId: string): void {
+        const cue = CUES[cueId];
+        const path = cue?.paths[0];
+        if (!path || this.buffers.get(path)) return;
+        void this.ensureCue(cueId);
     }
 
     /**

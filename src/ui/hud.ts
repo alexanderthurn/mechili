@@ -645,8 +645,8 @@ export class Hud {
     private lastEnemyInventoryKey = '';
     /** player inventory strip folded flat (titles only) when it wraps past one column */
     private inventoryCollapsed = false;
-    /** enemy strip starts folded — usually crowded after cheats / long games */
-    private enemyInventoryCollapsed = true;
+    /** enemy strip mirrors the left: open until it wraps and the player folds it */
+    private enemyInventoryCollapsed = false;
     private deploysLeft = Infinity;
     private extrasBudgetLeft = Infinity;
     /** null = every buyable board extra; else whitelist of type ids */
@@ -1117,7 +1117,7 @@ export class Hud {
             } else this.onCancelTactic?.();
         });
 
-        // opponent items not yet placed (right edge; frozen to phase-start intel)
+        // opponent items/spells (right edge; fogged to phase-start until lock-in)
         this.enemyInventoryEl = document.createElement('div');
         this.enemyInventoryEl.className = 'mechili-sidebar right';
         this.enemyInventoryEl.style.display = 'none';
@@ -2333,7 +2333,7 @@ export class Hud {
 
     /**
      * Collapse affordance when tiles wrap past one column/row — or when already
-     * folded so it can reopen. Enemy defaults folded, so it stays clickable.
+     * folded so it can reopen.
      */
     private refreshSidebarCollapseUi(el: HTMLElement, side: 'player' | 'enemy'): void {
         if (el.style.display === 'none') {
@@ -4282,8 +4282,6 @@ export class Hud {
         this.specDetailOverlay = overlay;
         this.specDetailSeat = seat;
         this.specDetailViaHover = viaHover;
-        // the enemy's unplaced items are intel that belongs to this screen
-        this.enemyInventoryEl.classList.toggle('reveal', team === 'enemy');
         this.mount(overlay);
     }
 
@@ -4418,7 +4416,6 @@ export class Hud {
         this.specDetailViaHover = false;
         this.lastSpecDetailKey = '';
         this.hideCardSpellTip();
-        this.enemyInventoryEl.classList.remove('reveal');
         this.detachOverlay(el, immediate || viaHover);
     }
 

@@ -5170,13 +5170,6 @@ ${chatFloatStyles(u, pc, ec)}
     right: env(safe-area-inset-right);
     border-right: none;
     border-radius: 4px 0 0 4px;
-    /* enemy intel only shows on the enemy commander's detail screen */
-    display: none;
-}
-.mechili-sidebar.right.reveal:not(.battle) {
-    display: flex;
-    /* above the detail overlay's dim layer */
-    z-index: 60;
 }
 .mechili-sidebar.battle,
 .mechili-sidebar.left.waiting {

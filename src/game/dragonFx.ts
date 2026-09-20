@@ -29,6 +29,7 @@ import {
 import { prefs, type SceneryQuality } from './prefs';
 import type { BreathTongueSample } from './flameRenderer';
 import { DRAGON_APPROACH_SEC, DRAGON_POUR_DURATION_SEC, DRAGON_ID } from './tactics';
+import { audio } from './audio';
 
 /** authored empty in dragon.glb — fire tube origin in the mouth */
 const MOUTH_SPAWN_NAME = 'MouthFireSpawn';
@@ -42,6 +43,8 @@ const SPIT_SEC = DRAGON_APPROACH_SEC;
 const SHRINK_SEC = 0.42;
 /** after path end: keep flying at the same speed */
 const EXIT_SEC = 2.6;
+/** Lead so approach SFX covers dive + spit wind-up into breath start (~clip length). */
+const APPROACH_AUDIO_LEAD_SEC = 0.7;
 
 /** high when far away (battle start) */
 const HEIGHT_FAR = 155;
@@ -152,6 +155,7 @@ export class DragonFx {
         }
         this.active.length = 0;
         this.breathSamples.length = 0;
+        audio.syncDragonLoops(null, null);
     }
 
     update(simElapsed: number): void {
@@ -159,6 +163,9 @@ export class DragonFx {
         this.flameTex.offset.y = (t * 2.6) % 1;
         this.breathSamples.length = 0;
         const tonguesOn = breathTonguesEnabled();
+
+        let approachBed: { x: number; z: number; y: number; volume: number } | null = null;
+        let breathBed: { x: number; z: number; y: number; volume: number } | null = null;
 
         for (let i = this.active.length - 1; i >= 0; i--) {
             const a = this.active[i]!;
@@ -269,7 +276,17 @@ export class DragonFx {
             } else {
                 (a.tube.material as MeshBasicMaterial).opacity = 0.95 * fade;
             }
+
+            // Wing bed from dive-in through exit; breath bed while the tube is live.
+            if (fade > 0.02 && simElapsed >= tPath0 - APPROACH_AUDIO_LEAD_SEC) {
+                approachBed = { x: dx, z: dz, y: skyY, volume: fade };
+            }
+            if (fade > 0.02 && mode !== 'hidden') {
+                breathBed = { x: dx, z: dz, y: skyY, volume: fade };
+            }
         }
+
+        audio.syncDragonLoops(approachBed, breathBed);
     }
 
     dispose(): void {
@@ -309,7 +326,17 @@ export class DragonFx {
 
         this.group.add(root);
         this.group.add(tube);
-        this.active.push({ cue, root, materials, mouthSpawn, tube, len, ux, uz, done: false });
+        this.active.push({
+            cue,
+            root,
+            materials,
+            mouthSpawn,
+            tube,
+            len,
+            ux,
+            uz,
+            done: false,
+        });
     }
 
     private async load(): Promise<void> {

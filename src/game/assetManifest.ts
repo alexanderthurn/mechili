@@ -208,6 +208,8 @@ const RAW = import.meta.glob(
         '../../assets/audio/mortar_shot_1.ogg',
         '../../assets/audio/mortar_shot_2.ogg',
         '../../assets/audio/mortar_shot_3.ogg',
+        '../../assets/audio/mortar_shot_4.ogg',
+        '../../assets/audio/mortar_shot_5.ogg',
         '../../assets/audio/music_autumn_dusk_battle_1.ogg',
         '../../assets/audio/music_autumn_dusk_deploy_1.ogg',
         '../../assets/audio/music_autumn_storm_battle_1.ogg',
