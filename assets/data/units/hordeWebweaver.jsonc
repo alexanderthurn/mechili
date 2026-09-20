@@ -41,30 +41,31 @@
         "externalIds": [
             {
                 "type": "e",
-                "prompt": "A sly, whispering web-assassin voice — thin, venomous, and wickedly amused. Speaks close and intimate like a trap closing, with cruel delight. Super sneaky evil, never booming, never dumb ogre. Perfect audio quality.",
+                "id": "1FZPllRsYmWRhAonxe7R",
+                "prompt": "A sly, whispering web-assassin voice — thin, venomous, wickedly amused and SUPER EVIL. Speaks close and intimate like a trap closing, with cruel lethal delight. Super sneaky malice, never booming, never dumb, never soft. Perfect audio quality.",
             },
         ],
         "lines": {
             // select acks
             "pick": [
                 "Yes…?",
-                "Closer.",
-                "I hear you.",
+                "Closer…",
+                "I hear you… die.",
                 "Arachne nods.",
-                "Silk soft… trap hard.",
-                "Where fly?",
-                "Eight legs, one plan.",
-                "Thread carefully!",
-                "Web design!",
-                "Sticky compliments!",
-                "Spin cycle!",
-                "Come closer… friend.",
+                "Silk soft… death hard.",
+                "Where fly… prey?",
+                "Eight legs, one kill.",
+                "Thread… choke!",
+                "Web of ruin!",
+                "Sticky… forever.",
+                "Spin your end!",
+                "Come closer… corpse.",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [
                 "Closer—no.",
-                "Silk says no.",
-                "Leave."
+                "Silk says die.",
+                "Leave… now."
             ],
             // death yelps
             // pack unit: one syllable only

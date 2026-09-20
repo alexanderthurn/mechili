@@ -46,30 +46,30 @@
             {
                 "type": "e",
                 "id": "9VZaNevhiqC1wX0vmS51",
-                "prompt": "An UNHOLY tiny-to-mid shrieking bat-creature voice — wet, fluttery, and nightmarishly gleeful. Speaks in skittering bursts with vampire-cartoon evil and comic hunger. Super creepy AND funny, never human-normal, never deep heroic. Perfect audio quality.",
+                "prompt": "An UNHOLY shrieking bat-creature voice — wet, fluttery, nightmarishly gleeful and SUPER EVIL. Speaks in skittering predatory bursts with pure blood-hunger malice. Creepy winged terror, never soft, never human-normal, never heroic. Perfect audio quality.",
             },
         ],
         "lines": {
             // select acks
             "pick": [
-                "Yesyes?",
+                "Yesyes…?",
                 "Hungry!",
-                "We fly!",
-                "Call me Nos!",
-                "Dracula-lite!",
-                "Where's Mina?",
+                "We hunt!",
+                "Bleed for us!",
+                "Night owns you!",
+                "Where warm blood?",
                 "Scree for dinner!",
-                "Upside down ready!",
-                "Night shift!",
-                "Blood? Optional!",
-                "Echo locate!",
-                "Cape optional!",
+                "Wings of ruin!",
+                "Darkness ready!",
+                "Blood — now!",
+                "Echo… kill!",
+                "Fangs open!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [
-                "Not food!",
-                "Mine!",
-                "Shoo!"
+                "Not yours!",
+                "Mine to drain!",
+                "Flee!"
             ],
             // death yelps
             // pack flock: one syllable only

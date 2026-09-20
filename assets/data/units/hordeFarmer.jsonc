@@ -38,30 +38,30 @@
             {
                 "type": "e",
                 "id": "M81OaVwHPJGMm34uTayT",
-                "prompt": "A tragic-comic undead farmer voice — rural drawl warped by death, polite and wrong. Speaks like offering crops while dripping grave dirt, darkly funny and deeply cursed. Super uncanny valley humor-horror. Perfect audio quality.",
+                "prompt": "A cursed undead farmer voice — rural drawl warped by death, polite and SUPER EVIL. Speaks like offering crops while dripping grave dirt; uncanny, wrong, and quietly murderous. Deeply cursed horror, never wholesome, never soft. Perfect audio quality.",
             },
         ],
         "lines": {
             // select acks
             "pick": [
-                "Evenin'?",
+                "Evenin'…",
                 "Need a hand?",
-                "Crops.",
-                "Appleseed who?",
-                "MacDonald-ish!",
-                "Where's the plow?",
-                "Soil's chatty today.",
-                "Harvest smiles!",
-                "Turnips first!",
-                "Scarecrow jealousy!",
-                "Barn duty!",
-                "Hoe hoe hoe!",
+                "Blood crops.",
+                "Soil wants you.",
+                "Plow the living.",
+                "Where's the meat?",
+                "Grave dirt ready.",
+                "Harvest screams.",
+                "Bones first.",
+                "Scarecrow hungers.",
+                "Barn of corpses!",
+                "Hoe… the soft ones.",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [
                 "Wrong field.",
-                "Private.",
-                "Shoo."
+                "Private graves.",
+                "Shoo… or join."
             ],
             // death yelps
             // pack unit: one syllable only
