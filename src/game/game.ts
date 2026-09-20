@@ -4513,9 +4513,10 @@ export class Game {
      * After souls / just before the next deploy: play a proud win bark from one
      * commander on the winning side (random seat in 2v2). Audible for everyone —
      * including the losing side. No-op on draws, test battles, hydrate, or before VO ships.
-     * Armed from {@link announceBattleEnd} so the portrait leads deploy by a short beat.
+     * Armed from {@link announceBattleEnd} (solo leads deploy by a short beat)
+     * and from the star path in {@link proceedAfterHpDraw} (overlay, no wait).
      * @param completedRound battle round that just finished (before {@link round} increments)
-     * @returns true when a celebrate was started (caller may lead deploy by a beat)
+     * @returns true when a celebrate was started (solo caller may lead deploy by a beat)
      */
     private playRoundVictorBark(completedRound: number): boolean {
         if (this.hydrating || this.editorMode === 'test' || completedRound < 1) return false;
@@ -10133,8 +10134,10 @@ export class Game {
         }
         this.placement.refaceAll();
         if (this.star && !this.hydrating) {
-            // a room doesn't wait on anyone's splash: it shows over the next build
+            // Rooms don't wait on splash / celebrate: overlay them and start
+            // deploy immediately so peers aren't gated on local UI timing.
             if (yearRoundDone) this.hud.showYearRoundSplash(this.yearProgress(), () => undefined);
+            this.playRoundVictorBark(this.round);
             this.startBuildPhase();
             return;
         }
