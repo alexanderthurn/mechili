@@ -5004,8 +5004,9 @@ ${chatFloatStyles(u, pc, ec)}
         border-color: #8adcff;
     }
     50%, 100% {
-        box-shadow: 0 0 0 1px rgba(40, 90, 140, 0.45) inset, 0 0 4px rgba(20, 60, 100, 0.25);
-        border-color: #2a5a80;
+        /* stay cyan — only ease the glow, don't drop into steel grey */
+        box-shadow: 0 0 0 1px rgba(90, 190, 240, 0.55) inset, 0 0 8px rgba(50, 160, 230, 0.4);
+        border-color: #4eb8e8;
     }
 }
 .mechili-panel .action-tile.hexed .at-hex-slash {
@@ -5013,7 +5014,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 @keyframes mechili-hex-slash {
     0%, 49.9% { opacity: 1; }
-    50%, 100% { opacity: 0.25; }
+    50%, 100% { opacity: 0.55; }
 }
 @media (prefers-reduced-motion: reduce) {
     .mechili-panel .action-tile.hexed,
