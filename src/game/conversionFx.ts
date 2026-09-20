@@ -64,7 +64,8 @@ const PRISM_BLOOM_CAP = 1.6;
 const PRISM_CAP_OFF = 1000;
 /** Sky shaft: much wider / much fainter than the attack pipe. */
 const PRISM_SKY_W = PRISM_ATTACK_W * 27;
-const PRISM_SKY_HDR = PRISM_ATTACK_HDR / 50;
+/** Half the prior sky HDR — shaft was reading too opaque/shiny vs the attack beam. */
+const PRISM_SKY_HDR = PRISM_ATTACK_HDR / 500;
 
 /**
  * Crossed cards along +Y (beam length). More planes ≈ rounder pipe from the
