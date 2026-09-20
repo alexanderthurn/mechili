@@ -49,3 +49,19 @@ Instrumental fantasy video game battle underscore for Melodan, magical medieval 
 ```
 exaggerated punch with box glove
 ```
+
+### `impact_ward` (sci-fi on-hit)
+
+```
+sci-fi energy shield impact hit, crystalline force field pulse, bright holographic shimmer transient, magical futuristic barrier deflect, short clean game SFX, no music, no voice
+```
+
+### `spell_oil_drop` (falling blug)
+
+```
+thick oil blob falling through air, wet blugging glugging liquid whoosh, heavy viscous drip falling, short game SFX, no splash landing, no music
+```
+
+### `prism_hum`
+
+Copied from `stone_whistle_1.ogg` (mortar fly bed, disabled). Replace `stone_whistle_1.ogg` later without touching this cue.

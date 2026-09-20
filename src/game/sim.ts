@@ -1126,6 +1126,11 @@ export class BattleSim {
         startedAt: number;
         maxRadius: number;
     }[] = [];
+    /**
+     * Continuous beams chew wards every tick — throttle impact events so
+     * ripples / impact_ward SFX don't fire every frame.
+     */
+    private readonly lastWardImpactAt = new Map<number, number>();
     /** scheduled spell strikes; each fires exactly once at its `at` time */
     private readonly strikes: (SpellStrike & { at: number; fired: boolean })[];
     /** ticking spell zones with their private rng streams and tick clocks */
@@ -4993,6 +4998,30 @@ export class BattleSim {
     }
 
     /**
+     * Ward dome took a hit — ripple + impact_ward SFX. Beams call this every
+     * tick while chewing; throttle per shield so we don't spam.
+     */
+    private emitWardImpact(
+        shield: Actor,
+        x: number,
+        y: number,
+        z: number,
+        minGapSec = 0.14,
+    ): void {
+        const prev = this.lastWardImpactAt.get(shield.index) ?? -Infinity;
+        if (this.elapsed - prev < minGapSec) return;
+        this.lastWardImpactAt.set(shield.index, this.elapsed);
+        this.events.push({
+            kind: 'impact',
+            x,
+            y,
+            z,
+            ward: true,
+            scar: false,
+        });
+    }
+
+    /**
      * Shield extras: a projectile crossing an enemy dome's boundary from the
      * OUTSIDE below its height is absorbed into the dome's damage pool.
      * Returns the earliest crossing on this step's flight segment.
@@ -6549,6 +6578,7 @@ export class BattleSim {
                     }
                     block.shield.hp -= intensity * dt;
                     block.shield.hurtTimer = HURT_BAR_SECONDS;
+                    this.emitWardImpact(block.shield, block.x, block.y, block.z);
                     if (block.shield.hp <= 0) this.breakShield(block.shield);
                     continue;
                 }
@@ -6709,6 +6739,7 @@ export class BattleSim {
                     }
                     block.shield.hp -= intensity * dt;
                     block.shield.hurtTimer = HURT_BAR_SECONDS;
+                    this.emitWardImpact(block.shield, block.x, block.y, block.z);
                     if (block.shield.hp <= 0) this.breakShield(block.shield);
                     continue;
                 }

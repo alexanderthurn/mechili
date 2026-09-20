@@ -1632,18 +1632,20 @@ const CUES: Record<string, CueDef> = {
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
+    /** Sci-fi forcefield pulse when a ward absorbs a hit. */
     impact_ward: {
         paths: [
             'audio/impact_ward_1.ogg',
             'audio/impact_ward_2.ogg',
+            'audio/impact_ward_3.ogg',
         ],
         group: 'sfx',
-        maxVoices: 8,
+        maxVoices: 10,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        refDistance: ATTACK_REF,
+        maxDistance: ATTACK_MAX,
+        rolloff: 1.2,
+        gain: 1.15,
     },
     levelup: {
         paths: ['audio/levelup_1.ogg'],
@@ -1850,6 +1852,20 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.72,
     },
+    /**
+     * Prism cannon proximity hum (copy of stone_whistle — replace that file
+     * later without touching this cue). Near-field only via syncBeamLoops.
+     */
+    prism_hum: {
+        paths: ['audio/prism_hum_1.ogg'],
+        group: 'sfx',
+        maxVoices: 1,
+        spatial: true,
+        refDistance: 4,
+        maxDistance: 22,
+        rolloff: 1.4,
+        gain: 0.42,
+    },
     ramp_beam: {
         paths: [
             'audio/ramp_beam_1.ogg',
@@ -1958,6 +1974,21 @@ const CUES: Record<string, CueDef> = {
         maxDistance: SPATIAL_MAX,
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
+    },
+    /** Oil blob falling through the air (blug) — plays at drip fall-start. */
+    spell_oil_drop: {
+        paths: [
+            'audio/spell_oil_drop_1.ogg',
+            'audio/spell_oil_drop_2.ogg',
+            'audio/spell_oil_drop_3.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 8,
+        spatial: true,
+        refDistance: 100,
+        maxDistance: ATTACK_MAX * 2,
+        rolloff: 1.15,
+        gain: 1.25,
     },
     spell_oil_spill: {
         paths: [
@@ -2390,6 +2421,7 @@ void [
     assetUrl('audio/impact_stone_drop_2.ogg'),
     assetUrl('audio/impact_ward_1.ogg'),
     assetUrl('audio/impact_ward_2.ogg'),
+    assetUrl('audio/impact_ward_3.ogg'),
     assetUrl('audio/levelup_1.ogg'),
     assetUrl('audio/melee_hit_1.ogg'),
     assetUrl('audio/melee_hit_2.ogg'),
@@ -2430,6 +2462,7 @@ void [
     assetUrl('audio/phase_gong_1.ogg'),
     assetUrl('audio/phase_gong_2.ogg'),
     assetUrl('audio/collapse_thunder_1.ogg'),
+    assetUrl('audio/prism_hum_1.ogg'),
     assetUrl('audio/ramp_beam_1.ogg'),
     assetUrl('audio/rocket_blast_1.ogg'),
     assetUrl('audio/rocket_blast_2.ogg'),
@@ -2444,6 +2477,9 @@ void [
     assetUrl('audio/spell_lightning_3.ogg'),
     assetUrl('audio/spell_meteor_fall_1.ogg'),
     assetUrl('audio/spell_meteor_fall_2.ogg'),
+    assetUrl('audio/spell_oil_drop_1.ogg'),
+    assetUrl('audio/spell_oil_drop_2.ogg'),
+    assetUrl('audio/spell_oil_drop_3.ogg'),
     assetUrl('audio/spell_oil_spill_1.ogg'),
     assetUrl('audio/spell_poison_cloud_1.ogg'),
     assetUrl('audio/spell_storm_1.ogg'),
@@ -3467,6 +3503,8 @@ class AudioBus {
      * Sound sits at the ray muzzle; volume is near-field only.
      */
     syncBeamLoops(actors: readonly Actor[]): void {
+        this.ensureLoopReady('convert_beam');
+        this.ensureLoopReady('prism_hum');
         const lx = this.listenerX;
         const lz = this.listenerZ;
         let bestConvert = BEAM_LOOP_MAX_DIST + 1;
@@ -3498,7 +3536,7 @@ class AudioBus {
             }
         }
         this.setLoop('convert_beam', true, cx, cz, beamLoopVolume(bestConvert), cy);
-        this.setLoop('ramp_beam', true, rx, rz, beamLoopVolume(bestRamp), ry);
+        this.setLoop('prism_hum', true, rx, rz, beamLoopVolume(bestRamp), ry);
     }
 
     /**
@@ -3581,9 +3619,10 @@ class AudioBus {
 
     private timerWarnSecond = -1;
 
-    /** Stop convert / ramp / hazard / stone-fly beds (battle end / tear-down). */
+    /** Stop convert / prism / hazard / stone-fly beds (battle end / tear-down). */
     stopBeamLoops(): void {
         this.setLoop('convert_beam', false, 0, 0, 0);
+        this.setLoop('prism_hum', false, 0, 0, 0);
         this.setLoop('ramp_beam', false, 0, 0, 0);
         this.setLoop('fire_loop', false, 0, 0, 0);
         this.setLoop('acid_loop', false, 0, 0, 0);
@@ -3895,7 +3934,12 @@ class AudioBus {
                     this.play('ground_fire', e.x, e.z);
                     break;
                 case 'hazardDrip':
-                    this.play('hazard_drip', e.x, e.z);
+                    // Oil gets a falling blug; acid/fire keep the generic drip for now.
+                    this.play(
+                        e.hazard === 'oil' ? 'spell_oil_drop' : 'hazard_drip',
+                        e.x,
+                        e.z,
+                    );
                     break;
                 case 'spellLightning':
                     this.play('spell_lightning', e.x, e.z);
