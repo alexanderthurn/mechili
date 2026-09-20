@@ -57,6 +57,8 @@ const PRISM_ATTACK_W = 3.2;
 const PRISM_ATTACK_HDR = 1.85;
     /** prism pipe gain with bloom on (bloom off uses 1.25): lower, since bloom adds the glow */
 const PRISM_BLOOM_GAIN = 0.9;
+/** convert bolt gain with bloom on (bloom off uses 1): lower, since bloom adds the glow */
+const CONVERT_BLOOM_GAIN = 0.9;
 /** brightest a prism pipe channel gets (soft cap): just over the bloom threshold with bloom on; effectively none without */
 const PRISM_BLOOM_CAP = 1.6;
 const PRISM_CAP_OFF = 1000;
@@ -293,8 +295,6 @@ export class ConversionFx {
     private readonly prismMesh: InstancedMesh;
     private readonly prismMat: ShaderMaterial;
     private readonly texture: Texture;
-    private bloomBoost = 1;
-    private bloom: BloomQuality = 'off';
     roster: SeatDef[] = [];
 
     constructor(scene: Scene) {
@@ -376,13 +376,12 @@ export class ConversionFx {
     }
 
     /**
-     * When bloom is on, raise beam HDR / widen the glow card so the ray gets a
-     * real screen-space halo (the soft look with bloom off is just additive cards).
+     * Bloom owns the screen-space halo. With bloom on, keep convert/prism pipes
+     * cooler and at bloom-off widths — hotter cards / wider glow just blow out.
+     * Soft look with bloom off is just additive cards.
      */
     setBloomComp(bloom: BloomQuality): void {
-        this.bloom = bloom;
         if (bloom === 'off') {
-            this.bloomBoost = 1;
             this.convert.glowWidthMul = 1.85;
             this.convert.coreMat.color.setRGB(1, 1, 1);
             this.convert.glowMat.color.setRGB(0.66, 0.97, 1);
@@ -390,22 +389,16 @@ export class ConversionFx {
             this.prismMat.uniforms.uCap!.value = PRISM_CAP_OFF;
             return;
         }
-        if (bloom === 'high') {
-            this.bloomBoost = 2.1;
-            this.convert.glowWidthMul = 2.35;
-            // bloom draws the prism's halo — a hotter pipe on top just blows it out
-            this.prismMat.uniforms.uGain!.value = PRISM_BLOOM_GAIN;
-            this.prismMat.uniforms.uCap!.value = PRISM_BLOOM_CAP;
-        } else {
-            // ultra — push HDR so selective bloom wraps the pipe in a yellow halo
-            this.bloomBoost = 2.6;
-            this.convert.glowWidthMul = 2.55;
-            this.prismMat.uniforms.uGain!.value = PRISM_BLOOM_GAIN;
-            this.prismMat.uniforms.uCap!.value = PRISM_BLOOM_CAP;
-        }
-        const b = this.bloomBoost;
-        this.convert.coreMat.color.setRGB(b, b, b);
-        this.convert.glowMat.color.setRGB(0.66 * b, 0.97 * b, 1 * b);
+        // same recipe as prism: lower gain, no widen — bloom supplies the glow
+        this.convert.glowWidthMul = 1.85;
+        this.convert.coreMat.color.setRGB(CONVERT_BLOOM_GAIN, CONVERT_BLOOM_GAIN, CONVERT_BLOOM_GAIN);
+        this.convert.glowMat.color.setRGB(
+            0.66 * CONVERT_BLOOM_GAIN,
+            0.97 * CONVERT_BLOOM_GAIN,
+            CONVERT_BLOOM_GAIN,
+        );
+        this.prismMat.uniforms.uGain!.value = PRISM_BLOOM_GAIN;
+        this.prismMat.uniforms.uCap!.value = PRISM_BLOOM_CAP;
     }
 
     /**
@@ -418,7 +411,7 @@ export class ConversionFx {
 
         const pulse = 0.92 + 0.08 * Math.sin(simTime * 12);
         this.convert.coreMat.opacity = pulse;
-        this.convert.glowMat.opacity = (0.55 + 0.2 * pulse) * (this.bloomBoost > 1 ? 0.85 : 1);
+        this.convert.glowMat.opacity = 0.55 + 0.2 * pulse;
 
         let cn = 0;
         let pn = 0;
