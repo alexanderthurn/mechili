@@ -10987,11 +10987,16 @@ export class Game {
             this.rig.update(dtSeconds);
             this.tutorial?.tickCamera();
         }
-        // Audio listener follows the camera look-at on the board (stable under orbit).
+        // Audio listener: xz on look-at (stable under orbit), y rises with the
+        // camera so max zoom ducks ground SFX instead of staying "in the fight".
         {
             const t = this.rig.target;
-            audio.setListener(t.x, t.z);
             const cam = this.rig.camera.position;
+            const groundY = this.rig.floorAt?.(t.x, t.z) ?? 0;
+            const camAlt = Math.max(0, cam.y - groundY);
+            // 0 = pure look-at ear; 1 = full camera altitude. Mid blend.
+            const listenY = 8 + camAlt * 0.55;
+            audio.setListener(t.x, t.z, listenY);
             const fx = t.x - cam.x;
             const fy = 0 - cam.y;
             const fz = t.z - cam.z;

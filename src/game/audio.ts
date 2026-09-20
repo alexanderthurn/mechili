@@ -2217,7 +2217,12 @@ class AudioBus {
         return true;
     }
 
-    setListener(x: number, z: number): void {
+    /**
+     * Place the ear over the board look-at (xz), with optional height.
+     * Default y≈8 keeps a mild airborne offset; game raises y with camera
+     * zoom so max-altitude orbits duck ground combat without orbit wobble.
+     */
+    setListener(x: number, z: number, y = 8): void {
         this.listenerX = x;
         this.listenerZ = z;
         const ctx = this.ctx;
@@ -2225,12 +2230,12 @@ class AudioBus {
         const l = ctx.listener;
         if (l.positionX) {
             l.positionX.value = x;
-            l.positionY.value = 8;
+            l.positionY.value = y;
             l.positionZ.value = z;
         } else {
             (l as AudioListener & { setPosition?: (x: number, y: number, z: number) => void }).setPosition?.(
                 x,
-                8,
+                y,
                 z,
             );
         }
