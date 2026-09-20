@@ -62,6 +62,18 @@ sci-fi energy shield impact hit, crystalline force field pulse, bright holograph
 thick oil blob falling through air, wet blugging glugging liquid whoosh, heavy viscous drip falling, short game SFX, no splash landing, no music
 ```
 
+### `spell_acid_drop` (hiss-drip)
+
+```
+corrosive acid droplet falling through air, thin wet hissing sizzle drip, toxic green liquid fall whoosh, short game SFX, no splash landing, no music no voice
+```
+
+### `spell_fire_drop` (ember whoosh)
+
+```
+dry burning ember streaking downward, sharp fiery whoosh with crackling sparks, hot ash falling, completely dry no liquid no water no oil no glug, short game SFX, no explosion no music
+```
+
 ### `prism_hum`
 
 Copied from `stone_whistle_1.ogg` (mortar fly bed, disabled). Replace `stone_whistle_1.ogg` later without touching this cue.

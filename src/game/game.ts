@@ -126,6 +126,7 @@ import { StrongholdCommanders } from './strongholdCommander';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { audio, playMatchMusic } from './audio';
+import { videoRecorder } from './videoRecorder';
 import { CloudFx, type CloudCue } from './cloudFx';
 import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
@@ -1054,6 +1055,16 @@ export class Game {
             this.toggleUiHidden();
             return;
         }
+        // Shift+R = start clip · Shift+S = stop & save to Downloads
+        // (bare R still rotates packs; cinema Shift+C for clean frames)
+        if (e.code === 'KeyR' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            this.startVideoClip();
+            return;
+        }
+        if (e.code === 'KeyS' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            void this.stopVideoClip();
+            return;
+        }
 
         // battle / replay speed: 1 = Pause, then each step up; replay's top
         // speed (32×) is key 0 when it doesn't fit in 1–9
@@ -1089,6 +1100,39 @@ export class Game {
         }
         this.togglePauseMenu();
     };
+
+    /** Shift+R — capture Three canvas + game audio (3D only; use Shift+C for cinema). */
+    private startVideoClip(): void {
+        if (videoRecorder.recording) {
+            this.hud.flashCinemaHint('Already recording — Shift+S to save', 1800);
+            return;
+        }
+        const result = videoRecorder.start(this.threeCanvas);
+        if (!result.ok) {
+            const msg =
+                result.reason === 'busy'
+                    ? 'Already recording — Shift+S to save'
+                    : 'Recording not supported here';
+            this.hud.flashCinemaHint(msg, 2200);
+            return;
+        }
+        this.hud.flashCinemaHint('● Recording — Shift+S to save', 2800);
+    }
+
+    /** Shift+S — stop and download into ~/Downloads (Mac default). */
+    private async stopVideoClip(): Promise<void> {
+        if (!videoRecorder.recording) {
+            this.hud.flashCinemaHint('Not recording — Shift+R to start', 1800);
+            return;
+        }
+        this.hud.flashCinemaHint('Saving clip…', 1200);
+        const result = await videoRecorder.stop();
+        if (!result) {
+            this.hud.flashCinemaHint('Nothing to save', 1800);
+            return;
+        }
+        this.hud.flashCinemaHint(`Saved ${result.filename}`, 3200);
+    }
 
     /** Hide all match UI (HUD, debug, HP bars) for clean viewing / screenshots.
      *  Also switches the world to battle presentation (no grid / deploy markers). */
@@ -2977,6 +3021,8 @@ export class Game {
     destroy(opts?: { keepStarSession?: boolean }): void {
         if (this.disposed) return;
         this.disposed = true;
+        // Drop an unfinished clip — only Shift+S should land a file in Downloads.
+        if (videoRecorder.recording) videoRecorder.cancel();
         // Audio is a process-wide singleton — stop battle beds here or they
         // keep looping after quit-to-menu (pause freezes sync, destroy must cut).
         audio.stopBeamLoops();

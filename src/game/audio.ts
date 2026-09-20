@@ -1916,6 +1916,21 @@ const CUES: Record<string, CueDef> = {
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
+    /** Acid droplet falling (hiss-drip) — same hear range as oil drop. */
+    spell_acid_drop: {
+        paths: [
+            'audio/spell_acid_drop_1.ogg',
+            'audio/spell_acid_drop_2.ogg',
+            'audio/spell_acid_drop_3.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 8,
+        spatial: true,
+        refDistance: 100,
+        maxDistance: ATTACK_MAX * 2,
+        rolloff: 1.15,
+        gain: 1.25,
+    },
     spell_dragon_approach: {
         paths: [
             'audio/spell_dragon_approach_1.ogg',
@@ -1947,6 +1962,21 @@ const CUES: Record<string, CueDef> = {
         maxDistance: SPATIAL_MAX,
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
+    },
+    /** Ember / molten blob falling — distinct from spill start and ground_fire land. */
+    spell_fire_drop: {
+        paths: [
+            'audio/spell_fire_drop_1.ogg',
+            'audio/spell_fire_drop_2.ogg',
+            'audio/spell_fire_drop_3.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 8,
+        spatial: true,
+        refDistance: 100,
+        maxDistance: ATTACK_MAX * 2,
+        rolloff: 1.15,
+        gain: 1.25,
     },
     spell_lightning: {
         paths: [
@@ -2468,9 +2498,15 @@ void [
     assetUrl('audio/rocket_blast_2.ogg'),
     assetUrl('audio/rocket_launch_1.ogg'),
     assetUrl('audio/rocket_launch_2.ogg'),
+    assetUrl('audio/spell_acid_drop_1.ogg'),
+    assetUrl('audio/spell_acid_drop_2.ogg'),
+    assetUrl('audio/spell_acid_drop_3.ogg'),
     assetUrl('audio/spell_acid_spill_1.ogg'),
     assetUrl('audio/spell_dragon_approach_1.ogg'),
     assetUrl('audio/spell_dragon_breath_1.ogg'),
+    assetUrl('audio/spell_fire_drop_1.ogg'),
+    assetUrl('audio/spell_fire_drop_2.ogg'),
+    assetUrl('audio/spell_fire_drop_3.ogg'),
     assetUrl('audio/spell_fire_spill_1.ogg'),
     assetUrl('audio/spell_lightning_1.ogg'),
     assetUrl('audio/spell_lightning_2.ogg'),
@@ -2760,6 +2796,12 @@ class AudioBus {
     private groups!: Record<AudioGroupId, GainNode>;
     /** Hazard / beam beds — same SFX volume pref, never time-scaled or ducked. */
     private loopBus!: GainNode;
+    /**
+     * Optional tap of `master` for MediaRecorder (game video clips).
+     * Speakers stay on `ctx.destination`; this is an extra fan-out.
+     */
+    private recordDest: MediaStreamAudioDestinationNode | null = null;
+    private recordTapUsers = 0;
     private buffers = new Map<string, AudioBuffer>();
     /** In-flight fetches so parallel ensureCue / death storms share one decode. */
     private inflightDecode = new Map<string, Promise<void>>();
@@ -2813,6 +2855,33 @@ class AudioBus {
 
     get isUnlocked(): boolean {
         return this.unlocked;
+    }
+
+    /**
+     * Fan-out `master` into a MediaStream for clip recording.
+     * Call {@link disableRecordTap} when the recorder stops so we don't keep
+     * an unused destination node around across matches.
+     */
+    enableRecordTap(): MediaStream {
+        const ctx = this.ensureCtx();
+        if (ctx.state === 'suspended') void ctx.resume();
+        if (!this.recordDest) {
+            this.recordDest = ctx.createMediaStreamDestination();
+            this.master.connect(this.recordDest);
+        }
+        this.recordTapUsers += 1;
+        return this.recordDest.stream;
+    }
+
+    disableRecordTap(): void {
+        if (this.recordTapUsers > 0) this.recordTapUsers -= 1;
+        if (this.recordTapUsers > 0 || !this.recordDest) return;
+        try {
+            this.master.disconnect(this.recordDest);
+        } catch {
+            /* already disconnected */
+        }
+        this.recordDest = null;
     }
 
     /** Decode commander pick VO cues (optional — normally lazy on first play). */
@@ -3933,14 +4002,18 @@ class AudioBus {
                 case 'groundFire':
                     this.play('ground_fire', e.x, e.z);
                     break;
-                case 'hazardDrip':
-                    // Oil gets a falling blug; acid/fire keep the generic drip for now.
-                    this.play(
-                        e.hazard === 'oil' ? 'spell_oil_drop' : 'hazard_drip',
-                        e.x,
-                        e.z,
-                    );
+                case 'hazardDrip': {
+                    const drop =
+                        e.hazard === 'oil'
+                            ? 'spell_oil_drop'
+                            : e.hazard === 'acid'
+                              ? 'spell_acid_drop'
+                              : e.hazard === 'fire'
+                                ? 'spell_fire_drop'
+                                : 'hazard_drip';
+                    this.play(drop, e.x, e.z);
                     break;
+                }
                 case 'spellLightning':
                     this.play('spell_lightning', e.x, e.z);
                     break;
