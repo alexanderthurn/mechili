@@ -180,6 +180,7 @@
   "tacticBlast": "Blast {{n}}",
   "tacticSummon": "Summon {{count}}× {{unit}}",
   "tacticLightning": "Lightning every {{n}}s (hex only)",
+  "tacticStormBolts": "{{count}} bolts per flash",
   "tacticSplash": "Splash {{n}}",
   "tacticAcidRain": "Acid rain ×{{count}} every {{n}}s",
   "tacticDrop": "Drop {{n}}",

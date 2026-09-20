@@ -140,10 +140,10 @@ export interface TacticDef {
         spawn?: { typeId: string; count: number };
         /**
          * Ticking area effect running `duration` seconds after the delay,
-         * point-targeted only: 'storm' zaps one random unit per tick
-         * (wards absorb per bolt); 'meteorShower' drops a small strike on
-         * a random spot per tick (+ ignites fire); 'acidRain' rains small
-         * acid drips that stamp sparse ground acid (same rules as Acid Spill).
+         * point-targeted only: 'storm' flashes several bolts at random spots
+         * per tick (wards absorb; splash hexes); 'meteorShower' drops a small
+         * strike on a random spot per tick (+ ignites fire); 'acidRain' rains
+         * small acid drips that stamp sparse ground acid (same rules as Acid Spill).
          */
         zone?: {
             mode: 'storm' | 'meteorShower' | 'acidRain';
@@ -151,11 +151,11 @@ export interface TacticDef {
             interval: number;
             /** flat damage per tick (storm / meteor); unused for acidRain */
             damage: number;
-            /** meteorShower / acidRain: splash or puddle radius per impact */
+            /** meteorShower / acidRain / storm: splash or puddle radius per impact */
             impactRadius?: number;
             /** meteorShower: ground-fire radius per impact */
             igniteRadius?: number;
-            /** acidRain: how many drips spawn each tick */
+            /** acidRain / storm: how many drips / bolts spawn each tick */
             dropsPerTick?: number;
         };
         /** two-point: progressive fire pour along the capsule (dragon breath) —
@@ -275,12 +275,21 @@ export function formatTacticStats(tactic: TacticDef): string[] {
         if (spell.zone) {
             const z = spell.zone;
             if (z.mode === 'storm') {
+                const n = z.dropsPerTick ?? 1;
                 lines.push(
                     t('hud:tacticLightning', {
                         n: z.interval,
                         defaultValue: `Lightning every ${z.interval}s (hex only)`,
                     }),
                 );
+                if (n > 1) {
+                    lines.push(
+                        t('hud:tacticStormBolts', {
+                            count: n,
+                            defaultValue: `${n} bolts per flash`,
+                        }),
+                    );
+                }
                 if (z.impactRadius != null) {
                     lines.push(
                         t('hud:tacticSplash', {

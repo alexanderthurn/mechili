@@ -225,7 +225,7 @@ export interface SpellZone {
     mode: 'storm' | 'meteorShower' | 'acidRain';
     impactRadius?: number;
     igniteRadius?: number;
-    /** acidRain: drips spawned each tick */
+    /** acidRain / storm: events spawned each tick */
     dropsPerTick?: number;
     /** acidRain: inclusive round expiry for stamped puddles */
     acidExpiresRound?: number;
@@ -3298,38 +3298,44 @@ export class BattleSim {
     /** one tick of a storm / meteor shower / acid-rain zone (all point-targeted) */
     private tickSpellZone(z: (typeof this.zones)[number], tickAt: number): void {
         if (z.mode === 'storm') {
-            // aim at a random unit inside; splash debuffs a disc around the strike
-            const candidates = this.actors.filter(
-                (a) =>
-                    a.alive &&
-                    !a.unit.type.extra &&
-                    hypot(a.x - z.x, a.z - z.z) <= z.radius,
-            );
-            if (candidates.length === 0) return;
-            const target = candidates[Math.floor(z.rng() * candidates.length)]!;
-            const dome = this.actors.find(
-                (d) =>
-                    d.alive &&
-                    d.unit.type.shield &&
-                    hypot(target.x - d.x, target.z - d.z) <= d.unit.type.shield.radius,
-            );
-            if (dome) {
-                // wards block the strike — no unit debuff
-                this.events.push({
-                    kind: 'impact',
-                    x: dome.x,
-                    y: 3,
-                    z: dome.z,
-                    ward: true,
-                    scar: false,
-                });
-                this.events.push({ kind: 'spellLightning', x: dome.x, y: 3, z: dome.z });
-            } else {
-                const splash = z.impactRadius ?? 0;
+            // Several bolts per tick at random spots (same density idea as acid rain).
+            const bolts = Math.max(1, z.dropsPerTick ?? 1);
+            const splash = z.impactRadius ?? 0;
+            for (let b = 0; b < bolts; b++) {
+                let ox = 0;
+                let oz = 0;
+                for (let tries = 0; tries < 16; tries++) {
+                    const cx = (z.rng() * 2 - 1) * z.radius;
+                    const cz = (z.rng() * 2 - 1) * z.radius;
+                    if (cx * cx + cz * cz <= z.radius * z.radius) {
+                        ox = cx;
+                        oz = cz;
+                        break;
+                    }
+                }
+                const px = z.x + ox;
+                const pz = z.z + oz;
+                const dome = this.actors.find(
+                    (d) =>
+                        d.alive &&
+                        d.unit.type.shield &&
+                        hypot(px - d.x, pz - d.z) <= d.unit.type.shield.radius,
+                );
+                if (dome) {
+                    this.events.push({
+                        kind: 'impact',
+                        x: dome.x,
+                        y: 3,
+                        z: dome.z,
+                        ward: true,
+                        scar: false,
+                    });
+                    this.events.push({ kind: 'spellLightning', x: dome.x, y: 3, z: dome.z });
+                    continue;
+                }
                 for (const a of this.actors) {
                     if (!a.alive || a.unit.type.extra || a.unit.type.structure) continue;
-                    if (hypot(a.x - target.x, a.z - target.z) > splash + a.radius) continue;
-                    // units under a ward at the splash edge are still protected
+                    if (hypot(a.x - px, a.z - pz) > splash + a.radius) continue;
                     const underWard = this.actors.some(
                         (d) =>
                             d.alive &&
@@ -3341,9 +3347,9 @@ export class BattleSim {
                 }
                 this.events.push({
                     kind: 'spellLightning',
-                    x: target.x,
-                    y: target.footY + 0.8,
-                    z: target.z,
+                    x: px,
+                    y: simGroundHeightAt(px, pz) + 0.8,
+                    z: pz,
                 });
             }
             return;

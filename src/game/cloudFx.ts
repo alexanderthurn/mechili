@@ -29,17 +29,19 @@ const POISON_SCALE = 22;
 const FADE_IN = 0.8;
 const FADE_OUT = 1.2;
 /** flash storm cloud: gather before bolt, linger after */
-const FLASH_CLOUD_FADE_IN = 0.28;
-const FLASH_CLOUD_HOLD = 0.55;
-const FLASH_CLOUD_FADE_OUT = 1.1;
+const FLASH_CLOUD_FADE_IN = 0.22;
+const FLASH_CLOUD_HOLD = 0.4;
+const FLASH_CLOUD_FADE_OUT = 0.85;
 /** bolt fires after the cloud has mostly faded in */
-const BOLT_AFTER_CLOUD = 0.32;
-const BOLT_LIFE = 0.32;
+const BOLT_AFTER_CLOUD = 0.26;
+const BOLT_LIFE = 0.28;
+/** sky-flicker bolts (no ground hit) — short additive flashes in the cloud */
+const SKY_FLASH_LIFE = 0.14;
 /** cylinder radius for the main flash column */
 const BOLT_RADIUS = 0.42;
 const BOLT_GLOW_RADIUS = 0.78;
 const FLASH_CLOUD_SCALE = 7.2;
-const FLASH_CLOUD_OPACITY = 0.42;
+const FLASH_CLOUD_OPACITY = 0.48;
 
 export type CloudCue = {
     kind: 'storm' | 'poison';
@@ -77,6 +79,7 @@ type Bolt = {
     mats: Array<MeshBasicMaterial | LineBasicMaterial>;
     until: number;
     baseOpacity: number[];
+    life: number;
 };
 
 type PendingBolt = {
@@ -87,6 +90,8 @@ type PendingBolt = {
     hitX: number;
     hitY: number;
     hitZ: number;
+    /** brief in-cloud flicker — no ground strike */
+    skyFlash?: boolean;
 };
 
 /**
@@ -124,10 +129,11 @@ export class CloudFx {
             const gy = groundHeightAt(x, z);
             const tipY = hitY ?? gy + 0.6;
             // cloud sits slightly offset so bolts don't all drop from the same point
-            const cloudX = x + (Math.random() - 0.5) * 5;
-            const cloudZ = z + (Math.random() - 0.5) * 5;
-            const cloudHeight = STORM_CLOUD_HEIGHT + (Math.random() - 0.5) * 4;
+            const cloudX = x + (Math.random() - 0.5) * 6;
+            const cloudZ = z + (Math.random() - 0.5) * 6;
+            const cloudHeight = STORM_CLOUD_HEIGHT + (Math.random() - 0.5) * 5;
             const cloudY = gy + cloudHeight;
+            const meshScale = FLASH_CLOUD_SCALE + Math.random() * 1.8;
 
             this.spawn({
                 kind: 'storm',
@@ -136,22 +142,61 @@ export class CloudFx {
                 radius: 28,
                 startAt: now + FLASH_CLOUD_FADE_IN,
                 endAt: now + FLASH_CLOUD_FADE_IN + FLASH_CLOUD_HOLD,
-                meshScale: FLASH_CLOUD_SCALE + Math.random() * 1.8,
+                meshScale,
                 cloudHeight,
                 maxOpacity: FLASH_CLOUD_OPACITY,
                 fadeIn: FLASH_CLOUD_FADE_IN,
                 fadeOut: FLASH_CLOUD_FADE_OUT,
             });
 
+            // Main ground strike
             this.pendingBolts.push({
                 at: now + BOLT_AFTER_CLOUD,
                 cloudX,
-                cloudY: cloudY - 1.5,
+                cloudY: cloudY - 1.2,
                 cloudZ,
                 hitX: x,
                 hitY: tipY,
                 hitZ: z,
             });
+
+            // Extra in-cloud / near-cloud flashes so the storm feels busier
+            const flickers = 2 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < flickers; i++) {
+                const fx = cloudX + (Math.random() - 0.5) * meshScale * 0.8;
+                const fz = cloudZ + (Math.random() - 0.5) * meshScale * 0.8;
+                const fy = cloudY - 0.5 - Math.random() * 4;
+                this.pendingBolts.push({
+                    at: now + BOLT_AFTER_CLOUD + 0.04 + i * (0.05 + Math.random() * 0.06),
+                    cloudX: fx + (Math.random() - 0.5) * 3,
+                    cloudY: cloudY + (Math.random() - 0.5) * 2,
+                    cloudZ: fz + (Math.random() - 0.5) * 3,
+                    hitX: fx,
+                    hitY: fy,
+                    hitZ: fz,
+                    skyFlash: true,
+                });
+            }
+
+            // Occasional second cloud nearby (extra thunderhead flash)
+            if (Math.random() < 0.55) {
+                const sx = cloudX + (Math.random() - 0.5) * 10;
+                const sz = cloudZ + (Math.random() - 0.5) * 10;
+                const sh = cloudHeight + (Math.random() - 0.5) * 3;
+                this.spawn({
+                    kind: 'storm',
+                    x: sx,
+                    z: sz,
+                    radius: 20,
+                    startAt: now + FLASH_CLOUD_FADE_IN + 0.08,
+                    endAt: now + FLASH_CLOUD_FADE_IN + FLASH_CLOUD_HOLD * 0.7,
+                    meshScale: meshScale * (0.55 + Math.random() * 0.25),
+                    cloudHeight: sh,
+                    maxOpacity: FLASH_CLOUD_OPACITY * 0.75,
+                    fadeIn: FLASH_CLOUD_FADE_IN * 0.8,
+                    fadeOut: FLASH_CLOUD_FADE_OUT * 0.75,
+                });
+            }
         });
     }
 
@@ -199,7 +244,7 @@ export class CloudFx {
             }
             setSpellOpacity(c.materials, opacity * maxOp);
             const bob = Math.sin(simElapsed * 1.4 + cue.x * 0.1) * 1.2;
-            const spin = simElapsed * (cue.kind === 'storm' ? 0.15 : 0.08);
+            const spin = simElapsed * (cue.kind === 'storm' ? 0.12 : 0.08);
             c.root.position.y = c.baseY + bob;
             c.root.rotation.y = spin;
             const breathe = 1 + 0.04 * Math.sin(simElapsed * 2.1);
@@ -222,7 +267,7 @@ export class CloudFx {
                 this.bolts.splice(i, 1);
                 continue;
             }
-            const fade = MathUtils.clamp(left / BOLT_LIFE, 0, 1);
+            const fade = MathUtils.clamp(left / b.life, 0, 1);
             for (let mi = 0; mi < b.mats.length; mi++) {
                 b.mats[mi]!.opacity = fade * (b.baseOpacity[mi] ?? 1);
             }
@@ -239,11 +284,12 @@ export class CloudFx {
 
     private fireBolt(p: PendingBolt, now: number): void {
         const pts: Vector3[] = [];
-        const segs = 6;
+        const segs = p.skyFlash ? 4 : 6;
+        const jitter = p.skyFlash ? 3.5 : 7;
         for (let i = 0; i <= segs; i++) {
             const t = i / segs;
-            const jx = (Math.random() - 0.5) * (i === 0 || i === segs ? 1.2 : 7);
-            const jz = (Math.random() - 0.5) * (i === 0 || i === segs ? 1.2 : 7);
+            const jx = (Math.random() - 0.5) * (i === 0 || i === segs ? 0.8 : jitter);
+            const jz = (Math.random() - 0.5) * (i === 0 || i === segs ? 0.8 : jitter);
             pts.push(
                 new Vector3(
                     p.cloudX + (p.hitX - p.cloudX) * t + jx,
@@ -260,22 +306,33 @@ export class CloudFx {
         const mats: Array<MeshBasicMaterial | LineBasicMaterial> = [];
         const baseOpacity: number[] = [];
 
-        this.addThickPath(root, mats, baseOpacity, pts, BOLT_GLOW_RADIUS, 0x6688ee, 0.45);
-        this.addThickPath(root, mats, baseOpacity, pts, BOLT_RADIUS, 0xddeeff, 0.95);
-        for (let s = 0; s < 2; s++) {
-            const ox = (Math.random() - 0.5) * 3.5;
-            const oz = (Math.random() - 0.5) * 3.5;
+        const coreR = p.skyFlash ? BOLT_RADIUS * 0.45 : BOLT_RADIUS;
+        const glowR = p.skyFlash ? BOLT_GLOW_RADIUS * 0.5 : BOLT_GLOW_RADIUS;
+        this.addThickPath(root, mats, baseOpacity, pts, glowR, 0x6688ee, p.skyFlash ? 0.35 : 0.45);
+        this.addThickPath(root, mats, baseOpacity, pts, coreR, 0xddeeff, p.skyFlash ? 0.75 : 0.95);
+        const sisters = p.skyFlash ? 1 + Math.floor(Math.random() * 2) : 3 + Math.floor(Math.random() * 2);
+        for (let s = 0; s < sisters; s++) {
+            const ox = (Math.random() - 0.5) * (p.skyFlash ? 2.2 : 4);
+            const oz = (Math.random() - 0.5) * (p.skyFlash ? 2.2 : 4);
             const sister = pts.map(
                 (pt) =>
                     new Vector3(
                         pt.x + ox + (Math.random() - 0.5) * 2.2,
-                        pt.y,
+                        pt.y + (p.skyFlash ? (Math.random() - 0.5) * 1.5 : 0),
                         pt.z + oz + (Math.random() - 0.5) * 2.2,
                     ),
             );
             sister[0]!.set(p.cloudX, p.cloudY, p.cloudZ);
             sister[sister.length - 1]!.set(p.hitX, p.hitY, p.hitZ);
-            this.addThickPath(root, mats, baseOpacity, sister, BOLT_RADIUS * 0.55, 0xaaccff, 0.7);
+            this.addThickPath(
+                root,
+                mats,
+                baseOpacity,
+                sister,
+                coreR * 0.5,
+                0xaaccff,
+                p.skyFlash ? 0.55 : 0.7,
+            );
         }
         const lineMat = new LineBasicMaterial({
             color: 0xffffff,
@@ -288,8 +345,9 @@ export class CloudFx {
         baseOpacity.push(1);
         root.add(new Line(new BufferGeometry().setFromPoints(pts), lineMat));
 
+        const life = p.skyFlash ? SKY_FLASH_LIFE : BOLT_LIFE;
         this.group.add(root);
-        this.bolts.push({ root, mats, until: now + BOLT_LIFE, baseOpacity });
+        this.bolts.push({ root, mats, until: now + life, baseOpacity, life });
     }
 
     private disposeBolt(b: Bolt): void {

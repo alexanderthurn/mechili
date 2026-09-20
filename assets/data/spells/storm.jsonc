@@ -12,9 +12,10 @@
         "zone": {
             "mode": "storm",
             "duration": 7,
-            "interval": 0.7,
+            "interval": 0.28,
             "damage": 0,
             "impactRadius": 7,
+            "dropsPerTick": 3,
         },
     },
     "marker": {
