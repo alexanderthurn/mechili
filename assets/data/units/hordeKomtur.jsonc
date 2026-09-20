@@ -54,6 +54,15 @@
                 "Speak.",
                 "I am ready.",
                 "Judgment waits.",
+                "Salza would approve!",
+                "Knight of the canopy!",
+                "Honor… and fangs.",
+                "Where is the foe?",
+                "Forest court open!",
+                "Kneel or skitter!",
+                "Banner of webs!",
+                "Steel and silk!",
+                "Verdict: doomed.",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [

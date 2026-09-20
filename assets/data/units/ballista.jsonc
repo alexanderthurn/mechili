@@ -62,6 +62,15 @@
                 "Ready.",
                 "Target?",
                 "Bolt loaded.",
+                "Vitruvius approved!",
+                "Archimedes envy!",
+                "Big toothpick!",
+                "Twang incoming!",
+                "Siege smile!",
+                "Bolt has a name: Bob.",
+                "Reload the drama!",
+                "Roman engineering!",
+                "Pointy democracy!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [

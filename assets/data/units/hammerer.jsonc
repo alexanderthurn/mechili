@@ -46,6 +46,12 @@
                 "Yes.",
                 "Strike.",
                 "I am ready.",
+                "Call me Thor!",
+                "John Henry who?",
+                "Anvil mood!",
+                "Clang first!",
+                "Where's my target?",
+                "Nail it!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [

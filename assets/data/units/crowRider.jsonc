@@ -41,6 +41,15 @@
                 "Caw?",
                 "Above!",
                 "We see you.",
+                "Huginn reporting!",
+                "Muninn forgot!",
+                "Nevermore… maybe!",
+                "Poe would approve!",
+                "Feathers first!",
+                "Air mail!",
+                "Where's Odin?",
+                "Cawtain speaking!",
+                "Perch secured!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [

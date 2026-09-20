@@ -54,6 +54,15 @@
                 "Yesyes?",
                 "Hungry!",
                 "We fly!",
+                "Call me Nos!",
+                "Dracula-lite!",
+                "Where's Mina?",
+                "Scree for dinner!",
+                "Upside down ready!",
+                "Night shift!",
+                "Blood? Optional!",
+                "Echo locate!",
+                "Cape optional!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [

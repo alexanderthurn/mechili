@@ -55,6 +55,15 @@
                 "Aligned.",
                 "Speak.",
                 "I am listening.",
+                "Newton nods!",
+                "Iris spectrum!",
+                "Rainbow with teeth!",
+                "Refraction ready!",
+                "Don't look into it!",
+                "Light lunch!",
+                "Beam me!",
+                "Prism pride!",
+                "Optics online!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [

@@ -39,6 +39,15 @@
                 "Speak.",
                 "Listening.",
                 "Magnificent.",
+                "Merlin called!",
+                "Prospero who?",
+                "Circe vibes!",
+                "Faust bargain?",
+                "Spellcheck complete!",
+                "Hat hair!",
+                "Where's my staff?",
+                "Abraca… almost!",
+                "Arcane and petty!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [

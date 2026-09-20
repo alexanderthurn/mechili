@@ -57,11 +57,19 @@
                 "Loaded!",
                 "What?",
                 "Fire when ready.",
+                "Arc it pretty!",
+                "Boom salad!",
+                "Whistle while it flies!",
+                "Lob with love!",
+                "Where's the fuse?",
+                "High angle hero!",
+                "Splash predicted!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [
                 "Not your crew.",
                 "Scram.",
+                "Don't stand there!",
                 "Hands off."
             ],
             // death yelps
