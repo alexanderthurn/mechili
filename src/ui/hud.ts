@@ -661,6 +661,9 @@ export class Hud {
     private uiHidden = false;
     private cinemaHint: HTMLDivElement | null = null;
     private cinemaHintTimer: number | null = null;
+    /** Live Shift+R clip timer — interval id while recording. */
+    private recordingHintInterval: number | null = null;
+    private recordingHintStartedAt = 0;
     /** Floating pulsating frames that point at tutorial UI targets. */
     private readonly tutCallouts: HTMLDivElement[] = [];
     private tutCalloutTargets: HTMLElement[] = [];
@@ -1121,9 +1124,13 @@ export class Hud {
         this.enemyInventoryEl = document.createElement('div');
         this.enemyInventoryEl.className = 'mechili-sidebar right';
         this.enemyInventoryEl.style.display = 'none';
+        this.bindCardSpellTips(this.enemyInventoryEl);
         this.enemyInventoryEl.addEventListener('click', (e) => {
             this.toggleSidebarCollapse(this.enemyInventoryEl, 'enemy', e);
         });
+        this.attachLongPress(this.enemyInventoryEl, '.inv-item[data-spell-tip]', (btn) =>
+            this.showRuneHoverTip(btn),
+        );
         // touch tooltip stand-ins: long-press a shop tile for its stats, a
         // tactic/item for its hint — and a PLACED tactic long-press resets it
         // (the touch version of the contextmenu handler above)
@@ -2224,7 +2231,13 @@ export class Hud {
     /** opponent items/tactics at phase-start intel (right sidebar, read-only) */
     setEnemyInventory(
         items: readonly { id?: string; icon: string; name: string }[],
-        tactics: readonly { icon: string; name: string }[] = [],
+        tactics: readonly {
+            id: string;
+            icon: string;
+            name: string;
+            badge?: number;
+            hint?: string;
+        }[] = [],
         options: { sellAbility?: boolean } = {},
     ): void {
         const key = JSON.stringify({ items, tactics, options });
@@ -2234,6 +2247,7 @@ export class Hud {
         const visible = items.length > 0 || tactics.length > 0 || !!options.sellAbility;
         this.enemyInventoryEl.style.display = visible ? '' : 'none';
         const total = items.length + tactics.length + (options.sellAbility ? 1 : 0);
+        this.enemyInventoryEl.classList.toggle('compact', total > 5);
         const itemHtml = items.length
             ? this.invSectionTitle(
                   t('hud:enemyItems', { items: DISPLAY.items.toLowerCase() }),
@@ -2242,11 +2256,17 @@ export class Hud {
               ) +
               items
                   .map((i) => {
+                      const def = i.id ? this.types.rune(i.id) : undefined;
+                      const tip = def
+                          ? ` data-spell-tip="1" data-ttitle="${escapeAttr(itemName(i.id!, def.name))}" ` +
+                            `data-tdesc="${escapeAttr(itemDescription(i.id!, def.description, def.mods))}" ` +
+                            `data-ticon="${escapeAttr(def.icon)}"`
+                          : ` title="${escapeAttr(i.name)}"`;
                       const lvl = this.runeLevelMark(i.id);
                       return (
                           `<span class="inv-item readonly${lvl.badge ? ' rune-leveled' : ''}" ` +
                           (lvl.borderStyle ? `style="${lvl.borderStyle}" ` : '') +
-                          `title="${i.name}">` +
+                          `${tip}>` +
                           `${iconHtml(i.icon)}${lvl.badge}</span>`
                       );
                   })
@@ -2259,16 +2279,34 @@ export class Hud {
                   total,
               ) +
               tactics
-                  .map(
-                      (tac) =>
-                          `<span class="inv-item readonly tactic" title="${tac.name}">` +
-                          `${iconHtml(tac.icon)}</span>`,
-                  )
+                  .map((tac) => {
+                      const def = this.types.tactic(tac.id);
+                      const waitRounds = typeof tac.badge === 'number' ? tac.badge : null;
+                      const tip = def
+                          ? ` data-spell-tip="1" data-ttitle="${escapeAttr(tacticName(tac.id, def.name))}" ` +
+                            `data-tdesc="${escapeAttr(tac.hint ?? tacticDescription(tac.id, def.description))}" ` +
+                            `data-ticon="${escapeAttr(def.icon)}"` +
+                            (def.strongholdCost === undefined
+                                ? ''
+                                : ` data-tcost="${def.strongholdCost}" data-tcostlabel="${escapeAttr(t('menu:stronghold'))}"`)
+                          : ` title="${escapeAttr(tac.hint ?? tac.name)}"`;
+                      const badge =
+                          waitRounds !== null
+                              ? `<span class="inv-cd wait">${waitRounds}</span>`
+                              : '';
+                      return (
+                          `<span class="inv-item readonly tactic${waitRounds !== null ? ' cooling' : ''}"${tip}>` +
+                          `${iconHtml(tac.icon)}${badge}</span>`
+                      );
+                  })
                   .join('')
             : '';
         const abilityHtml = options.sellAbility
             ? this.invSectionTitle(t('hud:enemyAbilities'), 1, total) +
-              `<span class="inv-item readonly" title="${escapeAttr(t('hud:sellPacksUnlocked'))}">` +
+              `<span class="inv-item readonly" data-spell-tip="1" ` +
+              `data-ttitle="${escapeAttr(t('hud:sellPacksUnlocked'))}" ` +
+              `data-tdesc="${escapeAttr(t('hud:sellPacksUnlocked'))}" ` +
+              `data-ticon="ability-selling">` +
               `${iconHtml('ability-selling')}</span>`
             : '';
         this.enemyInventoryEl.innerHTML = itemHtml + tacticHtml + abilityHtml;
@@ -4970,7 +5008,7 @@ export class Hud {
         }
         if (hidden && showHint) {
             this.ensureCinemaHint().style.display = '';
-        } else if (this.cinemaHint) {
+        } else if (this.cinemaHint && this.recordingHintInterval === null) {
             if (this.cinemaHintTimer !== null) {
                 window.clearTimeout(this.cinemaHintTimer);
                 this.cinemaHintTimer = null;
@@ -5002,6 +5040,8 @@ export class Hud {
      * which silently swallowed those messages.
      */
     flashCinemaHint(text: string, durationMs = 2600): void {
+        // Live recording timer owns the chip — don't steal / auto-hide it.
+        if (this.recordingHintInterval !== null) return;
         const hint = this.ensureCinemaHint();
         hint.style.display = '';
         hint.textContent = text;
@@ -5011,6 +5051,47 @@ export class Hud {
             this.cinemaHint?.classList.remove('is-visible');
             this.cinemaHintTimer = null;
         }, durationMs);
+    }
+
+    /** Sticky chip: "recording started", then a live `m:ss` timer until {@link endRecordingHint}. */
+    beginRecordingHint(): void {
+        this.clearRecordingHintInterval();
+        if (this.cinemaHintTimer !== null) {
+            window.clearTimeout(this.cinemaHintTimer);
+            this.cinemaHintTimer = null;
+        }
+        this.recordingHintStartedAt = performance.now();
+        const hint = this.ensureCinemaHint();
+        hint.style.display = '';
+        hint.classList.add('is-visible');
+        hint.textContent = 'recording started';
+        this.recordingHintInterval = window.setInterval(() => this.tickRecordingHint(), 250);
+    }
+
+    /** Stop the live timer and optionally flash "recording saved". */
+    endRecordingHint(saved: boolean): void {
+        this.clearRecordingHintInterval();
+        if (saved) this.flashCinemaHint('recording saved', 2800);
+        else if (this.cinemaHint) {
+            this.cinemaHint.classList.remove('is-visible');
+        }
+    }
+
+    private tickRecordingHint(): void {
+        const hint = this.cinemaHint;
+        if (!hint) return;
+        const elapsedMs = performance.now() - this.recordingHintStartedAt;
+        const sec = Math.floor(elapsedMs / 1000);
+        const t = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+        // Keep the start label briefly, then just the timer.
+        hint.textContent = elapsedMs < 1400 ? `recording started  ${t}` : t;
+    }
+
+    private clearRecordingHintInterval(): void {
+        if (this.recordingHintInterval !== null) {
+            window.clearInterval(this.recordingHintInterval);
+            this.recordingHintInterval = null;
+        }
     }
 
     /** removes every HUD element from the page */
@@ -5026,6 +5107,7 @@ export class Hud {
         this.unequipDrag = null;
         this.itemGhost?.remove();
         this.itemGhost = null;
+        this.clearRecordingHintInterval();
         if (this.cinemaHintTimer !== null) {
             window.clearTimeout(this.cinemaHintTimer);
             this.cinemaHintTimer = null;

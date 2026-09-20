@@ -5166,10 +5166,66 @@ ${chatFloatStyles(u, pc, ec)}
     border-left: none;
     border-radius: 0 4px 4px 0;
 }
+/* taller shop/money stack than the left detail panel — wrap sooner */
 .mechili-sidebar.right {
     right: env(safe-area-inset-right);
     border-right: none;
     border-radius: 4px 0 0 4px;
+    max-height: min(48vh, calc(100vh - 440px));
+}
+/* enemy intel: half-size only when the bag is long (>5 tiles) */
+.mechili-sidebar.right.compact {
+    gap: 3px;
+    padding: 5px 4px;
+}
+.mechili-sidebar.right.compact .inv-title {
+    width: 24px;
+    font-size: 7px;
+    letter-spacing: 0.4px;
+    padding: 1px 0;
+}
+.mechili-sidebar.right.compact .inv-title-meta {
+    font-size: 7px;
+    gap: 2px;
+}
+.mechili-sidebar.right.compact .inv-title .inv-chevron {
+    border-left-width: 2.5px;
+    border-right-width: 2.5px;
+    border-top-width: 3.5px;
+}
+.mechili-sidebar.right.compact .inv-item {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+    border-width: 1px;
+}
+.mechili-sidebar.right.compact .inv-item .m-icon {
+    width: 16px;
+    height: 16px;
+}
+.mechili-sidebar.right.compact .inv-item:not(.tactic) .m-icon {
+    width: 100%;
+    height: 100%;
+}
+.mechili-sidebar.right.compact .inv-item .inv-cd {
+    right: 0;
+    bottom: 0;
+    min-width: 9px;
+    padding: 0 2px;
+    font-size: 7px;
+    line-height: 9px;
+    border-radius: 2px;
+}
+.mechili-sidebar.right.compact .inv-item .rune-lvl {
+    right: -5px;
+    bottom: -5px;
+    width: 14px;
+    height: 14px;
+    font-size: 9px;
+    border-width: 1.5px;
+}
+.mechili-sidebar.right.compact .inv-item:has(.inv-cd.cancel) {
+    padding-bottom: 8px;
 }
 .mechili-sidebar.battle,
 .mechili-sidebar.left.waiting {
@@ -5393,7 +5449,8 @@ ${chatFloatStyles(u, pc, ec)}
     opacity: 0.72;
 }
 .mechili-sidebar .inv-item.placed .inv-cd.wait { color: ${u.brassLight}; }
-.mechili-sidebar .inv-item.readonly { cursor: default; pointer-events: none; }
+.mechili-sidebar .inv-item.readonly { cursor: default; }
+.mechili-sidebar .inv-item.readonly:not([data-spell-tip]) { pointer-events: none; }
 .inv-drag {
     position: fixed;
     width: 40px;

@@ -385,10 +385,14 @@ export class CameraControls {
             this.pressed.clear();
             return;
         }
-        // rotation
+        // rotation — skip while Shift is held so Shift+E (timed clip) / other
+        // Shift+letter debug chords don't also spin the camera
         let spin = 0;
-        if (this.pressed.has('KeyQ')) spin += 1;
-        if (this.pressed.has('KeyE')) spin -= 1;
+        const shiftHeld = this.pressed.has('ShiftLeft') || this.pressed.has('ShiftRight');
+        if (!shiftHeld) {
+            if (this.pressed.has('KeyQ')) spin += 1;
+            if (this.pressed.has('KeyE')) spin -= 1;
+        }
         if (spin !== 0) this.rig.rotate(spin * ROTATE_SPEED * dtSeconds);
 
         // + / − zoom toward the pointer (or the surface center)

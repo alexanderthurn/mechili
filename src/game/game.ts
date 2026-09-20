@@ -1018,6 +1018,11 @@ export class Game {
             this.cycleMaterialDebug();
             return;
         }
+        if (e.code === 'KeyE' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            // Shift+E = save last ~6s from the rolling replay buffer
+            void this.saveReplayClip();
+            return;
+        }
         if (e.code === 'KeyO' && e.shiftKey) {
             // Shift+O cycles ambient occlusion: off → medium → high → ultra
             // (not Shift+A — A is camera strafe)
@@ -1055,14 +1060,11 @@ export class Game {
             this.toggleUiHidden();
             return;
         }
-        // Shift+R = start clip · Shift+S = stop & save to Downloads
+        // Shift+R = toggle clip capture (start ↔ stop & save to Downloads)
         // (bare R still rotates packs; cinema Shift+C for clean frames)
         if (e.code === 'KeyR' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            this.startVideoClip();
-            return;
-        }
-        if (e.code === 'KeyS' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            void this.stopVideoClip();
+            if (videoRecorder.recording) void this.stopVideoClip();
+            else this.startVideoClip();
             return;
         }
 
@@ -1101,37 +1103,32 @@ export class Game {
         this.togglePauseMenu();
     };
 
-    /** Shift+R — capture Three canvas + game audio (3D only; use Shift+C for cinema). */
+    /** Shift+R — start clip, or stop & save if already recording. */
     private startVideoClip(): void {
-        if (videoRecorder.recording) {
-            this.hud.flashCinemaHint('Already recording — Shift+S to save', 1800);
-            return;
-        }
+        // Manual take pauses the rolling buffer until stop.
         const result = videoRecorder.start(this.threeCanvas);
         if (!result.ok) {
-            const msg =
-                result.reason === 'busy'
-                    ? 'Already recording — Shift+S to save'
-                    : 'Recording not supported here';
-            this.hud.flashCinemaHint(msg, 2200);
+            this.hud.flashCinemaHint('Recording not supported here', 2200);
             return;
         }
-        this.hud.flashCinemaHint('● Recording — Shift+S to save', 2800);
+        this.hud.beginRecordingHint();
     }
 
-    /** Shift+S — stop and download into ~/Downloads (Mac default). */
+    /** Shift+E — download the last ~6 seconds from the silent replay buffer. */
+    private async saveReplayClip(): Promise<void> {
+        if (videoRecorder.recording) {
+            // Don't yank chunks out from under a manual take.
+            this.hud.flashCinemaHint('Stop recording first', 1800);
+            return;
+        }
+        const result = await videoRecorder.saveRecent(6);
+        this.hud.flashCinemaHint(result ? 'recording saved' : 'nothing to save', 2800);
+    }
+
+    /** Shift+R (while recording) — stop and download into ~/Downloads. */
     private async stopVideoClip(): Promise<void> {
-        if (!videoRecorder.recording) {
-            this.hud.flashCinemaHint('Not recording — Shift+R to start', 1800);
-            return;
-        }
-        this.hud.flashCinemaHint('Saving clip…', 1200);
         const result = await videoRecorder.stop();
-        if (!result) {
-            this.hud.flashCinemaHint('Nothing to save', 1800);
-            return;
-        }
-        this.hud.flashCinemaHint(`Saved ${result.filename}`, 3200);
+        this.hud.endRecordingHint(!!result);
     }
 
     /** Hide all match UI (HUD, debug, HP bars) for clean viewing / screenshots.
@@ -2495,6 +2492,8 @@ export class Game {
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', this.onWindowResize);
+        // Silent last-6s replay buffer for Shift+E (paused during Shift+R takes).
+        videoRecorder.startBuffer(this.threeCanvas);
         // Compile remaining cold programs (ground + point-light variants, weather,
         // flame tongues) before the first tick — hides the hitch at match start
         // rather than mid-battle. Boot already warmed the shared context when possible.
@@ -3021,8 +3020,9 @@ export class Game {
     destroy(opts?: { keepStarSession?: boolean }): void {
         if (this.disposed) return;
         this.disposed = true;
-        // Drop an unfinished clip — only Shift+S should land a file in Downloads.
-        if (videoRecorder.recording) videoRecorder.cancel();
+        // Drop an unfinished manual clip; always tear down the rolling buffer.
+        if (videoRecorder.recording) this.hud.endRecordingHint(false);
+        videoRecorder.stopAll();
         // Audio is a process-wide singleton — stop battle beds here or they
         // keep looping after quit-to-menu (pause freezes sync, destroy must cut).
         audio.stopBeamLoops();
@@ -7899,7 +7899,7 @@ export class Game {
 
     private enemyInventoryView(): {
         items: { id: string; icon: string; name: string }[];
-        tactics: { icon: string; name: string }[];
+        tactics: { id: string; icon: string; name: string; badge?: number; hint?: string }[];
         sellAbility: boolean;
     } {
         if (this.phase !== 'build') {
@@ -7907,7 +7907,9 @@ export class Game {
         }
         const live = this.revealEnemyDeployIntel();
         const items = live ? this.itemsForTeam('enemy') : (this.enemyIntelSnapshot?.items ?? []);
-        const tactics = live ? this.tacticsForTeam('enemy') : (this.enemyIntelSnapshot?.tactics ?? []);
+        const tacticIds = live
+            ? this.tacticsForTeam('enemy')
+            : (this.enemyIntelSnapshot?.tactics ?? []);
         const sellAbility = live
             ? this.sellAbilityOwnedForTeam('enemy')
             : (this.enemyIntelSnapshot?.sellAbilityOwned ?? false);
@@ -7919,18 +7921,102 @@ export class Game {
                 name: item ? `${item.name} — ${item.description}` : id,
             };
         };
-        const mapTactic = (id: string) => {
-            const tactic = this.types.tactic(id);
-            return {
-                icon: tactic?.icon ?? '?',
-                name: tactic ? `${tactic.name} — ${tactic.description}` : id,
-            };
-        };
         return {
             items: this.sortedItemIndices(items).map((i) => mapItem(items[i]!)),
-            tactics: tactics.map(mapTactic),
+            tactics: this.enemyTacticsStripView(tacticIds, live),
             sellAbility,
         };
+    }
+
+    /**
+     * Enemy right-strip charges: bag ids plus cooling badges (past-round CDs
+     * always; this-round spends only after deploy intel reveals).
+     */
+    private enemyTacticsStripView(
+        tacticIds: readonly string[],
+        revealThisRound: boolean,
+    ): { id: string; icon: string; name: string; badge?: number; hint?: string }[] {
+        const enemySeats = seatIdsOf(this.seats, 'enemy');
+        const out: { id: string; icon: string; name: string; badge?: number; hint?: string }[] = [];
+        for (const tactic of this.types.tactics) {
+            const inventory = tacticIds.filter((id) => id === tactic.id).length;
+            if (inventory < 1) continue;
+            const cooling: { badge: number; hint: string }[] = [];
+            if (usesSpellPlacement(tactic)) {
+                for (const s of this.spellStamps) {
+                    if (!enemySeats.includes(s.seat) || s.tacticId !== tactic.id) continue;
+                    if (s.placedRound > this.round) continue;
+                    if (s.placedRound === this.round && !revealThisRound) continue;
+                    if (s.placedRound < this.round - tactic.cooldownRounds) continue;
+                    const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
+                    const name = tacticName(tactic.id, tactic.name);
+                    const ready = t('hud:tacticReadyAgain', { n: readyIn });
+                    cooling.push({
+                        badge: readyIn,
+                        hint:
+                            s.placedRound === this.round
+                                ? t('hud:tacticUsedThisRound', { name, ready })
+                                : t('hud:tacticCoolingDown', { name, ready }),
+                    });
+                }
+            } else if (tactic.id === OIL_SPILL_ID) {
+                // oil stamps wipe each round — CD lives on the action log
+                for (const seat of enemySeats) {
+                    for (const r of this.dispatcher
+                        .tacticUseRounds(seat, OIL_SPILL_ID, this.round - tactic.cooldownRounds)
+                        .filter((round) => round < this.round || revealThisRound)) {
+                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
+                        const name = tacticName(tactic.id, tactic.name);
+                        const ready = t('hud:tacticReadyAgain', { n: readyIn });
+                        cooling.push({
+                            badge: readyIn,
+                            hint:
+                                r === this.round
+                                    ? t('hud:tacticUsedThisRound', { name, ready })
+                                    : t('hud:tacticCoolingDown', { name, ready }),
+                        });
+                    }
+                }
+            } else {
+                for (const seat of enemySeats) {
+                    for (const r of this.dispatcher.tacticUseRounds(
+                        seat,
+                        tactic.id,
+                        this.round - tactic.cooldownRounds,
+                    )) {
+                        if (r >= this.round && !revealThisRound) continue;
+                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
+                        const name = tacticName(tactic.id, tactic.name);
+                        const ready = t('hud:tacticReadyAgain', { n: readyIn });
+                        cooling.push({
+                            badge: readyIn,
+                            hint:
+                                r === this.round
+                                    ? t('hud:tacticUsedThisRound', { name, ready })
+                                    : t('hud:tacticCoolingDown', { name, ready }),
+                        });
+                    }
+                }
+            }
+            const readyCount = Math.max(0, inventory - cooling.length);
+            for (let i = 0; i < readyCount; i++) {
+                out.push({
+                    id: tactic.id,
+                    icon: tactic.icon,
+                    name: tactic.name,
+                });
+            }
+            for (const c of cooling) {
+                out.push({
+                    id: tactic.id,
+                    icon: tactic.icon,
+                    name: tactic.name,
+                    badge: c.badge,
+                    hint: c.hint,
+                });
+            }
+        }
+        return out;
     }
 
     /** enemy forge tray ids visible to the local player (live or intel) */
