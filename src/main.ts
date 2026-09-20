@@ -6401,6 +6401,9 @@ if (bulkVerify) {
     // a specific match without waiting on a backend redeploy.
     const spectateParam = new URLSearchParams(location.search).get('spectate');
     if (spectateParam) startSpectateGame(spectateParam);
+    // Narrator welcome only on a clean title-screen boot — not resume,
+    // reconnect, replay, editor reopen, or deep-link join/spectate.
+    if (!roomParam && !spectateParam) audio.playNarrationWelcome();
 }
 
 // Keep the main-menu gamepad cursor moving while the menu is visible.

@@ -2126,6 +2126,13 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.8,
     },
+    /** Cold-boot main-menu greeting (narrator voice). */
+    narration_welcome: {
+        paths: ['audio/narration_welcome.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     ui_confirm: {
         paths: [
             'audio/ui_confirm_1.ogg',
@@ -2460,6 +2467,7 @@ void [
     assetUrl('audio/ui_page_2.ogg'),
     assetUrl('audio/ui_page_3.ogg'),
     assetUrl('audio/ui_page_4.ogg'),
+    assetUrl('audio/narration_welcome.ogg'),
     assetUrl('audio/ui_confirm_1.ogg'),
     assetUrl('audio/ui_confirm_2.ogg'),
     assetUrl('audio/ui_deny_1.ogg'),
@@ -3057,6 +3065,22 @@ class AudioBus {
     /** Soft menu hover tick (fine pointer only — callers gate that). */
     playUiHover(): void {
         this.play('ui_hover');
+    }
+
+    /**
+     * Cold-boot main-menu greeting. Gated by voicesEnabled. Call only when
+     * landing on the title screen — not on match resume / reconnect.
+     */
+    playNarrationWelcome(): void {
+        if (!this.voicesOn()) return;
+        const cueId = 'narration_welcome';
+        const cue = CUES[cueId];
+        if (!cue) return;
+        if (!cue.paths.every((p) => isBaseAsset(p))) return;
+        if (!this.unlocked) this.unlock();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
     }
 
     /** True when spoken unit/commander VO may play (prefs toggle). */
