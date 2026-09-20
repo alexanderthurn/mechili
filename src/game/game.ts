@@ -3461,7 +3461,6 @@ export class Game {
         // watching: keep whatever playback speed the viewer picked instead
         // of snapping back to 1x every round — nothing live to reset for
         if (!this.watching) this.resetSpeed();
-        const completedRound = this.round;
         this.round++;
         const atmosphere = this.rules.fixedAtmosphere;
         if (!atmosphere) this.weather?.onRound(this.round, this.hydrating);
@@ -3480,8 +3479,7 @@ export class Game {
         this.phase = 'build';
         // Gong is attack-phase only — deploy / match reload stay silent
         if (!this.hydrating) this.syncMatchMusic('deploy');
-        // Win taunt after souls, as the next deploy opens (not at battle end).
-        if (!this.hydrating && completedRound >= 1) this.playRoundVictorBark(completedRound);
+        // Round-win celebrate is armed in {@link announceBattleEnd} (leads this by a short beat).
         // The Year: every round is sudden death from full side HP — whatever
         // the last battle left (a won round restores it already) never carries
         if (this.settings.climb) this.restoreClimbHp();
@@ -4512,17 +4510,19 @@ export class Game {
     }
 
     /**
-     * After souls / when the next deploy starts: play a proud win bark from one
+     * After souls / just before the next deploy: play a proud win bark from one
      * commander on the winning side (random seat in 2v2). Audible for everyone —
      * including the losing side. No-op on draws, test battles, hydrate, or before VO ships.
+     * Armed from {@link announceBattleEnd} so the portrait leads deploy by a short beat.
      * @param completedRound battle round that just finished (before {@link round} increments)
+     * @returns true when a celebrate was started (caller may lead deploy by a beat)
      */
-    private playRoundVictorBark(completedRound: number): void {
-        if (this.hydrating || this.editorMode === 'test' || completedRound < 1) return;
+    private playRoundVictorBark(completedRound: number): boolean {
+        if (this.hydrating || this.editorMode === 'test' || completedRound < 1) return false;
         let winningTeam: Team | null = null;
         if (this.settings.climb) {
             const last = this.yearRounds[this.yearRounds.length - 1];
-            if (!last) return;
+            if (!last) return false;
             winningTeam =
                 last === 'attacker'
                     ? this.yearAttackerTeam()
@@ -4534,13 +4534,13 @@ export class Game {
         } else if (this.enemyHp > this.playerHp) {
             winningTeam = 'enemy';
         }
-        if (!winningTeam) return;
+        if (!winningTeam) return false;
 
         const seats = seatIdsOf(this.seats, winningTeam).filter((seat) => {
             const card = this.starterCardOfSeat(seat);
             return !!card && card.id !== 'none' && card.speciality !== 'tutorial';
         });
-        if (seats.length === 0) return;
+        if (seats.length === 0) return false;
         // Deterministic across clients (same HP + round) so 2v2 hears/sees the same bark.
         const seed =
             ((completedRound * 10007) ^ (this.playerHp * 31) ^ (this.enemyHp * 17) ^ 0x9e3779b9) >>>
@@ -4548,6 +4548,7 @@ export class Game {
         const seat = seats[seed % seats.length]!;
         const card = this.starterCardOfSeat(seat)!;
         this.hud.playVictorCelebrate(seat, () => audio.playCommanderWin(card.id));
+        return true;
     }
 
     /** speciality names under each commander chip — enemy picks stay hidden
@@ -10191,6 +10192,16 @@ export class Game {
      *  sync-barrier check needs the hash before the sim is torn down. */
     private announceBattleEnd(): void {
         this.battleAnnounced = true;
+        const completedRound = this.round;
+        // Portrait + win bark lead the deploy UI by a short beat (tune here).
+        const ROUND_VICTOR_LEAD_MS = 300;
+        if (this.playRoundVictorBark(completedRound)) {
+            window.setTimeout(() => {
+                if (this.disposed || this.matchOver) return;
+                this.startBuildPhase();
+            }, ROUND_VICTOR_LEAD_MS);
+            return;
+        }
         this.startBuildPhase();
     }
 
