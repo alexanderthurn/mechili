@@ -652,7 +652,7 @@ export type SimEvent =
           unitTypeId?: string;
       }
     /** Melee swing windup / instant swing start (render SFX). */
-    | { kind: 'meleeSwing'; x: number; y: number; z: number }
+    | { kind: 'meleeSwing'; x: number; y: number; z: number; unitTypeId?: string }
     /** Arrow / ballista shaft planted at a hit (render-only stuck-bolt pool).
      *  `attachIndex` = actor whose mesh the shaft follows (tip/fall/walk). */
     | {
@@ -1990,6 +1990,7 @@ export class BattleSim {
             x: a.x,
             y: a.footY + a.unit.type.meshScale * 0.8,
             z: a.z,
+            unitTypeId: a.unit.type.id,
         });
         const delay = a.unit.type.meleeHitDelay ?? 0;
         if (delay <= 0) {

@@ -10,6 +10,7 @@ import type { Projectile, SimEvent } from './sim';
 import { onPrefsChange, prefs } from './prefs';
 import { beamMuzzleWorld } from './conversionFx';
 import type { Actor } from './sim';
+import { BASE_TYPES } from './units';
 
 export type AudioGroupId = 'sfx' | 'music' | 'ui';
 
@@ -49,6 +50,64 @@ const UNIT_HURT_COOLDOWN_MS = 450;
 const UNIT_VOICE_ALIAS: Record<string, string> = {
     'stronghold-archer': 'archer',
 };
+
+/**
+ * Play-time spatial overrides for pack-scale combat (small units).
+ * Matches death_unit vs death_unit_big: quieter + nearer.
+ */
+type CombatSpatialOpts = {
+    gainMul?: number;
+    refDistance?: number;
+    maxDistance?: number;
+    rolloff?: number;
+};
+
+const SMALL_COMBAT_SPATIAL: CombatSpatialOpts = {
+    gainMul: 0.55,
+    refDistance: 6,
+    maxDistance: 18,
+    rolloff: 1.8,
+};
+
+/** Close-range swings from pack units — quieter / nearer than ranged fire. */
+const SMALL_MELEE_SPATIAL: CombatSpatialOpts = {
+    gainMul: 0.4,
+    refDistance: 5,
+    maxDistance: 16,
+    rolloff: 2.0,
+};
+
+/**
+ * Attack / muzzle beds — louder and farther than default battlefield SFX.
+ * Death / hit stay on the tighter default (or SMALL_COMBAT for packs).
+ */
+const ATTACK_REF = 16;
+const ATTACK_MAX = 48;
+const ATTACK_ROLLOFF = 1.35;
+
+/** Same rule as death `big`: collisionRadius ≥ 2 (or structure). */
+function isBigUnitAudio(typeId: string | undefined): boolean {
+    if (!typeId) return false;
+    const id = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+    const t = BASE_TYPES.byId(id);
+    if (!t) return false;
+    return t.collisionRadius >= 2 || !!t.structure;
+}
+
+/**
+ * Hit / hurt attenuations for pack-scale victims (not ranged attacks).
+ * Unknown / missing typeId → small.
+ */
+function hitSpatialOpts(typeId: string | undefined): CombatSpatialOpts | undefined {
+    if (isBigUnitAudio(typeId)) return undefined;
+    return SMALL_COMBAT_SPATIAL;
+}
+
+/** Melee swing from a small attacker — packs of dwarves/goblins stay near-field. */
+function meleeSwingOpts(typeId: string | undefined): CombatSpatialOpts | undefined {
+    if (isBigUnitAudio(typeId)) return undefined;
+    return SMALL_MELEE_SPATIAL;
+}
 /** Structure type id → select SFX cue (stronghold uses commander VO instead). */
 const BUILDING_SELECT_CUE: Record<string, string> = {
     'command-tower': 'select_command_tower',
@@ -73,12 +132,31 @@ const CUES: Record<string, CueDef> = {
             'audio/archer_shot_4.ogg',
         ],
         group: 'sfx',
-        maxVoices: 10,
+        maxVoices: 12,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        refDistance: ATTACK_REF,
+        maxDistance: ATTACK_MAX,
+        rolloff: ATTACK_ROLLOFF,
+        gain: 0.9,
+    },
+    /**
+     * Goblin volleys — same clips as archer_shot, quieter so packs don't drown
+     * the board (goblins shoot smaller arrows, many at once).
+     */
+    goblin_shot: {
+        paths: [
+            'audio/archer_shot_1.ogg',
+            'audio/archer_shot_2.ogg',
+            'audio/archer_shot_3.ogg',
+            'audio/archer_shot_4.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 14,
+        spatial: true,
+        refDistance: 12,
+        maxDistance: 36,
+        rolloff: 1.5,
+        gain: 0.52,
     },
     ballista_shot: {
         paths: [
@@ -87,12 +165,12 @@ const CUES: Record<string, CueDef> = {
             'audio/ballista_shot_3.ogg',
         ],
         group: 'sfx',
-        maxVoices: 6,
+        maxVoices: 8,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        refDistance: ATTACK_REF + 4,
+        maxDistance: ATTACK_MAX + 8,
+        rolloff: 1.2,
+        gain: 1.15,
     },
     bolt_shot: {
         paths: [
@@ -101,12 +179,12 @@ const CUES: Record<string, CueDef> = {
             'audio/bolt_shot_3.ogg',
         ],
         group: 'sfx',
-        maxVoices: 8,
+        maxVoices: 10,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        refDistance: ATTACK_REF,
+        maxDistance: ATTACK_MAX,
+        rolloff: ATTACK_ROLLOFF,
+        gain: 0.85,
     },
     card_pick: {
         paths: [
@@ -918,10 +996,11 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        // Quieter + nearer than big deaths — packs of goblins/dwarves.
+        refDistance: 6,
+        maxDistance: 18,
+        rolloff: 1.8,
+        gain: 0.32,
     },
     death_unit_big: {
         paths: [
@@ -934,7 +1013,7 @@ const CUES: Record<string, CueDef> = {
         refDistance: SPATIAL_REF,
         maxDistance: SPATIAL_MAX,
         rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        gain: 0.62,
     },
     defeat: {
         paths: [
@@ -1037,10 +1116,10 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        refDistance: ATTACK_REF,
+        maxDistance: ATTACK_MAX,
+        rolloff: ATTACK_ROLLOFF,
+        gain: 0.95,
     },
     hazard_drip: {
         paths: [
@@ -1081,12 +1160,12 @@ const CUES: Record<string, CueDef> = {
             'audio/impact_flesh_3.ogg',
         ],
         group: 'sfx',
-        maxVoices: 14,
+        maxVoices: 10,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        refDistance: 6,
+        maxDistance: 20,
+        rolloff: 1.8,
+        gain: 0.38,
     },
     impact_ground: {
         paths: [
@@ -1155,12 +1234,12 @@ const CUES: Record<string, CueDef> = {
             'audio/melee_hit_3.ogg',
         ],
         group: 'sfx',
-        maxVoices: 10,
+        maxVoices: 8,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        refDistance: 6,
+        maxDistance: 20,
+        rolloff: 1.8,
+        gain: 0.38,
     },
     melee_swing: {
         paths: [
@@ -1169,12 +1248,13 @@ const CUES: Record<string, CueDef> = {
             'audio/melee_swing_3.ogg',
         ],
         group: 'sfx',
-        maxVoices: 10,
+        maxVoices: 12,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        // Base for big melee; small attackers get SMALL_MELEE_SPATIAL on play.
+        refDistance: 10,
+        maxDistance: 28,
+        rolloff: 1.6,
+        gain: 0.62,
     },
     /** Siege mortar tube fire — not the generic stone_throw (crow/hammerer). */
     mortar_shot: {
@@ -1186,10 +1266,10 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.7,
+        refDistance: ATTACK_REF,
+        maxDistance: ATTACK_MAX,
+        rolloff: ATTACK_ROLLOFF,
+        gain: 1.0,
     },
     /** Default match bed — fallback when no seasonal phase track exists. */
     music_battle: {
@@ -1318,12 +1398,12 @@ const CUES: Record<string, CueDef> = {
             'audio/orb_shot_3.ogg',
         ],
         group: 'sfx',
-        maxVoices: 8,
+        maxVoices: 10,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        refDistance: ATTACK_REF,
+        maxDistance: ATTACK_MAX,
+        rolloff: ATTACK_ROLLOFF,
+        gain: 0.85,
     },
     phase_battle: {
         paths: [
@@ -1376,10 +1456,10 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        refDistance: ATTACK_REF,
+        maxDistance: ATTACK_MAX,
+        rolloff: ATTACK_ROLLOFF,
+        gain: 0.95,
     },
     spell_acid_spill: {
         paths: [
@@ -1499,12 +1579,12 @@ const CUES: Record<string, CueDef> = {
             'audio/stone_throw_3.ogg',
         ],
         group: 'sfx',
-        maxVoices: 8,
+        maxVoices: 10,
         spatial: true,
-        refDistance: SPATIAL_REF,
-        maxDistance: SPATIAL_MAX,
-        rolloff: SPATIAL_ROLLOFF,
-        gain: 0.55,
+        refDistance: ATTACK_REF,
+        maxDistance: ATTACK_MAX,
+        rolloff: ATTACK_ROLLOFF,
+        gain: 0.85,
     },
     /** Seamless airplane-air whoosh — proximity bed (same family as fire/acid). */
     stone_whistle: {
@@ -2155,7 +2235,12 @@ class AudioBus {
         }
     }
 
-    play(cueId: string, worldX?: number, worldZ?: number): boolean {
+    play(
+        cueId: string,
+        worldX?: number,
+        worldZ?: number,
+        opts?: CombatSpatialOpts,
+    ): boolean {
         if (!this.unlocked) this.unlock();
         const cue = CUES[cueId];
         if (!cue || !this.ctx) return false;
@@ -2164,8 +2249,8 @@ class AudioBus {
         const maxV = cue.maxVoices ?? 8;
         if ((this.voiceCount.get(cueId) ?? 0) >= maxV) return false;
 
+        const maxD = opts?.maxDistance ?? cue.maxDistance ?? SPATIAL_MAX;
         if (cue.spatial && worldX != null && worldZ != null) {
-            const maxD = cue.maxDistance ?? SPATIAL_MAX;
             if (distXZ(worldX, worldZ, this.listenerX, this.listenerZ) > maxD) return false;
         }
 
@@ -2179,16 +2264,16 @@ class AudioBus {
             src.playbackRate.value = sfxPlaybackRate(this.timeScale);
         }
         const gain = this.ctx.createGain();
-        gain.gain.value = cue.gain ?? 1;
+        gain.gain.value = (cue.gain ?? 1) * (opts?.gainMul ?? 1);
 
         let panner: PannerNode | undefined;
         if (cue.spatial && worldX != null && worldZ != null) {
             panner = this.ctx.createPanner();
             panner.panningModel = 'HRTF';
             panner.distanceModel = 'inverse';
-            panner.refDistance = cue.refDistance ?? SPATIAL_REF;
-            panner.maxDistance = cue.maxDistance ?? SPATIAL_MAX;
-            panner.rolloffFactor = cue.rolloff ?? SPATIAL_ROLLOFF;
+            panner.refDistance = opts?.refDistance ?? cue.refDistance ?? SPATIAL_REF;
+            panner.maxDistance = maxD;
+            panner.rolloffFactor = opts?.rolloff ?? cue.rolloff ?? SPATIAL_ROLLOFF;
             panner.positionX.value = worldX;
             panner.positionY.value = 1.2;
             panner.positionZ.value = worldZ;
@@ -2504,19 +2589,21 @@ class AudioBus {
     }
 
     /** Spatial death yelp when a voiced unit dies — silent until that cue ships. */
-    playUnitDeath(typeId: string, worldX: number, worldZ: number): void {
+    playUnitDeath(typeId: string, worldX: number, worldZ: number, big = false): void {
         if (!this.voicesOn()) return;
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueId = `unit_${voiceId}_death`;
         if (!CUES[cueId]) return;
+        const opts = big ? undefined : SMALL_COMBAT_SPATIAL;
         void this.ensureCue(cueId).then((ok) => {
-            if (ok) this.play(cueId, worldX, worldZ);
+            if (ok) this.play(cueId, worldX, worldZ, opts);
         });
     }
 
     /**
      * Short hurt yelp on a flesh hit. Near-field only (cue maxDistance) +
      * global cooldown so packs don't chorus. Silent until that unit's cue ships.
+     * Small victims: quieter + nearer (same as death_unit).
      */
     playUnitHurt(typeId: string, worldX: number, worldZ: number): void {
         if (!this.voicesOn()) return;
@@ -2525,13 +2612,13 @@ class AudioBus {
         if (!CUES[cueId]) return;
         const now = performance.now();
         if (now - this.lastUnitHurtAt < UNIT_HURT_COOLDOWN_MS) return;
-        // Early distance cull before ensureCue — don't wake buffers for far hits.
+        const opts = hitSpatialOpts(typeId);
         const cue = CUES[cueId]!;
-        const maxD = cue.maxDistance ?? SPATIAL_MAX;
+        const maxD = opts?.maxDistance ?? cue.maxDistance ?? SPATIAL_MAX;
         if (distXZ(worldX, worldZ, this.listenerX, this.listenerZ) > maxD) return;
         this.lastUnitHurtAt = now;
         void this.ensureCue(cueId).then((ok) => {
-            if (ok) this.play(cueId, worldX, worldZ);
+            if (ok) this.play(cueId, worldX, worldZ, opts);
         });
     }
 
@@ -2887,12 +2974,17 @@ class AudioBus {
                     this.play(muzzleCue(e.style, e.unitTypeId), e.x, e.z);
                     break;
                 case 'meleeSwing':
-                    this.play('melee_swing', e.x, e.z);
+                    this.play('melee_swing', e.x, e.z, meleeSwingOpts(e.unitTypeId));
                     break;
-                case 'impact':
-                    this.play(impactCue(e), e.x, e.z);
+                case 'impact': {
+                    const cue = impactCue(e);
+                    // Hits stay pack-quiet; attacks use full attack range above.
+                    const opts =
+                        e.flesh || e.melee ? hitSpatialOpts(e.unitTypeId) : undefined;
+                    this.play(cue, e.x, e.z, opts);
                     if (e.flesh && e.unitTypeId) this.playUnitHurt(e.unitTypeId, e.x, e.z);
                     break;
+                }
                 case 'explosion':
                     this.play(
                         e.rocket
@@ -2912,7 +3004,7 @@ class AudioBus {
                         if (cue) this.play(cue); // global — no spatial falloff
                     } else {
                         this.play(e.big ? 'death_unit_big' : 'death_unit', e.x, e.z);
-                        if (e.unitTypeId) this.playUnitDeath(e.unitTypeId, e.x, e.z);
+                        if (e.unitTypeId) this.playUnitDeath(e.unitTypeId, e.x, e.z, e.big);
                     }
                     break;
                 case 'strongholdCollapse':
@@ -3063,6 +3155,9 @@ function muzzleCue(
         case 'stone':
             return 'stone_throw';
         case 'arrow':
+            // Goblins share the archer clip bank but a quieter cue (many small shots).
+            if (unitTypeId === 'goblin') return 'goblin_shot';
+            return 'archer_shot';
         default:
             return 'archer_shot';
     }
