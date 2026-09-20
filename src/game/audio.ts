@@ -1701,9 +1701,9 @@ const CUES: Record<string, CueDef> = {
         group: 'music',
         gain: 0.38,
     },
-    /** Main menu bed — later: seasonal menu variants. */
+    /** Main menu bed — courtyard / moonlit keep / hearth hall. */
     music_menu: {
-        paths: ['audio/music_menu_1.ogg'],
+        paths: ['audio/music_menu_1.ogg', 'audio/music_menu_2.ogg', 'audio/music_menu_3.ogg'],
         group: 'music',
         gain: 0.42,
     },
@@ -2382,6 +2382,8 @@ void [
     assetUrl('audio/music_first_snow_battle_1.ogg'),
     assetUrl('audio/music_first_snow_deploy_1.ogg'),
     assetUrl('audio/music_menu_1.ogg'),
+    assetUrl('audio/music_menu_2.ogg'),
+    assetUrl('audio/music_menu_3.ogg'),
     assetUrl('audio/music_spring_morning_battle_1.ogg'),
     assetUrl('audio/music_spring_morning_deploy_1.ogg'),
     assetUrl('audio/music_spring_rain_battle_1.ogg'),
@@ -2720,6 +2722,8 @@ class AudioBus {
     private timeScale = 1;
     /** Wall-clock of last unit select bark that actually fired. */
     private lastUnitSelectAt = 0;
+    /** Homepage: next select-line index per voice id (cycles on each click). */
+    private unitSelectNextIndex = new Map<string, number>();
     /** Wall-clock of last unit hurt yelp that actually fired. */
     private lastUnitHurtAt = 0;
     /** Bumps to cancel an in-flight homepage VO preview sequence. */
@@ -2978,14 +2982,15 @@ class AudioBus {
     private async startMusic(cueId: string, gen: number): Promise<void> {
         const cue = CUES[cueId];
         if (!cue || cue.group !== 'music') return;
-        await this.decodeAll([...cue.paths]);
+        const path = this.pickCuePath(cueId, cue);
+        if (!path) return;
+        await this.decodeAll([path]);
         if (gen !== this.musicGen) return;
         this.loadingMusic = null;
         if (!this.ctx || prefs().audioMuted) return;
-        const path = cue.paths[0];
-        if (!path) return;
         const buf = this.buffers.get(path);
         if (!buf) return;
+        this.lastCuePath.set(cueId, path);
 
         const src = this.ctx.createBufferSource();
         src.buffer = buf;
@@ -3162,6 +3167,30 @@ class AudioBus {
         this.stopUnitBarks();
         void this.ensureCue(cueId).then((ok) => {
             if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Homepage / loadout testing: play the next select line for this unit (in
+     * path order), then advance. One click → one bark. No random skip.
+     */
+    playUnitSelectNext(typeId: string): void {
+        if (!this.voicesOn()) return;
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueId = `unit_${voiceId}`;
+        const cue = CUES[cueId];
+        if (!cue || cue.paths.length === 0) return;
+        const now = performance.now();
+        // Short debounce only — intentional clicks should advance promptly.
+        if (now - this.lastUnitSelectAt < 180) return;
+        this.lastUnitSelectAt = now;
+        const i = this.unitSelectNextIndex.get(voiceId) ?? 0;
+        const path = cue.paths[i % cue.paths.length]!;
+        this.unitSelectNextIndex.set(voiceId, i + 1);
+        this.stopUnitBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (!ok) return;
+            this.playCuePathUi(cueId, path);
         });
     }
 

@@ -457,6 +457,31 @@ export function attachShowcaseWingFlap(
     });
 }
 
+/**
+ * Showcase / loadout winged unit from the same baked parts battle instancing uses.
+ * Measuring flap params on that root-local geometry matches in-game crow/bat stroke;
+ * walking a multi-mesh GLB clone and measuring each child separately twists the wings.
+ */
+export function createShowcaseWingedModel(
+    data: WingFlapData,
+    parts: readonly { geometry: BufferGeometry; material: MeshStandardMaterial }[],
+    rate = CROW_WING_FLY_RATE,
+    phase = randomWingPhase(),
+): Group {
+    const root = new Group();
+    const opts = wingFlapOpts(data, 'mesh');
+    for (const part of parts) {
+        const mat = part.material.clone();
+        attachWingFlap(mat, part.geometry, opts);
+        setMeshWingFlap(mat, { phase, rate, rest: 0 });
+        const mesh = new Mesh(part.geometry, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        root.add(mesh);
+    }
+    return root;
+}
+
 /** Add per-instance wing phase + rate attributes to a crow-rider InstancedMesh. */
 export function setupCrowWingInstanceAttributes(mesh: InstancedMesh, capacity: number): void {
     const phases = new InstancedBufferAttribute(new Float32Array(capacity), 1);

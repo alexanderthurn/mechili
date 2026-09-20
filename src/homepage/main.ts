@@ -1195,13 +1195,26 @@ void preloadUnitVisuals().then(() => {
     function selectUnit(id: string): void {
         const type = SHOWCASE_UNITS.find((t) => t.id === id);
         if (!type) return;
+        const alreadyShown =
+            app!.querySelector<HTMLButtonElement>('.mh-pick.active[data-unit-id]')?.dataset
+                .unitId === id;
         setActivePick({ unitId: id });
         if (unitSelect) unitSelect.value = id;
-        viewer.show(showcaseModelKey(type), type.meshScale);
-        statsEl.innerHTML = statsHtml(type);
+        if (!alreadyShown) {
+            viewer.show(showcaseModelKey(type), type.meshScale);
+            statsEl.innerHTML = statsHtml(type);
+        }
         audio.unlock();
-        audio.playUnitVoPreview(id);
+        audio.playUnitSelectNext(id);
     }
+
+    viewer.onClick = () => {
+        const active = app!.querySelector<HTMLButtonElement>('.mh-pick.active[data-unit-id]');
+        const id = active?.dataset.unitId;
+        if (!id) return;
+        audio.unlock();
+        audio.playUnitSelectNext(id);
+    };
 
     function selectSpell(id: SpellAssetId): void {
         const spell = SHOWCASE_SPELLS.find((s) => s.id === id);

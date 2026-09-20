@@ -31,6 +31,10 @@ misc/**
 !misc/icons/_regen_queue.txt
 !misc/steam/
 !misc/steam/**
+# SFX workflow docs + regen prompts (masters stay gitignored under misc/sfx/)
+!misc/sfx/
+!misc/sfx/elevenlabs.md
+!misc/sfx/PROMPTS.md
 node_modules/
 .env.translate.local
 arena-cases.json

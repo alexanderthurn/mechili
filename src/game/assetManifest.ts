@@ -218,6 +218,8 @@ const RAW = import.meta.glob(
         '../../assets/audio/music_first_snow_battle_1.ogg',
         '../../assets/audio/music_first_snow_deploy_1.ogg',
         '../../assets/audio/music_menu_1.ogg',
+        '../../assets/audio/music_menu_2.ogg',
+        '../../assets/audio/music_menu_3.ogg',
         '../../assets/audio/music_spring_morning_battle_1.ogg',
         '../../assets/audio/music_spring_morning_deploy_1.ogg',
         '../../assets/audio/music_spring_rain_battle_1.ogg',

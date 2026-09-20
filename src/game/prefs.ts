@@ -990,10 +990,9 @@ export function debugEnabled(): boolean {
 
 /**
  * Dev/test: offer every playable commander at the starter pick instead of four.
- * `?allCommanders` or any {@link debugEnabled} path.
+ * Opt-in via `?allCommanders` only (not debug overlay / `?debug`).
  */
 export function offerAllCommanders(): boolean {
-    if (debugEnabled()) return true;
     try {
         return new URLSearchParams(location.search).has('allCommanders');
     } catch {

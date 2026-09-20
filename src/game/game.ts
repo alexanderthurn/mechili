@@ -4763,7 +4763,7 @@ export class Game {
      * The commander cards a side is offered at round 0: a mode may hand a side
      * its commander (The Year's Komtur attacker) — then it is the only card and
      * nothing is drawn from that side's stream; otherwise four at random
-     * (every playable commander when `?debug` / debug overlay / `?allCommanders`).
+     * (every playable commander when `?allCommanders`).
      */
     private starterOfferFor(team: Team, rng: () => number): StartCard[] {
         const climb = this.settings.climb;

@@ -7,12 +7,25 @@ import {
     MathUtils,
     PerspectiveCamera,
     Scene,
+    SkinnedMesh,
     Spherical,
     Vector3,
     WebGLRenderer,
+    type Object3D,
 } from 'three';
-import { cloneUnitModel, getUnitVisualHeight, hasUnitModel, wingFlapOf } from '../game/unitModels';
-import { attachDragonWingFlap, attachShowcaseWingFlap, updateCrowWingFlap } from '../game/crowWingFlap';
+import {
+    cloneUnitModel,
+    getUnitInstanceAsset,
+    getUnitVisualHeight,
+    hasUnitModel,
+    wingFlapOf,
+} from '../game/unitModels';
+import {
+    attachDragonWingFlap,
+    attachShowcaseWingFlap,
+    createShowcaseWingedModel,
+    updateCrowWingFlap,
+} from '../game/crowWingFlap';
 import {
     cloneAnimatedModel,
     hasAnimatedModel,
@@ -54,6 +67,53 @@ const SPELL_SHOWCASE_SIZE_MULT = 2;
  */
 const STAGE_REF_MODEL = 'archer';
 const STAGE_REF_MESH_SCALE = 2.2;
+
+/** Prefer torso bones so orbit isn't pulled behind by clubs / wingspans. */
+const BODY_LOOK_BONES = [
+    'Spine01',
+    'Spine02',
+    'Waist',
+    'Pelvis',
+    'Hip',
+    'Hips',
+    'mixamorigHips',
+] as const;
+
+/**
+ * World-space look-at for unit framing. Skinned mechs → torso bone (ogre club
+ * must not own the orbit). Static buildings / baked birds → AABB center —
+ * already normalize-seated; do not localToWorld a world-sized Y (meshScale
+ * would apply twice and float the camera off tents/towers).
+ */
+function unitBodyLookAt(root: Object3D, box: Box3, out: Vector3): void {
+    let skinned = false;
+    root.traverse((o) => {
+        if ((o as SkinnedMesh).isSkinnedMesh) skinned = true;
+    });
+    if (skinned) {
+        const boxSizeY = Math.max(box.max.y - box.min.y, 0.35);
+        for (const name of BODY_LOOK_BONES) {
+            const bone = root.getObjectByName(name);
+            if (!bone) continue;
+            bone.getWorldPosition(out);
+            if (name === 'Pelvis' || name === 'Hip' || name === 'Hips' || name === 'mixamorigHips') {
+                out.y += boxSizeY * 0.1;
+            }
+            return;
+        }
+        let found: Object3D | undefined;
+        root.traverse((o) => {
+            if (found) return;
+            const n = o.name.toLowerCase();
+            if (n.includes('spine01') || n.includes('pelvis') || n === 'hip') found = o;
+        });
+        if (found) {
+            found.getWorldPosition(out);
+            return;
+        }
+    }
+    box.getCenter(out);
+}
 
 /** Spell GLBs use different rest forwards than army units (−Z). */
 function spellShowcaseYaw(id: SpellAssetId): number {
@@ -114,7 +174,6 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         current.updateMatrixWorld(true);
         box.setFromObject(current);
         box.getSize(boxSize);
-        box.getCenter(target);
         const sphereRadius = boxSize.length() * 0.5 || 1;
         const stageHeight = getUnitVisualHeight(STAGE_REF_MODEL) * STAGE_REF_MESH_SCALE;
         const stageSphere = Math.max(stageHeight * 0.75, 0.5);
@@ -128,7 +187,12 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         const sizeMult = framingIsSpell ? SPELL_SHOWCASE_SIZE_MULT : 1;
         baseDistance =
             ((framingRadius / Math.sin(limitingHalfFov)) * FIT_PADDING) / sizeMult;
-        target.y += boxSize.y * 0.08;
+        if (framingIsSpell) {
+            box.getCenter(target);
+            target.y += boxSize.y * 0.08;
+        } else {
+            unitBodyLookAt(current, box, target);
+        }
     }
 
     function updateCamera(): void {
@@ -171,6 +235,8 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         framingIsSpell = !!opts.spell;
         current = next;
         scene.add(current);
+        // Pose + foot-align once before framing so Spine/Pelvis world pos is real.
+        if (animActive) updateAnimatedUnits(1 / 60);
         layout();
     }
 
@@ -280,10 +346,16 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
                 return;
             }
             if (!hasUnitModel(unitId)) return;
-            const next = cloneUnitModel(unitId, 'player');
+            // Winged units: same baked root-local parts as battle InstancedMesh so
+            // flap measure/stroke matches in-game (multi-mesh GLB clones twist).
+            const baked = flap ? getUnitInstanceAsset(unitId) : null;
+            const next =
+                wingFlap && baked
+                    ? createShowcaseWingedModel(wingFlap, baked.parts)
+                    : cloneUnitModel(unitId, 'player');
             if (!next) return;
             // Game models face −Z; default camera is on +Z — flip so the face shows first.
-            if (wingFlap) attachShowcaseWingFlap(wingFlap, next);
+            if (wingFlap && !baked) attachShowcaseWingFlap(wingFlap, next);
             present(next, { yaw: Math.PI, wingFlap: flap, meshScale });
         },
         async showSpell(spellId: SpellAssetId) {
