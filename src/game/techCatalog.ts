@@ -9,6 +9,7 @@
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import type { TechDef, UnitType } from './units';
+import { techForUnit } from './units';
 
 /** Talent slots of a type that doesn't set `talentSlots`. */
 export const DEFAULT_UNIT_TECH_SLOTS = 4;
@@ -60,7 +61,8 @@ export function selectedTechIds(type: UnitType, types: TypeRegistry, loadout?: L
 export function techsForUnit(type: UnitType, types: TypeRegistry, loadout?: Loadout): TechDef[] {
     return selectedTechIds(type, types, loadout)
         .map((id) => types.talent(id))
-        .filter((t): t is TechDef => t !== null);
+        .filter((t): t is TechDef => t !== null)
+        .map((t) => techForUnit(type, t));
 }
 
 export function isTechSelectedForUnit(
@@ -84,9 +86,12 @@ function ownedWith<K extends 'produce' | 'onKill' | 'cleave'>(
 ): ({ tech: TechDef } & { [P in K]: NonNullable<TechDef[K]> })[] {
     const out: ({ tech: TechDef } & { [P in K]: NonNullable<TechDef[K]> })[] = [];
     for (const tech of types.talentsOf(type)) {
-        const value = tech[key];
+        const scaled = techForUnit(type, tech);
+        const value = scaled[key];
         if (value === undefined || !hasTech(seat, type.id, tech.id)) continue;
-        out.push({ tech, [key]: value } as { tech: TechDef } & { [P in K]: NonNullable<TechDef[K]> });
+        out.push({ tech: scaled, [key]: value } as {
+            tech: TechDef;
+        } & { [P in K]: NonNullable<TechDef[K]> });
     }
     return out;
 }

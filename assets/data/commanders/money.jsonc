@@ -10,4 +10,27 @@
     "forgeSpells": ["oilSpill", "storm", "dragonAttack"],
     "effects": { "roundOneSupply": 200 },
     "description": "+200 supply in round 1.",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "7tEM9oN7W5IcP5mGQlly",
+                "prompt": "A glamorous adult female voice of a petite blonde gold-obsessed queen. Bright silky mid-high tone with cool glittering confidence — every line sounds like a transaction closing with a smile. Elegant pace, lightly drawn-out vowels on wealth words, soft regal charm. Clearly feminine, young-adult to thirties, small and refined rather than deep or booming. Not male, not gravelly, not motherly, not breathy whisper, not frantic. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            "pick": ["Gold first, glory later."],
+            "win": [
+                "Haha! Gold wins!",
+                "Ha! Paid in full!",
+                "Haha! Treasury sings!"
+            ],
+            "victory": [
+                "Gold first, and glory too."
+            ],
+            "defeat": [
+                "The treasury takes a hit."
+            ],
+        },
+    },
 }

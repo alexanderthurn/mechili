@@ -10,4 +10,27 @@
     "forgeSpells": ["fireSpill", "spawnCrows", "hammerOfGods"],
     "effects": { "recruitLevel": 2, "roundOneSupply": 100 },
     "description": "Recruiting at level 2. +100 supply in round 1.",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "nPXC5pmfTJm0AhVfUsW3",
+                "prompt": "A deep, polished male aristocratic voice in his prime. Velvet chest tone, immaculate diction, and cool superiority without shouting. Speaks slowly and deliberately, every word curated — quality over quantity made audible. Warm enough to sound human, cold enough to sound born to command. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            "pick": ["Quality over quantity."],
+            "win": [
+                "Haha! Quality wins!",
+                "Ha! Naturally.",
+                "Haha! As expected!"
+            ],
+            "victory": [
+                "Quality stands alone at the top."
+            ],
+            "defeat": [
+                "Even quality falls, sometimes."
+            ],
+        },
+    },
 }

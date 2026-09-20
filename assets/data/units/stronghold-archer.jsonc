@@ -43,4 +43,5 @@
     "proceduralModel": "archer",
     "talents": ["barrel", "ap", "sunward"],
     "talentSlots": 3,
+    // VO: same as archer (`assets/data/units/archer.jsonc` voice)
 }

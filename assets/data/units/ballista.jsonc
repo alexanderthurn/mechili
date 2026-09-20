@@ -46,5 +46,36 @@
     ],
     // 4 of N — pick a siege, anti-air, fire, or hex build.
     "talentSlots": 4,
-    "itemSlots": 4, // UI stress-test: extra item circles
+    "itemSlots": 4, // UI stress-test: extra item circles,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "qlhWynvapzGSKEV89z6y",
+                "prompt": "A stern, mechanical siege-engineer male voice — tight, metallic, and obsessively precise. Speaks in clipped loading-bay commands with cold pride in big bolts. Super disciplined war-machine vibe, never goofy goblin, never soft. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Ready.",
+                "Target?",
+                "Bolt loaded.",
+            ],
+            // death yelps (strained / breaking — not calm command tone)
+            "death": [
+                "Failure…!",
+                "Crew…!",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Ah!",
+                "Ow!",
+                "Ugh!",
+                "Hn!",
+                "Gah!",
+            ],
+        },
+
+    },
 }

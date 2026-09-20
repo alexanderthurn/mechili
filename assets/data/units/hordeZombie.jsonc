@@ -33,4 +33,34 @@
     // standard talents for The Komtur's side
     "talents": ["bloodRage", "armor"],
     "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A HORRIFIC rotting swarm voice — wet gurgles, broken hunger, and relentless evil. Speaks in choked undead rasps with pack-animal craving. Super disgusting, super threatening, zero charm, zero comedy relief. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks
+            "pick": [
+                "…Food?",
+                "Uuuh.",
+                "More…",
+            ],
+            // death yelps
+            "death": [
+                "Uuurgh…",
+                "Hung…er…",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Urgh!",
+                "Guh!",
+                "Ah!",
+                "Nngh!",
+                "Hrrk!",
+            ],
+        },
+
+    },
 }

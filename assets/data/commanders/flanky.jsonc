@@ -10,4 +10,27 @@
     "forgeSpells": ["spawnDwarves", "poisonCloud", "meteorShower"],
     "effects": { "flankSpawnMult": 0.5 },
     "description": "First-time flank spawns take half the time.",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "4uoprXUNnpx3xR0W8emf",
+                "prompt": "An old male voice of a veteran shadow operative — clearly elderly male, weathered and dry. Low close conspiratorial tone, soft-spoken but not feminine; aged rasp, patient cunning, sly smile in the wrinkles of the voice. Speaks lightly and carefully, like sharing a secret from decades of flanks. Never booming, never young, never female. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            "pick": ["They’ll never see us coming."],
+            "win": [
+                "Haha! Never saw it!",
+                "Ha! Shadows win!",
+                "Haha! Outflanked!"
+            ],
+            "victory": [
+                "They never saw the end coming."
+            ],
+            "defeat": [
+                "They saw us coming after all."
+            ],
+        },
+    },
 }

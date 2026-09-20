@@ -10,4 +10,27 @@
     "forgeSpells": ["oilSpill", "poisonCloud", "dragonAttack"],
     "effects": { "unitStatsBonus": -0.12, "incomePerRound": 100 },
     "description": "All units −12% attack and HP, but +100 supply every round.",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "pNINt0AE5m8Cd8CHwvH5",
+                "prompt": "A thoughtful adult male voice of a bargain-obsessed prince. Clearly male, mid tone, sly but contemplative — he pauses, weighs options, then lands the deal. Crisp diction with a greedy little lilt on money words; thinking-aloud cadence rather than frantic chatter. Charming, cheap, pleased with his own cleverness. Not deep noble, not female, not manic. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            "pick": ["Cheap troops, rich pockets."],
+            "win": [
+                "Haha! Cheap win!",
+                "Ha! Profit AND glory!",
+                "Haha! Bargain victory!"
+            ],
+            "victory": [
+                "A glorious bargain, paid in full."
+            ],
+            "defeat": [
+                "A costly loss — lesson learned."
+            ],
+        },
+    },
 }

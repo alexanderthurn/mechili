@@ -306,6 +306,17 @@ export class StrongholdCollapseFx {
         while (this.fronts.length > 0) this.retire(this.fronts[0]!);
     }
 
+    /** Live collapse fronts for proximity audio (rim near camera). */
+    audioFronts(): readonly { x: number; z: number; radius: number }[] {
+        const out: { x: number; z: number; radius: number }[] = [];
+        for (const f of this.fronts) {
+            const radius = f.age * f.speed;
+            if (radius <= 0 || radius >= f.maxRadius) continue;
+            out.push({ x: f.x, z: f.z, radius });
+        }
+        return out;
+    }
+
     dispose(): void {
         this.clear();
         this.geo.dispose();

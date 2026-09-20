@@ -5,9 +5,11 @@
  * Render-only — never touch from the deterministic sim. Drive from SimEvent
  * drain + UI, same lifecycle as particles.
  */
-import { assetUrl } from './assets';
-import type { SimEvent } from './sim';
+import { assetUrl, isBaseAsset } from './assets';
+import type { Projectile, SimEvent } from './sim';
 import { onPrefsChange, prefs } from './prefs';
+import { beamMuzzleWorld } from './conversionFx';
+import type { Actor } from './sim';
 
 export type AudioGroupId = 'sfx' | 'music' | 'ui';
 
@@ -29,7 +31,40 @@ export type CueDef = {
     gain?: number;
 };
 
+/**
+ * Default battlefield spatial falloff.
+ * Inverse model: full volume inside {@link SPATIAL_REF}, then steeper drop;
+ * hard-silent past {@link SPATIAL_MAX}.
+ */
+const SPATIAL_REF = 11;
+const SPATIAL_MAX = 34;
+
+/** Fraction of new pack selects that may bark (1 = always, subject to cooldown). */
+const UNIT_SELECT_CHANCE = 1;
+/** Min wall-clock gap between unit select barks. */
+const UNIT_SELECT_COOLDOWN_MS = 1000;
+/** Min wall-clock gap between unit hurt yelps (global — packs don't chorus). */
+const UNIT_HURT_COOLDOWN_MS = 450;
+/** Unit types that share another type's VO cue (e.g. stronghold archer → archer). */
+const UNIT_VOICE_ALIAS: Record<string, string> = {
+    'stronghold-archer': 'archer',
+};
+/** Structure type id → select SFX cue (stronghold uses commander VO instead). */
+const BUILDING_SELECT_CUE: Record<string, string> = {
+    'command-tower': 'select_command_tower',
+    'research-center': 'select_research_center',
+    tent: 'select_tent',
+};
+const SPATIAL_ROLLOFF = 2.2;
+
 const CUES: Record<string, CueDef> = {
+    /** Proximity bed while camera is near acid puddles. */
+    acid_loop: {
+        paths: ['audio/acid_loop_1.ogg'],
+        group: 'sfx',
+        maxVoices: 1,
+        gain: 0.4,
+    },
     archer_shot: {
         paths: [
             'audio/archer_shot_1.ogg',
@@ -40,9 +75,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 10,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     ballista_shot: {
@@ -54,9 +89,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 6,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     bolt_shot: {
@@ -68,9 +103,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     card_pick: {
@@ -82,11 +117,426 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.5,
     },
+    /** Unit select bark — distinct lines as path variants (see playUnitSelect). */
+    unit_archer: {
+        paths: [
+            'audio/unit_archer_1.ogg',
+            'audio/unit_archer_2.ogg',
+            'audio/unit_archer_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+    unit_archer_death: {
+        paths: [
+            'audio/unit_archer_death_1.ogg',
+            'audio/unit_archer_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_archer_hurt: {
+        paths: [
+            'audio/unit_archer_hurt_1.ogg',
+            'audio/unit_archer_hurt_2.ogg',
+            'audio/unit_archer_hurt_3.ogg',
+            'audio/unit_archer_hurt_4.ogg',
+            'audio/unit_archer_hurt_5.ogg',
+            'audio/unit_archer_hurt_6.ogg',
+            'audio/unit_archer_hurt_7.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        // near-field only — silent across the board
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
+    },
+    unit_ballista: {
+        paths: [
+            'audio/unit_ballista_1.ogg',
+            'audio/unit_ballista_2.ogg',
+            'audio/unit_ballista_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+    unit_ballista_death: {
+        paths: [
+            'audio/unit_ballista_death_1.ogg',
+            'audio/unit_ballista_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_ballista_hurt: {
+        paths: [
+            'audio/unit_ballista_hurt_1.ogg',
+            'audio/unit_ballista_hurt_2.ogg',
+            'audio/unit_ballista_hurt_3.ogg',
+            'audio/unit_ballista_hurt_4.ogg',
+            'audio/unit_ballista_hurt_5.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
+    },
+    unit_wizard: {
+        paths: [
+            'audio/unit_wizard_1.ogg',
+            'audio/unit_wizard_2.ogg',
+            'audio/unit_wizard_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+    unit_wizard_death: {
+        paths: [
+            'audio/unit_wizard_death_1.ogg',
+            'audio/unit_wizard_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_wizard_hurt: {
+        paths: [
+            'audio/unit_wizard_hurt_1.ogg',
+            'audio/unit_wizard_hurt_2.ogg',
+            'audio/unit_wizard_hurt_3.ogg',
+            'audio/unit_wizard_hurt_4.ogg',
+            'audio/unit_wizard_hurt_5.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
+    },
+    unit_crowRider: {
+        paths: [
+            'audio/unit_crowRider_1.ogg',
+            'audio/unit_crowRider_2.ogg',
+            'audio/unit_crowRider_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+    unit_crowRider_death: {
+        paths: [
+            'audio/unit_crowRider_death_1.ogg',
+            'audio/unit_crowRider_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_crowRider_hurt: {
+        paths: [
+            'audio/unit_crowRider_hurt_1.ogg',
+            'audio/unit_crowRider_hurt_2.ogg',
+            'audio/unit_crowRider_hurt_3.ogg',
+            'audio/unit_crowRider_hurt_4.ogg',
+            'audio/unit_crowRider_hurt_5.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
+    },
+    unit_dwarf: {
+        paths: [
+            'audio/unit_dwarf_1.ogg',
+            'audio/unit_dwarf_2.ogg',
+            'audio/unit_dwarf_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+    unit_dwarf_death: {
+        paths: [
+            'audio/unit_dwarf_death_1.ogg',
+            'audio/unit_dwarf_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_dwarf_hurt: {
+        paths: [
+            'audio/unit_dwarf_hurt_1.ogg',
+            'audio/unit_dwarf_hurt_2.ogg',
+            'audio/unit_dwarf_hurt_3.ogg',
+            'audio/unit_dwarf_hurt_4.ogg',
+            'audio/unit_dwarf_hurt_5.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
+    },
+    unit_goblin: {
+        paths: [
+            'audio/unit_goblin_1.ogg',
+            'audio/unit_goblin_2.ogg',
+            'audio/unit_goblin_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+    unit_goblin_death: {
+        paths: [
+            'audio/unit_goblin_death_1.ogg',
+            'audio/unit_goblin_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_goblin_hurt: {
+        paths: [
+            'audio/unit_goblin_hurt_1.ogg',
+            'audio/unit_goblin_hurt_2.ogg',
+            'audio/unit_goblin_hurt_3.ogg',
+            'audio/unit_goblin_hurt_4.ogg',
+            'audio/unit_goblin_hurt_5.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
+    },
+    unit_hammerer: {
+        paths: [
+            'audio/unit_hammerer_1.ogg',
+            'audio/unit_hammerer_2.ogg',
+            'audio/unit_hammerer_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+    unit_hammerer_death: {
+        paths: [
+            'audio/unit_hammerer_death_1.ogg',
+            'audio/unit_hammerer_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_hammerer_hurt: {
+        paths: [
+            'audio/unit_hammerer_hurt_1.ogg',
+            'audio/unit_hammerer_hurt_2.ogg',
+            'audio/unit_hammerer_hurt_3.ogg',
+            'audio/unit_hammerer_hurt_4.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
+    },
+    unit_mortar: {
+        paths: [
+            'audio/unit_mortar_1.ogg',
+            'audio/unit_mortar_2.ogg',
+            'audio/unit_mortar_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+    unit_mortar_death: {
+        paths: [
+            'audio/unit_mortar_death_1.ogg',
+            'audio/unit_mortar_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_mortar_hurt: {
+        paths: [
+            'audio/unit_mortar_hurt_1.ogg',
+            'audio/unit_mortar_hurt_2.ogg',
+            'audio/unit_mortar_hurt_3.ogg',
+            'audio/unit_mortar_hurt_4.ogg',
+            'audio/unit_mortar_hurt_5.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
+    },
+    unit_ogre: {
+        paths: [
+            'audio/unit_ogre_1.ogg',
+            'audio/unit_ogre_2.ogg',
+            'audio/unit_ogre_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+    unit_ogre_death: {
+        paths: [
+            'audio/unit_ogre_death_1.ogg',
+            'audio/unit_ogre_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_ogre_hurt: {
+        paths: [
+            'audio/unit_ogre_hurt_1.ogg',
+            'audio/unit_ogre_hurt_2.ogg',
+            'audio/unit_ogre_hurt_3.ogg',
+            'audio/unit_ogre_hurt_4.ogg',
+            'audio/unit_ogre_hurt_5.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
+    },
+    unit_prismCannon: {
+        paths: [
+            'audio/unit_prismCannon_1.ogg',
+            'audio/unit_prismCannon_2.ogg',
+            'audio/unit_prismCannon_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.8,
+    },
+    unit_prismCannon_death: {
+        paths: [
+            'audio/unit_prismCannon_death_1.ogg',
+            'audio/unit_prismCannon_death_2.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 4,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.85,
+    },
+    unit_prismCannon_hurt: {
+        paths: [
+            'audio/unit_prismCannon_hurt_1.ogg',
+            'audio/unit_prismCannon_hurt_2.ogg',
+            'audio/unit_prismCannon_hurt_3.ogg',
+            'audio/unit_prismCannon_hurt_4.ogg',
+            'audio/unit_prismCannon_hurt_5.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 3,
+        spatial: true,
+        refDistance: 5,
+        maxDistance: 16,
+        rolloff: 2.4,
+        gain: 0.7,
+    },
     commander_addi: {
         paths: ['audio/commander_addi.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
+    },
+    commander_addi_win: {
+        paths: [
+            'audio/commander_addi_win_1.ogg',
+            'audio/commander_addi_win_2.ogg',
+            'audio/commander_addi_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_addi_victory: {
+        paths: ['audio/commander_addi_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_addi_defeat: {
+        paths: ['audio/commander_addi_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
     },
     commander_air: {
         paths: ['audio/commander_air.ogg'],
@@ -94,11 +544,55 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_air_win: {
+        paths: [
+            'audio/commander_air_win_1.ogg',
+            'audio/commander_air_win_2.ogg',
+            'audio/commander_air_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_air_victory: {
+        paths: ['audio/commander_air_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_air_defeat: {
+        paths: ['audio/commander_air_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_archer: {
         paths: ['audio/commander_archer.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
+    },
+    commander_archer_win: {
+        paths: [
+            'audio/commander_archer_win_1.ogg',
+            'audio/commander_archer_win_2.ogg',
+            'audio/commander_archer_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_archer_victory: {
+        paths: ['audio/commander_archer_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_archer_defeat: {
+        paths: ['audio/commander_archer_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
     },
     commander_cost: {
         paths: ['audio/commander_cost.ogg'],
@@ -106,11 +600,83 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_cost_win: {
+        paths: [
+            'audio/commander_cost_win_1.ogg',
+            'audio/commander_cost_win_2.ogg',
+            'audio/commander_cost_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_cost_victory: {
+        paths: ['audio/commander_cost_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_cost_defeat: {
+        paths: ['audio/commander_cost_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_cursed: {
+        paths: ['audio/commander_cursed.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.85,
+    },
+    commander_cursed_win: {
+        paths: [
+            'audio/commander_cursed_win_1.ogg',
+            'audio/commander_cursed_win_2.ogg',
+            'audio/commander_cursed_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_cursed_victory: {
+        paths: ['audio/commander_cursed_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_cursed_defeat: {
+        paths: ['audio/commander_cursed_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_elite: {
         paths: ['audio/commander_elite.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
+    },
+    commander_elite_win: {
+        paths: [
+            'audio/commander_elite_win_1.ogg',
+            'audio/commander_elite_win_2.ogg',
+            'audio/commander_elite_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_elite_victory: {
+        paths: ['audio/commander_elite_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_elite_defeat: {
+        paths: ['audio/commander_elite_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
     },
     commander_flanky: {
         paths: ['audio/commander_flanky.ogg'],
@@ -118,14 +684,80 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_flanky_win: {
+        paths: [
+            'audio/commander_flanky_win_1.ogg',
+            'audio/commander_flanky_win_2.ogg',
+            'audio/commander_flanky_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_flanky_victory: {
+        paths: ['audio/commander_flanky_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_flanky_defeat: {
+        paths: ['audio/commander_flanky_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_giant: {
         paths: ['audio/commander_giant.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_giant_win: {
+        paths: [
+            'audio/commander_giant_win_1.ogg',
+            'audio/commander_giant_win_2.ogg',
+            'audio/commander_giant_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_giant_victory: {
+        paths: ['audio/commander_giant_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_giant_defeat: {
+        paths: ['audio/commander_giant_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_meteor: {
         paths: ['audio/commander_meteor.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_meteor_win: {
+        paths: [
+            'audio/commander_meteor_win_1.ogg',
+            'audio/commander_meteor_win_2.ogg',
+            'audio/commander_meteor_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_meteor_victory: {
+        paths: ['audio/commander_meteor_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_meteor_defeat: {
+        paths: ['audio/commander_meteor_defeat.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.95,
@@ -136,17 +768,90 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_money_win: {
+        paths: [
+            'audio/commander_money_win_1.ogg',
+            'audio/commander_money_win_2.ogg',
+            'audio/commander_money_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_money_victory: {
+        paths: ['audio/commander_money_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_money_defeat: {
+        paths: ['audio/commander_money_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_speed: {
         paths: ['audio/commander_speed.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
     },
+    commander_speed_win: {
+        paths: [
+            'audio/commander_speed_win_1.ogg',
+            'audio/commander_speed_win_2.ogg',
+            'audio/commander_speed_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_speed_victory: {
+        paths: ['audio/commander_speed_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_speed_defeat: {
+        paths: ['audio/commander_speed_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     commander_tutor: {
         paths: ['audio/commander_tutor.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.85,
+    },
+    commander_tutor_win: {
+        paths: [
+            'audio/commander_tutor_win_1.ogg',
+            'audio/commander_tutor_win_2.ogg',
+            'audio/commander_tutor_win_3.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.9,
+    },
+    commander_tutor_victory: {
+        paths: ['audio/commander_tutor_victory.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    commander_tutor_defeat: {
+        paths: ['audio/commander_tutor_defeat.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
+    /** Proximity bed while a stronghold collapse front rolls near the camera. */
+    collapse_thunder: {
+        paths: ['audio/collapse_thunder_1.ogg'],
+        group: 'sfx',
+        maxVoices: 1,
+        gain: 0.62,
     },
     convert: {
         paths: [
@@ -156,9 +861,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     convert_beam: {
@@ -166,25 +871,44 @@ const CUES: Record<string, CueDef> = {
             'audio/convert_beam_1.ogg',
         ],
         group: 'sfx',
-        maxVoices: 4,
+        maxVoices: 1,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
-        gain: 0.4,
+        refDistance: 4,
+        maxDistance: 22,
+        rolloff: 1.4,
+        gain: 0.32,
+    },
+    // Building ruin stings — non-spatial UI (heard everywhere, not FF-ducked).
+    // One take each; stronghold uses `stronghold_collapse` instead of a death cue.
+    death_command_tower: {
+        paths: ['audio/death_command_tower_1.ogg'],
+        group: 'ui',
+        maxVoices: 3,
+        gain: 1.05,
+    },
+    death_research_center: {
+        paths: ['audio/death_research_center_1.ogg'],
+        group: 'ui',
+        maxVoices: 3,
+        gain: 1.05,
+    },
+    death_shield: {
+        paths: ['audio/death_shield_1.ogg'],
+        group: 'ui',
+        maxVoices: 3,
+        gain: 1.0,
     },
     death_structure: {
-        paths: [
-            'audio/death_structure_1.ogg',
-            'audio/death_structure_2.ogg',
-        ],
-        group: 'sfx',
+        paths: ['audio/death_structure_1.ogg'],
+        group: 'ui',
         maxVoices: 4,
-        spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
-        gain: 0.55,
+        gain: 0.95,
+    },
+    death_tent: {
+        paths: ['audio/death_tent_1.ogg'],
+        group: 'ui',
+        maxVoices: 3,
+        gain: 1.0,
     },
     death_unit: {
         paths: [
@@ -194,9 +918,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     death_unit_big: {
@@ -207,9 +931,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     defeat: {
@@ -236,9 +960,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 6,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     explosion_fire: {
@@ -249,9 +973,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     explosion_heavy: {
@@ -262,9 +986,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     forge_light: {
@@ -276,6 +1000,14 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.5,
     },
+    /** Proximity bed while camera is near burning ground. */
+    fire_loop: {
+        paths: ['audio/fire_loop_1.ogg'],
+        group: 'sfx',
+        maxVoices: 1,
+        // asset is quieter than acid_loop — matched by ear to acid's presence
+        gain: 0.72,
+    },
     ground_fire: {
         paths: [
             'audio/ground_fire_1.ogg',
@@ -284,23 +1016,18 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     hammer_crush: {
         paths: [
             'audio/hammer_crush_1.ogg',
-            'audio/hammer_crush_2.ogg',
         ],
-        group: 'sfx',
-        maxVoices: 4,
-        spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
-        gain: 0.55,
+        group: 'ui',
+        maxVoices: 2,
+        gain: 1.1,
     },
     hammerer_smash: {
         paths: [
@@ -310,9 +1037,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     hazard_drip: {
@@ -324,19 +1051,28 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
-    hp_draw: {
-        paths: [
-            'audio/hp_draw_1.ogg',
-            'audio/hp_draw_2.ogg',
-        ],
+    hp_draw_high: {
+        paths: ['audio/hp_draw_high_1.ogg'],
         group: 'ui',
-        maxVoices: 2,
-        gain: 0.5,
+        maxVoices: 6,
+        gain: 1.0,
+    },
+    hp_draw_low: {
+        paths: ['audio/hp_draw_low_1.ogg'],
+        group: 'ui',
+        maxVoices: 8,
+        gain: 0.65,
+    },
+    hp_draw_medium: {
+        paths: ['audio/hp_draw_medium_1.ogg'],
+        group: 'ui',
+        maxVoices: 7,
+        gain: 0.82,
     },
     impact_flesh: {
         paths: [
@@ -347,9 +1083,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 14,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     impact_ground: {
@@ -361,9 +1097,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 10,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     impact_masonry: {
@@ -375,9 +1111,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 10,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     impact_stone_drop: {
@@ -388,9 +1124,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 6,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     impact_ward: {
@@ -401,19 +1137,16 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     levelup: {
-        paths: [
-            'audio/levelup_1.ogg',
-            'audio/levelup_2.ogg',
-        ],
+        paths: ['audio/levelup_1.ogg'],
         group: 'ui',
-        maxVoices: 2,
-        gain: 0.5,
+        maxVoices: 3,
+        gain: 0.72,
     },
     melee_hit: {
         paths: [
@@ -424,9 +1157,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 10,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     melee_swing: {
@@ -438,12 +1171,27 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 10,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
-    /** Default match bed — later: music_battle_winter / horde / etc. */
+    /** Siege mortar tube fire — not the generic stone_throw (crow/hammerer). */
+    mortar_shot: {
+        paths: [
+            'audio/mortar_shot_1.ogg',
+            'audio/mortar_shot_2.ogg',
+            'audio/mortar_shot_3.ogg',
+        ],
+        group: 'sfx',
+        maxVoices: 8,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.7,
+    },
+    /** Default match bed — fallback when no seasonal phase track exists. */
     music_battle: {
         paths: ['audio/music_battle_1.ogg'],
         group: 'music',
@@ -455,6 +1203,114 @@ const CUES: Record<string, CueDef> = {
         group: 'music',
         gain: 0.42,
     },
+    /** The Year beat 1 — Spring morning, deployment. */
+    music_spring_morning_deploy: {
+        paths: ['audio/music_spring_morning_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 1 — Spring morning, battle. */
+    music_spring_morning_battle: {
+        paths: ['audio/music_spring_morning_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 2 — Spring rain, deployment. */
+    music_spring_rain_deploy: {
+        paths: ['audio/music_spring_rain_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 2 — Spring rain, battle. */
+    music_spring_rain_battle: {
+        paths: ['audio/music_spring_rain_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 3 — Summer noon, deployment. */
+    music_summer_noon_deploy: {
+        paths: ['audio/music_summer_noon_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 3 — Summer noon, battle. */
+    music_summer_noon_battle: {
+        paths: ['audio/music_summer_noon_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 4 — Summer golden, deployment. */
+    music_summer_golden_deploy: {
+        paths: ['audio/music_summer_golden_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 4 — Summer golden, battle. */
+    music_summer_golden_battle: {
+        paths: ['audio/music_summer_golden_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 5 — Summer night, deployment. */
+    music_summer_night_deploy: {
+        paths: ['audio/music_summer_night_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 5 — Summer night, battle. */
+    music_summer_night_battle: {
+        paths: ['audio/music_summer_night_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 6 — Autumn dusk, deployment. */
+    music_autumn_dusk_deploy: {
+        paths: ['audio/music_autumn_dusk_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 6 — Autumn dusk, battle. */
+    music_autumn_dusk_battle: {
+        paths: ['audio/music_autumn_dusk_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 7 — Autumn storm, deployment. */
+    music_autumn_storm_deploy: {
+        paths: ['audio/music_autumn_storm_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 7 — Autumn storm, battle. */
+    music_autumn_storm_battle: {
+        paths: ['audio/music_autumn_storm_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 8 — First snow, deployment. */
+    music_first_snow_deploy: {
+        paths: ['audio/music_first_snow_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 8 — First snow, battle. */
+    music_first_snow_battle: {
+        paths: ['audio/music_first_snow_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
+    /** The Year beat 9 — Deep winter, deployment. */
+    music_deep_winter_deploy: {
+        paths: ['audio/music_deep_winter_deploy_1.ogg'],
+        group: 'music',
+        gain: 0.4,
+    },
+    /** The Year beat 9 — Deep winter, battle. */
+    music_deep_winter_battle: {
+        paths: ['audio/music_deep_winter_battle_1.ogg'],
+        group: 'music',
+        gain: 0.38,
+    },
     orb_shot: {
         paths: [
             'audio/orb_shot_1.ogg',
@@ -464,38 +1320,40 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     phase_battle: {
         paths: [
-            'audio/phase_battle_1.ogg',
+            'audio/phase_gong_1.ogg',
+            'audio/phase_gong_2.ogg',
         ],
         group: 'ui',
         maxVoices: 2,
-        gain: 0.42,
+        gain: 0.72,
     },
     phase_deploy: {
         paths: [
-            'audio/phase_deploy_1.ogg',
+            'audio/phase_gong_1.ogg',
+            'audio/phase_gong_2.ogg',
         ],
         group: 'ui',
         maxVoices: 2,
-        gain: 0.4,
+        gain: 0.72,
     },
     ramp_beam: {
         paths: [
             'audio/ramp_beam_1.ogg',
         ],
         group: 'sfx',
-        maxVoices: 4,
+        maxVoices: 1,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
-        gain: 0.45,
+        refDistance: 4,
+        maxDistance: 22,
+        rolloff: 1.4,
+        gain: 0.38,
     },
     rocket_blast: {
         paths: [
@@ -505,9 +1363,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     rocket_launch: {
@@ -518,9 +1376,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_acid_spill: {
@@ -530,9 +1388,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_dragon_approach: {
@@ -542,9 +1400,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_dragon_breath: {
@@ -554,9 +1412,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.7,
     },
     spell_fire_spill: {
@@ -566,9 +1424,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_lightning: {
@@ -580,9 +1438,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 6,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_meteor_fall: {
@@ -593,9 +1451,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_oil_spill: {
@@ -605,9 +1463,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_poison_cloud: {
@@ -617,9 +1475,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     spell_storm: {
@@ -629,9 +1487,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     stone_throw: {
@@ -643,22 +1501,23 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.55,
+    },
+    /** Seamless airplane-air whoosh — proximity bed (same family as fire/acid). */
+    stone_whistle: {
+        paths: ['audio/stone_whistle_1.ogg'],
+        group: 'sfx',
+        maxVoices: 1,
         gain: 0.55,
     },
     stronghold_collapse: {
-        paths: [
-            'audio/stronghold_collapse_1.ogg',
-        ],
-        group: 'sfx',
-        maxVoices: 4,
-        spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
-        gain: 0.85,
+        paths: ['audio/stronghold_collapse_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 1.25,
     },
     summon_flying: {
         paths: [
@@ -668,9 +1527,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     summon_ground: {
@@ -681,9 +1540,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     tactic_move: {
@@ -720,12 +1579,11 @@ const CUES: Record<string, CueDef> = {
     },
     timer_warn: {
         paths: [
-            'audio/timer_warn_1.ogg',
             'audio/timer_warn_2.ogg',
         ],
         group: 'ui',
-        maxVoices: 2,
-        gain: 0.5,
+        maxVoices: 1,
+        gain: 0.62,
     },
     tower_debuff: {
         paths: [
@@ -734,9 +1592,9 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 4,
         spatial: true,
-        refDistance: 12,
-        maxDistance: 55,
-        rolloff: 1.1,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
     ui_click: {
@@ -766,6 +1624,34 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.4,
     },
+    /** Building select — stone / canvas UI hits (not VO). */
+    select_command_tower: {
+        paths: [
+            'audio/select_command_tower_1.ogg',
+            'audio/select_command_tower_2.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.5,
+    },
+    select_research_center: {
+        paths: [
+            'audio/select_research_center_1.ogg',
+            'audio/select_research_center_2.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.5,
+    },
+    select_tent: {
+        paths: [
+            'audio/select_tent_1.ogg',
+            'audio/select_tent_2.ogg',
+        ],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.48,
+    },
     victory: {
         paths: [
             'audio/victory_1.ogg',
@@ -778,6 +1664,7 @@ const CUES: Record<string, CueDef> = {
 
 // Literal assetUrl() calls so `npm run assets:manifest` ships these files.
 void [
+    assetUrl('audio/acid_loop_1.ogg'),
     assetUrl('audio/archer_shot_1.ogg'),
     assetUrl('audio/archer_shot_2.ogg'),
     assetUrl('audio/archer_shot_3.ogg'),
@@ -791,21 +1678,85 @@ void [
     assetUrl('audio/card_pick_1.ogg'),
     assetUrl('audio/card_pick_2.ogg'),
     assetUrl('audio/commander_addi.ogg'),
+    assetUrl('audio/commander_addi_win_1.ogg'),
+    assetUrl('audio/commander_addi_win_2.ogg'),
+    assetUrl('audio/commander_addi_win_3.ogg'),
+    assetUrl('audio/commander_addi_victory.ogg'),
+    assetUrl('audio/commander_addi_defeat.ogg'),
     assetUrl('audio/commander_air.ogg'),
+    assetUrl('audio/commander_air_win_1.ogg'),
+    assetUrl('audio/commander_air_win_2.ogg'),
+    assetUrl('audio/commander_air_win_3.ogg'),
+    assetUrl('audio/commander_air_victory.ogg'),
+    assetUrl('audio/commander_air_defeat.ogg'),
     assetUrl('audio/commander_archer.ogg'),
+    assetUrl('audio/commander_archer_win_1.ogg'),
+    assetUrl('audio/commander_archer_win_2.ogg'),
+    assetUrl('audio/commander_archer_win_3.ogg'),
+    assetUrl('audio/commander_archer_victory.ogg'),
+    assetUrl('audio/commander_archer_defeat.ogg'),
     assetUrl('audio/commander_cost.ogg'),
+    assetUrl('audio/commander_cost_win_1.ogg'),
+    assetUrl('audio/commander_cost_win_2.ogg'),
+    assetUrl('audio/commander_cost_win_3.ogg'),
+    assetUrl('audio/commander_cost_victory.ogg'),
+    assetUrl('audio/commander_cost_defeat.ogg'),
+    assetUrl('audio/commander_cursed.ogg'),
+    assetUrl('audio/commander_cursed_win_1.ogg'),
+    assetUrl('audio/commander_cursed_win_2.ogg'),
+    assetUrl('audio/commander_cursed_win_3.ogg'),
+    assetUrl('audio/commander_cursed_victory.ogg'),
+    assetUrl('audio/commander_cursed_defeat.ogg'),
     assetUrl('audio/commander_elite.ogg'),
+    assetUrl('audio/commander_elite_win_1.ogg'),
+    assetUrl('audio/commander_elite_win_2.ogg'),
+    assetUrl('audio/commander_elite_win_3.ogg'),
+    assetUrl('audio/commander_elite_victory.ogg'),
+    assetUrl('audio/commander_elite_defeat.ogg'),
     assetUrl('audio/commander_flanky.ogg'),
+    assetUrl('audio/commander_flanky_win_1.ogg'),
+    assetUrl('audio/commander_flanky_win_2.ogg'),
+    assetUrl('audio/commander_flanky_win_3.ogg'),
+    assetUrl('audio/commander_flanky_victory.ogg'),
+    assetUrl('audio/commander_flanky_defeat.ogg'),
     assetUrl('audio/commander_giant.ogg'),
+    assetUrl('audio/commander_giant_win_1.ogg'),
+    assetUrl('audio/commander_giant_win_2.ogg'),
+    assetUrl('audio/commander_giant_win_3.ogg'),
+    assetUrl('audio/commander_giant_victory.ogg'),
+    assetUrl('audio/commander_giant_defeat.ogg'),
     assetUrl('audio/commander_meteor.ogg'),
+    assetUrl('audio/commander_meteor_win_1.ogg'),
+    assetUrl('audio/commander_meteor_win_2.ogg'),
+    assetUrl('audio/commander_meteor_win_3.ogg'),
+    assetUrl('audio/commander_meteor_victory.ogg'),
+    assetUrl('audio/commander_meteor_defeat.ogg'),
     assetUrl('audio/commander_money.ogg'),
+    assetUrl('audio/commander_money_win_1.ogg'),
+    assetUrl('audio/commander_money_win_2.ogg'),
+    assetUrl('audio/commander_money_win_3.ogg'),
+    assetUrl('audio/commander_money_victory.ogg'),
+    assetUrl('audio/commander_money_defeat.ogg'),
     assetUrl('audio/commander_speed.ogg'),
+    assetUrl('audio/commander_speed_win_1.ogg'),
+    assetUrl('audio/commander_speed_win_2.ogg'),
+    assetUrl('audio/commander_speed_win_3.ogg'),
+    assetUrl('audio/commander_speed_victory.ogg'),
+    assetUrl('audio/commander_speed_defeat.ogg'),
     assetUrl('audio/commander_tutor.ogg'),
+    assetUrl('audio/commander_tutor_win_1.ogg'),
+    assetUrl('audio/commander_tutor_win_2.ogg'),
+    assetUrl('audio/commander_tutor_win_3.ogg'),
+    assetUrl('audio/commander_tutor_victory.ogg'),
+    assetUrl('audio/commander_tutor_defeat.ogg'),
     assetUrl('audio/convert_1.ogg'),
     assetUrl('audio/convert_2.ogg'),
     assetUrl('audio/convert_beam_1.ogg'),
+    assetUrl('audio/death_command_tower_1.ogg'),
+    assetUrl('audio/death_research_center_1.ogg'),
+    assetUrl('audio/death_shield_1.ogg'),
     assetUrl('audio/death_structure_1.ogg'),
-    assetUrl('audio/death_structure_2.ogg'),
+    assetUrl('audio/death_tent_1.ogg'),
     assetUrl('audio/death_unit_1.ogg'),
     assetUrl('audio/death_unit_2.ogg'),
     assetUrl('audio/death_unit_big_1.ogg'),
@@ -820,17 +1771,18 @@ void [
     assetUrl('audio/explosion_heavy_2.ogg'),
     assetUrl('audio/forge_light_1.ogg'),
     assetUrl('audio/forge_light_2.ogg'),
+    assetUrl('audio/fire_loop_1.ogg'),
     assetUrl('audio/ground_fire_1.ogg'),
     assetUrl('audio/ground_fire_2.ogg'),
     assetUrl('audio/hammer_crush_1.ogg'),
-    assetUrl('audio/hammer_crush_2.ogg'),
     assetUrl('audio/hammerer_smash_1.ogg'),
     assetUrl('audio/hammerer_smash_2.ogg'),
     assetUrl('audio/hazard_drip_1.ogg'),
     assetUrl('audio/hazard_drip_2.ogg'),
     assetUrl('audio/hazard_drip_3.ogg'),
-    assetUrl('audio/hp_draw_1.ogg'),
-    assetUrl('audio/hp_draw_2.ogg'),
+    assetUrl('audio/hp_draw_high_1.ogg'),
+    assetUrl('audio/hp_draw_low_1.ogg'),
+    assetUrl('audio/hp_draw_medium_1.ogg'),
     assetUrl('audio/impact_flesh_1.ogg'),
     assetUrl('audio/impact_flesh_2.ogg'),
     assetUrl('audio/impact_flesh_3.ogg'),
@@ -845,20 +1797,41 @@ void [
     assetUrl('audio/impact_ward_1.ogg'),
     assetUrl('audio/impact_ward_2.ogg'),
     assetUrl('audio/levelup_1.ogg'),
-    assetUrl('audio/levelup_2.ogg'),
     assetUrl('audio/melee_hit_1.ogg'),
     assetUrl('audio/melee_hit_2.ogg'),
     assetUrl('audio/melee_hit_3.ogg'),
     assetUrl('audio/melee_swing_1.ogg'),
     assetUrl('audio/melee_swing_2.ogg'),
     assetUrl('audio/melee_swing_3.ogg'),
+    assetUrl('audio/mortar_shot_1.ogg'),
+    assetUrl('audio/mortar_shot_2.ogg'),
+    assetUrl('audio/mortar_shot_3.ogg'),
+    assetUrl('audio/music_autumn_dusk_battle_1.ogg'),
+    assetUrl('audio/music_autumn_dusk_deploy_1.ogg'),
+    assetUrl('audio/music_autumn_storm_battle_1.ogg'),
+    assetUrl('audio/music_autumn_storm_deploy_1.ogg'),
     assetUrl('audio/music_battle_1.ogg'),
+    assetUrl('audio/music_deep_winter_battle_1.ogg'),
+    assetUrl('audio/music_deep_winter_deploy_1.ogg'),
+    assetUrl('audio/music_first_snow_battle_1.ogg'),
+    assetUrl('audio/music_first_snow_deploy_1.ogg'),
     assetUrl('audio/music_menu_1.ogg'),
+    assetUrl('audio/music_spring_morning_battle_1.ogg'),
+    assetUrl('audio/music_spring_morning_deploy_1.ogg'),
+    assetUrl('audio/music_spring_rain_battle_1.ogg'),
+    assetUrl('audio/music_spring_rain_deploy_1.ogg'),
+    assetUrl('audio/music_summer_golden_battle_1.ogg'),
+    assetUrl('audio/music_summer_golden_deploy_1.ogg'),
+    assetUrl('audio/music_summer_night_battle_1.ogg'),
+    assetUrl('audio/music_summer_night_deploy_1.ogg'),
+    assetUrl('audio/music_summer_noon_battle_1.ogg'),
+    assetUrl('audio/music_summer_noon_deploy_1.ogg'),
     assetUrl('audio/orb_shot_1.ogg'),
     assetUrl('audio/orb_shot_2.ogg'),
     assetUrl('audio/orb_shot_3.ogg'),
-    assetUrl('audio/phase_battle_1.ogg'),
-    assetUrl('audio/phase_deploy_1.ogg'),
+    assetUrl('audio/phase_gong_1.ogg'),
+    assetUrl('audio/phase_gong_2.ogg'),
+    assetUrl('audio/collapse_thunder_1.ogg'),
     assetUrl('audio/ramp_beam_1.ogg'),
     assetUrl('audio/rocket_blast_1.ogg'),
     assetUrl('audio/rocket_blast_2.ogg'),
@@ -879,6 +1852,7 @@ void [
     assetUrl('audio/stone_throw_1.ogg'),
     assetUrl('audio/stone_throw_2.ogg'),
     assetUrl('audio/stone_throw_3.ogg'),
+    assetUrl('audio/stone_whistle_1.ogg'),
     assetUrl('audio/stronghold_collapse_1.ogg'),
     assetUrl('audio/summon_flying_1.ogg'),
     assetUrl('audio/summon_flying_2.ogg'),
@@ -888,15 +1862,121 @@ void [
     assetUrl('audio/tactic_rally_1.ogg'),
     assetUrl('audio/tactic_sell_1.ogg'),
     assetUrl('audio/tactic_tutor_1.ogg'),
-    assetUrl('audio/timer_warn_1.ogg'),
     assetUrl('audio/timer_warn_2.ogg'),
     assetUrl('audio/tower_debuff_1.ogg'),
+    assetUrl('audio/select_command_tower_1.ogg'),
+    assetUrl('audio/select_command_tower_2.ogg'),
+    assetUrl('audio/select_research_center_1.ogg'),
+    assetUrl('audio/select_research_center_2.ogg'),
+    assetUrl('audio/select_tent_1.ogg'),
+    assetUrl('audio/select_tent_2.ogg'),
     assetUrl('audio/ui_click_1.ogg'),
     assetUrl('audio/ui_click_2.ogg'),
     assetUrl('audio/ui_confirm_1.ogg'),
     assetUrl('audio/ui_confirm_2.ogg'),
     assetUrl('audio/ui_deny_1.ogg'),
     assetUrl('audio/ui_deny_2.ogg'),
+    assetUrl('audio/unit_archer_1.ogg'),
+    assetUrl('audio/unit_archer_2.ogg'),
+    assetUrl('audio/unit_archer_3.ogg'),
+    assetUrl('audio/unit_archer_death_1.ogg'),
+    assetUrl('audio/unit_archer_death_2.ogg'),
+    assetUrl('audio/unit_archer_hurt_1.ogg'),
+    assetUrl('audio/unit_archer_hurt_2.ogg'),
+    assetUrl('audio/unit_archer_hurt_3.ogg'),
+    assetUrl('audio/unit_archer_hurt_4.ogg'),
+    assetUrl('audio/unit_archer_hurt_5.ogg'),
+    assetUrl('audio/unit_archer_hurt_6.ogg'),
+    assetUrl('audio/unit_archer_hurt_7.ogg'),
+    assetUrl('audio/unit_ballista_1.ogg'),
+    assetUrl('audio/unit_ballista_2.ogg'),
+    assetUrl('audio/unit_ballista_3.ogg'),
+    assetUrl('audio/unit_ballista_death_1.ogg'),
+    assetUrl('audio/unit_ballista_death_2.ogg'),
+    assetUrl('audio/unit_ballista_hurt_1.ogg'),
+    assetUrl('audio/unit_ballista_hurt_2.ogg'),
+    assetUrl('audio/unit_ballista_hurt_3.ogg'),
+    assetUrl('audio/unit_ballista_hurt_4.ogg'),
+    assetUrl('audio/unit_ballista_hurt_5.ogg'),
+    assetUrl('audio/unit_wizard_1.ogg'),
+    assetUrl('audio/unit_wizard_2.ogg'),
+    assetUrl('audio/unit_wizard_3.ogg'),
+    assetUrl('audio/unit_wizard_death_1.ogg'),
+    assetUrl('audio/unit_wizard_death_2.ogg'),
+    assetUrl('audio/unit_wizard_hurt_1.ogg'),
+    assetUrl('audio/unit_wizard_hurt_2.ogg'),
+    assetUrl('audio/unit_wizard_hurt_3.ogg'),
+    assetUrl('audio/unit_wizard_hurt_4.ogg'),
+    assetUrl('audio/unit_wizard_hurt_5.ogg'),
+    assetUrl('audio/unit_crowRider_1.ogg'),
+    assetUrl('audio/unit_crowRider_2.ogg'),
+    assetUrl('audio/unit_crowRider_3.ogg'),
+    assetUrl('audio/unit_crowRider_death_1.ogg'),
+    assetUrl('audio/unit_crowRider_death_2.ogg'),
+    assetUrl('audio/unit_crowRider_hurt_1.ogg'),
+    assetUrl('audio/unit_crowRider_hurt_2.ogg'),
+    assetUrl('audio/unit_crowRider_hurt_3.ogg'),
+    assetUrl('audio/unit_crowRider_hurt_4.ogg'),
+    assetUrl('audio/unit_crowRider_hurt_5.ogg'),
+    assetUrl('audio/unit_dwarf_1.ogg'),
+    assetUrl('audio/unit_dwarf_2.ogg'),
+    assetUrl('audio/unit_dwarf_3.ogg'),
+    assetUrl('audio/unit_dwarf_death_1.ogg'),
+    assetUrl('audio/unit_dwarf_death_2.ogg'),
+    assetUrl('audio/unit_dwarf_hurt_1.ogg'),
+    assetUrl('audio/unit_dwarf_hurt_2.ogg'),
+    assetUrl('audio/unit_dwarf_hurt_3.ogg'),
+    assetUrl('audio/unit_dwarf_hurt_4.ogg'),
+    assetUrl('audio/unit_dwarf_hurt_5.ogg'),
+    assetUrl('audio/unit_goblin_1.ogg'),
+    assetUrl('audio/unit_goblin_2.ogg'),
+    assetUrl('audio/unit_goblin_3.ogg'),
+    assetUrl('audio/unit_goblin_death_1.ogg'),
+    assetUrl('audio/unit_goblin_death_2.ogg'),
+    assetUrl('audio/unit_goblin_hurt_1.ogg'),
+    assetUrl('audio/unit_goblin_hurt_2.ogg'),
+    assetUrl('audio/unit_goblin_hurt_3.ogg'),
+    assetUrl('audio/unit_goblin_hurt_4.ogg'),
+    assetUrl('audio/unit_goblin_hurt_5.ogg'),
+    assetUrl('audio/unit_hammerer_1.ogg'),
+    assetUrl('audio/unit_hammerer_2.ogg'),
+    assetUrl('audio/unit_hammerer_3.ogg'),
+    assetUrl('audio/unit_hammerer_death_1.ogg'),
+    assetUrl('audio/unit_hammerer_death_2.ogg'),
+    assetUrl('audio/unit_hammerer_hurt_1.ogg'),
+    assetUrl('audio/unit_hammerer_hurt_2.ogg'),
+    assetUrl('audio/unit_hammerer_hurt_3.ogg'),
+    assetUrl('audio/unit_hammerer_hurt_4.ogg'),
+    assetUrl('audio/unit_mortar_1.ogg'),
+    assetUrl('audio/unit_mortar_2.ogg'),
+    assetUrl('audio/unit_mortar_3.ogg'),
+    assetUrl('audio/unit_mortar_death_1.ogg'),
+    assetUrl('audio/unit_mortar_death_2.ogg'),
+    assetUrl('audio/unit_mortar_hurt_1.ogg'),
+    assetUrl('audio/unit_mortar_hurt_2.ogg'),
+    assetUrl('audio/unit_mortar_hurt_3.ogg'),
+    assetUrl('audio/unit_mortar_hurt_4.ogg'),
+    assetUrl('audio/unit_mortar_hurt_5.ogg'),
+    assetUrl('audio/unit_ogre_1.ogg'),
+    assetUrl('audio/unit_ogre_2.ogg'),
+    assetUrl('audio/unit_ogre_3.ogg'),
+    assetUrl('audio/unit_ogre_death_1.ogg'),
+    assetUrl('audio/unit_ogre_death_2.ogg'),
+    assetUrl('audio/unit_ogre_hurt_1.ogg'),
+    assetUrl('audio/unit_ogre_hurt_2.ogg'),
+    assetUrl('audio/unit_ogre_hurt_3.ogg'),
+    assetUrl('audio/unit_ogre_hurt_4.ogg'),
+    assetUrl('audio/unit_ogre_hurt_5.ogg'),
+    assetUrl('audio/unit_prismCannon_1.ogg'),
+    assetUrl('audio/unit_prismCannon_2.ogg'),
+    assetUrl('audio/unit_prismCannon_3.ogg'),
+    assetUrl('audio/unit_prismCannon_death_1.ogg'),
+    assetUrl('audio/unit_prismCannon_death_2.ogg'),
+    assetUrl('audio/unit_prismCannon_hurt_1.ogg'),
+    assetUrl('audio/unit_prismCannon_hurt_2.ogg'),
+    assetUrl('audio/unit_prismCannon_hurt_3.ogg'),
+    assetUrl('audio/unit_prismCannon_hurt_4.ogg'),
+    assetUrl('audio/unit_prismCannon_hurt_5.ogg'),
     assetUrl('audio/victory_1.ogg'),
 ];
 
@@ -911,9 +1991,15 @@ class AudioBus {
     private ctx: AudioContext | null = null;
     private master!: GainNode;
     private groups!: Record<AudioGroupId, GainNode>;
+    /** Hazard / beam beds — same SFX volume pref, never time-scaled or ducked. */
+    private loopBus!: GainNode;
     private buffers = new Map<string, AudioBuffer>();
+    /** In-flight fetches so parallel ensureCue / death storms share one decode. */
+    private inflightDecode = new Map<string, Promise<void>>();
     private voices: Voice[] = [];
     private voiceCount = new Map<string, number>();
+    /** Last path played per cue — avoid immediate repeats when a cue has variants. */
+    private lastCuePath = new Map<string, string>();
     private listenerX = 0;
     private listenerZ = 0;
     private unlocked = false;
@@ -927,8 +2013,23 @@ class AudioBus {
     /** The bed being decoded right now (not yet audible), so a repeat ask doesn't restart it. */
     private loadingMusic: string | null = null;
     private unsubPrefs: (() => void) | null = null;
-    /** Sustained beam loops keyed by cue id. */
-    private loops = new Map<string, { source: AudioBufferSourceNode; gain: GainNode }>();
+    /** Sustained beam / hazard loops keyed by cue id. */
+    private loops = new Map<
+        string,
+        { source: AudioBufferSourceNode; gain: GainNode; panner?: PannerNode }
+    >;
+    /**
+     * Effective battle/replay speed (0 = paused, 0.25 = slo-mo, 1 = normal,
+     * 2/8/32 = fast-forward). Drives SFX playbackRate + soft duck only —
+     * music / UI / commander VO stay at real time.
+     */
+    private timeScale = 1;
+    /** Wall-clock of last unit select bark that actually fired. */
+    private lastUnitSelectAt = 0;
+    /** Wall-clock of last unit hurt yelp that actually fired. */
+    private lastUnitHurtAt = 0;
+    /** Bumps to cancel an in-flight homepage VO preview sequence. */
+    private unitPreviewGen = 0;
 
     /** Idempotent — call from first pointer/click and again at match start. */
     unlock(): void {
@@ -943,17 +2044,46 @@ class AudioBus {
         return this.unlocked;
     }
 
-    /**
-     * Decode SFX/UI cue buffers. Music beds are lazy-loaded on
-     * {@link playMusic} so boot stays light.
-     */
-    preload(extraPaths: readonly string[] = []): Promise<void> {
-        const paths = new Set<string>(extraPaths);
-        for (const cue of Object.values(CUES)) {
-            if (cue.group === 'music') continue;
+    /** Decode commander pick VO cues (optional — normally lazy on first play). */
+    preloadCommanderPicks(): Promise<void> {
+        const paths = new Set<string>();
+        for (const [id, cue] of Object.entries(CUES)) {
+            if (!id.startsWith('commander_')) continue;
             for (const p of cue.paths) paths.add(p);
         }
         return this.decodeAll([...paths]);
+    }
+
+    /** Decode unit VO cues (optional — normally lazy on first play). */
+    preloadUnitSelects(): Promise<void> {
+        const paths = new Set<string>();
+        for (const [id, cue] of Object.entries(CUES)) {
+            if (!id.startsWith('unit_')) continue;
+            for (const p of cue.paths) paths.add(p);
+        }
+        return this.decodeAll([...paths]);
+    }
+
+    /**
+     * Decode SFX/UI cue buffers. Music beds and unit/commander VO are
+     * lazy-loaded on first play so boot (and a large VO roster) stay light.
+     */
+    preload(extraPaths: readonly string[] = []): Promise<void> {
+        const paths = new Set<string>(extraPaths);
+        for (const [id, cue] of Object.entries(CUES)) {
+            if (cue.group === 'music') continue;
+            if (id.startsWith('unit_') || id.startsWith('commander_')) continue;
+            for (const p of cue.paths) paths.add(p);
+        }
+        return this.decodeAll([...paths]);
+    }
+
+    /** Decode one cue's paths (no-op if already buffered). */
+    private async ensureCue(cueId: string): Promise<boolean> {
+        const cue = CUES[cueId];
+        if (!cue) return false;
+        await this.decodeAll([...cue.paths]);
+        return true;
     }
 
     setListener(x: number, z: number): void {
@@ -994,11 +2124,35 @@ class AudioBus {
         const p = prefs();
         const mute = p.audioMuted ? 0 : 1;
         this.master.gain.value = mute * clamp01(p.masterVolume);
-        this.groups.sfx.gain.value = clamp01(p.sfxVolume);
+        const sfx = clamp01(p.sfxVolume);
+        this.groups.sfx.gain.value = sfx * sfxTimeDuck(this.timeScale);
+        this.loopBus.gain.value = sfx;
         this.groups.music.gain.value = clamp01(p.musicVolume);
         this.groups.ui.gain.value = clamp01(p.uiVolume);
         // mute stops the bed, unmute brings back whatever the state wants
         this.syncMusic();
+    }
+
+    /**
+     * Match one-shot SFX to battle/replay speed.
+     * Loops (fire/acid/beams) stay at real time and ignore the fast-forward duck.
+     */
+    setTimeScale(scale: number): void {
+        const next = Number.isFinite(scale) ? Math.max(0, scale) : 1;
+        if (Math.abs(next - this.timeScale) < 1e-4) return;
+        this.timeScale = next;
+        const oneShotRate = sfxPlaybackRate(next);
+        for (const v of this.voices) {
+            if (CUES[v.cueId]?.group !== 'sfx') continue;
+            try {
+                v.source.playbackRate.value = oneShotRate;
+            } catch {
+                /* ended */
+            }
+        }
+        if (this.ctx) {
+            this.groups.sfx.gain.value = clamp01(prefs().sfxVolume) * sfxTimeDuck(next);
+        }
     }
 
     play(cueId: string, worldX?: number, worldZ?: number): boolean {
@@ -1011,16 +2165,19 @@ class AudioBus {
         if ((this.voiceCount.get(cueId) ?? 0) >= maxV) return false;
 
         if (cue.spatial && worldX != null && worldZ != null) {
-            const maxD = cue.maxDistance ?? 50;
+            const maxD = cue.maxDistance ?? SPATIAL_MAX;
             if (distXZ(worldX, worldZ, this.listenerX, this.listenerZ) > maxD) return false;
         }
 
-        const path = cue.paths[(Math.random() * cue.paths.length) | 0]!;
+        const path = this.pickCuePath(cueId, cue);
         const buf = this.buffers.get(path);
         if (!buf) return false;
 
         const src = this.ctx.createBufferSource();
         src.buffer = buf;
+        if (cue.group === 'sfx') {
+            src.playbackRate.value = sfxPlaybackRate(this.timeScale);
+        }
         const gain = this.ctx.createGain();
         gain.gain.value = cue.gain ?? 1;
 
@@ -1029,9 +2186,9 @@ class AudioBus {
             panner = this.ctx.createPanner();
             panner.panningModel = 'HRTF';
             panner.distanceModel = 'inverse';
-            panner.refDistance = cue.refDistance ?? 10;
-            panner.maxDistance = cue.maxDistance ?? 50;
-            panner.rolloffFactor = cue.rolloff ?? 1;
+            panner.refDistance = cue.refDistance ?? SPATIAL_REF;
+            panner.maxDistance = cue.maxDistance ?? SPATIAL_MAX;
+            panner.rolloffFactor = cue.rolloff ?? SPATIAL_ROLLOFF;
             panner.positionX.value = worldX;
             panner.positionY.value = 1.2;
             panner.positionZ.value = worldZ;
@@ -1046,6 +2203,7 @@ class AudioBus {
         const voice: Voice = { cueId, source: src, gain, panner };
         this.voices.push(voice);
         this.voiceCount.set(cueId, (this.voiceCount.get(cueId) ?? 0) + 1);
+        this.lastCuePath.set(cueId, path);
 
         src.onended = () => this.releaseVoice(voice);
         try {
@@ -1055,6 +2213,23 @@ class AudioBus {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Pick a variant path for a cue. With 2+ paths, never immediately
+     * re-play the last one (random among the rest). Single-path cues unchanged.
+     */
+    private pickCuePath(cueId: string, cue: CueDef): string {
+        const paths = cue.paths;
+        if (paths.length <= 1) return paths[0]!;
+        const last = this.lastCuePath.get(cueId);
+        let pick = paths[(Math.random() * paths.length) | 0]!;
+        if (pick === last) {
+            // re-roll among the others
+            const others = paths.filter((p) => p !== last);
+            pick = others[(Math.random() * others.length) | 0]!;
+        }
+        return pick;
     }
 
     /**
@@ -1141,78 +2316,472 @@ class AudioBus {
         this.play(cueId);
     }
 
-    /** Human commander pick bark — falls back to card_pick if unknown. */
-    playCommanderPick(cardId: string): void {
-        const cueId = `commander_${cardId}`;
-        if (CUES[cueId]) this.playUi(cueId);
-        else this.playUi('card_pick');
+    /** True when spoken unit/commander VO may play (prefs toggle). */
+    private voicesOn(): boolean {
+        const p = prefs();
+        return !p.audioMuted && p.voicesEnabled;
     }
 
+    /** Human commander bark — stops any other commander VO so hover switches cleanly. */
+    playCommanderPick(cardId: string): void {
+        this.stopCommanderBarks();
+        const cueId = `commander_${cardId}`;
+        if (!CUES[cueId] || !this.voicesOn()) {
+            this.playUi('card_pick');
+            return;
+        }
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+            else this.playUi('card_pick');
+        });
+    }
+
+    /**
+     * Stronghold click bark: same cooldown as unit select, stops unit +
+     * commander VO. No card_pick fallback (silent if cue missing).
+     */
+    playCommanderSelect(cardId: string): void {
+        if (!this.voicesOn()) return;
+        const cueId = `commander_${cardId}`;
+        if (!CUES[cueId]) return;
+        const now = performance.now();
+        if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
+        this.lastUnitSelectAt = now;
+        this.stopUnitBarks();
+        this.stopCommanderBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Round-win taunt for a commander. Cue id `commander_<id>_win` with up to
+     * three path variants — silent until those assets are shipped.
+     */
+    playCommanderWin(cardId: string): void {
+        if (!this.voicesOn()) return;
+        const cueId = `commander_${cardId}_win`;
+        if (!CUES[cueId]) return;
+        this.stopCommanderBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Match-win line for a commander (`commander_<id>_victory`). Longer than
+     * round win. Silent until the ogg is shipped and listed in the asset
+     * manifest (`assetUrl` + `npm run assets:manifest`).
+     */
+    playCommanderVictory(cardId: string): void {
+        if (!this.voicesOn()) return;
+        const cueId = `commander_${cardId}_victory`;
+        const cue = CUES[cueId];
+        if (!cue) return;
+        if (!cue.paths.every((p) => isBaseAsset(p))) return;
+        this.stopCommanderBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Match-loss line for a commander (`commander_<id>_defeat`).
+     */
+    playCommanderDefeat(cardId: string): void {
+        if (!this.voicesOn()) return;
+        const cueId = `commander_${cardId}_defeat`;
+        const cue = CUES[cueId];
+        if (!cue) return;
+        if (!cue.paths.every((p) => isBaseAsset(p))) return;
+        this.stopCommanderBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Unit pack select bark. Cue `unit_<typeId>`; aliases like
+     * stronghold-archer → archer. Always tries when voices are on, but
+     * cooldown keeps rapid re-selects from stacking. VO loads on first play.
+     */
+    playUnitSelect(typeId: string): void {
+        if (!this.voicesOn()) return;
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueId = `unit_${voiceId}`;
+        if (!CUES[cueId]) return;
+        const now = performance.now();
+        if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
+        if (Math.random() > UNIT_SELECT_CHANCE) return;
+        this.lastUnitSelectAt = now;
+        this.stopUnitBarks();
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Building select SFX (towers / tent). Normal UI group — not gated by
+     * voicesEnabled. Shares the unit-select cooldown so rapid clicks stay tidy.
+     */
+    playBuildingSelect(typeId: string): void {
+        const cueId = BUILDING_SELECT_CUE[typeId];
+        if (!cueId || !CUES[cueId]) return;
+        const now = performance.now();
+        if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
+        this.lastUnitSelectAt = now;
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
+     * Homepage / testing: play every shipped select + death + hurt line for a
+     * unit in order (non-spatial UI), with a short gap. Loads only that unit's
+     * clips. Switching units cancels.
+     */
+    playUnitVoPreview(typeId: string): void {
+        if (!this.voicesOn()) return;
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueIds = [`unit_${voiceId}`, `unit_${voiceId}_death`, `unit_${voiceId}_hurt`];
+        const queue: { cueId: string; path: string }[] = [];
+        for (const id of cueIds) {
+            const cue = CUES[id];
+            if (!cue) continue;
+            for (const path of cue.paths) queue.push({ cueId: id, path });
+        }
+        if (queue.length === 0) return;
+
+        this.stopUnitBarks();
+        const gen = ++this.unitPreviewGen;
+        const gapMs = 150;
+        const paths = queue.map((q) => q.path);
+
+        void this.decodeAll(paths).then(() => {
+            if (gen !== this.unitPreviewGen) return;
+            const playNext = (i: number) => {
+                if (gen !== this.unitPreviewGen) return;
+                if (i >= queue.length) return;
+                const item = queue[i]!;
+                const dur = this.playCuePathUi(item.cueId, item.path);
+                const waitMs = Math.max(200, (dur > 0 ? dur : 0.4) * 1000 + gapMs);
+                window.setTimeout(() => playNext(i + 1), waitMs);
+            };
+            playNext(0);
+        });
+    }
+
+    /**
+     * Play one specific cue path as UI (ignores spatial). Returns buffer
+     * duration in seconds, or 0 if it did not start.
+     */
+    private playCuePathUi(cueId: string, path: string): number {
+        if (!this.unlocked) this.unlock();
+        const cue = CUES[cueId];
+        if (!cue || !this.ctx) return 0;
+        if (prefs().audioMuted) return 0;
+        const buf = this.buffers.get(path);
+        if (!buf) return 0;
+
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        const gain = this.ctx.createGain();
+        gain.gain.value = cue.gain ?? 1;
+        src.connect(gain);
+        gain.connect(this.groups.ui);
+
+        const voice: Voice = { cueId, source: src, gain };
+        this.voices.push(voice);
+        this.voiceCount.set(cueId, (this.voiceCount.get(cueId) ?? 0) + 1);
+        src.onended = () => this.releaseVoice(voice);
+        try {
+            src.start(0);
+        } catch {
+            this.releaseVoice(voice);
+            return 0;
+        }
+        return buf.duration;
+    }
+
+    /** Spatial death yelp when a voiced unit dies — silent until that cue ships. */
+    playUnitDeath(typeId: string, worldX: number, worldZ: number): void {
+        if (!this.voicesOn()) return;
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueId = `unit_${voiceId}_death`;
+        if (!CUES[cueId]) return;
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.play(cueId, worldX, worldZ);
+        });
+    }
+
+    /**
+     * Short hurt yelp on a flesh hit. Near-field only (cue maxDistance) +
+     * global cooldown so packs don't chorus. Silent until that unit's cue ships.
+     */
+    playUnitHurt(typeId: string, worldX: number, worldZ: number): void {
+        if (!this.voicesOn()) return;
+        const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
+        const cueId = `unit_${voiceId}_hurt`;
+        if (!CUES[cueId]) return;
+        const now = performance.now();
+        if (now - this.lastUnitHurtAt < UNIT_HURT_COOLDOWN_MS) return;
+        // Early distance cull before ensureCue — don't wake buffers for far hits.
+        const cue = CUES[cueId]!;
+        const maxD = cue.maxDistance ?? SPATIAL_MAX;
+        if (distXZ(worldX, worldZ, this.listenerX, this.listenerZ) > maxD) return;
+        this.lastUnitHurtAt = now;
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.play(cueId, worldX, worldZ);
+        });
+    }
+
+    /** Cut in-flight commander pick barks (hover preview / card change). */
+    stopCommanderBarks(): void {
+        for (const v of [...this.voices]) {
+            if (!v.cueId.startsWith('commander_')) continue;
+            try {
+                v.source.stop();
+            } catch {
+                /* already ended */
+            }
+            this.releaseVoice(v);
+        }
+    }
+
+    /** Cut in-flight unit select / preview barks. */
+    stopUnitBarks(): void {
+        this.unitPreviewGen++;
+        for (const v of [...this.voices]) {
+            if (!v.cueId.startsWith('unit_')) continue;
+            try {
+                v.source.stop();
+            } catch {
+                /* already ended */
+            }
+            this.releaseVoice(v);
+        }
+    }
+
+    /** Attack-phase sting only — deploy / match reload stay silent. */
     playPhase(phase: 'deploy' | 'battle'): void {
-        this.playUi(phase === 'deploy' ? 'phase_deploy' : 'phase_battle');
+        if (phase === 'battle') this.playUi('phase_battle');
     }
 
     playMatchEnd(result: 'victory' | 'defeat' | 'draw'): void {
         this.playUi(result === 'draw' ? 'draw_match' : result);
     }
 
+    /** Soul hit on HP bar — short ethereal spirit tick scaled to wave tier. */
+    playHpDrawHit(tier: 'low' | 'medium' | 'high'): void {
+        this.playUi(
+            tier === 'high' ? 'hp_draw_high' : tier === 'medium' ? 'hp_draw_medium' : 'hp_draw_low',
+        );
+    }
+
     /**
      * Keep convert / ramp beam loops in sync with live actors.
-     * Call once per battle frame after sim update.
+     * Sound sits at the ray muzzle; volume is near-field only.
      */
-    syncBeamLoops(
-        actors: readonly {
-            alive: boolean;
-            convertRayActive?: boolean;
-            unit: { type: { convertRay?: unknown; rampBeam?: unknown } };
-            x: number;
-            z: number;
-        }[],
-    ): void {
-        let convert = false;
-        let ramp = false;
-        let cx = 0;
-        let cz = 0;
-        let rx = 0;
-        let rz = 0;
-        let cn = 0;
-        let rn = 0;
+    syncBeamLoops(actors: readonly Actor[]): void {
+        const lx = this.listenerX;
+        const lz = this.listenerZ;
+        let bestConvert = BEAM_LOOP_MAX_DIST + 1;
+        let cx = lx;
+        let cy = 1.5;
+        let cz = lz;
+        let bestRamp = BEAM_LOOP_MAX_DIST + 1;
+        let rx = lx;
+        let ry = 1.5;
+        let rz = lz;
         for (const a of actors) {
             if (!a.alive || !a.convertRayActive) continue;
+            const muzzle = beamMuzzleWorld(a);
+            const d = distXZ(muzzle.x, muzzle.z, lx, lz);
             if (a.unit.type.rampBeam) {
-                ramp = true;
-                rx += a.x;
-                rz += a.z;
-                rn++;
+                if (d < bestRamp) {
+                    bestRamp = d;
+                    rx = muzzle.x;
+                    ry = muzzle.y;
+                    rz = muzzle.z;
+                }
             } else if (a.unit.type.convertRay) {
-                convert = true;
-                cx += a.x;
-                cz += a.z;
-                cn++;
+                if (d < bestConvert) {
+                    bestConvert = d;
+                    cx = muzzle.x;
+                    cy = muzzle.y;
+                    cz = muzzle.z;
+                }
             }
         }
-        this.setLoop('convert_beam', convert, cn ? cx / cn : 0, cn ? cz / cn : 0);
-        this.setLoop('ramp_beam', ramp, rn ? rx / rn : 0, rn ? rz / rn : 0);
+        this.setLoop('convert_beam', true, cx, cz, beamLoopVolume(bestConvert), cy);
+        this.setLoop('ramp_beam', true, rx, rz, beamLoopVolume(bestRamp), ry);
     }
 
-    /** Edge-trigger timer warning when remaining seconds first enter `<= until`. */
-    tickTimerWarn(phaseRemaining: number, until = 5): void {
-        if (phaseRemaining <= 0 || phaseRemaining > until) {
-            this.timerWarnArmed = true;
+    /**
+     * Keep fire / acid crackle beds in sync with hazards near the listener.
+     * Loudness = soft-saturating sum of per-cell XZ falloffs × camera-height
+     * duck (zoomed-out / high in the sky stays quiet).
+     */
+    syncHazardLoops(
+        hazards: {
+            forEachFireCell: (
+                now: number,
+                fn: (x: number, z: number) => void,
+            ) => void;
+            forEachAcidCell: (fn: (x: number, z: number) => void) => void;
+        } | null,
+        now: number,
+        cameraY = 40,
+    ): void {
+        if (!hazards) {
+            this.setLoop('fire_loop', false, 0, 0, 0);
+            this.setLoop('acid_loop', false, 0, 0, 0);
             return;
         }
-        if (this.timerWarnArmed) {
-            this.timerWarnArmed = false;
-            this.playUi('timer_warn');
+        const lx = this.listenerX;
+        const lz = this.listenerZ;
+        const heightMul = hazardAltitudeGain(cameraY);
+        if (heightMul < 0.02) {
+            this.setLoop('fire_loop', false, 0, 0, 0);
+            this.setLoop('acid_loop', false, 0, 0, 0);
+            return;
         }
+        let bestFire = FIRE_LOOP_MAX_DIST + 1;
+        let fx = lx;
+        let fz = lz;
+        let fireEnergy = 0;
+        hazards.forEachFireCell(now, (x, z) => {
+            const d = distXZ(x, z, lx, lz);
+            const cell = hazardCellFalloff(d, FIRE_LOOP_MAX_DIST);
+            if (cell <= 0) return;
+            fireEnergy += cell;
+            if (d < bestFire) {
+                bestFire = d;
+                fx = x;
+                fz = z;
+            }
+        });
+        let bestAcid = ACID_LOOP_MAX_DIST + 1;
+        let ax = lx;
+        let az = lz;
+        let acidEnergy = 0;
+        hazards.forEachAcidCell((x, z) => {
+            const d = distXZ(x, z, lx, lz);
+            const cell = hazardCellFalloff(d, ACID_LOOP_MAX_DIST);
+            if (cell <= 0) return;
+            acidEnergy += cell;
+            if (d < bestAcid) {
+                bestAcid = d;
+                ax = x;
+                az = z;
+            }
+        });
+        this.setLoop('fire_loop', true, fx, fz, hazardMassGain(fireEnergy) * heightMul);
+        this.setLoop('acid_loop', true, ax, az, hazardMassGain(acidEnergy) * heightMul);
     }
 
-    private timerWarnArmed = true;
+    /**
+     * Deployment hurry-up: one beep per whole second while remaining is in
+     * (0, until] — i.e. at 5, 4, 3, 2, 1. Silent outside that window.
+     */
+    tickTimerWarn(phaseRemaining: number, until = 5): void {
+        if (phaseRemaining <= 0 || phaseRemaining > until) {
+            this.timerWarnSecond = -1;
+            return;
+        }
+        const sec = Math.ceil(phaseRemaining);
+        if (sec === this.timerWarnSecond) return;
+        this.timerWarnSecond = sec;
+        this.playUi('timer_warn');
+    }
 
-    /** Stop convert / ramp beam loops (battle end / tear-down). */
+    private timerWarnSecond = -1;
+
+    /** Stop convert / ramp / hazard / stone-fly beds (battle end / tear-down). */
     stopBeamLoops(): void {
-        this.setLoop('convert_beam', false, 0, 0);
-        this.setLoop('ramp_beam', false, 0, 0);
+        this.setLoop('convert_beam', false, 0, 0, 0);
+        this.setLoop('ramp_beam', false, 0, 0, 0);
+        this.setLoop('fire_loop', false, 0, 0, 0);
+        this.setLoop('acid_loop', false, 0, 0, 0);
+        this.setLoop('stone_whistle', false, 0, 0, 0);
+        this.setLoop('collapse_thunder', false, 0, 0, 0);
+    }
+
+    /**
+     * Proximity bed on the expanding stronghold-collapse rim (fire/acid family).
+     * Loudest when the camera is near the dust front; keeps playing at 0× speed.
+     */
+    syncCollapseThunder(
+        fronts: readonly { x: number; z: number; radius: number }[],
+    ): void {
+        const lx = this.listenerX;
+        const lz = this.listenerZ;
+        let bestRim = COLLAPSE_THUNDER_MAX_DIST + 1;
+        let sx = lx;
+        let sz = lz;
+        let energy = 0;
+        for (const f of fronts) {
+            const dCenter = distXZ(f.x, f.z, lx, lz);
+            const rimDist = Math.abs(dCenter - f.radius);
+            const cell = hazardCellFalloff(rimDist, COLLAPSE_THUNDER_MAX_DIST);
+            if (cell <= 0) continue;
+            energy += cell;
+            if (rimDist < bestRim) {
+                bestRim = rimDist;
+                // park the bed on the nearest point on the rim
+                if (dCenter < 1e-3) {
+                    sx = f.x + f.radius;
+                    sz = f.z;
+                } else {
+                    const s = f.radius / dCenter;
+                    sx = f.x + (lx - f.x) * s;
+                    sz = f.z + (lz - f.z) * s;
+                }
+            }
+        }
+        this.setLoop('collapse_thunder', true, sx, sz, hazardMassGain(energy));
+    }
+
+    /**
+     * Proximity bed while ballistic stones fly near the camera (same pattern
+     * as fire/acid). One loop; mild rate nudge from climb vs dive — mostly constant.
+     */
+    syncStoneWhistles(projectiles: readonly Projectile[]): void {
+        const lx = this.listenerX;
+        const lz = this.listenerZ;
+        let best = STONE_FLY_MAX_DIST + 1;
+        let sx = lx;
+        let sy = 8;
+        let sz = lz;
+        let energy = 0;
+        let nearestVy = 0;
+        for (const p of projectiles) {
+            if (p.style !== 'stone' || !p.gravity) continue;
+            if (p.stone?.rolling) continue;
+            if (p.stone?.landed && p.y < (p.stone.radius ?? 0.5) + 0.4) continue;
+            const d = distXZ(p.x, p.z, lx, lz);
+            const cell = hazardCellFalloff(d, STONE_FLY_MAX_DIST);
+            if (cell <= 0) continue;
+            energy += cell;
+            if (d < best) {
+                best = d;
+                sx = p.x;
+                sy = Math.max(1, p.y);
+                sz = p.z;
+                nearestVy = p.vy;
+            }
+        }
+        // Tiny climb/dive bias (~±8%) so it stays “constant” but reads direction.
+        const rate = 1 + Math.max(-0.08, Math.min(0.08, nearestVy * 0.004));
+        this.setLoop(
+            'stone_whistle',
+            true,
+            sx,
+            sz,
+            hazardMassGain(energy),
+            sy,
+            rate,
+        );
     }
 
     /**
@@ -1229,9 +2798,19 @@ class AudioBus {
         if (cue) this.playUi(cue);
     }
 
-    private setLoop(cueId: string, on: boolean, _x: number, _z: number): void {
+    private setLoop(
+        cueId: string,
+        on: boolean,
+        x: number,
+        z: number,
+        volume = 1,
+        y = 1.5,
+        playbackRate = 1,
+    ): void {
         const existing = this.loops.get(cueId);
-        if (!on) {
+        const cue = CUES[cueId];
+        const level = clamp01(volume) * (cue?.gain ?? 0.4);
+        if (!on || level < 0.02) {
             if (existing) {
                 try {
                     existing.source.stop();
@@ -1240,13 +2819,22 @@ class AudioBus {
                 }
                 existing.source.disconnect();
                 existing.gain.disconnect();
+                existing.panner?.disconnect();
                 this.loops.delete(cueId);
             }
             return;
         }
-        if (existing) return;
+        if (existing) {
+            existing.gain.gain.value = level;
+            existing.source.playbackRate.value = playbackRate;
+            if (existing.panner) {
+                existing.panner.positionX.value = x;
+                existing.panner.positionY.value = y;
+                existing.panner.positionZ.value = z;
+            }
+            return;
+        }
         if (!this.unlocked) this.unlock();
-        const cue = CUES[cueId];
         if (!cue || !this.ctx || prefs().audioMuted) return;
         const path = cue.paths[0];
         if (!path) return;
@@ -1255,20 +2843,39 @@ class AudioBus {
         const src = this.ctx.createBufferSource();
         src.buffer = buf;
         src.loop = true;
+        src.playbackRate.value = playbackRate;
         const gain = this.ctx.createGain();
-        gain.gain.value = cue.gain ?? 0.4;
-        src.connect(gain);
-        gain.connect(this.groups[cue.group]);
+        gain.gain.value = level;
+        let panner: PannerNode | undefined;
+        if (cue.spatial) {
+            panner = this.ctx.createPanner();
+            panner.panningModel = 'HRTF';
+            panner.distanceModel = 'inverse';
+            panner.refDistance = cue.refDistance ?? 4;
+            panner.maxDistance = cue.maxDistance ?? 22;
+            panner.rolloffFactor = cue.rolloff ?? 1.4;
+            panner.positionX.value = x;
+            panner.positionY.value = y;
+            panner.positionZ.value = z;
+            src.connect(gain);
+            gain.connect(panner);
+            panner.connect(this.loopBus);
+        } else {
+            src.connect(gain);
+            gain.connect(this.loopBus);
+        }
         try {
             src.start(0);
         } catch {
             return;
         }
-        this.loops.set(cueId, { source: src, gain });
+        this.loops.set(cueId, { source: src, gain, panner });
     }
 
     /** Battle SimEvents → spatial SFX. */
     spawnFromEvents(events: readonly SimEvent[]): void {
+        // One Mario-style powerup for the whole batch (unit or multi-upgrade)
+        let levelup = false;
         for (const e of events) {
             switch (e.kind) {
                 case 'muzzle':
@@ -1279,6 +2886,7 @@ class AudioBus {
                     break;
                 case 'impact':
                     this.play(impactCue(e), e.x, e.z);
+                    if (e.flesh && e.unitTypeId) this.playUnitHurt(e.unitTypeId, e.x, e.z);
                     break;
                 case 'explosion':
                     this.play(
@@ -1294,20 +2902,22 @@ class AudioBus {
                     );
                     break;
                 case 'death':
-                    this.play(
-                        e.structure ? 'death_structure' : e.big ? 'death_unit_big' : 'death_unit',
-                        e.x,
-                        e.z,
-                    );
+                    if (e.structure) {
+                        const cue = structureDeathCue(e.unitTypeId);
+                        if (cue) this.play(cue); // global — no spatial falloff
+                    } else {
+                        this.play(e.big ? 'death_unit_big' : 'death_unit', e.x, e.z);
+                        if (e.unitTypeId) this.playUnitDeath(e.unitTypeId, e.x, e.z);
+                    }
                     break;
                 case 'strongholdCollapse':
-                    this.play('stronghold_collapse', e.x, e.z);
+                    this.play('stronghold_collapse');
                     break;
                 case 'towerDebuff':
                     this.play('tower_debuff', e.x, e.z);
                     break;
                 case 'levelup':
-                    this.play('levelup', e.x, e.z);
+                    levelup = true;
                     break;
                 case 'summon':
                     this.play(e.flying ? 'summon_flying' : 'summon_ground', e.x, e.z);
@@ -1328,12 +2938,13 @@ class AudioBus {
                     this.play('spell_meteor_fall', e.x, e.z);
                     break;
                 case 'hammerCrush':
-                    this.play('hammer_crush', e.x, e.z);
+                    this.play('hammer_crush');
                     break;
                 default:
                     break;
             }
         }
+        if (levelup) this.playUi('levelup');
     }
 
     private releaseVoice(voice: Voice): void {
@@ -1364,7 +2975,9 @@ class AudioBus {
             music: this.ctx.createGain(),
             ui: this.ctx.createGain(),
         };
+        this.loopBus = this.ctx.createGain();
         this.groups.sfx.connect(this.master);
+        this.loopBus.connect(this.master);
         this.groups.music.connect(this.master);
         this.groups.ui.connect(this.master);
         this.applyPrefs();
@@ -1388,16 +3001,43 @@ class AudioBus {
         await Promise.all(
             paths.map(async (path) => {
                 if (this.buffers.has(path)) return;
-                try {
-                    const res = await fetch(assetUrl(path));
-                    const raw = await res.arrayBuffer();
-                    const buf = await this.ctx!.decodeAudioData(raw.slice(0));
-                    this.buffers.set(path, buf);
-                } catch (err) {
-                    console.warn(`[audio] failed to load ${path}`, err);
+                let inflight = this.inflightDecode.get(path);
+                if (!inflight) {
+                    inflight = (async () => {
+                        try {
+                            const res = await fetch(assetUrl(path));
+                            const raw = await res.arrayBuffer();
+                            const buf = await this.ctx!.decodeAudioData(raw.slice(0));
+                            this.buffers.set(path, buf);
+                        } catch (err) {
+                            console.warn(`[audio] failed to load ${path}`, err);
+                        } finally {
+                            this.inflightDecode.delete(path);
+                        }
+                    })();
+                    this.inflightDecode.set(path, inflight);
                 }
+                await inflight;
             }),
         );
+    }
+}
+
+function structureDeathCue(unitTypeId: string | undefined): string | null {
+    switch (unitTypeId) {
+        case 'command-tower':
+            return 'death_command_tower';
+        case 'research-center':
+            return 'death_research_center';
+        case 'tent':
+            return 'death_tent';
+        case 'shield':
+            return 'death_shield';
+        case 'stronghold':
+            // Covered by stronghold_collapse — avoid double bang
+            return null;
+        default:
+            return 'death_structure';
     }
 }
 
@@ -1407,6 +3047,7 @@ function muzzleCue(
 ): string {
     if (unitTypeId === 'rocket') return 'rocket_launch';
     if (unitTypeId === 'hammerer') return 'hammerer_smash';
+    if (unitTypeId === 'mortar') return 'mortar_shot';
     switch (style) {
         case 'largeArrow':
             return 'ballista_shot';
@@ -1480,28 +3121,144 @@ function distXZ(ax: number, az: number, bx: number, bz: number): number {
     return Math.hypot(dx, dz);
 }
 
+/** Fire: hear it from a bit farther out. */
+const FIRE_LOOP_MAX_DIST = 28;
+/** Acid: tighter — only loud when actually over it, not from high orbit. */
+const ACID_LOOP_MAX_DIST = 16;
+/** Ballistic stones — hear the air whoosh when flying near the camera. */
+const STONE_FLY_MAX_DIST = 36;
+/** Stronghold collapse dust front — thunder bed near the expanding rim. */
+const COLLAPSE_THUNDER_MAX_DIST = 30;
+
+function hazardCellFalloff(dist: number, maxDist: number): number {
+    if (dist >= maxDist) return 0;
+    const t = 1 - dist / maxDist;
+    // cubic — stays quiet until closer, then ramps
+    return t * t * t;
+}
+
+/**
+ * Soft-saturating gain from summed per-cell falloffs.
+ * One cell underfoot ≈ 0.75; a few nearby cells fill toward 1 without clipping.
+ */
+function hazardMassGain(energy: number): number {
+    if (energy <= 0) return 0;
+    return 1 - Math.exp(-energy * 1.4);
+}
+
+/**
+ * Quiet hazard beds when the camera is high (default zoom ~75 → height ~60).
+ * Low orbit / close-in stays full; bird's-eye drops out.
+ */
+function hazardAltitudeGain(cameraY: number): number {
+    const fullBelow = 36;
+    const silentAbove = 110;
+    if (cameraY <= fullBelow) return 1;
+    if (cameraY >= silentAbove) return 0;
+    const t = 1 - (cameraY - fullBelow) / (silentAbove - fullBelow);
+    return t * t;
+}
+
+/** Prism / convert beams — only loud when nearly on top of the caster. */
+const BEAM_LOOP_MAX_DIST = 20;
+
+function beamLoopVolume(dist: number): number {
+    if (dist >= BEAM_LOOP_MAX_DIST) return 0;
+    const t = 1 - dist / BEAM_LOOP_MAX_DIST;
+    return t * t * t; // steeper than hazards — “super close” only
+}
+
+/**
+ * SFX one-shot rate vs battle speed: stretch in slo-mo, natural pitch when fast.
+ * Near-zero freezes in-flight one-shots. Loops never use this.
+ */
+function sfxPlaybackRate(scale: number): number {
+    if (scale <= 0) return 0.0001;
+    if (scale < 1) return Math.max(0.05, scale);
+    return 1;
+}
+
+/** Soft one-shot SFX duck above 1× so fast-forward stays readable. */
+function sfxTimeDuck(scale: number): number {
+    if (scale <= 1) return 1;
+    return 1 / Math.sqrt(scale);
+}
+
 /** Singleton — one bus for the whole app. */
 export const audio = new AudioBus();
 
 /**
- * Music bed resolver — today menu vs match; later season / mode variants
- * (e.g. `music_battle_winter`, `music_menu_horde`) plug in here.
+ * Music bed resolver — menu, default battle, or seasonal phase tracks.
+ * Year-tour beats with deploy+battle variants; others fall back to music_battle.
  */
 export function resolveMusicBed(opts: {
     scene: 'menu' | 'match';
+    /** Year-tour atmosphere label, e.g. `Spring morning`. */
+    atmosphereLabel?: string | null;
+    /** Match phase — picks deploy vs battle seasonal bed when available. */
+    phase?: 'deploy' | 'battle';
     season?: string;
     mode?: string;
 }): string {
     void opts.season;
     void opts.mode;
-    return opts.scene === 'menu' ? 'music_menu' : 'music_battle';
+    if (opts.scene === 'menu') return 'music_menu';
+    const seasonal: Record<string, { deploy: string; battle: string }> = {
+        'Spring morning': {
+            deploy: 'music_spring_morning_deploy',
+            battle: 'music_spring_morning_battle',
+        },
+        'Spring rain': {
+            deploy: 'music_spring_rain_deploy',
+            battle: 'music_spring_rain_battle',
+        },
+        'Summer noon': {
+            deploy: 'music_summer_noon_deploy',
+            battle: 'music_summer_noon_battle',
+        },
+        'Summer golden': {
+            deploy: 'music_summer_golden_deploy',
+            battle: 'music_summer_golden_battle',
+        },
+        'Summer night': {
+            deploy: 'music_summer_night_deploy',
+            battle: 'music_summer_night_battle',
+        },
+        'Autumn dusk': {
+            deploy: 'music_autumn_dusk_deploy',
+            battle: 'music_autumn_dusk_battle',
+        },
+        'Autumn storm': {
+            deploy: 'music_autumn_storm_deploy',
+            battle: 'music_autumn_storm_battle',
+        },
+        'First snow': {
+            deploy: 'music_first_snow_deploy',
+            battle: 'music_first_snow_battle',
+        },
+        'Deep winter': {
+            deploy: 'music_deep_winter_deploy',
+            battle: 'music_deep_winter_battle',
+        },
+    };
+    const pair = opts.atmosphereLabel ? seasonal[opts.atmosphereLabel] : undefined;
+    if (pair) {
+        const cue = opts.phase === 'battle' ? pair.battle : pair.deploy;
+        if (CUES[cue]) return cue;
+    }
+    return 'music_battle';
 }
 
 export function playMenuMusic(): void {
     audio.playMusic(resolveMusicBed({ scene: 'menu' }));
 }
 
-export function playMatchMusic(opts?: { season?: string; mode?: string }): void {
+export function playMatchMusic(opts?: {
+    atmosphereLabel?: string | null;
+    phase?: 'deploy' | 'battle';
+    season?: string;
+    mode?: string;
+}): void {
     audio.playMusic(resolveMusicBed({ scene: 'match', ...opts }));
 }
 

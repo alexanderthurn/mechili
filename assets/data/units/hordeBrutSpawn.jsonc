@@ -28,4 +28,34 @@
     "speed": 12,
     "turnRate": 10,
     "proceduralModel": "dwarf",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A tiny newborn nightmare-spider voice — skittering, frantic, and adorably apocalyptic. High insectile chirps with pure predatory baby evil. Super creepy-cute terror, never human adult, never heroic. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Skitter?",
+                "Yes!",
+                "Prey?",
+            ],
+            // death yelps
+            "death": [
+                "Kii—!",
+                "No—!",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Kii!",
+                "Skrit!",
+                "Eep!",
+                "Ih!",
+                "Ack!",
+            ],
+        },
+
+    },
 }

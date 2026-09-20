@@ -32,4 +32,34 @@
     // standard talents for The Komtur's side (Dark Harvest stays innate)
     "talents": ["bloodRage", "armor"],
     "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A tragic-comic undead farmer voice — rural drawl warped by death, polite and wrong. Speaks like offering crops while dripping grave dirt, darkly funny and deeply cursed. Super uncanny valley humor-horror. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Evenin'?",
+                "Need a hand?",
+                "Crops.",
+            ],
+            // death yelps
+            "death": [
+                "Harvest's done…",
+                "Tell the missus…",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Ow!",
+                "Ah!",
+                "Oof!",
+                "Hey!",
+                "Ugh!",
+            ],
+        },
+
+    },
 }

@@ -1,6 +1,6 @@
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
-import type { UnitType } from './units';
+import { applyTalentMod, type TechDef, type UnitType } from './units';
 
 /** a unit type's combat stats after tech multipliers (level scaling is separate) */
 export interface ResolvedStats {
@@ -15,6 +15,40 @@ export interface ResolvedStats {
     projectileCount: number;
     /** projectile splash radius (0 = single-target); tech can multiply the type base */
     splashRadius: number;
+}
+
+/**
+ * 1 + (level − 1) × sum of talent `levelScale` bonuses (Veteran Aim, etc.).
+ * Applied in combat on top of {@link ResolvedStats}; UI must use the same mult
+ * for range rings and the selection pane.
+ */
+export function levelScaleMultFromTechs(
+    techs: readonly TechDef[],
+    level: number,
+    kind: 'damage' | 'range',
+): number {
+    let per = 0;
+    for (const tech of techs) {
+        if (!tech.levelScale) continue;
+        const v = kind === 'damage' ? tech.levelScale.damagePerLevel : tech.levelScale.rangePerLevel;
+        if (v != null) per += v;
+    }
+    return 1 + (Math.max(1, level) - 1) * per;
+}
+
+/** Same as {@link levelScaleMultFromTechs} from an owned-tech set (+ innate). */
+export function levelScaleMult(
+    type: UnitType,
+    owned: ReadonlySet<string>,
+    level: number,
+    kind: 'damage' | 'range',
+    types: TypeRegistry,
+): number {
+    const techs = types
+        .talentsOf(type)
+        .filter((t) => owned.has(t.id) || !!type.innateTechs?.includes(t.id))
+        .map((t) => applyTalentMod(t, type.talentMod?.[t.id]));
+    return levelScaleMultFromTechs(techs, level, kind);
 }
 
 /**
@@ -154,8 +188,9 @@ export class TechTree {
         let rangeAdd = 0;
         let projectileCountAdd = 0;
         for (const techId of techIds) {
-            const tech = types.talent(techId);
-            if (!tech) continue;
+            const raw = types.talent(techId);
+            if (!raw) continue;
+            const tech = applyTalentMod(raw, type.talentMod?.[techId]);
             stats.hp *= tech.mods.hp ?? 1;
             stats.damage *= tech.mods.damage ?? 1;
             stats.range *= tech.mods.range ?? 1;

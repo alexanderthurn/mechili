@@ -27,4 +27,34 @@
     "speed": 12,
     "turnRate": 5,
     "proceduralModel": "dwarf",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "prompt": "A pathetic-terrifying undead farmhand voice — thin, eager, and brokenly cheerful. Speaks like a loyal helper who should not exist, with cracked smiles in the tone. Super sad-funny horror, never bossy, never regal. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks
+            "pick": [
+                "Help?",
+                "Yes!",
+                "I can dig!",
+            ],
+            // death yelps
+            "death": [
+                "Sorry…!",
+                "Still… helpful…?",
+            ],
+            // hit flinches — one syllable
+            "hurt": [
+                "Ow!",
+                "Eep!",
+                "Ah!",
+                "Uh!",
+                "Oof!",
+            ],
+        },
+
+    },
 }

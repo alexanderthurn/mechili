@@ -12,4 +12,27 @@
     "forgeSpells": ["fireSpill", "spawnCrows", "dragonAttack"],
     "effects": { "flyingBonus": 0.12 },
     "description": "Air units get +12% attack and HP.",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "AVBYL4Xg7KGO0JFC7HCB",
+                "prompt": "A light, airy male voice of a middle-aged sky mage — clearly male, and FUNNY. Soft high-chest resonance with wind in the tone, but playful and absurd rather than solemn: witty asides, amused chuckles, comic loftiness as if the clouds are his punchline. Speaks with buoyant theatrical timing, never gravelly, never booming, never stern. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            "pick": ["The sky envies you."],
+            "win": [
+                "Haha! Sky's mine!",
+                "Ha! Clouds, applause!",
+                "Haha! Down you go!"
+            ],
+            "victory": [
+                "The skies are ours."
+            ],
+            "defeat": [
+                "The skies turn against me."
+            ],
+        },
+    },
 }

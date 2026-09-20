@@ -10,4 +10,27 @@
     "tactics": ["bigMeteor", "bigMeteor"],
     "forgeSpells": ["fireSpill", "bigMeteor", "meteorShower"],
     "description": "Gets 2 Meteor charges in round 2.",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "YpfsBNgK2ori58CV061n",
+                "prompt": "A booming, manic male voice of a wild siege lord in his middle years. Thick gravel and hot theatrical energy — excited, reckless, delighted by explosions. Speaks fast with erratic bursts and big emphasis, half menace and half gleeful idiot. Loud chest resonance, never calm, never polite. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            "pick": ["Let’s drop some rocks!"],
+            "win": [
+                "Haha! ROCKS WIN!",
+                "Ha! Boom! Told you!",
+                "Haha! More rocks!"
+            ],
+            "victory": [
+                "Rocks win — the map is ours."
+            ],
+            "defeat": [
+                "Out of rocks. For now."
+            ],
+        },
+    },
 }

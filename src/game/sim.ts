@@ -38,7 +38,13 @@ import {
     RALLY_ROUTE_STUCK_SEC,
     type RallyRoute,
 } from './tactics';
-import { effectiveFlying, effectiveTargets, TechTree, type ResolvedStats } from './tech';
+import {
+    effectiveFlying,
+    effectiveTargets,
+    levelScaleMultFromTechs,
+    TechTree,
+    type ResolvedStats,
+} from './tech';
 import { ownedCleaveTechs, ownedOnKillTechs, ownedProduceTechs, techsForUnit, type Loadout } from './techCatalog';
 import {
     DEPLOY_AIR_Y,
@@ -48,6 +54,7 @@ import {
     projectileAimY,
     clearBattleTint,
     syncBattleTint,
+    techForUnit,
     type BattleTeam,
     type DeathWear,
     type Team,
@@ -641,6 +648,8 @@ export type SimEvent =
           ward?: boolean;
           /** Melee contact (vs projectile) — drives melee_hit SFX. */
           melee?: boolean;
+          /** Flesh victim {@link UnitType.id} — drives unit hurt VO when set. */
+          unitTypeId?: string;
       }
     /** Melee swing windup / instant swing start (render SFX). */
     | { kind: 'meleeSwing'; x: number; y: number; z: number }
@@ -701,6 +710,8 @@ export type SimEvent =
           blood?: number;
           /** structure ruin — masonry shower + collapse shake (vs unit ash/blood) */
           structure?: boolean;
+          /** UnitType.id — audio picks a per-building crush sting when set */
+          unitTypeId?: string;
           /** visual height / footprint for collapse stone shower */
           structureHeight?: number;
           structureRadius?: number;
@@ -1607,7 +1618,7 @@ export class BattleSim {
     private techProfiles(a: Actor): TechDef[] {
         const out: TechDef[] = [];
         for (const tech of this.config.types.talentsOf(a.unit.type)) {
-            if (this.actorHasTech(a, tech.id)) out.push(tech);
+            if (this.actorHasTech(a, tech.id)) out.push(techForUnit(a.unit.type, tech));
         }
         return out;
     }
@@ -1627,13 +1638,7 @@ export class BattleSim {
 
     /** 1 + (level − 1) × sum of per-level talent bonuses. */
     private levelScaleMult(a: Actor, kind: 'damage' | 'range'): number {
-        let per = 0;
-        for (const tech of this.techProfiles(a)) {
-            if (!tech.levelScale) continue;
-            const v = kind === 'damage' ? tech.levelScale.damagePerLevel : tech.levelScale.rangePerLevel;
-            if (v != null) per += v;
-        }
-        return 1 + (a.unit.level - 1) * per;
+        return levelScaleMultFromTechs(this.techProfiles(a), a.unit.level, kind);
     }
 
     /** Weapon reach after levelScale + vsLayer range multipliers. */
@@ -1734,7 +1739,8 @@ export class BattleSim {
                 }
             }
             if (od.acid) {
-                acidRadius = Math.max(acidRadius, od.acid.radius);
+                // talent radius (already talentMod-scaled) × body size
+                acidRadius = Math.max(acidRadius, od.acid.radius * target.radius);
             }
         }
         if (hasExplode && explodeSplash > 0) {
@@ -1955,6 +1961,7 @@ export class BattleSim {
             blood: bloodColorOf(target.unit.type),
             flesh: resolveDeathWear(target.unit.type) === 'blood',
             masonry: !!target.unit.type.structure,
+            unitTypeId: target.unit.type.structure ? undefined : target.unit.type.id,
             cx: target.unit.type.structure ? target.x : undefined,
             cz: target.unit.type.structure ? target.z : undefined,
             dx: nx,
@@ -2422,6 +2429,7 @@ export class BattleSim {
                 blood: bloodColorOf(air.unit.type),
                 flesh: resolveDeathWear(air.unit.type) === 'blood',
                 masonry: !!air.unit.type.structure,
+                unitTypeId: air.unit.type.structure ? undefined : air.unit.type.id,
                 dx: adx / ad,
                 dy: 0,
                 dz: adz / ad,
@@ -4252,6 +4260,7 @@ export class BattleSim {
             fling: violent ? COLLAPSE_GORE_FLING : razed ? COLLAPSE_DEBRIS_FLING : undefined,
             wear,
             structure: !!t.structure,
+            unitTypeId: t.id,
             structureHeight,
             structureRadius: t.structure ? target.radius : undefined,
             blood: wear === 'blood' ? bloodColorOf(t) : undefined,
@@ -5003,6 +5012,7 @@ export class BattleSim {
             big: true,
             wear: resolveDeathWear(s.unit.type),
             structure: !!s.unit.type.structure,
+            unitTypeId: s.unit.type.id,
         });
     }
 
@@ -5732,6 +5742,7 @@ export class BattleSim {
                         blood: bloodColorOf(hit.unit.type),
                         flesh: resolveDeathWear(hit.unit.type) === 'blood',
                         masonry: !!hit.unit.type.structure,
+                        unitTypeId: hit.unit.type.structure ? undefined : hit.unit.type.id,
                         cx: hit.unit.type.structure ? hit.x : undefined,
                         cz: hit.unit.type.structure ? hit.z : undefined,
                         dx: sx / slen,
@@ -6000,6 +6011,7 @@ export class BattleSim {
                 blood: bloodColorOf(hit.unit.type),
                 flesh: resolveDeathWear(hit.unit.type) === 'blood',
                 masonry: !!hit.unit.type.structure,
+                unitTypeId: hit.unit.type.structure ? undefined : hit.unit.type.id,
                 cx: hit.unit.type.structure ? hit.x : undefined,
                 cz: hit.unit.type.structure ? hit.z : undefined,
                 dx: p.vx / slen,

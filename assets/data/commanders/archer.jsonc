@@ -10,4 +10,27 @@
     "forgeSpells": ["fireSpill", "storm", "meteorShower"],
     "effects": { "giftUnit": { "typeId": "archer", "level": 3, "round": 2 } },
     "description": "A free level-3 Archer arrives in round 2.",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "PeFYebzIWTiQefaeaYS4",
+                "prompt": "A clear, focused adult female voice of a veteran field commander. Lean mid-range tone, dry outdoor edge, no fluff. Speaks at a steady martial pace — short, sharp, confident, like someone who never wastes an arrow or a syllable. Practical, calm under pressure, not sultry and not shrill. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            "pick": ["Aim high!"],
+            "win": [
+                "Haha! Bullseye!",
+                "Ha! Perfect aim!",
+                "Haha! Round secured!"
+            ],
+            "victory": [
+                "Every arrow found its mark."
+            ],
+            "defeat": [
+                "I missed the final shot."
+            ],
+        },
+    },
 }

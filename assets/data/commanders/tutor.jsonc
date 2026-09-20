@@ -11,4 +11,27 @@
     "tacticsRound": 1,
     "forgeSpells": ["fireSpill", "storm", "meteorShower"],
     "description": "Starts with one Field Lesson.",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "OwfcJJeSW4zVHByZB4Bt",
+                "prompt": "A precise, educated adult female voice of a stern academy lecturer. Clear enunciation, slightly elevated register, crisp consonants and patient condescension. Speaks at a schoolroom pace — corrective, articulate, faintly delighted when she is right. Not warm motherly, not seductive; chalkboard authority. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            "pick": ["Correct choice, now take notes!"],
+            "win": [
+                "Haha! Class dismissed!",
+                "Ha! Correct — I win!",
+                "Haha! Take notes!"
+            ],
+            "victory": [
+                "Class dismissed — perfect marks."
+            ],
+            "defeat": [
+                "Failed the exam. Retake next time."
+            ],
+        },
+    },
 }

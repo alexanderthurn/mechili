@@ -125,7 +125,7 @@ import { hasFlagNode, StrongholdFlags } from './strongholdFlags';
 import { StrongholdCommanders } from './strongholdCommander';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
-import { audio } from './audio';
+import { audio, playMatchMusic } from './audio';
 import { CloudFx, type CloudCue } from './cloudFx';
 import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
@@ -134,6 +134,7 @@ import { MeteorFx, GREAT_METEOR_FALL_SEC } from './meteorFx';
 import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
 import { itemSlotLimit } from './items';
+import { parseElementalId, RUNE_MAX_LEVEL } from './runeMix';
 import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, registerOuterHeight, simGroundSupportAt, worldHeightAt } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
@@ -142,6 +143,7 @@ import {
     prefs,
     updatePrefs,
     debugEnabled,
+    offerAllCommanders,
     effectiveDpr,
     sceneryCameraFar,
     sceneryHeightFog,
@@ -267,7 +269,7 @@ import {
     type RallyRoute,
     type SpellStamp,
 } from './tactics';
-import { TechTree, effectiveTargets, effectiveFlying } from './tech';
+import { TechTree, effectiveTargets, effectiveFlying, levelScaleMult } from './tech';
 import { activeLoadout, loadoutShowsAll, openLoadout, randomLoadout, scenarioLoadout } from './loadouts';
 import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
@@ -377,9 +379,9 @@ const CHEAT_TACTIC_GRANTS = [
 ] as const;
 /** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
 const CHEAT_TACTIC_COPIES = 1;
-/** Shift+U: max free base runes of each id in the left bag strip */
+/** Shift+U: max free L9 elemental runes of each mix in the left bag strip */
 const CHEAT_BASE_RUNE_COPIES = 1;
-/** Shift+U: max free advanced (and other) runes of each id in the left bag strip */
+/** Shift+U: max free advanced runes of each id in the left bag strip */
 const CHEAT_ADVANCED_RUNE_COPIES = 1;
 
 /** derives an independent, label-specific seed for a named rng stream */
@@ -1945,6 +1947,16 @@ export class Game {
                 }
                 return;
             }
+            // Generals-style select bark: only on a fresh pack select (not re-click / carry)
+            if (previous !== unit) {
+                if (unit.type.id === 'stronghold') {
+                    this.playStrongholdSelectBark(unit.team);
+                } else if (unit.type.structure) {
+                    audio.playBuildingSelect(unit.type.id);
+                } else if (unit.team === 'player') {
+                    audio.playUnitSelect(unit.type.id);
+                }
+            }
             // buildings act through their details — auto-open the sheet (phone-only visual)
             if (unit.type.structure) this.hud.openUnitDetails();
             this.tutorial?.onUnitSelected();
@@ -1963,7 +1975,9 @@ export class Game {
             this.placement.rotateSelected();
         };
         this.placement.rangeOf = (unit, x, z) => {
-            const base = this.resolvedStatsView(unit).range;
+            const base =
+                this.resolvedStatsView(unit).range *
+                this.levelScaleOf(unit, 'range');
             // ground shooters only: a flyer's altitude is not high ground (see BattleSim.elevationCounts)
             if (!unit.type.projectileSpeed || unit.flightCeiling() > 0) return base;
             // ranged: reach per direction, same elevation rule as the sim
@@ -2334,7 +2348,17 @@ export class Game {
             const moved = Math.hypot(e.clientX - this.battleDown.x, e.clientY - this.battleDown.y);
             this.battleDown = null;
             if (moved > 6) return;
-            this.selectedActor = this.pickActor(e);
+            const next = this.pickActor(e);
+            this.selectedActor = next;
+            if (next) {
+                if (next.unit.type.id === 'stronghold') {
+                    this.playStrongholdSelectBark(next.unit.team);
+                } else if (next.unit.type.structure) {
+                    audio.playBuildingSelect(next.unit.type.id);
+                } else if (next.unit.team === 'player') {
+                    audio.playUnitSelect(next.unit.type.id);
+                }
+            }
         }) as EventListener);
 
         // round 0: towers stand, then the loadout cards decide the starting
@@ -2949,6 +2973,9 @@ export class Game {
     destroy(opts?: { keepStarSession?: boolean }): void {
         if (this.disposed) return;
         this.disposed = true;
+        // Audio is a process-wide singleton — stop battle beds here or they
+        // keep looping after quit-to-menu (pause freezes sync, destroy must cut).
+        audio.stopBeamLoops();
         this.introActive = false;
         this.outroActive = false;
         this.onMatchIntroProgress = null;
@@ -3430,6 +3457,7 @@ export class Game {
         // watching: keep whatever playback speed the viewer picked instead
         // of snapping back to 1x every round — nothing live to reset for
         if (!this.watching) this.resetSpeed();
+        const completedRound = this.round;
         this.round++;
         const atmosphere = this.rules.fixedAtmosphere;
         if (!atmosphere) this.weather?.onRound(this.round, this.hydrating);
@@ -3446,7 +3474,10 @@ export class Game {
             );
         }
         this.phase = 'build';
-        audio.playPhase('deploy');
+        // Gong is attack-phase only — deploy / match reload stay silent
+        if (!this.hydrating) this.syncMatchMusic('deploy');
+        // Win taunt after souls, as the next deploy opens (not at battle end).
+        if (!this.hydrating && completedRound >= 1) this.playRoundVictorBark(completedRound);
         // The Year: every round is sudden death from full side HP — whatever
         // the last battle left (a won round restores it already) never carries
         if (this.settings.climb) this.restoreClimbHp();
@@ -3726,15 +3757,16 @@ export class Game {
 
     /**
      * SP cheat (Shift+U): top up free bag runes (left strip) for the human seat.
-     * Base runes fill to {@link CHEAT_BASE_RUNE_COPIES}; advanced/other to
-     * {@link CHEAT_ADVANCED_RUNE_COPIES}. Already-applied pack runes are ignored.
-     * Extra presses do not stack beyond the caps.
+     * Elemental: only max level ({@link RUNE_MAX_LEVEL}) of each mix — not L1–8.
+     * Advanced runes: one of each. Caps {@link CHEAT_BASE_RUNE_COPIES} /
+     * {@link CHEAT_ADVANCED_RUNE_COPIES}; extra presses do not stack past them.
      */
     private cheatGrantAllItems(): void {
         const bag = this.itemInventory[this.humanSeat]!;
-        const base = new Set<string>(this.types.baseRuneIds);
         for (const id of this.types.runes.keys()) {
-            const max = base.has(id) ? CHEAT_BASE_RUNE_COPIES : CHEAT_ADVANCED_RUNE_COPIES;
+            const elemental = parseElementalId(id);
+            if (elemental && elemental.level !== RUNE_MAX_LEVEL) continue;
+            const max = elemental ? CHEAT_BASE_RUNE_COPIES : CHEAT_ADVANCED_RUNE_COPIES;
             const have = bag.filter((x) => x === id).length;
             for (let i = have; i < max; i++) bag.push(id);
         }
@@ -3927,6 +3959,10 @@ export class Game {
         // so it isn't delayed by army spawn / board setup.
         if (stamped.kind !== 'chooseCard') {
             audio.playPlayerAction(stamped.kind, true);
+        }
+        if (stamped.kind === 'buy') {
+            const bought = this.types.byId(stamped.typeId);
+            if (bought && !bought.structure) audio.playUnitSelect(stamped.typeId);
         }
         // the sandbox deployment: whatever the game UI changed goes into the draft
         if (this.editorSession && this.round >= 1) this.editorSession.syncFromBoard();
@@ -4437,6 +4473,25 @@ export class Game {
         return id ? this.types.commander(id) : null;
     }
 
+    /**
+     * Stronghold click: bark from the first seat on that side with a real
+     * commander (2v2 → seat order; skips none / tutorial).
+     */
+    private playStrongholdSelectBark(team: BattleTeam): void {
+        if (team !== 'player' && team !== 'enemy') return;
+        for (const seat of seatIdsOf(this.seats, team)) {
+            const card = this.starterCardOfSeat(seat);
+            if (
+                card &&
+                card.id !== NO_COMMANDER_CARD_ID &&
+                card.speciality !== 'tutorial'
+            ) {
+                audio.playCommanderSelect(card.id);
+                return;
+            }
+        }
+    }
+
     /** Forge spells buyable this round (a tutorial lesson narrows them per round). */
     private forgeSpellsOf(seat: SeatId): readonly string[] | undefined {
         return this.tutorial?.forgeSpellsOf(seat) ?? this.starterCardOfSeat(seat)?.forgeSpells;
@@ -4449,6 +4504,45 @@ export class Game {
      *  as speciality/HP already work. */
     private starterCardOf(team: Team): StartCard | null {
         return this.starterCardOfSeat(primarySeatOf(this.seats, team));
+    }
+
+    /**
+     * After souls / when the next deploy starts: play a proud win bark from one
+     * commander on the winning side (random seat in 2v2). Audible for everyone —
+     * including the losing side. No-op on draws, test battles, hydrate, or before VO ships.
+     * @param completedRound battle round that just finished (before {@link round} increments)
+     */
+    private playRoundVictorBark(completedRound: number): void {
+        if (this.hydrating || this.editorMode === 'test' || completedRound < 1) return;
+        let winningTeam: Team | null = null;
+        if (this.settings.climb) {
+            const last = this.yearRounds[this.yearRounds.length - 1];
+            if (!last) return;
+            winningTeam =
+                last === 'attacker'
+                    ? this.yearAttackerTeam()
+                    : this.yearAttackerTeam() === 'player'
+                      ? 'enemy'
+                      : 'player';
+        } else if (this.playerHp > this.enemyHp) {
+            winningTeam = 'player';
+        } else if (this.enemyHp > this.playerHp) {
+            winningTeam = 'enemy';
+        }
+        if (!winningTeam) return;
+
+        const seats = seatIdsOf(this.seats, winningTeam).filter((seat) => {
+            const card = this.starterCardOfSeat(seat);
+            return !!card && card.id !== 'none' && card.speciality !== 'tutorial';
+        });
+        if (seats.length === 0) return;
+        // Deterministic across clients (same HP + round) so 2v2 hears/sees the same bark.
+        const seed =
+            ((completedRound * 10007) ^ (this.playerHp * 31) ^ (this.enemyHp * 17) ^ 0x9e3779b9) >>>
+            0;
+        const seat = seats[seed % seats.length]!;
+        const card = this.starterCardOfSeat(seat)!;
+        this.hud.playVictorCelebrate(seat, () => audio.playCommanderWin(card.id));
     }
 
     /** speciality names under each commander chip — enemy picks stay hidden
@@ -4637,8 +4731,6 @@ export class Game {
                   : `You bring your own troops & gear — ${this.seats[primarySeatOf(this.seats, 'player')]!.name} decides the side's speciality.`;
         this.hud.showStartCards(offer, note, (cardId) => {
             this.playerStarterOffer = null;
-            // Bark immediately on click — chooseCard apply is heavy and would delay audio.
-            audio.playCommanderPick(cardId);
             this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId });
             this.broadcast({ type: 'starter', cardId, side: this.localSeat() });
             this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
@@ -4665,13 +4757,19 @@ export class Game {
     /**
      * The commander cards a side is offered at round 0: a mode may hand a side
      * its commander (The Year's Komtur attacker) — then it is the only card and
-     * nothing is drawn from that side's stream; otherwise four at random.
+     * nothing is drawn from that side's stream; otherwise four at random
+     * (every playable commander when `?debug` / debug overlay / `?allCommanders`).
      */
     private starterOfferFor(team: Team, rng: () => number): StartCard[] {
         const climb = this.settings.climb;
         const forced =
-            climb?.attackerCommander && this.yearAttackerTeam() === team ? this.types.commander(climb.attackerCommander) : null;
-        return forced ? [forced] : this.draw(this.types.commanders, 4, rng);
+            climb?.attackerCommander && this.yearAttackerTeam() === team
+                ? this.types.commander(climb.attackerCommander)
+                : null;
+        if (forced) return [forced];
+        const pool = this.types.commanders;
+        const n = offerAllCommanders() ? pool.length : 4;
+        return this.draw(pool, n, rng);
     }
 
     /** timer ran out before the player picked a specialist — choose one at random.
@@ -4686,7 +4784,6 @@ export class Game {
             ]!;
         this.hud.hideCardOverlay();
         this.playerStarterOffer = null;
-        audio.playCommanderPick(pick.id);
         this.dispatchPlayer({ kind: 'chooseCard', team: 'player', cardId: pick.id });
         this.broadcast({ type: 'starter', cardId: pick.id, side: this.localSeat() });
         this.opponent.chooseStarter(this.starterOfferFor('enemy', this.rngCards.enemy));
@@ -8967,6 +9064,17 @@ export class Game {
         };
     }
 
+    /**
+     * Seasonal match beds when available (Spring morning deploy/battle);
+     * otherwise the default `music_battle` fallback.
+     */
+    private syncMatchMusic(phase: 'deploy' | 'battle'): void {
+        playMatchMusic({
+            atmosphereLabel: this.weather?.atmosphereLabel() ?? null,
+            phase,
+        });
+    }
+
     /** Everything is revealed and the sim takes over; the player can only watch. */
     private startBattlePhase(): void {
         // last round's collapse rings are done being watched; a stale wave would
@@ -8976,7 +9084,11 @@ export class Game {
         this.collapseEndedRound = false;
         this.placement.beginBattle();
         this.phase = 'battle';
-        audio.playPhase('battle');
+        // Skip during hydrate/reload catch-up — only the live attack start rings
+        if (!this.hydrating) {
+            audio.playPhase('battle');
+            this.syncMatchMusic('battle');
+        }
         this.syncPostFx();
         this.phaseRemaining = this.battleSeconds();
         this.placement.enabled = false;
@@ -9952,7 +10064,7 @@ export class Game {
         const hits = this.hpDrawFx.update(dtSeconds, this.rig.camera, w, h);
         for (const hit of hits) {
             const dmg = Math.round(hit.damage);
-            audio.playUi('hp_draw');
+            audio.playHpDrawHit(hit.tier);
             screenShake({
                 intensity: hpDrawShakeIntensity(hit.tier, dmg),
                 duration: hit.tier === 'high' ? 0.7 : hit.tier === 'medium' ? 0.55 : 0.44,
@@ -10239,6 +10351,13 @@ export class Game {
         if (this.matchOver) return;
         this.matchOver = true;
         audio.playMatchEnd(result);
+        if (result === 'victory') {
+            const card = this.starterCardOfSeat(this.humanSeat);
+            if (card) audio.playCommanderVictory(card.id);
+        } else if (result === 'defeat') {
+            const card = this.starterCardOfSeat(this.humanSeat);
+            if (card) audio.playCommanderDefeat(card.id);
+        }
         // whatever ended the match, a "Waiting…"/reconnect notice must
         // never survive it — otherwise it can be left mounted (and, on
         // the next tick's countdown re-render, re-shown) after the game
@@ -10644,6 +10763,15 @@ export class Game {
             : this.phase === 'battle' || this.watching
               ? trueDtSeconds * this.speedSteps[this.speedIndex]!
               : trueDtSeconds;
+        // SFX follow effective sim rate (slo-mo stretch; fast stays natural pitch).
+        // Build phase stays 1× unless watching a replay. Music/UI ignore this.
+        audio.setTimeScale(
+            soloPaused
+                ? 0
+                : this.phase === 'battle' || this.watching
+                  ? this.speedSteps[this.speedIndex]!
+                  : 1,
+        );
         this.time += gameDt;
 
         if (this.hpDrawSettleRemaining > 0 || this.hasPendingDeathVisuals()) {
@@ -10678,8 +10806,9 @@ export class Game {
                 this.phaseRemaining -= gameDt;
                 if (waitingForDeployPeer) this.phaseRemaining = Math.max(0, this.phaseRemaining);
             }
-            // no "time's up" warning for a clock I've already locked in on
-            if (this.phase === 'battle' || (this.phase === 'build' && !waitingForDeployPeer)) {
+            // Deployment last-5s beeps (visual is HUD `.timer.urgent`). Skip once
+            // we've locked in — the clock may still run for peers.
+            if (this.phase === 'build' && !waitingForDeployPeer) {
                 audio.tickTimerWarn(this.phaseRemaining);
             }
             if (this.phase === 'build') {
@@ -10868,6 +10997,16 @@ export class Game {
             const fz = t.z - cam.z;
             const len = Math.hypot(fx, fy, fz) || 1;
             audio.setListenerOrientation(fx / len, fy / len, fz / len);
+            const hazards =
+                this.phase === 'battle' && this.sim ? this.sim.hazards : this.oilField;
+            audio.syncHazardLoops(hazards, this.sim?.elapsed ?? 0, cam.y);
+            if (this.phase === 'battle' && this.sim) {
+                audio.syncStoneWhistles(this.sim.projectiles);
+                audio.syncCollapseThunder(this.collapseFx.audioFronts());
+            } else {
+                audio.syncStoneWhistles([]);
+                audio.syncCollapseThunder([]);
+            }
         }
         // ambient motion runs on real time, unaffected by battle fast-forward
         // (solo pause freezes it with the rest of the match)
@@ -11248,7 +11387,8 @@ export class Game {
         const minRange = a ? this.resolvedStats(a.unit).minRange : 0;
         this.battleMinRangeMesh.visible = a !== null && minRange > 0;
         if (!a) return;
-        const range = this.resolvedStats(a.unit).range;
+        const range =
+            this.resolvedStats(a.unit).range * this.levelScaleOf(a.unit, 'range');
         const own = a.unit.type.collisionRadius;
         // ranged: the ring bulges down onto low ground and pulls in up a slope, like the sim's reach
         const radius: RangeShape =
@@ -11409,6 +11549,26 @@ export class Game {
         return { level, xp, xpNext, statMult: 1 + (level - 1) * statBonusPerLevel };
     }
 
+    /**
+     * Veteran Aim etc. — same mult the sim applies on top of resolved stats.
+     * `innateOnly` matches EMP hex (researched talents stripped).
+     */
+    private levelScaleOf(
+        unit: Unit,
+        kind: 'damage' | 'range',
+        level?: number,
+        innateOnly = false,
+    ): number {
+        const lv = level ?? this.levelInfo(unit).level;
+        if (innateOnly || unit.team === 'horde') {
+            return levelScaleMult(unit.type, TechTree.EMPTY, lv, kind, this.types);
+        }
+        const owned = this.placement.isIntelFogged(unit)
+            ? this.intelTechOwned(unit)
+            : this.techTree.ownedFor(unit.seat, unit.type.id);
+        return levelScaleMult(unit.type, owned, lv, kind, this.types);
+    }
+
     private actorInfo(a: Actor): SelectionInfo {
         const u = a.unit;
         const empDisabled = !!this.sim && a.empUntil > this.sim.elapsed + 1e-9;
@@ -11430,8 +11590,8 @@ export class Game {
             hits: targetsLabel(effectiveTargets(u.type, seat, hasTech, this.types)),
             hp: a.hp,
             maxHp: a.maxHp,
-            damage: rs.damage * lv.statMult,
-            range: Math.round(rs.range),
+            damage: rs.damage * lv.statMult * this.levelScaleOf(u, 'damage', lv.level, empDisabled),
+            range: Math.round(rs.range * this.levelScaleOf(u, 'range', lv.level, empDisabled)),
             minRange: rs.minRange > 0 ? Math.round(rs.minRange) : undefined,
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,
@@ -11477,8 +11637,8 @@ export class Game {
             ),
             hp: rs.hp * lv.statMult,
             maxHp: rs.hp * lv.statMult,
-            damage: rs.damage * lv.statMult,
-            range: Math.round(rs.range),
+            damage: rs.damage * lv.statMult * this.levelScaleOf(u, 'damage', lv.level),
+            range: Math.round(rs.range * this.levelScaleOf(u, 'range', lv.level)),
             minRange: rs.minRange > 0 ? Math.round(rs.minRange) : undefined,
             speed: Math.round(rs.speed * 10) / 10,
             attackInterval: rs.attackInterval,

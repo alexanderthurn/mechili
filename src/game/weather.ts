@@ -467,6 +467,25 @@ const ATMOSPHERE_LABEL_KEYS: Record<string, string> = {
     'Deep winter': 'hud:atmosphere.deepWinter',
 };
 
+/**
+ * Best-fit year-tour music label from live season/weather/time axes —
+ * used when the scene index is custom (pinned scenario atmosphere, cheat keys).
+ */
+export function musicLabelFromAtmosphere(a: Atmosphere): string {
+    if (a.season === 'winter') {
+        return a.timeOfDay === 'night' || a.weatherIntensity >= 0.95 ? 'Deep winter' : 'First snow';
+    }
+    if (a.season === 'autumn') {
+        return a.weatherKind === 'rain' ? 'Autumn storm' : 'Autumn dusk';
+    }
+    if (a.season === 'summer') {
+        if (a.timeOfDay === 'night') return 'Summer night';
+        if (a.timeOfDay === 'golden' || a.timeOfDay === 'dusk') return 'Summer golden';
+        return 'Summer noon';
+    }
+    return a.weatherKind === 'rain' ? 'Spring rain' : 'Spring morning';
+}
+
 /** seconds for the exponential ease toward a new target (sky + foliage share this) */
 export const TRANSITION_TAU = 3.5;
 const RAIN_DROPS = 2200;
@@ -872,6 +891,13 @@ export class Weather {
      */
     get groundSnow(): number {
         return this.snowCover * this.snowCover;
+    }
+
+    /** Year-tour beat label (`Spring morning`, …), or a best-fit from live axes. */
+    atmosphereLabel(): string | null {
+        const named = ATMOSPHERE_SCENES[this.sceneIndex]?.label;
+        if (named) return named;
+        return musicLabelFromAtmosphere(this.atmosphere);
     }
 
     /** compact label for cinema / debug — e.g. `1/11 Spring morning` or `custom` */

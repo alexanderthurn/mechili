@@ -162,8 +162,15 @@ export interface GameSettings {
      * picked (both teams). 1 = normal; Custom Game can raise this to make
      * sides tankier. Applied in chooseCard — not baked into cards.
      * Team HP itself comes only from those card grants (summed in 2v2).
+     * Ignored when {@link fixedSideHp} is set.
      */
     commanderHpFactor: number;
+    /**
+     * Custom Game absolute side HP for both teams after commander pick.
+     * When set, commander card startingHp and {@link commanderHpFactor} are
+     * ignored (same path as campaign / tutorial sudden-death).
+     */
+    fixedSideHp?: number | null;
     /**
      * Multiplies the per-round supply income for every seat. 1 = normal;
      * Custom Game can raise it for faster, richer matches. Applied in
@@ -511,27 +518,54 @@ export function formatStrongholdModeOption(o: StrongholdModeOption): string {
     });
 }
 
-/** Custom Game commander-HP multiplier options — both teams share one factor. */
+/** Custom Game commander-HP options — multipliers, or an absolute side HP. */
 export interface CommanderHpFactorOption {
+    /** `<option value>` — stable id for the lobby select */
+    id: string;
+    /** Multiplier when {@link fixedHp} is unset; unused otherwise */
     factor: number;
+    /** When set, both sides get this absolute HP (commander startingHp ignored) */
+    fixedHp?: number;
     label: string;
 }
 
 export const COMMANDER_HP_FACTOR_OPTIONS: readonly CommanderHpFactorOption[] = [
-    { factor: 0.5, label: '0.5×' },
-    { factor: 1, label: '1×' },
-    { factor: 2, label: '2×' },
-    { factor: 5, label: '5×' },
-    { factor: 10, label: '10×' },
+    { id: 'fixed:1', factor: 1, fixedHp: 1, label: '1' },
+    { id: '0.5', factor: 0.5, label: '0.5×' },
+    { id: '1', factor: 1, label: '1×' },
+    { id: '2', factor: 2, label: '2×' },
+    { id: '5', factor: 5, label: '5×' },
+    { id: '10', factor: 10, label: '10×' },
 ];
 
 export const DEFAULT_COMMANDER_HP_FACTOR = 1;
 
-/** Snap unknown / legacy values onto a known lobby option (default ×1). */
-export function commanderHpFactorOption(raw: unknown): number {
+const DEFAULT_COMMANDER_HP_OPTION = COMMANDER_HP_FACTOR_OPTIONS.find(
+    (o) => !o.fixedHp && o.factor === DEFAULT_COMMANDER_HP_FACTOR,
+)!;
+
+/** Resolve a lobby select value / legacy numeric factor to a known option. */
+export function commanderHpOptionById(raw: unknown): CommanderHpFactorOption {
+    const id = String(raw);
+    const byId = COMMANDER_HP_FACTOR_OPTIONS.find((o) => o.id === id);
+    if (byId) return byId;
     const n = typeof raw === 'number' ? raw : Number(raw);
-    if (COMMANDER_HP_FACTOR_OPTIONS.some((o) => o.factor === n)) return n;
-    return DEFAULT_COMMANDER_HP_FACTOR;
+    const byFactor = COMMANDER_HP_FACTOR_OPTIONS.find((o) => !o.fixedHp && o.factor === n);
+    return byFactor ?? DEFAULT_COMMANDER_HP_OPTION;
+}
+
+/** Select value for a stored factor + optional absolute HP. */
+export function commanderHpSelectId(factor: number, fixedSideHp?: number | null): string {
+    if (fixedSideHp != null) {
+        const fixed = COMMANDER_HP_FACTOR_OPTIONS.find((o) => o.fixedHp === fixedSideHp);
+        if (fixed) return fixed.id;
+    }
+    return commanderHpOptionById(factor).id;
+}
+
+/** Snap unknown / legacy values onto a known lobby multiplier (default ×1). */
+export function commanderHpFactorOption(raw: unknown): number {
+    return commanderHpOptionById(raw).factor;
 }
 
 /** Any positive finite factor for live GameSettings (wire / URL / saves). */
@@ -541,7 +575,21 @@ export function resolveCommanderHpFactor(raw: unknown): number {
     return DEFAULT_COMMANDER_HP_FACTOR;
 }
 
+/** Absolute custom-game side HP, or null when using commander card HP × factor. */
+export function resolveFixedSideHp(raw: unknown): number | null {
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (Number.isFinite(n) && n >= 1) return Math.floor(n);
+    return null;
+}
+
 export function formatCommanderHpFactorOption(o: CommanderHpFactorOption): string {
+    if (o.fixedHp != null) {
+        return t('settings:sheet.commanderHpFixedOption', {
+            label: o.label,
+            hp: o.fixedHp,
+            defaultValue: `${o.label} HP each side`,
+        });
+    }
     return t('settings:sheet.commanderHpOption', {
         label: o.label,
         commander: DISPLAY.commander,
@@ -763,6 +811,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         roundCardPreset: resolveRoundCardPreset(legacy),
         hordePreset: resolveHordePreset(legacy),
         commanderHpFactor: resolveCommanderHpFactor(settings.commanderHpFactor),
+        fixedSideHp: resolveFixedSideHp(settings.fixedSideHp),
         moneyFactor: resolveMoneyFactor(settings.moneyFactor),
         startMoney: resolveStartMoney(settings.startMoney),
         strongholdMode: strongholdModeOption(settings.strongholdMode),
@@ -1003,15 +1052,26 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 {
                     label: t('settings:sheet.commanderHpFactor', {
                         commander: DISPLAY.commander,
-                        defaultValue: `${DISPLAY.commander} HP factor`,
+                        defaultValue: `${DISPLAY.commander} HP`,
                     }),
-                    value: t('settings:sheet.commanderHpFactorValue', {
-                        factor: settings.commanderHpFactor,
-                        defaultValue: `×${settings.commanderHpFactor}`,
-                    }),
-                    note: t('settings:sheet.commanderHpFactorNote', {
-                        defaultValue: 'scales each commander card’s starting HP for both teams',
-                    }),
+                    value:
+                        settings.fixedSideHp != null
+                            ? t('settings:sheet.commanderHpFixedValue', {
+                                  hp: settings.fixedSideHp,
+                                  defaultValue: String(settings.fixedSideHp),
+                              })
+                            : t('settings:sheet.commanderHpFactorValue', {
+                                  factor: settings.commanderHpFactor,
+                                  defaultValue: `×${settings.commanderHpFactor}`,
+                              }),
+                    note:
+                        settings.fixedSideHp != null
+                            ? t('settings:sheet.commanderHpFixedNote', {
+                                  defaultValue: 'both sides start at this HP (commander card HP ignored)',
+                              })
+                            : t('settings:sheet.commanderHpFactorNote', {
+                                  defaultValue: 'scales each commander card’s starting HP for both teams',
+                              }),
                 },
                 {
                     label: t('settings:sheet.stronghold', { defaultValue: 'Stronghold' }),

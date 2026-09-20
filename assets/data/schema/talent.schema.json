@@ -218,11 +218,12 @@
               "required": [
                 "radius"
               ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "description": "Size at collisionRadius 1 (further scaled by unit talentMod path)."
             }
           },
           "additionalProperties": false,
-          "description": "On death: splash nova and/or acid puddle. Explode damage = dying body's maxHp × `damageMult` (default 1)."
+          "description": "On death: splash nova and/or acid puddle. Explode damage = dying body's maxHp × `damageMult` (default 1). Acid puddle world radius = `acid.radius` × dying body's collisionRadius (after optional UnitType.talentMod scales the talent's own fields)."
         },
         "formationSpreadAdd": {
           "type": "number",

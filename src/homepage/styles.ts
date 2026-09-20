@@ -829,6 +829,50 @@ html, body {
     min-height: 0;
 }
 
+.mh-music-player {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 14px;
+    align-items: center;
+    max-width: 640px;
+    margin: 8px auto 0;
+    padding: 16px 18px;
+    border: 1px solid ${u.divider};
+    border-radius: 10px;
+    background: rgba(18, 28, 14, 0.55);
+}
+.mh-music-select {
+    flex: 1 1 280px;
+    min-width: 0;
+    padding: 11px 14px;
+    border-radius: 8px;
+    border: 1.5px solid ${u.border};
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.mh-music-select:hover,
+.mh-music-select:focus-visible {
+    border-color: ${u.brass};
+    outline: none;
+}
+.mh-music-select option {
+    color: ${u.cream};
+    background: #1a2818;
+}
+.mh-music-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.mh-music-actions .mh-suggest-btn {
+    min-width: 5.5rem;
+    padding: 10px 16px;
+}
+
 .mh-card-select {
     display: none;
     width: 100%;

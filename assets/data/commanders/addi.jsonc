@@ -10,4 +10,27 @@
     "items": ["addi", "addi", "addi"],
     "forgeSpells": ["oilSpill", "acidSpill", "hammerOfGods"],
     "description": "Gets 3× Valor rune in round 1.",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "3mhloqFs4e2R6lsNG9MJ",
+                "prompt": "A deep, gravelly male dwarf voice in his later middle years. Thick chest resonance, slightly rough and smoke-edged, with a proud, dry sense of humor. Speaks at a steady, deliberate pace — unhurried, confident, like a relic vault keeper who has seen every fool come and go. Warm and wry rather than menacing; the weight of stone halls and old iron in the tone. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            "pick": ["The relics need you."],
+            "win": [
+                "Haha! Relics approve!",
+                "Ha! Vault secured!",
+                "Haha! Stones like me!"
+            ],
+            "victory": [
+                "The vault remembers this day."
+            ],
+            "defeat": [
+                "The vault… closes for today."
+            ],
+        },
+    },
 }
