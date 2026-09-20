@@ -235,6 +235,11 @@
           "type": "number",
           "description": "ground-plane collision circle per mech, in world units — nothing walks through it"
         },
+        "soundSize": {
+          "type": "string",
+          "enum": ["small", "medium", "large"],
+          "description": "Combat SFX presence tier (volume + hear distance). Independent of collisionRadius — pack fodder stays small even if radius varies."
+        },
         "talentMod": {
           "type": "object",
           "additionalProperties": {

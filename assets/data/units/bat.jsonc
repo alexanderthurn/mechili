@@ -19,6 +19,7 @@
     "burn": { "takenMult": 1 }, // air: burn status ignored while aloft
     "targets": { "ground": true, "air": true },
     "collisionRadius": 0.9, // unused for soft push (ghost), kept for broadphase
+    "soundSize": "small",
     "talentMod": {
         "blightburst": { "onDeath": { "acid": { "radius": 0.2 } } },
     },

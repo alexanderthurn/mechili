@@ -10,6 +10,7 @@
     "burn": { "takenMult": 0.85 },
     "targets": { "ground": true, "air": false }, // AA is a later tech (like Arclight)
     "collisionRadius": 1.1,
+    "soundSize": "medium",
     "colliders": [{ "y": 1.0, "r": 0.85 }],
     "projectileSpeed": 75,
     "projectileStyle": "stone", // crow rock pool — InstancedMesh

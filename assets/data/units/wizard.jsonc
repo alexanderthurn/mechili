@@ -11,6 +11,7 @@
     // Buildings / golden aura / wards take HP damage from the same ray.
     "targets": { "ground": true, "air": false },
     "collisionRadius": 1.0,
+    "soundSize": "medium",
     "colliders": [{ "y": 1.1, "r": 0.75 }],
     "convertRay": { "range": 80, "recover": 1.25 },
     "hp": 160,

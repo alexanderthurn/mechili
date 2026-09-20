@@ -10,6 +10,7 @@
     "targets": { "ground": true, "air": false }, // can't reach the sky
     "collisionRadius": 0.6,
     // Fine-tune Blightburst puddle: multiplies talent onDeath.acid.radius (then × collisionRadius)
+    "soundSize": "small",
     "talentMod": {
         "blightburst": { "onDeath": { "acid": { "radius": 0.2 } } },
     },

@@ -9,6 +9,7 @@
     "burn": { "takenMult": 1.05 },
     "targets": { "ground": true, "air": true },
     "collisionRadius": 0.55,
+    "soundSize": "small",
     "blobShadowScale": 0.5, // small chaff — half the default blob disc
     "colliders": [{ "y": 0.32, "r": 0.5 }],
     "projectileSpeed": 85,

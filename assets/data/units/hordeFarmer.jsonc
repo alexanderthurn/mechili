@@ -19,6 +19,7 @@
     "bloodColor": 9236248 /* 0x8cef18 */,
     "targets": { "ground": true, "air": false },
     "collisionRadius": 0.9,
+    "soundSize": "small",
     "colliders": [{ "y": 0.55, "r": 0.95 }],
     "sandWeight": 0.25,
     "innateTechs": ["darkHarvest"],

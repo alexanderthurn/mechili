@@ -11,6 +11,7 @@
     "meshScale": 3.2,
     "targets": { "ground": true, "air": false }, // Sky Bind baked in — bolts can elevate
     "collisionRadius": 2.8,
+    "soundSize": "large",
     "colliders": [{ "y": 0.9, "r": 1.1 }],
     "projectileSpeed": 50,
     "projectileStyle": "largeArrow",

@@ -62,51 +62,61 @@ type CombatSpatialOpts = {
     rolloff?: number;
 };
 
-const SMALL_COMBAT_SPATIAL: CombatSpatialOpts = {
-    gainMul: 0.55,
-    refDistance: 6,
-    maxDistance: 18,
-    rolloff: 1.8,
-};
+type SoundSize = 'small' | 'medium' | 'large';
 
-/** Close-range swings from pack units — quieter / nearer than ranged fire. */
-const SMALL_MELEE_SPATIAL: CombatSpatialOpts = {
+/** Pack fodder (dwarf/goblin/…) — quiet, near-field. */
+const SMALL_SOUND_SPATIAL: CombatSpatialOpts = {
     gainMul: 0.4,
     refDistance: 5,
     maxDistance: 16,
     rolloff: 2.0,
 };
 
+/** Standard combatants (archer/wizard/hammerer/mortar). */
+const MEDIUM_SOUND_SPATIAL: CombatSpatialOpts = {
+    gainMul: 0.75,
+    refDistance: 10,
+    maxDistance: 30,
+    rolloff: 1.55,
+};
+
 /**
  * Attack / muzzle beds — louder and farther than default battlefield SFX.
- * Death / hit stay on the tighter default (or SMALL_COMBAT for packs).
+ * Death / hit stay on the tighter default (or size profiles below).
  */
 const ATTACK_REF = 16;
 const ATTACK_MAX = 48;
 const ATTACK_ROLLOFF = 1.35;
 
-/** Same rule as death `big`: collisionRadius ≥ 2 (or structure). */
-function isBigUnitAudio(typeId: string | undefined): boolean {
-    if (!typeId) return false;
+function soundSizeOf(typeId: string | undefined): SoundSize {
+    if (!typeId) return 'medium';
     const id = UNIT_VOICE_ALIAS[typeId] ?? typeId;
     const t = BASE_TYPES.byId(id);
-    if (!t) return false;
-    return t.collisionRadius >= 2 || !!t.structure;
+    return t?.soundSize ?? 'medium';
 }
 
-/**
- * Hit / hurt attenuations for pack-scale victims (not ranged attacks).
- * Unknown / missing typeId → small.
- */
-function hitSpatialOpts(typeId: string | undefined): CombatSpatialOpts | undefined {
-    if (isBigUnitAudio(typeId)) return undefined;
-    return SMALL_COMBAT_SPATIAL;
+/** Hit / hurt / melee presence from {@link UnitType.soundSize}. Large = full cue. */
+function sizeSpatialOpts(typeId: string | undefined): CombatSpatialOpts | undefined {
+    switch (soundSizeOf(typeId)) {
+        case 'small':
+            return SMALL_SOUND_SPATIAL;
+        case 'medium':
+            return MEDIUM_SOUND_SPATIAL;
+        case 'large':
+            return undefined;
+    }
 }
 
-/** Melee swing from a small attacker — packs of dwarves/goblins stay near-field. */
+/** Melee swings: small packs stay very near; medium a bit quieter than large. */
 function meleeSwingOpts(typeId: string | undefined): CombatSpatialOpts | undefined {
-    if (isBigUnitAudio(typeId)) return undefined;
-    return SMALL_MELEE_SPATIAL;
+    switch (soundSizeOf(typeId)) {
+        case 'small':
+            return { gainMul: 0.35, refDistance: 4, maxDistance: 14, rolloff: 2.1 };
+        case 'medium':
+            return { gainMul: 0.7, refDistance: 8, maxDistance: 24, rolloff: 1.7 };
+        case 'large':
+            return undefined;
+    }
 }
 /** Structure type id → select SFX cue (stronghold uses commander VO instead). */
 const BUILDING_SELECT_CUE: Record<string, string> = {
@@ -996,11 +1006,11 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        // Quieter + nearer than big deaths — packs of goblins/dwarves.
-        refDistance: 6,
-        maxDistance: 18,
-        rolloff: 1.8,
-        gain: 0.32,
+        // Base for medium; small gets sizeSpatialOpts on play.
+        refDistance: 8,
+        maxDistance: 24,
+        rolloff: 1.7,
+        gain: 0.45,
     },
     death_unit_big: {
         paths: [
@@ -1250,7 +1260,7 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 12,
         spatial: true,
-        // Base for big melee; small attackers get SMALL_MELEE_SPATIAL on play.
+        // Base for large melee; small/medium get size opts on play.
         refDistance: 10,
         maxDistance: 28,
         rolloff: 1.6,
@@ -2589,12 +2599,12 @@ class AudioBus {
     }
 
     /** Spatial death yelp when a voiced unit dies — silent until that cue ships. */
-    playUnitDeath(typeId: string, worldX: number, worldZ: number, big = false): void {
+    playUnitDeath(typeId: string, worldX: number, worldZ: number): void {
         if (!this.voicesOn()) return;
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueId = `unit_${voiceId}_death`;
         if (!CUES[cueId]) return;
-        const opts = big ? undefined : SMALL_COMBAT_SPATIAL;
+        const opts = sizeSpatialOpts(typeId);
         void this.ensureCue(cueId).then((ok) => {
             if (ok) this.play(cueId, worldX, worldZ, opts);
         });
@@ -2603,7 +2613,7 @@ class AudioBus {
     /**
      * Short hurt yelp on a flesh hit. Near-field only (cue maxDistance) +
      * global cooldown so packs don't chorus. Silent until that unit's cue ships.
-     * Small victims: quieter + nearer (same as death_unit).
+     * Scaled by {@link UnitType.soundSize}.
      */
     playUnitHurt(typeId: string, worldX: number, worldZ: number): void {
         if (!this.voicesOn()) return;
@@ -2612,7 +2622,7 @@ class AudioBus {
         if (!CUES[cueId]) return;
         const now = performance.now();
         if (now - this.lastUnitHurtAt < UNIT_HURT_COOLDOWN_MS) return;
-        const opts = hitSpatialOpts(typeId);
+        const opts = sizeSpatialOpts(typeId);
         const cue = CUES[cueId]!;
         const maxD = opts?.maxDistance ?? cue.maxDistance ?? SPATIAL_MAX;
         if (distXZ(worldX, worldZ, this.listenerX, this.listenerZ) > maxD) return;
@@ -2978,9 +2988,9 @@ class AudioBus {
                     break;
                 case 'impact': {
                     const cue = impactCue(e);
-                    // Hits stay pack-quiet; attacks use full attack range above.
+                    // Hits scale with victim soundSize; ranged muzzle stays full cue.
                     const opts =
-                        e.flesh || e.melee ? hitSpatialOpts(e.unitTypeId) : undefined;
+                        e.flesh || e.melee ? sizeSpatialOpts(e.unitTypeId) : undefined;
                     this.play(cue, e.x, e.z, opts);
                     if (e.flesh && e.unitTypeId) this.playUnitHurt(e.unitTypeId, e.x, e.z);
                     break;
@@ -3003,8 +3013,15 @@ class AudioBus {
                         const cue = structureDeathCue(e.unitTypeId);
                         if (cue) this.play(cue); // global — no spatial falloff
                     } else {
-                        this.play(e.big ? 'death_unit_big' : 'death_unit', e.x, e.z);
-                        if (e.unitTypeId) this.playUnitDeath(e.unitTypeId, e.x, e.z, e.big);
+                        // soundSize drives which death bank + presence (VFX still uses e.big).
+                        const size = soundSizeOf(e.unitTypeId);
+                        this.play(
+                            size === 'large' ? 'death_unit_big' : 'death_unit',
+                            e.x,
+                            e.z,
+                            sizeSpatialOpts(e.unitTypeId),
+                        );
+                        if (e.unitTypeId) this.playUnitDeath(e.unitTypeId, e.x, e.z);
                     }
                     break;
                 case 'strongholdCollapse':

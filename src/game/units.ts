@@ -597,6 +597,12 @@ export interface UnitType {
     /** ground-plane collision circle per mech, in world units — nothing walks through it */
     collisionRadius: number;
     /**
+     * Combat SFX presence (volume + hear distance). Independent of
+     * {@link collisionRadius} — pack fodder stays `small` even when radius varies.
+     * Omit = `medium`.
+     */
+    soundSize?: 'small' | 'medium' | 'large';
+    /**
      * Optional per-talent fine-tunes, keyed by talent id. Omit when defaults
      * are fine. Each entry mirrors that talent's numeric fields — matching
      * numbers are multiplied (e.g. blightburst:

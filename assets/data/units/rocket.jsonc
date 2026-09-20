@@ -18,6 +18,7 @@
     "burn": { "takenMult": 0 }, // the bolt itself doesn't cook
     "targets": { "ground": true, "air": true }, // what it may home onto / hurt
     "collisionRadius": 0.8,
+    "soundSize": "medium",
     "colliders": [],
     "hp": 100,
     "damage": 5000,

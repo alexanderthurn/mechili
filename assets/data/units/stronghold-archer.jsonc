@@ -19,6 +19,7 @@
     "burn": { "takenMult": 1.1 },
     "targets": { "ground": true, "air": true },
     "collisionRadius": 1.0,
+    "soundSize": "medium",
     /**
      * Nobody AIMS at him — an army besieging a keep shoots the keep — but he
      * is otherwise as real as anything else on the board: arrows that cross

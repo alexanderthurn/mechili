@@ -21,6 +21,7 @@
     "bloodColor": 9236248 /* 0x8cef18 */,
     "targets": { "ground": true, "air": true },
     "collisionRadius": 0.7,
+    "soundSize": "small",
     "colliders": [{ "y": 0.5, "r": 0.75 }],
     "sandWeight": 0.2,
     "projectileSpeed": 55,

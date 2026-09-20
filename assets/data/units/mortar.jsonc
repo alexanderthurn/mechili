@@ -10,6 +10,7 @@
     "meshScale": 1.2, // half of prior 2.4
     "targets": { "ground": true, "air": false },
     "collisionRadius": 1.5,
+    "soundSize": "medium",
     "colliders": [
         { "y": 0.7, "r": 0.95 },
         { "y": 1.5, "r": 0.55 },

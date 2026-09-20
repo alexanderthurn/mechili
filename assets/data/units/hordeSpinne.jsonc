@@ -19,6 +19,7 @@
     "bloodColor": 9236248 /* 0x8cef18 */,
     "targets": { "ground": true, "air": true },
     "collisionRadius": 3.2,
+    "soundSize": "large",
     "colliders": [
         { "y": 0.7, "r": 1.5 },
         { "y": 2.0, "r": 1.1 },

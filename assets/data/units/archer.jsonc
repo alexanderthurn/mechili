@@ -9,6 +9,7 @@
     "burn": { "takenMult": 1.1 },
     "targets": { "ground": true, "air": true }, // picks off anything
     "collisionRadius": 1.0,
+    "soundSize": "medium",
     "colliders": [{ "y": 1.1, "r": 0.75 }],
     "projectileSpeed": 100,
     "projectileStyle": "arrow",
