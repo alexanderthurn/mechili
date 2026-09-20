@@ -18,14 +18,19 @@ export type RecordStopResult = {
 };
 
 function pickMime(): { mimeType: string; ext: 'mp4' | 'webm' } {
-    // Mac-first: QuickTime plays H.264/AAC MP4; WebM needs Chrome/VLC.
+    // Prefer High/Main H.264 over Baseline (avc1.42E01E) — Baseline looks muddy
+    // on busy game frames. QuickTime still plays High profile fine on modern Macs.
+    // VP9 WebM is often sharper than low-bitrate MP4 when MP4 isn't available.
     const candidates: Array<{ mimeType: string; ext: 'mp4' | 'webm' }> = [
-        { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', ext: 'mp4' },
-        { mimeType: 'video/mp4;codecs=avc1.4D401E,mp4a.40.2', ext: 'mp4' },
+        { mimeType: 'video/mp4;codecs=avc1.640028,mp4a.40.2', ext: 'mp4' }, // High@4.0
+        { mimeType: 'video/mp4;codecs=avc1.4D4028,mp4a.40.2', ext: 'mp4' }, // Main@4.0
+        { mimeType: 'video/mp4;codecs=avc1.64001F,mp4a.40.2', ext: 'mp4' }, // High@3.1
         { mimeType: 'video/mp4', ext: 'mp4' },
         { mimeType: 'video/webm;codecs=vp9,opus', ext: 'webm' },
         { mimeType: 'video/webm;codecs=vp8,opus', ext: 'webm' },
         { mimeType: 'video/webm', ext: 'webm' },
+        // Baseline last — only if nothing better is offered
+        { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', ext: 'mp4' },
     ];
     for (const c of candidates) {
         if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(c.mimeType)) {
@@ -33,6 +38,14 @@ function pickMime(): { mimeType: string; ext: 'mp4' | 'webm' } {
         }
     }
     return { mimeType: '', ext: 'webm' };
+}
+
+/** Scale encode bitrate to the canvas backing store (Retina can be 2–3× CSS pixels). */
+function videoBitrate(width: number, height: number, fps: number): number {
+    const pixels = Math.max(1, width * height);
+    // ~0.15 bits/pixel/frame keeps game detail; floor/ceiling avoid tiny/huge files.
+    const target = Math.round(pixels * 0.15 * fps);
+    return Math.min(48_000_000, Math.max(16_000_000, target));
 }
 
 function stampFilename(ext: string): string {
@@ -68,7 +81,7 @@ class VideoRecorder {
         return this.recorder !== null && this.recorder.state === 'recording';
     }
 
-    start(canvas: HTMLCanvasElement, fps = 30): RecordStartResult {
+    start(canvas: HTMLCanvasElement, fps = 60): RecordStartResult {
         if (typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') {
             return { ok: false, reason: 'unsupported' };
         }
@@ -80,17 +93,22 @@ class VideoRecorder {
         this.chosenMime = mimeType;
         this.chosenExt = ext;
 
+        const bits = videoBitrate(canvas.width, canvas.height, fps);
         const video = canvas.captureStream(fps);
         const audioStream = audio.enableRecordTap();
         const tracks = [...video.getVideoTracks(), ...audioStream.getAudioTracks()];
         const stream = new MediaStream(tracks);
         this.videoTrack = video.getVideoTracks()[0] ?? null;
 
+        const opts: MediaRecorderOptions = {
+            videoBitsPerSecond: bits,
+            audioBitsPerSecond: 192_000,
+        };
+        if (mimeType) opts.mimeType = mimeType;
+
         let recorder: MediaRecorder;
         try {
-            recorder = mimeType
-                ? new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 })
-                : new MediaRecorder(stream, { videoBitsPerSecond: 8_000_000 });
+            recorder = new MediaRecorder(stream, opts);
         } catch (err) {
             console.warn('[videoRecorder] MediaRecorder failed', err);
             this.videoTrack?.stop();
@@ -99,13 +117,18 @@ class VideoRecorder {
             return { ok: false, reason: 'unsupported' };
         }
 
+        console.info(
+            `[videoRecorder] ${canvas.width}×${canvas.height}@${fps} ${(bits / 1e6).toFixed(1)}Mbps ${recorder.mimeType || mimeType || 'default'}`,
+        );
+
         this.chunks = [];
         recorder.ondataavailable = (e) => {
             if (e.data.size > 0) this.chunks.push(e.data);
         };
         this.recorder = recorder;
         try {
-            recorder.start(1000);
+            // Smaller timeslice → encoder gets steadier rate control (less blocky spikes).
+            recorder.start(250);
         } catch (err) {
             console.warn('[videoRecorder] start failed', err);
             this.recorder = null;

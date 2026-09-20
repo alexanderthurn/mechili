@@ -68,10 +68,10 @@ thick oil blob falling through air, wet blugging glugging liquid whoosh, heavy v
 corrosive acid droplet falling through air, thin wet hissing sizzle drip, toxic green liquid fall whoosh, short game SFX, no splash landing, no music no voice
 ```
 
-### `spell_fire_drop` (ember whoosh)
+### `spell_fire_drop` (candle zsssh)
 
 ```
-dry burning ember streaking downward, sharp fiery whoosh with crackling sparks, hot ash falling, completely dry no liquid no water no oil no glug, short game SFX, no explosion no music
+soft candle flame hiss whoosh, quiet zsssh of a candle being blown or leaning, gentle fire air rush, warm soft sibilant hiss, short game SFX, dry no crackle pop no liquid no oil no boom no music
 ```
 
 ### `prism_hum`
