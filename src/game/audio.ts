@@ -2105,7 +2105,7 @@ const CUES: Record<string, CueDef> = {
         paths: ['audio/ui_click_1.ogg'],
         group: 'ui',
         maxVoices: 2,
-        gain: 0.45,
+        gain: 1.0,
     },
     /** Soft menu hover (dedicated sample — quieter source than click). */
     ui_hover: {

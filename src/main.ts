@@ -1326,17 +1326,77 @@ suggestCornerEl.addEventListener('click', () => {
 });
 menuChromeEl.appendChild(suggestCornerEl);
 
-/** Interactive menu targets for hover/click SFX. */
+/**
+ * Soft chrome UI click/hover roots — dialogs & menu panels only.
+ * Intentionally NOT: in-match HUD (shop/inventory/fightbar), card faces
+ * (commander VO / card_pick), debug, tips, cinematics.
+ */
+const UI_SFX_ROOT_SEL = [
+    '.mechili-menu-chrome',
+    '.mechili-settings',
+    '.mechili-controls-help',
+    '.mechili-suggest',
+    '.mechili-name-edit',
+    '.mechili-loadout',
+    '.mechili-pause',
+    '.mechili-gameover',
+    '.mechili-resume',
+    '.mechili-fatal',
+    '.mechili-friends',
+    '.mechili-report',
+    '.mechili-test-battle',
+    '.mechili-replay-controls',
+    '.mechili-cards', // Cancel/skip chrome only — `.card` faces excluded below
+].join(', ');
+
+const UI_SFX_HIT_SEL = [
+    'button',
+    'a[href]',
+    'select',
+    'summary',
+    'label',
+    'input[type="checkbox"]',
+    'input[type="radio"]',
+    'input[type="range"]',
+    '.m-btn',
+    '.m-room',
+    '.m-scenario-btn',
+    '.m-seat',
+    '.mechili-username',
+    '.mechili-suggest-btn',
+    '.lo-tech',
+    '.lo-slot',
+    '.lo-arrow',
+    '.lo-cornerbtn',
+    '.lo-statstoggle',
+    '[role="button"]',
+].join(', ');
+
+/** Interactive chrome target for hover/click SFX (menu + dialogs). */
 function menuSoundTarget(from: EventTarget | null): HTMLElement | null {
     if (!(from instanceof Element)) return null;
-    // Only while the title chrome is up (not mid-match HUD).
-    if (!menuChromeVisible || menuChromeEl.style.display === 'none') return null;
-    if (!menuChromeEl.contains(from)) return null;
-    const hit = from.closest(
-        'button, a[href], select, .m-btn, .m-room, .m-scenario-btn, .mechili-username, .mechili-suggest-btn, [role="button"]',
-    );
-    if (!(hit instanceof HTMLElement) || !menuChromeEl.contains(hit)) return null;
+    if (!wrapper.contains(from)) return null;
+
+    const root = from.closest(UI_SFX_ROOT_SEL);
+    if (!(root instanceof HTMLElement)) return null;
+
+    // Title chrome only while it's shown (overlays still work mid-match).
+    if (root.classList.contains('mechili-menu-chrome')) {
+        if (!menuChromeVisible || menuChromeEl.style.display === 'none') return null;
+    }
+
+    const hit = from.closest(UI_SFX_HIT_SEL);
+    if (!(hit instanceof HTMLElement) || !root.contains(hit)) return null;
     if (hit.closest('.mechili-version')) return null;
+    // Card picks already bark / play card_pick — don't stack ui_click/hover.
+    if (hit.classList.contains('card') && hit.closest('.mechili-cards')) return null;
+    // Text-field labels (suggest message, name edit) — not chrome buttons.
+    if (
+        hit.tagName === 'LABEL' &&
+        !hit.querySelector('input[type="checkbox"], input[type="radio"], input[type="range"], select')
+    ) {
+        return null;
+    }
     if (hit.hasAttribute('disabled') || hit.getAttribute('aria-disabled') === 'true') return null;
     return hit;
 }
@@ -1349,7 +1409,8 @@ let menuHoverEl: HTMLElement | null = null;
 let menuHoverAt = 0;
 
 // Listen on `wrapper`, not `menuChromeEl`: chrome is pointer-events:none so
-// some browsers skip listeners there even when children are clickable.
+// some browsers skip listeners there even when children are clickable. Same
+// listeners cover settings / suggest / game-over / pause / loadout overlays.
 wrapper.addEventListener('pointerover', (e) => {
     if (!menuHoverFine?.matches) return;
     if (e.pointerType && e.pointerType !== 'mouse') return;
