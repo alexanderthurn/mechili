@@ -1719,20 +1719,21 @@ const CUES: Record<string, CueDef> = {
     hp_draw_high: {
         paths: ['audio/hp_draw_high_1.ogg'],
         group: 'ui',
-        maxVoices: 6,
-        gain: 2.0,
+        // Shared cap enforced in playHpDrawHit — keep per-cue high as backstop.
+        maxVoices: 2,
+        gain: 1.2,
     },
     hp_draw_low: {
         paths: ['audio/hp_draw_low_1.ogg'],
         group: 'ui',
-        maxVoices: 8,
-        gain: 2.0,
+        maxVoices: 2,
+        gain: 1.2,
     },
     hp_draw_medium: {
         paths: ['audio/hp_draw_medium_1.ogg'],
         group: 'ui',
-        maxVoices: 7,
-        gain: 2.0,
+        maxVoices: 2,
+        gain: 1.2,
     },
     impact_flesh: {
         paths: [
@@ -3803,11 +3804,29 @@ class AudioBus {
         this.playUi(result === 'draw' ? 'draw_match' : result);
     }
 
-    /** Soul hit on HP bar — short ethereal spirit tick scaled to wave tier. */
+    /** Soul hit on HP bar — short punch; at most 2 overlapping across all tiers. */
     playHpDrawHit(tier: 'low' | 'medium' | 'high'): void {
-        this.playUi(
-            tier === 'high' ? 'hp_draw_high' : tier === 'medium' ? 'hp_draw_medium' : 'hp_draw_low',
+        const cueId =
+            tier === 'high' ? 'hp_draw_high' : tier === 'medium' ? 'hp_draw_medium' : 'hp_draw_low';
+        // Identical punch samples phase-cancel / clip when many stack (esp. gain 2).
+        // Cap globally and steal the oldest so later hits stay clean.
+        const active = this.voices.filter((v) =>
+            v.cueId === 'hp_draw_low' ||
+            v.cueId === 'hp_draw_medium' ||
+            v.cueId === 'hp_draw_high',
         );
+        while (active.length >= 2) {
+            const oldest = active.shift();
+            if (!oldest) break;
+            oldest.source.onended = null;
+            try {
+                oldest.source.stop();
+            } catch {
+                /* already ended */
+            }
+            this.releaseVoice(oldest);
+        }
+        this.playUi(cueId);
     }
 
     /**
