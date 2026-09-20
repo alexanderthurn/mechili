@@ -1511,7 +1511,7 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 2,
         gain: 0.85,
     },
-    /** Base rune hover beds — seamless UI loops (mixes/advanced come later). */
+    /** Base + mix rune hover beds — seamless UI loops (advanced come later). */
     rune_earth: {
         paths: ['audio/rune_earth_1.ogg'],
         group: 'ui',
@@ -1532,6 +1532,115 @@ const CUES: Record<string, CueDef> = {
     },
     rune_wind: {
         paths: ['audio/rune_wind_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_earth_fire: {
+        paths: ['audio/rune_earth_fire_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_earth_water: {
+        paths: ['audio/rune_earth_water_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_earth_wind: {
+        paths: ['audio/rune_earth_wind_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_fire_water: {
+        paths: ['audio/rune_fire_water_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_fire_wind: {
+        paths: ['audio/rune_fire_wind_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_water_wind: {
+        paths: ['audio/rune_water_wind_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_earth_fire_water: {
+        paths: ['audio/rune_earth_fire_water_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_earth_fire_wind: {
+        paths: ['audio/rune_earth_fire_wind_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_earth_water_wind: {
+        paths: ['audio/rune_earth_water_wind_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_fire_water_wind: {
+        paths: ['audio/rune_fire_water_wind_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_earth_fire_water_wind: {
+        paths: ['audio/rune_earth_fire_water_wind_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    /** Advanced rune hover beds — catalog ids (`addi`, `power`, …). */
+    rune_addi: {
+        paths: ['audio/rune_addi_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_power: {
+        paths: ['audio/rune_power_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_vigor: {
+        paths: ['audio/rune_vigor_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_colossus: {
+        paths: ['audio/rune_colossus_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_wrath: {
+        paths: ['audio/rune_wrath_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_golden: {
+        paths: ['audio/rune_golden_1.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.32,
+    },
+    rune_bulwark: {
+        paths: ['audio/rune_bulwark_1.ogg'],
         group: 'ui',
         maxVoices: 1,
         gain: 0.32,
@@ -2497,6 +2606,24 @@ void [
     assetUrl('audio/rune_fire_1.ogg'),
     assetUrl('audio/rune_water_1.ogg'),
     assetUrl('audio/rune_wind_1.ogg'),
+    assetUrl('audio/rune_earth_fire_1.ogg'),
+    assetUrl('audio/rune_earth_water_1.ogg'),
+    assetUrl('audio/rune_earth_wind_1.ogg'),
+    assetUrl('audio/rune_fire_water_1.ogg'),
+    assetUrl('audio/rune_fire_wind_1.ogg'),
+    assetUrl('audio/rune_water_wind_1.ogg'),
+    assetUrl('audio/rune_earth_fire_water_1.ogg'),
+    assetUrl('audio/rune_earth_fire_wind_1.ogg'),
+    assetUrl('audio/rune_earth_water_wind_1.ogg'),
+    assetUrl('audio/rune_fire_water_wind_1.ogg'),
+    assetUrl('audio/rune_earth_fire_water_wind_1.ogg'),
+    assetUrl('audio/rune_addi_1.ogg'),
+    assetUrl('audio/rune_power_1.ogg'),
+    assetUrl('audio/rune_vigor_1.ogg'),
+    assetUrl('audio/rune_colossus_1.ogg'),
+    assetUrl('audio/rune_wrath_1.ogg'),
+    assetUrl('audio/rune_golden_1.ogg'),
+    assetUrl('audio/rune_bulwark_1.ogg'),
     assetUrl('audio/fire_loop_1.ogg'),
     assetUrl('audio/ground_fire_1.ogg'),
     assetUrl('audio/ground_fire_2.ogg'),
@@ -3490,8 +3617,8 @@ class AudioBus {
     }
 
     /**
-     * Soft hover bed for a rune tip. Pure base elements only for now
-     * (`earth` / `fire` / `water` / `wind`, any level). Mixes & advanced → silent.
+     * Soft hover bed for a rune tip. Elemental mixes → `rune_` + elements;
+     * advanced catalog ids → `rune_<id>`. Unknown → silent.
      * One loop at a time; call {@link stopRuneHover} on tip hide.
      */
     playRuneHover(itemId: string | null | undefined): void {
@@ -4279,13 +4406,16 @@ function impactCue(e: Extract<SimEvent, { kind: 'impact' }>): string {
     return 'impact_ground';
 }
 
-/** Pure base elemental → hover loop cue; mixes / advanced / unknown → null. */
+/** Rune tip → hover loop cue. Elemental mix or advanced id; unknown → null. */
 function runeHoverCueId(itemId: string | null | undefined): string | null {
     if (!itemId) return null;
     const p = parseElementalId(itemId);
-    if (!p || p.elements.length !== 1) return null;
-    const cueId = `rune_${p.elements[0]}`;
-    return CUES[cueId] ? cueId : null;
+    if (p && p.elements.length > 0) {
+        const mixCue = `rune_${p.elements.join('_')}`;
+        if (CUES[mixCue]) return mixCue;
+    }
+    const advancedCue = `rune_${itemId}`;
+    return CUES[advancedCue] ? advancedCue : null;
 }
 
 /** Success cues for human actions. `null` = silent (caller plays richer SFX). */

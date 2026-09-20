@@ -1261,7 +1261,7 @@ wireCardSelect('mh-round-cards-select', '#mh-round-cards-row > .card');
 wireCardSelect('mh-runes-select', '#mh-runes-grid > .mh-tactic');
 wireCardSelect('mh-tactics-select', '#mh-tactics-grid > .mh-tactic');
 
-/** Press-and-hold a homepage rune card to preview its hover bed (base elements only for now).
+/** Press-and-hold a homepage rune card to preview its hover bed.
  *  Always plays at least 1s so a quick click still hears the loop. */
 const runesGrid = document.getElementById('mh-runes-grid');
 if (runesGrid) {

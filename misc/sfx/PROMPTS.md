@@ -68,7 +68,7 @@ dark enemy forge select sting, cold iron forge, distant harsh bellows and dull a
 
 ### `rune_earth` / `rune_fire` / `rune_water` / `rune_wind` (hover loops)
 
-Seamless ~3s UI beds for base rune tips. One take each; mixes/advanced later.
+Seamless ~3s UI beds for base rune tips. One take each.
 
 ```
 soft deep subterranean earth hum loop, quiet warm soil resonance, gentle underground stone tone, smooth seamless game UI ambience loop, no gravel scrape no crackle no music no voice
@@ -84,6 +84,86 @@ gentle water trickle and soft wet bubble loop, quiet liquid flow, seamless game 
 
 ```
 airy soft wind whoosh and light silk flutter loop, quiet breeze texture, seamless game UI ambience loop, no music no voice
+```
+
+### Mix rune hover loops (11)
+
+Cue id = `rune_` + sorted elements joined with `_` (levels share one bed).
+
+```
+soft magma and warm stone hiss loop, quiet hot earth ember tone, gentle lava rock resonance, seamless game UI ambience loop, no boom no music no voice
+```
+
+```
+soft wet clay and muddy trickle loop, quiet damp soil squelch texture, gentle earth water mix, seamless game UI ambience loop, no splash no music no voice
+```
+
+```
+soft dust devil and dry sand in breeze loop, quiet earthy wind swirl, gentle sand air texture, seamless game UI ambience loop, no howl no music no voice
+```
+
+```
+soft steam hiss and warm quench loop, quiet fire meeting water sizzle, gentle vapor bed, seamless game UI ambience loop, no explosion no music no voice
+```
+
+```
+soft rushing torch flame in wind loop, quiet blowtorch air fire whoosh, gentle fire wind bed, seamless game UI ambience loop, dry no boom no music no voice
+```
+
+```
+soft misty spray and wet breeze loop, quiet water mist in wind, gentle drizzle air texture, seamless game UI ambience loop, no storm crash no music no voice
+```
+
+```
+soft hot spring mineral bubble loop, quiet warm earth water fire simmer, gentle bubbling geothermal bed, seamless game UI ambience loop, no music no voice
+```
+
+```
+soft ash storm and cinder wind loop, quiet hot dust and ember breeze, gentle earth fire wind bed, seamless game UI ambience loop, no boom no music no voice
+```
+
+```
+soft rain on dirt and muddy breeze loop, quiet wet earth wind drizzle, gentle monsoon mud air bed, seamless game UI ambience loop, no thunder no music no voice
+```
+
+```
+soft storm steam and wet gale loop, quiet fire steam in rainy wind, gentle wet fire air bed, seamless game UI ambience loop, no boom no thunder no music no voice
+```
+
+```
+soft dense elemental churn loop, quiet blended earth fire water wind texture, gentle four-element ambience bed, seamless game UI loop, no boom no music no voice
+```
+
+### Advanced rune hover loops (7)
+
+Cue id = `rune_<catalog id>` (`addi`, `power`, `vigor`, `colossus`, `wrath`, `golden`, `bulwark`).
+
+```
+soft heroic metal chime loop, quiet bright brass ring resonance, gentle valor bell tone, seamless game UI ambience loop, no melody no music no voice
+```
+
+```
+soft low blood thrum pulse loop, quiet dark power heartbeat, gentle carnage drone, seamless game UI ambience loop, no gore no scream no music no voice
+```
+
+```
+soft deep thick heartbeat pulse loop, quiet giant blood thump, gentle strong vitality bed, seamless game UI ambience loop, no scream no music no voice
+```
+
+```
+soft heavy mithril plate armor shift loop, quiet metal plate scrape resonance, gentle colossal armor bed, seamless game UI ambience loop, no clang crash no music no voice
+```
+
+```
+soft angry tense growl-hum loop, quiet berserk tension drone, gentle wrathful hum bed, seamless game UI ambience loop, no shout no scream no music no voice
+```
+
+```
+soft bright solar shimmer loop, quiet golden sunstone glint, gentle radiant sparkle bed, seamless game UI ambience loop, no melody no music no voice
+```
+
+```
+soft stone shield thud-hum loop, quiet fortress barrier resonance, gentle bulwark stone bed, seamless game UI ambience loop, no crash no music no voice
 ```
 
 ### `spell_oil_drop` (falling blug)
