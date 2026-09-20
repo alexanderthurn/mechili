@@ -1671,14 +1671,27 @@ export class Hud {
     }
 
     private attachPortraitEvents(el: HTMLElement, seat: number): void {
-        el.addEventListener('click', () => this.showSpecialistDetail(seat));
+        el.addEventListener('click', () => {
+            this.playCommanderChipBark(seat);
+            this.showSpecialistDetail(seat);
+        });
         el.addEventListener('mouseenter', () => {
-            if (inputMode() !== 'touch') this.showSpecialistDetail(seat, true);
+            if (inputMode() === 'touch') return;
+            this.playCommanderChipBark(seat);
+            this.showSpecialistDetail(seat, true);
         });
         el.addEventListener('mouseleave', () => {
             if (inputMode() === 'touch') return;
             if (this.specDetailSeat === seat && this.specDetailViaHover) this.hideSpecialistDetail();
         });
+    }
+
+    /** Own pick bark / enemy rival bark for a fight-bar seat (no-op until card is set). */
+    private playCommanderChipBark(seat: number): void {
+        const chip = this.commanderChips.find((c) => c.seat === seat);
+        if (!chip?.card) return;
+        if (chip.team === 'enemy') audio.playCommanderRivalPick(chip.card.id);
+        else audio.playCommanderPick(chip.card.id);
     }
 
     private buildTeamCard(
@@ -1689,7 +1702,6 @@ export class Hud {
     ): { cardEl: HTMLDivElement; hpFill: HTMLDivElement; hpVal: HTMLSpanElement; specEl: HTMLSpanElement } {
         const cardEl = document.createElement('div');
         cardEl.className = `fighter ${team}`;
-        this.attachPortraitEvents(cardEl, featuredEntry.seat);
 
         const combinedName = allEntries.map((e) => e.name).join(' & ');
 
@@ -1712,6 +1724,7 @@ export class Hud {
             avatar: mainAvatar,
         });
         this.applyPortrait(mainPortrait, mainAvatar, null);
+        this.attachPortraitEvents(mainPortrait, featuredEntry.seat);
 
         if (secondaryEntries.length > 0) {
             const subStack = document.createElement('div');
@@ -1732,6 +1745,7 @@ export class Hud {
                     avatar: secAvatar,
                 });
                 this.applyPortrait(subPortrait, secAvatar, null);
+                this.attachPortraitEvents(subPortrait, sec.seat);
 
                 subStack.appendChild(subPortrait);
             }
@@ -4220,7 +4234,8 @@ export class Hud {
                 const card = chip.card;
                 const specHtml = card
                     ? `<div class="spec-card-row">` +
-                      `<div class="card static">${this.startCardFace(card)}</div>` +
+                      `<div class="card static" data-card="${card.id}" data-team="${chip.team}">` +
+                      `${this.startCardFace(card)}</div>` +
                       `</div>`
                     : '';
                 const picksHtml =
@@ -4253,6 +4268,16 @@ export class Hud {
 
         overlay.innerHTML = `<div class="cards-row">${colsHtml}</div>`;
         overlay.addEventListener('click', () => this.hideSpecialistDetail());
+        // Hover the commander card face → same bark as fight-bar / pick preview.
+        overlay.querySelectorAll<HTMLElement>('.card[data-card]').forEach((cardEl) => {
+            cardEl.addEventListener('pointerenter', (e) => {
+                if (e.pointerType === 'touch') return;
+                const cardId = cardEl.dataset.card;
+                if (!cardId) return;
+                if (cardEl.dataset.team === 'enemy') audio.playCommanderRivalPick(cardId);
+                else audio.playCommanderPick(cardId);
+            });
+        });
         this.bindCardSpellTips(overlay);
         this.specDetailOverlay = overlay;
         this.specDetailSeat = seat;

@@ -2858,6 +2858,20 @@ class AudioBus {
     }
 
     /**
+     * Enemy commander HUD bark (`commander_<id>_rival`) — same stop/switch
+     * behavior as {@link playCommanderPick}, no select cooldown (hover-friendly).
+     */
+    playCommanderRivalPick(cardId: string): void {
+        this.stopCommanderBarks();
+        if (!this.voicesOn()) return;
+        const cueId = `commander_${cardId}_rival`;
+        if (!CUES[cueId]) return;
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok) this.playUi(cueId);
+        });
+    }
+
+    /**
      * Stronghold click bark: same cooldown as unit select, stops unit +
      * commander VO. No card_pick fallback (silent if cue missing).
      */

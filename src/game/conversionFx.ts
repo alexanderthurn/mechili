@@ -142,6 +142,21 @@ export function beamMuzzleWorld(caster: Actor): { x: number; y: number; z: numbe
     };
 }
 
+/**
+ * Beam tip on a living victim — mesh pose so flyer stomps / hover bob / air-ram
+ * lunges follow the 3D body. Sim {@link Actor.footY} stays at cruise during a
+ * stamp (render-only dive).
+ */
+function beamAimWorld(victim: Actor): { x: number; y: number; z: number } {
+    const vt = victim.unit.type;
+    const mesh = victim.mesh;
+    return {
+        x: victim.unit.world.x + mesh.position.x,
+        y: mesh.position.y + projectileAimY(vt) * vt.meshScale,
+        z: victim.unit.world.z + mesh.position.z,
+    };
+}
+
 type RayLayer = {
     core: InstancedMesh;
     glow: InstancedMesh;
@@ -456,9 +471,8 @@ export class ConversionFx {
                 for (let vi = 0; vi < victims.length; vi++) {
                     const victim = victims[vi]!;
                     if (!victim.alive) continue;
-                    const vt = victim.unit.type;
-                    const toY = victim.footY + projectileAimY(vt) * vt.meshScale;
-                    _dir.set(victim.rx - from.x, toY - from.y, victim.rz - from.z);
+                    const to = beamAimWorld(victim);
+                    _dir.set(to.x - from.x, to.y - from.y, to.z - from.z);
                     const len = Math.max(_dir.length(), 0.35);
                     _dir.multiplyScalar(1 / len);
                     if (pn < MAX_PRISM) {
@@ -496,19 +510,19 @@ export class ConversionFx {
                 if (cn >= MAX_CONVERT) break;
                 const victim = victims[vi];
                 if (victim?.alive && victim.convertBy === caster) {
-                    const vt = victim.unit.type;
-                    const toY = victim.footY + projectileAimY(vt) * vt.meshScale;
-                    _dir.set(victim.rx - from.x, toY - from.y, victim.rz - from.z);
+                    const to = beamAimWorld(victim);
+                    _dir.set(to.x - from.x, to.y - from.y, to.z - from.z);
                 } else if (vi === 0) {
+                    // Sim tip (ward clip or pre-lock torso). Locked channels use
+                    // mesh aim above so flyer stomps follow the body.
                     _dir.set(
                         caster.convertRayTipX - from.x,
                         caster.convertRayTipY - from.y,
                         caster.convertRayTipZ - from.z,
                     );
                 } else if (victim?.alive) {
-                    const vt = victim.unit.type;
-                    const toY = victim.footY + projectileAimY(vt) * vt.meshScale;
-                    _dir.set(victim.rx - from.x, toY - from.y, victim.rz - from.z);
+                    const to = beamAimWorld(victim);
+                    _dir.set(to.x - from.x, to.y - from.y, to.z - from.z);
                 } else {
                     continue;
                 }
