@@ -78,7 +78,7 @@
         },
         "voice": {
           "$ref": "#/definitions/EntityVoice",
-          "description": "Spoken VO casting + English line pools (regen / future on-the-fly). Runtime plays shipped audio cues."
+          "description": "Spoken VO casting + lines (authoring / future gen). Runtime still plays shipped cues; `externalIds` are for regen tools."
         }
       },
       "required": [
@@ -92,73 +92,6 @@
         "forgeSpells",
         "description"
       ],
-      "additionalProperties": false
-    },
-    "VoiceExternalId": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["e"],
-          "description": "Voice provider code — e = ElevenLabs"
-        },
-        "id": {
-          "type": "string",
-          "description": "Provider voice id. Omit until Voice Design has created one."
-        },
-        "prompt": {
-          "type": "string",
-          "description": "Voice-design prompt used to create this id (Instant Voice Design / casting bible). Omit for stock library voices."
-        }
-      },
-      "required": ["type"],
-      "additionalProperties": false
-    },
-    "EntityVoice": {
-      "type": "object",
-      "properties": {
-        "externalIds": {
-          "type": "array",
-          "items": { "$ref": "#/definitions/VoiceExternalId" },
-          "minItems": 1,
-          "description": "Provider voice bindings for regen / casting tools"
-        },
-        "lines": {
-          "type": "object",
-          "properties": {
-            "pick": {
-              "type": "array",
-              "items": { "type": "string" },
-              "minItems": 1,
-              "description": "Lines spoken when the commander is picked / previewed"
-            },
-            "win": {
-              "type": "array",
-              "items": { "type": "string" },
-              "minItems": 3,
-              "maxItems": 3,
-              "description": "Proud funny taunts when this commander's side wins a round (3 variants)"
-            },
-            "victory": {
-              "type": "array",
-              "items": { "type": "string" },
-              "minItems": 1,
-              "maxItems": 1,
-              "description": "Longer match-win line when this commander's side wins the whole game (one take; ship as commander_<id>_victory.ogg)"
-            },
-            "defeat": {
-              "type": "array",
-              "items": { "type": "string" },
-              "minItems": 1,
-              "maxItems": 1,
-              "description": "Match-loss line when this commander's side loses the game (one take; ship as commander_<id>_defeat.ogg)"
-            }
-          },
-          "additionalProperties": false,
-          "description": "English line pools per event; locales may override via commanders:<id>.voice.<event>"
-        }
-      },
-      "required": ["externalIds"],
       "additionalProperties": false
     },
     "SpecialityId": {
@@ -256,6 +189,91 @@
       },
       "additionalProperties": false,
       "description": "Commander effects; any combination works. Numbers here are what the card face text promises."
+    },
+    "EntityVoice": {
+      "type": "object",
+      "properties": {
+        "externalIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/VoiceExternalId"
+          },
+          "description": "Provider voice ids used by regen / casting tools."
+        },
+        "lines": {
+          "type": "object",
+          "properties": {
+            "pick": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "win": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "victory": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "defeat": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "death": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "hurt": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "description": "English (and future locale-overridable) line pools per event."
+        }
+      },
+      "required": [
+        "externalIds"
+      ],
+      "additionalProperties": false
+    },
+    "VoiceExternalId": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/VoiceProviderType"
+        },
+        "id": {
+          "type": "string",
+          "description": "Provider voice id; omit until Voice Design has created one."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Voice-design prompt used to create this id; omit for stock library voices."
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "description": "One provider voice binding — `type: \"e\"` = ElevenLabs."
+    },
+    "VoiceProviderType": {
+      "type": "string",
+      "const": "e",
+      "description": "Provider-agnostic spoken voice block (commanders now; units/spells later). English lines live here as regen defaults; locales may override via i18n."
     }
   },
   "allowComments": true,

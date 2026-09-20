@@ -9,6 +9,10 @@
     "burn": { "takenMult": 0.5 }, // tough infantry — resists fire better
     "targets": { "ground": true, "air": false }, // can't reach the sky
     "collisionRadius": 0.6,
+    // Fine-tune Blightburst puddle: multiplies talent onDeath.acid.radius (then × collisionRadius)
+    "talentMod": {
+        "blightburst": { "onDeath": { "acid": { "radius": 0.2 } } },
+    },
     "colliders": [{ "y": 0.35, "r": 0.55 }],
     "hp": 40,
     "damage": 8,

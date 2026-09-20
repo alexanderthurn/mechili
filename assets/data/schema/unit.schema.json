@@ -235,6 +235,13 @@
           "type": "number",
           "description": "ground-plane collision circle per mech, in world units — nothing walks through it"
         },
+        "talentMod": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/TalentMod"
+          },
+          "description": "Optional per-talent fine-tunes, keyed by talent id. Omit when defaults are fine. Each entry mirrors that talent's numeric fields — matching numbers are multiplied (e.g. blightburst: `{ onDeath: { acid: { radius: 0.8 } } }`). Missing paths = 1."
+        },
         "blobShadowScale": {
           "type": "number",
           "description": "Multiplier on the low-quality ground blob disc (omit = 1). Does not change gameplay collision — visual only."
@@ -503,6 +510,10 @@
           "type": "number",
           "description": "how many runes a pack of this type can carry (default 2)"
         },
+        "voice": {
+          "$ref": "#/definitions/EntityVoice",
+          "description": "Spoken VO casting (authoring / future gen). Runtime still plays shipped cues; `externalIds` + `prompt` are for Voice Design / TTS tools."
+        },
         "poisonImmune": {
           "type": "boolean",
           "description": "immune to poison-cloud spells (default: affected)"
@@ -580,10 +591,6 @@
         "modelId": {
           "type": "string",
           "description": "Id to use for 3D model / InstancedMesh-pool lookups (unitModels.ts, unitAnimated.ts, UnitInstanceRenderer) instead of this type's own `id`. Id to look up in unitModels MODEL_SPECS / instance pools instead of this type's own `id`. Lets a variant (e.g. HORDE_ZOMBIE → `horde`) point at a dedicated GLB. Defaults to `id`."
-        },
-        "voice": {
-          "$ref": "#/definitions/EntityVoice",
-          "description": "Spoken VO casting + English line pools (regen / future on-the-fly). Runtime plays shipped audio cues."
         }
       },
       "required": [
@@ -603,64 +610,6 @@
         "speed",
         "proceduralModel"
       ],
-      "additionalProperties": false
-    },
-    "VoiceExternalId": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["e"],
-          "description": "Voice provider code — e = ElevenLabs"
-        },
-        "id": {
-          "type": "string",
-          "description": "Provider voice id. Omit until Voice Design has created one."
-        },
-        "prompt": {
-          "type": "string",
-          "description": "Voice-design prompt used to create this id (Instant Voice Design / casting bible). Omit for stock library voices."
-        }
-      },
-      "required": ["type"],
-      "additionalProperties": false
-    },
-    "EntityVoice": {
-      "type": "object",
-      "properties": {
-        "externalIds": {
-          "type": "array",
-          "items": { "$ref": "#/definitions/VoiceExternalId" },
-          "minItems": 1,
-          "description": "Provider voice bindings for regen / casting tools"
-        },
-        "lines": {
-          "type": "object",
-          "properties": {
-            "pick": {
-              "type": "array",
-              "items": { "type": "string" },
-              "minItems": 1,
-              "description": "Short Generals-style select acknowledgements (Yes?/What?/character one-liners)."
-            },
-            "death": {
-              "type": "array",
-              "items": { "type": "string" },
-              "minItems": 1,
-              "description": "Short death yelps when this unit dies (Noo!/Uargh!). One take per line."
-            },
-            "hurt": {
-              "type": "array",
-              "items": { "type": "string" },
-              "minItems": 1,
-              "description": "Ultra-short hit flinches (Ah!/Ow!). One syllable; played near-field on flesh impacts."
-            }
-          },
-          "additionalProperties": false,
-          "description": "English line pools per event; locales may override later"
-        }
-      },
-      "required": ["externalIds"],
       "additionalProperties": false
     },
     "GridExtent": {
@@ -696,6 +645,11 @@
         "sendSupply"
       ],
       "description": "Panel actions a building can offer. Each is implemented once (HUD + action dispatcher); a building lists the ones it offers in UnitType.abilities ."
+    },
+    "TalentMod": {
+      "type": "object",
+      "additionalProperties": {},
+      "description": "Per-talent fine-tune on a unit (UnitType.talentMod), keyed by talent id. Free-form object that mirrors that talent's numeric field paths — matching numbers are multiplied at apply time (see applyTalentMod)."
     },
     "DeathWear": {
       "type": "string",
@@ -788,6 +742,91 @@
       ],
       "additionalProperties": false,
       "description": "how strongly a unit type takes burn damage (1 = normal, 0 = immune)"
+    },
+    "EntityVoice": {
+      "type": "object",
+      "properties": {
+        "externalIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/VoiceExternalId"
+          },
+          "description": "Provider voice ids used by regen / casting tools."
+        },
+        "lines": {
+          "type": "object",
+          "properties": {
+            "pick": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "win": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "victory": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "defeat": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "death": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "hurt": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "description": "English (and future locale-overridable) line pools per event."
+        }
+      },
+      "required": [
+        "externalIds"
+      ],
+      "additionalProperties": false
+    },
+    "VoiceExternalId": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/VoiceProviderType"
+        },
+        "id": {
+          "type": "string",
+          "description": "Provider voice id; omit until Voice Design has created one."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Voice-design prompt used to create this id; omit for stock library voices."
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "description": "One provider voice binding — `type: \"e\"` = ElevenLabs."
+    },
+    "VoiceProviderType": {
+      "type": "string",
+      "const": "e",
+      "description": "Provider-agnostic spoken voice block (commanders now; units/spells later). English lines live here as regen defaults; locales may override via i18n."
     },
     "ProceduralModelId": {
       "type": "string",

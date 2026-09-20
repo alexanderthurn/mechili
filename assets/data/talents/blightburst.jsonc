@@ -1,4 +1,5 @@
 // Leave an acid puddle on death.
+// World radius = acid.radius × unit.collisionRadius (talentMod may scale acid.radius).
 {
     "id": "blightburst",
     "name": "Blightburst",
@@ -6,5 +7,5 @@
     "mods": {},
     "onDeath": { "acid": { "radius": 4 } },
     "icon": "tech-blightburst",
-    "description": "On death, leaves an acid puddle.",
+    "description": "On death, leaves an acid puddle sized to this unit.",
 }

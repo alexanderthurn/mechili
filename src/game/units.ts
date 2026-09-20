@@ -160,9 +160,12 @@ export interface TechDef {
     /**
      * On death: splash nova and/or acid puddle.
      * Explode damage = dying body's maxHp × `damageMult` (default 1).
+     * Acid puddle world radius = `acid.radius` × dying body's collisionRadius
+     * (after optional {@link UnitType.talentMod} scales the talent's own fields).
      */
     onDeath?: {
         explode?: { splash: number; damageMult?: number };
+        /** Size at collisionRadius 1 (further scaled by unit talentMod path). */
         acid?: { radius: number };
     };
     /**
@@ -383,6 +386,61 @@ export type BuildingAbilityId =
     | 'forgeSpells'
     | 'sendSupply';
 
+/**
+ * Per-talent fine-tune on a unit ({@link UnitType.talentMod}), keyed by talent id.
+ * Free-form object that mirrors that talent's numeric field paths — matching
+ * numbers are multiplied at apply time (see {@link applyTalentMod}).
+ *
+ * @example blightburst → `{ onDeath: { acid: { radius: 0.8 } } }`
+ */
+export type TalentMod = Record<string, unknown>;
+
+/** Metadata keys never scaled from talentMod. */
+const TALENT_MOD_SKIP = new Set(['id', 'name', 'cost', 'description', 'icon']);
+
+/**
+ * Deep-multiply `mod` onto matching numeric leaves of `base`.
+ * Objects recurse; booleans/strings/arrays and unknown keys are left alone.
+ */
+function scaleTalentValue(base: unknown, mod: unknown): unknown {
+    if (mod == null) return base;
+    if (typeof base === 'number' && typeof mod === 'number') return base * mod;
+    if (
+        base !== null &&
+        typeof base === 'object' &&
+        !Array.isArray(base) &&
+        mod !== null &&
+        typeof mod === 'object' &&
+        !Array.isArray(mod)
+    ) {
+        const src = base as Record<string, unknown>;
+        const out: Record<string, unknown> = { ...src };
+        for (const [key, modVal] of Object.entries(mod as Record<string, unknown>)) {
+            if (TALENT_MOD_SKIP.has(key)) continue;
+            if (!(key in src)) continue;
+            out[key] = scaleTalentValue(src[key], modVal);
+        }
+        return out;
+    }
+    return base;
+}
+
+/** Apply a unit's talentMod entry onto a shared TechDef (returns `tech` when unused). */
+export function applyTalentMod(tech: TechDef, mod: TalentMod | undefined): TechDef {
+    if (!mod) return tech;
+    return scaleTalentValue(tech, mod) as TechDef;
+}
+
+/** TechDef with this unit's {@link UnitType.talentMod} for `tech.id` applied. */
+export function techForUnit(type: UnitType, tech: TechDef): TechDef {
+    return applyTalentMod(tech, type.talentMod?.[tech.id]);
+}
+
+/** Look up a unit's fine-tune blob for one talent (missing → undefined). */
+export function talentModOf(type: UnitType, talentId: string): TalentMod | undefined {
+    return type.talentMod?.[talentId];
+}
+
 export interface UnitType {
     id: string;
     name: string;
@@ -538,6 +596,13 @@ export interface UnitType {
     targets: { ground: boolean; air: boolean };
     /** ground-plane collision circle per mech, in world units — nothing walks through it */
     collisionRadius: number;
+    /**
+     * Optional per-talent fine-tunes, keyed by talent id. Omit when defaults
+     * are fine. Each entry mirrors that talent's numeric fields — matching
+     * numbers are multiplied (e.g. blightburst:
+     * `{ onDeath: { acid: { radius: 0.8 } } }`). Missing paths = 1.
+     */
+    talentMod?: Readonly<Record<string, TalentMod>>;
     /**
      * Multiplier on the low-quality ground blob disc (omit = 1).
      * Does not change gameplay collision — visual only.

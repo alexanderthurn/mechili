@@ -19,6 +19,9 @@
     "burn": { "takenMult": 1 }, // air: burn status ignored while aloft
     "targets": { "ground": true, "air": true },
     "collisionRadius": 0.9, // unused for soft push (ghost), kept for broadphase
+    "talentMod": {
+        "blightburst": { "onDeath": { "acid": { "radius": 0.2 } } },
+    },
     "blobShadowScale": 0.55,
     // Generous AA volumes — wings + body so goblin/archer volleys can connect
     "colliders": [

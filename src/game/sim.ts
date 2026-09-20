@@ -54,6 +54,7 @@ import {
     projectileAimY,
     clearBattleTint,
     syncBattleTint,
+    techForUnit,
     type BattleTeam,
     type DeathWear,
     type Team,
@@ -1617,7 +1618,7 @@ export class BattleSim {
     private techProfiles(a: Actor): TechDef[] {
         const out: TechDef[] = [];
         for (const tech of this.config.types.talentsOf(a.unit.type)) {
-            if (this.actorHasTech(a, tech.id)) out.push(tech);
+            if (this.actorHasTech(a, tech.id)) out.push(techForUnit(a.unit.type, tech));
         }
         return out;
     }
@@ -1738,7 +1739,8 @@ export class BattleSim {
                 }
             }
             if (od.acid) {
-                acidRadius = Math.max(acidRadius, od.acid.radius);
+                // talent radius (already talentMod-scaled) × body size
+                acidRadius = Math.max(acidRadius, od.acid.radius * target.radius);
             }
         }
         if (hasExplode && explodeSplash > 0) {
