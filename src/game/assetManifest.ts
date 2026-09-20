@@ -231,6 +231,7 @@ const RAW = import.meta.glob(
         '../../assets/audio/music_summer_noon_battle_1.ogg',
         '../../assets/audio/music_summer_noon_deploy_1.ogg',
         '../../assets/audio/narration_welcome.ogg',
+        '../../assets/audio/narration_year_begins.ogg',
         '../../assets/audio/ogre_smash_1.ogg',
         '../../assets/audio/ogre_smash_2.ogg',
         '../../assets/audio/orb_shot_1.ogg',

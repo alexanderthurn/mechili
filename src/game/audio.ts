@@ -2134,6 +2134,12 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    narration_year_begins: {
+        paths: ['audio/narration_year_begins.ogg'],
+        group: 'ui',
+        maxVoices: 1,
+        gain: 0.95,
+    },
     ui_confirm: {
         paths: [
             'audio/ui_confirm_1.ogg',
@@ -2469,6 +2475,7 @@ void [
     assetUrl('audio/ui_page_3.ogg'),
     assetUrl('audio/ui_page_4.ogg'),
     assetUrl('audio/narration_welcome.ogg'),
+    assetUrl('audio/narration_year_begins.ogg'),
     assetUrl('audio/ui_confirm_1.ogg'),
     assetUrl('audio/ui_confirm_2.ogg'),
     assetUrl('audio/ui_deny_1.ogg'),
@@ -3074,8 +3081,16 @@ class AudioBus {
      * landing on the title screen — not on match resume / reconnect.
      */
     playNarrationWelcome(): void {
+        this.playNarrationCue('narration_welcome');
+    }
+
+    /** The Year intro cover when no rounds have been played yet. */
+    playNarrationYearBegins(): void {
+        this.playNarrationCue('narration_year_begins');
+    }
+
+    private playNarrationCue(cueId: string): void {
         if (!this.voicesOn()) return;
-        const cueId = 'narration_welcome';
         const cue = CUES[cueId];
         if (!cue) return;
         if (!cue.paths.every((p) => isBaseAsset(p))) return;

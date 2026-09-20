@@ -15,6 +15,7 @@ import {
 import { getAvatarDataUrl } from '../game/avatar';
 import type { GameSettings } from '../game/settings';
 import type { StarRole } from '../game/net';
+import { audio } from '../game/audio';
 import { t } from '../i18n';
 import { withDialogFade } from './dialogFade';
 
@@ -162,6 +163,7 @@ export function mountYearIntro(cover: HTMLElement, progress: YearProgress): void
               });
     el.innerHTML = `<div class="ci-frame">${yearProgressHtml(progress, { title, current: true })}</div>`;
     cover.appendChild(el);
+    if (progress.rounds.length === 0) audio.playNarrationYearBegins();
 }
 
 /** Tutorial lesson card — same cover slot as campaign, titled with the lesson name. */
