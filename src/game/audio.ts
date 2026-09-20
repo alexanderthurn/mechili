@@ -85,7 +85,7 @@ const MEDIUM_SOUND_SPATIAL: CombatSpatialOpts = {
  * Death / hit stay on the tighter default (or size profiles below).
  */
 const ATTACK_REF = 16;
-const ATTACK_MAX = 48;
+const ATTACK_MAX = 96;
 const ATTACK_ROLLOFF = 1.35;
 
 function soundSizeOf(typeId: string | undefined): SoundSize {
@@ -107,15 +107,38 @@ function sizeSpatialOpts(typeId: string | undefined): CombatSpatialOpts | undefi
     }
 }
 
-/** Melee swings: small packs stay very near; medium a bit quieter than large. */
-function meleeSwingOpts(typeId: string | undefined): CombatSpatialOpts | undefined {
-    switch (soundSizeOf(typeId)) {
+/** Melee swing/hit hear ranges — falloff starts at half of maxDistance. */
+const MELEE_HEAR = {
+    small: { maxDistance: 28, refDistance: 14 },
+    medium: { maxDistance: 56, refDistance: 28 },
+    large: { maxDistance: 120, refDistance: 60 },
+} as const;
+
+/** Melee swings: size sets how far they carry; quieter for packs. */
+function meleeSwingOpts(typeId: string | undefined): CombatSpatialOpts {
+    const size = soundSizeOf(typeId);
+    const hear = MELEE_HEAR[size];
+    switch (size) {
         case 'small':
-            return { gainMul: 0.35, refDistance: 4, maxDistance: 14, rolloff: 2.1 };
+            return { gainMul: 0.4, ...hear, rolloff: 1.6 };
         case 'medium':
-            return { gainMul: 0.7, refDistance: 8, maxDistance: 24, rolloff: 1.7 };
+            return { gainMul: 0.75, ...hear, rolloff: 1.45 };
         case 'large':
-            return undefined;
+            return { gainMul: 1, ...hear, rolloff: 1.3 };
+    }
+}
+
+/** Melee contact hits — same hear envelope as swings, by victim size. */
+function meleeHitOpts(typeId: string | undefined): CombatSpatialOpts {
+    const size = soundSizeOf(typeId);
+    const hear = MELEE_HEAR[size];
+    switch (size) {
+        case 'small':
+            return { gainMul: 0.45, ...hear, rolloff: 1.6 };
+        case 'medium':
+            return { gainMul: 0.8, ...hear, rolloff: 1.45 };
+        case 'large':
+            return { gainMul: 1, ...hear, rolloff: 1.3 };
     }
 }
 /** Structure type id → select SFX cue (stronghold uses commander VO instead). */
@@ -164,7 +187,7 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 14,
         spatial: true,
         refDistance: 12,
-        maxDistance: 36,
+        maxDistance: 72,
         rolloff: 1.5,
         gain: 0.52,
     },
@@ -178,7 +201,7 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 8,
         spatial: true,
         refDistance: ATTACK_REF + 4,
-        maxDistance: ATTACK_MAX + 8,
+        maxDistance: 112,
         rolloff: 1.2,
         gain: 1.15,
     },
@@ -1246,9 +1269,10 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 8,
         spatial: true,
-        refDistance: 6,
-        maxDistance: 20,
-        rolloff: 1.8,
+        // Defaults overridden per soundSize on play (see meleeHitOpts).
+        refDistance: MELEE_HEAR.medium.refDistance,
+        maxDistance: MELEE_HEAR.medium.maxDistance,
+        rolloff: 1.45,
         gain: 0.38,
     },
     melee_swing: {
@@ -1260,10 +1284,10 @@ const CUES: Record<string, CueDef> = {
         group: 'sfx',
         maxVoices: 12,
         spatial: true,
-        // Base for large melee; small/medium get size opts on play.
-        refDistance: 10,
-        maxDistance: 28,
-        rolloff: 1.6,
+        // Defaults overridden per soundSize on play (see meleeSwingOpts).
+        refDistance: MELEE_HEAR.large.refDistance,
+        maxDistance: MELEE_HEAR.large.maxDistance,
+        rolloff: 1.3,
         gain: 0.62,
     },
     /** Siege mortar tube fire — not the generic stone_throw (crow/hammerer). */
@@ -2988,9 +3012,12 @@ class AudioBus {
                     break;
                 case 'impact': {
                     const cue = impactCue(e);
-                    // Hits scale with victim soundSize; ranged muzzle stays full cue.
-                    const opts =
-                        e.flesh || e.melee ? sizeSpatialOpts(e.unitTypeId) : undefined;
+                    // Melee contact uses melee hear ranges; other flesh hits keep sizeSpatialOpts.
+                    const opts = e.melee
+                        ? meleeHitOpts(e.unitTypeId)
+                        : e.flesh
+                          ? sizeSpatialOpts(e.unitTypeId)
+                          : undefined;
                     this.play(cue, e.x, e.z, opts);
                     if (e.flesh && e.unitTypeId) this.playUnitHurt(e.unitTypeId, e.x, e.z);
                     break;
