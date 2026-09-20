@@ -2747,6 +2747,11 @@ class AudioBus {
      * as fire/acid). One loop; mild rate nudge from climb vs dive — mostly constant.
      */
     syncStoneWhistles(projectiles: readonly Projectile[]): void {
+        // Temporarily off — set true to restore the in-flight stone whistle bed.
+        if (!STONE_WHISTLE_ENABLED) {
+            this.setLoop('stone_whistle', false, 0, 0, 0);
+            return;
+        }
         const lx = this.listenerX;
         const lz = this.listenerZ;
         let best = STONE_FLY_MAX_DIST + 1;
@@ -3127,6 +3132,8 @@ const FIRE_LOOP_MAX_DIST = 28;
 const ACID_LOOP_MAX_DIST = 16;
 /** Ballistic stones — hear the air whoosh when flying near the camera. */
 const STONE_FLY_MAX_DIST = 36;
+/** Temporary mute for the stone fly bed (mortar / Stormcaller). */
+const STONE_WHISTLE_ENABLED = false;
 /** Stronghold collapse dust front — thunder bed near the expanding rim. */
 const COLLAPSE_THUNDER_MAX_DIST = 30;
 
