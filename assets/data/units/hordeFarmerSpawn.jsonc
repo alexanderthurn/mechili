@@ -33,29 +33,29 @@
             {
                 "type": "e",
                 "id": "cjzeyGY8r2N07tXVfpm7",
-                "prompt": "A pathetic-terrifying undead farmhand voice — thin, eager, and brokenly cheerful. Speaks like a loyal helper who should not exist, with cracked smiles in the tone. Super sad-funny horror, never bossy, never regal. Perfect audio quality.",
+                "prompt": "A pathetic-terrifying undead farmhand voice — thin, eager, cracked-smile SUPER EVIL. Speaks like a loyal helper who should not exist; sad, wrong, and hungry for graves. Never bossy, never regal, never wholesome. Perfect audio quality.",
             },
         ],
         "lines": {
             // select acks
             "pick": [
-                "Help?",
-                "Yes!",
+                "Help…?",
+                "Yes… kill!",
                 "I can dig!",
-                "Tiny plow!",
-                "Sprout reporting!",
-                "Where's da?",
-                "Dirt friend!",
-                "Seedling courage!",
-                "I dig drama!",
-                "Weed later!",
-                "Mud medals!",
-                "Grow up fast!",
+                "Tiny graves!",
+                "Sprout of doom!",
+                "Where's da meat?",
+                "Dirt… friend?",
+                "Seed of ruin!",
+                "I dig… deeper!",
+                "Weeds of flesh!",
+                "Mud… and blood!",
+                "Grow… to eat!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [
                 "Not yours!",
-                "Go!",
+                "Go… die!",
                 "Help—elsewhere!"
             ],
             // death yelps

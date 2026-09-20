@@ -33,23 +33,24 @@
         "externalIds": [
             {
                 "type": "e",
-                "prompt": "A tiny newborn nightmare-spider voice — skittering, frantic, and adorably apocalyptic. High insectile chirps with pure predatory baby evil. Super creepy-cute terror, never human adult, never heroic. Perfect audio quality.",
+                "id": "RY5Txp9RX9wuyGOUUik7",
+                "prompt": "A tiny newborn nightmare-spider voice — skittering, frantic, and SUPER EVIL. High insectile chirps with pure predatory baby malice. Creepy hatchling terror, never cute, never human, never heroic. Perfect audio quality.",
             },
         ],
         "lines": {
             // select acks
             "pick": [
-                "Skitter?",
-                "Yes!",
+                "Skitter…?",
+                "Yes… bite!",
                 "Prey?",
-                "Tiny terror!",
+                "Tiny death!",
                 "Where mama?",
-                "Bite-sized!",
-                "Scuttle scout!",
-                "Eight-foot dreams!",
-                "Snack? Me!",
-                "Wee menace!",
-                "Silk practice!",
+                "Fangs ready!",
+                "Scuttle… kill!",
+                "Eight legs of doom!",
+                "Snack… you!",
+                "Wee butcher!",
+                "Silk… choke!",
                 "Skitter yes!",
             ],
             // cheeky brush-off when a rival clicks

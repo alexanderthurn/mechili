@@ -46,7 +46,8 @@
         "externalIds": [
             {
                 "type": "e",
-                "prompt": "A MONSTROUS spider-mother voice — vast, wet, and exquisitely evil. Slow hissing female menace with silk-and-venom luxury, savoring fear. Super villainous, super patient, never funny goblin energy. Perfect audio quality.",
+                "id": "biEMwb3WJC9rKYDJSghv",
+                "prompt": "A MONSTROUS spider-mother voice — vast, wet, and SUPER EVIL. Slow hissing female menace with silk-and-venom luxury, savoring fear and death. Super villainous, super patient, never funny, never soft. Perfect audio quality.",
             },
         ],
         "lines": {
@@ -56,20 +57,20 @@
                 "Speak.",
                 "I am waiting.",
                 "Mother of many!",
-                "Arachne senior!",
+                "Arachne reigns!",
                 "Where brood?",
                 "Nest is law.",
                 "Silk throne!",
                 "Patience… then bite.",
-                "Little ones listen!",
-                "Web is home.",
-                "Creep politely!",
+                "Little ones… feast!",
+                "Web is doom.",
+                "Creep… and kill!",
             ],
             // cheeky brush-off when a rival clicks
             "pickRival": [
                 "Wrong child.",
                 "Not yours.",
-                "Away."
+                "Away… or die."
             ],
             // death yelps
             "death": [
