@@ -3010,6 +3010,9 @@ export class Game {
     destroy(opts?: { keepStarSession?: boolean }): void {
         if (this.disposed) return;
         this.disposed = true;
+        // Audio is a process-wide singleton — stop battle beds here or they
+        // keep looping after quit-to-menu (pause freezes sync, destroy must cut).
+        audio.stopBeamLoops();
         this.introActive = false;
         this.outroActive = false;
         this.onMatchIntroProgress = null;
