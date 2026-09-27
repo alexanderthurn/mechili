@@ -8869,6 +8869,8 @@ export class Game {
             this.rig.camera,
             this.pixiApp.screen.width,
             this.pixiApp.screen.height,
+            // the HUD is HTML over the canvas: keep the pips out from under it
+            this.hud.edgeInsets(),
         );
     }
 

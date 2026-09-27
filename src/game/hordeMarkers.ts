@@ -25,6 +25,13 @@ const BOB_SPEED = 2.1;
 
 /** inset from screen edges for off-camera pips */
 const EDGE_PAD = 28;
+/** how far a pip may be jittered off its spot so stacked ones stay readable */
+const PIP_JITTER = 6;
+
+/** How far HUD chrome reaches in from each edge (CSS px) — see Hud.edgeInsets. */
+export type EdgeInsets = { top: number; right: number; bottom: number; left: number };
+
+const NO_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 /** edge pip diameter in Pixi pixels */
 const PIP_SIZE = 40;
 const ICON_TEX_SIZE = 128;
@@ -69,6 +76,8 @@ export class HordeMarkers {
         camera: PerspectiveCamera,
         viewW: number,
         viewH: number,
+        /** HUD chrome per edge — pips stay out of it (the HUD draws over the board) */
+        insets: EdgeInsets = NO_INSETS,
     ): void {
         this.used = 0;
         const edgePts: { x: number; y: number; seed: number }[] = [];
@@ -82,13 +91,13 @@ export class HordeMarkers {
             sprite.visible = true;
             this.used++;
 
-            const edge = this.projectToEdge(spot.x, y, spot.z, camera, viewW, viewH);
+            const edge = this.projectToEdge(spot.x, y, spot.z, camera, viewW, viewH, insets);
             if (edge) edgePts.push({ ...edge, seed: spot.seed });
         }
         for (let i = this.used; i < this.pool.length; i++) {
             this.pool[i]!.visible = false;
         }
-        this.syncEdgePips(edgePts);
+        this.syncEdgePips(edgePts, this.safeBox(viewW, viewH, insets));
     }
 
     clear(): void {
@@ -129,6 +138,36 @@ export class HordeMarkers {
      * Screen-edge position for an off-camera marker, or null when the sprite
      * is already inside the padded viewport.
      */
+    /**
+     * The board area the HUD leaves free: the viewport minus its chrome, minus
+     * the pip's own padding. Never smaller than a third of the screen — with a
+     * crowded HUD a pip slightly under a panel still beats no pip at all.
+     */
+    private safeBox(
+        viewW: number,
+        viewH: number,
+        insets: EdgeInsets,
+    ): { left: number; right: number; top: number; bottom: number } {
+        const pad = EDGE_PAD + PIP_JITTER;
+        const minW = viewW / 3;
+        const minH = viewH / 3;
+        let left = pad + insets.left;
+        let right = viewW - pad - insets.right;
+        let top = pad + insets.top;
+        let bottom = viewH - pad - insets.bottom;
+        if (right - left < minW) {
+            const mid = viewW * 0.5;
+            left = mid - minW * 0.5;
+            right = mid + minW * 0.5;
+        }
+        if (bottom - top < minH) {
+            const mid = viewH * 0.5;
+            top = mid - minH * 0.5;
+            bottom = mid + minH * 0.5;
+        }
+        return { left, right, top, bottom };
+    }
+
     private projectToEdge(
         x: number,
         y: number,
@@ -136,6 +175,7 @@ export class HordeMarkers {
         camera: PerspectiveCamera,
         viewW: number,
         viewH: number,
+        insets: EdgeInsets,
     ): { x: number; y: number } | null {
         this.tmp.set(x, y, z).project(camera);
         // behind camera: flip so the pip sits on the opposite rim
@@ -146,39 +186,43 @@ export class HordeMarkers {
         const sx = (this.tmp.x * 0.5 + 0.5) * viewW;
         const sy = (1 - (this.tmp.y * 0.5 + 0.5)) * viewH;
 
-        if (
-            sx >= EDGE_PAD &&
-            sx <= viewW - EDGE_PAD &&
-            sy >= EDGE_PAD &&
-            sy <= viewH - EDGE_PAD &&
-            this.tmp.z <= 1
-        ) {
+        const box = this.safeBox(viewW, viewH, insets);
+        // on screen and clear of the HUD: the world sprite speaks for itself
+        if (sx >= box.left && sx <= box.right && sy >= box.top && sy <= box.bottom && this.tmp.z <= 1) {
             return null;
         }
 
-        const cx = viewW * 0.5;
-        const cy = viewH * 0.5;
+        // ride out from the free area's middle so the pip lands on the rim of
+        // what the player can actually see, not behind the shop
+        const cx = (box.left + box.right) * 0.5;
+        const cy = (box.top + box.bottom) * 0.5;
         let dx = sx - cx;
         let dy = sy - cy;
         if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) {
             dx = 0;
             dy = -1;
         }
-        const hx = viewW * 0.5 - EDGE_PAD;
-        const hy = viewH * 0.5 - EDGE_PAD;
-        const t = Math.min(hx / Math.abs(dx), hy / Math.abs(dy));
+        const tx = dx > 0 ? (box.right - cx) / dx : dx < 0 ? (box.left - cx) / dx : Infinity;
+        const ty = dy > 0 ? (box.bottom - cy) / dy : dy < 0 ? (box.top - cy) / dy : Infinity;
+        const t = Math.min(tx, ty);
         return { x: cx + dx * t, y: cy + dy * t };
     }
 
-    private syncEdgePips(pts: readonly { x: number; y: number; seed: number }[]): void {
+    private syncEdgePips(
+        pts: readonly { x: number; y: number; seed: number }[],
+        box?: { left: number; right: number; top: number; bottom: number },
+    ): void {
         const tex = this.ensurePipTexture();
         let used = 0;
         if (tex) {
             for (const p of pts) {
                 const pip = this.acquirePip(used, tex);
-                // slight seed jitter so stacked edge hits don't fully overlap
-                pip.x = p.x + Math.sin(p.seed * 2.1) * 6;
-                pip.y = p.y + Math.cos(p.seed * 1.7) * 6;
+                // slight seed jitter so stacked edge hits don't fully overlap —
+                // kept inside the free area, or it slides back under the HUD
+                const jx = p.x + Math.sin(p.seed * 2.1) * PIP_JITTER;
+                const jy = p.y + Math.cos(p.seed * 1.7) * PIP_JITTER;
+                pip.x = box ? Math.min(Math.max(jx, box.left), box.right) : jx;
+                pip.y = box ? Math.min(Math.max(jy, box.top), box.bottom) : jy;
                 pip.visible = true;
                 used++;
             }

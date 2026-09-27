@@ -66,6 +66,28 @@ type CommanderChip = {
     avatar: string | null;
 };
 
+/**
+ * Chrome that hugs a screen edge and hides whatever the board draws under it —
+ * what {@link Hud.edgeInsets} measures. Overlays that take the whole screen
+ * (cards, pause, game over) are deliberately out: they hide the board anyway.
+ */
+const EDGE_CHROME_SELECTOR = [
+    '.mechili-topbar',
+    '.mechili-fightbar',
+    '.mechili-shop-col',
+    '.mechili-panel',
+    '.mechili-sidebar',
+    '.mechili-phonebar',
+    '.mechili-phone-status',
+    '.mechili-supply',
+].join(', ');
+/** how close to an edge a panel counts as hugging it */
+const EDGE_HUG_PX = 24;
+/** no single edge may eat more than this share of the screen */
+const EDGE_INSET_MAX_FRACTION = 0.22;
+/** insets are re-measured at most this often (layout reads are not free) */
+const EDGE_INSET_REFRESH_MS = 250;
+
 /** Compact / phone chrome — MUST match the size media query in theme.ts */
 const PHONE_MQ =
     typeof matchMedia === 'function'
@@ -4963,6 +4985,44 @@ export class Hud {
 
     get isUiHidden(): boolean {
         return this.uiHidden;
+    }
+
+    /** {@link edgeInsets} is measured from live layout — re-read a few times a second at most */
+    private edgeInsetsCache: { at: number; insets: { top: number; right: number; bottom: number; left: number } } | null = null;
+
+    /**
+     * How far HUD chrome reaches in from each screen edge, in CSS pixels —
+     * what the board may still draw into without being covered (the off-screen
+     * horde markers use it; the HUD is HTML over the canvas, so anything it
+     * covers is simply hidden).
+     *
+     * Measured from the panels themselves, so it follows every layout (phone,
+     * folded strips, a wide shop) instead of hardcoding numbers. Each edge is
+     * capped: a tall panel must not squeeze the safe box down to nothing.
+     */
+    edgeInsets(): { top: number; right: number; bottom: number; left: number } {
+        const now = performance.now();
+        if (this.edgeInsetsCache && now - this.edgeInsetsCache.at < EDGE_INSET_REFRESH_MS) {
+            return this.edgeInsetsCache.insets;
+        }
+        const insets = { top: 0, right: 0, bottom: 0, left: 0 };
+        const host = this.overlayParent.getBoundingClientRect();
+        if (host.width > 0 && host.height > 0 && !this.uiHidden) {
+            const maxX = host.width * EDGE_INSET_MAX_FRACTION;
+            const maxY = host.height * EDGE_INSET_MAX_FRACTION;
+            for (const el of this.overlayParent.querySelectorAll<HTMLElement>(EDGE_CHROME_SELECTOR)) {
+                if (el.offsetParent === null && el.style.position !== 'fixed') continue;
+                const r = el.getBoundingClientRect();
+                if (r.width <= 0 || r.height <= 0) continue;
+                // an element counts for the edge it hugs; a centred panel counts for none
+                if (r.top - host.top <= EDGE_HUG_PX) insets.top = Math.max(insets.top, Math.min(maxY, r.bottom - host.top));
+                if (host.bottom - r.bottom <= EDGE_HUG_PX) insets.bottom = Math.max(insets.bottom, Math.min(maxY, host.bottom - r.top));
+                if (r.left - host.left <= EDGE_HUG_PX) insets.left = Math.max(insets.left, Math.min(maxX, r.right - host.left));
+                if (host.right - r.right <= EDGE_HUG_PX) insets.right = Math.max(insets.right, Math.min(maxX, host.right - r.left));
+            }
+        }
+        this.edgeInsetsCache = { at: now, insets };
+        return insets;
     }
 
     /**
