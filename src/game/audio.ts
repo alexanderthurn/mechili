@@ -2254,23 +2254,23 @@ const CUES: Record<string, CueDef> = {
         gain: 0.55,
     },
     hp_draw_high: {
-        paths: ['audio/hp_draw_high_1.ogg'],
+        paths: ['audio/hp_draw_1.ogg'],
         group: 'ui',
         // Shared cap enforced in playHpDrawHit — keep per-cue high as backstop.
         maxVoices: 2,
-        gain: 1.2,
+        gain: 2.6,
     },
     hp_draw_low: {
-        paths: ['audio/hp_draw_low_1.ogg'],
+        paths: ['audio/hp_draw_1.ogg'],
         group: 'ui',
         maxVoices: 2,
         gain: 1.2,
     },
     hp_draw_medium: {
-        paths: ['audio/hp_draw_medium_1.ogg'],
+        paths: ['audio/hp_draw_1.ogg'],
         group: 'ui',
         maxVoices: 2,
-        gain: 1.2,
+        gain: 1.8,
     },
     impact_flesh: {
         paths: [
@@ -3437,9 +3437,7 @@ void [
     assetUrl('audio/hazard_drip_1.ogg'),
     assetUrl('audio/hazard_drip_2.ogg'),
     assetUrl('audio/hazard_drip_3.ogg'),
-    assetUrl('audio/hp_draw_high_1.ogg'),
-    assetUrl('audio/hp_draw_low_1.ogg'),
-    assetUrl('audio/hp_draw_medium_1.ogg'),
+    assetUrl('audio/hp_draw_1.ogg'),
     assetUrl('audio/impact_flesh_1.ogg'),
     assetUrl('audio/impact_flesh_2.ogg'),
     assetUrl('audio/impact_flesh_3.ogg'),
