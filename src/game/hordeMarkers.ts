@@ -76,6 +76,10 @@ export class HordeMarkers {
         });
     }
 
+    /** viewport of the last update — rimPoint measures the screen centre from it */
+    private screenW = 0;
+    private screenH = 0;
+
     update(
         timeSeconds: number,
         spots: readonly HordeMarkerSpot[],
@@ -86,6 +90,8 @@ export class HordeMarkers {
         insets: EdgeInsets = NO_INSETS,
     ): void {
         this.used = 0;
+        this.screenW = viewW;
+        this.screenH = viewH;
         const edgePts: { x: number; y: number; seed: number }[] = [];
 
         for (const spot of spots) {
@@ -96,12 +102,21 @@ export class HordeMarkers {
             sprite.position.set(spot.x, y, spot.z);
             this.used++;
 
-            // one marker per pack: the world sprite while it stands in the
+            // One marker per pack: the world sprite while it stands in the
             // free area, the edge pip the moment it would leave it (behind the
-            // camera, off screen, or under HUD chrome) — never both
-            const edge = this.projectToEdge(spot.x, y, spot.z, camera, viewW, viewH, insets);
-            sprite.visible = !edge;
-            if (edge) edgePts.push({ ...edge, seed: spot.seed });
+            // camera, off screen, or under HUD chrome) — never both.
+            //
+            // The sprite decides WHEN to hand over (it is what the player sees
+            // leave), the pack's feet decide WHERE the pip goes: aiming at the
+            // sprite would point a little above the pack, which reads as the
+            // wrong direction when a pack stands near the middle of the board.
+            const box = this.safeBox(viewW, viewH, insets);
+            const shown = this.onScreen(spot.x, y, spot.z, camera, viewW, viewH, box);
+            sprite.visible = shown;
+            if (!shown) {
+                const aim = this.project(spot.x, ground, spot.z, camera, viewW, viewH);
+                edgePts.push({ ...this.rimPoint(aim, box), seed: spot.seed });
+            }
         }
         for (let i = this.used; i < this.pool.length; i++) {
             this.pool[i]!.visible = false;
@@ -177,51 +192,70 @@ export class HordeMarkers {
         return { left, right, top, bottom };
     }
 
-    private projectToEdge(
+    /**
+     * A world point in screen pixels. A point behind the camera is mirrored
+     * through the middle, so it reads as "that way, behind you" instead of
+     * landing on the wrong rim.
+     */
+    private project(
         x: number,
         y: number,
         z: number,
         camera: PerspectiveCamera,
         viewW: number,
         viewH: number,
-        insets: EdgeInsets,
-    ): { x: number; y: number } | null {
+    ): { x: number; y: number } {
         this.tmp.set(x, y, z).project(camera);
-        // behind camera: flip so the pip sits on the opposite rim
         if (this.tmp.z > 1) {
             this.tmp.x = -this.tmp.x;
             this.tmp.y = -this.tmp.y;
         }
+        return {
+            x: (this.tmp.x * 0.5 + 0.5) * viewW,
+            y: (1 - (this.tmp.y * 0.5 + 0.5)) * viewH,
+        };
+    }
+
+    /** the world sprite still stands well inside the HUD-free area */
+    private onScreen(
+        x: number,
+        y: number,
+        z: number,
+        camera: PerspectiveCamera,
+        viewW: number,
+        viewH: number,
+        box: { left: number; right: number; top: number; bottom: number },
+    ): boolean {
+        this.tmp.set(x, y, z).project(camera);
+        if (this.tmp.z > 1) return false; // behind the camera
         const sx = (this.tmp.x * 0.5 + 0.5) * viewW;
         const sy = (1 - (this.tmp.y * 0.5 + 0.5)) * viewH;
-
-        const box = this.safeBox(viewW, viewH, insets);
-        // well clear of the rim: the world sprite speaks for itself
         const m = Math.min(SNAP_MARGIN, (box.right - box.left) * 0.25, (box.bottom - box.top) * 0.25);
-        if (
-            sx >= box.left + m &&
-            sx <= box.right - m &&
-            sy >= box.top + m &&
-            sy <= box.bottom - m &&
-            this.tmp.z <= 1
-        ) {
-            return null;
-        }
+        return sx >= box.left + m && sx <= box.right - m && sy >= box.top + m && sy <= box.bottom - m;
+    }
 
-        // Ride out from the middle of the SCREEN — that is where the player
-        // looks from, so the pip stays on the line to its pack and keeps
-        // pointing at it. Only the rim it stops at is the HUD-free box (the
-        // box's own middle would skew the line whenever the HUD sits
-        // lopsided, e.g. a tall shop bottom-right). A box that no longer
-        // contains the screen centre falls back to its own middle.
-        const screenX = viewW * 0.5;
-        const screenY = viewH * 0.5;
+    /**
+     * Where the line from the player's eye to `aim` leaves the HUD-free area.
+     *
+     * The line starts in the middle of the SCREEN, not of the box: the box is
+     * lopsided wherever the HUD is (a tall shop bottom-right), and starting
+     * there would tilt every pip off its pack. Only the rim it stops at is the
+     * box. A box that no longer holds the screen centre falls back to its own.
+     */
+    private rimPoint(
+        aim: { x: number; y: number },
+        box: { left: number; right: number; top: number; bottom: number },
+    ): { x: number; y: number } {
+        const viewCx = (box.left + box.right) * 0.5;
+        const viewCy = (box.top + box.bottom) * 0.5;
+        const screenX = this.screenW * 0.5;
+        const screenY = this.screenH * 0.5;
         const centred =
             screenX > box.left && screenX < box.right && screenY > box.top && screenY < box.bottom;
-        const cx = centred ? screenX : (box.left + box.right) * 0.5;
-        const cy = centred ? screenY : (box.top + box.bottom) * 0.5;
-        let dx = sx - cx;
-        let dy = sy - cy;
+        const cx = centred ? screenX : viewCx;
+        const cy = centred ? screenY : viewCy;
+        let dx = aim.x - cx;
+        let dy = aim.y - cy;
         if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) {
             dx = 0;
             dy = -1;
