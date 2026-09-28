@@ -26,10 +26,12 @@ import {
     DRAGON_POUR_DURATION_SEC,
     OIL_SPILL_ID,
     RALLY_ROUTE_ID,
+    RALLY_ROUTE_RADIUS,
     MOVE_UNIT_ID,
     TUTOR_ID,
     SELL_UNIT_ID,
     clampTacticEnd,
+    clampTacticPoint,
     pointInSafeZone,
     usesSpellPlacement,
     type OilStamp,
@@ -750,6 +752,17 @@ export class ActionDispatcher {
         const inventory = this.ctx.tactics[seat]!.filter((id) => id === tacticId).length;
         const cooling = this.tacticUseRounds(seat, tacticId, round - cooldown).length;
         return inventory - cooling;
+    }
+
+    /**
+     * Pulls an aimed point far enough inside the board that a circle of
+     * `radius` around it still fits. The dispatcher clamps, not the caller:
+     * the AI aims wherever it likes and a peer's UI may round differently,
+     * but every client stamps the same spot.
+     */
+    private onBoard(x: number, z: number, radius: number): { x: number; z: number } {
+        const map = this.ctx.placement.map;
+        return clampTacticPoint(x, z, map.halfW, map.halfH, radius);
     }
 
     /**
@@ -1505,20 +1518,19 @@ export class ActionDispatcher {
                 const placed = this.ctx.rallyRoutes.filter((r) => r.seat === seat).length;
                 if (max < 1 || placed >= max) return false;
                 const maxSpan = this.ctx.types.tactic(RALLY_ROUTE_ID)!.maxSpan;
-                const mid = clampTacticEnd(
-                    action.startX,
-                    action.startZ,
-                    action.midX,
-                    action.midZ,
-                    maxSpan,
-                );
-                const end = clampTacticEnd(mid.x, mid.z, action.endX, action.endZ, maxSpan);
+                // every leg stays on the board (a route aimed off the edge is
+                // pulled back in, not cut off)
+                const start = this.onBoard(action.startX, action.startZ, RALLY_ROUTE_RADIUS);
+                const midAim = this.onBoard(action.midX, action.midZ, RALLY_ROUTE_RADIUS);
+                const mid = clampTacticEnd(start.x, start.z, midAim.x, midAim.z, maxSpan);
+                const endAim = this.onBoard(action.endX, action.endZ, RALLY_ROUTE_RADIUS);
+                const end = clampTacticEnd(mid.x, mid.z, endAim.x, endAim.z, maxSpan);
                 const route: RallyRoute = {
                     id: this.ctx.rallyRouteIds.next++,
                     team: action.team,
                     seat,
-                    startX: action.startX,
-                    startZ: action.startZ,
+                    startX: start.x,
+                    startZ: start.z,
                     midX: mid.x,
                     midZ: mid.z,
                     endX: end.x,
@@ -1547,18 +1559,15 @@ export class ActionDispatcher {
                 const duration =
                     tactic.oilDurationRounds ?? OIL_SPILL_DURATION_ROUNDS;
                 const radius = tactic.oilRadius ?? OIL_SPILL_RADIUS;
-                const end = clampTacticEnd(
-                    action.startX,
-                    action.startZ,
-                    action.endX,
-                    action.endZ,
-                );
+                const start = this.onBoard(action.startX, action.startZ, radius);
+                const endAim = this.onBoard(action.endX, action.endZ, radius);
+                const end = clampTacticEnd(start.x, start.z, endAim.x, endAim.z);
                 const stamp: OilStamp = {
                     id: this.ctx.oilStampIds.next++,
                     team: action.team,
                     seat,
-                    startX: action.startX,
-                    startZ: action.startZ,
+                    startX: start.x,
+                    startZ: start.z,
                     endX: end.x,
                     endZ: end.z,
                     radius,
@@ -1614,37 +1623,37 @@ export class ActionDispatcher {
                         s.placedRound >= round - tactic.cooldownRounds,
                 ).length;
                 if (blocking >= inventory) return false;
+                // the whole area stays on the board: aimed over the edge the
+                // spell slides back in rather than having its effect cut off
+                // by the board's border (the aiming UI clamps the same way)
+                const radius = tactic.radius ?? 0;
+                const at = this.onBoard(action.x, action.z, radius);
                 // safe zone binds here, not only in the aiming UI
                 if (
                     tactic.respectsSafeZone &&
                     pointInSafeZone(
                         this.ctx.placement.allUnits(),
                         action.team,
-                        action.x,
-                        action.z,
-                        tactic.radius ?? 0,
+                        at.x,
+                        at.z,
+                        radius,
                     )
                 ) {
                     return false;
                 }
                 // capsule end pulled toward start so peers agree on the span
-                const end =
-                    action.endX !== undefined && action.endZ !== undefined
-                        ? clampTacticEnd(
-                              action.x,
-                              action.z,
-                              action.endX,
-                              action.endZ,
-                              tactic.maxSpan,
-                          )
-                        : null;
+                let end: { x: number; z: number } | null = null;
+                if (action.endX !== undefined && action.endZ !== undefined) {
+                    const aim = this.onBoard(action.endX, action.endZ, radius);
+                    end = clampTacticEnd(at.x, at.z, aim.x, aim.z, tactic.maxSpan);
+                }
                 const stamp: SpellStamp = {
                     id: this.ctx.spellStampIds.next++,
                     tacticId: action.tacticId,
                     team: action.team,
                     seat,
-                    x: action.x,
-                    z: action.z,
+                    x: at.x,
+                    z: at.z,
                     ...(end ? { endX: end.x, endZ: end.z } : {}),
                     ...(action.yaw !== undefined ? { yaw: action.yaw } : {}),
                     placedRound: round,

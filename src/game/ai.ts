@@ -378,9 +378,11 @@ export class AiOpponent implements Opponent {
     private placeTactics(rng: () => number = this.ctx.rng): void {
         const { dispatch, placement, tactics } = this.ctx;
         const team = this.team;
+        // the horde is nobody's target: it marches in from off the board, so
+        // aiming a spell at it only wastes the charge on empty ground
         const foes = placement
             .allUnits()
-            .filter((u) => u.team !== team && !u.type.extra);
+            .filter((u) => u.team !== team && u.team !== 'horde' && !u.type.extra);
         const allies = placement
             .allUnits()
             .filter((u) => u.team === team && !u.type.structure && !u.type.extra);

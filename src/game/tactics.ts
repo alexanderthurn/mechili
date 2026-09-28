@@ -543,7 +543,11 @@ export function clampTacticEnd(
     return { x: startX + dx * s, z: startZ + dz * s };
 }
 
-/** keep a tactic circle fully on the board (margin = circle radius) */
+/**
+ * Keep a tactic circle fully on the board (margin = circle radius). A circle
+ * wider than the board itself (the big zones on a tiny scenario map) can't
+ * fit at all, so that axis centers instead of folding inside out.
+ */
 export function clampTacticPoint(
     x: number,
     z: number,
@@ -551,9 +555,11 @@ export function clampTacticPoint(
     halfH: number,
     radius: number,
 ): { x: number; z: number } {
+    const mx = Math.min(radius, halfW);
+    const mz = Math.min(radius, halfH);
     return {
-        x: Math.max(-halfW + radius, Math.min(halfW - radius, x)),
-        z: Math.max(-halfH + radius, Math.min(halfH - radius, z)),
+        x: Math.max(-halfW + mx, Math.min(halfW - mx, x)),
+        z: Math.max(-halfH + mz, Math.min(halfH - mz, z)),
     };
 }
 
