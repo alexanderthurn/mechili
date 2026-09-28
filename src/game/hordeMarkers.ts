@@ -208,10 +208,18 @@ export class HordeMarkers {
             return null;
         }
 
-        // ride out from the free area's middle so the pip lands on the rim of
-        // what the player can actually see, not behind the shop
-        const cx = (box.left + box.right) * 0.5;
-        const cy = (box.top + box.bottom) * 0.5;
+        // Ride out from the middle of the SCREEN — that is where the player
+        // looks from, so the pip stays on the line to its pack and keeps
+        // pointing at it. Only the rim it stops at is the HUD-free box (the
+        // box's own middle would skew the line whenever the HUD sits
+        // lopsided, e.g. a tall shop bottom-right). A box that no longer
+        // contains the screen centre falls back to its own middle.
+        const screenX = viewW * 0.5;
+        const screenY = viewH * 0.5;
+        const centred =
+            screenX > box.left && screenX < box.right && screenY > box.top && screenY < box.bottom;
+        const cx = centred ? screenX : (box.left + box.right) * 0.5;
+        const cy = centred ? screenY : (box.top + box.bottom) * 0.5;
         let dx = sx - cx;
         let dy = sy - cy;
         if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) {
