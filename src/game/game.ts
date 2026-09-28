@@ -1174,7 +1174,7 @@ export class Game {
         const hide = !this.hud.isUiHidden;
         this.hud.setUiHidden(hide);
         this.hpBars.view.visible = !hide;
-        this.hordeMarkers.edgeView.visible = !hide;
+        this.hordeMarkers.edgeView.style.display = hide ? 'none' : '';
         this.debug.el.style.visibility = hide ? 'hidden' : '';
         this.syncDebugDumpButton();
         this.applyCinemaWorld(hide);
@@ -1298,7 +1298,7 @@ export class Game {
     private enterMatchEndCinema(): void {
         this.hud.setUiHidden(true, { hint: false });
         this.hpBars.view.visible = false;
-        this.hordeMarkers.edgeView.visible = false;
+        this.hordeMarkers.edgeView.style.display = 'none';
         this.debug.el.style.visibility = 'hidden';
         this.syncDebugDumpButton();
         this.applyCinemaWorld(true);
@@ -2417,7 +2417,9 @@ export class Game {
             this.debug.onCollapsedChange = () => this.syncDebugDumpButton();
         }
         pixiApp.stage.addChild(this.hpBars.view);
-        pixiApp.stage.addChild(this.hordeMarkers.edgeView);
+        // the pips are HTML: they belong on the screen's rim, where the HUD
+        // would cover a canvas sprite — their own layer sits over it
+        wrapper.appendChild(this.hordeMarkers.edgeView);
 
         // battle phase: left click selects a single mech, own or enemy
         const listen = (type: string, handler: EventListener) => {
@@ -8909,8 +8911,6 @@ export class Game {
             this.rig.camera,
             this.pixiApp.screen.width,
             this.pixiApp.screen.height,
-            // the HUD is HTML over the canvas: keep the pips out from under it
-            this.hud.edgeInsets(),
         );
     }
 

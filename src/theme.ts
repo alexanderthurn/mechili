@@ -177,6 +177,26 @@ export const THEME = {
 function gamepadCursorStyles(u: (typeof THEME)['ui']): string {
     return `
 /* gamepad virtual cursor (left stick moves, A clicks) */
+/* Off-screen horde locators: their own layer over the HUD, so a pip on the
+   screen's rim is never hidden by a panel. Pointer-transparent throughout. */
+.mechili-horde-pips {
+    position: absolute;
+    inset: 0;
+    z-index: 70;
+    pointer-events: none;
+    overflow: hidden;
+}
+.mechili-horde-pips .horde-pip {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 40px;
+    height: 40px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.55));
+}
 .mechili-gpcursor {
     position: absolute;
     width: 26px;

@@ -1,9 +1,11 @@
 /**
  * Forest-ring horde locators: camera-facing `ui-horde` sprites above the
- * canopy, plus matching Pixi edge pips when a pack sits off-camera.
- * Visual-only.
+ * canopy, plus matching edge pips when a pack sits off-camera.
+ *
+ * The pips are HTML, not canvas: they belong on the very edge of the screen,
+ * and the HUD (HTML, drawn over the board) would cover them there. As DOM in
+ * their own layer they sit above it instead. Visual-only.
  */
-import { Container, Sprite as PixiSprite, Texture as PixiTexture } from 'pixi.js';
 import {
     CanvasTexture,
     SRGBColorSpace,
@@ -14,7 +16,7 @@ import {
     type Scene,
 } from 'three';
 import { worldHeightAt } from './map';
-import { drawIcon } from '../ui/iconAtlas';
+import { applyIcon, drawIcon } from '../ui/iconAtlas';
 
 /** altitude above terrain — clears canopy */
 const MARKER_HEIGHT = 55;
@@ -34,12 +36,6 @@ const PIP_JITTER = 6;
  */
 const SNAP_MARGIN = 26;
 
-/** How far HUD chrome reaches in from each edge (CSS px) — see Hud.edgeInsets. */
-export type EdgeInsets = { top: number; right: number; bottom: number; left: number };
-
-const NO_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
-/** edge pip diameter in Pixi pixels */
-const PIP_SIZE = 40;
 const ICON_TEX_SIZE = 128;
 
 export type HordeMarkerSpot = {
@@ -54,17 +50,17 @@ export type HordeMarkerSpot = {
  * Off-screen packs get a small `ui-horde` icon on the viewport edge.
  */
 export class HordeMarkers {
-    /** Pixi overlay — add to the stage alongside HP bars */
-    readonly edgeView = new Container();
+    /** the pips' own layer — mount over the HUD (see theme.ts) */
+    readonly edgeView = document.createElement('div');
     private readonly pool: Sprite[] = [];
-    private readonly pipPool: PixiSprite[] = [];
+    private readonly pipPool: HTMLDivElement[] = [];
     private readonly material: SpriteMaterial;
     private readonly iconCanvas: HTMLCanvasElement;
     private readonly tmp = new Vector3();
-    private pipTexture: PixiTexture | null = null;
     private used = 0;
 
     constructor(private readonly scene: Scene) {
+        this.edgeView.className = 'mechili-horde-pips';
         this.iconCanvas = this.stampIconCanvas();
         this.material = new SpriteMaterial({
             map: this.canvasTexture(this.iconCanvas),
@@ -76,22 +72,14 @@ export class HordeMarkers {
         });
     }
 
-    /** viewport of the last update — rimPoint measures the screen centre from it */
-    private screenW = 0;
-    private screenH = 0;
-
     update(
         timeSeconds: number,
         spots: readonly HordeMarkerSpot[],
         camera: PerspectiveCamera,
         viewW: number,
         viewH: number,
-        /** HUD chrome per edge — pips stay out of it (the HUD draws over the board) */
-        insets: EdgeInsets = NO_INSETS,
     ): void {
         this.used = 0;
-        this.screenW = viewW;
-        this.screenH = viewH;
         const edgePts: { x: number; y: number; seed: number }[] = [];
 
         for (const spot of spots) {
@@ -102,15 +90,15 @@ export class HordeMarkers {
             sprite.position.set(spot.x, y, spot.z);
             this.used++;
 
-            // One marker per pack: the world sprite while it stands in the
-            // free area, the edge pip the moment it would leave it (behind the
-            // camera, off screen, or under HUD chrome) — never both.
+            // One marker per pack: the world sprite while it is on screen, the
+            // edge pip the moment it would leave (behind the camera or past
+            // the rim) — never both.
             //
             // The sprite decides WHEN to hand over (it is what the player sees
             // leave), the pack's feet decide WHERE the pip goes: aiming at the
             // sprite would point a little above the pack, which reads as the
             // wrong direction when a pack stands near the middle of the board.
-            const box = this.safeBox(viewW, viewH, insets);
+            const box = this.screenBox(viewW, viewH);
             const shown = this.onScreen(spot.x, y, spot.z, camera, viewW, viewH, box);
             sprite.visible = shown;
             if (!shown) {
@@ -121,7 +109,7 @@ export class HordeMarkers {
         for (let i = this.used; i < this.pool.length; i++) {
             this.pool[i]!.visible = false;
         }
-        this.syncEdgePips(edgePts, this.safeBox(viewW, viewH, insets));
+        this.syncEdgePips(edgePts, this.screenBox(viewW, viewH));
     }
 
     clear(): void {
@@ -137,12 +125,8 @@ export class HordeMarkers {
         this.pool.length = 0;
         this.material.map?.dispose();
         this.material.dispose();
-        for (const pip of this.pipPool) pip.destroy();
         this.pipPool.length = 0;
-        this.pipTexture?.destroy(true);
-        this.pipTexture = null;
-        this.edgeView.parent?.removeChild(this.edgeView);
-        this.edgeView.destroy({ children: true });
+        this.edgeView.remove();
     }
 
     private acquire(): Sprite {
@@ -162,34 +146,13 @@ export class HordeMarkers {
      * Screen-edge position for an off-camera marker, or null when the sprite
      * is already inside the padded viewport.
      */
-    /**
-     * The board area the HUD leaves free: the viewport minus its chrome, minus
-     * the pip's own padding. Never smaller than a third of the screen — with a
-     * crowded HUD a pip slightly under a panel still beats no pip at all.
-     */
-    private safeBox(
+    /** the viewport, minus the pip's own padding — where a pip may sit */
+    private screenBox(
         viewW: number,
         viewH: number,
-        insets: EdgeInsets,
     ): { left: number; right: number; top: number; bottom: number } {
         const pad = EDGE_PAD + PIP_JITTER;
-        const minW = viewW / 3;
-        const minH = viewH / 3;
-        let left = pad + insets.left;
-        let right = viewW - pad - insets.right;
-        let top = pad + insets.top;
-        let bottom = viewH - pad - insets.bottom;
-        if (right - left < minW) {
-            const mid = viewW * 0.5;
-            left = mid - minW * 0.5;
-            right = mid + minW * 0.5;
-        }
-        if (bottom - top < minH) {
-            const mid = viewH * 0.5;
-            top = mid - minH * 0.5;
-            bottom = mid + minH * 0.5;
-        }
-        return { left, right, top, bottom };
+        return { left: pad, right: viewW - pad, top: pad, bottom: viewH - pad };
     }
 
     /**
@@ -234,26 +197,13 @@ export class HordeMarkers {
         return sx >= box.left + m && sx <= box.right - m && sy >= box.top + m && sy <= box.bottom - m;
     }
 
-    /**
-     * Where the line from the player's eye to `aim` leaves the HUD-free area.
-     *
-     * The line starts in the middle of the SCREEN, not of the box: the box is
-     * lopsided wherever the HUD is (a tall shop bottom-right), and starting
-     * there would tilt every pip off its pack. Only the rim it stops at is the
-     * box. A box that no longer holds the screen centre falls back to its own.
-     */
+    /** Where the line from the middle of the screen to `aim` leaves the viewport. */
     private rimPoint(
         aim: { x: number; y: number },
         box: { left: number; right: number; top: number; bottom: number },
     ): { x: number; y: number } {
-        const viewCx = (box.left + box.right) * 0.5;
-        const viewCy = (box.top + box.bottom) * 0.5;
-        const screenX = this.screenW * 0.5;
-        const screenY = this.screenH * 0.5;
-        const centred =
-            screenX > box.left && screenX < box.right && screenY > box.top && screenY < box.bottom;
-        const cx = centred ? screenX : viewCx;
-        const cy = centred ? screenY : viewCy;
+        const cx = (box.left + box.right) * 0.5;
+        const cy = (box.top + box.bottom) * 0.5;
         let dx = aim.x - cx;
         let dy = aim.y - cy;
         if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) {
@@ -270,34 +220,31 @@ export class HordeMarkers {
         pts: readonly { x: number; y: number; seed: number }[],
         box?: { left: number; right: number; top: number; bottom: number },
     ): void {
-        const tex = this.ensurePipTexture();
         let used = 0;
-        if (tex) {
-            for (const p of pts) {
-                const pip = this.acquirePip(used, tex);
-                // slight seed jitter so stacked edge hits don't fully overlap —
-                // kept inside the free area, or it slides back under the HUD
-                const jx = p.x + Math.sin(p.seed * 2.1) * PIP_JITTER;
-                const jy = p.y + Math.cos(p.seed * 1.7) * PIP_JITTER;
-                pip.x = box ? Math.min(Math.max(jx, box.left), box.right) : jx;
-                pip.y = box ? Math.min(Math.max(jy, box.top), box.bottom) : jy;
-                pip.visible = true;
-                used++;
-            }
+        for (const p of pts) {
+            const pip = this.acquirePip(used);
+            // slight seed jitter so stacked edge hits don't fully overlap —
+            // clamped to the viewport so a pip can't drift off screen
+            const jx = p.x + Math.sin(p.seed * 2.1) * PIP_JITTER;
+            const jy = p.y + Math.cos(p.seed * 1.7) * PIP_JITTER;
+            const x = box ? Math.min(Math.max(jx, box.left), box.right) : jx;
+            const y = box ? Math.min(Math.max(jy, box.top), box.bottom) : jy;
+            pip.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -50%)`;
+            pip.style.display = '';
+            used++;
         }
         for (let i = used; i < this.pipPool.length; i++) {
-            this.pipPool[i]!.visible = false;
+            this.pipPool[i]!.style.display = 'none';
         }
     }
 
-    private acquirePip(index: number, texture: PixiTexture): PixiSprite {
+    private acquirePip(index: number): HTMLDivElement {
         let pip = this.pipPool[index];
         if (!pip) {
-            pip = new PixiSprite(texture);
-            pip.anchor.set(0.5);
-            pip.width = PIP_SIZE;
-            pip.height = PIP_SIZE;
-            this.edgeView.addChild(pip);
+            pip = document.createElement('div');
+            pip.className = 'horde-pip';
+            applyIcon(pip, 'ui-horde');
+            this.edgeView.appendChild(pip);
             this.pipPool.push(pip);
         }
         return pip;
@@ -317,11 +264,5 @@ export class HordeMarkers {
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
         return texture;
-    }
-
-    private ensurePipTexture(): PixiTexture | null {
-        if (this.pipTexture) return this.pipTexture;
-        this.pipTexture = PixiTexture.from(this.iconCanvas);
-        return this.pipTexture;
     }
 }
