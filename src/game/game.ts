@@ -3848,8 +3848,9 @@ export class Game {
         const plan = hordeWavePlan(Math.max(1, this.round), hordeCountMult(this.settings), this.types);
         if (plan.length === 0) return;
         const rng = mulberry32(seedFrom(this.seed, `horde-cheat:${this.round}:${Date.now()}`));
-        const leader: Team | null =
-            this.playerHp > this.enemyHp ? 'player' : this.enemyHp > this.playerHp ? 'enemy' : null;
+        const standing = this.hordeStanding();
+        const ahead = standing.player - standing.enemy;
+        const leader: Team | null = ahead > 1e-6 ? 'player' : ahead < -1e-6 ? 'enemy' : null;
         const ownSign = this.map.ownAtFar ? -1 : 1;
         const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
         const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
@@ -3858,7 +3859,9 @@ export class Game {
         const trailerSign = -leaderSign;
         const bigCamp = this.findHordeRingSpot(rng, leaderSign, outerHalfW, outerHalfH);
         const smallCamp = this.findHordeRingSpot(rng, trailerSign, outerHalfW, outerHalfH);
-        const bigShare = leader !== null ? hordeLeaderShare(this.settings) : 0.5;
+        // how one-sided the wave is follows how far ahead the leader stands: a
+        // hair's lead is nearly even, a crushing one reaches the preset's cap
+        const bigShare = 0.5 + Math.min(1, Math.abs(ahead)) * (hordeLeaderShare(this.settings) - 0.5);
         let nBig = Math.floor(plan.length * bigShare + 1e-9);
         if (plan.length >= 2) nBig = Math.min(plan.length - 1, Math.max(1, nBig));
         else nBig = plan.length;
@@ -9879,8 +9882,9 @@ export class Game {
         const plan = hordeWavePlan(this.round, hordeCountMult(this.settings), this.types);
         if (plan.length === 0) return;
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
-        const leader: Team | null =
-            this.playerHp > this.enemyHp ? 'player' : this.enemyHp > this.playerHp ? 'enemy' : null;
+        const standing = this.hordeStanding();
+        const ahead = standing.player - standing.enemy;
+        const leader: Team | null = ahead > 1e-6 ? 'player' : ahead < -1e-6 ? 'enemy' : null;
         const ownSign = this.map.ownAtFar ? -1 : 1;
         const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
         const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
@@ -9891,7 +9895,9 @@ export class Game {
         const trailerSign = -leaderSign;
         const bigCamp = this.findHordeRingSpot(rng, leaderSign, outerHalfW, outerHalfH);
         const smallCamp = this.findHordeRingSpot(rng, trailerSign, outerHalfW, outerHalfH);
-        const bigShare = leader !== null ? hordeLeaderShare(this.settings) : 0.5;
+        // how one-sided the wave is follows how far ahead the leader stands: a
+        // hair's lead is nearly even, a crushing one reaches the preset's cap
+        const bigShare = 0.5 + Math.min(1, Math.abs(ahead)) * (hordeLeaderShare(this.settings) - 0.5);
         let nBig = Math.floor(plan.length * bigShare + 1e-9);
         if (plan.length >= 2) nBig = Math.min(plan.length - 1, Math.max(1, nBig));
         else nBig = plan.length;
@@ -9912,6 +9918,31 @@ export class Game {
             unit.level = entry.level;
             unit.applyLevelLook(entry.level);
         }
+    }
+
+    /**
+     * How well each side stands, 0..1 — the horde hunts whoever is ahead.
+     *
+     * Relative, never absolute: two sides can hold very different HP numbers
+     * (commander cards differ, a Custom Game fixes side HP) and still be
+     * equally well off, so HP counts against that side's own peak. The Year
+     * resets both sides to full every round, so HP says nothing there — it
+     * scores by the share of rounds taken so far instead, and only falls back
+     * to HP before the first round is decided.
+     */
+    private hordeStanding(): { player: number; enemy: number } {
+        const played = this.yearRounds.length;
+        if (this.settings.climb && played > 0) {
+            const attackerShare = this.yearRounds.filter((r) => r === 'attacker').length / played;
+            return this.yearAttackerTeam() === 'player'
+                ? { player: attackerShare, enemy: 1 - attackerShare }
+                : { player: 1 - attackerShare, enemy: attackerShare };
+        }
+        const share = (hp: number, peak: number) => (peak > 0 ? Math.min(1, Math.max(0, hp / peak)) : 0);
+        return {
+            player: share(this.playerHp, this.playerHpPeak),
+            enemy: share(this.enemyHp, this.enemyHpPeak),
+        };
     }
 
     /**
