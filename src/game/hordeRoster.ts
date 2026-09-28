@@ -28,8 +28,8 @@ export interface HordeWaveEntry {
  * Join order follows power (weak → strong). Each type keeps showing up
  * after it unlocks; only the bosses are one-per-finale.
  *
- *   Black Brood     — every wave (fodder); 1 pack swapped for 2 Bat packs
- *   Bat             — 2 per wave (from the brood swap); +3 more on Mother night
+ *   Black Brood     — every wave (fodder), one pack per slot
+ *   Bat             — half the brood, rounded down (so none on slot 1); +3 more on Mother night
  *   Webweaver       — from slot 5
  *   Dead Farmer     — from slot 7
  *   Black Spider    — Mother night (slot 9) every cycle
@@ -43,10 +43,11 @@ export function hordeWavePlan(round: number, countMult: number, types: TypeRegis
     const level = hordeCycle(round);
     const m = Math.max(1, Math.floor(countMult));
     const motherNight = s === HORDE_FINAL_ROUND;
-    // Every wave: −1 brood, +2 bats. Mother night: +3 more bats.
-    // Slot 9 example (m=1): brood 8 + bats 5 (2+3). Ultra doubles both.
-    const brut = Math.max(0, s - 1) * m;
-    const bats = (2 + (motherNight ? 3 : 0)) * m;
+    // Brood grows with the slot; bats are half of it, rounded down, so the
+    // first night is brood only. Mother night adds 3 more bat packs.
+    // Slot 9 example (m=1): brood 9 + bats 7 (4+3). Ultra doubles both.
+    const brut = s * m;
+    const bats = (Math.floor(s / 2) + (motherNight ? 3 : 0)) * m;
     const web = Math.max(0, s - 4) * m;
     const farmer = Math.max(0, s - 6) * m;
     const spinne = (motherNight ? 1 : 0) * m;
