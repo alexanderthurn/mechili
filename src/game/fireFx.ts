@@ -26,6 +26,13 @@ export function fireUsesTongues(q: FireVfxQuality = prefs().fireVfx): boolean {
     return usesTongues(q);
 }
 
+/** Flame size on a burning stone, per unit of the stone's own mesh scale. */
+const STONE_FLAME_SIZE = 2.6;
+/** …never smaller than this, or a small rock's flame reads as a spark. */
+const STONE_FLAME_MIN = 1.2;
+/** How far behind the rock (× its scale) the flame is anchored. */
+const STONE_FLAME_LAG = 0.5;
+
 const ORANGE_EMBER = 0xff6a18;
 const ORANGE_CORE = 0xffd040;
 const ORANGE_HOT = 0xff2200;
@@ -101,8 +108,11 @@ export class FireFx {
     }
 
     /**
-     * One tip flame per fire arrow / lit ballista bolt. Cleared when the
-     * projectile hits or expires (TTL ≈ 3s).
+     * One flame per lit projectile: at the tip of a fire arrow / ballista bolt,
+     * and wrapped around a burning stone (the mortar's pitch-soaked shot — a
+     * rock shows nothing by itself, so the flame is what makes the fire it
+     * leaves on the ground believable). Cleared when the projectile hits or
+     * expires (TTL ≈ 3s).
      */
     syncProjectileTips(projectiles: readonly Projectile[], alpha: number): void {
         this.tipScratch.length = 0;
@@ -112,7 +122,12 @@ export class FireFx {
         }
         for (const p of projectiles) {
             if (!p.lit) continue;
-            if (p.style !== 'arrow' && p.style !== 'largeArrow') continue;
+            const bolt = p.style === 'arrow' || p.style === 'largeArrow';
+            // a landed stone has spent its fire on the ground, and the
+            // hammerer's swelling blast disc (scaleEnd) is flame already
+            const stone =
+                p.style === 'stone' && p.scaleEnd == null && !p.stone?.landed;
+            if (!bolt && !stone) continue;
             const x = p.px + (p.x - p.px) * alpha;
             const y = p.py + (p.y - p.py) * alpha;
             const z = p.pz + (p.z - p.pz) * alpha;
@@ -123,13 +138,22 @@ export class FireFx {
             vx /= speed;
             vy /= speed;
             vz /= speed;
-            // Exact tip of the scaled bolt.glb (+Z local × instance scale).
-            const tip = boltTipWorldOffset(p.style);
+            const size = typeof p.scale === 'number' ? p.scale : 1;
+            // bolts: exact tip of the scaled bolt.glb (+Z local × instance
+            // scale). Stones: a touch BEHIND the rock, so the rock stays
+            // readable inside the flame instead of being swallowed by it.
+            const tip = stone
+                ? -size * STONE_FLAME_LAG
+                : boltTipWorldOffset(p.style === 'largeArrow' ? 'largeArrow' : 'arrow');
             this.tipScratch.push({
                 x: x + vx * tip,
                 y: y + vy * tip,
                 z: z + vz * tip,
-                scale: p.style === 'largeArrow' ? 2 : 1,
+                scale: stone
+                    ? Math.max(STONE_FLAME_MIN, size * STONE_FLAME_SIZE)
+                    : p.style === 'largeArrow'
+                      ? 2
+                      : 1,
                 // −velocity → tip lean mixes this with world-up (~45° back)
                 dx: -vx,
                 dy: -vy,

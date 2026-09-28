@@ -5156,7 +5156,9 @@ export class BattleSim {
             ...(at.projectileTrail ? { trail: at.projectileTrail } : {}),
             lit: (() => {
                 const style = at.projectileStyle ?? 'bolt';
-                if (style !== 'arrow' && style !== 'largeArrow') return false;
+                // arrows / bolts carry a tip flame, a stone burns as a whole
+                // (pitch-soaked mortar shot) — see FireFx.syncProjectileTips
+                if (style !== 'arrow' && style !== 'largeArrow' && style !== 'stone') return false;
                 const fire = this.fireProfileOf(a.unit);
                 return !!(fire?.burn || fire?.ground);
             })(),

@@ -143,6 +143,23 @@ function sampleStoneDiscTint(out: Color, timeSec: number): void {
     out.copy(STONE_DISC_STOPS[i]!).lerp(STONE_DISC_STOPS[i + 1]!, f);
 }
 
+/**
+ * A burning stone's albedo multiplier (mortar with Fire): the rock reads as
+ * heated through rather than painted orange, so the values go above 1 — dark
+ * cracks stay dark, lit faces glow. Breathes between the two over
+ * {@link STONE_EMBER_CYCLE_SEC}; the flame itself comes from FireFx.
+ */
+const STONE_EMBER_HOT = new Color(3.4, 1.15, 0.38);
+const STONE_EMBER_COOL = new Color(2.1, 0.7, 0.26);
+const STONE_EMBER_CYCLE_SEC = 0.42;
+
+function sampleStoneEmberTint(out: Color, timeSec: number): void {
+    const phase = (timeSec % STONE_EMBER_CYCLE_SEC) / STONE_EMBER_CYCLE_SEC;
+    // triangle wave — glow up, glow down, no seam
+    const f = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+    out.copy(STONE_EMBER_COOL).lerp(STONE_EMBER_HOT, f);
+}
+
 /** Crow-rider thrown rock — flight pool and ground debris share this geometry. */
 const CROW_STONE_GEO_R = 0.84;
 let crowStoneGeometry: IcosahedronGeometry | null = null;
@@ -2556,6 +2573,20 @@ export class ProjectileRenderer {
                         this.discTint.b,
                         STONE_DISC_OPACITY,
                     );
+                } else if (p.lit && !p.stone?.landed) {
+                    // heated through, each stone on its own beat (steady over
+                    // its flight: a lobbed shot keeps its horizontal speed)
+                    sampleStoneEmberTint(
+                        this.discTint,
+                        (performance.now() - this.t0) * 0.001 + Math.abs(p.vx) * 0.03,
+                    );
+                    this.stoneTint.setXYZW(
+                        slot,
+                        this.discTint.r,
+                        this.discTint.g,
+                        this.discTint.b,
+                        1,
+                    );
                 } else {
                     this.stoneTint.setXYZW(slot, 1, 1, 1, 1);
                 }
@@ -2565,13 +2596,15 @@ export class ProjectileRenderer {
                 const bx = this.pos.x - this.dir.x * 0.55;
                 const by = this.pos.y - this.dir.y * 0.55;
                 const bz = this.pos.z - this.dir.z * 0.55;
+                // a burning stone drags fire turning to dark smoke, a cold one
+                // the usual dust cloud
                 this.ensureTrail(trailTier.pool).burst(bx, by, bz, {
                     count: trailTier.puffs,
-                    color: 0xd8dee8,
-                    colorEnd: 0x9aa6b8,
+                    color: p.lit ? 0xff9a3c : 0xd8dee8,
+                    colorEnd: p.lit ? 0x4a4038 : 0x9aa6b8,
                     speed: 0.55,
-                    life: 0.85,
-                    up: 0.35,
+                    life: p.lit ? 1.05 : 0.85,
+                    up: p.lit ? 0.6 : 0.35,
                     spread: 0.7,
                     dir: { x: -this.dir.x, y: -this.dir.y * 0.4, z: -this.dir.z },
                 });
