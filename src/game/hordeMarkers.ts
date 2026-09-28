@@ -18,8 +18,18 @@ import {
 import { worldHeightAt } from './map';
 import { applyIcon, drawIcon } from '../ui/iconAtlas';
 
-/** altitude above terrain — clears canopy */
-const MARKER_HEIGHT = 55;
+/**
+ * How high the icon floats.
+ *
+ * Over the board it rides just above the pack ({@link MARKER_CLEARANCE} over
+ * its head) — close enough to read as "these units". Out in the forest ring it
+ * has to clear the canopy instead, so it rises to {@link MARKER_FOREST_HEIGHT}
+ * as the pack walks out past the board edge, blended over
+ * {@link MARKER_BLEND_SPAN} so it never pops.
+ */
+const MARKER_CLEARANCE = 8;
+const MARKER_FOREST_HEIGHT = 40;
+const MARKER_BLEND_SPAN = 25;
 /** world-space sprite diameter */
 const MARKER_SIZE = 12;
 const BOB_AMP = 2.5;
@@ -43,6 +53,8 @@ export type HordeMarkerSpot = {
     z: number;
     /** phase offset so neighboring markers don't bob in lockstep */
     seed: number;
+    /** how far the pack's own visuals reach above the ground under it */
+    top: number;
 };
 
 /**
@@ -78,6 +90,9 @@ export class HordeMarkers {
         camera: PerspectiveCamera,
         viewW: number,
         viewH: number,
+        /** board half sizes — outside them the icon has trees to clear */
+        halfW: number,
+        halfH: number,
     ): void {
         this.used = 0;
         const edgePts: { x: number; y: number; seed: number }[] = [];
@@ -86,7 +101,13 @@ export class HordeMarkers {
             const sprite = this.acquire();
             const ground = worldHeightAt(spot.x, spot.z);
             const bob = Math.sin(timeSeconds * BOB_SPEED + spot.seed) * BOB_AMP;
-            const y = ground + MARKER_HEIGHT + bob;
+            // trees only stand outside the board — the further out the pack
+            // still is, the more the icon climbs toward canopy height
+            const pastEdge = Math.max(Math.abs(spot.x) - halfW, Math.abs(spot.z) - halfH, 0);
+            const inForest = Math.min(1, pastEdge / MARKER_BLEND_SPAN);
+            const overPack = spot.top + MARKER_CLEARANCE;
+            const target = Math.max(overPack, MARKER_FOREST_HEIGHT);
+            const y = ground + overPack + (target - overPack) * inForest + bob;
             sprite.position.set(spot.x, y, spot.z);
             this.used++;
 
