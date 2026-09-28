@@ -27,8 +27,8 @@ import { applyIcon, drawIcon } from '../ui/iconAtlas';
  * as the pack walks out past the board edge, blended over
  * {@link MARKER_BLEND_SPAN} so it never pops.
  */
-const MARKER_CLEARANCE = 8;
-const MARKER_FOREST_HEIGHT = 40;
+const MARKER_CLEARANCE = 3;
+const MARKER_FOREST_HEIGHT = 30;
 const MARKER_BLEND_SPAN = 25;
 /** world-space sprite diameter */
 const MARKER_SIZE = 12;
@@ -37,14 +37,12 @@ const BOB_SPEED = 2.1;
 
 /** inset from screen edges for off-camera pips */
 const EDGE_PAD = 28;
-/** how far a pip may be jittered off its spot so stacked ones stay readable */
-const PIP_JITTER = 6;
 /**
- * The world sprite hands over to the edge pip this far before it would reach
- * the rim — the sprite has size, and half of it sliding under a panel (or off
- * screen) reads as two markers for the same pack.
+ * The world sprite hands over this far before its pack reaches the rim — just
+ * enough that the sprite is not half cut off. Keep it small: the pip takes
+ * over at the same screen spot, and a wide margin turns that into a jump.
  */
-const SNAP_MARGIN = 26;
+const SNAP_MARGIN = 8;
 
 const ICON_TEX_SIZE = 128;
 
@@ -120,12 +118,13 @@ export class HordeMarkers {
             // sprite would point a little above the pack, which reads as the
             // wrong direction when a pack stands near the middle of the board.
             const box = this.screenBox(viewW, viewH);
-            const shown = this.onScreen(spot.x, y, spot.z, camera, viewW, viewH, box);
+            const aim = this.project(spot.x, ground, spot.z, camera, viewW, viewH);
+            const shown = aim.onScreen && this.inside(aim, box, SNAP_MARGIN);
             sprite.visible = shown;
-            if (!shown) {
-                const aim = this.project(spot.x, ground, spot.z, camera, viewW, viewH);
-                edgePts.push({ ...this.rimPoint(aim, box), seed: spot.seed });
-            }
+            // the pip picks up exactly where the pack left the view: the same
+            // point, pulled onto the rim — so the swap reads as one marker
+            // sliding to the edge, not two icons trading places
+            if (!shown) edgePts.push({ ...this.clampToBox(aim, box), seed: spot.seed });
         }
         for (let i = this.used; i < this.pool.length; i++) {
             this.pool[i]!.visible = false;
@@ -172,7 +171,7 @@ export class HordeMarkers {
         viewW: number,
         viewH: number,
     ): { left: number; right: number; top: number; bottom: number } {
-        const pad = EDGE_PAD + PIP_JITTER;
+        const pad = EDGE_PAD;
         return { left: pad, right: viewW - pad, top: pad, bottom: viewH - pad };
     }
 
@@ -188,53 +187,38 @@ export class HordeMarkers {
         camera: PerspectiveCamera,
         viewW: number,
         viewH: number,
-    ): { x: number; y: number } {
+    ): { x: number; y: number; onScreen: boolean } {
         this.tmp.set(x, y, z).project(camera);
-        if (this.tmp.z > 1) {
+        const onScreen = this.tmp.z <= 1;
+        if (!onScreen) {
             this.tmp.x = -this.tmp.x;
             this.tmp.y = -this.tmp.y;
         }
         return {
             x: (this.tmp.x * 0.5 + 0.5) * viewW,
             y: (1 - (this.tmp.y * 0.5 + 0.5)) * viewH,
+            onScreen,
         };
     }
 
-    /** the world sprite still stands well inside the HUD-free area */
-    private onScreen(
-        x: number,
-        y: number,
-        z: number,
-        camera: PerspectiveCamera,
-        viewW: number,
-        viewH: number,
+    private inside(
+        p: { x: number; y: number },
         box: { left: number; right: number; top: number; bottom: number },
+        margin: number,
     ): boolean {
-        this.tmp.set(x, y, z).project(camera);
-        if (this.tmp.z > 1) return false; // behind the camera
-        const sx = (this.tmp.x * 0.5 + 0.5) * viewW;
-        const sy = (1 - (this.tmp.y * 0.5 + 0.5)) * viewH;
-        const m = Math.min(SNAP_MARGIN, (box.right - box.left) * 0.25, (box.bottom - box.top) * 0.25);
-        return sx >= box.left + m && sx <= box.right - m && sy >= box.top + m && sy <= box.bottom - m;
+        const m = Math.min(margin, (box.right - box.left) * 0.25, (box.bottom - box.top) * 0.25);
+        return p.x >= box.left + m && p.x <= box.right - m && p.y >= box.top + m && p.y <= box.bottom - m;
     }
 
-    /** Where the line from the middle of the screen to `aim` leaves the viewport. */
-    private rimPoint(
-        aim: { x: number; y: number },
+    /** the nearest spot on the rim — where a pack that left the view is shown */
+    private clampToBox(
+        p: { x: number; y: number },
         box: { left: number; right: number; top: number; bottom: number },
     ): { x: number; y: number } {
-        const cx = (box.left + box.right) * 0.5;
-        const cy = (box.top + box.bottom) * 0.5;
-        let dx = aim.x - cx;
-        let dy = aim.y - cy;
-        if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) {
-            dx = 0;
-            dy = -1;
-        }
-        const tx = dx > 0 ? (box.right - cx) / dx : dx < 0 ? (box.left - cx) / dx : Infinity;
-        const ty = dy > 0 ? (box.bottom - cy) / dy : dy < 0 ? (box.top - cy) / dy : Infinity;
-        const t = Math.min(tx, ty);
-        return { x: cx + dx * t, y: cy + dy * t };
+        return {
+            x: Math.min(Math.max(p.x, box.left), box.right),
+            y: Math.min(Math.max(p.y, box.top), box.bottom),
+        };
     }
 
     private syncEdgePips(
@@ -244,12 +228,10 @@ export class HordeMarkers {
         let used = 0;
         for (const p of pts) {
             const pip = this.acquirePip(used);
-            // slight seed jitter so stacked edge hits don't fully overlap —
-            // clamped to the viewport so a pip can't drift off screen
-            const jx = p.x + Math.sin(p.seed * 2.1) * PIP_JITTER;
-            const jy = p.y + Math.cos(p.seed * 1.7) * PIP_JITTER;
-            const x = box ? Math.min(Math.max(jx, box.left), box.right) : jx;
-            const y = box ? Math.min(Math.max(jy, box.top), box.bottom) : jy;
+            // no jitter here on purpose: the pip takes over the pack's own
+            // screen spot, and nudging it would show as a jump at the handover
+            const x = box ? Math.min(Math.max(p.x, box.left), box.right) : p.x;
+            const y = box ? Math.min(Math.max(p.y, box.top), box.bottom) : p.y;
             pip.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -50%)`;
             pip.style.display = '';
             used++;
