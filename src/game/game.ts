@@ -8880,40 +8880,43 @@ export class Game {
             this.hordeMarkers.clear();
             return;
         }
-        const spots: HordeMarkerSpot[] = [];
+        // One marker per approaching army, not per pack: the wave comes from
+        // two camps (see hordeCampSpots), so the board shows two icons — the
+        // side a pack walks in on is the sign of its x, which holds until it
+        // reaches the middle.
+        const sides = new Map<number, { x: number; z: number; n: number; top: number }>();
         // how far a pack's own mesh reaches over the ground it stands on —
         // the icon floats just above that (see HordeMarkers' MARKER_CLEARANCE)
         const packTop = (unit: Unit) =>
             getUnitVisualHeight(unit.type.modelId ?? unit.type.id) * unit.visualMeshScale();
+        const add = (x: number, z: number, top: number) => {
+            const key = x < 0 ? -1 : 1;
+            let s = sides.get(key);
+            if (!s) {
+                s = { x: 0, z: 0, n: 0, top: 0 };
+                sides.set(key, s);
+            }
+            s.x += x;
+            s.z += z;
+            s.top = Math.max(s.top, top);
+            s.n++;
+        };
         if (this.phase === 'battle' && this.sim) {
-            const sums = new Map<number, { x: number; z: number; n: number; seed: number; top: number }>();
             for (const a of this.sim.actors) {
                 if (!a.alive || a.unit.team !== 'horde' || !a.unit.marchIn) continue;
-                const id = a.unit.id;
-                let s = sums.get(id);
-                if (!s) {
-                    s = { x: 0, z: 0, n: 0, seed: id, top: 0 };
-                    sums.set(id, s);
-                }
-                s.x += a.rx;
-                s.z += a.rz;
-                s.top = Math.max(s.top, a.altitude + packTop(a.unit));
-                s.n++;
-            }
-            for (const s of sums.values()) {
-                if (s.n <= 0) continue;
-                spots.push({ x: s.x / s.n, z: s.z / s.n, seed: s.seed, top: s.top });
+                add(a.rx, a.rz, a.altitude + packTop(a.unit));
             }
         } else {
             for (const unit of this.placement.allUnits()) {
                 if (unit.team !== 'horde' || !unit.marchIn || unit.destroyed) continue;
-                spots.push({
-                    x: unit.world.x,
-                    z: unit.world.z,
-                    seed: unit.id,
-                    top: Math.max(0, unit.memberBaseY()) + packTop(unit),
-                });
+                add(unit.world.x, unit.world.z, Math.max(0, unit.memberBaseY()) + packTop(unit));
             }
+        }
+        const spots: HordeMarkerSpot[] = [];
+        for (const [key, s] of sides) {
+            if (s.n <= 0) continue;
+            // seed only sets the bob phase — the two sides shouldn't bob in lockstep
+            spots.push({ x: s.x / s.n, z: s.z / s.n, seed: key > 0 ? 1 : 2, top: s.top });
         }
         this.hordeMarkers.update(
             this.time,
