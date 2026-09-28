@@ -228,7 +228,6 @@ import {
     yearWinner,
     type YearRoundWinner,
     hordeEnabled,
-    hordeLeaderShare,
     isHordeRoundActive,
     normalizeGameSettings,
     secondsForRound,
@@ -344,7 +343,51 @@ const HP_DRAW_BATTLE_SETTLE = 0.52;
  */
 const HP_DRAW_COLLAPSE_SETTLE = 1.2;
 
-// --- horde forest-ring spawn (see spawnHordeWave/findHordeRingSpot) ---
+// --- horde forest camps (see spawnHordeWave / hordeCampSpots) ---
+/**
+ * Camps sit this far past the board edge: already inside the tree line (the
+ * belt ramps up from 8), and nearer than the closest lake (~66, see
+ * scenery.ts), so a wave walks in out of the woods, arrives soon, and has no
+ * water to wade through.
+ */
+const HORDE_CAMP_NEAR = 40;
+const HORDE_CAMP_FAR = 55;
+/** a pack may scatter around its camp within this band past the edge */
+const HORDE_PACK_NEAR = 18;
+const HORDE_PACK_FAR = 58;
+/**
+ * Where the two camps stand, as an angle either side of the direction the
+ * leader's half lies in (seen from the middle of the board). Even standing
+ * puts them at a right angle — pure left and right, the same walk for both
+ * players; a growing lead swings both toward the leader until they come out
+ * of the woods behind their keep. They never close past the minimum, or the
+ * two camps would be one pile.
+ */
+const HORDE_CAMP_SPREAD_EVEN = Math.PI / 2;
+const HORDE_CAMP_SPREAD_MIN = (20 * Math.PI) / 180;
+/** nudges tried when a camp spot would start in (or walk through) water */
+const HORDE_CAMP_RETRIES = 12;
+
+/**
+ * A point `out` world units past the board's edge, seen from the middle of the
+ * board along `angle` (0 = +z, growing toward +x). "Past the edge" is the same
+ * metric the forest belt and the lakes use: how far outside the rectangle the
+ * point lies, so a camp is as deep in the woods on a diagonal as head-on.
+ */
+function hordeSpotOnRay(
+    angle: number,
+    out: number,
+    halfW: number,
+    halfH: number,
+): { x: number; z: number } {
+    const dx = detSin(angle);
+    const dz = detCos(angle);
+    const lx = Math.abs(dx) > 1e-6 ? (halfW + out) / Math.abs(dx) : Infinity;
+    const lz = Math.abs(dz) > 1e-6 ? (halfH + out) / Math.abs(dz) : Infinity;
+    const len = Math.min(lx, lz);
+    return { x: dx * len, z: dz * len };
+}
+
 /** ring starts this far past the board edge (world units) — well into the
  *  treeline (medium quality's forest belt already ramps up by 25 past the
  *  edge), so the wave visibly emerges from the woods instead of appearing
@@ -3852,30 +3895,21 @@ export class Game {
         const ahead = standing.player - standing.enemy;
         const leader: Team | null = ahead > 1e-6 ? 'player' : ahead < -1e-6 ? 'enemy' : null;
         const ownSign = this.map.ownAtFar ? -1 : 1;
-        const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
-        const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
+        // which way the leader's half lies (a tie still needs a side to
+        // measure the angle from — the camps end up left and right anyway)
         const leaderSign =
             leader === 'player' ? ownSign : leader === 'enemy' ? -ownSign : ownSign;
-        const trailerSign = -leaderSign;
-        const bigCamp = this.findHordeRingSpot(rng, leaderSign, outerHalfW, outerHalfH);
-        const smallCamp = this.findHordeRingSpot(rng, trailerSign, outerHalfW, outerHalfH);
-        // how one-sided the wave is follows how far ahead the leader stands: a
-        // hair's lead is nearly even, a crushing one reaches the preset's cap
-        const bigShare = 0.5 + Math.min(1, Math.abs(ahead)) * (hordeLeaderShare(this.settings) - 0.5);
-        let nBig = Math.floor(plan.length * bigShare + 1e-9);
-        if (plan.length >= 2) nBig = Math.min(plan.length - 1, Math.max(1, nBig));
-        else nBig = plan.length;
+        const [bigCamp, smallCamp] = this.hordeCampSpots(rng, leaderSign, ahead);
+        // the angle says who is being hunted, so both camps field the same
+        // number of packs (an odd one over goes to the leader's camp)
+        const nBig = Math.ceil(plan.length / 2);
         const nSmall = plan.length - nBig;
         let spawned = 0;
         for (let i = 0; i < plan.length; i++) {
             const entry = plan[i]!;
-            const camp = i < nBig ? bigCamp : smallCamp;
-            const zSign = i < nBig ? leaderSign : trailerSign;
+            const camp = (i < nBig ? bigCamp : smallCamp)!;
             const campN = i < nBig ? nBig : nSmall;
-            const spot =
-                (camp && this.findHordeSpotNear(rng, camp, campN)) ??
-                this.findHordeRingSpot(rng, zSign, outerHalfW, outerHalfH);
-            if (!spot) continue;
+            const spot = this.findHordeSpotNear(rng, camp, campN) ?? camp;
             const unit = this.placement.spawnAtWorld(entry.type, spot.x, spot.z);
             unit.summoned = true;
             unit.deployedRound = this.round;
@@ -9872,10 +9906,10 @@ export class Game {
 
     /**
      * Horde mode (`hordePreset`): on active rounds (see `isHordeRoundActive`),
-     * materializes this round's authored pack list as **two forest camps**:
-     * a large army (~{@link hordeLeaderShare} toward the HP leader) and a
-     * small one on the trailer's side. Each camp is one ring anchor; packs
-     * scatter nearby and march in (`Unit.marchIn`).
+     * materializes this round's authored pack list as **two forest camps** of
+     * equal size (see {@link hordeCampSpots} — the angle between them is what
+     * hunts the side that stands better). Packs scatter around their camp and
+     * march in (`Unit.marchIn`).
      */
     private spawnHordeWave(): void {
         if (!isHordeRoundActive(this.settings, this.round)) return;
@@ -9886,31 +9920,20 @@ export class Game {
         const ahead = standing.player - standing.enemy;
         const leader: Team | null = ahead > 1e-6 ? 'player' : ahead < -1e-6 ? 'enemy' : null;
         const ownSign = this.map.ownAtFar ? -1 : 1;
-        const outerHalfW = this.map.halfW + HORDE_RING_NEAR + HORDE_RING_SPAN;
-        const outerHalfH = this.map.halfH + HORDE_RING_NEAR + HORDE_RING_SPAN;
-        // Leader's board half in world z; trailer is the opposite. On a tie,
-        // still plant two opposite camps (player half = "big" for determinism).
+        // which way the leader's half lies (a tie still needs a side to
+        // measure the angle from — the camps end up left and right anyway)
         const leaderSign =
             leader === 'player' ? ownSign : leader === 'enemy' ? -ownSign : ownSign;
-        const trailerSign = -leaderSign;
-        const bigCamp = this.findHordeRingSpot(rng, leaderSign, outerHalfW, outerHalfH);
-        const smallCamp = this.findHordeRingSpot(rng, trailerSign, outerHalfW, outerHalfH);
-        // how one-sided the wave is follows how far ahead the leader stands: a
-        // hair's lead is nearly even, a crushing one reaches the preset's cap
-        const bigShare = 0.5 + Math.min(1, Math.abs(ahead)) * (hordeLeaderShare(this.settings) - 0.5);
-        let nBig = Math.floor(plan.length * bigShare + 1e-9);
-        if (plan.length >= 2) nBig = Math.min(plan.length - 1, Math.max(1, nBig));
-        else nBig = plan.length;
+        const [bigCamp, smallCamp] = this.hordeCampSpots(rng, leaderSign, ahead);
+        // the angle says who is being hunted, so both camps field the same
+        // number of packs (an odd one over goes to the leader's camp)
+        const nBig = Math.ceil(plan.length / 2);
         const nSmall = plan.length - nBig;
         for (let i = 0; i < plan.length; i++) {
             const entry = plan[i]!;
-            const camp = i < nBig ? bigCamp : smallCamp;
-            const zSign = i < nBig ? leaderSign : trailerSign;
+            const camp = (i < nBig ? bigCamp : smallCamp)!;
             const campN = i < nBig ? nBig : nSmall;
-            const spot =
-                (camp && this.findHordeSpotNear(rng, camp, campN)) ??
-                this.findHordeRingSpot(rng, zSign, outerHalfW, outerHalfH);
-            if (!spot) continue;
+            const spot = this.findHordeSpotNear(rng, camp, campN) ?? camp;
             const unit = this.placement.spawnAtWorld(entry.type, spot.x, spot.z);
             unit.summoned = true;
             unit.deployedRound = this.round;
@@ -9946,36 +9969,44 @@ export class Game {
     }
 
     /**
-     * A deterministic spawn point outside the playable board, biased toward
-     * `zSign`'s half when there's a leader to hunt (0 = unbiased, full
-     * frame). Rejects anything actually inside the board, and anything
-     * whose straight walk to center would cross deep water — `marchIn` is a
-     * plain straight-line seek with no pathfinding, so lakes have to be
-     * avoided here, at spawn time, or not at all. Bounded, deterministic
-     * retries (same rng stream ⇒ same outcome on every client); `null` if
-     * nothing clears in the attempt budget (that pack is simply skipped).
+     * The two camps of one wave. One angle either side of the leader's
+     * direction (see {@link HORDE_CAMP_SPREAD_EVEN}), turned into a point by
+     * walking out from the middle until the spot sits `HORDE_CAMP_NEAR..FAR`
+     * past the board edge.
+     *
+     * A spot whose straight walk hits water is pulled nearer first (lakes
+     * start further out than any camp) and only then nudged sideways, so the
+     * pair stays as symmetric as the ground allows.
      */
-    private findHordeRingSpot(
+    private hordeCampSpots(
         rng: () => number,
-        zSign: number,
-        outerHalfW: number,
-        outerHalfH: number,
-    ): { x: number; z: number } | null {
-        for (let attempt = 0; attempt < HORDE_SPAWN_ATTEMPTS; attempt++) {
-            const x = (rng() * 2 - 1) * outerHalfW;
-            const zBase = (rng() * 2 - 1) * outerHalfH;
-            const z = zSign === 0 ? zBase : zSign * Math.abs(zBase) * 0.55 + zBase * 0.45;
-            // true distance past the board edge (0 inside/on the rectangle;
-            // same metric scenery.ts's forest belt uses). Rejecting only
-            // "literally inside the board" let spots land right at the edge
-            // whenever just one axis barely cleared it — this enforces the
-            // real HORDE_RING_NEAR..+SPAN annulus instead.
-            const d = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
-            if (d < HORDE_RING_NEAR || d > HORDE_RING_NEAR + HORDE_RING_SPAN) continue;
-            if (this.hordePathCrossesWater(x, z)) continue;
-            return { x, z };
+        leaderSign: number,
+        ahead: number,
+    ): { x: number; z: number }[] {
+        const lead = Math.min(1, Math.abs(ahead));
+        const spread = HORDE_CAMP_SPREAD_MIN + (HORDE_CAMP_SPREAD_EVEN - HORDE_CAMP_SPREAD_MIN) * (1 - lead);
+        // 0 points along +z; the leader's half decides which way that is
+        const base = leaderSign >= 0 ? 0 : Math.PI;
+        const out = HORDE_CAMP_NEAR + rng() * (HORDE_CAMP_FAR - HORDE_CAMP_NEAR);
+        return [base - spread, base + spread].map((angle) => this.hordeCampAt(angle, out));
+    }
+
+    /**
+     * One camp: the point `out` past the board edge along `angle`. Water is
+     * avoided where it can be; a wave that cannot find dry ground still comes
+     * (wet boots beat a round with no horde in it).
+     */
+    private hordeCampAt(angle: number, out: number): { x: number; z: number } {
+        let fallback: { x: number; z: number } | null = null;
+        for (let attempt = 0; attempt < HORDE_CAMP_RETRIES; attempt++) {
+            // first pull the camp nearer (never past the lakes), then fan out sideways
+            const pull = Math.min(attempt, 3) * 6;
+            const swing = attempt < 4 ? 0 : (((attempt - 3) >> 1) * (attempt % 2 === 0 ? 1 : -1) * 7 * Math.PI) / 180;
+            const spot = hordeSpotOnRay(angle + swing, Math.max(HORDE_PACK_NEAR, out - pull), this.map.halfW, this.map.halfH);
+            fallback ??= spot;
+            if (!this.hordePathCrossesWater(spot.x, spot.z)) return spot;
         }
-        return null;
+        return fallback ?? hordeSpotOnRay(angle, out, this.map.halfW, this.map.halfH);
     }
 
     /**
@@ -9994,8 +10025,9 @@ export class Game {
             const r = rng() * scatter;
             const x = camp.x + detCos(ang) * r;
             const z = camp.z + detSin(ang) * r;
+            // stay in the camp's own band: off the board, short of the lakes
             const d = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
-            if (d < HORDE_RING_NEAR || d > HORDE_RING_NEAR + HORDE_RING_SPAN) continue;
+            if (d < HORDE_PACK_NEAR || d > HORDE_PACK_FAR) continue;
             if (this.hordePathCrossesWater(x, z)) continue;
             return { x, z };
         }

@@ -12,9 +12,6 @@ export const HORDE_CYCLE_LEN = 9;
 /** Last slot of each circle — Mother night (rounds 9, 18, 27, …). */
 export const HORDE_FINAL_ROUND = HORDE_CYCLE_LEN;
 
-/** Share of packs in the large army camp (HP leader's side). Rest → trailer camp. */
-const LEADER_SHARE = 0.8;
-
 /**
  * Optional runtime context for future conditional algorithms
  * (leader-only pressure, HP gates, etc.).
@@ -55,9 +52,6 @@ export abstract class HordeAlgorithm {
         return 0;
     }
 
-    leaderShare(): number {
-        return LEADER_SHARE;
-    }
 }
 
 class OffHorde extends HordeAlgorithm {

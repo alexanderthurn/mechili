@@ -293,11 +293,6 @@ export function hordeCountMult(settings: GameSettings): number {
     return hordeAlgorithmById(settings.hordePreset).countMult();
 }
 
-/** leader-hunt spawn share for the active preset */
-export function hordeLeaderShare(settings: GameSettings): number {
-    return hordeAlgorithmById(settings.hordePreset).leaderShare();
-}
-
 export interface LevelingSettings {
     /**
      * Each level ADDS this fraction of the base hp/damage: 1 means a
