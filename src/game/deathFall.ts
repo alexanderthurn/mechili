@@ -1,4 +1,4 @@
-import { Quaternion, Vector3, type Group } from 'three';
+import { Euler, Quaternion, Vector3, type Group } from 'three';
 import { worldHeightAt } from './map';
 
 /** Render-only air-unit crash — sim death stays instant. */
@@ -298,11 +298,27 @@ export function clearDeathClip(mesh: Group): void {
     delete mesh.userData.deathClip;
 }
 
-/** Bake the finished tip pose so later frames can add terrain slope. */
+/**
+ * Bake the finished tip pose so later frames can add terrain slope. The yaw
+ * goes in as well: {@link alignSettledCorpse} rebuilds the whole pose from
+ * this bake and must not read any part of it back off the mesh (see there).
+ */
 export function settleCorpsePose(mesh: Group): void {
     mesh.userData.corpseSettled = true;
     mesh.userData.corpseTipX = mesh.rotation.x;
     mesh.userData.corpseTipZ = mesh.rotation.z;
+    mesh.userData.corpseYaw = mesh.rotation.y;
+}
+
+/**
+ * Bake a corpse that is already lying the way it should (a skinned death clip
+ * puts the body down itself) — flat, with only the terrain slope left to add.
+ */
+export function settleCorpseFlat(mesh: Group): void {
+    mesh.userData.corpseSettled = true;
+    mesh.userData.corpseTipX = 0;
+    mesh.userData.corpseTipZ = 0;
+    mesh.userData.corpseYaw = mesh.rotation.y;
 }
 
 /**
@@ -316,11 +332,13 @@ export function clearCorpsePose(mesh: Group): void {
     delete mesh.userData.corpseSettled;
     delete mesh.userData.corpseTipX;
     delete mesh.userData.corpseTipZ;
+    delete mesh.userData.corpseYaw;
 }
 
 const _corpseUp = new Vector3(0, 1, 0);
 const _corpseNormal = new Vector3();
 const _corpseSlope = new Quaternion();
+const _corpsePose = new Euler(0, 0, 0, 'XYZ');
 
 /**
  * Keep a settled wreck flat on the lawn and tilted with the local slope
@@ -329,6 +347,14 @@ const _corpseSlope = new Quaternion();
  * The slope turn is applied in WORLD space, on top of the corpse's own pose:
  * folding it into the mesh's own pitch / roll angles mixes it with the yaw the
  * body fell at, which left corpses lying across the slope at odd angles.
+ *
+ * This runs every frame, so the pose is rebuilt from the bake alone and NOTHING
+ * is read back off the mesh. three.js keeps `rotation` and `quaternion` in sync
+ * both ways, so the premultiply below writes the combined slope+corpse turn
+ * back into `mesh.rotation`. Taking any of it as input next frame fed the slope
+ * in again and again: on sloped ground the wreck crept round and up over some
+ * tens of frames into a half-standing pose that had nothing to do with how it
+ * fell. Flat ground (identity slope) never showed it.
  */
 export function alignSettledCorpse(
     mesh: Group,
@@ -341,13 +367,14 @@ export function alignSettledCorpse(
     }
     const tipX = mesh.userData.corpseTipX as number;
     const tipZ = mesh.userData.corpseTipZ as number;
+    const yaw = (mesh.userData.corpseYaw as number | undefined) ?? mesh.rotation.y;
     const h = 0.85;
     const dyx = worldHeightAt(worldX + h, worldZ) - worldHeightAt(worldX - h, worldZ);
     const dyz = worldHeightAt(worldX, worldZ + h) - worldHeightAt(worldX, worldZ - h);
     // ground normal from the two central differences
     _corpseNormal.set(-dyx / (2 * h), 1, -dyz / (2 * h)).normalize();
-    mesh.rotation.x = tipX;
-    mesh.rotation.z = tipZ;
+    _corpsePose.set(tipX, yaw, tipZ, 'XYZ');
+    mesh.quaternion.setFromEuler(_corpsePose);
     _corpseSlope.setFromUnitVectors(_corpseUp, _corpseNormal);
     mesh.quaternion.premultiply(_corpseSlope);
     // Slight sink so the silhouette kisses the grass instead of hovering

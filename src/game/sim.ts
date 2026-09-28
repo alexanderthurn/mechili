@@ -82,6 +82,7 @@ import {
     deathTipAmount,
     deathTipFromKnock,
     deathYawFromKnock,
+    settleCorpseFlat,
     settleCorpsePose,
     alignSettledCorpse,
     snapFlyerForDeathFall,
@@ -3983,9 +3984,7 @@ export class BattleSim {
                 deathClip.groundY = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
                 if (!tickDeathClip(a.mesh, deathClip, timeSeconds)) {
                     // Flat from the clip; hills only via alignSettledCorpse.
-                    a.mesh.userData.corpseTipX = 0;
-                    a.mesh.userData.corpseTipZ = 0;
-                    a.mesh.userData.corpseSettled = true;
+                    settleCorpseFlat(a.mesh);
                     clearDeathClip(a.mesh);
                 }
             } else if (a.mesh.userData.hammerCrushed) {

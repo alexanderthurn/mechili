@@ -173,6 +173,7 @@ import {
     clearDeathFall,
     clearDeathTip,
     alignSettledCorpse,
+    settleCorpseFlat,
     settleCorpsePose,
     tickDeathClip,
     tickDeathFall,
@@ -10286,9 +10287,8 @@ export class Game {
                     const wz = unit.world.z + mesh.position.z;
                     deathClip.groundY = worldHeightAt(wx, wz) + GROUND_UNIT_Y;
                     if (!tickDeathClip(mesh, deathClip, this.time)) {
-                        mesh.userData.corpseTipX = 0;
-                        mesh.userData.corpseTipZ = 0;
-                        mesh.userData.corpseSettled = true;
+                        // flat from the clip — see the sim's own dead loop
+                        settleCorpseFlat(mesh);
                         clearDeathClip(mesh);
                     }
                 } else if (collapse) {
