@@ -1844,6 +1844,9 @@ export class BattleSim {
         if (!burn || !target.alive) return;
         if (target.altitude > 0) return; // air units ignore burn
         if (target.unit.type.extra) return;
+        // stone and timber don't burn down: fire never damages a building,
+        // so it must not light one up either (see stepHazards, applySpellDiscDamage)
+        if (target.unit.type.structure) return;
         const aff = target.unit.type.burn;
         const taken = aff?.takenMult ?? 1;
         if (taken <= 0) return;
@@ -2538,6 +2541,13 @@ export class BattleSim {
                 continue;
             }
             if (a.unit.type.extra) continue;
+            if (a.unit.type.structure) {
+                // buildings stand in fire without taking any: what burns a
+                // stronghold down is an army, never a spill or a breath
+                a.burnUntil = 0;
+                a.burnDps = 0;
+                continue;
+            }
             if (underWard) {
                 // wards quench standing fire / burn DoT while covered
                 a.burnUntil = 0;
@@ -3579,6 +3589,16 @@ export class BattleSim {
             // from here on every unit walks and shoots on the flattened board
             this.config.terrain?.flattenRect(s.x, s.z, halfWidth, halfDepth, yaw, flattenY);
             this.events.push({ kind: 'hammerCrush', x: s.x, z: s.z, halfWidth, halfDepth, yaw, flattenY });
+            // A building in the press no longer dies, so one can now outlive the
+            // flatten — and the ground it stands on just moved. Hit volumes
+            // follow by themselves (footY is re-seated every step); the meshes
+            // do not, because syncBattleVisuals leaves structures alone.
+            const reseated = new Set<Unit>();
+            for (const a of this.actors) {
+                if (!a.alive || !a.unit.type.structure || reseated.has(a.unit)) continue;
+                reseated.add(a.unit);
+                a.unit.seatMembers();
+            }
             // No blast shove — impulse was sliding pancakes (and their meshes)
             // outside the scar while blood stayed at the kill seat.
         } else {
@@ -3634,6 +3654,10 @@ export class BattleSim {
         const hitDomes = new Set<Actor>();
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.extra) continue;
+            // No spell takes a building — not the hammer, not a meteor, not the
+            // dragon's breath. Towers and strongholds fall to armies only, so a
+            // charge can never trigger the stronghold lifeline on its own.
+            if (a.unit.type.structure) continue;
             const inArea = strike
                 ? strikeHits(strike, a.x, a.z, a.radius)
                 : hypot(a.x - x, a.z - z) <= radius + a.radius;
