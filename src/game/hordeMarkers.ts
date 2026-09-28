@@ -27,6 +27,12 @@ const BOB_SPEED = 2.1;
 const EDGE_PAD = 28;
 /** how far a pip may be jittered off its spot so stacked ones stay readable */
 const PIP_JITTER = 6;
+/**
+ * The world sprite hands over to the edge pip this far before it would reach
+ * the rim — the sprite has size, and half of it sliding under a panel (or off
+ * screen) reads as two markers for the same pack.
+ */
+const SNAP_MARGIN = 26;
 
 /** How far HUD chrome reaches in from each edge (CSS px) — see Hud.edgeInsets. */
 export type EdgeInsets = { top: number; right: number; bottom: number; left: number };
@@ -88,10 +94,13 @@ export class HordeMarkers {
             const bob = Math.sin(timeSeconds * BOB_SPEED + spot.seed) * BOB_AMP;
             const y = ground + MARKER_HEIGHT + bob;
             sprite.position.set(spot.x, y, spot.z);
-            sprite.visible = true;
             this.used++;
 
+            // one marker per pack: the world sprite while it stands in the
+            // free area, the edge pip the moment it would leave it (behind the
+            // camera, off screen, or under HUD chrome) — never both
             const edge = this.projectToEdge(spot.x, y, spot.z, camera, viewW, viewH, insets);
+            sprite.visible = !edge;
             if (edge) edgePts.push({ ...edge, seed: spot.seed });
         }
         for (let i = this.used; i < this.pool.length; i++) {
@@ -187,8 +196,15 @@ export class HordeMarkers {
         const sy = (1 - (this.tmp.y * 0.5 + 0.5)) * viewH;
 
         const box = this.safeBox(viewW, viewH, insets);
-        // on screen and clear of the HUD: the world sprite speaks for itself
-        if (sx >= box.left && sx <= box.right && sy >= box.top && sy <= box.bottom && this.tmp.z <= 1) {
+        // well clear of the rim: the world sprite speaks for itself
+        const m = Math.min(SNAP_MARGIN, (box.right - box.left) * 0.25, (box.bottom - box.top) * 0.25);
+        if (
+            sx >= box.left + m &&
+            sx <= box.right - m &&
+            sy >= box.top + m &&
+            sy <= box.bottom - m &&
+            this.tmp.z <= 1
+        ) {
             return null;
         }
 
