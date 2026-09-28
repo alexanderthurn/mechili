@@ -984,6 +984,12 @@ const APPROACH_OFFSET_MAX = 4.0;
  * stutter.
  */
 const MELEE_PRESS_BAND = 0.07;
+/**
+ * Slack on the reach check when a queued attack lands ({@link
+ * Sim.resolveAttackPending}): a foe that edged out during the windup still
+ * takes the blow, one standing further away does not.
+ */
+const ATTACK_PENDING_SLACK = 1.2;
 /** Free-flight: how far past the target counts as "behind" before coasting. */
 const FLY_PASS_CLEAR = 5.2;
 /** Free-flight: brief pause behind the foe before a det-random turn. */
@@ -2121,8 +2127,29 @@ export class BattleSim {
         a.meleePendingDamage = 0;
         a.meleePendingAt = 0;
         const focus = this.actors[a.meleePendingFocus];
-        let target = focus && focus.alive ? focus : this.closestEnemy(a);
-        if (!target) return; // whiff — nothing in range
+        const stats = this.statsOf(a);
+        // same reach the engagement step fires by (elevation included), so a
+        // shot started downhill isn't dropped when it lands
+        const inReach = (t: Actor): boolean =>
+            hypot(t.x - a.x, t.z - a.z) <=
+            effectiveWeaponReach(
+                this.weaponRange(a, t, stats.range),
+                a.radius,
+                t.radius,
+                this.feetY(a),
+                this.feetY(t),
+                this.elevationCounts(a, t),
+            ) * ATTACK_PENDING_SLACK;
+        let target: Actor | null = focus && focus.alive ? focus : null;
+        if (!target) {
+            // The focus died during the windup (the hammerer draws for a whole
+            // second): the blow may still pick up whoever else stands in front
+            // of it, but only within reach — otherwise the shot would leave for
+            // the closest foe anywhere on the board, far past the weapon's range.
+            const next = this.closestEnemy(a);
+            if (next && inReach(next)) target = next;
+        }
+        if (!target) return; // whiff — nothing in reach any more
 
         const speed = a.unit.type.projectileSpeed;
         if (speed) {
@@ -2138,10 +2165,8 @@ export class BattleSim {
             this.cleaveStrike(a, radius, damage, target);
             return;
         }
-        const stats = this.statsOf(a);
-        const reach = this.weaponRange(a, target, stats.range) + a.radius + target.radius;
         // slight slack so a foe that edged out mid-swing still takes the hit
-        if (tDist > reach * 1.2) return;
+        if (!inReach(target)) return;
         this.strikeMelee(a, target, damage, tdx, tdz, tDist);
     }
 
