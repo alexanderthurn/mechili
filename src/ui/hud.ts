@@ -812,8 +812,9 @@ export class Hud {
 
         this.undoEl = document.createElement('button');
         this.undoEl.className = 'undo';
-        this.undoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} ${t('hud:undo')}`;
+        this.undoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} <span class="undo-label">${t('hud:undo')}</span>`;
         this.undoEl.title = t('hud:undoTip');
+        this.undoEl.setAttribute('aria-label', t('hud:undo'));
         this.undoEl.addEventListener('click', () => this.onUndo?.());
 
         this.supplyFrame = document.createElement('div');
@@ -1265,8 +1266,9 @@ export class Hud {
         this.phoneStatusEl.className = 'mechili-phone-status';
         this.phoneUndoEl = document.createElement('button');
         this.phoneUndoEl.className = 'undo';
-        this.phoneUndoEl.innerHTML = `${iconHtml('ui-undo', 'btn-ico mask-ico')} ${t('hud:undo')}`;
+        this.phoneUndoEl.innerHTML = iconHtml('ui-undo', 'btn-ico mask-ico');
         this.phoneUndoEl.title = t('hud:undoTip');
+        this.phoneUndoEl.setAttribute('aria-label', t('hud:undo'));
         this.phoneUndoEl.addEventListener('click', () => this.onUndo?.());
         const phoneSupplyFrame = document.createElement('div');
         phoneSupplyFrame.className = 'mechili-supply clickable';

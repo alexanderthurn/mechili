@@ -4371,6 +4371,9 @@ ${chatFloatStyles(u, pc, ec)}
     .mechili-shop-col .level-all-global {
         display: none !important;
     }
+    .undo .undo-label {
+        display: none;
+    }
 }
 .mechili-phone-status .undo { pointer-events: auto; }
 /* compact versions of the shop-toolbar frames — the originals crowd End Deployment */
@@ -4384,8 +4387,12 @@ ${chatFloatStyles(u, pc, ec)}
     height: 20px;
 }
 .mechili-phone-status .undo {
+    height: 40px;
     min-height: 40px;
-    padding: 6px 10px;
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+    justify-content: center;
     font-size: 15px;
 }
 .mechili-phone-status .level-all-global {
