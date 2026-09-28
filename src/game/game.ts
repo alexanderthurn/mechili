@@ -1469,6 +1469,8 @@ export class Game {
             debugWindow.mechiliDebugDump = (opts) => this.debugLog.dump(opts);
             debugWindow.mechiliDebugClear = () => this.debugLog.clear();
         }
+        // always available: read-only look at this round's horde camps
+        (window as unknown as { mechiliHorde?: () => unknown }).mechiliHorde = () => this.hordeDebugInfo();
         this.settings = normalizeGameSettings(settingsInput);
         // combat SFX read unit sound sizes from the definitions this match plays
         setAudioUnitTypes(this.types);
@@ -3084,6 +3086,7 @@ export class Game {
         this.onRematch = null;
         this.onStarRematch = null;
         this.onStarRematchStart = null;
+        (window as unknown as { mechiliHorde?: (() => unknown) | undefined }).mechiliHorde = undefined;
         this.editorSession?.dispose();
         this.editorSession = null;
         this.onConnectionLost = null;
@@ -9988,7 +9991,58 @@ export class Game {
         // 0 points along +z; the leader's half decides which way that is
         const base = leaderSign >= 0 ? 0 : Math.PI;
         const out = HORDE_CAMP_NEAR + rng() * (HORDE_CAMP_FAR - HORDE_CAMP_NEAR);
-        return [base - spread, base + spread].map((angle) => this.hordeCampAt(angle, out));
+        const camps = [base - spread, base + spread].map((angle) => this.hordeCampAt(angle, out));
+        // read back with mechiliHorde() in the console
+        this.lastHordeWave = { leaderSign, ahead, spread, base, out, camps };
+        return camps;
+    }
+
+    /** what the last wave's camp maths decided — console only (mechiliHorde) */
+    private lastHordeWave: {
+        leaderSign: number;
+        ahead: number;
+        spread: number;
+        base: number;
+        out: number;
+        camps: { x: number; z: number }[];
+    } | null = null;
+
+    /**
+     * Console helper: where this round's camps stand and why. Degrees are
+     * measured from the leader's half, so ±90 is "left and right".
+     */
+    private hordeDebugInfo(): unknown {
+        const deg = (rad: number) => Math.round((rad * 180) / Math.PI);
+        const w = this.lastHordeWave;
+        const standing = this.hordeStanding();
+        const packs = this.placement
+            .allUnits()
+            .filter((u) => u.team === 'horde' && u.marchIn && !u.destroyed)
+            .map((u) => ({
+                type: u.type.id,
+                x: Math.round(u.world.x),
+                z: Math.round(u.world.z),
+                pastEdge: Math.round(
+                    Math.max(Math.abs(u.world.x) - this.map.halfW, Math.abs(u.world.z) - this.map.halfH, 0),
+                ),
+            }));
+        return {
+            round: this.round,
+            standing: { player: +standing.player.toFixed(3), enemy: +standing.enemy.toFixed(3) },
+            ahead: w ? +w.ahead.toFixed(3) : null,
+            spreadDeg: w ? deg(w.spread) : null,
+            baseDeg: w ? deg(w.base) : null,
+            outAsked: w ? Math.round(w.out) : null,
+            board: { halfW: Math.round(this.map.halfW), halfH: Math.round(this.map.halfH), ownAtFar: this.map.ownAtFar },
+            camps: (w?.camps ?? []).map((c) => ({
+                x: Math.round(c.x),
+                z: Math.round(c.z),
+                pastEdge: Math.round(Math.max(Math.abs(c.x) - this.map.halfW, Math.abs(c.z) - this.map.halfH, 0)),
+                // where it actually ended up, as an angle from the leader's half
+                deg: deg(Math.atan2(c.x, c.z)) - (w ? deg(w.base) : 0),
+            })),
+            packs,
+        };
     }
 
     /**
