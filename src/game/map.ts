@@ -1718,9 +1718,9 @@ export class BattleMap {
                     // Burnt ground reads as earth, not a black hole: light scorch is the dirt
                     // browned and dulled (singed grass), heavy scorch goes dark with charcoal flecks.
                     '\tvec3 charCol = vec3( 0.012, 0.009, 0.007 );\n' +
-                    '\tvec3 singed = mix( sandTexel * vec3( 0.66, 0.54, 0.42 ), diffuseColor.rgb * vec3( 0.55, 0.45, 0.36 ), 0.25 );\n' +
-                    '\tvec3 burntDark = mix( sandTexel * vec3( 0.30, 0.24, 0.19 ), charCol, smoothstep( 0.30, 0.75, ashBreak ) );\n' +
-                    '\tfloat burnDeep = smoothstep( 0.30, 0.85, wear.b );\n' +
+                    '\tvec3 singed = mix( sandTexel * vec3( 0.46, 0.37, 0.28 ), diffuseColor.rgb * vec3( 0.38, 0.31, 0.24 ), 0.25 );\n' +
+                    '\tvec3 burntDark = mix( sandTexel * vec3( 0.21, 0.165, 0.13 ), charCol, smoothstep( 0.30, 0.75, ashBreak ) );\n' +
+                    '\tfloat burnDeep = smoothstep( 0.22, 0.80, wear.b );\n' +
                     '\tvec3 burnCol = mix( singed, burntDark, burnDeep );\n' +
                     '\tdiffuseColor.rgb = mix( diffuseColor.rgb, burnCol, scorchFill );\n' +
                     (bloodTintMask
@@ -1778,7 +1778,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v65${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
+            `ground-hazard-v66${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones4' : ''}`;
     }
