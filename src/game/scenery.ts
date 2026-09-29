@@ -235,6 +235,11 @@ const MOUNTAIN_RISE_SPAN = 360;
 /** Crest / world cut — hold peak height from ~470 out to 500. */
 export const MOUNTAIN_PEAK_END = 500;
 
+/** alm: flat meadow radius, the ease into the mountainside, and the height it is sought at (half the range) */
+const ALM_RADIUS = 65;
+const ALM_EASE = 55;
+const ALM_HEIGHT = 240;
+
 /** what the mountain cloud banks bleach toward under snow */
 const MIST_SNOW_WHITE = new Color(0xf4f7fb);
 
@@ -464,6 +469,8 @@ export class Scenery {
     /** ultra: cloud banks lying on the mountain shelves (see createMountainMist) */
     private readonly mistBanks: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     private mountainMistMaterial: MeshBasicMaterial | null = null;
+    /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
+    private readonly almSites: { x: number; z: number; y: number }[] = [];
     private time = 0;
     private readonly cloudBoundsX: number;
     /** Square outer-ground size (world units) — mountain ring plus a short skirt. */
@@ -607,7 +614,7 @@ export class Scenery {
             const basinN = noise(x / 270 + 77.7, z / 270 + 31.3);
             return smooth01((basinN - 0.52) / 0.14) * ring;
         };
-        const proceduralHeight: HeightSampler = (x, z) => {
+        const rawHeight: HeightSampler = (x, z) => {
             // keep the playable AABB flat — field mesh owns that surface
             if (Math.abs(x) <= map.halfW && Math.abs(z) <= map.halfH) return 0;
 
@@ -657,37 +664,67 @@ export class Scenery {
             // range still stands at ~a quarter of its height instead of sinking to the foothills.
             const massif = 0.28 + 0.72 * ridge;
             const rawMountain = rise * (45 + 310 * massif * (0.72 + 0.43 * sharp * sharpZone) + 95 * hero * ridge);
-            // Alms: in broad patches the flank steps up in benches every 45 wu — a wide flat
-            // stretch (60%) of each step, then a steep riser — so there is level ground on the
-            // lower range, where the alpine meadows grow (see alpineMeadowAt). floor() is exact,
-            // so this is as deterministic as the rest.
-            const shelfZone = smooth01((noise(x / 210 + 88.8, z / 210 + 27.3) - 0.48) / 0.1);
-            const bench = rawMountain / 45;
-            const benchFloor = Math.floor(bench);
-            const stepped = (benchFloor + smooth01((bench - benchFloor - 0.6) / 0.4)) * 45;
-            const shelfW = shelfZone * smooth01((rawMountain - 40) / 25);
-            const mountain = rawMountain + (stepped - rawMountain) * shelfW;
-            // on a tread the rolling hills and surface wrinkles are pressed out too, or the
-            // "flat" alm still rolls at a slope no meadow would grow on
-            const tread = shelfW * (1 - smooth01((bench - benchFloor - 0.55) / 0.15)) * 0.92;
+            const mountain = rawMountain;
             // Foothills die as the high range takes over — don't resume a
             // second meadow behind the mountain ring.
             const foothill = 1 - smooth01((dClimb - 400) / 280);
-            const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn * foothill * (1 - tread);
+            const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn * foothill;
             const base = rolling + mountain;
             // Surface wrinkles on the original big shapes — stronger the higher
             // you climb, not extra summits. ~15wu / ~8wu so the mesh can hold them.
             const climb = smooth01((base - 12) / 90);
             const wrinkles =
-                ((noise(x / 22 + 14.2, z / 22 + 3.6) - 0.5) * 6 * climb +
-                    (noise(x / 12 + 27.1, z / 12 + 41.8) - 0.5) * 2.2 * climb) *
-                (1 - tread);
+                (noise(x / 22 + 14.2, z / 22 + 3.6) - 0.5) * 6 * climb +
+                (noise(x / 12 + 27.1, z / 12 + 41.8) - 0.5) * 2.2 * climb;
 
             // lakes win over everything: where the basin noise runs high the
             // ground is pressed to -7, well below the water table at -1.1
             const lake = this.lakeAt(x, z);
             const depth = -7 * smooth01((dClimb - 25) / 45);
             return (base + wrinkles) * (1 - lake) + depth * lake;
+        };
+        // Two alms: broad level meadows high on the range, where a few trees stand. Where they
+        // sit comes from the match seed (same for every peer), and each is a flat disc pressed
+        // into the mountainside at the height it was found — cut into the slope like a real bench.
+        if (!landscape) {
+            const almRng = mulberry32((seed ^ 0x5a17c3) >>> 0);
+            const found: { x: number; z: number; y: number; score: number }[] = [];
+            for (let i = 0; i < 900; i++) {
+                const x = (almRng() * 2 - 1) * (map.halfW + 420);
+                const z = (almRng() * 2 - 1) * (map.halfH + 420);
+                const dOut = pastBoard(map.halfW, map.halfH, x, z);
+                if (dOut < 230 || dOut > 400 || this.lakeAt(x, z) > 0.02) continue;
+                const y = rawHeight(x, z);
+                // half of the range's height, on ground that is not already a cliff
+                const grade =
+                    Math.max(
+                        Math.abs(rawHeight(x + 30, z) - y),
+                        Math.abs(rawHeight(x - 30, z) - y),
+                        Math.abs(rawHeight(x, z + 30) - y),
+                        Math.abs(rawHeight(x, z - 30) - y),
+                    ) / 30;
+                found.push({ x, z, y, score: Math.abs(y - ALM_HEIGHT) + grade * 90 });
+            }
+            found.sort((a, b) => a.score - b.score);
+            for (const f of found) {
+                if (this.almSites.length >= 2) break;
+                if (this.almSites.every((o) => Math.hypot(o.x - f.x, o.z - f.z) > 260)) {
+                    this.almSites.push({ x: f.x, z: f.z, y: f.y });
+                }
+            }
+        }
+        const almSites = this.almSites;
+        const proceduralHeight: HeightSampler = (x, z) => {
+            let h = rawHeight(x, z);
+            for (const site of almSites) {
+                const dx = x - site.x;
+                const dz = z - site.z;
+                const reach = ALM_RADIUS + ALM_EASE;
+                const d2 = dx * dx + dz * dz;
+                if (d2 >= reach * reach) continue;
+                h += (site.y - h) * (1 - smooth01((Math.sqrt(d2) - ALM_RADIUS) / ALM_EASE));
+            }
+            return h;
         };
         // a static map replaces the procedural ring outright — placement,
         // paint and the gameplay height below all read the same surface
@@ -889,24 +926,14 @@ export class Scenery {
         }
     }
 
-    /**
-     * 0..1 alm: broad level meadows on the lower range (30–150 wu), where grass holds on
-     * and only a few trees stand. The rest of the mountain stays bare stone.
-     */
-    private alpineMeadowAt(x: number, z: number, h = this.terrainHeight(x, z)): number {
-        if (h < 30 || h > 150 || this.landscape) return 0;
-        const alt = smooth01((h - 30) / 20) * (1 - smooth01((h - 105) / 45));
-        const patch = smooth01((this.noise(x / 120 + 13.3, z / 120 + 71.9) - 0.44) / 0.12);
-        if (alt * patch <= 0) return 0;
-        const S = 8;
-        const slope =
-            Math.max(
-                Math.abs(this.terrainHeight(x + S, z) - h),
-                Math.abs(this.terrainHeight(x - S, z) - h),
-                Math.abs(this.terrainHeight(x, z + S) - h),
-                Math.abs(this.terrainHeight(x, z - S) - h),
-            ) / S;
-        return alt * patch * (1 - smooth01((slope - 0.16) / 0.24));
+    /** 0..1 alm: the two flat mountain meadows (grass holds on, a few trees stand) */
+    private alpineMeadowAt(x: number, z: number, _h?: number): number {
+        let best = 0;
+        for (const site of this.almSites) {
+            const d = Math.hypot(x - site.x, z - site.z);
+            best = Math.max(best, 1 - smooth01((d - ALM_RADIUS * 0.9) / 24));
+        }
+        return best;
     }
 
     /** True where the meadow texture still reads green (not mountain stone). */
@@ -2871,6 +2898,13 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
 
         /** random grassy point outside the field (never on mountain stone / past crest) */
         const forestSpot = (maxHeight: number): { x: number; z: number } => {
+            // now and then a spot on one of the alms, so they are not bare
+            if (this.almSites.length > 0 && rng() < 0.08) {
+                const site = this.almSites[Math.floor(rng() * this.almSites.length)]!;
+                const a = rng() * Math.PI * 2;
+                const r = Math.sqrt(rng()) * ALM_RADIUS * 0.85;
+                return { x: site.x + Math.cos(a) * r, z: site.z + Math.sin(a) * r };
+            }
             const tries = dens.outer >= 5 ? 80 : 24;
             for (let attempt = 0; attempt < tries; attempt++) {
                 // ultra: near wall + mid meadow + far green foothills
@@ -2888,10 +2922,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 const d = distOut(x, z);
                 if (d < keepOut) continue;
                 const h = this.terrainHeight(x, z);
-                // an alm keeps only the odd tree, and may reach above the usual tree height
-                const alm = this.alpineMeadowAt(x, z, h);
-                if (alm > 0.3 && rng() > 0.2) continue;
-                if (h > maxHeight && (h > 130 || alm < 0.5)) continue;
+                if (h > maxHeight) continue;
                 if (h < -0.4) continue; // no trees in the lakes
                 if (!this.isGrassy(x, z)) continue; // no trees on rock/snow
                 if (this.plantClearedAt(x, z)) continue;
