@@ -27,7 +27,7 @@ import { CameraRig } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, buildingMaxLevel, buildingUpgradeFor, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction } from './actions';
+import { ActionDispatcher, buildingMaxLevel, buildingUpgradeFor, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
 import {
     emptyForgeSlots,
     forgeHintText,
@@ -493,10 +493,10 @@ export class Game {
     private readonly oilField: HazardField;
     private readonly oilBaseline: HazardField;
     private readonly oilStamps: OilStamp[] = [];
-    private readonly oilStampIds = { next: 1 };
+    private readonly oilStampIds: TacticIdSource = { bySeat: [] };
     /** battle-spell stamps — NEVER cleared per round: old ones drive cooldowns */
     private readonly spellStamps: SpellStamp[] = [];
-    private readonly spellStampIds = { next: 1 };
+    private readonly spellStampIds: TacticIdSource = { bySeat: [] };
     private appliedFireVfx: FireVfxQuality = prefs().fireVfx;
     private readonly unitInstances: UnitInstanceRenderer;
     private scenery: Scenery;
@@ -840,7 +840,7 @@ export class Game {
     };
     /** rally routes placed this deployment round */
     private readonly rallyRoutes: RallyRoute[] = [];
-    private readonly rallyRouteIds = { next: 1 };
+    private readonly rallyRouteIds: TacticIdSource = { bySeat: [] };
     /** per-SEAT unit types buyable in the shop this match (own card + own unlocks) */
     private readonly unlockedUnits: string[][];
     /** per-SEAT: at most one shop unlock per deployment round */

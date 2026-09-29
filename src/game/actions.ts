@@ -426,6 +426,28 @@ type ActionVariant =
  */
 export type Action = ActionVariant & { seat?: SeatId };
 
+/** per-seat counters behind the ids of rally routes, oil stamps and spell stamps */
+export interface TacticIdSource {
+    bySeat: number[];
+}
+
+/** room for this many seats in an id's low part */
+const TACTIC_ID_SEAT_STRIDE = 64;
+
+/**
+ * The id of a seat's next route / stamp: its own count, interleaved by seat — the scheme unit
+ * ids use. Every client agrees on it. One shared counter numbered them in the order the actions
+ * ARRIVED, which differs per client (each applies its own actions first): two players placing
+ * spells in the same round got swapped ids, so the spell's random seed (`spell:<id>`), the
+ * battle-start order, and a later remove action (which names the id) disagreed between clients.
+ */
+export function nextTacticId(source: TacticIdSource, seat: SeatId): number {
+    const s = seat < 0 ? TACTIC_ID_SEAT_STRIDE - 1 : seat;
+    const n = (source.bySeat[s] ?? 0) + 1;
+    source.bySeat[s] = n;
+    return n * TACTIC_ID_SEAT_STRIDE + s;
+}
+
 /** one applied action as stored in a replay */
 export interface LoggedAction {
     round: number;
@@ -556,8 +578,8 @@ export interface ActionContext {
     forgePoolOf: (team: Team) => ForgeSpellPool;
     /** rally routes placed this deployment round (cleared each round) */
     rallyRoutes: RallyRoute[];
-    /** monotonic id source for rally routes */
-    rallyRouteIds: { next: number };
+    /** id source for rally routes (see {@link nextTacticId}) */
+    rallyRouteIds: TacticIdSource;
     /**
      * Persistent oil grid (shared, both teams). `oilBaseline` is the field at
      * the start of the current build phase; `oilStamps` are this deployment's
@@ -567,14 +589,14 @@ export interface ActionContext {
     oilField: HazardField;
     oilBaseline: HazardField;
     oilStamps: OilStamp[];
-    oilStampIds: { next: number };
+    oilStampIds: TacticIdSource;
     /**
      * Battle-spell stamps, kept FOREVER (not cleared per round): stamps of
      * the running round are pending intent; older ones are the fired history
      * that drives the per-tactic cooldown window.
      */
     spellStamps: SpellStamp[];
-    spellStampIds: { next: number };
+    spellStampIds: TacticIdSource;
     /** whether each SEAT already took (or skipped) this round's card */
     roundCardTaken: boolean[];
     /** which sides have locked in this deployment — battle needs BOTH */
@@ -1530,7 +1552,7 @@ export class ActionDispatcher {
                 const endAim = this.onBoard(action.endX, action.endZ, RALLY_ROUTE_RADIUS);
                 const end = clampTacticEnd(mid.x, mid.z, endAim.x, endAim.z, maxSpan);
                 const route: RallyRoute = {
-                    id: this.ctx.rallyRouteIds.next++,
+                    id: nextTacticId(this.ctx.rallyRouteIds, seat),
                     team: action.team,
                     seat,
                     startX: start.x,
@@ -1567,7 +1589,7 @@ export class ActionDispatcher {
                 const endAim = this.onBoard(action.endX, action.endZ, radius);
                 const end = clampTacticEnd(start.x, start.z, endAim.x, endAim.z);
                 const stamp: OilStamp = {
-                    id: this.ctx.oilStampIds.next++,
+                    id: nextTacticId(this.ctx.oilStampIds, seat),
                     team: action.team,
                     seat,
                     startX: start.x,
@@ -1652,7 +1674,7 @@ export class ActionDispatcher {
                     end = clampTacticEnd(at.x, at.z, aim.x, aim.z, tactic.maxSpan);
                 }
                 const stamp: SpellStamp = {
-                    id: this.ctx.spellStampIds.next++,
+                    id: nextTacticId(this.ctx.spellStampIds, seat),
                     tacticId: action.tacticId,
                     team: action.team,
                     seat,
