@@ -414,6 +414,9 @@ export class BattleMap {
     private fireCharcoalGround = false;
     /** 0..1 weather-driven snow dusting on the board (see `setSnowCover`) */
     private snowCoverUniform: { value: number } | null = null;
+    /** the dark twin of the single-cell grid lines; its opacity follows the snow (see createOverlayMesh) */
+    private overlayDarkGrid: MeshBasicMaterial | null = null;
+    private overlaySnow = 0;
 
     /** ground texture + wear quality (the board's SHAPE is never gated) */
     private groundEffects: GroundEffectsQuality = prefs().groundEffects;
@@ -1486,6 +1489,24 @@ export class BattleMap {
     /** Weather-driven snow wash on the board (visual only, melts under fire/oil/acid). */
     setSnowCover(v: number): void {
         if (this.snowCoverUniform) this.snowCoverUniform.value = v;
+        this.overlaySnow = this.groundWhiteness(v);
+        this.syncDarkGrid();
+    }
+
+    /** how white the board ground is at a snow cover: the same test the ground shader runs */
+    private groundWhiteness(cover: number): number {
+        const line = 220 - (220 - -15) * cover;
+        const a = line - 40;
+        const b = line + 15;
+        const t = Math.min(1, Math.max(0, (0 - a) / (b - a)));
+        return t * t * (3 - 2 * t);
+    }
+
+    private syncDarkGrid(): void {
+        const mat = this.overlayDarkGrid;
+        if (!mat) return;
+        mat.opacity = this.overlaySnow;
+        mat.visible = this.overlaySnow > 0.01;
     }
 
     /**
@@ -2242,6 +2263,37 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }),
         );
         mesh.position.y = 0.02;
+
+        // The single-cell lines are white on purpose — on lawn. On snow they vanish, so a dark
+        // twin of just those lines sits over them, fading in with the snow (and out again),
+        // sharing the overlay's geometry so it follows the relief. Nothing else changes colour.
+        const dark = document.createElement('canvas');
+        dark.width = w;
+        dark.height = h;
+        const dctx = dark.getContext('2d')!;
+        dctx.strokeStyle = t.gridSnow;
+        dctx.lineWidth = 2;
+        dctx.beginPath();
+        for (let c = rim; c <= this.cols - rim; c++) {
+            const x = c * cellPx;
+            dctx.moveTo(x, rimPx);
+            dctx.lineTo(x, h - rimPx);
+        }
+        for (let r = rim; r <= this.rows - rim; r++) {
+            const y = r * cellPx;
+            dctx.moveTo(rimPx, y);
+            dctx.lineTo(w - rimPx, y);
+        }
+        dctx.stroke();
+        const darkTex = new CanvasTexture(dark);
+        darkTex.colorSpace = SRGBColorSpace;
+        darkTex.anisotropy = 8;
+        const darkMat = new MeshBasicMaterial({ map: darkTex, transparent: true, depthWrite: false, opacity: 0 });
+        const darkMesh = new Mesh(geometry, darkMat);
+        darkMesh.renderOrder = 1;
+        mesh.add(darkMesh);
+        this.overlayDarkGrid = darkMat;
+        this.syncDarkGrid();
         return mesh;
     }
 }

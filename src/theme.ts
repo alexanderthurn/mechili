@@ -78,8 +78,10 @@ export const THEME = {
         dirt: 'rgba(138, 122, 78, 0.5)',
         // edge darkening — kept very light so the field blends into the outer meadow
         vignette: 'rgba(18, 42, 14, 0.04)',
-        // the single-cell lines only: a dark slate reads on lawn and on snow alike (white vanished in winter)
-        grid: 'rgba(30, 45, 70, 0.3)',
+        grid: 'rgba(255, 255, 255, 0.2)',
+        // the same single-cell lines while the ground is white: white would vanish, so a dark slate
+        // twin of the grid fades in over them with the snow (see BattleMap.createOverlayMesh)
+        gridSnow: 'rgba(30, 45, 70, 0.34)',
         centerLine: 'rgba(255, 220, 80, 0.6)',
         /** duo/2v2: dashed divider marking where your own lane ends */
         laneLine: 'rgba(255, 255, 255, 0.5)',

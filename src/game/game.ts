@@ -10965,6 +10965,12 @@ export class Game {
         const material = this.gridOverlay.material as import('three').MeshBasicMaterial;
         material.map?.dispose();
         material.dispose();
+        // the snow twin of the grid lines (shares the geometry, owns its texture)
+        for (const child of this.gridOverlay.children) {
+            const twin = (child as Mesh).material as import('three').MeshBasicMaterial | undefined;
+            twin?.map?.dispose();
+            twin?.dispose();
+        }
         this.gridOverlay.geometry.dispose();
         this.gridOverlay = this.map.createOverlayMesh(seatLane(this.seats, this.humanSeat));
         this.gridOverlay.visible = wasVisible;
