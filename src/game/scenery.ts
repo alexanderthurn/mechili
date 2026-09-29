@@ -665,19 +665,23 @@ export class Scenery {
             const bench = rawMountain / 45;
             const benchFloor = Math.floor(bench);
             const stepped = (benchFloor + smooth01((bench - benchFloor - 0.6) / 0.4)) * 45;
-            const mountain =
-                rawMountain + (stepped - rawMountain) * shelfZone * 0.85 * smooth01((rawMountain - 50) / 40);
+            const shelfW = shelfZone * smooth01((rawMountain - 40) / 25);
+            const mountain = rawMountain + (stepped - rawMountain) * shelfW;
+            // on a tread the rolling hills and surface wrinkles are pressed out too, or the
+            // "flat" alm still rolls at a slope no meadow would grow on
+            const tread = shelfW * (1 - smooth01((bench - benchFloor - 0.55) / 0.15)) * 0.92;
             // Foothills die as the high range takes over — don't resume a
             // second meadow behind the mountain ring.
             const foothill = 1 - smooth01((dClimb - 400) / 280);
-            const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn * foothill;
+            const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn * foothill * (1 - tread);
             const base = rolling + mountain;
             // Surface wrinkles on the original big shapes — stronger the higher
             // you climb, not extra summits. ~15wu / ~8wu so the mesh can hold them.
             const climb = smooth01((base - 12) / 90);
             const wrinkles =
-                (noise(x / 22 + 14.2, z / 22 + 3.6) - 0.5) * 6 * climb +
-                (noise(x / 12 + 27.1, z / 12 + 41.8) - 0.5) * 2.2 * climb;
+                ((noise(x / 22 + 14.2, z / 22 + 3.6) - 0.5) * 6 * climb +
+                    (noise(x / 12 + 27.1, z / 12 + 41.8) - 0.5) * 2.2 * climb) *
+                (1 - tread);
 
             // lakes win over everything: where the basin noise runs high the
             // ground is pressed to -7, well below the water table at -1.1
