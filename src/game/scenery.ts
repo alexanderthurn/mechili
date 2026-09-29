@@ -14,6 +14,7 @@ import {
     Matrix4,
     Mesh,
     MeshBasicMaterial,
+    MeshLambertMaterial,
     MeshStandardMaterial,
     Object3D,
     PlaneGeometry,
@@ -296,7 +297,7 @@ export class Scenery {
     private readonly reseatScale = new Vector3();
 
     private waterTexture: CanvasTexture | null = null;
-    private waterMaterial: MeshStandardMaterial | null = null;
+    private waterMaterial: MeshStandardMaterial | MeshLambertMaterial | null = null;
     private waterFreezeUniform: { value: number } | null = null;
     /** drives the outer meadow's weather-driven snow blend (see `applyMeadowTexture`) */
     private outerGroundSnowUniform: { value: number } | null = null;
@@ -799,7 +800,10 @@ export class Scenery {
             const snowLine = 220 - (220 - -15) * cover;
             const freeze = Math.min(1, Math.max(0, (0 - (snowLine - 40)) / 55));
             this.waterFreezeUniform.value = freeze;
-            this.waterMaterial.roughness = 0.18 + freeze * 0.55;
+            // the matte (medium) water has no gloss to lose
+            if (this.waterMaterial instanceof MeshStandardMaterial) {
+                this.waterMaterial.roughness = 0.18 + freeze * 0.55;
+            }
             this.waterMaterial.opacity = 0.86 + freeze * 0.12;
         }
         this.time += dtSeconds;
@@ -876,13 +880,23 @@ export class Scenery {
         const freezeUniform = { value: 0 };
         const iceUniform: { value: import('three').Texture | null } = { value: null };
         this.waterFreezeUniform = freezeUniform;
-        const material = new MeshStandardMaterial({
-            map: this.waterTexture,
-            transparent: true,
-            opacity: 0.86,
-            roughness: 0.18,
-            metalness: 0,
-        });
+        // Medium water is matte: a Lambert has no specular term at all, so the
+        // sun leaves no glint on it (and it is the cheaper shader for that
+        // tier). High and up keep the glossy standard material.
+        const material =
+            this.quality === 'medium'
+                ? new MeshLambertMaterial({
+                      map: this.waterTexture,
+                      transparent: true,
+                      opacity: 0.86,
+                  })
+                : new MeshStandardMaterial({
+                      map: this.waterTexture,
+                      transparent: true,
+                      opacity: 0.86,
+                      roughness: 0.18,
+                      metalness: 0,
+                  });
         this.waterMaterial = material;
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uFreeze = freezeUniform;
