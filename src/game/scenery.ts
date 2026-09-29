@@ -235,6 +235,10 @@ const MOUNTAIN_RISE_SPAN = 360;
 /** Crest / world cut — hold peak height from ~470 out to 500. */
 export const MOUNTAIN_PEAK_END = 500;
 
+/** the super mountain: footprint radius and the height it adds to the ground under it */
+const SUPER_RADIUS = 190;
+const SUPER_HEIGHT = 300;
+
 /** alm: flat meadow radius, the ease into the mountainside, and the height it is sought at (half the range) */
 const ALM_RADIUS = 65;
 const ALM_EASE = 55;
@@ -493,6 +497,8 @@ export class Scenery {
         cap: { sprite: Sprite; material: SpriteMaterial; angle: number; radius: number; height: number; spin: number; size: number; rank: number }[];
     }[] = [];
     /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
+    /** where the super mountain stands (null on a static map) */
+    private superPeak: { x: number; z: number } | null = null;
     private readonly almSites: { x: number; z: number; y: number; ux: number; uz: number }[] = [];
     private time = 0;
     private readonly cloudBoundsX: number;
@@ -675,7 +681,7 @@ export class Scenery {
             }
             return best;
         };
-        const rawHeight: HeightSampler = (x, z) => {
+        const baseHeight: HeightSampler = (x, z) => {
             // keep the playable AABB flat — field mesh owns that surface
             if (Math.abs(x) <= map.halfW && Math.abs(z) <= map.halfH) return 0;
 
@@ -744,6 +750,40 @@ export class Scenery {
             const depth = -7 * smooth01((dClimb - 25) / 45);
             return (base + wrinkles) * (1 - lake) + depth * lake;
         };
+        // The one super mountain: a massif standing on the far side of the valley, well above the
+        // rest of the range (which stays as it is). It is added on top of the ordinary height, so
+        // the seed only decides where it stands: on the highest ground it finds there, off any lake.
+        // Only this peak wears the big summit cloud (see createSnowPlumes).
+        if (!landscape) {
+            const superRng = mulberry32((seed ^ 0x77ab13) >>> 0);
+            let bestH = -Infinity;
+            for (let i = 0; i < 400; i++) {
+                const x = (superRng() * 2 - 1) * (map.halfW + 120);
+                const z = -(map.halfH + 240 + superRng() * 140);
+                if (this.lakeAt(x, z) > 0.01) continue;
+                const h = baseHeight(x, z);
+                if (h > bestH) {
+                    bestH = h;
+                    this.superPeak = { x, z };
+                }
+            }
+        }
+        const superPeak = this.superPeak;
+        const rawHeight: HeightSampler = (x, z) => {
+            let h = baseHeight(x, z);
+            if (superPeak) {
+                const dx = x - superPeak.x;
+                const dz = z - superPeak.z;
+                const w = 1 - Math.sqrt(dx * dx + dz * dz) / SUPER_RADIUS;
+                if (w > 0) {
+                    // a cusp-tipped cone (w^1.5 from sqrt, so it is exact everywhere), roughened by
+                    // a crest noise so it is craggy and not a funnel
+                    const crag = 0.8 + 0.4 * noise(x / 34 + 3.3, z / 34 + 8.1);
+                    h += SUPER_HEIGHT * w * Math.sqrt(w) * crag;
+                }
+            }
+            return h;
+        };
         // Two alms: broad level meadows high on the range, where a few trees stand. Where they
         // sit comes from the match seed (same for every peer), and each is a flat disc pressed
         // into the mountainside at the height it was found — cut into the slope like a real bench.
@@ -755,6 +795,7 @@ export class Scenery {
                 const z = (almRng() * 2 - 1) * (map.halfH + 420);
                 const dOut = pastBoard(map.halfW, map.halfH, x, z);
                 if (dOut < 180 || dOut > 400 || this.lakeAt(x, z) > 0.02) continue;
+                if (superPeak && (x - superPeak.x) ** 2 + (z - superPeak.z) ** 2 < (SUPER_RADIUS + 60) ** 2) continue;
                 const y = rawHeight(x, z);
                 // half of the range's height, on ground that is not already a cliff
                 const grade =
@@ -1014,27 +1055,25 @@ export class Scenery {
     }
 
     /**
-     * Ultra: the tallest summits wear cloud. On peaks this high the top is rarely clear —
+     * Ultra: the super mountain's summit wears cloud. On a peak this high the top is rarely clear —
      * moisture condenses on it even in fine weather — so each carries a cap of large soft puffs
      * wrapped round and a little in front of the summit, plus a banner of snow streaming off
      * downwind. Fine weather leaves a small cap that comes and goes; fog, rain and snow bury the
      * peak in it. Camera-facing sprites: no card edges or crossings from any side.
      */
     private createSnowPlumes(map: BattleMap, rng: () => number): void {
-        const crests: { x: number; z: number; h: number }[] = [];
-        for (let i = 0; i < 5000; i++) {
-            const x = (rng() * 2 - 1) * (map.halfW + MOUNTAIN_PEAK_END);
-            const z = (rng() * 2 - 1) * (map.halfH + MOUNTAIN_PEAK_END);
-            if (pastBoard(map.halfW, map.halfH, x, z) > MOUNTAIN_PEAK_END - 40) continue;
-            const h = this.terrainHeight(x, z);
-            if (h > 230) crests.push({ x, z, h });
-        }
-        crests.sort((a, b) => b.h - a.h);
+        // one peak only: the super mountain
         const chosen: { x: number; z: number; h: number }[] = [];
-        for (const c of crests) {
-            if (chosen.length >= 7) break;
-            if (chosen.some((o) => (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 110 * 110)) continue;
-            chosen.push(c);
+        if (this.superPeak) {
+            // (the summit is the highest point on the cone: search the top of it)
+            let top = { x: this.superPeak.x, z: this.superPeak.z, h: -Infinity };
+            for (let i = 0; i < 400; i++) {
+                const x = this.superPeak.x + (rng() * 2 - 1) * 20;
+                const z = this.superPeak.z + (rng() * 2 - 1) * 20;
+                const h = this.terrainHeight(x, z);
+                if (h > top.h) top = { x, z, h };
+            }
+            chosen.push(top);
         }
         const makePuff = (): { sprite: Sprite; material: SpriteMaterial } => {
             const material = new SpriteMaterial({
@@ -1052,13 +1091,10 @@ export class Scenery {
         };
         const BANNER = 7;
         const CAP_MAX = 18;
-        const tallest = chosen[0]?.h ?? 300;
         for (const c of chosen) {
-            // the cap is sized by the peak: the tallest carries the full cloud, a lower one a
-            // smaller, tighter cluster
-            const t = Math.min(1, Math.max(0, (c.h - 230) / Math.max(1, tallest - 230)));
-            const k = 0.45 + 0.75 * t;
-            const CAP = Math.round(9 + (CAP_MAX - 9) * t);
+            // the super mountain carries the full cloud, and a little more than the cap once had
+            const k = 1.25;
+            const CAP = CAP_MAX + 6;
             const len = Math.sqrt(c.x * c.x + c.z * c.z) || 1;
             const plume: (typeof this.snowPlumes)[number] = {
                 crest: new Vector3(c.x, c.h - 2, c.z),
