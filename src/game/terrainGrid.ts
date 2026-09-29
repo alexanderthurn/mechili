@@ -210,6 +210,43 @@ export class TerrainGrid {
         this.noteDeformed(rect);
     }
 
+    /**
+     * A flat-bottomed pit: lowers every node inside `radius` by the same `depth`,
+     * with only a narrow rim (the outer `rimShare` of the radius) easing back to the
+     * untouched ground. Unlike {@link crater} there is no peak in the middle, so a
+     * whole area drops evenly and its border is as low as its centre. `floor` is the
+     * lowest it may dig; ground already below it stays where it is.
+     *
+     * Deterministic like the rest: sqrt is correctly rounded, the ease is a cubic.
+     */
+    melt(cx: number, cz: number, radius: number, depth: number, floor: number = BOARD_MIN_Y, rimShare = 0.2): void {
+        const r = Math.max(1e-3, radius);
+        const inner = r * (1 - rimShare);
+        const span = Math.max(1e-3, r - inner);
+        const rect = this.nodeRect(cx - r, cz - r, cx + r, cz + r);
+        if (!rect) return;
+        for (let iz = rect.z0; iz <= rect.z1; iz++) {
+            const dz = -this.halfH + iz * this.cellZ - cz;
+            const row = iz * this.nx;
+            for (let ix = rect.x0; ix <= rect.x1; ix++) {
+                const dx = -this.halfW + ix * this.cellX - cx;
+                const d = Math.sqrt(dx * dx + dz * dz);
+                if (d >= r) continue;
+                let w = 1;
+                if (d > inner) {
+                    const t = (r - d) / span;
+                    w = t * t * (3 - 2 * t);
+                }
+                const i = row + ix;
+                const before = this.heights[i]!;
+                const lo = before < floor ? before : floor;
+                const next = before - depth * w;
+                this.heights[i] = next < lo ? lo : next;
+            }
+        }
+        this.noteDeformed(rect);
+    }
+
     /** the changed node rectangle since the last call (null: nothing changed) */
     takeDirty(): TerrainRect | null {
         const r = this.dirty;

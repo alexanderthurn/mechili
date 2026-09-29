@@ -986,7 +986,7 @@ const APPROACH_OFFSET_MAX = 4.0;
  */
 const MELEE_PRESS_BAND = 0.07;
 /** Acid drips dig the board: bowl radius (× the drip's), depth per drip, and the lowest they may dig. */
-const ACID_MELT_RADIUS_MULT = 0.5;
+const ACID_MELT_RADIUS_MULT = 1;
 /** total depth one drip digs, and the seconds it takes to sink that far */
 const ACID_MELT_DEPTH = 12;
 const ACID_MELT_SECONDS = 4;
@@ -3305,7 +3305,7 @@ export class BattleSim {
         if (!terrain || this.acidMelts.length === 0) return;
         let write = 0;
         for (const m of this.acidMelts) {
-            terrain.crater(m.x, m.z, m.r, m.perStep, ACID_MELT_FLOOR);
+            terrain.melt(m.x, m.z, m.r, m.perStep, ACID_MELT_FLOOR);
             if (--m.stepsLeft > 0) this.acidMelts[write++] = m;
         }
         this.acidMelts.length = write;
