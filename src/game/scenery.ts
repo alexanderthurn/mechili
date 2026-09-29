@@ -608,13 +608,51 @@ export class Scenery {
         // every peer gets the same range from the same seed)
         const noise = makeValueNoise(31337 ^ seed);
         this.noise = noise;
-        // a handful of lakes, confined to the VISIBLE ring near the board
-        // (verified: 1 big + 1 medium lake and 2 ponds, nearest ~66 from the edge)
+        // Lakes are placed, not thresholded out of noise, so their size is under control: either
+        // one big lake (radius 80–100) with a pond or two, or three to five smaller ones
+        // (radius 30–62) — about the same water in total either way, never a lake bigger than a
+        // third of the board. Each sits 40+ wu off the board edge and no farther than ~210 out.
+        // The seed decides (same on every peer); the edges are wobbled with noise so they are not discs.
+        const lakeRng = mulberry32((seed ^ 0x1a4e5b) >>> 0);
+        const lakeSites: { x: number; z: number; r: number; phase: number }[] = [];
+        {
+            const radii: number[] = [];
+            if (lakeRng() < 0.35) {
+                radii.push(80 + lakeRng() * 20);
+                const ponds = 1 + Math.floor(lakeRng() * 2);
+                for (let i = 0; i < ponds; i++) radii.push(22 + lakeRng() * 16);
+            } else {
+                const count = 3 + Math.floor(lakeRng() * 3);
+                for (let i = 0; i < count; i++) radii.push(30 + lakeRng() * 32);
+            }
+            for (const r of radii) {
+                for (let attempt = 0; attempt < 200; attempt++) {
+                    const x = (lakeRng() * 2 - 1) * (map.halfW + 250);
+                    const z = (lakeRng() * 2 - 1) * (map.halfH + 250);
+                    const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
+                    if (dOut < r + 40 || dOut > 210) continue;
+                    // (sqrt, not hypot: this height is gameplay-visible and must match on every machine)
+                    if (lakeSites.some((o) => {
+                        const gap = Math.sqrt((o.x - x) * (o.x - x) + (o.z - z) * (o.z - z)) - o.r - r;
+                        return gap < 40;
+                    })) continue;
+                    lakeSites.push({ x, z, r, phase: lakeRng() * 100 });
+                    break;
+                }
+            }
+        }
         this.lakeAt = (x, z) => {
-            const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
-            const ring = smooth01((dOut - 30) / 40) * (1 - smooth01((dOut - 260) / 120));
-            const basinN = noise(x / 270 + 77.7, z / 270 + 31.3);
-            return smooth01((basinN - 0.52) / 0.14) * ring;
+            let best = 0;
+            for (const site of lakeSites) {
+                const dx = x - site.x;
+                const dz = z - site.z;
+                const reach = site.r * 1.4;
+                if (dx * dx + dz * dz >= reach * reach) continue;
+                const wobble = 1 + (noise(x / 38 + site.phase, z / 38 + site.phase * 0.7) - 0.5) * 0.5;
+                const u = 1 - Math.sqrt(dx * dx + dz * dz) / (site.r * wobble);
+                best = Math.max(best, smooth01(u / 0.3));
+            }
+            return best;
         };
         const rawHeight: HeightSampler = (x, z) => {
             // keep the playable AABB flat — field mesh owns that surface
