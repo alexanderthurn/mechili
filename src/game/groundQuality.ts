@@ -339,8 +339,13 @@ export function groundZonesGlsl(opts: {
         glsl += `	// bare earth: sparse patches of the dirt the hillsides already use, so the
 	// lawn breaks up into worn ground instead of one green
 	float earthN = slopeNoise( zoneP.xz / 27.0 + 47.0 ) * 0.65 + slopeNoise( zoneP.xz / 8.0 + 2.9 ) * 0.35;
-	float earthT = smoothstep( 0.68, 0.84, earthN ) * zoneEdge * ${k} * 0.55;
-	vec3 earthCol = texture2D( ${earth}, zoneP.xz / 9.0 ).rgb * vec3( 0.95, 0.90, 0.84 );
+	// a wide, soft ramp so the patch feathers into the lawn instead of ending in an edge
+	float earthT = smoothstep( 0.62, 0.92, earthN ) * zoneEdge * ${k} * 0.32;
+	vec3 earthTex = texture2D( ${earth}, zoneP.xz / 9.0 ).rgb * vec3( 0.95, 0.90, 0.84 );
+	// the earth's colour, but half of the grass's own light and grain, so the lawn shows through
+	float earthGl = max( dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) ), 0.05 );
+	float earthEl = max( dot( earthTex, vec3( 0.299, 0.587, 0.114 ) ), 0.05 );
+	vec3 earthCol = mix( earthTex, earthTex * ( earthGl / earthEl ), 0.55 );
 	diffuseColor.rgb = mix( diffuseColor.rgb, earthCol, earthT );
 `;
     }
