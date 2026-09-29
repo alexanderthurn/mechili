@@ -27,6 +27,18 @@ export const MOUNTAIN_DENSE_MULT = 3;
  */
 const BOARD_HOLE_INSET = 12;
 
+/** just outside the hole, so the line's own corners count as kept, not inside */
+const HOLE_EDGE_EPS = 1e-3;
+
+/** insert `v` into an ascending axis (no-op when a line is already there) */
+function insertLine(axis: number[], v: number): void {
+    let i = 0;
+    while (i < axis.length && axis[i]! < v - 1e-6) i++;
+    if (i < axis.length && Math.abs(axis[i]! - v) <= 1e-6) return;
+    if (i === 0 || i >= axis.length) return; // outside the world
+    axis.splice(i, 0, v);
+}
+
 /**
  * Build the outer ground base plane (already XZ-oriented like `PlaneGeometry`
  * after `rotateX(-π/2)`), with a rectangular hole under the board.
@@ -67,6 +79,16 @@ export function createOuterGroundGeometry(
 
     const holeW = Math.max(0, opts.halfW - BOARD_HOLE_INSET);
     const holeH = Math.max(0, opts.halfH - BOARD_HOLE_INSET);
+    // A cell is dropped when any corner lies inside the hole, so the first kept
+    // cell starts up to one cell beyond the hole's edge. The 12-unit inset only
+    // covers that while cells are no wider than the inset; the low / off tiers
+    // (~40 cells across the world, ~31 units each) left an open strip along the
+    // board edge with the sky showing through. Put a lattice line right on the
+    // hole's edge so the kept cells start there whatever the spacing.
+    if (stepNear > BOARD_HOLE_INSET) {
+        for (const w of [holeW, -holeW]) if (holeW > 0) insertLine(xs, w + Math.sign(w) * HOLE_EDGE_EPS);
+        for (const h of [holeH, -holeH]) if (holeH > 0) insertLine(zs, h + Math.sign(h) * HOLE_EDGE_EPS);
+    }
     return buildRectilinearXZ(xs, zs, size, holeW, holeH);
 }
 
