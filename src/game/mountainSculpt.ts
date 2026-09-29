@@ -37,7 +37,16 @@ export interface UltraSculptCtx {
     halfH: number;
     noise: (x: number, z: number) => number;
     seed: number;
+    /**
+     * Discs the sculpt leaves alone (the alms): their height was set on purpose, and the lean
+     * would slide the vertices sideways off it. The sculpt fades in over `KEEP_OUT_RAMP` past `r`.
+     */
+    keepOut?: readonly { x: number; z: number; r: number }[];
 }
+
+const KEEP_OUT_RAMP = 70;
+/** the most a ledge may pull the ground down (wu) */
+const SHELF_MAX_DROP = 14;
 
 /**
  * In-place sculpt of outer-ground positions (already Y-displaced by terrainHeight).
@@ -47,7 +56,7 @@ export function sculptUltraMountainPositions(
     ctx: UltraSculptCtx,
     params: typeof ULTRA_MOUNTAIN = ULTRA_MOUNTAIN,
 ): void {
-    const { halfW, halfH, noise, seed } = ctx;
+    const { halfW, halfH, noise, seed, keepOut = [] } = ctx;
     const sites = overhangSites(params.overhangCount, halfW, halfH, seed, noise);
 
     for (let i = 0; i < pos.count; i++) {
@@ -78,7 +87,17 @@ export function sculptUltraMountainPositions(
         const cliffN = noise(x0 / 38 + 3.1, z0 / 38 + 44.4);
         const micro = noise(x0 / 14 + 8.8, z0 / 14 + 2.2);
 
-        // Flatten alpine ledges — never raise above y0.
+        // How much of the sculpt applies here (0 on an alm, easing in around it).
+        let keepW = 1;
+        for (const k of keepOut) {
+            const kd = Math.sqrt((x0 - k.x) * (x0 - k.x) + (z0 - k.z) * (z0 - k.z));
+            keepW = Math.min(keepW, smooth01((kd - k.r) / KEEP_OUT_RAMP));
+        }
+        if (keepW <= 0) continue;
+
+        // Ledges: ease the ground down onto a bench — never raise above y0, and never pull it
+        // down far. (The old ledge dragged whole slopes onto one level, and that showed as rings
+        // of flat ground and steep risers, a white and dark stripe pattern once snow lay on it.)
         const shelfMask =
             smooth01((shelfN - 0.58) / 0.22) *
             smooth01((y - 40) / 50) *
@@ -87,7 +106,7 @@ export function sculptUltraMountainPositions(
             params.flatStrength;
         if (shelfMask > 0.01) {
             const shelfY = Math.min(y0, 55 + shelfN * 70 + micro * 8);
-            y = y * (1 - shelfMask) + shelfY * shelfMask;
+            y -= Math.min((y - shelfY) * shelfMask, SHELF_MAX_DROP);
         }
 
         // Steepen: deepen recesses only.
@@ -123,7 +142,7 @@ export function sculptUltraMountainPositions(
         const dz = -fwdZ * leanAmt;
 
         y = Math.min(y, y0);
-        pos.setXYZ(i, x0 + dx, y, z0 + dz);
+        pos.setXYZ(i, x0 + dx * keepW, y0 + (y - y0) * keepW, z0 + dz * keepW);
     }
 
     pos.needsUpdate = true;

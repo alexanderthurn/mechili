@@ -2181,6 +2181,7 @@ export class Scenery {
                 halfH: map.halfH,
                 noise: this.noise,
                 seed: this.seed,
+                keepOut: this.almSites.map((site) => ({ x: site.x, z: site.z, r: ALM_RADIUS + ALM_EASE })),
             });
         }
         pos.needsUpdate = true;
