@@ -252,8 +252,8 @@ const ALM_TILT = 0.26;
  * The ground at (x, z) once a glacier basin is pressed into it: like an alm, a level-ish floor that
  * tilts toward the valley, but funnel-shaped — wide (~44 wu each side) at the head, narrowing to a
  * few wu at the outlet — with steep V walls left and right. The floor is cut where the mountain is
- * higher and built up where it falls away; the walls only ever cut. It eases back into the natural
- * ground at the outlet lip, so the meltwater leaves over the edge. Plain arithmetic, so it matches
+ * higher and built up where it falls away, and so are the walls. It eases back into the natural
+ * ground past the walls and at the outlet lip, so the meltwater leaves over the edge. Plain arithmetic, so it matches
  * on every machine.
  */
 function glacierShape(
@@ -269,17 +269,15 @@ function glacierShape(
     const tt = t < 0 ? 0 : t > 1 ? 1 : t;
     const s = Math.abs(dx * -c.uz + dz * c.ux);
     const hw = glacierHalfWidth(tt);
-    if (s >= hw * 1.3) return h;
+    if (s >= hw + GLACIER_EASE) return h;
     const fh = hw * 0.5;
     const floorY = c.y0 - GLACIER_TILT * c.len * tt;
-    const wall = floorY + GLACIER_WALL * (s > fh ? s - fh : 0);
+    const target = floorY + GLACIER_WALL * (s > fh ? s - fh : 0);
+    // (blend toward the V-shaped surface, cutting or building as the ground needs; it eases back
+    // into the natural ground past the walls and along the lip at the outlet)
+    const eOut = 1 - smooth01((s - hw) / GLACIER_EASE);
     const end = smooth01(tt / 0.05) * (1 - smooth01((tt - 0.88) / 0.12));
-    if (h > wall) return h - (h - wall) * end;
-    if (floorY > h) {
-        const floorMask = 1 - smooth01((s - fh) / (0.35 * fh + 2));
-        return h + (floorY - h) * floorMask * end;
-    }
-    return h;
+    return h + (target - h) * eOut * end;
 }
 
 /** half-width of a glacier basin at t (0 = head, 1 = outlet) */
@@ -291,7 +289,9 @@ function glacierHalfWidth(t: number): number {
 const GLACIER_LENGTH = 130;
 /** how steeply the basin floor falls toward the valley, and the slope of its side walls (rise over run) */
 const GLACIER_TILT = 0.3;
-const GLACIER_WALL = 0.95;
+const GLACIER_WALL = 1.3;
+/** how far past its walls a glacier basin eases into the natural ground */
+const GLACIER_EASE = 26;
 const STREAM_STEP = 5;
 
 /** the range's one wind, blowing snow off the crests */
