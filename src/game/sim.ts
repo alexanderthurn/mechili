@@ -1000,8 +1000,6 @@ const APPROACH_OFFSET_MAX = 4.0;
 const MELEE_PRESS_BAND = 0.07;
 /** Big Meteor: crater radius as a multiple of its strike, depth, rim height, and floor. */
 const METEOR_BIG_CRATER = { radiusMult: 1, depth: 1.1, rim: 0.7, floor: -1.0 };
-/** Meteor Shower shards: much smaller and shallower. */
-const METEOR_SHARD_CRATER = { radiusMult: 0.6, depth: 0.4, rim: 0.12, floor: -0.5 };
 /** the lowest an artillery crater (UnitType.impactCrater) may dig */
 const IMPACT_CRATER_FLOOR = -0.3;
 /** Acid drips dig the board: bowl radius (× the drip's), depth per drip, and the lowest they may dig. */
@@ -3754,9 +3752,12 @@ export class BattleSim {
         } else {
             this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
             this.applyBlastImpulse(s.x, s.z, visualRadius, bigMeteor ? 2.6 : 1.5);
-            // the meteor digs in: a deep crater with a thrown-up rim (the shower's shards, a small one)
-            const c = bigMeteor ? METEOR_BIG_CRATER : meteorShower ? METEOR_SHARD_CRATER : null;
-            if (c) this.digImpactCrater(s.x, s.z, s.radius * c.radiusMult, c.depth, c.rim, c.floor);
+            // only the Big Meteor digs in: a deep crater with a thrown-up rim. The shower's shards
+            // leave the ground as it was.
+            if (bigMeteor) {
+                const c = METEOR_BIG_CRATER;
+                this.digImpactCrater(s.x, s.z, s.radius * c.radiusMult, c.depth, c.rim, c.floor);
+            }
         }
     }
 
