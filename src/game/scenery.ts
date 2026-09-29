@@ -60,6 +60,7 @@ import {
     barkUrl,
     foliageUrl,
     iceAlbedoUrl,
+    dirtAlbedoHqUrl,
     sandAlbedoUrl,
     shoreAlbedoUrl,
     loadGrassTextures,
@@ -251,8 +252,12 @@ const WATER_HIGH_OPACITY = 0.3;
 const WATER_ULTRA_ROUGHNESS = 0.12;
 /** surface opacity before fresnel: lower = more of the lake bed shows through */
 const WATER_ULTRA_OPACITY = 0.6;
-/** lake-bed sand tile edge in world units (ultra) */
+/** lake-bed sand tile edge in world units (high, ultra) */
 const LAKE_SAND_TILE = 13;
+/** brown silt on the deeper floor */
+const LAKE_MUD_TILE = 9;
+/** the gravel again at a second, larger size, so the floor does not visibly repeat */
+const LAKE_GRAVEL_BIG_TILE = 29;
 /** ripple size: 1 = the first version, higher = finer waves */
 const WATER_WAVE_SCALE = '1.6';
 /** overall steepness of the ripples (after scaling) */
@@ -2174,11 +2179,12 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         // wet bank and shore foam. Ultra adds the caustics on the bed.
         const lakeBedLayers = this.quality === 'ultra' || this.quality === 'high';
         const lakeCaustics = this.quality === 'ultra';
-        const [grass, rockPack, shore, sand] = await Promise.all([
+        const [grass, rockPack, shore, sand, mud] = await Promise.all([
             loadGrassTextures(),
             loadRockTextures(),
             loadWorldTexture(shoreAlbedoUrl()),
             lakeBedLayers ? loadWorldTexture(sandAlbedoUrl()) : Promise.resolve(null),
+            lakeBedLayers ? loadWorldTexture(dirtAlbedoHqUrl()) : Promise.resolve(null),
         ]);
         if (!grass?.albedo) return;
         const { albedo, normal } = grass;
@@ -2227,6 +2233,11 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             sand.colorSpace = SRGBColorSpace;
             sand.anisotropy = profile.anisotropy;
         }
+        if (mud) {
+            mud.wrapS = mud.wrapT = RepeatWrapping;
+            mud.colorSpace = SRGBColorSpace;
+            mud.anisotropy = profile.anisotropy;
+        }
         for (const v of grass.variants) {
             v.wrapS = v.wrapT = RepeatWrapping;
             v.colorSpace = SRGBColorSpace;
@@ -2249,6 +2260,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             }
             if (shore) shader.uniforms.uShore = { value: shore };
             if (sand) shader.uniforms.uSand = { value: sand };
+            // (if the dirt tile fails to load the silt falls back to the gravel — same shader)
+            if (sand) shader.uniforms.uLakeMud = { value: mud ?? shore };
             shader.uniforms.uLakeBed = this.lakeBedUniform;
             shader.uniforms.uLakeTime = this.lakeTimeUniform;
             shader.uniforms.uLakeFreeze = this.waterFreezeUniform ?? { value: 0 };
@@ -2353,10 +2366,26 @@ ${pgClose}`;
     float lbDepth = ${WATER_LEVEL_Y.toFixed(2)} - vTerrainH;
     // sampled outside the branch below: a mip-mapped fetch needs uniform control flow
     vec3 lbSandTex = texture2D(uSand, vWorldXZ / ${LAKE_SAND_TILE.toFixed(1)}).rgb;
+    vec3 lbMudTex = texture2D(uLakeMud, vWorldXZ / ${LAKE_MUD_TILE.toFixed(1)}).rgb;
+    vec3 lbGravelBig = texture2D(uShore, vWorldXZ / ${LAKE_GRAVEL_BIG_TILE.toFixed(1)} + vec2(0.37, 0.61)).rgb;
     // only near water (or on a gravel patch) does any of this change the colour
     if (vBeach > 0.001 || lbDepth > -0.7) {
         float lbSand = vBeach * (1.0 - smoothstep(0.3, 2.4, lbDepth)) * uLakeBed;
         diffuseColor.rgb = mix(diffuseColor.rgb, lbSandTex, lbSand);
+        // the floor itself: not one gravel. Three noise scales pick where the stones
+        // repeat at a second size, where brown silt settles in the deeper parts, and
+        // which stones run blue-grey, rusty or algae green
+        float lbUnder = smoothstep(0.1, 0.5, lbDepth) * uLakeBed;
+        float lbA = lfNoise(vWorldXZ * 0.045 + 3.1);
+        float lbB = lfNoise(vWorldXZ * 0.13 + 17.7);
+        float lbC = lfNoise(vWorldXZ * 0.37 + 41.3);
+        diffuseColor.rgb = mix(diffuseColor.rgb, lbGravelBig, lbUnder * (1.0 - lbSand) * 0.55 * smoothstep(0.3, 0.7, lbB));
+        float lbSilt = smoothstep(0.50, 0.70, lbA) * smoothstep(0.5, 2.2, lbDepth) * lbUnder;
+        diffuseColor.rgb = mix(diffuseColor.rgb, lbMudTex * vec3(0.92, 0.78, 0.60), lbSilt * 0.9);
+        vec3 lbTint = mix(vec3(1.0), vec3(0.74, 0.88, 1.10), smoothstep(0.55, 0.80, lbB));
+        lbTint = mix(lbTint, vec3(1.10, 0.90, 0.68), smoothstep(0.55, 0.82, lbC) * 0.85);
+        lbTint = mix(lbTint, vec3(0.82, 1.04, 0.76), smoothstep(0.62, 0.85, lfNoise(vWorldXZ * 0.09 + 91.0)) * smoothstep(0.3, 1.5, lbDepth));
+        diffuseColor.rgb *= mix(vec3(1.0), lbTint, lbUnder);
         diffuseColor.rgb *= mix(vec3(1.0), vec3(0.34, 0.5, 0.56), smoothstep(0.3, 6.5, lbDepth) * uLakeBed);
         // wet bank: just above the waterline the sand is darker, drying out upward
         float lbWet = (1.0 - smoothstep(0.0, 0.55, -lbDepth)) * step(-0.55, lbDepth) * lbSand;
@@ -2447,6 +2476,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (shore ? 'uniform sampler2D uShore;\n' : '') +
                 (sand ? 'uniform sampler2D uSand;\n' : '') +
+                (sand ? 'uniform sampler2D uLakeMud;\n' : '') +
                 (sand ? 'uniform float uLakeBed;\n' : '') +
                 (sand ? 'uniform float uLakeTime;\nuniform float uLakeFreeze;\n' + LAKE_FOAM_FNS_GLSL : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
@@ -2491,7 +2521,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed-caus' : '-lakebed') : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed2-caus' : '-lakebed2') : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
