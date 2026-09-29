@@ -989,7 +989,7 @@ const MELEE_PRESS_BAND = 0.07;
 const ACID_MELT_RADIUS_MULT = 1;
 /** total depth one drip digs, and the seconds it takes to sink that far */
 const ACID_MELT_DEPTH = 12;
-const ACID_MELT_SECONDS = 4;
+const ACID_MELT_SECONDS = 8;
 const ACID_MELT_FLOOR = -1.0;
 /**
  * No digging within this of a building's edge (world units), measured from the bowl's rim.
