@@ -1088,6 +1088,7 @@ export class Game {
                 this.effectToggles.resetAll();
                 this.applyHeightMistStrength();
                 this.scenery.setWaterMirror(true);
+                this.scenery.setLakeBed(true);
                 console.info('[fx] all effects on (Shift+0)');
                 return;
             }
@@ -1096,6 +1097,7 @@ export class Game {
                 const on = this.effectToggles.toggle(def.id);
                 if (def.id === 'heightMist') this.applyHeightMistStrength();
                 if (def.id === 'waterMirror') this.scenery.setWaterMirror(on);
+                if (def.id === 'lakeBed') this.scenery.setLakeBed(on);
                 console.info(`[fx] Shift+${digit} ${def.label}: ${on ? 'on' : 'off'}`);
                 return;
             }
@@ -3001,6 +3003,7 @@ export class Game {
         this.scenery.disposeWaterReflection();
         this.scenery = new Scenery(this.map, undefined, editing ?? this.landscape);
         this.scenery.setWaterMirror(this.effectToggles.isEnabled('waterMirror'));
+        this.scenery.setLakeBed(this.effectToggles.isEnabled('lakeBed'));
         this.scene.add(this.scenery.group);
         if (sceneryWeatherFx(scenery)) {
             if (!this.scene.fog) this.scene.fog = new Fog(THEME.sky, THEME.fogNear, THEME.fogFar);

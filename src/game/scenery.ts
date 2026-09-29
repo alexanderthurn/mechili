@@ -56,6 +56,7 @@ import {
     barkUrl,
     foliageUrl,
     iceAlbedoUrl,
+    sandAlbedoUrl,
     shoreAlbedoUrl,
     loadGrassTextures,
     loadRockTextures,
@@ -235,6 +236,8 @@ const WATER_LEVEL_Y = -1.1;
 // ---- ultra water: mirrored world + ripples (tune here) ----
 /** surface opacity before fresnel: lower = more of the lake bed shows through */
 const WATER_ULTRA_OPACITY = 0.6;
+/** lake-bed sand tile edge in world units (ultra) */
+const LAKE_SAND_TILE = 13;
 /** ripple size: 1 = the first version, higher = finer waves */
 const WATER_WAVE_SCALE = '1.6';
 /** overall steepness of the ripples (after scaling) */
@@ -372,6 +375,8 @@ export class Scenery {
     /** drives the ripple normals of the ultra water (seconds) */
     private waterTimeUniform: { value: number } | null = null;
     private waterMesh: Mesh | null = null;
+    /** ultra lake-bed layers on (1) / off (0) — the Shift+9 A/B switch */
+    private readonly lakeBedUniform = { value: 1 };
     /** the unfrozen surface opacity of this tier (ice fades toward opaque) */
     private waterOpacity = 0.86;
     /** ultra only: the mirrored view the lake surface shows */
@@ -1080,6 +1085,11 @@ export class Scenery {
         if (renderer.shadowMap.enabled && sun?.castShadow && !sun.shadow.map) return;
         this.lakeBoxes ??= this.sampleLakeBoxes();
         reflection.update(renderer, scene, camera, this.lakeBoxes, [this.waterMesh]);
+    }
+
+    /** dev toggle (Shift+9): the ultra lake-bed sand and depth shading on or off */
+    setLakeBed(on: boolean): void {
+        this.lakeBedUniform.value = on ? 1 : 0;
     }
 
     /** dev toggle (Shift+8): the ultra water's mirrored view on or off */
@@ -1904,10 +1914,13 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         const shoreMountainTile = 38;
         const rockTile = 34; // legacy rock tile scale
         const rockPhotoTile = PHOTO_BLEND.rock.worldScale;
-        const [grass, rockPack, shore] = await Promise.all([
+        // Ultra only: sand in the shallows, gravel below it, darker with depth
+        const lakeBedLayers = this.quality === 'ultra';
+        const [grass, rockPack, shore, sand] = await Promise.all([
             loadGrassTextures(),
             loadRockTextures(),
             loadWorldTexture(shoreAlbedoUrl()),
+            lakeBedLayers ? loadWorldTexture(sandAlbedoUrl()) : Promise.resolve(null),
         ]);
         if (!grass?.albedo) return;
         const { albedo, normal } = grass;
@@ -1951,6 +1964,11 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shore.colorSpace = SRGBColorSpace;
             shore.anisotropy = profile.anisotropy;
         }
+        if (sand) {
+            sand.wrapS = sand.wrapT = RepeatWrapping;
+            sand.colorSpace = SRGBColorSpace;
+            sand.anisotropy = profile.anisotropy;
+        }
         for (const v of grass.variants) {
             v.wrapS = v.wrapT = RepeatWrapping;
             v.colorSpace = SRGBColorSpace;
@@ -1972,6 +1990,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
             }
             if (shore) shader.uniforms.uShore = { value: shore };
+            if (sand) shader.uniforms.uSand = { value: sand };
+            shader.uniforms.uLakeBed = this.lakeBedUniform;
             shader.uniforms.uSnowCover = { value: 0 };
             this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
             shader.uniforms.uAlpineCap = this.outerGroundAlpineUniform;
@@ -2065,6 +2085,15 @@ ${pgClose}`;
                 inject += `
     // gravel shore where the geometry says so: lake banks + rare dry patches
     diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uShore, vWorldXZ / ${shoreTile.toFixed(1)}).rgb, vBeach);`;
+                if (sand) {
+                    inject += `
+    // ultra lake beds: sand on the bank and in the shallows, gravel through the
+    // middle, and everything under the water darker and cooler with depth
+    float lbDepth = ${WATER_LEVEL_Y.toFixed(2)} - vTerrainH;
+    float lbSand = vBeach * (1.0 - smoothstep(0.3, 2.4, lbDepth)) * uLakeBed;
+    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / ${LAKE_SAND_TILE.toFixed(1)}).rgb, lbSand);
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.34, 0.5, 0.56), smoothstep(0.3, 6.5, lbDepth) * uLakeBed);`;
+                }
             }
             // meadow hills get the same drier / browner hillsides as the board; the mountains keep their own rock
             inject += slopeGroundGlsl({
@@ -2135,6 +2164,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (shore ? 'uniform sampler2D uShore;\n' : '') +
+                (sand ? 'uniform sampler2D uSand;\n' : '') +
+                (sand ? 'uniform float uLakeBed;\n' : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
                 closeTileUniformDecls(profile) +
                 SLOPE_GROUND_FNS +
@@ -2170,7 +2201,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? '-lakebed' : ''}-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
