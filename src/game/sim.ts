@@ -1823,6 +1823,8 @@ export class BattleSim {
             const shields = livingShieldDisks(this.actors.map((a) => a.unit));
             const expires = this.config.oilExpiresRound ?? 9999;
             this.hazards.stampAcid(target.x, target.z, acidRadius, expires, shields);
+            // the puddle eats the ground like a spell's acid does (a dwarf's Blightburst)
+            this.meltGroundUnderAcid(target.x, target.z, acidRadius, shields);
         }
     }
 
