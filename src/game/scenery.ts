@@ -2348,7 +2348,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v15-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v16-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -2736,7 +2736,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v54-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v55-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -3669,6 +3669,9 @@ const OUTER_MOUNTAIN_SNOW_GLSL = `
     float cliffStrip = smoothstep(0.36, 0.8, vSlope) * smoothstep(40.0, 170.0, vTerrainH);
     mountainSnow = clamp(mountainSnow - cliffStrip * (0.35 + breakup * 0.45), 0.0, 1.0);
     float snowF = mix(meadowSnow, mountainSnow, mountainZone);
+    // deep winter buries everything: no bare steep face, no cliff rock showing through
+    snowF = mix(snowF, 1.0, deepWinter * mountainZone);
+    cliffStrip *= 1.0 - deepWinter;
     vec3 meadowCol = ${LAWN_SNOW_COLOR_GLSL};
     vec3 snowHi = mix(meadowCol, vec3(1.0, 1.0, 1.0), deepWinter);
     vec3 snowLo = mix(meadowCol, vec3(0.86, 0.9, 0.96), deepWinter);
@@ -3677,7 +3680,7 @@ const OUTER_MOUNTAIN_SNOW_GLSL = `
 
 /** Directional contrast on mountain relief only — leave the meadow/board edge alone. */
 const OUTER_MOUNTAIN_LIGHTING_GLSL = `
-    float contrast = mix(0.18, 0.62, deepWinter);
+    float contrast = mix(0.18, 0.36, deepWinter);
     diffuseColor.rgb *= mix(1.0, mix(0.62, 1.22, sunLit), mountainZone * contrast);`;
 
 /** a handful of tapered grass blades, white — tinted green per instance */
