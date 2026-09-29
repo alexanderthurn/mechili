@@ -632,16 +632,20 @@ export class Scenery {
                 noise(x / 62 + 51.2, z / 62 + 17.9) * 0.3 +
                 noise(x / 24 + 9.4, z / 24 + 63.7) * 0.15;
             const ridge = detPow01(Math.max(0, n - 0.32) / 0.68, POW_1_35);
-            // Ridged noise: 1 - |2n - 1| peaks along the noise's mid contour, so the mass above
-            // gets knife-edge crest lines (rounded lumps before). Plain arithmetic — this height
-            // is gameplay-visible (worldHeightAt), so it must be identical on every machine.
+            // Ridged noise: 1 - |2n - 1| peaks along the noise's mid contour, giving a crest line
+            // instead of a lump. The |.| is rounded with a sqrt so the tip is a ridge the coarser
+            // meshes (low/medium) can hold, not a one-triangle spike. Only patches of the range get
+            // it (~a third); the rest keeps the softer shape. Plain arithmetic — this height is
+            // gameplay-visible (worldHeightAt), so it must be identical on every machine.
             const crestN =
                 noise(x / 96 + 40.3, z / 96 + 12.9) * 0.62 + noise(x / 41 + 7.7, z / 41 + 33.1) * 0.38;
-            const crestLine = 1 - Math.abs(crestN * 2 - 1);
-            const sharp = crestLine * crestLine * crestLine;
+            const crestT = crestN * 2 - 1;
+            const crestLine = 1 - (Math.sqrt(crestT * crestT + 0.04) - 0.2) / 0.8;
+            const sharp = crestLine * crestLine;
+            const sharpZone = smooth01((noise(x / 230 + 63.1, z / 230 + 18.4) - 0.56) / 0.12);
             // a few hero peaks: a slow noise picks where the range towers over its neighbours
             const hero = smooth01((noise(x / 260 + 5.5, z / 260 + 91.2) - 0.6) / 0.14);
-            const mountain = rise * (28 + 280 * ridge * (0.55 + 0.6 * sharp) + 95 * hero * ridge);
+            const mountain = rise * (28 + 280 * ridge * (0.72 + 0.43 * sharp * sharpZone) + 95 * hero * ridge);
             // Foothills die as the high range takes over — don't resume a
             // second meadow behind the mountain ring.
             const foothill = 1 - smooth01((dClimb - 400) / 280);
