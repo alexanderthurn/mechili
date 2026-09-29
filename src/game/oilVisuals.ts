@@ -202,8 +202,14 @@ function hazardKey(
 ): string {
     let oil = 0;
     let fire = 0;
+    // acid too: without it the key did not change when acid expired between rounds, so in the
+    // deployment phase (where the battle clock does not tick) the old acid stayed on the ground
+    let acid = 0;
     field.forEachOilCell(() => {
         oil++;
+    });
+    field.forEachAcidCell((_x, _z, exp) => {
+        acid += 1 + exp * 1e-3;
     });
     field.forEachFireCell(now, () => {
         fire++;
@@ -219,5 +225,5 @@ function hazardKey(
               )
               .join('|')
         : '';
-    return `${oil}:${fire}:${d}:${s}`;
+    return `${oil}:${fire}:${acid.toFixed(3)}:${d}:${s}`;
 }
