@@ -22,7 +22,7 @@ import {
     Object3D,
     PlaneGeometry,
     Quaternion,
-    RedFormat,
+    RGFormat,
     RepeatWrapping,
     SphereGeometry,
     Sprite,
@@ -260,6 +260,17 @@ const LAKE_SAND_TILE = 13;
 const LAKE_SILT_FROM = 0.9;
 /** how ragged that edge is: noise shifts the threshold by up to about half of this (metres) */
 const LAKE_SILT_RAG = 1.6;
+/**
+ * Lake size as the water shader / ground shader read it: the share of water
+ * within ~20 m (G of the depth image). Below SMALL the shore effects (foam, surge,
+ * ripples) are at their calmest, above BIG at full strength.
+ */
+const LAKE_SIZE_SMALL = 0.16;
+const LAKE_SIZE_BIG = 0.45;
+/** how much of the foam / ripple strength a tiny lake keeps (1 = all of it) */
+const LAKE_SMALL_FOAM = 0.3;
+const LAKE_SMALL_SURGE = 0.35;
+const LAKE_SMALL_RIPPLE = 0.4;
 /** the gravel again at a second, larger size, so the floor does not visibly repeat */
 const LAKE_GRAVEL_BIG_TILE = 29;
 /** ripple size: 1 = the first version, higher = finer waves */
@@ -1153,7 +1164,7 @@ export class Scenery {
         this.waterTimeUniform = rich ? timeUniform : null;
         // one program per variant: the source differs, the function text does not
         material.customProgramCacheKey = () =>
-            reflection ? 'water-mirror' : rich ? 'water-sky' : lite ? 'water-depth' : 'water';
+            reflection ? 'water-mirror2' : rich ? 'water-sky2' : lite ? 'water-depth' : 'water';
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uFreeze = freezeUniform;
             shader.uniforms.uIce = iceUniform;
@@ -1232,7 +1243,9 @@ export class Scenery {
                         .replace(
                             '#include <normal_fragment_maps>',
                             `#include <normal_fragment_maps>
-	vec2 wGrad = waterWaveGrad(vWaterWorld.xz, uWaterTime);
+	// small water is calmer: less fetch, so the ripples ease off on ponds and narrow lakes
+	float wSize = smoothstep(${LAKE_SIZE_SMALL.toFixed(2)}, ${LAKE_SIZE_BIG.toFixed(2)}, texture2D(uLakeDepthTex, (vWaterWorld.xz + uLakeDepthSpan) / (2.0 * uLakeDepthSpan)).g);
+	vec2 wGrad = waterWaveGrad(vWaterWorld.xz, uWaterTime) * mix(${LAKE_SMALL_RIPPLE.toFixed(2)}, 1.0, wSize);
 	normal = normalize(normal + (viewMatrix * vec4(-wGrad.x, 0.0, -wGrad.y, 0.0)).xyz * ${WATER_NORMAL_TILT});`,
                         )
                         .replace(
@@ -1344,7 +1357,7 @@ export class Scenery {
         let tex = this.lakeDepthTexUniform.value;
         if (!tex || tex.image.width !== n) {
             tex?.dispose();
-            tex = new DataTexture(new Uint8Array(n * n), n, n, RedFormat, UnsignedByteType);
+            tex = new DataTexture(new Uint8Array(n * n * 2), n, n, RGFormat, UnsignedByteType);
             tex.minFilter = tex.magFilter = LinearFilter;
             tex.generateMipmaps = false;
             tex.unpackAlignment = 1;
@@ -1352,20 +1365,53 @@ export class Scenery {
         }
         const data = tex.image.data as Uint8Array;
         data.fill(0);
+        // R: how deep the water is here (0..8 m). Wet cells only are sampled.
+        const depth = new Uint8Array(n * n);
+        const wet: [number, number, number, number][] = [];
         for (const box of this.lakeBoxes) {
-            const x0 = Math.floor((box.min.x + span) / TEXEL);
-            const z0 = Math.floor((box.min.z + span) / TEXEL);
+            const x0 = Math.max(0, Math.floor((box.min.x + span) / TEXEL));
+            const z0 = Math.max(0, Math.floor((box.min.z + span) / TEXEL));
             const x1 = Math.min(n - 1, Math.ceil((box.max.x + span) / TEXEL));
             const z1 = Math.min(n - 1, Math.ceil((box.max.z + span) / TEXEL));
-            for (let zi = Math.max(0, z0); zi <= z1; zi++) {
-                for (let xi = Math.max(0, x0); xi <= x1; xi++) {
+            wet.push([x0, z0, x1, z1]);
+            for (let zi = z0; zi <= z1; zi++) {
+                for (let xi = x0; xi <= x1; xi++) {
                     const x = -span + (xi + 0.5) * TEXEL;
                     const z = -span + (zi + 0.5) * TEXEL;
-                    const depth = WATER_LEVEL_Y - worldHeightAt(x, z);
-                    data[zi * n + xi] = Math.round(Math.min(1, Math.max(0, depth / 8)) * 255);
+                    const d = WATER_LEVEL_Y - worldHeightAt(x, z);
+                    depth[zi * n + xi] = Math.round(Math.min(1, Math.max(0, d / 8)) * 255);
                 }
             }
         }
+        // G: how much lake is around (the share of water within ~20 m, 0..1). A big
+        // lake's shoreline sees about half; a narrow lake or a pond much less. The
+        // shore effects use it to stay calm on small water.
+        const W = n + 1;
+        const integral = new Int32Array(W * W);
+        for (let zi = 0; zi < n; zi++) {
+            let row = 0;
+            for (let xi = 0; xi < n; xi++) {
+                row += depth[zi * n + xi]! > 12 ? 1 : 0;
+                integral[(zi + 1) * W + xi + 1] = integral[zi * W + xi + 1]! + row;
+            }
+        }
+        const R = 10;
+        const margin = 6; // texels past each wet cell, so the shore on the dry side has it too
+        for (const [x0, z0, x1, z1] of wet) {
+            for (let zi = Math.max(0, z0 - margin); zi <= Math.min(n - 1, z1 + margin); zi++) {
+                for (let xi = Math.max(0, x0 - margin); xi <= Math.min(n - 1, x1 + margin); xi++) {
+                    const xa = Math.max(0, xi - R);
+                    const xb = Math.min(n, xi + R + 1);
+                    const za = Math.max(0, zi - R);
+                    const zb = Math.min(n, zi + R + 1);
+                    const count =
+                        integral[zb * W + xb]! - integral[za * W + xb]! - integral[zb * W + xa]! + integral[za * W + xa]!;
+                    const share = count / ((2 * R + 1) * (2 * R + 1));
+                    data[(zi * n + xi) * 2 + 1] = Math.round(Math.min(1, share) * 255);
+                }
+            }
+        }
+        for (let i = 0; i < n * n; i++) data[i * 2] = depth[i]!;
         tex.needsUpdate = true;
         this.lakeDepthSpanUniform.value = span;
     }
@@ -2009,7 +2055,10 @@ export class Scenery {
      */
     private dryPatchWeight(x: number, z: number, h: number): number {
         const patchN = this.noise(x / 24 + 5.1, z / 24 + 50.4);
-        return smooth01((patchN - 0.74) / 0.09) * 0.45 * (h < 10 ? 1 : 0);
+        // a second, finer noise eats into the blobs, so the big ones break up into
+        // smaller pieces instead of one broad patch
+        const breakUp = smooth01((this.noise(x / 9 + 71.3, z / 9 + 12.9) - 0.34) / 0.26);
+        return smooth01((patchN - 0.77) / 0.08) * 0.45 * breakUp * (h < 10 ? 1 : 0);
     }
 
     /** true on a visible dry patch — nothing grows there (a static map paints its own beach) */
@@ -2340,6 +2389,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             if (shore) shader.uniforms.uShore = { value: shore };
             if (sand) shader.uniforms.uSand = { value: sand };
             shader.uniforms.uLakeBed = this.lakeBedUniform;
+            shader.uniforms.uLakeDepthTex = this.lakeDepthTexUniform;
+            shader.uniforms.uLakeDepthSpan = this.lakeDepthSpanUniform;
             shader.uniforms.uLakeTime = this.lakeTimeUniform;
             shader.uniforms.uLakeFreeze = this.waterFreezeUniform ?? { value: 0 };
             shader.uniforms.uSnowCover = { value: 0 };
@@ -2444,6 +2495,8 @@ ${pgClose}`;
     // sampled outside the branch below: a mip-mapped fetch needs uniform control flow
     vec3 lbSandTex = texture2D(uSand, vWorldXZ / ${LAKE_SAND_TILE.toFixed(1)}).rgb;
     vec3 lbGravelBig = texture2D(uShore, vWorldXZ / ${LAKE_GRAVEL_BIG_TILE.toFixed(1)} + vec2(0.37, 0.61)).rgb;
+    // how big the lake here is (0 pond .. 1 big lake): small water gets calmer shores
+    float lbLakeSize = smoothstep(${LAKE_SIZE_SMALL.toFixed(2)}, ${LAKE_SIZE_BIG.toFixed(2)}, texture2D(uLakeDepthTex, (vWorldXZ + uLakeDepthSpan) / (2.0 * uLakeDepthSpan)).g);
     // only near water (or on a gravel patch) does any of this change the colour
     if (vBeach > 0.001 || lbDepth > -0.7) {
         float lbSand = vBeach * (1.0 - smoothstep(0.3, 2.4, lbDepth)) * uLakeBed;
@@ -2472,8 +2525,8 @@ ${pgClose}`;
         float lbWet = (1.0 - smoothstep(0.0, 0.55, -lbDepth)) * step(-0.55, lbDepth) * lbSand;
         diffuseColor.rgb *= 1.0 - 0.28 * lbWet;
         // lapping foam: a broken white line that surges up and back along the shore
-        float lbSurge = lakeShoreSurge(vWorldXZ, uLakeTime);
-        float lbFoam = lakeFoam(vWorldXZ, uLakeTime, lbDepth, lbSurge) * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
+        float lbSurge = lakeShoreSurge(vWorldXZ, uLakeTime) * mix(${LAKE_SMALL_SURGE.toFixed(2)}, 1.0, lbLakeSize);
+        float lbFoam = lakeFoam(vWorldXZ, uLakeTime, lbDepth, lbSurge) * mix(${LAKE_SMALL_FOAM.toFixed(2)}, 1.0, lbLakeSize) * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.97, 0.98), lbFoam * 0.9);${
             lakeCaustics
                 ? `
@@ -2572,7 +2625,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (sand ? 'uniform sampler2D uSand;\n' : '') +
                 (sand || lakeLite ? 'uniform float uLakeBed;\n' : '') +
                 (lakeLite ? 'uniform float uLakeFreeze;\n' : '') +
-                (sand ? 'uniform float uLakeTime;\nuniform float uLakeFreeze;\n' + LAKE_FOAM_FNS_GLSL : '') +
+                (sand ? 'uniform float uLakeTime;\nuniform float uLakeFreeze;\nuniform sampler2D uLakeDepthTex;\nuniform float uLakeDepthSpan;\n' + LAKE_FOAM_FNS_GLSL : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
                 closeTileUniformDecls(profile) +
                 SLOPE_GROUND_FNS +
@@ -2615,7 +2668,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed2-caus' : '-lakebed2') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
