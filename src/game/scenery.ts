@@ -657,14 +657,14 @@ export class Scenery {
             // range still stands at ~a quarter of its height instead of sinking to the foothills.
             const massif = 0.28 + 0.72 * ridge;
             const rawMountain = rise * (45 + 310 * massif * (0.72 + 0.43 * sharp * sharpZone) + 95 * hero * ridge);
-            // Alpine shelves: in patches the flank steps up in benches every 70 wu — a flat first
-            // half of each step, then a steep riser — so some level ground exists high on the range
-            // (where the alpine meadows grow, see alpineMeadowAt). floor() is exact, so this is
-            // as deterministic as the rest.
-            const shelfZone = smooth01((noise(x / 140 + 88.8, z / 140 + 27.3) - 0.55) / 0.1);
-            const bench = rawMountain / 70;
+            // Alms: in broad patches the flank steps up in benches every 45 wu — a wide flat
+            // stretch (60%) of each step, then a steep riser — so there is level ground on the
+            // lower range, where the alpine meadows grow (see alpineMeadowAt). floor() is exact,
+            // so this is as deterministic as the rest.
+            const shelfZone = smooth01((noise(x / 210 + 88.8, z / 210 + 27.3) - 0.48) / 0.1);
+            const bench = rawMountain / 45;
             const benchFloor = Math.floor(bench);
-            const stepped = (benchFloor + smooth01((bench - benchFloor - 0.5) / 0.5)) * 70;
+            const stepped = (benchFloor + smooth01((bench - benchFloor - 0.6) / 0.4)) * 45;
             const mountain =
                 rawMountain + (stepped - rawMountain) * shelfZone * 0.85 * smooth01((rawMountain - 50) / 40);
             // Foothills die as the high range takes over — don't resume a
@@ -886,14 +886,13 @@ export class Scenery {
     }
 
     /**
-     * 0..1 alpine meadow: level ground high on the range (50–190 wu) in patches, where
-     * grass holds on and a few trees stand. Nature does this on every shelf; the rest
-     * of the mountain stays bare stone.
+     * 0..1 alm: broad level meadows on the lower range (30–150 wu), where grass holds on
+     * and only a few trees stand. The rest of the mountain stays bare stone.
      */
     private alpineMeadowAt(x: number, z: number, h = this.terrainHeight(x, z)): number {
-        if (h < 50 || h > 190 || this.landscape) return 0;
-        const alt = smooth01((h - 50) / 25) * (1 - smooth01((h - 150) / 40));
-        const patch = smooth01((this.noise(x / 75 + 13.3, z / 75 + 71.9) - 0.5) / 0.12);
+        if (h < 30 || h > 150 || this.landscape) return 0;
+        const alt = smooth01((h - 30) / 20) * (1 - smooth01((h - 105) / 45));
+        const patch = smooth01((this.noise(x / 120 + 13.3, z / 120 + 71.9) - 0.44) / 0.12);
         if (alt * patch <= 0) return 0;
         const S = 8;
         const slope =
@@ -903,7 +902,7 @@ export class Scenery {
                 Math.abs(this.terrainHeight(x, z + S) - h),
                 Math.abs(this.terrainHeight(x, z - S) - h),
             ) / S;
-        return alt * patch * (1 - smooth01((slope - 0.12) / 0.2));
+        return alt * patch * (1 - smooth01((slope - 0.16) / 0.24));
     }
 
     /** True where the meadow texture still reads green (not mountain stone). */
@@ -2885,10 +2884,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 const d = distOut(x, z);
                 if (d < keepOut) continue;
                 const h = this.terrainHeight(x, z);
-                if (h > maxHeight) {
-                    // ...except the odd tree on an alpine meadow shelf
-                    if (h > 170 || this.alpineMeadowAt(x, z, h) < 0.5 || rng() > 0.22) continue;
-                }
+                // an alm keeps only the odd tree, and may reach above the usual tree height
+                const alm = this.alpineMeadowAt(x, z, h);
+                if (alm > 0.3 && rng() > 0.2) continue;
+                if (h > maxHeight && (h > 130 || alm < 0.5)) continue;
                 if (h < -0.4) continue; // no trees in the lakes
                 if (!this.isGrassy(x, z)) continue; // no trees on rock/snow
                 if (this.plantClearedAt(x, z)) continue;
