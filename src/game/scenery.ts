@@ -242,6 +242,9 @@ const ALM_PEAK = 490;
 /** how steeply the meadow falls toward the board (rise over run) */
 const ALM_TILT = 0.26;
 
+/** the range's one wind, blowing snow off the crests */
+const SNOW_WIND = { x: 0.82, z: 0.57 };
+
 /** what the mountain cloud banks bleach toward under snow */
 const MIST_SNOW_WHITE = new Color(0xf4f7fb);
 
@@ -478,9 +481,11 @@ export class Scenery {
     private readonly sunRays: Group[] = [];
     private sunRayMaterial: MeshBasicMaterial | null = null;
     /** ultra: snow blown off the tallest crests (see createSnowPlumes) */
-    private readonly snowPlumes: { group: Group; baseX: number; phase: number }[] = [];
-    private snowPlumeMaterial: MeshBasicMaterial | null = null;
-    private snowPlumeTexture: CanvasTexture | null = null;
+    private readonly snowPlumes: {
+        crest: Vector3;
+        length: number;
+        puffs: { sprite: Sprite; material: SpriteMaterial; offset: number; size: number }[];
+    }[] = [];
     /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
     private readonly almSites: { x: number; z: number; y: number; ux: number; uz: number }[] = [];
     private time = 0;
@@ -1003,8 +1008,9 @@ export class Scenery {
     }
 
     /**
-     * Ultra: snow blown off the few tallest crests, streaming downwind. A long thin card per
-     * crest (one upright, one flat) with the cloud texture scrolled along it, pulsing gently.
+     * Ultra: snow blown off the few tallest crests. Each plume is a stream of soft puffs that
+     * are born at the crest, drift downwind while they swell, and fade out again — camera-facing
+     * sprites, so there are no card edges or crossings to see from any side.
      */
     private createSnowPlumes(map: BattleMap, rng: () => number): void {
         const crests: { x: number; z: number; h: number }[] = [];
@@ -1016,45 +1022,30 @@ export class Scenery {
             if (h > 240) crests.push({ x, z, h });
         }
         crests.sort((a, b) => b.h - a.h);
-        const tex = this.cloudTexture.clone();
-        tex.wrapS = RepeatWrapping;
-        tex.repeat.set(2.4, 1);
-        tex.needsUpdate = true;
-        this.snowPlumeTexture = tex;
-        const material = new MeshBasicMaterial({
-            map: tex,
-            color: 0xffffff,
-            transparent: true,
-            depthWrite: false,
-            side: DoubleSide,
-            opacity: 0,
-        });
-        this.snowPlumeMaterial = material;
-        const geometry = new PlaneGeometry(1, 1);
         const chosen: { x: number; z: number; h: number }[] = [];
         for (const c of crests) {
             if (chosen.length >= 5) break;
             if (chosen.some((o) => (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 120 * 120)) continue;
             chosen.push(c);
         }
-        // one wind for the whole range, so the plumes agree
-        const wind = { x: 0.82, z: 0.57 };
+        const PUFFS = 9;
         for (const c of chosen) {
-            const group = new Group();
-            const len = 90 + rng() * 60;
-            group.position.set(c.x + wind.x * len * 0.45, c.h - 3, c.z + wind.z * len * 0.45);
-            group.rotation.y = -Math.atan2(wind.z, wind.x);
-            const upright = new Mesh(geometry, material);
-            upright.scale.set(len, 26 + rng() * 10, 1);
-            upright.position.y = 8;
-            const flat = new Mesh(geometry, material);
-            flat.rotation.x = -Math.PI / 2;
-            flat.scale.set(len, 22, 1);
-            flat.position.y = 6;
-            for (const m of [upright, flat]) m.renderOrder = 4;
-            group.add(upright, flat);
-            this.snowPlumes.push({ group, baseX: group.position.x, phase: rng() * Math.PI * 2 });
-            this.group.add(group);
+            const plume = { crest: new Vector3(c.x, c.h - 2, c.z), length: 100 + rng() * 60, puffs: [] as (typeof this.snowPlumes)[number]['puffs'] };
+            for (let i = 0; i < PUFFS; i++) {
+                const material = new SpriteMaterial({
+                    map: this.cloudTexture,
+                    color: 0xffffff,
+                    transparent: true,
+                    depthWrite: false,
+                    opacity: 0,
+                });
+                const sprite = new Sprite(material);
+                sprite.renderOrder = 4;
+                sprite.visible = false;
+                plume.puffs.push({ sprite, material, offset: (i + rng() * 0.6) / PUFFS, size: 0.8 + rng() * 0.5 });
+                this.group.add(sprite);
+            }
+            this.snowPlumes.push(plume);
         }
     }
 
@@ -1452,16 +1443,24 @@ export class Scenery {
                 for (const g of this.sunRays) g.visible = false;
             }
         }
-        const plumeMat = this.snowPlumeMaterial;
-        if (plumeMat) {
+        if (this.snowPlumes.length > 0) {
             // the crests are always snowy; fresh snowfall makes the plumes fuller
-            const op = 0.3 + this.groundSnowCover * 0.25;
-            plumeMat.opacity = this.quality === 'ultra' ? op : 0;
-            if (this.snowPlumeTexture) this.snowPlumeTexture.offset.x = -this.time * 0.05;
-            for (const p of this.snowPlumes) {
-                p.group.visible = op > 0.02;
-                p.group.position.x = p.baseX + Math.sin(this.time * 0.11 + p.phase) * 6;
-                p.group.scale.y = 0.85 + 0.15 * Math.sin(this.time * 0.27 + p.phase);
+            const base = this.quality === 'ultra' ? 0.32 + this.groundSnowCover * 0.2 : 0;
+            for (const plume of this.snowPlumes) {
+                for (const puff of plume.puffs) {
+                    // age 0 = just left the crest, 1 = gone; the opacity is zero at both ends
+                    const age = (this.time * 0.04 + puff.offset) % 1;
+                    const fade = Math.sin(age * Math.PI);
+                    puff.sprite.visible = base > 0.01;
+                    puff.material.opacity = base * fade * fade;
+                    puff.sprite.position.set(
+                        plume.crest.x + SNOW_WIND.x * plume.length * age,
+                        plume.crest.y + 4 + age * 14,
+                        plume.crest.z + SNOW_WIND.z * plume.length * age,
+                    );
+                    const size = (16 + age * 34) * puff.size;
+                    puff.sprite.scale.set(size * 1.6, size, 1);
+                }
             }
         }
         // low: the flat water freezes by colour alone (there is no ice texture)
