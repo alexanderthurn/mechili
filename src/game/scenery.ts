@@ -253,6 +253,10 @@ const WATER_ULTRA_ROUGHNESS = 0.12;
 const WATER_ULTRA_OPACITY = 0.6;
 /** lake-bed sand tile edge in world units (high, ultra) */
 const LAKE_SAND_TILE = 13;
+/** water depth (metres) where the silt takes over from the stones; lower = more silt */
+const LAKE_SILT_FROM = 0.9;
+/** how ragged that edge is: noise shifts the threshold by up to about half of this (metres) */
+const LAKE_SILT_RAG = 1.6;
 /** the gravel again at a second, larger size, so the floor does not visibly repeat */
 const LAKE_GRAVEL_BIG_TILE = 29;
 /** ripple size: 1 = the first version, higher = finer waves */
@@ -2368,12 +2372,17 @@ ${pgClose}`;
         float lbB = lfNoise(vWorldXZ * 0.13 + 17.7);
         float lbC = lfNoise(vWorldXZ * 0.37 + 41.3);
         diffuseColor.rgb = mix(diffuseColor.rgb, lbGravelBig, lbUnder * (1.0 - lbSand) * 0.55 * smoothstep(0.3, 0.7, lbB));
-        float lbSilt = smoothstep(0.50, 0.70, lbA) * smoothstep(0.5, 2.2, lbDepth) * lbUnder;
-        diffuseColor.rgb = mix(diffuseColor.rgb, lbSandTex * vec3(0.66, 0.52, 0.38), lbSilt * 0.9);
+        // silt follows the depth: it fills the floor below about a metre and a half, so
+        // the stones stay up by the coast. Noise only roughens where the edge runs.
+        float lbRag = (lfNoise(vWorldXZ * 0.16 + 5.7) * 0.6 + lfNoise(vWorldXZ * 0.45 + 23.3) * 0.4 - 0.5) * ${LAKE_SILT_RAG.toFixed(2)};
+        float lbSilt = smoothstep(${LAKE_SILT_FROM.toFixed(2)}, ${(LAKE_SILT_FROM + 0.9).toFixed(2)}, lbDepth + lbRag) * lbUnder;
+        vec3 lbSiltCol = lbSandTex * vec3(0.66, 0.52, 0.38) * (0.84 + 0.32 * lbC);
+        diffuseColor.rgb = mix(diffuseColor.rgb, lbSiltCol, lbSilt * 0.92);
+        // the coloured stones live in the gravel, so they thin out where silt takes over
         vec3 lbTint = mix(vec3(1.0), vec3(0.74, 0.88, 1.10), smoothstep(0.55, 0.80, lbB));
         lbTint = mix(lbTint, vec3(1.10, 0.90, 0.68), smoothstep(0.55, 0.82, lbC) * 0.85);
         lbTint = mix(lbTint, vec3(0.82, 1.04, 0.76), smoothstep(0.62, 0.85, lfNoise(vWorldXZ * 0.09 + 91.0)) * smoothstep(0.3, 1.5, lbDepth));
-        diffuseColor.rgb *= mix(vec3(1.0), lbTint, lbUnder);
+        diffuseColor.rgb *= mix(vec3(1.0), lbTint, lbUnder * (1.0 - lbSilt));
         diffuseColor.rgb *= mix(vec3(1.0), vec3(0.34, 0.5, 0.56), smoothstep(0.3, 6.5, lbDepth) * uLakeBed);
         // wet bank: just above the waterline the sand is darker, drying out upward
         float lbWet = (1.0 - smoothstep(0.0, 0.55, -lbDepth)) * step(-0.55, lbDepth) * lbSand;
