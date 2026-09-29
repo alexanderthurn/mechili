@@ -1,7 +1,7 @@
 {
     "id": "earthRise",
     "name": "Earth Rise",
-    "icon": "item-earth",
+    "icon": "tactic-rockslide",
     "kind": "placement",
     "targeting": "two-point",
     "cooldownRounds": 2,
