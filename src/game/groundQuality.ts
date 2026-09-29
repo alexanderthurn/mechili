@@ -300,22 +300,21 @@ const FLAT_BROWN_PATCHES = 0.6;
 
 /**
  * The board's ground types: big slow zones of lush and of straw-dry cover, patches
- * of bare earth and of moss, and a drier lift on the crests of the mounds. The
+ * of stony ground and of moss, and a drier lift on the crests of the mounds. The
  * flat lawn used to be one green with tonal drift; this gives it places.
  *
  * Everything fades out toward the board edge so the field still meets the outer
  * meadow, which does not have these zones. `strength` scales the tier (medium is
- * milder). `earth` is the name of the dirt sampler the slopes already use (no extra
- * texture load), or null for none (no bare-earth patches then).
+ * milder). `rock` is the name of the rock sampler, or null for none (no stones then).
  */
 export function groundZonesGlsl(opts: {
     worldPos: string;
     boardXZ: string;
     boardHalf: string;
-    earth: string | null;
+    rock: string | null;
     strength: number;
 }): string {
-    const { worldPos, boardXZ, boardHalf, earth, strength } = opts;
+    const { worldPos, boardXZ, boardHalf, rock, strength } = opts;
     const k = strength.toFixed(2);
     let glsl = `
 	// ground types (see groundZonesGlsl)
@@ -335,13 +334,12 @@ export function groundZonesGlsl(opts: {
 	float crestT = smoothstep( 1.2, 3.6, zoneP.y ) * zoneEdge;
 	diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.12, 1.04, 0.80 ), crestT * ${k} * 0.55 );
 `;
-    if (earth) {
-        glsl += `	// bare earth: sparse patches of the dirt the hillsides already use, so the
-	// lawn breaks up into worn ground instead of one green
-	float earthN = slopeNoise( zoneP.xz / 27.0 + 47.0 ) * 0.65 + slopeNoise( zoneP.xz / 8.0 + 2.9 ) * 0.35;
-	float earthT = smoothstep( 0.68, 0.84, earthN ) * zoneEdge * ${k} * 0.55;
-	vec3 earthCol = texture2D( ${earth}, zoneP.xz / 9.0 ).rgb * vec3( 0.95, 0.90, 0.84 );
-	diffuseColor.rgb = mix( diffuseColor.rgb, earthCol, earthT );
+    if (rock) {
+        glsl += `	// stony ground: sparse patches of the rock photo, kept faint so units read on top
+	float stoneN = slopeNoise( zoneP.xz / 31.0 + 47.0 ) * 0.65 + slopeNoise( zoneP.xz / 9.0 + 2.9 ) * 0.35;
+	float stonyT = smoothstep( 0.68, 0.82, stoneN ) * zoneEdge * ${k} * 0.5;
+	vec3 stonyCol = texture2D( ${rock}, zoneP.xz / 5.0 ).rgb * vec3( 0.92, 0.90, 0.84 );
+	diffuseColor.rgb = mix( diffuseColor.rgb, stonyCol, stonyT );
 `;
     }
     return glsl;
