@@ -483,8 +483,14 @@ export class Scenery {
     /** ultra: snow blown off the tallest crests (see createSnowPlumes) */
     private readonly snowPlumes: {
         crest: Vector3;
+        /** the cap sits a little toward the board, in front of the summit */
+        center: Vector3;
         length: number;
+        phase: number;
+        /** the banner streaming off the crest downwind */
         puffs: { sprite: Sprite; material: SpriteMaterial; offset: number; size: number }[];
+        /** the cloud wrapped round the summit; more of it shows the worse the weather */
+        cap: { sprite: Sprite; material: SpriteMaterial; angle: number; radius: number; height: number; spin: number; size: number; rank: number }[];
     }[] = [];
     /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
     private readonly almSites: { x: number; z: number; y: number; ux: number; uz: number }[] = [];
@@ -1008,9 +1014,11 @@ export class Scenery {
     }
 
     /**
-     * Ultra: snow blown off the few tallest crests. Each plume is a stream of soft puffs that
-     * are born at the crest, drift downwind while they swell, and fade out again — camera-facing
-     * sprites, so there are no card edges or crossings to see from any side.
+     * Ultra: the tallest summits wear cloud. On peaks this high the top is rarely clear —
+     * moisture condenses on it even in fine weather — so each carries a cap of large soft puffs
+     * wrapped round and a little in front of the summit, plus a banner of snow streaming off
+     * downwind. Fine weather leaves a small cap that comes and goes; fog, rain and snow bury the
+     * peak in it. Camera-facing sprites: no card edges or crossings from any side.
      */
     private createSnowPlumes(map: BattleMap, rng: () => number): void {
         const crests: { x: number; z: number; h: number }[] = [];
@@ -1019,33 +1027,104 @@ export class Scenery {
             const z = (rng() * 2 - 1) * (map.halfH + MOUNTAIN_PEAK_END);
             if (pastBoard(map.halfW, map.halfH, x, z) > MOUNTAIN_PEAK_END - 40) continue;
             const h = this.terrainHeight(x, z);
-            if (h > 240) crests.push({ x, z, h });
+            if (h > 230) crests.push({ x, z, h });
         }
         crests.sort((a, b) => b.h - a.h);
         const chosen: { x: number; z: number; h: number }[] = [];
         for (const c of crests) {
-            if (chosen.length >= 5) break;
-            if (chosen.some((o) => (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 120 * 120)) continue;
+            if (chosen.length >= 7) break;
+            if (chosen.some((o) => (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 110 * 110)) continue;
             chosen.push(c);
         }
-        const PUFFS = 9;
+        const makePuff = (): { sprite: Sprite; material: SpriteMaterial } => {
+            const material = new SpriteMaterial({
+                map: this.cloudTexture,
+                color: 0xffffff,
+                transparent: true,
+                depthWrite: false,
+                opacity: 0,
+            });
+            const sprite = new Sprite(material);
+            sprite.renderOrder = 4;
+            sprite.visible = false;
+            this.group.add(sprite);
+            return { sprite, material };
+        };
+        const BANNER = 7;
+        const CAP = 18;
         for (const c of chosen) {
-            const plume = { crest: new Vector3(c.x, c.h - 2, c.z), length: 100 + rng() * 60, puffs: [] as (typeof this.snowPlumes)[number]['puffs'] };
-            for (let i = 0; i < PUFFS; i++) {
-                const material = new SpriteMaterial({
-                    map: this.cloudTexture,
-                    color: 0xffffff,
-                    transparent: true,
-                    depthWrite: false,
-                    opacity: 0,
+            const len = Math.sqrt(c.x * c.x + c.z * c.z) || 1;
+            const plume: (typeof this.snowPlumes)[number] = {
+                crest: new Vector3(c.x, c.h - 2, c.z),
+                center: new Vector3(c.x - (c.x / len) * 24, c.h - 2, c.z - (c.z / len) * 24),
+                length: 100 + rng() * 60,
+                phase: rng() * Math.PI * 2,
+                puffs: [],
+                cap: [],
+            };
+            for (let i = 0; i < BANNER; i++) {
+                plume.puffs.push({ ...makePuff(), offset: (i + rng() * 0.6) / BANNER, size: 0.8 + rng() * 0.5 });
+            }
+            for (let i = 0; i < CAP; i++) {
+                plume.cap.push({
+                    ...makePuff(),
+                    angle: rng() * Math.PI * 2,
+                    radius: Math.sqrt(rng()) * 42,
+                    height: -10 + rng() * 30,
+                    spin: (rng() < 0.5 ? -1 : 1) * (0.02 + rng() * 0.04),
+                    size: 55 + rng() * 45,
+                    rank: (i + rng() * 0.8) / CAP,
                 });
-                const sprite = new Sprite(material);
-                sprite.renderOrder = 4;
-                sprite.visible = false;
-                plume.puffs.push({ sprite, material, offset: (i + rng() * 0.6) / PUFFS, size: 0.8 + rng() * 0.5 });
-                this.group.add(sprite);
             }
             this.snowPlumes.push(plume);
+        }
+    }
+
+    /** per frame: how much of each summit is under cloud (0.25 in perfect weather, up to 1) */
+    private updateSummitClouds(): void {
+        if (this.snowPlumes.length === 0) return;
+        const ultra = this.quality === 'ultra';
+        const w = this.weather;
+        const bad = w && w.weatherKind !== 'clear' ? 0.45 + 0.55 * w.weatherIntensity : 0;
+        const fog = this.forestFogMaterial?.opacity ?? 0;
+        const cover = Math.min(1, 0.25 + bad * 0.75 + fog * 0.7);
+        // grey under rain and snow, bright white in the sun
+        const grey = 1 - bad * 0.22;
+        for (const plume of this.snowPlumes) {
+            // even in fine weather the cap swells and thins over minutes
+            const breath = 0.72 + 0.28 * Math.sin(this.time * 0.045 + plume.phase);
+            const shown = cover * breath;
+            for (const puff of plume.cap) {
+                const weight = smooth01((shown * 1.2 - puff.rank) / 0.22);
+                puff.sprite.visible = ultra && weight > 0.01;
+                if (!puff.sprite.visible) continue;
+                const a = puff.angle + this.time * puff.spin;
+                puff.sprite.position.set(
+                    plume.center.x + Math.cos(a) * puff.radius,
+                    plume.center.y + puff.height + Math.sin(this.time * 0.13 + puff.angle * 3) * 2.5,
+                    plume.center.z + Math.sin(a) * puff.radius,
+                );
+                const size = puff.size * (0.9 + 0.1 * Math.sin(this.time * 0.09 + puff.angle));
+                puff.sprite.scale.set(size * 1.5, size, 1);
+                puff.material.opacity = 0.55 * weight;
+                puff.material.color.setScalar(grey);
+            }
+            // the banner: snow leaving the crest, only when the air is clear enough to see it
+            const clearAir = ultra ? 1 - Math.min(1, cover * 0.9) : 0;
+            for (const puff of plume.puffs) {
+                // age 0 = just left the crest, 1 = gone; the opacity is zero at both ends
+                const age = (this.time * 0.04 + puff.offset) % 1;
+                const fade = Math.sin(age * Math.PI);
+                puff.sprite.visible = clearAir > 0.02;
+                puff.material.opacity = (0.3 + this.groundSnowCover * 0.2) * fade * fade * clearAir;
+                puff.sprite.position.set(
+                    plume.crest.x + SNOW_WIND.x * plume.length * age,
+                    plume.crest.y + 4 + age * 14,
+                    plume.crest.z + SNOW_WIND.z * plume.length * age,
+                );
+                const size = (16 + age * 34) * puff.size;
+                puff.sprite.scale.set(size * 1.6, size, 1);
+            }
         }
     }
 
@@ -1443,26 +1522,7 @@ export class Scenery {
                 for (const g of this.sunRays) g.visible = false;
             }
         }
-        if (this.snowPlumes.length > 0) {
-            // the crests are always snowy; fresh snowfall makes the plumes fuller
-            const base = this.quality === 'ultra' ? 0.32 + this.groundSnowCover * 0.2 : 0;
-            for (const plume of this.snowPlumes) {
-                for (const puff of plume.puffs) {
-                    // age 0 = just left the crest, 1 = gone; the opacity is zero at both ends
-                    const age = (this.time * 0.04 + puff.offset) % 1;
-                    const fade = Math.sin(age * Math.PI);
-                    puff.sprite.visible = base > 0.01;
-                    puff.material.opacity = base * fade * fade;
-                    puff.sprite.position.set(
-                        plume.crest.x + SNOW_WIND.x * plume.length * age,
-                        plume.crest.y + 4 + age * 14,
-                        plume.crest.z + SNOW_WIND.z * plume.length * age,
-                    );
-                    const size = (16 + age * 34) * puff.size;
-                    puff.sprite.scale.set(size * 1.6, size, 1);
-                }
-            }
-        }
+        this.updateSummitClouds();
         // low: the flat water freezes by colour alone (there is no ice texture)
         if (this.flatWaterMaterial) {
             const cover = this.groundSnowCover;
