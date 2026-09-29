@@ -1063,6 +1063,13 @@ export class Scenery {
     renderWaterReflection(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera): void {
         const reflection = this.waterReflection;
         if (!reflection || !this.waterMesh) return;
+        // The mirrored pass reuses the sun's shadow map instead of redrawing it
+        // — but three only creates that map inside a shadow pass, so on a cold
+        // load (or right after a shadow-size change) there is none yet, and
+        // every lit draw of the mirrored view would sample a texture that
+        // doesn't exist. Let the frame's own render make it first.
+        const sun = this.sunLight;
+        if (renderer.shadowMap.enabled && sun?.castShadow && !sun.shadow.map) return;
         this.lakeBoxes ??= this.sampleLakeBoxes();
         reflection.update(renderer, scene, camera, this.lakeBoxes, [this.waterMesh]);
     }
