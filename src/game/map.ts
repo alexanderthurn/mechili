@@ -192,6 +192,14 @@ export function makeValueNoise(seed: number): (x: number, y: number) => number {
 }
 
 /** how far a building pad blends into the surrounding shape (wu) */
+/**
+ * How much stain weight an acid puddle cell adds (rim, core). The ground shows a stain from a
+ * total weight of about 0.08 (fully from 0.35), and neighbouring cells overlap and add up, so
+ * these are small: at 0.0075 / 0.01 only the densest middle of a field shows, and faintly.
+ */
+const ACID_STAIN_RIM = 0.0075;
+const ACID_STAIN_CORE = 0.01;
+
 const PAD_BLEND = 10;
 /** Highlands: plateau height and mean radius around each Stronghold (wu) */
 const HIGHLAND_HEIGHT = 10;
@@ -840,8 +848,10 @@ export class BattleMap {
         r: number,
         alpha: number,
         channel: 'r' | 'g' | 'b',
+        /** alpha floor: 0.02 for ordinary marks; the acid stain goes below it */
+        minAlpha = 0.02,
     ): void {
-        const a = Math.min(1, Math.max(0.02, alpha));
+        const a = Math.min(1, Math.max(minAlpha, alpha));
         const rgb =
             channel === 'r' ? `255,0,0` : channel === 'g' ? `0,255,0` : `0,0,255`;
         const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -1246,6 +1256,17 @@ export class BattleMap {
         this.sandDirty = true;
     }
 
+    /** one faint disc of stain weight (the wear layer's G channel), below the usual alpha floor */
+    private stampAcidWear(x: number, z: number, radius: number, strength: number): void {
+        const ctx = this.sandCtx;
+        if (!ctx || !this.sandMask) return;
+        const cx = ((x + this.halfW) / this.width) * this.sandW;
+        const cy = ((z + this.halfH) / this.height) * this.sandH;
+        const r = Math.max(0.5, radius) * (this.sandW / this.width);
+        this.drawWearBlob(ctx, cx, cy, r, strength, 'g', 0.001);
+        this.sandDirty = true;
+    }
+
     /**
      * Acid leaves a stain: a sickly yellow-green bowl with a brown-olive rim where a
      * puddle lands, once per cell, in the same wear layer as gore (so it shows through
@@ -1270,9 +1291,9 @@ export class BattleMap {
             const roll = fractHash(i * 7919 + 31337);
             const r = 5.4 * (0.85 + roll * 0.3);
             // rim first, then the core over it
-            this.stampWearChannel(x, z, r * 1.25, 0.03, 'g');
+            this.stampAcidWear(x, z, r * 1.25, ACID_STAIN_RIM);
             this.stampBloodTint(x, z, r * 1.25, 0.5, 0x8c7a2a, 1);
-            this.stampWearChannel(x, z, r * 0.8, 0.04, 'g');
+            this.stampAcidWear(x, z, r * 0.8, ACID_STAIN_CORE);
             this.stampBloodTint(x, z, r * 0.8, 0.7, 0xa2b82c, 1);
         });
         // only what is still acid stays marked, so a fresh puddle on the same cell stains again
