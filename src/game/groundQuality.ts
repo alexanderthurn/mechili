@@ -331,6 +331,10 @@ export function groundZonesGlsl(opts: {
 	float mossN = slopeNoise( zoneP.xz / 15.0 + 90.0 ) * 0.7 + slopeNoise( zoneP.xz / 5.5 + 13.0 ) * 0.3;
 	float mossT = smoothstep( 0.62, 0.8, mossN ) * ( 1.0 - smoothstep( 0.2, 1.4, zoneP.y ) ) * zoneEdge;
 	diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.70, 0.90, 0.68 ), mossT * ${k} * 0.7 );
+	// acid pits (ground dug below the board's level): the deeper, the darker and more burnt
+	float pitK = smoothstep( 0.02, 0.8, -zoneP.y );
+	diffuseColor.rgb *= 1.0 - 0.5 * pitK;
+	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.16, 0.19, 0.05 ), pitK * 0.35 );
 	// the crests of the mounds run dry and light
 	float crestT = smoothstep( 1.2, 3.6, zoneP.y ) * zoneEdge;
 	diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.12, 1.04, 0.80 ), crestT * ${k} * 0.55 );

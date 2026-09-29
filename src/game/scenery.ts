@@ -2175,9 +2175,18 @@ export class Scenery {
      * the decorations standing in that world rectangle.
      */
     reseatGroundedDecorations(area?: { minX: number; maxX: number; minZ: number; maxZ: number }): void {
-        // the ground may have moved under the lakes (sculpt) — resample on next use
-        this.lakeBoxes = null;
-        this.lakeDepthDirty = true;
+        // the ground may have moved under the lakes (sculpt) — resample on next use.
+        // A change that stays on the board (a hammer, an acid pit) cannot touch a lake.
+        const beyondBoard =
+            !area ||
+            area.minX < -this.map.halfW ||
+            area.maxX > this.map.halfW ||
+            area.minZ < -this.map.halfH ||
+            area.maxZ > this.map.halfH;
+        if (beyondBoard) {
+            this.lakeBoxes = null;
+            this.lakeDepthDirty = true;
+        }
         const WATER_Y = -1.1;
         this.forEachDecorationMesh((mesh) => {
             let cache = this.instanceGroundY.get(mesh);
