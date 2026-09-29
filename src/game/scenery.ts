@@ -248,53 +248,8 @@ const ALM_PEAK = 370;
 /** how steeply the meadow falls toward the board (rise over run) */
 const ALM_TILT = 0.26;
 
-/**
- * The ground at (x, z) once a glacier basin is cut into it: a V-shaped trough pressed into the
- * mountainside, funnel-shaped — wide (~44 wu each side) at the head, narrowing to a few wu at the
- * outlet — with a level floor sunk below the mountain's own slope and steep walls left and right.
- * It only ever cuts (nothing stands out of the mountain), and eases back into the natural ground
- * past the walls and at the outlet lip, so the meltwater leaves over the edge. Plain arithmetic,
- * so it matches on every machine.
- */
-function glacierShape(
-    c: { ax: number; az: number; ux: number; uz: number; len: number; y0: number; y1: number },
-    x: number,
-    z: number,
-    h: number,
-): number {
-    const dx = x - c.ax;
-    const dz = z - c.az;
-    const t = (dx * c.ux + dz * c.uz) / c.len;
-    if (t <= -0.02 || t >= 1.02) return h;
-    const tt = t < 0 ? 0 : t > 1 ? 1 : t;
-    const s = Math.abs(dx * -c.uz + dz * c.ux);
-    const hw = glacierHalfWidth(tt);
-    if (s >= hw + GLACIER_EASE) return h;
-    const fh = hw * 0.5;
-    // the floor runs down the mountain's own trend, sunk GLACIER_DEPTH below it (less toward the lip)
-    const floorY = c.y0 + (c.y1 - c.y0) * tt - GLACIER_DEPTH * (1 - 0.6 * tt);
-    const target = floorY + GLACIER_WALL * (s > fh ? s - fh : 0);
-    if (target >= h) return h;
-    // only ever cut: a V pressed into the mountainside, easing out past its walls and along the lip
-    const eOut = 1 - smooth01((s - hw) / GLACIER_EASE);
-    const end = smooth01(tt / 0.05) * (1 - smooth01((tt - 0.88) / 0.12));
-    return h - (h - target) * eOut * end;
-}
-
-/** half-width of a glacier basin at t (0 = head, 1 = outlet) */
-function glacierHalfWidth(t: number): number {
-    return 4 + 40 * (1 - t) * (1 - 0.3 * t);
-}
-
 /** a glacier's length along its stream's course, and the step the course is traced in */
-const GLACIER_LENGTH = 130;
-/** how deep the basin floor is sunk below the mountainside, and the slope of its side walls (rise over run) */
-const GLACIER_DEPTH = 18;
-/** the ice field lying in the basin (off for now) */
-const GLACIER_ICE = false;
-const GLACIER_WALL = 1.3;
-/** how far past its walls a glacier basin eases into the natural ground */
-const GLACIER_EASE = 26;
+const GLACIER_LENGTH = 115;
 const STREAM_STEP = 5;
 
 /** the range's one wind, blowing snow off the crests */
@@ -552,8 +507,6 @@ export class Scenery {
     private lakes: { x: number; z: number; r: number; phase: number }[] = [];
     /** ultra: the glaciers and the streams that run from them to a lake (see planGlaciers) */
     private glacierPlans: { path: { x: number; z: number }[]; snout: number }[] = [];
-    /** the glacier valleys pressed into the ground: a V-shaped cirque from A (wide) to the outlet O (a few wu across) */
-    private readonly glacierCarves: { ax: number; az: number; ux: number; uz: number; len: number; y0: number; y1: number }[] = [];
     /** discs the mountain sculpt must leave alone so a glacier or stream keeps to its ground */
     private glacierKeepOut: { x: number; z: number; r: number }[] = [];
     private streamFlow: CanvasTexture | null = null;
@@ -910,7 +863,6 @@ export class Scenery {
                 const target = site.y + ALM_TILT * (dx * site.ux + dz * site.uz);
                 h += (target - h) * (1 - smooth01((Math.sqrt(d2) - ALM_RADIUS) / ALM_EASE)) * 0.92;
             }
-            for (const c of this.glacierCarves) h = glacierShape(c, x, z, h);
             return h;
         };
         // a static map replaces the procedural ring outright — placement,
@@ -1062,56 +1014,52 @@ export class Scenery {
      * the outer mesh is built; createGlaciers draws it. Visual only — no gameplay reads it.
      */
     private planGlaciers(map: BattleMap, seed: number): void {
-        // One glacier, on the super mountain's flank facing the valley. (Every tier: the basin is
-        // pressed into the ground, which is gameplay-visible height; only the ice and the water
-        // are drawn on ultra alone.)
-        const sp = this.superPeak;
-        if (this.landscape || !sp) return;
+        if (this.quality !== 'ultra' || this.landscape || this.lakes.length === 0) return;
         const rng = mulberry32((seed ^ 0x61ac1e) >>> 0);
         const H = this.terrainHeight;
-        const toBoard = Math.sqrt(sp.x * sp.x + sp.z * sp.z) || 1;
-        const bx = -sp.x / toBoard;
-        const bz = -sp.z / toBoard;
-        // the summit's height, to aim for about three quarters of the way up
-        let top = -Infinity;
-        for (let i = 0; i < 60; i++) {
-            top = Math.max(top, H(sp.x + (rng() * 2 - 1) * 15, sp.z + (rng() * 2 - 1) * 15));
-        }
-        let best: { x: number; z: number; h: number; score: number } | null = null;
-        for (let i = 0; i < 600; i++) {
-            // somewhere on the half of the mountain that faces the board
-            const ang = (rng() * 2 - 1) * 0.9;
-            const r = SUPER_RADIUS * (0.3 + rng() * 0.32);
-            const ca = Math.cos(ang);
-            const sa = Math.sin(ang);
-            const x = sp.x + (bx * ca - bz * sa) * r;
-            const z = sp.z + (bx * sa + bz * ca) * r;
-            if (this.lakeAt(x, z) > 0.01) continue;
-            if (this.almSites.some((a) => (a.x - x) ** 2 + (a.z - z) ** 2 < (ALM_RADIUS + ALM_EASE + 70) ** 2)) continue;
+        const count = 1 + (rng() < 0.5 ? 1 : 0);
+        const cands: { x: number; z: number; score: number }[] = [];
+        for (let i = 0; i < 1200; i++) {
+            const x = (rng() * 2 - 1) * (map.halfW + 340);
+            const z = (rng() * 2 - 1) * (map.halfH + 340);
+            const dOut = pastBoard(map.halfW, map.halfH, x, z);
+            if (dOut < 150 || dOut > 340 || this.lakeAt(x, z) > 0.01) continue;
             const h = H(x, z);
+            if (h < 150 || h > 330) continue;
             const S = 8;
             const slope =
                 Math.max(Math.abs(H(x + S, z) - h), Math.abs(H(x - S, z) - h), Math.abs(H(x, z + S) - h), Math.abs(H(x, z - S) - h)) / S;
-            if (slope > 1.1) continue;
-            const score = Math.abs(h - top * 0.74) + Math.abs(slope - 0.5) * 60;
-            if (!best || score < best.score) best = { x, z, h, score };
+            if (slope < 0.2 || slope > 0.9) continue;
+            let near = Infinity;
+            for (const l of this.lakes) near = Math.min(near, Math.sqrt((l.x - x) ** 2 + (l.z - z) ** 2) - l.r);
+            if (near > 420) continue;
+            let score = Math.abs(h - 250) * 0.5 + Math.abs(slope - 0.45) * 200 + near * 0.15;
+            // the first glacier likes the flank of the super mountain
+            const sp = this.superPeak;
+            if (sp && (x - sp.x) ** 2 + (z - sp.z) ** 2 < SUPER_RADIUS * SUPER_RADIUS) score -= 40;
+            cands.push({ x, z, score });
         }
-        if (!best) return;
-        // the basin runs from the head straight toward the board, floor tilting to the valley
-        const len = GLACIER_LENGTH;
-        const outlet = { x: best.x + bx * len, z: best.z + bz * len };
-        const carve = { ax: best.x, az: best.z, ux: bx, uz: bz, len, y0: best.h, y1: H(outlet.x, outlet.z) };
-        // the meltwater leaves over the lip and runs down to the lake (a plan without a stream
-        // still gets its basin)
-        const path = this.traceMeltwater(outlet.x, outlet.z) ?? [outlet, outlet];
-        this.glacierCarves.push(carve);
-        this.glacierPlans.push({ path, snout: 0 });
-        for (let k = 0; k <= 5; k++) {
-            const t = k / 5;
-            this.glacierKeepOut.push({ x: carve.ax + bx * len * t, z: carve.az + bz * len * t, r: glacierHalfWidth(t) + 24 });
-        }
-        for (let i = 0; i < path.length; i += 6) {
-            this.glacierKeepOut.push({ x: path[i]!.x, z: path[i]!.z, r: 18 });
+        cands.sort((a, b) => a.score - b.score);
+        const heads: { x: number; z: number }[] = [];
+        for (const c of cands) {
+            if (this.glacierPlans.length >= count) break;
+            if (heads.some((o) => (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 260 * 260)) continue;
+            const path = this.traceMeltwater(c.x, c.z);
+            if (!path) continue;
+            let len = 0;
+            let snout = path.length - 1;
+            for (let i = 1; i < path.length; i++) {
+                len += STREAM_STEP;
+                if (len >= GLACIER_LENGTH) {
+                    snout = i;
+                    break;
+                }
+            }
+            heads.push({ x: c.x, z: c.z });
+            this.glacierPlans.push({ path, snout });
+            for (let i = 0; i < path.length; i += 6) {
+                this.glacierKeepOut.push({ x: path[i]!.x, z: path[i]!.z, r: i <= snout ? 42 : 22 });
+            }
         }
     }
 
@@ -1162,15 +1110,15 @@ export class Scenery {
             const after = H(x, z);
             stuck = after > before - 0.05 ? stuck + 1 : 0;
             path.push({ x, z });
-            if (this.lakeAt(x, z) > 0.3 || after < -0.6) return path;
+            if (this.lakeAt(x, z) > 0.3 || after < -0.6) return path.length * STREAM_STEP >= GLACIER_LENGTH + 40 ? path : null;
         }
         return null;
     }
 
     /**
-     * Ultra: draw the planned glaciers (pale blue ice lying in the V-shaped valley, wide at the head
-     * and narrowing to the outlet) and the meltwater gathering there and running down to its lake as
-     * a very thin line, with a little mist where it lands. In deep winter the water freezes still.
+     * Ultra: draw the planned glaciers (a tongue of pale blue ice draped on the slope) and the
+     * meltwater running from each snout down to its lake: a flowing ribbon, a little mist where it
+     * lands. In deep winter the water freezes still.
      */
     private createGlaciers(): void {
         if (this.glacierPlans.length === 0) return;
@@ -1261,13 +1209,12 @@ export class Scenery {
             cols: number,
             vScale: number,
             wobble: number,
-            stepLen = STREAM_STEP,
         ): BufferGeometry => {
             const pos: number[] = [];
             const uv: number[] = [];
             const idx: number[] = [];
             let run = 0;
-            const total = Math.max(1, (pts.length - 1) * stepLen);
+            const total = Math.max(1, (pts.length - 1) * STREAM_STEP);
             for (let i = 0; i < pts.length; i++) {
                 const a = pts[Math.max(0, i - 1)]!;
                 const b = pts[Math.min(pts.length - 1, i + 1)]!;
@@ -1286,7 +1233,7 @@ export class Scenery {
                     pos.push(x, H(x, z) + lift, z);
                     uv.push((sj + 1) / 2, (run * vScale) / 1);
                 }
-                run += stepLen;
+                run += STREAM_STEP;
                 if (i > 0) {
                     const r0 = (i - 1) * cols;
                     const r1 = i * cols;
@@ -1305,29 +1252,27 @@ export class Scenery {
         };
 
         for (const plan of this.glacierPlans) {
-            // the ice fills the valley: a tongue running along the same chord as the V, wide at
-            // the head and tapering to the outlet where the water gathers
-            const carve = this.glacierCarves[this.glacierPlans.indexOf(plan)]!;
-            const N = 22;
-            const chord: { x: number; z: number }[] = [];
-            for (let i = 0; i <= N; i++) {
-                const t = i / N;
-                chord.push({ x: carve.ax + carve.ux * carve.len * t, z: carve.az + carve.uz * carve.len * t });
-            }
-            const stepLen = carve.len / N;
-            const iceGeo = buildStrip(chord, (t) => glacierHalfWidth(t) * 0.9, 0.5, 9, 1 / 14, 6, stepLen);
-            const uvAttr = iceGeo.getAttribute('uv') as BufferAttribute;
-            const vMax = N * stepLen * (1 / 14);
+            // the ice: the first stretch of the course, widest in the middle
+            const tongue = plan.path.slice(0, plan.snout + 1);
+            const ivGeo = buildStrip(
+                tongue,
+                (t) => 25 * (0.5 + 0.5 * Math.sin(Math.PI * Math.min(1, 0.12 + t * 0.9))),
+                0.5,
+                9,
+                1 / 14,
+                8,
+            );
+            // the ice texture runs once along the tongue: stretch v to 0..1
+            const uvAttr = ivGeo.getAttribute('uv') as BufferAttribute;
+            const vMax = (tongue.length - 1) * STREAM_STEP * (1 / 14);
             for (let i = 0; i < uvAttr.count; i++) uvAttr.setY(i, uvAttr.getY(i) / Math.max(1e-6, vMax));
-            if (GLACIER_ICE) {
-                const iceMesh = new Mesh(iceGeo, iceMat);
-                iceMesh.renderOrder = 1;
-                this.group.add(iceMesh);
-            }
+            const ivMesh = new Mesh(ivGeo, iceMat);
+            ivMesh.renderOrder = 1;
+            this.group.add(ivMesh);
 
-            // the meltwater: a very thin line from the outlet down to the lake, a little wider as it goes
+            // the meltwater: from the snout down to the lake, wider as it goes
             const stream = plan.path.slice(plan.snout);
-            const sGeo = buildStrip(stream, (t) => 0.45 + t * 0.85, 0.3, 3, 1 / 16, 0);
+            const sGeo = buildStrip(stream, (t) => 1.6 + t * 2.4, 0.35, 5, 1 / 16, 0);
             const sMesh = new Mesh(sGeo, flowMat);
             sMesh.renderOrder = 2;
             this.group.add(sMesh);
