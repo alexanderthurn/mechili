@@ -654,7 +654,17 @@ export class Scenery {
             // The valley is ringed by real mountains: where the noise says "gap" (ridge = 0) the
             // range still stands at ~a quarter of its height instead of sinking to the foothills.
             const massif = 0.28 + 0.72 * ridge;
-            const mountain = rise * (45 + 310 * massif * (0.72 + 0.43 * sharp * sharpZone) + 95 * hero * ridge);
+            const rawMountain = rise * (45 + 310 * massif * (0.72 + 0.43 * sharp * sharpZone) + 95 * hero * ridge);
+            // Alpine shelves: in patches the flank steps up in benches every 70 wu — a flat first
+            // half of each step, then a steep riser — so some level ground exists high on the range
+            // (where the alpine meadows grow, see alpineMeadowAt). floor() is exact, so this is
+            // as deterministic as the rest.
+            const shelfZone = smooth01((noise(x / 140 + 88.8, z / 140 + 27.3) - 0.55) / 0.1);
+            const bench = rawMountain / 70;
+            const benchFloor = Math.floor(bench);
+            const stepped = (benchFloor + smooth01((bench - benchFloor - 0.5) / 0.5)) * 70;
+            const mountain =
+                rawMountain + (stepped - rawMountain) * shelfZone * 0.85 * smooth01((rawMountain - 50) / 40);
             // Foothills die as the high range takes over — don't resume a
             // second meadow behind the mountain ring.
             const foothill = 1 - smooth01((dClimb - 400) / 280);
@@ -823,7 +833,7 @@ export class Scenery {
         const ny = 1 / Math.hypot(dhdx, 1, dhdz);
         const slope = 1 - ny;
         const slopeRock = smooth01((slope - 0.32) / 0.26) * smooth01((h - 3) / 6);
-        return Math.max(heightRock, slopeRock) * (1 - snowF);
+        return Math.max(heightRock, slopeRock) * (1 - snowF) * (1 - this.alpineMeadowAt(x, z, h));
     }
 
     /** 0..1 how well this spot holds snow — slope sheds it, altitude adds it back on peaks. */
@@ -871,6 +881,27 @@ export class Scenery {
             rock.g = rock.g * (1 - far * 0.16) + 0.72 * far * 0.16;
             rock.b = rock.b * (1 - far * 0.08) + 0.90 * far * 0.08;
         }
+    }
+
+    /**
+     * 0..1 alpine meadow: level ground high on the range (50–190 wu) in patches, where
+     * grass holds on and a few trees stand. Nature does this on every shelf; the rest
+     * of the mountain stays bare stone.
+     */
+    private alpineMeadowAt(x: number, z: number, h = this.terrainHeight(x, z)): number {
+        if (h < 50 || h > 190 || this.landscape) return 0;
+        const alt = smooth01((h - 50) / 25) * (1 - smooth01((h - 150) / 40));
+        const patch = smooth01((this.noise(x / 75 + 13.3, z / 75 + 71.9) - 0.5) / 0.12);
+        if (alt * patch <= 0) return 0;
+        const S = 8;
+        const slope =
+            Math.max(
+                Math.abs(this.terrainHeight(x + S, z) - h),
+                Math.abs(this.terrainHeight(x - S, z) - h),
+                Math.abs(this.terrainHeight(x, z + S) - h),
+                Math.abs(this.terrainHeight(x, z - S) - h),
+            ) / S;
+        return alt * patch * (1 - smooth01((slope - 0.12) / 0.2));
     }
 
     /** True where the meadow texture still reads green (not mountain stone). */
@@ -2015,6 +2046,8 @@ export class Scenery {
         const shoreLake = new Float32Array(pos.count);
         /** 0..1 scree pockets on mountains (concave corners + talus at cliff bases) */
         const scree = new Float32Array(pos.count);
+        /** 0..1 alpine meadow on high shelves (procedural terrain only) */
+        const alpine = new Float32Array(pos.count);
         const meadow = new Color(0xffffff); // grass texture shows as-is
         // near-white: the tiled rock texture carries the stone color, the
         // vertex tint only adds large-scale light/dark variation
@@ -2042,11 +2075,12 @@ export class Scenery {
             // a static map paints its own beach; only the procedural lakes get this
             shoreLake[i] = this.landscape ? 0 : shoreW * boardFade;
             scree[i] = this.screeAccumAt(x, z, h);
+            alpine[i] = this.alpineMeadowAt(x, z, h);
 
             rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
             if (h > 35) rockVar.multiplyScalar(0.68 + 0.32 * (1 - smooth01((h - 35) / 130)));
             if (this.quality === 'ultra' && !this.landscape && h > 30) this.tintMountainVertex(rockVar, x, z, h);
-            c.copy(meadow).lerp(rockVar, smooth01((h - 12) / 45));
+            c.copy(meadow).lerp(rockVar, smooth01((h - 12) / 45) * (1 - alpine[i]!));
 
             colors[i * 3] = c.r;
             colors[i * 3 + 1] = c.g;
@@ -2067,6 +2101,7 @@ export class Scenery {
         geometry.setAttribute('aBeach', new BufferAttribute(beach, 1));
         geometry.setAttribute('aShore', new BufferAttribute(shoreLake, 1));
         geometry.setAttribute('aScree', new BufferAttribute(scree, 1));
+        if (!this.landscape) geometry.setAttribute('aGrass', new BufferAttribute(alpine, 1));
         ensureOuterMaterialAttrs(geometry);
         if (this.landscape) applyLandscapeToOuterGeometry(geometry, this.landscape, { heights: false });
         geometry.computeVertexNormals();
@@ -2397,7 +2432,7 @@ export class Scenery {
             const inject = `
     float meadowSnowHold = 1.0;
 ${OUTER_MOUNTAIN_SNOW_GLSL}
-    snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
+    snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass * ( 1.0 - smoothstep( 0.25, 0.7, uSnowCover ) ) ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
     float rockTint = clamp( vRock * ( 1.0 - vGrass ) * ( 1.0 - snowF ), 0.0, 1.0 );
     diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.62, 0.6, 0.56 ), rockTint );
     diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
@@ -2414,7 +2449,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v16-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v17-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -2705,7 +2740,7 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
     rockF = max(rockF * (1.0 - snowF), cliffStrip * (0.14 + breakup * 0.4) * mix(0.1, 0.65, deepWinter));
     // Authored paint: force rock / suppress rock for grass shelves
     rockF = clamp( mix( rockF, 1.0, vRock ) * ( 1.0 - vGrass ), 0.0, 1.0 );
-    snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
+    snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass * ( 1.0 - smoothstep( 0.25, 0.7, uSnowCover ) ) ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
     vec3 rockTop = texture2D(uRock, vWorldXZ / ${rockTile.toFixed(1)}).rgb;
     vec3 rockSide = texture2D(uRock, vec2(length(vWorldXZ), vTerrainH) / ${rockTile.toFixed(1)}).rgb;
     vec3 rockCol = mix(rockTop, rockSide, smoothstep(0.3, 0.72, vSlope));
@@ -2744,7 +2779,7 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
 ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             } else {
                 inject += `
-    snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
+    snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass * ( 1.0 - smoothstep( 0.25, 0.7, uSnowCover ) ) ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
     diffuseColor.rgb = mix(diffuseColor.rgb, snowCol, snowF);
 ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
@@ -2802,7 +2837,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v55-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v56-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -2848,7 +2883,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 const d = distOut(x, z);
                 if (d < keepOut) continue;
                 const h = this.terrainHeight(x, z);
-                if (h > maxHeight) continue;
+                if (h > maxHeight) {
+                    // ...except the odd tree on an alpine meadow shelf
+                    if (h > 170 || this.alpineMeadowAt(x, z, h) < 0.5 || rng() > 0.22) continue;
+                }
                 if (h < -0.4) continue; // no trees in the lakes
                 if (!this.isGrassy(x, z)) continue; // no trees on rock/snow
                 if (this.plantClearedAt(x, z)) continue;
