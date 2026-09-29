@@ -238,7 +238,9 @@ export const MOUNTAIN_PEAK_END = 500;
 /** alm: flat meadow radius, the ease into the mountainside, and the height it is sought at (half the range) */
 const ALM_RADIUS = 65;
 const ALM_EASE = 55;
-const ALM_HEIGHT = 240;
+const ALM_PEAK = 490;
+/** how steeply the meadow falls toward the board (rise over run) */
+const ALM_TILT = 0.26;
 
 /** what the mountain cloud banks bleach toward under snow */
 const MIST_SNOW_WHITE = new Color(0xf4f7fb);
@@ -470,7 +472,7 @@ export class Scenery {
     private readonly mistBanks: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     private mountainMistMaterial: MeshBasicMaterial | null = null;
     /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
-    private readonly almSites: { x: number; z: number; y: number }[] = [];
+    private readonly almSites: { x: number; z: number; y: number; ux: number; uz: number }[] = [];
     private time = 0;
     private readonly cloudBoundsX: number;
     /** Square outer-ground size (world units) — mountain ring plus a short skirt. */
@@ -693,7 +695,7 @@ export class Scenery {
                 const x = (almRng() * 2 - 1) * (map.halfW + 420);
                 const z = (almRng() * 2 - 1) * (map.halfH + 420);
                 const dOut = pastBoard(map.halfW, map.halfH, x, z);
-                if (dOut < 230 || dOut > 400 || this.lakeAt(x, z) > 0.02) continue;
+                if (dOut < 180 || dOut > 400 || this.lakeAt(x, z) > 0.02) continue;
                 const y = rawHeight(x, z);
                 // half of the range's height, on ground that is not already a cliff
                 const grade =
@@ -703,13 +705,28 @@ export class Scenery {
                         Math.abs(rawHeight(x, z + 30) - y),
                         Math.abs(rawHeight(x, z - 30) - y),
                     ) / 30;
-                found.push({ x, z, y, score: Math.abs(y - ALM_HEIGHT) + grade * 90 });
+                found.push({ x, z, y, score: grade * 90 });
             }
-            found.sort((a, b) => a.score - b.score);
-            for (const f of found) {
-                if (this.almSites.length >= 2) break;
-                if (this.almSites.every((o) => Math.hypot(o.x - f.x, o.z - f.z) > 260)) {
-                    this.almSites.push({ x: f.x, z: f.z, y: f.y });
+            // each alm has its own height: one high (0.4–0.5 of the range's peak, 0.5 is the most),
+            // one lower (0.28–0.38)
+            const fractions = [0.4 + almRng() * 0.1, 0.28 + almRng() * 0.1];
+            if (almRng() < 0.5) fractions.reverse();
+            for (const fraction of fractions) {
+                const want = fraction * ALM_PEAK;
+                let best: (typeof found)[number] | null = null;
+                let bestScore = Infinity;
+                for (const f of found) {
+                    if (!this.almSites.every((o) => (o.x - f.x) ** 2 + (o.z - f.z) ** 2 > 260 * 260)) continue;
+                    const sc = f.score + Math.abs(f.y - want);
+                    if (sc < bestScore) {
+                        bestScore = sc;
+                        best = f;
+                    }
+                }
+                if (best) {
+                    // (sqrt, not hypot: this height is gameplay-visible and must match on every machine)
+                    const len = Math.sqrt(best.x * best.x + best.z * best.z) || 1;
+                    this.almSites.push({ x: best.x, z: best.z, y: best.y, ux: best.x / len, uz: best.z / len });
                 }
             }
         }
@@ -722,7 +739,10 @@ export class Scenery {
                 const reach = ALM_RADIUS + ALM_EASE;
                 const d2 = dx * dx + dz * dz;
                 if (d2 >= reach * reach) continue;
-                h += (site.y - h) * (1 - smooth01((Math.sqrt(d2) - ALM_RADIUS) / ALM_EASE));
+                // tilted toward the board (lower on the valley side) and not quite flat, so the
+                // grass shows from the camera; a tenth of the mountain's own relief stays
+                const target = site.y + ALM_TILT * (dx * site.ux + dz * site.uz);
+                h += (target - h) * (1 - smooth01((Math.sqrt(d2) - ALM_RADIUS) / ALM_EASE)) * 0.92;
             }
             return h;
         };
@@ -2899,7 +2919,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         /** random grassy point outside the field (never on mountain stone / past crest) */
         const forestSpot = (maxHeight: number): { x: number; z: number } => {
             // now and then a spot on one of the alms, so they are not bare
-            if (this.almSites.length > 0 && rng() < 0.08) {
+            if (this.almSites.length > 0 && rng() < 0.04) {
                 const site = this.almSites[Math.floor(rng() * this.almSites.length)]!;
                 const a = rng() * Math.PI * 2;
                 const r = Math.sqrt(rng()) * ALM_RADIUS * 0.85;
