@@ -3,6 +3,7 @@ import {
     BackSide,
     Box3,
     BufferAttribute,
+    BufferGeometry,
     CanvasTexture,
     CircleGeometry,
     ConeGeometry,
@@ -246,6 +247,10 @@ const ALM_EASE = 55;
 const ALM_PEAK = 370;
 /** how steeply the meadow falls toward the board (rise over run) */
 const ALM_TILT = 0.26;
+
+/** a glacier's length along its stream's course, and the step the course is traced in */
+const GLACIER_LENGTH = 115;
+const STREAM_STEP = 5;
 
 /** the range's one wind, blowing snow off the crests */
 const SNOW_WIND = { x: 0.82, z: 0.57 };
@@ -498,6 +503,15 @@ export class Scenery {
         cap: { sprite: Sprite; material: SpriteMaterial; angle: number; radius: number; height: number; spin: number; size: number; rank: number }[];
     }[] = [];
     /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
+    /** the placed lakes (empty on a static map) */
+    private lakes: { x: number; z: number; r: number; phase: number }[] = [];
+    /** ultra: the glaciers and the streams that run from them to a lake (see planGlaciers) */
+    private glacierPlans: { path: { x: number; z: number }[]; snout: number }[] = [];
+    /** discs the mountain sculpt must leave alone so a glacier or stream keeps to its ground */
+    private glacierKeepOut: { x: number; z: number; r: number }[] = [];
+    private streamFlow: CanvasTexture | null = null;
+    private streamMaterial: MeshBasicMaterial | null = null;
+    private readonly splashPuffs: { sprite: Sprite; material: SpriteMaterial; phase: number; base: Vector3 }[] = [];
     /** where the super mountain stands (null on a static map) */
     private superPeak: { x: number; z: number; add: number } | null = null;
     private readonly almSites: { x: number; z: number; y: number; ux: number; uz: number }[] = [];
@@ -669,6 +683,7 @@ export class Scenery {
                 }
             }
         }
+        this.lakes = lakeSites;
         this.lakeAt = (x, z) => {
             let best = 0;
             for (const site of lakeSites) {
@@ -873,6 +888,7 @@ export class Scenery {
 
         this.skyGroup.add(this.createSkyDome(), this.createSunGlow());
         this.group.add(this.skyGroup);
+        this.planGlaciers(map, seed);
         this.group.add(this.createOuterGround(map));
         if (landscape) {
             this.authoredPlants = landscape.plants.map((p) => ({ ...p }));
@@ -894,6 +910,7 @@ export class Scenery {
             this.createMountainMist(map, rng);
             this.createSunRays(map, rng);
             this.createSnowPlumes(map, rng);
+            this.createGlaciers();
         }
         if (this.quality === 'off') {
             for (const c of this.clouds) c.mesh.visible = false;
@@ -987,6 +1004,296 @@ export class Scenery {
             this.mistBanks.push({ mesh, baseX: x, phase: rng() * Math.PI * 2, speed: 0.02 + rng() * 0.03 });
             this.group.add(mesh);
             placed++;
+        }
+    }
+
+    /**
+     * Ultra: choose one or two glaciers high on the range and trace where their meltwater runs:
+     * downhill by the steepest way, leaning toward the nearest lake, until it reaches the water.
+     * Only a plan (points), so the mountain sculpt can be told to leave that ground alone before
+     * the outer mesh is built; createGlaciers draws it. Visual only — no gameplay reads it.
+     */
+    private planGlaciers(map: BattleMap, seed: number): void {
+        if (this.quality !== 'ultra' || this.landscape || this.lakes.length === 0) return;
+        const rng = mulberry32((seed ^ 0x61ac1e) >>> 0);
+        const H = this.terrainHeight;
+        const count = 1 + (rng() < 0.5 ? 1 : 0);
+        const cands: { x: number; z: number; score: number }[] = [];
+        for (let i = 0; i < 1200; i++) {
+            const x = (rng() * 2 - 1) * (map.halfW + 340);
+            const z = (rng() * 2 - 1) * (map.halfH + 340);
+            const dOut = pastBoard(map.halfW, map.halfH, x, z);
+            if (dOut < 150 || dOut > 340 || this.lakeAt(x, z) > 0.01) continue;
+            const h = H(x, z);
+            if (h < 150 || h > 330) continue;
+            const S = 8;
+            const slope =
+                Math.max(Math.abs(H(x + S, z) - h), Math.abs(H(x - S, z) - h), Math.abs(H(x, z + S) - h), Math.abs(H(x, z - S) - h)) / S;
+            if (slope < 0.2 || slope > 0.9) continue;
+            let near = Infinity;
+            for (const l of this.lakes) near = Math.min(near, Math.sqrt((l.x - x) ** 2 + (l.z - z) ** 2) - l.r);
+            if (near > 420) continue;
+            let score = Math.abs(h - 250) * 0.5 + Math.abs(slope - 0.45) * 200 + near * 0.15;
+            // the first glacier likes the flank of the super mountain
+            const sp = this.superPeak;
+            if (sp && (x - sp.x) ** 2 + (z - sp.z) ** 2 < SUPER_RADIUS * SUPER_RADIUS) score -= 40;
+            cands.push({ x, z, score });
+        }
+        cands.sort((a, b) => a.score - b.score);
+        const heads: { x: number; z: number }[] = [];
+        for (const c of cands) {
+            if (this.glacierPlans.length >= count) break;
+            if (heads.some((o) => (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 260 * 260)) continue;
+            const path = this.traceMeltwater(c.x, c.z);
+            if (!path) continue;
+            let len = 0;
+            let snout = path.length - 1;
+            for (let i = 1; i < path.length; i++) {
+                len += STREAM_STEP;
+                if (len >= GLACIER_LENGTH) {
+                    snout = i;
+                    break;
+                }
+            }
+            heads.push({ x: c.x, z: c.z });
+            this.glacierPlans.push({ path, snout });
+            for (let i = 0; i < path.length; i += 6) {
+                this.glacierKeepOut.push({ x: path[i]!.x, z: path[i]!.z, r: i <= snout ? 42 : 22 });
+            }
+        }
+    }
+
+    /** downhill by the steepest way from (x, z), leaning to the nearest lake; null if it never gets there */
+    private traceMeltwater(x0: number, z0: number): { x: number; z: number }[] | null {
+        const H = this.terrainHeight;
+        let lake = this.lakes[0]!;
+        let best = Infinity;
+        for (const l of this.lakes) {
+            const d = (l.x - x0) ** 2 + (l.z - z0) ** 2;
+            if (d < best) {
+                best = d;
+                lake = l;
+            }
+        }
+        const path = [{ x: x0, z: z0 }];
+        let x = x0;
+        let z = z0;
+        let dx = 0;
+        let dz = 0;
+        let stuck = 0;
+        for (let step = 0; step < 320; step++) {
+            const gx = (H(x + 3, z) - H(x - 3, z)) / 6;
+            const gz = (H(x, z + 3) - H(x, z - 3)) / 6;
+            const gl = Math.sqrt(gx * gx + gz * gz);
+            const tx = lake.x - x;
+            const tz = lake.z - z;
+            const tl = Math.sqrt(tx * tx + tz * tz) || 1;
+            const w = stuck > 4 ? 1 : 0.22;
+            let ex = (gl > 1e-3 ? -gx / gl : 0) * (1 - w) + (tx / tl) * w;
+            let ez = (gl > 1e-3 ? -gz / gl : 0) * (1 - w) + (tz / tl) * w;
+            let el = Math.sqrt(ex * ex + ez * ez) || 1;
+            ex /= el;
+            ez /= el;
+            if (step === 0) {
+                dx = ex;
+                dz = ez;
+            } else {
+                dx = dx * 0.55 + ex * 0.45;
+                dz = dz * 0.55 + ez * 0.45;
+                el = Math.sqrt(dx * dx + dz * dz) || 1;
+                dx /= el;
+                dz /= el;
+            }
+            const before = H(x, z);
+            x += dx * STREAM_STEP;
+            z += dz * STREAM_STEP;
+            const after = H(x, z);
+            stuck = after > before - 0.05 ? stuck + 1 : 0;
+            path.push({ x, z });
+            if (this.lakeAt(x, z) > 0.3 || after < -0.6) return path.length * STREAM_STEP >= GLACIER_LENGTH + 40 ? path : null;
+        }
+        return null;
+    }
+
+    /**
+     * Ultra: draw the planned glaciers (a tongue of pale blue ice draped on the slope) and the
+     * meltwater running from each snout down to its lake: a flowing ribbon, a little mist where it
+     * lands. In deep winter the water freezes still.
+     */
+    private createGlaciers(): void {
+        if (this.glacierPlans.length === 0) return;
+        const H = this.terrainHeight;
+        // --- ice texture: pale blue with crevasses across the flow, soft everywhere at the rim
+        const ice = document.createElement('canvas');
+        ice.width = 64;
+        ice.height = 128;
+        const ictx = ice.getContext('2d')!;
+        const idata = ictx.createImageData(64, 128);
+        const hash = (a: number, b: number) => {
+            const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+            return v - Math.floor(v);
+        };
+        for (let y = 0; y < 128; y++) {
+            const t = y / 127;
+            for (let x = 0; x < 64; x++) {
+                const sx = (x / 63) * 2 - 1;
+                const n = hash(Math.floor(x / 4), Math.floor(y / 4)) * 0.5 + hash(x, y) * 0.5;
+                const crack = Math.pow(Math.max(0, Math.sin(t * 95 + sx * 7 + n * 4)), 22) * 0.55;
+                const k = 0.25 + 0.5 * n;
+                const r = (150 + 60 * k) * (1 - crack * 0.45);
+                const g = (200 + 34 * k) * (1 - crack * 0.25);
+                const b = (232 + 20 * k) * (1 - crack * 0.1);
+                const edge = 1 - Math.pow(Math.abs(sx), 3);
+                const ends = smooth01(t / 0.14) * smooth01((1 - t) / 0.1);
+                const i = (y * 64 + x) * 4;
+                idata.data[i] = r;
+                idata.data[i + 1] = g;
+                idata.data[i + 2] = b;
+                idata.data[i + 3] = Math.round(255 * 0.94 * smooth01(edge) * ends);
+            }
+        }
+        ictx.putImageData(idata, 0, 0);
+        const iceTex = new CanvasTexture(ice);
+        iceTex.colorSpace = SRGBColorSpace;
+        const iceMat = new MeshStandardMaterial({
+            map: iceTex,
+            transparent: true,
+            depthWrite: false,
+            roughness: 0.3,
+            metalness: 0,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+        });
+        // --- flow texture: bright streaks that repeat down the ribbon, soft at its banks
+        const flow = document.createElement('canvas');
+        flow.width = 32;
+        flow.height = 128;
+        const fctx = flow.getContext('2d')!;
+        const fdata = fctx.createImageData(32, 128);
+        for (let x = 0; x < 32; x++) {
+            const k = 3 + Math.floor(hash(x, 1) * 5);
+            const phase = hash(x, 2) * 6.2832;
+            const sx = (x / 31) * 2 - 1;
+            const bank = 1 - Math.pow(Math.abs(sx), 2.2);
+            for (let y = 0; y < 128; y++) {
+                const streak = Math.pow(Math.max(0, Math.sin((y / 128) * 6.2832 * k + phase)), 5);
+                const a = (0.42 + 0.5 * streak) * bank;
+                const i = (y * 32 + x) * 4;
+                fdata.data[i] = 235;
+                fdata.data[i + 1] = 246;
+                fdata.data[i + 2] = 255;
+                fdata.data[i + 3] = Math.round(255 * a);
+            }
+        }
+        fctx.putImageData(fdata, 0, 0);
+        const flowTex = new CanvasTexture(flow);
+        flowTex.colorSpace = SRGBColorSpace;
+        flowTex.wrapT = RepeatWrapping;
+        this.streamFlow = flowTex;
+        const flowMat = new MeshBasicMaterial({
+            map: flowTex,
+            transparent: true,
+            depthWrite: false,
+            side: DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+        });
+        this.streamMaterial = flowMat;
+
+        const buildStrip = (
+            pts: { x: number; z: number }[],
+            half: (t: number, i: number) => number,
+            lift: number,
+            cols: number,
+            vScale: number,
+            wobble: number,
+        ): BufferGeometry => {
+            const pos: number[] = [];
+            const uv: number[] = [];
+            const idx: number[] = [];
+            let run = 0;
+            const total = Math.max(1, (pts.length - 1) * STREAM_STEP);
+            for (let i = 0; i < pts.length; i++) {
+                const a = pts[Math.max(0, i - 1)]!;
+                const b = pts[Math.min(pts.length - 1, i + 1)]!;
+                let tx = b.x - a.x;
+                let tz = b.z - a.z;
+                const tl = Math.sqrt(tx * tx + tz * tz) || 1;
+                tx /= tl;
+                tz /= tl;
+                const hw = half(run / total, i);
+                for (let j = 0; j < cols; j++) {
+                    const sj = (j / (cols - 1)) * 2 - 1;
+                    const w = this.noise(pts[i]!.x / 9 + j * 3.1, pts[i]!.z / 9) - 0.5;
+                    const off = sj * hw + (Math.abs(sj) > 0.9 ? w * wobble : 0);
+                    const x = pts[i]!.x - tz * off;
+                    const z = pts[i]!.z + tx * off;
+                    pos.push(x, H(x, z) + lift, z);
+                    uv.push((sj + 1) / 2, (run * vScale) / 1);
+                }
+                run += STREAM_STEP;
+                if (i > 0) {
+                    const r0 = (i - 1) * cols;
+                    const r1 = i * cols;
+                    for (let j = 0; j < cols - 1; j++) {
+                        // (wound so the faces point up, whichever way the course runs)
+                        idx.push(r0 + j, r0 + j + 1, r1 + j, r0 + j + 1, r1 + j + 1, r1 + j);
+                    }
+                }
+            }
+            const g = new BufferGeometry();
+            g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+            g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
+            g.setIndex(idx);
+            g.computeVertexNormals();
+            return g;
+        };
+
+        for (const plan of this.glacierPlans) {
+            // the ice: the first stretch of the course, widest in the middle
+            const tongue = plan.path.slice(0, plan.snout + 1);
+            const ivGeo = buildStrip(
+                tongue,
+                (t) => 25 * (0.5 + 0.5 * Math.sin(Math.PI * Math.min(1, 0.12 + t * 0.9))),
+                0.5,
+                9,
+                1 / 14,
+                8,
+            );
+            // the ice texture runs once along the tongue: stretch v to 0..1
+            const uvAttr = ivGeo.getAttribute('uv') as BufferAttribute;
+            const vMax = (tongue.length - 1) * STREAM_STEP * (1 / 14);
+            for (let i = 0; i < uvAttr.count; i++) uvAttr.setY(i, uvAttr.getY(i) / Math.max(1e-6, vMax));
+            const ivMesh = new Mesh(ivGeo, iceMat);
+            ivMesh.renderOrder = 1;
+            this.group.add(ivMesh);
+
+            // the meltwater: from the snout down to the lake, wider as it goes
+            const stream = plan.path.slice(plan.snout);
+            const sGeo = buildStrip(stream, (t) => 1.6 + t * 2.4, 0.35, 5, 1 / 16, 0);
+            const sMesh = new Mesh(sGeo, flowMat);
+            sMesh.renderOrder = 2;
+            this.group.add(sMesh);
+
+            // mist where it lands (the last dry point before the lake)
+            let landing = stream[stream.length - 1]!;
+            for (let i = stream.length - 1; i >= 0; i--) {
+                if (H(stream[i]!.x, stream[i]!.z) > -0.3) {
+                    landing = stream[i]!;
+                    break;
+                }
+            }
+            for (let k = 0; k < 4; k++) {
+                const material = new SpriteMaterial({ map: this.cloudTexture, color: 0xffffff, transparent: true, depthWrite: false, opacity: 0 });
+                const sprite = new Sprite(material);
+                sprite.renderOrder = 4;
+                const base = new Vector3(landing.x + (k - 1.5) * 3, H(landing.x, landing.z) + 3, landing.z + ((k * 7) % 3) - 1);
+                sprite.position.copy(base);
+                this.splashPuffs.push({ sprite, material, phase: k * 1.7, base });
+                this.group.add(sprite);
+            }
         }
     }
 
@@ -1569,6 +1876,21 @@ export class Scenery {
             }
         }
         this.updateSummitClouds();
+        if (this.streamMaterial && this.streamFlow) {
+            // the water runs; in deep winter it freezes still and pale
+            const freeze = smooth01((this.groundSnowCover - 0.55) / 0.3);
+            this.streamFlow.offset.y -= dtSeconds * 0.9 * (1 - freeze);
+            this.streamMaterial.opacity = 1 - freeze * 0.15;
+            this.streamMaterial.color.setRGB(1 - freeze * 0.08, 1, 1);
+            for (const puff of this.splashPuffs) {
+                const life = (this.time * 0.5 + puff.phase) % 1;
+                const fade = Math.sin(life * Math.PI);
+                puff.material.opacity = 0.34 * fade * fade * (1 - freeze);
+                puff.sprite.position.set(puff.base.x, puff.base.y + life * 8, puff.base.z);
+                const size = 9 + life * 9;
+                puff.sprite.scale.set(size * 1.4, size, 1);
+            }
+        }
         // low: the flat water freezes by colour alone (there is no ice texture)
         if (this.flatWaterMaterial) {
             const cover = this.groundSnowCover;
@@ -2457,7 +2779,10 @@ export class Scenery {
                 halfH: map.halfH,
                 noise: this.noise,
                 seed: this.seed,
-                keepOut: this.almSites.map((site) => ({ x: site.x, z: site.z, r: ALM_RADIUS + ALM_EASE })),
+                keepOut: [
+                    ...this.almSites.map((site) => ({ x: site.x, z: site.z, r: ALM_RADIUS + ALM_EASE })),
+                    ...this.glacierKeepOut,
+                ],
             });
         }
         pos.needsUpdate = true;
