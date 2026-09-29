@@ -1270,9 +1270,9 @@ export class BattleMap {
             const roll = fractHash(i * 7919 + 31337);
             const r = 5.4 * (0.85 + roll * 0.3);
             // rim first, then the core over it
-            this.stampWearChannel(x, z, r * 1.25, 0.16, 'g');
+            this.stampWearChannel(x, z, r * 1.25, 0.03, 'g');
             this.stampBloodTint(x, z, r * 1.25, 0.5, 0x8c7a2a, 1);
-            this.stampWearChannel(x, z, r * 0.8, 0.2, 'g');
+            this.stampWearChannel(x, z, r * 0.8, 0.04, 'g');
             this.stampBloodTint(x, z, r * 0.8, 0.7, 0xa2b82c, 1);
         });
         // only what is still acid stays marked, so a fresh puddle on the same cell stains again
