@@ -1869,10 +1869,9 @@ export class Scenery {
             // The cut-off uphill (1 - smooth01((h - 0.1) / 1.1)) is per pixel.
             const shoreW = smooth01((this.lakeAt(x, z) - 0.12) / 0.45);
             // …plus rare small dry patches scattered over the meadow
-            // smaller (noise scale 37 -> 24 units) and fainter (0.7 -> 0.45) than they were:
-            // on high and ultra they read as sand, which stands out from the forest floor
-            const patchN = this.noise(x / 24 + 5.1, z / 24 + 50.4);
-            const patch = smooth01((patchN - 0.74) / 0.09) * 0.45 * (h < 10 ? 1 : 0);
+            // (see dryPatchWeight for the noise: smaller and fainter than they were, since
+            // on high and ultra they read as sand against the forest floor)
+            const patch = this.dryPatchWeight(x, z, h);
             // never right next to the board — it would break the transition
             const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
             const boardFade = smooth01((dOut - 15) / 25);
@@ -2001,6 +2000,24 @@ export class Scenery {
 
     private plantClearedAt(x: number, z: number): boolean {
         return pointInPlantClear(this.plantClears, x, z);
+    }
+
+    /**
+     * How dry/bare the meadow is at a point: the rare gravel / sand patches on
+     * the outer ground (0 = grass). Shared by the ground build and the plant
+     * placement, so trees can stay off exactly what is drawn.
+     */
+    private dryPatchWeight(x: number, z: number, h: number): number {
+        const patchN = this.noise(x / 24 + 5.1, z / 24 + 50.4);
+        return smooth01((patchN - 0.74) / 0.09) * 0.45 * (h < 10 ? 1 : 0);
+    }
+
+    /** true on a visible dry patch — nothing grows there (a static map paints its own beach) */
+    private onDryPatch(x: number, z: number): boolean {
+        if (this.landscape) return false;
+        const dOut = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
+        const seen = this.dryPatchWeight(x, z, this.terrainHeight(x, z)) * smooth01((dOut - 15) / 25);
+        return seen > 0.04;
     }
 
     private async rebuildAuthoredPlantMeshes(): Promise<void> {
@@ -2777,7 +2794,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             z: number,
             sc: number,
         ) => {
-            if (this.plantClearedAt(x, z)) return true; // consume slot, skip place
+            if (this.plantClearedAt(x, z) || this.onDryPatch(x, z)) return true; // consume slot, skip place
             if (!billboardMix) return false;
             if (this.quality === 'high' && onField) fieldHqPlants.push({ kind, x, z, sc });
             else farPlants.push({ kind, x, z, sc });
@@ -3308,8 +3325,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const shadows: BlobShadowSource[] = [];
 
         for (const kind of kinds) {
-            const nearList = plants.filter((p) => p.kind === kind && p.near && !this.plantClearedAt(p.x, p.z));
-            const farList = plants.filter((p) => p.kind === kind && !p.near && !this.plantClearedAt(p.x, p.z));
+            const nearList = plants.filter((p) => p.kind === kind && p.near && !this.plantClearedAt(p.x, p.z) && !this.onDryPatch(p.x, p.z));
+            const farList = plants.filter((p) => p.kind === kind && !p.near && !this.plantClearedAt(p.x, p.z) && !this.onDryPatch(p.x, p.z));
 
             if (nearList.length > 0) {
                 const mesh = createVegetationInstances(kind, nearList.length);
