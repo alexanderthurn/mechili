@@ -2378,7 +2378,14 @@ export class Game {
         };
         this.hud.onBuyForgeSpell = (tacticId) => {
             const unit = this.placement.selectedUnit;
-            if (this.phase !== 'build' || !unit || !hasAbility(unit.type, 'forgeSpells') || unit.team !== 'player') return;
+            if (
+                this.phase !== 'build' ||
+                !unit ||
+                !(hasAbility(unit.type, 'forgeSpells') || hasAbility(unit.type, 'vanguardSpells')) ||
+                unit.team !== 'player'
+            ) {
+                return;
+            }
             if (!this.playerCanAct) return;
             this.dispatchPlayer({ kind: 'buyForgeSpell', team: 'player', tacticId });
         };
@@ -12549,6 +12556,33 @@ export class Game {
         const spellSeats = u.team === 'player' ? [this.humanSeat] : teamSeats;
         // Tutorial 2 round 1 teaches the wall only — the forge shelf stays empty.
         const forgeShelfOpen = has('forgeSpells') && !this.tutorial?.forgeSpellsHidden;
+        // the Vanguard's shelf: every spell that carries a vanguardCost, for any commander
+        const vanguardShelfOpen = has('vanguardSpells');
+        const vanguardShelf = vanguardShelfOpen
+            ? spellSeats.flatMap((seat) => {
+                  const bought =
+                      fogged && this.buildingIntelSnapshot
+                          ? (this.buildingIntelSnapshot.forgeSpellOwned[seat] ?? [])
+                          : (this.forgeSpellOwned[seat] ?? []);
+                  const bal = this.economy.balance(seat);
+                  const seatCanBuy = canBuy && seat === this.humanSeat;
+                  return this.types.tactics
+                      .filter((t) => t.vanguardCost !== undefined)
+                      .map((t) => {
+                          const cost = t.vanguardCost!;
+                          const owned = bought.includes(t.id);
+                          return {
+                              tacticId: t.id,
+                              icon: t.icon,
+                              name: tacticName(t.id, t.name),
+                              desc: tacticDescription(t.id, t.description),
+                              cost,
+                              owned,
+                              affordable: seatCanBuy && !owned && bal >= cost,
+                          };
+                      });
+              })
+            : [];
         out.forgeSpells = forgeShelfOpen
             ? spellSeats.flatMap((seat) => {
                   const bought =
@@ -12577,6 +12611,7 @@ export class Game {
                       .filter((e): e is NonNullable<typeof e> => e !== null);
               })
             : [];
+        if (vanguardShelf.length > 0) out.forgeSpells = [...(out.forgeSpells ?? []), ...vanguardShelf];
 
         if (!has('forge')) return out;
 

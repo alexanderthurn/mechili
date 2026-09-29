@@ -381,6 +381,8 @@ export type BuildingAbilityId =
     | 'selling'
     | 'rallyRoute'
     | 'movePack'
+    // spells that carry a `vanguardCost` (normally the Command Tower / Vanguard)
+    | 'vanguardSpells'
     // the keep (normally the Stronghold)
     | 'forge'
     | 'forgeSpells'

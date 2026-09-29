@@ -1084,9 +1084,13 @@ export class ActionDispatcher {
                 // signature spell stays theirs to bring, and the gate is what
                 // keeps a modified client from buying anything in the catalog.
                 const pool = this.ctx.forgeSpellsOf(seat);
-                if (!pool?.includes(action.tacticId)) return false;
+                const def = this.ctx.types.tactic(action.tacticId);
+                // On the seat's own forge list it is the Stronghold's, at the Stronghold price;
+                // any spell with a vanguardCost is also on the Vanguard's shelf for everyone.
+                const fromForge = !!pool?.includes(action.tacticId);
+                if (!fromForge && def?.vanguardCost === undefined) return false;
                 // price rides on the spell; no price means it is not sold here
-                const cost = this.ctx.types.tactic(action.tacticId)?.strongholdCost;
+                const cost = fromForge ? def?.strongholdCost : def?.vanguardCost;
                 if (cost === undefined) return false;
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;

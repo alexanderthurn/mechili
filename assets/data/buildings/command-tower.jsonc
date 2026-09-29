@@ -29,5 +29,5 @@
     "proceduralModel": "tower",
     "sandPadScale": 1.35,
     "onDestroyed": { "seatDebuff": true },
-    "abilities": ["armyBoosts", "selling", "rallyRoute", "movePack"],
+    "abilities": ["armyBoosts", "selling", "rallyRoute", "movePack", "vanguardSpells"],
 }

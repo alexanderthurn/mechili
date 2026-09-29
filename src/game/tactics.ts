@@ -183,6 +183,12 @@ export interface TacticDef {
      * = not sold there at all, so a new spell has to opt in on purpose.
      */
     strongholdCost?: number;
+    /**
+     * Price to buy one charge at the Vanguard (Command Tower) instead: every commander may buy
+     * it there, once per match, without having it on their own forge list. Absent = not sold
+     * at the Vanguard.
+     */
+    vanguardCost?: number;
     /** How its ground markers look (deploy stamp, battle charge, running zone). */
     marker?: TacticMarker;
     /** oil spill only */
