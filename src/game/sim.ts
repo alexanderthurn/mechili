@@ -987,8 +987,10 @@ const APPROACH_OFFSET_MAX = 4.0;
 const MELEE_PRESS_BAND = 0.07;
 /** Acid drips dig the board: bowl radius (× the drip's), depth per drip, and the lowest they may dig. */
 const ACID_MELT_RADIUS_MULT = 0.5;
-const ACID_MELT_DEPTH = 0.56;
-const ACID_MELT_FLOOR = -0.8;
+/** total depth one drip digs, and the seconds it takes to sink that far */
+const ACID_MELT_DEPTH = 1.2;
+const ACID_MELT_SECONDS = 3.2;
+const ACID_MELT_FLOOR = -1.0;
 /** no digging within this of a building's edge (world units) */
 const ACID_MELT_STRUCTURE_MARGIN = 6;
 /**
@@ -1186,6 +1188,8 @@ export class BattleSim {
     }[] = [];
     /** when true, kills from applyBurnDamage use hammer pancake death */
     private crushingHammer = false;
+    /** ground still sinking under acid that has landed (see meltGroundUnderAcid) */
+    private readonly acidMelts: { x: number; z: number; r: number; perStep: number; stepsLeft: number }[] = [];
     /** oil/acid/fire drips along capsule paths — announce fall, then stamp on land */
     private readonly drips: {
         kind: 'oil' | 'acid' | 'fire';
@@ -3286,7 +3290,22 @@ export class BattleSim {
             if (!a.unit.type.structure) continue;
             if (hypot(a.x - x, a.z - z) < r + a.radius + ACID_MELT_STRUCTURE_MARGIN) return;
         }
-        terrain.crater(x, z, r, ACID_MELT_DEPTH, ACID_MELT_FLOOR);
+        // sinks over a few seconds, not in one step, so the ground can be watched going
+        // down; a whole number of equal sim steps, so it is exact and identical everywhere
+        const steps = Math.max(1, Math.round(ACID_MELT_SECONDS / BattleSim.STEP));
+        this.acidMelts.push({ x, z, r, perStep: ACID_MELT_DEPTH / steps, stepsLeft: steps });
+    }
+
+    /** one sim step of every melt still under way (deterministic: fixed depth per step) */
+    private stepAcidMelts(): void {
+        const terrain = this.config.terrain;
+        if (!terrain || this.acidMelts.length === 0) return;
+        let write = 0;
+        for (const m of this.acidMelts) {
+            terrain.crater(m.x, m.z, m.r, m.perStep, ACID_MELT_FLOOR);
+            if (--m.stepsLeft > 0) this.acidMelts[write++] = m;
+        }
+        this.acidMelts.length = write;
     }
 
     /** announce falling drips, then stamp each disc on impact (wards block) */
@@ -4855,6 +4874,7 @@ export class BattleSim {
         this.rebuildTargetHash();
         this.stepProjectiles(dt);
         this.stepHazards(dt);
+        this.stepAcidMelts();
         this.stepRegen(dt);
         add('projectiles');
         this.flushOnKillSpawns();

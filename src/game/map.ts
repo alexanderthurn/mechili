@@ -1873,7 +1873,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         material.customProgramCacheKey = () =>
             `ground-hazard-v68${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
-            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones5' : ''}`;
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones6' : ''}`;
     }
 
     /**
