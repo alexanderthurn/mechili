@@ -7,7 +7,8 @@
     "cooldownRounds": 2,
     "radius": 6, // the drawn line's width on the aim preview (the ridge itself is 5.2 to each side)
     "maxSpan": 64, // a long line, longer than the other capsules
-    "respectsSafeZone": true,
+    // no safe zone needed: the ridge leaves buildings alone by itself, and it blocks nobody from walking
+    "respectsSafeZone": false,
     "strongholdCost": 250,
     "spell": {
         "delaySeconds": 2,
