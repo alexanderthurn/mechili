@@ -9,7 +9,6 @@
     "extra": true,
     "flying": 36, // always at combat altitude (unlike crow riders)
     "rocket": { "range": 35, "speed": 30, "damage": 5000, "splash": 8 }, // wipes a close-packed swarm
-    "impactCrater": { "depth": 0.25, "radius": 0.45 }, // the blast pocks the ground (see UnitType.impactCrater)
     "splashRadius": 8, // display only — the blast itself comes from `rocket.splash`
     // splash + lingering burn + ground fire (oil connected to this ignites)
     "fire": {
