@@ -2777,7 +2777,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
         };
         // field relief inside, mountain terrain outside (each is 0 elsewhere)
-        const groundY = (x: number, z: number) => this.terrainHeight(x, z) + map.heightAt(x, z);
+        // (the undeformed relief: reseatGroundedDecorations measures every instance against it,
+        // so placing on ground a spell already reshaped would count that change twice)
+        const boardRelief = map.reliefSampler();
+        const groundY = (x: number, z: number) => this.terrainHeight(x, z) + boardRelief(x, z);
 
         const dummy = new Object3D();
         const color = new Color();
@@ -3224,6 +3227,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         console.info(
             `[scenery] floor pieces: ${placements.length} (board + ${FOREST} forest + specials)`,
         );
+        // they load late: the ground may already have moved under them
+        this.reseatGroundedDecorations();
     }
 
     /** Far belt as crossed billboard cards; optional sun-aligned blob shadows. */
