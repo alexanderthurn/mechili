@@ -1,4 +1,4 @@
-/** Visual layers toggled at runtime via Shift+1 … Shift+7 (Shift+0 = all on). */
+/** Visual layers toggled at runtime via Shift+1 … Shift+8 (Shift+0 = all on). */
 export type EffectToggleId =
     | 'nearClouds'
     | 'distanceFog'
@@ -6,17 +6,18 @@ export type EffectToggleId =
     | 'forestFog'
     | 'rain'
     | 'snow'
-    | 'stars';
+    | 'stars'
+    | 'waterMirror';
 
 export interface EffectToggleDef {
     id: EffectToggleId;
     /** shown in console / debug overlay */
     label: string;
-    /** digit key (1–7) with Shift held */
+    /** digit key (1–8) with Shift held */
     key: number;
 }
 
-/** Order matches Shift+1 … Shift+7. */
+/** Order matches Shift+1 … Shift+8. */
 export const EFFECT_TOGGLE_DEFS: readonly EffectToggleDef[] = [
     { id: 'nearClouds', label: 'Near clouds', key: 1 },
     { id: 'distanceFog', label: 'Distance fog', key: 2 },
@@ -25,6 +26,7 @@ export const EFFECT_TOGGLE_DEFS: readonly EffectToggleDef[] = [
     { id: 'rain', label: 'Rain', key: 5 },
     { id: 'snow', label: 'Snow', key: 6 },
     { id: 'stars', label: 'Stars', key: 7 },
+    { id: 'waterMirror', label: 'Water mirror (ultra)', key: 8 },
 ] as const;
 
 export class EffectToggles {
@@ -36,6 +38,7 @@ export class EffectToggles {
         rain: true,
         snow: true,
         stars: true,
+        waterMirror: true,
     };
 
     isEnabled(id: EffectToggleId): boolean {

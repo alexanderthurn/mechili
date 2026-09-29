@@ -1067,6 +1067,11 @@ export class Scenery {
         reflection.update(renderer, scene, camera, this.lakeBoxes, [this.waterMesh]);
     }
 
+    /** dev toggle (Shift+8): the ultra water's mirrored view on or off */
+    setWaterMirror(on: boolean): void {
+        this.waterReflection?.setEnabled(on);
+    }
+
     /** free the mirrored view's render target (the scenery is being replaced) */
     disposeWaterReflection(): void {
         this.waterReflection?.dispose();

@@ -59,6 +59,7 @@ export class WaterReflection {
     private readonly rotation = new Matrix4();
     private frame = 0;
     private valid = false;
+    private enabled = true;
 
     constructor(
         /** world height of the water plane */
@@ -96,7 +97,7 @@ export class WaterReflection {
         lakeBoxes: readonly Box3[],
         hide: readonly Object3D[],
     ): void {
-        if (lakeBoxes.length === 0) return;
+        if (!this.enabled || lakeBoxes.length === 0) return;
         camera.updateMatrixWorld();
         if (!WaterReflection.anyVisible(camera, lakeBoxes, this.frustum, this.viewProj)) {
             // nothing to show: keep the last picture, spend nothing
@@ -117,19 +118,32 @@ export class WaterReflection {
         const prevTarget = renderer.getRenderTarget();
         const prevShadowAuto = renderer.shadowMap.autoUpdate;
         const prevXr = renderer.xr.enabled;
-        renderer.xr.enabled = false;
-        renderer.shadowMap.autoUpdate = false; // reuse the shadow map, don't redraw it
-        renderer.setRenderTarget(this.target);
-        renderer.state.buffers.depth.setMask(true);
-        if (renderer.autoClear === false) renderer.clear();
-        renderer.render(scene, this.camera);
-        renderer.setRenderTarget(prevTarget);
-        renderer.shadowMap.autoUpdate = prevShadowAuto;
-        renderer.xr.enabled = prevXr;
-
-        hide.forEach((o, i) => (o.visible = restoreVisible[i]!));
+        try {
+            renderer.xr.enabled = false;
+            renderer.shadowMap.autoUpdate = false; // reuse the shadow map, don't redraw it
+            renderer.setRenderTarget(this.target);
+            renderer.state.buffers.depth.setMask(true);
+            if (renderer.autoClear === false) renderer.clear();
+            renderer.render(scene, this.camera);
+        } finally {
+            // whatever happened, the frame's own render must find the renderer as it was
+            renderer.setRenderTarget(prevTarget);
+            renderer.shadowMap.autoUpdate = prevShadowAuto;
+            renderer.xr.enabled = prevXr;
+            hide.forEach((o, i) => (o.visible = restoreVisible[i]!));
+        }
         this.valid = true;
         this.uniforms.uReflOn.value = 1;
+    }
+
+    /** off = no mirrored render at all and the water shows its plain look */
+    setEnabled(on: boolean): void {
+        this.enabled = on;
+        if (!on) {
+            this.uniforms.uReflOn.value = 0;
+            this.valid = false;
+            this.frame = 0;
+        }
     }
 
     dispose(): void {

@@ -1088,6 +1088,7 @@ export class Game {
             if (digit === 0) {
                 this.effectToggles.resetAll();
                 this.applyHeightMistStrength();
+                this.scenery.setWaterMirror(true);
                 console.info('[fx] all effects on (Shift+0)');
                 return;
             }
@@ -1095,6 +1096,7 @@ export class Game {
             if (def) {
                 const on = this.effectToggles.toggle(def.id);
                 if (def.id === 'heightMist') this.applyHeightMistStrength();
+                if (def.id === 'waterMirror') this.scenery.setWaterMirror(on);
                 console.info(`[fx] Shift+${digit} ${def.label}: ${on ? 'on' : 'off'}`);
                 return;
             }
@@ -2995,6 +2997,7 @@ export class Game {
         disposeTree(this.scenery.group);
         this.scenery.disposeWaterReflection();
         this.scenery = new Scenery(this.map, undefined, editing ?? this.landscape);
+        this.scenery.setWaterMirror(this.effectToggles.isEnabled('waterMirror'));
         this.scene.add(this.scenery.group);
         if (sceneryWeatherFx(scenery)) {
             if (!this.scene.fog) this.scene.fog = new Fog(THEME.sky, THEME.fogNear, THEME.fogFar);
