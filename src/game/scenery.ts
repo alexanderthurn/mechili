@@ -239,7 +239,7 @@ const WATER_NORMAL_TILT = '1.0';
 const WATER_REFLECT_F0 = '0.16';
 const WATER_REFLECT_POWER = '3.5';
 /** how far a ripple bends the mirrored image (texture-coordinate units) */
-const WATER_REFLECT_DISTORT = '0.045';
+const WATER_REFLECT_DISTORT = '0.035';
 /**
  * Declarations for the ultra water shader: the mirrored view and a small sum of
  * travelling sine waves, returned as the slope of the surface in world xz.
@@ -251,12 +251,38 @@ uniform mat4 uReflMatrix;
 uniform float uReflOn;
 uniform float uWaterTime;
 varying vec3 vWaterWorld;
+float wHash(vec2 p) {
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+	return fract(p.x * p.y);
+}
+// smooth value noise: (value, d/dx, d/dy) — quintic, so the slope has no cell seams
+vec3 wNoiseD(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+	vec2 du = 30.0 * f * f * (f * (f - 2.0) + 1.0);
+	float a = wHash(i);
+	float b = wHash(i + vec2(1.0, 0.0));
+	float c = wHash(i + vec2(0.0, 1.0));
+	float d = wHash(i + vec2(1.0, 1.0));
+	float k1 = b - a;
+	float k2 = c - a;
+	float k4 = a - b - c + d;
+	return vec3(a + k1 * u.x + k2 * u.y + k4 * u.x * u.y, du * vec2(k1 + k4 * u.y, k2 + k4 * u.x));
+}
+// Surface slope in world xz: three noise octaves, each turned to its own angle
+// and drifting its own way, over a slowly wandering warp — no axis, no lattice.
 vec2 waterWaveGrad(vec2 p, float t) {
+	vec2 warp = vec2(wNoiseD(p * 0.045 + vec2(t * 0.020, 0.0)).x, wNoiseD(p * 0.045 + vec2(-7.3, t * 0.017)).x) - 0.5;
+	p += warp * 7.0;
+	mat2 r1 = mat2(0.814, 0.581, -0.581, 0.814);
+	mat2 r2 = mat2(-0.323, 0.946, -0.946, -0.323);
+	mat2 r3 = mat2(-0.904, 0.427, -0.427, -0.904);
 	vec2 g = vec2(0.0);
-	g += vec2(0.86, 0.51) * cos(dot(p, vec2(0.86, 0.51)) * 0.62 + t * 0.9) * 0.100;
-	g += vec2(-0.40, 0.92) * cos(dot(p, vec2(-0.40, 0.92)) * 0.97 - t * 1.1) * 0.080;
-	g += vec2(0.15, -0.99) * cos(dot(p, vec2(0.15, -0.99)) * 1.60 + t * 1.5) * 0.060;
-	g += vec2(-0.93, -0.36) * cos(dot(p, vec2(-0.93, -0.36)) * 2.30 - t * 1.9) * 0.040;
+	g += (wNoiseD(r1 * p * 0.22 + vec2(t * 0.10, t * 0.06)).yz * r1) * 0.22 * 0.35;
+	g += (wNoiseD(r2 * p * 0.50 + vec2(-t * 0.16, t * 0.11)).yz * r2) * 0.50 * 0.20;
+	g += (wNoiseD(r3 * p * 1.10 + vec2(t * 0.24, -t * 0.19)).yz * r3) * 1.10 * 0.09;
 	return g;
 }
 `;
