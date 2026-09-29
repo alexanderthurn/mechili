@@ -996,6 +996,8 @@ const ACID_MELT_FLOOR = -1.0;
  * The bowl reaches nothing past its radius, so a small margin is enough.
  */
 const ACID_MELT_STRUCTURE_MARGIN = 1.5;
+/** the pit eases back in over this much past a building's keep-out edge (matches TerrainGrid) */
+const ACID_MELT_KEEP_OUT_EASE = 2.5;
 /**
  * Slack on the reach check when a queued attack lands ({@link
  * Sim.resolveAttackPending}): a foe that edged out during the windup still
@@ -1192,7 +1194,15 @@ export class BattleSim {
     /** when true, kills from applyBurnDamage use hammer pancake death */
     private crushingHammer = false;
     /** ground still sinking under acid that has landed (see meltGroundUnderAcid) */
-    private readonly acidMelts: { x: number; z: number; r: number; perStep: number; stepsLeft: number }[] = [];
+    private readonly acidMelts: {
+        x: number;
+        z: number;
+        r: number;
+        perStep: number;
+        stepsLeft: number;
+        /** buildings this pit must leave alone (fixed when the drip lands) */
+        keepOut: { x: number; z: number; r: number }[];
+    }[] = [];
     /** oil/acid/fire drips along capsule paths — announce fall, then stamp on land */
     private readonly drips: {
         kind: 'oil' | 'acid' | 'fire';
@@ -3289,14 +3299,19 @@ export class BattleSim {
         if (!terrain) return;
         if (insideAnyShield(x, z, shields)) return;
         const r = radius * ACID_MELT_RADIUS_MULT;
+        // The pit digs right up to a building and stops around it — the drip is NOT skipped
+        // when a building is near, or the stretch of a spill next to one would never sink.
+        const keepOut: { x: number; z: number; r: number }[] = [];
         for (const a of this.actors) {
             if (!a.unit.type.structure) continue;
-            if (hypot(a.x - x, a.z - z) < r + a.radius + ACID_MELT_STRUCTURE_MARGIN) return;
+            const keep = a.radius + ACID_MELT_STRUCTURE_MARGIN;
+            if (hypot(a.x - x, a.z - z) >= r + keep + ACID_MELT_KEEP_OUT_EASE) continue;
+            keepOut.push({ x: a.x, z: a.z, r: keep });
         }
         // sinks over a few seconds, not in one step, so the ground can be watched going
         // down; a whole number of equal sim steps, so it is exact and identical everywhere
         const steps = Math.max(1, Math.round(ACID_MELT_SECONDS / BattleSim.STEP));
-        this.acidMelts.push({ x, z, r, perStep: ACID_MELT_DEPTH / steps, stepsLeft: steps });
+        this.acidMelts.push({ x, z, r, perStep: ACID_MELT_DEPTH / steps, stepsLeft: steps, keepOut });
     }
 
     /** one sim step of every melt still under way (deterministic: fixed depth per step) */
@@ -3305,7 +3320,7 @@ export class BattleSim {
         if (!terrain || this.acidMelts.length === 0) return;
         let write = 0;
         for (const m of this.acidMelts) {
-            terrain.melt(m.x, m.z, m.r, m.perStep, ACID_MELT_FLOOR);
+            terrain.melt(m.x, m.z, m.r, m.perStep, ACID_MELT_FLOOR, 0.2, m.keepOut);
             if (--m.stepsLeft > 0) this.acidMelts[write++] = m;
         }
         this.acidMelts.length = write;

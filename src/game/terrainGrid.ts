@@ -38,6 +38,9 @@ export function clampBoardY(before: number, after: number): number {
     return after < floor ? floor : after > ceiling ? ceiling : after;
 }
 
+/** how far past a keep-out disc's edge a pit eases back in (world units) */
+const KEEP_OUT_EASE = 2.5;
+
 /** hammer footprint: rounded corners as a share of the short half-extent (matches the painted scar) */
 const FLATTEN_CORNER = 0.28;
 /** hammer footprint: the easing rim as a share of the short half-extent (the rest is pressed fully flat) */
@@ -219,7 +222,16 @@ export class TerrainGrid {
      *
      * Deterministic like the rest: sqrt is correctly rounded, the ease is a cubic.
      */
-    melt(cx: number, cz: number, radius: number, depth: number, floor: number = BOARD_MIN_Y, rimShare = 0.2): void {
+    melt(
+        cx: number,
+        cz: number,
+        radius: number,
+        depth: number,
+        floor: number = BOARD_MIN_Y,
+        rimShare = 0.2,
+        /** discs the pit leaves alone (a building), each easing in over `KEEP_OUT_EASE` past its edge */
+        keepOut: readonly { x: number; z: number; r: number }[] = [],
+    ): void {
         const r = Math.max(1e-3, radius);
         const inner = r * (1 - rimShare);
         const span = Math.max(1e-3, r - inner);
@@ -237,6 +249,19 @@ export class TerrainGrid {
                     const t = (r - d) / span;
                     w = t * t * (3 - 2 * t);
                 }
+                for (const k of keepOut) {
+                    const kx = -this.halfW + ix * this.cellX - k.x;
+                    const kz = -this.halfH + iz * this.cellZ - k.z;
+                    const kd = Math.sqrt(kx * kx + kz * kz);
+                    if (kd >= k.r + KEEP_OUT_EASE) continue;
+                    if (kd <= k.r) {
+                        w = 0;
+                        break;
+                    }
+                    const t = (kd - k.r) / KEEP_OUT_EASE;
+                    w *= t * t * (3 - 2 * t);
+                }
+                if (w <= 0) continue;
                 const i = row + ix;
                 const before = this.heights[i]!;
                 const lo = before < floor ? before : floor;
