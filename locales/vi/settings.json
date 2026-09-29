@@ -129,6 +129,8 @@
     "movePackNote": "Vanguard — cung cấp một lượt sử dụng Pack chiêu thức {{tactic}}",
     "commanderSpellsTitle": "Phép bổ trợ của chỉ huy",
     "commanderSpellNote": "Pháo đài — chỉ dành cho người chỉ huy biết rõ về nó.",
+    "vanguardSpellsTitle": "Phép của Vanguard",
+    "vanguardSpellNote": "Vanguard — cho mọi chỉ huy, một lần mỗi trận",
     "boostsTitle": "Tăng cường",
     "tier": "Cấp độ {{n}}",
     "tierValue": "{{cost}} nguồn cung → +{{attack}} sát thương, +{{hp}} máu",

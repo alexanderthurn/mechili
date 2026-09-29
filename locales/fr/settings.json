@@ -129,6 +129,8 @@
     "movePackNote": "Vanguard — octroie une charge de pack de déplacement {{tactic}}",
     "commanderSpellsTitle": "Sorts de commandant",
     "commanderSpellNote": "Forteresse — uniquement pour un commandant qui le sait",
+    "vanguardSpellsTitle": "Sorts de la Vanguard",
+    "vanguardSpellNote": "Vanguard — pour tout commandant, une fois par partie",
     "boostsTitle": "Boosts",
     "tier": "Niveau {{n}}",
     "tierValue": "{{cost}} approvisionnement → +{{attack}} dégâts, +{{hp}} PV",

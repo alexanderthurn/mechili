@@ -129,6 +129,8 @@
     "movePackNote": "Vanguard — memberikan satu muatan move-pack {{tactic}}",
     "commanderSpellsTitle": "Mantra Komandan",
     "commanderSpellNote": "Benteng — hanya pada komandan yang mengetahuinya",
+    "vanguardSpellsTitle": "Mantra Vanguard",
+    "vanguardSpellNote": "Vanguard — untuk komandan mana pun, sekali per pertandingan",
     "boostsTitle": "Peningkatan",
     "tier": "Tingkat {{n}}",
     "tierValue": "Pasokan {{cost}} → +{{attack}} kerusakan, +{{hp}} HP",

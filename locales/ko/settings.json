@@ -129,6 +129,8 @@
     "movePackNote": "선봉 — 편대 이동 {{tactic}} 충전 1회 부여",
     "commanderSpellsTitle": "지휘관 주문",
     "commanderSpellNote": "요새 — 그 주문을 아는 지휘관에게만",
+    "vanguardSpellsTitle": "선봉 주문",
+    "vanguardSpellNote": "선봉 — 모든 지휘관, 경기당 1회",
     "boostsTitle": "강화",
     "tier": "{{n}}단계",
     "tierValue": "보급 {{cost}} → 공격력 +{{attack}}, 체력 +{{hp}}",

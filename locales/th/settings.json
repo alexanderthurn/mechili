@@ -129,6 +129,8 @@
     "movePackNote": "แนวหน้า — ให้ชาร์จ {{tactic}} ย้ายแพ็กหนึ่งครั้ง",
     "commanderSpellsTitle": "คาถาผู้บัญชาการ",
     "commanderSpellNote": "ป้อมหลัก — เฉพาะบนผู้บัญชาการที่รู้",
+    "vanguardSpellsTitle": "คาถาแนวหน้า",
+    "vanguardSpellNote": "แนวหน้า — สำหรับผู้บัญชาการทุกคน ซื้อได้หนึ่งครั้งต่อแมตช์",
     "boostsTitle": "บูสต์",
     "tier": "ขั้น {{n}}",
     "tierValue": "เสบียง {{cost}} → +{{attack}} ดาเมจ +{{hp}} hp",

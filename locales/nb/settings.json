@@ -129,6 +129,8 @@
     "movePackNote": "Vanguard – gir én trekkpakke {{tactic}}-ladning",
     "commanderSpellsTitle": "Kommandørformler",
     "commanderSpellNote": "Stronghold – bare på en kommandør som vet det",
+    "vanguardSpellsTitle": "Vanguard-formler",
+    "vanguardSpellNote": "Vanguard – for enhver kommandør, én gang per kamp",
     "boostsTitle": "Booster",
     "tier": "Nivå {{n}}",
     "tierValue": "{{cost}} forsyning → +{{attack}} skade, +{{hp}} hk",

@@ -129,6 +129,8 @@
     "movePackNote": "Avanguardia — garantisce una carica del Pack di mosse {{tactic}}",
     "commanderSpellsTitle": "Incantesimi del Comandante",
     "commanderSpellNote": "Fortezza — solo su un comandante che la conosce",
+    "vanguardSpellsTitle": "Incantesimi dell'Avanguardia",
+    "vanguardSpellNote": "Avanguardia — per qualsiasi comandante, una volta per partita",
     "boostsTitle": "Potenziamenti",
     "tier": "Livello {{n}}",
     "tierValue": "{{cost}} scorte → +{{attack}} danno, +{{hp}} hp",

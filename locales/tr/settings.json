@@ -129,6 +129,8 @@
     "movePackNote": "Öncü — bir hareket Pack’i {{tactic}} yükü verir",
     "commanderSpellsTitle": "Komutan Büyüleri",
     "commanderSpellNote": "Kale — sadece onu bilen bir komutanın elinde.",
+    "vanguardSpellsTitle": "Öncü Büyüleri",
+    "vanguardSpellNote": "Öncü — herhangi bir komutan için, maç başına bir kez",
     "boostsTitle": "Güçlendirir",
     "tier": "Kademe {{n}}",
     "tierValue": "{{cost}} tedarik → +{{attack}} hasar, +{{hp}} can",

@@ -129,6 +129,8 @@
     "movePackNote": "Vanguarda — concede uma carga de Pack de movimento {{tactic}}",
     "commanderSpellsTitle": "Feitiços de Comandante",
     "commanderSpellNote": "Fortaleza — apenas para um comandante que a conheça.",
+    "vanguardSpellsTitle": "Feitiços da Vanguarda",
+    "vanguardSpellNote": "Vanguarda — para qualquer comandante, uma vez por partida",
     "boostsTitle": "Impulsos",
     "tier": "Nível {{n}}",
     "tierValue": "{{cost}} fornecimento → +{{attack}} dano, +{{hp}} HP",

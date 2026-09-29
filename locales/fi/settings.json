@@ -129,6 +129,8 @@
     "movePackNote": "Vanguard — myöntää yhden liikepakkauksen {{tactic}} latauksen",
     "commanderSpellsTitle": "Komentajaloitsut",
     "commanderSpellNote": "Linnoitus – vain komentajalle, joka tietää sen",
+    "vanguardSpellsTitle": "Vanguard-loitsut",
+    "vanguardSpellNote": "Vanguard — mille tahansa komentajalle, kerran ottelussa",
     "boostsTitle": "Tehosteet",
     "tier": "Taso {{n}}",
     "tierValue": "{{cost}} tarvike → +{{attack}} vahinko, +{{hp}} kyky",

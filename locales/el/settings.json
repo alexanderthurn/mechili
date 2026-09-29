@@ -129,6 +129,8 @@
     "movePackNote": "Εμπροσθοφυλακή — δίνει μία φόρτιση {{tactic}} μετακίνησης πακέτου",
     "commanderSpellsTitle": "Ξόρκια διοικητή",
     "commanderSpellNote": "Οχυρό — μόνο σε διοικητή που το γνωρίζει",
+    "vanguardSpellsTitle": "Ξόρκια Εμπροσθοφυλακής",
+    "vanguardSpellNote": "Εμπροσθοφυλακή — για κάθε διοικητή, μία φορά ανά αγώνα",
     "boostsTitle": "Ενισχύσεις",
     "tier": "Βαθμίδα {{n}}",
     "tierValue": "{{cost}} εφόδια → +{{attack}} ζημιά, +{{hp}} hp",

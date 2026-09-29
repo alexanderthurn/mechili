@@ -129,6 +129,8 @@
     "movePackNote": "Vanguard — giver én move-pack {{tactic}}-opladning",
     "commanderSpellsTitle": "Kommandørbesværgelser",
     "commanderSpellNote": "Stronghold — kun på en kommandør, der ved det",
+    "vanguardSpellsTitle": "Vanguard-besværgelser",
+    "vanguardSpellNote": "Vanguard — til enhver kommandør, én gang pr. kamp",
     "boostsTitle": "Boosts",
     "tier": "Niveau {{n}}",
     "tierValue": "{{cost}} forsyning → +{{attack}} skade, +{{hp}} hk",

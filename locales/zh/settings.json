@@ -129,6 +129,8 @@
     "movePackNote": "先锋 — 给予一次移动编队 {{tactic}} 充能",
     "commanderSpellsTitle": "指挥官法术",
     "commanderSpellNote": "要塞 — 仅限知晓该法术的指挥官",
+    "vanguardSpellsTitle": "先锋法术",
+    "vanguardSpellNote": "先锋 — 任何指挥官均可,每场一次",
     "boostsTitle": "强化",
     "tier": "第 {{n}} 阶",
     "tierValue": "{{cost}} 补给 → +{{attack}} 伤害，+{{hp}} 生命",

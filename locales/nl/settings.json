@@ -129,6 +129,8 @@
     "movePackNote": "Vanguard — geeft één aanvalsPack {{tactic}} lading",
     "commanderSpellsTitle": "Commandantspreuken",
     "commanderSpellNote": "Bolwerk — alleen bij een commandant die het kent.",
+    "vanguardSpellsTitle": "Vanguard-spreuken",
+    "vanguardSpellNote": "Vanguard — voor elke commandant, één keer per wedstrijd",
     "boostsTitle": "Boosts",
     "tier": "Niveau {{n}}",
     "tierValue": "{{cost}} voeding → +{{attack}} schade, +{{hp}} hp",

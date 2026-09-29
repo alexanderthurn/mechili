@@ -129,6 +129,8 @@
     "movePackNote": "Vorhut — gewährt eine Bewegungs-Pack-{{tactic}}-Aufladung",
     "commanderSpellsTitle": "Kommandantenzauber",
     "commanderSpellNote": "Hochburg – nur für einen Kommandanten, der sie kennt",
+    "vanguardSpellsTitle": "Vorhut-Zauber",
+    "vanguardSpellNote": "Vorhut — für jeden Kommandanten, einmal pro Match",
     "boostsTitle": "Boosts",
     "tier": "Stufe {{n}}",
     "tierValue": "{{cost}} Vorräte → +{{attack}} Schaden, +{{hp}} Trefferpunkte",

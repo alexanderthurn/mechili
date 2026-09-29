@@ -1372,6 +1372,21 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                 })),
         },
         {
+            title: t('settings:sheet.vanguardSpellsTitle', { defaultValue: 'Vanguard Spells' }),
+            rows: BASE_TYPES.tactics
+                .filter((spell) => spell.vanguardCost !== undefined)
+                .sort(
+                    (a, b) => a.vanguardCost! - b.vanguardCost! || a.name.localeCompare(b.name),
+                )
+                .map((spell) => ({
+                    label: spell.name,
+                    value: abilityOneTime(spell.vanguardCost!),
+                    note: t('settings:sheet.vanguardSpellNote', {
+                        defaultValue: 'Vanguard — any commander, once per match',
+                    }),
+                })),
+        },
+        {
             title: t('settings:sheet.boostsTitle', { defaultValue: 'Boosts' }),
             rows: settings.boosts.costs.map((cost, i) => ({
                 label: t('settings:sheet.tier', {

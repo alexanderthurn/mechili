@@ -137,6 +137,8 @@
     "movePackNote": "Vanguard — grants one move-pack {{tactic}} charge",
     "commanderSpellsTitle": "Commander Spells",
     "commanderSpellNote": "Stronghold — only on a commander that knows it",
+    "vanguardSpellsTitle": "Vanguard Spells",
+    "vanguardSpellNote": "Vanguard — any commander, once per match",
     "boostsTitle": "Boosts",
     "tier": "Tier {{n}}",
     "tierValue": "{{cost}} supply → +{{attack}} damage, +{{hp}} hp",

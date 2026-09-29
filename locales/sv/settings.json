@@ -129,6 +129,8 @@
     "movePackNote": "Avantgarde — ger en move-pack {{tactic}}-laddning",
     "commanderSpellsTitle": "Befälhavarens trollformler",
     "commanderSpellNote": "Fästning — bara på en befälhavare som vet det",
+    "vanguardSpellsTitle": "Avantgardes trollformler",
+    "vanguardSpellNote": "Avantgarde — för vilken befälhavare som helst, en gång per match",
     "boostsTitle": "Boostar",
     "tier": "Nivå {{n}}",
     "tierValue": "{{cost}} försörjning → +{{attack}} skada, +{{hp}} hk",

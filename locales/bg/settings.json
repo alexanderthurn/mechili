@@ -129,6 +129,8 @@
     "movePackNote": "Авангард — дава един заряд на отряд за движение {{tactic}}",
     "commanderSpellsTitle": "Командирски магии",
     "commanderSpellNote": "Крепост — само за командир, който я познава",
+    "vanguardSpellsTitle": "Магии на Авангарда",
+    "vanguardSpellNote": "Авангард — за всеки командир, веднъж на мач",
     "boostsTitle": "Усилвания",
     "tier": "Ниво {{n}}",
     "tierValue": "{{cost}} снабдяване → +{{attack}} щети, +{{hp}} здраве",

@@ -129,6 +129,8 @@
     "movePackNote": "Vanguard — zapewnia jeden Pack ruchów {{tactic}}",
     "commanderSpellsTitle": "Zaklęcia dowódcy",
     "commanderSpellNote": "Twierdza — tylko dla dowódcy, który ją zna",
+    "vanguardSpellsTitle": "Zaklęcia Vanguard",
+    "vanguardSpellNote": "Vanguard — dla każdego dowódcy, raz na mecz",
     "boostsTitle": "Wzmacnia",
     "tier": "Poziom {{n}}",
     "tierValue": "{{cost}} zaopatrzenie → +{{attack}} obrażenia, +{{hp}} HP",

@@ -129,6 +129,8 @@
     "movePackNote": "Élcsapat — egy mozgásPack-töltést biztosít {{tactic}}",
     "commanderSpellsTitle": "Parancsnoki varázslatok",
     "commanderSpellNote": "Erőd – csak egy olyan parancsnokon, akik ismerik",
+    "vanguardSpellsTitle": "Élcsapat-varázslatok",
+    "vanguardSpellNote": "Élcsapat — bármely parancsnoknak, meccsenként egyszer",
     "boostsTitle": "Növeli",
     "tier": "{{n}} szint",
     "tierValue": "{{cost}} utánpótlás → +{{attack}} sebzés, +{{hp}} életerő",

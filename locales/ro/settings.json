@@ -129,6 +129,8 @@
     "movePackNote": "Avangarda — acordă o încărcătură de Pack de mișcări {{tactic}}",
     "commanderSpellsTitle": "Vrăji de comandant",
     "commanderSpellNote": "Fortăreață — doar pentru un comandant care o știe",
+    "vanguardSpellsTitle": "Vrăji ale Avangardei",
+    "vanguardSpellNote": "Avangarda — pentru orice comandant, o dată pe meci",
     "boostsTitle": "Boost-uri",
     "tier": "Nivel {{n}}",
     "tierValue": "{{cost}} aprovizionare → +{{attack}} daune, +{{hp}} hp",

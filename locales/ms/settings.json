@@ -129,6 +129,8 @@
     "movePackNote": "Vanguard — memberikan satu caj Pack bergerak {{tactic}}",
     "commanderSpellsTitle": "Jampi Komander",
     "commanderSpellNote": "Kubu kuat — hanya pada komander yang mengetahuinya",
+    "vanguardSpellsTitle": "Jampi Vanguard",
+    "vanguardSpellNote": "Vanguard — untuk mana-mana komander, sekali setiap perlawanan",
     "boostsTitle": "Penggalak",
     "tier": "Peringkat {{n}}",
     "tierValue": "{{cost}} bekalan → +{{attack}} kerosakan, +{{hp}} hp",

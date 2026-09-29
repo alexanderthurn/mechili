@@ -129,6 +129,8 @@
     "movePackNote": "Předvoj — udělí jeden náboj Packu pohybu {{tactic}}",
     "commanderSpellsTitle": "Kouzla velitele",
     "commanderSpellNote": "Pevnost – pouze pro velitele, který ji zná",
+    "vanguardSpellsTitle": "Kouzla předvoje",
+    "vanguardSpellNote": "Předvoj — pro libovolného velitele, jednou za zápas",
     "boostsTitle": "Zvyšuje",
     "tier": "Úroveň {{n}}",
     "tierValue": "{{cost}} zásoby → +{{attack}} poškození, +{{hp}} zdraví",

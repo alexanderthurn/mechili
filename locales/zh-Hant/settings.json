@@ -129,6 +129,8 @@
     "movePackNote": "先鋒 — 給予一次移動編隊 {{tactic}} 充能",
     "commanderSpellsTitle": "指揮官法術",
     "commanderSpellNote": "要塞 — 僅限知曉該法術的指揮官",
+    "vanguardSpellsTitle": "先鋒法術",
+    "vanguardSpellNote": "先鋒 — 任何指揮官皆可,每場一次",
     "boostsTitle": "強化",
     "tier": "第 {{n}} 階",
     "tierValue": "{{cost}} 補給 → +{{attack}} 傷害，+{{hp}} 生命",

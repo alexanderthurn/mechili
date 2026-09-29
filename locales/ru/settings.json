@@ -129,6 +129,8 @@
     "movePackNote": "Авангард — даёт один заряд {{tactic}} перемещения отряда",
     "commanderSpellsTitle": "Заклинания командира",
     "commanderSpellNote": "Цитадель — только у командира, который знает его",
+    "vanguardSpellsTitle": "Заклинания Авангарда",
+    "vanguardSpellNote": "Авангард — для любого командира, один раз за матч",
     "boostsTitle": "Усиления",
     "tier": "Ступень {{n}}",
     "tierValue": "{{cost}} снабжения → +{{attack}} урона, +{{hp}} ОЗ",

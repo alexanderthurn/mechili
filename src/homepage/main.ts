@@ -333,7 +333,7 @@ function tacticPrice(tactic: TacticDef): { cost: number; where: string } | null 
     if (tactic.strongholdCost !== undefined) {
         return { cost: tactic.strongholdCost, where: unitName(STRONGHOLD.id, STRONGHOLD.name) };
     }
-    const vanguard = VANGUARD_TACTIC_COST[tactic.id];
+    const vanguard = tactic.vanguardCost ?? VANGUARD_TACTIC_COST[tactic.id];
     return vanguard === undefined
         ? null
         : { cost: vanguard, where: unitName(COMMAND_TOWER.id, COMMAND_TOWER.name) };
