@@ -235,6 +235,9 @@ const MOUNTAIN_RISE_SPAN = 360;
 /** Crest / world cut — hold peak height from ~470 out to 500. */
 export const MOUNTAIN_PEAK_END = 500;
 
+/** what the mountain cloud banks bleach toward under snow */
+const MIST_SNOW_WHITE = new Color(0xf4f7fb);
+
 /** World height of the water table: one flat plane, hidden wherever the ground is above it. */
 const WATER_LEVEL_Y = -1.1;
 // ---- ultra water: mirrored world + ripples (tune here) ----
@@ -458,6 +461,9 @@ export class Scenery {
     /** low fog cards drifting between the forest trees */
     private readonly fogCards: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     private forestFogMaterial: MeshBasicMaterial | null = null;
+    /** ultra: cloud banks lying on the mountain shelves (see createMountainMist) */
+    private readonly mistBanks: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
+    private mountainMistMaterial: MeshBasicMaterial | null = null;
     private time = 0;
     private readonly cloudBoundsX: number;
     /** Square outer-ground size (world units) — mountain ring plus a short skirt. */
@@ -707,6 +713,7 @@ export class Scenery {
         this.createCloudAssets(rng);
         if (this.detailed) this.createHorizonCloudMeshes(map, rng);
         if (this.detailed) this.createForestFog(map, rng);
+        if (this.quality === 'ultra') this.createMountainMist(map, rng);
         if (this.quality === 'off') {
             for (const c of this.clouds) c.mesh.visible = false;
         }
@@ -750,6 +757,53 @@ export class Scenery {
                 phase: rng() * Math.PI * 2,
                 speed: 0.03 + rng() * 0.05,
             });
+            this.group.add(mesh);
+            placed++;
+        }
+    }
+
+    /**
+     * Ultra: banks of cloud lying on the mountain shelves, so the range sits in
+     * the air instead of standing on the meadow. Big flat cards, drifting a little,
+     * placed only on gentle ground (a flat card meeting a steep slope shows a hard
+     * seam) and lifted well clear of it. Opacity and tint follow the forest fog:
+     * thick in rain and haze, a thin veil on a clear day, pale over snow.
+     */
+    private createMountainMist(map: BattleMap, rng: () => number): void {
+        const material = new MeshBasicMaterial({
+            map: this.cloudTexture,
+            transparent: true,
+            depthWrite: false,
+            opacity: 0,
+        });
+        this.mountainMistMaterial = material;
+        const geometry = new PlaneGeometry(1, 0.6);
+        geometry.rotateX(-Math.PI / 2);
+        const COUNT = 30;
+        const S = 10;
+        let placed = 0;
+        for (let attempt = 0; attempt < 6000 && placed < COUNT; attempt++) {
+            const x = (rng() * 2 - 1) * (map.halfW + MOUNTAIN_PEAK_END);
+            const z = (rng() * 2 - 1) * (map.halfH + MOUNTAIN_PEAK_END);
+            const d = pastBoard(map.halfW, map.halfH, x, z);
+            if (d < 120 || d > MOUNTAIN_PEAK_END - 30) continue;
+            const h = this.terrainHeight(x, z);
+            if (h < 35 || h > 260) continue;
+            if (this.lakeAt(x, z) > 0.05) continue;
+            const slope = Math.max(
+                Math.abs(this.terrainHeight(x + S, z) - h),
+                Math.abs(this.terrainHeight(x, z + S) - h),
+                Math.abs(this.terrainHeight(x - S, z) - h),
+                Math.abs(this.terrainHeight(x, z - S) - h),
+            ) / S;
+            if (slope > 0.4) continue;
+            const mesh = new Mesh(geometry, material);
+            mesh.position.set(x, h + 9 + rng() * 9, z);
+            const sc = 70 + rng() * 80;
+            mesh.scale.set(sc, 1, sc * (0.5 + rng() * 0.3));
+            mesh.rotation.y = rng() * Math.PI * 2;
+            mesh.renderOrder = 2;
+            this.mistBanks.push({ mesh, baseX: x, phase: rng() * Math.PI * 2, speed: 0.02 + rng() * 0.03 });
             this.group.add(mesh);
             placed++;
         }
@@ -1108,6 +1162,18 @@ export class Scenery {
         for (const f of this.fogCards) {
             f.mesh.position.x = f.baseX + Math.sin(this.time * f.speed + f.phase) * 8;
             f.mesh.visible = (this.forestFogMaterial?.opacity ?? 0) > 0.02;
+        }
+        const mistMat = this.mountainMistMaterial;
+        if (mistMat) {
+            const fog = this.forestFogMaterial;
+            // a thin veil always, the weather's fog on top; snow bleaches it
+            const op = Math.min(0.5, 0.13 + (fog?.opacity ?? 0) * 0.9);
+            mistMat.opacity = this.quality === 'ultra' ? op : 0;
+            if (fog) mistMat.color.copy(fog.color).lerp(MIST_SNOW_WHITE, this.groundSnowCover * 0.6);
+            for (const b of this.mistBanks) {
+                b.mesh.position.x = b.baseX + Math.sin(this.time * b.speed + b.phase) * 22;
+                b.mesh.visible = op > 0.02;
+            }
         }
         // low: the flat water freezes by colour alone (there is no ice texture)
         if (this.flatWaterMaterial) {
