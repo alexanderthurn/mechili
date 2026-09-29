@@ -136,7 +136,7 @@ import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
 import { itemSlotLimit } from './items';
 import { parseElementalId, RUNE_MAX_LEVEL } from './runeMix';
-import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, registerOuterHeight, simGroundSupportAt, worldHeightAt } from './map';
+import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, outerHeightAt, registerOuterHeight, simGroundSupportAt, worldHeightAt } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
 import {
@@ -10156,10 +10156,12 @@ export class Game {
     /** deep water at the spawn point itself, or anywhere along the straight
      *  line to board center (0,0) — sampled at a handful of points along it */
     private hordePathCrossesWater(x: number, z: number): boolean {
-        if (worldHeightAt(x, z) < HORDE_LAKE_HEIGHT) return true;
+        // outer height only: the lakes are all out there, and a Big Meteor crater on the board
+        // (floor -1) is not water — with the board relief added it read as a lake on the way
+        if (outerHeightAt(x, z) < HORDE_LAKE_HEIGHT) return true;
         for (let s = 1; s <= HORDE_PATH_SAMPLES; s++) {
             const t = s / (HORDE_PATH_SAMPLES + 1);
-            if (worldHeightAt(x * (1 - t), z * (1 - t)) < HORDE_LAKE_HEIGHT) return true;
+            if (outerHeightAt(x * (1 - t), z * (1 - t)) < HORDE_LAKE_HEIGHT) return true;
         }
         return false;
     }

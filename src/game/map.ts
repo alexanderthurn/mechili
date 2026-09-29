@@ -131,6 +131,11 @@ export function registerOuterHeight(fn: (x: number, z: number) => number): void 
     outerHeightFn = fn;
 }
 
+/** the outer world's height alone (0 inside the board): where the lakes are, whatever the board's craters */
+export function outerHeightAt(x: number, z: number): number {
+    return outerHeightFn(x, z);
+}
+
 /** total visual terrain height anywhere: board relief + outer world */
 export function worldHeightAt(x: number, z: number): number {
     return groundHeightFn(x, z) + outerHeightFn(x, z);
