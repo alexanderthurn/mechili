@@ -142,7 +142,7 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         useHqTextures: true,
         // Field photos are close-ups — larger tile = less "macro" look
         detailTile: 18,
-        macroStrength: 0.48,
+        macroStrength: 0.72,
         textureBomb: true,
         ...CLOSE_TILE,
     },
@@ -155,7 +155,7 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         roughnessFromAlbedo: true,
         useHqTextures: true,
         detailTile: 16,
-        macroStrength: 0.35,
+        macroStrength: 0.65,
         textureBomb: true,
         ...CLOSE_TILE,
     },
@@ -297,6 +297,53 @@ float slopeNoise( vec2 p ) {
 
 /** how brown the loose patches on flat grass get at most (0 = none) */
 const FLAT_BROWN_PATCHES = 0.6;
+
+/**
+ * The board's ground types: big slow zones of lush and of straw-dry cover, patches
+ * of stony ground and of moss, and a drier lift on the crests of the mounds. The
+ * flat lawn used to be one green with tonal drift; this gives it places.
+ *
+ * Everything fades out toward the board edge so the field still meets the outer
+ * meadow, which does not have these zones. `strength` scales the tier (medium is
+ * milder). `rock` is the name of the rock sampler, or null for none (no stones then).
+ */
+export function groundZonesGlsl(opts: {
+    worldPos: string;
+    boardXZ: string;
+    boardHalf: string;
+    rock: string | null;
+    strength: number;
+}): string {
+    const { worldPos, boardXZ, boardHalf, rock, strength } = opts;
+    const k = strength.toFixed(2);
+    let glsl = `
+	// ground types (see groundZonesGlsl)
+	vec3 zoneP = ${worldPos};
+	float zoneEdge = 1.0 - smoothstep( 0.78, 0.94, max( abs( ${boardXZ}.x ) / ${boardHalf}.x, abs( ${boardXZ}.y ) / ${boardHalf}.y ) );
+	float zoneA = slopeNoise( zoneP.xz / 64.0 + 11.0 ) * 0.7 + slopeNoise( zoneP.xz / 23.0 + 5.3 ) * 0.3;
+	float lushT = smoothstep( 0.54, 0.78, zoneA ) * zoneEdge;
+	float strawT = ( 1.0 - smoothstep( 0.24, 0.46, zoneA ) ) * zoneEdge;
+	float zoneLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
+	diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.80, 1.07, 0.78 ), lushT * ${k} );
+	diffuseColor.rgb = mix( diffuseColor.rgb, mix( diffuseColor.rgb, vec3( zoneLum ), 0.35 ) * vec3( 1.22, 1.06, 0.62 ), strawT * ${k} * 0.8 );
+	// moss: small, darker, cooler green patches on the low ground
+	float mossN = slopeNoise( zoneP.xz / 15.0 + 90.0 ) * 0.7 + slopeNoise( zoneP.xz / 5.5 + 13.0 ) * 0.3;
+	float mossT = smoothstep( 0.62, 0.8, mossN ) * ( 1.0 - smoothstep( 0.2, 1.4, zoneP.y ) ) * zoneEdge;
+	diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.70, 0.90, 0.68 ), mossT * ${k} * 0.7 );
+	// the crests of the mounds run dry and light
+	float crestT = smoothstep( 1.2, 3.6, zoneP.y ) * zoneEdge;
+	diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.12, 1.04, 0.80 ), crestT * ${k} * 0.55 );
+`;
+    if (rock) {
+        glsl += `	// stony ground: sparse patches of the rock photo, kept faint so units read on top
+	float stoneN = slopeNoise( zoneP.xz / 31.0 + 47.0 ) * 0.65 + slopeNoise( zoneP.xz / 9.0 + 2.9 ) * 0.35;
+	float stonyT = smoothstep( 0.68, 0.82, stoneN ) * zoneEdge * ${k} * 0.5;
+	vec3 stonyCol = texture2D( ${rock}, zoneP.xz / 5.0 ).rgb * vec3( 0.92, 0.90, 0.84 );
+	diffuseColor.rgb = mix( diffuseColor.rgb, stonyCol, stonyT );
+`;
+    }
+    return glsl;
+}
 
 /** rock texture size on board cliffs (wu per repeat) */
 const SLOPE_ROCK_TILE = 6;

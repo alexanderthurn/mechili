@@ -14,7 +14,7 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -1656,6 +1656,17 @@ export class BattleMap {
                 (slopeEarth ? 'uniform sampler2D uSlopeEarth;\n' : '') +
                 (slopeRock ? 'uniform sampler2D uSlopeRock;\n' : '') +
                 SLOPE_GROUND_FNS;
+            // Ground types — lush / straw zones, stony and mossy patches, dry crests —
+            // ahead of the slope layers, which then work on top of them
+            if (detail) {
+                inject += groundZonesGlsl({
+                    worldPos: 'vGroundWorld',
+                    boardXZ: 'vBoardXZ',
+                    boardHalf: 'uBoardHalf',
+                    rock: slopeRock ? 'uSlopeRock' : null,
+                    strength: profile.tier === 'medium' ? 0.7 : 1,
+                });
+            }
             inject += slopeGroundGlsl({
                 worldPos: 'vGroundWorld',
                 worldNormal: 'transformDirectionByInverseViewMatrix( normalize( vNormal ), viewMatrix )',
@@ -1765,7 +1776,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         material.customProgramCacheKey = () =>
             `ground-hazard-v62${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
-            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}`;
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones' : ''}`;
     }
 
     /**
