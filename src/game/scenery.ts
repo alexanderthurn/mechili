@@ -233,6 +233,8 @@ export const MOUNTAIN_PEAK_END = 500;
 /** World height of the water table: one flat plane, hidden wherever the ground is above it. */
 const WATER_LEVEL_Y = -1.1;
 // ---- ultra water: mirrored world + ripples (tune here) ----
+/** surface opacity before fresnel: lower = more of the lake bed shows through */
+const WATER_ULTRA_OPACITY = 0.6;
 /** how strongly a ripple tilts the surface normal (sun sparkle) */
 const WATER_NORMAL_TILT = '1.0';
 /** mirror share looking straight down; fresnel raises it toward the horizon */
@@ -362,6 +364,8 @@ export class Scenery {
     /** drives the ripple normals of the ultra water (seconds) */
     private waterTimeUniform: { value: number } | null = null;
     private waterMesh: Mesh | null = null;
+    /** the unfrozen surface opacity of this tier (ice fades toward opaque) */
+    private waterOpacity = 0.86;
     /** ultra only: the mirrored view the lake surface shows */
     private waterReflection: WaterReflection | null = null;
     /** boxes around the wet ground, for "is a lake on screen" — null = not sampled yet */
@@ -871,7 +875,7 @@ export class Scenery {
             if (this.waterMaterial instanceof MeshStandardMaterial) {
                 this.waterMaterial.roughness = 0.18 + freeze * 0.55;
             }
-            this.waterMaterial.opacity = 0.86 + freeze * 0.12;
+            this.waterMaterial.opacity = this.waterOpacity + freeze * (0.98 - this.waterOpacity);
         }
         this.time += dtSeconds;
         if (this.waterTimeUniform) this.waterTimeUniform.value = this.time;
@@ -951,21 +955,23 @@ export class Scenery {
         // Medium water is matte: a Lambert has no specular term at all, so the
         // sun leaves no glint on it (and it is the cheaper shader for that
         // tier). High and up keep the glossy standard material.
+        const baseOpacity = this.waterBaseOpacity();
         const material =
             this.quality === 'medium'
                 ? new MeshLambertMaterial({
                       map: this.waterTexture,
                       transparent: true,
-                      opacity: 0.86,
+                      opacity: baseOpacity,
                   })
                 : new MeshStandardMaterial({
                       map: this.waterTexture,
                       transparent: true,
-                      opacity: 0.86,
+                      opacity: baseOpacity,
                       roughness: 0.18,
                       metalness: 0,
                   });
         this.waterMaterial = material;
+        this.waterOpacity = baseOpacity;
         // Ultra: the lake mirrors the world (see waterReflection.ts) and its
         // surface ripples. The other tiers keep the plain shader.
         const reflection = this.quality === 'ultra' ? new WaterReflection(WATER_LEVEL_Y) : null;
@@ -1043,6 +1049,11 @@ export class Scenery {
         mesh.receiveShadow = true;
         this.waterMesh = mesh;
         return mesh;
+    }
+
+    /** how see-through the unfrozen water is: ultra shows the lake bed, the rest stay dense */
+    private waterBaseOpacity(): number {
+        return this.quality === 'ultra' ? WATER_ULTRA_OPACITY : 0.86;
     }
 
     /**
