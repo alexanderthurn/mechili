@@ -235,15 +235,15 @@ const MOUNTAIN_RISE_SPAN = 360;
 /** Crest / world cut — hold peak height from ~470 out to 500. */
 export const MOUNTAIN_PEAK_END = 500;
 
-/** the super mountain: footprint radius, the summit height it is lifted to (the ordinary range tops out near 500) and the least it adds */
+/** the super mountain: footprint radius, the summit height it is lifted to (the ordinary range tops out near 400) and the least it adds */
 const SUPER_RADIUS = 190;
-const SUPER_TOP = 560;
-const SUPER_MIN_ADD = 70;
+const SUPER_TOP = 450;
+const SUPER_MIN_ADD = 56;
 
 /** alm: flat meadow radius, the ease into the mountainside, and the height it is sought at (half the range) */
 const ALM_RADIUS = 65;
 const ALM_EASE = 55;
-const ALM_PEAK = 490;
+const ALM_PEAK = 400;
 /** how steeply the meadow falls toward the board (rise over run) */
 const ALM_TILT = 0.26;
 
@@ -729,9 +729,9 @@ export class Scenery {
             // a few hero peaks: a slow noise picks where the range towers over its neighbours
             const hero = smooth01((noise(x / 260 + 5.5, z / 260 + 91.2) - 0.6) / 0.14);
             // The valley is ringed by real mountains: where the noise says "gap" (ridge = 0) the
-            // range still stands at ~a quarter of its height instead of sinking to the foothills.
-            const massif = 0.28 + 0.72 * ridge;
-            const rawMountain = rise * (45 + 310 * massif * (0.72 + 0.43 * sharp * sharpZone) + 95 * hero * ridge);
+            // range still stands at ~40% of its height instead of sinking to the foothills.
+            const massif = 0.4 + 0.6 * ridge;
+            const rawMountain = rise * (60 + 232 * massif * (0.72 + 0.43 * sharp * sharpZone) + 70 * hero * ridge);
             const mountain = rawMountain;
             // Foothills die as the high range takes over — don't resume a
             // second meadow behind the mountain ring.
@@ -768,7 +768,7 @@ export class Scenery {
                     this.superPeak = { x, z, add: 0 };
                 }
             }
-            // lift the summit to a fixed height a little above the range's own maximum (~500),
+            // lift the summit to a fixed height a little above the range's own maximum (~400),
             // whatever the ground under it is, and never less than a real rise
             if (this.superPeak) this.superPeak.add = Math.max(SUPER_MIN_ADD, SUPER_TOP - bestH);
         }
