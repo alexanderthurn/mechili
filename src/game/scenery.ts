@@ -245,10 +245,10 @@ const WATER_WAVE_SLOPE = '0.85';
 /** how strongly a ripple tilts the surface normal (sun sparkle) */
 const WATER_NORMAL_TILT = '1.0';
 /** mirror share looking straight down; fresnel raises it toward the horizon */
-const WATER_REFLECT_F0 = '0.16';
-const WATER_REFLECT_POWER = '3.5';
+const WATER_REFLECT_F0 = '0.32';
+const WATER_REFLECT_POWER = '2.6';
 /** how far a ripple bends the mirrored image (texture-coordinate units) */
-const WATER_REFLECT_DISTORT = '0.035';
+const WATER_REFLECT_DISTORT = '0.028';
 /**
  * Shore foam for the ultra lake beds (meadow ground shader). Value noise gives
  * each stretch of coast its own rhythm; the foam line sits where the ground
