@@ -1271,7 +1271,7 @@ export class BattleMap {
         const GROW_DT = 0.32;
         // A scar, not a burn-out: fewer, gentler layers than the black char it replaced
         const MAX_STEPS = 6;
-        const STEP = 0.06;
+        const STEP = 0.05;
         // wide enough that neighbouring cells overlap, so a big fire is one patch
         const r = field.cellSize * 1.7;
         field.forEachFireCell(now, (x, z, _dps, _until, tint) => {
@@ -1714,7 +1714,7 @@ export class BattleMap {
                     '\tfloat ashB = fract( sin( dot( vMapUv * 29.0, vec2( 269.5, 183.3 ) ) ) * 43758.5453 );\n' +
                     '\tfloat ashC = fract( sin( dot( vMapUv * 7.3 + ashA, vec2( 91.7, 53.1 ) ) ) * 43758.5453 );\n' +
                     '\tfloat ashBreak = clamp( ashA * 0.35 + ashB * 0.4 + ashC * 0.25, 0.0, 1.0 );\n' +
-                    '\tfloat scorchFill = scorchM * mix( 0.72, 1.0, ashBreak ) * 0.72;\n' +
+                    '\tfloat scorchFill = scorchM * mix( 0.72, 1.0, ashBreak ) * 0.58;\n' +
                     // Burnt ground reads as earth, not a black hole: light scorch is the dirt
                     // browned and dulled (singed grass), heavy scorch goes dark with charcoal flecks.
                     '\tvec3 charCol = vec3( 0.012, 0.009, 0.007 );\n' +
@@ -1778,7 +1778,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v64${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
+            `ground-hazard-v65${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones4' : ''}`;
     }
