@@ -987,7 +987,7 @@ const APPROACH_OFFSET_MAX = 4.0;
 const MELEE_PRESS_BAND = 0.07;
 /** Acid drips dig the board: bowl radius (× the drip's), depth per drip, and the lowest they may dig. */
 const ACID_MELT_RADIUS_MULT = 1.1;
-const ACID_MELT_DEPTH = 0.28;
+const ACID_MELT_DEPTH = 0.56;
 const ACID_MELT_FLOOR = -0.8;
 /** no digging within this of a building's edge (world units) */
 const ACID_MELT_STRUCTURE_MARGIN = 6;
