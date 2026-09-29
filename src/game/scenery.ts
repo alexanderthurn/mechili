@@ -240,6 +240,13 @@ const WATER_LEVEL_Y = -1.1;
 // ---- ultra water: mirrored world + ripples (tune here) ----
 /** what the lake reeds fade toward under snow */
 const REED_FROST = new Color(0xe6ebe8);
+// ---- high water: analytic sky reflection (tune here) ----
+const WATER_SKY_F0 = '0.22';
+const WATER_SKY_POWER = '3.0';
+/** how much of the fresnel-weighted sky replaces the water colour (1 = fully) */
+const WATER_SKY_STRENGTH = '0.85';
+/** high keeps a denser surface than ultra: its sky reflection is flat colour, not a picture */
+const WATER_HIGH_OPACITY = 0.72;
 /** ultra gloss: tighter than the other tiers, so the sun path breaks into sparkle */
 const WATER_ULTRA_ROUGHNESS = 0.12;
 /** surface opacity before fresnel: lower = more of the lake bed shows through */
@@ -310,14 +317,22 @@ float lakeFoam(vec2 p, float t, float depth, float surge) {
 `;
 
 /**
- * Declarations for the ultra water shader: the mirrored view and a small sum of
- * travelling sine waves, returned as the slope of the surface in world xz.
- * Analytic, so the ripples move in place instead of sliding a texture along.
+ * Declarations for the high/ultra water shader: the ripple field, returned as
+ * the slope of the surface in world xz. Analytic, so the ripples move in place
+ * instead of sliding a texture along.
  */
-const WATER_MIRROR_DECLS = `
+const WATER_MIRROR_UNIFORMS = `
 uniform sampler2D uReflTex;
 uniform mat4 uReflMatrix;
 uniform float uReflOn;
+`;
+/** High: the sky's three colours, painted on the dome and reflected here */
+const WATER_SKY_UNIFORMS = `
+uniform vec3 uSkyZenith;
+uniform vec3 uSkyMid;
+uniform vec3 uSkyHorizon;
+`;
+const WATER_RIPPLE_DECLS = `
 uniform float uWaterTime;
 uniform sampler2D uLakeDepthTex;
 uniform float uLakeDepthSpan;
@@ -447,6 +462,14 @@ export class Scenery {
     private readonly lakeDepthTexUniform: { value: DataTexture | null } = { value: null };
     private readonly lakeDepthSpanUniform = { value: 1 };
     private lakeDepthDirty = true;
+    /** the water shader reads the depth image (high and ultra) */
+    private lakeDepthUsed = false;
+    /** the dome's three colours, as the high water's sky reflection reads them */
+    private readonly waterSky = {
+        zenith: { value: new Color() },
+        mid: { value: new Color() },
+        horizon: { value: new Color() },
+    };
     private lakeDepthBuiltAt = 0;
     private reeds: InstancedMesh | null = null;
     private reedBaseColors: Color[] = [];
@@ -979,6 +1002,7 @@ export class Scenery {
         }
         this.time += dtSeconds;
         if (this.waterTimeUniform) this.waterTimeUniform.value = this.time;
+        if (this.lakeDepthUsed) this.ensureLakeDepth();
         this.lakeTimeUniform.value = this.time;
         for (const c of this.clouds) {
             c.mesh.position.x += c.speed * dtSeconds;
@@ -1074,14 +1098,19 @@ export class Scenery {
         this.waterMaterial = material;
         this.waterOpacity = baseOpacity;
         this.waterRoughness = this.quality === 'ultra' ? WATER_ULTRA_ROUGHNESS : 0.18;
-        // Ultra: the lake mirrors the world (see waterReflection.ts) and its
-        // surface ripples. The other tiers keep the plain shader.
+        // High and ultra: ripples, depth colour and a reflection. Ultra mirrors the
+        // world itself (see waterReflection.ts); high reflects the sky gradient
+        // only, analytically, with no second render. The other tiers keep the
+        // plain shader.
+        const rich = this.quality === 'ultra' || this.quality === 'high';
         const reflection = this.quality === 'ultra' ? new WaterReflection(WATER_LEVEL_Y) : null;
         this.waterReflection = reflection;
+        this.lakeDepthUsed = rich;
         const timeUniform = { value: 0 };
-        this.waterTimeUniform = reflection ? timeUniform : null;
+        this.waterTimeUniform = rich ? timeUniform : null;
         // one program per variant: the source differs, the function text does not
-        material.customProgramCacheKey = () => (reflection ? 'water-mirror' : 'water');
+        material.customProgramCacheKey = () =>
+            reflection ? 'water-mirror' : rich ? 'water-sky' : 'water';
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uFreeze = freezeUniform;
             shader.uniforms.uIce = iceUniform;
@@ -1093,10 +1122,7 @@ export class Scenery {
 		diffuseColor.rgb = mix(diffuseColor.rgb, iceCol, uFreeze);
 	}`,
             );
-            if (reflection) {
-                shader.uniforms.uReflTex = reflection.uniforms.uReflTex;
-                shader.uniforms.uReflMatrix = reflection.uniforms.uReflMatrix;
-                shader.uniforms.uReflOn = reflection.uniforms.uReflOn;
+            if (rich) {
                 shader.uniforms.uWaterTime = timeUniform;
                 shader.uniforms.uLakeDepthTex = this.lakeDepthTexUniform;
                 shader.uniforms.uLakeDepthSpan = this.lakeDepthSpanUniform;
@@ -1107,8 +1133,52 @@ export class Scenery {
                         `#include <project_vertex>
 	vWaterWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
                     );
+                let reflectBlock: string;
+                let reflectDecls: string;
+                if (reflection) {
+                    shader.uniforms.uReflTex = reflection.uniforms.uReflTex;
+                    shader.uniforms.uReflMatrix = reflection.uniforms.uReflMatrix;
+                    shader.uniforms.uReflOn = reflection.uniforms.uReflOn;
+                    reflectDecls = WATER_MIRROR_UNIFORMS;
+                    // blend the mirrored world in by fresnel
+                    reflectBlock = `if (uReflOn > 0.5) {
+		vec3 wView = normalize(cameraPosition - vWaterWorld);
+		vec3 wNormal = normalize(vec3(-wGrad.x, 1.0, -wGrad.y));
+		float nv = clamp(dot(wNormal, wView), 0.0, 1.0);
+		float fres = ${WATER_REFLECT_F0} + (1.0 - ${WATER_REFLECT_F0}) * pow(1.0 - nv, ${WATER_REFLECT_POWER});
+		// ice does not mirror
+		fres *= 1.0 - smoothstep(0.0, 0.6, uFreeze);
+		vec4 rc = uReflMatrix * vec4(vWaterWorld, 1.0);
+		rc.xy += wGrad * ${WATER_REFLECT_DISTORT} * rc.w;
+		vec3 mirrored = texture2DProj(uReflTex, rc).rgb;
+		outgoingLight = mix(outgoingLight, mirrored, fres);
+		diffuseColor.a = mix(diffuseColor.a, 1.0, fres);
+	}`;
+                } else {
+                    shader.uniforms.uSkyZenith = this.waterSky.zenith;
+                    shader.uniforms.uSkyMid = this.waterSky.mid;
+                    shader.uniforms.uSkyHorizon = this.waterSky.horizon;
+                    reflectDecls = WATER_SKY_UNIFORMS;
+                    // the sky itself, read off the reflected ray: the same three colours
+                    // the dome is painted with (horizon at 0°, mid at ~32°, zenith at 90°)
+                    reflectBlock = `{
+		vec3 wView = normalize(cameraPosition - vWaterWorld);
+		vec3 wNormal = normalize(vec3(-wGrad.x, 1.0, -wGrad.y));
+		float nv = clamp(dot(wNormal, wView), 0.0, 1.0);
+		float fres = ${WATER_SKY_F0} + (1.0 - ${WATER_SKY_F0}) * pow(1.0 - nv, ${WATER_SKY_POWER});
+		fres *= (1.0 - smoothstep(0.0, 0.6, uFreeze)) * ${WATER_SKY_STRENGTH};
+		vec3 wRefl = reflect(-wView, wNormal);
+		float elev = asin(clamp(wRefl.y, 0.0, 1.0)) / 1.5707963;
+		vec3 wSky = elev < 0.36
+			? mix(uSkyHorizon, uSkyMid, elev / 0.36)
+			: mix(uSkyMid, uSkyZenith, (elev - 0.36) / 0.64);
+		outgoingLight = mix(outgoingLight, wSky, fres);
+		diffuseColor.a = mix(diffuseColor.a, 1.0, fres);
+	}`;
+                }
                 frag =
-                    WATER_MIRROR_DECLS +
+                    WATER_RIPPLE_DECLS +
+                    reflectDecls +
                     frag
                         // colour and clarity follow the water depth: pale green and
                         // clear over the shallows, deep blue and dense in the middle,
@@ -1133,22 +1203,9 @@ export class Scenery {
 	vec2 wGrad = waterWaveGrad(vWaterWorld.xz, uWaterTime);
 	normal = normalize(normal + (viewMatrix * vec4(-wGrad.x, 0.0, -wGrad.y, 0.0)).xyz * ${WATER_NORMAL_TILT});`,
                         )
-                        // blend the mirrored world in by fresnel
                         .replace(
                             '#include <opaque_fragment>',
-                            `if (uReflOn > 0.5) {
-		vec3 wView = normalize(cameraPosition - vWaterWorld);
-		vec3 wNormal = normalize(vec3(-wGrad.x, 1.0, -wGrad.y));
-		float nv = clamp(dot(wNormal, wView), 0.0, 1.0);
-		float fres = ${WATER_REFLECT_F0} + (1.0 - ${WATER_REFLECT_F0}) * pow(1.0 - nv, ${WATER_REFLECT_POWER});
-		// ice does not mirror
-		fres *= 1.0 - smoothstep(0.0, 0.6, uFreeze);
-		vec4 rc = uReflMatrix * vec4(vWaterWorld, 1.0);
-		rc.xy += wGrad * ${WATER_REFLECT_DISTORT} * rc.w;
-		vec3 mirrored = texture2DProj(uReflTex, rc).rgb;
-		outgoingLight = mix(outgoingLight, mirrored, fres);
-		diffuseColor.a = mix(diffuseColor.a, 1.0, fres);
-	}
+                            `${reflectBlock}
 	#include <opaque_fragment>`,
                         );
             }
@@ -1171,9 +1228,10 @@ export class Scenery {
         return mesh;
     }
 
-    /** how see-through the unfrozen water is: ultra shows the lake bed, the rest stay dense */
+    /** how see-through the unfrozen water is: ultra shows the lake bed most, medium stays dense */
     private waterBaseOpacity(): number {
-        return this.quality === 'ultra' ? WATER_ULTRA_OPACITY : 0.86;
+        if (this.quality === 'ultra') return WATER_ULTRA_OPACITY;
+        return this.quality === 'high' ? WATER_HIGH_OPACITY : 0.86;
     }
 
     /**
@@ -1183,7 +1241,6 @@ export class Scenery {
     renderWaterReflection(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera): void {
         const reflection = this.waterReflection;
         if (!reflection || !this.waterMesh) return;
-        this.ensureLakeDepth();
         // The mirrored pass reuses the sun's shadow map instead of redrawing it
         // — but three only creates that map inside a shadow pass, so on a cold
         // load (or right after a shadow-size change) there is none yet, and
@@ -1630,6 +1687,10 @@ export class Scenery {
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, 4, 256);
             texture.needsUpdate = true;
+            // the high water reflects these same three colours
+            this.waterSky.zenith.value.set(zenith);
+            this.waterSky.mid.value.set(mid);
+            this.waterSky.horizon.value.set(horizon);
         };
         this.repaintSky(s.skyZenith, s.skyMid, s.skyHorizon);
 
@@ -2109,8 +2170,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         const shoreMountainTile = 38;
         const rockTile = 34; // legacy rock tile scale
         const rockPhotoTile = PHOTO_BLEND.rock.worldScale;
-        // Ultra only: sand in the shallows, gravel below it, darker with depth
-        const lakeBedLayers = this.quality === 'ultra';
+        // High and ultra: sand in the shallows, gravel below it, darker with depth,
+        // wet bank and shore foam. Ultra adds the caustics on the bed.
+        const lakeBedLayers = this.quality === 'ultra' || this.quality === 'high';
+        const lakeCaustics = this.quality === 'ultra';
         const [grass, rockPack, shore, sand] = await Promise.all([
             loadGrassTextures(),
             loadRockTextures(),
@@ -2284,24 +2347,34 @@ ${pgClose}`;
     diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uShore, vWorldXZ / ${shoreTile.toFixed(1)}).rgb, vBeach);`;
                 if (sand) {
                     inject += `
-    // ultra lake beds: sand on the bank and in the shallows, gravel through the
-    // middle, and everything under the water darker and cooler with depth
+    // lake beds: sand on the bank and in the shallows, gravel through the middle,
+    // everything under the water darker and cooler with depth, a wet bank and
+    // lapping foam${lakeCaustics ? ', caustics on the shallow bed' : ''}
     float lbDepth = ${WATER_LEVEL_Y.toFixed(2)} - vTerrainH;
-    float lbSand = vBeach * (1.0 - smoothstep(0.3, 2.4, lbDepth)) * uLakeBed;
-    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / ${LAKE_SAND_TILE.toFixed(1)}).rgb, lbSand);
-    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.34, 0.5, 0.56), smoothstep(0.3, 6.5, lbDepth) * uLakeBed);
-    // wet bank: just above the waterline the sand is darker, drying out upward
-    float lbWet = (1.0 - smoothstep(0.0, 0.55, -lbDepth)) * step(-0.55, lbDepth) * lbSand;
-    diffuseColor.rgb *= 1.0 - 0.28 * lbWet;
-    // lapping foam: a broken white line that surges up and back along the shore
-    float lbSurge = lakeShoreSurge(vWorldXZ, uLakeTime);
-    float lbFoam = lakeFoam(vWorldXZ, uLakeTime, lbDepth, lbSurge) * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.97, 0.98), lbFoam * 0.9);
-    // caustics: sunlit net on the bed where the water is shallow, gone with depth and under ice
-    float lbCaus = lakeCaustics(vWorldXZ, uLakeTime)
-        * smoothstep(0.05, 0.45, lbDepth) * (1.0 - smoothstep(1.6, 4.5, lbDepth))
-        * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
-    diffuseColor.rgb += lbCaus * vec3(0.50, 0.48, 0.34);`;
+    // sampled outside the branch below: a mip-mapped fetch needs uniform control flow
+    vec3 lbSandTex = texture2D(uSand, vWorldXZ / ${LAKE_SAND_TILE.toFixed(1)}).rgb;
+    // only near water (or on a gravel patch) does any of this change the colour
+    if (vBeach > 0.001 || lbDepth > -0.7) {
+        float lbSand = vBeach * (1.0 - smoothstep(0.3, 2.4, lbDepth)) * uLakeBed;
+        diffuseColor.rgb = mix(diffuseColor.rgb, lbSandTex, lbSand);
+        diffuseColor.rgb *= mix(vec3(1.0), vec3(0.34, 0.5, 0.56), smoothstep(0.3, 6.5, lbDepth) * uLakeBed);
+        // wet bank: just above the waterline the sand is darker, drying out upward
+        float lbWet = (1.0 - smoothstep(0.0, 0.55, -lbDepth)) * step(-0.55, lbDepth) * lbSand;
+        diffuseColor.rgb *= 1.0 - 0.28 * lbWet;
+        // lapping foam: a broken white line that surges up and back along the shore
+        float lbSurge = lakeShoreSurge(vWorldXZ, uLakeTime);
+        float lbFoam = lakeFoam(vWorldXZ, uLakeTime, lbDepth, lbSurge) * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.97, 0.98), lbFoam * 0.9);${
+            lakeCaustics
+                ? `
+        // caustics: sunlit net on the bed where the water is shallow, gone with depth and under ice
+        float lbCaus = lakeCaustics(vWorldXZ, uLakeTime)
+            * smoothstep(0.05, 0.45, lbDepth) * (1.0 - smoothstep(1.6, 4.5, lbDepth))
+            * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
+        diffuseColor.rgb += lbCaus * vec3(0.50, 0.48, 0.34);`
+                : ''
+        }
+    }`;
                 }
             }
             // meadow hills get the same drier / browner hillsides as the board; the mountains keep their own rock
@@ -2418,7 +2491,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? '-lakebed' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed-caus' : '-lakebed') : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
