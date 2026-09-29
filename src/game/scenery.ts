@@ -632,7 +632,16 @@ export class Scenery {
                 noise(x / 62 + 51.2, z / 62 + 17.9) * 0.3 +
                 noise(x / 24 + 9.4, z / 24 + 63.7) * 0.15;
             const ridge = detPow01(Math.max(0, n - 0.32) / 0.68, POW_1_35);
-            const mountain = rise * (28 + 280 * ridge);
+            // Ridged noise: 1 - |2n - 1| peaks along the noise's mid contour, so the mass above
+            // gets knife-edge crest lines (rounded lumps before). Plain arithmetic — this height
+            // is gameplay-visible (worldHeightAt), so it must be identical on every machine.
+            const crestN =
+                noise(x / 96 + 40.3, z / 96 + 12.9) * 0.62 + noise(x / 41 + 7.7, z / 41 + 33.1) * 0.38;
+            const crestLine = 1 - Math.abs(crestN * 2 - 1);
+            const sharp = crestLine * crestLine * crestLine;
+            // a few hero peaks: a slow noise picks where the range towers over its neighbours
+            const hero = smooth01((noise(x / 260 + 5.5, z / 260 + 91.2) - 0.6) / 0.14);
+            const mountain = rise * (28 + 280 * ridge * (0.55 + 0.6 * sharp) + 95 * hero * ridge);
             // Foothills die as the high range takes over — don't resume a
             // second meadow behind the mountain ring.
             const foothill = 1 - smooth01((dClimb - 400) / 280);
@@ -766,6 +775,41 @@ export class Scenery {
         const slopeHold = 1 - smooth01((slope - 0.24) / 0.5) * 0.72;
         const peakBoost = smooth01((h - 120) / 100);
         return Math.min(1, slopeHold + peakBoost * 0.75);
+    }
+
+    /**
+     * Ultra: rock layers and distance haze baked into a mountain vertex's tint.
+     * Steep faces get warm/cool sedimentary bands (tilted, noise-warped so they
+     * are not rulers); the far ring cools toward blue like distant ridges do.
+     */
+    private tintMountainVertex(rock: Color, x: number, z: number, h: number): void {
+        const S = 8;
+        const slope = Math.max(
+            Math.abs(this.terrainHeight(x + S, z) - h),
+            Math.abs(this.terrainHeight(x, z + S) - h),
+        ) / S;
+        const face = smooth01((slope - 0.35) / 0.9);
+        if (face > 0) {
+            // layer coordinate: height, tilted along x, warped by noise
+            const warp = (this.noise(x / 70 + 12.4, z / 70 + 5.9) - 0.5) * 14;
+            const layer = (h + x * 0.07 + warp) / 11;
+            const wave = Math.sin(layer * 6.2832);
+            const band = wave * 0.5 + 0.5;
+            // thin dark seams between the strata
+            const seam = 1 - 0.12 * smooth01((band - 0.85) / 0.15);
+            const k = 1 + (band - 0.5) * 0.3 * face;
+            rock.r *= k * seam * (1 + 0.05 * face * wave);
+            rock.g *= k * seam;
+            rock.b *= k * seam * (1 - 0.05 * face * wave);
+        }
+        // aerial perspective: far ring lighter and bluer
+        const dOut = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
+        const far = smooth01((dOut - 140) / 300);
+        if (far > 0) {
+            rock.r = rock.r * (1 - far * 0.22) + 0.62 * far * 0.22;
+            rock.g = rock.g * (1 - far * 0.16) + 0.72 * far * 0.16;
+            rock.b = rock.b * (1 - far * 0.08) + 0.90 * far * 0.08;
+        }
     }
 
     /** True where the meadow texture still reads green (not mountain stone). */
@@ -1928,6 +1972,7 @@ export class Scenery {
 
             rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
             if (h > 35) rockVar.multiplyScalar(0.68 + 0.32 * (1 - smooth01((h - 35) / 130)));
+            if (this.quality === 'ultra' && !this.landscape && h > 30) this.tintMountainVertex(rockVar, x, z, h);
             c.copy(meadow).lerp(rockVar, smooth01((h - 12) / 45));
 
             colors[i * 3] = c.r;
