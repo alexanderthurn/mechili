@@ -1776,7 +1776,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         material.customProgramCacheKey = () =>
             `ground-hazard-v62${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
-            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones2' : ''}`;
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones3' : ''}`;
     }
 
     /**
