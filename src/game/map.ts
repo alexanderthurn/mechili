@@ -1269,9 +1269,11 @@ export class BattleMap {
         const steps = this.fireScorchCells;
         const lastAt = this.fireScorchAt!;
         const GROW_DT = 0.32;
-        const MAX_STEPS = 12;
-        const STEP = 0.18;
-        const r = field.cellSize * 1.2; // only slightly larger than the orange fire glow
+        // A scar, not a burn-out: fewer, gentler layers than the black char it replaced
+        const MAX_STEPS = 6;
+        const STEP = 0.06;
+        // wide enough that neighbouring cells overlap, so a big fire is one patch
+        const r = field.cellSize * 1.7;
         field.forEachFireCell(now, (x, z, _dps, _until, tint) => {
             // tint 2 = FIRE_TINT_NOSCAR (meteor shower) — live fire only, no wear bake
             if (tint === 2) return;
@@ -1280,13 +1282,9 @@ export class BattleMap {
             const i = field.index(cx, cz);
             if (steps[i]! >= MAX_STEPS) return;
             if (now - lastAt[i]! < GROW_DT) return;
-            // ~15% green pockets — still irregular, but the burn reads.
+            // (no green pockets any more: with burnt earth instead of black char they
+            // read as holes in a large fire, so every cell takes its scar)
             const cellRoll = fractHash(i * 7919 + 104729);
-            if (cellRoll > 0.85) {
-                lastAt[i] = now;
-                steps[i] = MAX_STEPS;
-                return;
-            }
             const layerRoll = fractHash(i * 7919 + (steps[i]! + 1) * 104729);
             if (layerRoll > 0.88) {
                 lastAt[i] = now;
@@ -1301,7 +1299,7 @@ export class BattleMap {
             this.stampScorchPatchy(
                 x + jx,
                 z + jz,
-                r * (0.85 + cellRoll * 0.25),
+                r * (0.9 + cellRoll * 0.2),
                 strength,
                 i + layer * 97,
             );
@@ -1708,7 +1706,7 @@ export class BattleMap {
                     '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
                     '\tfloat sandLum = preSnowLum;\n' +
                     '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
-                    '\tfloat scorchM = smoothstep(0.03, 0.22, wear.b);\n' +
+                    '\tfloat scorchM = smoothstep(0.04, 0.34, wear.b);\n' +
                     '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
                     '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
                     // Soft organic ash (no floor-grid — that read as pixels).
@@ -1716,7 +1714,7 @@ export class BattleMap {
                     '\tfloat ashB = fract( sin( dot( vMapUv * 29.0, vec2( 269.5, 183.3 ) ) ) * 43758.5453 );\n' +
                     '\tfloat ashC = fract( sin( dot( vMapUv * 7.3 + ashA, vec2( 91.7, 53.1 ) ) ) * 43758.5453 );\n' +
                     '\tfloat ashBreak = clamp( ashA * 0.35 + ashB * 0.4 + ashC * 0.25, 0.0, 1.0 );\n' +
-                    '\tfloat scorchFill = scorchM * mix( 0.72, 1.0, ashBreak ) * 0.97;\n' +
+                    '\tfloat scorchFill = scorchM * mix( 0.72, 1.0, ashBreak ) * 0.72;\n' +
                     // Burnt ground reads as earth, not a black hole: light scorch is the dirt
                     // browned and dulled (singed grass), heavy scorch goes dark with charcoal flecks.
                     '\tvec3 charCol = vec3( 0.012, 0.009, 0.007 );\n' +
@@ -1780,7 +1778,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v63${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
+            `ground-hazard-v64${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones4' : ''}`;
     }
