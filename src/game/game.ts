@@ -1675,7 +1675,9 @@ export class Game {
         this.blobShadows = new BlobShadows(this.scene);
         this.groundMesh = this.map.createMesh();
         this.scene.add(this.groundMesh);
-        this.scenery = new Scenery(this.map, undefined, this.landscape);
+        // the match seed shapes the mountains too (same on every peer, and in the replay)
+        this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+        this.scenery = new Scenery(this.map, this.seed, this.landscape);
         this.scene.add(this.scenery.group);
         this.inputDisposers.push(onPrefsChange(() => this.applyPrefs()));
         this.rallyVisuals = new RallyVisuals(this.scene, this.map);
@@ -1785,7 +1787,6 @@ export class Game {
             this.selectedActor = null;
             this.armedItem = null;
         };
-        this.seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
         this.weather = sceneryWeatherFx()
             ? this.scenery.createWeather(
                   this.scene,
@@ -3014,7 +3015,7 @@ export class Game {
         this.scene.remove(this.scenery.group);
         disposeTree(this.scenery.group);
         this.scenery.disposeWaterReflection();
-        this.scenery = new Scenery(this.map, undefined, editing ?? this.landscape);
+        this.scenery = new Scenery(this.map, this.seed, editing ?? this.landscape);
         this.scenery.setWaterMirror(this.effectToggles.isEnabled('waterMirror'));
         this.scenery.setLakeBed(this.effectToggles.isEnabled('lakeBed'));
         this.scene.add(this.scenery.group);

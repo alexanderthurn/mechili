@@ -595,7 +595,9 @@ export class Scenery {
         this.worldSize = outerWorldSize(map.halfW, map.halfH);
         this.cloudBoundsX = map.halfW + MOUNTAIN_PEAK_END;
 
-        const noise = makeValueNoise(31337);
+        // the match seed picks this match's mountains and lakes (heights are gameplay-visible, so
+        // every peer gets the same range from the same seed)
+        const noise = makeValueNoise(31337 ^ seed);
         this.noise = noise;
         // a handful of lakes, confined to the VISIBLE ring near the board
         // (verified: 1 big + 1 medium lake and 2 ponds, nearest ~66 from the edge)
