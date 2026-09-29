@@ -471,6 +471,16 @@ export class Scenery {
     /** ultra: cloud banks lying on the mountain shelves (see createMountainMist) */
     private readonly mistBanks: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     private mountainMistMaterial: MeshBasicMaterial | null = null;
+    private readonly _rayUp = new Vector3();
+    private readonly _rayAxis = new Vector3(0, 1, 0);
+    private readonly _rayQuat = new Quaternion();
+    /** ultra: light shafts standing on the mountain shelves (see createSunRays) */
+    private readonly sunRays: Group[] = [];
+    private sunRayMaterial: MeshBasicMaterial | null = null;
+    /** ultra: snow blown off the tallest crests (see createSnowPlumes) */
+    private readonly snowPlumes: { group: Group; baseX: number; phase: number }[] = [];
+    private snowPlumeMaterial: MeshBasicMaterial | null = null;
+    private snowPlumeTexture: CanvasTexture | null = null;
     /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
     private readonly almSites: { x: number; z: number; y: number; ux: number; uz: number }[] = [];
     private time = 0;
@@ -824,7 +834,11 @@ export class Scenery {
         this.createCloudAssets(rng);
         if (this.detailed) this.createHorizonCloudMeshes(map, rng);
         if (this.detailed) this.createForestFog(map, rng);
-        if (this.quality === 'ultra') this.createMountainMist(map, rng);
+        if (this.quality === 'ultra') {
+            this.createMountainMist(map, rng);
+            this.createSunRays(map, rng);
+            this.createSnowPlumes(map, rng);
+        }
         if (this.quality === 'off') {
             for (const c of this.clouds) c.mesh.visible = false;
         }
@@ -917,6 +931,130 @@ export class Scenery {
             this.mistBanks.push({ mesh, baseX: x, phase: rng() * Math.PI * 2, speed: 0.02 + rng() * 0.03 });
             this.group.add(mesh);
             placed++;
+        }
+    }
+
+    /**
+     * Ultra: a few shafts of sunlight standing on the mountain shelves, lit through the gaps
+     * in the cloud banks. Each is two crossed quads with a soft gradient, drawn additively,
+     * leaning along the sun's real direction; they show only with a high sun and clear air.
+     */
+    private createSunRays(map: BattleMap, rng: () => number): void {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d')!;
+        const img = ctx.createImageData(64, 256);
+        for (let y = 0; y < 256; y++) {
+            // y = 0 is the top of the shaft (in the sky), y = 255 its foot on the ground
+            const along = y / 255;
+            const fade = smooth01(along / 0.25) * (1 - smooth01((along - 0.8) / 0.2) * 0.65);
+            for (let x = 0; x < 64; x++) {
+                const across = Math.abs((x + 0.5) / 32 - 1);
+                const a = (1 - smooth01(across)) * fade;
+                const i = (y * 64 + x) * 4;
+                img.data[i] = 255;
+                img.data[i + 1] = 244;
+                img.data[i + 2] = 214;
+                img.data[i + 3] = Math.round(a * 255);
+            }
+        }
+        ctx.putImageData(img, 0, 0);
+        const texture = new CanvasTexture(canvas);
+        texture.colorSpace = SRGBColorSpace;
+        const material = new MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            blending: AdditiveBlending,
+            depthWrite: false,
+            side: DoubleSide,
+            fog: false,
+            opacity: 0,
+        });
+        this.sunRayMaterial = material;
+        const LENGTH = 150;
+        const geometry = new PlaneGeometry(1, 1);
+        geometry.translate(0, 0.5, 0); // origin at the foot; the shaft runs up the +Y axis, toward the sun
+        const COUNT = 7;
+        let placed = 0;
+        for (let attempt = 0; attempt < 6000 && placed < COUNT; attempt++) {
+            const x = (rng() * 2 - 1) * (map.halfW + MOUNTAIN_PEAK_END);
+            const z = (rng() * 2 - 1) * (map.halfH + MOUNTAIN_PEAK_END);
+            const d = pastBoard(map.halfW, map.halfH, x, z);
+            if (d < 100 || d > MOUNTAIN_PEAK_END - 60) continue;
+            const h = this.terrainHeight(x, z);
+            if (h < 25 || h > 230 || this.lakeAt(x, z) > 0.05) continue;
+            if (this.sunRays.some((r) => (r.position.x - x) ** 2 + (r.position.z - z) ** 2 < 110 * 110)) continue;
+            const group = new Group();
+            group.position.set(x, h - 2, z);
+            const width = 26 + rng() * 26;
+            for (const yaw of [0, Math.PI / 2]) {
+                const quad = new Mesh(geometry, material);
+                quad.scale.set(width, LENGTH, 1);
+                quad.rotation.y = yaw;
+                quad.renderOrder = 3;
+                group.add(quad);
+            }
+            group.userData.phase = rng() * Math.PI * 2;
+            this.sunRays.push(group);
+            this.group.add(group);
+            placed++;
+        }
+    }
+
+    /**
+     * Ultra: snow blown off the few tallest crests, streaming downwind. A long thin card per
+     * crest (one upright, one flat) with the cloud texture scrolled along it, pulsing gently.
+     */
+    private createSnowPlumes(map: BattleMap, rng: () => number): void {
+        const crests: { x: number; z: number; h: number }[] = [];
+        for (let i = 0; i < 5000; i++) {
+            const x = (rng() * 2 - 1) * (map.halfW + MOUNTAIN_PEAK_END);
+            const z = (rng() * 2 - 1) * (map.halfH + MOUNTAIN_PEAK_END);
+            if (pastBoard(map.halfW, map.halfH, x, z) > MOUNTAIN_PEAK_END - 40) continue;
+            const h = this.terrainHeight(x, z);
+            if (h > 240) crests.push({ x, z, h });
+        }
+        crests.sort((a, b) => b.h - a.h);
+        const tex = this.cloudTexture.clone();
+        tex.wrapS = RepeatWrapping;
+        tex.repeat.set(2.4, 1);
+        tex.needsUpdate = true;
+        this.snowPlumeTexture = tex;
+        const material = new MeshBasicMaterial({
+            map: tex,
+            color: 0xffffff,
+            transparent: true,
+            depthWrite: false,
+            side: DoubleSide,
+            opacity: 0,
+        });
+        this.snowPlumeMaterial = material;
+        const geometry = new PlaneGeometry(1, 1);
+        const chosen: { x: number; z: number; h: number }[] = [];
+        for (const c of crests) {
+            if (chosen.length >= 5) break;
+            if (chosen.some((o) => (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < 120 * 120)) continue;
+            chosen.push(c);
+        }
+        // one wind for the whole range, so the plumes agree
+        const wind = { x: 0.82, z: 0.57 };
+        for (const c of chosen) {
+            const group = new Group();
+            const len = 90 + rng() * 60;
+            group.position.set(c.x + wind.x * len * 0.45, c.h - 3, c.z + wind.z * len * 0.45);
+            group.rotation.y = -Math.atan2(wind.z, wind.x);
+            const upright = new Mesh(geometry, material);
+            upright.scale.set(len, 26 + rng() * 10, 1);
+            upright.position.y = 8;
+            const flat = new Mesh(geometry, material);
+            flat.rotation.x = -Math.PI / 2;
+            flat.scale.set(len, 22, 1);
+            flat.position.y = 6;
+            for (const m of [upright, flat]) m.renderOrder = 4;
+            group.add(upright, flat);
+            this.snowPlumes.push({ group, baseX: group.position.x, phase: rng() * Math.PI * 2 });
+            this.group.add(group);
         }
     }
 
@@ -1291,6 +1429,39 @@ export class Scenery {
             for (const b of this.mistBanks) {
                 b.mesh.position.x = b.baseX + Math.sin(this.time * b.speed + b.phase) * 22;
                 b.mesh.visible = op > 0.02;
+            }
+        }
+        const rayMat = this.sunRayMaterial;
+        if (rayMat) {
+            const sun = this.sunLight;
+            // strongest under a high, bright sun; gone in rain, snow and dusk
+            const power = sun ? smooth01((sun.intensity - 1.2) / 0.7) : 0;
+            const clear = this.weather && this.weather.weatherKind !== 'clear' ? 0.15 : 1;
+            rayMat.opacity = this.quality === 'ultra' ? 0.16 * power * clear : 0;
+            if (sun && rayMat.opacity > 0.004) {
+                // up-sun direction: from the shaft's foot toward the sun
+                this._rayUp.copy(sun.position).sub(sun.target.position).normalize();
+                this._rayQuat.setFromUnitVectors(this._rayAxis, this._rayUp);
+                for (const g of this.sunRays) {
+                    g.quaternion.copy(this._rayQuat);
+                    g.visible = true;
+                    const pulse = 0.8 + 0.2 * Math.sin(this.time * 0.35 + (g.userData.phase as number));
+                    g.scale.setScalar(pulse);
+                }
+            } else {
+                for (const g of this.sunRays) g.visible = false;
+            }
+        }
+        const plumeMat = this.snowPlumeMaterial;
+        if (plumeMat) {
+            // the crests are always snowy; fresh snowfall makes the plumes fuller
+            const op = 0.3 + this.groundSnowCover * 0.25;
+            plumeMat.opacity = this.quality === 'ultra' ? op : 0;
+            if (this.snowPlumeTexture) this.snowPlumeTexture.offset.x = -this.time * 0.05;
+            for (const p of this.snowPlumes) {
+                p.group.visible = op > 0.02;
+                p.group.position.x = p.baseX + Math.sin(this.time * 0.11 + p.phase) * 6;
+                p.group.scale.y = 0.85 + 0.15 * Math.sin(this.time * 0.27 + p.phase);
             }
         }
         // low: the flat water freezes by colour alone (there is no ice texture)
