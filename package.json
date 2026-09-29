@@ -30,6 +30,7 @@
     "assets:manifest": "node scripts/gen-asset-manifest.mjs",
     "models:draco": "bash scripts/compress-glb-draco.sh",
     "models:textures-1k": "bash scripts/resize-glb-textures.sh 1024",
+    "models:webp": "uv run --with pillow python scripts/glb-textures-webp.py",
     "start:playtest": "SteamAppId=5115110 steam-electron-build dev",
     "start:playtest:win": "set \"SteamAppId=5115110\" && steam-electron-build dev"
   },
