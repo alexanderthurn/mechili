@@ -174,6 +174,10 @@ export class AcidFx {
         this.mesh.renderOrder = 2;
         this.mesh.castShadow = false;
         this.mesh.receiveShadow = false;
+        // The ambient-occlusion pass (high / ultra) draws the scene once more for depth and
+        // normals and would draw these transparent billboards as solid squares — dark, shadowy
+        // rectangles round every puff. Keep it out of that pass (see shouldSkipGtaoObject).
+        this.mesh.userData.gtaoSkip = true;
         scene.add(this.mesh);
 
         const url = assetUrl('textures/vfx/acid-smell-atlas.png');
