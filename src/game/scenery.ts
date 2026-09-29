@@ -237,8 +237,8 @@ export const MOUNTAIN_PEAK_END = 500;
 
 /** the super mountain: footprint radius, the summit height it is lifted to (the ordinary range tops out near 400) and the least it adds */
 const SUPER_RADIUS = 190;
-const SUPER_TOP = 450;
-const SUPER_MIN_ADD = 56;
+const SUPER_TOP = 410;
+const SUPER_MIN_ADD = 10;
 
 /** alm: flat meadow radius, the ease into the mountainside, and the height it is sought at (half the range) */
 const ALM_RADIUS = 65;
