@@ -11510,52 +11510,55 @@ export class Game {
         updateScreenShake(dtSeconds);
         this.renderFrame();
         if (profile) cpu.end('render');
-        let mechs = 0;
-        let mobile: number | undefined;
-        let softCrowd: boolean | undefined;
-        if (this.sim) {
-            mechs = this.sim.actors.length;
-            mobile = this.sim.lastMobileCount;
-            softCrowd = this.sim.lastSoftCrowd;
-        } else {
-            for (const u of this.placement.allUnits()) {
-                mechs += u.members.length;
-                if (!u.type.structure) {
-                    for (const m of u.members) {
-                        if (!m.mesh.userData.dead) mobile = (mobile ?? 0) + 1;
+        // the overlay's numbers (sorting the instance pools, walking every unit) only when it shows
+        if (this.debug.isEnabled) {
+            let mechs = 0;
+            let mobile: number | undefined;
+            let softCrowd: boolean | undefined;
+            if (this.sim) {
+                mechs = this.sim.actors.length;
+                mobile = this.sim.lastMobileCount;
+                softCrowd = this.sim.lastSoftCrowd;
+            } else {
+                for (const u of this.placement.allUnits()) {
+                    mechs += u.members.length;
+                    if (!u.type.structure) {
+                        for (const m of u.members) {
+                            if (!m.mesh.userData.dead) mobile = (mobile ?? 0) + 1;
+                        }
                     }
                 }
+                if (mobile === undefined) mobile = 0;
+                softCrowd = mobile <= SOFT_CROWD_LIMIT;
             }
-            if (mobile === undefined) mobile = 0;
-            softCrowd = mobile <= SOFT_CROWD_LIMIT;
+            const instSnap = this.unitInstances.debugSnapshot();
+            const cam = this.rig.camera.position;
+            const look = this.rig.target;
+            const groundUnderCam = this.rig.floorAt?.(cam.x, cam.z) ?? 0;
+            const dx = cam.x - look.x;
+            const dy = cam.y - look.y;
+            const dz = cam.z - look.z;
+            this.debug.update(this.pixiApp, this.renderer, this.scene, {
+                units: this.placement.unitCount,
+                mechs,
+                mobile,
+                softCrowd,
+                softCrowdLimit: SOFT_CROWD_LIMIT,
+                phase: this.phase,
+                round: this.round,
+                instanceCount: instSnap.instances,
+                instancePools: instSnap.pools,
+                instanceLines: instSnap.lines,
+                cpu: profile ? cpu.snapshot() : undefined,
+                simCpu: simCpu,
+                simSteps: simSteps || undefined,
+                weatherLines: this.weather?.debugLines(),
+                effectLines: this.effectToggles.debugLines(),
+                camHeight: cam.y - groundUnderCam,
+                camLookDist: Math.hypot(dx, dy, dz),
+                camLookXZ: Math.hypot(dx, dz),
+            }, dtSeconds);
         }
-        const instSnap = this.unitInstances.debugSnapshot();
-        const cam = this.rig.camera.position;
-        const look = this.rig.target;
-        const groundUnderCam = this.rig.floorAt?.(cam.x, cam.z) ?? 0;
-        const dx = cam.x - look.x;
-        const dy = cam.y - look.y;
-        const dz = cam.z - look.z;
-        this.debug.update(this.pixiApp, this.renderer, this.scene, {
-            units: this.placement.unitCount,
-            mechs,
-            mobile,
-            softCrowd,
-            softCrowdLimit: SOFT_CROWD_LIMIT,
-            phase: this.phase,
-            round: this.round,
-            instanceCount: instSnap.instances,
-            instancePools: instSnap.pools,
-            instanceLines: instSnap.lines,
-            cpu: profile ? cpu.snapshot() : undefined,
-            simCpu: simCpu,
-            simSteps: simSteps || undefined,
-            weatherLines: this.weather?.debugLines(),
-            effectLines: this.effectToggles.debugLines(),
-            camHeight: cam.y - groundUnderCam,
-            camLookDist: Math.hypot(dx, dy, dz),
-            camLookXZ: Math.hypot(dx, dz),
-        }, dtSeconds);
 
         if (this.onStateCheckpoint && !this.star && !this.matchOver && !this.hydrating) {
             this.persistTimer += dtSeconds;
