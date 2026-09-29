@@ -7,10 +7,12 @@ import {
     CircleGeometry,
     ConeGeometry,
     CylinderGeometry,
+    DataTexture,
     DoubleSide,
     Group,
     IcosahedronGeometry,
     InstancedMesh,
+    LinearFilter,
     type InstancedBufferAttribute,
     Matrix4,
     Mesh,
@@ -20,11 +22,13 @@ import {
     Object3D,
     PlaneGeometry,
     Quaternion,
+    RedFormat,
     RepeatWrapping,
     SphereGeometry,
     Sprite,
     SpriteMaterial,
     SRGBColorSpace,
+    UnsignedByteType,
     Color,
     Vector2,
     Vector3,
@@ -234,6 +238,10 @@ export const MOUNTAIN_PEAK_END = 500;
 /** World height of the water table: one flat plane, hidden wherever the ground is above it. */
 const WATER_LEVEL_Y = -1.1;
 // ---- ultra water: mirrored world + ripples (tune here) ----
+/** what the lake reeds fade toward under snow */
+const REED_FROST = new Color(0xe6ebe8);
+/** ultra gloss: tighter than the other tiers, so the sun path breaks into sparkle */
+const WATER_ULTRA_ROUGHNESS = 0.12;
 /** surface opacity before fresnel: lower = more of the lake bed shows through */
 const WATER_ULTRA_OPACITY = 0.6;
 /** lake-bed sand tile edge in world units (ultra) */
@@ -275,6 +283,18 @@ float lakeShoreSurge(vec2 p, float t) {
 	float phase = lfNoise(p * 0.09) * 6.2831;
 	return 0.08 + 0.17 * sin(t * 0.85 + phase);
 }
+// Caustics on the shallow bed: bright lines where two drifting noise fields
+// cross (their difference is zero), at two scales — a moving net of light with
+// no axis to line up on.
+float lakeCaustics(vec2 p, float t) {
+	float a = lfNoise(p * 0.85 + vec2(t * 0.16, t * 0.11));
+	float b = lfNoise(p * 0.85 + vec2(17.3, 5.1) + vec2(-t * 0.13, t * 0.17));
+	float r1 = 1.0 - smoothstep(0.0, 0.07, abs(a - b));
+	float c = lfNoise(p * 1.7 + vec2(9.1, 9.1) + vec2(-t * 0.22, t * 0.15));
+	float d = lfNoise(p * 1.7 + vec2(3.7, 21.9) + vec2(t * 0.19, t * 0.21));
+	float r2 = 1.0 - smoothstep(0.0, 0.06, abs(c - d));
+	return max(r1, r2 * 0.7);
+}
 float lakeFoam(vec2 p, float t, float depth, float surge) {
 	// distance below the swash tip: 0 at the tip, positive on the water side
 	float d = depth + surge;
@@ -299,6 +319,8 @@ uniform sampler2D uReflTex;
 uniform mat4 uReflMatrix;
 uniform float uReflOn;
 uniform float uWaterTime;
+uniform sampler2D uLakeDepthTex;
+uniform float uLakeDepthSpan;
 varying vec3 vWaterWorld;
 float wHash(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -415,6 +437,20 @@ export class Scenery {
     /** drives the ripple normals of the ultra water (seconds) */
     private waterTimeUniform: { value: number } | null = null;
     private waterMesh: Mesh | null = null;
+    /** gloss of the unfrozen surface (ultra is tighter, so the sun path sparkles) */
+    private waterRoughness = 0.18;
+    /**
+     * Ultra: how deep the water is (world xz -> depth below the water table, 0..8
+     * in 8 bits) over the lake area — read by the water shader for colour and
+     * shore transparency. Built lazily, rebuilt (throttled) when the ground moves.
+     */
+    private readonly lakeDepthTexUniform: { value: DataTexture | null } = { value: null };
+    private readonly lakeDepthSpanUniform = { value: 1 };
+    private lakeDepthDirty = true;
+    private lakeDepthBuiltAt = 0;
+    private reeds: InstancedMesh | null = null;
+    private reedBaseColors: Color[] = [];
+    private reedSnowApplied = -1;
     /** lily pads and blossoms on the lakes — they fade out as the water freezes */
     private lakeSurfacePlants: InstancedMesh[] = [];
     /** ultra lake-bed layers on (1) / off (0) — the Shift+9 A/B switch */
@@ -917,6 +953,7 @@ export class Scenery {
         summerDryUniform.value += (this.summerDryTarget - summerDryUniform.value) * seasonK;
         if (this.outerGroundSnowUniform) this.outerGroundSnowUniform.value = this.groundSnowCover;
         setVegetationSnowCover(this.groundSnowCover);
+        this.updateReedFrost(this.groundSnowCover);
         updateBuildingSnowCover(
             dtSeconds,
             this.groundSnowCover,
@@ -930,7 +967,7 @@ export class Scenery {
             this.waterFreezeUniform.value = freeze;
             // the matte (medium) water has no gloss to lose
             if (this.waterMaterial instanceof MeshStandardMaterial) {
-                this.waterMaterial.roughness = 0.18 + freeze * 0.55;
+                this.waterMaterial.roughness = this.waterRoughness + freeze * 0.55;
             }
             this.waterMaterial.opacity = this.waterOpacity + freeze * (0.98 - this.waterOpacity);
             // nothing green floats on ice: pads and blossoms fade out as it forms
@@ -1031,11 +1068,12 @@ export class Scenery {
                       map: this.waterTexture,
                       transparent: true,
                       opacity: baseOpacity,
-                      roughness: 0.18,
+                      roughness: this.quality === 'ultra' ? WATER_ULTRA_ROUGHNESS : 0.18,
                       metalness: 0,
                   });
         this.waterMaterial = material;
         this.waterOpacity = baseOpacity;
+        this.waterRoughness = this.quality === 'ultra' ? WATER_ULTRA_ROUGHNESS : 0.18;
         // Ultra: the lake mirrors the world (see waterReflection.ts) and its
         // surface ripples. The other tiers keep the plain shader.
         const reflection = this.quality === 'ultra' ? new WaterReflection(WATER_LEVEL_Y) : null;
@@ -1060,6 +1098,8 @@ export class Scenery {
                 shader.uniforms.uReflMatrix = reflection.uniforms.uReflMatrix;
                 shader.uniforms.uReflOn = reflection.uniforms.uReflOn;
                 shader.uniforms.uWaterTime = timeUniform;
+                shader.uniforms.uLakeDepthTex = this.lakeDepthTexUniform;
+                shader.uniforms.uLakeDepthSpan = this.lakeDepthSpanUniform;
                 shader.vertexShader =
                     'varying vec3 vWaterWorld;\n' +
                     shader.vertexShader.replace(
@@ -1070,6 +1110,22 @@ export class Scenery {
                 frag =
                     WATER_MIRROR_DECLS +
                     frag
+                        // colour and clarity follow the water depth: pale green and
+                        // clear over the shallows, deep blue and dense in the middle,
+                        // melting into nothing at the shore (the foam lives there)
+                        .replace(
+                            '#include <map_fragment>',
+                            `#include <map_fragment>
+	{
+		float wDepth = texture2D(uLakeDepthTex, (vWaterWorld.xz + uLakeDepthSpan) / (2.0 * uLakeDepthSpan)).r * 8.0;
+		float wDeepK = smoothstep(0.25, 5.0, wDepth);
+		float wThaw = 1.0 - smoothstep(0.0, 0.6, uFreeze);
+		vec3 wCol = mix(vec3(0.30, 0.58, 0.52), vec3(0.03, 0.16, 0.30), wDeepK);
+		diffuseColor.rgb = mix(diffuseColor.rgb, wCol, 0.78 * wThaw);
+		float wAlpha = mix(0.62, 1.35, wDeepK) * smoothstep(0.0, 0.30, wDepth);
+		diffuseColor.a *= mix(1.0, wAlpha, wThaw);
+	}`,
+                        )
                         // ripple the normal so the sun breaks into sparkle
                         .replace(
                             '#include <normal_fragment_maps>',
@@ -1127,6 +1183,7 @@ export class Scenery {
     renderWaterReflection(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera): void {
         const reflection = this.waterReflection;
         if (!reflection || !this.waterMesh) return;
+        this.ensureLakeDepth();
         // The mirrored pass reuses the sun's shadow map instead of redrawing it
         // — but three only creates that map inside a shadow pass, so on a cold
         // load (or right after a shadow-size change) there is none yet, and
@@ -1136,6 +1193,75 @@ export class Scenery {
         if (renderer.shadowMap.enabled && sun?.castShadow && !sun.shadow.map) return;
         this.lakeBoxes ??= this.sampleLakeBoxes();
         reflection.update(renderer, scene, camera, this.lakeBoxes, [this.waterMesh]);
+    }
+
+    /** half the side of the square around the board that can hold a lake */
+    private lakeSpan(): number {
+        return Math.min(this.worldSize * 0.5, this.map.halfW + MOUNTAIN_PEAK_END);
+    }
+
+    /**
+     * (Re)build the water-depth image when it is missing or the ground moved —
+     * at most twice a second while a sculpt keeps moving it. Only the wet
+     * cells are sampled, so it is a few thousand height lookups, not a full grid.
+     */
+    private ensureLakeDepth(): void {
+        const now = performance.now();
+        if (!this.lakeDepthDirty || now - this.lakeDepthBuiltAt < 500) return;
+        this.lakeDepthDirty = false;
+        this.lakeDepthBuiltAt = now;
+        this.lakeBoxes ??= this.sampleLakeBoxes();
+        const TEXEL = 2;
+        const n = Math.ceil((2 * this.lakeSpan()) / TEXEL);
+        // the image covers exactly n texels: map with THAT half-width everywhere
+        const span = (n * TEXEL) / 2;
+        let tex = this.lakeDepthTexUniform.value;
+        if (!tex || tex.image.width !== n) {
+            tex?.dispose();
+            tex = new DataTexture(new Uint8Array(n * n), n, n, RedFormat, UnsignedByteType);
+            tex.minFilter = tex.magFilter = LinearFilter;
+            tex.generateMipmaps = false;
+            tex.unpackAlignment = 1;
+            this.lakeDepthTexUniform.value = tex;
+        }
+        const data = tex.image.data as Uint8Array;
+        data.fill(0);
+        for (const box of this.lakeBoxes) {
+            const x0 = Math.floor((box.min.x + span) / TEXEL);
+            const z0 = Math.floor((box.min.z + span) / TEXEL);
+            const x1 = Math.min(n - 1, Math.ceil((box.max.x + span) / TEXEL));
+            const z1 = Math.min(n - 1, Math.ceil((box.max.z + span) / TEXEL));
+            for (let zi = Math.max(0, z0); zi <= z1; zi++) {
+                for (let xi = Math.max(0, x0); xi <= x1; xi++) {
+                    const x = -span + (xi + 0.5) * TEXEL;
+                    const z = -span + (zi + 0.5) * TEXEL;
+                    const depth = WATER_LEVEL_Y - worldHeightAt(x, z);
+                    data[zi * n + xi] = Math.round(Math.min(1, Math.max(0, depth / 8)) * 255);
+                }
+            }
+        }
+        tex.needsUpdate = true;
+        this.lakeDepthSpanUniform.value = span;
+    }
+
+    /**
+     * The shoreline reeds go pale and frosted with the ground snow instead of
+     * standing green through winter. Instance colours, rewritten only when the
+     * cover has moved a little (it eases slowly).
+     */
+    private updateReedFrost(cover: number): void {
+        const reeds = this.reeds;
+        if (!reeds || !reeds.instanceColor) return;
+        const k = Math.min(1, Math.max(0, cover));
+        if (Math.abs(k - this.reedSnowApplied) < 0.02) return;
+        this.reedSnowApplied = k;
+        const frost = REED_FROST;
+        const c = new Color();
+        for (let i = 0; i < reeds.count; i++) {
+            c.copy(this.reedBaseColors[i]!).lerp(frost, k * 0.85);
+            reeds.setColorAt(i, c);
+        }
+        reeds.instanceColor.needsUpdate = true;
     }
 
     /** dev toggle (Shift+9): the ultra lake-bed sand and depth shading on or off */
@@ -1152,6 +1278,8 @@ export class Scenery {
     disposeWaterReflection(): void {
         this.waterReflection?.dispose();
         this.waterReflection = null;
+        this.lakeDepthTexUniform.value?.dispose();
+        this.lakeDepthTexUniform.value = null;
     }
 
     /**
@@ -1161,7 +1289,7 @@ export class Scenery {
      */
     private sampleLakeBoxes(): Box3[] {
         const CELL_SIZE = 24;
-        const span = Math.min(this.worldSize * 0.5, this.map.halfW + MOUNTAIN_PEAK_END);
+        const span = this.lakeSpan();
         const boxes: Box3[] = [];
         for (let x0 = -span; x0 < span; x0 += CELL_SIZE) {
             for (let z0 = -span; z0 < span; z0 += CELL_SIZE) {
@@ -1428,9 +1556,11 @@ export class Scenery {
             dummy.updateMatrix();
             reeds.setMatrixAt(reedI, dummy.matrix);
             color.set(0x6a8a3e).lerp(new Color(0x9a8a52), rng());
+            this.reedBaseColors.push(color.clone());
             reeds.setColorAt(reedI++, color);
         }
         reeds.count = reedI;
+        this.reeds = reeds;
         reeds.castShadow = true;
 
         const PADS = scaleCount(70, this.density.lake);
@@ -1849,6 +1979,7 @@ export class Scenery {
     reseatGroundedDecorations(area?: { minX: number; maxX: number; minZ: number; maxZ: number }): void {
         // the ground may have moved under the lakes (sculpt) — resample on next use
         this.lakeBoxes = null;
+        this.lakeDepthDirty = true;
         const WATER_Y = -1.1;
         this.forEachDecorationMesh((mesh) => {
             let cache = this.instanceGroundY.get(mesh);
@@ -2165,7 +2296,12 @@ ${pgClose}`;
     // lapping foam: a broken white line that surges up and back along the shore
     float lbSurge = lakeShoreSurge(vWorldXZ, uLakeTime);
     float lbFoam = lakeFoam(vWorldXZ, uLakeTime, lbDepth, lbSurge) * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.97, 0.98), lbFoam * 0.9);`;
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.97, 0.98), lbFoam * 0.9);
+    // caustics: sunlit net on the bed where the water is shallow, gone with depth and under ice
+    float lbCaus = lakeCaustics(vWorldXZ, uLakeTime)
+        * smoothstep(0.05, 0.45, lbDepth) * (1.0 - smoothstep(1.6, 4.5, lbDepth))
+        * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
+    diffuseColor.rgb += lbCaus * vec3(0.50, 0.48, 0.34);`;
                 }
             }
             // meadow hills get the same drier / browner hillsides as the board; the mountains keep their own rock
