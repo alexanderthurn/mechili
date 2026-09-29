@@ -2348,7 +2348,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v14-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v15-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -2736,7 +2736,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v54-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -3649,22 +3649,25 @@ const OUTER_MOUNTAIN_SNOW_GLSL = `
     float dryPatch = 0.52 + 0.48 * fract(sin(dot(vWorldXZ * 0.068, vec2(12.9898, 78.233))) * 43758.5453);
     vec3 dryCol = mix(diffuseColor.rgb * vec3(1.18, 1.05, 0.55), vec3(0.72, 0.64, 0.28), 0.16);
     diffuseColor.rgb = mix(diffuseColor.rgb, dryCol, uDryGrass * (1.0 - mountainZone) * (1.0 - vBeach) * dryPatch);
-    float slopeHold = 1.0 - smoothstep(0.28, 0.82, vSlope) * 0.62;
-    float peakBoost = smoothstep(120.0, 240.0, vTerrainH);
-    float snowHold = min(1.0, slopeHold + peakBoost * 0.85);
+    // Snow settles on shelves and crests and slides off steep faces, so the rock strata read
+    // against white instead of drowning in it. Altitude only wins some of that back, and never
+    // on a near-vertical wall.
+    float slopeHold = 1.0 - smoothstep(0.2, 0.6, vSlope) * 0.9;
+    float peakBoost = smoothstep(120.0, 240.0, vTerrainH) * (1.0 - smoothstep(0.45, 0.8, vSlope));
+    float snowHold = min(1.0, slopeHold + peakBoost * 0.4);
     float deepWinter = smoothstep(0.82, 1.0, uSnowCover);
     float alpineSnow = smoothstep(148.0, 215.0, vTerrainH) * snowHold * uAlpineCap;
     float snowLine = mix(220.0, -15.0, uSnowCover);
     float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH);
     float meadowSnow = weatherSnow * 0.82 * meadowSnowHold;
     float winterAmp = mix(1.05, 1.68, smoothstep(0.72, 1.0, uSnowCover));
-    float mountainLift = smoothstep(40.0, 170.0, vTerrainH) * deepWinter * 0.48;
+    float mountainLift = smoothstep(40.0, 170.0, vTerrainH) * deepWinter * 0.48 * (0.25 + 0.75 * slopeHold);
     float mountainSnow = min(1.0, max(alpineSnow, weatherSnow * snowHold * 0.92) * winterAmp + mountainLift);
     float macroN = fract(sin(dot(floor(vWorldXZ * 0.04), vec2(127.1, 311.7))) * 43758.5453);
     float mesoN = fract(sin(dot(vWorldXZ * 0.13, vec2(269.5, 183.3))) * 43758.5453);
     float breakup = macroN * 0.62 + mesoN * 0.38;
-    float cliffStrip = smoothstep(0.42, 0.86, vSlope) * smoothstep(40.0, 170.0, vTerrainH);
-    mountainSnow = clamp(mountainSnow - cliffStrip * (0.2 + breakup * 0.4), 0.0, 1.0);
+    float cliffStrip = smoothstep(0.36, 0.8, vSlope) * smoothstep(40.0, 170.0, vTerrainH);
+    mountainSnow = clamp(mountainSnow - cliffStrip * (0.35 + breakup * 0.45), 0.0, 1.0);
     float snowF = mix(meadowSnow, mountainSnow, mountainZone);
     vec3 meadowCol = ${LAWN_SNOW_COLOR_GLSL};
     vec3 snowHi = mix(meadowCol, vec3(1.0, 1.0, 1.0), deepWinter);
