@@ -235,6 +235,10 @@ const WATER_LEVEL_Y = -1.1;
 // ---- ultra water: mirrored world + ripples (tune here) ----
 /** surface opacity before fresnel: lower = more of the lake bed shows through */
 const WATER_ULTRA_OPACITY = 0.6;
+/** ripple size: 1 = the first version, higher = finer waves */
+const WATER_WAVE_SCALE = '1.6';
+/** overall steepness of the ripples (after scaling) */
+const WATER_WAVE_SLOPE = '0.85';
 /** how strongly a ripple tilts the surface normal (sun sparkle) */
 const WATER_NORMAL_TILT = '1.0';
 /** mirror share looking straight down; fresnel raises it toward the horizon */
@@ -277,7 +281,10 @@ vec3 wNoiseD(vec2 p) {
 // and drifting its own way, over a slowly wandering warp — no axis, no lattice.
 vec2 waterWaveGrad(vec2 p, float t) {
 	vec2 warp = vec2(wNoiseD(p * 0.045 + vec2(t * 0.020, 0.0)).x, wNoiseD(p * 0.045 + vec2(-7.3, t * 0.017)).x) - 0.5;
-	p += warp * 7.0;
+	// finer ripples: everything below runs on a scaled plane (and a matching
+	// clock, so the world-space drift speed stays what it was)
+	p = (p + warp * 4.5) * ${WATER_WAVE_SCALE};
+	t *= ${WATER_WAVE_SCALE};
 	mat2 r1 = mat2(0.814, 0.581, -0.581, 0.814);
 	mat2 r2 = mat2(-0.323, 0.946, -0.946, -0.323);
 	mat2 r3 = mat2(-0.904, 0.427, -0.427, -0.904);
@@ -285,7 +292,8 @@ vec2 waterWaveGrad(vec2 p, float t) {
 	g += (wNoiseD(r1 * p * 0.22 + vec2(t * 0.10, t * 0.06)).yz * r1) * 0.22 * 0.35;
 	g += (wNoiseD(r2 * p * 0.50 + vec2(-t * 0.16, t * 0.11)).yz * r2) * 0.50 * 0.20;
 	g += (wNoiseD(r3 * p * 1.10 + vec2(t * 0.24, -t * 0.19)).yz * r3) * 1.10 * 0.09;
-	return g;
+	// slope is set by taste, not by the chain rule: finer waves, a touch flatter
+	return g * ${WATER_WAVE_SLOPE};
 }
 `;
 const OUTER_PAST_BOARD = MOUNTAIN_PEAK_END;
