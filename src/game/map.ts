@@ -1663,7 +1663,8 @@ export class BattleMap {
                     worldPos: 'vGroundWorld',
                     boardXZ: 'vBoardXZ',
                     boardHalf: 'uBoardHalf',
-                    earth: slopeEarth ? 'uSlopeEarth' : null,
+                    // the bare-earth patches cost one more read of the dirt: high and ultra only
+                    earth: slopeEarth && profile.tier !== 'medium' ? 'uSlopeEarth' : null,
                     strength: profile.tier === 'medium' ? 0.7 : 1,
                 });
             }
@@ -1776,7 +1777,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         material.customProgramCacheKey = () =>
             `ground-hazard-v62${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
-            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones3' : ''}`;
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones4' : ''}`;
     }
 
     /**
