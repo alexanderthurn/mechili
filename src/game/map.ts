@@ -1238,8 +1238,10 @@ export class BattleMap {
     }
 
     /**
-     * Charcoal under live ground fire — grows while burning, patchy (not a
-     * solid oil-like fill). Stops when the flame dies; scar stays.
+     * Burnt ground under live ground fire — grows while burning, patchy (not a
+     * solid oil-like fill). Stops when the flame dies; the scar stays, drawn as
+     * burnt earth (see the wear pass), and fades a little each round like every
+     * other mark on the field. In snow it shows through as bare burnt ground.
      */
     stampScorchUnderFire(
         field: {
@@ -1255,9 +1257,8 @@ export class BattleMap {
         },
         now: number,
     ): void {
-        // Tongues tier: live ember tint comes from the hazard mask and clears with
-        // the fire — don't also bake permanent wear scars under it.
-        if (this.fireCharcoalGround) return;
+        // (The tongues tier also draws live charcoal from the hazard mask while it
+        // burns; that clears with the fire and this scar is what remains.)
         if (!this.wearEnabled()) return;
         const n = field.cellCols * field.cellRows;
         if (!this.fireScorchCells || this.fireScorchCells.length !== n) {
@@ -1716,9 +1717,13 @@ export class BattleMap {
                     '\tfloat ashC = fract( sin( dot( vMapUv * 7.3 + ashA, vec2( 91.7, 53.1 ) ) ) * 43758.5453 );\n' +
                     '\tfloat ashBreak = clamp( ashA * 0.35 + ashB * 0.4 + ashC * 0.25, 0.0, 1.0 );\n' +
                     '\tfloat scorchFill = scorchM * mix( 0.72, 1.0, ashBreak ) * 0.97;\n' +
-                    '\tvec3 charCol = vec3( 0.008, 0.006, 0.005 );\n' +
-                    '\tvec3 ashDirt = sandTexel * vec3( 0.18, 0.15, 0.12 );\n' +
-                    '\tvec3 burnCol = mix( ashDirt, charCol, smoothstep( 0.12, 0.65, ashBreak ) );\n' +
+                    // Burnt ground reads as earth, not a black hole: light scorch is the dirt
+                    // browned and dulled (singed grass), heavy scorch goes dark with charcoal flecks.
+                    '\tvec3 charCol = vec3( 0.012, 0.009, 0.007 );\n' +
+                    '\tvec3 singed = mix( sandTexel * vec3( 0.66, 0.54, 0.42 ), diffuseColor.rgb * vec3( 0.55, 0.45, 0.36 ), 0.25 );\n' +
+                    '\tvec3 burntDark = mix( sandTexel * vec3( 0.30, 0.24, 0.19 ), charCol, smoothstep( 0.30, 0.75, ashBreak ) );\n' +
+                    '\tfloat burnDeep = smoothstep( 0.30, 0.85, wear.b );\n' +
+                    '\tvec3 burnCol = mix( singed, burntDark, burnDeep );\n' +
                     '\tdiffuseColor.rgb = mix( diffuseColor.rgb, burnCol, scorchFill );\n' +
                     (bloodTintMask
                         ? '\tvec3 goreTint = texture2D(uBloodTint, vMacroUv).rgb;\n' +
@@ -1775,7 +1780,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v62${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
+            `ground-hazard-v63${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones4' : ''}`;
     }
