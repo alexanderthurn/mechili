@@ -2188,6 +2188,7 @@ export class Scenery {
             this.lakeDepthDirty = true;
         }
         const WATER_Y = -1.1;
+        let anyMoved = false;
         this.forEachDecorationMesh((mesh) => {
             let cache = this.instanceGroundY.get(mesh);
             const known = cache?.length ?? 0;
@@ -2223,9 +2224,15 @@ export class Scenery {
                 this.reseatMat.compose(this.reseatPos, this.reseatQuat, this.reseatScale);
                 mesh.setMatrixAt(i, this.reseatMat);
             }
-            if (moved) mesh.instanceMatrix.needsUpdate = true;
+            if (moved) {
+                mesh.instanceMatrix.needsUpdate = true;
+                anyMoved = true;
+            }
         });
         this.reseatAuthoredPlants();
+        // the tree shadows only need rebuilding if a tree actually moved (a change on the
+        // board's bare ground moves none of the forest)
+        if (!anyMoved && area) return;
         this.treeShadows.invalidate();
         if (this.sunLight) this.treeShadows.update(this.sunLight.position, this.sunLight.intensity);
     }

@@ -521,6 +521,9 @@ export class Game {
     private heightMistBase = sceneryHeightFog();
     private readonly blobShadows: BlobShadows;
     private shadowMapFrame = 0;
+    /** ground changed since the decorations were last moved onto it (see syncTerrainMeshes) */
+    private pendingReseat: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
+    private lastReseatAt = 0;
     /** debug: scene.overrideMaterial — off | clay | wireframe | normals */
     private materialDebug: 'off' | 'clay' | 'wire' | 'normals' = 'off';
     private readonly clayOverride = new MeshLambertMaterial({ color: 0xc8c2b4 });
@@ -11670,10 +11673,31 @@ export class Game {
      */
     private syncTerrainMeshes(): void {
         const rect = this.map.terrain.takeDirty();
-        if (!rect) return;
-        this.map.terrain.writeToGeometry(this.groundMesh.geometry, rect);
-        this.map.terrain.writeToGeometry(this.gridOverlay.geometry, rect);
-        this.scenery.reseatGroundedDecorations(this.map.terrain.worldBounds(rect));
+        if (rect) {
+            this.map.terrain.writeToGeometry(this.groundMesh.geometry, rect);
+            this.map.terrain.writeToGeometry(this.gridOverlay.geometry, rect);
+            // Moving the decorations onto the new ground walks every one in the world, so it
+            // runs a few times a second on the union of what changed, not once per frame — melts,
+            // craters and rising ridges change the ground on nearly every frame of a battle.
+            const b = this.map.terrain.worldBounds(rect);
+            const p = this.pendingReseat;
+            this.pendingReseat = p
+                ? {
+                      minX: Math.min(p.minX, b.minX),
+                      maxX: Math.max(p.maxX, b.maxX),
+                      minZ: Math.min(p.minZ, b.minZ),
+                      maxZ: Math.max(p.maxZ, b.maxZ),
+                  }
+                : b;
+        }
+        if (this.pendingReseat) {
+            const now = performance.now();
+            if (now - this.lastReseatAt >= 250) {
+                this.lastReseatAt = now;
+                this.scenery.reseatGroundedDecorations(this.pendingReseat);
+                this.pendingReseat = null;
+            }
+        }
     }
 
     /**

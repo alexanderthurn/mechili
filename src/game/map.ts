@@ -195,10 +195,10 @@ export function makeValueNoise(seed: number): (x: number, y: number) => number {
 /**
  * The strongest acid stain can get (rim, core), as a stain weight. Overlapping puddle cells do
  * NOT add up (see stampAcidWear), so this is the whole strength. The ground shows a stain from a
- * weight of about 0.08 and fully from 0.35: at 0.11 / 0.14 the core is ~13% visible, the rim ~3%.
+ * weight of about 0.08 and fully from 0.35: at 0.09 / 0.12 the core is ~6% visible, the rim ~0.5%.
  */
-const ACID_STAIN_RIM = 0.11;
-const ACID_STAIN_CORE = 0.14;
+const ACID_STAIN_RIM = 0.09;
+const ACID_STAIN_CORE = 0.12;
 
 const PAD_BLEND = 10;
 /** Highlands: plateau height and mean radius around each Stronghold (wu) */
@@ -1910,7 +1910,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         material.customProgramCacheKey = () =>
             `ground-hazard-v68${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
-            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones6' : ''}`;
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones7' : ''}`;
     }
 
     /**
