@@ -110,6 +110,7 @@ import {
     type StartCard,
 } from './cards';
 import { iconCursorCss } from '../ui/iconAtlas';
+import { clearAllHoverTips } from '../ui/hoverTips';
 import { roundCardAlgorithmById } from './roundCardAlgorithms';
 import { assignTeamColors, colorForBattleTeam } from './colors';
 import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, type ChatItem } from './emotes';
@@ -2268,6 +2269,7 @@ export class Game {
                 return;
             }
             audio.playUi('ui_click');
+            clearAllHoverTips(); // the tip of the spell you just picked up
             this.armedItem = null;
             this.armedItemIndex = null;
             this.placement.deselect();
@@ -3580,6 +3582,7 @@ export class Game {
             );
         }
         this.phase = 'build';
+        clearAllHoverTips(); // a tip from the last phase must not carry over
         // Gong is attack-phase only — deploy / match reload stay silent
         if (!this.hydrating) this.syncMatchMusic('deploy');
         // Round-win celebrate is armed in {@link announceBattleEnd} (leads this by a short beat).
@@ -8366,6 +8369,7 @@ export class Game {
 
     /** aborts in-progress tactic placement; returns true when something was cancelled */
     private cancelTacticPlacement(): boolean {
+        clearAllHoverTips(); // placing (or dropping) a spell leaves no tip hanging
         const had =
             this.armedTactic !== null ||
             this.tacticDraftStart !== null ||
@@ -9315,6 +9319,7 @@ export class Game {
         this.collapseEndedRound = false;
         this.placement.beginBattle();
         this.phase = 'battle';
+        clearAllHoverTips(); // a tip from the last phase must not carry over
         // Skip during hydrate/reload catch-up — only the live attack start rings
         if (!this.hydrating) {
             audio.playPhase('battle');
@@ -10188,6 +10193,7 @@ export class Game {
         if (testSummary) {
             // a test battle is one fight: the board stays as it ended, the strip shows the result
             this.phase = 'hpDraw';
+            clearAllHoverTips(); // a tip from the last phase must not carry over
             this.syncPostFx();
             this.editorSession?.showTestResult(testSummary);
             return;
@@ -10262,6 +10268,7 @@ export class Game {
             // flash down-then-up when beginHpDrawPhase sets its display values.
             const pre = this.pendingHpDrawPreHp!;
             this.phase = 'hpDraw';
+            clearAllHoverTips(); // a tip from the last phase must not carry over
             this.syncPostFx();
             this.hpDrawDisplayPlayer = pre.player;
             this.hpDrawDisplayEnemy = pre.enemy;
@@ -10346,6 +10353,7 @@ export class Game {
         this.pendingHpDrawPlan = null;
         this.pendingHpDrawPreHp = null;
         this.phase = 'hpDraw';
+        clearAllHoverTips(); // a tip from the last phase must not carry over
         this.syncPostFx();
         this.hpDrawElapsed = 0;
         this.hpDrawPrePlayer = pre.player;
