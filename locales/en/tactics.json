@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Poison Cloud",
     "description": "Mark a huge circle. Toxic clouds gather overhead and rain small acid drops across the area — sparse puddles that corrode ground and air units like Acid Spill, but over a much wider field."
+  },
+  "earthRise": {
+    "name": "Earth Rise",
+    "description": "Draw a line: a thin, steep ridge of earth rises along it a couple of seconds into the battle. It blocks low shots (high arcs still clear it), but units walk right over it. It cannot be removed and stays for the whole match. Buildings are left alone."
   }
 }

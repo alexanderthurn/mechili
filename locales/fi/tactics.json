@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Myrkkypilvi",
     "description": "Merkitse valtava ympyrä. Myrkyllisiä pilviä kerääntyy yläpuolelle ja sataa pieniä happopisaroita alueen yli – harvalukuisia lätäköitä, jotka syövyttävät maassa ja ilmassa olevia yksiköitä kuten happovuoto, mutta paljon laajemmalla alueella."
+  },
+  "earthRise": {
+    "name": "Maavalli",
+    "description": "Piirrä viiva: muutama sekunti taistelun alusta sitä pitkin nousee kapea, jyrkkä maavalli. Se estää matalat laukaukset (korkeat kaaret pääsevät yhä yli), mutta yksiköt kävelevät sen yli. Sitä ei voi poistaa, ja se pysyy koko ottelun. Rakennukset jäävät koskemattomiksi."
   }
 }

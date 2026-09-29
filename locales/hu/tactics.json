@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Mérgező felhő",
     "description": "Jelölj ki egy hatalmas kört. Mérgező felhők gyűlnek a fejed felett, és apró savcseppeket hullatnak a területre – ritka tócsák, amelyek a Savfolthoz hasonlóan korrodálják a talajon és a levegőben lévő egységeket, de egy sokkal szélesebb területen."
+  },
+  "earthRise": {
+    "name": "Földfal",
+    "description": "Húzz egy vonalat: a csata kezdete után néhány másodperccel egy keskeny, meredek földgerinc emelkedik ki mentén. Blokkolja az alacsony lövéseket (a magas ívek még átjutnak), de az egységek egyszerűen átsétálnak rajta. Nem távolítható el, és az egész meccsen megmarad. Az épületeket nem érinti."
   }
 }

@@ -273,6 +273,78 @@ export class TerrainGrid {
     }
 
     /**
+     * A thin raised ridge along the segment a→b, `halfWidth` to each side (and rounded at the
+     * ends): raises every node by `add` × its profile — full across the middle 45% of the width,
+     * then a steep cubic wall down to the untouched ground. Called in slices while a ridge grows,
+     * so the total is `add` × slices. Nothing rises past the board's ceiling; `keepOut` discs
+     * (buildings) are left alone. There is no operation to take it down again.
+     *
+     * Deterministic like the rest: sqrt is correctly rounded, the ease is a cubic.
+     */
+    ridge(
+        ax: number,
+        az: number,
+        bx: number,
+        bz: number,
+        halfWidth: number,
+        add: number,
+        keepOut: readonly { x: number; z: number; r: number }[] = [],
+    ): void {
+        const hw = Math.max(1e-3, halfWidth);
+        const flat = hw * 0.45;
+        const wall = Math.max(1e-3, hw - flat);
+        const rect = this.nodeRect(
+            Math.min(ax, bx) - hw,
+            Math.min(az, bz) - hw,
+            Math.max(ax, bx) + hw,
+            Math.max(az, bz) + hw,
+        );
+        if (!rect) return;
+        const sx = bx - ax;
+        const sz = bz - az;
+        const len2 = sx * sx + sz * sz;
+        for (let iz = rect.z0; iz <= rect.z1; iz++) {
+            const wz = -this.halfH + iz * this.cellZ;
+            const row = iz * this.nx;
+            for (let ix = rect.x0; ix <= rect.x1; ix++) {
+                const wx = -this.halfW + ix * this.cellX;
+                // distance to the segment
+                let t = len2 > 1e-9 ? ((wx - ax) * sx + (wz - az) * sz) / len2 : 0;
+                t = t < 0 ? 0 : t > 1 ? 1 : t;
+                const dx = wx - (ax + sx * t);
+                const dz = wz - (az + sz * t);
+                const d = Math.sqrt(dx * dx + dz * dz);
+                if (d >= hw) continue;
+                let w = 1;
+                if (d > flat) {
+                    const u = (hw - d) / wall;
+                    w = u * u * (3 - 2 * u);
+                }
+                let keep = 1;
+                for (const k of keepOut) {
+                    const kx = wx - k.x;
+                    const kz = wz - k.z;
+                    const kd = Math.sqrt(kx * kx + kz * kz);
+                    if (kd >= k.r + KEEP_OUT_EASE) continue;
+                    if (kd <= k.r) {
+                        keep = 0;
+                        break;
+                    }
+                    const e = (kd - k.r) / KEEP_OUT_EASE;
+                    keep *= e * e * (3 - 2 * e);
+                }
+                if (keep <= 0) continue;
+                const i = row + ix;
+                const before = this.heights[i]!;
+                const hi = before > BOARD_MAX_Y ? before : BOARD_MAX_Y;
+                const next = before + add * w * keep;
+                this.heights[i] = next > hi ? hi : next;
+            }
+        }
+        this.noteDeformed(rect);
+    }
+
+    /**
      * An impact crater: a bowl with a flat-ish floor (full `depth` inside half the radius, then
      * easing up to the untouched ground at `radius`) and, if `rim` is set, a ring of thrown-up
      * earth just outside it (`rim` high, centred 1.15 × radius out). `floor` is the lowest the

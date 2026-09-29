@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Nube velenosa",
     "description": "Segna un cerchio enorme. Nubi tossiche si radunano in alto e fanno piovere piccole gocce di acido — pozzanghere sparse che corrodono unità a terra e in aria come la Pozza d'acido, ma su un'area molto più ampia."
+  },
+  "earthRise": {
+    "name": "Muro di terra",
+    "description": "Traccia una linea: una cresta di terra sottile e ripida si alza lungo di essa pochi secondi dopo l’inizio dello scontro. Blocca i colpi radenti (le traiettorie alte passano ancora), ma le unità la attraversano senza problemi. Non si può rimuovere e dura tutta la partita. Gli edifici restano intatti."
   }
 }

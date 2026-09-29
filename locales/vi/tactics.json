@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Đám mây độc",
     "description": "Hãy khoanh tròn một vùng lớn. Những đám mây độc hại sẽ tụ lại phía trên và trút xuống những giọt axit nhỏ li ti khắp khu vực — những vũng nước nhỏ rải rác gây ăn mòn các thiết bị trên mặt đất và trên không giống như trường hợp tràn axit, nhưng trên một phạm vi rộng hơn nhiều."
+  },
+  "earthRise": {
+    "name": "Đất Trồi",
+    "description": "Vẽ một đường: vài giây sau khi trận đánh bắt đầu, một gờ đất hẹp và dốc trồi lên dọc theo đường đó. Nó chặn các phát bắn thấp (đường đạn cong cao vẫn vượt qua được), nhưng đơn vị vẫn đi qua bình thường. Không thể gỡ bỏ và tồn tại suốt trận. Công trình không bị ảnh hưởng."
   }
 }

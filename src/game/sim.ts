@@ -173,6 +173,7 @@ export interface SimConfig {
     spellZones?: readonly SpellZone[];
     /** one-shot capsule ignitions (dragon breath along its flight path) */
     spellIgnites?: readonly SpellIgnite[];
+    spellRises?: readonly SpellRise[];
     /** oil/acid capsules that pour left→right as drips after the freeze */
     hazardPours?: readonly HazardPour[];
     /** summoned packs materialize this many seconds after the freeze (0 = normal) */
@@ -234,6 +235,18 @@ export interface SpellZone {
 }
 
 /** the whole capsule catches fire once at BATTLE_START_FREEZE + delaySeconds */
+/** Earth Rise: a ridge of earth grows along (x,z)→(x2,z2) once `delaySeconds` of battle have passed. */
+export interface SpellRise {
+    x: number;
+    z: number;
+    x2: number;
+    z2: number;
+    delaySeconds: number;
+    halfWidth: number;
+    height: number;
+    riseSeconds: number;
+}
+
 export interface SpellIgnite {
     x: number;
     z: number;
@@ -1187,6 +1200,15 @@ export class BattleSim {
     })[];
     /** scheduled capsule ignitions; each fires exactly once */
     private readonly ignites: (SpellIgnite & { at: number; fired: boolean })[];
+    /** Earth Rise ridges: scheduled at battle start, growing in equal slices once their time comes */
+    private readonly rises: {
+        spec: SpellRise;
+        at: number;
+        started: boolean;
+        stepsLeft: number;
+        perStep: number;
+        keepOut: { x: number; z: number; r: number }[];
+    }[];
     /** meteor-shower impacts delayed until the visual fall completes */
     private readonly pendingMeteors: {
         at: number;
@@ -1405,6 +1427,14 @@ export class BattleSim {
             ...f,
             at: BATTLE_START_FREEZE + f.delaySeconds,
             fired: false,
+        }));
+        this.rises = (config.spellRises ?? []).map((spec) => ({
+            spec,
+            at: BATTLE_START_FREEZE + spec.delaySeconds,
+            started: false,
+            stepsLeft: 0,
+            perStep: 0,
+            keepOut: [],
         }));
         this.buildHazardDrips(config.hazardPours ?? []);
         // canonical battle order: both peers sort into the SAME sequence
@@ -3339,6 +3369,32 @@ export class BattleSim {
         terrain.impact(x, z, radius, depth, rim, floor, this.structureKeepOut(x, z, radius * (rim > 0 ? 1.5 : 1)));
     }
 
+    /**
+     * Earth Rise: when a ridge's time comes it fixes the buildings to leave alone, then grows in
+     * equal slices over its rise time (a whole number of sim steps, so the height is exact) — the
+     * same fixed-slices-on-the-shared-grid route as the acid melt.
+     */
+    private stepEarthRises(): void {
+        const terrain = this.config.terrain;
+        if (!terrain || this.rises.length === 0) return;
+        for (const r of this.rises) {
+            if (!r.started) {
+                if (this.elapsed < r.at) continue;
+                r.started = true;
+                const steps = Math.max(1, Math.round(r.spec.riseSeconds / BattleSim.STEP));
+                r.stepsLeft = steps;
+                r.perStep = r.spec.height / steps;
+                const mx = (r.spec.x + r.spec.x2) / 2;
+                const mz = (r.spec.z + r.spec.z2) / 2;
+                const reach = hypot(r.spec.x2 - r.spec.x, r.spec.z2 - r.spec.z) / 2 + r.spec.halfWidth;
+                r.keepOut = this.structureKeepOut(mx, mz, reach);
+            }
+            if (r.stepsLeft <= 0) continue;
+            terrain.ridge(r.spec.x, r.spec.z, r.spec.x2, r.spec.z2, r.spec.halfWidth, r.perStep, r.keepOut);
+            r.stepsLeft--;
+        }
+    }
+
     /** one sim step of every melt still under way (deterministic: fixed depth per step) */
     private stepAcidMelts(): void {
         const terrain = this.config.terrain;
@@ -4921,6 +4977,7 @@ export class BattleSim {
         this.stepProjectiles(dt);
         this.stepHazards(dt);
         this.stepAcidMelts();
+        this.stepEarthRises();
         this.stepRegen(dt);
         add('projectiles');
         this.flushOnKillSpawns();

@@ -421,6 +421,7 @@ const CHEAT_TACTIC_GRANTS = [
     'acidSpill',
     'fireSpill',
     'dragonAttack',
+    'earthRise',
 ] as const;
 /** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
 const CHEAT_TACTIC_COPIES = 1;
@@ -9572,7 +9573,7 @@ export class Game {
                 }
                 // igniteCapsule (dragon) uses progressive pour — charge handled above
                 if (
-                    spell.igniteCapsule &&
+                    (spell.igniteCapsule || spell.raise) &&
                     spell.fx !== 'dragon' &&
                     s.endX !== undefined &&
                     s.endZ !== undefined
@@ -9635,6 +9636,24 @@ export class Game {
                   ]
                 : [];
         });
+        // Earth Rise: a thin ridge grows along each drawn line
+        const spellRises = pendingSpells.flatMap((s) => {
+            const spell = this.types.tactic(s.tacticId)?.spell;
+            const raise = spell?.raise;
+            if (!spell || !raise || s.endX === undefined || s.endZ === undefined) return [];
+            return [
+                {
+                    x: s.x,
+                    z: s.z,
+                    x2: s.endX,
+                    z2: s.endZ,
+                    delaySeconds: spell.delaySeconds,
+                    halfWidth: raise.halfWidth,
+                    height: raise.height,
+                    riseSeconds: raise.riseSeconds,
+                },
+            ];
+        });
         const spellIgnites: {
             x: number;
             z: number;
@@ -9681,6 +9700,7 @@ export class Game {
             spellStrikes,
             spellZones,
             spellIgnites,
+            spellRises,
             hazardPours,
             summonDelayOf: (unit) => (unit.summoned ? unit.summonDelay : 0),
             spawnOnKill: (parent, typeId, x, z) => this.spawnOnKillChild(parent, typeId, x, z),

@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Giftsky",
     "description": "Marker en stor cirkel. Giftige skyer samler sig over hovedet og lader små syredråber regne hen over området – sparsomme vandpytter, der korroderer jord- og luftenheder ligesom syreudslip, men over et meget bredere felt."
+  },
+  "earthRise": {
+    "name": "Jordvold",
+    "description": "Tegn en linje: få sekunder efter kampens start rejser en smal, stejl jordvold sig langs den. Den blokerer lave skud (høje buer kommer stadig over), men enheder går bare hen over den. Den kan ikke fjernes og bliver stående hele kampen. Bygninger røres ikke."
   }
 }

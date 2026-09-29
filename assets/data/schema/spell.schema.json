@@ -178,6 +178,27 @@
               ],
               "additionalProperties": false,
               "description": "two-point: progressive fire pour along the capsule (dragon breath) — stamped left→right over DRAGON_POUR_DURATION_SEC , not a one-shot. `damage` is direct breath hit per pour disc (wards absorb like strikes)."
+            },
+            "raise": {
+              "type": "object",
+              "properties": {
+                "height": {
+                  "type": "number"
+                },
+                "halfWidth": {
+                  "type": "number"
+                },
+                "riseSeconds": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "height",
+                "halfWidth",
+                "riseSeconds"
+              ],
+              "additionalProperties": false,
+              "description": "two-point: a thin ridge of earth grows along the line (Earth Rise). It rises over `riseSeconds` to `height` (world units, on top of the ground there), is `halfWidth` to each side, stays for the match (terrain never heals) and leaves buildings alone. Low enough that shots can still clear it, steep enough to read as a wall."
             }
           },
           "required": [

@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Zehirli Bulut",
     "description": "Dev bir daire çiz. Zehirli bulutlar toplanır ve alana küçük asit damlaları yağdırır — Asit birikintisi gibi kara ve hava birimlerini aşındıran seyrek asit birikintileri, ama çok daha geniş alanda."
+  },
+  "earthRise": {
+    "name": "Toprak Sırt",
+    "description": "Bir çizgi çiz: savaş başladıktan birkaç saniye sonra boyunca ince ve dik bir toprak sırt yükselir. Alçak atışları engeller (yüksek yaylar yine de geçer) ama birimler üzerinden yürüyüp geçer. Kaldırılamaz ve tüm maç boyunca kalır. Binalara dokunmaz."
   }
 }

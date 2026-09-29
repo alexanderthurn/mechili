@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Giftmoln",
     "description": "Markera en stor cirkel. Giftiga moln samlas ovanför och regnar små syradroppar över området – glesa pölar som korroderar mark- och luftenheter likt syrautsläpp, men över ett mycket större fält."
+  },
+  "earthRise": {
+    "name": "Jordvall",
+    "description": "Rita en linje: några sekunder in i striden reser sig en smal, brant jordvall längs den. Den blockerar låga skott (höga bågar går fortfarande över), men enheter går rakt över den. Den kan inte tas bort och står kvar hela matchen. Byggnader lämnas orörda."
   }
 }

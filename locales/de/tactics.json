@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Giftwolke",
     "description": "Zeichne einen riesigen Kreis. Giftige Wolken sammeln sich darüber und lassen kleine Säuretropfen über das Gebiet regnen – spärliche Pfützen, die Boden und Luft angreifen, ähnlich wie Säureteppich, aber über ein viel größeres Feld."
+  },
+  "earthRise": {
+    "name": "Erdwall",
+    "description": "Zeichne eine Linie: Wenige Sekunden nach Kampfbeginn wächst entlang ihr ein schmaler, steiler Erdwall. Er blockiert flache Schüsse (hohe Bögen kommen noch darüber), Einheiten laufen aber einfach darüber. Er lässt sich nicht entfernen und bleibt das ganze Match. Gebäude bleiben unberührt."
   }
 }

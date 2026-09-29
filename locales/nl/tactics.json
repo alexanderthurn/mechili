@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Giftwolk",
     "description": "Teken een enorme cirkel. Giftige wolken verzamelen zich en laten kleine zuurdruppels vallen — spaarzame plassen die grond- en luchteenheden aantasten zoals Zuurplas, maar over een veel groter veld."
+  },
+  "earthRise": {
+    "name": "Aardwal",
+    "description": "Teken een lijn: een dunne, steile aardwal rijst er een paar seconden na het begin van het gevecht langs op. Hij blokkeert lage schoten (hoge bogen komen er nog overheen), maar eenheden lopen er gewoon overheen. Hij kan niet worden weggehaald en blijft de hele partij staan. Gebouwen blijven ongemoeid."
   }
 }

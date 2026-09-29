@@ -162,6 +162,13 @@ export interface TacticDef {
          *  stamped left→right over {@link DRAGON_POUR_DURATION_SEC}, not a one-shot.
          *  `damage` is direct breath hit per pour disc (wards absorb like strikes). */
         igniteCapsule?: { burnSeconds: number; intensity: number; damage?: number };
+        /**
+         * two-point: a thin ridge of earth grows along the line (Earth Rise). It rises over
+         * `riseSeconds` to `height` (world units, on top of the ground there), is `halfWidth`
+         * to each side, stays for the match (terrain never heals) and leaves buildings alone.
+         * Low enough that shots can still clear it, steep enough to read as a wall.
+         */
+        raise?: { height: number; halfWidth: number; riseSeconds: number };
     };
     /**
      * Acid / Fire Spill: two-point capsules that pour left→right as drips

@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Awan Racun",
     "description": "Tandakan bulatan yang besar. Awan toksik berkumpul di atas kepala dan menghujani titisan asid kecil di seluruh kawasan — lopak jarang yang menghakis unit tanah dan udara seperti Tumpahan Asid, tetapi di kawasan yang lebih luas."
+  },
+  "earthRise": {
+    "name": "Bumi Menjulang",
+    "description": "Lukis satu garisan: beberapa saat selepas pertempuran bermula, permatang tanah yang sempit dan curam naik di sepanjang garisan itu. Ia menghalang tembakan rendah (lengkung tinggi masih boleh melepasinya), tetapi unit boleh berjalan melintasinya. Tidak boleh dialih keluar dan kekal sepanjang perlawanan. Bangunan tidak terjejas."
   }
 }

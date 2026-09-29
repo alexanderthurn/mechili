@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Jedovatý mrak",
     "description": "Nakresli obrovský kruh. Jedovaté mraky se shromáždí a prší malé kyselé kapky — řídké louže, které korodují pozemní i vzdušné jednotky jako Kyselinová louže, ale na mnohem širším poli."
+  },
+  "earthRise": {
+    "name": "Zemní val",
+    "description": "Nakresli čáru: několik sekund po začátku bitvy se podél ní zvedne úzký, strmý zemní val. Blokuje nízké střely (vysoké oblouky ho stále překonají), ale jednotky přes něj přejdou. Nelze ho odstranit a zůstane celý zápas. Budovy zůstanou nedotčeny."
   }
 }

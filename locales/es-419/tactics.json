@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Nube venenosa",
     "description": "Marca un círculo enorme. Nubes tóxicas se acumulan arriba y dejan caer pequeñas gotas de ácido — charcos dispersos que corroen unidades terrestres y aéreas como el Charco de ácido, pero en un área mucho mayor."
+  },
+  "earthRise": {
+    "name": "Muro de tierra",
+    "description": "Traza una línea: una cresta de tierra estrecha y empinada se levanta a lo largo de ella unos segundos después de empezar el combate. Bloquea los disparos rasos (los tiros en arco alto aún pasan), pero las unidades la cruzan sin problema. No se puede quitar y dura toda la partida. Los edificios no se ven afectados."
   }
 }

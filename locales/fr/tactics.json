@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Nuage toxique",
     "description": "Trace un immense cercle. Des nuages toxiques s'amoncellent et déversent de fines gouttes d'acide — des flaques éparses qui corrodent les unités au sol et dans les airs comme la Nappe d'acide, mais sur une zone bien plus vaste."
+  },
+  "earthRise": {
+    "name": "Mur de terre",
+    "description": "Tracez une ligne : une crête de terre étroite et abrupte s’élève le long de celle-ci quelques secondes après le début du combat. Elle bloque les tirs tendus (les tirs en cloche passent encore), mais les unités la franchissent sans peine. Elle ne peut pas être retirée et reste toute la partie. Les bâtiments sont épargnés."
   }
 }

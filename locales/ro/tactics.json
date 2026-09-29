@@ -58,5 +58,9 @@
   "poisonCloud": {
     "name": "Nor otrăvitor",
     "description": "Marchează un cerc imens. Nori toxici se adună deasupra și plouă cu picături mici de acid în toată zona - bălți rare care corodează unitățile terestre și aeriene, precum Acid Spill, dar pe un câmp mult mai larg."
+  },
+  "earthRise": {
+    "name": "Zid de pământ",
+    "description": "Trage o linie: la câteva secunde după începutul luptei, de-a lungul ei se ridică o creastă de pământ îngustă și abruptă. Blochează tirurile joase (arcurile înalte trec în continuare), dar unitățile trec pur și simplu peste ea. Nu poate fi îndepărtată și rămâne pe tot parcursul partidei. Clădirile rămân neatinse."
   }
 }
