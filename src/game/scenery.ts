@@ -250,6 +250,46 @@ const WATER_REFLECT_POWER = '3.5';
 /** how far a ripple bends the mirrored image (texture-coordinate units) */
 const WATER_REFLECT_DISTORT = '0.035';
 /**
+ * Shore foam for the ultra lake beds (meadow ground shader). Value noise gives
+ * each stretch of coast its own rhythm; the foam line sits where the ground
+ * meets the water table, moves up and down the bank with a slow surge, and
+ * breaks up into flecks that drift. `depth` is water-table height minus ground
+ * height (positive = under water).
+ */
+const LAKE_FOAM_FNS_GLSL = `
+float lfHash(vec2 p) {
+	p = fract(p * vec2(233.34, 851.73));
+	p += dot(p, p + 23.45);
+	return fract(p.x * p.y);
+}
+float lfNoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(lfHash(i), lfHash(i + vec2(1.0, 0.0)), u.x),
+		mix(lfHash(i + vec2(0.0, 1.0)), lfHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+// how far ABOVE the static waterline the swash reaches right now (metres of
+// height): about -0.09 (drawn back into the water) .. +0.25 (up the bank)
+float lakeShoreSurge(vec2 p, float t) {
+	float phase = lfNoise(p * 0.09) * 6.2831;
+	return 0.08 + 0.17 * sin(t * 0.85 + phase);
+}
+float lakeFoam(vec2 p, float t, float depth, float surge) {
+	// distance below the swash tip: 0 at the tip, positive on the water side
+	float d = depth + surge;
+	// the foam sits from the tip down a little way into the water
+	float line = smoothstep(-0.02, 0.05, d) * (1.0 - smoothstep(0.10, 0.36, d));
+	// flecks: two drifting noise layers, thresholded so the line reads as broken foam
+	float n = 0.6 * lfNoise(p * 2.6 + vec2(t * 0.20, -t * 0.13)) + 0.4 * lfNoise(p * 6.4 + vec2(-t * 0.35, t * 0.22));
+	float flecks = smoothstep(0.34, 0.62, n);
+	// a thin bright edge right at the swash tip, unbroken
+	float edge = (1.0 - smoothstep(0.0, 0.05, abs(d))) * 0.6;
+	return clamp(line * flecks + edge, 0.0, 1.0);
+}
+`;
+
+/**
  * Declarations for the ultra water shader: the mirrored view and a small sum of
  * travelling sine waves, returned as the slope of the surface in world xz.
  * Analytic, so the ripples move in place instead of sliding a texture along.
@@ -379,6 +419,8 @@ export class Scenery {
     private lakeSurfacePlants: InstancedMesh[] = [];
     /** ultra lake-bed layers on (1) / off (0) — the Shift+9 A/B switch */
     private readonly lakeBedUniform = { value: 1 };
+    /** seconds, for the lapping foam on the ultra lake shores */
+    private readonly lakeTimeUniform = { value: 0 };
     /** the unfrozen surface opacity of this tier (ice fades toward opaque) */
     private waterOpacity = 0.86;
     /** ultra only: the mirrored view the lake surface shows */
@@ -900,6 +942,7 @@ export class Scenery {
         }
         this.time += dtSeconds;
         if (this.waterTimeUniform) this.waterTimeUniform.value = this.time;
+        this.lakeTimeUniform.value = this.time;
         for (const c of this.clouds) {
             c.mesh.position.x += c.speed * dtSeconds;
             if (c.mesh.position.x > this.cloudBoundsX) c.mesh.position.x = -this.cloudBoundsX;
@@ -2013,6 +2056,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             if (shore) shader.uniforms.uShore = { value: shore };
             if (sand) shader.uniforms.uSand = { value: sand };
             shader.uniforms.uLakeBed = this.lakeBedUniform;
+            shader.uniforms.uLakeTime = this.lakeTimeUniform;
+            shader.uniforms.uLakeFreeze = this.waterFreezeUniform ?? { value: 0 };
             shader.uniforms.uSnowCover = { value: 0 };
             this.outerGroundSnowUniform = shader.uniforms.uSnowCover as { value: number };
             shader.uniforms.uAlpineCap = this.outerGroundAlpineUniform;
@@ -2113,7 +2158,14 @@ ${pgClose}`;
     float lbDepth = ${WATER_LEVEL_Y.toFixed(2)} - vTerrainH;
     float lbSand = vBeach * (1.0 - smoothstep(0.3, 2.4, lbDepth)) * uLakeBed;
     diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vWorldXZ / ${LAKE_SAND_TILE.toFixed(1)}).rgb, lbSand);
-    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.34, 0.5, 0.56), smoothstep(0.3, 6.5, lbDepth) * uLakeBed);`;
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.34, 0.5, 0.56), smoothstep(0.3, 6.5, lbDepth) * uLakeBed);
+    // wet bank: just above the waterline the sand is darker, drying out upward
+    float lbWet = (1.0 - smoothstep(0.0, 0.55, -lbDepth)) * step(-0.55, lbDepth) * lbSand;
+    diffuseColor.rgb *= 1.0 - 0.28 * lbWet;
+    // lapping foam: a broken white line that surges up and back along the shore
+    float lbSurge = lakeShoreSurge(vWorldXZ, uLakeTime);
+    float lbFoam = lakeFoam(vWorldXZ, uLakeTime, lbDepth, lbSurge) * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.97, 0.98), lbFoam * 0.9);`;
                 }
             }
             // meadow hills get the same drier / browner hillsides as the board; the mountains keep their own rock
@@ -2187,6 +2239,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (shore ? 'uniform sampler2D uShore;\n' : '') +
                 (sand ? 'uniform sampler2D uSand;\n' : '') +
                 (sand ? 'uniform float uLakeBed;\n' : '') +
+                (sand ? 'uniform float uLakeTime;\nuniform float uLakeFreeze;\n' + LAKE_FOAM_FNS_GLSL : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
                 closeTileUniformDecls(profile) +
                 SLOPE_GROUND_FNS +
