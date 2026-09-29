@@ -1051,28 +1051,34 @@ export class Scenery {
             return { sprite, material };
         };
         const BANNER = 7;
-        const CAP = 18;
+        const CAP_MAX = 18;
+        const tallest = chosen[0]?.h ?? 300;
         for (const c of chosen) {
+            // the cap is sized by the peak: the tallest carries the full cloud, a lower one a
+            // smaller, tighter cluster
+            const t = Math.min(1, Math.max(0, (c.h - 230) / Math.max(1, tallest - 230)));
+            const k = 0.45 + 0.75 * t;
+            const CAP = Math.round(9 + (CAP_MAX - 9) * t);
             const len = Math.sqrt(c.x * c.x + c.z * c.z) || 1;
             const plume: (typeof this.snowPlumes)[number] = {
                 crest: new Vector3(c.x, c.h - 2, c.z),
-                center: new Vector3(c.x - (c.x / len) * 24, c.h - 2, c.z - (c.z / len) * 24),
-                length: 100 + rng() * 60,
+                center: new Vector3(c.x - (c.x / len) * 24 * k, c.h - 2, c.z - (c.z / len) * 24 * k),
+                length: (100 + rng() * 60) * (0.6 + 0.4 * k),
                 phase: rng() * Math.PI * 2,
                 puffs: [],
                 cap: [],
             };
             for (let i = 0; i < BANNER; i++) {
-                plume.puffs.push({ ...makePuff(), offset: (i + rng() * 0.6) / BANNER, size: 0.8 + rng() * 0.5 });
+                plume.puffs.push({ ...makePuff(), offset: (i + rng() * 0.6) / BANNER, size: (0.8 + rng() * 0.5) * (0.6 + 0.4 * k) });
             }
             for (let i = 0; i < CAP; i++) {
                 plume.cap.push({
                     ...makePuff(),
                     angle: rng() * Math.PI * 2,
-                    radius: Math.sqrt(rng()) * 42,
-                    height: -10 + rng() * 30,
+                    radius: Math.sqrt(rng()) * 42 * k,
+                    height: (-10 + rng() * 30) * k,
                     spin: (rng() < 0.5 ? -1 : 1) * (0.02 + rng() * 0.04),
-                    size: 55 + rng() * 45,
+                    size: (55 + rng() * 45) * k,
                     rank: (i + rng() * 0.8) / CAP,
                 });
             }
