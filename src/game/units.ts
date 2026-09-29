@@ -789,6 +789,13 @@ export interface UnitType {
      * Omit/true = stamp like other blasts.
      */
     splashScar?: boolean;
+    /**
+     * Each blast this unit's shots (or, for a rocket, the unit itself) cause digs a small crater
+     * in the board's height grid: `radius` is a fraction of the blast's own radius, `depth` in
+     * world units. Craters add up and stay for the match (down to a shallow floor), so keep
+     * both small.
+     */
+    impactCrater?: { depth: number; radius: number };
     /** Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake). */
     cleaveShake?: number;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */

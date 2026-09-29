@@ -26,6 +26,7 @@
     "projectileTrail": "cloud",
     "aimSpread": 6.5, // unguided scatter — higher = worse aim (try 4–10)
     "splashRadius": 5.5,
+    "impactCrater": { "depth": 0.1, "radius": 0.5 }, // each stone pocks the ground a little (see UnitType.impactCrater)
     "splashScar": false, // no ground crater stamp per stone
     "sandWeight": 1.05,
     "deathWear": "ash",

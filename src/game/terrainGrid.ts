@@ -272,6 +272,83 @@ export class TerrainGrid {
         this.noteDeformed(rect);
     }
 
+    /**
+     * An impact crater: a bowl with a flat-ish floor (full `depth` inside half the radius, then
+     * easing up to the untouched ground at `radius`) and, if `rim` is set, a ring of thrown-up
+     * earth just outside it (`rim` high, centred 1.15 × radius out). `floor` is the lowest the
+     * bowl may dig and the board's ceiling caps the rim; ground already past either stays put.
+     * `keepOut` discs (buildings) are left alone, easing in over `KEEP_OUT_EASE`.
+     *
+     * Deterministic like the rest: sqrt is correctly rounded, the eases are cubics.
+     */
+    impact(
+        cx: number,
+        cz: number,
+        radius: number,
+        depth: number,
+        rim = 0,
+        floor: number = BOARD_MIN_Y,
+        keepOut: readonly { x: number; z: number; r: number }[] = [],
+    ): void {
+        const r = Math.max(1e-3, radius);
+        const reach = rim > 0 ? r * 1.5 : r;
+        const rect = this.nodeRect(cx - reach, cz - reach, cx + reach, cz + reach);
+        if (!rect) return;
+        const flatTo = r * 0.5;
+        const wall = Math.max(1e-3, r - flatTo);
+        const ringAt = r * 1.15;
+        const ringHalf = r * 0.35;
+        for (let iz = rect.z0; iz <= rect.z1; iz++) {
+            const dz = -this.halfH + iz * this.cellZ - cz;
+            const row = iz * this.nx;
+            for (let ix = rect.x0; ix <= rect.x1; ix++) {
+                const dx = -this.halfW + ix * this.cellX - cx;
+                const d = Math.sqrt(dx * dx + dz * dz);
+                // bowl 1 -> 0 across the wall; ring 0 -> 1 -> 0 around ringAt
+                let bowl = 0;
+                if (d < r) {
+                    if (d <= flatTo) bowl = 1;
+                    else {
+                        const t = (r - d) / wall;
+                        bowl = t * t * (3 - 2 * t);
+                    }
+                }
+                let ring = 0;
+                if (rim > 0) {
+                    const off = d > ringAt ? d - ringAt : ringAt - d;
+                    if (off < ringHalf) {
+                        const t = 1 - off / ringHalf;
+                        ring = t * t * (3 - 2 * t);
+                    }
+                }
+                if (bowl <= 0 && ring <= 0) continue;
+                let keep = 1;
+                for (const k of keepOut) {
+                    const kx = -this.halfW + ix * this.cellX - k.x;
+                    const kz = -this.halfH + iz * this.cellZ - k.z;
+                    const kd = Math.sqrt(kx * kx + kz * kz);
+                    if (kd >= k.r + KEEP_OUT_EASE) continue;
+                    if (kd <= k.r) {
+                        keep = 0;
+                        break;
+                    }
+                    const t = (kd - k.r) / KEEP_OUT_EASE;
+                    keep *= t * t * (3 - 2 * t);
+                }
+                if (keep <= 0) continue;
+                const i = row + ix;
+                const before = this.heights[i]!;
+                const lo = before < floor ? before : floor;
+                const hi = before > BOARD_MAX_Y ? before : BOARD_MAX_Y;
+                let next = before - depth * bowl * keep;
+                next = next < lo ? lo : next;
+                next += rim * ring * keep;
+                this.heights[i] = next > hi ? hi : next;
+            }
+        }
+        this.noteDeformed(rect);
+    }
+
     /** the changed node rectangle since the last call (null: nothing changed) */
     takeDirty(): TerrainRect | null {
         const r = this.dirty;

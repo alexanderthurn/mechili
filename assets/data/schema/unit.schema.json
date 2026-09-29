@@ -476,6 +476,23 @@
           "type": "boolean",
           "description": "When false, splash projectile explosions skip the ground scorch stamp. Omit/true = stamp like other blasts."
         },
+        "impactCrater": {
+          "type": "object",
+          "properties": {
+            "depth": {
+              "type": "number"
+            },
+            "radius": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "depth",
+            "radius"
+          ],
+          "additionalProperties": false,
+          "description": "Each blast this unit's shots (or, for a rocket, the unit itself) cause digs a small crater in the board's height grid: `radius` is a fraction of the blast's own radius, `depth` in world units. Craters add up and stay for the match (down to a shallow floor), so keep both small."
+        },
         "cleaveShake": {
           "type": "number",
           "description": "Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake)."

@@ -985,6 +985,12 @@ const APPROACH_OFFSET_MAX = 4.0;
  * stutter.
  */
 const MELEE_PRESS_BAND = 0.07;
+/** Big Meteor: crater radius as a multiple of its strike, depth, rim height, and floor. */
+const METEOR_BIG_CRATER = { radiusMult: 1, depth: 1.1, rim: 0.7, floor: -1.0 };
+/** Meteor Shower shards: much smaller and shallower. */
+const METEOR_SHARD_CRATER = { radiusMult: 0.6, depth: 0.4, rim: 0.12, floor: -0.5 };
+/** the lowest an artillery crater (UnitType.impactCrater) may dig */
+const IMPACT_CRATER_FLOOR = -0.3;
 /** Acid drips dig the board: bowl radius (× the drip's), depth per drip, and the lowest they may dig. */
 const ACID_MELT_RADIUS_MULT = 1;
 /** total depth one drip digs, and the seconds it takes to sink that far */
@@ -3303,6 +3309,15 @@ export class BattleSim {
         const r = radius * ACID_MELT_RADIUS_MULT;
         // The pit digs right up to a building and stops around it — the drip is NOT skipped
         // when a building is near, or the stretch of a spill next to one would never sink.
+        const keepOut = this.structureKeepOut(x, z, r);
+        // sinks over a few seconds, not in one step, so the ground can be watched going
+        // down; a whole number of equal sim steps, so it is exact and identical everywhere
+        const steps = Math.max(1, Math.round(ACID_MELT_SECONDS / BattleSim.STEP));
+        this.acidMelts.push({ x, z, r, perStep: ACID_MELT_DEPTH / steps, stepsLeft: steps, keepOut });
+    }
+
+    /** the buildings a crater or pit at (x, z) with radius r must leave alone (fixed at the call) */
+    private structureKeepOut(x: number, z: number, r: number): { x: number; z: number; r: number }[] {
         const keepOut: { x: number; z: number; r: number }[] = [];
         for (const a of this.actors) {
             if (!a.unit.type.structure) continue;
@@ -3310,10 +3325,18 @@ export class BattleSim {
             if (hypot(a.x - x, a.z - z) >= r + keep + ACID_MELT_KEEP_OUT_EASE) continue;
             keepOut.push({ x: a.x, z: a.z, r: keep });
         }
-        // sinks over a few seconds, not in one step, so the ground can be watched going
-        // down; a whole number of equal sim steps, so it is exact and identical everywhere
-        const steps = Math.max(1, Math.round(ACID_MELT_SECONDS / BattleSim.STEP));
-        this.acidMelts.push({ x, z, r, perStep: ACID_MELT_DEPTH / steps, stepsLeft: steps, keepOut });
+        return keepOut;
+    }
+
+    /**
+     * An impact crater in the height grid (see TerrainGrid.impact): meteors, artillery. Instant,
+     * once per impact, on the shared grid — the same route as the Hammer's flatten and the acid
+     * melt — and it leaves buildings alone.
+     */
+    private digImpactCrater(x: number, z: number, radius: number, depth: number, rim: number, floor: number): void {
+        const terrain = this.config.terrain;
+        if (!terrain || radius <= 0 || depth <= 0) return;
+        terrain.impact(x, z, radius, depth, rim, floor, this.structureKeepOut(x, z, radius * (rim > 0 ? 1.5 : 1)));
     }
 
     /** one sim step of every melt still under way (deterministic: fixed depth per step) */
@@ -3675,6 +3698,9 @@ export class BattleSim {
         } else {
             this.applySpellDiscDamage(s.x, s.z, s.radius, s.damage, s);
             this.applyBlastImpulse(s.x, s.z, visualRadius, bigMeteor ? 2.6 : 1.5);
+            // the meteor digs in: a deep crater with a thrown-up rim (the shower's shards, a small one)
+            const c = bigMeteor ? METEOR_BIG_CRATER : meteorShower ? METEOR_SHARD_CRATER : null;
+            if (c) this.digImpactCrater(s.x, s.z, s.radius * c.radiusMult, c.depth, c.rim, c.floor);
         }
     }
 
@@ -6315,6 +6341,9 @@ export class BattleSim {
                   ? 1.85
                   : 1.1;
         this.applyBlastImpulse(x, z, radius, blastStrength, shotDir);
+        // artillery pockmarks the field (mortar stones, fire bolts): a small crater per blast
+        const crater = p.source.type.impactCrater;
+        if (crater) this.digImpactCrater(x, z, radius * crater.radius, crater.depth, 0, IMPACT_CRATER_FLOOR);
         // burn + ground fire (friendly fire) — after kinetic hits
         this.applyFireAt(p.source, x, z, radius, this.fireProfileOf(p.source), { shotDir });
     }
