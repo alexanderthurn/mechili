@@ -988,14 +988,14 @@ const MELEE_PRESS_BAND = 0.07;
 /** Acid drips dig the board: bowl radius (× the drip's), depth per drip, and the lowest they may dig. */
 const ACID_MELT_RADIUS_MULT = 1;
 /** total depth one drip digs, and the seconds it takes to sink that far */
-const ACID_MELT_DEPTH = 12;
+const ACID_MELT_DEPTH = 4;
 const ACID_MELT_SECONDS = 8;
 const ACID_MELT_FLOOR = -1.0;
 /**
  * No digging within this of a building's edge (world units), measured from the bowl's rim.
  * The bowl reaches nothing past its radius, so a small margin is enough.
  */
-const ACID_MELT_STRUCTURE_MARGIN = 1.5;
+const ACID_MELT_STRUCTURE_MARGIN = 3;
 /** the pit eases back in over this much past a building's keep-out edge (matches TerrainGrid) */
 const ACID_MELT_KEEP_OUT_EASE = 2.5;
 /**
