@@ -5,7 +5,7 @@
     "kind": "placement",
     "targeting": "two-point",
     "cooldownRounds": 2,
-    "radius": 3, // the drawn line's width on the aim preview (the ridge itself is 2.6 to each side)
+    "radius": 6, // the drawn line's width on the aim preview (the ridge itself is 5.2 to each side)
     "maxSpan": 64, // a long line, longer than the other capsules
     "respectsSafeZone": true,
     "strongholdCost": 250,
@@ -14,7 +14,7 @@
         // A thin, steep ridge: high enough to read as a wall and break up a charge, low enough
         // that shots still clear it. It never goes away (terrain does not heal) and leaves
         // buildings alone.
-        "raise": { "height": 1.5, "halfWidth": 2.6, "riseSeconds": 2.5 },
+        "raise": { "height": 3, "halfWidth": 5.2, "riseSeconds": 2.5 },
     },
     "marker": {
         "glow": "rgba(54, 40, 18, 0.55)",
