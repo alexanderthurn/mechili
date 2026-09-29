@@ -1869,8 +1869,10 @@ export class Scenery {
             // The cut-off uphill (1 - smooth01((h - 0.1) / 1.1)) is per pixel.
             const shoreW = smooth01((this.lakeAt(x, z) - 0.12) / 0.45);
             // …plus rare small dry patches scattered over the meadow
-            const patchN = this.noise(x / 37 + 5.1, z / 37 + 50.4);
-            const patch = smooth01((patchN - 0.72) / 0.09) * 0.7 * (h < 10 ? 1 : 0);
+            // smaller (noise scale 37 -> 24 units) and fainter (0.7 -> 0.45) than they were:
+            // on high and ultra they read as sand, which stands out from the forest floor
+            const patchN = this.noise(x / 24 + 5.1, z / 24 + 50.4);
+            const patch = smooth01((patchN - 0.74) / 0.09) * 0.45 * (h < 10 ? 1 : 0);
             // never right next to the board — it would break the transition
             const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
             const boardFade = smooth01((dOut - 15) / 25);
