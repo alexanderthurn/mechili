@@ -412,6 +412,8 @@ export class BattleMap {
     private fireCharcoalGround = false;
     /** 0..1 weather-driven snow dusting on the board (see `setSnowCover`) */
     private snowCoverUniform: { value: number } | null = null;
+    /** the deployment overlay reads the same snow cover, to keep its lines visible on white */
+    private readonly overlaySnowUniform = { value: 0 };
 
     /** ground texture + wear quality (the board's SHAPE is never gated) */
     private groundEffects: GroundEffectsQuality = prefs().groundEffects;
@@ -1481,6 +1483,7 @@ export class BattleMap {
     /** Weather-driven snow wash on the board (visual only, melts under fire/oil/acid). */
     setSnowCover(v: number): void {
         if (this.snowCoverUniform) this.snowCoverUniform.value = v;
+        this.overlaySnowUniform.value = v;
     }
 
     /**
@@ -2221,10 +2224,30 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         const geometry = new PlaneGeometry(this.width, this.height, this.cols * 2, this.rows * 2);
         geometry.rotateX(-Math.PI / 2);
         this.applyRelief(geometry);
-        const mesh = new Mesh(
-            geometry,
-            new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }),
-        );
+        const material = new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false });
+        // The grid, the lane line and the zone edges are white / pale on purpose — on
+        // lawn. On snow they vanish, so once the ground is white the same lines turn
+        // dark slate and a little stronger, and the coloured zone edges get more weight.
+        material.onBeforeCompile = (shader) => {
+            shader.uniforms.uSnow = this.overlaySnowUniform;
+            shader.fragmentShader =
+                'uniform float uSnow;\n' +
+                shader.fragmentShader.replace(
+                    '#include <map_fragment>',
+                    `#include <map_fragment>
+	{
+		// the same snow test the ground uses, so the lines change exactly when the ground goes white
+		float ovLine = mix( 220.0, -15.0, uSnow );
+		float ovSnow = smoothstep( ovLine - 40.0, ovLine + 15.0, 0.0 );
+		float ovWhite = smoothstep( 0.82, 1.0, min( min( diffuseColor.r, diffuseColor.g ), diffuseColor.b ) );
+		diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.13, 0.19, 0.29 ), ovWhite * ovSnow );
+		diffuseColor.rgb *= mix( 1.0, 0.68, ( 1.0 - ovWhite ) * ovSnow );
+		diffuseColor.a = min( 1.0, diffuseColor.a * mix( 1.0, mix( 1.5, 3.0, ovWhite ), ovSnow ) );
+	}`,
+                );
+        };
+        material.customProgramCacheKey = () => 'deploy-overlay-snow-v1';
+        const mesh = new Mesh(geometry, material);
         mesh.position.y = 0.02;
         return mesh;
     }
