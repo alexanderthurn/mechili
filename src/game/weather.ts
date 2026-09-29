@@ -278,6 +278,11 @@ const SNOW_OVERLAY: WeatherOverlay = {
     exposureMul: 0.97,
 };
 
+/** what the forest fog cards fade toward instead of the (blue) horizon */
+const FOREST_MIST_WHITE = new Color(0xe9eeee);
+/** share of the way from the horizon colour to mist white (1 = always white) */
+const FOREST_MIST_WHITEN = 0.72;
+
 function lerpHex(a: number, b: number, t: number): number {
     return new Color(a).lerp(new Color(b), t).getHex();
 }
@@ -1076,10 +1081,14 @@ export class Weather {
         }
 
         if (h.forestFogMaterial) {
-            // fog cards blend toward the horizon/fog color of the scenario
+            // Fog cards take the scenario's horizon colour, but mostly washed
+            // toward mist white: on a clear day the horizon is a saturated sky
+            // blue (and spring pushes it further toward cyan), which read as
+            // blue smoke between the trees whenever rain thinned the overlay
+            // only part of the way. Dawn/dusk keep a hint of their warm tint.
             const forestFog = this.fx('forestFog') ? s.forestFog * h.forestFogScale : 0;
             h.forestFogMaterial.opacity = forestFog;
-            h.forestFogMaterial.color.copy(s.skyHorizon);
+            h.forestFogMaterial.color.copy(s.skyHorizon).lerp(FOREST_MIST_WHITE, FOREST_MIST_WHITEN);
         }
 
         const nearClouds = allowVisualWeatherFx && this.fx('nearClouds') ? s.nearCloudOpacity : 0;
