@@ -182,9 +182,11 @@ export class TerrainGrid {
 
     /**
      * A bowl: lowers the ground by `depth` at the center, fading to nothing at
-     * `radius` ((1 − d²/r²)² falloff). Negative depth raises a mound.
+     * `radius` ((1 − d²/r²)² falloff). Negative depth raises a mound. `floor` is
+     * the lowest it may dig (the board's own floor by default): ground already
+     * below it stays where it is, it just can't be dug further.
      */
-    crater(cx: number, cz: number, radius: number, depth: number): void {
+    crater(cx: number, cz: number, radius: number, depth: number, floor: number = BOARD_MIN_Y): void {
         const r = Math.max(1e-3, radius);
         const r2 = r * r;
         const rect = this.nodeRect(cx - r, cz - r, cx + r, cz + r);
@@ -198,7 +200,11 @@ export class TerrainGrid {
                 if (d2 >= r2) continue;
                 const t = 1 - d2 / r2;
                 const i = row + ix;
-                this.heights[i] = clampBoardY(this.heights[i]!, this.heights[i]! - depth * t * t);
+                const before = this.heights[i]!;
+                const lo = before < floor ? before : floor;
+                const hi = before > BOARD_MAX_Y ? before : BOARD_MAX_Y;
+                const next = before - depth * t * t;
+                this.heights[i] = next < lo ? lo : next > hi ? hi : next;
             }
         }
         this.noteDeformed(rect);

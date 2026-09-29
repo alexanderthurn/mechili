@@ -985,6 +985,12 @@ const APPROACH_OFFSET_MAX = 4.0;
  * stutter.
  */
 const MELEE_PRESS_BAND = 0.07;
+/** Acid drips dig the board: bowl radius (× the drip's), depth per drip, and the lowest they may dig. */
+const ACID_MELT_RADIUS_MULT = 1.1;
+const ACID_MELT_DEPTH = 0.28;
+const ACID_MELT_FLOOR = -0.8;
+/** no digging within this of a building's edge (world units) */
+const ACID_MELT_STRUCTURE_MARGIN = 6;
 /**
  * Slack on the reach check when a queued attack lands ({@link
  * Sim.resolveAttackPending}): a foe that edged out during the windup still
@@ -3258,6 +3264,31 @@ export class BattleSim {
         }
     }
 
+    /**
+     * Acid eats the ground: each spell drip that lands carves a shallow bowl in
+     * the board's height grid, so a spill becomes a trench and a cloud pits the
+     * field. Like the Hammer's flatten it runs inside the sim step, once per
+     * drip, on the shared grid (plain arithmetic, in the state hash), so every
+     * client and every replay digs the same holes. A ward keeps the acid off
+     * the ground, and nothing digs beside a building.
+     */
+    private meltGroundUnderAcid(
+        x: number,
+        z: number,
+        radius: number,
+        shields: ReturnType<typeof livingShieldDisks>,
+    ): void {
+        const terrain = this.config.terrain;
+        if (!terrain) return;
+        if (insideAnyShield(x, z, shields)) return;
+        const r = radius * ACID_MELT_RADIUS_MULT;
+        for (const a of this.actors) {
+            if (!a.unit.type.structure) continue;
+            if (hypot(a.x - x, a.z - z) < r + a.radius + ACID_MELT_STRUCTURE_MARGIN) return;
+        }
+        terrain.crater(x, z, r, ACID_MELT_DEPTH, ACID_MELT_FLOOR);
+    }
+
     /** announce falling drips, then stamp each disc on impact (wards block) */
     private stepHazardDrips(): void {
         const shields = livingShieldDisks(this.actors.map((a) => a.unit));
@@ -3282,6 +3313,7 @@ export class BattleSim {
                 this.hazards.stampOil(d.x, d.z, d.radius, d.expiresRound, shields, this.elapsed);
             } else if (d.kind === 'acid') {
                 this.hazards.stampAcid(d.x, d.z, d.radius, d.expiresRound, shields);
+                this.meltGroundUnderAcid(d.x, d.z, d.radius, shields);
             } else {
                 const oilCells = this.hazards.stampFire(
                     d.x,

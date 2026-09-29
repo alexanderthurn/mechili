@@ -84,6 +84,8 @@ export class OilVisuals {
         this.map.syncHazardFromField(field, now, null);
         // ember tint under flame (once per cell) — remains after fire burns out on low VFX only
         this.map.stampScorchUnderFire(field, now);
+        // acid leaves a yellow-green stain where it lands (once per puddle cell)
+        this.map.stampAcidStain(field);
         this.clearOutlines();
         if (!showOutlines) return;
         for (const s of stamps) {

@@ -396,6 +396,8 @@ export class BattleMap {
      * Last sim-time we grew each cell (parallel array).
      */
     private fireScorchCells: Uint8Array | null = null;
+    /** hazard cells whose acid has already been stained into the wear layer (see stampAcidStain) */
+    private acidStained = new Set<number>();
     private fireScorchAt: Float32Array | null = null;
 
     /**
@@ -974,6 +976,8 @@ export class BattleMap {
         radius: number,
         strength: number,
         color: number,
+        /** 0.14 = the dark wet-stain value gore uses; 1 = the colour as given */
+        crush = 0.14,
     ): void {
         const ctx = this.bloodTintCtx;
         if (!ctx || !this.bloodTintMask) return;
@@ -982,7 +986,7 @@ export class BattleMap {
         const r = Math.max(0.5, radius) * (this.sandW / this.width);
         const a = Math.min(1, Math.max(0.02, strength));
         // crush to a wet-stain value while keeping the unit's gore hue
-        const k = 0.14;
+        const k = crush;
         const rr = Math.round(((color >> 16) & 255) * k);
         const gg = Math.round(((color >> 8) & 255) * k);
         const bb = Math.round((color & 255) * k);
@@ -1240,6 +1244,39 @@ export class BattleMap {
             this.drawWearBlob(ctx, bx, by, br, s * (0.45 + rnd() * 0.45), 'b');
         }
         this.sandDirty = true;
+    }
+
+    /**
+     * Acid leaves a stain: a sickly yellow-green bowl with a brown-olive rim where a
+     * puddle lands, once per cell, in the same wear layer as gore (so it shows through
+     * snow, and fades a third every round like every other mark). It is stamped in
+     * the coloured-stain layer, which only exists at the high ground-effects setting.
+     */
+    stampAcidStain(field: {
+        cellCols: number;
+        cellRows: number;
+        worldToCell: (x: number, z: number) => { cx: number; cz: number };
+        index: (cx: number, cz: number) => number;
+        forEachAcidCell: (fn: (x: number, z: number, expiresRound: number) => void) => void;
+    }): void {
+        if (this.groundEffects !== 'high' || !this.bloodTintCtx) return;
+        const seen = new Set<number>();
+        field.forEachAcidCell((x, z) => {
+            const { cx, cz } = field.worldToCell(x, z);
+            if (cx < 0 || cz < 0 || cx >= field.cellCols || cz >= field.cellRows) return;
+            const i = field.index(cx, cz);
+            seen.add(i);
+            if (this.acidStained.has(i)) return;
+            const roll = fractHash(i * 7919 + 31337);
+            const r = 5.4 * (0.85 + roll * 0.3);
+            // rim first, then the core over it
+            this.stampWearChannel(x, z, r * 1.25, 0.16, 'g');
+            this.stampBloodTint(x, z, r * 1.25, 0.5, 0x8c7a2a, 1);
+            this.stampWearChannel(x, z, r * 0.8, 0.2, 'g');
+            this.stampBloodTint(x, z, r * 0.8, 0.7, 0xa2b82c, 1);
+        });
+        // only what is still acid stays marked, so a fresh puddle on the same cell stains again
+        this.acidStained = seen;
     }
 
     /**
@@ -1866,6 +1903,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         this.sandDirty = false;
         this.sandFlushAt = performance.now();
         this.fireScorchCells = null;
+        this.acidStained.clear();
         this.fireScorchAt = null;
     }
 
@@ -1885,6 +1923,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         this.sandDirty = false;
         this.sandFlushAt = performance.now();
         this.fireScorchCells = null;
+        this.acidStained.clear();
         this.fireScorchAt = null;
     }
 
@@ -1959,6 +1998,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             this.bloodTintMask = null;
             this.bloodTintCtx = null;
             this.fireScorchCells = null;
+        this.acidStained.clear();
             this.fireScorchAt = null;
         }
         const hazardMask = this.ensureHazardMask();
