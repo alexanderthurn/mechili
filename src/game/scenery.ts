@@ -375,6 +375,8 @@ export class Scenery {
     /** drives the ripple normals of the ultra water (seconds) */
     private waterTimeUniform: { value: number } | null = null;
     private waterMesh: Mesh | null = null;
+    /** lily pads and blossoms on the lakes — they fade out as the water freezes */
+    private lakeSurfacePlants: InstancedMesh[] = [];
     /** ultra lake-bed layers on (1) / off (0) — the Shift+9 A/B switch */
     private readonly lakeBedUniform = { value: 1 };
     /** the unfrozen surface opacity of this tier (ice fades toward opaque) */
@@ -889,6 +891,12 @@ export class Scenery {
                 this.waterMaterial.roughness = 0.18 + freeze * 0.55;
             }
             this.waterMaterial.opacity = this.waterOpacity + freeze * (0.98 - this.waterOpacity);
+            // nothing green floats on ice: pads and blossoms fade out as it forms
+            const plantK = 1 - Math.min(1, Math.max(0, (freeze - 0.05) / 0.5));
+            for (const mesh of this.lakeSurfacePlants) {
+                (mesh.material as MeshStandardMaterial).opacity = plantK;
+                mesh.visible = plantK > 0.02;
+            }
         }
         this.time += dtSeconds;
         if (this.waterTimeUniform) this.waterTimeUniform.value = this.time;
@@ -1387,7 +1395,7 @@ export class Scenery {
         padGeo.rotateX(-Math.PI / 2);
         const pads = new InstancedMesh(
             padGeo,
-            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }),
+            new MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, transparent: true }),
             PADS,
         );
         const blossoms = new InstancedMesh(
@@ -1427,6 +1435,7 @@ export class Scenery {
         pads.count = padI;
         blossoms.count = blossomI;
 
+        this.lakeSurfacePlants = [pads, blossoms];
         this.group.add(reeds, pads, blossoms);
     }
 
@@ -1530,6 +1539,14 @@ export class Scenery {
         const colors = new Float32Array(pos.count * 3);
         /** 0..1 per vertex: how sandy/gravelly this spot is (lake shores + rare patches) */
         const beach = new Float32Array(pos.count);
+        /**
+         * 0..1 per vertex: the lake-shore part of the gravel/sand weight, WITHOUT
+         * its fade up the bank. That fade is done per pixel from the real height
+         * (see the outer-meadow fragment shader): sampled per vertex it flipped
+         * from 1 to 0 across a single triangle on steep coasts and showed up as
+         * triangles along the waterline.
+         */
+        const shoreLake = new Float32Array(pos.count);
         /** 0..1 scree pockets on mountains (concave corners + talus at cliff bases) */
         const scree = new Float32Array(pos.count);
         const meadow = new Color(0xffffff); // grass texture shows as-is
@@ -1545,15 +1562,18 @@ export class Scenery {
             const h = this.terrainHeight(x, z);
             pos.setY(i, h);
 
-            // gravel shore around (and under) the lakes, fading up the banks…
-            // tight band: needs solid basin + cuts off quickly uphill
-            const shore = smooth01((this.lakeAt(x, z) - 0.12) / 0.45) * (1 - smooth01((h - 0.1) / 1.1));
+            // gravel shore around (and under) the lakes: a solid basin is needed.
+            // The cut-off uphill (1 - smooth01((h - 0.1) / 1.1)) is per pixel.
+            const shoreW = smooth01((this.lakeAt(x, z) - 0.12) / 0.45);
             // …plus rare small dry patches scattered over the meadow
             const patchN = this.noise(x / 37 + 5.1, z / 37 + 50.4);
             const patch = smooth01((patchN - 0.72) / 0.09) * 0.7 * (h < 10 ? 1 : 0);
             // never right next to the board — it would break the transition
             const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
-            beach[i] = Math.min(1, Math.max(shore, patch)) * smooth01((dOut - 15) / 25);
+            const boardFade = smooth01((dOut - 15) / 25);
+            beach[i] = Math.min(1, patch) * boardFade;
+            // a static map paints its own beach; only the procedural lakes get this
+            shoreLake[i] = this.landscape ? 0 : shoreW * boardFade;
             scree[i] = this.screeAccumAt(x, z, h);
 
             rockVar.copy(rock).lerp(rockDark, this.noise(x / 55 + 3, z / 55 + 9));
@@ -1577,6 +1597,7 @@ export class Scenery {
         pos.needsUpdate = true;
         geometry.setAttribute('color', new BufferAttribute(colors, 3));
         geometry.setAttribute('aBeach', new BufferAttribute(beach, 1));
+        geometry.setAttribute('aShore', new BufferAttribute(shoreLake, 1));
         geometry.setAttribute('aScree', new BufferAttribute(scree, 1));
         ensureOuterMaterialAttrs(geometry);
         if (this.landscape) applyLandscapeToOuterGeometry(geometry, this.landscape, { heights: false });
@@ -2024,10 +2045,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 '\treturn clamp( acc, 0.0, 1.0 );\n' +
                 '}\n';
             shader.vertexShader =
-                'attribute float aBeach;\nattribute float aScree;\nattribute float aMoss;\nattribute float aGrass;\nattribute float aRock;\nattribute float aSnow;\nvarying float vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vGrass;\nvarying float vRock;\nvarying float vSnow;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'attribute float aBeach;\nattribute float aShore;\nattribute float aScree;\nattribute float aMoss;\nattribute float aGrass;\nattribute float aRock;\nattribute float aSnow;\nvarying float vBeachV;\nvarying float vShore;\nvarying float vScree;\nvarying float vMoss;\nvarying float vGrass;\nvarying float vRock;\nvarying float vSnow;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 shader.vertexShader.replace(
                     '#include <begin_vertex>',
-                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeach = aBeach;\n\tvScree = aScree;\n\tvMoss = aMoss;\n\tvGrass = aGrass;\n\tvRock = aRock;\n\tvSnow = aSnow;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
+                    '#include <begin_vertex>\n\tvTerrainH = position.y;\n\tvWorldXZ = position.xz;\n\tvSlope = 1.0 - normal.y;\n\tvBeachV = aBeach;\n\tvShore = aShore;\n\tvScree = aScree;\n\tvMoss = aMoss;\n\tvGrass = aGrass;\n\tvRock = aRock;\n\tvSnow = aSnow;\n\tvWorldN = normalize( mat3( modelMatrix ) * objectNormal );',
                 );
             shader.vertexShader = closeTileVertexShader(shader.vertexShader, profile);
             let inject = `
@@ -2158,7 +2179,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
             const needBlob = !!(photoGrass || rockPhoto1);
             let frag =
-                'varying float vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vGrass;\nvarying float vRock;\nvarying float vSnow;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
+                'varying float vBeachV;\nvarying float vShore;\nfloat vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vGrass;\nvarying float vRock;\nvarying float vSnow;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 (rock ? 'uniform sampler2D uRock;\n' : '') +
                 (rockPhoto1 ? 'uniform sampler2D uRockPhoto1;\n' : '') +
                 (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
@@ -2171,7 +2192,14 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 SLOPE_GROUND_FNS +
                 'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
                 (needBlob ? softBlobFn : '') +
-                shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>${inject}`);
+                shader.fragmentShader.replace(
+                    '#include <map_fragment>',
+                    // gravel/sand weight: the lake part fades up the bank by the
+                    // pixel's own height, so the edge follows the ground's contour
+                    // instead of the triangles the per-vertex value was sampled on
+                    `#include <map_fragment>
+    vBeach = max(vShore * (1.0 - smoothstep(0.1, 1.2, vTerrainH)), vBeachV);${inject}`,
+                );
             if (rock) {
                 frag = frag.replace(
                     '#include <map_pars_fragment>',
@@ -2201,7 +2229,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? '-lakebed' : ''}-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? '-lakebed' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
