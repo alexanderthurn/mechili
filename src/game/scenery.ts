@@ -779,14 +779,14 @@ export class Scenery {
         this.mountainMistMaterial = material;
         const geometry = new PlaneGeometry(1, 0.6);
         geometry.rotateX(-Math.PI / 2);
-        const COUNT = 30;
+        const COUNT = 45;
         const S = 10;
         let placed = 0;
         for (let attempt = 0; attempt < 6000 && placed < COUNT; attempt++) {
             const x = (rng() * 2 - 1) * (map.halfW + MOUNTAIN_PEAK_END);
             const z = (rng() * 2 - 1) * (map.halfH + MOUNTAIN_PEAK_END);
             const d = pastBoard(map.halfW, map.halfH, x, z);
-            if (d < 120 || d > MOUNTAIN_PEAK_END - 30) continue;
+            if (d < 80 || d > MOUNTAIN_PEAK_END - 30) continue;
             const h = this.terrainHeight(x, z);
             if (h < 35 || h > 260) continue;
             if (this.lakeAt(x, z) > 0.05) continue;
@@ -799,7 +799,7 @@ export class Scenery {
             if (slope > 0.4) continue;
             const mesh = new Mesh(geometry, material);
             mesh.position.set(x, h + 9 + rng() * 9, z);
-            const sc = 70 + rng() * 80;
+            const sc = 90 + rng() * 100;
             mesh.scale.set(sc, 1, sc * (0.5 + rng() * 0.3));
             mesh.rotation.y = rng() * Math.PI * 2;
             mesh.renderOrder = 2;
@@ -1167,7 +1167,7 @@ export class Scenery {
         if (mistMat) {
             const fog = this.forestFogMaterial;
             // a thin veil always, the weather's fog on top; snow bleaches it
-            const op = Math.min(0.5, 0.13 + (fog?.opacity ?? 0) * 0.9);
+            const op = Math.min(0.65, 0.32 + (fog?.opacity ?? 0) * 0.9);
             mistMat.opacity = this.quality === 'ultra' ? op : 0;
             if (fog) mistMat.color.copy(fog.color).lerp(MIST_SNOW_WHITE, this.groundSnowCover * 0.6);
             for (const b of this.mistBanks) {
