@@ -235,9 +235,10 @@ const MOUNTAIN_RISE_SPAN = 360;
 /** Crest / world cut — hold peak height from ~470 out to 500. */
 export const MOUNTAIN_PEAK_END = 500;
 
-/** the super mountain: footprint radius and the height it adds to the ground under it */
+/** the super mountain: footprint radius, the summit height it is lifted to (the ordinary range tops out near 500) and the least it adds */
 const SUPER_RADIUS = 190;
-const SUPER_HEIGHT = 300;
+const SUPER_TOP = 560;
+const SUPER_MIN_ADD = 70;
 
 /** alm: flat meadow radius, the ease into the mountainside, and the height it is sought at (half the range) */
 const ALM_RADIUS = 65;
@@ -498,7 +499,7 @@ export class Scenery {
     }[] = [];
     /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
     /** where the super mountain stands (null on a static map) */
-    private superPeak: { x: number; z: number } | null = null;
+    private superPeak: { x: number; z: number; add: number } | null = null;
     private readonly almSites: { x: number; z: number; y: number; ux: number; uz: number }[] = [];
     private time = 0;
     private readonly cloudBoundsX: number;
@@ -764,9 +765,12 @@ export class Scenery {
                 const h = baseHeight(x, z);
                 if (h > bestH) {
                     bestH = h;
-                    this.superPeak = { x, z };
+                    this.superPeak = { x, z, add: 0 };
                 }
             }
+            // lift the summit to a fixed height a little above the range's own maximum (~500),
+            // whatever the ground under it is, and never less than a real rise
+            if (this.superPeak) this.superPeak.add = Math.max(SUPER_MIN_ADD, SUPER_TOP - bestH);
         }
         const superPeak = this.superPeak;
         const rawHeight: HeightSampler = (x, z) => {
@@ -778,8 +782,8 @@ export class Scenery {
                 if (w > 0) {
                     // a cusp-tipped cone (w^1.5 from sqrt, so it is exact everywhere), roughened by
                     // a crest noise so it is craggy and not a funnel
-                    const crag = 0.8 + 0.4 * noise(x / 34 + 3.3, z / 34 + 8.1);
-                    h += SUPER_HEIGHT * w * Math.sqrt(w) * crag;
+                    const crag = 0.92 + 0.16 * noise(x / 34 + 3.3, z / 34 + 8.1);
+                    h += superPeak.add * w * Math.sqrt(w) * crag;
                 }
             }
             return h;
