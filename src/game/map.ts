@@ -1694,7 +1694,26 @@ export class BattleMap {
                 '\tfloat snowMask = smoothstep( snowLine - 40.0, snowLine + 15.0, 0.0 );\n' +
                 SNOW_SLOPE_HOLD_GLSL +
                 '\tsnowMask *= snowSlopeHold;\n' +
-                `\tdiffuseColor.rgb = mix( diffuseColor.rgb, ${LAWN_SNOW_COLOR_GLSL}, snowMask * 0.82 );\n`;
+                // A live fire melts the snow back: its own footprint plus a soft ring around
+                // it (4 taps a few units out), so the edge thaws while it burns. The mask is
+                // redrawn from the live fire cells, so the snow returns when the fire is out
+                // — what stays is the burnt scar (wear layer), which fades with the rounds.
+                '\tfloat snowRaw = snowMask;\n' +
+                '\tfloat fireMelt = 0.0;\n' +
+                '\tif ( uSnowCover > 0.02 ) {\n' +
+                '\t\tvec2 meltPx = vec2( 3.2 ) / ( 2.0 * uBoardHalf );\n' +
+                '\t\tfloat mg0 = texture2D( uHazardMask, vMacroUv ).g;\n' +
+                '\t\tfloat mg1 = texture2D( uHazardMask, vMacroUv + vec2( meltPx.x, 0.0 ) ).g;\n' +
+                '\t\tfloat mg2 = texture2D( uHazardMask, vMacroUv - vec2( meltPx.x, 0.0 ) ).g;\n' +
+                '\t\tfloat mg3 = texture2D( uHazardMask, vMacroUv + vec2( 0.0, meltPx.y ) ).g;\n' +
+                '\t\tfloat mg4 = texture2D( uHazardMask, vMacroUv - vec2( 0.0, meltPx.y ) ).g;\n' +
+                '\t\tfloat mgRing = ( mg1 + mg2 + mg3 + mg4 ) * 0.25;\n' +
+                '\t\tfireMelt = smoothstep( 0.05, 0.42, max( mg0, mgRing * 1.3 ) );\n' +
+                '\t}\n' +
+                '\tsnowMask *= 1.0 - fireMelt;\n' +
+                `\tdiffuseColor.rgb = mix( diffuseColor.rgb, ${LAWN_SNOW_COLOR_GLSL}, snowMask * 0.82 );\n` +
+                // wet, dark ground where the snow has just gone
+                '\tdiffuseColor.rgb *= 1.0 - 0.22 * fireMelt * snowRaw;\n';
             if (sand && sandMask) {
                 shader.uniforms.uSandMask = { value: sandMask };
                 extraUniforms += 'uniform sampler2D uSandMask;\n';
@@ -1706,7 +1725,7 @@ export class BattleMap {
                     '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
                     '\tfloat sandLum = preSnowLum;\n' +
                     '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
-                    '\tfloat scorchM = smoothstep(0.04, 0.34, wear.b);\n' +
+                    '\tfloat scorchM = mix( smoothstep(0.04, 0.34, wear.b), smoothstep(0.015, 0.14, wear.b), snowRaw );\n' +
                     '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
                     '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
                     // Soft organic ash (no floor-grid — that read as pixels).
@@ -1714,11 +1733,11 @@ export class BattleMap {
                     '\tfloat ashB = fract( sin( dot( vMapUv * 29.0, vec2( 269.5, 183.3 ) ) ) * 43758.5453 );\n' +
                     '\tfloat ashC = fract( sin( dot( vMapUv * 7.3 + ashA, vec2( 91.7, 53.1 ) ) ) * 43758.5453 );\n' +
                     '\tfloat ashBreak = clamp( ashA * 0.35 + ashB * 0.4 + ashC * 0.25, 0.0, 1.0 );\n' +
-                    '\tfloat scorchFill = scorchM * mix( 0.72, 1.0, ashBreak ) * 0.58;\n' +
+                    '\tfloat scorchFill = scorchM * mix( 0.72, 1.0, ashBreak ) * mix( 0.58, 0.97, snowRaw );\n' +
                     // Burnt ground reads as earth, not a black hole: light scorch is the dirt
                     // browned and dulled (singed grass), heavy scorch goes dark with charcoal flecks.
                     '\tvec3 charCol = vec3( 0.012, 0.009, 0.007 );\n' +
-                    '\tvec3 singed = mix( sandTexel * vec3( 0.46, 0.37, 0.28 ), diffuseColor.rgb * vec3( 0.38, 0.31, 0.24 ), 0.25 );\n' +
+                    '\tvec3 singed = mix( sandTexel * vec3( 0.46, 0.37, 0.28 ), diffuseColor.rgb * vec3( 0.38, 0.31, 0.24 ), 0.25 * ( 1.0 - snowRaw ) );\n' +
                     '\tvec3 burntDark = mix( sandTexel * vec3( 0.21, 0.165, 0.13 ), charCol, smoothstep( 0.30, 0.75, ashBreak ) );\n' +
                     '\tfloat burnDeep = smoothstep( 0.22, 0.80, wear.b );\n' +
                     '\tvec3 burnCol = mix( singed, burntDark, burnDeep );\n' +
@@ -1778,7 +1797,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v66${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
+            `ground-hazard-v67${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones4' : ''}`;
     }
