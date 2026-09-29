@@ -20,6 +20,8 @@ export interface BlobShadowSource {
 
 const MAX_BLOBS = 2048;
 const MAX_TREE_BLOBS = 6144;
+/** how often the footprints follow a moving sun */
+const RELAYOUT_EVERY_MS = 400;
 const _dummy = new Object3D();
 const _normal = new Vector3();
 const _up = new Vector3(0, 1, 0);
@@ -123,6 +125,8 @@ export class BillboardTreeShadows {
     private readonly parent: Obj3D;
     private readonly softMap = softBlobTexture();
     private lastKey = '';
+    /** when the footprints were last laid out (performance.now ms) */
+    private lastLayoutAt = -Infinity;
 
     constructor(parent: Obj3D) {
         this.parent = parent;
@@ -133,6 +137,15 @@ export class BillboardTreeShadows {
         const r2 = radius * radius;
         const kept = this.sources.filter((s) => (s.x - cx) ** 2 + (s.z - cz) ** 2 > r2);
         if (kept.length !== this.sources.length) this.setSources(kept);
+    }
+
+    /** true when any footprint lies in (or its stretched ellipse reaches into) this world rectangle */
+    touches(area: { minX: number; maxX: number; minZ: number; maxZ: number }): boolean {
+        for (const s of this.sources) {
+            const r = s.radius * 3;
+            if (s.x + r >= area.minX && s.x - r <= area.maxX && s.z + r >= area.minZ && s.z - r <= area.maxZ) return true;
+        }
+        return false;
     }
 
     /** the ground under the footprints changed: lay them out again on the next update */
@@ -174,7 +187,14 @@ export class BillboardTreeShadows {
 
         const key = `${_sun.x.toFixed(1)},${_sun.y.toFixed(1)},${_sun.z.toFixed(1)},${day.toFixed(2)}`;
         if (key === this.lastKey) return;
+        // A weather change eases the sun over a minute or more, so the key changes on nearly
+        // every frame of it — and a layout samples the ground five times per footprint (thousands
+        // of footprints). Follow the sun a few times a second instead; a forced relayout
+        // (invalidate, new sources) still runs at once.
+        const now = performance.now();
+        if (this.lastKey !== '' && now - this.lastLayoutAt < RELAYOUT_EVERY_MS) return;
         this.lastKey = key;
+        this.lastLayoutAt = now;
 
         // Cast direction on the ground = opposite of sun's horizontal bearing
         let castX = 0;

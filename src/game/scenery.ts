@@ -2750,6 +2750,9 @@ export class Scenery {
         // the tree shadows only need rebuilding if a tree actually moved (a change on the
         // board's bare ground moves none of the forest)
         if (!anyMoved && area) return;
+        // (the footprints are the billboard trees outside the board: a change on the board
+        // almost never reaches them, and a relayout samples the ground thousands of times)
+        if (area && !this.treeShadows.touches(area)) return;
         this.treeShadows.invalidate();
         if (this.sunLight) this.treeShadows.update(this.sunLight.position, this.sunLight.intensity);
     }
