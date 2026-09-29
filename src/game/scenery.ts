@@ -246,7 +246,7 @@ const WATER_SKY_POWER = '3.0';
 /** how much of the fresnel-weighted sky replaces the water colour (1 = fully) */
 const WATER_SKY_STRENGTH = '0.85';
 /** high keeps a denser surface than ultra: its sky reflection is flat colour, not a picture */
-const WATER_HIGH_OPACITY = 0.72;
+const WATER_HIGH_OPACITY = 0.3;
 /** ultra gloss: tighter than the other tiers, so the sun path breaks into sparkle */
 const WATER_ULTRA_ROUGHNESS = 0.12;
 /** surface opacity before fresnel: lower = more of the lake bed shows through */
