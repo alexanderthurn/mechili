@@ -3407,7 +3407,10 @@ export class BattleSim {
 
     /** announce falling drips, then stamp each disc on impact (wards block) */
     private stepHazardDrips(): void {
-        const shields = livingShieldDisks(this.actors.map((a) => a.unit));
+        if (this.drips.length === 0) return;
+        // The wards, taken once per step before the first drip lands (nothing changes before
+        // that): building the list every step allocated for every actor even with no drip due.
+        let shieldList: ReturnType<typeof livingShieldDisks> | null = null;
         for (const d of this.drips) {
             if (!d.announced && this.elapsed >= d.fallStart) {
                 d.announced = true;
@@ -3425,6 +3428,7 @@ export class BattleSim {
             }
             if (d.stamped || this.elapsed < d.landAt) continue;
             d.stamped = true;
+            const shields = (shieldList ??= livingShieldDisks(this.actors.map((a) => a.unit)));
             if (d.kind === 'oil') {
                 this.hazards.stampOil(d.x, d.z, d.radius, d.expiresRound, shields, this.elapsed);
             } else if (d.kind === 'acid') {
@@ -3455,6 +3459,10 @@ export class BattleSim {
                 }
             }
         }
+        // a landed drip is done (it was announced before it landed): drop it, keeping the order
+        let keep = 0;
+        for (const d of this.drips) if (!d.stamped) this.drips[keep++] = d;
+        this.drips.length = keep;
     }
 
     /** dragon breath: stamp overlapping fire circles along the capsule spine */
