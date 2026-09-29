@@ -988,11 +988,14 @@ const MELEE_PRESS_BAND = 0.07;
 /** Acid drips dig the board: bowl radius (× the drip's), depth per drip, and the lowest they may dig. */
 const ACID_MELT_RADIUS_MULT = 0.5;
 /** total depth one drip digs, and the seconds it takes to sink that far */
-const ACID_MELT_DEPTH = 1.2;
-const ACID_MELT_SECONDS = 3.2;
+const ACID_MELT_DEPTH = 12;
+const ACID_MELT_SECONDS = 4;
 const ACID_MELT_FLOOR = -1.0;
-/** no digging within this of a building's edge (world units) */
-const ACID_MELT_STRUCTURE_MARGIN = 6;
+/**
+ * No digging within this of a building's edge (world units), measured from the bowl's rim.
+ * The bowl reaches nothing past its radius, so a small margin is enough.
+ */
+const ACID_MELT_STRUCTURE_MARGIN = 1.5;
 /**
  * Slack on the reach check when a queued attack lands ({@link
  * Sim.resolveAttackPending}): a foe that edged out during the windup still
