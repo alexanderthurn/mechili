@@ -193,12 +193,12 @@ export function makeValueNoise(seed: number): (x: number, y: number) => number {
 
 /** how far a building pad blends into the surrounding shape (wu) */
 /**
- * How much stain weight an acid puddle cell adds (rim, core). The ground shows a stain from a
- * total weight of about 0.08 (fully from 0.35), and neighbouring cells overlap and add up, so
- * these are small: at 0.0075 / 0.01 only the densest middle of a field shows, and faintly.
+ * The strongest acid stain can get (rim, core), as a stain weight. Overlapping puddle cells do
+ * NOT add up (see stampAcidWear), so this is the whole strength. The ground shows a stain from a
+ * weight of about 0.08 and fully from 0.35: at 0.11 / 0.14 the core is ~13% visible, the rim ~3%.
  */
-const ACID_STAIN_RIM = 0.0075;
-const ACID_STAIN_CORE = 0.01;
+const ACID_STAIN_RIM = 0.11;
+const ACID_STAIN_CORE = 0.14;
 
 const PAD_BLEND = 10;
 /** Highlands: plateau height and mean radius around each Stronghold (wu) */
@@ -1256,14 +1256,30 @@ export class BattleMap {
         this.sandDirty = true;
     }
 
-    /** one faint disc of stain weight (the wear layer's G channel), below the usual alpha floor */
-    private stampAcidWear(x: number, z: number, radius: number, strength: number): void {
+    /**
+     * One disc of acid stain in the wear layer's G channel, at most `level` strong. Drawn with
+     * `lighten` (per-channel max) instead of the usual add-up, so any number of overlapping
+     * puddle cells — a big spill, a cluster of dwarf deaths — leaves the same faint stain and
+     * never a strong one. Only G is touched (the disc's other channels are 0), and blood that
+     * is already there stays as it is.
+     */
+    private stampAcidWear(x: number, z: number, radius: number, level: number): void {
         const ctx = this.sandCtx;
         if (!ctx || !this.sandMask) return;
         const cx = ((x + this.halfW) / this.width) * this.sandW;
         const cy = ((z + this.halfH) / this.height) * this.sandH;
         const r = Math.max(0.5, radius) * (this.sandW / this.width);
-        this.drawWearBlob(ctx, cx, cy, r, strength, 'g', 0.001);
+        const g = Math.round(Math.min(1, Math.max(0, level)) * 255);
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        grad.addColorStop(0, `rgba(0,${g},0,1)`);
+        grad.addColorStop(1, `rgba(0,${g},0,0)`);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighten';
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
         this.sandDirty = true;
     }
 
