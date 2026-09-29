@@ -2230,8 +2230,9 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         // dark slate and a little stronger, and the coloured zone edges get more weight.
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uSnow = this.overlaySnowUniform;
+            shader.uniforms.uOvTexel = { value: new Vector2(1 / w, 1 / h) };
             shader.fragmentShader =
-                'uniform float uSnow;\n' +
+                'uniform float uSnow;\nuniform vec2 uOvTexel;\n' +
                 shader.fragmentShader.replace(
                     '#include <map_fragment>',
                     `#include <map_fragment>
@@ -2239,14 +2240,32 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
 		// the same snow test the ground uses, so the lines change exactly when the ground goes white
 		float ovLine = mix( 220.0, -15.0, uSnow );
 		float ovSnow = smoothstep( ovLine - 40.0, ovLine + 15.0, 0.0 );
-		float ovWhite = smoothstep( 0.82, 1.0, min( min( diffuseColor.r, diffuseColor.g ), diffuseColor.b ) );
-		diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.13, 0.19, 0.29 ), ovWhite * ovSnow );
-		diffuseColor.rgb *= mix( 1.0, 0.68, ( 1.0 - ovWhite ) * ovSnow );
-		diffuseColor.a = min( 1.0, diffuseColor.a * mix( 1.0, mix( 1.5, 3.0, ovWhite ), ovSnow ) );
+		if ( ovSnow > 0.01 ) {
+			float w0 = smoothstep( 0.82, 1.0, min( min( diffuseColor.r, diffuseColor.g ), diffuseColor.b ) );
+			// the white lines are hair-thin (and mip-mapped thinner still at a distance):
+			// take the strongest white neighbour, so on snow they draw about three times as wide
+			vec2 tx = uOvTexel * 1.5;
+			vec4 n1 = texture2D( map, vMapUv + vec2( tx.x, 0.0 ) );
+			vec4 n2 = texture2D( map, vMapUv - vec2( tx.x, 0.0 ) );
+			vec4 n3 = texture2D( map, vMapUv + vec2( 0.0, tx.y ) );
+			vec4 n4 = texture2D( map, vMapUv - vec2( 0.0, tx.y ) );
+			float lineA = diffuseColor.a * w0;
+			lineA = max( lineA, n1.a * step( 0.82, min( min( n1.r, n1.g ), n1.b ) ) );
+			lineA = max( lineA, n2.a * step( 0.82, min( min( n2.r, n2.g ), n2.b ) ) );
+			lineA = max( lineA, n3.a * step( 0.82, min( min( n3.r, n3.g ), n3.b ) ) );
+			lineA = max( lineA, n4.a * step( 0.82, min( min( n4.r, n4.g ), n4.b ) ) );
+			float coloured = diffuseColor.a * ( 1.0 - w0 );
+			float lineFrac = lineA / max( lineA + coloured, 1e-4 );
+			vec3 slate = vec3( 0.10, 0.16, 0.26 );
+			vec3 colouredCol = diffuseColor.rgb * 0.68;
+			diffuseColor.rgb = mix( mix( diffuseColor.rgb, colouredCol, ovSnow ), slate, lineFrac * ovSnow );
+			float snowA = max( coloured * 1.5, clamp( lineA * 5.0, 0.0, 0.9 ) );
+			diffuseColor.a = mix( diffuseColor.a, snowA, ovSnow );
+		}
 	}`,
                 );
         };
-        material.customProgramCacheKey = () => 'deploy-overlay-snow-v1';
+        material.customProgramCacheKey = () => 'deploy-overlay-snow-v2';
         const mesh = new Mesh(geometry, material);
         mesh.position.y = 0.02;
         return mesh;
