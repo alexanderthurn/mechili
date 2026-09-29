@@ -9,7 +9,6 @@ import {
     MeshLambertMaterial,
     MeshNormalMaterial,
     PCFShadowMap,
-    PCFSoftShadowMap,
     PMREMGenerator,
     Scene,
     SRGBColorSpace,
@@ -2821,10 +2820,14 @@ export class Game {
         this.shadowMapFrame = 0;
 
         if (useMap) {
-            // Medium: PCF (cheap 3×3) — BasicShadowMap turned wall acne into
-            // crawling zebra stripes as the sun lerped. High/ultra keep soft PCF.
-            const type: ShadowMapType =
-                tier === 'medium' ? PCFShadowMap : PCFSoftShadowMap;
+            // PCF at every tier (BasicShadowMap turned wall acne into crawling
+            // zebra stripes as the sun lerped). High/ultra soften it through
+            // shadow.radius below. Never PCFSoftShadowMap: three 0.185 only
+            // swaps it for PCF inside its shadow pass, so any shader compiled
+            // before that pass (the water mirror, a material recompile after a
+            // prefs change) got the wrong shadow sampling and threw
+            // GL_INVALID_OPERATION "texture format and sampler type mismatch".
+            const type: ShadowMapType = PCFShadowMap;
             this.renderer.shadowMap.type = type;
 
             const res = shadowMapSize(tier, scenery);
