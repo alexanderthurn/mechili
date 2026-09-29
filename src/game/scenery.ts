@@ -3,7 +3,6 @@ import {
     BackSide,
     Box3,
     BufferAttribute,
-    BufferGeometry,
     CanvasTexture,
     CircleGeometry,
     ConeGeometry,
@@ -240,65 +239,6 @@ export const MOUNTAIN_PEAK_END = 500;
 const SUPER_RADIUS = 190;
 const SUPER_TOP = 380;
 const SUPER_MIN_ADD = 10;
-
-/**
- * The stream: a channel carved from the mountain foot into one lake. `w` is its water surface
- * along the course (never rising downstream), `hf` the half-width of its floor.
- */
-interface StreamPlan {
-    pts: { x: number; z: number }[];
-    w: number[];
-    hf: number[];
-    minX: number;
-    maxX: number;
-    minZ: number;
-    maxZ: number;
-}
-/** channel: floor this far below the water, banks rising at this slope (rise over run) */
-const STREAM_DEPTH = 1.2;
-const STREAM_BANK = 0.45;
-/** spacing of the course points */
-const STREAM_STEP = 6;
-
-/** half-width of the water surface where the floor is `hf` wide */
-function streamSurfaceHalf(hf: number): number {
-    return hf + STREAM_DEPTH / STREAM_BANK;
-}
-
-/**
- * The nearest point of the stream's course to (x, z): distance `d` from it, and the surface and
- * floor half-width there. Null when (x, z) is nowhere near. Plain arithmetic (the channel is part
- * of the gameplay-visible height), so it matches on every machine.
- */
-function streamNearest(p: StreamPlan, x: number, z: number, margin: number): { d: number; w: number; hf: number; i: number } | null {
-    if (x < p.minX - margin || x > p.maxX + margin || z < p.minZ - margin || z > p.maxZ + margin) return null;
-    let best: { d: number; w: number; hf: number; i: number } | null = null;
-    let bestD2 = margin * margin;
-    for (let i = 0; i < p.pts.length - 1; i++) {
-        const a = p.pts[i]!;
-        const b = p.pts[i + 1]!;
-        const sx = b.x - a.x;
-        const sz = b.z - a.z;
-        const len2 = sx * sx + sz * sz || 1;
-        let t = ((x - a.x) * sx + (z - a.z) * sz) / len2;
-        t = t < 0 ? 0 : t > 1 ? 1 : t;
-        const dx = x - (a.x + sx * t);
-        const dz = z - (a.z + sz * t);
-        const d2 = dx * dx + dz * dz;
-        if (d2 >= bestD2) continue;
-        bestD2 = d2;
-        best = {
-            d: Math.sqrt(d2),
-            w: p.w[i]! + (p.w[i + 1]! - p.w[i]!) * t,
-            hf: p.hf[i]! + (p.hf[i + 1]! - p.hf[i]!) * t,
-            i,
-        };
-    }
-    return best;
-}
-
-/** the colour of the stream's water, and of its ice */
-const STREAM_WATER = new Color(0x4d88ad);
 
 /** alm: flat meadow radius, the ease into the mountainside, and the height it is sought at (half the range) */
 const ALM_RADIUS = 65;
@@ -558,10 +498,6 @@ export class Scenery {
         cap: { sprite: Sprite; material: SpriteMaterial; angle: number; radius: number; height: number; spin: number; size: number; rank: number }[];
     }[] = [];
     /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
-    /** the stream running into one of the lakes (null on a static map, or when none fits) */
-    private stream: StreamPlan | null = null;
-    private streamFlow: CanvasTexture | null = null;
-    private streamMaterial: MeshLambertMaterial | null = null;
     /** where the super mountain stands (null on a static map) */
     private superPeak: { x: number; z: number; add: number } | null = null;
     private readonly almSites: { x: number; z: number; y: number; ux: number; uz: number }[] = [];
@@ -914,29 +850,9 @@ export class Scenery {
             }
             return h;
         };
-        // The stream: one channel from the mountain foot into a lake (seed-chosen, so the same on
-        // every peer). Carved into the height, with low banks built up where the ground beside it
-        // would sit under its water.
-        if (!landscape) this.stream = this.planStream(map, seed, lakeSites, proceduralHeight);
-        const stream = this.stream;
-        const streamedHeight: HeightSampler = (x, z) => {
-            let h = proceduralHeight(x, z);
-            if (!stream) return h;
-            const q = streamNearest(stream, x, z, 22);
-            if (!q) return h;
-            const surf = streamSurfaceHalf(q.hf);
-            // banks: never lower than the water beside it (only where it runs above the lake level)
-            const above = smooth01((q.w - WATER_LEVEL_Y - 0.05) / 0.4);
-            const bank = (1 - smooth01((q.d - surf - 3) / 5)) * above;
-            if (h < q.w + 0.3) h += (q.w + 0.3 - h) * bank;
-            // the channel itself: a flat floor and sloped banks, only ever cut
-            const target = q.w - STREAM_DEPTH + Math.max(0, q.d - q.hf) * STREAM_BANK;
-            if (target < h) h = target;
-            return h;
-        };
         // a static map replaces the procedural ring outright — placement,
         // paint and the gameplay height below all read the same surface
-        this.terrainHeight = landscape ? landscapeOuterSampler(landscape) : streamedHeight;
+        this.terrainHeight = landscape ? landscapeOuterSampler(landscape) : proceduralHeight;
         const boardAtBuild = map.reliefSampler();
         this.buildGround = (x, z) => boardAtBuild(x, z) + this.terrainHeight(x, z);
 
@@ -965,7 +881,6 @@ export class Scenery {
         if (this.detailed) {
             this.group.add(this.createWater());
             this.createLakeDetails(rng);
-            this.createStreamWater();
             this.createForest(map, rng);
             this.createMeadowDetails(map, rng);
         } else if (this.quality === 'low') {
@@ -1026,209 +941,6 @@ export class Scenery {
             this.group.add(mesh);
             placed++;
         }
-    }
-
-    /**
-     * Pick the stream's course: from the foot of the mountains, winding across the meadow into
-     * one of the lakes. Many candidates (lake, direction, length, meander) are tried; the one that
-     * needs the least digging through hills and the least bank building wins. The water surface
-     * runs from the source down to the lake level and never rises.
-     */
-    private planStream(
-        map: BattleMap,
-        seed: number,
-        lakes: readonly { x: number; z: number; r: number }[],
-        ground: HeightSampler,
-    ): StreamPlan | null {
-        if (lakes.length === 0) return null;
-        const rng = mulberry32((seed ^ 0x2b7e15) >>> 0);
-        let best: { plan: StreamPlan; cost: number } | null = null;
-        for (let attempt = 0; attempt < 160; attempt++) {
-            const lake = lakes[Math.floor(rng() * lakes.length)]!;
-            const cl = Math.sqrt(lake.x * lake.x + lake.z * lake.z) || 1;
-            // away from the board, turned a little either way
-            const turn = (rng() * 2 - 1) * 1.0;
-            const ox = lake.x / cl;
-            const oz = lake.z / cl;
-            const dx = ox * Math.cos(turn) - oz * Math.sin(turn);
-            const dz = ox * Math.sin(turn) + oz * Math.cos(turn);
-            const length = 120 + rng() * 100;
-            const sx = lake.x + dx * (lake.r + length);
-            const sz = lake.z + dz * (lake.r + length);
-            const mx = lake.x + dx * lake.r * 0.45;
-            const mz = lake.z + dz * lake.r * 0.45;
-            const sourceOut = pastBoard(map.halfW, map.halfH, sx, sz);
-            if (sourceOut < 110 || sourceOut > 330) continue;
-            const gs = ground(sx, sz);
-            if (gs < 6 || gs > 75) continue;
-            // meander: a sine across the course, calm at both ends
-            const amp = 7 + rng() * 11;
-            const wave = 55 + rng() * 35;
-            const phase = rng() * 6.2832;
-            const run = Math.sqrt((mx - sx) ** 2 + (mz - sz) ** 2);
-            const n = Math.max(4, Math.ceil(run / STREAM_STEP));
-            const px = -(mz - sz) / run;
-            const pz = (mx - sx) / run;
-            const pts: { x: number; z: number }[] = [];
-            let ok = true;
-            for (let i = 0; i <= n && ok; i++) {
-                const t = i / n;
-                const env = Math.sin(Math.PI * t);
-                const off = amp * env * Math.sin((t * run) / wave * 6.2832 + phase);
-                const x = sx + (mx - sx) * t + px * off;
-                const z = sz + (mz - sz) * t + pz * off;
-                if (pastBoard(map.halfW, map.halfH, x, z) < 30) ok = false;
-                // no other lake on the way
-                for (const o of lakes) {
-                    if (o === lake) continue;
-                    if ((o.x - x) ** 2 + (o.z - z) ** 2 < (o.r * 1.5 + 12) ** 2) ok = false;
-                }
-                if (this.almSites.some((a) => (a.x - x) ** 2 + (a.z - z) ** 2 < (ALM_RADIUS + ALM_EASE + 25) ** 2)) ok = false;
-                pts.push({ x, z });
-            }
-            if (!ok) continue;
-            // the water surface: follows the ground down, never rises, stops at the lake level
-            const w: number[] = [];
-            const hf: number[] = [];
-            let cost = 0;
-            let level = Infinity;
-            for (let i = 0; i < pts.length; i++) {
-                const t = i / (pts.length - 1);
-                const g = ground(pts[i]!.x, pts[i]!.z);
-                level = Math.min(level, g - 0.6);
-                const wi = Math.max(WATER_LEVEL_Y, level);
-                w.push(wi);
-                const s = i * STREAM_STEP;
-                const hfi = 0.6 + (3.4 + 4.5 * t) * smooth01(s / 30);
-                hf.push(hfi);
-                // digging through a hill
-                cost += Math.max(0, g - 0.6 - wi);
-                // bank building beside it
-                const a = pts[Math.max(0, i - 1)]!;
-                const b = pts[Math.min(pts.length - 1, i + 1)]!;
-                const tl = Math.sqrt((b.x - a.x) ** 2 + (b.z - a.z) ** 2) || 1;
-                const nx = -(b.z - a.z) / tl;
-                const nz = (b.x - a.x) / tl;
-                const side = streamSurfaceHalf(hfi) + 4;
-                if (wi > WATER_LEVEL_Y + 0.05) {
-                    for (const sg of [-1, 1]) {
-                        const gSide = ground(pts[i]!.x + nx * side * sg, pts[i]!.z + nz * side * sg);
-                        cost += Math.max(0, wi + 0.3 - gSide) * 2;
-                    }
-                }
-            }
-            // it must run a good way above the lake before it gets there
-            const dry = w.filter((wi) => wi > WATER_LEVEL_Y + 0.05).length * STREAM_STEP;
-            if (dry < 80) continue;
-            cost = cost / pts.length - dry * 0.004;
-            if (best && cost >= best.cost) continue;
-            let minX = Infinity;
-            let maxX = -Infinity;
-            let minZ = Infinity;
-            let maxZ = -Infinity;
-            for (const pt of pts) {
-                minX = Math.min(minX, pt.x);
-                maxX = Math.max(maxX, pt.x);
-                minZ = Math.min(minZ, pt.z);
-                maxZ = Math.max(maxZ, pt.z);
-            }
-            best = { plan: { pts, w, hf, minX, maxX, minZ, maxZ }, cost };
-        }
-        return best?.plan ?? null;
-    }
-
-    /**
-     * The stream's water: a flat-across ribbon at the water surface from the source down to where
-     * it meets the lake, flow streaks running toward the lake. It reaches a little under the banks,
-     * so the ground draws its shoreline; it fades in at the source and out into the lake.
-     */
-    private createStreamWater(): void {
-        const plan = this.stream;
-        if (!plan) return;
-        const canvas = document.createElement('canvas');
-        canvas.width = 32;
-        canvas.height = 128;
-        const ctx = canvas.getContext('2d')!;
-        const img = ctx.createImageData(32, 128);
-        const hash = (a: number, b: number) => {
-            const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
-            return v - Math.floor(v);
-        };
-        for (let x = 0; x < 32; x++) {
-            const k = 2 + Math.floor(hash(x >> 2, 1) * 4);
-            const phase = hash(x >> 2, 2) * 6.2832;
-            for (let y = 0; y < 128; y++) {
-                const streak = Math.pow(Math.max(0, Math.sin((y / 128) * 6.2832 * k + phase)), 8);
-                const glint = 0.9 + 0.1 * hash(x, y);
-                const i = (y * 32 + x) * 4;
-                const v = (0.78 + 0.22 * streak) * glint * 255;
-                img.data[i] = v;
-                img.data[i + 1] = v;
-                img.data[i + 2] = v;
-                img.data[i + 3] = Math.round(255 * (0.82 + 0.16 * streak));
-            }
-        }
-        ctx.putImageData(img, 0, 0);
-        const tex = new CanvasTexture(canvas);
-        tex.colorSpace = SRGBColorSpace;
-        tex.wrapT = RepeatWrapping;
-        this.streamFlow = tex;
-        const material = new MeshLambertMaterial({
-            map: tex,
-            color: STREAM_WATER,
-            transparent: true,
-            depthWrite: false,
-            vertexColors: true,
-            side: DoubleSide,
-        });
-        this.streamMaterial = material;
-
-        // up to (and a little past) the point where it reaches the lake level
-        let end = plan.pts.length - 1;
-        for (let i = 0; i < plan.pts.length; i++) {
-            if (plan.w[i]! <= WATER_LEVEL_Y + 0.02) {
-                end = Math.min(plan.pts.length - 1, i + 2);
-                break;
-            }
-        }
-        const COLS = 5;
-        const pos: number[] = [];
-        const uv: number[] = [];
-        const col: number[] = [];
-        const nor: number[] = [];
-        const idx: number[] = [];
-        const total = end * STREAM_STEP;
-        for (let i = 0; i <= end; i++) {
-            const a = plan.pts[Math.max(0, i - 1)]!;
-            const b = plan.pts[Math.min(plan.pts.length - 1, i + 1)]!;
-            const tl = Math.sqrt((b.x - a.x) ** 2 + (b.z - a.z) ** 2) || 1;
-            const nx = -(b.z - a.z) / tl;
-            const nz = (b.x - a.x) / tl;
-            const half = streamSurfaceHalf(plan.hf[i]!) + 0.6;
-            const s = i * STREAM_STEP;
-            const alpha = smooth01(s / 14) * (1 - smooth01((s - (total - 16)) / 16));
-            for (let j = 0; j < COLS; j++) {
-                const k = (j / (COLS - 1)) * 2 - 1;
-                pos.push(plan.pts[i]!.x + nx * half * k, plan.w[i]! + 0.03, plan.pts[i]!.z + nz * half * k);
-                uv.push(j / (COLS - 1), s / 18);
-                col.push(1, 1, 1, alpha);
-                nor.push(0, 1, 0);
-            }
-            if (i > 0) {
-                const r0 = (i - 1) * COLS;
-                const r1 = i * COLS;
-                for (let j = 0; j < COLS - 1; j++) idx.push(r0 + j, r1 + j, r0 + j + 1, r0 + j + 1, r1 + j, r1 + j + 1);
-            }
-        }
-        const geometry = new BufferGeometry();
-        geometry.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-        geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
-        geometry.setAttribute('color', new BufferAttribute(new Float32Array(col), 4));
-        geometry.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
-        geometry.setIndex(idx);
-        const mesh = new Mesh(geometry, material);
-        mesh.renderOrder = 1;
-        this.group.add(mesh);
     }
 
     /**
@@ -1857,14 +1569,6 @@ export class Scenery {
             }
         }
         this.updateSummitClouds();
-        if (this.streamMaterial && this.streamFlow) {
-            // runs toward the lake; freezes with the lakes (the same snow-line gate)
-            const cover = this.groundSnowCover;
-            const snowLine = 220 - (220 - -15) * cover;
-            const freeze = Math.min(1, Math.max(0, (0 - (snowLine - 40)) / 55));
-            this.streamFlow.offset.y -= dtSeconds * 0.45 * (1 - freeze);
-            this.streamMaterial.color.copy(STREAM_WATER).lerp(FLAT_WATER_ICE, freeze);
-        }
         // low: the flat water freezes by colour alone (there is no ice texture)
         if (this.flatWaterMaterial) {
             const cover = this.groundSnowCover;
@@ -2731,16 +2435,6 @@ export class Scenery {
             const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
             const boardFade = smooth01((dOut - 15) / 25);
             beach[i] = Math.min(1, patch) * boardFade;
-            if (this.stream) {
-                // gravel along the stream's banks, and a fan of it where it runs into the lake
-                const q = streamNearest(this.stream, x, z, 26);
-                if (q) {
-                    const surf = streamSurfaceHalf(q.hf);
-                    const mouth = smooth01((q.i / (this.stream.pts.length - 1) - 0.7) / 0.3);
-                    const reach = surf + 2 + mouth * 9;
-                    beach[i] = Math.max(beach[i]!, (0.55 + 0.3 * mouth) * (1 - smooth01((q.d - reach) / 4)));
-                }
-            }
             // a static map paints its own beach; only the procedural lakes get this
             shoreLake[i] = this.landscape ? 0 : shoreW * boardFade;
             scree[i] = this.screeAccumAt(x, z, h);
@@ -2763,12 +2457,7 @@ export class Scenery {
                 halfH: map.halfH,
                 noise: this.noise,
                 seed: this.seed,
-                keepOut: [
-                    ...this.almSites.map((site) => ({ x: site.x, z: site.z, r: ALM_RADIUS + ALM_EASE })),
-                    ...(this.stream?.pts ?? [])
-                        .filter((_, i) => i % 3 === 0)
-                        .map((pt) => ({ x: pt.x, z: pt.z, r: 30 })),
-                ],
+                keepOut: this.almSites.map((site) => ({ x: site.x, z: site.z, r: ALM_RADIUS + ALM_EASE })),
             });
         }
         pos.needsUpdate = true;
@@ -2873,10 +2562,6 @@ export class Scenery {
     }
 
     private plantClearedAt(x: number, z: number): boolean {
-        if (this.stream) {
-            const q = streamNearest(this.stream, x, z, 20);
-            if (q && q.d < streamSurfaceHalf(q.hf) + 4) return true;
-        }
         return pointInPlantClear(this.plantClears, x, z);
     }
 
