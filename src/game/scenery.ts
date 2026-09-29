@@ -249,15 +249,15 @@ const ALM_PEAK = 370;
 const ALM_TILT = 0.26;
 
 /**
- * The ground at (x, z) once a glacier basin is pressed into it: like an alm, a level-ish floor that
- * tilts toward the valley, but funnel-shaped — wide (~44 wu each side) at the head, narrowing to a
- * few wu at the outlet — with steep V walls left and right. The floor is cut where the mountain is
- * higher and built up where it falls away, and so are the walls. It eases back into the natural
- * ground past the walls and at the outlet lip, so the meltwater leaves over the edge. Plain arithmetic, so it matches
- * on every machine.
+ * The ground at (x, z) once a glacier basin is cut into it: a V-shaped trough pressed into the
+ * mountainside, funnel-shaped — wide (~44 wu each side) at the head, narrowing to a few wu at the
+ * outlet — with a level floor sunk below the mountain's own slope and steep walls left and right.
+ * It only ever cuts (nothing stands out of the mountain), and eases back into the natural ground
+ * past the walls and at the outlet lip, so the meltwater leaves over the edge. Plain arithmetic,
+ * so it matches on every machine.
  */
 function glacierShape(
-    c: { ax: number; az: number; ux: number; uz: number; len: number; y0: number },
+    c: { ax: number; az: number; ux: number; uz: number; len: number; y0: number; y1: number },
     x: number,
     z: number,
     h: number,
@@ -271,13 +271,14 @@ function glacierShape(
     const hw = glacierHalfWidth(tt);
     if (s >= hw + GLACIER_EASE) return h;
     const fh = hw * 0.5;
-    const floorY = c.y0 - GLACIER_TILT * c.len * tt;
+    // the floor runs down the mountain's own trend, sunk GLACIER_DEPTH below it (less toward the lip)
+    const floorY = c.y0 + (c.y1 - c.y0) * tt - GLACIER_DEPTH * (1 - 0.6 * tt);
     const target = floorY + GLACIER_WALL * (s > fh ? s - fh : 0);
-    // (blend toward the V-shaped surface, cutting or building as the ground needs; it eases back
-    // into the natural ground past the walls and along the lip at the outlet)
+    if (target >= h) return h;
+    // only ever cut: a V pressed into the mountainside, easing out past its walls and along the lip
     const eOut = 1 - smooth01((s - hw) / GLACIER_EASE);
     const end = smooth01(tt / 0.05) * (1 - smooth01((tt - 0.88) / 0.12));
-    return h + (target - h) * eOut * end;
+    return h - (h - target) * eOut * end;
 }
 
 /** half-width of a glacier basin at t (0 = head, 1 = outlet) */
@@ -287,8 +288,10 @@ function glacierHalfWidth(t: number): number {
 
 /** a glacier's length along its stream's course, and the step the course is traced in */
 const GLACIER_LENGTH = 130;
-/** how steeply the basin floor falls toward the valley, and the slope of its side walls (rise over run) */
-const GLACIER_TILT = 0.3;
+/** how deep the basin floor is sunk below the mountainside, and the slope of its side walls (rise over run) */
+const GLACIER_DEPTH = 18;
+/** the ice field lying in the basin (off for now) */
+const GLACIER_ICE = false;
 const GLACIER_WALL = 1.3;
 /** how far past its walls a glacier basin eases into the natural ground */
 const GLACIER_EASE = 26;
@@ -550,7 +553,7 @@ export class Scenery {
     /** ultra: the glaciers and the streams that run from them to a lake (see planGlaciers) */
     private glacierPlans: { path: { x: number; z: number }[]; snout: number }[] = [];
     /** the glacier valleys pressed into the ground: a V-shaped cirque from A (wide) to the outlet O (a few wu across) */
-    private readonly glacierCarves: { ax: number; az: number; ux: number; uz: number; len: number; y0: number }[] = [];
+    private readonly glacierCarves: { ax: number; az: number; ux: number; uz: number; len: number; y0: number; y1: number }[] = [];
     /** discs the mountain sculpt must leave alone so a glacier or stream keeps to its ground */
     private glacierKeepOut: { x: number; z: number; r: number }[] = [];
     private streamFlow: CanvasTexture | null = null;
@@ -1096,8 +1099,8 @@ export class Scenery {
         if (!best) return;
         // the basin runs from the head straight toward the board, floor tilting to the valley
         const len = GLACIER_LENGTH;
-        const carve = { ax: best.x, az: best.z, ux: bx, uz: bz, len, y0: best.h - 8 };
         const outlet = { x: best.x + bx * len, z: best.z + bz * len };
+        const carve = { ax: best.x, az: best.z, ux: bx, uz: bz, len, y0: best.h, y1: H(outlet.x, outlet.z) };
         // the meltwater leaves over the lip and runs down to the lake (a plan without a stream
         // still gets its basin)
         const path = this.traceMeltwater(outlet.x, outlet.z) ?? [outlet, outlet];
@@ -1316,9 +1319,11 @@ export class Scenery {
             const uvAttr = iceGeo.getAttribute('uv') as BufferAttribute;
             const vMax = N * stepLen * (1 / 14);
             for (let i = 0; i < uvAttr.count; i++) uvAttr.setY(i, uvAttr.getY(i) / Math.max(1e-6, vMax));
-            const iceMesh = new Mesh(iceGeo, iceMat);
-            iceMesh.renderOrder = 1;
-            this.group.add(iceMesh);
+            if (GLACIER_ICE) {
+                const iceMesh = new Mesh(iceGeo, iceMat);
+                iceMesh.renderOrder = 1;
+                this.group.add(iceMesh);
+            }
 
             // the meltwater: a very thin line from the outlet down to the lake, a little wider as it goes
             const stream = plan.path.slice(plan.snout);
