@@ -238,6 +238,9 @@ export const MOUNTAIN_PEAK_END = 500;
 /** World height of the water table: one flat plane, hidden wherever the ground is above it. */
 const WATER_LEVEL_Y = -1.1;
 // ---- ultra water: mirrored world + ripples (tune here) ----
+/** low water: one flat colour, and what it eases to when the lake freezes */
+const FLAT_WATER_COLOR = new Color(0x3f86bd);
+const FLAT_WATER_ICE = new Color(0xdde8ee);
 /** what the lake reeds fade toward under snow */
 const REED_FROST = new Color(0xe6ebe8);
 // ---- high water: analytic sky reflection (tune here) ----
@@ -338,11 +341,29 @@ uniform vec3 uSkyZenith;
 uniform vec3 uSkyMid;
 uniform vec3 uSkyHorizon;
 `;
-const WATER_RIPPLE_DECLS = `
-uniform float uWaterTime;
+/** the water depth image and the world position it is read at (medium, high, ultra) */
+const WATER_DEPTH_DECLS = `
 uniform sampler2D uLakeDepthTex;
 uniform float uLakeDepthSpan;
 varying vec3 vWaterWorld;
+`;
+/**
+ * Colour and clarity follow the water depth: pale green and clear over the
+ * shallows, deep blue and dense in the middle, melting into nothing at the
+ * shore (the foam lives there). One texture read.
+ */
+const WATER_DEPTH_SNIPPET = `
+	{
+		float wDepth = texture2D(uLakeDepthTex, (vWaterWorld.xz + uLakeDepthSpan) / (2.0 * uLakeDepthSpan)).r * 8.0;
+		float wDeepK = smoothstep(0.25, 5.0, wDepth);
+		float wThaw = 1.0 - smoothstep(0.0, 0.6, uFreeze);
+		vec3 wCol = mix(vec3(0.30, 0.58, 0.52), vec3(0.03, 0.16, 0.30), wDeepK);
+		diffuseColor.rgb = mix(diffuseColor.rgb, wCol, 0.78 * wThaw);
+		float wAlpha = mix(0.62, 1.35, wDeepK) * smoothstep(0.0, 0.30, wDepth);
+		diffuseColor.a *= mix(1.0, wAlpha, wThaw);
+	}`;
+const WATER_RIPPLE_DECLS = `
+uniform float uWaterTime;
 float wHash(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
 	p += dot(p, p + 45.32);
@@ -458,6 +479,8 @@ export class Scenery {
     /** drives the ripple normals of the ultra water (seconds) */
     private waterTimeUniform: { value: number } | null = null;
     private waterMesh: Mesh | null = null;
+    /** low: the one-colour water; its colour eases toward ice with the snow */
+    private flatWaterMaterial: MeshLambertMaterial | null = null;
     /** gloss of the unfrozen surface (ultra is tighter, so the sun path sparkles) */
     private waterRoughness = 0.18;
     /**
@@ -650,6 +673,9 @@ export class Scenery {
             this.createLakeDetails(rng);
             this.createForest(map, rng);
             this.createMeadowDetails(map, rng);
+        } else if (this.quality === 'low') {
+            // no decoration, but the lake basins are real ground: fill them
+            this.group.add(this.createFlatWater());
         }
         this.createCloudAssets(rng);
         if (this.detailed) this.createHorizonCloudMeshes(map, rng);
@@ -1021,6 +1047,14 @@ export class Scenery {
             f.mesh.position.x = f.baseX + Math.sin(this.time * f.speed + f.phase) * 8;
             f.mesh.visible = (this.forestFogMaterial?.opacity ?? 0) > 0.02;
         }
+        // low: the flat water freezes by colour alone (there is no ice texture)
+        if (this.flatWaterMaterial) {
+            const cover = this.groundSnowCover;
+            const snowLine = 220 - (220 - -15) * cover;
+            const freeze = Math.min(1, Math.max(0, (0 - (snowLine - 40)) / 55));
+            this.flatWaterMaterial.color.copy(FLAT_WATER_COLOR).lerp(FLAT_WATER_ICE, freeze);
+            this.flatWaterMaterial.opacity = 0.9 + freeze * 0.08;
+        }
         // slow ripple drift on the lakes — stops once mostly frozen
         if (this.waterTexture && (this.waterFreezeUniform?.value ?? 0) < 0.85) {
             const thaw = 1 - (this.waterFreezeUniform?.value ?? 0);
@@ -1109,14 +1143,17 @@ export class Scenery {
         // only, analytically, with no second render. The other tiers keep the
         // plain shader.
         const rich = this.quality === 'ultra' || this.quality === 'high';
+        // Medium: still matte and still, but it knows its depth — the colour and
+        // the soft shore, for one texture read
+        const lite = this.quality === 'medium';
         const reflection = this.quality === 'ultra' ? new WaterReflection(WATER_LEVEL_Y) : null;
         this.waterReflection = reflection;
-        this.lakeDepthUsed = rich;
+        this.lakeDepthUsed = rich || lite;
         const timeUniform = { value: 0 };
         this.waterTimeUniform = rich ? timeUniform : null;
         // one program per variant: the source differs, the function text does not
         material.customProgramCacheKey = () =>
-            reflection ? 'water-mirror' : rich ? 'water-sky' : 'water';
+            reflection ? 'water-mirror' : rich ? 'water-sky' : lite ? 'water-depth' : 'water';
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uFreeze = freezeUniform;
             shader.uniforms.uIce = iceUniform;
@@ -1183,24 +1220,13 @@ export class Scenery {
 	}`;
                 }
                 frag =
+                    WATER_DEPTH_DECLS +
                     WATER_RIPPLE_DECLS +
                     reflectDecls +
                     frag
-                        // colour and clarity follow the water depth: pale green and
-                        // clear over the shallows, deep blue and dense in the middle,
-                        // melting into nothing at the shore (the foam lives there)
                         .replace(
                             '#include <map_fragment>',
-                            `#include <map_fragment>
-	{
-		float wDepth = texture2D(uLakeDepthTex, (vWaterWorld.xz + uLakeDepthSpan) / (2.0 * uLakeDepthSpan)).r * 8.0;
-		float wDeepK = smoothstep(0.25, 5.0, wDepth);
-		float wThaw = 1.0 - smoothstep(0.0, 0.6, uFreeze);
-		vec3 wCol = mix(vec3(0.30, 0.58, 0.52), vec3(0.03, 0.16, 0.30), wDeepK);
-		diffuseColor.rgb = mix(diffuseColor.rgb, wCol, 0.78 * wThaw);
-		float wAlpha = mix(0.62, 1.35, wDeepK) * smoothstep(0.0, 0.30, wDepth);
-		diffuseColor.a *= mix(1.0, wAlpha, wThaw);
-	}`,
+                            `#include <map_fragment>${WATER_DEPTH_SNIPPET}`,
                         )
                         // ripple the normal so the sun breaks into sparkle
                         .replace(
@@ -1214,6 +1240,23 @@ export class Scenery {
                             `${reflectBlock}
 	#include <opaque_fragment>`,
                         );
+            }
+            else if (lite) {
+                shader.uniforms.uLakeDepthTex = this.lakeDepthTexUniform;
+                shader.uniforms.uLakeDepthSpan = this.lakeDepthSpanUniform;
+                shader.vertexShader =
+                    'varying vec3 vWaterWorld;\n' +
+                    shader.vertexShader.replace(
+                        '#include <project_vertex>',
+                        `#include <project_vertex>
+	vWaterWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
+                    );
+                frag =
+                    WATER_DEPTH_DECLS +
+                    frag.replace(
+                        '#include <map_fragment>',
+                        `#include <map_fragment>${WATER_DEPTH_SNIPPET}`,
+                    );
             }
             shader.fragmentShader = 'uniform float uFreeze;\nuniform sampler2D uIce;\n' + frag;
         };
@@ -1237,7 +1280,27 @@ export class Scenery {
     /** how see-through the unfrozen water is: ultra shows the lake bed most, medium stays dense */
     private waterBaseOpacity(): number {
         if (this.quality === 'ultra') return WATER_ULTRA_OPACITY;
-        return this.quality === 'high' ? WATER_HIGH_OPACITY : 0.86;
+        if (this.quality === 'high') return WATER_HIGH_OPACITY;
+        return this.quality === 'medium' ? 0.8 : 0.86;
+    }
+
+    /**
+     * Low: water as one flat, lit plane. No texture, no shader patch, no drift —
+     * just enough that the lake basins in the ground read as lakes and not as
+     * dry pits. It still follows the scene light (day, night) and the fog.
+     */
+    private createFlatWater(): Mesh {
+        const geometry = new PlaneGeometry(this.worldSize, this.worldSize);
+        geometry.rotateX(-Math.PI / 2);
+        const material = new MeshLambertMaterial({
+            color: FLAT_WATER_COLOR.clone(),
+            transparent: true,
+            opacity: 0.9,
+        });
+        this.flatWaterMaterial = material;
+        const mesh = new Mesh(geometry, material);
+        mesh.position.y = WATER_LEVEL_Y;
+        return mesh;
     }
 
     /**
@@ -2180,6 +2243,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         // wet bank and shore foam. Ultra adds the caustics on the bed.
         const lakeBedLayers = this.quality === 'ultra' || this.quality === 'high';
         const lakeCaustics = this.quality === 'ultra';
+        // Medium: the same floor and bank shading with no texture and no noise
+        const lakeLite = this.quality === 'medium';
         const [grass, rockPack, shore, sand] = await Promise.all([
             loadGrassTextures(),
             loadRockTextures(),
@@ -2401,6 +2466,19 @@ ${pgClose}`;
                 : ''
         }
     }`;
+                } else if (lakeLite) {
+                    inject += `
+    // lake beds (medium): the floor goes cool and dark with depth, the bank is wet
+    // just above the waterline, and a thin static white line marks the edge —
+    // no texture and no noise
+    float lbDepth = ${WATER_LEVEL_Y.toFixed(2)} - vTerrainH;
+    if (lbDepth > -0.7) {
+        diffuseColor.rgb *= mix(vec3(1.0), vec3(0.34, 0.5, 0.56), smoothstep(0.3, 6.5, lbDepth) * uLakeBed);
+        float lbWet = (1.0 - smoothstep(0.0, 0.55, -lbDepth)) * step(-0.55, lbDepth) * vBeach;
+        diffuseColor.rgb *= 1.0 - 0.28 * lbWet * uLakeBed;
+        float lbLine = (1.0 - smoothstep(0.0, 0.12, abs(lbDepth + 0.04))) * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.97, 0.98), lbLine * 0.7);
+    }`;
                 }
             }
             // meadow hills get the same drier / browner hillsides as the board; the mountains keep their own rock
@@ -2473,7 +2551,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
                 (shore ? 'uniform sampler2D uShore;\n' : '') +
                 (sand ? 'uniform sampler2D uSand;\n' : '') +
-                (sand ? 'uniform float uLakeBed;\n' : '') +
+                (sand || lakeLite ? 'uniform float uLakeBed;\n' : '') +
+                (lakeLite ? 'uniform float uLakeFreeze;\n' : '') +
                 (sand ? 'uniform float uLakeTime;\nuniform float uLakeFreeze;\n' + LAKE_FOAM_FNS_GLSL : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
                 closeTileUniformDecls(profile) +
@@ -2517,7 +2596,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed2-caus' : '-lakebed2') : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v53-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed2-caus' : '-lakebed2') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
