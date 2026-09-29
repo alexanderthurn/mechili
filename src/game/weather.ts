@@ -1160,6 +1160,8 @@ export class Weather {
         p[i * 3 + 2] = z;
     }
 
+    private snowFrame = 0;
+
     private updateSnow(dt: number, cameraPos: Vector3): void {
         if (this.h.suppressVisualWeatherFx) {
             this.snowMaterial.opacity = 0;
@@ -1178,6 +1180,9 @@ export class Weather {
         const wind = 4;
         const yCeil = cameraPos.y + SNOW_BOX.y;
         const terrainCheckY = cameraPos.y - SNOW_TERRAIN_CHECK_BELOW;
+        // the ground test samples the terrain (noise over the whole outer world): each flake
+        // checks every fourth frame, which lets it sink a fraction of a unit at most
+        this.snowFrame = (this.snowFrame + 1) & 3;
         for (let i = 0; i < SNOW_FLAKES; i++) {
             const sway = Math.sin(this.snowTime * 0.6 + this.snowPhase[i]!) * 3.2;
             p[i * 3] = p[i * 3]! + (wind + sway) * dt;
@@ -1185,7 +1190,7 @@ export class Weather {
             const y = p[i * 3 + 1]!;
             if (y > yCeil + 5) {
                 this.respawnSnowflake(i, cameraPos);
-            } else if (y < terrainCheckY) {
+            } else if (y < terrainCheckY && (i & 3) === this.snowFrame) {
                 const groundY = worldHeightAt(p[i * 3]!, p[i * 3 + 2]!) + SNOW_GROUND_CLEARANCE;
                 if (y < groundY) this.respawnSnowflake(i, cameraPos);
             }
