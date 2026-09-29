@@ -1,6 +1,7 @@
 import {
     AdditiveBlending,
     BackSide,
+    Box3,
     BufferAttribute,
     CanvasTexture,
     CircleGeometry,
@@ -29,11 +30,13 @@ import {
     Vector3,
     type DirectionalLight,
     type HemisphereLight,
+    type PerspectiveCamera,
     type Scene,
     type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Weather, TRANSITION_TAU, type Season } from './weather';
+import { WaterReflection } from './waterReflection';
 import { THEME } from '../theme';
 import type { EffectToggles } from './effectToggles';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
@@ -226,6 +229,37 @@ const MOUNTAIN_RISE_START = 110;
 const MOUNTAIN_RISE_SPAN = 360;
 /** Crest / world cut — hold peak height from ~470 out to 500. */
 export const MOUNTAIN_PEAK_END = 500;
+
+/** World height of the water table: one flat plane, hidden wherever the ground is above it. */
+const WATER_LEVEL_Y = -1.1;
+// ---- ultra water: mirrored world + ripples (tune here) ----
+/** how strongly a ripple tilts the surface normal (sun sparkle) */
+const WATER_NORMAL_TILT = '1.0';
+/** mirror share looking straight down; fresnel raises it toward the horizon */
+const WATER_REFLECT_F0 = '0.16';
+const WATER_REFLECT_POWER = '3.5';
+/** how far a ripple bends the mirrored image (texture-coordinate units) */
+const WATER_REFLECT_DISTORT = '0.045';
+/**
+ * Declarations for the ultra water shader: the mirrored view and a small sum of
+ * travelling sine waves, returned as the slope of the surface in world xz.
+ * Analytic, so the ripples move in place instead of sliding a texture along.
+ */
+const WATER_MIRROR_DECLS = `
+uniform sampler2D uReflTex;
+uniform mat4 uReflMatrix;
+uniform float uReflOn;
+uniform float uWaterTime;
+varying vec3 vWaterWorld;
+vec2 waterWaveGrad(vec2 p, float t) {
+	vec2 g = vec2(0.0);
+	g += vec2(0.86, 0.51) * cos(dot(p, vec2(0.86, 0.51)) * 0.62 + t * 0.9) * 0.100;
+	g += vec2(-0.40, 0.92) * cos(dot(p, vec2(-0.40, 0.92)) * 0.97 - t * 1.1) * 0.080;
+	g += vec2(0.15, -0.99) * cos(dot(p, vec2(0.15, -0.99)) * 1.60 + t * 1.5) * 0.060;
+	g += vec2(-0.93, -0.36) * cos(dot(p, vec2(-0.93, -0.36)) * 2.30 - t * 1.9) * 0.040;
+	return g;
+}
+`;
 const OUTER_PAST_BOARD = MOUNTAIN_PEAK_END;
 
 /**
@@ -299,6 +333,13 @@ export class Scenery {
     private waterTexture: CanvasTexture | null = null;
     private waterMaterial: MeshStandardMaterial | MeshLambertMaterial | null = null;
     private waterFreezeUniform: { value: number } | null = null;
+    /** drives the ripple normals of the ultra water (seconds) */
+    private waterTimeUniform: { value: number } | null = null;
+    private waterMesh: Mesh | null = null;
+    /** ultra only: the mirrored view the lake surface shows */
+    private waterReflection: WaterReflection | null = null;
+    /** boxes around the wet ground, for "is a lake on screen" — null = not sampled yet */
+    private lakeBoxes: Box3[] | null = null;
     /** drives the outer meadow's weather-driven snow blend (see `applyMeadowTexture`) */
     private outerGroundSnowUniform: { value: number } | null = null;
     /** 1 = alpine cap on, 0 = summer — peaks go to bare rock */
@@ -807,6 +848,7 @@ export class Scenery {
             this.waterMaterial.opacity = 0.86 + freeze * 0.12;
         }
         this.time += dtSeconds;
+        if (this.waterTimeUniform) this.waterTimeUniform.value = this.time;
         for (const c of this.clouds) {
             c.mesh.position.x += c.speed * dtSeconds;
             if (c.mesh.position.x > this.cloudBoundsX) c.mesh.position.x = -this.cloudBoundsX;
@@ -898,19 +940,67 @@ export class Scenery {
                       metalness: 0,
                   });
         this.waterMaterial = material;
+        // Ultra: the lake mirrors the world (see waterReflection.ts) and its
+        // surface ripples. The other tiers keep the plain shader.
+        const reflection = this.quality === 'ultra' ? new WaterReflection(WATER_LEVEL_Y) : null;
+        this.waterReflection = reflection;
+        const timeUniform = { value: 0 };
+        this.waterTimeUniform = reflection ? timeUniform : null;
+        // one program per variant: the source differs, the function text does not
+        material.customProgramCacheKey = () => (reflection ? 'water-mirror' : 'water');
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uFreeze = freezeUniform;
             shader.uniforms.uIce = iceUniform;
-            shader.fragmentShader =
-                'uniform float uFreeze;\nuniform sampler2D uIce;\n' +
-                shader.fragmentShader.replace(
-                    '#include <map_fragment>',
-                    `#include <map_fragment>
+            let frag = shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `#include <map_fragment>
 	if (uFreeze > 0.001) {
 		vec3 iceCol = texture2D(uIce, vMapUv).rgb;
 		diffuseColor.rgb = mix(diffuseColor.rgb, iceCol, uFreeze);
 	}`,
-                );
+            );
+            if (reflection) {
+                shader.uniforms.uReflTex = reflection.uniforms.uReflTex;
+                shader.uniforms.uReflMatrix = reflection.uniforms.uReflMatrix;
+                shader.uniforms.uReflOn = reflection.uniforms.uReflOn;
+                shader.uniforms.uWaterTime = timeUniform;
+                shader.vertexShader =
+                    'varying vec3 vWaterWorld;\n' +
+                    shader.vertexShader.replace(
+                        '#include <project_vertex>',
+                        `#include <project_vertex>
+	vWaterWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
+                    );
+                frag =
+                    WATER_MIRROR_DECLS +
+                    frag
+                        // ripple the normal so the sun breaks into sparkle
+                        .replace(
+                            '#include <normal_fragment_maps>',
+                            `#include <normal_fragment_maps>
+	vec2 wGrad = waterWaveGrad(vWaterWorld.xz, uWaterTime);
+	normal = normalize(normal + (viewMatrix * vec4(-wGrad.x, 0.0, -wGrad.y, 0.0)).xyz * ${WATER_NORMAL_TILT});`,
+                        )
+                        // blend the mirrored world in by fresnel
+                        .replace(
+                            '#include <opaque_fragment>',
+                            `if (uReflOn > 0.5) {
+		vec3 wView = normalize(cameraPosition - vWaterWorld);
+		vec3 wNormal = normalize(vec3(-wGrad.x, 1.0, -wGrad.y));
+		float nv = clamp(dot(wNormal, wView), 0.0, 1.0);
+		float fres = ${WATER_REFLECT_F0} + (1.0 - ${WATER_REFLECT_F0}) * pow(1.0 - nv, ${WATER_REFLECT_POWER});
+		// ice does not mirror
+		fres *= 1.0 - smoothstep(0.0, 0.6, uFreeze);
+		vec4 rc = uReflMatrix * vec4(vWaterWorld, 1.0);
+		rc.xy += wGrad * ${WATER_REFLECT_DISTORT} * rc.w;
+		vec3 mirrored = texture2DProj(uReflTex, rc).rgb;
+		outgoingLight = mix(outgoingLight, mirrored, fres);
+		diffuseColor.a = mix(diffuseColor.a, 1.0, fres);
+	}
+	#include <opaque_fragment>`,
+                        );
+            }
+            shader.fragmentShader = 'uniform float uFreeze;\nuniform sampler2D uIce;\n' + frag;
         };
         void loadWorldTexture(iceAlbedoUrl()).then((ice) => {
             if (!ice) return;
@@ -923,9 +1013,58 @@ export class Scenery {
         });
 
         const mesh = new Mesh(geometry, material);
-        mesh.position.y = -1.1;
+        mesh.position.y = WATER_LEVEL_Y;
         mesh.receiveShadow = true;
+        this.waterMesh = mesh;
         return mesh;
+    }
+
+    /**
+     * Ultra: draw the mirrored view the lakes show. Call before the frame's own
+     * render. No-op on every other tier, and while no lake is on screen.
+     */
+    renderWaterReflection(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera): void {
+        const reflection = this.waterReflection;
+        if (!reflection || !this.waterMesh) return;
+        this.lakeBoxes ??= this.sampleLakeBoxes();
+        reflection.update(renderer, scene, camera, this.lakeBoxes, [this.waterMesh]);
+    }
+
+    /** free the mirrored view's render target (the scenery is being replaced) */
+    disposeWaterReflection(): void {
+        this.waterReflection?.dispose();
+        this.waterReflection = null;
+    }
+
+    /**
+     * Coarse boxes around every patch of ground that dips below the water
+     * table, from the real world height (board relief + outer world). The
+     * mirrored view is only drawn while one of them is in the camera's frustum.
+     */
+    private sampleLakeBoxes(): Box3[] {
+        const CELL_SIZE = 24;
+        const span = Math.min(this.worldSize * 0.5, this.map.halfW + MOUNTAIN_PEAK_END);
+        const boxes: Box3[] = [];
+        for (let x0 = -span; x0 < span; x0 += CELL_SIZE) {
+            for (let z0 = -span; z0 < span; z0 += CELL_SIZE) {
+                let wet = false;
+                for (let i = 0; i < 3 && !wet; i++) {
+                    for (let j = 0; j < 3 && !wet; j++) {
+                        const x = x0 + ((i + 0.5) * CELL_SIZE) / 3;
+                        const z = z0 + ((j + 0.5) * CELL_SIZE) / 3;
+                        wet = worldHeightAt(x, z) < WATER_LEVEL_Y;
+                    }
+                }
+                if (!wet) continue;
+                boxes.push(
+                    new Box3(
+                        new Vector3(x0, WATER_LEVEL_Y - 1, z0),
+                        new Vector3(x0 + CELL_SIZE, WATER_LEVEL_Y + 2, z0 + CELL_SIZE),
+                    ),
+                );
+            }
+        }
+        return boxes;
     }
 
     private tuftMaterial: MeshStandardMaterial | null = null;
@@ -1577,6 +1716,8 @@ export class Scenery {
      * the decorations standing in that world rectangle.
      */
     reseatGroundedDecorations(area?: { minX: number; maxX: number; minZ: number; maxZ: number }): void {
+        // the ground may have moved under the lakes (sculpt) — resample on next use
+        this.lakeBoxes = null;
         const WATER_Y = -1.1;
         this.forEachDecorationMesh((mesh) => {
             let cache = this.instanceGroundY.get(mesh);

@@ -2993,6 +2993,7 @@ export class Game {
         const weatherSnapshot = this.weather?.snapshot ?? null;
         this.scene.remove(this.scenery.group);
         disposeTree(this.scenery.group);
+        this.scenery.disposeWaterReflection();
         this.scenery = new Scenery(this.map, undefined, editing ?? this.landscape);
         this.scene.add(this.scenery.group);
         if (sceneryWeatherFx(scenery)) {
@@ -3162,6 +3163,7 @@ export class Game {
         for (const node of [...this.pixiApp.canvas.children]) {
             if (node instanceof HTMLElement) node.remove();
         }
+        this.scenery.disposeWaterReflection();
         disposeScene(this.scene);
         this.postFx.dispose();
         this.renderer.dispose();
@@ -3169,6 +3171,8 @@ export class Game {
 
     /** Scene draw — composer when bloom/vignette are on, otherwise direct. */
     private renderFrame(): void {
+        // ultra water: the mirrored view has to exist before the frame that shows it
+        this.scenery.renderWaterReflection(this.renderer, this.scene, this.rig.camera);
         if (this.postFx.enabled) this.postFx.render();
         else this.renderer.render(this.scene, this.rig.camera);
     }
