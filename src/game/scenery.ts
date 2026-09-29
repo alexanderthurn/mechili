@@ -645,7 +645,10 @@ export class Scenery {
             const sharpZone = smooth01((noise(x / 230 + 63.1, z / 230 + 18.4) - 0.56) / 0.12);
             // a few hero peaks: a slow noise picks where the range towers over its neighbours
             const hero = smooth01((noise(x / 260 + 5.5, z / 260 + 91.2) - 0.6) / 0.14);
-            const mountain = rise * (28 + 280 * ridge * (0.72 + 0.43 * sharp * sharpZone) + 95 * hero * ridge);
+            // The valley is ringed by real mountains: where the noise says "gap" (ridge = 0) the
+            // range still stands at ~a quarter of its height instead of sinking to the foothills.
+            const massif = 0.28 + 0.72 * ridge;
+            const mountain = rise * (45 + 310 * massif * (0.72 + 0.43 * sharp * sharpZone) + 95 * hero * ridge);
             // Foothills die as the high range takes over — don't resume a
             // second meadow behind the mountain ring.
             const foothill = 1 - smooth01((dClimb - 400) / 280);
