@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Mur de terre",
-    "description": "Tracez une ligne : une crête de terre étroite et abrupte s’élève le long de celle-ci quelques secondes après le début du combat. Elle bloque les tirs tendus (les tirs en cloche passent encore), mais les unités la franchissent sans peine. Elle ne peut pas être retirée et reste toute la partie. Les bâtiments sont épargnés."
+    "description": "Fait surgir le long d’une ligne une crête de terre abrupte qui bloque les tirs tendus pour le reste de la partie."
   }
 }

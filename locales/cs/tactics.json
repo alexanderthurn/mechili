@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Zemní val",
-    "description": "Nakresli čáru: několik sekund po začátku bitvy se podél ní zvedne úzký, strmý zemní val. Blokuje nízké střely (vysoké oblouky ho stále překonají), ale jednotky přes něj přejdou. Nelze ho odstranit a zůstane celý zápas. Budovy zůstanou nedotčeny."
+    "description": "Vztyčí podél čáry strmý zemní val, který do konce zápasu blokuje nízké střely."
   }
 }

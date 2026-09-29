@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Jordvoll",
-    "description": "Tegn en linje: noen sekunder etter at kampen har startet reiser en smal, bratt jordvoll seg langs den. Den blokkerer lave skudd (høye buer kommer fortsatt over), men enheter går rett over den. Den kan ikke fjernes og blir stående hele kampen. Bygninger blir ikke berørt."
+    "description": "Reiser en bratt jordvoll langs en linje som blokkerer lave skudd resten av kampen."
   }
 }

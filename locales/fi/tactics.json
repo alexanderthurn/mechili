@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Maavalli",
-    "description": "Piirrä viiva: muutama sekunti taistelun alusta sitä pitkin nousee kapea, jyrkkä maavalli. Se estää matalat laukaukset (korkeat kaaret pääsevät yhä yli), mutta yksiköt kävelevät sen yli. Sitä ei voi poistaa, ja se pysyy koko ottelun. Rakennukset jäävät koskemattomiksi."
+    "description": "Nostaa linjaa pitkin jyrkän maavallin, joka estää matalat laukaukset koko loppuottelun ajan."
   }
 }

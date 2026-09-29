@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Đất Trồi",
-    "description": "Vẽ một đường: vài giây sau khi trận đánh bắt đầu, một gờ đất hẹp và dốc trồi lên dọc theo đường đó. Nó chặn các phát bắn thấp (đường đạn cong cao vẫn vượt qua được), nhưng đơn vị vẫn đi qua bình thường. Không thể gỡ bỏ và tồn tại suốt trận. Công trình không bị ảnh hưởng."
+    "description": "Dựng lên dọc theo một đường một gờ đất dốc chặn các phát bắn thấp cho đến hết trận."
   }
 }

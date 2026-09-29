@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Muro de tierra",
-    "description": "Traza una línea: una cresta de tierra estrecha y empinada se levanta a lo largo de ella unos segundos después de empezar el combate. Bloquea los disparos rasos (los tiros en arco alto aún pasan), pero las unidades la cruzan sin problema. No se puede quitar y dura toda la partida. Los edificios no se ven afectados."
+    "description": "Levanta a lo largo de una línea una cresta de tierra empinada que bloquea los disparos rasos el resto de la partida."
   }
 }

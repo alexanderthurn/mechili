@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Wał ziemny",
-    "description": "Narysuj linię: kilka sekund po rozpoczęciu bitwy wzdłuż niej wyrasta wąski, stromy wał ziemi. Blokuje niskie strzały (wysokie łuki nadal go przeskakują), ale jednostki po prostu po nim przechodzą. Nie da się go usunąć i zostaje do końca meczu. Budynki pozostają nietknięte."
+    "description": "Wznosi wzdłuż linii stromy wał ziemi, który blokuje niskie strzały do końca meczu."
   }
 }

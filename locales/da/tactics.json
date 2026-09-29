@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Jordvold",
-    "description": "Tegn en linje: få sekunder efter kampens start rejser en smal, stejl jordvold sig langs den. Den blokerer lave skud (høje buer kommer stadig over), men enheder går bare hen over den. Den kan ikke fjernes og bliver stående hele kampen. Bygninger røres ikke."
+    "description": "Rejser en stejl jordvold langs en linje, der blokerer lave skud resten af kampen."
   }
 }

@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Erdwall",
-    "description": "Zeichne eine Linie: Wenige Sekunden nach Kampfbeginn wächst entlang ihr ein schmaler, steiler Erdwall. Er blockiert flache Schüsse (hohe Bögen kommen noch darüber), Einheiten laufen aber einfach darüber. Er lässt sich nicht entfernen und bleibt das ganze Match. Gebäude bleiben unberührt."
+    "description": "Lässt entlang einer Linie einen steilen Erdwall aufsteigen, der flache Schüsse für den Rest des Matches blockiert."
   }
 }

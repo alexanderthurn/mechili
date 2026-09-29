@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Muro di terra",
-    "description": "Traccia una linea: una cresta di terra sottile e ripida si alza lungo di essa pochi secondi dopo l’inizio dello scontro. Blocca i colpi radenti (le traiettorie alte passano ancora), ma le unità la attraversano senza problemi. Non si può rimuovere e dura tutta la partita. Gli edifici restano intatti."
+    "description": "Solleva lungo una linea una ripida cresta di terra che blocca i colpi radenti per il resto della partita."
   }
 }

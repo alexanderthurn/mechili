@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Földfal",
-    "description": "Húzz egy vonalat: a csata kezdete után néhány másodperccel egy keskeny, meredek földgerinc emelkedik ki mentén. Blokkolja az alacsony lövéseket (a magas ívek még átjutnak), de az egységek egyszerűen átsétálnak rajta. Nem távolítható el, és az egész meccsen megmarad. Az épületeket nem érinti."
+    "description": "Egy vonal mentén meredek földgerincet emel, amely a meccs hátralévő részében blokkolja az alacsony lövéseket."
   }
 }

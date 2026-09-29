@@ -61,6 +61,6 @@
   },
   "earthRise": {
     "name": "Muralha de terra",
-    "description": "Desenhe uma linha: uma crista de terra estreita e íngreme se ergue ao longo dela alguns segundos depois do início do combate. Bloqueia tiros rasantes (arcos altos ainda passam), mas as unidades a atravessam sem problema. Não pode ser removida e dura a partida toda. Os edifícios ficam intactos."
+    "description": "Ergue ao longo de uma linha uma crista de terra íngreme que bloqueia tiros rasantes até o fim da partida."
   }
 }
