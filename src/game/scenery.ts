@@ -922,19 +922,16 @@ export class Scenery {
             Math.abs(this.terrainHeight(x + S, z) - h),
             Math.abs(this.terrainHeight(x, z + S) - h),
         ) / S;
-        const face = smooth01((slope - 0.35) / 0.9);
+        // (fades out above ~110 wu, where snow lies: a band pattern in the vertex tint is what
+        // showed as horizontal lines through thin snow)
+        const face = smooth01((slope - 0.35) / 0.9) * (1 - smooth01((h - 90) / 50));
         if (face > 0) {
-            // layer coordinate: height, tilted along x, warped by noise
-            const warp = (this.noise(x / 70 + 12.4, z / 70 + 5.9) - 0.5) * 14;
-            const layer = (h + x * 0.07 + warp) / 11;
-            const wave = Math.sin(layer * 6.2832);
-            const band = wave * 0.5 + 0.5;
-            // thin dark seams between the strata
-            const seam = 1 - 0.12 * smooth01((band - 0.85) / 0.15);
-            const k = 1 + (band - 0.5) * 0.3 * face;
-            rock.r *= k * seam * (1 + 0.05 * face * wave);
-            rock.g *= k * seam;
-            rock.b *= k * seam * (1 - 0.05 * face * wave);
+            // layer coordinate: height, tilted, warped hard by noise so no layer runs like a ruler
+            const warp = (this.noise(x / 45 + 12.4, z / 45 + 5.9) - 0.5) * 34;
+            const layer = (h + x * 0.09 + z * 0.05 + warp) / 13;
+            const band = Math.sin(layer * 6.2832) * 0.5 + 0.5;
+            const k = 1 + (band - 0.5) * 0.14 * face;
+            rock.multiplyScalar(k);
         }
         // aerial perspective: far ring lighter and bluer
         const dOut = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
@@ -2501,7 +2498,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             shader.fragmentShader = frag;
         };
 
-        material.customProgramCacheKey = () => `outer-meadow-snowonly-v17-${groundDetailCacheKey(
+        material.customProgramCacheKey = () => `outer-meadow-snowonly-v18-${groundDetailCacheKey(
             groundMaterialProfile(),
         )}`;
         material.needsUpdate = true;
@@ -2889,7 +2886,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v56-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v57-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -3830,8 +3827,9 @@ const OUTER_MOUNTAIN_SNOW_GLSL = `
     mountainSnow = clamp(mountainSnow - cliffStrip * (0.35 + breakup * 0.45), 0.0, 1.0);
     float snowF = mix(meadowSnow, mountainSnow, mountainZone);
     // deep winter buries everything: no bare steep face, no cliff rock showing through
-    snowF = mix(snowF, 1.0, deepWinter * mountainZone);
-    cliffStrip *= 1.0 - deepWinter;
+    float burial = smoothstep(0.6, 0.9, uSnowCover);
+    snowF = mix(snowF, 1.0, burial * mountainZone);
+    cliffStrip *= 1.0 - burial;
     vec3 meadowCol = ${LAWN_SNOW_COLOR_GLSL};
     vec3 snowHi = mix(meadowCol, vec3(1.0, 1.0, 1.0), deepWinter);
     vec3 snowLo = mix(meadowCol, vec3(0.86, 0.9, 0.96), deepWinter);
