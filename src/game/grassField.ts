@@ -18,8 +18,10 @@ import {
     InstancedBufferGeometry,
     Mesh,
     MeshLambertMaterial,
+    CanvasTexture,
     DataTexture,
     FloatType,
+    LinearFilter,
     NearestFilter,
     RedFormat,
     RGBAFormat,
@@ -113,6 +115,7 @@ export class GrassField {
         uHazard: { value: blankTexture(false) as Texture },
         uWear: { value: blankTexture(false) as Texture },
         uStainTint: { value: blankTexture(false) as Texture },
+        uClear: { value: blankTexture(false) as Texture },
         uBoardOn: { value: 0 },
     };
     private readonly blade = bladeGeometry();
@@ -143,6 +146,7 @@ uniform sampler2D uHeightTex;
 uniform sampler2D uHazard;
 uniform sampler2D uWear;
 uniform sampler2D uStainTint;
+uniform sampler2D uClear;
 uniform float uBoardOn;
 uniform float uSnowCover;
 varying float vSnow;
@@ -210,6 +214,9 @@ float boardHeight(vec2 p) {
         // oil lays the blades flat under the slick, acid wilts them, feet press them down
         // (height left: oil 70%, acid 30%, trodden 30%)
         squash = max(max(oil * 0.3, acidLive * 0.7), trod * 0.7);
+        // pressed flat under the deployment plates (green pack plates, tutorial pads), so the
+        // plate reads as a clean shape on the ground
+        squash = max(squash, textureLod(uClear, buv, 0.0).r * 0.94);
         fire = liveFire;
         burn = max(scorch, liveFire);
         // the board's snow thaws under fire, oil and acid, and on burnt ground
@@ -305,7 +312,7 @@ varying float vSnow;
     nonPerturbedNormal = normal;`,
                     );
         };
-        mat.customProgramCacheKey = () => 'grass-field-v10-lod';
+        mat.customProgramCacheKey = () => 'grass-field-v11-plates';
         return mat;
     }
 
@@ -420,12 +427,52 @@ varying float vSnow;
         this.heightTex = tex;
         this.board.uHeightTex.value = tex;
         this.board.uBoardHalf.value.set(opts.halfW, opts.halfH);
+        this.boardHalf = { w: opts.halfW, h: opts.halfH };
         this.board.uGrid.value.set(opts.nx, opts.nz, opts.cellX, opts.cellZ);
         this.board.uHazard.value = opts.hazard;
         this.board.uBoardOn.value = 1;
     }
 
     private heightTex: DataTexture | null = null;
+
+    private clearCanvas: HTMLCanvasElement | null = null;
+    private clearTex: CanvasTexture | null = null;
+    private clearKey = '';
+    private boardHalf = { w: 1, h: 1 };
+
+    /**
+     * Where the grass lies down: the footprint plates on the board, drawn into a small mask the
+     * blades read (redrawn only when the set of plates changes).
+     */
+    setClearRects(rects: readonly { x: number; z: number; halfX: number; halfZ: number }[]): void {
+        const key = rects.map((r) => `${r.x.toFixed(1)},${r.z.toFixed(1)},${r.halfX},${r.halfZ}`).join('|');
+        if (key === this.clearKey) return;
+        this.clearKey = key;
+        if (!this.clearCanvas) {
+            const c = document.createElement('canvas');
+            c.width = 512;
+            c.height = Math.max(8, Math.round((512 * this.boardHalf.h) / this.boardHalf.w));
+            this.clearCanvas = c;
+            this.clearTex = new CanvasTexture(c);
+            this.clearTex.generateMipmaps = false;
+            this.clearTex.minFilter = LinearFilter;
+            this.board.uClear.value = this.clearTex;
+        }
+        const c = this.clearCanvas;
+        const ctx = c.getContext('2d')!;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.fillStyle = '#fff';
+        const sx = c.width / (2 * this.boardHalf.w);
+        const sz = c.height / (2 * this.boardHalf.h);
+        for (const r of rects) {
+            // a hair wider than the plate, so no blade stands on its rim
+            const x0 = (r.x - r.halfX - 0.4 + this.boardHalf.w) * sx;
+            const z0 = (r.z - r.halfZ - 0.4 + this.boardHalf.h) * sz;
+            ctx.fillRect(x0, z0, (2 * r.halfX + 0.8) * sx, (2 * r.halfZ + 0.8) * sz);
+        }
+        this.clearTex!.needsUpdate = true;
+    }
 
     /** per frame: the clock, the current wear layer, and a new upload when the ground moved */
     /**

@@ -1492,6 +1492,7 @@ export class PlacementController {
                 opacity: 0.55,
                 side: DoubleSide,
                 depthWrite: false,
+                ...GROUND_DECAL_OFFSET,
             });
             const geo = new PlaneGeometry(1, 1);
             geo.rotateX(-Math.PI / 2);
@@ -1565,6 +1566,16 @@ export class PlacementController {
         return 0.5 + 0.5 * Math.sin(t * 5.5);
     }
 
+    /** the footprint plates drawn since the last take — the grass clears under them */
+    private groundPlates: { x: number; z: number; halfX: number; halfZ: number }[] = [];
+
+    /** the footprint plates placed since the last call (green deploy plates, hover, tutorial pads) */
+    takeGroundPlates(): { x: number; z: number; halfX: number; halfZ: number }[] {
+        const out = this.groundPlates;
+        this.groundPlates = [];
+        return out;
+    }
+
     private placeFootprintPlate(
         mesh: Mesh,
         material: MeshBasicMaterial,
@@ -1605,6 +1616,8 @@ export class PlacementController {
         // triangles cut through the ground's, flickering in a fine 2x2 pattern.
         const halfX = (fp.cols * CELL) / 2;
         const halfZ = (fp.rows * CELL) / 2;
+        // the grass lies down under the plates, so they read (see takeGroundPlates)
+        if (!onBuilding) this.groundPlates.push({ x: center.x, z: center.z, halfX, halfZ });
         const insetX = halfX * (1 - edge);
         const insetZ = halfZ * (1 - edge);
         for (let i = 0; i < pos.count; i++) {

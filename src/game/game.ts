@@ -11403,6 +11403,8 @@ export class Game {
         // End Deployment has locked this seat in.
         this.placement.repositioningEnabled = this.playerCanAct;
         this.placement.update(this.time, gameDt);
+        // the grass lies down under the plates placed this frame (read by the next scenery update)
+        this.scenery.setGrassClearRects(this.placement.takeGroundPlates());
         if (this.phase === 'build' && !this.hud.isUiHidden) this.syncTacticVisuals();
         if (profile) cpu.end('world/ui');
         if (profile) cpu.begin();

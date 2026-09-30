@@ -2078,6 +2078,11 @@ export class Scenery {
     private grassField: GrassField | null = null;
     private grassTerrainRev = 0;
 
+    /** the footprint plates on the board this frame: the grass lies down under them */
+    setGrassClearRects(rects: readonly { x: number; z: number; halfX: number; halfZ: number }[]): void {
+        this.grassField?.setClearRects(rects);
+    }
+
     /** Ultra: real grass blades in a band around the board (see grassField.ts). */
     private createGrassField(map: BattleMap, seed: number): void {
         const anchors = map.baseAnchors();
