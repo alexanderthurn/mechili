@@ -344,6 +344,13 @@ function newCloudLife(rank: number): CloudLife {
     return { full: new Vector3(1, 1, 1), span: 100, age: 0, rank };
 }
 
+/**
+ * How far past the board edge a lake may begin: beyond the forest horde's spawn band (game.ts
+ * HORDE_PACK_FAR = 58, camps 40–55) with a margin, so every wave camps and walks in on dry ground
+ * whatever the lake layout. Absolute (the horde band does not scale with OUTER_SCALE).
+ */
+const LAKE_CLEAR_OUT = 64;
+
 /** what the mountain cloud banks bleach toward under snow */
 const MIST_SNOW_WHITE = new Color(0xf4f7fb);
 
@@ -741,51 +748,98 @@ export class Scenery {
         // every peer gets the same range from the same seed)
         const noise = makeValueNoise(31337 ^ seed);
         this.noise = noise;
-        // Lakes are placed, not thresholded out of noise, so their size is under control: either
-        // one big lake (radius 80–100) with a pond or two, or three to five smaller ones
-        // (radius 30–62) — about the same water in total either way, never a lake bigger than a
-        // third of the board. Each sits 40+ wu off the board edge and no farther than ~210 out.
-        // The seed decides (same on every peer); the edges are wobbled with noise so they are not discs.
+        // Lakes are placed, not thresholded out of noise, so their size and shape are under control.
+        // The seed picks one of four layouts (same on every peer):
+        //   one very big lake (with maybe a pond) · one big and two small · two medium and a small ·
+        //   three or four small.
+        // A lake is one to three overlapping lobes (bays, a waist, a long arm), and its shore is
+        // wobbled with noise, so no two are round. Every lake keeps clear of the horde's spawn band
+        // (LAKE_CLEAR_OUT): the forest waves camp and march in dry, whatever the layout. Near the
+        // mountains the ground around a lake sinks into a valley (see lakeValleyAt), so the basin
+        // sits in the landscape instead of being cut into a slope.
         const lakeRng = mulberry32((seed ^ 0x1a4e5b) >>> 0);
         const lakeSites: { x: number; z: number; r: number; phase: number }[] = [];
         {
             const radii: number[] = [];
-            if (lakeRng() < 0.35) {
-                radii.push((80 + lakeRng() * 20) * S);
-                const ponds = 1 + Math.floor(lakeRng() * 2);
-                for (let i = 0; i < ponds; i++) radii.push((22 + lakeRng() * 16) * S);
+            const layout = lakeRng();
+            const big = (lo: number, hi: number) => radii.push((lo + lakeRng() * (hi - lo)) * S);
+            if (layout < 0.25) {
+                big(95, 125);
+                if (lakeRng() < 0.5) big(22, 34);
+            } else if (layout < 0.55) {
+                big(70, 90);
+                big(24, 40);
+                big(24, 40);
+            } else if (layout < 0.8) {
+                big(45, 62);
+                big(45, 62);
+                big(24, 38);
             } else {
-                const count = 3 + Math.floor(lakeRng() * 3);
-                for (let i = 0; i < count; i++) radii.push((30 + lakeRng() * 32) * S);
+                const n = 3 + Math.floor(lakeRng() * 2);
+                for (let i = 0; i < n; i++) big(28, 46);
             }
+            const placed: { x: number; z: number; reach: number }[] = [];
             for (const r of radii) {
-                for (let attempt = 0; attempt < 200; attempt++) {
-                    const x = (lakeRng() * 2 - 1) * (map.halfW + 250 * S);
-                    const z = (lakeRng() * 2 - 1) * (map.halfH + 250 * S);
-                    const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
-                    if (dOut < r + 40 * S || dOut > 210 * S) continue;
+                // the lobes: the main one, and on bigger lakes up to two more set off to a side
+                const lobes: { dx: number; dz: number; r: number }[] = [{ dx: 0, dz: 0, r }];
+                const extra = r > 50 * S ? Math.floor(lakeRng() * 3) : lakeRng() < 0.45 ? 1 : 0;
+                for (let k = 0; k < extra; k++) {
+                    const a = lakeRng() * Math.PI * 2;
+                    const off = r * (0.55 + lakeRng() * 0.4);
+                    lobes.push({ dx: Math.cos(a) * off, dz: Math.sin(a) * off, r: r * (0.45 + lakeRng() * 0.35) });
+                }
+                // how far the lake can reach from its centre (the shore wobble adds up to ~35%)
+                let reach = 0;
+                for (const l of lobes) reach = Math.max(reach, Math.sqrt(l.dx * l.dx + l.dz * l.dz) + l.r * 1.35);
+                for (let attempt = 0; attempt < 300; attempt++) {
+                    const x = (lakeRng() * 2 - 1) * (map.halfW + LAKE_CLEAR_OUT + reach + 60 * S);
+                    const z = (lakeRng() * 2 - 1) * (map.halfH + LAKE_CLEAR_OUT + reach + 60 * S);
+                    // every lobe clear of the horde band, and not up in the range
+                    let ok = true;
+                    for (let li = 0; li < lobes.length && ok; li++) {
+                        const l = lobes[li]!;
+                        const lx = x + l.dx;
+                        const lz = z + l.dz;
+                        const dOut = Math.max(Math.abs(lx) - map.halfW, Math.abs(lz) - map.halfH, 0);
+                        // its near shore past the band, but not far past it (the valley in front of
+                        // the range, not up in it)
+                        const near = dOut - l.r * 1.35;
+                        if (near < LAKE_CLEAR_OUT) ok = false;
+                        // (the main lobe sets where the lake lies; its arms may reach further out)
+                        if (li === 0 && near > LAKE_CLEAR_OUT + 60 * S) ok = false;
+                    }
+                    if (!ok) continue;
                     // (sqrt, not hypot: this height is gameplay-visible and must match on every machine)
-                    if (lakeSites.some((o) => {
-                        const gap = Math.sqrt((o.x - x) * (o.x - x) + (o.z - z) * (o.z - z)) - o.r - r;
-                        return gap < 40 * S;
-                    })) continue;
-                    lakeSites.push({ x, z, r, phase: lakeRng() * 100 });
+                    if (placed.some((o) => Math.sqrt((o.x - x) * (o.x - x) + (o.z - z) * (o.z - z)) - o.reach - reach < 25 * S)) continue;
+                    placed.push({ x, z, reach });
+                    const phase = lakeRng() * 100;
+                    for (const l of lobes) lakeSites.push({ x: x + l.dx, z: z + l.dz, r: l.r, phase });
                     break;
                 }
             }
         }
-        this.lakeAt = (x, z) => {
-            let best = 0;
+        /** u: 1 at a lobe's centre, 0 on its (wobbled) shore, negative outside — the largest of all lobes */
+        const lakeU = (x: number, z: number, reachMul: number): number => {
+            let best = -Infinity;
             for (const site of lakeSites) {
                 const dx = x - site.x;
                 const dz = z - site.z;
-                const reach = site.r * 1.4;
+                const reach = site.r * reachMul;
                 if (dx * dx + dz * dz >= reach * reach) continue;
-                const wobble = 1 + (noise(x / 38 + site.phase, z / 38 + site.phase * 0.7) - 0.5) * 0.5;
-                const u = 1 - Math.sqrt(dx * dx + dz * dz) / (site.r * wobble);
-                best = Math.max(best, smooth01(u / 0.3));
+                // a strong, slow wobble: coves and points along the shore
+                const wobble = 1 + (noise(x / 34 + site.phase, z / 34 + site.phase * 0.7) - 0.5) * 0.7;
+                best = Math.max(best, 1 - Math.sqrt(dx * dx + dz * dz) / (site.r * wobble));
             }
             return best;
+        };
+        this.lakeAt = (x, z) => {
+            const u = lakeU(x, z, 1.4);
+            return u === -Infinity ? 0 : smooth01(u / 0.3);
+        };
+        /** 0..1 how far the ground around a lake sinks into its valley (out to ~2× its radius) */
+        const lakeValleyAt = (x: number, z: number): number => {
+            const u = lakeU(x, z, 2.2);
+            return u === -Infinity ? 0 : smooth01((u + 1.1) / 1.2);
         };
         const baseHeight: HeightSampler = (x, z) => {
             // keep the playable AABB flat — field mesh owns that surface
@@ -855,7 +909,9 @@ export class Scenery {
             // ground is pressed to -7, well below the water table at -1.1
             const lake = this.lakeAt(x, z);
             const depth = -7 * smooth01((dClimb - 25) / 45);
-            return (base + wrinkles) * (1 - lake) + depth * lake;
+            // around a lake the ground sinks into a valley (most of the way down near the shore)
+            const valley = lakeValleyAt(x, z);
+            return (base + wrinkles) * (1 - 0.8 * valley) * (1 - lake) + depth * lake;
         };
         // The one super mountain: a massif standing on the far side of the valley, well above the
         // rest of the range (which stays as it is). It is added on top of the ordinary height, so
@@ -1668,6 +1724,8 @@ export class Scenery {
                 const k = Math.max(0.01, grow * sizeK * present);
                 // grows more in width than in height as it forms, so it spreads rather than inflates
                 c.mesh.scale.set(life.full.x * k, life.full.y * Math.sqrt(k), life.full.z * k);
+                // a cloud outside the weather's share (or not yet formed) is not drawn at all
+                c.mesh.visible = k > 0.02;
             }
             // a volumetric cloud rises over the ground it drifts across, so no mountain cuts it
             if (c.base !== undefined) {
@@ -4482,6 +4540,14 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 // resting on the summit, not cut by it (the cap sways a little: a wider margin)
                 mesh.position.y = this.cloudFloorAt(mesh, 0) + 4;
                 mesh.renderOrder = 6;
+                // the material is shared with the horizon clouds, whose per-cloud board thinning is
+                // set just before each draws: a summit cap must set its own (never thinned), or it
+                // would be drawn with whatever value the last horizon cloud left behind
+                mesh.onBeforeRender = (_r, _s, _c, _g, mat) => {
+                    const m = mat as VolumetricCloudMaterial;
+                    m.uniforms.uCloudBoardK.value = 1;
+                    m.uniformsNeedUpdate = true;
+                };
             } else {
                 mesh.scale.set(scale, 1, scale * (0.35 + rng() * 0.3));
             }

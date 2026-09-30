@@ -355,7 +355,7 @@ const HORDE_CAMP_NEAR = 40;
 const HORDE_CAMP_FAR = 55;
 /** a pack may scatter around its camp within this band past the edge */
 const HORDE_PACK_NEAR = 18;
-const HORDE_PACK_FAR = 58;
+const HORDE_PACK_FAR = 58; // (scenery.ts LAKE_CLEAR_OUT keeps every lake past this band — change them together)
 /**
  * Where the two camps stand, as an angle either side of the direction the
  * leader's half lies in (seen from the middle of the board). Even standing
