@@ -5,7 +5,6 @@ import { preloadProjectileBolt, preloadDebrisBrick, preloadCrowRock } from './ef
 import {
     loadSceneryBillboards,
     loadSceneryVegetation,
-    sceneryHqVegetation,
 } from './sceneryVegetation';
 import { loadFloorPieces } from './sceneryFloorPieces';
 import { prefs } from './prefs';
@@ -66,7 +65,8 @@ export async function bootGameAssets(onProgress?: ProgressFn): Promise<void> {
     ];
 
     const sceneryQ = prefs().scenery;
-    if (sceneryHqVegetation(sceneryQ) || sceneryQ === 'high') {
+    // (ultra and high: billboards + the 3D board trees and floor pieces; medium: billboards only)
+    if (sceneryQ === 'ultra' || sceneryQ === 'high') {
         jobs.push(
             Promise.all([
                 loadSceneryBillboards(),

@@ -256,9 +256,18 @@ export function attachVegetationSnow(
     material.needsUpdate = true;
 }
 
-/** True when Tripo mid-poly trees replace the procedural forest (ultra only). */
+/**
+ * True when the forest is the billboard forest (addHqVegetation): the same path on every tier
+ * that has decoration — the tier only sets the counts, the card resolution (see byTier) and
+ * whether the trees on the board are 3D models (see sceneryBoardTrees3d).
+ */
 export function sceneryHqVegetation(quality: SceneryQuality): boolean {
-    return quality === 'ultra';
+    return quality === 'ultra' || quality === 'high' || quality === 'medium';
+}
+
+/** the trees on the board itself: 3D models on ultra and high, billboards on medium */
+export function sceneryBoardTrees3d(quality: SceneryQuality): boolean {
+    return quality === 'ultra' || quality === 'high';
 }
 
 /** multiply tint per season — 1,1,1 (summer) leaves the baked leaf/bush colors untouched.

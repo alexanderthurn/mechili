@@ -206,15 +206,33 @@ export type GraphicsPresetValues = Pick<
     | 'ao'
 >;
 
+// Each preset's settings follow its name: 'medium' is medium scenery, medium ground effects and
+// so on (where a setting has no such level, the nearest one below). The presets used to sit one
+// step up from their names — 'medium' was high scenery — so picking Medium changed nothing a
+// player could see in the scenery list.
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
-    // Former Low — absolute floor for weak / software GPUs.
+    // the floor for weak / software GPUs
     minimal: {
+        scenery: 'low',
+        groundEffects: 'off',
+        fireVfx: 'low',
+        bloodFx: 'off',
+        stuckProjectiles: 'off',
+        renderScale: 0.5,
+        shadows: 'off',
+        renderDeadUnits: false,
+        antialias: false,
+        vignette: 'off',
+        bloom: 'off',
+        ao: 'off',
+    },
+    low: {
         scenery: 'low',
         groundEffects: 'low',
         fireVfx: 'low',
         bloodFx: 'low',
         stuckProjectiles: 'off',
-        renderScale: 0.5,
+        renderScale: 0.75,
         shadows: 'low',
         renderDeadUnits: false,
         antialias: false,
@@ -222,43 +240,27 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         bloom: 'off',
         ao: 'off',
     },
-    // Former Medium.
-    low: {
+    medium: {
         scenery: 'medium',
         groundEffects: 'medium',
         fireVfx: 'medium',
         bloodFx: 'medium',
-        stuckProjectiles: 'off',
-        renderScale: 0.75,
-        shadows: 'medium',
-        renderDeadUnits: false,
-        antialias: false,
-        vignette: 'off',
-        bloom: 'off',
-        ao: 'off',
-    },
-    // Former High world detail, without expensive post passes — desktop default.
-    medium: {
-        scenery: 'high',
-        groundEffects: 'high',
-        fireVfx: 'medium',
-        bloodFx: 'high',
         stuckProjectiles: 'low',
         renderScale: 1,
-        shadows: 'high',
+        shadows: 'medium',
         renderDeadUnits: true,
         antialias: true,
         vignette: 'off',
         bloom: 'off',
         ao: 'off',
     },
-    // Medium + cinematic post (vignette / bloom / half-res AO).
+    // with the cinematic post (vignette / bloom / half-res AO)
     high: {
         scenery: 'high',
         groundEffects: 'high',
         fireVfx: 'medium',
         bloodFx: 'high',
-        stuckProjectiles: 'low',
+        stuckProjectiles: 'medium',
         renderScale: 1,
         shadows: 'high',
         renderDeadUnits: true,

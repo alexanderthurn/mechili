@@ -80,6 +80,7 @@ import {
     loadSceneryVegetation,
     placeBillboardInstance,
     placeVegetationInstance,
+    sceneryBoardTrees3d,
     sceneryHqVegetation,
     snapVegetationSeason,
     setVegetationSeason,
@@ -2158,7 +2159,8 @@ export class Scenery {
         };
 
         // --- grass tufts: crossed alpha-tested quads, swaying in the wind
-        const TUFTS = scaleCount(4200, this.density.meadow);
+        // grass tufts: ultra only (below it the meadow is the ground texture alone)
+        const TUFTS = this.quality === 'ultra' ? scaleCount(4200, this.density.meadow) : 0;
         // Painted grass clumps (a 2x2 atlas, one clump picked per instance), lit from above like
         // the ground: three cards crossed at 60° on ultra and high, two crossed cards on medium
         // (low places no tufts at all). The procedural blade texture only shows if the atlas
@@ -2190,7 +2192,7 @@ export class Scenery {
             side: DoubleSide,
             roughness: 1,
         });
-        if (clumps) {
+        if (clumps && TUFTS > 0) {
             const mat = this.tuftMaterial;
             // hidden until the atlas is in, so the old blades never flash in first
             mat.visible = false;
@@ -2350,13 +2352,14 @@ export class Scenery {
             this.group.add(stones, logs, mushrooms);
         }
 
-        // --- fallen leaf litter (ultra): little drifts of leaves, built now, opacity eased in for
+        // --- fallen leaf litter (ultra, high): little drifts of leaves, built now, opacity eased in for
         // autumn (see setSeason). Each card is a scatter of cut-out leaves, tinted per card.
-        if (this.quality !== 'ultra') {
+        if (this.quality !== 'ultra' && this.quality !== 'high') {
             this.group.add(tufts);
             return;
         }
-        const LITTER = scaleCount(1200, this.density.meadow);
+        // (high: half as much)
+        const LITTER = scaleCount(this.quality === 'ultra' ? 1200 : 600, this.density.meadow);
         const litterGeo = new PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2);
         const litterMaterial = new MeshStandardMaterial({
             color: 0xffffff,
@@ -4048,14 +4051,16 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             groundY: (x: number, z: number) => number;
         },
     ): Promise<void> {
-        await Promise.all([loadSceneryVegetation(), loadSceneryBillboards()]);
+        const boardTrees3d = sceneryBoardTrees3d(this.quality);
+        await Promise.all([boardTrees3d ? loadSceneryVegetation() : Promise.resolve(), loadSceneryBillboards()]);
         const dens = this.density;
         const { forestSpot, fieldSpot, groundY } = helpers;
 
-        const OAK = scaleCount(120, dens.outer * FOREST_TREES);
-        const PINE = scaleCount(200, dens.outer * FOREST_TREES);
-        const BUSH_R = scaleCount(50, dens.outer * FOREST_TREES);
-        const BUSH_T = scaleCount(40, dens.outer * FOREST_TREES);
+        const trees = dens.outer * FOREST_TREES;
+        const OAK = scaleCount(120, trees);
+        const PINE = scaleCount(200, trees);
+        const BUSH_R = scaleCount(50, trees);
+        const BUSH_T = scaleCount(40, trees);
         const FIELD_OAK = scaleCount(3, dens.field);
         const FIELD_PINE = scaleCount(3, dens.field);
         const FIELD_BUSH = scaleCount(22, dens.field);
@@ -4119,8 +4124,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const shadows: BlobShadowSource[] = [];
 
         for (const kind of kinds) {
-            const nearList = plants.filter((p) => p.kind === kind && p.near && !this.plantClearedAt(p.x, p.z) && !this.onDryPatch(p.x, p.z));
-            const farList = plants.filter((p) => p.kind === kind && !p.near && !this.plantClearedAt(p.x, p.z) && !this.onDryPatch(p.x, p.z));
+            // (without 3D board trees, the board's trees are billboards like the forest's)
+            const nearList = plants.filter((p) => p.kind === kind && p.near && boardTrees3d && !this.plantClearedAt(p.x, p.z) && !this.onDryPatch(p.x, p.z));
+            const farList = plants.filter((p) => p.kind === kind && (!p.near || !boardTrees3d) && !this.plantClearedAt(p.x, p.z) && !this.onDryPatch(p.x, p.z));
 
             if (nearList.length > 0) {
                 const mesh = createVegetationInstances(kind, nearList.length);
@@ -4172,7 +4178,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
         }
 
-        this.treeShadows.setSources(shadows);
+        // medium draws no tree shadows (as before)
+        this.treeShadows.setSources(this.quality === 'medium' ? [] : shadows);
         console.info(`[scenery] HQ vegetation: board3D=${nearN} outerBillboards=${farN}`);
     }
 
