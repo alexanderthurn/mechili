@@ -60,6 +60,11 @@ interface IntelEntry {
 }
 
 const VALID_COLOR = THEME.valid;
+/**
+ * Depth bias for plates drawn onto the ground: pulled toward the camera, more where the ground
+ * is steep to the view (factor), so they win against the ground they lie in at any distance.
+ */
+const GROUND_DECAL_OFFSET = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 } as const;
 const INVALID_COLOR = THEME.invalid;
 const SELECT_COLOR = THEME.select;
 /** gold tint for the special-ability aura ring (Golden Aura) */
@@ -555,6 +560,7 @@ export class PlacementController {
                 opacity,
                 side: DoubleSide,
                 depthWrite: false,
+                ...GROUND_DECAL_OFFSET,
             });
             const mesh = new Mesh(geo, material);
             mesh.renderOrder = 10; // after the other transparent ground overlays
@@ -589,6 +595,7 @@ export class PlacementController {
             opacity: MOVABLE_PLATE_OPACITY,
             side: DoubleSide,
             depthWrite: false,
+            ...GROUND_DECAL_OFFSET,
         });
 
         // rubber-band rectangle, drawn as a plain overlay div on the wrapper
@@ -1581,23 +1588,40 @@ export class PlacementController {
             geo.rotateX(-Math.PI / 2);
             mesh.geometry = geo;
             mesh.userData.fpKey = fpKey;
+            // the untouched lattice (x, z per vertex): the rim inset below moves vertices
+            mesh.userData.fpLattice = Float32Array.from(
+                { length: geo.attributes.position!.count * 2 },
+                (_, k) => (k % 2 === 0 ? geo.attributes.position!.getX(k >> 1) : geo.attributes.position!.getZ(k >> 1)),
+            );
         }
+        const lattice = mesh.userData.fpLattice as Float32Array;
         const pos = mesh.geometry.attributes.position!;
         const onBuilding = pinnedY !== undefined;
         const anchorY = onBuilding ? pinnedY : this.map.heightAt(center.x, center.z);
+        // The plate's vertices sit exactly on the ground mesh's nodes (same 2 wu lattice, same
+        // triangle diagonals), so every triangle lies IN the ground's own triangle and the depth
+        // offset on the material keeps it on top. Only the rim moves inward for the inset — the
+        // old uniform scale slid every vertex off the lattice, and on a slope the plate's
+        // triangles cut through the ground's, flickering in a fine 2x2 pattern.
+        const halfX = (fp.cols * CELL) / 2;
+        const halfZ = (fp.rows * CELL) / 2;
+        const insetX = halfX * (1 - edge);
+        const insetZ = halfZ * (1 - edge);
         for (let i = 0; i < pos.count; i++) {
             if (onBuilding) {
                 pos.setY(i, 0); // stone pad, not relief
                 continue;
             }
-            const wx = center.x + pos.getX(i) * edge;
-            const wz = center.z + pos.getZ(i) * edge;
-            pos.setY(i, this.map.heightAt(wx, wz) - anchorY);
+            const gx = lattice[i * 2]!;
+            const gz = lattice[i * 2 + 1]!;
+            const lx = Math.abs(gx) >= halfX - 1e-3 ? gx - Math.sign(gx) * insetX : gx;
+            const lz = Math.abs(gz) >= halfZ - 1e-3 ? gz - Math.sign(gz) * insetZ : gz;
+            pos.setXYZ(i, lx, this.map.heightAt(center.x + lx, center.z + lz) - anchorY, lz);
         }
         pos.needsUpdate = true;
         // a hair over the pad so the battlement floor doesn't z-fight it away; the archer still covers it
         mesh.position.set(center.x, (onBuilding ? 0.12 : y + 0.04) + anchorY, center.z);
-        mesh.scale.set(edge, 1, edge);
+        mesh.scale.set(1, 1, 1);
         material.depthTest = true;
         material.color.setHex(color);
         material.opacity = animated ? 0.58 + 0.22 * pulse : MOVABLE_PLATE_OPACITY;
