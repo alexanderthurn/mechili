@@ -235,7 +235,7 @@ const MOUNTAIN_RISE_START = 110;
  * Below 1 the same heights are reached sooner: steeper flanks, and the range at full height
  * stands in a wider band behind them. A test knob — try 1, 2/3, 0.5.
  */
-const MOUNTAIN_DEPTH = 2 / 3;
+const MOUNTAIN_DEPTH = 0.5;
 const MOUNTAIN_RISE_SPAN = 360 * MOUNTAIN_DEPTH;
 /** Crest / world cut — hold peak height from ~470 out to 500. */
 export const MOUNTAIN_PEAK_END = 500;
