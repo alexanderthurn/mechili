@@ -93,7 +93,7 @@ import {
     loadFloorPieces,
     type FloorPiecePlacement,
 } from './sceneryFloorPieces';
-import { createOuterGroundGeometry } from './outerGroundGrid';
+import { createOuterGroundGeometry, MOUNTAIN_DENSE_FROM, OUTER_SCALE } from './outerGroundGrid';
 import { sculptUltraMountainPositions } from './mountainSculpt';
 import { ensureOuterMaterialAttrs } from './landscapeMaterials';
 import { applyLandscapeToOuterGeometry, landscapeOuterSampler, type HeightSampler, type LandscapeData } from './landscape';
@@ -230,18 +230,17 @@ function detHypot(x: number, z: number): number {
  * stay at peak height (no drop to y=0). Decorations past the crest are culled.
  */
 const MOUNTAIN_RISE_START = 110;
+/** Same climb as before — full strength at start+360 (~470). */
+const MOUNTAIN_RISE_SPAN = 360;
 /**
- * How deep the climb is, as a share of the original (1 = full strength at start+360, ~470).
- * Below 1 the same heights are reached sooner: steeper flanks, and the range at full height
- * stands in a wider band behind them. A test knob — try 1, 2/3, 0.5.
+ * Crest / world cut — hold peak height from ~470 out to 500. These distances (and every other
+ * one out from the board edge in here) are NOMINAL: the procedural world scales them all by
+ * OUTER_SCALE (see outerGroundGrid.ts); a static map keeps them as authored.
  */
-const MOUNTAIN_DEPTH = 0.5;
-const MOUNTAIN_RISE_SPAN = 360 * MOUNTAIN_DEPTH;
-/** Crest / world cut — hold peak height from ~470 out to 500. */
 export const MOUNTAIN_PEAK_END = 500;
 
 /** the super mountain: footprint radius, the summit height it is lifted to (the ordinary range tops out near 370) and the least it adds */
-const SUPER_RADIUS = 190;
+const SUPER_RADIUS_NOMINAL = 190;
 const SUPER_TOP = 380;
 const SUPER_MIN_ADD = 10;
 
@@ -445,13 +444,13 @@ const OUTER_PAST_BOARD = MOUNTAIN_PEAK_END;
  */
 const OUTER_PAST_BOARD_BUDGET = 780;
 
-function outerWorldSize(halfW: number, halfH: number): number {
-    return 2 * (Math.max(halfW, halfH) + OUTER_PAST_BOARD);
+function outerWorldSize(halfW: number, halfH: number, scale: number): number {
+    return 2 * (Math.max(halfW, halfH) + OUTER_PAST_BOARD * scale);
 }
 
 /** World size as if the old long skirt still existed — drives SEGS only. */
-function outerWorldBudgetSize(halfW: number, halfH: number): number {
-    return 2 * (Math.max(halfW, halfH) + OUTER_PAST_BOARD_BUDGET);
+function outerWorldBudgetSize(halfW: number, halfH: number, scale: number): number {
+    return 2 * (Math.max(halfW, halfH) + OUTER_PAST_BOARD_BUDGET * scale);
 }
 
 /**
@@ -484,12 +483,6 @@ export class Scenery {
     /** ultra: cloud banks lying on the mountain shelves (see createMountainMist) */
     private readonly mistBanks: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     private mountainMistMaterial: MeshBasicMaterial | null = null;
-    private readonly _rayUp = new Vector3();
-    private readonly _rayAxis = new Vector3(0, 1, 0);
-    private readonly _rayQuat = new Quaternion();
-    /** ultra: light shafts standing on the mountain shelves (see createSunRays) */
-    private readonly sunRays: Group[] = [];
-    private sunRayMaterial: MeshBasicMaterial | null = null;
     /** ultra: snow blown off the tallest crests (see createSnowPlumes) */
     private readonly snowPlumes: {
         crest: Vector3;
@@ -503,6 +496,14 @@ export class Scenery {
         cap: { sprite: Sprite; material: SpriteMaterial; angle: number; radius: number; height: number; spin: number; size: number; rank: number }[];
     }[] = [];
     /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
+    /** the outer ring's scale (OUTER_SCALE on the procedural world, 1 on a static map) */
+    private readonly os: number;
+    /** how far past the board the outer world reaches (MOUNTAIN_PEAK_END × os) */
+    private readonly reach: number;
+    /** how far past the board the outer world reaches — the camera's bounds */
+    get outerReach(): number {
+        return this.reach;
+    }
     /** where the super mountain stands (null on a static map) */
     private superPeak: { x: number; z: number; add: number } | null = null;
     private readonly almSites: { x: number; z: number; y: number; ux: number; uz: number }[] = [];
@@ -634,8 +635,12 @@ export class Scenery {
         this.seed = seed;
         this.landscape = landscape;
         this.map = map;
-        this.worldSize = outerWorldSize(map.halfW, map.halfH);
-        this.cloudBoundsX = map.halfW + MOUNTAIN_PEAK_END;
+        // the procedural ring is scaled as a whole; a static map keeps its authored reach
+        this.os = landscape ? 1 : OUTER_SCALE;
+        this.reach = MOUNTAIN_PEAK_END * this.os;
+        const S = this.os;
+        this.worldSize = outerWorldSize(map.halfW, map.halfH, S);
+        this.cloudBoundsX = map.halfW + this.reach;
 
         // the match seed picks this match's mountains and lakes (heights are gameplay-visible, so
         // every peer gets the same range from the same seed)
@@ -651,23 +656,23 @@ export class Scenery {
         {
             const radii: number[] = [];
             if (lakeRng() < 0.35) {
-                radii.push(80 + lakeRng() * 20);
+                radii.push((80 + lakeRng() * 20) * S);
                 const ponds = 1 + Math.floor(lakeRng() * 2);
-                for (let i = 0; i < ponds; i++) radii.push(22 + lakeRng() * 16);
+                for (let i = 0; i < ponds; i++) radii.push((22 + lakeRng() * 16) * S);
             } else {
                 const count = 3 + Math.floor(lakeRng() * 3);
-                for (let i = 0; i < count; i++) radii.push(30 + lakeRng() * 32);
+                for (let i = 0; i < count; i++) radii.push((30 + lakeRng() * 32) * S);
             }
             for (const r of radii) {
                 for (let attempt = 0; attempt < 200; attempt++) {
-                    const x = (lakeRng() * 2 - 1) * (map.halfW + 250);
-                    const z = (lakeRng() * 2 - 1) * (map.halfH + 250);
+                    const x = (lakeRng() * 2 - 1) * (map.halfW + 250 * S);
+                    const z = (lakeRng() * 2 - 1) * (map.halfH + 250 * S);
                     const dOut = Math.max(Math.abs(x) - map.halfW, Math.abs(z) - map.halfH, 0);
-                    if (dOut < r + 40 || dOut > 210) continue;
+                    if (dOut < r + 40 * S || dOut > 210 * S) continue;
                     // (sqrt, not hypot: this height is gameplay-visible and must match on every machine)
                     if (lakeSites.some((o) => {
                         const gap = Math.sqrt((o.x - x) * (o.x - x) + (o.z - z) * (o.z - z)) - o.r - r;
-                        return gap < 40;
+                        return gap < 40 * S;
                     })) continue;
                     lakeSites.push({ x, z, r, phase: lakeRng() * 100 });
                     break;
@@ -694,7 +699,8 @@ export class Scenery {
             // rounded distance past the board + mild noise (not a square cliff line)
             const ox = Math.max(0, Math.abs(x) - map.halfW);
             const oz = Math.max(0, Math.abs(z) - map.halfH);
-            let d = detHypot(ox, oz);
+            // (nominal distance: the whole profile below is laid out for OUTER_SCALE 1)
+            let d = detHypot(ox, oz) / S;
             d += (noise(x / 95 + 2.4, z / 95 + 6.1) - 0.5) * 28;
             d += (noise(x / 40 + 9.0, z / 40 + 1.7) - 0.5) * 12;
             d = Math.max(0, d);
@@ -740,7 +746,7 @@ export class Scenery {
             const mountain = rawMountain;
             // Foothills die as the high range takes over — don't resume a
             // second meadow behind the mountain ring.
-            const foothill = 1 - smooth01((dClimb - (MOUNTAIN_RISE_START + 290 * MOUNTAIN_DEPTH)) / (280 * MOUNTAIN_DEPTH));
+            const foothill = 1 - smooth01((dClimb - 400) / 280);
             const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn * foothill;
             const base = rolling + mountain;
             // Surface wrinkles on the original big shapes — stronger the higher
@@ -764,8 +770,8 @@ export class Scenery {
             const superRng = mulberry32((seed ^ 0x77ab13) >>> 0);
             let bestH = -Infinity;
             for (let i = 0; i < 400; i++) {
-                const x = (superRng() * 2 - 1) * (map.halfW + 120);
-                const z = -(map.halfH + 240 + superRng() * 140);
+                const x = (superRng() * 2 - 1) * (map.halfW + 120 * S);
+                const z = -(map.halfH + (240 + superRng() * 140) * S);
                 if (this.lakeAt(x, z) > 0.01) continue;
                 const h = baseHeight(x, z);
                 if (h > bestH) {
@@ -778,6 +784,7 @@ export class Scenery {
             if (this.superPeak) this.superPeak.add = Math.max(SUPER_MIN_ADD, SUPER_TOP - bestH);
         }
         const superPeak = this.superPeak;
+        const SUPER_RADIUS = SUPER_RADIUS_NOMINAL * S;
         const rawHeight: HeightSampler = (x, z) => {
             let h = baseHeight(x, z);
             if (superPeak) {
@@ -800,11 +807,11 @@ export class Scenery {
             const almRng = mulberry32((seed ^ 0x5a17c3) >>> 0);
             const found: { x: number; z: number; y: number; score: number }[] = [];
             for (let i = 0; i < 900; i++) {
-                const x = (almRng() * 2 - 1) * (map.halfW + 420);
-                const z = (almRng() * 2 - 1) * (map.halfH + 420);
+                const x = (almRng() * 2 - 1) * (map.halfW + 420 * S);
+                const z = (almRng() * 2 - 1) * (map.halfH + 420 * S);
                 const dOut = pastBoard(map.halfW, map.halfH, x, z);
-                if (dOut < 180 || dOut > 400 || this.lakeAt(x, z) > 0.02) continue;
-                if (superPeak && (x - superPeak.x) ** 2 + (z - superPeak.z) ** 2 < (SUPER_RADIUS + 60) ** 2) continue;
+                if (dOut < 180 * S || dOut > 400 * S || this.lakeAt(x, z) > 0.02) continue;
+                if (superPeak && (x - superPeak.x) ** 2 + (z - superPeak.z) ** 2 < (SUPER_RADIUS + 60 * S) ** 2) continue;
                 const y = rawHeight(x, z);
                 // half of the range's height, on ground that is not already a cliff
                 const grade =
@@ -825,7 +832,7 @@ export class Scenery {
                 let best: (typeof found)[number] | null = null;
                 let bestScore = Infinity;
                 for (const f of found) {
-                    if (!this.almSites.every((o) => (o.x - f.x) ** 2 + (o.z - f.z) ** 2 > 260 * 260)) continue;
+                    if (!this.almSites.every((o) => (o.x - f.x) ** 2 + (o.z - f.z) ** 2 > (260 * S) ** 2)) continue;
                     const sc = f.score + Math.abs(f.y - want);
                     if (sc < bestScore) {
                         bestScore = sc;
@@ -897,7 +904,6 @@ export class Scenery {
         if (this.detailed) this.createForestFog(map, rng);
         if (this.quality === 'ultra') {
             this.createMountainMist(map, rng);
-            this.createSunRays(map, rng);
             this.createSnowPlumes(map, rng);
         }
         if (this.quality === 'off') {
@@ -922,13 +928,13 @@ export class Scenery {
         geometry.rotateX(-Math.PI / 2);
 
         const count = Math.round(14 + this.density.forestFogCards);
-        const beltMax = Math.min(this.density.beltFar, MOUNTAIN_PEAK_END - 20);
+        const beltMax = Math.min(this.density.beltFar * this.os, this.reach - 20 * this.os);
         let placed = 0;
         for (let attempt = 0; attempt < 4000 && placed < count; attempt++) {
             const x = (rng() * 2 - 1) * (map.halfW + beltMax);
             const z = (rng() * 2 - 1) * (map.halfH + beltMax);
             const d = pastBoard(map.halfW, map.halfH, x, z);
-            if (d >= MOUNTAIN_PEAK_END) continue;
+            if (d >= this.reach) continue;
             if (d < this.density.beltNear + 6 || d > beltMax) continue;
             const h = this.terrainHeight(x, z);
             if (h < -0.5 || h > 60 || !this.isGrassy(x, z)) continue;
@@ -969,10 +975,10 @@ export class Scenery {
         const S = 10;
         let placed = 0;
         for (let attempt = 0; attempt < 6000 && placed < COUNT; attempt++) {
-            const x = (rng() * 2 - 1) * (map.halfW + MOUNTAIN_PEAK_END);
-            const z = (rng() * 2 - 1) * (map.halfH + MOUNTAIN_PEAK_END);
+            const x = (rng() * 2 - 1) * (map.halfW + this.reach);
+            const z = (rng() * 2 - 1) * (map.halfH + this.reach);
             const d = pastBoard(map.halfW, map.halfH, x, z);
-            if (d < 120 || d > MOUNTAIN_PEAK_END - 30) continue;
+            if (d < 120 * this.os || d > this.reach - 30 * this.os) continue;
             const h = this.terrainHeight(x, z);
             if (h < 35 || h > 260) continue;
             if (this.lakeAt(x, z) > 0.05) continue;
@@ -991,74 +997,6 @@ export class Scenery {
             mesh.renderOrder = 2;
             this.mistBanks.push({ mesh, baseX: x, phase: rng() * Math.PI * 2, speed: 0.02 + rng() * 0.03 });
             this.group.add(mesh);
-            placed++;
-        }
-    }
-
-    /**
-     * Ultra: a few shafts of sunlight standing on the mountain shelves, lit through the gaps
-     * in the cloud banks. Each is two crossed quads with a soft gradient, drawn additively,
-     * leaning along the sun's real direction; they show only with a high sun and clear air.
-     */
-    private createSunRays(map: BattleMap, rng: () => number): void {
-        const canvas = document.createElement('canvas');
-        canvas.width = 64;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d')!;
-        const img = ctx.createImageData(64, 256);
-        for (let y = 0; y < 256; y++) {
-            // y = 0 is the top of the shaft (in the sky), y = 255 its foot on the ground
-            const along = y / 255;
-            const fade = smooth01(along / 0.25) * (1 - smooth01((along - 0.8) / 0.2) * 0.65);
-            for (let x = 0; x < 64; x++) {
-                const across = Math.abs((x + 0.5) / 32 - 1);
-                const a = (1 - smooth01(across)) * fade;
-                const i = (y * 64 + x) * 4;
-                img.data[i] = 255;
-                img.data[i + 1] = 244;
-                img.data[i + 2] = 214;
-                img.data[i + 3] = Math.round(a * 255);
-            }
-        }
-        ctx.putImageData(img, 0, 0);
-        const texture = new CanvasTexture(canvas);
-        texture.colorSpace = SRGBColorSpace;
-        const material = new MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            blending: AdditiveBlending,
-            depthWrite: false,
-            side: DoubleSide,
-            fog: false,
-            opacity: 0,
-        });
-        this.sunRayMaterial = material;
-        const LENGTH = 150;
-        const geometry = new PlaneGeometry(1, 1);
-        geometry.translate(0, 0.5, 0); // origin at the foot; the shaft runs up the +Y axis, toward the sun
-        const COUNT = 7;
-        let placed = 0;
-        for (let attempt = 0; attempt < 6000 && placed < COUNT; attempt++) {
-            const x = (rng() * 2 - 1) * (map.halfW + MOUNTAIN_PEAK_END);
-            const z = (rng() * 2 - 1) * (map.halfH + MOUNTAIN_PEAK_END);
-            const d = pastBoard(map.halfW, map.halfH, x, z);
-            if (d < 100 || d > MOUNTAIN_PEAK_END - 60) continue;
-            const h = this.terrainHeight(x, z);
-            if (h < 25 || h > 230 || this.lakeAt(x, z) > 0.05) continue;
-            if (this.sunRays.some((r) => (r.position.x - x) ** 2 + (r.position.z - z) ** 2 < 110 * 110)) continue;
-            const group = new Group();
-            group.position.set(x, h - 2, z);
-            const width = 26 + rng() * 26;
-            for (const yaw of [0, Math.PI / 2]) {
-                const quad = new Mesh(geometry, material);
-                quad.scale.set(width, LENGTH, 1);
-                quad.rotation.y = yaw;
-                quad.renderOrder = 3;
-                group.add(quad);
-            }
-            group.userData.phase = rng() * Math.PI * 2;
-            this.sunRays.push(group);
-            this.group.add(group);
             placed++;
         }
     }
@@ -1232,7 +1170,7 @@ export class Scenery {
         }
         // aerial perspective: far ring lighter and bluer
         const dOut = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
-        const far = smooth01((dOut - 140) / 300);
+        const far = smooth01((dOut - 140 * this.os) / (300 * this.os));
         if (far > 0) {
             rock.r = rock.r * (1 - far * 0.22) + 0.62 * far * 0.22;
             rock.g = rock.g * (1 - far * 0.16) + 0.72 * far * 0.16;
@@ -1552,27 +1490,6 @@ export class Scenery {
                 b.mesh.visible = op > 0.02;
             }
         }
-        const rayMat = this.sunRayMaterial;
-        if (rayMat) {
-            const sun = this.sunLight;
-            // strongest under a high, bright sun; gone in rain, snow and dusk
-            const power = sun ? smooth01((sun.intensity - 1.2) / 0.7) : 0;
-            const clear = this.weather && this.weather.weatherKind !== 'clear' ? 0.15 : 1;
-            rayMat.opacity = this.quality === 'ultra' ? 0.16 * power * clear : 0;
-            if (sun && rayMat.opacity > 0.004) {
-                // up-sun direction: from the shaft's foot toward the sun
-                this._rayUp.copy(sun.position).sub(sun.target.position).normalize();
-                this._rayQuat.setFromUnitVectors(this._rayAxis, this._rayUp);
-                for (const g of this.sunRays) {
-                    g.quaternion.copy(this._rayQuat);
-                    g.visible = true;
-                    const pulse = 0.8 + 0.2 * Math.sin(this.time * 0.35 + (g.userData.phase as number));
-                    g.scale.setScalar(pulse);
-                }
-            } else {
-                for (const g of this.sunRays) g.visible = false;
-            }
-        }
         this.updateSummitClouds();
         // low: the flat water freezes by colour alone (there is no ice texture)
         if (this.flatWaterMaterial) {
@@ -1651,17 +1568,17 @@ export class Scenery {
         const material =
             this.quality === 'medium'
                 ? new MeshLambertMaterial({
-                      map: this.waterTexture,
-                      transparent: true,
-                      opacity: baseOpacity,
-                  })
+                    map: this.waterTexture,
+                    transparent: true,
+                    opacity: baseOpacity,
+                })
                 : new MeshStandardMaterial({
-                      map: this.waterTexture,
-                      transparent: true,
-                      opacity: baseOpacity,
-                      roughness: this.quality === 'ultra' ? WATER_ULTRA_ROUGHNESS : 0.18,
-                      metalness: 0,
-                  });
+                    map: this.waterTexture,
+                    transparent: true,
+                    opacity: baseOpacity,
+                    roughness: this.quality === 'ultra' ? WATER_ULTRA_ROUGHNESS : 0.18,
+                    metalness: 0,
+                });
         this.waterMaterial = material;
         this.waterOpacity = baseOpacity;
         this.waterRoughness = this.quality === 'ultra' ? WATER_ULTRA_ROUGHNESS : 0.18;
@@ -1852,7 +1769,7 @@ export class Scenery {
 
     /** half the side of the square around the board that can hold a lake */
     private lakeSpan(): number {
-        return Math.min(this.worldSize * 0.5, this.map.halfW + MOUNTAIN_PEAK_END);
+        return Math.min(this.worldSize * 0.5, this.map.halfW + this.reach);
     }
 
     /**
@@ -2013,12 +1930,12 @@ export class Scenery {
 
         /** random meadow-band point (outside board, on grass, not in water) */
         const meadowSpot = (maxH: number): { x: number; z: number; h: number } | null => {
-            const band = Math.min(320, MOUNTAIN_PEAK_END - 10);
+            const band = Math.min(320 * this.os, this.reach - 10 * this.os);
             for (let attempt = 0; attempt < 60; attempt++) {
                 const x = (rng() * 2 - 1) * (map.halfW + band);
                 const z = (rng() * 2 - 1) * (map.halfH + band);
                 if (Math.abs(x) <= map.halfW + 6 && Math.abs(z) <= map.halfH + 6) continue;
-                if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
+                if (pastBoard(map.halfW, map.halfH, x, z) >= this.reach) continue;
                 const h = this.terrainHeight(x, z);
                 if (h < -0.3 || h > maxH) continue;
                 return { x, z, h };
@@ -2215,10 +2132,10 @@ export class Scenery {
         /** random point where the lake factor and height match the given band */
         const lakeSpot = (minLake: number, hMin: number, hMax: number) => {
             for (let attempt = 0; attempt < 400; attempt++) {
-                const span = Math.min(this.worldSize * 0.5, this.map.halfW + MOUNTAIN_PEAK_END);
+                const span = Math.min(this.worldSize * 0.5, this.map.halfW + this.reach);
                 const x = (rng() * 2 - 1) * span;
                 const z = (rng() * 2 - 1) * span;
-                if (pastBoard(this.map.halfW, this.map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
+                if (pastBoard(this.map.halfW, this.map.halfH, x, z) >= this.reach) continue;
                 if (this.lakeAt(x, z) < minLake) continue;
                 const h = this.terrainHeight(x, z);
                 if (h < hMin || h > hMax) continue;
@@ -2386,7 +2303,7 @@ export class Scenery {
         const REF_WORLD = 3000;
         const segsBasis =
             this.quality === 'ultra'
-                ? outerWorldBudgetSize(map.halfW, map.halfH)
+                ? outerWorldBudgetSize(map.halfW, map.halfH, this.os)
                 : SIZE;
         const SEGS = Math.max(
             24,
@@ -2398,6 +2315,7 @@ export class Scenery {
             mountainSparse: this.quality === 'high' || this.quality === 'medium',
             halfW: map.halfW,
             halfH: map.halfH,
+            denseFrom: MOUNTAIN_DENSE_FROM * this.os,
         });
 
         const pos = geometry.attributes.position!;
@@ -2462,6 +2380,7 @@ export class Scenery {
                 halfH: map.halfH,
                 noise: this.noise,
                 seed: this.seed,
+                scale: this.os,
                 keepOut: this.almSites.map((site) => ({ x: site.x, z: site.z, r: ALM_RADIUS + ALM_EASE })),
             });
         }
@@ -3068,16 +2987,15 @@ ${pgClose}`;
         // lapping foam: a broken white line that surges up and back along the shore
         float lbSurge = lakeShoreSurge(vWorldXZ, uLakeTime) * mix(${LAKE_SMALL_SURGE.toFixed(2)}, 1.0, lbLakeSize);
         float lbFoam = lakeFoam(vWorldXZ, uLakeTime, lbDepth, lbSurge) * mix(${LAKE_SMALL_FOAM.toFixed(2)}, 1.0, lbLakeSize) * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.97, 0.98), lbFoam * 0.9);${
-            lakeCaustics
-                ? `
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.97, 0.98), lbFoam * 0.9);${lakeCaustics
+                            ? `
         // caustics: sunlit net on the bed where the water is shallow, gone with depth and under ice
         float lbCaus = lakeCaustics(vWorldXZ, uLakeTime)
             * smoothstep(0.05, 0.45, lbDepth) * (1.0 - smoothstep(1.6, 4.5, lbDepth))
             * uLakeBed * (1.0 - smoothstep(0.0, 0.5, uLakeFreeze));
         diffuseColor.rgb += lbCaus * vec3(0.50, 0.48, 0.34);`
-                : ''
-        }
+                            : ''
+                        }
     }`;
                 } else if (lakeLite) {
                     inject += `
@@ -3222,7 +3140,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const dens = this.density;
         const hq = sceneryHqVegetation(this.quality);
         // Forest / props only inside the crest — past d=500 is culled (unseen).
-        const margin = Math.min(dens.margin, MOUNTAIN_PEAK_END - 10);
+        const margin = Math.min(dens.margin * this.os, this.reach - 10 * this.os);
         const acceptBase = dens.acceptBase;
         // forest measured from the playable edge so trees sit on the rim;
         // keepOut matches the pre-rim clearance (~2 tiles) so the wall isn't
@@ -3231,7 +3149,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const forestHalfW = map.halfW - rimW;
         const forestHalfH = map.halfH - rimW;
         const keepOut = 8;
-        const beltFar = Math.min(dens.beltFar, MOUNTAIN_PEAK_END - 20);
+        const beltFar = Math.min(dens.beltFar * this.os, this.reach - 20 * this.os);
 
         const distOut = (x: number, z: number) =>
             Math.max(Math.abs(x) - forestHalfW, Math.abs(z) - forestHalfH, 0);
@@ -3251,14 +3169,14 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 let sampleMargin = margin;
                 if (dens.outer >= 5) {
                     const roll = rng();
-                    if (roll < 0.34) sampleMargin = 140; // board-edge wall
-                    else if (roll < 0.55) sampleMargin = 280; // mid meadow
+                    if (roll < 0.34) sampleMargin = 140 * this.os; // board-edge wall
+                    else if (roll < 0.55) sampleMargin = 280 * this.os; // mid meadow
                     else sampleMargin = margin; // green pockets toward mountains
                 }
-                sampleMargin = Math.min(sampleMargin, MOUNTAIN_PEAK_END - 10);
+                sampleMargin = Math.min(sampleMargin, this.reach - 10 * this.os);
                 const x = (rng() * 2 - 1) * (forestHalfW + sampleMargin);
                 const z = (rng() * 2 - 1) * (forestHalfH + sampleMargin);
-                if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
+                if (pastBoard(map.halfW, map.halfH, x, z) >= this.reach) continue;
                 const d = distOut(x, z);
                 if (d < keepOut) continue;
                 const h = this.terrainHeight(x, z);
@@ -3269,8 +3187,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 // thin near the field, dense toward foothills, easing out past
                 // beltFar (the crest cut above stops it for good)
                 const belt =
-                    smooth01((d - dens.beltNear) / dens.beltRamp) *
-                    (1 - smooth01((d - beltFar) / 80));
+                    smooth01((d - dens.beltNear * this.os) / (dens.beltRamp * this.os)) *
+                    (1 - smooth01((d - beltFar) / (80 * this.os)));
                 if (rng() > acceptBase + belt * (1 - acceptBase)) continue;
                 return { x, z };
             }
@@ -3278,7 +3196,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             for (let attempt = 0; attempt < 80; attempt++) {
                 const x = (rng() * 2 - 1) * (forestHalfW + margin);
                 const z = (rng() * 2 - 1) * (forestHalfH + margin);
-                if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
+                if (pastBoard(map.halfW, map.halfH, x, z) >= this.reach) continue;
                 if (distOut(x, z) < keepOut) continue;
                 if (this.terrainHeight(x, z) < -0.4) continue;
                 if (!this.isGrassy(x, z)) continue;
@@ -3289,7 +3207,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             for (let attempt = 0; attempt < 200; attempt++) {
                 const x = (rng() * 2 - 1) * (forestHalfW + margin);
                 const z = (rng() * 2 - 1) * (forestHalfH + margin);
-                if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
+                if (pastBoard(map.halfW, map.halfH, x, z) >= this.reach) continue;
                 if (distOut(x, z) >= keepOut) return { x, z };
             }
             // spread out, so repeated fallbacks don't stack trees on one spot
@@ -3300,7 +3218,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const playHalfW = forestHalfW;
         const playHalfH = forestHalfH;
         const fieldSpot = (clearance: number): { x: number; z: number } => {
-            for (;;) {
+            for (; ;) {
                 const x = (rng() * 2 - 1) * playHalfW;
                 const z = (rng() * 2 - 1) * playHalfH;
                 if (anchors.every((a) => Math.hypot(x - a.x, z - a.z) > a.r + clearance)) {
@@ -3544,7 +3462,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const EDGE_BAND = 30;
         const midHalf = Math.max((map.size.neutralRows * CELL) / 2, map.halfH * 0.22, 18);
         const boardEdgeSpot = (): { x: number; z: number } => {
-            for (;;) {
+            for (; ;) {
                 const side = Math.floor(rng() * 4);
                 let x: number;
                 let z: number;
@@ -3565,21 +3483,21 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
         };
         const boardMidSpot = (): { x: number; z: number } => {
-            for (;;) {
+            for (; ;) {
                 const x = (rng() * 2 - 1) * (map.halfW - 2);
                 const z = (rng() * 2 - 1) * Math.min(midHalf, map.halfH - EDGE_BAND - 2);
                 if (clearOfBases(x, z)) return { x, z };
             }
         };
         const boardRandomSpot = (): { x: number; z: number } => {
-            for (;;) {
+            for (; ;) {
                 const x = (rng() * 2 - 1) * (map.halfW - 2);
                 const z = (rng() * 2 - 1) * (map.halfH - 2);
                 if (clearOfBases(x, z)) return { x, z };
             }
         };
         const meadowSpot = (): { x: number; z: number } => {
-            for (;;) {
+            for (; ;) {
                 const x = (rng() * 2 - 1) * (forestHalfW + 260);
                 const z = (rng() * 2 - 1) * (forestHalfH + 260);
                 if (distOut(x, z) < 1) continue; // just outside the forest edge
@@ -4064,7 +3982,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             const mesh = new Mesh(geometry, material);
             const farSide = rng() < 0.7;
             // Keep sky cards inside the crest ring — nothing useful past d=500
-            const lane = map.halfH + 80 + rng() * Math.min(280, MOUNTAIN_PEAK_END - 80);
+            const lane = map.halfH + 80 * this.os + rng() * Math.min(280 * this.os, this.reach - 80 * this.os);
             mesh.position.set(
                 (rng() * 2 - 1) * this.cloudBoundsX,
                 110 + rng() * 60,
@@ -4080,10 +3998,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const peakCap = this.density.peakClouds;
         let placed = 0;
         for (let attempt = 0; attempt < 6000 && placed < peakCap; attempt++) {
-            const span = Math.min(this.worldSize * 0.5, map.halfW + MOUNTAIN_PEAK_END);
+            const span = Math.min(this.worldSize * 0.5, map.halfW + this.reach);
             const x = (rng() * 2 - 1) * span;
             const z = (rng() * 2 - 1) * span;
-            if (pastBoard(map.halfW, map.halfH, x, z) >= MOUNTAIN_PEAK_END) continue;
+            if (pastBoard(map.halfW, map.halfH, x, z) >= this.reach) continue;
             const h = this.terrainHeight(x, z);
             if (h < 165) continue;
             if (this.peakClouds.some((p) => Math.hypot(p.mesh.position.x - x, p.mesh.position.z - z) < 90)) {

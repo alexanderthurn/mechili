@@ -192,7 +192,7 @@ import { GROUND_UNIT_Y } from './groundQuality';
 import { reachToward } from './terrainCombat';
 import { getUnitVisualHeight, modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
-import { Scenery, MOUNTAIN_PEAK_END } from './scenery';
+import { Scenery } from './scenery';
 import { draftTerrain, packagedTerrain, terrainFileText } from './scenario/scenarioTerrain';
 import { EditorSession, type EditorLinks } from './scenario/editorSession';
 import { TERRAIN_HEAL_PER_ROUND } from './terrainGrid';
@@ -1728,7 +1728,7 @@ export class Game {
                 ? HORDE_RING_NEAR + HORDE_RING_SPAN
                 : 0;
         if (terrainEdit) {
-            this.rig.setBounds(this.map.halfW + MOUNTAIN_PEAK_END, this.map.halfH + MOUNTAIN_PEAK_END);
+            this.rig.setBounds(this.map.halfW + this.scenery.outerReach, this.map.halfH + this.scenery.outerReach);
             this.rig.fitMap(this.map.width, this.map.height, sceneryCameraFar(), 4);
         } else {
             this.rig.setBounds(this.map.halfW - 8 + hordeReach, this.map.halfH - 16 + hordeReach);

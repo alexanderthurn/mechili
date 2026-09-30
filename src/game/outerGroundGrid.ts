@@ -12,7 +12,16 @@
 import { BufferAttribute, BufferGeometry } from 'three';
 
 /**
- * Distance past the board edge where the fine mountain grid begins.
+ * How deep the whole procedural outer world is, as a share of the original: the meadow band,
+ * the lakes, the climb, the crest and world edge, the alms, the super mountain, clouds, tree
+ * belts and the horde's spawn bands all move in by this factor, while the peaks keep their
+ * height and the noise shapes their size — so the flanks get steeper and the outer mesh smaller.
+ * 1 = the original world. A static map keeps its authored reach whatever this is.
+ */
+export const OUTER_SCALE = 0.6;
+
+/**
+ * Distance past the board edge where the fine mountain grid begins (at OUTER_SCALE 1).
  * Horde spawns only in d ∈ [45, 125] (game.ts HORDE_RING_*); this sits just beyond.
  */
 export const MOUNTAIN_DENSE_FROM = 130;

@@ -37,6 +37,8 @@ export interface UltraSculptCtx {
     halfH: number;
     noise: (x: number, z: number) => number;
     seed: number;
+    /** the outer world's scale (OUTER_SCALE): every distance out from the board shrinks by it */
+    scale?: number;
     /**
      * Discs the sculpt leaves alone (the alms): their height was set on purpose, and the lean
      * would slide the vertices sideways off it. The sculpt fades in over `KEEP_OUT_RAMP` past `r`.
@@ -56,8 +58,8 @@ export function sculptUltraMountainPositions(
     ctx: UltraSculptCtx,
     params: typeof ULTRA_MOUNTAIN = ULTRA_MOUNTAIN,
 ): void {
-    const { halfW, halfH, noise, seed, keepOut = [] } = ctx;
-    const sites = overhangSites(params.overhangCount, halfW, halfH, seed, noise);
+    const { halfW, halfH, noise, seed, keepOut = [], scale = 1 } = ctx;
+    const sites = overhangSites(params.overhangCount, halfW, halfH, seed, noise, scale);
 
     for (let i = 0; i < pos.count; i++) {
         const x0 = pos.getX(i);
@@ -67,10 +69,11 @@ export function sculptUltraMountainPositions(
         const wx = Math.max(0, Math.abs(x0) - halfW);
         const wz = Math.max(0, Math.abs(z0) - halfH);
         const d = Math.hypot(wx, wz);
-        if (d < params.sculptFrom || y < 8) continue;
+        const from = params.sculptFrom * scale;
+        if (d < from || y < 8) continue;
 
         const climb =
-            smooth01((d - params.sculptFrom) / 80) * (1 - smooth01((d - (PEAK_END - 40)) / 50));
+            smooth01((d - from) / (80 * scale)) * (1 - smooth01((d - (PEAK_END - 40) * scale) / (50 * scale)));
         if (climb < 0.02) continue;
 
         // Outward XZ from the board (mountain grows this way). Overhang leans −fwd.
@@ -154,6 +157,7 @@ function overhangSites(
     halfH: number,
     seed: number,
     noise: (x: number, z: number) => number,
+    scale: number,
 ): { x: number; z: number; strength: number }[] {
     const out: { x: number; z: number; strength: number }[] = [];
     for (let i = 0; i < count; i++) {
@@ -161,7 +165,7 @@ function overhangSites(
         const ang = t * Math.PI * 2 + seed * 0.0001;
         const ca = Math.cos(ang);
         const sa = Math.sin(ang);
-        const d = 250 + noise(ca * 40 + i, sa * 40 + seed * 0.01) * 100;
+        const d = (250 + noise(ca * 40 + i, sa * 40 + seed * 0.01) * 100) * scale;
         out.push({
             x: ca * (halfW + d),
             z: sa * (halfH + d),
