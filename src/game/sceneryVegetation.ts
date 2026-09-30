@@ -402,6 +402,40 @@ function syncBillboardMapB(season: Season): void {
  * summerDryUniform), the foliage lightens and warms with it — ~30% brighter and a little
  * yellower at full summer — so a sunlit summer lawn no longer sits under a dark spring forest.
  */
+/**
+ * The billboard trees are unlit cards (a lit card turns one face dark), so on their own they keep
+ * one colour all day. This carries the scene's light onto them instead: the sun's and the sky's
+ * colour and strength, as a ratio to clear midday — (1, 1, 1) at noon, warmer at golden hour,
+ * dimmer at dusk, dark and blue at night, like the lit ground they stand on.
+ */
+export const billboardLightUniform = { value: new Vector3(1, 1, 1) };
+const DAY_LIGHT = new Color(0xfff2c8).multiplyScalar(2.05).add(new Color(0xe8f6cc));
+const _light = new Color();
+const _sky = new Color();
+const DAY_SKY = new Color(0xe8f6cc);
+
+/**
+ * Per frame: the scene's light relative to clear midday (see billboardLightUniform), used gently —
+ * a third of its colour (warmer at golden hour, bluer at night) and its brightness only where the
+ * sun is really low: in daylight the trees never drop below ~90% (the lit ground reads bright in
+ * a golden sun, which a plain ratio would have darkened them for), at dusk and night they dim.
+ */
+export function updateBillboardLight(sun: { color: Color; intensity: number }, hemi: { color: Color; intensity: number } | null): void {
+    _light.copy(sun.color).multiplyScalar(sun.intensity);
+    _light.add(hemi ? _sky.copy(hemi.color).multiplyScalar(hemi.intensity) : DAY_SKY);
+    const r = _light.r / DAY_LIGHT.r;
+    const g = _light.g / DAY_LIGHT.g;
+    const b = _light.b / DAY_LIGHT.b;
+    const lum = Math.max(1e-3, 0.299 * r + 0.587 * g + 0.114 * b);
+    // how dark it may get: ~90% while the sun is up (intensity ≥ ~1.7), down to 30% at night
+    const t = Math.min(1, Math.max(0, (sun.intensity - 0.8) / 0.9));
+    const floor = 0.3 + 0.6 * t * t * (3 - 2 * t);
+    const bright = Math.min(1.15, Math.max(floor, lum));
+    // a third of the light's hue
+    const hue = (c: number) => 1 + (c / lum - 1) * 0.35;
+    billboardLightUniform.value.set(bright * hue(r), bright * hue(g), bright * hue(b));
+}
+
 const SUMMER_LIGHT_GLSL = '  diffuseColor.rgb *= mix(vec3(1.0), vec3(2.2, 2.1, 1.6), uDryGrass * 1.39);'; // TEST: max
 
 function attachBillboardSeasonFade(material: MeshBasicMaterial): void {
@@ -416,8 +450,9 @@ function attachBillboardSeasonFade(material: MeshBasicMaterial): void {
         shader.uniforms.uSeasonFade = seasonFadeUniform;
         shader.uniforms.uSeasonMapB = mapB;
         shader.uniforms.uDryGrass = summerDryUniform;
+        shader.uniforms.uSceneLight = billboardLightUniform;
         shader.fragmentShader =
-            'uniform float uSeasonFade;\nuniform sampler2D uSeasonMapB;\nuniform float uDryGrass;\n' +
+            'uniform float uSeasonFade;\nuniform sampler2D uSeasonMapB;\nuniform float uDryGrass;\nuniform vec3 uSceneLight;\n' +
             shader.fragmentShader.replace(
                 '#include <map_fragment>',
                 `#include <map_fragment>
@@ -431,6 +466,7 @@ function attachBillboardSeasonFade(material: MeshBasicMaterial): void {
   }
 #endif
 ${SUMMER_LIGHT_GLSL}
+  diffuseColor.rgb *= uSceneLight;
 `,
             );
     };

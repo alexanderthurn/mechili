@@ -84,6 +84,7 @@ import {
     placeBillboardInstance,
     placeVegetationInstance,
     sceneryBoardTrees3d,
+    updateBillboardLight,
     sceneryHqVegetation,
     snapVegetationSeason,
     setVegetationSeason,
@@ -635,6 +636,7 @@ export class Scenery {
     /** far-card contact shadows (sun-aligned); built when billboards are placed */
     private readonly treeShadows = new BillboardTreeShadows(this.group);
     private sunLight: DirectionalLight | null = null;
+    private hemiLight: HemisphereLight | null = null;
     /** Outer meadow/mountain ground — used by the mountain editor. */
     private outerGroundMesh: Mesh | null = null;
     /** Hand-placed trees/bushes from the landscape editor / bake. */
@@ -1566,6 +1568,7 @@ export class Scenery {
         seed: number,
         effectToggles?: EffectToggles,
     ): Weather {
+        this.hemiLight = hemi;
         this.weather = new Weather(
             {
                 scene,
@@ -1757,6 +1760,7 @@ export class Scenery {
                 this.volumetricCloudMaterial.uniforms.uCloudOpacity.value = this.cloudMaterial.opacity;
             }
         }
+        if (this.sunLight) updateBillboardLight(this.sunLight, this.hemiLight);
         this.cloudFloorTick = (this.cloudFloorTick + 1) % 12;
         this.updateCloudBoardCover(cameraPos, dtSeconds);
         // the weather sets how big the clouds get and how many there are: a clear sky keeps a
