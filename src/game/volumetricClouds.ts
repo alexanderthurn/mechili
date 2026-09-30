@@ -89,8 +89,8 @@ float gBoardK = 1.0;
 // size of the big billows (world units) and of the eroding detail
 const float SHAPE_SIZE = 24.0;
 const float DETAIL_SIZE = 7.0;
-// extinction per world unit at full density: ~12 units of solid cloud is near opaque
-const float EXTINCTION = 0.32;
+// extinction per world unit at full density: ~16 units of solid cloud is near opaque
+const float EXTINCTION = 0.24;
 const int   STEPS = 20;
 const int   LIGHT_STEPS = 3;
 const float LIGHT_STEP = 7.0;
@@ -224,7 +224,8 @@ void main() {
     float alpha = 1.0 - trans;
     if (alpha < 0.004) discard;
     // soften where the box meets far scenery: a cloud fades out, it never cuts a hard line
-    gl_FragColor = vec4(min(col / alpha, vec3(1.25)), alpha * uCloudOpacity);
+    // (half as opaque as the march gives: every cloud a see-through veil, in every weather)
+    gl_FragColor = vec4(min(col / alpha, vec3(1.25)), alpha * uCloudOpacity * 0.5);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
 }

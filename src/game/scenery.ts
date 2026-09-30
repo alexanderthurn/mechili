@@ -4380,8 +4380,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 opacity: THEME.scenery.cloudOpacity,
                 boardHalfW: this.map.halfW,
                 boardHalfH: this.map.halfH,
-                // over the board a cloud keeps about a third of its density: the battle shows through
-                boardDensity: 0.35,
+                // over the board a cloud keeps only a sixth of its density: the battle shows through
+                // even a big rain cloud
+                boardDensity: 0.16,
             });
         }
     }
@@ -4448,7 +4449,14 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                     cover += 1 - smooth01((past + 4) / 30);
                 }
             }
-            const target = 1 + (thin - 1) * (cover / n);
+            let target = 1 + (thin - 1) * (cover / n);
+            // the camera in (or right at) the cloud: the view from in there looks down through
+            // it, so it all but vanishes — fading from ~40 units outside its box to inside it
+            const ox = Math.max(0, Math.abs(cam.x - m.position.x) - m.scale.x / 2);
+            const oy = Math.max(0, Math.abs(cam.y - m.position.y) - m.scale.y / 2);
+            const oz = Math.max(0, Math.abs(cam.z - m.position.z) - m.scale.z / 2);
+            const gap = Math.sqrt(ox * ox + oy * oy + oz * oz);
+            target = Math.min(target, 0.06 + 0.94 * smooth01(gap / 40));
             const k = (m.userData.boardK as number | undefined) ?? 1;
             m.userData.boardK = k + (target - k) * Math.min(1, dt * 2.5);
         }
