@@ -24,6 +24,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--input", required=True, type=Path)
     p.add_argument("--output", required=True, type=Path)
     p.add_argument("--size", type=int, default=512)
+    # soft sky light on top of the sun, so the shaded side (trunk, branches, back leaves) is
+    # not rendered black — 0 = the old sun-only look
+    p.add_argument("--ambient", type=float, default=0.0)
     return p.parse_args(argv)
 
 
@@ -64,6 +67,14 @@ def main() -> None:
     sun = bpy.data.objects.new(name="Sun", object_data=sun_data)
     scene.collection.objects.link(sun)
     sun.rotation_euler = (math.radians(45), math.radians(15), math.radians(30))
+
+    if args.ambient > 0:
+        world = bpy.data.worlds.new("BillboardSky")
+        world.use_nodes = True
+        bg = world.node_tree.nodes.get("Background")
+        bg.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)
+        bg.inputs[1].default_value = args.ambient
+        scene.world = world
 
     # Orthographic camera looking from +Y (front), upright Z-up Blender → tree stands up
     cam_data = bpy.data.cameras.new("BillboardCam")

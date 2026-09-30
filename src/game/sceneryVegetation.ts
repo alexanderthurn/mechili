@@ -25,7 +25,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getGltfLoader } from '../engine/gltfLoader';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
-import type { SceneryQuality } from './prefs';
+import { prefs, type SceneryQuality } from './prefs';
 import { TRANSITION_TAU, type Season } from './weather';
 import { assetUrl, onAssetOverlaySwitch } from './assets';
 
@@ -52,7 +52,7 @@ export function billboardShadowRadius(kind: VegetationKind, scale: number): numb
 }
 
 /** MeshBasic cards miss sun lift; multiply albedo so they match lit near trees. */
-export const BILLBOARD_BRIGHTNESS = 1.55;
+export const BILLBOARD_BRIGHTNESS = 1.0;
 
 /**
  * Tripo GLBs are MeshStandard + scene sun/hemi/env — they read much hotter
@@ -81,16 +81,16 @@ const SPECS: Record<
         },
         height: 10,
         get billboard() {
-            return assetUrl('textures/scenery/billboard-oak.png');
+            return byTier(assetUrl('textures/scenery/billboard-oak.png'), assetUrl('textures/scenery/billboard-oak-hq.webp'));
         },
         get billboardSnow() {
-            return assetUrl('textures/scenery/billboard-oak-snow.png');
+            return byTier(assetUrl('textures/scenery/billboard-oak-snow.png'), assetUrl('textures/scenery/billboard-oak-snow-hq.webp'));
         },
         get billboardSpring() {
-            return assetUrl('textures/scenery/billboard-oak-spring.png');
+            return byTier(assetUrl('textures/scenery/billboard-oak-spring.png'), assetUrl('textures/scenery/billboard-oak-spring-hq.webp'));
         },
         get billboardAutumn() {
-            return assetUrl('textures/scenery/billboard-oak-autumn.png');
+            return byTier(assetUrl('textures/scenery/billboard-oak-autumn.png'), assetUrl('textures/scenery/billboard-oak-autumn-hq.webp'));
         },
     },
     pine: {
@@ -99,16 +99,16 @@ const SPECS: Record<
         },
         height: 12,
         get billboard() {
-            return assetUrl('textures/scenery/billboard-pine.png');
+            return byTier(assetUrl('textures/scenery/billboard-pine.png'), assetUrl('textures/scenery/billboard-pine-hq.webp'));
         },
         get billboardSnow() {
-            return assetUrl('textures/scenery/billboard-pine-snow.png');
+            return byTier(assetUrl('textures/scenery/billboard-pine-snow.png'), assetUrl('textures/scenery/billboard-pine-snow-hq.webp'));
         },
         get billboardSpring() {
-            return assetUrl('textures/scenery/billboard-pine-spring.png');
+            return byTier(assetUrl('textures/scenery/billboard-pine-spring.png'), assetUrl('textures/scenery/billboard-pine-spring-hq.webp'));
         },
         get billboardAutumn() {
-            return assetUrl('textures/scenery/billboard-pine-autumn.png');
+            return byTier(assetUrl('textures/scenery/billboard-pine-autumn.png'), assetUrl('textures/scenery/billboard-pine-autumn-hq.webp'));
         },
     },
     bushRound: {
@@ -117,16 +117,16 @@ const SPECS: Record<
         },
         height: 2.4,
         get billboard() {
-            return assetUrl('textures/scenery/billboard-bush-round.png');
+            return byTier(assetUrl('textures/scenery/billboard-bush-round.png'), assetUrl('textures/scenery/billboard-bush-round-hq.webp'));
         },
         get billboardSnow() {
-            return assetUrl('textures/scenery/billboard-bush-round-snow.png');
+            return byTier(assetUrl('textures/scenery/billboard-bush-round-snow.png'), assetUrl('textures/scenery/billboard-bush-round-snow-hq.webp'));
         },
         get billboardSpring() {
-            return assetUrl('textures/scenery/billboard-bush-round-spring.png');
+            return byTier(assetUrl('textures/scenery/billboard-bush-round-spring.png'), assetUrl('textures/scenery/billboard-bush-round-spring-hq.webp'));
         },
         get billboardAutumn() {
-            return assetUrl('textures/scenery/billboard-bush-round-autumn.png');
+            return byTier(assetUrl('textures/scenery/billboard-bush-round-autumn.png'), assetUrl('textures/scenery/billboard-bush-round-autumn-hq.webp'));
         },
     },
     bushTall: {
@@ -135,19 +135,29 @@ const SPECS: Record<
         },
         height: 3.2,
         get billboard() {
-            return assetUrl('textures/scenery/billboard-bush-tall.png');
+            return byTier(assetUrl('textures/scenery/billboard-bush-tall.png'), assetUrl('textures/scenery/billboard-bush-tall-hq.webp'));
         },
         get billboardSnow() {
-            return assetUrl('textures/scenery/billboard-bush-tall-snow.png');
+            return byTier(assetUrl('textures/scenery/billboard-bush-tall-snow.png'), assetUrl('textures/scenery/billboard-bush-tall-snow-hq.webp'));
         },
         get billboardSpring() {
-            return assetUrl('textures/scenery/billboard-bush-tall-spring.png');
+            return byTier(assetUrl('textures/scenery/billboard-bush-tall-spring.png'), assetUrl('textures/scenery/billboard-bush-tall-spring-hq.webp'));
         },
         get billboardAutumn() {
-            return assetUrl('textures/scenery/billboard-bush-tall-autumn.png');
+            return byTier(assetUrl('textures/scenery/billboard-bush-tall-autumn.png'), assetUrl('textures/scenery/billboard-bush-tall-autumn-hq.webp'));
         },
     },
 };
+
+/**
+ * A billboard card's texture: on ultra the 1024 set (baked from the same models with the same
+ * light, the seasons carried over from the 512 cards, and matched to their average colour), on
+ * the other tiers the 512 originals. (Both paths spelled out at the call: the asset manifest
+ * only finds literal assetUrl paths.)
+ */
+function byTier(normal: string, ultra: string): string {
+    return prefs().scenery === 'ultra' ? ultra : normal;
+}
 
 const loader = getGltfLoader();
 const texLoader = new TextureLoader();
@@ -558,6 +568,10 @@ export async function loadSceneryVegetation(): Promise<void> {
 
 /** Load billboard cards (high + ultra far belt). */
 export async function loadSceneryBillboards(): Promise<void> {
+    // the scenery tier changed since these were loaded (ultra has its own, sharper set)
+    const stale = [...billboardFrom.keys()].filter((k) => billboardFrom.get(k) !== billboardFiles(k));
+    for (const k of stale) dropBillboard(k);
+    if (stale.length > 0) billboardPromise = null;
     if (billboardCache.size === Object.keys(SPECS).length) return;
     if (billboardPromise) return billboardPromise;
     billboardPromise = (async () => {
@@ -649,6 +663,66 @@ export function placeVegetationInstance(
     return true;
 }
 
+/** forget a kind's loaded billboard card (its textures, material and geometry) */
+function dropBillboard(k: VegetationKind): void {
+    const card = billboardCache.get(k);
+    if (card) {
+        const maps = card.material.userData.seasonMaps as BillboardSeasonMaps | undefined;
+        for (const tex of new Set([card.material.map, ...Object.values(maps ?? {})])) tex?.dispose();
+        forgetMaterial(card.material);
+        card.geometry.dispose();
+        card.material.dispose();
+    }
+    billboardCache.delete(k);
+    billboardFrom.delete(k);
+}
+
+function hash01(x: number, z: number, k: number): number {
+    const v = Math.sin(x * 12.9898 + z * 78.233 + k * 37.719) * 43758.5453;
+    return v - Math.floor(v);
+}
+
+/** the brightness range of the billboard trees (1 = as the card), spread as a bell curve */
+export const TREE_BRIGHT_MIN = 1.0;
+export const TREE_BRIGHT_MAX = 2;
+
+const _tint = new Color();
+
+/**
+ * Place one billboard tree with its own look: taller or shorter (±20%) and slimmer or broader
+ * (±10%) than the card, mirrored half the time, and a brightness between TREE_BRIGHT_MIN and
+ * TREE_BRIGHT_MAX (a bell curve: most near the middle) with a slight lean to yellow- or blue-green. All from the tree's
+ * position, so it is the same every time.
+ */
+export function placeBillboardInstance(
+    mesh: InstancedMesh,
+    x: number,
+    y: number,
+    z: number,
+    scale: number,
+    yaw: number,
+    dummy: Object3D = new Object3D(),
+): boolean {
+    if (mesh.count >= mesh.instanceMatrix.count) return false;
+    const tall = 0.8 + 0.4 * hash01(x, z, 1);
+    const wide = 0.9 + 0.2 * hash01(x, z, 2);
+    const mirror = hash01(x, z, 3) < 0.5 ? -1 : 1;
+    dummy.position.set(x, y, z);
+    dummy.rotation.set(0, yaw, 0);
+    dummy.scale.set(scale * wide * mirror, scale * tall, scale * wide);
+    dummy.updateMatrix();
+    const i = mesh.count++;
+    mesh.setMatrixAt(i, dummy.matrix);
+    // a bell curve between the two: most trees near the middle, few at either end (the mean of
+    // three even rolls)
+    const bell = (hash01(x, z, 4) + hash01(x, z, 6) + hash01(x, z, 7)) / 3;
+    const bright = TREE_BRIGHT_MIN + (TREE_BRIGHT_MAX - TREE_BRIGHT_MIN) * bell;
+    const lean = (hash01(x, z, 5) - 0.5) * 0.1;
+    _tint.setRGB(bright * (1 + lean), bright, bright * (1 - lean));
+    mesh.setColorAt(i, _tint);
+    return true;
+}
+
 /** Drop a material from the season / snow uniform lists before disposing it. */
 function forgetMaterial(material: object): void {
     for (const list of [seasonMaterials, snowMaterials] as object[][]) {
@@ -681,18 +755,7 @@ onAssetOverlaySwitch('scenery vegetation', async () => {
     }
 
     const staleCards = kinds.filter((k) => billboardFrom.has(k) && billboardFrom.get(k) !== billboardFiles(k));
-    for (const k of staleCards) {
-        const card = billboardCache.get(k);
-        if (card) {
-            const maps = card.material.userData.seasonMaps as BillboardSeasonMaps | undefined;
-            for (const tex of new Set([card.material.map, ...Object.values(maps ?? {})])) tex?.dispose();
-            forgetMaterial(card.material);
-            card.geometry.dispose();
-            card.material.dispose();
-        }
-        billboardCache.delete(k);
-        billboardFrom.delete(k);
-    }
+    for (const k of staleCards) dropBillboard(k);
     if (staleCards.length > 0) {
         billboardPromise = null;
         reloads.push(loadSceneryBillboards());

@@ -78,6 +78,7 @@ import {
     createVegetationInstances,
     loadSceneryBillboards,
     loadSceneryVegetation,
+    placeBillboardInstance,
     placeVegetationInstance,
     sceneryHqVegetation,
     snapVegetationSeason,
@@ -298,6 +299,13 @@ const ALM_EASE = 55;
 const ALM_PEAK = 370;
 /** how steeply the meadow falls toward the board (rise over run) */
 const ALM_TILT = 0.26;
+
+/**
+ * How many trees and bushes the forest gets, as a share of the tier's count: the solid ultra
+ * billboards read much denser than the old see-through ones, and the outer ring shrank
+ * (OUTER_SCALE), so fewer carry the same forest — and cost less.
+ */
+const FOREST_TREES = 0.65;
 
 /** the range's one wind, blowing snow off the crests */
 const SNOW_WIND = { x: 0.82, z: 0.57 };
@@ -2795,7 +2803,7 @@ export class Scenery {
             mesh.userData.authoredPlants = true;
             mesh.name = `authored-${kind}`;
             for (const p of list) {
-                placeVegetationInstance(
+                placeBillboardInstance(
                     mesh,
                     p.x,
                     worldHeightAt(p.x, p.z) - BILLBOARD_Y_SINK,
@@ -3502,11 +3510,11 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         // High: Tripo on the board, billboards outside (with blob shadows).
         // Medium: billboards everywhere (no low-poly cones, no blob shadows).
         const billboardMix = this.quality === 'high' || this.quality === 'medium';
-        const PINES = hq ? 0 : scaleCount(200, dens.outer);
-        const LEAFY = hq ? 0 : scaleCount(120, dens.outer);
+        const PINES = hq ? 0 : scaleCount(200, dens.outer * FOREST_TREES);
+        const LEAFY = hq ? 0 : scaleCount(120, dens.outer * FOREST_TREES);
         const FIELD_PINES = hq ? 0 : scaleCount(3, dens.field);
         const FIELD_LEAFY = hq ? 0 : scaleCount(3, dens.field);
-        const BUSHES = hq ? 0 : scaleCount(90, dens.outer);
+        const BUSHES = hq ? 0 : scaleCount(90, dens.outer * FOREST_TREES);
         const FIELD_BUSHES = hq ? 0 : scaleCount(22, dens.field);
         // horde mode widens the neutral strip into a real belt — grow a
         // forest in it so the horde has somewhere to live (pure scenery, no
@@ -3966,7 +3974,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             }
             for (const p of list) {
                 const sc = p.sc * BILLBOARD_SCALE;
-                placeVegetationInstance(
+                placeBillboardInstance(
                     mesh,
                     p.x,
                     groundY(p.x, p.z) - BILLBOARD_Y_SINK,
@@ -4044,10 +4052,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         const dens = this.density;
         const { forestSpot, fieldSpot, groundY } = helpers;
 
-        const OAK = scaleCount(120, dens.outer);
-        const PINE = scaleCount(200, dens.outer);
-        const BUSH_R = scaleCount(50, dens.outer);
-        const BUSH_T = scaleCount(40, dens.outer);
+        const OAK = scaleCount(120, dens.outer * FOREST_TREES);
+        const PINE = scaleCount(200, dens.outer * FOREST_TREES);
+        const BUSH_R = scaleCount(50, dens.outer * FOREST_TREES);
+        const BUSH_T = scaleCount(40, dens.outer * FOREST_TREES);
         const FIELD_OAK = scaleCount(3, dens.field);
         const FIELD_PINE = scaleCount(3, dens.field);
         const FIELD_BUSH = scaleCount(22, dens.field);
@@ -4146,7 +4154,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 } else {
                     for (const p of farList) {
                         const sc = p.sc * BILLBOARD_SCALE;
-                        placeVegetationInstance(
+                        placeBillboardInstance(
                             mesh,
                             p.x,
                             groundY(p.x, p.z) - BILLBOARD_Y_SINK,
