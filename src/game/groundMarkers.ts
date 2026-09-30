@@ -12,7 +12,7 @@ import {
     Vector3,
     type Group,
 } from 'three';
-import { groundHeightAt } from './map';
+import { groundSurfaceAt } from './map';
 
 /** small lift on draped plates (same idea as unit footprint plates) */
 export const DRAPE_LIFT = 0.08;
@@ -24,13 +24,22 @@ export function drapeYawToward(ax: number, az: number, bx: number, bz: number): 
     return Math.atan2(-(bx - ax), bz - az);
 }
 
+/**
+ * Depth bias for fills drawn onto the ground: pulled toward the camera, more where the surface
+ * is steep to the view, so a marker wins against the ground it lies on at any distance instead
+ * of flickering with it (the lift alone is too small far away).
+ */
+export const GROUND_DECAL_OFFSET = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 } as const;
+
+// Heights come from the drawn ground's own triangles (groundSurfaceAt), not the smooth blend
+// between its nodes: on a twisted cell that blend sits above or below what is rendered.
 function drapeAnchorY(cx: number, cz: number): number {
-    return groundHeightAt(cx, cz);
+    return groundSurfaceAt(cx, cz);
 }
 
 /** Local Y for a draped vertex — height relative to the anchor so object.position sits on relief. */
 function drapeLocalY(wx: number, wz: number, anchorY: number): number {
-    return groundHeightAt(wx, wz) - anchorY;
+    return groundSurfaceAt(wx, wz) - anchorY;
 }
 
 /** Anchor object origin on relief + lift (transparent sort uses object position, not verts). */
@@ -242,6 +251,7 @@ export function addDrapedCircleFill(
             opacity: fillOpacity,
             side: DoubleSide,
             depthWrite: false,
+            ...GROUND_DECAL_OFFSET,
         }),
     );
     setDrapedMeshPosition(disc, x, z);
@@ -268,6 +278,7 @@ export function addDrapedIconDecal(
             opacity,
             side: DoubleSide,
             depthWrite: false,
+            ...GROUND_DECAL_OFFSET,
         }),
     );
     setDrapedMeshPosition(mesh, x, z, 0.02);
@@ -333,6 +344,7 @@ export function addDrapedRectFill(
             opacity: fillOpacity,
             side: DoubleSide,
             depthWrite: false,
+            ...GROUND_DECAL_OFFSET,
         }),
     );
     setDrapedMeshPosition(fill, x, z);
@@ -367,6 +379,7 @@ export function addDrapedCapsule(
         opacity: fillOpacity,
         side: DoubleSide,
         depthWrite: false,
+        ...GROUND_DECAL_OFFSET,
     });
 
     if (len < 0.5) {

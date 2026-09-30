@@ -146,6 +146,31 @@ export class TerrainGrid {
     }
 
     /**
+     * Height of the RENDERED board surface: the flat triangle of the ground mesh the point lies
+     * in (PlaneGeometry splits each cell along the diagonal from (x0, z0+1) to (x0+1, z0)), not
+     * the bilinear blend {@link sample} gives — on a twisted cell the two differ. Render-only:
+     * for things that must lie exactly on the drawn ground (spell markers); the sim uses sample.
+     */
+    sampleSurface(x: number, z: number): number {
+        const fx = (x + this.halfW) / this.cellX;
+        const fz = (z + this.halfH) / this.cellZ;
+        const maxX = this.nx - 2;
+        const maxZ = this.nz - 2;
+        const x0 = fx < 0 ? 0 : fx >= maxX ? maxX : Math.floor(fx);
+        const z0 = fz < 0 ? 0 : fz >= maxZ ? maxZ : Math.floor(fz);
+        const tx = fx - x0 < 0 ? 0 : fx - x0 > 1 ? 1 : fx - x0;
+        const tz = fz - z0 < 0 ? 0 : fz - z0 > 1 ? 1 : fz - z0;
+        const h = this.heights;
+        const i = z0 * this.nx + x0;
+        const h00 = h[i]!;
+        const h10 = h[i + 1]!;
+        const h01 = h[i + this.nx]!;
+        const h11 = h[i + this.nx + 1]!;
+        if (tx + tz <= 1) return h00 + (h10 - h00) * tx + (h01 - h00) * tz;
+        return h11 + (h01 - h11) * (1 - tx) + (h10 - h11) * (1 - tz);
+    }
+
+    /**
      * Press an oriented rectangle toward `targetY` (Hammer of the Gods): the
      * same rounded footprint the ground scar is painted with (corners ¼ of the
      * short side), fully pressed up to a thin rim that eases back to the

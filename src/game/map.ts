@@ -124,6 +124,17 @@ export function groundHeightAt(x: number, z: number): number {
     return groundHeightFn(x, z);
 }
 
+let groundSurfaceFn: (x: number, z: number) => number = () => 0;
+
+/**
+ * The drawn board surface under a point: the ground mesh's own triangle, not the smooth blend
+ * {@link groundHeightAt} gives (see TerrainGrid.sampleSurface). Render-only — for markers that
+ * must lie exactly on the ground.
+ */
+export function groundSurfaceAt(x: number, z: number): number {
+    return groundSurfaceFn(x, z);
+}
+
 let outerHeightFn: (x: number, z: number) => number = () => 0;
 
 /** the scenery registers its outer-terrain height here (0 inside the board) */
@@ -464,6 +475,7 @@ export class BattleMap {
         this.terrain = new TerrainGrid(this);
         this.terrain.setBase((x, z) => this.proceduralHeightAt(x, z));
         groundHeightFn = (x, z) => this.terrain.sample(x, z);
+        groundSurfaceFn = (x, z) => this.terrain.sampleSurface(x, z);
     }
 
     cellCenter(col: number, row: number): Vector3 {

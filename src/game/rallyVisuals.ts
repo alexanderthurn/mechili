@@ -11,6 +11,7 @@ import {
     addDrapedCircle,
     drapeChevronGeometry,
     DRAPE_RENDER_ORDER,
+    GROUND_DECAL_OFFSET,
     setDrapedObjectPosition,
 } from './groundMarkers';
 import { type BattleMap } from './map';
@@ -195,6 +196,7 @@ export class RallyVisuals {
                     opacity: arrowOpacity,
                     side: DoubleSide,
                     depthWrite: false,
+                    ...GROUND_DECAL_OFFSET,
                 }),
             );
             setDrapedObjectPosition(arrow, x, z, 0.04);
