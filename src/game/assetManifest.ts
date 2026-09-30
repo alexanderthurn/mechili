@@ -811,6 +811,7 @@ const RAW = import.meta.glob(
         '../../assets/textures/fx/convert-ray-lightning.png',
         '../../assets/textures/grass-albedo-hq.webp',
         '../../assets/textures/grass-albedo.webp',
+        '../../assets/textures/grass-clumps.webp',
         '../../assets/textures/grass-normal-hq.webp',
         '../../assets/textures/grass-normal.webp',
         '../../assets/textures/grass-photo-0-normal.webp',

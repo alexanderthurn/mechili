@@ -27,6 +27,8 @@ const foliageUrl = (): string => assetUrl('textures/foliage.webp');
 const rockUrl = (): string => assetUrl('textures/rock.webp');
 const moonUrl = (): string => assetUrl('textures/moon.webp');
 const iceAlbedoUrl = (): string => assetUrl('textures/ice-albedo.webp');
+/** ultra meadow grass: a 2×2 atlas of painted grass clumps (alpha) */
+const grassClumpsUrl = (): string => assetUrl('textures/grass-clumps.webp');
 
 /** Field-photo tiles (processed from misc/photos/ via process-ground-photos.py). */
 const GRASS_PHOTO = [
@@ -120,6 +122,7 @@ export {
     rockUrl,
     moonUrl,
     iceAlbedoUrl,
+    grassClumpsUrl,
 };
 
 export interface PhotoTextureSet {
@@ -142,6 +145,7 @@ const SRGB_URLS = new Set<string>([
     rockUrl(),
     moonUrl(),
     iceAlbedoUrl(),
+    grassClumpsUrl(),
     ...GRASS_PHOTO.map((p) => p.albedo),
     ...DIRT_PHOTO.map((p) => p.albedo),
     ...ROCK_PHOTO.map((p) => p.albedo),

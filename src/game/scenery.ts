@@ -3,6 +3,7 @@ import {
     BackSide,
     Box3,
     BufferAttribute,
+    BufferGeometry,
     CanvasTexture,
     CircleGeometry,
     ConeGeometry,
@@ -13,7 +14,7 @@ import {
     IcosahedronGeometry,
     InstancedMesh,
     LinearFilter,
-    type InstancedBufferAttribute,
+    InstancedBufferAttribute,
     Matrix4,
     Mesh,
     MeshBasicMaterial,
@@ -59,6 +60,7 @@ import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTile
 import {
     barkUrl,
     foliageUrl,
+    grassClumpsUrl,
     iceAlbedoUrl,
     sandAlbedoUrl,
     shoreAlbedoUrl,
@@ -1945,38 +1947,78 @@ export class Scenery {
 
         // --- grass tufts: crossed alpha-tested quads, swaying in the wind
         const TUFTS = scaleCount(4200, this.density.meadow);
-        const quadA = new PlaneGeometry(1.3, 1).translate(0, 0.5, 0);
-        const quadB = quadA.clone().rotateY(Math.PI / 2);
-        const tuftGeo = mergeGeometries([quadA, quadB])!;
+        // Ultra: painted grass clumps (a 2x2 atlas, one clump picked per instance) on three
+        // cards crossed at 60°, lit from above like the ground and swaying only gently. The
+        // other tiers keep the procedural blade texture on two crossed cards.
+        const clumps = this.quality === 'ultra';
+        let tuftGeo: BufferGeometry;
+        if (clumps) {
+            const quad = new PlaneGeometry(1.35, 1.35).translate(0, 0.675, 0);
+            tuftGeo = mergeGeometries([0, 1, 2].map((k) => quad.clone().rotateY((k * Math.PI) / 3)))!;
+            // normals straight up: the cards take the light the ground under them gets, so no
+            // card turns dark just because it faces away from the sun
+            const n = tuftGeo.attributes.normal!;
+            for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
+            const pick = new Float32Array(TUFTS);
+            for (let i = 0; i < TUFTS; i++) pick[i] = Math.floor(rng() * 4);
+            tuftGeo.setAttribute('aClump', new InstancedBufferAttribute(pick, 1));
+        } else {
+            const quadA = new PlaneGeometry(1.3, 1).translate(0, 0.5, 0);
+            const quadB = quadA.clone().rotateY(Math.PI / 2);
+            tuftGeo = mergeGeometries([quadA, quadB])!;
+        }
         this.tuftMaterial = new MeshStandardMaterial({
             map: makeTuftTexture(),
             transparent: true,
-            alphaTest: 0.35,
+            alphaTest: clumps ? 0.42 : 0.35,
             side: DoubleSide,
             roughness: 1,
         });
+        if (clumps) {
+            const mat = this.tuftMaterial;
+            // hidden until the atlas is in, so the old blades never flash in first
+            mat.visible = false;
+            void loadWorldTexture(grassClumpsUrl()).then((tex) => {
+                if (!tex) {
+                    mat.visible = true;
+                    return;
+                }
+                tex.anisotropy = 4;
+                mat.map = tex;
+                mat.defines = { ...(mat.defines ?? {}), GRASS_CLUMPS: '' };
+                mat.needsUpdate = true;
+                mat.visible = true;
+            });
+        }
         this.tuftMaterial.onBeforeCompile = (shader) => {
             shader.uniforms.uTime = { value: 0 };
             shader.uniforms.uSnowCover = { value: 0 };
             shader.uniforms.uDryGrass = summerDryUniform;
             this.tuftMaterial!.userData.shader = shader;
             shader.vertexShader =
-                'uniform float uTime;\n' +
-                shader.vertexShader.replace(
-                    '#include <begin_vertex>',
-                    `#include <begin_vertex>
-    #ifdef USE_INSTANCING
-    float phase = instanceMatrix[3].x + instanceMatrix[3].z;
-    #else
-    float phase = 0.0;
-    #endif
-    float sway = max(position.y, 0.0); // roots stay planted, tips move
-    transformed.x += sin(uTime * 1.6 + phase) * 0.14 * sway;
-    transformed.z += cos(uTime * 1.1 + phase) * 0.09 * sway;`,
-                );
+                'uniform float uTime;\n#ifdef GRASS_CLUMPS\nattribute float aClump;\n#endif\n' +
+                shader.vertexShader
+                    .replace(
+                        '#include <uv_vertex>',
+                        `#include <uv_vertex>
+    #if defined(GRASS_CLUMPS) && defined(USE_MAP)
+    // one quarter of the atlas per instance (row 0 is the top of the image)
+    vMapUv = vMapUv * 0.5 + vec2(mod(aClump, 2.0), 1.0 - floor(aClump / 2.0)) * 0.5;
+    #endif`,
+                    );
             shader.fragmentShader =
                 'uniform float uSnowCover;\nuniform float uDryGrass;\n' +
-                shader.fragmentShader.replace(
+                shader.fragmentShader
+                    // Every card is lit as if it faced straight up, like the ground under it. A
+                    // double-sided card otherwise flips its normal on the back face, so of two
+                    // crossed cards one side caught the sun and the other went dark.
+                    .replace(
+                        '#include <normal_fragment_begin>',
+                        `#include <normal_fragment_begin>
+    normal = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+    nonPerturbedNormal = normal;`,
+                    )
+                    .replace(
                     '#include <color_fragment>',
                     `#include <color_fragment>
 #ifdef USE_INSTANCING
@@ -1993,19 +2035,24 @@ export class Scenery {
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);`,
                 );
         };
-        this.tuftMaterial.customProgramCacheKey = () => 'meadow-tuft-wind-snow-dry-v2';
+        this.tuftMaterial.customProgramCacheKey = () => `meadow-tuft-still-upnormal-v4${clumps ? '-clumps' : ''}`;
         const tufts = new InstancedMesh(tuftGeo, this.tuftMaterial, TUFTS);
         let tuftI = 0;
         for (let i = 0; i < TUFTS; i++) {
             const spot = meadowSpot(20);
             if (!spot) break;
-            const sc = 0.7 + rng() * 1.1;
-            dummy.position.set(spot.x, spot.h, spot.z);
+            const sc = clumps ? 0.6 + rng() * 0.9 : 0.7 + rng() * 1.1;
+            dummy.position.set(spot.x, spot.h - (clumps ? 0.05 : 0), spot.z);
             dummy.scale.setScalar(sc);
             dummy.rotation.set(0, rng() * Math.PI * 2, 0);
             dummy.updateMatrix();
             tufts.setMatrixAt(tuftI, dummy.matrix);
-            color.set(0x55a244).lerp(new Color(0x7cc44e), rng()).lerp(new Color(0xffffff), 0.15);
+            if (clumps) {
+                // the paint carries the colour; the tint only varies it a little
+                color.set(0xffffff).lerp(new Color(0xd6e6a4), rng() * 0.7).multiplyScalar(0.92 + rng() * 0.12);
+            } else {
+                color.set(0x55a244).lerp(new Color(0x7cc44e), rng()).lerp(new Color(0xffffff), 0.15);
+            }
             tufts.setColorAt(tuftI++, color);
         }
         tufts.count = tuftI;
