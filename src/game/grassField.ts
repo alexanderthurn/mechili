@@ -51,6 +51,10 @@ export interface GrassFieldOptions {
 /** how much of each blade full snow buries (its share of the blade's height) */
 const SNOW_BURY = 0.5;
 
+/** blades are full size up to GRASS_NEAR from the camera and gone at GRASS_FAR (world units) */
+const GRASS_NEAR = 110;
+const GRASS_FAR = 170;
+
 /** chunk edge length (world units) — the culling granularity */
 const CHUNK = 16;
 /** the grid the grass mask is sampled on (world units) */
@@ -114,6 +118,8 @@ export class GrassField {
     private readonly blade = bladeGeometry();
     /** how many blades were placed */
     readonly count: number;
+    /** the chunks, for the per-frame distance culling and thinning (see updateView) */
+    private readonly chunks: { mesh: Mesh; geo: InstancedBufferGeometry; x: number; y: number; z: number; n: number }[] = [];
 
     constructor(opts: GrassFieldOptions, dryGrass: { value: number }) {
         this.dryGrass = dryGrass;
@@ -214,12 +220,14 @@ float boardHeight(vec2 p) {
     float snowLine = mix(220.0, -15.0, uSnowCover);
     float snowAt = smoothstep(snowLine - 40.0, snowLine + 15.0, root.y) * (1.0 - melt);
     vSnow = snowAt;
+    // far from the camera the blades shrink away into the ground's own green (no hard edge)
+    float camFade = 1.0 - smoothstep(${GRASS_NEAR.toFixed(1)}, ${GRASS_FAR.toFixed(1)}, distance(cameraPosition, root));
     // burnt: down to stubble, and on the worst of it most blades are gone
-    float h = aShape.y * mix(1.0, 0.22, burn) * (1.0 - squash);
+    float h = aShape.y * mix(1.0, 0.22, burn) * (1.0 - squash) * camFade;
     float gone = step(0.35 + 0.6 * bladeHash(root.xz), burn * burn);
     h *= 1.0 - gone;
     // the blade bends over along its facing: the lean grows with the square of the height
-    vec3 local = vec3(position.x * aShape.x * (1.0 - gone), t * h, t * t * aShape.z * (1.0 - burn * 0.7));
+    vec3 local = vec3(position.x * aShape.x * (1.0 - gone) * camFade, t * h, t * t * aShape.z * (1.0 - burn * 0.7) * camFade);
     float c = cos(aBlade.w);
     float s = sin(aBlade.w);
     vec3 transformed = vec3(local.x * c + local.z * s, local.y, -local.x * s + local.z * c) + root;
@@ -297,7 +305,7 @@ varying float vSnow;
     nonPerturbedNormal = normal;`,
                     );
         };
-        mat.customProgramCacheKey = () => 'grass-field-v9-bury';
+        mat.customProgramCacheKey = () => 'grass-field-v10-lod';
         return mat;
     }
 
@@ -387,6 +395,7 @@ varying float vSnow;
                 // thin blades in the AO pass only add noise
                 mesh.userData.gtaoSkip = true;
                 this.group.add(mesh);
+                this.chunks.push({ mesh, geo, x: x0 + CHUNK / 2, y: (minY + maxY) / 2, z: z0 + CHUNK / 2, n });
                 total += n;
             }
         }
@@ -419,6 +428,27 @@ varying float vSnow;
     private heightTex: DataTexture | null = null;
 
     /** per frame: the clock, the current wear layer, and a new upload when the ground moved */
+    /**
+     * Per frame, by distance to the camera: chunks past the far distance are not drawn at all,
+     * and the ones in between draw fewer blades the further out they lie (the blades are stored
+     * in random order, so the first part of a chunk is an even thinning of the whole). The shader
+     * shrinks the blades to nothing toward the far distance, so the lawn has no edge.
+     */
+    updateView(camera: Vector3): void {
+        const reach = GRASS_FAR + CHUNK * 0.75;
+        for (const c of this.chunks) {
+            const dx = c.x - camera.x;
+            const dy = c.y - camera.y;
+            const dz = c.z - camera.z;
+            const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            const show = d < reach;
+            c.mesh.visible = show;
+            if (!show) continue;
+            const t = Math.min(1, Math.max(0, (d - GRASS_NEAR * 0.7) / (GRASS_FAR - GRASS_NEAR * 0.7)));
+            c.geo.instanceCount = Math.max(1, Math.ceil(c.n * (1 - 0.75 * t)));
+        }
+    }
+
     update(time: number, wear: Texture | null, stainTint: Texture | null, heightsChanged: boolean): void {
         this.board.uTime.value = time;
         this.board.uWear.value = wear ?? BLANK;

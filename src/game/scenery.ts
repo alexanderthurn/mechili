@@ -312,6 +312,9 @@ interface FogCard {
     lift: number;
     /** the ground height where it formed — it thins as it climbs above that */
     homeY: number;
+    /** how far it may climb before it starts to thin, and over how much it fades (default 3, 10) */
+    thinFrom?: number;
+    thinOver?: number;
 }
 /** grid of a fog card (per side), and how many frames it takes to re-drape them all */
 const FOG_CARD_SEGS = 8;
@@ -546,7 +549,7 @@ export class Scenery {
     private fogDrapeTick = 0;
     private forestFogMaterial: MeshBasicMaterial | null = null;
     /** ultra: cloud banks lying on the mountain shelves (see createMountainMist) */
-    private readonly mistBanks: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
+    private readonly mistBanks: FogCard[] = [];
     private mountainMistMaterial: MeshBasicMaterial | null = null;
     /** ultra: snow blown off the tallest crests (see createSnowPlumes) */
     private readonly snowPlumes: {
@@ -1054,7 +1057,7 @@ export class Scenery {
             const ground = this.terrainHeight(wx, wz);
             pos.setY(i, ground + card.lift - mesh.position.y);
             const climb = ground - card.homeY;
-            col.setW(i, 1 - smooth01((climb - 3) / 10));
+            col.setW(i, 1 - smooth01((climb - (card.thinFrom ?? 3)) / (card.thinOver ?? 10)));
         }
         pos.needsUpdate = true;
         col.needsUpdate = true;
@@ -1074,10 +1077,10 @@ export class Scenery {
             transparent: true,
             depthWrite: false,
             opacity: 0,
+            // per-vertex alpha: the bank thins where it would climb a face (see drapeFogCard)
+            vertexColors: true,
         });
         this.mountainMistMaterial = material;
-        const geometry = new PlaneGeometry(1, 0.6);
-        geometry.rotateX(-Math.PI / 2);
         const COUNT = 30;
         const S = 10;
         let placed = 0;
@@ -1096,13 +1099,34 @@ export class Scenery {
                 Math.abs(this.terrainHeight(x, z - S) - h),
             ) / S;
             if (slope > 0.4) continue;
+            // a grid draped over the shelf like the forest fog, so a bank drifting toward a slope
+            // flows over it instead of the mountain cutting a hard line through a flat card
+            const geometry = new PlaneGeometry(1, 0.6, FOG_CARD_SEGS, FOG_CARD_SEGS);
+            geometry.rotateX(-Math.PI / 2);
+            geometry.setAttribute(
+                'color',
+                new BufferAttribute(new Float32Array(geometry.attributes.position!.count * 4).fill(1), 4),
+            );
             const mesh = new Mesh(geometry, material);
-            mesh.position.set(x, h + 9 + rng() * 9, z);
+            const lift = 9 + rng() * 9;
+            mesh.position.set(x, h + lift, z);
             const sc = 70 + rng() * 80;
             mesh.scale.set(sc, 1, sc * (0.5 + rng() * 0.3));
             mesh.rotation.y = rng() * Math.PI * 2;
             mesh.renderOrder = 2;
-            this.mistBanks.push({ mesh, baseX: x, phase: rng() * Math.PI * 2, speed: 0.02 + rng() * 0.03 });
+            const bank: FogCard = {
+                mesh,
+                baseX: x,
+                phase: rng() * Math.PI * 2,
+                speed: 0.02 + rng() * 0.03,
+                lift,
+                homeY: h,
+                // a bank may climb further before it thins: it lies on a mountain
+                thinFrom: 10,
+                thinOver: 25,
+            };
+            this.mistBanks.push(bank);
+            this.drapeFogCard(bank);
             this.group.add(mesh);
             placed++;
         }
@@ -1598,9 +1622,11 @@ export class Scenery {
             const op = Math.min(0.5, 0.13 + (fog?.opacity ?? 0) * 0.9);
             mistMat.opacity = this.quality === 'ultra' ? op : 0;
             if (fog) mistMat.color.copy(fog.color).lerp(MIST_SNOW_WHITE, this.groundSnowCover * 0.6);
-            for (const b of this.mistBanks) {
+            for (let i = 0; i < this.mistBanks.length; i++) {
+                const b = this.mistBanks[i]!;
                 b.mesh.position.x = b.baseX + Math.sin(this.time * b.speed + b.phase) * 22;
                 b.mesh.visible = op > 0.02;
+                if (b.mesh.visible && i % FOG_DRAPE_EVERY === this.fogDrapeTick) this.drapeFogCard(b);
             }
         }
         this.updateSummitClouds();
@@ -1622,6 +1648,7 @@ export class Scenery {
             this.grassField.snowCover.value = this.groundSnowCover;
             const rev = this.map.terrain.revision;
             this.grassField.update(this.time, this.map.wearMask, this.map.stainTintMask, rev !== this.grassTerrainRev);
+            this.grassField.updateView(cameraPos);
             this.grassTerrainRev = rev;
         }
         if (this.tuftMaterial?.userData.shader) {
@@ -2051,7 +2078,8 @@ export class Scenery {
                 halfH: map.halfH,
                 // the meadow in front of the mountains
                 band: Math.min(60, 90 * this.os),
-                density: 4,
+                // (dense: only the chunks near the camera are drawn in full — see GrassField.updateView)
+                density: 8,
                 seed,
                 // (a look test: the board is covered too — its relief at build time; blades do not
                 // follow later craters and ridges yet)
