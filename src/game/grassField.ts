@@ -503,9 +503,15 @@ varying float vSnow;
         if (heightsChanged && this.heightTex) this.heightTex.needsUpdate = true;
     }
 
+    /** everything this lawn made: chunks, the blade, the material, and its own textures */
     dispose(): void {
         for (const m of this.group.children) (m as Mesh).geometry.dispose();
         this.blade.dispose();
         this.material.dispose();
+        this.heightTex?.dispose();
+        this.heightTex = null;
+        this.clearTex?.dispose();
+        this.clearTex = null;
+        this.clearCanvas = null;
     }
 }

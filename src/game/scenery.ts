@@ -2229,11 +2229,18 @@ export class Scenery {
     }
 
     /** free the mirrored view's render target (the scenery is being replaced) */
+    /**
+     * What disposing the scenery group does not reach: the water mirror, the lake depth map, and
+     * the grass lawn's own textures (its height grid and plate mask are not on any mesh's
+     * material, so a quality switch left them behind each time).
+     */
     disposeWaterReflection(): void {
         this.waterReflection?.dispose();
         this.waterReflection = null;
         this.lakeDepthTexUniform.value?.dispose();
         this.lakeDepthTexUniform.value = null;
+        this.grassField?.dispose();
+        this.grassField = null;
     }
 
     /**

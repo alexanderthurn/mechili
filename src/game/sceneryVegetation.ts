@@ -28,6 +28,7 @@ import { applyTextureBudget, modelTextureBudget } from './textureBudget';
 import { prefs, type SceneryQuality } from './prefs';
 import { TRANSITION_TAU, type Season } from './weather';
 import { assetUrl, onAssetOverlaySwitch } from './assets';
+import { summerDryUniform } from './map';
 
 export type VegetationKind = 'oak' | 'pine' | 'bushRound' | 'bushTall';
 
@@ -396,6 +397,13 @@ function syncBillboardMapB(season: Season): void {
 /**
  * Mix `map` → `uSeasonMapB` by shared `uSeasonFade` (after map_fragment, before snow).
  */
+/**
+ * Summer light on the trees: as the meadow dries and brightens in summer (the shared
+ * summerDryUniform), the foliage lightens and warms with it — ~12% brighter and a little
+ * yellower at full summer — so a sunlit summer lawn no longer sits under a dark spring forest.
+ */
+const SUMMER_LIGHT_GLSL = '  diffuseColor.rgb *= mix(vec3(1.0), vec3(1.28, 1.2, 0.88), uDryGrass * 0.6);';
+
 function attachBillboardSeasonFade(material: MeshBasicMaterial): void {
     if (material.userData.seasonFadeAttached) return;
     material.userData.seasonFadeAttached = true;
@@ -407,8 +415,9 @@ function attachBillboardSeasonFade(material: MeshBasicMaterial): void {
         prevCompile?.call(material, shader, renderer);
         shader.uniforms.uSeasonFade = seasonFadeUniform;
         shader.uniforms.uSeasonMapB = mapB;
+        shader.uniforms.uDryGrass = summerDryUniform;
         shader.fragmentShader =
-            'uniform float uSeasonFade;\nuniform sampler2D uSeasonMapB;\n' +
+            'uniform float uSeasonFade;\nuniform sampler2D uSeasonMapB;\nuniform float uDryGrass;\n' +
             shader.fragmentShader.replace(
                 '#include <map_fragment>',
                 `#include <map_fragment>
@@ -421,6 +430,7 @@ function attachBillboardSeasonFade(material: MeshBasicMaterial): void {
     diffuseColor *= seasonMixed;
   }
 #endif
+${SUMMER_LIGHT_GLSL}
 `,
             );
     };
@@ -444,11 +454,12 @@ export function attachSeasonTint(material: MeshStandardMaterial | MeshBasicMater
         material.userData.seasonTintUniform = tint;
         tint.value = seasonTintCurrent;
         shader.uniforms.uSeasonLeaf = tint;
+        shader.uniforms.uDryGrass = summerDryUniform;
         shader.fragmentShader =
-            'uniform vec3 uSeasonLeaf;\n' +
+            'uniform vec3 uSeasonLeaf;\nuniform float uDryGrass;\n' +
             shader.fragmentShader.replace(
                 '#include <color_fragment>',
-                '#include <color_fragment>\n  diffuseColor.rgb *= uSeasonLeaf;\n',
+                `#include <color_fragment>\n  diffuseColor.rgb *= uSeasonLeaf;\n${SUMMER_LIGHT_GLSL}\n`,
             );
     };
     material.needsUpdate = true;
