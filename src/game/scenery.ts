@@ -230,8 +230,13 @@ function detHypot(x: number, z: number): number {
  * stay at peak height (no drop to y=0). Decorations past the crest are culled.
  */
 const MOUNTAIN_RISE_START = 110;
-/** Same climb as before — full strength at start+360 (~470). */
-const MOUNTAIN_RISE_SPAN = 360;
+/**
+ * How deep the climb is, as a share of the original (1 = full strength at start+360, ~470).
+ * Below 1 the same heights are reached sooner: steeper flanks, and the range at full height
+ * stands in a wider band behind them. A test knob — try 1, 2/3, 0.5.
+ */
+const MOUNTAIN_DEPTH = 2 / 3;
+const MOUNTAIN_RISE_SPAN = 360 * MOUNTAIN_DEPTH;
 /** Crest / world cut — hold peak height from ~470 out to 500. */
 export const MOUNTAIN_PEAK_END = 500;
 
@@ -735,7 +740,7 @@ export class Scenery {
             const mountain = rawMountain;
             // Foothills die as the high range takes over — don't resume a
             // second meadow behind the mountain ring.
-            const foothill = 1 - smooth01((dClimb - 400) / 280);
+            const foothill = 1 - smooth01((dClimb - (MOUNTAIN_RISE_START + 290 * MOUNTAIN_DEPTH)) / (280 * MOUNTAIN_DEPTH));
             const rolling = (1.2 + 18 * hN + 14 * knoll) * edgeIn * foothill;
             const base = rolling + mountain;
             // Surface wrinkles on the original big shapes — stronger the higher
