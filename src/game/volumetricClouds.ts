@@ -77,6 +77,7 @@ uniform float uTime;
 /** the board's half size (x, z) and how dense a cloud stays over it (1 = as elsewhere) */
 uniform vec2  uBoardHalf;
 uniform float uBoardDensity;
+uniform float uCloudBoardK;
 
 varying vec3 vWorldPos;
 varying vec3 vCenter;
@@ -131,19 +132,24 @@ float hgPhase(float c, float g) {
 
 // the envelope: where this cloud may be — a flat base, a domed top, round sides that pull in
 // toward the top (box space, -0.5..0.5)
-float envelope(vec3 b) {
+float envelope(vec3 b, vec3 wp, vec3 seed) {
     float h = b.y + 0.5;
-    float base = smoothstep(0.0, 0.12, h);
-    float top = 1.0 - smoothstep(0.45, 1.0, h);
     float r = length(b.xz * 2.0);
-    float w = mix(0.95, 0.5, h * h);
+    // the underside: flat only in the middle, curving up toward the rim, and undulating with a
+    // slow noise so a few bulges hang lower
+    // (kept inside the box: the bulges have room below the middle's level, never cut by the floor)
+    float baseH = max(0.02, 0.1 + 0.26 * r * r + (vnoise(vec3(wp.x / 45.0, 0.0, wp.z / 45.0) + seed) - 0.5) * 0.2);
+    float base = smoothstep(baseH, baseH + 0.14, h);
+    float top = 1.0 - smoothstep(0.55, 1.0, h);
+    // (the sides pull in only a little toward the top: a broad cloud, not a tower)
+    float w = mix(0.95, 0.72, h * h);
     return base * top * smoothstep(w, w * 0.35, r);
 }
 
 // density at a world point; 'detail' off for the cheap self-shadow samples
 float density(vec3 wp, vec3 seed, bool detail) {
     vec3 b = (wp - vCenter) / (2.0 * vHalfSize);
-    float env = envelope(b);
+    float env = envelope(b, wp, seed);
     if (env < 0.01) return 0.0;
     vec3 wind = vec3(uTime * 0.6, 0.0, uTime * 0.2);
     // the noise also drifts slowly through its own depth: the billows roll and change shape
@@ -176,15 +182,9 @@ void main() {
     float tOut = min(min(tmax.x, tmax.y), tmax.z);
     if (tOut <= tIn) discard;
 
-    // Where does this view land on the ground? If on the board, the whole cloud is thin along
-    // it — the board stays readable through any cloud in front of it, at any camera angle.
-    // (The ground is taken as flat at 0: the board's bumps are small against a cloud's height.)
-    if (rd.y < -1e-3) {
-        vec2 g = ro.xz + rd.xz * (-ro.y / rd.y);
-        vec2 out2 = abs(g) - uBoardHalf;
-        float past = max(out2.x, out2.y);
-        gBoardK = mix(uBoardDensity, 1.0, smoothstep(-4.0, 16.0, past));
-    }
+    // how dense this cloud is: thinner the more of it covers the board from the camera's view
+    // (one value for the whole cloud, set per cloud — see Scenery.updateCloudBoardCover)
+    gBoardK = uCloudBoardK;
 
     vec3 seed = vec3(vCenter.x * 0.013, vCenter.y * 0.029, vCenter.z * 0.017);
     float jitter = fract(52.9829189 * fract(0.06711056 * gl_FragCoord.x + 0.00583715 * gl_FragCoord.y));
@@ -244,6 +244,7 @@ export interface VolumetricCloudUniforms {
     uTime: { value: number };
     uBoardHalf: { value: Vector2 };
     uBoardDensity: { value: number };
+    uCloudBoardK: { value: number };
     [key: string]: { value: unknown };
 }
 
@@ -271,6 +272,7 @@ export function createVolumetricCloudMaterial(opts: VolumetricCloudMaterialOptio
         uTime: { value: 0 },
         uBoardHalf: { value: new Vector2(opts.boardHalfW ?? 0, opts.boardHalfH ?? 0) },
         uBoardDensity: { value: opts.boardDensity ?? 0.35 },
+        uCloudBoardK: { value: 1 },
     };
     return new ShaderMaterial({
         uniforms,

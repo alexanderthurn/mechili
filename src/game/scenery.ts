@@ -1638,6 +1638,7 @@ export class Scenery {
             }
         }
         this.cloudFloorTick = (this.cloudFloorTick + 1) % 12;
+        this.updateCloudBoardCover(cameraPos, dtSeconds);
         // the weather sets how big the clouds get and how many there are: a clear sky keeps a
         // few small ones, overcast and rain fill it with big ones (from the weather's cloud cover)
         const cover = smooth01((this.cloudMaterial.opacity - 0.5) / 0.45);
@@ -4339,16 +4340,60 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         // ~110×os out — over the range a cloud would have to clear the peaks)
         cloud.mesh.position.x = (r() * 2 - 1) * (map.halfW + 40 * this.os);
         cloud.mesh.position.z = (r() * 2 - 1) * (map.halfH + 70 * this.os);
-        // a real cloud has a base: 35–75 up over the meadow, varied, in front of the mountains
-        cloud.base = 35 + r() * 40;
+        // high up: 95–160 over the ground — above the camera at its usual zoom (~60 up), so a
+        // cloud only comes into the view when zoomed far out
+        cloud.base = 95 + r() * 65;
         cloud.speed = 2 + r() * 3;
-        const w = (90 + r() * 130) * 0.6;
-        cloud.life.full.set(w, (30 + r() * 22) * 0.6, w * (0.45 + r() * 0.3));
+        // sizes spread wide: many small puffs, some big ones, the odd giant (the board stays
+        // readable through all of them, see the shader's board thinning)
+        const w = 45 + 235 * Math.pow(r(), 1.7);
+        // wide and flat: the height only 10–22% of the width (the odd one a little taller),
+        // and deep front to back
+        const tall = w * (0.1 + r() * 0.12);
+        cloud.life.full.set(w, Math.min(40, Math.max(10, tall)), w * (0.6 + r() * 0.5));
         cloud.life.span = 70 + r() * 80;
         cloud.life.age = age;
         cloud.mesh.scale.copy(cloud.life.full).multiplyScalar(0.01);
         cloud.mesh.position.y = this.cloudFloorAt(cloud.mesh, cloud.base);
         cloud.mesh.userData.floorY = cloud.mesh.position.y;
+    }
+
+    /**
+     * Per volumetric cloud: how much of it covers the board as the camera sees it — the views
+     * through nine points of its body followed down to the ground, the share landing on the
+     * board. The whole cloud then thins by that share (to the material's board density), and
+     * eases there over a moment, so a cloud never splits into a thin and a thick half.
+     */
+    private updateCloudBoardCover(cam: Vector3, dt: number): void {
+        const mat = this.volumetricCloudMaterial;
+        if (!mat) return;
+        const thin = mat.uniforms.uBoardDensity.value;
+        const hw = this.map.halfW;
+        const hh = this.map.halfH;
+        for (const c of this.clouds) {
+            if (!c.life) continue;
+            const m = c.mesh;
+            let cover = 0;
+            let n = 0;
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    const px = m.position.x + i * 0.3 * m.scale.x;
+                    const py = m.position.y;
+                    const pz = m.position.z + j * 0.3 * m.scale.z;
+                    const dy = py - cam.y;
+                    n++;
+                    if (dy >= -1e-3) continue; // looking up at it: the ground behind is not the board
+                    const t = -cam.y / dy;
+                    const gx = cam.x + (px - cam.x) * t;
+                    const gz = cam.z + (pz - cam.z) * t;
+                    const past = Math.max(Math.abs(gx) - hw, Math.abs(gz) - hh);
+                    cover += 1 - smooth01((past + 4) / 30);
+                }
+            }
+            const target = 1 + (thin - 1) * (cover / n);
+            const k = (m.userData.boardK as number | undefined) ?? 1;
+            m.userData.boardK = k + (target - k) * Math.min(1, dt * 2.5);
+        }
     }
 
     /**
@@ -4379,7 +4424,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             ? new BoxGeometry(1, 1, 1)
             : new PlaneGeometry(1, 0.5).rotateX(-Math.PI / 2);
 
-        for (let i = 0; i < 12; i++) {
+        const cloudCount = volumetric ? 18 : 12;
+        for (let i = 0; i < cloudCount; i++) {
             const mesh = new Mesh(geometry, material);
             const farSide = rng() < 0.7;
             // Keep sky cards inside the crest ring — nothing useful past d=500
@@ -4395,7 +4441,14 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 // depth in the buffer, what stands in front of the cloud still hides it, and
                 // what lies under it no longer draws over it
                 mesh.renderOrder = 6;
-                const cloud = { mesh, speed: 0, base: 0, life: newCloudLife(i / 12) };
+                const cloud = { mesh, speed: 0, base: 0, life: newCloudLife(i / cloudCount) };
+                // the shared material takes this cloud's own board thinning just before it draws
+                mesh.userData.boardK = 1;
+                mesh.onBeforeRender = (_r, _s, _c, _g, mat) => {
+                    const m = mat as VolumetricCloudMaterial;
+                    m.uniforms.uCloudBoardK.value = mesh.userData.boardK as number;
+                    m.uniformsNeedUpdate = true;
+                };
                 this.spawnCloud(cloud, rng() * cloud.life.span);
                 this.clouds.push(cloud);
                 this.group.add(mesh);
