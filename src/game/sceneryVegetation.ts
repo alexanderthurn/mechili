@@ -399,10 +399,10 @@ function syncBillboardMapB(season: Season): void {
  */
 /**
  * Summer light on the trees: as the meadow dries and brightens in summer (the shared
- * summerDryUniform), the foliage lightens and warms with it — ~12% brighter and a little
+ * summerDryUniform), the foliage lightens and warms with it — ~30% brighter and a little
  * yellower at full summer — so a sunlit summer lawn no longer sits under a dark spring forest.
  */
-const SUMMER_LIGHT_GLSL = '  diffuseColor.rgb *= mix(vec3(1.0), vec3(1.28, 1.2, 0.88), uDryGrass * 0.6);';
+const SUMMER_LIGHT_GLSL = '  diffuseColor.rgb *= mix(vec3(1.0), vec3(2.2, 2.1, 1.6), uDryGrass * 1.39);'; // TEST: max
 
 function attachBillboardSeasonFade(material: MeshBasicMaterial): void {
     if (material.userData.seasonFadeAttached) return;
