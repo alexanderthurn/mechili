@@ -1931,7 +1931,7 @@ export class Scenery {
         const color = new Color();
 
         /** random meadow-band point (outside board, on grass, not in water) */
-        const meadowSpot = (maxH: number): { x: number; z: number; h: number } | null => {
+        const meadowSpot = (maxH: number, grassOnly = false): { x: number; z: number; h: number } | null => {
             const band = Math.min(320 * this.os, this.reach - 10 * this.os);
             for (let attempt = 0; attempt < 60; attempt++) {
                 const x = (rng() * 2 - 1) * (map.halfW + band);
@@ -1940,6 +1940,13 @@ export class Scenery {
                 if (pastBoard(map.halfW, map.halfH, x, z) >= this.reach) continue;
                 const h = this.terrainHeight(x, z);
                 if (h < -0.3 || h > maxH) continue;
+                // grass stands on grass: not on the sandy dry patches, the gravel/sand shore of a
+                // lake, or where the ground has turned to stone
+                if (grassOnly) {
+                    if (this.onDryPatch(x, z)) continue;
+                    if (this.lakeAt(x, z) > 0.08 && h < 1.6) continue;
+                    if (!this.isGrassy(x, z)) continue;
+                }
                 return { x, z, h };
             }
             return null;
@@ -1947,14 +1954,18 @@ export class Scenery {
 
         // --- grass tufts: crossed alpha-tested quads, swaying in the wind
         const TUFTS = scaleCount(4200, this.density.meadow);
-        // Ultra: painted grass clumps (a 2x2 atlas, one clump picked per instance) on three
-        // cards crossed at 60°, lit from above like the ground and swaying only gently. The
-        // other tiers keep the procedural blade texture on two crossed cards.
-        const clumps = this.quality === 'ultra';
+        // Painted grass clumps (a 2x2 atlas, one clump picked per instance), lit from above like
+        // the ground: three cards crossed at 60° on ultra and high, two crossed cards on medium
+        // (low places no tufts at all). The procedural blade texture only shows if the atlas
+        // fails to load.
+        const clumps = true;
+        const cards = this.quality === 'medium' ? 2 : 3;
         let tuftGeo: BufferGeometry;
         if (clumps) {
             const quad = new PlaneGeometry(1.35, 1.35).translate(0, 0.675, 0);
-            tuftGeo = mergeGeometries([0, 1, 2].map((k) => quad.clone().rotateY((k * Math.PI) / 3)))!;
+            tuftGeo = mergeGeometries(
+                Array.from({ length: cards }, (_, k) => quad.clone().rotateY((k * Math.PI) / cards)),
+            )!;
             // normals straight up: the cards take the light the ground under them gets, so no
             // card turns dark just because it faces away from the sun
             const n = tuftGeo.attributes.normal!;
@@ -2039,7 +2050,7 @@ export class Scenery {
         const tufts = new InstancedMesh(tuftGeo, this.tuftMaterial, TUFTS);
         let tuftI = 0;
         for (let i = 0; i < TUFTS; i++) {
-            const spot = meadowSpot(20);
+            const spot = meadowSpot(20, true);
             if (!spot) break;
             const sc = clumps ? 0.6 + rng() * 0.9 : 0.7 + rng() * 1.1;
             dummy.position.set(spot.x, spot.h - (clumps ? 0.05 : 0), spot.z);
