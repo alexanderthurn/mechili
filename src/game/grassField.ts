@@ -474,7 +474,6 @@ varying float vSnow;
         this.clearTex!.needsUpdate = true;
     }
 
-    /** per frame: the clock, the current wear layer, and a new upload when the ground moved */
     /**
      * Per frame, by distance to the camera: chunks past the far distance are not drawn at all,
      * and the ones in between draw fewer blades the further out they lie (the blades are stored
@@ -496,6 +495,7 @@ varying float vSnow;
         }
     }
 
+    /** per frame: the clock, the current wear and stain layers, and a new upload when the ground moved */
     update(time: number, wear: Texture | null, stainTint: Texture | null, heightsChanged: boolean): void {
         this.board.uTime.value = time;
         this.board.uWear.value = wear ?? BLANK;
