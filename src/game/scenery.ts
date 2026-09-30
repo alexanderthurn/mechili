@@ -2,6 +2,7 @@ import {
     AdditiveBlending,
     BackSide,
     Box3,
+    BoxGeometry,
     BufferAttribute,
     BufferGeometry,
     CanvasTexture,
@@ -25,6 +26,7 @@ import {
     Quaternion,
     RGFormat,
     RepeatWrapping,
+    ShaderMaterial,
     SphereGeometry,
     Sprite,
     SpriteMaterial,
@@ -42,6 +44,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Weather, TRANSITION_TAU, type Season } from './weather';
 import { WaterReflection } from './waterReflection';
+import { createVolumetricCloudMaterial, sceneryVolumetricClouds, type VolumetricCloudMaterial } from './volumetricClouds';
 import { THEME } from '../theme';
 import type { EffectToggles } from './effectToggles';
 import { prefs, sceneryDetailed, sceneryHeightFog, type SceneryQuality } from './prefs';
@@ -329,6 +332,18 @@ interface FogCard {
 const FOG_CARD_SEGS = 8;
 const FOG_DRAPE_EVERY = 8;
 
+/** a volumetric horizon cloud's life: full size, how long it lives, how old it is */
+interface CloudLife {
+    full: Vector3;
+    span: number;
+    age: number;
+    /** 0..1: which share of the sky's cover it belongs to (low = present even when clear) */
+    rank: number;
+}
+function newCloudLife(rank: number): CloudLife {
+    return { full: new Vector3(1, 1, 1), span: 100, age: 0, rank };
+}
+
 /** what the mountain cloud banks bleach toward under snow */
 const MIST_SNOW_WHITE = new Color(0xf4f7fb);
 
@@ -549,7 +564,9 @@ export class Scenery {
 
     /** dome + sun glow follow the camera so the horizon never hits the far plane */
     private readonly skyGroup = new Group();
-    private readonly clouds: { mesh: Mesh; speed: number }[] = [];
+    private readonly clouds: { mesh: Mesh; speed: number; base?: number; life?: CloudLife }[] = [];
+    /** which volumetric cloud re-checks the ground under it this frame (round robin) */
+    private cloudFloorTick = 0;
     /** wisps clinging to the snowy summits — they sway in place, never leave */
     private readonly peakClouds: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     /** low fog cards drifting between the forest trees */
@@ -682,6 +699,7 @@ export class Scenery {
     private repaintSky!: (zenith: string, mid: string, horizon: string) => void;
     private sunGlow!: Sprite;
     private cloudMaterial!: MeshBasicMaterial;
+    private volumetricCloudMaterial: VolumetricCloudMaterial | null = null;
     private cloudTexture!: CanvasTexture;
 
     /** outer-world height: meadow band with soft relief, then slopes into a mountain ring */
@@ -1446,6 +1464,7 @@ export class Scenery {
                 onSeasonChange: (season, immediate) => this.setSeason(season, immediate),
                 effectToggles,
                 suppressVisualWeatherFx: !this.detailed,
+                volumetricClouds: sceneryVolumetricClouds(this.quality),
             },
             seed,
         );
@@ -1607,9 +1626,54 @@ export class Scenery {
         if (this.waterTimeUniform) this.waterTimeUniform.value = this.time;
         if (this.lakeDepthUsed) this.ensureLakeDepth();
         this.lakeTimeUniform.value = this.time;
-        for (const c of this.clouds) {
+        if (this.volumetricCloudMaterial) {
+            this.volumetricCloudMaterial.uniforms.uTime.value = this.time;
+            if (this.sunLight) {
+                this.volumetricCloudMaterial.uniforms.uSunDir.value.copy(this.sunLight.position).normalize();
+                this.volumetricCloudMaterial.uniforms.uSunColor.value.copy(this.sunLight.color);
+            }
+            if (this.cloudMaterial) {
+                this.volumetricCloudMaterial.uniforms.uCloudTint.value.copy(this.cloudMaterial.color);
+                this.volumetricCloudMaterial.uniforms.uCloudOpacity.value = this.cloudMaterial.opacity;
+            }
+        }
+        this.cloudFloorTick = (this.cloudFloorTick + 1) % 12;
+        // the weather sets how big the clouds get and how many there are: a clear sky keeps a
+        // few small ones, overcast and rain fill it with big ones (from the weather's cloud cover)
+        const cover = smooth01((this.cloudMaterial.opacity - 0.5) / 0.45);
+        const sizeK = 0.45 + 0.55 * cover;
+        const share = 0.45 + 0.55 * cover;
+        for (let i = 0; i < this.clouds.length; i++) {
+            const c = this.clouds[i]!;
             c.mesh.position.x += c.speed * dtSeconds;
-            if (c.mesh.position.x > this.cloudBoundsX) c.mesh.position.x = -this.cloudBoundsX;
+            const life = c.life;
+            // a volumetric cloud drifts along the meadow in front of the board: nearing its end it
+            // starts to dissolve (and is reborn elsewhere once gone)
+            if (life && c.mesh.position.x > this.map.halfW && life.age < life.span * 0.75) life.age = life.span * 0.75;
+            else if (life) {
+                /* keeps drifting */
+            } else if (c.mesh.position.x > this.cloudBoundsX) c.mesh.position.x = -this.cloudBoundsX;
+            if (life && c.base !== undefined) {
+                // it forms, lives, and dissolves again — then forms anew somewhere else
+                life.age += dtSeconds;
+                if (life.age >= life.span) {
+                    this.spawnCloud(c as { mesh: Mesh; speed: number; base: number; life: CloudLife });
+                    continue;
+                }
+                const t = life.age / life.span;
+                const grow = smooth01(t / 0.2) * (1 - smooth01((t - 0.75) / 0.25));
+                // the weather's share of the sky: the clouds past it stay small or vanish
+                const present = smooth01((share - life.rank) / 0.12 + 0.5);
+                const k = Math.max(0.01, grow * sizeK * present);
+                // grows more in width than in height as it forms, so it spreads rather than inflates
+                c.mesh.scale.set(life.full.x * k, life.full.y * Math.sqrt(k), life.full.z * k);
+            }
+            // a volumetric cloud rises over the ground it drifts across, so no mountain cuts it
+            if (c.base !== undefined) {
+                if (i % 12 === this.cloudFloorTick) c.mesh.userData.floorY = this.cloudFloorAt(c.mesh, c.base);
+                const target = (c.mesh.userData.floorY as number | undefined) ?? c.mesh.position.y;
+                c.mesh.position.y += (target - c.mesh.position.y) * Math.min(1, dtSeconds * 0.8);
+            }
         }
         for (const p of this.peakClouds) {
             p.mesh.position.x = p.baseX + Math.sin(this.time * p.speed + p.phase) * 12;
@@ -4252,13 +4316,68 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             opacity: THEME.scenery.cloudOpacity,
             depthWrite: false,
         });
+        if (sceneryVolumetricClouds(this.quality)) {
+            this.volumetricCloudMaterial = createVolumetricCloudMaterial({
+                opacity: THEME.scenery.cloudOpacity,
+                boardHalfW: this.map.halfW,
+                boardHalfH: this.map.halfH,
+                // over the board a cloud keeps about a third of its density: the battle shows through
+                boardDensity: 0.35,
+            });
+        }
+    }
+
+    /**
+     * (Re)form a volumetric cloud somewhere along the horizon lanes: a new size, a new base
+     * height, a new lifetime. `age` lets the first ones start mid-life, so the sky is not empty
+     * at the start and they do not all dissolve at once.
+     */
+    private spawnCloud(cloud: { mesh: Mesh; speed: number; base: number; life: CloudLife }, age = 0): void {
+        const map = this.map;
+        const r = Math.random;
+        // anywhere over the board and the flat meadow around it (the mountains start rising
+        // ~110×os out — over the range a cloud would have to clear the peaks)
+        cloud.mesh.position.x = (r() * 2 - 1) * (map.halfW + 40 * this.os);
+        cloud.mesh.position.z = (r() * 2 - 1) * (map.halfH + 70 * this.os);
+        // a real cloud has a base: 35–75 up over the meadow, varied, in front of the mountains
+        cloud.base = 35 + r() * 40;
+        cloud.speed = 2 + r() * 3;
+        const w = (90 + r() * 130) * 0.6;
+        cloud.life.full.set(w, (30 + r() * 22) * 0.6, w * (0.45 + r() * 0.3));
+        cloud.life.span = 70 + r() * 80;
+        cloud.life.age = age;
+        cloud.mesh.scale.copy(cloud.life.full).multiplyScalar(0.01);
+        cloud.mesh.position.y = this.cloudFloorAt(cloud.mesh, cloud.base);
+        cloud.mesh.userData.floorY = cloud.mesh.position.y;
+    }
+
+    /**
+     * The height a volumetric cloud's centre must sit at: its base at `base`, or higher where the
+     * ground under its footprint (plus a margin) rises above that.
+     */
+    private cloudFloorAt(mesh: Mesh, base: number): number {
+        const hx = mesh.scale.x / 2;
+        const hz = mesh.scale.z / 2;
+        let top = -Infinity;
+        for (let i = 0; i <= 4; i++) {
+            for (let j = 0; j <= 4; j++) {
+                const x = mesh.position.x - hx + (i / 4) * 2 * hx;
+                const z = mesh.position.z - hz + (j / 4) * 2 * hz;
+                top = Math.max(top, this.terrainHeight(x, z));
+            }
+        }
+        return Math.max(base, top + 12) + mesh.scale.y / 2;
     }
 
     /** flat puffs on the horizon + summit wisps — tinted by the weather system */
     private createHorizonCloudMeshes(map: BattleMap, rng: () => number): void {
-        const material = this.cloudMaterial;
-        const geometry = new PlaneGeometry(1, 0.5);
-        geometry.rotateX(-Math.PI / 2);
+        const volumetric = sceneryVolumetricClouds(this.quality);
+        const material = volumetric && this.volumetricCloudMaterial
+            ? this.volumetricCloudMaterial
+            : this.cloudMaterial;
+        const geometry = volumetric
+            ? new BoxGeometry(1, 1, 1)
+            : new PlaneGeometry(1, 0.5).rotateX(-Math.PI / 2);
 
         for (let i = 0; i < 12; i++) {
             const mesh = new Mesh(geometry, material);
@@ -4271,7 +4390,19 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 farSide ? -lane : lane,
             );
             const scale = 90 + rng() * 130;
-            mesh.scale.set(scale, 1, scale * (0.4 + rng() * 0.3));
+            if (volumetric) {
+                // drawn after the other see-through things (trees, grass, fog): with the trees'
+                // depth in the buffer, what stands in front of the cloud still hides it, and
+                // what lies under it no longer draws over it
+                mesh.renderOrder = 6;
+                const cloud = { mesh, speed: 0, base: 0, life: newCloudLife(i / 12) };
+                this.spawnCloud(cloud, rng() * cloud.life.span);
+                this.clouds.push(cloud);
+                this.group.add(mesh);
+                continue;
+            } else {
+                mesh.scale.set(scale, 1, scale * (0.4 + rng() * 0.3));
+            }
             this.clouds.push({ mesh, speed: 2 + rng() * 3 });
             this.group.add(mesh);
         }
@@ -4292,7 +4423,15 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             const mesh = new Mesh(geometry, material);
             mesh.position.set(x, h - 4 + rng() * 16, z);
             const scale = 55 + rng() * 70;
-            mesh.scale.set(scale, 1, scale * (0.35 + rng() * 0.3));
+            if (volumetric) {
+                const height = (16 + rng() * 14) * 0.6;
+                mesh.scale.set(scale * 0.6, height, scale * 0.6 * (0.35 + rng() * 0.3));
+                // resting on the summit, not cut by it (the cap sways a little: a wider margin)
+                mesh.position.y = this.cloudFloorAt(mesh, 0) + 4;
+                mesh.renderOrder = 6;
+            } else {
+                mesh.scale.set(scale, 1, scale * (0.35 + rng() * 0.3));
+            }
             this.peakClouds.push({
                 mesh,
                 baseX: x,

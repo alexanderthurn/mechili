@@ -538,6 +538,8 @@ export interface WeatherHandles {
     effectToggles?: EffectToggles;
     /** low/off scenery keep the atmosphere logic, but suppress cloud/precip visuals */
     suppressVisualWeatherFx?: boolean;
+    /** ultra: volumetric 3D clouds replace the 2D near-cloud planes */
+    volumetricClouds?: boolean;
 }
 
 /** a fully numeric/lerpable copy of a composed target, used as the live state */
@@ -1092,7 +1094,8 @@ export class Weather {
             h.forestFogMaterial.color.copy(s.skyHorizon).lerp(FOREST_MIST_WHITE, FOREST_MIST_WHITEN);
         }
 
-        const nearClouds = allowVisualWeatherFx && this.fx('nearClouds') ? s.nearCloudOpacity : 0;
+        // ultra: the volumetric horizon clouds replace the 2D near-cloud planes
+        const nearClouds = allowVisualWeatherFx && !this.h.volumetricClouds && this.fx('nearClouds') ? s.nearCloudOpacity : 0;
         this.nearCloudMaterial.opacity = nearClouds;
         for (const c of this.nearClouds) {
             c.mesh.visible = nearClouds > 0.02;
