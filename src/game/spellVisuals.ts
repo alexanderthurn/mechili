@@ -54,6 +54,8 @@ export type SpellChargeMarker = {
 };
 
 const BLOCKED_COLOR = 0xff3b30;
+/** a battle's charge markers stay on screen at least this long, however the sim clock jumps */
+const CHARGE_MIN_VISIBLE_MS = 900;
 const RECT_MARK_COLOR = 0xc9a227;
 
 type ZonePulse = {
@@ -92,6 +94,8 @@ export class SpellVisuals {
     private chargeKey = '';
     private chargeInners: ChargeInner[] = [];
     private safeZoneKey = '';
+    /** each battle's charge list, with the real time it was first drawn (see syncBattleMarkers) */
+    private readonly chargeListShownAt = new WeakMap<readonly SpellChargeMarker[], number>();
 
     constructor(
         private readonly scene: Scene,
@@ -267,7 +271,19 @@ export class SpellVisuals {
             p.line.opacity = p.lineBase * (p.fillBase > 0 ? 1 : pulse);
         }
 
-        const active = charges.filter((c) => now < c.readyAt);
+        // A charge shows until its effect lands (sim time) — and, in any case, for its first
+        // CHARGE_MIN_VISIBLE_MS on screen. A battle's opening can hitch (shaders compiling for
+        // the first fire or oil, a slow machine), and the sim then catches up the lost time in
+        // one frame: the short pour charges (oil, acid, fire: 1.55 s) were already over before
+        // the first battle frame was drawn, and the spill just fell out of the sky.
+        const real = performance.now();
+        let shownAt = this.chargeListShownAt.get(charges);
+        if (shownAt === undefined && charges.length > 0) {
+            shownAt = real;
+            this.chargeListShownAt.set(charges, real);
+        }
+        const fresh = shownAt !== undefined && real - shownAt < CHARGE_MIN_VISIBLE_MS;
+        const active = charges.filter((c) => now < c.readyAt || fresh);
         const cKey = active
             .map(
                 (c) =>
