@@ -401,6 +401,10 @@ export class BattleMap {
 
     /** live sand-wear mask (null until ground textures finish loading) */
     private sandMask: CanvasTexture | null = null;
+    /** the wear layer (R sand/footprints, G stains, B scorch) the ground shows, if wear is on */
+    get wearMask(): CanvasTexture | null {
+        return this.sandMask;
+    }
     /** static match-start mud patches — drawn under snow; not stamped by units */
     private baseSandMask: CanvasTexture | null = null;
     /**
@@ -408,6 +412,10 @@ export class BattleMap {
      * non-black RGB = darkened unit bloodColor (e.g. zombie acid green).
      */
     private bloodTintMask: CanvasTexture | null = null;
+    /** the colour of the stains in the wear layer's G channel (blood red, zombie green…), if any */
+    get stainTintMask(): CanvasTexture | null {
+        return this.bloodTintMask;
+    }
     private bloodTintCtx: CanvasRenderingContext2D | null = null;
     private sandCtx: CanvasRenderingContext2D | null = null;
     private sandW = 0;

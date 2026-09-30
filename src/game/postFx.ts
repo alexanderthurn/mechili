@@ -29,8 +29,10 @@ function shouldSkipGtaoObject(object: Object3D): boolean {
     const mat = o.material;
     if (!mat) return false;
     const mats = Array.isArray(mat) ? mat : [mat];
-    // alpha-tested billboards / foliage cards (trees, bushes, grass tufts, …)
-    return mats.some((m) => (m.alphaTest ?? 0) > 0);
+    // alpha-tested billboards / foliage cards (trees, bushes, grass tufts, …), and every
+    // see-through effect: GTAO draws its G-buffer opaque, so a flame or smoke card became a
+    // solid quad there and the AO shaded a dark rim around its outline (fire, acid smoke, …)
+    return mats.some((m) => (m.alphaTest ?? 0) > 0 || (m.transparent && !m.depthWrite));
 }
 
 /** Eskil vignette: higher offset → stronger corner falloff. */

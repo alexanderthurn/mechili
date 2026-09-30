@@ -1087,7 +1087,8 @@ export class Weather {
             // blue smoke between the trees whenever rain thinned the overlay
             // only part of the way. Dawn/dusk keep a hint of their warm tint.
             const forestFog = this.fx('forestFog') ? s.forestFog * h.forestFogScale : 0;
-            h.forestFogMaterial.opacity = forestFog;
+            // (×0.7: the drifting cards read too solid next to the height fog)
+            h.forestFogMaterial.opacity = forestFog * 0.7;
             h.forestFogMaterial.color.copy(s.skyHorizon).lerp(FOREST_MIST_WHITE, FOREST_MIST_WHITEN);
         }
 

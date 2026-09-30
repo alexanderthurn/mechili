@@ -95,6 +95,7 @@ import {
     loadFloorPieces,
     type FloorPiecePlacement,
 } from './sceneryFloorPieces';
+import { GrassField } from './grassField';
 import { createOuterGroundGeometry, MOUNTAIN_DENSE_FROM, OUTER_SCALE } from './outerGroundGrid';
 import { sculptUltraMountainPositions } from './mountainSculpt';
 import { ensureOuterMaterialAttrs } from './landscapeMaterials';
@@ -246,6 +247,51 @@ const SUPER_RADIUS_NOMINAL = 190;
 const SUPER_TOP = 380;
 const SUPER_MIN_ADD = 10;
 
+/** the board shader's value noise (groundQuality.ts SLOPE_GROUND_FNS), on the CPU */
+function slopeNoiseJs(px: number, py: number): number {
+    const h = (x: number, y: number): number => {
+        const v = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+        return v - Math.floor(v);
+    };
+    const ix = Math.floor(px);
+    const iy = Math.floor(py);
+    let fx = px - ix;
+    let fy = py - iy;
+    fx = fx * fx * (3 - 2 * fx);
+    fy = fy * fy * (3 - 2 * fy);
+    const a = h(ix, iy);
+    const b = h(ix + 1, iy);
+    const c = h(ix, iy + 1);
+    const d = h(ix + 1, iy + 1);
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
+
+function smoothstepJs(e0: number, e1: number, x: number): number {
+    return smooth01((x - e0) / (e1 - e0));
+}
+
+/**
+ * 0..1 how much of the board's ground at (x, z) is drawn as grass: the same slope and patch
+ * terms the board shader uses (slopeGroundGlsl / groundZonesGlsl) — bare earth and rock on the
+ * steep hillsides, straw on the gentler ones, bare-earth patches on the flat. Render-only.
+ */
+function boardGrassAt(map: BattleMap, x: number, z: number): number {
+    const e = 1;
+    const gx = (map.heightAt(x + e, z) - map.heightAt(x - e, z)) / (2 * e);
+    const gz = (map.heightAt(x, z + e) - map.heightAt(x, z - e)) / (2 * e);
+    const grade = Math.sqrt(gx * gx + gz * gz);
+    const v = slopeNoiseJs(x / 7, z / 7) * 0.65 + slopeNoiseJs(x / 2.3 + 17, z / 2.3 + 17) * 0.35 - 0.5;
+    // (earlier than the shader's own ramp: where earth starts to show, the grass is already gone)
+    const earth = smoothstepJs(0.4, 0.6, grade + v * 0.2);
+    const rock = smoothstepJs(0.8, 1.15, grade + v * 0.24);
+    const dry = smoothstepJs(0.16, 0.45, grade + v * 0.14);
+    const earthN = slopeNoiseJs(x / 27 + 47, z / 27 + 47) * 0.65 + slopeNoiseJs(x / 8 + 2.9, z / 8 + 2.9) * 0.35;
+    const patch = smoothstepJs(0.58, 0.72, earthN);
+    // a blade needs grass under it: none on bare earth (hillside or patch) or rock, thinner on
+    // the dry slopes
+    return Math.max(0, 1 - Math.max(earth, rock, patch)) * (1 - dry * 0.45);
+}
+
 /** alm: flat meadow radius, the ease into the mountainside, and the height it is sought at (half the range) */
 const ALM_RADIUS = 65;
 const ALM_EASE = 55;
@@ -255,6 +301,21 @@ const ALM_TILT = 0.26;
 
 /** the range's one wind, blowing snow off the crests */
 const SNOW_WIND = { x: 0.82, z: 0.57 };
+
+/** a drifting forest fog card (see createForestFog / drapeFogCard) */
+interface FogCard {
+    mesh: Mesh;
+    baseX: number;
+    phase: number;
+    speed: number;
+    /** how high above the ground it floats */
+    lift: number;
+    /** the ground height where it formed — it thins as it climbs above that */
+    homeY: number;
+}
+/** grid of a fog card (per side), and how many frames it takes to re-drape them all */
+const FOG_CARD_SEGS = 8;
+const FOG_DRAPE_EVERY = 8;
 
 /** what the mountain cloud banks bleach toward under snow */
 const MIST_SNOW_WHITE = new Color(0xf4f7fb);
@@ -480,7 +541,9 @@ export class Scenery {
     /** wisps clinging to the snowy summits — they sway in place, never leave */
     private readonly peakClouds: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
     /** low fog cards drifting between the forest trees */
-    private readonly fogCards: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
+    private readonly fogCards: FogCard[] = [];
+    /** which fog card is re-draped this frame (one in FOG_DRAPE_EVERY per frame) */
+    private fogDrapeTick = 0;
     private forestFogMaterial: MeshBasicMaterial | null = null;
     /** ultra: cloud banks lying on the mountain shelves (see createMountainMist) */
     private readonly mistBanks: { mesh: Mesh; baseX: number; phase: number; speed: number }[] = [];
@@ -897,6 +960,7 @@ export class Scenery {
             this.createLakeDetails(rng);
             this.createForest(map, rng);
             this.createMeadowDetails(map, rng);
+            if (this.quality === 'ultra') this.createGrassField(map, seed);
         } else if (this.quality === 'low') {
             // no decoration, but the lake basins are real ground: fill them
             this.group.add(this.createFlatWater());
@@ -924,10 +988,10 @@ export class Scenery {
             transparent: true,
             depthWrite: false,
             opacity: 0,
+            // per-vertex alpha: the fog thins where it creeps up a slope (see drapeFogCard)
+            vertexColors: true,
         });
         this.forestFogMaterial = material;
-        const geometry = new PlaneGeometry(1, 0.55);
-        geometry.rotateX(-Math.PI / 2);
 
         const count = Math.round(14 + this.density.forestFogCards);
         const beltMax = Math.min(this.density.beltFar * this.os, this.reach - 20 * this.os);
@@ -940,20 +1004,61 @@ export class Scenery {
             if (d < this.density.beltNear + 6 || d > beltMax) continue;
             const h = this.terrainHeight(x, z);
             if (h < -0.5 || h > 60 || !this.isGrassy(x, z)) continue;
+            // each card its own small grid, draped over the ground as it drifts
+            const geometry = new PlaneGeometry(1, 0.55, FOG_CARD_SEGS, FOG_CARD_SEGS);
+            geometry.rotateX(-Math.PI / 2);
+            geometry.setAttribute(
+                'color',
+                new BufferAttribute(new Float32Array(geometry.attributes.position!.count * 4).fill(1), 4),
+            );
             const mesh = new Mesh(geometry, material);
-            mesh.position.set(x, h + 2 + rng() * 2.5, z);
+            const lift = 2 + rng() * 2.5;
+            mesh.position.set(x, h + lift, z);
             const s = 35 + rng() * 45;
             mesh.scale.set(s, 1, s * (0.5 + rng() * 0.3));
             mesh.rotation.y = rng() * Math.PI * 2;
-            this.fogCards.push({
+            const card = {
                 mesh,
                 baseX: x,
                 phase: rng() * Math.PI * 2,
                 speed: 0.03 + rng() * 0.05,
-            });
+                lift,
+                homeY: h,
+            };
+            this.fogCards.push(card);
+            this.drapeFogCard(card);
             this.group.add(mesh);
             placed++;
         }
+    }
+
+    /**
+     * Lay a fog card over the ground under it: every vertex stays `lift` above the terrain, so
+     * the fog hugs the ground and flows up the foot of a slope instead of the rising ground
+     * cutting through a flat card. It thins as it climbs above where it formed, so it never
+     * turns into a wall up a mountainside.
+     */
+    private drapeFogCard(card: FogCard): void {
+        const { mesh } = card;
+        const pos = mesh.geometry.attributes.position as BufferAttribute;
+        const col = mesh.geometry.attributes.color as BufferAttribute;
+        const c = Math.cos(mesh.rotation.y);
+        const sn = Math.sin(mesh.rotation.y);
+        const sx = mesh.scale.x;
+        const sz = mesh.scale.z;
+        for (let i = 0; i < pos.count; i++) {
+            const lx = pos.getX(i) * sx;
+            const lz = pos.getZ(i) * sz;
+            const wx = mesh.position.x + lx * c + lz * sn;
+            const wz = mesh.position.z - lx * sn + lz * c;
+            const ground = this.terrainHeight(wx, wz);
+            pos.setY(i, ground + card.lift - mesh.position.y);
+            const climb = ground - card.homeY;
+            col.setW(i, 1 - smooth01((climb - 3) / 10));
+        }
+        pos.needsUpdate = true;
+        col.needsUpdate = true;
+        mesh.geometry.computeBoundingSphere();
     }
 
     /**
@@ -1476,9 +1581,15 @@ export class Scenery {
         for (const p of this.peakClouds) {
             p.mesh.position.x = p.baseX + Math.sin(this.time * p.speed + p.phase) * 12;
         }
-        for (const f of this.fogCards) {
+        const fogOn = (this.forestFogMaterial?.opacity ?? 0) > 0.02;
+        this.fogDrapeTick = (this.fogDrapeTick + 1) % FOG_DRAPE_EVERY;
+        for (let i = 0; i < this.fogCards.length; i++) {
+            const f = this.fogCards[i]!;
             f.mesh.position.x = f.baseX + Math.sin(this.time * f.speed + f.phase) * 8;
-            f.mesh.visible = (this.forestFogMaterial?.opacity ?? 0) > 0.02;
+            f.mesh.visible = fogOn;
+            // the drift is slow (under a unit a second): each card follows the ground a few
+            // times a second, a share of the cards per frame
+            if (fogOn && i % FOG_DRAPE_EVERY === this.fogDrapeTick) this.drapeFogCard(f);
         }
         const mistMat = this.mountainMistMaterial;
         if (mistMat) {
@@ -1506,6 +1617,12 @@ export class Scenery {
             const thaw = 1 - (this.waterFreezeUniform?.value ?? 0);
             this.waterTexture.offset.x += dtSeconds * 0.006 * thaw;
             this.waterTexture.offset.y += dtSeconds * 0.0035 * thaw;
+        }
+        if (this.grassField) {
+            this.grassField.snowCover.value = this.groundSnowCover;
+            const rev = this.map.terrain.revision;
+            this.grassField.update(this.time, this.map.wearMask, this.map.stainTintMask, rev !== this.grassTerrainRev);
+            this.grassTerrainRev = rev;
         }
         if (this.tuftMaterial?.userData.shader) {
             this.tuftMaterial.userData.shader.uniforms.uTime!.value = this.time;
@@ -1921,6 +2038,58 @@ export class Scenery {
     }
 
     private tuftMaterial: MeshStandardMaterial | null = null;
+    /** ultra: the lawn of real blades around the board */
+    private grassField: GrassField | null = null;
+    private grassTerrainRev = 0;
+
+    /** Ultra: real grass blades in a band around the board (see grassField.ts). */
+    private createGrassField(map: BattleMap, seed: number): void {
+        const anchors = map.baseAnchors();
+        const field = new GrassField(
+            {
+                halfW: map.halfW,
+                halfH: map.halfH,
+                // the meadow in front of the mountains
+                band: Math.min(60, 90 * this.os),
+                density: 4,
+                seed,
+                // (a look test: the board is covered too — its relief at build time; blades do not
+                // follow later craters and ridges yet)
+                board: true,
+                height: (x, z) => worldHeightAt(x, z),
+                grassAt: (x, z) => {
+                    if (Math.abs(x) <= map.halfW && Math.abs(z) <= map.halfH) {
+                        // the board: not on the building pads, and only where its shader draws grass
+                        for (const a of anchors) if ((x - a.x) ** 2 + (z - a.z) ** 2 < (a.r + 2) ** 2) return 0;
+                        return boardGrassAt(map, x, z);
+                    }
+                    const h = this.terrainHeight(x, z);
+                    if (h < -0.3) return 0;
+                    if (this.lakeAt(x, z) > 0.08 && h < 1.6) return 0;
+                    if (this.onDryPatch(x, z)) return 0;
+                    if (!this.isGrassy(x, z)) return 0;
+                    if (this.plantClearedAt(x, z)) return 0;
+                    return 1;
+                },
+            },
+            summerDryUniform,
+        );
+        const t = map.terrain;
+        field.bindBoard({
+            halfW: map.halfW,
+            halfH: map.halfH,
+            nx: t.nx,
+            nz: t.nz,
+            cellX: t.cellX,
+            cellZ: t.cellZ,
+            heights: t.heights,
+            hazard: map.getHazardMask(),
+        });
+        this.grassTerrainRev = t.revision;
+        this.grassField = field;
+        this.group.add(field.group);
+        console.info(`[scenery] grass field: ${field.count} blades`);
+    }
 
     /**
      * Small-scale life on the outer meadow: wind-swaying grass tufts, small
@@ -2145,11 +2314,18 @@ export class Scenery {
             this.group.add(stones, logs, mushrooms);
         }
 
-        // --- fallen leaf litter: built now, opacity eased in for autumn (see setSeason)
+        // --- fallen leaf litter (ultra): little drifts of leaves, built now, opacity eased in for
+        // autumn (see setSeason). Each card is a scatter of cut-out leaves, tinted per card.
+        if (this.quality !== 'ultra') {
+            this.group.add(tufts);
+            return;
+        }
         const LITTER = scaleCount(1200, this.density.meadow);
-        const litterGeo = new PlaneGeometry(0.55, 0.55).rotateX(-Math.PI / 2);
+        const litterGeo = new PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2);
         const litterMaterial = new MeshStandardMaterial({
             color: 0xffffff,
+            map: makeLeafLitterTexture(),
+            alphaTest: 0.45,
             roughness: 1,
             transparent: true,
             opacity: 0,
@@ -2163,7 +2339,7 @@ export class Scenery {
         for (let i = 0; i < LITTER; i++) {
             const spot = meadowSpot(30);
             if (!spot) break;
-            const sc = 0.6 + rng() * 1.0;
+            const sc = 0.7 + rng() * 0.9;
             dummy.position.set(spot.x, spot.h + 0.03, spot.z);
             dummy.scale.setScalar(sc);
             dummy.rotation.set((rng() - 0.5) * 0.3, rng() * Math.PI * 2, (rng() - 0.5) * 0.3);
@@ -4141,6 +4317,59 @@ const OUTER_MOUNTAIN_LIGHTING_GLSL = `
     diffuseColor.rgb *= mix(1.0, mix(0.62, 1.22, sunLit), mountainZone * contrast);`;
 
 /** a handful of tapered grass blades, white — tinted green per instance */
+/**
+ * A drift of fallen leaves on a transparent square: a dozen pointed leaves at random angles,
+ * each with a darker midrib and a little shading, in near-white so the per-card tint colours
+ * them (orange, amber, rust, yellow).
+ */
+function makeLeafLitterTexture(): CanvasTexture {
+    const S = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext('2d')!;
+    const rng = mulberry32(4711);
+    const leaves = 14;
+    for (let i = 0; i < leaves; i++) {
+        // keep them inside a disc, so the card has no square outline
+        const a = rng() * Math.PI * 2;
+        const r = Math.sqrt(rng()) * S * 0.33;
+        const x = S / 2 + Math.cos(a) * r;
+        const y = S / 2 + Math.sin(a) * r;
+        const len = S * (0.1 + rng() * 0.08);
+        const wid = len * (0.38 + rng() * 0.2);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rng() * Math.PI * 2);
+        const v = Math.round(200 + rng() * 55);
+        ctx.fillStyle = `rgb(${v},${v},${v})`;
+        // a leaf: two arcs meeting in points at base and tip
+        ctx.beginPath();
+        ctx.moveTo(-len / 2, 0);
+        ctx.quadraticCurveTo(0, -wid, len / 2, 0);
+        ctx.quadraticCurveTo(0, wid, -len / 2, 0);
+        ctx.fill();
+        // one side a shade darker (the leaf's fold) and the midrib
+        ctx.fillStyle = 'rgba(0,0,0,0.13)';
+        ctx.beginPath();
+        ctx.moveTo(-len / 2, 0);
+        ctx.quadraticCurveTo(0, wid, len / 2, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = Math.max(1, len * 0.04);
+        ctx.beginPath();
+        ctx.moveTo(-len * 0.55, 0);
+        ctx.lineTo(len / 2, 0);
+        ctx.stroke();
+        ctx.restore();
+    }
+    const tex = new CanvasTexture(canvas);
+    tex.colorSpace = SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+}
+
 function makeTuftTexture(): CanvasTexture {
     const canvas = document.createElement('canvas');
     canvas.width = 64;

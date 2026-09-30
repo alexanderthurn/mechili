@@ -529,7 +529,11 @@ export class TerrainGrid {
 
     private markDirty(rect: TerrainRect): void {
         this.dirty = union(this.dirty, rect);
+        this.revision++;
     }
+
+    /** bumps on every change to the heights — for readers that poll instead of taking the dirty rect */
+    revision = 0;
 }
 
 function union(a: TerrainRect | null, b: TerrainRect): TerrainRect {
