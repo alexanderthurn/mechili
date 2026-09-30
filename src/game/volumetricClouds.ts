@@ -78,6 +78,8 @@ uniform float uTime;
 uniform vec2  uBoardHalf;
 uniform float uBoardDensity;
 uniform float uCloudBoardK;
+/** this cloud's opacity factor (drifting sky clouds are kept at half: see scenery) */
+uniform float uAlphaK;
 
 varying vec3 vWorldPos;
 varying vec3 vCenter;
@@ -224,8 +226,7 @@ void main() {
     float alpha = 1.0 - trans;
     if (alpha < 0.004) discard;
     // soften where the box meets far scenery: a cloud fades out, it never cuts a hard line
-    // (half as opaque as the march gives: every cloud a see-through veil, in every weather)
-    gl_FragColor = vec4(min(col / alpha, vec3(1.25)), alpha * uCloudOpacity * 0.5);
+    gl_FragColor = vec4(min(col / alpha, vec3(1.25)), alpha * uCloudOpacity * uAlphaK);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
 }
@@ -246,6 +247,7 @@ export interface VolumetricCloudUniforms {
     uBoardHalf: { value: Vector2 };
     uBoardDensity: { value: number };
     uCloudBoardK: { value: number };
+    uAlphaK: { value: number };
     [key: string]: { value: unknown };
 }
 
@@ -274,6 +276,7 @@ export function createVolumetricCloudMaterial(opts: VolumetricCloudMaterialOptio
         uBoardHalf: { value: new Vector2(opts.boardHalfW ?? 0, opts.boardHalfH ?? 0) },
         uBoardDensity: { value: opts.boardDensity ?? 0.35 },
         uCloudBoardK: { value: 1 },
+        uAlphaK: { value: 0.5 },
     };
     return new ShaderMaterial({
         uniforms,

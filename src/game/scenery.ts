@@ -332,6 +332,20 @@ interface FogCard {
 const FOG_CARD_SEGS = 8;
 const FOG_DRAPE_EVERY = 8;
 
+/**
+ * A volumetric cloud that never thins over the board (summit cap, mountain bank): the material is
+ * shared with the drifting clouds, whose own board thinning is set just before each draws, so
+ * this one must set its own or it would draw with whatever value the last cloud left behind.
+ */
+function unthinnedCloud(mesh: Mesh, alphaK = 1): void {
+    mesh.onBeforeRender = (_r, _s, _c, _g, mat) => {
+        const m = mat as VolumetricCloudMaterial;
+        m.uniforms.uCloudBoardK.value = 1;
+        m.uniforms.uAlphaK.value = alphaK;
+        m.uniformsNeedUpdate = true;
+    };
+}
+
 /** a volumetric horizon cloud's life: full size, how long it lives, how old it is */
 interface CloudLife {
     full: Vector3;
@@ -595,7 +609,11 @@ export class Scenery {
         puffs: { sprite: Sprite; material: SpriteMaterial; offset: number; size: number }[];
         /** the cloud wrapped round the summit; more of it shows the worse the weather */
         cap: { sprite: Sprite; material: SpriteMaterial; angle: number; radius: number; height: number; spin: number; size: number; rank: number }[];
+        /** ultra: the cap as volumetric clouds resting on the summit, at their full size */
+        volCap: { mesh: Mesh; full: Vector3 }[];
     }[] = [];
+    /** ultra: the mountain cloud banks as volumetric clouds (see createMountainMist) */
+    private readonly volBanks: { mesh: Mesh; baseX: number; phase: number; speed: number; base: number }[] = [];
     /** the two alms (flat mountain meadows) this match's seed found; empty on a static map */
     /** the outer ring's scale (OUTER_SCALE on the procedural world, 1 on a static map) */
     private readonly os: number;
@@ -707,6 +725,8 @@ export class Scenery {
     private sunGlow!: Sprite;
     private cloudMaterial!: MeshBasicMaterial;
     private volumetricCloudMaterial: VolumetricCloudMaterial | null = null;
+    /** the unit box every volumetric cloud is drawn in */
+    private readonly volumetricBox = new BoxGeometry(1, 1, 1);
     private cloudTexture!: CanvasTexture;
 
     /** outer-world height: meadow band with soft relief, then slopes into a mountain ring */
@@ -1155,6 +1175,7 @@ export class Scenery {
      * thick in rain and haze, a thin veil on a clear day, pale over snow.
      */
     private createMountainMist(map: BattleMap, rng: () => number): void {
+        const vol = this.volumetricCloudMaterial;
         const material = new MeshBasicMaterial({
             map: this.cloudTexture,
             transparent: true,
@@ -1182,6 +1203,22 @@ export class Scenery {
                 Math.abs(this.terrainHeight(x, z - S) - h),
             ) / S;
             if (slope > 0.4) continue;
+            if (vol) {
+                // a real cloud lying on the shelf: low, wide and flat, floating 9–18 over it and
+                // rising over whatever the ground under it does as it drifts (see update)
+                const mesh = new Mesh(this.volumetricBox, vol);
+                const w = (70 + rng() * 80) * 0.9;
+                mesh.scale.set(w, 9 + rng() * 9, w * (0.5 + rng() * 0.3));
+                mesh.position.set(x, 0, z);
+                const base = h + 9 + rng() * 9;
+                mesh.position.y = this.cloudFloorAt(mesh, base);
+                mesh.renderOrder = 6;
+                unthinnedCloud(mesh);
+                this.volBanks.push({ mesh, baseX: x, phase: rng() * Math.PI * 2, speed: 0.02 + rng() * 0.03, base });
+                this.group.add(mesh);
+                placed++;
+                continue;
+            }
             // a grid draped over the shelf like the forest fog, so a bank drifting toward a slope
             // flows over it instead of the mountain cutting a hard line through a flat card
             const geometry = new PlaneGeometry(1, 0.6, FOG_CARD_SEGS, FOG_CARD_SEGS);
@@ -1264,11 +1301,32 @@ export class Scenery {
                 phase: rng() * Math.PI * 2,
                 puffs: [],
                 cap: [],
+                volCap: [],
             };
             for (let i = 0; i < BANNER; i++) {
                 plume.puffs.push({ ...makePuff(), offset: (i + rng() * 0.6) / BANNER, size: (0.8 + rng() * 0.5) * (0.6 + 0.4 * k) });
             }
-            for (let i = 0; i < CAP; i++) {
+            const vol = this.volumetricCloudMaterial;
+            if (vol) {
+                // ultra: the cap is two real clouds resting on the summit — a wide, flat one on
+                // the tip and a smaller one above it a little downwind (both clear of the rock, so
+                // the peak never cuts them)
+                const parts = [
+                    { w: 115, h: 24, d: 95, dx: 0, dz: 0, lift: 3 },
+                    { w: 65, h: 20, d: 55, dx: SNOW_WIND.x * 32, dz: SNOW_WIND.z * 32, lift: 16 },
+                ];
+                for (const pt of parts) {
+                    const mesh = new Mesh(this.volumetricBox, vol);
+                    const full = new Vector3(pt.w, pt.h, pt.d);
+                    mesh.scale.copy(full);
+                    mesh.position.set(c.x + pt.dx, c.h + pt.lift + pt.h / 2, c.z + pt.dz);
+                    mesh.renderOrder = 6;
+                    unthinnedCloud(mesh);
+                    this.group.add(mesh);
+                    plume.volCap.push({ mesh, full });
+                }
+            }
+            for (let i = 0; i < (vol ? 0 : CAP); i++) {
                 plume.cap.push({
                     ...makePuff(),
                     angle: rng() * Math.PI * 2,
@@ -1297,6 +1355,12 @@ export class Scenery {
             // even in fine weather the cap swells and thins over minutes
             const breath = 0.72 + 0.28 * Math.sin(this.time * 0.045 + plume.phase);
             const shown = cover * breath;
+            // ultra: the volumetric cap swells with the weather and thins, never quite gone
+            for (const vc of plume.volCap) {
+                vc.mesh.visible = ultra;
+                const k = 0.35 + 0.65 * Math.min(1, shown * 1.2);
+                vc.mesh.scale.set(vc.full.x * k, vc.full.y * Math.sqrt(k), vc.full.z * k);
+            }
             for (const puff of plume.cap) {
                 const weight = smooth01((shown * 1.2 - puff.rank) / 0.22);
                 puff.sprite.visible = ultra && weight > 0.01;
@@ -1746,6 +1810,13 @@ export class Scenery {
             // the drift is slow (under a unit a second): each card follows the ground a few
             // times a second, a share of the cards per frame
             if (fogOn && i % FOG_DRAPE_EVERY === this.fogDrapeTick) this.drapeFogCard(f);
+        }
+        for (let i = 0; i < this.volBanks.length; i++) {
+            const b = this.volBanks[i]!;
+            b.mesh.position.x = b.baseX + Math.sin(this.time * b.speed + b.phase) * 22;
+            if (i % 12 === this.cloudFloorTick) b.mesh.userData.floorY = this.cloudFloorAt(b.mesh, b.base);
+            const target = (b.mesh.userData.floorY as number | undefined) ?? b.mesh.position.y;
+            b.mesh.position.y += (target - b.mesh.position.y) * Math.min(1, dtSeconds * 0.8);
         }
         const mistMat = this.mountainMistMaterial;
         if (mistMat) {
@@ -4513,6 +4584,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 mesh.onBeforeRender = (_r, _s, _c, _g, mat) => {
                     const m = mat as VolumetricCloudMaterial;
                     m.uniforms.uCloudBoardK.value = mesh.userData.boardK as number;
+                    // the drifting sky clouds are a see-through veil: half as opaque as marched
+                    m.uniforms.uAlphaK.value = 0.5;
                     m.uniformsNeedUpdate = true;
                 };
                 this.spawnCloud(cloud, rng() * cloud.life.span);
@@ -4548,14 +4621,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 // resting on the summit, not cut by it (the cap sways a little: a wider margin)
                 mesh.position.y = this.cloudFloorAt(mesh, 0) + 4;
                 mesh.renderOrder = 6;
-                // the material is shared with the horizon clouds, whose per-cloud board thinning is
-                // set just before each draws: a summit cap must set its own (never thinned), or it
-                // would be drawn with whatever value the last horizon cloud left behind
-                mesh.onBeforeRender = (_r, _s, _c, _g, mat) => {
-                    const m = mat as VolumetricCloudMaterial;
-                    m.uniforms.uCloudBoardK.value = 1;
-                    m.uniformsNeedUpdate = true;
-                };
+                // (its own draw settings: never thinned over the board, half as opaque like the sky)
+                unthinnedCloud(mesh, 0.5);
             } else {
                 mesh.scale.set(scale, 1, scale * (0.35 + rng() * 0.3));
             }
