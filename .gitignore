@@ -15,7 +15,7 @@ backend/stats/matches/.*.tmp
 dist-electron/
 dist/
 misc/**
-# Re-include icon pipeline + Steam art (must come AFTER misc/**).
+# Re-include the icon pipeline (must come AFTER misc/**); the rest of misc/ is kept outside the repo.
 #   src/  = TexturePacker masters (npm run icons:pack)
 #   bank/ = unused / pick-from glyphs — committed, NOT packed
 #   STYLE.md + tooling = regenerate on another machine
@@ -29,21 +29,6 @@ misc/**
 !misc/icons/icons.tps
 !misc/icons/pack-icons-tps.sh
 !misc/icons/_regen_queue.txt
-!misc/steam/
-!misc/steam/**
-# SFX workflow docs + regen prompts (masters stay gitignored under misc/sfx/)
-!misc/sfx/
-!misc/sfx/elevenlabs.md
-!misc/sfx/PROMPTS.md
-!misc/sfx/VOICES.md
-# SFX bank: scripts, prompt index and line lists tracked — the audio takes stay local
-!misc/sfx/bank/
-!misc/sfx/bank/*.py
-!misc/sfx/bank/*.json
-!misc/sfx/bank/*.md
-# Voice backups: one long take per voice, to re-clone a voice after it is deleted from ElevenLabs
-!misc/sfx/voice-backups/
-!misc/sfx/voice-backups/**
 node_modules/
 .env.translate.local
 arena-cases.json
