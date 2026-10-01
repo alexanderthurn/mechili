@@ -429,8 +429,10 @@ export function updateBillboardLight(sun: { color: Color; intensity: number }, h
     const lum = Math.max(1e-3, 0.299 * r + 0.587 * g + 0.114 * b);
     // how dark it may get: ~90% while the sun is up (intensity ≥ ~1.7), down to 30% at night
     const t = Math.min(1, Math.max(0, (sun.intensity - 0.8) / 0.9));
-    const floor = 0.3 + 0.6 * t * t * (3 - 2 * t);
-    const bright = Math.min(1.15, Math.max(floor, lum));
+    void t;
+    // (no dimming for now: the ratio to the noon preset ran under 1 in most seasons and weathers
+    // and darkened the forest; only the light's colour is carried over)
+    const bright = 1;
     // a third of the light's hue
     const hue = (c: number) => 1 + (c / lum - 1) * 0.35;
     billboardLightUniform.value.set(bright * hue(r), bright * hue(g), bright * hue(b));
