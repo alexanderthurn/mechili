@@ -371,8 +371,11 @@ varying float vSnow;
                     const z = z0 + rng() * CHUNK;
                     const d = Math.max(Math.abs(x) - o.halfW, Math.abs(z) - o.halfH);
                     if ((!o.board && d < 0.5) || d > o.band) continue;
-                    // thick right at the board, thinning out toward the band's edge
-                    const falloff = 1 - Math.min(1, Math.max(0, (d - o.band * 0.35) / (o.band * 0.65)));
+                    // full near the board, a little thinner further out (to ~half at the band's
+                    // edge), and fading only over its last stretch so there is no line
+                    const outT = Math.min(1, Math.max(0, (d - o.band * 0.4) / (o.band * 0.6)));
+                    const edge = 1 - Math.min(1, Math.max(0, (d - o.band * 0.9) / (o.band * 0.1)));
+                    const falloff = (1 - 0.5 * outT) * edge;
                     if (rng() > maskAt(x, z) * falloff) continue;
                     const y = o.height(x, z);
                     // mostly short turf, now and then a taller stalk

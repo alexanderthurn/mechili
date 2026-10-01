@@ -2296,7 +2296,11 @@ export class Scenery {
                 halfW: map.halfW,
                 halfH: map.halfH,
                 // the meadow in front of the mountains
-                band: Math.min(60, 90 * this.os),
+                // everywhere the ground is grass: the meadow, the forest floor and the green
+                // foothills, out to where the rock of the range begins (grassAt below keeps it off
+                // sand, shores, rock and water; the camera-distance culling keeps the drawn
+                // amount near the camera)
+                band: Math.min(this.reach - 20 * this.os, 170 * this.os),
                 // (dense: only the chunks near the camera are drawn in full — see GrassField.updateView)
                 density: 8,
                 seed,
@@ -2313,7 +2317,7 @@ export class Scenery {
                     const h = this.terrainHeight(x, z);
                     if (h < -0.3) return 0;
                     if (this.lakeAt(x, z) > 0.08 && h < 1.6) return 0;
-                    if (this.onDryPatch(x, z)) return 0;
+                    if (this.sandNear(x, z, h)) return 0;
                     if (!this.isGrassy(x, z)) return 0;
                     if (this.plantClearedAt(x, z)) return 0;
                     return 1;
@@ -2991,6 +2995,36 @@ export class Scenery {
         const dOut = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
         const seen = this.dryPatchWeight(x, z, this.terrainHeight(x, z)) * smooth01((dOut - 15) / 25);
         return seen > 0.04;
+    }
+
+    /**
+     * true where the outer ground shows any sand or gravel (lake shores, dry patches) at or
+     * right next to (x, z). The ground paints them from per-vertex weights that spread across
+     * whole terrain triangles, so the spot alone misses the soft sandy rims (and on steep
+     * coasts the sandy band up the bank): the neighbours one triangle away are checked too.
+     * Mirrors the beach/shore weights of the outer ground.
+     */
+    private sandNear(x: number, z: number, h: number): boolean {
+        if (this.landscape) return false; // a static map paints its own beach
+        const R = 4;
+        let shoreMax = 0;
+        let hMin = h;
+        for (const [dx, dz] of [[0, 0], [R, 0], [-R, 0], [0, R], [0, -R]] as const) {
+            const px = x + dx;
+            const pz = z + dz;
+            const dOut = Math.max(Math.abs(px) - this.map.halfW, Math.abs(pz) - this.map.halfH, 0);
+            const boardFade = smooth01((dOut - 15) / 25);
+            if (boardFade <= 0) continue;
+            const ph = this.terrainHeight(px, pz);
+            hMin = Math.min(hMin, ph);
+            shoreMax = Math.max(shoreMax, smooth01((this.lakeAt(px, pz) - 0.12) / 0.45) * boardFade);
+            if (this.dryPatchWeight(px, pz, ph) * boardFade > 0.02) return true;
+        }
+        // the shore's sand stops up the bank by height, per pixel — but on a steep coast the
+        // ground's triangles run straight from the water up the bank, so the painted height
+        // there sits well below the true terrain: judge by the lowest ground nearby
+        const uphill = 1 - smooth01((hMin - 0.1) / 1.1);
+        return shoreMax * uphill > 0.02;
     }
 
     private async rebuildAuthoredPlantMeshes(): Promise<void> {

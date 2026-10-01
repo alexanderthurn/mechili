@@ -497,6 +497,13 @@ const RAIN_DROPS = 2200;
 const RAIN_BOX = { x: 170, y: 80, z: 170 };
 const STAR_COUNT = 1400;
 const SNOW_FLAKES = 1600;
+/**
+ * Rain and snow are drawn after everything else that is see-through (the billboard trees, the
+ * grass, the clouds at 6). Sorted in with the trees, a tree could draw after the flakes in front
+ * of it and paint over them, so the tree showed through the snow. Drawn last, a flake in front of
+ * a tree covers it, and one behind it is still hidden by the tree's depth.
+ */
+const PRECIP_RENDER_ORDER = 8;
 /** World-space slab around the camera. `y` is the vertical span above the camera. */
 const SNOW_BOX = { x: 190, y: 110, z: 190 };
 /** Flakes settle this far above terrain before respawning. */
@@ -673,6 +680,7 @@ export class Weather {
         });
         const rain = new Points(this.rainGeometry, this.rainMaterial);
         rain.frustumCulled = false;
+        rain.renderOrder = PRECIP_RENDER_ORDER;
         this.rainGroup.add(rain);
         this.rainGroup.visible = false;
         h.worldGroup.add(this.rainGroup);
@@ -702,6 +710,7 @@ export class Weather {
         });
         const snowPoints = new Points(this.snowGeometry, this.snowMaterial);
         snowPoints.frustumCulled = false;
+        snowPoints.renderOrder = PRECIP_RENDER_ORDER;
         this.snowGroup.add(snowPoints);
         this.snowGroup.visible = false;
         h.worldGroup.add(this.snowGroup);
