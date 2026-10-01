@@ -43,22 +43,21 @@ Line lists: English in the unit / commander jsonc; translations in `misc/sfx/ban
 | unit `hordeFarmer` | original deleted | clone (deleted) — v4, slight accent | clone (deleted) | `voice-backups/hordeFarmer_lines.mp3` |
 | unit `hordeBrutSpawn` | original deleted | — (English plays) | — (English plays) | `voice-backups/hordeBrutSpawn_lines.mp3` |
 | commander `addi` | original deleted | native `IiTB4ALwTQ6CgsUMEHYU` (deleted) | clone (deleted) | `voice-backups/commander_addi_lines.mp3` · `voice-backups/de_commander_addi_lines.mp3` |
-| commander `air` | original deleted | native `5jc1VEVx6UOp98zRTFgL` (deleted) | — (not yet: English plays) | `voice-backups/commander_air_lines.mp3` · `voice-backups/de_commander_air_lines.mp3` |
-| commander `archer` | original deleted | native `YfFxclLWUXI1cJRlEPOm` (deleted) | — (not yet: English plays) | `voice-backups/commander_archer_lines.mp3` · `voice-backups/de_commander_archer_lines.mp3` |
-| commander `cost` | original deleted | native `QPRLhHy2sbiNKLrLMbec` (deleted) | — (not yet: English plays) | `voice-backups/commander_cost_lines.mp3` · `voice-backups/de_commander_cost_lines.mp3` |
-| commander `cursed` | original deleted | native `UX6peKGRsinRGSqsz8lm` (deleted) | — (not yet: English plays) | `voice-backups/commander_cursed_lines.mp3` · `voice-backups/de_commander_cursed_lines.mp3` |
-| commander `elite` | original deleted | native `WcBxwSG5NyzuUADmNyDJ` (deleted) | — (not yet: English plays) | `voice-backups/commander_elite_lines.mp3` · `voice-backups/de_commander_elite_lines.mp3` |
-| commander `flanky` | original deleted | native `XnLJ1qKefs4htYvLwLDm` (live) | — (not yet: English plays) | `voice-backups/commander_flanky_lines.mp3` · — |
-| commander `giant` | original deleted | native `P5vsREvbVn0eqD3iXx3X` (deleted) | — (not yet: English plays) | `voice-backups/commander_giant_lines.mp3` · `voice-backups/de_commander_giant_lines.mp3` |
-| commander `meteor` | original deleted | native `knPkVA2LGWzVhM3cp9mk` (deleted) | — (not yet: English plays) | `voice-backups/commander_meteor_lines.mp3` · `voice-backups/de_commander_meteor_lines.mp3` |
-| commander `money` | original deleted | native `FdJUEHI1qhtOxedUDaLC` (deleted) | — (not yet: English plays) | `voice-backups/commander_money_lines.mp3` · `voice-backups/de_commander_money_lines.mp3` |
-| commander `speed` | original deleted | native `iMk7znD7AgztqnnP9U3F` (deleted) | — (not yet: English plays) | `voice-backups/commander_speed_lines.mp3` · `voice-backups/de_commander_speed_lines.mp3` |
-| commander `tutor` | original deleted | native `t5cDKA6B0o6orbH637AO` (deleted) | — (not yet: English plays) | `voice-backups/commander_tutor_lines.mp3` · `voice-backups/de_commander_tutor_lines.mp3` |
+| commander `air` | original deleted | native `5jc1VEVx6UOp98zRTFgL` (deleted) | clone (deleted) | `voice-backups/commander_air_lines.mp3` · `voice-backups/de_commander_air_lines.mp3` |
+| commander `archer` | original deleted | native `YfFxclLWUXI1cJRlEPOm` (deleted) | clone (deleted) | `voice-backups/commander_archer_lines.mp3` · `voice-backups/de_commander_archer_lines.mp3` |
+| commander `cost` | original deleted | native `QPRLhHy2sbiNKLrLMbec` (deleted) | clone (deleted) | `voice-backups/commander_cost_lines.mp3` · `voice-backups/de_commander_cost_lines.mp3` |
+| commander `cursed` | original deleted | native `UX6peKGRsinRGSqsz8lm` (deleted) | clone (deleted) | `voice-backups/commander_cursed_lines.mp3` · `voice-backups/de_commander_cursed_lines.mp3` |
+| commander `elite` | original deleted | native `WcBxwSG5NyzuUADmNyDJ` (deleted) | clone (deleted) | `voice-backups/commander_elite_lines.mp3` · `voice-backups/de_commander_elite_lines.mp3` |
+| commander `flanky` | original deleted | native `XnLJ1qKefs4htYvLwLDm` (live) | clone (deleted) | `voice-backups/commander_flanky_lines.mp3` · — |
+| commander `giant` | original deleted | native `P5vsREvbVn0eqD3iXx3X` (deleted) | clone (deleted) | `voice-backups/commander_giant_lines.mp3` · `voice-backups/de_commander_giant_lines.mp3` |
+| commander `meteor` | original deleted | native `knPkVA2LGWzVhM3cp9mk` (deleted) | clone (deleted) | `voice-backups/commander_meteor_lines.mp3` · `voice-backups/de_commander_meteor_lines.mp3` |
+| commander `money` | original deleted | native `FdJUEHI1qhtOxedUDaLC` (deleted) | clone (deleted) | `voice-backups/commander_money_lines.mp3` · `voice-backups/de_commander_money_lines.mp3` |
+| commander `speed` | original deleted | native `iMk7znD7AgztqnnP9U3F` (deleted) | clone (deleted) | `voice-backups/commander_speed_lines.mp3` · `voice-backups/de_commander_speed_lines.mp3` |
+| commander `tutor` | original deleted | native `t5cDKA6B0o6orbH637AO` (deleted) | clone (deleted) | `voice-backups/commander_tutor_lines.mp3` · `voice-backups/de_commander_tutor_lines.mp3` |
 | narrator | original deleted | clone `6LvpN0wO2IdoFvZReYOV` (live) | same clone | `voice-backups/narrator.mp3` |
 
 ## Open
 
-- Commanders (except Addi): Chinese, Russian and Spanish not generated yet — clone from the `_lines.mp3` backup.
-- Units ballista, bat, crowRider, dwarf, goblin, hammerer, hordeFarmer: German is a v4 clone with a slight English accent;
-  a native German voice (like the archer) would fix it.
-- hordeBrutSpawn: no translations (its voice was deleted before this pass).
+- hordeBrutSpawn: no translations (its voice was deleted before this pass) — English plays in every language.
+- Units ballista, bat, crowRider, dwarf, goblin, hammerer, hordeFarmer: German is a v4 clone with a slight English
+  accent — accepted as is.
