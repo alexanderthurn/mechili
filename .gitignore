@@ -40,6 +40,9 @@ misc/**
 !misc/sfx/bank/*.py
 !misc/sfx/bank/*.json
 !misc/sfx/bank/*.md
+# Voice backups: one long take per voice, to re-clone a voice after it is deleted from ElevenLabs
+!misc/sfx/voice-backups/
+!misc/sfx/voice-backups/**
 node_modules/
 .env.translate.local
 arena-cases.json
