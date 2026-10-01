@@ -663,5 +663,1146 @@
   "loop": false,
   "takes": 8,
   "group": "spell"
+ },
+ "mech_heal_tick": {
+  "prompt": "Small soft healing pulse on a unit, gentle warm chime, very short and subtle so it can repeat, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_heal_received": {
+  "prompt": "A unit being healed, bright rising sparkle with a soft breath of relief, no voice, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_regen_loop": {
+  "prompt": "Gentle continuous regeneration aura, soft shimmering hum with faint leaf rustle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "mech"
+ },
+ "mech_root_grab": {
+  "prompt": "Roots and vines bursting from the ground and wrapping around a target, creaking wood and earth, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_root_release": {
+  "prompt": "Vines snapping and falling away, dry crackle of breaking roots, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_stun_hit": {
+  "prompt": "Stunning blow, dull heavy thud followed by a brief ringing tone, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_stun_loop": {
+  "prompt": "Dazed and stunned, small cartoonish circling chirps and faint ringing, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": true,
+  "takes": 4,
+  "group": "mech"
+ },
+ "mech_charge_start": {
+  "prompt": "Charge begins, sudden rush of movement with rising whoosh and pounding steps, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_charge_impact": {
+  "prompt": "Charge slamming into an enemy line, heavy body impact with armour crash, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_stealth_enter": {
+  "prompt": "Vanishing into shadow, soft dark whoosh fading to silence, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_stealth_exit": {
+  "prompt": "Appearing from shadow, quick sharp whoosh with a faint blade glint, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_crit_hit": {
+  "prompt": "Critical hit, sharp heavy strike with a bright metallic accent, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.7,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_armor_break": {
+  "prompt": "Armour breaking, metal plates cracking and clattering apart, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_knockback": {
+  "prompt": "Unit knocked back, heavy thump and a body sliding across dirt, no voice, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.9,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_slow_applied": {
+  "prompt": "Slowing effect applied, low descending warble like time getting heavy, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_haste_applied": {
+  "prompt": "Speed boost applied, quick bright rising whoosh, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.7,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_aura_pulse": {
+  "prompt": "Aura pulse radiating from a hero, soft resonant thrum spreading outward, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_shield_absorb": {
+  "prompt": "Magic shield absorbing a hit, muffled glassy thunk with a short shimmer, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_bleed_tick": {
+  "prompt": "Small bleeding damage tick, short wet drip and faint sting, subtle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.5,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "mech_revive": {
+  "prompt": "A fallen unit revived, rising warm choir-like swell and a bright flare, no words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "mech"
+ },
+ "unit_monk_heal_cast": {
+  "prompt": "Monk casting a healing prayer, warm soft chime with a gentle low hum and faint whisper of cloth, no words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_monk_heal_arrive": {
+  "prompt": "Healing light landing on a wounded soldier, bright soft sparkle and warm swell, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_monk_prayer_bell": {
+  "prompt": "Small handheld monastery bell rung once, clear and peaceful, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_monk_heal_beam": {
+  "prompt": "Continuous gentle healing beam, soft golden hum with slow shimmer, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "units"
+ },
+ "unit_druid_orb_cast": {
+  "prompt": "Druid throwing a nature magic orb, leafy whoosh with a soft wooden knock, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_druid_roots_burst": {
+  "prompt": "Thick roots erupting from the ground, cracking earth and creaking wood, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.3,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_druid_roots_hold": {
+  "prompt": "Roots tightening around a struggling target, slow creaking and straining wood, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "units"
+ },
+ "unit_druid_regrowth": {
+  "prompt": "Regrowth aura, rustling leaves and a soft green shimmer, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_druid_thorn_hit": {
+  "prompt": "Thorny magic striking a target, sharp prickly snap, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_paladin_shield_block": {
+  "prompt": "Heavy steel shield blocking a sword, loud clang with ringing, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_paladin_sword_swing": {
+  "prompt": "Heavy longsword swung with force, deep whoosh, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.7,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_paladin_shield_bash": {
+  "prompt": "Shield bash into an enemy, heavy metal thump with armour rattle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_paladin_holy_aura": {
+  "prompt": "Holy protective aura, warm resonant choir-like hum without words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "units"
+ },
+ "unit_knight_gallop": {
+  "prompt": "Several warhorses galloping fast on hard ground, thundering hooves and jingling tack, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "units"
+ },
+ "unit_knight_lance_impact": {
+  "prompt": "Cavalry lance smashing into an enemy at full gallop, splintering wood and armour crash, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_knight_horse_whinny": {
+  "prompt": "Warhorse whinnying and snorting, excited, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_knight_saddle_slash": {
+  "prompt": "Sword slash from horseback, fast whoosh and steel cut, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_knight_charge_horn": {
+  "prompt": "Short medieval cavalry horn blast signalling the charge, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.8,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_assassin_dagger_stab": {
+  "prompt": "Quick dagger stab, short sharp flesh hit, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_assassin_shadow_step": {
+  "prompt": "Shadow step teleport, quick dark whoosh and soft pop, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_assassin_backstab": {
+  "prompt": "Brutal backstab, heavy dagger thrust with a wet impact, no voice, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.7,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_assassin_knife_throw": {
+  "prompt": "Throwing knife spinning through the air and thunking into a target, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.7,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_balloonBomber_burner": {
+  "prompt": "Hot air balloon gas burner firing a loud roaring flame blast, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_balloonBomber_creak": {
+  "prompt": "Hot air balloon basket and ropes creaking gently in the wind, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 5.0,
+  "loop": true,
+  "takes": 4,
+  "group": "units"
+ },
+ "unit_balloonBomber_bomb_whistle": {
+  "prompt": "Small bomb falling from the sky with a descending whistle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_balloonBomber_bomb_explode": {
+  "prompt": "Medium bomb explosion on the ground, boom with dirt and debris, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_balloonBomber_pop": {
+  "prompt": "Large hot air balloon envelope tearing and deflating with a long wheezing hiss and flapping cloth, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_balloonBomber_sandbag": {
+  "prompt": "Heavy sandbag dropped from a basket thudding into the ground, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_duelist_rapier_swish": {
+  "prompt": "Thin rapier blade swishing fast through the air, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_duelist_thrust": {
+  "prompt": "One powerful rapier thrust piercing armour, sharp steel punch, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_duelist_draw": {
+  "prompt": "Rapier drawn from its scabbard with a bright ringing blade, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_duelist_parry": {
+  "prompt": "Rapier parrying a blow, crisp metallic clink, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_warMammoth_trumpet": {
+  "prompt": "Huge woolly mammoth trumpeting a loud deep call, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_warMammoth_stomp": {
+  "prompt": "Giant mammoth heavy footstep shaking the ground, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.9,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_warMammoth_bolt_fire": {
+  "prompt": "Mounted heavy bolt-thrower cranked and fired, ratchet clicks then a deep twang, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_warMammoth_trample": {
+  "prompt": "Mammoth trampling small soldiers, heavy crunching stomps, no voices, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_warMammoth_collapse": {
+  "prompt": "Giant mammoth collapsing to the ground with a long low groan and heavy thud, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_warMammoth_howdah": {
+  "prompt": "Wooden howdah on a walking mammoth creaking with ropes and swaying, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 5.0,
+  "loop": true,
+  "takes": 4,
+  "group": "units"
+ },
+ "unit_brazenBull_bellow": {
+  "prompt": "Giant bronze bull machine bellowing through metal pipes, deep metallic roaring moo with echo, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_brazenBull_flame_loop": {
+  "prompt": "Continuous powerful flamethrower stream roaring, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "units"
+ },
+ "unit_brazenBull_flame_start": {
+  "prompt": "Flamethrower igniting, sudden whoosh and burst of fire, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_brazenBull_flame_stop": {
+  "prompt": "Flamethrower cutting off, sputtering flames and a hiss, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_brazenBull_furnace": {
+  "prompt": "Furnace roaring inside a bronze machine, deep rumble of fire and creaking hot metal, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "units"
+ },
+ "unit_brazenBull_bronze_hit": {
+  "prompt": "Weapon hitting a huge hollow bronze body, deep resonant clang, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_brazenBull_wheels": {
+  "prompt": "Heavy iron wheels of a huge machine rolling over dirt and stones, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "units"
+ },
+ "unit_brazenBull_collapse": {
+  "prompt": "Huge bronze machine collapsing, metal crashing and steam hissing, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_hordeKnight_sword_clash": {
+  "prompt": "Two swords clashing hard, steel on steel, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_hordeKnight_march": {
+  "prompt": "Armoured knights marching in step, chainmail and plate rattling, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "units"
+ },
+ "unit_hordeKnight_armor_fall": {
+  "prompt": "Armoured knight falling to the ground, plate armour crashing, no voice, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_hordeFarmerAlive_pitchfork": {
+  "prompt": "Pitchfork stab into a target, wooden shaft knock and prongs piercing, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_hordeFarmerAlive_shuffle": {
+  "prompt": "Peasants shuffling nervously on dirt with wooden clogs, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "unit_hordeFarmerAlive_drop": {
+  "prompt": "Wooden pitchfork dropped and clattering on the ground, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.7,
+  "loop": false,
+  "takes": 6,
+  "group": "units"
+ },
+ "orc_roar_crowd": {
+  "prompt": "Large horde of orcs roaring a savage battle cry together, deep guttural, no words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_grunt_attack": {
+  "prompt": "Single orc attack grunt, short guttural effort sound, no words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_grunt_pain": {
+  "prompt": "Orc pain grunt, short rough snarl, no words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_death": {
+  "prompt": "Orc dying, heavy guttural groan and body falling, no words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_laugh": {
+  "prompt": "Brutish orc laugh, deep and mocking, no words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_drums_loop": {
+  "prompt": "Orc war drums, heavy tribal rhythm on big hide drums, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 5.0,
+  "loop": true,
+  "takes": 4,
+  "group": "orc"
+ },
+ "orc_camp": {
+  "prompt": "Orc war camp ambience, crackling fires, distant grunts, metal hammering, no words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 6.0,
+  "loop": true,
+  "takes": 4,
+  "group": "orc"
+ },
+ "orc_axe_swing": {
+  "prompt": "Crude heavy orc axe swung through the air, deep whoosh, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.7,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_cleaver_chop": {
+  "prompt": "Rusty cleaver chopping into flesh, brutal wet hack, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_club_hit": {
+  "prompt": "Spiked wooden club smashing into armour, crunchy thud, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_sword_clash": {
+  "prompt": "Rusty jagged sword clashing with steel, harsh grinding clang, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_shield_bash": {
+  "prompt": "Crude wooden and iron shield bashing an enemy, heavy knock, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_flail_whirl": {
+  "prompt": "Heavy chain flail whirling overhead, rhythmic metal whoosh, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": true,
+  "takes": 4,
+  "group": "orc"
+ },
+ "orc_spear_throw": {
+  "prompt": "Heavy crude spear thrown hard, wooden shaft whooshing, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_spear_impact": {
+  "prompt": "Crude spear thunking into a shield and body, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_grunt_march": {
+  "prompt": "Pack of orc warriors marching, heavy boots, rattling bone and leather armour, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "orc"
+ },
+ "orc_brute_maul": {
+  "prompt": "Orc brute slamming a giant stone maul into the ground, earth-shaking smash, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_bone_bow": {
+  "prompt": "Crude bone bow released, creaky draw and rough twang, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_shaman_skull": {
+  "prompt": "Shaman hurling a flaming skull, eerie whoosh with crackling fire, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_shaman_curse": {
+  "prompt": "Dark curse hitting a target, sinister thump with ghostly echo, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_totem_summon": {
+  "prompt": "War totem slammed into the ground and awakening, wooden thud and rising tribal hum, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_wyvern_screech": {
+  "prompt": "Wyvern screeching in the sky, shrill reptilian cry, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_wyvern_wings": {
+  "prompt": "Large leathery wyvern wings flapping, heavy beats, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_wyvern_bite": {
+  "prompt": "Wyvern snapping its jaws on prey, sharp crunch, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_wyvern_spit": {
+  "prompt": "Wyvern spitting acid, wet hiss and sizzle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_catapult_release": {
+  "prompt": "Ramshackle goblin catapult creaking and releasing, wooden thwack and rattling junk, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_junk_explode": {
+  "prompt": "Explosion of scrap metal and fire, clattering debris, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_bone_ballista": {
+  "prompt": "Siege crossbow made of bones and sinew cranked and fired, creaks then a deep twang, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_war_drum_boom": {
+  "prompt": "Single gigantic war drum boom, deep shockwave, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_drum_ritual": {
+  "prompt": "Ritual drumming with a low eerie hum building power, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "orc"
+ },
+ "orc_drum_shockwave": {
+  "prompt": "Shockwave blasting out from a war drum, deep whump and rushing air, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_warg_gallop": {
+  "prompt": "Pack of huge wolves running fast, heavy paws and panting, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "orc"
+ },
+ "orc_warg_howl": {
+  "prompt": "Giant warg wolf howling, deep and menacing, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_warg_bite": {
+  "prompt": "Warg wolf snarling and biting, vicious snap, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_boar_charge": {
+  "prompt": "Giant war boar squealing and charging, pounding hooves, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_boar_grunt": {
+  "prompt": "Giant war boar grunting and snorting, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_zeppelin_engine": {
+  "prompt": "Ramshackle goblin zeppelin, sputtering clanky propeller engine, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "orc"
+ },
+ "orc_zeppelin_crash": {
+  "prompt": "Patchwork zeppelin crashing and exploding, tearing cloth and blast, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "orc_armor_fall": {
+  "prompt": "Orc in crude spiked armour falling, metal and bone clatter, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "orc"
+ },
+ "siege_wall_build_stone": {
+  "prompt": "Stone wall segment being built, masons laying heavy blocks, mortar scraping, chisel taps, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_wall_build_wood": {
+  "prompt": "Wooden palisade wall being raised, logs thudding into the ground and hammering, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_wall_place": {
+  "prompt": "Wall segment set into place, heavy stone thud with a short dust settle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_wall_hit_arrow": {
+  "prompt": "Arrows thudding and glancing off a stone wall, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_wall_hit_rock": {
+  "prompt": "Large rock smashing into a stone castle wall, crack and falling debris, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_wall_hit_wood": {
+  "prompt": "Heavy blow splintering a wooden palisade, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_wall_crack": {
+  "prompt": "Stone wall cracking under strain, deep grinding fracture, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_wall_collapse": {
+  "prompt": "Large section of castle wall collapsing, massive stone avalanche and dust, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_palisade_collapse": {
+  "prompt": "Wooden palisade wall breaking and falling over, splintering logs, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_repair": {
+  "prompt": "Masons repairing a damaged wall, hammering, chiselling and scraping trowel, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": true,
+  "takes": 4,
+  "group": "siege"
+ },
+ "siege_portcullis_drop": {
+  "prompt": "Iron portcullis slamming down, rattling chains and a heavy metal crash, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_drawbridge": {
+  "prompt": "Drawbridge lowering on heavy chains, creaking wood and clanking links, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_ram_hit": {
+  "prompt": "Battering ram striking a wooden castle gate, deep booming thud with creaking wood, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_gate_break": {
+  "prompt": "Castle gate bursting open under a battering ram, splintering wood and broken iron, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_ram_roll": {
+  "prompt": "Covered battering ram rolling forward on wooden wheels, creaking and rumbling, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "siege"
+ },
+ "siege_tower_arrow_volley": {
+  "prompt": "Volley of arrows loosed from a castle tower, many bowstrings and whooshes, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_oil_pour": {
+  "prompt": "Boiling oil poured from the battlements, bubbling liquid splashing and sizzling, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_spike_trap": {
+  "prompt": "Spike trap springing from the ground, sharp metal snap, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_brazier": {
+  "prompt": "Watchtower brazier burning, steady crackling fire, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "siege"
+ },
+ "siege_alarm_horn": {
+  "prompt": "Defenders sounding an alarm horn from the walls, urgent repeated blasts, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_barricade": {
+  "prompt": "Wooden barricade dragged and dropped into place, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_moat_splash": {
+  "prompt": "Soldier or debris splashing into a castle moat, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_trebuchet_release": {
+  "prompt": "Huge trebuchet releasing, counterweight dropping with a deep creak and whoosh, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_trebuchet_impact": {
+  "prompt": "Trebuchet boulder slamming into a fortress, massive crash and rubble, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_trebuchet_winch": {
+  "prompt": "Trebuchet being winched back, ratcheting wood and rope strain, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": true,
+  "takes": 4,
+  "group": "siege"
+ },
+ "siege_tower_roll": {
+  "prompt": "Tall wooden siege tower rolling towards a wall, heavy creaking and rumbling wheels, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "siege"
+ },
+ "siege_ladder": {
+  "prompt": "Siege ladder slammed against a stone wall, wooden clatter, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_grapple": {
+  "prompt": "Grappling hook thrown and catching on stone battlements, metal clink and rope, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "siege_sapper_dig": {
+  "prompt": "Sappers digging a tunnel under a wall, shovels and falling earth, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 4,
+  "group": "siege"
+ },
+ "siege_mine_collapse": {
+  "prompt": "Undermined wall foundation collapsing from below, deep rumble and crashing stone, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 6,
+  "group": "siege"
+ },
+ "prod_barracks_loop": {
+  "prompt": "Medieval barracks training yard, wooden practice swords clacking, wordless shouted drill orders, marching boots, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 6.0,
+  "loop": true,
+  "takes": 4,
+  "group": "prod"
+ },
+ "prod_stables_loop": {
+  "prompt": "Busy medieval stables, horses snorting and shifting, hooves on wooden floor, hay rustling, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 6.0,
+  "loop": true,
+  "takes": 4,
+  "group": "prod"
+ },
+ "prod_workshop_loop": {
+  "prompt": "Siege workshop, carpenters sawing and hammering wood, ropes being tightened, creaking timber, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 6.0,
+  "loop": true,
+  "takes": 4,
+  "group": "prod"
+ },
+ "prod_magetower_loop": {
+  "prompt": "Wizard tower interior, low magical hum, bubbling alchemy flasks, pages turning, faint sparkles, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 6.0,
+  "loop": true,
+  "takes": 4,
+  "group": "prod"
+ },
+ "prod_aviary_loop": {
+  "prompt": "Aviary roost full of large birds, wings flapping in the rafters, crows cawing, feathers rustling, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 6.0,
+  "loop": true,
+  "takes": 4,
+  "group": "prod"
+ },
+ "prod_monastery_loop": {
+  "prompt": "Peaceful monastery garden, distant wordless monk chant, soft wind chimes, birdsong, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 6.0,
+  "loop": true,
+  "takes": 4,
+  "group": "prod"
+ },
+ "prod_mine_loop": {
+  "prompt": "Underground mine, pickaxes striking rock, mine cart rolling on rails, water dripping, echoing tunnels, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 6.0,
+  "loop": true,
+  "takes": 4,
+  "group": "prod"
+ },
+ "prod_goblinpit_loop": {
+  "prompt": "Chaotic goblin pit, clanking scrap metal, wicked cackling without words, bubbling sludge, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 6.0,
+  "loop": true,
+  "takes": 4,
+  "group": "prod"
+ },
+ "prod_barracks_ready": {
+  "prompt": "Barracks door swinging open and a squad of soldiers marching out in step, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_stables_ready": {
+  "prompt": "Stable gate creaking open and a horse rider trotting out, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_workshop_ready": {
+  "prompt": "Large workshop doors opening and a heavy wooden siege engine creaking out on wheels, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_magetower_ready": {
+  "prompt": "Magical summoning burst, swirling energy flare as a mage appears, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_aviary_ready": {
+  "prompt": "Flock of large birds taking off together, burst of wing flaps, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_monastery_ready": {
+  "prompt": "Soft blessing chime with a warm glow, peaceful, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_mine_ready": {
+  "prompt": "Dwarves emerging from a mine shaft, rattling cart and heavy boots climbing up, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_goblinpit_ready": {
+  "prompt": "Horde of goblins scrambling out of a pit, chaotic scuttling and cackles without words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_start": {
+  "prompt": "Production started, short satisfying stamp with a small bell, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_tick": {
+  "prompt": "Very subtle soft tick for a progress bar, wooden click, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.5,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_unit_ready": {
+  "prompt": "Unit ready signal, clear bright two-note horn that cuts through battle noise, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_blocked": {
+  "prompt": "Production blocked or paused, dull low deny thud, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_building_upgrade": {
+  "prompt": "Building upgraded, quick construction burst of hammering ending in a bright shimmer, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
+ },
+ "prod_rally_point": {
+  "prompt": "Rally flag planted into the ground, cloth flap and wooden thud, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 6,
+  "group": "prod"
  }
 }
