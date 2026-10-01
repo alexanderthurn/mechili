@@ -35,6 +35,7 @@ misc/**
 !misc/sfx/
 !misc/sfx/elevenlabs.md
 !misc/sfx/PROMPTS.md
+!misc/sfx/VOICES.md
 # SFX bank: scripts, prompt index and line lists tracked — the audio takes stay local
 !misc/sfx/bank/
 !misc/sfx/bank/*.py

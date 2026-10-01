@@ -21,13 +21,14 @@ import { getLanguage, onLanguageChange } from '../i18n';
  * Everything else — and every line without a translation — stays the shared English file.
  * Only the current language is ever fetched and decoded.
  */
-const VOICE_LANGUAGES = new Set(['de']);
+/** UI language → the voice track it plays (Latin-American Spanish and Traditional Chinese share one) */
+const VOICE_LANGUAGES: Readonly<Record<string, string>> = { de: 'de', zh: 'zh', 'zh-Hant': 'zh', ru: 'ru', es: 'es', 'es-419': 'es' };
 function isVoicePath(path: string): boolean {
     return /^audio\/(unit|commander|narration)_[^/]+\.ogg$/.test(path);
 }
 function localizedAudioPath(path: string): string {
-    const lang = getLanguage();
-    if (!VOICE_LANGUAGES.has(lang) || !isVoicePath(path)) return path;
+    const lang = VOICE_LANGUAGES[getLanguage()];
+    if (!lang || !isVoicePath(path)) return path;
     const localized = `audio/${lang}/${path.slice('audio/'.length)}`;
     return isBaseAsset(localized) ? localized : path;
 }

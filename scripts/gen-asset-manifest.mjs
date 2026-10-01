@@ -42,7 +42,7 @@ export function collectAssetPaths() {
     }
     // translated voice takes: audio/<lang>/<name> ships next to every audio/<name> that has one
     // (audio.ts loads it instead of the English file while the game runs in that language)
-    for (const lang of ['de']) {
+    for (const lang of ['de', 'zh', 'ru', 'es']) {
         for (const p of [...paths]) {
             if (!p.startsWith('audio/') || p.slice(6).includes('/')) continue;
             const localized = `audio/${lang}/${p.slice(6)}`;
