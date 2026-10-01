@@ -30,6 +30,8 @@ function contentHash() {
     const walk = (dir) =>
         readdirSync(dir).flatMap((name) => {
             const p = resolve(dir, name);
+            // hidden files (.DS_Store, …) are not part of the game and differ per machine
+            if (name.startsWith('.')) return [];
             return statSync(p).isDirectory() ? walk(p) : [p];
         });
     const manifest = readFileSync(resolve('src/game/assetManifest.ts'), 'utf8');
@@ -40,7 +42,7 @@ function contentHash() {
         let bytes = readFileSync(resolve('assets', file));
         // text files: CRLF → LF, so a Windows checkout (git autocrlf) and a
         // macOS/Linux checkout of the same commit produce the same hash
-        if (/\.(jsonc?|txt|csv|svg)$/i.test(file)) bytes = Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n'));
+        if (/\.(jsonc?|txt|csv|svg|md)$/i.test(file)) bytes = Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n'));
         hash.update(file).update('\0').update(bytes).update('\0');
     }
     return hash.digest('hex');
