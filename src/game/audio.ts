@@ -13,6 +13,24 @@ import type { Actor } from './sim';
 import { BASE_TYPES } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import { parseElementalId } from './runeMix';
+import { getLanguage, onLanguageChange } from '../i18n';
+
+/**
+ * Spoken lines (unit and commander voices, narration) follow the game's language: when a
+ * translated take ships under `audio/<lang>/` with the same file name, that one is loaded instead.
+ * Everything else — and every line without a translation — stays the shared English file.
+ * Only the current language is ever fetched and decoded.
+ */
+const VOICE_LANGUAGES = new Set(['de']);
+function isVoicePath(path: string): boolean {
+    return /^audio\/(unit|commander|narration)_[^/]+\.ogg$/.test(path);
+}
+function localizedAudioPath(path: string): string {
+    const lang = getLanguage();
+    if (!VOICE_LANGUAGES.has(lang) || !isVoicePath(path)) return path;
+    const localized = `audio/${lang}/${path.slice('audio/'.length)}`;
+    return isBaseAsset(localized) ? localized : path;
+}
 
 export type AudioGroupId = 'sfx' | 'music' | 'ui';
 
@@ -3844,6 +3862,7 @@ class AudioBus {
     /** The bed being decoded right now (not yet audible), so a repeat ask doesn't restart it. */
     private loadingMusic: string | null = null;
     private unsubPrefs: (() => void) | null = null;
+    private unsubLanguage: (() => void) | null = null;
     /** Sustained beam / hazard loops keyed by cue id. */
     private loops = new Map<
         string,
@@ -5279,6 +5298,12 @@ class AudioBus {
         if (!this.unsubPrefs) {
             this.unsubPrefs = onPrefsChange(() => this.applyPrefs());
         }
+        if (!this.unsubLanguage) {
+            // spoken lines are per language: drop them so the next play loads the new language's take
+            this.unsubLanguage = onLanguageChange(() => {
+                for (const path of [...this.buffers.keys()]) if (isVoicePath(path)) this.buffers.delete(path);
+            });
+        }
         const l = this.ctx.listener;
         if (l.forwardX) {
             l.forwardX.value = 0;
@@ -5300,7 +5325,8 @@ class AudioBus {
                 if (!inflight) {
                     inflight = (async () => {
                         try {
-                            const res = await fetch(assetUrl(path));
+                            // cached under the plain path; the file behind it follows the language
+                            const res = await fetch(assetUrl(localizedAudioPath(path)));
                             const raw = await res.arrayBuffer();
                             const buf = await this.ctx!.decodeAudioData(raw.slice(0));
                             this.buffers.set(path, buf);

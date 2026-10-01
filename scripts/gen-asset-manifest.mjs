@@ -9,6 +9,7 @@
 //   - every string literal passed to assetUrl('…') in src/ (the homepage is a
 //     separate marketing page and keeps its own URLs)
 //   - every "file" in assets/data/models/*.jsonc (models referenced by data)
+//   - the translated voice takes under audio/<lang>/ of every shipped audio/<name>
 import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -38,6 +39,15 @@ export function collectAssetPaths() {
     for (const file of walk('assets/data/models')) {
         if (!file.endsWith('.jsonc')) continue;
         for (const m of readFileSync(file, 'utf8').matchAll(/"file"\s*:\s*"([^"]+)"/g)) paths.add(m[1]);
+    }
+    // translated voice takes: audio/<lang>/<name> ships next to every audio/<name> that has one
+    // (audio.ts loads it instead of the English file while the game runs in that language)
+    for (const lang of ['de']) {
+        for (const p of [...paths]) {
+            if (!p.startsWith('audio/') || p.slice(6).includes('/')) continue;
+            const localized = `audio/${lang}/${p.slice(6)}`;
+            if (existsSync(join('assets', localized))) paths.add(localized);
+        }
     }
     for (const p of paths) {
         if (!existsSync(join('assets', p))) problems.push(`assets/${p} does not exist`);

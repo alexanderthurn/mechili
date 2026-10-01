@@ -35,6 +35,11 @@ misc/**
 !misc/sfx/
 !misc/sfx/elevenlabs.md
 !misc/sfx/PROMPTS.md
+# SFX bank: scripts, prompt index and line lists tracked — the audio takes stay local
+!misc/sfx/bank/
+!misc/sfx/bank/*.py
+!misc/sfx/bank/*.json
+!misc/sfx/bank/*.md
 node_modules/
 .env.translate.local
 arena-cases.json

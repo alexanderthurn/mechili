@@ -1,0 +1,69 @@
+/**
+ * DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+ * Der Komtur's living men-at-arms: hard, plain knights of his order — no curse, no magic, just steel
+ * and obedience. `buyable: false`, horde roster like the other Komtur units.
+ */
+{
+    "id": "hordeKnight",
+    "name": "Order Knight",
+    "cost": 250,
+    "unlockCost": 50,
+    "buyable": false,
+    "horde": true,
+    "footprint": { "cols": 4, "rows": 2 },
+    "formation": { "cols": 4, "rows": 2 }, // 8 knights
+    "meshScale": 2.0,
+    "burn": { "takenMult": 0.8 },
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 1.0,
+    "soundSize": "medium",
+    "colliders": [{ "y": 1.1, "r": 0.85 }],
+    "hp": 500,
+    "damage": 60,
+    "range": 2.5,
+    "attackInterval": 1.0,
+    "speed": 5,
+    "turnRate": 6,
+    "talents": ["bloodRage", "armor"],
+    "talentSlots": 4,
+    "proceduralModel": "hordeKnight",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "ZdVNFytAzewU0pShsGMa",
+                "prompt": "A hard, plain male knight voice — a grim veteran man-at-arms of a militant order, cold, gruff and disciplined. Low, rough baritone, clipped military delivery, no warmth and no theatre, just steel and obedience. Menacing and serious, never comic, never aristocratic, never monstrous. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks — plain, hard, obedient
+            "pick": [
+                "Orders?",
+                "Ready.",
+                "For the Komtur.",
+                "Steel ready.",
+                "No mercy.",
+                "Hold the line.",
+                "We march.",
+                "Kneel or bleed.",
+                "Burn the village.",
+                "The order commands.",
+                "Swords up.",
+                "Nothing personal.",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Back off.",
+                "Wrong banner.",
+                "Move.",
+            ],
+            // death
+            "death": [
+                "For… the order…",
+                "Ugh!",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Hn!", "Ugh!", "Gah!", "Tch!", "Ah!"],
+        },
+    },
+}

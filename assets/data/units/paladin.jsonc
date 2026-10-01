@@ -1,0 +1,74 @@
+{
+    // DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+    // Human front-line tank: holy shield, draws fire, protects the units next to him.
+    "id": "paladin",
+    "name": "Paladin",
+    "cost": 200,
+    "unlockCost": 100,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 2, "rows": 1 }, // a pair of shieldbearers
+    "meshScale": 2.3,
+    "burn": { "takenMult": 0.6 },
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 1.0,
+    "soundSize": "medium",
+    "colliders": [{ "y": 1.1, "r": 0.85 }],
+    "hp": 900,
+    "damage": 45,
+    "range": 2.5,
+    "attackInterval": 1.1,
+    "speed": 4,
+    "turnRate": 6,
+    // PLANNED mechanic (not in the sim yet): allies right behind him take less damage
+    // "aura": { "effect": "bulwark", "radius": 6, "duration": 3 },
+    "proceduralModel": "paladin",
+    "talentSlots": 4,
+    "itemSlots": 2,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                // Voice Library: "Diya - Bright and Shimmering" (professional clone, en-IN, female; 11-year notice period)
+                "id": "SeeVpqtIRmNc7fJY5i9q",
+                "prompt": "Library voice, not designed: Diya \u2014 a high-energy, middle-aged female voice with a soft, melodic Indian accent, breezy and light-hearted. The paladin is a warm, sincere holy knight with sparkle.",
+            },
+        ],
+        "lines": {
+            // select acks — steady, earnest, a little self-aware; short and on point
+            "pick": [
+                "I stand.",
+                "Shield up.",
+                "Behind me.",
+                "By the light.",
+                "Lancelot who?",
+                "My oath holds.",
+                "Polished and proud.",
+                "Hit me, please.",
+                "Faith is armour.",
+                "None shall pass.",
+                "Light the way.",
+                "Steady.",
+                "Howzat!",
+                "Chai, then justice.",
+                "I'll show you spicy.",
+                "Mother wanted a doctor.",
+                "Jugaad works!",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Stand aside.",
+                "Unworthy.",
+                "Shield says no.",
+                "Adjust elsewhere.",
+            ],
+            // death
+            "death": [
+                "The light… fades…",
+                "I… held…",
+                "A long Bollywood death…",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Hn!", "Uh!", "Ah!", "Mm!", "Ugh!"],
+        },
+    },
+}

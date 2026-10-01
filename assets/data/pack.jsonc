@@ -29,6 +29,21 @@
     // Loaded and addressable by id, but never part of the roster
     // (e.g. posted from a building panel instead of bought in the shop).
     "offRoster": ["stronghold-archer"],
+    // In place under data/units with their voices in audio/, but NOT loaded yet (no models).
+    // Move an id from here to "roster" (or a commander's shop) once its model exists.
+    "drafts": [
+        "monk",
+        "druid",
+        "paladin",
+        "knight",
+        "assassin",
+        "balloonBomber",
+        "duelist",
+        "warMammoth",
+        "brazenBull",
+        "hordeKnight",
+        "hordeFarmerAlive",
+    ],
     // Base buildings, in construction / preload order.
     // tent: The Year attacker only (no baseAnchor — spawned in game.ts).
     "buildings": ["command-tower", "research-center", "stronghold", "tent"],

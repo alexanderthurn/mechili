@@ -55,6 +55,12 @@ export interface PackManifest {
     version: number;
     roster: string[];
     offRoster: string[];
+    /**
+     * Unit files that are already in place under data/units but not loaded yet (no model or art).
+     * Skipped entirely: not parsed, not validated, not addressable. Their voice files can sit in
+     * assets/audio unregistered, so nothing of them is bundled until they move to a real list.
+     */
+    drafts?: string[];
     buildings: string[];
     /** every rune in data/runes, in catalog order (inventories and card lists sort by it) */
     runes: string[];
@@ -108,6 +114,17 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
         spells: new Map<string, unknown>(),
     };
     let manifest: PackManifest | null = null;
+    // the draft list is needed while sorting the files, before the loop below reaches pack.jsonc
+    const draftIds = new Set<string>();
+    for (const [path, text] of Object.entries(files)) {
+        if (!path.endsWith('/data/pack.jsonc')) continue;
+        try {
+            const pack = parseJsonc(text, 'pack.jsonc') as Partial<PackManifest>;
+            for (const id of Array.isArray(pack.drafts) ? pack.drafts : []) if (typeof id === 'string') draftIds.add(id);
+        } catch {
+            /* reported by the main loop */
+        }
+    }
 
     for (const [path, text] of Object.entries(files)) {
         // `…/<root>/data/<folder>/<file>`: root is `assets` for the base game
@@ -128,6 +145,8 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
         }
         const folder = parts[2] as keyof typeof byFolder;
         const name = parts[3]?.replace(/\.jsonc$/, '');
+        // a draft unit stays out of the game until it is listed for real (see PackManifest.drafts)
+        if (folder === 'units' && name && draftIds.has(name)) continue;
         if (parts.length !== 4 || !(folder in byFolder) || !name) {
             errors.push(`${rel}: unexpected file (expected data/<units|buildings|models|talents|runes|commanders|roundCards|spells>/<id>.jsonc)`);
             continue;
@@ -170,7 +189,7 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
     const runeIds = listed(manifest.runes);
 
     const seen = new Set<string>();
-    for (const id of [...rosterIds, ...offRosterIds, ...buildingIds]) {
+    for (const id of [...rosterIds, ...offRosterIds, ...buildingIds, ...draftIds]) {
         if (seen.has(id)) errors.push(`${label}/data/pack.jsonc: "${id}" is listed more than once`);
         seen.add(id);
     }

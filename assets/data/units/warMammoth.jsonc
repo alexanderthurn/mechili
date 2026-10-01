@@ -1,0 +1,84 @@
+{
+    // DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+    // Human giant, anti-medium: a huge woolly mammoth carrying a howdah with crew sitting left and
+    // right, each side working a heavy bolt-thrower. Every bolt is sized to drop a medium unit
+    // (archer, paladin, knight, duelist) in one or two hits — wasted on swarms (one bolt, one
+    // goblin), barely a scratch on the other giants.
+    "id": "warMammoth",
+    "name": "War Mammoth",
+    "cost": 400,
+    "unlockCost": 200,
+    "footprint": { "cols": 4, "rows": 4 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 5.0,
+    "burn": { "takenMult": 1.3 }, // wool burns
+    "targets": { "ground": true, "air": false }, // ground only
+    "collisionRadius": 2.8,
+    "soundSize": "large",
+    "colliders": [
+        { "y": 1.6, "r": 2.0 },
+        { "y": 3.4, "r": 1.4 },
+    ],
+    "projectileSpeed": 90,
+    "projectileStyle": "largeArrow",
+    "projectileCount": 2, // one bolt from each side of the howdah
+    "hp": 2600,
+    "damage": 150,
+    "range": 40,
+    "attackInterval": 1.6,
+    "speed": 3,
+    "turnRate": 1.5,
+    "sandWeight": 1.6,
+    // PLANNED mechanics (not in the sim yet): the two side crews pick different targets; the
+    // mammoth tramples small units it walks through
+    // "volleySplitTargets": true,
+    // "trample": { "damage": 20, "radius": 2.5 },
+    "proceduralModel": "warMammoth",
+    "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "MOXu51ccTA06RJmjBTRo",
+                "prompt": "A warm, cheerful, chatty male mammoth rider speaking English with a Russian accent — a big-hearted handler from the frozen north who talks to his giant beast like a beloved pet and to the enemy like an afterthought. Friendly low tone, sing-song encouragement, booming easy laugh, rustic charm. Funny and lovable, never cold, never evil, never a caricature. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks — the rider, half talking to you, half to Bertha the mammoth; short and on point
+            "pick": [
+                "Easy, Bertha…",
+                "Bertha's listening!",
+                "Bolts left and right!",
+                "Good mammoth!",
+                "Hannibal was an amateur.",
+                "Mind the tusks!",
+                "Not fat, fluffy!",
+                "Ice age called!",
+                "Left, right, fire!",
+                "No stairs, Bertha.",
+                "Shiny ones first!",
+                "Now STOMP!",
+                "Minus forty is spring!",
+                "In Russia, mammoth rides you!",
+                "Bertha, no vodka!",
+                "Life is pain, charge!",
+                "Babushka was tougher.",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "She bites!",
+                "Bertha says no.",
+                "She'll sit on you!",
+                "Go to Siberia.",
+            ],
+            // death
+            "death": [
+                "Bertha… no…!",
+                "Timber—!",
+                "Is good… death… warm…",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Oi!", "Ow!", "Hey!", "Ugh!", "Ah!"],
+        },
+    },
+}

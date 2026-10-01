@@ -1,0 +1,73 @@
+{
+    // DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+    // Human support: a travelling monk who mends the troops around him and blesses the front line.
+    "id": "monk",
+    "name": "Monk",
+    "cost": 150,
+    "unlockCost": 50,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 2.1,
+    "burn": { "takenMult": 1.1 },
+    "targets": { "ground": true, "air": true },
+    "collisionRadius": 0.9,
+    "soundSize": "medium",
+    "colliders": [{ "y": 1.0, "r": 0.7 }],
+    "hp": 220,
+    "damage": 0,
+    "range": 25,
+    "attackInterval": 1.5,
+    "speed": 3.5,
+    "turnRate": 6,
+    // PLANNED mechanic (not in the sim yet): heals the most wounded ally in range instead of attacking
+    // "heal": { "amount": 40, "range": 25, "interval": 1.5 },
+    "proceduralModel": "monk",
+    "talentSlots": 4,
+    "itemSlots": 2,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "Xy0Kz6M7gabxyM108SlT",
+                "prompt": "A very old Irish monk voice, speaking English with a warm, lilting Irish accent — a gentle, frail-sounding ninety-year-old with a twinkle in his eye. Soft, crackly and unhurried, kind and soothing, with sudden dry wit. Lovable and funny, never booming, never grim, never a caricature. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks — ancient, kind, dry humour; short and on point
+            "pick": [
+                "Peace.",
+                "Who's hurt?",
+                "Bless you.",
+                "Brother Tuck!",
+                "Jesus loves you.",
+                "Faith and bandages.",
+                "Patience heals.",
+                "Ninety and still praying.",
+                "Pray, then patch.",
+                "Ora et labora!",
+                "Hold still.",
+                "Mercy and mead.",
+                "Whiskey's medicinal.",
+                "Patrick did the snakes.",
+                "Raining blood.",
+                "Luck o' the Irish!",
+                "A wake for ye all!",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Not my flock.",
+                "Go in peace.",
+                "I'll pray for you.",
+                "Bless your wee heart.",
+            ],
+            // death
+            "death": [
+                "Forgive them…",
+                "Amen…",
+                "Throw me a wake…",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Oh!", "Ah!", "Mm!", "Uh!", "Hm!"],
+        },
+    },
+}

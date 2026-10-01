@@ -1,0 +1,77 @@
+{
+    // DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+    // Human flying siege: a slow hot-air balloon that drops bombs straight down on ground units and
+    // buildings below it. Cannot hit air — archers, crows and bats are its counters.
+    "id": "balloonBomber",
+    "name": "Balloon Bomber",
+    "cost": 250,
+    "unlockCost": 100,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 3.0,
+    "flying": 14, // between the bats (5.5) and the crows (18)
+    "burn": { "takenMult": 1.6 }, // cloth and hot air — fire arrows hurt
+    "targets": { "ground": true, "air": false }, // bombs only fall down
+    "collisionRadius": 1.6,
+    "soundSize": "large",
+    "colliders": [{ "y": 1.6, "r": 1.4 }], // the envelope is the big target
+    "projectileSpeed": 20,
+    "projectileStyle": "stone",
+    "projectileScale": 0.6,
+    "splashRadius": 4,
+    "hp": 700,
+    "damage": 120,
+    "range": 4, // drops on what is (almost) right below it
+    "attackInterval": 2.5,
+    "speed": 2.5, // drifts — the slowest unit on the board
+    "turnRate": 2,
+    // PLANNED mechanics (not in the sim yet): bombs fall straight down from the basket instead of
+    // being shot; bonus damage against buildings
+    // "dropAttack": true,
+    // "structureDamageMult": 1.5,
+    "proceduralModel": "balloonBomber",
+    "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "eogQ7JfFhYbxH7McTxra",
+                "prompt": "A sweet, cheerful old granny voice — a spry eighty-year-old aeronaut who bakes cookies and drops bombs with the same warm smile. Crackly, slightly wobbly elderly female tone, cosy and chatty, with sudden gleeful mischief. Endearing and very funny, never frail, never scary, never young. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks — sweet old lady, alarmingly fond of explosives; short and on point
+            "pick": [
+                "Yes, dearie?",
+                "Up we go!",
+                "Granny's flying!",
+                "A little present?",
+                "Baked them myself!",
+                "Heads, children!",
+                "Where's my glasses?",
+                "Don't tell Grandpa.",
+                "Knitting can wait!",
+                "Cookies and bombs!",
+                "Lovely view!",
+                "Speak up, dear!",
+                "One for you!",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Hands off, young man!",
+                "Not my grandchild!",
+                "Go to your room!",
+                "No sweets!",
+            ],
+            // death
+            "death": [
+                "Oh, bother—!",
+                "My basket—!",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Ooh!", "Oh!", "Eek!", "Ow!", "Hm!"],
+            // lead summon emerge
+            "summon": ["Hold your hats!", "Bombs away, dearies!"],
+        },
+    },
+}

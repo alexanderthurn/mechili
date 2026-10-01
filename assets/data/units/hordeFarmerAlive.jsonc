@@ -1,0 +1,71 @@
+/**
+ * DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+ * Der Komtur's living levy: a farmer pressed into the forest war — the weaker, still-breathing
+ * version of the Dead Farmer. Pitchfork, fear and bad decisions. `buyable: false`, horde roster.
+ */
+{
+    "id": "hordeFarmerAlive",
+    "name": "Farmer",
+    "cost": 100,
+    "unlockCost": 0,
+    "buyable": false,
+    "horde": true,
+    "modelId": "horde2",
+    "footprint": { "cols": 6, "rows": 2 },
+    "formation": { "cols": 6, "rows": 2 }, // 12, like the Dead Farmer
+    "formationSpread": 0.75,
+    "meshScale": 1.6,
+    "burn": { "takenMult": 1.0 }, // still alive — fire hurts
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 0.9,
+    "soundSize": "small",
+    "colliders": [{ "y": 0.55, "r": 0.95 }],
+    "hp": 110, // the Dead Farmer has 200
+    "damage": 50, // the Dead Farmer has 100
+    "range": 2,
+    "attackInterval": 0.8,
+    "speed": 9,
+    "turnRate": 4,
+    "talents": ["bloodRage", "armor"],
+    "talentSlots": 4,
+    "proceduralModel": "dwarf",
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "iFisiljwgLuc44ndxtO5",
+                "prompt": "A rough, nervous rural male farmer voice — a simple peasant forced to fight, scared but stubborn, with a thick countryside drawl. Mid-low tone, hesitant, grumbling under his breath, sometimes blurting out bravado. Funny and human, never evil, never heroic, never posh. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks — scared peasant, stubborn anyway
+            "pick": [
+                "Me?",
+                "Aye, aye.",
+                "Got my pitchfork.",
+                "Harvest can wait.",
+                "Who feeds the pigs?",
+                "I'm a farmer!",
+                "Do I get paid?",
+                "For the Komtur… I guess.",
+                "Mind the cabbages!",
+                "Why me?",
+                "Pitchfork's sharp.",
+                "My wife'll kill me.",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Get off my land!",
+                "Shoo!",
+                "Not my field.",
+            ],
+            // death
+            "death": [
+                "My cows…!",
+                "Argh!",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Ow!", "Ah!", "Oof!", "Hey!", "Ugh!"],
+        },
+    },
+}

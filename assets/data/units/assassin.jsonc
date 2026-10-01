@@ -1,0 +1,68 @@
+{
+    // DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+    // Human backline hunter: slips past the front and strikes the ranged units behind it.
+    "id": "assassin",
+    "name": "Assassin",
+    "cost": 150,
+    "unlockCost": 100,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 3, "rows": 1 }, // three blades
+    "meshScale": 2.0,
+    "burn": { "takenMult": 1.2 },
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 0.8,
+    "soundSize": "small",
+    "colliders": [{ "y": 1.0, "r": 0.65 }],
+    "hp": 180,
+    "damage": 90,
+    "range": 2,
+    "attackInterval": 0.8,
+    "speed": 9,
+    "turnRate": 12,
+    // PLANNED mechanics (not in the sim yet): ignores the front line and targets ranged units first;
+    // blinks behind its target at battle start
+    // "targetPriority": "ranged",
+    // "openingBlink": { "range": 30 },
+    "proceduralModel": "assassin",
+    "talentSlots": 4,
+    "itemSlots": 2,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "gj4iiKNI9KlUQJ3IqgkU",
+                "prompt": "A whispering female assassin voice — cold, close and amused, like a blade being drawn very slowly. Low intimate breathy delivery, crisp consonants, dry cruel humor. Elegant and lethal, never loud, never cute, never monstrous. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks — quiet, amused, deadly; short and on point
+            "pick": [
+                "Who?",
+                "Name them.",
+                "Behind you.",
+                "Shh.",
+                "Quietly.",
+                "One cut.",
+                "Never seen twice.",
+                "Archers first.",
+                "Sleep well.",
+                "Already done.",
+                "Hassan says hi.",
+                "Daggers out.",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Saw nothing.",
+                "Careful.",
+                "Wrong shadow.",
+            ],
+            // death
+            "death": [
+                "Seen…",
+                "Clumsy…",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Tch!", "Ah!", "Hn!", "Ss!", "Mm!"],
+        },
+    },
+}

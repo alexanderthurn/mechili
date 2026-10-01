@@ -1,0 +1,76 @@
+{
+    // DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+    // Human giant, anti-swarm: the Brazen Bull — a giant bronze bull on wheels with a furnace in its
+    // belly (crew-stoked, nobody inside). Flames roar from its nostrils in a sweeping cone and leave
+    // the ground burning; every blast bellows through the pipes in its head like a bull.
+    // Melts packs of dwarves, goblins and zombies; medium units walk through, giants shrug it off.
+    "id": "brazenBull",
+    "name": "Brazen Bull",
+    "cost": 400,
+    "unlockCost": 200,
+    "footprint": { "cols": 4, "rows": 4 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 5.0,
+    "burn": { "takenMult": 0 }, // a furnace on legs
+    "targets": { "ground": true, "air": false }, // ground only
+    "collisionRadius": 2.6,
+    "soundSize": "large",
+    "colliders": [
+        { "y": 1.6, "r": 1.9 },
+        { "y": 3.0, "r": 1.3 },
+    ],
+    "hp": 2400,
+    "damage": 18, // low per tick — it is the area that kills
+    "range": 14, // short: it has to roll close
+    "attackInterval": 0.25,
+    "speed": 2.5,
+    "turnRate": 0.8,
+    "turnMove": "pivot",
+    "sandWeight": 1.6,
+    // PLANNED mechanics (not in the sim yet): a fire cone that hits everything inside it, and burning
+    // ground where it sweeps (the burn / ground-fire systems already exist for spells)
+    // "flameCone": { "halfAngleDeg": 25, "range": 14 },
+    // "groundFire": { "seconds": 4, "dps": 8 },
+    // SFX idea: each blast starts with the bull's bellow through the head pipes
+    "proceduralModel": "brazenBull",
+    "talentSlots": 4,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "7xuMJ0H7PN6Tzb7nInYZ",
+                "prompt": "A stern, by-the-book female fire-marshal voice — a no-nonsense sergeant obsessed with safety regulations who drives a giant fire-breathing bronze bull. Crisp, clipped mid-low tone, deadpan bureaucratic delivery that suddenly cracks into barely-contained glee. Very funny through contrast, never manic, never evil, never soft. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks — health and safety, driving a fire-breathing bronze bull; short and on point
+            "pick": [
+                "Fire marshal.",
+                "Safety first.",
+                "Stand back!",
+                "Mind the horns.",
+                "Controlled burn.",
+                "Regulation heat.",
+                "No swarming.",
+                "Queue up to burn.",
+                "Nobody goes inside.",
+                "Don't ask about Perillos.",
+                "Burning: permitted.",
+                "Mostly under control.",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Staff only.",
+                "Bronze is hot.",
+                "Not the nostrils.",
+            ],
+            // death
+            "death": [
+                "Not… in the manual…",
+                "Evacuate… calmly…",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Hm!", "Ah!", "Tch!", "Ow!", "Hey!"],
+        },
+    },
+}

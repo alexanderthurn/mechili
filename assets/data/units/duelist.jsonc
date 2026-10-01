@@ -1,0 +1,76 @@
+{
+    // DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+    // Human single hero: Lancelette, a trans woman fencer and the loudest showoff on the board.
+    // Seeks out the strongest single enemy and runs it through: rare, very strong single strikes on
+    // ground targets — an anti-tank specialist, wasted against swarms.
+    // Humour rule: she is always in on the joke and the jokes land on her enemies, never on her identity.
+    "id": "duelist",
+    "name": "Lancelette",
+    "cost": 200,
+    "unlockCost": 100,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 1, "rows": 1 }, // one of a kind
+    "meshScale": 2.2,
+    "burn": { "takenMult": 1.0 },
+    "targets": { "ground": true, "air": false }, // ground only — the sky is not her stage
+    "collisionRadius": 0.9,
+    "soundSize": "medium",
+    "colliders": [{ "y": 1.1, "r": 0.75 }],
+    "hp": 600,
+    "damage": 320, // one big thrust per attack — a tank killer
+    "range": 2.5,
+    "attackInterval": 2.2, // slow, deliberate single strikes
+    "speed": 8,
+    "turnRate": 14,
+    "meleeLunge": 4,
+    // PLANNED mechanics (not in the sim yet): picks the enemy with the most max HP in reach and
+    // deals bonus damage to single big units; one strike, one target — no splash, no cleave
+    // "targetPriority": "strongest",
+    // "duel": { "damageMultVsSingle": 2.5 },
+    "proceduralModel": "duelist",
+    "talentSlots": 4,
+    "itemSlots": 2,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "Lnu5aAh5ogANoC6QniNs",
+                "prompt": "A flamboyant, supremely confident female voice — a trans woman fencing champion with a smoky low alto, a little rasp, and diva theatre in every syllable. Sassy, quick-witted, dramatic pauses before the punchline, a delighted laugh never far away. Glamorous and fearless, very funny, never bitter, never shy, never villainous. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks — diva swordswoman, short and on point; she owns every joke
+            "pick": [
+                "Lancelette, darling.",
+                "Sir? Dame? En garde!",
+                "New name, same blade.",
+                "Born to duel.",
+                "The big one!",
+                "Heels on, foes down.",
+                "Out and proud.",
+                "I'm the final phase.",
+                "Pronouns: touché.",
+                "Estrogen and steel.",
+                "Cute ogre.",
+                "Fashionably lethal.",
+                "Never subtle.",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Not your darling.",
+                "Try misgendering this.",
+                "Not the hair.",
+                "Can't afford me.",
+            ],
+            // death
+            "death": [
+                "Still… fabulous…",
+                "The outfit… survives…",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Ah!", "Ugh!", "Rude!", "Ow!", "Tch!"],
+            // lead summon emerge — her entrance
+            "summon": ["Spotlight!", "Make way!"],
+        },
+    },
+}

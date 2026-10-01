@@ -23,6 +23,13 @@
             "type": "string"
           }
         },
+        "drafts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Unit files that are already in place under data/units but not loaded yet (no model or art). Skipped entirely: not parsed, not validated, not addressable. Their voice files can sit in assets/audio unregistered, so nothing of them is bundled until they move to a real list."
+        },
         "buildings": {
           "type": "array",
           "items": {

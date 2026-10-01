@@ -1,0 +1,173 @@
+{
+ "commander:addi": {
+  "pick": ["Die Relikte brauchen dich.", "Der Tresor ruft.", "Relikte warten."],
+  "pickRival": ["Finger weg.", "Nicht deins.", "Tresor geschlossen."],
+  "win": ["Haha! Die Relikte sind zufrieden!", "Ha! Tresor gesichert!", "Haha! Die Steine mögen mich!"],
+  "victory": ["Der Tresor wird sich an diesen Tag erinnern."],
+  "defeat": ["Der Tresor… schließt für heute."]
+ },
+ "commander:air": {
+  "pick": ["Der Himmel beneidet dich.", "Flügel hoch.", "Schau nach oben."],
+  "pickRival": ["Bleib am Boden.", "Nicht dein Himmel.", "Die Wolken sagen nein."],
+  "win": ["Haha! Der Himmel gehört mir!", "Ha! Wolken, Applaus!", "Haha! Ab nach unten!"],
+  "victory": ["Der Himmel gehört uns."],
+  "defeat": ["Der Himmel wendet sich gegen mich."]
+ },
+ "commander:archer": {
+  "pick": ["Hoch zielen!", "Frisch!", "Eingelegt."],
+  "pickRival": ["Falsches Ziel.", "Daneben.", "Ziel woanders hin."],
+  "win": ["Haha! Volltreffer!", "Ha! Perfekt gezielt!", "Haha! Runde gesichert!"],
+  "victory": ["Jeder Pfeil hat sein Ziel gefunden."],
+  "defeat": ["Den letzten Schuss habe ich verfehlt."]
+ },
+ "commander:cost": {
+  "pick": ["Billige Truppen, volle Taschen.", "Schnäppchenzeit.", "Spar dir eine Münze."],
+  "pickRival": ["Nicht im Angebot.", "Schau in deinen Geldbeutel.", "Falscher Handel."],
+  "win": ["Haha! Billiger Sieg!", "Ha! Profit UND Ruhm!", "Haha! Schnäppchensieg!"],
+  "victory": ["Ein glorreiches Schnäppchen, voll bezahlt."],
+  "defeat": ["Ein teurer Verlust — Lektion gelernt."]
+ },
+ "commander:cursed": {
+  "pick": ["Noch eine Spinne für die Brut.", "Die Brut regt sich.", "Seide bereit."],
+  "pickRival": ["Nicht deine Brut.", "Kriech davon.", "Falsches Nest."],
+  "win": ["Haha… die Brut schmaust!", "Ha! Kriecht für mich!", "Haha! Seide und Beute!"],
+  "victory": ["Die Brut behält das Feld."],
+  "defeat": ["Die Brut… zieht sich zurück."]
+ },
+ "commander:elite": {
+  "pick": ["Qualität statt Quantität.", "Nur das Beste.", "Ansprüche zählen."],
+  "pickRival": ["Unter meiner Würde.", "Nicht eingeladen.", "Bewundere woanders."],
+  "win": ["Haha! Qualität siegt!", "Ha! Selbstverständlich.", "Haha! Wie erwartet!"],
+  "victory": ["Qualität steht allein an der Spitze."],
+  "defeat": ["Auch Qualität fällt, manchmal."]
+ },
+ "commander:flanky": {
+  "pick": ["Die sehen uns nie kommen.", "Jetzt leise.", "Von der Seite."],
+  "pickRival": ["Entdeckt, was?", "Falscher Schatten.", "Augen weg."],
+  "win": ["Haha! Nie kommen sehen!", "Ha! Die Schatten siegen!", "Haha! Umgangen!"],
+  "victory": ["Das Ende haben sie nie kommen sehen."],
+  "defeat": ["Sie haben uns doch kommen sehen."]
+ },
+ "commander:giant": {
+  "pick": ["Großer Laden, größere Schnäppchen.", "Groß denken.", "Größe zählt."],
+  "pickRival": ["Zu klein.", "Nicht deine Größe.", "Husch."],
+  "win": ["Haha! Großer Sieg!", "Ha! Größere Schnäppchen!", "Haha! Die Wucht holt ihn sich!"],
+  "victory": ["Die Gräfin nimmt das ganze Feld."],
+  "defeat": ["Die Gräfin… tritt zurück."]
+ },
+ "commander:meteor": {
+  "pick": ["Lass uns Steine regnen lassen!", "Steine bereit!", "Zeit für Bumm."],
+  "pickRival": ["Nicht dein Stein.", "Ducken.", "Zisch ab."],
+  "win": ["Haha! STEINE SIEGEN!", "Ha! Bumm! Hab's dir gesagt!", "Haha! Mehr Steine!"],
+  "victory": ["Steine siegen — die Karte gehört uns."],
+  "defeat": ["Keine Steine mehr. Fürs Erste."]
+ },
+ "commander:money": {
+  "pick": ["Erst Gold, dann Ruhm.", "Zeig mir das Gold.", "Geld spricht."],
+  "pickRival": ["Unverkäuflich.", "Geh weiter.", "Falscher Tresor."],
+  "win": ["Haha! Gold siegt!", "Ha! Voll bezahlt!", "Haha! Die Schatzkammer singt!"],
+  "victory": ["Erst Gold, und Ruhm dazu."],
+  "defeat": ["Die Schatzkammer steckt einen Treffer ein."]
+ },
+ "commander:speed": {
+  "pick": ["Geschwindigkeit ist alles.", "Halt mit.", "Schon weg."],
+  "pickRival": ["Zu langsam.", "Fang mich doch!", "Finger weg."],
+  "win": ["Haha! Zu langsam!", "Ha! Fang mich? Niemals!", "Haha! Tempo siegt!"],
+  "victory": ["Die Witwe ist zuerst im Ziel."],
+  "defeat": ["Endlich erwischt."]
+ },
+ "commander:tutor": {
+  "pick": ["Richtige Wahl, jetzt mitschreiben!", "Der Unterricht beginnt.", "Aufgepasst."],
+  "pickRival": ["Nachsitzen.", "Nicht dein Pult.", "Setzen."],
+  "win": ["Haha! Unterricht beendet!", "Ha! Richtig — ich gewinne!", "Haha! Mitschreiben!"],
+  "victory": ["Unterricht beendet — Bestnoten."],
+  "defeat": ["Prüfung nicht bestanden. Nächstes Mal Nachprüfung."]
+ },
+ "unit:archer": {
+  "pick": ["Ja?", "Was?", "Ein Schuss, eine Chance.", "Nenn mich Tell!", "Artemis wer?", "Zielen wie Paris!", "Fast wie Robin!", "Volltreffer!", "Sehne gespannt!", "Wo ist mein Apfel?", "Eingelegt und selbstgefällig!"],
+  "pickRival": ["Falsche Seite.", "Zisch ab.", "Nicht deins."],
+  "death": ["Neein!", "Uargh!"]
+ },
+ "unit:ballista": {
+  "pick": ["Bereit.", "Ziel?", "Bolzen geladen.", "Von Vitruv abgesegnet!", "Archimedes ist neidisch!", "Großer Zahnstocher!", "Twäng im Anflug!", "Belagerungslächeln!", "Der Bolzen heißt Bob.", "Lade das Drama nach!", "Römische Ingenieurskunst!", "Spitze Demokratie!"],
+  "pickRival": ["Falsche Mannschaft.", "Zurücktreten.", "Nicht deins."],
+  "death": ["Versagt…!", "Mannschaft…!"]
+ },
+ "unit:bat": {
+  "pick": ["Jaja…?", "Hunger!", "Wir jagen!", "Blute für uns!", "Die Nacht gehört dir nicht!", "Wo warmes Blut?", "Kreisch zum Abendessen!", "Schwingen des Verderbens!", "Dunkelheit bereit!", "Blut — sofort!", "Echo… töten!", "Fänge auf!"],
+  "pickRival": ["Nicht deins!", "Meins zum Aussaugen!", "Flieh!"],
+  "death": ["Kreisch—!", "Dunkel!"]
+ },
+ "unit:crowRider": {
+  "pick": ["Krah?", "Von oben!", "Wir sehen dich.", "Hugin meldet sich!", "Munin hat's vergessen!", "Nimmermehr… vielleicht!", "Poe wäre stolz!", "Federn zuerst!", "Luftpost!", "Wo ist Odin?", "Hier spricht der Krahpitän!", "Sitzplatz gesichert!"],
+  "pickRival": ["Krah dich weg!", "Nicht deins.", "Flieg davon."],
+  "death": ["Kraaah—!", "Ich falle!", "Krah!"],
+  "summon": ["Vom Himmel!", "Sturzflug! Sturzflug!"]
+ },
+ "unit:dwarf": {
+  "pick": ["Jo?", "Bereit!", "Für den Clan!", "Zu Diensten!", "Sag nur ein Wort!", "Stein und Stahl!", "Ich bin Brummbär!", "Mein Name ist Pummel!", "Wo ist Durin?", "Wo ist der Kuchen?", "Erst ein Bier!", "Was zu knabbern?"],
+  "pickRival": ["Falscher Clan.", "Zurück.", "Nicht für dich.", "Weitergehen.", "Keine Chance.", "Verzieh dich.", "Finger weg von meinem Essen!", "Das ist mein Kuchen!", "Kurze Lunte, Kumpel."],
+  "death": ["Och!", "Nee!"],
+  "summon": ["Der Clan erhebt sich!", "Hinauf aus der Tiefe!"]
+ },
+ "unit:goblin": {
+  "pick": ["Ich?", "Jajaja!", "Ich kämpfe!", "Nimm mich!", "Bereitbereit!", "Goblin los!", "Ich bin Puck!", "Nenn mich Hob!", "Wo ist Dob?", "Was Glänzendes?", "Darf ich reinbeißen?", "Schleichzeit!"],
+  "pickRival": ["Nicht deins!", "Finger weg!", "Geh weg!", "Neinein!", "Nicht anfassen!", "Falscher Goblin!", "Ich klau deine Stiefel!", "Ich hab zuerst gebissen!", "Irgendwie meins!"],
+  "death": ["Iiiiek!", "Ack!"]
+ },
+ "unit:hammerer": {
+  "pick": ["Ja.", "Zuschlagen.", "Ich bin bereit.", "Nenn mich Thor!", "John Henry wer?", "Amboss-Laune!", "Erst mal klonk!", "Wo ist mein Ziel?", "Festnageln!"],
+  "pickRival": ["Nein.", "Falsch.", "Geh."],
+  "death": ["…Ich falle.", "Stille."]
+ },
+ "unit:hordeFarmer": {
+  "pick": ["N'Abend…", "Brauchst du Hilfe?", "Blutige Ernte.", "Die Erde will dich.", "Pflügt die Lebenden.", "Wo ist das Fleisch?", "Grabeserde bereit.", "Die Ernte schreit.", "Knochen zuerst.", "Die Vogelscheuche hungert.", "Scheune voller Leichen!", "Hacke… die Weichen."],
+  "pickRival": ["Falsches Feld.", "Private Gräber.", "Husch… oder mach mit."],
+  "death": ["Ah!", "Urgh!"]
+ },
+ "unit:hordeFarmerSpawn": {
+  "pick": ["Hilfe…?", "Ja… töten!", "Ich kann graben!", "Kleine Gräber!", "Spross des Verderbens!", "Wo is' das Fleisch?", "Erde… Freund?", "Saat des Verderbens!", "Ich grab… tiefer!", "Unkraut aus Fleisch!", "Matsch… und Blut!", "Wachsen… zum Fressen!"],
+  "pickRival": ["Nicht deins!", "Geh… sterben!", "Hilfe — woanders!"],
+  "death": ["Tut—!", "Hilfe—!"]
+ },
+ "unit:hordeKomtur": {
+  "pick": ["Sprich.", "Ich bin bereit.", "Das Urteil wartet.", "Salza wäre einverstanden!", "Ritter des Blätterdachs!", "Ehre… und Fänge.", "Wo ist der Feind?", "Das Waldgericht tagt!", "Knie oder krieche!", "Banner aus Netzen!", "Stahl und Seide!", "Urteil: verdammt."],
+  "pickRival": ["Knie woanders.", "Nicht deins.", "Hinfort."],
+  "death": ["Ehre… ungebrochen…", "Der Wald… erinnert sich…"]
+ },
+ "unit:hordeSpinne": {
+  "pick": ["Kind…?", "Sprich.", "Ich warte.", "Mutter der Vielen!", "Arachne herrscht!", "Wo ist die Brut?", "Das Nest ist Gesetz.", "Seidenthron!", "Geduld… dann beißen.", "Kleine… schmaust!", "Das Netz ist Verderben.", "Kriechen… und töten!"],
+  "pickRival": ["Falsches Kind.", "Nicht deins.", "Fort… oder stirb."],
+  "death": ["Meine Brut…!", "Dieses Nest… fällt…"]
+ },
+ "unit:hordeWebweaver": {
+  "pick": ["Ja…?", "Näher…", "Ich höre dich… stirb.", "Arachne nickt.", "Seide weich… Tod hart.", "Wo Fliege… Beute?", "Acht Beine, ein Mord.", "Faden… würgen!", "Netz des Verderbens!", "Klebrig… für immer.", "Spinn dein Ende!", "Komm näher… Leiche."],
+  "pickRival": ["Näher — nein.", "Die Seide sagt: stirb.", "Geh… jetzt."],
+  "death": ["Seide—!", "Nein—!"]
+ },
+ "unit:hordeZombie": {
+  "pick": ["…Essen?", "Uuuh…", "Mehr Fleisch…", "Hiiirne…", "Immer noch Hunger.", "Zerreißt sie.", "Kauen… jetzt.", "Wir fressen.", "Langsamer… Tod.", "Auf… weich.", "Frisch…?", "Uuuh — töten."],
+  "pickRival": ["…Nein.", "Nicht deins.", "Uuuh — meins."],
+  "death": ["Urgh!", "Ungh!"]
+ },
+ "unit:mortar": {
+  "pick": ["Geladen!", "Was?", "Feuer frei, wenn bereit.", "Schöner Bogen!", "Bumm-Salat!", "Pfeif, während er fliegt!", "Mit Liebe geworfen!", "Wo ist die Lunte?", "Steilfeuer-Held!", "Einschlag vorhergesagt!"],
+  "pickRival": ["Nicht deine Mannschaft.", "Abflug.", "Steh da nicht rum!", "Finger weg."],
+  "death": ["Bumm!", "Mannschaft!"]
+ },
+ "unit:ogre": {
+  "pick": ["Hä?", "Zerschmettern?", "Ich bereit!", "Polyphem wer?", "Grendel hungrig!", "Keule hat Gefühle!", "Ich zerschmettere höflich!", "Wo Schafe?", "Große Umarmung?", "Knochen für später!", "Wer mich geweckt?"],
+  "pickRival": ["Dich nicht zerschmettern.", "Geh weg!", "Nicht Freund!"],
+  "death": ["Auuu…", "Kein Zerschmettern mehr…"]
+ },
+ "unit:prismCannon": {
+  "pick": ["Ausgerichtet.", "Sprich.", "Ich höre.", "Newton nickt!", "Iris-Spektrum!", "Regenbogen mit Zähnen!", "Brechung bereit!", "Nicht reinschauen!", "Leichte Kost!", "Beam mich!", "Prismenstolz!", "Optik online!"],
+  "pickRival": ["Falsch ausgerichtet.", "Geh.", "Nicht für dich."],
+  "death": ["Das Licht… erlischt.", "Brechung verloren."]
+ },
+ "unit:wizard": {
+  "pick": ["Sprich.", "Ich höre.", "Großartig.", "Merlin hat angerufen!", "Prospero wer?", "Circe-Stimmung!", "Ein Pakt wie Faust?", "Rechtschreibzauber fertig!", "Hutfrisur!", "Wo ist mein Stab?", "Abraka… fast!", "Arkan und kleinlich!"],
+  "pickRival": ["Unverschämt.", "Hinfort.", "Nicht deins."],
+  "death": ["Unmöglich!", "Mein Zauber—!"]
+ }
+}

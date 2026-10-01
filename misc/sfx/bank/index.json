@@ -1,0 +1,667 @@
+{
+ "amb_rain_light": {
+  "prompt": "Gentle light rain falling on grass and leaves in a quiet meadow, soft steady drizzle, no thunder, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_rain_heavy": {
+  "prompt": "Heavy steady rain pouring on a meadow and forest, dense rainfall, water running, no thunder, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_rain_water": {
+  "prompt": "Rain falling on the surface of a calm lake, many small droplets splashing on water, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_thunder": {
+  "prompt": "Single deep rolling thunder in the distance over a valley, long rumble fading out, no rain, natural sound, no music, no voice",
+  "seconds": 8,
+  "loop": false,
+  "takes": 6,
+  "group": "amb"
+ },
+ "amb_snow_wind": {
+  "prompt": "Soft cold winter wind over a snowy field, quiet hush of snowfall, gentle gusts, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_winter_howl": {
+  "prompt": "Strong howling winter wind in the mountains, blizzard gusts whistling, cold and harsh, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_spring_birds": {
+  "prompt": "Spring morning in a meadow beside a forest, many cheerful songbirds chirping, light breeze, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_summer_insects": {
+  "prompt": "Hot summer noon meadow, buzzing insects, grasshoppers and cicadas, distant bird, warm still air, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_night": {
+  "prompt": "Calm summer night in a meadow near a forest, crickets chirping, an occasional distant owl hoot, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_autumn_wind": {
+  "prompt": "Cool autumn wind blowing through trees, dry leaves rustling and tumbling on the ground, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_lake": {
+  "prompt": "Small waves gently lapping on a pebble lake shore, calm water ambience, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_forest": {
+  "prompt": "Quiet forest ambience, leaves rustling softly in the wind, creaking branches, distant birds, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_crows": {
+  "prompt": "A few crows cawing in the distance over a field, sparse calls with pauses, natural outdoor sound, no music, no voice",
+  "seconds": 8,
+  "loop": false,
+  "takes": 6,
+  "group": "amb"
+ },
+ "amb_battlefield": {
+  "prompt": "Distant medieval battle heard from afar, muffled clashing and shouting armies, war drums far away, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_campfire": {
+  "prompt": "Crackling campfire, wood popping and burning steadily, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 15,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_creek": {
+  "prompt": "Small creek babbling over stones, flowing water, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_mountain_wind": {
+  "prompt": "High mountain wind, airy whistling across rocky peaks, vast and lonely, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "amb_village": {
+  "prompt": "Peaceful medieval village in the distance, faint hammer on anvil, a cart, chickens, distant chatter without words, natural outdoor ambience, seamless loop, no music, no voice",
+  "seconds": 20,
+  "loop": true,
+  "takes": 4,
+  "group": "amb"
+ },
+ "var_arrow_shot": {
+  "prompt": "Wooden longbow string release and arrow whoosh, short and crisp, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_melee_hit": {
+  "prompt": "Sword hitting a shield and armour, metallic clang impact, short, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_melee_swing": {
+  "prompt": "Heavy weapon swing whoosh through the air, short, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_impact_flesh": {
+  "prompt": "Blunt weapon hit on a body, thick dull thud, short, no voice, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_impact_ground": {
+  "prompt": "Projectile slamming into dirt ground, thump with soil scatter, short, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_impact_stone": {
+  "prompt": "Rock projectile smashing against a stone wall, crack and debris, short, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_explosion_small": {
+  "prompt": "Small magical fire explosion, quick burst and crackle, short, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_bolt_shot": {
+  "prompt": "Crossbow or ballista bolt fired, heavy twang and whoosh, short, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_arrow_hit_wood": {
+  "prompt": "Arrow thudding into a wooden shield or post, short, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.7,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_death_small": {
+  "prompt": "Small creature collapsing to the ground with armour rattle, body fall, no voice, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_death_big": {
+  "prompt": "Huge heavy creature crashing to the ground, deep thud and rumble, no voice, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "var_magic_zap": {
+  "prompt": "Short magical energy bolt fired, bright sparkling zap, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "var"
+ },
+ "move_march_light": {
+  "prompt": "Small group of soldiers marching on grass and dirt, light footsteps and leather, rhythmic, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4,
+  "loop": true,
+  "takes": 6,
+  "group": "move"
+ },
+ "move_march_heavy": {
+  "prompt": "Heavily armoured soldiers marching, metal armour clanking with heavy footsteps, rhythmic, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4,
+  "loop": true,
+  "takes": 6,
+  "group": "move"
+ },
+ "move_ogre_stomp": {
+  "prompt": "Single giant ogre footstep stomp, ground thud, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "move"
+ },
+ "move_wings": {
+  "prompt": "Large bird wings flapping, a few powerful wing beats, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "move"
+ },
+ "move_siege_creak": {
+  "prompt": "Wooden siege engine on wheels rolling, creaking timber and rumbling wheels, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4,
+  "loop": true,
+  "takes": 6,
+  "group": "move"
+ },
+ "move_scurry": {
+  "prompt": "Small goblins scurrying quickly over dirt, light pattering feet, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "move"
+ },
+ "move_armour_clank": {
+  "prompt": "Armour and chainmail rattling as a knight moves, short, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 8,
+  "group": "move"
+ },
+ "move_hooves": {
+  "prompt": "Single horse trotting on dirt road, hooves, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": true,
+  "takes": 6,
+  "group": "move"
+ },
+ "move_crawl": {
+  "prompt": "Giant spider legs skittering and clicking on ground, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "move"
+ },
+ "move_shamble": {
+  "prompt": "Zombie shambling footsteps dragging on dirt, no voice, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "move"
+ },
+ "eco_coin": {
+  "prompt": "Single gold coin dropped on a wooden table, bright clink, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.6,
+  "loop": false,
+  "takes": 8,
+  "group": "eco"
+ },
+ "eco_coins_pile": {
+  "prompt": "Handful of gold coins poured into a pile, jingling, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 8,
+  "group": "eco"
+ },
+ "eco_spend": {
+  "prompt": "Coins paid out of a leather purse, quick jingle, purchase confirmation, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "eco"
+ },
+ "eco_equip": {
+  "prompt": "Equipping an item, leather strap and metal buckle click, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 8,
+  "group": "eco"
+ },
+ "eco_upgrade": {
+  "prompt": "Magical upgrade shimmer, rising sparkly chime, level up feeling, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 8,
+  "group": "eco"
+ },
+ "eco_sell": {
+  "prompt": "Selling an item, coins sliding across a counter, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "eco"
+ },
+ "eco_reroll": {
+  "prompt": "Shuffling and rerolling cards, quick paper riffle with magical whoosh, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "eco"
+ },
+ "eco_card_flip": {
+  "prompt": "Single parchment card flipped over on a table, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.5,
+  "loop": false,
+  "takes": 8,
+  "group": "eco"
+ },
+ "eco_deck_shuffle": {
+  "prompt": "Deck of thick cards being shuffled, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 8,
+  "group": "eco"
+ },
+ "eco_reward": {
+  "prompt": "Treasure chest opening with a magical golden reward chime, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "eco"
+ },
+ "bld_construct": {
+  "prompt": "Medieval construction, hammers on wood and stone, a short building burst, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 8,
+  "group": "bld"
+ },
+ "bld_place": {
+  "prompt": "Heavy wooden building set down on the ground, solid thump and settle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 8,
+  "group": "bld"
+ },
+ "bld_creak": {
+  "prompt": "Wooden tower creaking under strain, timber groan, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "bld"
+ },
+ "bld_gate": {
+  "prompt": "Heavy wooden castle gate opening, creaking hinges and chains, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": false,
+  "takes": 6,
+  "group": "bld"
+ },
+ "bld_bell": {
+  "prompt": "Single tower bell toll, medieval bronze bell ringing out, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": false,
+  "takes": 6,
+  "group": "bld"
+ },
+ "bld_banner": {
+  "prompt": "Cloth banner flapping in strong wind, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": true,
+  "takes": 6,
+  "group": "bld"
+ },
+ "bld_burning": {
+  "prompt": "Wooden building burning, roaring fire with crackling and collapsing beams, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 8.0,
+  "loop": true,
+  "takes": 4,
+  "group": "bld"
+ },
+ "bld_rubble": {
+  "prompt": "Rubble and stones settling after a collapse, debris trickling, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 8,
+  "group": "bld"
+ },
+ "match_found": {
+  "prompt": "Match found alert, heroic short horn fanfare with a drum hit, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "match"
+ },
+ "match_join": {
+  "prompt": "Player joined notification, soft bright magical chime, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 8,
+  "group": "match"
+ },
+ "match_leave": {
+  "prompt": "Player left notification, soft descending muted chime, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.8,
+  "loop": false,
+  "takes": 8,
+  "group": "match"
+ },
+ "match_ready": {
+  "prompt": "Ready check confirmation, warm two-tone bell, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "match"
+ },
+ "match_tick": {
+  "prompt": "Countdown tick, a single short wooden drum knock, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.5,
+  "loop": false,
+  "takes": 8,
+  "group": "match"
+ },
+ "match_final_round": {
+  "prompt": "Final round warning, dramatic war drums roll with a deep horn, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": false,
+  "takes": 6,
+  "group": "match"
+ },
+ "match_chat": {
+  "prompt": "Chat message ping, small soft pluck, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.5,
+  "loop": false,
+  "takes": 8,
+  "group": "match"
+ },
+ "match_emote": {
+  "prompt": "Emote pop, playful light bubble pop, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 0.5,
+  "loop": false,
+  "takes": 8,
+  "group": "match"
+ },
+ "match_achievement": {
+  "prompt": "Achievement unlocked, triumphant magical chime with sparkle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 8,
+  "group": "match"
+ },
+ "match_rank_up": {
+  "prompt": "Rank up, rising heroic brass fanfare, short, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": false,
+  "takes": 6,
+  "group": "match"
+ },
+ "match_rank_down": {
+  "prompt": "Rank down, short descending low brass sting, gentle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 6,
+  "group": "match"
+ },
+ "match_reconnect": {
+  "prompt": "Connection restored, soft rising magical whoosh, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "match"
+ },
+ "fac_war_horn": {
+  "prompt": "Orc war horn blast, deep rough and menacing, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": false,
+  "takes": 6,
+  "group": "fac"
+ },
+ "fac_orc_shot": {
+  "prompt": "Crude orc bow shot, heavy twang and arrow whoosh, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "fac"
+ },
+ "fac_orc_hit": {
+  "prompt": "Brutal crude axe hit on armour, heavy crunch, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "fac"
+ },
+ "fac_bone_rattle": {
+  "prompt": "Skeleton bones rattling and clattering, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 8,
+  "group": "fac"
+ },
+ "fac_cackle": {
+  "prompt": "Goblin creature cackle, mischievous creature sound, no words, fantasy game creature sound, no music",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 8,
+  "group": "fac"
+ },
+ "fac_shaman": {
+  "prompt": "Dark shaman magic chant swelling into a spell, eerie, no words, fantasy game sound effect, no music",
+  "seconds": 3.0,
+  "loop": false,
+  "takes": 6,
+  "group": "fac"
+ },
+ "fac_growl_small": {
+  "prompt": "Small beast growl, wolf-like snarl, fantasy game creature sound, no music",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 8,
+  "group": "fac"
+ },
+ "fac_growl_big": {
+  "prompt": "Large monster roar, deep and powerful, fantasy game creature sound, no music",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "fac"
+ },
+ "fac_growl_beast": {
+  "prompt": "Bear-like beast grunt and growl, fantasy game creature sound, no music",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 8,
+  "group": "fac"
+ },
+ "fac_necro": {
+  "prompt": "Necromantic dark magic whoosh with ghostly whispers, no words, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "fac"
+ },
+ "fac_drum": {
+  "prompt": "Tribal war drums, short heavy rhythm, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": false,
+  "takes": 6,
+  "group": "fac"
+ },
+ "fac_summon_undead": {
+  "prompt": "Undead rising from the ground, earth cracking and bones creaking, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 8,
+  "group": "fac"
+ },
+ "spell_freeze": {
+  "prompt": "Ice spell freezing a target, crystallising crackle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ },
+ "spell_shatter": {
+  "prompt": "Ice shattering into shards, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ },
+ "spell_heal": {
+  "prompt": "Healing magic, warm gentle chime with soft glow, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ },
+ "spell_shield_up": {
+  "prompt": "Magic shield activating, rising resonant hum, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ },
+ "spell_shield_down": {
+  "prompt": "Magic shield breaking, glassy crack and fading hum, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ },
+ "spell_buff": {
+  "prompt": "Power buff applied, bright rising magical swell, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ },
+ "spell_debuff": {
+  "prompt": "Curse applied, dark descending magical tone, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.2,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ },
+ "spell_teleport": {
+  "prompt": "Teleport, quick magical whoosh and pop, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.0,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ },
+ "spell_portal": {
+  "prompt": "Summoning portal opening, swirling magical energy hum, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 3.0,
+  "loop": false,
+  "takes": 6,
+  "group": "spell"
+ },
+ "spell_earthquake": {
+  "prompt": "Earthquake, deep rumble with cracking ground and rocks, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 4.0,
+  "loop": false,
+  "takes": 6,
+  "group": "spell"
+ },
+ "spell_gust": {
+  "prompt": "Magic wind gust blasting past, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 1.5,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ },
+ "spell_poison": {
+  "prompt": "Bubbling poison cauldron, toxic gurgle, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.0,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ },
+ "spell_holy": {
+  "prompt": "Holy light beam from the sky, angelic shimmering tone, no voice, fantasy medieval strategy game sound effect, clean, no music, no voice",
+  "seconds": 2.5,
+  "loop": false,
+  "takes": 8,
+  "group": "spell"
+ }
+}

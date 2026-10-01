@@ -1,0 +1,69 @@
+{
+    // DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+    // Human/nature support: roots enemies in place and heals over time with the forest's help.
+    "id": "druid",
+    "name": "Druid",
+    "cost": 200,
+    "unlockCost": 100,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 2.2,
+    "burn": { "takenMult": 1.4 }, // wood and leaves — fire hurts
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 0.9,
+    "soundSize": "medium",
+    "colliders": [{ "y": 1.1, "r": 0.75 }],
+    "projectileSpeed": 40,
+    "projectileStyle": "orb",
+    "hp": 260,
+    "damage": 30,
+    "range": 35,
+    "attackInterval": 2.0,
+    "speed": 3.5,
+    "turnRate": 6,
+    // PLANNED mechanics (not in the sim yet): hits root the target for a moment; allies nearby regenerate
+    // "onHit": { "root": { "seconds": 1.5 } },
+    // "aura": { "effect": "regrowth", "radius": 15, "duration": 5 },
+    "proceduralModel": "druid",
+    "talentSlots": 4,
+    "itemSlots": 2,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "yRMkhayTX38fD1eVKaEO",
+                "prompt": "A warm, older female druid voice — earthy, grounded and wise, like an old forest given a voice. Gentle but firm, with a slow knowing smile and a hint of wildness underneath. Rich low-mid tone, calm cadence, never shrill, never fragile, never evil. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks — earthy, wise, a little wild; short and on point
+            "pick": [
+                "The forest listens.",
+                "Speak, sapling.",
+                "Roots ready.",
+                "Leaves remember.",
+                "Grow, little ones.",
+                "Moss on their boots!",
+                "Trees talk to me.",
+                "Thorns for the rude.",
+                "Spring follows me.",
+                "Old oak approves.",
+                "Patience, seedlings.",
+                "Wild and wise.",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Not your grove.",
+                "Wilt elsewhere.",
+                "Roots say no.",
+            ],
+            // death
+            "death": [
+                "Back to soil…",
+                "The forest… keeps me…",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Ah!", "Oh!", "Hn!", "Mm!", "Tch!"],
+        },
+    },
+}

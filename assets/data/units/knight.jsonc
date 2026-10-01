@@ -1,0 +1,77 @@
+{
+    // DRAFT — listed in pack.jsonc "drafts", so not loaded by the game yet. Stats are placeholders.
+    // Human cavalry: fast mounted knights who charge the flanks — the first fast ground unit.
+    "id": "knight",
+    "name": "Knight",
+    "cost": 200,
+    "unlockCost": 100,
+    "footprint": { "cols": 3, "rows": 2 },
+    "formation": { "cols": 3, "rows": 2 }, // six riders
+    "meshScale": 2.0,
+    "burn": { "takenMult": 0.9 },
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 1.1,
+    "soundSize": "medium",
+    "colliders": [{ "y": 1.2, "r": 0.9 }],
+    "hp": 420,
+    "damage": 60,
+    "range": 3,
+    "attackInterval": 1.0,
+    "speed": 12, // fastest walker — closes gaps first
+    "turnRate": 5,
+    "meleeLunge": 6,
+    "meleePress": 0.85,
+    // PLANNED mechanic (not in the sim yet): the first hit after a long run deals bonus damage
+    // "charge": { "minRun": 12, "damageMult": 2.5 },
+    "proceduralModel": "knight",
+    "talentSlots": 4,
+    "itemSlots": 2,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "h7JBisLFUU0coQPLr3z9",
+                "prompt": "An older Chinese male knight voice, speaking English with a clear Chinese accent — a battle-hardened cavalry veteran in his sixties, proud and dignified but still mischievously eager to charge. Warm weathered baritone, measured cadence that bursts into laughing battle cries. Funny and noble, never young, never cold, never a caricature. Perfect audio quality.",
+            },
+        ],
+        "lines": {
+            // select acks — proud old veteran, still eager to charge; short and on point
+            "pick": [
+                "Mount up!",
+                "Charge?",
+                "Saddled!",
+                "For glory!",
+                "Old, not slow!",
+                "The plan is charge!",
+                "Lance polished!",
+                "Hooves first!",
+                "Sixty and still charging!",
+                "Point me!",
+                "No more windmills.",
+                "Glory awaits!",
+                "Sun Tzu would sigh.",
+                "Tea, then blood.",
+                "We invented gunpowder.",
+                "Five thousand years undefeated.",
+                "Silver is shame.",
+            ],
+            // cheeky brush-off when a rival clicks
+            "pickRival": [
+                "Out of my way!",
+                "Joust later.",
+                "Neigh!",
+                "Patient as the Wall.",
+            ],
+            // death
+            "death": [
+                "My… horse…",
+                "Unhorsed!",
+                "My mother… expected more…",
+            ],
+            // hit flinches — one syllable
+            "hurt": ["Ha!", "Ugh!", "Ow!", "Ah!", "Hngh!"],
+            // lead summon emerge
+            "summon": ["Charge!", "Ride!"],
+        },
+    },
+}
