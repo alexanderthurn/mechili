@@ -286,6 +286,8 @@ const RAW = import.meta.glob(
         '../../assets/audio/de/commander_tutor_win_1.ogg',
         '../../assets/audio/de/commander_tutor_win_2.ogg',
         '../../assets/audio/de/commander_tutor_win_3.ogg',
+        '../../assets/audio/de/narration_welcome.ogg',
+        '../../assets/audio/de/narration_year_begins.ogg',
         '../../assets/audio/de/unit_archer_1.ogg',
         '../../assets/audio/de/unit_archer_10.ogg',
         '../../assets/audio/de/unit_archer_11.ogg',
