@@ -191,7 +191,7 @@ import {
 import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay } from './crowWingFlap';
 import { GROUND_UNIT_Y } from './groundQuality';
 import { reachToward } from './terrainCombat';
-import { getUnitVisualHeight, modelGeometryFingerprint, usesWingFlapModel } from './unitModels';
+import { getUnitVisualHeight, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import { draftTerrain, packagedTerrain, terrainFileText } from './scenario/scenarioTerrain';
@@ -6773,7 +6773,16 @@ export class Game {
             'desync',
             `${this.settings.seed}:${this.round}:${side}`,
             { seed: this.settings.seed, round: this.round, role: side, name: this.playerNames.local },
-            { ...extra, hashParts: parts, events: this.debugLog.history() },
+            {
+                ...extra,
+                phase: this.phase,
+                hashParts: parts,
+                // the model geometry the sim reads (the hash's `models` section), raw
+                modelGeometry: modelGeometrySnapshot(),
+                // seed + settings + every action so far: the match can be replayed exactly
+                replay: this.exportReplay(),
+                events: this.debugLog.history(),
+            },
         );
     }
 

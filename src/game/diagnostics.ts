@@ -51,7 +51,7 @@ const sent: Record<DiagnosticKind, number> = { desync: 0, error: 0, manual: 0 };
 /** one report per key (e.g. desync + round, error + message) */
 const seenKeys = new Set<string>();
 /** the server refuses more; trim the event list to stay under it (a manual report may be big) */
-const MAX_BODY_CHARS: Record<DiagnosticKind, number> = { desync: 1_800_000, error: 200_000, manual: 7_500_000 };
+const MAX_BODY_CHARS: Record<DiagnosticKind, number> = { desync: 4_000_000, error: 200_000, manual: 7_500_000 };
 
 function platform(): string {
     const electron = /Electron\//.test(navigator.userAgent);

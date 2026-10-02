@@ -302,6 +302,20 @@ export function modelGeometryFingerprint(): number {
 }
 
 /**
+ * The raw values {@link modelGeometryFingerprint} hashes, for a diagnostics report: when two
+ * clients' `models` hash sections differ, this names the unit whose geometry disagreed.
+ */
+export function modelGeometrySnapshot(): Record<string, unknown> {
+    const sorted = <T>(m: Map<string, T>) => Object.fromEntries([...m.entries()].sort(([a], [b]) => (a < b ? -1 : 1)));
+    return {
+        visualHeights: sorted(visualHeights),
+        visualHalfWidths: sorted(visualHalfWidths),
+        slotNodes: sorted(slotNodes),
+        attackNodes: sorted(attackNodes),
+    };
+}
+
+/**
  * Transform a rest-local AttackNode into world space.
  * `yaw` is {@link Object3D.rotation.y} (rest forward −Z → yaw 0).
  */
