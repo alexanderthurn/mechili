@@ -45,6 +45,13 @@ export interface DiagnosticContext {
     name?: string;
 }
 
+/** the running match (set by Game): every report — an error too — is filed under it */
+let currentMatch: DiagnosticContext | null = null;
+
+export function setDiagnosticsMatch(ctx: DiagnosticContext | null): void {
+    currentMatch = ctx;
+}
+
 /** how many reports one page load may send at most, per kind */
 const MAX_REPORTS: Record<DiagnosticKind, number> = { desync: 6, error: 10, manual: 30 };
 const sent: Record<DiagnosticKind, number> = { desync: 0, error: 0, manual: 0 };
@@ -78,6 +85,7 @@ export function reportDiagnostic(kind: DiagnosticKind, key: string, ctx: Diagnos
             contentHash: BASE_CONTENT_HASH,
             platform: platform(),
             ts: Date.now(),
+            ...currentMatch,
             ...ctx,
             consoleTail: kind === 'error' ? undefined : consoleTail.slice(),
             data,

@@ -59,7 +59,9 @@ async function load() {
     document.getElementById('groups').innerHTML = groups.map((g) => `
       <div class="group">
         <h2>match ${esc(g.matchKey)} <span class="muted">${when(g.ts)}</span>
-          <button data-compare="${esc(g.reports.filter((r) => r.kind === 'desync').map((r) => r.id).join(','))}">compare desync reports</button></h2>
+          <button data-compare="${esc(g.reports.filter((r) => r.kind === 'desync').map((r) => r.id).join(','))}">compare desync reports</button>
+          <button data-copy-match="${esc(g.matchKey)}">copy whole match</button>
+          <button data-download-match="${esc(g.matchKey)}">download whole match</button></h2>
         <table><tr><th>time</th><th>kind</th><th>round</th><th>role</th><th>name</th><th>version</th><th>key</th><th>platform</th><th></th></tr>
         ${g.reports.map((r) => `<tr><td>${when(r.ts)}</td><td class="kind-${esc(r.kind)}">${esc(r.kind)}</td><td>${esc(r.round)}</td>
           <td>${esc(r.role)}</td><td>${esc(r.name)}</td><td>${esc(r.appVersion)}</td><td>${esc(r.key)}</td>
@@ -98,10 +100,35 @@ async function compare(ids) {
     </div>`;
 }
 
+/** every report of one match (all clients, all kinds), oldest first, as one pretty JSON text */
+async function matchText(matchKey) {
+  const all = await call({ action: 'match', matchKey });
+  return JSON.stringify(all, null, 1);
+}
+
+async function copyMatch(matchKey, button) {
+  const text = await matchText(matchKey);
+  await navigator.clipboard.writeText(text);
+  button.textContent = `copied (${Math.round(text.length / 1024)} KB)`;
+}
+
+async function downloadMatch(matchKey) {
+  const text = await matchText(matchKey);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = `melodan-match-${matchKey}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 document.getElementById('load').addEventListener('click', load);
 document.addEventListener('click', (e) => {
   const id = e.target.dataset?.id;
   if (id) void open(id);
+  const copyKey = e.target.dataset?.copyMatch;
+  if (copyKey) void copyMatch(copyKey, e.target).catch((err) => (e.target.textContent = `failed: ${err.message}`));
+  const dlKey = e.target.dataset?.downloadMatch;
+  if (dlKey) void downloadMatch(dlKey).catch((err) => (statusEl.textContent = `failed: ${err.message}`));
   const cmp = e.target.dataset?.compare;
   if (cmp) void compare(cmp.split(',').filter(Boolean));
 });

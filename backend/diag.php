@@ -16,6 +16,10 @@
  *       {"groups":[{matchKey,ts,reports:[{id,ts,kind,key,role,name,round,appVersion,platform}]}]}
  *   GET  ?action=get&key=<ADMIN_KEY>&id=<id>
  *       One full report.
+ *   GET  ?action=match&key=<ADMIN_KEY>&matchKey=<matchKey>
+ *       Every report of one match (any client, any kind), oldest first, in one JSON
+ *       document — the whole story of a match to copy or download in one go.
+ *       {"matchKey":...,"count":n,"reports":[...]}
  *
  * Reading needs the admin key: reports carry player names and system details.
  */
@@ -53,6 +57,9 @@ try {
     } elseif ($action === 'get') {
         requireAdmin();
         handleGet();
+    } elseif ($action === 'match') {
+        requireAdmin();
+        handleMatch();
     } else {
         respond(['error' => 'bad action'], 400);
     }
@@ -173,4 +180,17 @@ function handleGet(): void {
     if ($id === '' || !is_file($path)) respond(['error' => 'not found'], 404);
     $data = json_decode((string)file_get_contents($path), true);
     respond(is_array($data) ? $data : ['error' => 'unreadable']);
+}
+
+function handleMatch(): void {
+    $mk = clean((string)($_GET['matchKey'] ?? ''), 32);
+    if ($mk === '') respond(['error' => 'matchKey required'], 400);
+    $reports = [];
+    // file names are <ts>_<matchKey>_<kind>_<rand>.json — oldest first by name
+    foreach (diagFiles() as $file) {
+        if (strpos(basename($file), '_' . $mk . '_') === false) continue;
+        $data = json_decode((string)@file_get_contents($file), true);
+        if (is_array($data)) $reports[] = $data;
+    }
+    respond(['matchKey' => $mk, 'count' => count($reports), 'reports' => $reports]);
 }

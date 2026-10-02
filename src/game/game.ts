@@ -309,7 +309,7 @@ import { HpBars } from '../ui/hpBars';
 import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
 import type { YearProgress } from '../ui/yearTally';
 import { renderAllUnitIcons } from '../ui/unitIcons';
-import { reportDiagnostic } from './diagnostics';
+import { reportDiagnostic, setDiagnosticsMatch } from './diagnostics';
 import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
@@ -1491,6 +1491,12 @@ export class Game {
         const scenarioMode = this.settings.scenario?.mode;
         this.editorMode = scenarioMode === 'author' || scenarioMode === 'test' ? scenarioMode : null;
         const settings = this.settings;
+        // every diagnostics report of this match (errors too) is filed under it on the server
+        setDiagnosticsMatch({
+            seed: settings.seed,
+            role: spectate ? 'spectator' : star ? (star.role === 'host' ? 'host' : 'guest') : 'local',
+            name: spectate ? spectate.watcherName : playerNames.local,
+        });
         this.wrapper = wrapper;
         this.threeCanvas = threeCanvas;
         // canonical colors first — units, overlays and HUD CSS all read them
@@ -3090,6 +3096,7 @@ export class Game {
     destroy(opts?: { keepStarSession?: boolean }): void {
         if (this.disposed) return;
         this.disposed = true;
+        setDiagnosticsMatch(null);
         // Drop an unfinished manual clip; always tear down the rolling buffer.
         if (videoRecorder.recording) this.hud.endRecordingHint(false);
         videoRecorder.stopAll();
