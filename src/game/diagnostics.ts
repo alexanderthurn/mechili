@@ -28,7 +28,7 @@ export function diagUrl(): string {
     return new URL('diag.php', matchUrl()).href;
 }
 
-export type DiagnosticKind = 'desync' | 'error';
+export type DiagnosticKind = 'desync' | 'error' | 'manual';
 
 export interface DiagnosticContext {
     /** the match's seed — the server derives the match key from version + seed */
@@ -39,12 +39,12 @@ export interface DiagnosticContext {
 }
 
 /** how many reports one page load may send at most, per kind */
-const MAX_REPORTS: Record<DiagnosticKind, number> = { desync: 6, error: 10 };
-const sent: Record<DiagnosticKind, number> = { desync: 0, error: 0 };
+const MAX_REPORTS: Record<DiagnosticKind, number> = { desync: 6, error: 10, manual: 30 };
+const sent: Record<DiagnosticKind, number> = { desync: 0, error: 0, manual: 0 };
 /** one report per key (e.g. desync + round, error + message) */
 const seenKeys = new Set<string>();
-/** the server refuses more; trim the event list to stay under it */
-const MAX_BODY_CHARS = 1_800_000;
+/** the server refuses more; trim the event list to stay under it (a manual report may be big) */
+const MAX_BODY_CHARS: Record<DiagnosticKind, number> = { desync: 1_800_000, error: 200_000, manual: 7_500_000 };
 
 function platform(): string {
     const electron = /Electron\//.test(navigator.userAgent);
@@ -56,11 +56,11 @@ function platform(): string {
  * JSON — for a desync the whole match's debug events. Returns without doing anything when
  * diagnostics are off, the per-kind budget is spent, or the key was already sent.
  */
-export function reportDiagnostic(kind: DiagnosticKind, key: string, ctx: DiagnosticContext, data: unknown): void {
+export function reportDiagnostic(kind: DiagnosticKind, key: string, ctx: DiagnosticContext, data: unknown): Promise<boolean> {
     try {
-        if (!diagnosticsEnabled()) return;
+        if (!diagnosticsEnabled() && kind !== 'manual') return Promise.resolve(false);
         const dedupe = `${kind}:${key}`;
-        if (seenKeys.has(dedupe) || sent[kind] >= MAX_REPORTS[kind]) return;
+        if (seenKeys.has(dedupe) || sent[kind] >= MAX_REPORTS[kind]) return Promise.resolve(false);
         seenKeys.add(dedupe);
         sent[kind]++;
         const record = {
@@ -72,25 +72,58 @@ export function reportDiagnostic(kind: DiagnosticKind, key: string, ctx: Diagnos
             platform: platform(),
             ts: Date.now(),
             ...ctx,
+            consoleTail: kind === 'error' ? undefined : consoleTail.slice(),
             data,
         };
         let body = JSON.stringify(record);
         // too big: keep the newest events (the desync is at the end)
         const events = (data as { events?: unknown[] } | null)?.events;
-        while (body.length > MAX_BODY_CHARS && Array.isArray(events) && events.length > 1) {
+        while (body.length > MAX_BODY_CHARS[kind] && Array.isArray(events) && events.length > 1) {
             events.splice(0, Math.ceil(events.length / 4));
             body = JSON.stringify(record);
         }
-        void fetch(`${diagUrl()}?action=submit`, {
+        return fetch(`${diagUrl()}?action=submit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body,
             keepalive: body.length < 60_000,
-        }).catch(() => {
-            /* unreachable backend: nothing to do */
-        });
+        })
+            .then((res) => res.ok)
+            .catch(() => false);
     } catch {
         /* diagnostics must never break the game */
+        return Promise.resolve(false);
+    }
+}
+
+/** the last console warnings/errors, sent along with desync and manual reports */
+const consoleTail: { t: number; level: string; text: string }[] = [];
+const CONSOLE_TAIL = 300;
+
+function captureConsole(): void {
+    for (const level of ['warn', 'error'] as const) {
+        const original = console[level].bind(console);
+        console[level] = (...args: unknown[]) => {
+            try {
+                const text = args
+                    .map((a) => (typeof a === 'string' ? a : a instanceof Error ? `${a.message}\n${a.stack ?? ''}` : safeJson(a)))
+                    .join(' ')
+                    .slice(0, 4000);
+                consoleTail.push({ t: Date.now(), level, text });
+                if (consoleTail.length > CONSOLE_TAIL) consoleTail.splice(0, consoleTail.length - CONSOLE_TAIL);
+            } catch {
+                /* never break logging */
+            }
+            original(...args);
+        };
+    }
+}
+
+function safeJson(v: unknown): string {
+    try {
+        return JSON.stringify(v) ?? String(v);
+    } catch {
+        return String(v);
     }
 }
 
@@ -100,6 +133,7 @@ let hooksInstalled = false;
 function installErrorHooks(): void {
     if (hooksInstalled) return;
     hooksInstalled = true;
+    captureConsole();
     const send = (message: string, stack: string | undefined) =>
         reportDiagnostic('error', message.slice(0, 200), {}, { message, stack: stack?.slice(0, 8000) });
     window.addEventListener('error', (e) => {

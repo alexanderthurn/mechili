@@ -120,6 +120,11 @@ export class DebugOverlay {
     /** fired whenever collapsed/expanded is toggled (e.g. to hide the event-dump button while collapsed) */
     onCollapsedChange: ((collapsed: boolean) => void) | null = null;
 
+    /** the current full perf readout (what a click copies), for a diagnostics report */
+    get perfReport(): string {
+        return this.lastReport || this.lastHud || '';
+    }
+
     constructor(parent: HTMLElement, enabled = false) {
         this.el = document.createElement('div');
         this.el.className = 'mechili-debug';
@@ -379,6 +384,69 @@ export class DebugDumpButton {
     }
 
     /** hides the button while the perf overlay is collapsed (see DebugOverlay.onCollapsedChange) */
+    setVisible(visible: boolean): void {
+        this.el.style.display = visible ? '' : 'none';
+    }
+
+    destroy(): void {
+        this.el.remove();
+    }
+}
+
+/**
+ * "send report" — docked above the event-dump button while the debug overlay is open, on
+ * every client (not just the host): sends a full diagnostics report of this client's state
+ * to the backend (diagnostics.ts) and says whether it arrived.
+ */
+export class SendReportButton {
+    readonly el: HTMLDivElement;
+    private busy = false;
+
+    constructor(
+        parent: HTMLElement,
+        private readonly send: () => Promise<boolean>,
+    ) {
+        this.el = document.createElement('div');
+        this.el.className = 'mechili-debug-report';
+        this.el.textContent = 'send report';
+        this.el.title = 'Send everything this client knows about the match to the developer';
+        this.el.style.cssText = [
+            'position:absolute',
+            'left:12px',
+            'bottom:44px',
+            'z-index:50',
+            'pointer-events:auto',
+            'cursor:pointer',
+            'padding:4px 8px',
+            'border-radius:6px',
+            'background:rgba(8,12,6,0.72)',
+            'border:1px solid rgba(168,216,120,0.35)',
+            'color:' + THEME.ui.debug,
+            'font:12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace',
+            'user-select:none',
+        ].join(';');
+        this.el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            void this.run();
+        });
+        this.el.addEventListener('pointerdown', (e) => e.stopPropagation());
+        parent.appendChild(this.el);
+    }
+
+    private async run(): Promise<void> {
+        if (this.busy) return;
+        this.busy = true;
+        this.el.textContent = 'sending…';
+        const ok = await this.send().catch(() => false);
+        this.el.textContent = ok ? 'report sent' : 'report failed';
+        this.el.style.borderColor = ok ? 'rgba(220,255,160,0.95)' : 'rgba(255,140,120,0.95)';
+        setTimeout(() => {
+            this.el.style.borderColor = 'rgba(168,216,120,0.35)';
+            this.el.textContent = 'send report';
+            this.busy = false;
+        }, 2000);
+    }
+
     setVisible(visible: boolean): void {
         this.el.style.display = visible ? '' : 'none';
     }

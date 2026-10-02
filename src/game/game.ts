@@ -158,6 +158,7 @@ import {
     type GroundEffectsQuality,
     type SceneryQuality,
     type ShadowQuality,
+    hardwareProbe,
 } from './prefs';
 import { PostFx } from './postFx';
 import { Particles, ProjectileRenderer, StuckBoltRenderer, StoneChipRenderer } from './effects';
@@ -288,7 +289,7 @@ import {
     type Unit,
     type UnitType,
 } from './units';
-import { DebugOverlay, DebugDumpButton, CpuSampler } from '../ui/debug';
+import { DebugOverlay, DebugDumpButton, SendReportButton, CpuSampler } from '../ui/debug';
 import { DebugLog } from './debugLog';
 import {
     canonicalClassicSeats,
@@ -784,6 +785,7 @@ export class Game {
 
     /** host-only: click/dblclick-to-copy button for debugLog's aggregated dump */
     private debugDumpButton: DebugDumpButton | null = null;
+    private sendReportButton: SendReportButton | null = null;
     /** stops the spectate-endpoint discovery heartbeat (see startSpectatorHub) */
     private spectateRegistration: SpectateRegistration | null = null;
     /** our open SpectatorHub's peer id, kept so the transport-level room ad
@@ -1197,9 +1199,9 @@ export class Game {
      * Each of those used to be wired separately, and two of them forgot it.
      */
     private syncDebugDumpButton(): void {
-        this.debugDumpButton?.setVisible(
-            debugEnabled() && !this.debug.isCollapsed && !this.hud.isUiHidden,
-        );
+        const show = debugEnabled() && !this.debug.isCollapsed && !this.hud.isUiHidden;
+        this.debugDumpButton?.setVisible(show);
+        this.sendReportButton?.setVisible(show);
     }
 
     /** Cinema footer: `Shift+C — 1/11 Spring morning` (same scene text as the debug overlay). */
@@ -2432,9 +2434,10 @@ export class Game {
         this.debug = new DebugOverlay(wrapper, debugEnabled());
         if (this.debugLog.enabled && this.debugLog.isHost) {
             this.debugDumpButton = new DebugDumpButton(wrapper, (opts) => this.debugLog.dump(opts));
-            this.syncDebugDumpButton();
-            this.debug.onCollapsedChange = () => this.syncDebugDumpButton();
         }
+        if (debugEnabled()) this.sendReportButton = new SendReportButton(wrapper, () => this.sendManualReport());
+        this.syncDebugDumpButton();
+        this.debug.onCollapsedChange = () => this.syncDebugDumpButton();
         pixiApp.stage.addChild(this.hpBars.view);
         // the pips are HTML: they belong on the screen's rim, where the HUD
         // would cover a canvas sprite — their own layer sits over it
@@ -3180,6 +3183,7 @@ export class Game {
         clearScreenShake();
         this.debug.destroy();
         this.debugDumpButton?.destroy();
+        this.sendReportButton?.destroy();
         this.scene.overrideMaterial = null;
         this.clayOverride.dispose();
         this.wireOverride.dispose();
@@ -6770,6 +6774,63 @@ export class Game {
             `${this.settings.seed}:${this.round}:${side}`,
             { seed: this.settings.seed, round: this.round, role: side, name: this.playerNames.local },
             { ...extra, hashParts: parts, events: this.debugLog.history() },
+        );
+    }
+
+    /**
+     * Debug overlay "send report": everything this client knows, for a problem nobody can
+     * reproduce on demand. Rare and deliberate, so big is fine — the whole match's actions
+     * and debug events (plus every client's, on the host), the state hash sections, the
+     * resolved stats, the settings, the render/perf readout, prefs and the machine.
+     */
+    private sendManualReport(): Promise<boolean> {
+        const role = this.star ? (this.star.role === 'host' ? 'host' : 'guest') : this.watching ? 'spectator' : 'local';
+        const safe = <T>(fn: () => T): T | string => {
+            try {
+                return fn();
+            } catch (e) {
+                return `unavailable: ${e instanceof Error ? e.message : String(e)}`;
+            }
+        };
+        const perfMemory = (performance as Performance & { memory?: Record<string, number> }).memory;
+        const data = {
+            phase: this.phase,
+            round: this.round,
+            matchOver: this.matchOver,
+            suspended: this.suspended,
+            watching: this.watching,
+            hashParts: safe(() => this.stateHashParts()),
+            replay: safe(() => this.exportReplay()),
+            events: this.debugLog.history(),
+            // the host aggregates every client's events (empty unless the debug overlay is on there)
+            hostDump: this.debugLog.isHost ? safe(() => this.debugLog.dump({ verbose: true })) : undefined,
+            actors: safe(() =>
+                (this.sim?.actors ?? []).map((a) => ({
+                    id: a.unit.id,
+                    type: a.unit.type.id,
+                    seat: a.unit.seat,
+                    level: a.unit.level,
+                    hp: a.hp,
+                    x: a.x,
+                    z: a.z,
+                    facing: a.facing,
+                    shieldHp: a.shieldHp,
+                })),
+            ),
+            perf: safe(() => this.debug.perfReport),
+            render: safe(() => ({ ...this.renderer.info.memory, ...this.renderer.info.render, programs: this.renderer.info.programs?.length })),
+            memory: perfMemory ? { used: perfMemory.usedJSHeapSize, total: perfMemory.totalJSHeapSize, limit: perfMemory.jsHeapSizeLimit } : undefined,
+            screen: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio },
+            prefs: safe(() => prefs()),
+            hardware: safe(() => hardwareProbe()),
+            url: location.href,
+            language: navigator.language,
+        };
+        return reportDiagnostic(
+            'manual',
+            `${Date.now()}`,
+            { seed: this.settings.seed, round: this.round, role, name: this.playerNames.local },
+            data,
         );
     }
 

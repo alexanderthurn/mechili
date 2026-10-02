@@ -9,7 +9,7 @@
  * Protocol (JSON, CORS open for submit):
  *   OPTIONS
  *       CORS preflight.
- *   POST ?action=submit   body: report JSON (diagnostics.ts)
+ *   POST ?action=submit   body: report JSON (diagnostics.ts; kind desync | error | manual)
  *       {"ok":true,"id":"..."}
  *   GET  ?action=list&key=<ADMIN_KEY>[&limit=<n>]
  *       Reports grouped by match, newest first (no event payloads).
@@ -22,7 +22,7 @@
 
 const DATA_DIR = __DIR__ . '/stats';
 const DIAG_DIR = DATA_DIR . '/diag';
-const MAX_BODY = 2_097_152; // 2 MiB
+const MAX_BODY = 8_388_608; // 8 MiB — a manual report carries the whole match
 const MAX_LIST = 300;
 /** oldest reports beyond this many are deleted on submit */
 const MAX_FILES = 3000;
