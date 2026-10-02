@@ -3,8 +3,8 @@
  * client sends what it saw to backend/diag.php, so a report no longer depends on someone
  * having the console open at the right moment.
  *
- * On while {@link diagnosticsEnabled}: a Steam playtest build (main.ts sets the mode) or the
- * debug overlay. Fire-and-forget, never throws, never blocks gameplay; throttled so a resync
+ * On while {@link diagnosticsEnabled}: currently always (DIAGNOSTICS_ALWAYS_ON); otherwise a
+ * Steam playtest build (main.ts sets the mode) or the debug overlay. Fire-and-forget, never throws, never blocks gameplay; throttled so a resync
  * loop cannot flood the server.
  */
 
@@ -20,8 +20,15 @@ export function setDiagnosticsMode(on: boolean): void {
     installErrorHooks();
 }
 
+/**
+ * For now on everywhere: playtesters (and the developer) kept forgetting to turn the debug
+ * overlay on before the match that went wrong. Set to false to go back to "playtest build or
+ * debug overlay" only.
+ */
+const DIAGNOSTICS_ALWAYS_ON = true;
+
 export function diagnosticsEnabled(): boolean {
-    return diagnosticsMode || debugEnabled();
+    return DIAGNOSTICS_ALWAYS_ON || diagnosticsMode || debugEnabled();
 }
 
 export function diagUrl(): string {
