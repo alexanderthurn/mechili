@@ -91,6 +91,11 @@ jobs:
           PY
           fi
 
+      # All-Inkl allows 10 FTP connections per user in total. Three branches pushed
+      # together used to open 3 × 10 and two deploys died with "530 maximum number of
+      # clients". 3 connections each leaves room for three deploys at once; a refused
+      # login (e.g. a fourth) waits and retries instead of failing. (A GitHub concurrency
+      # queue is no option: it keeps only one waiting run and cancels any older one.)
       - name: Deploy to FTP
         run: |
           sudo apt-get update && sudo apt-get install -y lftp
@@ -102,12 +107,13 @@ jobs:
           set ftp:ssl-allow no
           set ftp:passive-mode true
           set net:timeout 30
-          set net:max-retries 3
+          set net:max-retries 10
+          set net:reconnect-interval-base 15
           mkdir -p "/$folder"
 
           mirror -R "./dist/" "/$folder" \
             --delete \
-            --parallel=10 \
+            --parallel=3 \
             --exclude-glob .htaccess \
             --exclude-glob .htpasswd \
             --exclude-glob "stats/" \
