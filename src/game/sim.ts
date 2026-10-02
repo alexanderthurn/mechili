@@ -1078,6 +1078,16 @@ const GROUND_SWAT_CATCH = 0.28;
  * order and no randomness, so re-running it from the same deployment
  * produces the same battle.
  */
+/**
+ * Live terrain deformation during a battle (craters, acid pits, Earth Rise ridges, the
+ * Hammer's flatten). Off: the board keeps the relief it had at match start for the whole
+ * match — the scars stay as painted ground decals, the sim only ever reads the static
+ * board. A crater that changed every later path and shot was a large extra surface for
+ * two clients to drift apart (and for a resync to carry a stale grid), and a per-frame
+ * mesh cost, for a minor feature.
+ */
+export const LIVE_TERRAIN_DEFORMATION = false;
+
 export class BattleSim {
     private static readonly STEP = 1 / SIM_HZ;
 
@@ -3363,7 +3373,7 @@ export class BattleSim {
      */
     private digImpactCrater(x: number, z: number, radius: number, depth: number, rim: number, floor: number): void {
         const terrain = this.config.terrain;
-        if (!terrain || radius <= 0 || depth <= 0) return;
+        if (!LIVE_TERRAIN_DEFORMATION || !terrain || radius <= 0 || depth <= 0) return;
         terrain.impact(x, z, radius, depth, rim, floor, this.structureKeepOut(x, z, radius * (rim > 0 ? 1.5 : 1)));
     }
 
@@ -3374,7 +3384,7 @@ export class BattleSim {
      */
     private stepEarthRises(): void {
         const terrain = this.config.terrain;
-        if (!terrain || this.rises.length === 0) return;
+        if (!LIVE_TERRAIN_DEFORMATION || !terrain || this.rises.length === 0) return;
         for (const r of this.rises) {
             if (!r.started) {
                 if (this.elapsed < r.at) continue;
@@ -3396,6 +3406,10 @@ export class BattleSim {
     /** one sim step of every melt still under way (deterministic: fixed depth per step) */
     private stepAcidMelts(): void {
         const terrain = this.config.terrain;
+        if (!LIVE_TERRAIN_DEFORMATION) {
+            this.acidMelts.length = 0;
+            return;
+        }
         if (!terrain || this.acidMelts.length === 0) return;
         let write = 0;
         for (const m of this.acidMelts) {
@@ -3743,7 +3757,7 @@ export class BattleSim {
             const flattenY = this.sampleHammerFlattenY(s.x, s.z, halfWidth, halfDepth, yaw);
             // the ground under the hammer is pressed flat now, in this step —
             // from here on every unit walks and shoots on the flattened board
-            this.config.terrain?.flattenRect(s.x, s.z, halfWidth, halfDepth, yaw, flattenY);
+            if (LIVE_TERRAIN_DEFORMATION) this.config.terrain?.flattenRect(s.x, s.z, halfWidth, halfDepth, yaw, flattenY);
             this.events.push({ kind: 'hammerCrush', x: s.x, z: s.z, halfWidth, halfDepth, yaw, flattenY });
             // A building in the press no longer dies, so one can now outlive the
             // flatten — and the ground it stands on just moved. Hit volumes

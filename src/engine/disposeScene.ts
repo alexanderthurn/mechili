@@ -6,19 +6,23 @@ import { Material, Object3D, Texture } from 'three';
  * by duck-typing on geometry/material instead of instanceof Mesh.
  */
 export function disposeScene(root: Object3D): void {
+    // a shared asset (a cached model template's geometry / material / texture, tagged by
+    // markSharedAssets) belongs to the cache, not to this scene — the next match draws it again
+    const shared = (x: { userData?: Record<string, unknown> }) => x.userData?.sharedAsset === true;
     root.traverse((obj) => {
         const renderable = obj as Object3D & {
-            geometry?: { dispose(): void };
+            geometry?: { dispose(): void; userData?: Record<string, unknown> };
             material?: Material | Material[];
         };
-        renderable.geometry?.dispose();
+        if (renderable.geometry && !shared(renderable.geometry)) renderable.geometry.dispose();
         if (!renderable.material) return;
         const materials = Array.isArray(renderable.material)
             ? renderable.material
             : [renderable.material];
         for (const material of materials) {
+            if (shared(material)) continue;
             for (const value of Object.values(material) as unknown[]) {
-                if (value instanceof Texture) value.dispose();
+                if (value instanceof Texture && !shared(value)) value.dispose();
             }
             material.dispose();
         }

@@ -55,8 +55,31 @@ function downscale(tex: Texture, maxSize: number): void {
     img.close?.();
 }
 
-/** Shrinks every texture under `root` to the budget. Call before cloning. */
+/**
+ * Marks a cached template's geometry, materials and textures as shared: they outlive any one
+ * match (every clone of the template points at them), so a match tearing down its scene must
+ * leave them alone — see disposeScene. Disposing them freed the GPU copies the next match
+ * (a resync rebuild, a rematch) still drew from: shop thumbnails rendered blank white.
+ */
+export function markSharedAssets(root: Object3D): void {
+    root.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry.userData.sharedAsset = true;
+        const mats: (Material | null)[] = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const m of mats) {
+            if (!m) continue;
+            m.userData.sharedAsset = true;
+            for (const value of Object.values(m) as unknown[]) {
+                if (value && (value as Texture).isTexture) (value as Texture).userData.sharedAsset = true;
+            }
+        }
+    });
+}
+
+/** Shrinks every texture under `root` to the budget (and marks it all shared). Call before cloning. */
 export function applyTextureBudget(root: Object3D, maxSize: number): void {
+    markSharedAssets(root);
     const seen = new Set<Texture>();
     root.traverse((o) => {
         const mesh = o as Mesh;

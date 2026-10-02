@@ -308,6 +308,7 @@ import { HpBars } from '../ui/hpBars';
 import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
 import type { YearProgress } from '../ui/yearTally';
 import { renderAllUnitIcons } from '../ui/unitIcons';
+import { reportDiagnostic } from './diagnostics';
 import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
@@ -421,7 +422,7 @@ const CHEAT_TACTIC_GRANTS = [
     'acidSpill',
     'fireSpill',
     'dragonAttack',
-    'earthRise',
+    // 'earthRise' — off with live terrain deformation (sim.ts LIVE_TERRAIN_DEFORMATION)
 ] as const;
 /** max charges of each {@link CHEAT_TACTIC_GRANTS} id after a Shift+U press */
 const CHEAT_TACTIC_COPIES = 1;
@@ -4473,6 +4474,7 @@ export class Game {
                 mismatched,
                 hashes: Object.fromEntries(hashes),
             });
+            this.reportDesync('host', { mismatched, hashes: Object.fromEntries(hashes) });
             const names = mismatched.map((s) => this.seats[s]?.name).filter((n): n is string => !!n);
             if (names.length > 0) {
                 this.announceSystem(t('hud:noticeResyncing', { names: names.join(', ') }), names.join(', '));
@@ -6753,6 +6755,24 @@ export class Game {
         return def.side * 1000 + within;
     }
 
+    /**
+     * Diagnostics: send this client's view of a desync to the backend — the hash
+     * sections now and every debug event of the match so far (battle starts with
+     * their units and stats, hydrations, star sync events). Every side reports its
+     * own, the server files them under the same match, so the first section that
+     * differs between them names where the games drifted apart.
+     */
+    private reportDesync(side: 'host' | 'guest', extra: Record<string, unknown>): void {
+        if (this.disposed) return;
+        const parts = this.stateHashParts();
+        reportDiagnostic(
+            'desync',
+            `${this.settings.seed}:${this.round}:${side}`,
+            { seed: this.settings.seed, round: this.round, role: side, name: this.playerNames.local },
+            { ...extra, hashParts: parts, events: this.debugLog.history() },
+        );
+    }
+
     /** canonical state fingerprint, exchanged at battle start to catch desyncs */
     private stateHash(): number {
         return this.stateHashParts().total;
@@ -7279,6 +7299,7 @@ export class Game {
             // as-is by the replacement Game; the 'ready' ack is sent by
             // that replacement's own constructor once it's built.
             if (star.role === 'guest') {
+                this.reportDesync('guest', { reason: 'resync' });
                 this.onNeedsFullResync?.(star.session, msg);
             }
         } else if (msg.type === 'roster' && !isHost) {

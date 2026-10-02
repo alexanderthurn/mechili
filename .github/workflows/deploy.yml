@@ -80,7 +80,7 @@ jobs:
           key = os.environ['ADMIN_KEY'].replace('\\', '\\\\').replace("'", "\\'")
           needle = "const ADMIN_KEY = '__ADMIN_KEY__';"
           repl = f"const ADMIN_KEY = '{key}';"
-          for path in ('dist/backend/suggest.php',):
+          for path in ('dist/backend/suggest.php', 'dist/backend/diag.php'):
               src = open(path).read()
               if needle not in src:
                   raise SystemExit(f'placeholder not found in {path}')

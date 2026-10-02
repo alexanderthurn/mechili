@@ -1,3 +1,4 @@
+import { setDiagnosticsMode } from './game/diagnostics';
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import { retryFailedUnitModels } from './game/unitModels';
 import type { LoggedAction } from './game/actions';
@@ -754,6 +755,8 @@ async function refreshVersionLabel(): Promise<void> {
     // ?playtest=1 forces the badge on without a Steam playtest install — the
     // only way to eyeball the layout from `npm run dev`.
     if (new URLSearchParams(location.search).get('playtest') === '1') isPlaytest = true;
+    // a playtest reports desyncs and errors to the backend (so does the debug overlay)
+    setDiagnosticsMode(isPlaytest);
     showPlaytestBadge();
     const transport = onSteam ? 'Steam' : 'PeerJS';
     const net = navigator.onLine ? 'Online' : 'Offline';

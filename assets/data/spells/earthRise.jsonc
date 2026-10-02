@@ -9,7 +9,8 @@
     "maxSpan": 64, // a long line, longer than the other capsules
     // no safe zone needed: the ridge leaves buildings alone by itself, and it blocks nobody from walking
     "respectsSafeZone": false,
-    "vanguardCost": 250, // sold at the Vanguard (Command Tower) to every commander, once per match
+    // not sold while live terrain deformation is off (sim.ts LIVE_TERRAIN_DEFORMATION) — a ridge
+    // that never rises would be a spell that does nothing; was "vanguardCost": 250
     "spell": {
         "delaySeconds": 2,
         // A thin, steep ridge: high enough to read as a wall and break up a charge, low enough

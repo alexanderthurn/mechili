@@ -12,11 +12,15 @@
  * chronological, copy-paste-friendly text blob via a console-exposed
  * function (see game.ts's `window.mechiliDebugDump`).
  *
- * Entirely inert unless `?debug` is in the URL (same flag as the existing
- * performance overlay, `src/ui/debug.ts`) — no wire traffic, no bookkeeping,
- * `log()` degenerates to nothing beyond what was already true before this
- * bus existed.
+ * The cross-client bus is inert unless the debug overlay is on (`?debug` or
+ * the setting) — no wire traffic, no aggregation. Printing follows the same
+ * switch (the per-round actor arrays bloated every console otherwise). While
+ * diagnostics are on (diagnostics.ts) each client also keeps its own events
+ * for the whole match, which a desync report sends to the backend.
  */
+
+import { diagnosticsEnabled } from './diagnostics';
+import { debugEnabled } from './prefs';
 
 const CLIENT_STORAGE_KEY = 'mechili-debug-client';
 const MAX_EVENTS_PER_CLIENT = 5000;
@@ -66,6 +70,8 @@ export class DebugLog {
     private readonly pending: DebugEvent[] = [];
     /** host-only: every client's own capped event history, keyed by clientId */
     private readonly byClient = new Map<string, DebugEvent[]>();
+    /** this client's own events for the whole match (capped), kept while diagnostics are on */
+    private readonly own: DebugEvent[] = [];
     onThresholdReached: (() => void) | null = null;
 
     constructor(
@@ -82,8 +88,9 @@ export class DebugLog {
 
     /** Always logs locally; queues (or ingests, if host) when enabled. */
     log(category: string, data?: unknown): void {
-        console.info(`[${category}]`, data !== undefined ? JSON.stringify(data) : '');
-        if (!this.enabled) return;
+        if (debugEnabled()) console.info(`[${category}]`, data !== undefined ? JSON.stringify(data) : '');
+        const keep = diagnosticsEnabled();
+        if (!this.enabled && !keep) return;
         this.seq++;
         saveClientIdentity(this.clientId, this.seq);
         const event: DebugEvent = {
@@ -95,12 +102,22 @@ export class DebugLog {
             category,
             data,
         };
+        if (keep) {
+            this.own.push(event);
+            if (this.own.length > MAX_EVENTS_PER_CLIENT) this.own.splice(0, this.own.length - MAX_EVENTS_PER_CLIENT);
+        }
+        if (!this.enabled) return;
         if (this.isHost) {
             this.ingest([event]);
         } else {
             this.pending.push(event);
             if (this.pending.length >= FLUSH_THRESHOLD) this.onThresholdReached?.();
         }
+    }
+
+    /** this client's own events of the match so far (oldest first), for a diagnostics report */
+    history(): DebugEvent[] {
+        return this.own.slice();
     }
 
     /** Non-host only: called by game.ts's flush tick to grab (and clear) whatever's pending. */
