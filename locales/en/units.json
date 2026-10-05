@@ -35,6 +35,9 @@
   "archer": {
     "name": "Archer"
   },
+  "crossbowman": {
+    "name": "Crossbowman"
+  },
   "wizard": {
     "name": "Wizard"
   },

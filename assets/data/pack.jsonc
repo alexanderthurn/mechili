@@ -43,6 +43,8 @@
         "brazenBull",
         "hordeKnight",
         "hordeFarmerAlive",
+        // archer model + stats as placeholders; voices and names are in place
+        "crossbowman",
     ],
     // Base buildings, in construction / preload order.
     // tent: The Year attacker only (no baseAnchor — spawned in game.ts).

@@ -1,0 +1,80 @@
+{
+    // Placeholder: archer model and archer stats until the crossbow gets its own model and tuning.
+    "id": "crossbowman",
+    "name": "Crossbowman",
+    "cost": 100,
+    "unlockCost": 0,
+    "footprint": { "cols": 2, "rows": 2 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 2.2,
+    "burn": { "takenMult": 1.1 },
+    "targets": { "ground": true, "air": true },
+    "collisionRadius": 1.0,
+    "soundSize": "medium",
+    "colliders": [{ "y": 1.1, "r": 0.75 }],
+    "projectileSpeed": 100,
+    "projectileStyle": "arrow",
+    "projectileBallistic": true,
+    "projectileLaunchHeightFrac": 0.75,
+    "hp": 130,
+    "damage": 65,
+    "range": 45,
+    "attackInterval": 1.4,
+    "speed": 3.5,
+    "turnRate": 6,
+    "modelId": "archer",
+    "proceduralModel": "archer",
+    "talents": [
+        "barrel",
+        "ap",
+        "fireArrows",
+        "empArrows",
+        "powerDraw",
+        "skyhunt",
+        "veteranAim",
+        "doubleShot",
+    ],
+    "talentSlots": 4,
+    "itemSlots": 2,
+    "voice": {
+        "externalIds": [
+            {
+                "type": "e",
+                "id": "BJuCySi6d5IQdcYu1UBN",
+                // deadpan hired gun — the archer's opposite: no swagger, all mechanism
+                "prompt": "A gruff, deadpan middle-aged male mercenary crossbowman. Low gravelly baritone, dry and unhurried, working-class and thoroughly unimpressed — a craftsman who trusts gears and steel, not talent. Few words, flat delivery, a hint of tired humour. Never snobby, never booming, never squeaky. Perfect audio quality.",
+            },
+        ],
+        // German takes (audio/de/): same order as below
+        // pick: Geladen. · Ich kurbel. · Bolzen drin. · Zielen. Klick. · Wer braucht 'nen Bogen? · Spanne schon. ·
+        //       Entsichert. · Bezahlt pro Bolzen. · Bögen sind für Dichter. · Ein Bolzen, ein Problem. · Stahlsehne, Stahlnerven.
+        // pickRival: Finger weg von der Kurbel. · Nicht im Vertrag. · Falscher Abzug.
+        // death: Klemmt…! · Hätt'… nachladen… sollen…
+        // hurt: Ugh! · Hngh! · Au! · Agh! · Uff! · Tch!
+        "lines": {
+            // select acks — crank, bolt, contract; one take each
+            "pick": [
+                "Loaded.",
+                "Cranking.",
+                "Bolt's in.",
+                "Point. Click.",
+                "Who needs a bow?",
+                "Winding up.",
+                "Safety's off.",
+                "Paid by the bolt.",
+                "Bows are for poets.",
+                "One quarrel, one problem.",
+                "Steel string, steel nerves.",
+            ],
+            // dry brush-off when a rival clicks
+            "pickRival": [
+                "Hands off the crank.",
+                "Not on contract.",
+                "Wrong trigger.",
+            ],
+            "death": ["Jammed…!", "Should've… reloaded…"],
+            // hit flinch — one syllable each
+            "hurt": ["Ugh!", "Hngh!", "Ow!", "Agh!", "Oof!", "Tch!"],
+        },
+    },
+}

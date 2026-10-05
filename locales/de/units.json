@@ -26,6 +26,9 @@
   "archer": {
     "name": "Bogenschütze"
   },
+  "crossbowman": {
+    "name": "Armbrustschütze"
+  },
   "wizard": {
     "name": "Zauberer"
   },
