@@ -4364,10 +4364,11 @@ export class BattleSim {
         }
 
         // summon entrance (render-only): ground mechs rise out of the soil,
-        // flyers dive in from high above — eased over the first moments
+        // flyers dive in from high above — eased over the first moments; the
+        // continuous render clock keeps it smooth between sim steps
         if (a.appearAt > 0 && a.appeared) {
             const dur = a.altitude > 0 ? SUMMON_DIVE_SECONDS : SUMMON_RISE_SECONDS;
-            const t = (this.elapsed - a.appearAt) / dur;
+            const t = (this.renderElapsed - a.appearAt) / dur;
             if (t >= 0 && t < 1) {
                 const ease = 1 - (1 - t) * (1 - t); // fast start, soft landing
                 if (a.altitude === 0) {
