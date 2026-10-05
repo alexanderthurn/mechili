@@ -24,7 +24,7 @@ export type VignetteQuality = 'off' | 'high' | 'ultra';
 /** Selective bloom on bright emissives / fire (post-process; visual only). */
 export type BloomQuality = 'off' | 'high' | 'ultra';
 /** Screen-space AO — grounds units/buildings on the board (visual only). */
-export type AoQuality = 'off' | 'medium' | 'high' | 'ultra';
+export type AoQuality = 'off' | 'low' | 'medium' | 'high' | 'ultra';
 
 /**
  * Fire VFX tiers (for tuning):
@@ -254,7 +254,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         bloom: 'off',
         ao: 'off',
     },
-    // with the cinematic post (vignette / bloom / half-res AO)
+    // with the cinematic post (vignette / bloom / quarter-res AO)
     high: {
         scenery: 'high',
         groundEffects: 'high',
@@ -267,8 +267,8 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsPresetValues> = {
         antialias: true,
         vignette: 'high',
         bloom: 'high',
-        // half-resolution AO: the grounding without the full-res pass cost
-        ao: 'medium',
+        // quarter-resolution AO: grounding at a fraction of the medium cost
+        ao: 'low',
     },
     ultra: {
         scenery: 'ultra',
@@ -422,8 +422,7 @@ function migrateBloom(raw: unknown): BloomQuality {
 }
 
 function migrateAo(raw: unknown): AoQuality {
-    if (raw === 'off' || raw === 'medium' || raw === 'high' || raw === 'ultra') return raw;
-    if (raw === 'low') return 'medium';
+    if (raw === 'off' || raw === 'low' || raw === 'medium' || raw === 'high' || raw === 'ultra') return raw;
     return DEFAULTS.ao;
 }
 
@@ -486,7 +485,7 @@ function normalizePrefs(p: Prefs & { unitShadows?: unknown }): Prefs {
     if (p.bloom !== 'off' && p.bloom !== 'high' && p.bloom !== 'ultra') {
         p.bloom = DEFAULTS.bloom;
     }
-    if (p.ao !== 'off' && p.ao !== 'medium' && p.ao !== 'high' && p.ao !== 'ultra') {
+    if (p.ao !== 'off' && p.ao !== 'low' && p.ao !== 'medium' && p.ao !== 'high' && p.ao !== 'ultra') {
         p.ao = DEFAULTS.ao;
     }
     if (typeof p.mobileTuned !== 'boolean') p.mobileTuned = false;
@@ -741,7 +740,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     antialias: asBool,
     vignette: asWord(['off', 'high', 'ultra']),
     bloom: asWord(['off', 'high', 'ultra']),
-    ao: asWord(['off', 'medium', 'high', 'ultra']),
+    ao: asWord(['off', 'low', 'medium', 'high', 'ultra']),
     transportChosen: asBool,
     mobileTuned: asBool,
     renderScale: asNearest([1, 0.75, 0.5, 0.33]),

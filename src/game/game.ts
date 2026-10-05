@@ -127,6 +127,7 @@ import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { audio, playMatchMusic, setUnitTypes as setAudioUnitTypes } from './audio';
 import { videoRecorder } from './videoRecorder';
+import { runBenchmark, type BenchmarkOptions } from './perfBenchmark';
 import { CloudFx, type CloudCue } from './cloudFx';
 import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
@@ -1075,7 +1076,7 @@ export class Game {
             return;
         }
         if (e.code === 'KeyO' && e.shiftKey) {
-            // Shift+O cycles ambient occlusion: off → medium → high → ultra
+            // Shift+O cycles ambient occlusion: off → low → medium → high → ultra
             // (not Shift+A — A is camera strafe)
             this.cycleAoQuality();
             return;
@@ -1225,7 +1226,7 @@ export class Game {
 
     /** Shift+O: live A/B ambient occlusion tiers. */
     private cycleAoQuality(): void {
-        const order = ['off', 'medium', 'high', 'ultra'] as const;
+        const order = ['off', 'low', 'medium', 'high', 'ultra'] as const;
         const i = Math.max(0, order.indexOf(prefs().ao));
         const next = order[(i + 1) % order.length]!;
         updatePrefs({ ao: next });
@@ -1483,6 +1484,9 @@ export class Game {
         }
         // always available: read-only look at this round's horde camps
         (window as unknown as { mechiliHorde?: () => unknown }).mechiliHorde = () => this.hordeDebugInfo();
+        // console-callable graphics benchmark: mechiliBenchmark() or mechiliBenchmark({ stepMs: 3000 })
+        (window as unknown as { mechiliBenchmark?: (opts?: BenchmarkOptions) => Promise<unknown> }).mechiliBenchmark =
+            (opts) => runBenchmark(opts);
         this.settings = normalizeGameSettings(settingsInput);
         // combat SFX read unit sound sizes from the definitions this match plays
         setAudioUnitTypes(this.types);

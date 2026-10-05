@@ -62,14 +62,17 @@ const BLOOM_SNOW_STRENGTH_SCALE = 0.7;
  * Mild GTAO — small radius so grass stays clean; scale/blend lift unit contact.
  *
  * `resScale` sizes the AO buffers as a fraction of the frame. AO is
- * low-frequency, so half resolution is close to invisible while cutting the AO
- * pixels to a quarter — that is what makes `medium` cheap enough to be the high
- * preset's tier. It does NOT reduce GTAOPass's normal pre-pass, which re-renders
- * the scene every frame and is the bigger cost; fixing that needs a shared
- * depth/normal prepass.
+ * low-frequency, so reduced resolution is close to invisible while cutting the
+ * AO fill cost dramatically. GTAOPass.setSize also shrinks its normal/depth
+ * target, so the pre-pass gets cheaper per pixel too — but it still re-renders
+ * the whole scene every frame (draw calls + vertices); removing that needs a
+ * shared depth/normal prepass.
  *
- * `high` and `ultra` keep their original full-resolution params so the cheaper
- * tier can be compared against them directly (Shift+O).
+ * Tier ladder (each step roughly doubles cost):
+ *   low   → 0.25× res,  4 GTAO / 4 denoise samples (high preset default)
+ *   medium → 0.5× res,  8 / 8
+ *   high   → 1× res,   12 / 10
+ *   ultra  → 1× res,   16 / 12, wider radius + stronger blend
  */
 const AO: Record<
     Exclude<AoQuality, 'off'>,
@@ -86,6 +89,16 @@ const AO: Record<
         pdSamples: number;
     }
 > = {
+    low: {
+        radius: 0.2,
+        scale: 0.65,
+        samples: 4,
+        blendIntensity: 0.5,
+        thickness: 1.0,
+        resScale: 0.25,
+        pdRadius: 4,
+        pdSamples: 4,
+    },
     medium: {
         radius: 0.2,
         scale: 0.75,
