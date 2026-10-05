@@ -6,12 +6,13 @@
  *     mechiliBenchmark({ stepMs: 8000, warmupMs: 2000 })
  *
  * The benchmark:
+ *   0. Freezes the match (solo pause without the menu: no sim, no camera).
  *   1. Saves the player's current settings.
  *   2. Applies a BASELINE (everything off / minimal).
  *   3. Toggles individual features one at a time (to their low + max tier)
  *      against that baseline so each row isolates ONE setting's cost.
  *   4. Runs the five presets (minimal → ultra) as full-stack tests.
- *   5. Restores the player's original settings.
+ *   5. Restores the player's original settings and unfreezes.
  *
  * For each step it measures frames via `requestAnimationFrame`, discards a
  * warmup window (GPU shader compile / pass rebuild), then reports avg / min /
@@ -36,6 +37,9 @@ export interface BenchmarkOptions {
     stepMs?: number;
     /** Warmup window at the start of each step, excluded from stats (default 1 000 ms). */
     warmupMs?: number;
+    /** Freezes / resumes the match around the run so every step draws the
+     *  same frame (wired by Game; solo only). */
+    hold?: (on: boolean) => void;
 }
 
 export interface BenchmarkResult {
@@ -246,6 +250,7 @@ export async function runBenchmark(opts: BenchmarkOptions = {}): Promise<Benchma
         return result;
     }
 
+    opts.hold?.(true);
     try {
         // ── 1. Baseline ────────────────────────────────────────────
         await runStep('BASELINE (all off)', BASELINE, 'everything off');
@@ -263,6 +268,7 @@ export async function runBenchmark(opts: BenchmarkOptions = {}): Promise<Benchma
     } finally {
         // ── 4. Restore original settings ───────────────────────────
         updatePrefs(saved);
+        opts.hold?.(false);
         console.info('  ✓ original settings restored');
     }
 

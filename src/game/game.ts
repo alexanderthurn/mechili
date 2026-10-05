@@ -1334,8 +1334,12 @@ export class Game {
      * Multiplayer and live spectate keep running — peers / host timers don't wait.
      */
     private get soloPaused(): boolean {
-        return !this.star && !this.watching && this.hud.isPauseMenuOpen();
+        return !this.star && !this.watching && (this.hud.isPauseMenuOpen() || this.benchmarkHold);
     }
+
+    /** mechiliBenchmark() freezes a solo match like the pause menu, minus the
+     *  menu, so every step draws the same frame. Ignored in multiplayer. */
+    private benchmarkHold = false;
 
     private readonly onWindowResize = () => this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
     private readonly wrapper: HTMLElement;
@@ -1486,7 +1490,15 @@ export class Game {
         (window as unknown as { mechiliHorde?: () => unknown }).mechiliHorde = () => this.hordeDebugInfo();
         // console-callable graphics benchmark: mechiliBenchmark() or mechiliBenchmark({ stepMs: 3000 })
         (window as unknown as { mechiliBenchmark?: (opts?: BenchmarkOptions) => Promise<unknown> }).mechiliBenchmark =
-            (opts) => runBenchmark(opts);
+            (opts) => {
+                if (this.star) console.warn('mechiliBenchmark: multiplayer match keeps running — numbers drift with the battle');
+                return runBenchmark({
+                    ...opts,
+                    hold: (on) => {
+                        this.benchmarkHold = on;
+                    },
+                });
+            };
         this.settings = normalizeGameSettings(settingsInput);
         // combat SFX read unit sound sizes from the definitions this match plays
         setAudioUnitTypes(this.types);
