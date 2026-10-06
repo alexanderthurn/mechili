@@ -14,7 +14,7 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -1643,7 +1643,9 @@ export class BattleMap {
         } = opts;
         const profile = groundMaterialProfile();
         const useDetail = detail && profile.detailStrength > 0;
-        const bomb = useDetail && profile.textureBomb;
+        // hex tiling replaces the bombing patches (same job, done properly)
+        const hex = detail && profile.hexTile;
+        const bomb = useDetail && profile.textureBomb && !hex;
         const useCloseTile = detail && profile.closeRepeat > 1.01;
         const richHazards = profile.tier === 'high' || profile.tier === 'ultra';
         material.onBeforeCompile = (shader) => {
@@ -1664,6 +1666,8 @@ export class BattleMap {
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
             }
             bindCloseTileUniforms(shader.uniforms as Record<string, { value: unknown }>, profile);
+            // the board's lawn UV is the hex grid's reference (the meadow shifts onto it)
+            if (hex) shader.uniforms.uHexShift = { value: new Vector2(0, 0) };
             shader.vertexShader =
                 'varying vec2 vMacroUv;\nvarying vec2 vBoardXZ;\n' +
                 shader.vertexShader.replace(
@@ -1684,6 +1688,7 @@ export class BattleMap {
                 'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uFireCharcoalGround;\nuniform float uFireLive;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n' +
                 closeTileUniformDecls(profile);
             if (richHazards) extraUniforms += HAZARD_NOISE_GLSL;
+            if (hex) extraUniforms += HEX_TILE_UNIFORM_DECL + HEX_TILE_FNS;
             // Footstep strength for oil/acid disturbance (set when wear mask is present).
             inject += '\tfloat footWear = 0.0;\n';
             // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
@@ -1711,7 +1716,7 @@ export class BattleMap {
                 '}\n';
             // Closer camera → finer grass tile (blades stop looking human-sized).
             if (useCloseTile) {
-                inject += closeTileInjectGlsl(profile);
+                inject += closeTileInjectGlsl(profile, hex);
             } else {
                 inject += closeTileWeightFallbackGlsl(profile);
             }
@@ -1722,7 +1727,12 @@ export class BattleMap {
                         useCloseTile ? closeTileSampleGlsl(profile, uv) : `texture2D( map, ${uv} ).rgb`,
                     );
                 }
-                if (useCloseTile) {
+                const detailUv = useCloseTile ? 'mix( vMapUv, closeUv, closeW )' : 'vMapUv';
+                if (hex) {
+                    inject +=
+                        `\tvec3 detailAlb = hexTileRGB( map, ( ${detailUv} + uHexShift ) * uDetailScale );\n` +
+                        '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
+                } else if (useCloseTile) {
                     inject +=
                         '\tvec3 detailAlb = texture2D(map, mix( vMapUv, closeUv, closeW ) * uDetailScale).rgb;\n' +
                         '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
@@ -1900,21 +1910,31 @@ export class BattleMap {
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 extraUniforms +
                 (photoGrass ? softBlobFn : '') +
-                shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>\n${inject}`);
+                shader.fragmentShader.replace(
+                    '#include <map_fragment>',
+                    `${hex ? HEX_MAP_FRAGMENT_GLSL : '#include <map_fragment>'}\n${inject}`,
+                );
             if (useDetail && material.normalMap) {
                 // Micro normals in the same space as the already-perturbed map
                 // (cheap UDN-style). Avoids perturbNormalArb — removed/changed in r185.
+                const detailNRead = hex
+                    ? 'hexTileNormal( normalMap, ( vMapUv + uHexShift ) * uDetailScale )'
+                    : 'texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0';
+                const closeNRead = hex
+                    ? 'hexTileNormal( normalMap, ( vMapUv + uHexShift ) * uCloseRepeat )'
+                    : 'texture2D( normalMap, vMapUv * uCloseRepeat ).xyz * 2.0 - 1.0';
                 let normalInject = `#include <normal_fragment_maps>
-\tvec3 detailN = texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0;
+\tvec3 detailN = ${detailNRead};
 \tdetailN.xy *= uDetailStrength;
 \tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`;
                 if (useCloseTile) {
                     normalInject += `
-\tvec3 closeN = texture2D( normalMap, vMapUv * uCloseRepeat ).xyz * 2.0 - 1.0;
+\tvec3 closeN = ${closeNRead};
 \tnormal = normalize( mix( normal, closeN, closeW ) );`;
                 }
                 frag = frag.replace('#include <normal_fragment_maps>', normalInject);
             }
+            if (hex) frag = frag.replace('#include <normal_fragment_maps>', hexNormalFragmentMapsGlsl());
             if (profile.roughnessFromAlbedo && detail) {
                 frag = frag.replace(
                     '#include <roughnessmap_fragment>',
@@ -1933,7 +1953,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v68${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}-gs${
+            `ground-hazard-v68${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}${hex ? '-hex' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones7' : ''}`;
     }

@@ -4,6 +4,7 @@
  * prefs so mobile low stays light and ultra gaming PCs get denser grass.
  */
 
+import { ShaderChunk } from 'three';
 import { detectGraphicsPreset, prefs, type GraphicsPreset } from './prefs';
 import { touchFirstDevice } from './inputCapabilities';
 
@@ -86,8 +87,10 @@ export interface GroundMaterialProfile {
      * look). Lower on high/ultra so HQ albedo/normals actually show.
      */
     macroStrength: number;
-    /** world-UV texture bombing to break wallpaper tiling (high/ultra) */
+    /** world-UV texture bombing to break wallpaper tiling (high/ultra; superseded by hexTile) */
     textureBomb: boolean;
+    /** hex tiling of the lawn ({@link HEX_TILE}) — no visible repeat grid */
+    hexTile: boolean;
     /**
      * Ground near the camera blends in a tighter UV repeat so grass blades
      * don't look human-sized up close. Per pixel, by distance to the camera,
@@ -115,6 +118,7 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 20,
         macroStrength: 1,
         textureBomb: false,
+        hexTile: false,
         closeRepeat: 1,
         closeNear: 30,
         closeFar: 85,
@@ -130,6 +134,7 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 18,
         macroStrength: 0.82,
         textureBomb: false,
+        hexTile: true,
         ...CLOSE_TILE,
     },
     high: {
@@ -144,6 +149,7 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 18,
         macroStrength: 0.72,
         textureBomb: true,
+        hexTile: true,
         ...CLOSE_TILE,
     },
     ultra: {
@@ -157,6 +163,7 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         detailTile: 16,
         macroStrength: 0.65,
         textureBomb: true,
+        hexTile: true,
         ...CLOSE_TILE,
     },
 };
@@ -198,6 +205,7 @@ export function groundDetailCacheKey(profile: GroundMaterialProfile): string {
     return `d${profile.detailScale.toFixed(1)}s${profile.detailStrength.toFixed(2)}r${
         profile.roughnessFromAlbedo ? 1 : 0
     }m${profile.macroStrength.toFixed(2)}b${profile.textureBomb ? 1 : 0}` +
+        (profile.hexTile ? `h${HEX_TILE.cellScale}-${HEX_TILE.rotation}-${HEX_TILE.contrast}-${HEX_TILE.normalSharpness}` : '') +
         `c${profile.closeRepeat.toFixed(1)}-${profile.closeNear}-${profile.closeFar}` +
         `pg${g.density}-${g.strength}-${g.uvScale}` +
         `rk${r.density}-${r.strength}-${r.worldScale}`;
@@ -214,14 +222,18 @@ export function groundDetailCacheKey(profile: GroundMaterialProfile): string {
  * and z as well — for both the normal and the fine tile, so a hillside shows
  * the same blade size as flat ground.
  */
-export function closeTileInjectGlsl(profile: GroundMaterialProfile): string {
+export function closeTileInjectGlsl(profile: GroundMaterialProfile, hex = false): string {
     if (profile.closeRepeat <= 1.01) return '';
+    const closeSample = hex
+        ? 'hexTileRGB( map, ( vMapUv + uHexShift ) * uCloseRepeat )'
+        : 'texture2D( map, closeUv ).rgb';
+    const planarSample = hex ? 'hexTileRGB( map, vMapUv + uHexShift )' : 'texture2D( map, vMapUv ).rgb';
     return `
 	float closeW = 1.0 - smoothstep( uCloseNear, uCloseFar, distance( cameraPosition, vCloseWorld ) );
 	vec3 closeWorldN = normalize( transformDirectionByInverseViewMatrix( normalize( vNormal ), viewMatrix ) );
 	float steepT = smoothstep( 0.06, 0.22, 1.0 - abs( closeWorldN.y ) );
 	vec2 closeUv = vMapUv * uCloseRepeat;
-	vec3 closeAlb = texture2D( map, closeUv ).rgb;
+	vec3 closeAlb = ${closeSample};
 	// derivatives and texture reads stay outside any branch: inside one the GPU's
 	// mip level (and dFdx) is undefined and neighbouring pixel blocks disagree
 	// lawn UV per world unit along x and z (the UV is a planar xz projection)
@@ -232,7 +244,7 @@ export function closeTileInjectGlsl(profile: GroundMaterialProfile): string {
 	tw /= max( tw.x + tw.y + tw.z, 1e-4 );
 	vec2 uvX = vec2( vCloseWorld.z, vCloseWorld.y ) * closeK;
 	vec2 uvZ = vec2( vCloseWorld.x, vCloseWorld.y ) * closeK;
-	vec3 planar = texture2D( map, vMapUv ).rgb;
+	vec3 planar = ${planarSample};
 	vec3 tri = planar * tw.y + texture2D( map, uvX ).rgb * tw.x + texture2D( map, uvZ ).rgb * tw.z;
 	// swap the stretched sample for the side-projected one (keeps any tint already applied)
 	diffuseColor.rgb *= mix( vec3( 1.0 ), ( tri + 0.04 ) / ( planar + 0.04 ), steepT );
@@ -240,6 +252,120 @@ export function closeTileInjectGlsl(profile: GroundMaterialProfile): string {
 	closeAlb = mix( closeAlb, closeTri, steepT );
 	diffuseColor.rgb = mix( diffuseColor.rgb, closeAlb, closeW );
 `;
+}
+
+/**
+ * Hex tiling (stochastic tiling, after Mikkelsen 2022, "Practical Real-Time
+ * Hex-Tiling"): the lawn is laid out on a hex grid, every hex cell reads the
+ * texture at its own random rotation and offset, and neighbouring cells blend
+ * softly — so the 18 wu repeat of the one grass texture never shows as a grid.
+ * Blends favour the brighter texel, which keeps blades crisp at the seams
+ * instead of a washed-out average.
+ *
+ * Tweak live while testing (hard-refresh so shaders recompile):
+ * - cellScale: hex cells per texture repeat (↑ = smaller patches, ↓ = larger)
+ * - rotation: 0..1 of a full turn a cell may rotate (lower it if a baked light
+ *   direction in the grass photo starts to read as patches)
+ * - contrast: 0..1 — how much the brighter texel wins in a blend (↑ = crisper
+ *   seams, ↓ = softer, more averaged)
+ * - normalSharpness: blend exponent for the normal map (↑ = narrower seams)
+ */
+export const HEX_TILE = {
+    cellScale: 1,
+    rotation: 1,
+    contrast: 0.6,
+    normalSharpness: 3,
+} as const;
+
+/**
+ * GLSL (global scope): hexTileRGB / hexTileNormal. Needs `uniform vec2 uHexShift`
+ * declared by the material (see {@link HEX_TILE_UNIFORM_DECL}).
+ */
+export const HEX_TILE_FNS = `
+vec2 hexHash( vec2 p ) {
+	return fract( sin( vec2( dot( p, vec2( 127.1, 311.7 ) ), dot( p, vec2( 269.5, 183.3 ) ) ) ) * 43758.5453 );
+}
+mat2 hexRot( vec2 id ) {
+	float a = ( hexHash( id ).x - 0.5 ) * 6.2831853 * ${HEX_TILE.rotation.toFixed(3)};
+	float c = cos( a );
+	float s = sin( a );
+	return mat2( c, s, -s, c );
+}
+// barycentric weights of the three hex centres around uv, and their ids
+void hexGrid( vec2 uv, out vec3 w, out vec2 v1, out vec2 v2, out vec2 v3 ) {
+	vec2 st = uv * ${(2 * Math.sqrt(3) * HEX_TILE.cellScale).toFixed(5)};
+	vec2 skewed = vec2( st.x, -0.57735027 * st.x + 1.15470054 * st.y );
+	vec2 base = floor( skewed );
+	vec3 f = vec3( fract( skewed ), 0.0 );
+	f.z = 1.0 - f.x - f.y;
+	float s = step( 0.0, -f.z );
+	float s2 = 2.0 * s - 1.0;
+	w = vec3( -f.z * s2, s - f.y * s2, s - f.x * s2 );
+	v1 = base + vec2( s );
+	v2 = base + vec2( s, 1.0 - s );
+	v3 = base + vec2( 1.0 - s, s );
+}
+// the colour texture at uv, hex-tiled (3 reads; explicit gradients keep the mips right)
+vec3 hexTileRGB( sampler2D tex, vec2 uv ) {
+	vec3 w;
+	vec2 v1, v2, v3;
+	hexGrid( uv, w, v1, v2, v3 );
+	vec2 dx = dFdx( uv );
+	vec2 dy = dFdy( uv );
+	mat2 r1 = hexRot( v1 );
+	mat2 r2 = hexRot( v2 );
+	mat2 r3 = hexRot( v3 );
+	vec3 c1 = textureGrad( tex, r1 * uv + hexHash( v1 + 7.31 ), r1 * dx, r1 * dy ).rgb;
+	vec3 c2 = textureGrad( tex, r2 * uv + hexHash( v2 + 7.31 ), r2 * dx, r2 * dy ).rgb;
+	vec3 c3 = textureGrad( tex, r3 * uv + hexHash( v3 + 7.31 ), r3 * dx, r3 * dy ).rgb;
+	vec3 lw = vec3( dot( c1, vec3( 0.299, 0.587, 0.114 ) ), dot( c2, vec3( 0.299, 0.587, 0.114 ) ), dot( c3, vec3( 0.299, 0.587, 0.114 ) ) );
+	lw = mix( vec3( 1.0 ), lw, ${HEX_TILE.contrast.toFixed(2)} );
+	vec3 ww = max( w, 0.0 ) * pow( lw, vec3( 7.0 ) );
+	ww /= max( ww.x + ww.y + ww.z, 1e-6 );
+	return c1 * ww.x + c2 * ww.y + c3 * ww.z;
+}
+// a tangent-space normal map at uv, hex-tiled; each cell's xy is turned back
+// by its rotation so the bumps still face the light the right way
+vec3 hexTileNormal( sampler2D tex, vec2 uv ) {
+	vec3 w;
+	vec2 v1, v2, v3;
+	hexGrid( uv, w, v1, v2, v3 );
+	vec2 dx = dFdx( uv );
+	vec2 dy = dFdy( uv );
+	mat2 r1 = hexRot( v1 );
+	mat2 r2 = hexRot( v2 );
+	mat2 r3 = hexRot( v3 );
+	vec3 n1 = textureGrad( tex, r1 * uv + hexHash( v1 + 7.31 ), r1 * dx, r1 * dy ).xyz * 2.0 - 1.0;
+	vec3 n2 = textureGrad( tex, r2 * uv + hexHash( v2 + 7.31 ), r2 * dx, r2 * dy ).xyz * 2.0 - 1.0;
+	vec3 n3 = textureGrad( tex, r3 * uv + hexHash( v3 + 7.31 ), r3 * dx, r3 * dy ).xyz * 2.0 - 1.0;
+	n1.xy = n1.xy * r1;
+	n2.xy = n2.xy * r2;
+	n3.xy = n3.xy * r3;
+	vec3 ww = pow( max( w, 0.0 ), vec3( ${HEX_TILE.normalSharpness.toFixed(1)} ) );
+	ww /= max( ww.x + ww.y + ww.z, 1e-6 );
+	return n1 * ww.x + n2 * ww.y + n3 * ww.z;
+}
+`;
+
+/**
+ * Hex-grid origin shift, in lawn UV: the board's own UV is the reference
+ * (shift 0); the outer meadow passes the offset that maps its UV onto the
+ * board's, so the hex cells run on across the border without a seam.
+ */
+export const HEX_TILE_UNIFORM_DECL = 'uniform vec2 uHexShift;\n';
+
+/** `#include <map_fragment>` with the colour map read hex-tiled. */
+export const HEX_MAP_FRAGMENT_GLSL = `
+#ifdef USE_MAP
+	diffuseColor.rgb *= hexTileRGB( map, vMapUv + uHexShift );
+#endif
+`;
+
+/** three's normal-map chunk with the tangent-space read hex-tiled. */
+export function hexNormalFragmentMapsGlsl(): string {
+    return ShaderChunk.normal_fragment_maps
+        .split('texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0')
+        .join('hexTileNormal( normalMap, vNormalMapUv + uHexShift )');
 }
 
 /**

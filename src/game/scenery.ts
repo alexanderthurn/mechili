@@ -59,7 +59,7 @@ import {
     worldHeightAt,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -3352,7 +3352,16 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         }
         material.color.set(0xffffff);
         const useDetail = profile.detailStrength > 0;
-        const bomb = useDetail && profile.textureBomb;
+        const hex = profile.hexTile;
+        const bomb = useDetail && profile.textureBomb && !hex;
+        // Hex grid in the board's lawn UV: the meadow's UV (with the phase offset
+        // above) is (x + size/2) / tile + frac(halfW / tile) along x and the same
+        // with halfH / −z along v; the board's is (x + halfW) / tile. The shift
+        // maps one onto the other, so the hex cells continue across the border.
+        const hexShift = new Vector2(
+            map.halfW / tileSize - size / (2 * tileSize) - frac(map.halfW / tileSize),
+            map.halfH / tileSize - size / (2 * tileSize) - frac(map.halfH / tileSize),
+        );
         // Soften the flat BOARD_TONE dim on HQ so meadow grass pops with the board.
         const toneMix = 0.35 + 0.65 * profile.macroStrength;
         material.onBeforeCompile = (shader) => {
@@ -3379,6 +3388,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 shader.uniforms.uDetailStrength = { value: profile.detailStrength };
             }
             bindCloseTileUniforms(shader.uniforms as Record<string, { value: unknown }>, profile);
+            if (hex) shader.uniforms.uHexShift = { value: hexShift };
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
                 '\tvec2 cell = floor( uv * cellScale );\n' +
@@ -3411,7 +3421,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             let inject = `
     diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
             if (profile.closeRepeat > 1.01) {
-                inject += closeTileInjectGlsl(profile);
+                inject += closeTileInjectGlsl(profile, hex);
             } else {
                 inject += closeTileWeightFallbackGlsl(profile);
             }
@@ -3419,7 +3429,12 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 inject += textureBombGlsl((uv) => closeTileSampleGlsl(profile, uv));
             }
             if (useDetail) {
-                if (profile.closeRepeat > 1.01) {
+                if (hex) {
+                    const detailUv = profile.closeRepeat > 1.01 ? 'mix( vMapUv, closeUv, closeW )' : 'vMapUv';
+                    inject += `
+    vec3 detailAlb = hexTileRGB( map, ( ${detailUv} + uHexShift ) * uDetailScale );
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
+                } else if (profile.closeRepeat > 1.01) {
                     inject += `
     vec3 detailAlb = texture2D(map, mix( vMapUv, closeUv, closeW ) * uDetailScale).rgb;
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
@@ -3604,6 +3619,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (sand ? 'uniform float uLakeTime;\nuniform float uLakeFreeze;\nuniform sampler2D uLakeDepthTex;\nuniform float uLakeDepthSpan;\n' + LAKE_FOAM_FNS_GLSL : '') +
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
                 closeTileUniformDecls(profile) +
+                (hex ? HEX_TILE_UNIFORM_DECL + HEX_TILE_FNS : '') +
                 SLOPE_GROUND_FNS +
                 'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
                 (needBlob ? softBlobFn : '') +
@@ -3612,7 +3628,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                     // gravel/sand weight: the lake part fades up the bank by the
                     // pixel's own height, so the edge follows the ground's contour
                     // instead of the triangles the per-vertex value was sampled on
-                    `#include <map_fragment>
+                    `${hex ? HEX_MAP_FRAGMENT_GLSL : '#include <map_fragment>'}
     vBeach = max(vShore * (1.0 - smoothstep(0.1, 1.2, vTerrainH)), vBeachV);${inject}`,
                 );
             if (rock) {
@@ -3622,17 +3638,24 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 );
             }
             if (useDetail && normal) {
+                const detailNRead = hex
+                    ? 'hexTileNormal( normalMap, ( vMapUv + uHexShift ) * uDetailScale )'
+                    : 'texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0';
+                const closeNRead = hex
+                    ? 'hexTileNormal( normalMap, ( vMapUv + uHexShift ) * uCloseRepeat )'
+                    : 'texture2D( normalMap, vMapUv * uCloseRepeat ).xyz * 2.0 - 1.0';
                 let normalInject = `#include <normal_fragment_maps>
-\tvec3 detailN = texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0;
+\tvec3 detailN = ${detailNRead};
 \tdetailN.xy *= uDetailStrength;
 \tnormal = normalize( vec3( normal.xy + detailN.xy, normal.z ) );`;
                 if (profile.closeRepeat > 1.01) {
                     normalInject += `
-\tvec3 closeN = texture2D( normalMap, vMapUv * uCloseRepeat ).xyz * 2.0 - 1.0;
+\tvec3 closeN = ${closeNRead};
 \tnormal = normalize( mix( normal, closeN, closeW ) );`;
                 }
                 frag = frag.replace('#include <normal_fragment_maps>', normalInject);
             }
+            if (hex && normal) frag = frag.replace('#include <normal_fragment_maps>', hexNormalFragmentMapsGlsl());
             if (profile.roughnessFromAlbedo) {
                 frag = frag.replace(
                     '#include <roughnessmap_fragment>',
