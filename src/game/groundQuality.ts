@@ -168,21 +168,17 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
     },
 };
 
-/** Infer ground texture tier from the active graphics bundle (or closest mix). */
+/**
+ * Ground texture tier = the scenery setting. Every preset sets scenery to its
+ * own tier (minimal and low both 'low'), so presets are unchanged; custom mixes
+ * used to take the richest of scenery / shadows / ground effects, which made
+ * "Ground effects" (footprints, blood, scorch) secretly switch the whole lawn
+ * material — and lowering it in a preset did nothing, as scenery or shadows
+ * still held the tier up.
+ */
 export function groundTextureTier(): GroundTextureTier {
-    const preset = detectGraphicsPreset();
-    if (preset === 'minimal') return 'low';
-    if (preset) return preset;
-
-    const p = prefs();
-    // Custom mixes: prefer the richer of scenery / shadows as a desktop signal.
-    const rank = (v: string): number =>
-        ({ off: 0, low: 1, medium: 2, high: 3, ultra: 4 }[v] ?? 2);
-    const score = Math.max(rank(p.scenery), rank(p.shadows), rank(p.groundEffects));
-    if (score >= 4) return 'ultra';
-    if (score >= 3) return 'high';
-    if (score >= 2) return 'medium';
-    return 'low';
+    const s = prefs().scenery;
+    return s === 'off' ? 'low' : s;
 }
 
 export function groundMaterialProfile(): GroundMaterialProfile {
