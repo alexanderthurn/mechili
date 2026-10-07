@@ -363,20 +363,34 @@ export const GRASS_VARIANTS = {
     sparse: { from: 0.6, to: 0.85, amount: 0.85 },
 } as const;
 
+/** board: variants fade out toward the board edge (the meadow takes over there) */
+export const GRASS_VARIANTS_BOARD_EDGE =
+    '1.0 - smoothstep( 0.78, 0.94, max( abs( vBoardXZ.x ) / uBoardHalf.x, abs( vBoardXZ.y ) / uBoardHalf.y ) )';
+
+/**
+ * Outer meadow: variants are zero at the board edge (where the board's are too,
+ * so the border stays seamless) and grow in over `from`..`to` wu past it.
+ */
+export function grassVariantsMeadowEdge(halfW: number, halfH: number, from = 25, to = 110): string {
+    return `smoothstep( ${from.toFixed(1)}, ${to.toFixed(1)}, length( max( abs( p.xz ) - vec2( ${halfW.toFixed(1)}, ${halfH.toFixed(1)} ), 0.0 ) ) )`;
+}
+
 /**
  * GLSL (global, after map_pars_fragment): the variant weights and
  * `lawnSample( uv )` — the hex-tiled lawn with the variants mixed in. Each
  * variant is only read where it shows (explicit gradients keep that branch
- * legal). Needs HEX_TILE_FNS, SLOPE_GROUND_FNS, uBoardHalf, vBoardXZ and
- * samplers uGrassLush / uGrassDry / uGrassSparse.
+ * legal). `edge` is a GLSL float of the world position `p` that scales them all
+ * (board: {@link GRASS_VARIANTS_BOARD_EDGE}, needs uBoardHalf / vBoardXZ).
+ * Needs HEX_TILE_FNS, SLOPE_GROUND_FNS and samplers uGrassLush / uGrassDry /
+ * uGrassSparse.
  */
-export function grassVariantsGlsl(): string {
+export function grassVariantsGlsl(edge: string = GRASS_VARIANTS_BOARD_EDGE): string {
     const g = GRASS_VARIANTS;
     const f = (v: number) => v.toFixed(3);
     return `
 vec3 gvW;
 void grassVariantWeights( vec3 p ) {
-	float edge = 1.0 - smoothstep( 0.78, 0.94, max( abs( vBoardXZ.x ) / uBoardHalf.x, abs( vBoardXZ.y ) / uBoardHalf.y ) );
+	float edge = ${edge};
 	// the same zone noise as groundZonesGlsl (lush high, straw low) and its bare-earth noise
 	float zoneA = slopeNoise( p.xz / 64.0 + 11.0 ) * 0.7 + slopeNoise( p.xz / 23.0 + 5.3 ) * 0.3;
 	float earthN = slopeNoise( p.xz / 27.0 + 47.0 ) * 0.65 + slopeNoise( p.xz / 8.0 + 2.9 ) * 0.35;
@@ -398,13 +412,18 @@ vec3 lawnSample( vec2 uv ) {
 `;
 }
 
-/** `#include <map_fragment>` for a board with grass variants (weights once, then the mixed lawn). */
-export const GRASS_VARIANTS_MAP_FRAGMENT_GLSL = `
-	grassVariantWeights( vGroundWorld );
+/** `#include <map_fragment>` with grass variants (weights once at `worldPos`, then the mixed lawn). */
+export function grassVariantsMapFragment(worldPos: string): string {
+    return `
+	grassVariantWeights( ${worldPos} );
 #ifdef USE_MAP
 	diffuseColor.rgb *= lawnSample( vMapUv + uHexShift );
 #endif
 `;
+}
+
+/** the board's: world position from vGroundWorld */
+export const GRASS_VARIANTS_MAP_FRAGMENT_GLSL = grassVariantsMapFragment('vGroundWorld');
 
 /**
  * GLSL expression: an RGB texture read, hex-tiled when `hex` is on (the

@@ -59,7 +59,7 @@ import {
     worldHeightAt,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, texRGB, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, texRGB, GRASS_VARIANTS, grassVariantsGlsl, grassVariantsMapFragment, grassVariantsMeadowEdge, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -68,6 +68,7 @@ import {
     sandAlbedoUrl,
     shoreAlbedoUrl,
     loadGrassTextures,
+    loadGrassVariantTextures,
     loadRockTextures,
     loadWorldTexture,
 } from './worldTextures';
@@ -3290,11 +3291,13 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         const lakeCaustics = this.quality === 'ultra';
         // Medium: the same floor and bank shading with no texture and no noise
         const lakeLite = this.quality === 'medium';
-        const [grass, rockPack, shore, sand] = await Promise.all([
+        const [grass, rockPack, shore, sand, grassVariants] = await Promise.all([
             loadGrassTextures(),
             loadRockTextures(),
             loadWorldTexture(shoreAlbedoUrl()),
             lakeBedLayers ? loadWorldTexture(sandAlbedoUrl()) : Promise.resolve(null),
+            // the board's grass variants continue out here (high/ultra)
+            loadGrassVariantTextures(),
         ]);
         if (!grass?.albedo) return;
         const { albedo, normal } = grass;
@@ -3303,8 +3306,9 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         const rockPhoto1 = rockPack?.variants[0] ?? null;
         const rockPhoto2 = rockPack?.variants[1] ?? null;
         // Outer meadow: lighter photo accents only (no dark seamless photo-2)
+        // the variants replace the photo accents here too (and keep the shader inside 16 textures)
         const photoGrass =
-            grass.variants[0] && grass.variants[1]
+            !grassVariants && grass.variants[0] && grass.variants[1]
                 ? ([grass.variants[0], grass.variants[1]] as const)
                 : null;
         const frac = (v: number) => ((v % 1) + 1) % 1;
@@ -3347,6 +3351,13 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             sand.wrapS = sand.wrapT = RepeatWrapping;
             sand.colorSpace = SRGBColorSpace;
             sand.anisotropy = profile.anisotropy;
+        }
+        if (grassVariants) {
+            for (const v of [grassVariants.lush, grassVariants.dry, grassVariants.sparse]) {
+                v.wrapS = v.wrapT = RepeatWrapping;
+                v.colorSpace = SRGBColorSpace;
+                v.anisotropy = profile.anisotropy;
+            }
         }
         for (const v of grass.variants) {
             v.wrapS = v.wrapT = RepeatWrapping;
@@ -3395,6 +3406,11 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             }
             bindCloseTileUniforms(shader.uniforms as Record<string, { value: unknown }>, profile);
             if (hex) shader.uniforms.uHexShift = { value: hexShift };
+            if (grassVariants) {
+                shader.uniforms.uGrassLush = { value: grassVariants.lush };
+                shader.uniforms.uGrassDry = { value: grassVariants.dry };
+                shader.uniforms.uGrassSparse = { value: grassVariants.sparse };
+            }
             const softBlobFn =
                 'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
                 '\tvec2 cell = floor( uv * cellScale );\n' +
@@ -3427,7 +3443,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             let inject = `
     diffuseColor.rgb *= mix( 1.0, ${BOARD_TONE.toFixed(2)}, ${toneMix.toFixed(2)} );`;
             if (profile.closeRepeat > 1.01) {
-                inject += closeTileInjectGlsl(profile, hex);
+                inject += closeTileInjectGlsl(profile, hex, grassVariants ? 'lawnSample( ' : 'hexTileRGB( map, ');
             } else {
                 inject += closeTileWeightFallbackGlsl(profile);
             }
@@ -3631,6 +3647,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
                 closeTileUniformDecls(profile) +
                 (hex ? HEX_TILE_UNIFORM_DECL + HEX_TILE_FNS : '') +
+                (grassVariants ? 'uniform sampler2D uGrassLush;\nuniform sampler2D uGrassDry;\nuniform sampler2D uGrassSparse;\n' : '') +
                 (rock ? ROCK_TRIPLANAR_FNS : '') +
                 SLOPE_GROUND_FNS +
                 'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
@@ -3640,13 +3657,20 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                     // gravel/sand weight: the lake part fades up the bank by the
                     // pixel's own height, so the edge follows the ground's contour
                     // instead of the triangles the per-vertex value was sampled on
-                    `${hex ? HEX_MAP_FRAGMENT_GLSL : '#include <map_fragment>'}
+                    `${grassVariants ? grassVariantsMapFragment('vec3( vWorldXZ.x, vTerrainH, vWorldXZ.y )') : hex ? HEX_MAP_FRAGMENT_GLSL : '#include <map_fragment>'}
     vBeach = max(vShore * (1.0 - smoothstep(0.1, 1.2, vTerrainH)), vBeachV);${inject}`,
                 );
             if (rock) {
                 frag = frag.replace(
                     '#include <map_pars_fragment>',
                     `#include <map_pars_fragment>\n${MOSS_DETAIL_FN_GLSL}`,
+                );
+            }
+            // the variant lawn read needs `map`, so it goes in after map_pars declares it
+            if (grassVariants) {
+                frag = frag.replace(
+                    '#include <map_pars_fragment>',
+                    `#include <map_pars_fragment>\n${grassVariantsGlsl(grassVariantsMeadowEdge(map.halfW, map.halfH))}`,
                 );
             }
             if (useDetail && normal) {
@@ -3686,7 +3710,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v57-slope-snowhold${hex ? '-hexx' : ''}${rock ? '-rock-tri' : ''}${rockNormal ? `-rn${ROCK_NORMAL_STRENGTH}` : ''}${rock ? `-rs${ROCK_SNOW.from}-${ROCK_SNOW.to}-${ROCK_SNOW.breakup}-${ROCK_SNOW.strength}-${ROCK_SNOW.burialFill}` : ''}${rock ? `-rm${ROCK_MACRO.tile}-${ROCK_MACRO.albedo}-${ROCK_MACRO.contrast}-${ROCK_MACRO.normal}-${ROCK_MACRO.strata}-${ROCK_MACRO.strataHeight}` : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v57-slope-snowhold${hex ? '-hexx' : ''}${grassVariants ? `-gv${JSON.stringify(GRASS_VARIANTS).replace(/[^0-9.]/g, '')}-${map.halfW}x${map.halfH}` : ''}${rock ? '-rock-tri' : ''}${rockNormal ? `-rn${ROCK_NORMAL_STRENGTH}` : ''}${rock ? `-rs${ROCK_SNOW.from}-${ROCK_SNOW.to}-${ROCK_SNOW.breakup}-${ROCK_SNOW.strength}-${ROCK_SNOW.burialFill}` : ''}${rock ? `-rm${ROCK_MACRO.tile}-${ROCK_MACRO.albedo}-${ROCK_MACRO.contrast}-${ROCK_MACRO.normal}-${ROCK_MACRO.strata}-${ROCK_MACRO.strataHeight}` : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
