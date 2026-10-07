@@ -304,6 +304,31 @@ export interface SelectionInfo {
  * (bottom-left), item sidebars, and the round/phase top bar — mounted as a
  * DOM overlay above the three.js / Pixi canvases.
  */
+/**
+ * The scenario editor's shop: every unit and building type — horde units,
+ * off-roster ones and the base building types included (a bought one is an
+ * extra building, the board's own stay on the editor's checkboxes) — except
+ * board extras, which have their own row. Roster order, then the rest.
+ */
+/** a shop tile's side (px) */
+const SHOP_TILE_PX = 78;
+/** more tiles showing than this: they shrink to SHOP_COMPACT_SCALE */
+const SHOP_COMPACT_ABOVE = 10;
+const SHOP_COMPACT_SCALE = 2 / 3;
+
+/** the editor shop's tabs: everything, then buildings (structures), the horde's units, the rest */
+type ShopGroup = 'all' | 'units' | 'horde' | 'buildings';
+
+function shopGroupOf(type: UnitType): Exclude<ShopGroup, 'all'> {
+    if (type.structure) return 'buildings';
+    if (type.horde) return 'horde';
+    return 'units';
+}
+
+export function editorShopTypes(types: TypeRegistry): UnitType[] {
+    return [...types.all()].filter((t) => !t.extra);
+}
+
 export class Hud {
     onEndDeployment: (() => void) | null = null;
     onSpeedUp: (() => void) | null = null;
@@ -410,6 +435,25 @@ export class Hud {
     /** the local seat's shop (its commander's own, else null = the normal shop) — what the unlock picker offers */
     private shopPool: readonly string[] | null = null;
 
+    /** the editor shop's open tab (null: no tabs — a match shop shows everything it holds) */
+    private shopGroup: ShopGroup | null = null;
+    private shopTabsEl: HTMLDivElement | null = null;
+
+    private inShopGroup(tile: HTMLElement): boolean {
+        return this.shopGroup === null || this.shopGroup === 'all' || tile.dataset.shopGroup === this.shopGroup;
+    }
+
+    private setShopGroup(group: ShopGroup, relayout = true): void {
+        this.shopGroup = group;
+        for (const tab of this.shopTabsEl?.querySelectorAll<HTMLElement>('.shop-tab') ?? []) {
+            tab.classList.toggle('active', tab.dataset.group === group);
+        }
+        for (const [id, tile] of this.shopUnitTiles) {
+            tile.style.display = this.shopUnlocked.includes(id) && this.inShopGroup(tile) ? '' : 'none';
+        }
+        if (relayout) this.fitShopRows();
+    }
+
     setShopPool(pool: readonly string[]): void {
         if (this.shopPool === pool) return;
         this.shopPool = pool;
@@ -437,6 +481,11 @@ export class Hud {
     private readonly roundEl: HTMLSpanElement;
     private readonly timerEl: HTMLSpanElement;
     private readonly endButton: HTMLButtonElement;
+    /** End Deployment's tooltip when nothing else claims it (the editor's test hint) */
+    private endButtonIdleTitle = '';
+    /** the scenario editor's side switch (see setEditorSideSwitch) */
+    private readonly editorSideEl: HTMLButtonElement;
+    private onEditorSideSwitch: (() => void) | null = null;
     private readonly supplyEl: HTMLSpanElement;
     private readonly supplyAmtEl: HTMLSpanElement;
     private phoneSupplyAmtEl!: HTMLSpanElement;
@@ -740,6 +789,11 @@ export class Hud {
              * `[]` = none; otherwise only these type ids (e.g. Year roles).
              */
             boardExtraIds?: readonly string[] | null;
+            /**
+             * The scenario editor: the shop holds every type (see editorShopTypes),
+             * horde units and buildings included — the editor has no other palette.
+             */
+            editorShop?: boolean;
             /** what the round unlock may add (match rules); null / omitted = any buyable unit */
             unlockable?: readonly string[] | null;
         },
@@ -759,7 +813,10 @@ export class Hud {
         ensureHudStyleSheet();
 
         // a tile for every unit any shop can hold — the seat's own shop decides which show
-        const shopUnits = this.types.roster.filter((t) => !t.extra && this.types.allShopUnitIds.includes(t.id));
+        // (the editor's shop: every type there is)
+        const shopUnits = opts.editorShop
+            ? editorShopTypes(this.types)
+            : this.types.roster.filter((t) => !t.extra && this.types.allShopUnitIds.includes(t.id));
         const allExtras = this.types.roster.filter((t) => t.extra && isPlayerBuyable(t));
         const extraTypes =
             this.boardExtraIdSet === null
@@ -795,7 +852,7 @@ export class Hud {
                 // hoverable while unaffordable (see the .unaffordable CSS), so
                 // the refusal has to happen here rather than via pointer-events
                 if (button.classList.contains('unaffordable')) return;
-                const bought = this.types.roster[index]!;
+                const bought = type;
                 if (bought.extra && !this.extraTypeAllowed(bought)) return;
                 // extras need the field for the place-ghost; regular packs only
                 // dismiss the sheet when this buy fills the last deploy slot
@@ -904,7 +961,34 @@ export class Hud {
         this.unlockTile.addEventListener('click', () => this.openUnlockPicker());
         shopGrid.appendChild(this.unlockTile);
 
-        this.shopPanel.append(shopHeader, shopGrid);
+        // the editor's shop holds every type: grouped behind tabs
+        if (opts.editorShop) {
+            for (const type of shopUnits) {
+                const tile = this.shopUnitTiles.get(type.id);
+                if (tile) tile.dataset.shopGroup = shopGroupOf(type);
+            }
+            this.shopTabsEl = document.createElement('div');
+            this.shopTabsEl.className = 'shop-tabs';
+            for (const [group, label] of [
+                ['all', t('editor:shopAll', { defaultValue: 'All' })],
+                ['units', t('editor:shopUnits', { defaultValue: 'Units' })],
+                ['horde', t('editor:shopHorde', { defaultValue: 'Horde' })],
+                ['buildings', t('editor:shopBuildings', { defaultValue: 'Buildings' })],
+            ] as const) {
+                const tab = document.createElement('button');
+                tab.type = 'button';
+                tab.className = 'shop-tab';
+                tab.dataset.group = group;
+                tab.textContent = label;
+                tab.addEventListener('click', () => this.setShopGroup(group));
+                this.shopTabsEl.appendChild(tab);
+            }
+            this.shopPanel.append(shopHeader, this.shopTabsEl, shopGrid);
+            // (not laid out yet — updateShop fits the rows once the shop is filled)
+            this.setShopGroup('units', false);
+        } else {
+            this.shopPanel.append(shopHeader, shopGrid);
+        }
         this.shopColumn.append(shopToolbar, this.extrasRow, this.shopPanel);
 
         // selection stats panel (bottom left); tech buys via delegation so
@@ -1191,7 +1275,14 @@ export class Hud {
         this.timerEl.className = 'timer';
         const endButton = document.createElement('button');
         endButton.className = 'end-deploy';
-        endButton.textContent = t('hud:endDeployment');
+        // the scenario editor: ending the deployment runs its test battle
+        endButton.textContent = opts.editorShop
+            ? `▶ ${t('editor:testBattle', { defaultValue: 'Test battle' })}`
+            : t('hud:endDeployment');
+        if (opts.editorShop) {
+            this.endButtonIdleTitle = t('editor:testTip', { defaultValue: 'Both sides fight as placed' });
+            endButton.title = this.endButtonIdleTitle;
+        }
         endButton.addEventListener('click', () => this.onEndDeployment?.());
         this.endButton = endButton;
         this.speedEl = document.createElement('button');
@@ -1204,9 +1295,15 @@ export class Hud {
             e.preventDefault();
             this.onSpeedDown?.();
         });
+        // the scenario editor's side switch, right under End Deployment (hidden otherwise)
+        this.editorSideEl = document.createElement('button');
+        this.editorSideEl.type = 'button';
+        this.editorSideEl.className = 'editor-side';
+        this.editorSideEl.style.display = 'none';
+        this.editorSideEl.addEventListener('click', () => this.onEditorSideSwitch?.());
         const controlsRow = document.createElement('div');
         controlsRow.className = 'top-controls';
-        controlsRow.append(endButton, this.speedEl);
+        controlsRow.append(endButton, this.editorSideEl, this.speedEl);
         this.topBar.append(topMeta, this.timerEl, controlsRow);
 
         this.fightBar.append(this.playerStackEl, this.topBar, this.enemyStackEl);
@@ -2480,13 +2577,17 @@ export class Hud {
         for (const el of Array.from(this.shopGrid.children) as HTMLElement[]) {
             if (el.style.display !== 'none') tiles++;
         }
-        const TILE = 78;
+        // a crowded shop (the editor's All tab) shrinks its tiles
+        const compact = tiles > SHOP_COMPACT_ABOVE;
+        const TILE = compact ? Math.round(SHOP_TILE_PX * SHOP_COMPACT_SCALE) : SHOP_TILE_PX;
         const GAP = 6;
         const PAD = 26; // panel side padding
         const maxWidth = window.innerWidth * 0.5 - PAD;
         const maxCols = Math.max(1, Math.floor((maxWidth + GAP) / (TILE + GAP)));
         const rows = Math.max(2, Math.ceil(Math.ceil(tiles / 2) > maxCols ? tiles / maxCols : 2));
         this.shopGrid.style.setProperty('--shop-rows', String(rows));
+        this.shopGrid.style.setProperty('--shop-tile', `${TILE}px`);
+        this.shopGrid.classList.toggle('compact', compact);
     }
 
     setShopRuneCost(cost: number, balance: number): void {
@@ -2824,6 +2925,32 @@ export class Hud {
     }
 
     /** 3D-rendered thumbnails for shop tiles (generated once at match start). */
+    /** the scenario editor's Terrain tool: the shop column (right) steps aside while sculpting */
+    setEditorTerrainMode(on: boolean): void {
+        this.shopColumn.classList.toggle('editor-terrain', on);
+    }
+
+    /**
+     * The scenario editor's side switch under End Deployment: the side being
+     * built (in its colour) and the one a click (or Tab) switches to; null hides it.
+     */
+    setEditorSideSwitch(view: { building: string; other: string; color: string } | null, onSwitch: () => void): void {
+        const el = this.editorSideEl;
+        if (!view) {
+            el.style.display = 'none';
+            this.onEditorSideSwitch = null;
+            return;
+        }
+        this.onEditorSideSwitch = onSwitch;
+        el.style.display = '';
+        el.style.setProperty('--es-team', view.color);
+        el.title = 'Tab';
+        el.innerHTML =
+            `<span class="es-now">${escapeHtml(view.building)}</span>` +
+            `<span class="es-arrow">⇄</span>` +
+            `<span class="es-other">${escapeHtml(view.other)}</span>`;
+    }
+
     setUnitIcons(icons: ReadonlyMap<string, string>): void {
         this.unitIcons = new Map(icons);
         for (const { el, type } of this.buttons) {
@@ -2856,19 +2983,16 @@ export class Hud {
             for (const id of unlocked) {
                 const tile = this.shopUnitTiles.get(id);
                 if (!tile) continue;
-                tile.style.display = '';
+                tile.style.display = this.inShopGroup(tile) ? '' : 'none';
                 this.shopGrid.appendChild(tile);
             }
-            for (const id of this.types.allShopUnitIds) {
-                if (unlocked.includes(id)) continue;
-                const tile = this.shopUnitTiles.get(id);
-                if (tile) tile.style.display = 'none';
+            for (const [id, tile] of this.shopUnitTiles) {
+                if (!unlocked.includes(id)) tile.style.display = 'none';
             }
             this.shopGrid.appendChild(this.unlockTile);
         } else {
-            for (const id of this.types.allShopUnitIds) {
-                const tile = this.shopUnitTiles.get(id);
-                if (tile) tile.style.display = unlocked.includes(id) ? '' : 'none';
+            for (const [id, tile] of this.shopUnitTiles) {
+                tile.style.display = unlocked.includes(id) && this.inShopGroup(tile) ? '' : 'none';
             }
         }
         const hasLocked = this.unlockableIds().length > 0;
@@ -3606,7 +3730,7 @@ export class Hud {
         // as classic 1v1's "locked in" treatment (see game.ts's waitingForPeer).
         this.endButton.classList.toggle('ally-ready', allyLockedIn && !waitingForPeer);
         this.endButton.title =
-            allyLockedIn && !waitingForPeer ? t('hud:allyReadyTitle') : '';
+            allyLockedIn && !waitingForPeer ? t('hud:allyReadyTitle') : this.endButtonIdleTitle;
         this.fightBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         this.fightBar.classList.toggle('waiting', waitingForPeer);
         this.shopColumn.classList.toggle('disabled', phase !== 'build' || waitingForPeer);

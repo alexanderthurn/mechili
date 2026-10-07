@@ -2637,9 +2637,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-scenario-editor .se-section { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid rgba(138, 109, 74, 0.35); padding-top: 7px; }
 .mechili-scenario-editor .se-body > .se-section:first-child { border-top: none; }
 .mechili-scenario-editor .se-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-.mechili-scenario-editor .se-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-.mechili-scenario-editor .se-palette { max-height: 26vh; overflow-y: auto; }
-.mechili-scenario-editor .se-side { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-inline-start: 5px solid var(--se-team); padding-inline-start: 7px; }
 .mechili-scenario-editor input, .mechili-scenario-editor select {
     font: inherit;
     padding: 3px 6px;
@@ -2687,13 +2684,66 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-scenario-editor .te-sliders input[type='range'] { width: 100%; }
 .mechili-scenario-editor .te-status { min-height: 1em; font-size: 11px; color: ${u.brassLight}; }
 .mechili-scenario-editor .se-collapse { padding: 0 6px; border: none; background: none; font-size: 14px; }
-.mechili-scenario-editor .se-team { border-inline-start: 5px solid var(--se-team); }
-.mechili-scenario-editor .se-type { display: flex; align-items: center; gap: 5px; padding: 2px 6px 2px 2px; }
-.mechili-scenario-editor .se-ico { flex: none; width: 26px; height: 26px; background-size: cover; background-position: center; border-radius: 3px; }
-.mechili-scenario-editor .se-type-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mechili-scenario-editor .se-sel-name { font-weight: 600; }
 .mechili-scenario-editor .se-level { min-width: 1.6em; text-align: center; font-weight: 700; }
-.mechili-scenario-editor .se-run button { flex: 1; text-align: center; font-weight: 700; padding: 6px 10px; border-color: ${u.brassLight}; }
+/* the editor shop's tabs (Units · Horde · Buildings), between the header and the grid */
+.mechili-shop .shop-tabs { display: flex; gap: 4px; margin: 2px 0 6px; }
+.mechili-shop .shop-tab {
+    flex: 1;
+    padding: 4px 6px;
+    border: 1.5px solid ${u.border};
+    border-radius: 4px;
+    background: ${u.panelBgDark};
+    color: ${u.textMuted};
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.mechili-shop .shop-tab:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
+.mechili-shop .shop-tab.active { border-color: ${u.brassLight}; background: rgba(212, 184, 120, 0.18); color: ${u.brassLight}; }
+/* the editor's Erase tool: a delete cursor over the board (red disc, white ✕, hotspot centred) */
+.mechili-erase-cursor {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23c0392b' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 8l8 8M16 8l-8 8' stroke='white' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, not-allowed;
+}
+/* the editor's side switch in the top bar, under End Deployment */
+.mechili-topbar .editor-side {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 12px;
+    border: 1.5px solid var(--es-team, ${u.border});
+    border-radius: 4px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    pointer-events: auto;
+}
+.mechili-topbar .editor-side:hover { border-color: ${u.hover}; }
+.mechili-topbar .editor-side .es-now { color: var(--es-team, ${u.text}); font-weight: 700; }
+.mechili-topbar .editor-side .es-arrow { color: ${u.textMuted}; }
+.mechili-topbar .editor-side .es-other { color: ${u.textMuted}; }
+/* footer: always visible at the bottom of the scrolling body — history, the test, saving */
+.mechili-scenario-editor .se-footer {
+    position: sticky;
+    bottom: -8px;
+    margin: 2px -10px -8px;
+    padding: 7px 10px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: ${u.panelBgDark};
+    border-top: 1px solid rgba(138, 109, 74, 0.55);
+    z-index: 1;
+}
+.mechili-scenario-editor .se-save-into { flex: 1; text-align: center; }
+
+    border: 1.5px solid ${u.border};
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
 .mechili-scenario-editor .se-issues { font-size: 12px; color: #e8b04a; cursor: help; }
 .mechili-scenario-editor .se-issues.error { color: #ff7a60; }
 .mechili-scenario-editor .se-status { min-height: 1.2em; color: ${u.brassLight}; }
@@ -4211,6 +4261,8 @@ ${chatFloatStyles(u, pc, ec)}
     transition: opacity 0.28s ease, transform 0.28s ease, visibility 0.28s;
 }
 /* build chrome fades out for battle / lock-in (absolute — no layout gap) */
+/* the scenario editor's Terrain tool: no shop while sculpting */
+.mechili-shop-col.editor-terrain { display: none !important; }
 .mechili-shop-col.disabled,
 .mechili-shop-col.battle {
     opacity: 0;
@@ -4688,10 +4740,10 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-cards .unlock-picker .shop-grid {
     display: grid;
     /* 2 vertical tiles per column; add columns as needed. */
-    grid-template-rows: repeat(var(--shop-rows, 2), 78px);
+    grid-template-rows: repeat(var(--shop-rows, 2), var(--shop-tile, 78px));
     grid-auto-flow: column;
-    /* Keep tile size stable. */
-    grid-auto-columns: 78px;
+    /* Keep tile size stable (fitShopRows halves it for a crowded shop). */
+    grid-auto-columns: var(--shop-tile, 78px);
     /* Fill columns from the right edge inward. */
     direction: rtl;
     width: 100%;
@@ -4823,6 +4875,9 @@ ${chatFloatStyles(u, pc, ec)}
     font-size: 11px;
     padding: 2px 6px 2px;
 }
+/* a crowded shop's half-size tiles: smaller labels so name and price still fit */
+.mechili-shop .shop-grid.compact .shop-tile .title { font-size: 7.5px; padding: 1px 3px; letter-spacing: 0.2px; }
+.mechili-shop .shop-grid.compact .shop-tile .cost { font-size: 9px; padding: 1px 4px 1px; }
 .mechili-shop .shop-tile.unlock {
     display: flex;
     flex-direction: column;

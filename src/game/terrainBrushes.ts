@@ -365,12 +365,8 @@ export class TerrainBrushes {
             '1': 'raise',
             '2': 'lower',
             '3': 'flatten',
-            '4': 'lean',
-            g: 'mat-grass',
-            k: 'mat-rock',
-            n: 'mat-snow',
-            h: 'mat-beach',
-            c: 'mat-scree',
+            // (Lean and the material paints are no tools any more — the brushes
+            // still read and write a loaded scenario's painted materials)
             o: 'obj-oak',
             p: 'obj-pine',
             b: 'obj-bushRound',

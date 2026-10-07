@@ -506,6 +506,13 @@ interface LogEntry extends LoggedAction {
 export interface ActionContext {
     /** the unit and building definitions this match plays with */
     types: TypeRegistry;
+    /**
+     * The scenario editor's own deployment (author mode): anything may be bought
+     * for either side — every unit and building, horde units and further base
+     * buildings included — with no shop, unlock or deploy limits. Never set in a
+     * match.
+     */
+    editorSandbox?: boolean;
     placement: PlacementController;
     economy: Economy;
     techTree: TechTree;
@@ -869,16 +876,19 @@ export class ActionDispatcher {
         switch (action.kind) {
             case 'buy': {
                 const type = this.ctx.types.byId(action.typeId);
+                if (!type) return false;
+                const sandbox = this.ctx.editorSandbox === true;
                 // structures aren't buyable — except the board extras
-                if (!type || (type.structure && !type.extra)) return false;
+                if (!sandbox && type.structure && !type.extra) return false;
                 // army units come from the seat's shop (its commander's own, else the normal one)
                 const shop = this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[seat] ?? ''));
-                if (type.extra ? !isPlayerBuyable(type) : !shop.includes(type.id)) return false;
+                if (!sandbox && (type.extra ? !isPlayerBuyable(type) : !shop.includes(type.id))) return false;
                 // The Year: attacker Fire Bolt only, defender Ward Stone only
                 if (type.extra && !yearBoardExtraAllowed(this.ctx.climbAttacker, action.team, type.id)) {
                     return false;
                 }
                 if (
+                    !sandbox &&
                     !type.extra &&
                     !this.ctx.unlockedUnits[seat]!.includes(action.typeId)
                 ) {
@@ -888,12 +898,14 @@ export class ActionDispatcher {
                 // slots; board extras instead draw from their own supply budget
                 const deploy = this.ctx.deployState;
                 if (
+                    !sandbox &&
                     !type.extra &&
                     deploy.used[seat]! >= deploy.limit[seat]! + deploy.extra[seat]!
                 ) {
                     return false;
                 }
                 if (
+                    !sandbox &&
                     type.extra &&
                     deploy.extrasSpent[seat]! + economy.costOf(type) >
                         this.ctx.deploySettings.extrasBudgetPerRound

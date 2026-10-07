@@ -35,15 +35,12 @@ import { draftTerrain, draftTerrainSnapshot, setDraftTerrain } from './scenarioT
 export interface EditorLinks {
     /** a new match: the editor again ('author'), or a test battle of the draft */
     open(mode: 'author' | 'test', draft: ScenarioDef): void;
-    save(draft: ScenarioDef): Promise<string>;
+    /** saving as you go: the draft kept as its scenario package (a rename replaces the old one) */
+    persist(draft: ScenarioDef): Promise<string>;
     saveInto(
         draft: ScenarioDef,
         packageName?: string,
     ): Promise<{ status: string; id: string; reopen: ((def: ScenarioDef) => void) | null }>;
-    play(draft: ScenarioDef): void;
-    shareCode(draft: ScenarioDef): Promise<string>;
-    /** web builds: the draft as a zip; null where there is no download */
-    download: ((draft: ScenarioDef) => Promise<string>) | null;
 }
 
 /** the board parts of the editor window that only the match can do */
@@ -56,9 +53,11 @@ export type EditorBoard = Pick<
     | 'maxUnitLevel'
     | 'maxBuildingLevel'
     | 'prices'
-    | 'levelLabel'
     | 'gameVersion'
     | 'unitIcon'
+    | 'sideSwitch'
+    | 'swingCamera'
+    | 'terrainChrome'
     | 'rebuild'
     | 'capture'
     | 'issues'
@@ -96,6 +95,12 @@ export interface EditorSessionHost {
     heightAt(x: number, z: number): number;
 }
 
+/** how long a finished test battle's result shows before the editor comes back */
+const TEST_RETURN_DELAY_MS = 1500;
+
+/** quiet time after the last edit before the editor keeps the scenario */
+const PERSIST_DELAY_MS = 1500;
+
 export class EditorSession {
     private readonly editor: ScenarioEditor | null = null;
     private readonly testBar: TestBattleBar | null = null;
@@ -111,7 +116,6 @@ export class EditorSession {
                 host.board.wrapper,
                 {
                     onBack: () => host.links()?.open('author', draft),
-                    onAgain: () => host.links()?.open('test', draft),
                     onSkip: () => host.skipTest(),
                 },
                 JSON.stringify(draft.scene) + JSON.stringify(draft.rules),
@@ -139,31 +143,20 @@ export class EditorSession {
                 },
                 plants: host.plants,
             });
-            this.panel = new TerrainPanel(
-                this.brushes,
-                {
-                    generated: () => this.resetGenerated(),
-                    capture: () => this.canonicalTerrain(),
-                    load: (data) => this.loadTerrain(data),
-                },
-                () => this.editor?.draftName ?? draft.name,
-            );
+            this.panel = new TerrainPanel(this.brushes);
         }
         const links = () => host.links();
         this.editor = new ScenarioEditor(
             {
                 ...host.board,
                 issues: (def) => [...host.board.issues(def), ...this.steepIssues()],
-                canDownload: () => !!links()?.download,
-                save: (def) => links()?.save(def) ?? Promise.resolve(''),
                 saveInto: (def, packageName) => links()?.saveInto(def, packageName) ?? Promise.resolve({ status: '', id: def.id, reopen: null }),
-                shareCode: (def) => links()?.shareCode(def) ?? Promise.resolve(''),
-                download: (def) => links()?.download?.(def) ?? Promise.resolve(''),
-                autosave: (def) => storeDraft(def, host.level, draftTerrainSnapshot()),
+                autosave: (def) => {
+                    storeDraft(def, host.level, draftTerrainSnapshot());
+                    this.persistSoon(def);
+                },
                 restart: (def) => links()?.open('author', def),
                 test: (def) => links()?.open('test', def),
-                play: (def) => links()?.play(def),
-                exit: () => host.quit(),
                 terrain: this.brushes ? this.terrainTool() : null,
             },
             draft,
@@ -171,10 +164,41 @@ export class EditorSession {
     }
 
     dispose(): void {
+        if (this.testReturnTimer) clearTimeout(this.testReturnTimer);
+        // leaving the editor (menu, test battle): the last edits are kept too
+        this.persistNow();
         this.editor?.destroy();
         this.testBar?.remove();
         this.brushes?.dispose();
         this.panel?.el.remove();
+    }
+
+    // ---- saving as you go
+
+    private persistTimer: ReturnType<typeof setTimeout> | null = null;
+    private persistPending: ScenarioDef | null = null;
+
+    /**
+     * The editor saves as it goes — no Save button: a while after the last edit
+     * the draft is kept as its scenario package (Single Player → Editor lists it).
+     * Not a scenario of a multi-level package (Save into package rebuilds that
+     * and reopens the editor), and not while it has errors (it couldn't be played).
+     */
+    private persistSoon(def: ScenarioDef): void {
+        if (this.host.mode !== 'author' || this.host.board.packageName) return;
+        if (this.host.board.issues(def).some((i) => i.level === 'error')) return;
+        this.persistPending = def;
+        if (this.persistTimer) clearTimeout(this.persistTimer);
+        this.persistTimer = setTimeout(() => this.persistNow(), PERSIST_DELAY_MS);
+    }
+
+    private persistNow(): void {
+        if (this.persistTimer) clearTimeout(this.persistTimer);
+        this.persistTimer = null;
+        const def = this.persistPending;
+        this.persistPending = null;
+        if (!def) return;
+        void this.host.links()?.persist(def).catch((e: unknown) => console.warn('[editor] could not keep the scenario', e));
     }
 
     // ---- what the Game forwards
@@ -207,10 +231,16 @@ export class EditorSession {
         this.editor?.syncFromBoard();
     }
 
-    /** test mode: the battle ended */
+    /** test mode: the battle ended — show the result a moment, then back to the editor on its own */
     showTestResult(summary: TestBattleSummary): void {
         this.testBar?.showResult(summary);
+        if (this.host.mode !== 'test') return;
+        const draft = this.host.draft;
+        this.testReturnTimer = setTimeout(() => this.host.links()?.open('author', draft), TEST_RETURN_DELAY_MS);
     }
+
+    /** the automatic return after a test (cleared when the test match goes first — "Back to editor") */
+    private testReturnTimer: ReturnType<typeof setTimeout> | null = null;
 
     /** the ground as the meshes show it now — a graphics rebuild builds the new meshes from it */
     shownTerrain(): LandscapeData | null {
@@ -240,29 +270,6 @@ export class EditorSession {
             if (data) setDraftTerrain(data);
         }
         this.editor?.terrainEdited(kind);
-    }
-
-    private loadTerrain(data: LandscapeData): string | null {
-        const shown = this.view === 'enemy' ? rotateLandscape180(data) : data;
-        if (this.brushes?.show(shown, true)) return null;
-        return t('editor:terrainWrongSize', {
-            defaultValue: 'This terrain is made for a {{cols}}×{{rows}} board — this one is {{boardCols}}×{{boardRows}}',
-            cols: data.map.cols,
-            rows: data.map.rows,
-            boardCols: this.host.map.cols,
-            boardRows: this.host.map.rows,
-        });
-    }
-
-    /** "Generated terrain": the draft goes back to the board's own terrain (a restart builds it) */
-    private resetGenerated(): void {
-        if (!draftTerrain() && !this.brushes?.canUndo) return;
-        const ok = window.confirm(t('editor:terrainGeneratedConfirm', { defaultValue: 'Throw the sculpted terrain away? This can’t be undone.' }));
-        if (!ok) return;
-        setDraftTerrain(null);
-        // the strokes were made on the terrain that is gone — none of them carries over
-        this.brushes?.clearHistory(true);
-        this.editor?.restartForTerrain();
     }
 
     /**

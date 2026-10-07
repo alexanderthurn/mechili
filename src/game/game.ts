@@ -25,7 +25,7 @@ import { EffectToggles } from './effectToggles';
 import { DISPLAY } from './displayNames';
 import { t, itemDescription, itemName, tacticDescription, tacticName, techName, unitName } from '../i18n';
 import { THEME } from '../theme';
-import { CameraRig } from '../engine/cameraRig';
+import { CameraRig, type RigState } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
@@ -310,7 +310,7 @@ import {
 } from './seats';
 import { getAvatarDataUrl } from './avatar';
 import { HpBars } from '../ui/hpBars';
-import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
+import { editorShopTypes, Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
 import type { YearProgress } from '../ui/yearTally';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { reportDiagnostic, setDiagnosticsMatch } from './diagnostics';
@@ -451,6 +451,9 @@ function seedFrom(seed: number, label: string): number {
  */
 /** how long a test battle shows its board before it locks in */
 const TEST_BATTLE_LOOK_MS = 700;
+
+/** seconds of the editor's side-switch camera swing */
+const CAMERA_SWING_S = 0.7;
 
 /** ms of each frame spent uploading textures during the match-start warm-up */
 const TEXTURE_UPLOAD_BUDGET_MS = 6;
@@ -1245,6 +1248,35 @@ export class Game {
             : null;
     }
 
+    /**
+     * The editor's side switch swaps the armies' ends (the side being built is
+     * always drawn near). Start from the mirrored pose — half a turn round the
+     * board centre, which shows exactly the picture before the swap — and orbit
+     * back to the real one, so it reads as flying over to the other side.
+     */
+    private swingCameraHalfTurn(): void {
+        // a switch mid-swing keeps the real pose as its goal, not the halfway one
+        const to = this.cameraSwing?.to ?? this.rig.getPose();
+        this.cameraSwing = { to, t: 0 };
+        this.applyCameraSwing(0);
+    }
+
+    /** the swing at `t` (0..1): target and heading turned together by π·(1 − ease(t)) */
+    private applyCameraSwing(dtSeconds: number): void {
+        const swing = this.cameraSwing;
+        if (!swing) return;
+        swing.t = Math.min(1, swing.t + dtSeconds / CAMERA_SWING_S);
+        const e = swing.t * swing.t * (3 - 2 * swing.t);
+        const a = Math.PI * (1 - e);
+        const c = Math.cos(a);
+        const s = Math.sin(a);
+        const p = swing.to;
+        // the rig's camera sits at target + (sin h, cos h)·r, so a turn by `a` about
+        // the board centre rotates the target the same way and adds `a` to h
+        this.rig.setPose({ ...p, x: p.x * c + p.z * s, z: p.z * c - p.x * s, heading: p.heading + a });
+        if (swing.t >= 1) this.cameraSwing = null;
+    }
+
     /** Shift+O: live A/B ambient occlusion tiers. */
     private cycleAoQuality(): void {
         const order = ['off', 'low', 'medium', 'high', 'ultra'] as const;
@@ -1365,6 +1397,8 @@ export class Game {
 
     /** the match-start warm-up has finished — the loop may run (see warmUpForMatchStart) */
     private warmedUp = false;
+    /** the editor's side switch: the camera's half turn round the board (see swingCameraHalfTurn) */
+    private cameraSwing: { to: RigState; t: number } | null = null;
     /** 0..1 deployment focus shade on the world outside the board (eased) */
     private deployShade = 0;
     /** dev: remember the camera across a reload (see reloadCamera.ts) */
@@ -1940,6 +1974,8 @@ export class Game {
             seatReady: this.seatReady,
             starterPicked: this.starterPicked,
             unlockedUnits: this.unlockedUnits,
+            // the scenario editor's own deployment buys anything, unlimited (see ActionContext)
+            editorSandbox: this.settings.scenario?.mode === 'author',
             unlockUsedThisRound: this.unlockUsedThisRound,
             hp: {
                 get: (team) => (team === 'player' ? this.playerHp : this.enemyHp),
@@ -2152,6 +2188,7 @@ export class Game {
                 types: this.types,
                 boardExtraIds: this.humanBoardExtraIds(),
                 unlockable: this.rules.playerUnlockable,
+                editorShop: this.settings.scenario?.mode === 'author',
             },
         );
         // Shop hover windows list this player's own talent picks. Fixed for
@@ -3401,10 +3438,15 @@ export class Game {
             // a sandbox deployment: every buyable unit, free purchases (the settings
             // already lift the deploy caps and fill the purse)
             this.economy.free = true;
-            this.unlockedUnits[this.humanSeat] = [...this.types.shopUnitIds];
+            // and anything on the board may be moved, any time (no separate Move tool)
+            this.placement.editorSandbox = true;
+            // the editor's shop holds every type but the base buildings (see Hud editorShop)
+            this.unlockedUnits[this.humanSeat] = editorShopTypes(this.types).map((t) => t.id);
             this.refreshShopHud();
             const missing = [...this.types.all()].filter((type) => !this.unitIconUrls.has(type.id));
             for (const [id, url] of renderAllUnitIcons(this.renderer, missing)) this.unitIconUrls.set(id, url);
+            // the editor's shop has tiles for those too (buildings, off-roster types)
+            this.hud.setUnitIcons(this.unitIconUrls);
         }
         const level = activeLevel().overlay;
         const game = this;
@@ -3423,9 +3465,11 @@ export class Game {
                     levelCostFactor: this.settings.leveling.levelCostFactor,
                     techCostEscalation: this.settings.economy.techCostEscalation,
                 },
-                levelLabel: level ? level.id : 'Base game',
                 gameVersion: formatGameVersion(GAME_VERSION),
                 unitIcon: (typeId) => this.unitIconUrls.get(typeId) ?? null,
+                sideSwitch: (view, onSwitch) => this.hud.setEditorSideSwitch(view, onSwitch),
+                swingCamera: () => this.swingCameraHalfTurn(),
+                terrainChrome: (on) => this.hud.setEditorTerrainMode(on),
                 rebuild: (def) => this.rebuildScenarioBoard(def),
                 capture: (baseBuildings) =>
                     captureScene(
@@ -3553,6 +3597,7 @@ export class Game {
             const unit = this.placement.spawn(type, useFar ? far : near, team, false, false, seat);
             if (unit) {
                 if (type.baseAnchor === 'stronghold' && seatIdsOf(this.seats, team).length > 1) unit.levelGrowth = 0.05;
+                unit.baseAnchored = true;
                 placed.push(unit);
                 this.baseBuildingUnits.add(unit);
             }
@@ -11663,7 +11708,9 @@ export class Game {
         this.updateStrongholdFlags();
         this.updateHordeMarkers();
 
-        if (!this.introActive && !this.outroActive && !soloPaused) {
+        // the editor's side-switch swing owns the camera while it runs
+        if (this.cameraSwing) this.applyCameraSwing(dtSeconds);
+        if (!this.introActive && !this.outroActive && !soloPaused && !this.cameraSwing) {
             this.controls.update(dtSeconds);
             this.gamepad.update(dtSeconds);
             this.rig.update(dtSeconds);

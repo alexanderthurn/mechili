@@ -1,7 +1,8 @@
 /**
  * The scenario editor from the menu's side: opening it (a new board, the
- * autosaved draft, a saved scenario), and what happens to a draft — saved as
- * a package, put into one, played, downloaded, shared as a code. The match
+ * autosaved draft, a saved scenario), and what happens to a draft — kept as
+ * its package as it is edited, or put into one; saved packages download as a
+ * zip or travel as a share code. The match
  * side of editing is game/scenario/editorSession.ts; this is its
  * {@link EditorLinks}.
  *
@@ -61,14 +62,8 @@ function need(): EditorMenuDeps {
 export function editorLinks(level: LevelRef | undefined): EditorLinks {
     return {
         open: (mode, draft) => void openScenarioEditor(mode, draft, level),
-        save: (draft) => saveScenarioDraft(draft, level),
+        persist: (draft) => persistScenarioDraft(draft, level),
         saveInto: (draft, packageName) => saveScenarioIntoLevel(draft, level, packageName),
-        play: (draft) => void playScenarioDraft(draft, level),
-        shareCode: (draft) => {
-            const { id, files } = scenarioDraftPackage(draft, level);
-            return copyShareCode(id, files);
-        },
-        download: need().zipDownloads ? (draft) => downloadScenarioDraft(draft, level) : null,
     };
 }
 
@@ -88,6 +83,9 @@ export async function openScenarioEditor(mode: 'author' | 'test', draft: Scenari
 /** a new board: the generated terrain, the base game */
 export function openNewScenarioEditor(gameVersion: string, types: Parameters<typeof newDraft>[1]): void {
     setDraftTerrain(null);
+    // the editor keeps one scenario: the new board's first save replaces the old one's package
+    const old = loadStoredDraft()?.def;
+    persistedAs = old ? scenarioSlug(old.name, old.id) : null;
     void openScenarioEditor('author', newDraft(gameVersion, types), undefined);
 }
 
@@ -99,6 +97,8 @@ export function openNewScenarioEditor(gameVersion: string, types: Parameters<typ
 export function openStoredScenarioEditor(gameVersion: string): void {
     const stored = loadStoredDraft();
     const draft = stored?.def ?? newDraft(gameVersion, activeLevel().types);
+    // it was kept under its name as it was edited (see persistScenarioDraft)
+    persistedAs = stored ? scenarioSlug(draft.name, draft.id) : null;
     let terrain = null;
     try {
         terrain = stored?.terrain ? decodeTerrainText(stored.terrain) : null;
@@ -141,6 +141,7 @@ export async function editSavedScenario(ref: LevelRef, id: string): Promise<void
     // savedScenarioDef made the package active
     setDraftTerrain(packagedTerrain(id));
     // the scenario keeps its id in the package, so "Save into package" replaces it
+    persistedAs = ref.id;
     await openScenarioEditor('author', { ...def, id }, ref);
 }
 
@@ -201,34 +202,37 @@ export async function copyShareCode(id: string, files: readonly OverlayFile[]): 
     return `Code copied — ${Math.ceil(code.length / 1024)} KB${note}`;
 }
 
-/** keep the draft as a scenario package (scenario cache, like a saved replay situation) */
-async function saveScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
-    const { id, files } = scenarioDraftPackage(draft, level);
-    const { ref } = await loadLevel(id, files);
-    const replaced = await supersedeLevel(ref);
-    console.info(`[scenario] saved "${ref.id}" (${ref.hash.slice(0, 12)})`);
-    return `${replaced > 0 ? 'Replaced' : 'Saved'} “${ref.id}” — find it under Single Player → Editor`;
-}
 
-/** the editor's Play: keep the draft as a package, then play it as a single-player scenario */
-async function playScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<void> {
-    const d = need();
+/** the package the draft being edited is kept as (its name's slug) — a rename replaces it */
+let persistedAs: string | null = null;
+
+/**
+ * The editor saves as it goes: the draft kept as its scenario package (like
+ * Save), and — when its name changed since — the package under the old name
+ * dropped, so a rename doesn't leave a copy behind. Resolves to the package id.
+ */
+async function persistScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
     const { id, files } = scenarioDraftPackage(draft, level);
     const { ref } = await loadLevel(id, files);
     await supersedeLevel(ref);
-    const def = { ...draft, id };
-    d.returnToEditorAfterMatch();
-    if (d.hasActiveGame()) await d.teardown();
-    d.startGame(applyScenarioToSettings(d.localMatchSettings(), def, ref, 'play', id));
+    const previous = persistedAs;
+    persistedAs = id;
+    if (previous && previous !== id) {
+        const old = (await scenarioLevels()).find((l) => l.ref.id === previous);
+        if (old) await forgetLevel(old.ref);
+    }
+    return id;
 }
 
-/** web: the draft as a one-level package zip */
-async function downloadScenarioDraft(draft: ScenarioDef, level: LevelRef | undefined): Promise<string> {
-    const { id, files } = scenarioDraftPackage(draft, level);
+
+/** web: a saved scenario package as a zip (Single Player → Editor) */
+export async function downloadScenarioPackage(ref: LevelRef): Promise<string> {
+    const files = levelFiles(ref.hash) ?? ((await ensureLevel(ref)) ? levelFiles(ref.hash) : null);
+    if (!files) return 'This scenario is not available';
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([writeZip(files)], { type: 'application/zip' }));
-    link.download = `${id}.zip`;
+    link.download = `${ref.id}.zip`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
-    return `Downloaded ${id}.zip`;
+    return `Downloaded ${ref.id}.zip`;
 }

@@ -373,6 +373,8 @@ export class PlacementController {
     /** the running round; units deployed in earlier rounds are locked in place */
     currentRound = 0;
     selectedUnit: Unit | null = null;
+    /** the scenario editor's own deployment: every pack may be repositioned (see canReposition) */
+    editorSandbox = false;
     /** effective attack range of a pack (tech-resolved), for the range circle */
     /** a selected pack's attack range drawn around (x, z) — a number, or the reach per direction on relief */
     rangeOf: ((unit: Unit, x: number, z: number) => RangeShape) | null = null;
@@ -952,12 +954,20 @@ export class PlacementController {
         for (const u of this.selectedGroup) restore(u);
     }
 
-    /** repositioning is allowed only in the round the pack was deployed (extras included) */
+    /**
+     * Repositioning is allowed in the round the pack was deployed — units,
+     * extras and bought buildings alike. The scenario editor's sandbox moves
+     * anything, any time.
+     */
     canReposition(unit: Unit): boolean {
         // a fixture (e.g. a battlement archer) is bolted to its building — not
         // on the grid at all, so there is nowhere for a drag to put it down
         if (unit.type.fixture) return false;
-        if (!(!unit.type.structure || !!unit.type.extra)) return false;
+        // the board's own base building stands where the board puts it: scenarios
+        // don't even store its spot, and the Stronghold carries its posted archers
+        // (a bought one of the same type moves like any other)
+        if (unit.baseAnchored) return false;
+        if (this.editorSandbox) return true;
         if (unit.deployedRound === this.currentRound) return true;
         return this.unitHasFreeRedeploy(unit);
     }

@@ -1370,6 +1370,12 @@ export class Unit {
     kills = 0;
     /** round this unit was deployed in — only units from the current round may be moved */
     deployedRound = 0;
+    /**
+     * One of the board's own base buildings, standing at its anchor (spawned by
+     * the match, not bought): never repositioned — its spot is the board's, and
+     * scenarios store only whether it stands. A bought one of the same type isn't.
+     */
+    baseAnchored = false;
     /** veterancy, persists across rounds: kills grant XP, levels multiply hp & damage */
     level = 1;
     /**

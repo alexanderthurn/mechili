@@ -99,7 +99,6 @@ import {
     levelFilesFromArchive,
     loadLevel,
     prepareLevel,
-    forgetLevel,
     scenarioLevels,
     type LevelRef,
 } from './game/level';
@@ -107,10 +106,10 @@ import { readZip, writeZip } from './game/content/zip';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { initDraftStore, loadStoredDraft } from './game/scenario/editorDraft';
 import { MapChoice, mapOption, mapValue } from './menu/mapChoice';
-import { copyShareCode, editorLinks, editSavedScenario, initEditorMenu, openNewScenarioEditor, openStoredScenarioEditor, savedScenarioDef } from './menu/editorMenu';
+import { downloadScenarioPackage, editorLinks, editSavedScenario, initEditorMenu, openNewScenarioEditor, openStoredScenarioEditor, savedScenarioDef } from './menu/editorMenu';
 import { BASE_TYPES } from './game/units';
 import type { ScenarioDef } from './game/scenario/scenarioDef';
-import { decodeShareCode } from './game/scenario/shareCode';
+import { scenarioSlug } from './game/scenario/package';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { builtInCampaigns, campaignLevel, campaignSummary, completedLevels, isBuiltInCampaign, markLevelCompleted } from './game/campaign';
 import { loadedLandscape, loadLandscape } from './game/landscape';
@@ -1120,11 +1119,8 @@ menu.innerHTML = `
             <button type="button" class="m-scenario-btn m-editor-continue" data-i18n="menu:editorContinue"></button>
             <button type="button" class="m-scenario-btn m-editor-new" data-i18n="menu:editorNew"></button>
         </div>
-        <div class="m-scenario-list-label" data-i18n="menu:scenarios"></div>
-        <div class="m-room-list m-scenario-list empty"></div>
-        <div class="m-scenario-import">
-            <input type="text" class="m-scenario-code" placeholder="MELODAN1:…" spellcheck="false" autocomplete="off">
-            <button type="button" class="m-scenario-btn m-scenario-import-btn">Import code</button>
+        <div class="m-scenario-open m-editor-scenario">
+            <button type="button" class="m-scenario-btn m-editor-zip-out" hidden>Download zip</button>
             <button type="button" class="m-scenario-btn m-scenario-zip-btn" hidden>Import zip</button>
             <input type="file" class="m-scenario-file" accept=".zip,application/zip" hidden>
         </div>
@@ -1562,11 +1558,10 @@ spEditorContinueEl.addEventListener('click', () => {
     openStoredScenarioEditor(`v${__APP_VERSION__}`);
 });
 spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-new')!.addEventListener('click', () => {
-    if (loadStoredDraft() && !window.confirm('Start a new board? It replaces the draft you were editing.')) return;
+    if (loadStoredDraft() && !window.confirm('Start a new board? It replaces your scenario.')) return;
     showMenuView('main');
     openNewScenarioEditor(`v${__APP_VERSION__}`, BASE_TYPES);
 });
-const spScenarioCodeEl = spScenariosEl.querySelector<HTMLInputElement>('.m-scenario-code')!;
 const spScenarioStatusEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-status')!;
 const spScenarioZipBtn = spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-zip-btn')!;
 const spScenarioFileEl = spScenariosEl.querySelector<HTMLInputElement>('.m-scenario-file')!;
@@ -1582,27 +1577,15 @@ spScenarioFileEl.addEventListener('change', () => {
             const files = levelFilesFromArchive(await readZip(await file.arrayBuffer()));
             const { ref, report } = await loadLevel(file.name.replace(/\.zip$/i, ''), files);
             console.info(`[scenario] loaded "${ref.id}" (${files.length} files, ${ref.hash.slice(0, 12)})`, report);
-            spScenarioStatusEl.textContent = `Imported “${ref.id}”`;
-            await renderScenarioList();
+            // the editor keeps one scenario: the imported one becomes it (opened for editing)
+            const first = (await scenarioLevels()).find((l) => l.ref.hash === ref.hash)?.scenarios[0];
+            if (!first) throw new Error('the zip holds no scenario');
+            await editSavedScenario(ref, first.id);
         } catch (e) {
             console.error('[scenario] zip rejected', e);
             spScenarioStatusEl.textContent = `Zip rejected: ${e instanceof Error ? e.message : String(e)}`;
         }
     })();
-});
-spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-import-btn')!.addEventListener('click', () => {
-    const text = spScenarioCodeEl.value;
-    if (!text.trim()) return;
-    void decodeShareCode(text)
-        .then(({ id, files }) => loadLevel(id, files))
-        .then(({ ref }) => {
-            spScenarioCodeEl.value = '';
-            spScenarioStatusEl.textContent = `Imported “${ref.id}”`;
-            return renderScenarioList();
-        })
-        .catch((e: unknown) => {
-            spScenarioStatusEl.textContent = `Import failed: ${e instanceof Error ? e.message : String(e)}`;
-        });
 });
 const tutorialEl = menu.querySelector<HTMLDivElement>('[data-view="tutorial"]')!;
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
@@ -1632,84 +1615,45 @@ const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset
  * there a scenario comes with what the player does (the editor, a share code,
  * joining a match).
  */
-spScenarioCodeEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') spScenariosEl.querySelector<HTMLButtonElement>('.m-scenario-import-btn')!.click();
-});
 const SCENARIO_ZIP_TESTING = !isElectron();
 spScenarioZipBtn.hidden = !SCENARIO_ZIP_TESTING;
 
+const spEditorZipOutEl = spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-zip-out')!;
+
 /**
- * Single Player → Editor: every package with scenarios this client has
- * (saved from the editor or a replay, received from a host, loaded from a
- * zip) — play one, open it in the editor, or delete the package.
+ * The editor's one scenario as it was last kept (EditorSession saves as you go
+ * under the draft's name) — the list underneath stays a list, the menu shows one.
  */
-/** Single Player → Editor */
-function openEditorMenu(): void {
-    showMenuView('sp-editor');
-    spEditorContinueEl.hidden = loadStoredDraft() === null;
-    void renderScenarioList();
+async function editorScenario(): Promise<{ ref: LevelRef; id: string } | null> {
+    const draft = loadStoredDraft()?.def;
+    if (!draft) return null;
+    const slug = scenarioSlug(draft.name, draft.id);
+    const level = (await scenarioLevels()).find((l) => l.ref.id === slug);
+    const first = level?.scenarios[0];
+    return level && first ? { ref: level.ref, id: first.id } : null;
 }
 
-async function renderScenarioList(): Promise<void> {
-    // the bundled campaigns are played from Single Player → Campaign
-    const levels = (await scenarioLevels()).filter((level) => !isBuiltInCampaign(level.ref.id));
-    spScenarioListEl.textContent = '';
-    spScenarioListEl.classList.toggle('empty', levels.length === 0);
-    if (levels.length === 0) {
-        spScenarioListEl.textContent = t('menu:noScenarios', {
-            defaultValue: 'No scenarios yet — build a board and press Save.',
-        });
-        return;
-    }
-    const button = (text: string, run: () => void, title?: string) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'm-scenario-btn';
-        b.textContent = text;
-        if (title) b.title = title;
-        b.addEventListener('click', run);
-        return b;
-    };
-    const nameEl = (text: string, title: string) => {
-        const label = document.createElement('span');
-        label.className = 'm-scenario-name';
-        label.textContent = text;
-        label.title = title;
-        return label;
-    };
-    for (const level of levels) {
-        const chain = level.scenarios.length > 1;
-        const where = `${level.ref.id} · ${level.ref.hash.slice(0, 8)}`;
-        // package actions: once per package
-        const codeButton = button(t('menu:scenarioCode', { defaultValue: 'Code' }), () => {
-            void (async () => {
-                const files = levelFiles(level.ref.hash) ?? (await ensureLevel(level.ref).then(() => levelFiles(level.ref.hash)));
-                spScenarioStatusEl.textContent = files ? await copyShareCode(level.ref.id, files) : 'This scenario is not available';
-            })();
-        }, t('menu:scenarioCodeTip', { defaultValue: 'Copy a share code' }));
-        const deleteButton = button('✕', () => {
-            const what = chain ? `“${level.name}” (${level.scenarios.length} scenarios)` : `“${level.scenarios[0]?.name ?? level.name}”`;
-            if (!window.confirm(t('menu:scenarioDeleteConfirm', { defaultValue: 'Delete {{what}}?', what }))) return;
-            void forgetLevel(level.ref).then(() => renderScenarioList());
-        }, t('menu:scenarioDeleteTip', { defaultValue: 'Delete' }));
-        if (chain) {
-            const head = document.createElement('div');
-            head.className = 'm-scenario-row m-scenario-package';
-            head.append(nameEl(`${level.name} · ${level.scenarios.length}`, where), codeButton, deleteButton);
-            spScenarioListEl.appendChild(head);
-        }
-        level.scenarios.forEach((scenario, i) => {
-            const row = document.createElement('div');
-            row.className = `m-scenario-row${chain ? ' m-scenario-level' : ''}`;
-            row.append(
-                nameEl(chain ? `${i + 1}. ${scenario.name}` : scenario.name, where),
-                button(t('menu:scenarioPlay', { defaultValue: 'Play' }), () => void playSavedScenario(level.ref, scenario.id)),
-                button(t('menu:scenarioEdit', { defaultValue: 'Edit' }), () => void editSavedScenario(level.ref, scenario.id)),
-            );
-            if (!chain) row.append(codeButton, deleteButton);
-            spScenarioListEl.appendChild(row);
+spEditorZipOutEl.addEventListener('click', () => {
+    void editorScenario().then(async (s) => {
+        if (s) spScenarioStatusEl.textContent = await downloadScenarioPackage(s.ref);
+    });
+});
+
+/** Single Player → Editor: continue or start the one scenario, zip it (it's played from Campaign) */
+function openEditorMenu(): void {
+    showMenuView('sp-editor');
+    const stored = loadStoredDraft();
+    spEditorContinueEl.hidden = stored === null;
+    if (stored) {
+        spEditorContinueEl.textContent = t('menu:editorContinueNamed', {
+            defaultValue: 'Continue “{{name}}”',
+            name: stored.def.name,
         });
     }
+    spScenarioStatusEl.textContent = '';
+    spEditorZipOutEl.hidden = !SCENARIO_ZIP_TESTING;
+    spEditorZipOutEl.disabled = true;
+    void editorScenario().then((s) => (spEditorZipOutEl.disabled = !s));
 }
 
 /**
