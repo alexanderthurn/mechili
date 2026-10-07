@@ -738,6 +738,28 @@ export class PlacementController {
         return this.units;
     }
 
+    /**
+     * A unit is being positioned: a bought ghost on the cursor, a carried pack or
+     * a formation move — not merely selected. The deployment grid's cell lines
+     * show only then.
+     */
+    get repositioning(): boolean {
+        return this.pendingUnit !== null || this.carryingSelected || this.selectedGroup.length > 0;
+    }
+
+    /**
+     * Where the deployment grid's ripple starts: the bought ghost, the selected or
+     * the carried pack — its view follows the pointer. Null without one, or while a
+     * fresh ghost hasn't reached the board yet.
+     */
+    get focusPoint(): { x: number; z: number } | null {
+        const u = this.pendingUnit ?? this.selectedUnit ?? this.selectedGroup[0] ?? null;
+        if (!u) return null;
+        const p = u.view.position;
+        if (p.y < -1000) return null;
+        return { x: p.x, z: p.z };
+    }
+
     /** Records every pack's pose at deployment-phase start for stale enemy intel. */
     captureIntelSnapshot(): void {
         this.intelSnapshot.clear();

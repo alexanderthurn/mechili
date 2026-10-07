@@ -1,4 +1,24 @@
-import { ShaderChunk } from 'three';
+import { ShaderChunk, ShaderLib, UniformsLib } from 'three';
+
+/**
+ * The fog chunk's live inputs, one shared vec4 for EVERY fogged material:
+ * x = deployment focus shade 0..1, y/z = the board's half extents (the aerial
+ * haze and the focus shade start at its edge), w = ground-mist strength.
+ *
+ * They are uniforms, not values baked into the chunk text: three keys built-in
+ * programs by material type, not by source, so a program compiled before a bake
+ * (boot warm-up, an earlier match) kept the old text — objects then flickered
+ * between programs with and without the current board as light counts changed.
+ * A typed array passes three's per-material uniform cloning by reference
+ * (cloneUniforms copies only three objects and plain arrays), so writing it
+ * reaches every material at once.
+ */
+const FOG_PARAMS = new Float32Array([0, 1e6, 1e6, 1]);
+(UniformsLib.fog as Record<string, { value: unknown }>).fogParams = { value: FOG_PARAMS };
+for (const lib of Object.values(ShaderLib)) {
+    const u = lib.uniforms as Record<string, { value: unknown }>;
+    if (u.fogColor) u.fogParams = { value: FOG_PARAMS };
+}
 
 /**
  * Height-aware fog, patched into EVERY fogged material by replacing three's
@@ -33,6 +53,7 @@ ShaderChunk.fog_vertex = /* glsl */ `
 ShaderChunk.fog_pars_fragment = /* glsl */ `
 #ifdef USE_FOG
 	uniform vec3 fogColor;
+	uniform vec4 fogParams;
 	varying float vFogDepth;
 	varying float vFogWorldY;
 	varying vec2 vFogWorldXZ;
@@ -72,42 +93,49 @@ export const AERIAL_HAZE = {
  */
 export const DISTANCE_FOG_STRENGTH = 0.75;
 
-/** the board's half extents for the haze; huge until a match sets them (= no haze) */
-let hazeBoard = { halfW: 1e6, halfH: 1e6 };
-let lastMistScale = 1;
-
 /**
- * The current match's board size, baked into the fog chunk like the mist
- * strength (no per-material uniform needed). Recompile fogged materials after.
+ * Deployment focus: 0..1 how strongly everything outside the board (ground,
+ * mountains, trees, water — every fogged material; the sky isn't) is shaded like
+ * the board overlay's ground you can't place on (PLACE_BLOCKED_SHADE in map.ts).
  */
-export function setAerialHazeBoard(halfW: number, halfH: number): void {
-    hazeBoard = { halfW, halfH };
-    setHeightFogStrength(lastMistScale);
+export function setDeployShade(k: number): void {
+    FOG_PARAMS[0] = k;
 }
 
 /**
- * Bakes the mist strength into the fog chunk (0 disables the height fog and
- * costs nothing). After changing it at runtime, every fogged material must be
- * recompiled (`material.needsUpdate = true`) to pick the new chunk up.
+ * The focus shade's colour (LINEAR — PLACE_BLOCKED_SHADE's sRGB 6,10,14 decoded) and
+ * amount. The chunk runs after the colour conversion, so the colour goes through
+ * linearToOutputTexel: with post-processing on, the frame is linear until the
+ * output pass, and an sRGB constant there came out much lighter than the overlay.
  */
+const DEPLOY_SHADE_RGB = '0.0018, 0.0030, 0.0044';
+const DEPLOY_SHADE_ALPHA = 0.45;
+
+/** The current match's board size (the aerial haze and the focus shade start at its edge). */
+export function setAerialHazeBoard(halfW: number, halfH: number): void {
+    FOG_PARAMS[1] = halfW;
+    FOG_PARAMS[2] = halfH;
+}
+
+/** Ground-mist strength (0 = none). Live — no recompile needed. */
 export function setHeightFogStrength(scale: number): void {
-    lastMistScale = scale;
+    FOG_PARAMS[3] = scale;
+}
+
+{
     const h = AERIAL_HAZE;
     ShaderChunk.fog_fragment = /* glsl */ `
 #ifdef USE_FOG
+	vec2 fogPastBoard = max( abs( vFogWorldXZ ) - fogParams.yz, 0.0 );
 	#ifdef FOG_EXP2
 		float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
 	#else
 		float fogFactor = smoothstep( fogNear, fogFar, vFogDepth ) * ${DISTANCE_FOG_STRENGTH.toFixed(3)};
 		// aerial perspective (see AERIAL_HAZE): by distance past the board edge
-		vec2 aerialPast = max( abs( vFogWorldXZ ) - vec2( ${hazeBoard.halfW.toFixed(1)}, ${hazeBoard.halfH.toFixed(1)} ), 0.0 );
-		float aerialT = clamp( ( length( aerialPast ) - ${h.near.toFixed(1)} ) / ${(h.far - h.near).toFixed(1)}, 0.0, 1.0 );
+		float aerialT = clamp( ( length( fogPastBoard ) - ${h.near.toFixed(1)} ) / ${(h.far - h.near).toFixed(1)}, 0.0, 1.0 );
 		float aerial = aerialT * ( 2.0 - aerialT ) * ${h.strength.toFixed(3)};
 		vec3 aerialCol = mix( vec3( dot( fogColor, vec3( 0.299, 0.587, 0.114 ) ) ), fogColor, ${h.saturation.toFixed(2)} );
 		gl_FragColor.rgb = mix( gl_FragColor.rgb, aerialCol, aerial );
-		${
-            scale > 0
-                ? `
 		// ground mist: hazier scenarios (small fogNear) raise and thicken it
 		float mistHaze = clamp( 1.0 - fogNear / 1500.0, 0.0, 1.0 );
 		float mistCeil = mix( 4.0, 22.0, mistHaze );
@@ -115,13 +143,17 @@ export function setHeightFogStrength(scale: number): void {
 		// hold mist off until past typical board depth so close weather fog
 		// doesn't stripe the field with a straight view-depth band
 		mist *= smoothstep( max( 180.0, fogNear * 0.45 ), fogNear * 0.85 + 160.0, vFogDepth );
-		fogFactor = max( fogFactor, mist * mix( 0.18, 0.5, mistHaze ) * ${scale.toFixed(2)} );`
-                : ''
-        }
+		fogFactor = max( fogFactor, mist * mix( 0.18, 0.5, mistHaze ) * fogParams.w );
 	#endif
 	gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+	// deployment focus (fogParams.x, see setDeployShade)
+	// signed distance to the board edge (negative inside): a near-hard edge right on it, so
+	// no sliver of unshaded ground (or the board's edge faces) shows between this and the
+	// board overlay, which shades the same colour and amount up to the edge
+	float deployEdge = max( abs( vFogWorldXZ.x ) - fogParams.y, abs( vFogWorldXZ.y ) - fogParams.z );
+	float deployK = fogParams.x * smoothstep( -0.05, 0.05, deployEdge );
+	vec3 deployCol = linearToOutputTexel( vec4( ${DEPLOY_SHADE_RGB}, 1.0 ) ).rgb;
+	gl_FragColor.rgb = mix( gl_FragColor.rgb, deployCol, deployK * ${DEPLOY_SHADE_ALPHA.toFixed(2)} );
 #endif
 `;
 }
-
-setHeightFogStrength(1);

@@ -374,6 +374,25 @@ const HAZARD_ROUGHNESS_GLSL =
  * edge (far) to +halfH at the player edge (near); rows counted from the
  * player edge) and generates the ground mesh.
  */
+/** deployment overlay: the shade over ground the local seat can't place on */
+const PLACE_BLOCKED_SHADE = 'rgba(6, 10, 14, 0.45)';
+
+/** how opaque the single-cell lines get when shown (1 = as painted) */
+const CELL_GRID_OPACITY = 0.5;
+/** the faint grid left standing while no unit is being positioned (0 = hidden) */
+const CELL_GRID_IDLE_OPACITY = 0.1;
+
+/** the cell lines' ripple: wave speed (wu/s), soft front width (wu), front glow (× line alpha) */
+const CELL_RIPPLE_SPEED = 400;
+const CELL_RIPPLE_FRONT = 6;
+const CELL_RIPPLE_GLOW = 2;
+/** the ripple starts as a disc this big (wu) around the unit, already revealed */
+const CELL_RIPPLE_START = 14;
+/** seconds for the cell lines to fade out when positioning ends */
+const CELL_GRID_FADE_OUT_S = 0.12;
+/** seconds to fade in on later reveals (after the round's first ripple) */
+const CELL_GRID_FADE_IN_S = 0.12;
+
 export class BattleMap {
     readonly cols: number;
     readonly rows: number;
@@ -451,6 +470,35 @@ export class BattleMap {
     private snowCoverUniform: { value: number } | null = null;
     /** the dark twin of the single-cell grid lines; its opacity follows the snow (see createOverlayMesh) */
     private overlayDarkGrid: MeshBasicMaterial | null = null;
+    /** the dark twin of the grid's outer edge (always on, follows only the snow) */
+    private overlayDarkEdge: MeshBasicMaterial | null = null;
+    /** the overlay's shade over ground this seat can't place on (faded with the deployment focus) */
+    private overlayShade: MeshBasicMaterial | null = null;
+    /** 0..1 deployment focus: this seat is placing (the game eases it) */
+    private deployShade = 0;
+    /** the single-cell grid lines (light); shown only while a unit is selected */
+    private overlayCellGrid: MeshBasicMaterial | null = null;
+    /**
+     * The cell lines ripple in from the unit being positioned (revealed inside
+     * `radius`) and fade out quickly. Shared by the light lines and their snow
+     * twin; the board size is a uniform, not baked (cached programs).
+     */
+    private readonly cellRipple = {
+        center: { value: new Vector2() },
+        radius: { value: 0 },
+        board: { value: new Vector2() },
+        /** alpha (× the material's) everywhere, whatever the ripple: the faint idle grid */
+        floor: { value: 1 },
+    };
+    /** radius at which the ripple has passed the whole board */
+    private cellRippleEnd = 0;
+    private cellGridOn = false;
+    /** alpha of the cell lines as a fraction of CELL_GRID_OPACITY: idle faint ↔ 1 shown */
+    private cellGridFade = 0;
+    /** the ripple plays once per deployment round; later reveals just fade in */
+    private cellRippleUsed = false;
+    /** the last focus point, where the ripple starts */
+    private readonly cellRippleLast = new Vector2();
     private overlaySnow = 0;
 
     /** ground texture + wear quality (the board's SHAPE is never gated) */
@@ -1602,11 +1650,130 @@ export class BattleMap {
         return t * t * (3 - 2 * t);
     }
 
+    /** some cell lines show (the idle grid counts) */
+    private get cellGridActive(): boolean {
+        return this.cellGridFade > 0.001;
+    }
+
     private syncDarkGrid(): void {
+        const active = this.cellGridActive;
+        // the faint idle level holds outside the ripple (and is all that shows when idle);
+        // it fades with the deployment focus — no grid while this seat isn't placing
+        const idle = (CELL_GRID_IDLE_OPACITY / CELL_GRID_OPACITY) * this.deployShade;
+        this.cellRipple.floor.value = Math.min(1, idle / Math.max(1e-4, this.cellGridFade));
+        const cell = this.overlayCellGrid;
+        if (cell) {
+            cell.opacity = CELL_GRID_OPACITY * this.cellGridFade;
+            cell.visible = active;
+        }
+        const edge = this.overlayDarkEdge;
+        if (edge) {
+            edge.opacity = this.overlaySnow;
+            edge.visible = edge.opacity > 0.01;
+        }
         const mat = this.overlayDarkGrid;
         if (!mat) return;
-        mat.opacity = this.overlaySnow;
-        mat.visible = this.overlaySnow > 0.01;
+        mat.opacity = this.overlaySnow * CELL_GRID_OPACITY * this.cellGridFade;
+        mat.visible = active && mat.opacity > 0.01;
+    }
+
+    /**
+     * Show the single-cell grid lines while `on` (a unit is being positioned):
+     * they ripple out from `focus` (the unit) and fade out quickly when it ends.
+     * The zones, their borders, the grid's outer edge and the centre line stay up
+     * all the time. Call every frame.
+     */
+    updateCellGrid(on: boolean, dtSeconds: number, focus: { x: number; z: number } | null): void {
+        const r = this.cellRipple;
+        if (on && focus) this.cellRippleLast.set(focus.x, focus.z);
+        if (on !== this.cellGridOn) {
+            this.cellGridOn = on;
+            if (on) {
+                r.center.value.copy(this.cellRippleLast);
+                // far enough to have crossed the farthest board corner
+                const c = r.center.value;
+                this.cellRippleEnd =
+                    Math.hypot(this.halfW + Math.abs(c.x), this.halfH + Math.abs(c.y)) + CELL_RIPPLE_FRONT;
+                if (!this.cellRippleUsed) {
+                    // the round's first: the ripple, at full alpha
+                    this.cellRippleUsed = true;
+                    r.radius.value = CELL_RIPPLE_START;
+                    this.cellGridFade = 1;
+                } else {
+                    // after that: everything at once, faded in (from wherever a fade-out was)
+                    r.radius.value = this.cellRippleEnd;
+                }
+            }
+        }
+        let changed = false;
+        if (on && r.radius.value < this.cellRippleEnd) {
+            r.radius.value = Math.min(this.cellRippleEnd, r.radius.value + CELL_RIPPLE_SPEED * dtSeconds);
+            changed = true;
+        }
+        if (on && this.cellGridFade < 1) {
+            this.cellGridFade = Math.min(1, this.cellGridFade + dtSeconds / CELL_GRID_FADE_IN_S);
+            changed = true;
+        }
+        const idle = (CELL_GRID_IDLE_OPACITY / CELL_GRID_OPACITY) * this.deployShade;
+        if (!on && this.cellGridFade > idle) {
+            this.cellGridFade = Math.max(idle, this.cellGridFade - dtSeconds / CELL_GRID_FADE_OUT_S);
+            changed = true;
+        }
+        // the idle level itself follows the focus (fades up as deployment starts)
+        if (!on && this.cellGridFade < idle) {
+            this.cellGridFade = idle;
+            changed = true;
+        }
+        if (changed) this.syncDarkGrid();
+    }
+
+    /**
+     * 0..1 deployment focus (the game eases it; on only while this seat is placing):
+     * fades the shade over ground it can't place on, and the faint idle grid.
+     */
+    setDeployShade(k: number): void {
+        if (k === this.deployShade) return;
+        this.deployShade = k;
+        this.applyOverlayShade();
+        this.syncDarkGrid();
+    }
+
+    private applyOverlayShade(): void {
+        const m = this.overlayShade;
+        if (!m) return;
+        m.opacity = this.deployShade;
+        m.visible = this.deployShade > 0.001;
+    }
+
+    /** A new deployment round: its first cell-grid reveal ripples again. */
+    resetCellGridRipple(): void {
+        this.cellRippleUsed = false;
+    }
+
+    /** the cell layers' ripple: shared uniforms, reveal / erase by distance, a bright front */
+    private attachCellRipple(mat: MeshBasicMaterial): void {
+        this.cellRipple.board.value.set(this.width, this.height);
+        mat.onBeforeCompile = (shader) => {
+            shader.uniforms.uRippleCenter = this.cellRipple.center;
+            shader.uniforms.uRippleRadius = this.cellRipple.radius;
+            shader.uniforms.uRippleBoard = this.cellRipple.board;
+            shader.uniforms.uRippleFloor = this.cellRipple.floor;
+            const f = CELL_RIPPLE_FRONT.toFixed(1);
+            shader.fragmentShader =
+                'uniform vec2 uRippleCenter;\nuniform float uRippleRadius;\nuniform vec2 uRippleBoard;\nuniform float uRippleFloor;\n' +
+                shader.fragmentShader.replace(
+                    '#include <map_fragment>',
+                    `#include <map_fragment>
+	// board position of this texel (the overlay plane is centred, texture top = -z)
+	vec2 rpP = vec2( ( vMapUv.x - 0.5 ) * uRippleBoard.x, ( 0.5 - vMapUv.y ) * uRippleBoard.y );
+	float rpD = distance( rpP, uRippleCenter );
+	// shown inside the wave, a brighter band riding its front
+	float rpIn = 1.0 - smoothstep( uRippleRadius - ${f}, uRippleRadius, rpD );
+	float rpRing = exp( -pow( ( rpD - uRippleRadius + ${f} * 0.5 ) / ( ${f} * 0.5 ), 2.0 ) );
+	diffuseColor.a = min( 1.0, diffuseColor.a * max( uRippleFloor, rpIn + rpRing * ${CELL_RIPPLE_GLOW.toFixed(2)} ) );`,
+                );
+        };
+        mat.customProgramCacheKey = () => 'cell-grid-ripple-v3';
     }
 
     /**
@@ -2312,114 +2479,115 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         const ctx = canvas.getContext('2d')!;
         const t = THEME.terrain;
 
-        // deployment zone tints: each half has the owner's color in the
-        // center; the flank strips belong to the opponent once unlocked.
-        // the zones grow into the middle strip once that is unlocked.
-        // the outer rim stays clear of overlay paint/grid so it reads as terrain.
+        // deployment zones: the ground this seat may place on shows plain, the rest
+        // of the playable band is shaded. The flank strips beside the opponent's half
+        // become placeable once unlocked; the zones grow into the middle strip once
+        // that is unlocked. The outer rim stays clear so it reads as terrain.
         const rimPx = this.size.rimCells * cellPx;
         const zonePx = (this.size.zoneRows + (this.neutralUnlocked ? this.size.neutralRows / 2 : 0)) * cellPx;
         const flankPx = this.size.flankCols * cellPx;
         const playH = h - 2 * rimPx;
-        const paintZone = (x: number, y: number, zw: number, zh: number, tint: string, dim = false) => {
-            ctx.fillStyle = `${tint} ${dim ? 0.04 : 0.12})`;
-            ctx.fillRect(x, y, zw, zh);
-            ctx.strokeStyle = `${tint} ${dim ? 0.22 : 0.55})`;
-            ctx.lineWidth = dim ? 2 : 3;
-            ctx.strokeRect(x + 1.5, y + 1.5, zw - 3, zh - 3);
-        };
         // texture top = far (-z) half; whose that is depends on ownAtFar
         const nearTint = this.ownAtFar ? teamColors.enemy.tint : teamColors.player.tint;
         const farTint = this.ownAtFar ? teamColors.player.tint : teamColors.enemy.tint;
         const midCol = Math.floor(this.cols / 2);
         const midX = midCol * cellPx;
-        // which on-texture rect (top or bottom) is actually MY OWN zone —
-        // near/far tint naming is about texture position, not ownership, so
-        // this must be derived the same way the dashed divider below does
+        // which on-texture rect (top or bottom) is actually MY OWN zone
         const myZoneIsTop = this.ownAtFar;
-        // duo/2v2: laneOk only lets a seat place in its OWN half of the
-        // zone — paint that half at full strength and the ally's half
-        // (still your team's territory, just not yours to click) dimmed,
-        // instead of one uniform tint across ground you can't actually use.
-        // Only MY OWN zone is ever split like this — the opponent's stays a
-        // single uniform tint regardless of my lane.
         const mainLeft = rimPx + flankPx;
         const mainRight = w - rimPx - flankPx;
-        const paintMainZone = (y: number, tint: string, mine: boolean) => {
-            if (lane === 'full' || !mine) {
-                paintZone(mainLeft, y, mainRight - mainLeft, zonePx, tint);
-                return;
-            }
-            const leftW = midX - mainLeft;
-            const rightW = mainRight - midX;
-            paintZone(mainLeft, y, leftW, zonePx, tint, lane !== 'left');
-            paintZone(midX, y, rightW, zonePx, tint, lane !== 'right');
-        };
-        paintMainZone(rimPx, farTint, myZoneIsTop);
-        paintMainZone(h - rimPx - zonePx, nearTint, !myZoneIsTop);
+        const myY = myZoneIsTop ? rimPx : h - rimPx - zonePx;
+        const enemyY = myZoneIsTop ? h - rimPx - zonePx : rimPx;
+        const myTint = myZoneIsTop ? farTint : nearTint;
+        const enemyTint = myZoneIsTop ? nearTint : farTint;
+
+        // Where I may place: my main zone (in duo/2v2 only my own lane — laneOk
+        // enforces that strictly) and, once unlocked, the flank strips beside the
+        // OPPONENT's half (crossed rule; each at the map edge, so it's in one lane).
+        const placeable: [number, number, number, number][] = [];
+        if (lane === 'full') placeable.push([mainLeft, myY, mainRight - mainLeft, zonePx]);
+        else if (lane === 'left') placeable.push([mainLeft, myY, midX - mainLeft, zonePx]);
+        else placeable.push([midX, myY, mainRight - midX, zonePx]);
         if (this.flanksUnlocked) {
-            // flanks beside the OPPONENT's half belong to you — the crossed
-            // rule means flank ownership is the OPPOSITE of that row-band's
-            // main-zone ownership: top flanks are mine exactly when my own
-            // zone is at the BOTTOM (!myZoneIsTop), and vice versa. Each
-            // flank strip sits entirely in one lane (it's at the map edge),
-            // so it's either fully mine or fully dimmed, no split needed.
-            const dimFlank = (isMine: boolean, laneMatch: boolean) =>
-                isMine && lane !== 'full' && !laneMatch;
-            const farY = rimPx;
-            const nearY = h - rimPx - zonePx;
-            paintZone(rimPx, farY, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'left'));
-            paintZone(w - rimPx - flankPx, farY, flankPx, zonePx, nearTint, dimFlank(!myZoneIsTop, lane === 'right'));
-            paintZone(rimPx, nearY, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'left'));
-            paintZone(w - rimPx - flankPx, nearY, flankPx, zonePx, farTint, dimFlank(myZoneIsTop, lane === 'right'));
-        } else {
-            // locked in round 1: neutral grey on flank strips (inside the rim)
-            ctx.fillStyle = t.flankLocked;
-            ctx.fillRect(rimPx, rimPx, flankPx, playH);
-            ctx.fillRect(w - rimPx - flankPx, rimPx, flankPx, playH);
+            if (lane !== 'right') placeable.push([rimPx, enemyY, flankPx, zonePx]);
+            if (lane !== 'left') placeable.push([w - rimPx - flankPx, enemyY, flankPx, zonePx]);
         }
 
-        // tile grid — playable band only; outer rim stays clear so it reads as terrain
+        // Everything on the board I can't place on is darkened (its own layer below,
+        // faded by setDeployShade; the world beyond gets the same from the fog chunk)
+
+        // outlines: my ground in my colour, my ally's lane faintly, the enemy zone faintly
+        const outline = (x: number, y: number, zw: number, zh: number, tint: string, alpha: number, width: number) => {
+            ctx.strokeStyle = `${tint} ${alpha})`;
+            ctx.lineWidth = width;
+            ctx.strokeRect(x + 1.5, y + 1.5, zw - 3, zh - 3);
+        };
+        for (const [x, y, zw, zh] of placeable) outline(x, y, zw, zh, myTint, 0.55, 3);
+        if (lane === 'left') outline(midX, myY, mainRight - midX, zonePx, myTint, 0.22, 2);
+        if (lane === 'right') outline(mainLeft, myY, midX - mainLeft, zonePx, myTint, 0.22, 2);
+        outline(mainLeft, enemyY, mainRight - mainLeft, zonePx, enemyTint, 0.3, 2);
+
+        // tile grid — playable band only; outer rim stays clear so it reads as terrain.
+        // The always-on overlay draws only the grid's outer edge; the single-cell lines
+        // are their own layer below, shown while a unit is selected (updateCellGrid).
         const rim = this.size.rimCells;
+        // `placeableOnly`: clip to the ground this seat may place on (the cells
+        // matter only there; the shaded rest stays clean)
+        const cellLines = (c2d: CanvasRenderingContext2D, placeableOnly = false) => {
+            c2d.save();
+            if (placeableOnly) {
+                c2d.beginPath();
+                for (const [x, y, zw, zh] of placeable) c2d.rect(x, y, zw, zh);
+                c2d.clip();
+            }
+            c2d.beginPath();
+            for (let c = rim; c <= this.cols - rim; c++) {
+                const x = c * cellPx;
+                c2d.moveTo(x, rimPx);
+                c2d.lineTo(x, h - rimPx);
+            }
+            for (let r = rim; r <= this.rows - rim; r++) {
+                const y = r * cellPx;
+                c2d.moveTo(rimPx, y);
+                c2d.lineTo(w - rimPx, y);
+            }
+            c2d.stroke();
+            c2d.restore();
+        };
         ctx.strokeStyle = t.grid;
         ctx.lineWidth = 2;
-        ctx.beginPath();
-        for (let c = rim; c <= this.cols - rim; c++) {
-            const x = c * cellPx;
-            ctx.moveTo(x, rimPx);
-            ctx.lineTo(x, h - rimPx);
-        }
-        for (let r = rim; r <= this.rows - rim; r++) {
-            const y = r * cellPx;
-            ctx.moveTo(rimPx, y);
-            ctx.lineTo(w - rimPx, y);
-        }
-        ctx.stroke();
+        ctx.strokeRect(rimPx, rimPx, w - 2 * rimPx, h - 2 * rimPx);
 
-        // center line through the middle strip
-        ctx.strokeStyle = t.centerLine;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(rimPx, h / 2);
-        ctx.lineTo(w - rimPx, h / 2);
-        ctx.stroke();
+        // the centre line and the lane divider, drawn on the base and again over the
+        // cell layer, so the cell lines never cover them
+        const markers = (c2d: CanvasRenderingContext2D) => {
+            // center line through the middle strip
+            c2d.strokeStyle = t.centerLine;
+            c2d.lineWidth = 3;
+            c2d.beginPath();
+            c2d.moveTo(rimPx, h / 2);
+            c2d.lineTo(w - rimPx, h / 2);
+            c2d.stroke();
 
-        // duo/2v2: a dashed line marking where MY OWN lane ends within my
-        // own zone — laneOk enforces this strictly (a click past it is
-        // rejected), so without this there's no visual cue at all for where
-        // a seat may actually place
-        if (lane !== 'full') {
-            const myZoneTop = this.ownAtFar ? rimPx : h - rimPx - zonePx;
-            const myZoneBottom = this.ownAtFar ? rimPx + zonePx : h - rimPx;
-            ctx.save();
-            ctx.strokeStyle = t.laneLine;
-            ctx.lineWidth = 3;
-            ctx.setLineDash([14, 10]);
-            ctx.beginPath();
-            ctx.moveTo(midX, myZoneTop);
-            ctx.lineTo(midX, myZoneBottom);
-            ctx.stroke();
-            ctx.restore();
-        }
+            // duo/2v2: a dashed line marking where MY OWN lane ends within my
+            // own zone — laneOk enforces this strictly (a click past it is
+            // rejected), so without this there's no visual cue at all for where
+            // a seat may actually place
+            if (lane !== 'full') {
+                const myZoneTop = this.ownAtFar ? rimPx : h - rimPx - zonePx;
+                const myZoneBottom = this.ownAtFar ? rimPx + zonePx : h - rimPx;
+                c2d.save();
+                c2d.strokeStyle = t.laneLine;
+                c2d.lineWidth = 3;
+                c2d.setLineDash([14, 10]);
+                c2d.beginPath();
+                c2d.moveTo(midX, myZoneTop);
+                c2d.lineTo(midX, myZoneBottom);
+                c2d.stroke();
+                c2d.restore();
+            }
+        };
+        markers(ctx);
 
         const texture = new CanvasTexture(canvas);
         texture.colorSpace = SRGBColorSpace;
@@ -2435,6 +2603,46 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         );
         mesh.position.y = 0.02;
 
+        // The shade over ground this seat can't place on, the outer rim included:
+        // under the outlines, faded in only while this seat is deploying.
+        const shade = document.createElement('canvas');
+        shade.width = w;
+        shade.height = h;
+        const sctx = shade.getContext('2d')!;
+        sctx.fillStyle = PLACE_BLOCKED_SHADE;
+        sctx.fillRect(0, 0, w, h);
+        for (const [x, y, zw, zh] of placeable) sctx.clearRect(x, y, zw, zh);
+        const shadeTex = new CanvasTexture(shade);
+        shadeTex.colorSpace = SRGBColorSpace;
+        shadeTex.anisotropy = 8;
+        const shadeMat = new MeshBasicMaterial({ map: shadeTex, transparent: true, depthWrite: false, opacity: 0 });
+        const shadeMesh = new Mesh(geometry, shadeMat);
+        // before the base overlay's outlines (same plane, so order decides)
+        shadeMesh.renderOrder = -1;
+        mesh.add(shadeMesh);
+        this.overlayShade = shadeMat;
+        this.applyOverlayShade();
+
+        // The single-cell lines, their own layer (over the base, sharing its geometry so
+        // they follow the relief), with the centre / lane markers repeated on top.
+        const cells = document.createElement('canvas');
+        cells.width = w;
+        cells.height = h;
+        const cctx = cells.getContext('2d')!;
+        cctx.strokeStyle = t.grid;
+        cctx.lineWidth = 2;
+        cellLines(cctx, true);
+        markers(cctx);
+        const cellTex = new CanvasTexture(cells);
+        cellTex.colorSpace = SRGBColorSpace;
+        cellTex.anisotropy = 8;
+        const cellMat = new MeshBasicMaterial({ map: cellTex, transparent: true, depthWrite: false, opacity: 0 });
+        this.attachCellRipple(cellMat);
+        const cellMesh = new Mesh(geometry, cellMat);
+        cellMesh.renderOrder = 1;
+        mesh.add(cellMesh);
+        this.overlayCellGrid = cellMat;
+
         // The single-cell lines are white on purpose — on lawn. On snow they vanish, so a dark
         // twin of just those lines sits over them, fading in with the snow (and out again),
         // sharing the overlay's geometry so it follows the relief. Nothing else changes colour.
@@ -2444,26 +2652,33 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         const dctx = dark.getContext('2d')!;
         dctx.strokeStyle = t.gridSnow;
         dctx.lineWidth = 2;
-        dctx.beginPath();
-        for (let c = rim; c <= this.cols - rim; c++) {
-            const x = c * cellPx;
-            dctx.moveTo(x, rimPx);
-            dctx.lineTo(x, h - rimPx);
-        }
-        for (let r = rim; r <= this.rows - rim; r++) {
-            const y = r * cellPx;
-            dctx.moveTo(rimPx, y);
-            dctx.lineTo(w - rimPx, y);
-        }
-        dctx.stroke();
+        cellLines(dctx, true);
         const darkTex = new CanvasTexture(dark);
         darkTex.colorSpace = SRGBColorSpace;
         darkTex.anisotropy = 8;
         const darkMat = new MeshBasicMaterial({ map: darkTex, transparent: true, depthWrite: false, opacity: 0 });
+        this.attachCellRipple(darkMat);
         const darkMesh = new Mesh(geometry, darkMat);
-        darkMesh.renderOrder = 1;
+        darkMesh.renderOrder = 2;
         mesh.add(darkMesh);
         this.overlayDarkGrid = darkMat;
+
+        // and the always-on outer edge's dark twin (snow only)
+        const edgeCanvas = document.createElement('canvas');
+        edgeCanvas.width = w;
+        edgeCanvas.height = h;
+        const ectx = edgeCanvas.getContext('2d')!;
+        ectx.strokeStyle = t.gridSnow;
+        ectx.lineWidth = 2;
+        ectx.strokeRect(rimPx, rimPx, w - 2 * rimPx, h - 2 * rimPx);
+        const edgeTex = new CanvasTexture(edgeCanvas);
+        edgeTex.colorSpace = SRGBColorSpace;
+        edgeTex.anisotropy = 8;
+        const edgeMat = new MeshBasicMaterial({ map: edgeTex, transparent: true, depthWrite: false, opacity: 0 });
+        const edgeMesh = new Mesh(geometry, edgeMat);
+        edgeMesh.renderOrder = 2;
+        mesh.add(edgeMesh);
+        this.overlayDarkEdge = edgeMat;
         this.syncDarkGrid();
         return mesh;
     }

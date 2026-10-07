@@ -18,7 +18,7 @@ import {
     type ShadowMapType,
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { setAerialHazeBoard, setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
+import { setAerialHazeBoard, setDeployShade, setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
 import { EffectToggles } from './effectToggles';
 import { DISPLAY } from './displayNames';
 import { t, itemDescription, itemName, tacticDescription, tacticName, techName, unitName } from '../i18n';
@@ -449,6 +449,9 @@ function seedFrom(seed: number, label: string): number {
  */
 /** how long a test battle shows its board before it locks in */
 const TEST_BATTLE_LOOK_MS = 700;
+
+/** seconds for the deployment focus shade outside the board to fade in / out */
+const DEPLOY_SHADE_FADE_S = 0.4;
 
 export class Game {
     private readonly map: BattleMap;
@@ -1267,7 +1270,7 @@ export class Game {
         this.hud.flashCinemaHint(`Vignette · ${next}`, 1400);
     }
 
-    /** Re-bake height-mist shader strength and recompile fogged materials (Shift+3). */
+    /** Height-mist strength + board size for the fog chunk (live uniforms; Shift+3 toggles the mist). */
     private applyHeightMistStrength(): void {
         const strength = this.effectToggles.isEnabled('heightMist') ? this.heightMistBase : 0;
         setAerialHazeBoard(this.map.halfW, this.map.halfH);
@@ -1355,6 +1358,8 @@ export class Game {
      *  menu, so every step draws the same frame. Ignored in multiplayer. */
     private benchmarkHold = false;
 
+    /** 0..1 deployment focus shade on the world outside the board (eased) */
+    private deployShade = 0;
     /** dev: remember the camera across a reload (see reloadCamera.ts) */
     private readonly onPageHide = () => saveReloadCamera(this.rig.getPose());
     private readonly onWindowResize = () => this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
@@ -3195,6 +3200,8 @@ export class Game {
         this.pixiApp.ticker.remove(this.boundTick);
         window.removeEventListener('keydown', this.onEscapeKey);
         window.removeEventListener('pagehide', this.onPageHide);
+        // the deployment shade is shared by every fogged material — never leave it on
+        setDeployShade(0);
         window.removeEventListener('resize', this.onWindowResize);
         for (const dispose of this.inputDisposers) dispose();
         this.inputDisposers.length = 0;
@@ -3690,6 +3697,8 @@ export class Game {
             this.refreshOverlay();
         }
         this.gridOverlay.visible = true;
+        // the round's first cell-grid reveal ripples again
+        this.map.resetCellGridRipple();
         // the horde stands on the board from deployment start — both players
         // see the wave and place against it (not while editing the board)
         if (this.editorMode !== 'author') this.spawnHordeWave();
@@ -11530,6 +11539,32 @@ export class Game {
             }
         }
         this.map.setSnowCover(this.scenery.groundSnowCover);
+        // deployment focus: everything outside the board shaded while placing
+        {
+            // only while THIS seat is placing: not locked in (also after a reload — the
+            // log restores seatReady), not spectating, not in the editor, not in
+            // cinema mode (Shift+C — the world in battle presentation)
+            const want =
+                this.phase === 'build' &&
+                !this.watching &&
+                !this.seatReady[this.humanSeat] &&
+                this.editorMode !== 'author' &&
+                !this.matchOver &&
+                !this.hud.isUiHidden
+                    ? 1
+                    : 0;
+            const step = dtSeconds / DEPLOY_SHADE_FADE_S;
+            if (want > this.deployShade) this.deployShade = Math.min(want, this.deployShade + step);
+            else if (want < this.deployShade) this.deployShade = Math.max(want, this.deployShade - step);
+            setDeployShade(this.deployShade);
+            this.map.setDeployShade(this.deployShade);
+        }
+        // deployment grid: the single-cell lines only while a unit is being positioned
+        this.map.updateCellGrid(
+            this.phase === 'build' && this.placement.repositioning,
+            dtSeconds,
+            this.placement.focusPoint,
+        );
         this.postFx.setSnowCover(this.scenery.groundSnowCover);
         this.map.setHazardTime(this.time);
         // Battle already advanced mixers before stuckBolts.sync above.
