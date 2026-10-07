@@ -31,6 +31,10 @@ const moonUrl = (): string => assetUrl('textures/moon.webp');
 const iceAlbedoUrl = (): string => assetUrl('textures/ice-albedo.webp');
 /** ultra meadow grass: a 2×2 atlas of painted grass clumps (alpha) */
 const grassClumpsUrl = (): string => assetUrl('textures/grass-clumps.webp');
+/** board grass variants, generated in the lawn's style (seamless) */
+const grassLushUrl = (): string => assetUrl('textures/grass-lush.webp');
+const grassDryUrl = (): string => assetUrl('textures/grass-dry.webp');
+const grassSparseUrl = (): string => assetUrl('textures/grass-sparse.webp');
 
 /** Field-photo tiles (processed from misc/photos/ via process-ground-photos.py). */
 const GRASS_PHOTO = [
@@ -148,6 +152,9 @@ const SRGB_URLS = new Set<string>([
     moonUrl(),
     iceAlbedoUrl(),
     grassClumpsUrl(),
+    grassLushUrl(),
+    grassDryUrl(),
+    grassSparseUrl(),
     ...GRASS_PHOTO.map((p) => p.albedo),
     ...DIRT_PHOTO.map((p) => p.albedo),
     ...ROCK_PHOTO.map((p) => p.albedo),
@@ -267,6 +274,24 @@ export async function loadWearGroundTextures(): Promise<PhotoTextureSet | null> 
     ]);
     if (!albedo) return null;
     return { albedo, normal, variants: [] };
+}
+
+export interface GrassVariantTextures {
+    lush: Texture;
+    dry: Texture;
+    sparse: Texture;
+}
+
+/** Board grass variants (high/ultra — the HQ tiers); null when the tier skips them or one fails. */
+export async function loadGrassVariantTextures(): Promise<GrassVariantTextures | null> {
+    const profile = groundMaterialProfile();
+    if (!profile.useHqTextures || !profile.hexTile) return null;
+    const [lush, dry, sparse] = await Promise.all([
+        loadWorldTexture(grassLushUrl()),
+        loadWorldTexture(grassDryUrl()),
+        loadWorldTexture(grassSparseUrl()),
+    ]);
+    return lush && dry && sparse ? { lush, dry, sparse } : null;
 }
 
 /** Mountain rock: legacy albedo + its normal as base; field photos soft-multiply as accents. */

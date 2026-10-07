@@ -222,12 +222,11 @@ export function groundDetailCacheKey(profile: GroundMaterialProfile): string {
  * and z as well — for both the normal and the fine tile, so a hillside shows
  * the same blade size as flat ground.
  */
-export function closeTileInjectGlsl(profile: GroundMaterialProfile, hex = false): string {
+export function closeTileInjectGlsl(profile: GroundMaterialProfile, hex = false, lawn = 'hexTileRGB( map, '): string {
     if (profile.closeRepeat <= 1.01) return '';
-    const closeSample = hex
-        ? 'hexTileRGB( map, ( vMapUv + uHexShift ) * uCloseRepeat )'
-        : 'texture2D( map, closeUv ).rgb';
-    const planarSample = hex ? 'hexTileRGB( map, vMapUv + uHexShift )' : 'texture2D( map, vMapUv ).rgb';
+    // `lawn` opens the hex read of the lawn ("fn( " + uv + " )"): lawnSample( where grass variants are on
+    const closeSample = hex ? `${lawn}( vMapUv + uHexShift ) * uCloseRepeat )` : 'texture2D( map, closeUv ).rgb';
+    const planarSample = hex ? `${lawn}vMapUv + uHexShift )` : 'texture2D( map, vMapUv ).rgb';
     return `
 	float closeW = 1.0 - smoothstep( uCloseNear, uCloseFar, distance( cameraPosition, vCloseWorld ) );
 	vec3 closeWorldN = normalize( transformDirectionByInverseViewMatrix( normalize( vNormal ), viewMatrix ) );
@@ -306,12 +305,11 @@ void hexGrid( vec2 uv, out vec3 w, out vec2 v1, out vec2 v2, out vec2 v3 ) {
 	v3 = base + vec2( 1.0 - s, s );
 }
 // the colour texture at uv, hex-tiled (3 reads; explicit gradients keep the mips right)
-vec3 hexTileRGB( sampler2D tex, vec2 uv ) {
+// the same with the uv's screen derivatives passed in — safe inside a branch
+vec3 hexTileRGBGrad( sampler2D tex, vec2 uv, vec2 dx, vec2 dy ) {
 	vec3 w;
 	vec2 v1, v2, v3;
 	hexGrid( uv, w, v1, v2, v3 );
-	vec2 dx = dFdx( uv );
-	vec2 dy = dFdy( uv );
 	mat2 r1 = hexRot( v1 );
 	mat2 r2 = hexRot( v2 );
 	mat2 r3 = hexRot( v3 );
@@ -323,6 +321,9 @@ vec3 hexTileRGB( sampler2D tex, vec2 uv ) {
 	vec3 ww = max( w, 0.0 ) * pow( lw, vec3( 7.0 ) );
 	ww /= max( ww.x + ww.y + ww.z, 1e-6 );
 	return c1 * ww.x + c2 * ww.y + c3 * ww.z;
+}
+vec3 hexTileRGB( sampler2D tex, vec2 uv ) {
+	return hexTileRGBGrad( tex, uv, dFdx( uv ), dFdy( uv ) );
 }
 // a tangent-space normal map at uv, hex-tiled; each cell's xy is turned back
 // by its rotation so the bumps still face the light the right way
@@ -345,6 +346,64 @@ vec3 hexTileNormal( sampler2D tex, vec2 uv ) {
 	ww /= max( ww.x + ww.y + ww.z, 1e-6 );
 	return n1 * ww.x + n2 * ww.y + n3 * ww.z;
 }
+`;
+
+/**
+ * Grass variants on the board: lush / dry / sparse lawn textures in the same
+ * style as the base lawn, laid in soft zones from the same noise the ground-type
+ * tints use (groundZonesGlsl), so the field has places instead of one lawn.
+ * They fade out toward the board edge, where the outer meadow takes over.
+ * Tweak live (hard refresh):
+ * - lush / dry / sparse: [from, to] of the zone value where the variant fades
+ *   in / is full, and `amount` 0..1 the most it covers
+ */
+export const GRASS_VARIANTS = {
+    lush: { from: 0.52, to: 0.74, amount: 0.9 },
+    dry: { from: 0.46, to: 0.24, amount: 0.7 },
+    sparse: { from: 0.6, to: 0.85, amount: 0.85 },
+} as const;
+
+/**
+ * GLSL (global, after map_pars_fragment): the variant weights and
+ * `lawnSample( uv )` — the hex-tiled lawn with the variants mixed in. Each
+ * variant is only read where it shows (explicit gradients keep that branch
+ * legal). Needs HEX_TILE_FNS, SLOPE_GROUND_FNS, uBoardHalf, vBoardXZ and
+ * samplers uGrassLush / uGrassDry / uGrassSparse.
+ */
+export function grassVariantsGlsl(): string {
+    const g = GRASS_VARIANTS;
+    const f = (v: number) => v.toFixed(3);
+    return `
+vec3 gvW;
+void grassVariantWeights( vec3 p ) {
+	float edge = 1.0 - smoothstep( 0.78, 0.94, max( abs( vBoardXZ.x ) / uBoardHalf.x, abs( vBoardXZ.y ) / uBoardHalf.y ) );
+	// the same zone noise as groundZonesGlsl (lush high, straw low) and its bare-earth noise
+	float zoneA = slopeNoise( p.xz / 64.0 + 11.0 ) * 0.7 + slopeNoise( p.xz / 23.0 + 5.3 ) * 0.3;
+	float earthN = slopeNoise( p.xz / 27.0 + 47.0 ) * 0.65 + slopeNoise( p.xz / 8.0 + 2.9 ) * 0.35;
+	gvW = vec3(
+		smoothstep( ${f(g.lush.from)}, ${f(g.lush.to)}, zoneA ) * ${f(g.lush.amount)},
+		smoothstep( ${f(g.dry.from)}, ${f(g.dry.to)}, zoneA ) * ${f(g.dry.amount)},
+		smoothstep( ${f(g.sparse.from)}, ${f(g.sparse.to)}, earthN ) * ${f(g.sparse.amount)}
+	) * edge;
+}
+vec3 lawnSample( vec2 uv ) {
+	vec2 dx = dFdx( uv );
+	vec2 dy = dFdy( uv );
+	vec3 c = hexTileRGBGrad( map, uv, dx, dy );
+	if ( gvW.x > 0.003 ) c = mix( c, hexTileRGBGrad( uGrassLush, uv, dx, dy ), gvW.x );
+	if ( gvW.y > 0.003 ) c = mix( c, hexTileRGBGrad( uGrassDry, uv, dx, dy ), gvW.y );
+	if ( gvW.z > 0.003 ) c = mix( c, hexTileRGBGrad( uGrassSparse, uv, dx, dy ), gvW.z );
+	return c;
+}
+`;
+}
+
+/** `#include <map_fragment>` for a board with grass variants (weights once, then the mixed lawn). */
+export const GRASS_VARIANTS_MAP_FRAGMENT_GLSL = `
+	grassVariantWeights( vGroundWorld );
+#ifdef USE_MAP
+	diffuseColor.rgb *= lawnSample( vMapUv + uHexShift );
+#endif
 `;
 
 /**
@@ -451,9 +510,12 @@ export function groundZonesGlsl(opts: {
     strength: number;
     /** hex-tile the earth read (needs HEX_TILE_FNS) */
     hex?: boolean;
+    /** grass variant textures already lay the lush / straw zones: keep only a hint of their tint */
+    textured?: boolean;
 }): string {
-    const { worldPos, boardXZ, boardHalf, earth, strength, hex = false } = opts;
+    const { worldPos, boardXZ, boardHalf, earth, strength, hex = false, textured = false } = opts;
     const k = strength.toFixed(2);
+    const kz = (strength * (textured ? 0.3 : 1)).toFixed(2);
     let glsl = `
 	// ground types (see groundZonesGlsl)
 	vec3 zoneP = ${worldPos};
@@ -462,8 +524,8 @@ export function groundZonesGlsl(opts: {
 	float lushT = smoothstep( 0.54, 0.78, zoneA ) * zoneEdge;
 	float strawT = ( 1.0 - smoothstep( 0.24, 0.46, zoneA ) ) * zoneEdge;
 	float zoneLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
-	diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.80, 1.07, 0.78 ), lushT * ${k} );
-	diffuseColor.rgb = mix( diffuseColor.rgb, mix( diffuseColor.rgb, vec3( zoneLum ), 0.35 ) * vec3( 1.22, 1.06, 0.62 ), strawT * ${k} * 0.8 );
+	diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.80, 1.07, 0.78 ), lushT * ${kz} );
+	diffuseColor.rgb = mix( diffuseColor.rgb, mix( diffuseColor.rgb, vec3( zoneLum ), 0.35 ) * vec3( 1.22, 1.06, 0.62 ), strawT * ${kz} * 0.8 );
 	// moss: small, darker, cooler green patches on the low ground
 	float mossN = slopeNoise( zoneP.xz / 15.0 + 90.0 ) * 0.7 + slopeNoise( zoneP.xz / 5.5 + 13.0 ) * 0.3;
 	float mossT = smoothstep( 0.62, 0.8, mossN ) * ( 1.0 - smoothstep( 0.2, 1.4, zoneP.y ) ) * zoneEdge;

@@ -14,12 +14,13 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_ROCK_NORMAL, SLOPE_ROCK_NORMAL_APPLY_GLSL, texRGB, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_ROCK_NORMAL, SLOPE_ROCK_NORMAL_APPLY_GLSL, texRGB, GRASS_VARIANTS, GRASS_VARIANTS_MAP_FRAGMENT_GLSL, grassVariantsGlsl, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
     sandAlbedoUrl,
     loadGrassTextures,
+    loadGrassVariantTextures,
     loadRockTextures,
     loadWearGroundTextures,
     loadWorldTexture,
@@ -1629,6 +1630,8 @@ export class BattleMap {
             slopeEarth?: import('three').Texture | null;
             slopeRock?: import('three').Texture | null;
             slopeRockNormal?: import('three').Texture | null;
+            /** lush / dry / sparse lawn textures laid in the ground zones (needs hex) */
+            grassVariants?: import('./worldTextures').GrassVariantTextures | null;
         },
     ): void {
         const {
@@ -1642,12 +1645,22 @@ export class BattleMap {
             slopeEarth = null,
             slopeRock = null,
             slopeRockNormal = null,
+            grassVariants = null,
         } = opts;
         const profile = groundMaterialProfile();
         const useDetail = detail && profile.detailStrength > 0;
         // hex tiling replaces the bombing patches (same job, done properly)
         const hex = detail && profile.hexTile;
         const bomb = useDetail && profile.textureBomb && !hex;
+        const variants = hex ? grassVariants : null;
+        // A fragment shader reads at most 16 textures (three adds the env map +
+        // shadow maps on top). Two savings make room for the variants:
+        // - the variants replace the photo-grass accents (same job, done properly)
+        const photo = variants ? null : photoGrass;
+        // - the slope earth IS the sand texture: read it through uSand when that is bound
+        const sandBound = !!(sand && (baseSandMask || sandMask));
+        const earthSampler = slopeEarth && sandBound && slopeEarth === sand ? 'uSand' : 'uSlopeEarth';
+        const earthOwn = !!slopeEarth && earthSampler === 'uSlopeEarth';
         const useCloseTile = detail && profile.closeRepeat > 1.01;
         const richHazards = profile.tier === 'high' || profile.tier === 'ultra';
         material.onBeforeCompile = (shader) => {
@@ -1670,6 +1683,11 @@ export class BattleMap {
             bindCloseTileUniforms(shader.uniforms as Record<string, { value: unknown }>, profile);
             // the board's lawn UV is the hex grid's reference (the meadow shifts onto it)
             if (hex) shader.uniforms.uHexShift = { value: new Vector2(0, 0) };
+            if (variants) {
+                shader.uniforms.uGrassLush = { value: variants.lush };
+                shader.uniforms.uGrassDry = { value: variants.dry };
+                shader.uniforms.uGrassSparse = { value: variants.sparse };
+            }
             shader.vertexShader =
                 'varying vec2 vMacroUv;\nvarying vec2 vBoardXZ;\n' +
                 shader.vertexShader.replace(
@@ -1683,7 +1701,7 @@ export class BattleMap {
                     '#include <project_vertex>',
                     '#include <project_vertex>\n\tvGroundWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;',
                 );
-            if (slopeEarth) shader.uniforms.uSlopeEarth = { value: slopeEarth };
+            if (earthOwn) shader.uniforms.uSlopeEarth = { value: slopeEarth };
             if (slopeRock) shader.uniforms.uSlopeRock = { value: slopeRock };
             if (slopeRock && slopeRockNormal) shader.uniforms.uSlopeRockNormal = { value: slopeRockNormal };
             let inject = '';
@@ -1692,6 +1710,7 @@ export class BattleMap {
                 closeTileUniformDecls(profile);
             if (richHazards) extraUniforms += HAZARD_NOISE_GLSL;
             if (hex) extraUniforms += HEX_TILE_UNIFORM_DECL + HEX_TILE_FNS;
+            if (variants) extraUniforms += 'uniform sampler2D uGrassLush;\nuniform sampler2D uGrassDry;\nuniform sampler2D uGrassSparse;\n';
             // Footstep strength for oil/acid disturbance (set when wear mask is present).
             inject += '\tfloat footWear = 0.0;\n';
             // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
@@ -1719,7 +1738,7 @@ export class BattleMap {
                 '}\n';
             // Closer camera → finer grass tile (blades stop looking human-sized).
             if (useCloseTile) {
-                inject += closeTileInjectGlsl(profile, hex);
+                inject += closeTileInjectGlsl(profile, hex, variants ? 'lawnSample( ' : 'hexTileRGB( map, ');
             } else {
                 inject += closeTileWeightFallbackGlsl(profile);
             }
@@ -1746,10 +1765,10 @@ export class BattleMap {
                 }
             }
             // Field photos at far/mid; fade out when close so the lawn stays uniform.
-            if (photoGrass) {
+            if (photo) {
                 const g = PHOTO_BLEND.grass;
-                shader.uniforms.uPhotoGrass1 = { value: photoGrass[0] };
-                shader.uniforms.uPhotoGrass2 = { value: photoGrass[1] };
+                shader.uniforms.uPhotoGrass1 = { value: photo[0] };
+                shader.uniforms.uPhotoGrass2 = { value: photo[1] };
                 extraUniforms += 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n';
                 const pgCloseFade = useCloseTile
                     ? `\tpgVeil *= mix( 1.0, 0.08, closeW );\n`
@@ -1791,7 +1810,7 @@ export class BattleMap {
             // Hillsides: drier, browner grass the steeper it gets, then earth, then rock (before mud and snow)
             extraUniforms +=
                 'varying vec3 vGroundWorld;\n' +
-                (slopeEarth ? 'uniform sampler2D uSlopeEarth;\n' : '') +
+                (earthOwn ? 'uniform sampler2D uSlopeEarth;\n' : '') +
                 (slopeRock ? 'uniform sampler2D uSlopeRock;\n' : '') +
                 (slopeRock && slopeRockNormal ? 'uniform sampler2D uSlopeRockNormal;\n' : '') +
                 SLOPE_GROUND_FNS;
@@ -1803,20 +1822,21 @@ export class BattleMap {
                     boardXZ: 'vBoardXZ',
                     boardHalf: 'uBoardHalf',
                     // the bare-earth patches cost one more read of the dirt: high and ultra only
-                    earth: slopeEarth && profile.tier !== 'medium' ? 'uSlopeEarth' : null,
+                    earth: slopeEarth && profile.tier !== 'medium' ? earthSampler : null,
                     strength: profile.tier === 'medium' ? 0.7 : 1,
                     hex,
+                    textured: !!variants,
                 });
             }
             inject += slopeGroundGlsl({
                 worldPos: 'vGroundWorld',
                 worldNormal: 'transformDirectionByInverseViewMatrix( normalize( vNormal ), viewMatrix )',
-                earth: slopeEarth ? { sampler: 'uSlopeEarth', uv: 'vMapUv * 0.7' } : null,
+                earth: slopeEarth ? { sampler: earthSampler, uv: 'vMapUv * 0.7' } : null,
                 rock: slopeRock ? 'uSlopeRock' : null,
                 rockNormal: slopeRock && slopeRockNormal ? 'uSlopeRockNormal' : null,
                 hex,
             });
-            if (sand && (baseSandMask || sandMask)) {
+            if (sandBound) {
                 shader.uniforms.uSand = { value: sand };
                 extraUniforms += 'uniform sampler2D uSand;\n';
             }
@@ -1916,11 +1936,13 @@ export class BattleMap {
             let frag =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 extraUniforms +
-                (photoGrass ? softBlobFn : '') +
+                (photo ? softBlobFn : '') +
                 shader.fragmentShader.replace(
                     '#include <map_fragment>',
-                    `${hex ? HEX_MAP_FRAGMENT_GLSL : '#include <map_fragment>'}\n${inject}`,
+                    `${variants ? GRASS_VARIANTS_MAP_FRAGMENT_GLSL : hex ? HEX_MAP_FRAGMENT_GLSL : '#include <map_fragment>'}\n${inject}`,
                 );
+            // the variant lawn read needs `map`, so it goes in after map_pars declares it
+            if (variants) frag = frag.replace('#include <map_pars_fragment>', `#include <map_pars_fragment>\n${grassVariantsGlsl()}`);
             if (useDetail && material.normalMap) {
                 // Micro normals in the same space as the already-perturbed map
                 // (cheap UDN-style). Avoids perturbNormalArb — removed/changed in r185.
@@ -1966,9 +1988,9 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v68${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}${hex ? '-hex2' : ''}-gs${
+            `ground-hazard-v68${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photo ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}${hex ? '-hex2' : ''}${variants ? `-gv${JSON.stringify(GRASS_VARIANTS).replace(/[^0-9.]/g, '')}` : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
-            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r2' : ''}${slopeRock && slopeRockNormal ? `n${SLOPE_ROCK_NORMAL}` : ''}${detail ? '-zones7' : ''}`;
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? (earthOwn ? 'e' : 'es') : ''}${slopeRock ? 'r2' : ''}${slopeRock && slopeRockNormal ? `n${SLOPE_ROCK_NORMAL}` : ''}${detail ? '-zones7' : ''}`;
     }
 
     /**
@@ -2061,6 +2083,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         const sand = wear?.albedo ?? (await loadWorldTexture(sandAlbedoUrl()));
         // hillside dirt + cliff rock (Low keeps the slope tint only)
         const rockPack = profile.tier === 'low' ? null : await loadRockTextures();
+        const grassVariants = await loadGrassVariantTextures();
         const slopeRock = rockPack?.albedo ?? null;
         const slopeRockNormal = slopeRock ? (rockPack?.normal ?? null) : null;
         if (slopeRockNormal) {
@@ -2089,6 +2112,12 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         }
         if (wear?.normal) tile(wear.normal);
         for (const v of grass.variants) tile(v);
+        if (grassVariants) {
+            for (const v of [grassVariants.lush, grassVariants.dry, grassVariants.sparse]) {
+                tile(v);
+                v.colorSpace = SRGBColorSpace;
+            }
+        }
         const wearOn = this.wearEnabled();
         const sandMask = sand && wearOn ? this.createSandMask(seed) : null;
         if (!sandMask) {
@@ -2129,6 +2158,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             slopeEarth: profile.tier === 'low' ? null : sand,
             slopeRock,
             slopeRockNormal,
+            grassVariants,
         });
 
         const previous = mesh.material as MeshStandardMaterial;
