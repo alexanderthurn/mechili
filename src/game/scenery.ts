@@ -3299,6 +3299,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         if (!grass?.albedo) return;
         const { albedo, normal } = grass;
         const rock = rockPack?.albedo ?? null;
+        const rockNormal = rock ? (rockPack?.normal ?? null) : null;
         const rockPhoto1 = rockPack?.variants[0] ?? null;
         const rockPhoto2 = rockPack?.variants[1] ?? null;
         // Outer meadow: lighter photo accents only (no dark seamless photo-2)
@@ -3326,6 +3327,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
             rock.wrapS = rock.wrapT = RepeatWrapping;
             rock.colorSpace = SRGBColorSpace;
             rock.anisotropy = profile.anisotropy;
+        }
+        if (rockNormal) {
+            rockNormal.wrapS = rockNormal.wrapT = RepeatWrapping;
+            rockNormal.anisotropy = profile.anisotropy;
         }
         for (const rp of [rockPhoto1, rockPhoto2]) {
             if (!rp) continue;
@@ -3366,6 +3371,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         const toneMix = 0.35 + 0.65 * profile.macroStrength;
         material.onBeforeCompile = (shader) => {
             if (rock) shader.uniforms.uRock = { value: rock };
+            if (rockNormal) shader.uniforms.uRockNormal = { value: rockNormal };
             if (rockPhoto1) shader.uniforms.uRockPhoto1 = { value: rockPhoto1 };
             if (rockPhoto2) shader.uniforms.uRockPhoto2 = { value: rockPhoto2 };
             if (photoGrass) {
@@ -3558,14 +3564,18 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
     float rockF = 0.0;`;
             if (rock) {
                 inject += `
-    rockF = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH));
-    rockF = max(rockF * (1.0 - snowF), cliffStrip * (0.14 + breakup * 0.4) * mix(0.1, 0.65, deepWinter));
+${ROCK_TRIPLANAR_GLSL}
+${rockNormal ? rockNormalWorldGlsl(rockTile) : '    vec3 rnWorld = rkN;'}
+    // rock under everything (before snow): where the rock's own bumps light the surface
+    float rkUnder = max(smoothstep(16.0, 55.0, vTerrainH), smoothstep(0.32, 0.58, vSlope) * smoothstep(3.0, 9.0, vTerrainH));
+${ROCK_SNOW_GLSL}
+    rockF = max(rkUnder * (1.0 - snowF), cliffStrip * (0.14 + breakup * 0.4) * mix(0.1, 0.65, deepWinter));
     // Authored paint: force rock / suppress rock for grass shelves
     rockF = clamp( mix( rockF, 1.0, vRock ) * ( 1.0 - vGrass ), 0.0, 1.0 );
+    float rkBumpF = clamp( mix( rkUnder, 1.0, vRock ) * ( 1.0 - vGrass ), 0.0, 1.0 );
     snowF = clamp( mix( snowF, 1.0, vSnow ) * ( 1.0 - vGrass * ( 1.0 - smoothstep( 0.25, 0.7, uSnowCover ) ) ) * ( 1.0 - vRock * 0.85 ), 0.0, 1.0 );
-    vec3 rockTop = texture2D(uRock, vWorldXZ / ${rockTile.toFixed(1)}).rgb;
-    vec3 rockSide = texture2D(uRock, vec2(length(vWorldXZ), vTerrainH) / ${rockTile.toFixed(1)}).rgb;
-    vec3 rockCol = mix(rockTop, rockSide, smoothstep(0.3, 0.72, vSlope));
+    vec3 rockCol = rockTri( uRock, ${rockTile.toFixed(1)} );
+${ROCK_MACRO_GLSL}
     rockCol *= mix(vec3(1.0), vec3(0.42, 0.4, 0.38), deepWinter * mountainZone);`;
                 if (rockPhoto1) {
                     const rk = PHOTO_BLEND.rock;
@@ -3573,10 +3583,10 @@ ${OUTER_MOUNTAIN_SNOW_GLSL}
     vec2 rockUv = vWorldXZ / ${rockPhotoTile.toFixed(1)};
     float rockSoft = softBlobMask( rockUv, ${rk.cellScale.toFixed(2)}, ${rk.density.toFixed(2)}, ${rk.radius.toFixed(2)} );
     float rWhich = fract( sin( dot( floor( rockUv * 0.85 ), vec2( 91.7, 53.1 ) ) ) * 43758.5453 );
-    vec3 rockPhoto = texture2D( uRockPhoto1, rockUv * ${rk.uvScale.toFixed(2)} ).rgb;`;
+    vec3 rockPhoto = rockTri( uRockPhoto1, ${(rockPhotoTile / rk.uvScale).toFixed(2)} );`;
                     if (rockPhoto2) {
                         inject += `
-    rockPhoto = mix( rockPhoto, texture2D( uRockPhoto2, rockUv.yx * 1.25 + 0.17 ).rgb, step( 0.5, rWhich ) );`;
+    rockPhoto = mix( rockPhoto, rockTri( uRockPhoto2, ${(rockPhotoTile / 1.25).toFixed(2)} ), step( 0.5, rWhich ) );`;
                     }
                     inject += `
     float rpLum = max( dot( rockPhoto, vec3( 0.299, 0.587, 0.114 ) ), 0.08 );
@@ -3609,6 +3619,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             let frag =
                 'varying float vBeachV;\nvarying float vShore;\nfloat vBeach;\nvarying float vScree;\nvarying float vMoss;\nvarying float vGrass;\nvarying float vRock;\nvarying float vSnow;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 (rock ? 'uniform sampler2D uRock;\n' : '') +
+                (rockNormal ? 'uniform sampler2D uRockNormal;\n' : '') +
                 (rockPhoto1 ? 'uniform sampler2D uRockPhoto1;\n' : '') +
                 (rockPhoto2 ? 'uniform sampler2D uRockPhoto2;\n' : '') +
                 (photoGrass ? 'uniform sampler2D uPhotoGrass1;\nuniform sampler2D uPhotoGrass2;\n' : '') +
@@ -3620,6 +3631,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (useDetail ? 'uniform float uDetailScale;\nuniform float uDetailStrength;\n' : '') +
                 closeTileUniformDecls(profile) +
                 (hex ? HEX_TILE_UNIFORM_DECL + HEX_TILE_FNS : '') +
+                (rock ? ROCK_TRIPLANAR_FNS : '') +
                 SLOPE_GROUND_FNS +
                 'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
                 (needBlob ? softBlobFn : '') +
@@ -3656,6 +3668,13 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 frag = frag.replace('#include <normal_fragment_maps>', normalInject);
             }
             if (hex && normal) frag = frag.replace('#include <normal_fragment_maps>', hexNormalFragmentMapsGlsl());
+            // rock bumps where the rock shows (after the grass normal, which they replace there)
+            if (rockNormal) {
+                frag = frag.replace(
+                    '#include <clearcoat_normal_fragment_begin>',
+                    `${ROCK_NORMAL_APPLY_GLSL}\n#include <clearcoat_normal_fragment_begin>`,
+                );
+            }
             if (profile.roughnessFromAlbedo) {
                 frag = frag.replace(
                     '#include <roughnessmap_fragment>',
@@ -3667,7 +3686,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v57-slope-snowhold${rock ? '-rock' : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v57-slope-snowhold${rock ? '-rock-tri' : ''}${rockNormal ? `-rn${ROCK_NORMAL_STRENGTH}` : ''}${rock ? `-rs${ROCK_SNOW.from}-${ROCK_SNOW.to}-${ROCK_SNOW.breakup}-${ROCK_SNOW.strength}-${ROCK_SNOW.burialFill}` : ''}${rock ? `-rm${ROCK_MACRO.tile}-${ROCK_MACRO.albedo}-${ROCK_MACRO.contrast}-${ROCK_MACRO.normal}-${ROCK_MACRO.strata}-${ROCK_MACRO.strataHeight}` : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
@@ -4761,6 +4780,124 @@ const OUTER_MOUNTAIN_SNOW_GLSL = `
     vec3 snowCol = mix(meadowCol, mix(snowLo, snowHi, sunLit), mountainZone);`;
 
 /** Directional contrast on mountain relief only — leave the meadow/board edge alone. */
+/**
+ * Mountain rock is read triplanar: from above and along x and z, blended by the
+ * surface's world normal, so cliffs show the rock at its true size whichever way
+ * they face (the old side projection ran around the map centre and smeared any
+ * face turned sideways to it). UVs flip per side so every face gets a
+ * right-handed tangent frame — rockNormalGlsl relies on that.
+ * Needs vWorldXZ / vTerrainH / vWorldN.
+ */
+const ROCK_TRIPLANAR_GLSL = `
+    vec3 rkP = vec3( vWorldXZ.x, vTerrainH, vWorldXZ.y );
+    vec3 rkN = normalize( vWorldN );
+    vec3 rkW = pow( abs( rkN ), vec3( 4.0 ) );
+    rkW /= max( rkW.x + rkW.y + rkW.z, 1e-4 );
+    vec3 rkS = step( 0.0, rkN ) * 2.0 - 1.0;
+    vec2 rkQX = vec2( -rkP.z * rkS.x, rkP.y );
+    vec2 rkQY = vec2( -rkP.x * rkS.y, rkP.z );
+    vec2 rkQZ = vec2( rkP.x * rkS.z, rkP.y );`;
+
+/** GLSL (global scope): a texture read triplanar with the weights / UVs above, `tile` wu per repeat */
+const ROCK_TRIPLANAR_FNS = `
+vec3 rockTriSample( sampler2D t, float tile, vec2 qx, vec2 qy, vec2 qz, vec3 w ) {
+    return texture2D( t, qx / tile ).rgb * w.x + texture2D( t, qy / tile ).rgb * w.y + texture2D( t, qz / tile ).rgb * w.z;
+}
+#define rockTri( t, tile ) rockTriSample( t, tile, rkQX, rkQY, rkQZ, rkW )
+`;
+
+/** how strongly the rock normal map bends the light (1 = as baked) */
+const ROCK_NORMAL_STRENGTH = 1.5;
+
+/**
+ * Large rock forms that survive distance: the detail rock (34 wu) is mip-blurred
+ * to near-flat from the game camera, so the same rock is laid underneath at a
+ * much larger size, plus soft colour strata by height. Tweak live:
+ * - tile: wu per repeat of the big rock (↑ = bigger forms)
+ * - albedo: 0..1 how hard its light/dark pattern shades the rock
+ * - contrast: exponent on that pattern (1 = as in the texture, ↑ = deeper darks, brighter lights)
+ * - normal: bend of the big bumps (the large facets in the sun)
+ * - strata: 0..1 strength of the warm / cool layer bands by height
+ * - strataHeight: wu per band
+ */
+const ROCK_MACRO = {
+    tile: 170,
+    albedo: 0.9,
+    contrast: 1.5,
+    normal: 2.5,
+    strata: 0.35,
+    strataHeight: 9,
+} as const;
+
+/** mean linear luminance of rock.webp — the big layer shades around it, not darker overall */
+const ROCK_MEAN_LUM = 0.226;
+
+/** GLSL (main, after rockCol): the big rock layer's shading + height strata */
+const ROCK_MACRO_GLSL = `
+    vec3 rkMacro = rockTri( uRock, ${ROCK_MACRO.tile.toFixed(1)} );
+    float rkMacroL = dot( rkMacro, vec3( 0.299, 0.587, 0.114 ) ) / ${ROCK_MEAN_LUM.toFixed(3)};
+    rockCol *= mix( 1.0, clamp( pow( rkMacroL, ${ROCK_MACRO.contrast.toFixed(2)} ), 0.15, 2.6 ), ${ROCK_MACRO.albedo.toFixed(2)} );
+    // strata: bands along the height, wobbled sideways so they follow no straight line
+    float rkBand = slopeNoise( vec2( ( rkP.y + ( slopeNoise( rkP.xz / 70.0 ) - 0.5 ) * 14.0 ) / ${ROCK_MACRO.strataHeight.toFixed(1)}, 3.7 ) );
+    vec3 rkStrata = mix( vec3( 0.86, 0.9, 0.98 ), vec3( 1.12, 1.0, 0.86 ), rkBand );
+    rockCol *= mix( vec3( 1.0 ), rkStrata, ${ROCK_MACRO.strata.toFixed(2)} );`;
+
+/**
+ * GLSL (main, after the normal maps): the rock normal map, triplanar, on the
+ * rock's share of the surface (rockF) — replaces the grass bumps there. Each
+ * projection's tangent frame matches the UVs in ROCK_TRIPLANAR_GLSL.
+ */
+function rockNormalWorldGlsl(rockTile: number): string {
+    const tile = rockTile.toFixed(1);
+    const k = ROCK_NORMAL_STRENGTH.toFixed(2);
+    const big = ROCK_MACRO.tile.toFixed(1);
+    const kb = ROCK_MACRO.normal.toFixed(2);
+    return `
+    vec2 rnX = ( texture2D( uRockNormal, rkQX / ${tile} ).xy * 2.0 - 1.0 ) * ${k};
+    vec2 rnY = ( texture2D( uRockNormal, rkQY / ${tile} ).xy * 2.0 - 1.0 ) * ${k};
+    vec2 rnZ = ( texture2D( uRockNormal, rkQZ / ${tile} ).xy * 2.0 - 1.0 ) * ${k};
+    // the big layer's bumps add on (same frames, larger tile)
+    rnX += ( texture2D( uRockNormal, rkQX / ${big} ).xy * 2.0 - 1.0 ) * ${kb};
+    rnY += ( texture2D( uRockNormal, rkQY / ${big} ).xy * 2.0 - 1.0 ) * ${kb};
+    rnZ += ( texture2D( uRockNormal, rkQZ / ${big} ).xy * 2.0 - 1.0 ) * ${kb};
+    vec3 rnWorld = normalize( rkN
+        + ( rnX.x * vec3( 0.0, 0.0, -rkS.x ) + rnX.y * vec3( 0.0, 1.0, 0.0 ) ) * rkW.x
+        + ( rnY.x * vec3( -rkS.y, 0.0, 0.0 ) + rnY.y * vec3( 0.0, 0.0, 1.0 ) ) * rkW.y
+        + ( rnZ.x * vec3( rkS.z, 0.0, 0.0 ) + rnZ.y * vec3( 0.0, 1.0, 0.0 ) ) * rkW.z );`;
+}
+
+/**
+ * GLSL (main, after the normal maps): the rock's world normal from
+ * rockNormalWorldGlsl on all ground with rock under it — bare or snowed over, so
+ * snow lying on the rock takes its bumps — replacing the grass bumps there.
+ */
+const ROCK_NORMAL_APPLY_GLSL = `
+    vec3 rnView = normalize( ( viewMatrix * vec4( rnWorld, 0.0 ) ).xyz );
+    normal = normalize( mix( normal, rnView, rkBumpF ) );`;
+
+/**
+ * Snow on the mountain rock follows the rock's bumped surface, not just the
+ * smooth slope: it holds on ledges and the tops of bumps and slides off faces
+ * and their undersides, so snowy rock looks sculpted rather than painted.
+ * Tweak live:
+ * - from / to: up-facing (normal.y) where snow starts to hold / fully holds
+ * - breakup: noise on that threshold so the edge isn't a clean line
+ * - strength: 0..1 how much of the rock follows this (0 = the old even snow)
+ * - burialFill: 0..1 how far deep winter still buries it all anyway
+ */
+const ROCK_SNOW = {
+    from: 0.5,
+    to: 0.82,
+    breakup: 0.2,
+    strength: 1,
+    burialFill: 0.75,
+} as const;
+
+/** GLSL (main, after snowF and rnWorld): snow on rock by the rock's bumps */
+const ROCK_SNOW_GLSL = `
+    float rkSnowHold = smoothstep( ${ROCK_SNOW.from.toFixed(2)}, ${ROCK_SNOW.to.toFixed(2)}, rnWorld.y + ( breakup - 0.5 ) * ${ROCK_SNOW.breakup.toFixed(2)} );
+    snowF *= mix( 1.0, mix( rkSnowHold, 1.0, burial * ${ROCK_SNOW.burialFill.toFixed(2)} ), rkUnder * ${ROCK_SNOW.strength.toFixed(2)} );`;
+
 const OUTER_MOUNTAIN_LIGHTING_GLSL = `
     float contrast = mix(0.18, 0.36, deepWinter);
     diffuseColor.rgb *= mix(1.0, mix(0.62, 1.22, sunLit), mountainZone * contrast);`;

@@ -2602,6 +2602,7 @@ const RAW = import.meta.glob(
         '../../assets/textures/grass-photo-2.webp',
         '../../assets/textures/ice-albedo.webp',
         '../../assets/textures/moon.webp',
+        '../../assets/textures/rock-normal.webp',
         '../../assets/textures/rock-photo-0-normal.webp',
         '../../assets/textures/rock-photo-0.webp',
         '../../assets/textures/rock-photo-1-normal.webp',

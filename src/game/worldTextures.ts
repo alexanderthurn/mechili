@@ -25,6 +25,8 @@ const dirtNormalHqUrl = (): string => assetUrl('textures/dirt-normal-hq.webp');
 const barkUrl = (): string => assetUrl('textures/bark.webp');
 const foliageUrl = (): string => assetUrl('textures/foliage.webp');
 const rockUrl = (): string => assetUrl('textures/rock.webp');
+/** derived from rock.webp's luminance (stones up, cracks down; OpenGL +Y) */
+const rockNormalUrl = (): string => assetUrl('textures/rock-normal.webp');
 const moonUrl = (): string => assetUrl('textures/moon.webp');
 const iceAlbedoUrl = (): string => assetUrl('textures/ice-albedo.webp');
 /** ultra meadow grass: a 2×2 atlas of painted grass clumps (alpha) */
@@ -267,16 +269,16 @@ export async function loadWearGroundTextures(): Promise<PhotoTextureSet | null> 
     return { albedo, normal, variants: [] };
 }
 
-/** Mountain rock: legacy albedo as base; field photos soft-multiply as accents. */
+/** Mountain rock: legacy albedo + its normal as base; field photos soft-multiply as accents. */
 export async function loadRockTextures(): Promise<PhotoTextureSet | null> {
-    const albedo = await loadWorldTexture(rockUrl());
+    const [albedo, normal] = await Promise.all([loadWorldTexture(rockUrl()), loadWorldTexture(rockNormalUrl())]);
     if (!albedo) return null;
     if (groundMaterialProfile().useHqTextures) {
         const photos = await Promise.all(ROCK_PHOTO.map((p) => loadWorldTexture(p.albedo)));
         const variants = photos.filter((t): t is Texture => t !== null);
-        return { albedo, normal: null, variants };
+        return { albedo, normal, variants };
     }
-    return { albedo, normal: null, variants: [] };
+    return { albedo, normal, variants: [] };
 }
 
 /** Preload every shared world texture once. Safe to call repeatedly. */
