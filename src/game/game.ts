@@ -5481,8 +5481,15 @@ export class Game {
                 // ran) has its own connection close moments later as its
                 // client tears down — that's expected, not a drop to wait
                 // out
-                if (this.matchOver) this.hud.setRematchState('gone');
+                if (this.matchOver) {
+                    // after the end a closed link just means they left (tab closed, no farewell)
+                    const name = this.seats[seat]?.name;
+                    if (name) this.noteDeparted(name);
+                    return;
+                }
                 if (this.quitSeats.has(seat)) return;
+                // left after their match ended (farewell) — not a drop to wait out
+                if (this.departedSeats.has(seat)) return;
                 this.beginStarSeatSuspend(seat);
             };
             star.hub.onSeatReconnected = (seat) => this.starSeatReconnected(seat);
@@ -5494,6 +5501,8 @@ export class Game {
                 // than leaving the other 3 players permanently frozen
                 // because one of them never came back
                 if (this.quitSeats.has(seat)) return;
+                // the outcome is decided — no AI takeover / forfeit for a farewell
+                if (this.departedSeats.has(seat)) return;
                 this.resolveSeatGone(seat);
             };
         }
@@ -5518,7 +5527,14 @@ export class Game {
      * in this feature, since there is zero live-testing coverage for it yet.
      */
     private beginStarGuestReconnect(session: GuestSession): void {
-        if (this.matchOver) this.hud.setRematchState('gone');
+        if (this.matchOver) {
+            const host = this.seats[0]?.name;
+            if (host) this.noteDeparted(host);
+            else this.hud.setRematchState('gone');
+        }
+        // the host said goodbye after its match ended: we just watch ours out
+        // locally (the outcome is decided) — nothing to reconnect to
+        if (this.hostDeparted) return;
         if (this.matchOver || !this.star || this.star.role !== 'guest' || this.star.session !== session) {
             return;
         }
@@ -6329,7 +6345,11 @@ export class Game {
      * arrive would be worse than ending it cleanly.
      */
     leaveForPageHide(): void {
-        if (this.matchOver || this.disposed) return;
+        if (this.disposed) return;
+        if (this.matchOver) {
+            this.sendFarewell();
+            return;
+        }
         if (this.star?.role === 'guest') {
             this.star.session.close();
             return;
@@ -6366,6 +6386,7 @@ export class Game {
 
     /** leave the match — fly out to the menu, then main tears down the session */
     quitToMenu(): void {
+        this.sendFarewell();
         this.onStateCheckpoint = null;
         // a live "Waiting…" countdown must not survive the player choosing
         // to leave — otherwise tick()'s per-second re-render (see
@@ -6383,6 +6404,56 @@ export class Game {
             return;
         }
         this.onReturnToMenu?.();
+    }
+
+    /** seats that said goodbye after their match ended (host only, see 'farewell') */
+    private readonly departedSeats = new Set<SeatId>();
+    /** the host said goodbye after its match ended (guest only) */
+    private hostDeparted = false;
+    private farewellSent = false;
+    /** names already announced as gone (a farewell and its link closing name it once) */
+    private readonly departedNames = new Set<string>();
+
+    /** leaving a match that is over for us: tell the others it's by choice (see 'farewell') */
+    private sendFarewell(): void {
+        if (this.farewellSent || !this.star || !this.matchOver || this.watching) return;
+        this.farewellSent = true;
+        if (this.star.role === 'guest') {
+            this.star.session.send({ type: 'farewell' });
+        } else {
+            const msg: NetMessage = { type: 'farewell', name: this.seats[this.humanSeat]?.name, host: true };
+            this.star.hub.broadcast(msg);
+            this.mirrorToSpectators(msg);
+        }
+    }
+
+    private onFarewell(msg: { type: 'farewell'; name?: string; host?: boolean }, fromSeat?: SeatId): void {
+        const star = this.star!;
+        if (star.role === 'host') {
+            if (fromSeat === undefined) return;
+            this.departedSeats.add(fromSeat);
+            const name = this.seats[fromSeat]?.name;
+            if (!name) return;
+            this.noteDeparted(name);
+            // the other guests (and spectators) learn it too — under the connection's name
+            const relayed: NetMessage = { type: 'farewell', name };
+            star.hub.broadcast(relayed, fromSeat);
+            this.mirrorToSpectators(relayed);
+            return;
+        }
+        if (msg.host) this.hostDeparted = true;
+        const name = msg.name ?? (msg.host ? this.seats[0]?.name : undefined);
+        if (name) this.noteDeparted(name);
+    }
+
+    /** "X left the battlefield" — in the chat and as a hint (the HUD is hidden at match end) */
+    private noteDeparted(name: string): void {
+        if (this.departedNames.has(name)) return;
+        this.departedNames.add(name);
+        const text = t('hud:playerLeftBattlefield', { name, defaultValue: '{{name}} left the battlefield' });
+        this.hud.addSystemMessage(text);
+        this.hud.flashCinemaHint(text, 3500);
+        this.hud.setRematchState('gone');
     }
 
     /** connection lost: pause behind a live countdown; forfeitWin() fires if
@@ -7336,6 +7407,12 @@ export class Game {
         // is kept whatever the phase
         if (msg.type === 'rematch' || msg.type === 'starRematch') {
             if (!this.disposed && this.star) this.onRematchMessage(msg, fromSeat);
+            return;
+        }
+        // a player leaving after THEIR match ended — may arrive while we still
+        // watch the final battle, so it is handled whatever the phase
+        if (msg.type === 'farewell') {
+            if (!this.disposed && this.star) this.onFarewell(msg, fromSeat);
             return;
         }
         if (this.disposed || this.matchOver || !this.star) return;

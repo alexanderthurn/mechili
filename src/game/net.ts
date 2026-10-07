@@ -448,6 +448,15 @@ export type NetMessage =
      * ends — no host migration).
      */
     | { type: 'quit' }
+    /**
+     * Leaving a match that is over FOR THE SENDER: battle playback speed is per
+     * player, so the others may still be watching the final battle. They mark
+     * the sender as gone by choice — its link closing is then no drop to wait
+     * out (no reconnect pause, no AI takeover), the outcome is already decided —
+     * and show "X left the battlefield". Guest → host (relayed with the guest's
+     * name to the others); host → every guest with `host: true`.
+     */
+    | { type: 'farewell'; name?: string; host?: boolean }
     /** spectator's opening handshake, sent immediately on connecting to the
      *  host's dedicated broadcast Peer (never the player link) */
     | { type: 'spectate'; name: string; version: number; contentHash?: string }

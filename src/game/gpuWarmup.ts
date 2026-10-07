@@ -133,6 +133,12 @@ export async function prewarmGpu(
 
     await renderer.compileAsync(scene, camera);
     renderer.render(scene, camera);
+    // That frame went into the REAL game canvas (programs are per context), and it
+    // stays there until the match draws its first one — which now waits for the
+    // match-start warm-up. Wipe it, so a loading match / the editor shows black
+    // instead of this stand-in box with its flames.
+    renderer.setClearColor(0x000000, 1);
+    renderer.clear();
 
     flames.dispose();
     acid.dispose();

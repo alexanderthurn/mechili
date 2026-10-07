@@ -4741,6 +4741,7 @@ export class Hud {
         const btn = el.querySelector('.go-restart')!;
         btn.textContent = backLabel;
         btn.addEventListener('click', () => this.leaveGameOver(el));
+        el.querySelector('.go-view')?.addEventListener('click', () => this.viewBattlefield(el, backLabel));
         const retryBtn = el.querySelector('.go-retry');
         if (retryBtn) {
             retryBtn.addEventListener('click', () => {
@@ -4842,6 +4843,29 @@ export class Hud {
     }
 
     /** Fade the result panel out, then run `after` (default: quit to menu). */
+    /**
+     * Hide the result panel to look over the battlefield (the camera is free again
+     * once the panel stops covering it); a small bar brings the results back or leaves.
+     */
+    private viewBattlefield(el: HTMLElement, backLabel: string): void {
+        if (el.dataset.leaving === '1') return;
+        el.style.display = 'none';
+        const bar = document.createElement('div');
+        bar.className = 'mechili-battlefield-bar';
+        bar.innerHTML =
+            `<button type="button" class="bf-results">${escapeHtml(t('hud:showResults', { defaultValue: 'Results' }))}</button>` +
+            `<button type="button" class="bf-leave">${escapeHtml(backLabel)}</button>`;
+        bar.querySelector('.bf-results')!.addEventListener('click', () => {
+            this.unmount(bar);
+            el.style.display = '';
+        });
+        bar.querySelector('.bf-leave')!.addEventListener('click', () => {
+            this.unmount(bar);
+            this.leaveGameOver(el);
+        });
+        this.mount(bar);
+    }
+
     private leaveGameOver(el: HTMLElement, after?: () => void): void {
         if (el.dataset.leaving === '1') return;
         el.dataset.leaving = '1';
@@ -4895,6 +4919,7 @@ export class Hud {
             `</div>` +
             `${titleEl}${year}${teams}${noteEl}` +
             `<div class="go-actions">${rematchBtn}${nextBtn}${retryBtn}` +
+            `<button type="button" class="go-view">${escapeHtml(t('hud:viewBattlefield', { defaultValue: 'View battlefield' }))}</button>` +
             `<button type="button" class="go-restart">${escapeHtml(t('hud:backToMainMenu'))}</button>` +
             `</div>`
         );
@@ -4949,7 +4974,11 @@ export class Hud {
         // match-ui-root uses pointer-events:none so an empty root never blocks the menu
         el.style.pointerEvents = 'auto';
         this.mountedRoots.push(el);
-        if (this.uiHidden && !el.classList.contains('mechili-gameover')) {
+        if (
+            this.uiHidden &&
+            !el.classList.contains('mechili-gameover') &&
+            !el.classList.contains('mechili-battlefield-bar')
+        ) {
             el.classList.add('mechili-cinema-hide');
         }
         if (this.introChromeHidden) el.classList.add('mechili-intro-hide');

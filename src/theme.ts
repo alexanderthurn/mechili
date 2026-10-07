@@ -7137,6 +7137,7 @@ ${chatFloatStyles(u, pc, ec)}
     z-index: 1;
 }
 .mechili-gameover .go-restart,
+.mechili-gameover .go-view,
 .mechili-gameover .go-retry,
 .mechili-gameover .go-rematch,
 .mechili-gameover .go-next {
@@ -7153,14 +7154,53 @@ ${chatFloatStyles(u, pc, ec)}
     transition: transform 0.14s ease, background 0.14s ease;
 }
 .mechili-gameover .go-restart:hover,
+.mechili-gameover .go-view:hover,
 .mechili-gameover .go-retry:hover,
 .mechili-gameover .go-rematch:hover:not(:disabled),
 .mechili-gameover .go-next:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
 .mechili-gameover .go-restart:focus-visible,
+.mechili-gameover .go-view:focus-visible,
 .mechili-gameover .go-retry:focus-visible,
 .mechili-gameover .go-rematch:focus-visible,
 .mechili-gameover .go-next:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .mechili-gameover .go-rematch:disabled { opacity: 0.6; cursor: default; }
+/* a quieter secondary action: look over the battlefield */
+.mechili-gameover .go-view {
+    background: transparent;
+    border-color: ${u.border};
+    color: ${u.textMuted};
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    padding: 8px 18px;
+}
+/* while viewing the battlefield: the way back to the results, or out */
+.mechili-battlefield-bar {
+    position: absolute;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    padding: 8px;
+    background: rgba(12, 14, 18, 0.78);
+    border: 1px solid ${u.border};
+    border-radius: 6px;
+    z-index: 40;
+}
+.mechili-battlefield-bar button {
+    padding: 8px 18px;
+    background: ${u.alliedBtnBg};
+    border: 1.5px solid ${pc};
+    border-radius: 4px;
+    color: ${pc};
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+}
+.mechili-battlefield-bar button:hover { background: ${u.alliedBtnHover}; }
+.mechili-battlefield-bar .bf-leave { background: transparent; border-color: ${u.border}; color: ${u.textMuted}; }
 .mechili-gameover .go-rematch.is-asked { border-color: ${u.brassLight}; color: ${u.brassLight}; box-shadow: 0 0 16px rgba(212, 184, 120, 0.45); animation: year-mark-pulse 1.6s ease-in-out infinite; }
 .mechili-gameover .go-actions:has(.go-rematch) .go-restart,
 .mechili-gameover .go-actions:has(.go-retry) .go-restart,
