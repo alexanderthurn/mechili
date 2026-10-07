@@ -16,6 +16,8 @@ import {
     type Mesh,
     type Object3D,
     type ShadowMapType,
+    type Material,
+    type Texture,
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { setAerialHazeBoard, setDeployShade, setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
@@ -449,6 +451,9 @@ function seedFrom(seed: number, label: string): number {
  */
 /** how long a test battle shows its board before it locks in */
 const TEST_BATTLE_LOOK_MS = 700;
+
+/** ms of each frame spent uploading textures during the match-start warm-up */
+const TEXTURE_UPLOAD_BUDGET_MS = 6;
 
 /** seconds for the deployment focus shade outside the board to fade in / out */
 const DEPLOY_SHADE_FADE_S = 0.4;
@@ -1358,6 +1363,8 @@ export class Game {
      *  menu, so every step draws the same frame. Ignored in multiplayer. */
     private benchmarkHold = false;
 
+    /** the match-start warm-up has finished — the loop may run (see warmUpForMatchStart) */
+    private warmedUp = false;
     /** 0..1 deployment focus shade on the world outside the board (eased) */
     private deployShade = 0;
     /** dev: remember the camera across a reload (see reloadCamera.ts) */
@@ -2607,8 +2614,22 @@ export class Game {
         // Compile remaining cold programs (ground + point-light variants, weather,
         // flame tongues) before the first tick — hides the hitch at match start
         // rather than mid-battle. Boot already warmed the shared context when possible.
-        this.warmGpuPrograms();
+        // Compile + upload everything (incl. the detailed ground / meadow, whose materials
+        // swap in a few microtasks later) without blocking the GPU, then start the loop —
+        // nothing draws until then, the intro cover stays up and keeps diving smoothly.
+        void this.warmUpForMatchStart().then(() => {
+            if (!this.disposed) this.warmedUp = true;
+        });
         pixiApp.ticker.add(this.boundTick);
+    }
+
+    /** compile + upload the detailed ground / meadow once their materials are in */
+    private warmDetailedGround(): void {
+        void Promise.all([this.map.groundReady, this.scenery.meadowReady]).then(() => {
+            if (this.disposed) return;
+            this.renderer.compile(this.scene, this.rig.camera);
+            this.renderFrame();
+        });
     }
 
     /** Load MMR for every seat — game-over summary; skipped when intro cover prefetched. */
@@ -2780,7 +2801,21 @@ export class Game {
      * then sync-compile so mid-match first use does not stall the frame.
      * Safe to call again after graphics pref changes (shadows / scenery / fire).
      */
+    /**
+     * Compile every program the match will need (ground + point-light variants,
+     * weather, flame tongues…) and show one frame — synchronously. Used when the
+     * graphics settings change mid-match; the match start uses
+     * {@link warmUpForMatchStart} instead, which doesn't block the GPU.
+     */
     private warmGpuPrograms(): void {
+        this.primeForWarm();
+        this.renderer.compile(this.scene, this.rig.camera);
+        this.renderFrame();
+        this.restoreAfterWarm();
+    }
+
+    /** make the battle-only FX visible for one compile (rain, flames, projectiles…) */
+    private primeForWarm(): void {
         this.fireFx.primeForCompile();
         this.acidFx.primeForCompile();
         this.projectileRenderer.primeForCompile();
@@ -2799,8 +2834,10 @@ export class Game {
         }
         this.weather?.primeForCompile();
 
-        this.renderer.compile(this.scene, this.rig.camera);
-        this.renderFrame();
+    }
+
+    /** undo {@link primeForWarm} and draw the real frame */
+    private restoreAfterWarm(): void {
 
         // restore live combat VFX — clear would blank an in-progress battle frame
         this.fireFx.clear();
@@ -2827,6 +2864,58 @@ export class Game {
     }
 
     /**
+     * Match-start warm-up that keeps the menu→match CSS dive smooth. The dive runs on
+     * the compositor, but that shares the GPU process with WebGL: a synchronous compile
+     * or a burst of 2K texture uploads stalls it, and the zoom stutters. So: wait for
+     * the detailed ground / meadow materials, compile in parallel on the driver's
+     * threads (KHR_parallel_shader_compile via compileAsync), upload the textures a
+     * few per frame, and only then let the game loop (and its camera intro) start.
+     */
+    private async warmUpForMatchStart(): Promise<void> {
+        await Promise.all([this.map.groundReady, this.scenery.meadowReady]);
+        if (this.disposed) return;
+        this.primeForWarm();
+        await this.renderer.compileAsync(this.scene, this.rig.camera);
+        if (this.disposed) return;
+        await this.uploadTexturesSpread();
+        if (this.disposed) return;
+        this.renderFrame();
+        this.restoreAfterWarm();
+    }
+
+    /** upload every texture the scene uses, a slice of the frame at a time */
+    private async uploadTexturesSpread(): Promise<void> {
+        const found = new Set<Texture>();
+        const add = (v: unknown) => {
+            const t = v as Texture | null;
+            if (t?.isTexture && !(t as Texture & { isRenderTargetTexture?: boolean }).isRenderTargetTexture) {
+                found.add(t);
+            }
+        };
+        this.scene.traverse((o) => {
+            const m = (o as Mesh).material as Material | Material[] | undefined;
+            if (!m) return;
+            for (const mat of Array.isArray(m) ? m : [m]) {
+                for (const v of Object.values(mat)) add(v);
+                // custom samplers live in the compiled material's uniforms
+                const uniforms = (this.renderer.properties.get(mat) as { uniforms?: Record<string, { value: unknown }> })
+                    .uniforms;
+                if (uniforms) for (const k in uniforms) add(uniforms[k]!.value);
+            }
+        });
+        const list = [...found];
+        let i = 0;
+        while (i < list.length) {
+            const t0 = performance.now();
+            while (i < list.length && performance.now() - t0 < TEXTURE_UPLOAD_BUDGET_MS) {
+                this.renderer.initTexture(list[i++]!);
+            }
+            await new Promise<void>((r) => requestAnimationFrame(() => r()));
+            if (this.disposed) return;
+        }
+    }
+
+    /**
      * Live-applies prefs from the settings menu: scenery rebuild, DPR cap,
      * and unit shadow casting. Re-warms GPU programs when graphics tiers change
      * so new shadow/fog/fire variants are compiled before the next combat frame.
@@ -2848,7 +2937,10 @@ export class Game {
         this.applySceneryQuality();
         audio.applyPrefs();
         audio.unlock();
-        if (gpuDirty) this.warmGpuPrograms();
+        if (gpuDirty) {
+            this.warmGpuPrograms();
+            this.warmDetailedGround();
+        }
     }
 
     private applyRenderPrefs(): void {
@@ -11193,6 +11285,8 @@ export class Game {
 
     private tick(dtSeconds: number): void {
         if (this.disposed) return;
+        // not before the match-start warm-up is done (see warmUpForMatchStart)
+        if (!this.warmedUp) return;
         // the board relief may have changed since last frame (battle reset, editor)
         this.syncTerrainMeshes();
         // The sim's OWN elapsed time must be the TRUE, unclamped wall-clock

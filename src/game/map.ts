@@ -472,6 +472,12 @@ export class BattleMap {
     private overlayDarkGrid: MeshBasicMaterial | null = null;
     /** the dark twin of the grid's outer edge (always on, follows only the snow) */
     private overlayDarkEdge: MeshBasicMaterial | null = null;
+    /**
+     * Settles once the latest ground mesh has its detailed material (textures from the
+     * boot preload, so normally a few microtasks after createMesh) — the game compiles
+     * it then, before the first frame, instead of on first draw mid-intro.
+     */
+    groundReady: Promise<void> = Promise.resolve();
     /** the overlay's shade over ground this seat can't place on (faded with the deployment focus) */
     private overlayShade: MeshBasicMaterial | null = null;
     /** 0..1 deployment focus: this seat is placing (the game eases it) */
@@ -850,7 +856,7 @@ export class BattleMap {
         // ground effects 'off' keeps the plain macro canvas — no detail textures /
         // wear, but oil+fire still show via the hazard inject above
         if (this.groundEffects !== 'off') {
-            void this.upgradeGroundMaterial(mesh, macro, seed);
+            this.groundReady = this.upgradeGroundMaterial(mesh, macro, seed);
         }
         return mesh;
     }

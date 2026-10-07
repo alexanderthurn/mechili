@@ -585,6 +585,8 @@ function pastBoard(halfW: number, halfH: number, x: number, z: number): number {
 export class Scenery {
     readonly group = new Group();
 
+    /** settles once the outer meadow has its detailed material (see BattleMap.groundReady) */
+    meadowReady: Promise<void> = Promise.resolve();
     /** dome + sun glow follow the camera so the horizon never hits the far plane */
     private readonly skyGroup = new Group();
     private readonly clouds: { mesh: Mesh; speed: number; base?: number; life?: CloudLife }[] = [];
@@ -2910,7 +2912,7 @@ export class Scenery {
         mesh.receiveShadow = true;
         mesh.name = 'outer-ground';
         this.outerGroundMesh = mesh;
-        if (this.detailed) void this.applyMeadowTexture(material, map, SIZE);
+        if (this.detailed) this.meadowReady = this.applyMeadowTexture(material, map, SIZE);
         else this.applyOuterGroundSnowOnly(material);
         return mesh;
     }

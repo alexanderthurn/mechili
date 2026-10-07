@@ -170,6 +170,8 @@ export const WORLD_TEXTURE_URLS: readonly string[] = [
     barkUrl(),
     foliageUrl(),
     rockUrl(),
+    // the mountain / board-cliff rock bumps (every tier with rock, medium up)
+    rockNormalUrl(),
     moonUrl(),
     iceAlbedoUrl(),
 ];
@@ -182,6 +184,10 @@ export function hqGrassUrlsForBoot(): readonly string[] {
         grassNormalHqUrl(),
         dirtAlbedoHqUrl(),
         dirtNormalHqUrl(),
+        // board + meadow grass variants (loadGrassVariantTextures)
+        grassLushUrl(),
+        grassDryUrl(),
+        grassSparseUrl(),
         // Grass photos only as sparse accents (dirt photos kept on disk, unused for now)
         ...GRASS_PHOTO.map((p) => p.albedo),
         ...ROCK_PHOTO.flatMap((p) => [p.albedo, p.normal]),
