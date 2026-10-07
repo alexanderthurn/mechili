@@ -348,6 +348,15 @@ vec3 hexTileNormal( sampler2D tex, vec2 uv ) {
 `;
 
 /**
+ * GLSL expression: an RGB texture read, hex-tiled when `hex` is on (the
+ * material must then include {@link HEX_TILE_FNS}). Only call it outside
+ * branches — hex tiling takes screen-space derivatives of `uv`.
+ */
+export function texRGB(sampler: string, uv: string, hex: boolean): string {
+    return hex ? `hexTileRGB( ${sampler}, ${uv} )` : `texture2D( ${sampler}, ${uv} ).rgb`;
+}
+
+/**
  * Hex-grid origin shift, in lawn UV: the board's own UV is the reference
  * (shift 0); the outer meadow passes the offset that maps its UV onto the
  * board's, so the hex cells run on across the border without a seam.
@@ -440,8 +449,10 @@ export function groundZonesGlsl(opts: {
     boardHalf: string;
     earth: string | null;
     strength: number;
+    /** hex-tile the earth read (needs HEX_TILE_FNS) */
+    hex?: boolean;
 }): string {
-    const { worldPos, boardXZ, boardHalf, earth, strength } = opts;
+    const { worldPos, boardXZ, boardHalf, earth, strength, hex = false } = opts;
     const k = strength.toFixed(2);
     let glsl = `
 	// ground types (see groundZonesGlsl)
@@ -471,7 +482,7 @@ export function groundZonesGlsl(opts: {
 	float earthN = slopeNoise( zoneP.xz / 27.0 + 47.0 ) * 0.65 + slopeNoise( zoneP.xz / 8.0 + 2.9 ) * 0.35;
 	// a wide, soft ramp so the patch feathers into the lawn instead of ending in an edge
 	float earthT = smoothstep( 0.62, 0.92, earthN ) * zoneEdge * ${k} * 0.32;
-	vec3 earthTex = texture2D( ${earth}, zoneP.xz / 9.0 ).rgb * vec3( 0.95, 0.90, 0.84 );
+	vec3 earthTex = ${texRGB(earth, 'zoneP.xz / 9.0', hex)} * vec3( 0.95, 0.90, 0.84 );
 	// the earth's colour, but half of the grass's own light and grain, so the lawn shows through
 	float earthGl = max( dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) ), 0.05 );
 	float earthEl = max( dot( earthTex, vec3( 0.299, 0.587, 0.114 ) ), 0.05 );
@@ -511,8 +522,10 @@ export function slopeGroundGlsl(opts: {
     rock: string | null;
     rockNormal?: string | null;
     fade?: string;
+    /** hex-tile the earth read (needs HEX_TILE_FNS) */
+    hex?: boolean;
 }): string {
-    const { worldPos, worldNormal, earth, rock, rockNormal = null, fade = '1.0' } = opts;
+    const { worldPos, worldNormal, earth, rock, rockNormal = null, fade = '1.0', hex = false } = opts;
     let glsl = `
 	vec3 slopeN = normalize( ${worldNormal} );
 	float slopeUp = max( abs( slopeN.y ), 0.05 );
@@ -532,7 +545,7 @@ export function slopeGroundGlsl(opts: {
 	vec3 slopeEarth = vec3( 0.34, 0.26, 0.17 ) * clamp( slopeLum / 0.3, 0.7, 1.3 );
 `;
     if (earth) {
-        glsl += `	slopeEarth = mix( slopeEarth, texture2D( ${earth.sampler}, ${earth.uv} ).rgb * vec3( 0.9, 0.82, 0.72 ), 0.55 );
+        glsl += `	slopeEarth = mix( slopeEarth, ${texRGB(earth.sampler, earth.uv, hex)} * vec3( 0.9, 0.82, 0.72 ), 0.55 );
 `;
     }
     glsl += `	vec3 slopeCol = mix( slopeBase, slopeDry, slopeDryT * 0.7 );

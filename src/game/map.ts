@@ -14,7 +14,7 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_ROCK_NORMAL, SLOPE_ROCK_NORMAL_APPLY_GLSL, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_ROCK_NORMAL, SLOPE_ROCK_NORMAL_APPLY_GLSL, texRGB, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -1805,6 +1805,7 @@ export class BattleMap {
                     // the bare-earth patches cost one more read of the dirt: high and ultra only
                     earth: slopeEarth && profile.tier !== 'medium' ? 'uSlopeEarth' : null,
                     strength: profile.tier === 'medium' ? 0.7 : 1,
+                    hex,
                 });
             }
             inject += slopeGroundGlsl({
@@ -1813,6 +1814,7 @@ export class BattleMap {
                 earth: slopeEarth ? { sampler: 'uSlopeEarth', uv: 'vMapUv * 0.7' } : null,
                 rock: slopeRock ? 'uSlopeRock' : null,
                 rockNormal: slopeRock && slopeRockNormal ? 'uSlopeRockNormal' : null,
+                hex,
             });
             if (sand && (baseSandMask || sandMask)) {
                 shader.uniforms.uSand = { value: sand };
@@ -1827,7 +1829,7 @@ export class BattleMap {
                 inject +=
                     '\tfloat baseWearR = texture2D(uBaseSandMask, vMacroUv).r;\n' +
                     '\tfloat baseSandM = smoothstep(0.06, 0.38, baseWearR - (preSnowLum - 0.25) * 0.35);\n' +
-                    '\tdiffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uSand, vMapUv).rgb, baseSandM);\n';
+                    `\tdiffuseColor.rgb = mix(diffuseColor.rgb, ${texRGB('uSand', 'vMapUv', hex)}, baseSandM);\n`;
             }
             // Soft weather frost. Unit footprints / blood / scorch paint after.
             inject +=
@@ -1872,7 +1874,7 @@ export class BattleMap {
                 inject +=
                     '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
                     '\tfloat sandLum = preSnowLum;\n' +
-                    '\tvec3 sandTexel = texture2D(uSand, vMapUv).rgb;\n' +
+                    `\tvec3 sandTexel = ${texRGB('uSand', 'vMapUv', hex)};\n` +
                     '\tfloat scorchM = smoothstep(0.04, 0.34, wear.b);\n' +
                     '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
                     '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
@@ -1964,7 +1966,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `ground-hazard-v68${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}${hex ? '-hex' : ''}-gs${
+            `ground-hazard-v68${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}${hex ? '-hex2' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
             }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r2' : ''}${slopeRock && slopeRockNormal ? `n${SLOPE_ROCK_NORMAL}` : ''}${detail ? '-zones7' : ''}`;
     }

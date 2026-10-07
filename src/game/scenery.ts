@@ -59,7 +59,7 @@ import {
     worldHeightAt,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, texRGB, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -3483,7 +3483,7 @@ ${pgClose}`;
             if (shore) {
                 inject += `
     // gravel shore where the geometry says so: lake banks + rare dry patches
-    diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uShore, vWorldXZ / ${shoreTile.toFixed(1)}).rgb, vBeach);`;
+    diffuseColor.rgb = mix(diffuseColor.rgb, ${texRGB('uShore', `vWorldXZ / ${shoreTile.toFixed(1)}`, hex)}, vBeach);`;
                 if (sand) {
                     inject += `
     // lake beds: sand on the bank and in the shallows, gravel through the middle,
@@ -3491,8 +3491,8 @@ ${pgClose}`;
     // lapping foam${lakeCaustics ? ', caustics on the shallow bed' : ''}
     float lbDepth = ${WATER_LEVEL_Y.toFixed(2)} - vTerrainH;
     // sampled outside the branch below: a mip-mapped fetch needs uniform control flow
-    vec3 lbSandTex = texture2D(uSand, vWorldXZ / ${LAKE_SAND_TILE.toFixed(1)}).rgb;
-    vec3 lbGravelBig = texture2D(uShore, vWorldXZ / ${LAKE_GRAVEL_BIG_TILE.toFixed(1)} + vec2(0.37, 0.61)).rgb;
+    vec3 lbSandTex = ${texRGB('uSand', `vWorldXZ / ${LAKE_SAND_TILE.toFixed(1)}`, hex)};
+    vec3 lbGravelBig = ${texRGB('uShore', `vWorldXZ / ${LAKE_GRAVEL_BIG_TILE.toFixed(1)} + vec2(0.37, 0.61)`, hex)};
     // how big the lake here is (0 pond .. 1 big lake): small water gets calmer shores
     float lbLakeSize = smoothstep(${LAKE_SIZE_SMALL.toFixed(2)}, ${LAKE_SIZE_BIG.toFixed(2)}, texture2D(uLakeDepthTex, (vWorldXZ + uLakeDepthSpan) / (2.0 * uLakeDepthSpan)).g);
     // only near water (or on a gravel patch) does any of this change the colour
@@ -3598,7 +3598,7 @@ ${ROCK_MACRO_GLSL}
                     inject += `
     // scree pockets: shore gravel (small stones piled in concave gullies)
     float screeShow = clamp( vScree * mountainZone * ( 1.0 - snowF ), 0.0, 1.0 );
-    vec3 gravelCol = texture2D( uShore, vWorldXZ / ${shoreMountainTile.toFixed(1)} ).rgb;
+    vec3 gravelCol = ${texRGB('uShore', `vWorldXZ / ${shoreMountainTile.toFixed(1)}`, hex)};
     diffuseColor.rgb = mix( diffuseColor.rgb, gravelCol, screeShow * max( rockF, 0.3 ) );`;
                 }
                 inject += `
@@ -3686,7 +3686,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v57-slope-snowhold${rock ? '-rock-tri' : ''}${rockNormal ? `-rn${ROCK_NORMAL_STRENGTH}` : ''}${rock ? `-rs${ROCK_SNOW.from}-${ROCK_SNOW.to}-${ROCK_SNOW.breakup}-${ROCK_SNOW.strength}-${ROCK_SNOW.burialFill}` : ''}${rock ? `-rm${ROCK_MACRO.tile}-${ROCK_MACRO.albedo}-${ROCK_MACRO.contrast}-${ROCK_MACRO.normal}-${ROCK_MACRO.strata}-${ROCK_MACRO.strataHeight}` : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v57-slope-snowhold${hex ? '-hexx' : ''}${rock ? '-rock-tri' : ''}${rockNormal ? `-rn${ROCK_NORMAL_STRENGTH}` : ''}${rock ? `-rs${ROCK_SNOW.from}-${ROCK_SNOW.to}-${ROCK_SNOW.breakup}-${ROCK_SNOW.strength}-${ROCK_SNOW.burialFill}` : ''}${rock ? `-rm${ROCK_MACRO.tile}-${ROCK_MACRO.albedo}-${ROCK_MACRO.contrast}-${ROCK_MACRO.normal}-${ROCK_MACRO.strata}-${ROCK_MACRO.strataHeight}` : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 
