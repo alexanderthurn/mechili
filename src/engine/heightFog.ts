@@ -61,7 +61,7 @@ export const AERIAL_HAZE = {
     // the mountain ring starts ~110 wu past the board and peaks by ~500
     near: 80,
     far: 700,
-    strength: 0.32,
+    strength: 0.24,
     saturation: 0.35,
 } as const;
 

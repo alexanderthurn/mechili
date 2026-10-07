@@ -14,7 +14,7 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_ROCK_NORMAL, SLOPE_ROCK_NORMAL_APPLY_GLSL, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -1628,6 +1628,7 @@ export class BattleMap {
             /** hillside look: dirt on slopes, rock on cliffs (null = tint only) */
             slopeEarth?: import('three').Texture | null;
             slopeRock?: import('three').Texture | null;
+            slopeRockNormal?: import('three').Texture | null;
         },
     ): void {
         const {
@@ -1640,6 +1641,7 @@ export class BattleMap {
             detail = false,
             slopeEarth = null,
             slopeRock = null,
+            slopeRockNormal = null,
         } = opts;
         const profile = groundMaterialProfile();
         const useDetail = detail && profile.detailStrength > 0;
@@ -1683,6 +1685,7 @@ export class BattleMap {
                 );
             if (slopeEarth) shader.uniforms.uSlopeEarth = { value: slopeEarth };
             if (slopeRock) shader.uniforms.uSlopeRock = { value: slopeRock };
+            if (slopeRock && slopeRockNormal) shader.uniforms.uSlopeRockNormal = { value: slopeRockNormal };
             let inject = '';
             let extraUniforms =
                 'uniform sampler2D uHazardMask;\nuniform float uHazardTime;\nuniform float uFireCharcoalGround;\nuniform float uFireLive;\nuniform float uMacroStrength;\nuniform float uSnowCover;\nuniform float uDryGrass;\nuniform vec2 uBoardHalf;\nvarying vec2 vBoardXZ;\n' +
@@ -1790,6 +1793,7 @@ export class BattleMap {
                 'varying vec3 vGroundWorld;\n' +
                 (slopeEarth ? 'uniform sampler2D uSlopeEarth;\n' : '') +
                 (slopeRock ? 'uniform sampler2D uSlopeRock;\n' : '') +
+                (slopeRock && slopeRockNormal ? 'uniform sampler2D uSlopeRockNormal;\n' : '') +
                 SLOPE_GROUND_FNS;
             // Ground types — lush / straw zones, stony and mossy patches, dry crests —
             // ahead of the slope layers, which then work on top of them
@@ -1808,6 +1812,7 @@ export class BattleMap {
                 worldNormal: 'transformDirectionByInverseViewMatrix( normalize( vNormal ), viewMatrix )',
                 earth: slopeEarth ? { sampler: 'uSlopeEarth', uv: 'vMapUv * 0.7' } : null,
                 rock: slopeRock ? 'uSlopeRock' : null,
+                rockNormal: slopeRock && slopeRockNormal ? 'uSlopeRockNormal' : null,
             });
             if (sand && (baseSandMask || sandMask)) {
                 shader.uniforms.uSand = { value: sand };
@@ -1935,6 +1940,12 @@ export class BattleMap {
                 frag = frag.replace('#include <normal_fragment_maps>', normalInject);
             }
             if (hex) frag = frag.replace('#include <normal_fragment_maps>', hexNormalFragmentMapsGlsl());
+            if (slopeRock && slopeRockNormal) {
+                frag = frag.replace(
+                    '#include <clearcoat_normal_fragment_begin>',
+                    `${SLOPE_ROCK_NORMAL_APPLY_GLSL}\n#include <clearcoat_normal_fragment_begin>`,
+                );
+            }
             if (profile.roughnessFromAlbedo && detail) {
                 frag = frag.replace(
                     '#include <roughnessmap_fragment>',
@@ -1955,7 +1966,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         material.customProgramCacheKey = () =>
             `ground-hazard-v68${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photoGrass ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}${hex ? '-hex' : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
-            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r' : ''}${detail ? '-zones7' : ''}`;
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? 'e' : ''}${slopeRock ? 'r2' : ''}${slopeRock && slopeRockNormal ? `n${SLOPE_ROCK_NORMAL}` : ''}${detail ? '-zones7' : ''}`;
     }
 
     /**
@@ -2049,6 +2060,11 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         // hillside dirt + cliff rock (Low keeps the slope tint only)
         const rockPack = profile.tier === 'low' ? null : await loadRockTextures();
         const slopeRock = rockPack?.albedo ?? null;
+        const slopeRockNormal = slopeRock ? (rockPack?.normal ?? null) : null;
+        if (slopeRockNormal) {
+            slopeRockNormal.wrapS = slopeRockNormal.wrapT = RepeatWrapping;
+            slopeRockNormal.anisotropy = profile.anisotropy;
+        }
         if (slopeRock) {
             slopeRock.wrapS = slopeRock.wrapT = RepeatWrapping;
             slopeRock.colorSpace = SRGBColorSpace;
@@ -2110,6 +2126,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
             detail: true,
             slopeEarth: profile.tier === 'low' ? null : sand,
             slopeRock,
+            slopeRockNormal,
         });
 
         const previous = mesh.material as MeshStandardMaterial;

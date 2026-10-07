@@ -486,6 +486,8 @@ export function groundZonesGlsl(opts: {
 const SLOPE_ROCK_TILE = 6;
 /** how far the steepest cliffs lean toward rock (the rest stays earth) */
 const SLOPE_ROCK_STRENGTH = 0.5;
+/** how strongly the rock normal map bends the light on board cliffs (1 = as baked) */
+export const SLOPE_ROCK_NORMAL = 1.3;
 
 /**
  * GLSL: hillsides look like hillsides — the steeper the ground, the drier and
@@ -497,6 +499,9 @@ const SLOPE_ROCK_STRENGTH = 0.5;
  *   position (vec3) and a smooth world normal (vec3)
  * - `earth`: sampler for a dirt texture (+ its UV), or null for a tint only
  * - `rock`: sampler for the rock texture (triplanar), or null for no rock
+ * - `rockNormal`: sampler for the rock's normal map, or null — when set, the
+ *   shader also defines `slopeRockN` (world normal) and `slopeRockBump` (0..1,
+ *   how much of it to use) for {@link SLOPE_ROCK_NORMAL_APPLY_GLSL}
  * - `fade`: optional GLSL float that scales the whole effect (1 = full)
  */
 export function slopeGroundGlsl(opts: {
@@ -504,9 +509,10 @@ export function slopeGroundGlsl(opts: {
     worldNormal: string;
     earth: { sampler: string; uv: string } | null;
     rock: string | null;
+    rockNormal?: string | null;
     fade?: string;
 }): string {
-    const { worldPos, worldNormal, earth, rock, fade = '1.0' } = opts;
+    const { worldPos, worldNormal, earth, rock, rockNormal = null, fade = '1.0' } = opts;
     let glsl = `
 	vec3 slopeN = normalize( ${worldNormal} );
 	float slopeUp = max( abs( slopeN.y ), 0.05 );
@@ -537,17 +543,43 @@ export function slopeGroundGlsl(opts: {
         glsl += `	float slopeRockT = smoothstep( 0.8, 1.15, slopeGrade + slopeVar * 0.24 ) * slopeFade;
 	vec3 slopeRw = pow( abs( slopeN ), vec3( 4.0 ) );
 	slopeRw /= max( slopeRw.x + slopeRw.y + slopeRw.z, 1e-4 );
+	// UVs flip per side so every face gets a right-handed tangent frame (the normal map needs it)
+	vec3 slopeRs = step( 0.0, slopeN ) * 2.0 - 1.0;
+	vec2 slopeQX = vec2( -slopeP.z * slopeRs.x, slopeP.y ) / ${tile};
+	vec2 slopeQY = vec2( -slopeP.x * slopeRs.y, slopeP.z ) / ${tile};
+	vec2 slopeQZ = vec2( slopeP.x * slopeRs.z, slopeP.y ) / ${tile};
 	vec3 slopeRock =
-		texture2D( ${rock}, slopeP.xz / ${tile} ).rgb * slopeRw.y +
-		texture2D( ${rock}, slopeP.zy / ${tile} ).rgb * slopeRw.x +
-		texture2D( ${rock}, slopeP.xy / ${tile} ).rgb * slopeRw.z;
+		texture2D( ${rock}, slopeQY ).rgb * slopeRw.y +
+		texture2D( ${rock}, slopeQX ).rgb * slopeRw.x +
+		texture2D( ${rock}, slopeQZ ).rgb * slopeRw.z;
 	slopeCol = mix( slopeCol, slopeRock * vec3( 0.95, 0.9, 0.85 ), slopeRockT * ${SLOPE_ROCK_STRENGTH.toFixed(2)} );
 `;
+        if (rockNormal) {
+            const k = SLOPE_ROCK_NORMAL.toFixed(2);
+            glsl += `	vec2 slopeNX = ( texture2D( ${rockNormal}, slopeQX ).xy * 2.0 - 1.0 ) * ${k};
+	vec2 slopeNY = ( texture2D( ${rockNormal}, slopeQY ).xy * 2.0 - 1.0 ) * ${k};
+	vec2 slopeNZ = ( texture2D( ${rockNormal}, slopeQZ ).xy * 2.0 - 1.0 ) * ${k};
+	vec3 slopeRockN = normalize( slopeN
+		+ ( slopeNX.x * vec3( 0.0, 0.0, -slopeRs.x ) + slopeNX.y * vec3( 0.0, 1.0, 0.0 ) ) * slopeRw.x
+		+ ( slopeNY.x * vec3( -slopeRs.y, 0.0, 0.0 ) + slopeNY.y * vec3( 0.0, 0.0, 1.0 ) ) * slopeRw.y
+		+ ( slopeNZ.x * vec3( slopeRs.z, 0.0, 0.0 ) + slopeNZ.y * vec3( 0.0, 1.0, 0.0 ) ) * slopeRw.z );
+	// the bumps follow where the rock shows (a bit ahead of its colour, so the cliff reads as stone)
+	float slopeRockBump = clamp( slopeRockT * ${(SLOPE_ROCK_STRENGTH * 1.6).toFixed(2)}, 0.0, 1.0 );
+`;
+        }
     }
     glsl += `	diffuseColor.rgb = slopeCol;
 `;
     return glsl;
 }
+
+/**
+ * GLSL (main, after the normal maps): the board cliffs' rock bumps from
+ * slopeGroundGlsl, replacing the grass bumps where the rock shows.
+ */
+export const SLOPE_ROCK_NORMAL_APPLY_GLSL = `
+	normal = normalize( mix( normal, normalize( ( viewMatrix * vec4( slopeRockN, 0.0 ) ).xyz ), slopeRockBump ) );
+`;
 
 /**
  * GLSL: how much weather snow a spot holds (0…1) — steep ground sheds it, so
