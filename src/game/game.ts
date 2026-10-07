@@ -312,7 +312,7 @@ import { Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionI
 import type { YearProgress } from '../ui/yearTally';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { reportDiagnostic, setDiagnosticsMatch } from './diagnostics';
-import { stuckBoltAttachOf, updateAnimatedUnits } from './unitAnimated';
+import { stuckBoltAttachOf, stuckBoltBoneAt, updateAnimatedUnits } from './unitAnimated';
 import { setUnitInstanceRenderer, UnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
 import { activeLevel, activeLevelRef, isLevelActive, levelFiles, loadLevel, type LevelRef } from './level';
@@ -11343,6 +11343,8 @@ export class Game {
                         mesh: stuckBoltAttachOf(a.mesh),
                         modelId: a.unit.type.modelId ?? a.unit.type.id,
                         structure: !!a.unit.type.structure,
+                        // skinned units: ride the bone under the hit (death clips carry it)
+                        boneAt: (world) => stuckBoltBoneAt(stuckBoltAttachOf(a.mesh), world),
                     };
                 });
                 this.stoneChips.spawnFromEvents(battleEvents, (x, z) => groundHeightAt(x, z));

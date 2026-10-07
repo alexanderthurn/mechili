@@ -1533,6 +1533,8 @@ type StuckSlot = {
     /** Local to {@link attach}, or world matrix when unattached (dirt). */
     local: Matrix4;
     attach: Object3D | null;
+    /** the unit's root above {@link attach} (attach itself, or the bone's model root) */
+    root: Object3D | null;
 };
 
 export type StuckAttachRef = {
@@ -1541,6 +1543,8 @@ export type StuckAttachRef = {
     modelId: string;
     /** Buildings: seat on facade (no torso pull). Units: prefer body over wings. */
     structure?: boolean;
+    /** Animated units: the bone under a world point, so the shaft rides the skeleton (death clips) */
+    boneAt?: (world: Vector3) => Object3D | null;
 };
 
 const _seatRay = new Raycaster();
@@ -2220,6 +2224,7 @@ export class StuckBoltRenderer {
     private readonly slots: StuckSlot[] = [];
     private write = 0;
     private filled = 0;
+    private syncStamp = 0;
 
     constructor(scene: Scene) {
         const bolt = boltAsset;
@@ -2234,7 +2239,7 @@ export class StuckBoltRenderer {
         this.mesh.count = 0;
         scene.add(this.mesh);
         for (let i = 0; i < MAX_STUCK_BOLTS; i++) {
-            this.slots.push({ local: new Matrix4(), attach: null });
+            this.slots.push({ local: new Matrix4(), attach: null, root: null });
         }
     }
 
@@ -2285,15 +2290,19 @@ export class StuckBoltRenderer {
             this.matrix.compose(this.pos, this.quat, this.scratchScale);
 
             const slot = this.slots[this.write]!;
-            const attach = ref?.mesh ?? null;
-            if (attach) {
-                attach.updateMatrixWorld(true);
+            const root = ref?.mesh ?? null;
+            if (root) {
+                // the bone under the seat when the unit is skinned, else the model root
+                const attach = ref?.boneAt?.(this.pos) ?? root;
+                root.updateMatrixWorld(true);
                 this.inv.copy(attach.matrixWorld).invert();
                 slot.local.multiplyMatrices(this.inv, this.matrix);
                 slot.attach = attach;
+                slot.root = root;
             } else {
                 slot.local.copy(this.matrix);
                 slot.attach = null;
+                slot.root = null;
             }
             this.write = (this.write + 1) % cap;
             if (this.filled < cap) this.filled++;
@@ -2310,10 +2319,15 @@ export class StuckBoltRenderer {
         }
         const n = Math.min(this.filled, cap);
         const start = this.filled < cap ? 0 : this.write;
+        // each unit's subtree (bones included) once per sync, however many shafts it carries
+        const stamp = ++this.syncStamp;
         for (let i = 0; i < n; i++) {
             const slot = this.slots[(start + i) % cap]!;
-            if (slot.attach) {
-                slot.attach.updateMatrixWorld(true);
+            if (slot.attach && slot.root) {
+                if (slot.root.userData.stuckSyncStamp !== stamp) {
+                    slot.root.updateMatrixWorld(true);
+                    slot.root.userData.stuckSyncStamp = stamp;
+                }
                 this.matrix.multiplyMatrices(slot.attach.matrixWorld, slot.local);
                 this.mesh.setMatrixAt(i, this.matrix);
             } else {
@@ -2328,7 +2342,10 @@ export class StuckBoltRenderer {
         this.filled = 0;
         this.write = 0;
         this.mesh.count = 0;
-        for (const slot of this.slots) slot.attach = null;
+        for (const slot of this.slots) {
+            slot.attach = null;
+            slot.root = null;
+        }
     }
 
     dispose(): void {

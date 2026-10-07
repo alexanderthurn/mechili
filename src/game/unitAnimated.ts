@@ -220,6 +220,59 @@ export function stuckBoltAttachOf(proxy: Object3D): Object3D {
     return inst?.root ?? proxy;
 }
 
+const _boneVtx = new Vector3();
+/** at most this many skinned vertices are tested per hit (strided over big meshes) */
+const BONE_PICK_SAMPLES = 1500;
+
+/**
+ * The bone a stuck arrow should ride: the most-weighted bone of the skinned
+ * vertex nearest to `worldPoint`, in the pose playing right now. Arrows parented
+ * to the animated root stayed where the standing body was while a death clip
+ * threw the body down; on a bone they fall, twist and land with it. Null when
+ * `attachRoot` isn't an animated unit (static models keep the root).
+ */
+export function stuckBoltBoneAt(attachRoot: Object3D, worldPoint: Vector3): Object3D | null {
+    const inst = instanceByRoot.get(attachRoot);
+    if (!inst) return null;
+    attachRoot.updateMatrixWorld(true);
+    let bestBone: Object3D | null = null;
+    let bestD = Infinity;
+    attachRoot.traverse((o) => {
+        const sk = o as SkinnedMesh;
+        if (!sk.isSkinnedMesh) return;
+        const pos = sk.geometry.attributes.position;
+        const skinIndex = sk.geometry.attributes.skinIndex;
+        const skinWeight = sk.geometry.attributes.skinWeight;
+        if (!pos || !skinIndex || !skinWeight) return;
+        const step = Math.max(1, Math.floor(pos.count / BONE_PICK_SAMPLES));
+        let bestI = -1;
+        let meshBestD = bestD;
+        for (let i = 0; i < pos.count; i += step) {
+            sk.getVertexPosition(i, _boneVtx).applyMatrix4(sk.matrixWorld);
+            const d = _boneVtx.distanceToSquared(worldPoint);
+            if (d < meshBestD) {
+                meshBestD = d;
+                bestI = i;
+            }
+        }
+        if (bestI < 0) return;
+        let w = -1;
+        let boneIndex = -1;
+        for (let k = 0; k < 4; k++) {
+            const wk = skinWeight.getComponent(bestI, k);
+            if (wk > w) {
+                w = wk;
+                boneIndex = skinIndex.getComponent(bestI, k);
+            }
+        }
+        const bone = sk.skeleton.bones[boneIndex];
+        if (!bone) return;
+        bestD = meshBestD;
+        bestBone = bone;
+    });
+    return bestBone;
+}
+
 /** Blend foot align with current anim weights (0 = T-pose seat, 1 = walk seat). */
 function applyFootAlign(inst: Instance): void {
     // Shift the anim holder (not its inner child) so world scale / AABB seating
