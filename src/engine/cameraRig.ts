@@ -1,6 +1,6 @@
 import { MathUtils, PerspectiveCamera, Plane, Raycaster, Vector2, Vector3 } from 'three';
 
-interface RigState {
+export interface RigState {
     x: number;
     z: number;
     zoom: number;

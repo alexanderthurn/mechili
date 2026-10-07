@@ -3,6 +3,7 @@
  *
  * - Shift+R: start / stop a full take (download on stop)
  * - Shift+E while recording: save the last ~6s without stopping
+ * - Shift+Option+R / Shift+Cmd+R: save a PNG screenshot of the same view
  *
  * Prefer H.264 MP4 when supported (QuickTime); else WebM.
  */
@@ -47,11 +48,11 @@ function videoBitrate(width: number, height: number, fps: number): number {
     return Math.min(48_000_000, Math.max(12_000_000, target));
 }
 
-function stampFilename(ext: string, kind: 'clip' | 'replay' = 'clip'): string {
+function stampFilename(ext: string, kind: 'clip' | 'replay' | 'screenshot' = 'clip'): string {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-    return kind === 'replay' ? `melodan-replay-${stamp}.${ext}` : `melodan-${stamp}.${ext}`;
+    return kind === 'clip' ? `melodan-${stamp}.${ext}` : `melodan-${kind}-${stamp}.${ext}`;
 }
 
 function downloadBlob(blob: Blob, filename: string): void {
@@ -65,6 +66,27 @@ function downloadBlob(blob: Blob, filename: string): void {
     a.click();
     a.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/**
+ * Save the canvas as a PNG. `render` draws a fresh frame first: a WebGL canvas
+ * without preserveDrawingBuffer is only readable in the same task it was drawn
+ * in, and toBlob copies the pixels synchronously before it returns.
+ */
+export function saveScreenshot(canvas: HTMLCanvasElement, render: () => void): Promise<string | null> {
+    if (!canvas.width || !canvas.height) return Promise.resolve(null);
+    render();
+    return new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                resolve(null);
+                return;
+            }
+            const filename = stampFilename('png', 'screenshot');
+            downloadBlob(blob, filename);
+            resolve(filename);
+        }, 'image/png');
+    });
 }
 
 class VideoRecorder {

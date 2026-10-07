@@ -126,7 +126,8 @@ import { StrongholdCommanders } from './strongholdCommander';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
 import { takePrewarmedRenderer } from './gpuWarmup';
 import { audio, playMatchMusic, setUnitTypes as setAudioUnitTypes } from './audio';
-import { videoRecorder } from './videoRecorder';
+import { saveScreenshot, videoRecorder } from './videoRecorder';
+import { saveReloadCamera, takeReloadCamera } from './reloadCamera';
 import { runBenchmark, type BenchmarkOptions } from './perfBenchmark';
 import { CloudFx, type CloudCue } from './cloudFx';
 import { ConversionFx } from './conversionFx';
@@ -1116,6 +1117,12 @@ export class Game {
             this.toggleUiHidden();
             return;
         }
+        // Shift+Option+R / Shift+Cmd+R = screenshot of the view Shift+R records
+        if (e.code === 'KeyR' && e.shiftKey && (e.altKey || e.metaKey) && !e.ctrlKey) {
+            e.preventDefault();
+            void this.takeScreenshot();
+            return;
+        }
         // Shift+R = start / stop full take (bare R still rotates packs)
         if (e.code === 'KeyR' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
             if (videoRecorder.recording) void this.stopVideoClip();
@@ -1173,6 +1180,12 @@ export class Game {
         if (!videoRecorder.recording) return;
         const result = await videoRecorder.saveRecent(6);
         this.hud.pulseRecordingHint(result ? 'recording saved' : 'nothing to save');
+    }
+
+    /** Shift+Option+R / Shift+Cmd+R — save the current view as a PNG. */
+    private async takeScreenshot(): Promise<void> {
+        const filename = await saveScreenshot(this.threeCanvas, () => this.renderFrame());
+        this.hud.flashCinemaHint(filename ? 'screenshot saved' : 'screenshot failed', 1500);
     }
 
     /** Shift+R (while recording) — stop and download the full take. */
@@ -1341,6 +1354,8 @@ export class Game {
      *  menu, so every step draws the same frame. Ignored in multiplayer. */
     private benchmarkHold = false;
 
+    /** dev: remember the camera across a reload (see reloadCamera.ts) */
+    private readonly onPageHide = () => saveReloadCamera(this.rig.getPose());
     private readonly onWindowResize = () => this.resize(this.wrapper.clientWidth, this.wrapper.clientHeight);
     private readonly wrapper: HTMLElement;
     private readonly threeCanvas: HTMLCanvasElement;
@@ -1767,6 +1782,9 @@ export class Game {
             (this.map.halfH - (this.map.size.rimCells + this.map.size.zoneRows / 2) * CELL) *
             (nearSide ? 1 : -1);
         this.rig.startAt(0, ownZoneZ, PLAY_START_ZOOM);
+        // dev: a reload comes back to the camera it left (the intro flies there)
+        const reloadPose = import.meta.env.DEV ? takeReloadCamera() : null;
+        if (reloadPose) this.rig.setPose(reloadPose);
         if (matchIntro) {
             const play = this.rig.getPose();
             this.introTo = play;
@@ -2576,6 +2594,7 @@ export class Game {
 
         // Escape toggles the in-game menu (solo: freezes clocks; multiplayer: live)
         window.addEventListener('keydown', this.onEscapeKey);
+        if (import.meta.env.DEV) window.addEventListener('pagehide', this.onPageHide);
 
         this.resize(wrapper.clientWidth, wrapper.clientHeight);
         window.addEventListener('resize', this.onWindowResize);
@@ -3174,6 +3193,7 @@ export class Game {
         this.spectateSession = null;
         this.pixiApp.ticker.remove(this.boundTick);
         window.removeEventListener('keydown', this.onEscapeKey);
+        window.removeEventListener('pagehide', this.onPageHide);
         window.removeEventListener('resize', this.onWindowResize);
         for (const dispose of this.inputDisposers) dispose();
         this.inputDisposers.length = 0;
