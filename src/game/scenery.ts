@@ -1121,6 +1121,8 @@ export class Scenery {
                 new BufferAttribute(new Float32Array(geometry.attributes.position!.count * 4).fill(1), 4),
             );
             const mesh = new Mesh(geometry, material);
+            // after the (instanced, origin-sorted) trees, or a tree behind the card draws over it
+            mesh.renderOrder = CLOUD_CARD_RENDER_ORDER;
             const lift = 2 + rng() * 2.5;
             mesh.position.set(x, h + lift, z);
             const s = 35 + rng() * 45;
@@ -4705,6 +4707,10 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 continue;
             } else {
                 mesh.scale.set(scale, 1, scale * (0.4 + rng() * 0.3));
+                // the flat cards too: same order as the volumetric ones (see above). The trees
+                // are instanced at the world origin, so by distance they'd sort as the nearest
+                // see-through thing and draw over any cloud card lying in front of them.
+                mesh.renderOrder = CLOUD_CARD_RENDER_ORDER;
             }
             this.clouds.push({ mesh, speed: 2 + rng() * 3 });
             this.group.add(mesh);
@@ -4736,6 +4742,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 unthinnedCloud(mesh, 0.5);
             } else {
                 mesh.scale.set(scale, 1, scale * (0.35 + rng() * 0.3));
+                mesh.renderOrder = CLOUD_CARD_RENDER_ORDER;
             }
             this.peakClouds.push({
                 mesh,
@@ -4921,6 +4928,14 @@ const ROCK_SNOW = {
 const ROCK_SNOW_GLSL = `
     float rkSnowHold = smoothstep( ${ROCK_SNOW.from.toFixed(2)}, ${ROCK_SNOW.to.toFixed(2)}, rnWorld.y + ( breakup - 0.5 ) * ${ROCK_SNOW.breakup.toFixed(2)} );
     snowF *= mix( 1.0, mix( rkSnowHold, 1.0, burial * ${ROCK_SNOW.burialFill.toFixed(2)} ), rkUnder * ${ROCK_SNOW.strength.toFixed(2)} );`;
+
+/**
+ * Draw order for flat cloud / fog cards — the same as the volumetric clouds: after
+ * every other see-through thing in the scenery. They don't write depth, so anything
+ * see-through drawn after them paints over them even from behind; the vegetation
+ * is instanced at the world origin and sorts as nearer than any card around it.
+ */
+const CLOUD_CARD_RENDER_ORDER = 6;
 
 const OUTER_MOUNTAIN_LIGHTING_GLSL = `
     float contrast = mix(0.18, 0.36, deepWinter);
