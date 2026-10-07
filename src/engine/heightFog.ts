@@ -61,9 +61,16 @@ export const AERIAL_HAZE = {
     // the mountain ring starts ~110 wu past the board and peaks by ~500
     near: 80,
     far: 700,
-    strength: 0.24,
+    strength: 0.32,
     saturation: 0.35,
 } as const;
+
+/**
+ * How much of the weather's distance fog is applied (1 = full). Scales the fog
+ * amount, not its distances, so every weather keeps its own near/far character.
+ * The ground mist and the aerial haze are separate and unaffected.
+ */
+export const DISTANCE_FOG_STRENGTH = 0.75;
 
 /** the board's half extents for the haze; huge until a match sets them (= no haze) */
 let hazeBoard = { halfW: 1e6, halfH: 1e6 };
@@ -91,7 +98,7 @@ export function setHeightFogStrength(scale: number): void {
 	#ifdef FOG_EXP2
 		float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
 	#else
-		float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+		float fogFactor = smoothstep( fogNear, fogFar, vFogDepth ) * ${DISTANCE_FOG_STRENGTH.toFixed(3)};
 		// aerial perspective (see AERIAL_HAZE): by distance past the board edge
 		vec2 aerialPast = max( abs( vFogWorldXZ ) - vec2( ${hazeBoard.halfW.toFixed(1)}, ${hazeBoard.halfH.toFixed(1)} ), 0.0 );
 		float aerialT = clamp( ( length( aerialPast ) - ${h.near.toFixed(1)} ) / ${(h.far - h.near).toFixed(1)}, 0.0, 1.0 );
