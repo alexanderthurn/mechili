@@ -472,6 +472,10 @@
           "type": "boolean",
           "description": "When false, cleave swings skip the ground scorch stamp (still deal damage). Omit/true = stamp like a stomp crater."
         },
+        "crushOnKill": {
+          "type": "boolean",
+          "description": "Its kills are pressed flat from above (the hammer pancake, without the tumble) — the ogre's club. Only grounded, non-structure victims clearly smaller than the killer; anything else dies as usual."
+        },
         "splashScar": {
           "type": "boolean",
           "description": "When false, splash projectile explosions skip the ground scorch stamp. Omit/true = stamp like other blasts."

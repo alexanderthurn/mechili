@@ -18,6 +18,7 @@
     // innate disk like Rhino splash — Whirlwind tech widens it
     "cleave": { "radius": 2 },
     "cleaveScar": false, // no ground crater stamp on swings
+    "crushOnKill": true, // the club presses its kills flat from above
     "hp": 1620,
     "damage": 195,
     "range": 3.4, // short melee reach

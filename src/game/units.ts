@@ -787,6 +787,12 @@ export interface UnitType {
      */
     cleaveScar?: boolean;
     /**
+     * Its kills are pressed flat from above (the hammer pancake, without the
+     * tumble) — the ogre's club. Only grounded, non-structure victims clearly
+     * smaller than the killer; anything else dies as usual.
+     */
+    crushOnKill?: boolean;
+    /**
      * When false, splash projectile explosions skip the ground scorch stamp.
      * Omit/true = stamp like other blasts.
      */

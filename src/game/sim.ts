@@ -97,6 +97,8 @@ import {
 import {
     beginHammerCrush,
     clearBuildingCollapse,
+    CLUB_CRUSH_XZ,
+    CLUB_CRUSH_Y,
     groundTipAt,
     hammerCrushSpin,
     HAMMER_CRUSH_SEAT_Y,
@@ -4474,6 +4476,18 @@ export class BattleSim {
         killer.xp = Math.min(killer.xp + value, threshold);
     }
 
+    /**
+     * A crushOnKill killer flattens this victim: grounded, not a structure, and
+     * clearly smaller than the killer (an ogre doesn't pancake another ogre).
+     * Reads only unit data, so every peer decides the same.
+     */
+    private crushedByKiller(target: Actor, killer: Unit | null): boolean {
+        if (!killer?.type.crushOnKill) return false;
+        const t = target.unit.type;
+        if (t.structure || t.flying) return false;
+        return t.collisionRadius < killer.type.collisionRadius * 0.8;
+    }
+
     private kill(
         target: Actor,
         killer: Unit | null,
@@ -4578,8 +4592,9 @@ export class BattleSim {
                     level: target.unit.level,
                 });
             }
-        } else if (this.crushingHammer) {
-            // Hammer: pancake flat — no tip / crash tumble
+        } else if (this.crushingHammer || this.crushedByKiller(target, killer)) {
+            // Hammer: pancake flat — no tip / crash tumble. A crushOnKill killer
+            // (the ogre's club) presses straight down instead: no tumble, top face up.
             // Seat ON the lawn (HAMMER_CRUSH_SEAT_Y), not GROUND_UNIT_Y — 4% flats vanish if sunk
             const groundY = worldHeightAt(target.x, target.z) + HAMMER_CRUSH_SEAT_Y;
             clearDeathFall(target.mesh);
@@ -4589,7 +4604,10 @@ export class BattleSim {
             const tip = groundTipAt(target.x, target.z);
             beginHammerCrush(target.mesh, {
                 groundY,
-                spin: hammerCrushSpin(target.index + 17),
+                spin: this.crushingHammer ? hammerCrushSpin(target.index + 17) : undefined,
+                // the club squashes, the hammer pancakes
+                thin: this.crushingHammer ? undefined : CLUB_CRUSH_Y,
+                wide: this.crushingHammer ? undefined : CLUB_CRUSH_XZ,
                 endTipX: tip.tipX,
                 endTipZ: tip.tipZ,
             });

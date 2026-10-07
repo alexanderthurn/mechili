@@ -37,6 +37,14 @@ const HAMMER_CRUSH_Y = 0.04;
 const HAMMER_CRUSH_XZ = 1.2;
 const HAMMER_CRUSH_DUR = 0.28;
 /**
+ * A crushOnKill club (the ogre): pressed down from above, but only to this
+ * fraction of the height — still a recognisable, squat body, not a pancake.
+ * Tweak live: lower = flatter (the hammer is 0.04), higher = taller.
+ */
+export const CLUB_CRUSH_Y = 0.35;
+/** the club's footprint widen (the hammer's is 1.2) */
+export const CLUB_CRUSH_XZ = 1.1;
+/**
  * Mesh Y offset for pancakes. Must NOT use {@link GROUND_UNIT_Y} (−0.08): that
  * sinks standing feet into the lawn, which buries a 4%-tall squash completely
  * (blood still pops at torso height — the “invisible on hills” look).
@@ -138,9 +146,9 @@ function crushEndScale(
     sy: number,
     sz: number,
     face: number,
+    thin = HAMMER_CRUSH_Y,
+    wide = HAMMER_CRUSH_XZ,
 ): { x: number; y: number; z: number } {
-    const thin = HAMMER_CRUSH_Y;
-    const wide = HAMMER_CRUSH_XZ;
     if (face <= 1) return { x: sx * wide, y: sy * thin, z: sz * wide };
     if (face <= 3) return { x: sx * thin, y: sy * wide, z: sz * wide };
     return { x: sx * wide, y: sy * wide, z: sz * thin };
@@ -172,6 +180,9 @@ export function beginHammerCrush(
         /** Ground-normal tip at the crush seat (from {@link groundTipAt}). */
         endTipX?: number;
         endTipZ?: number;
+        /** end height / footprint as fractions (default: the hammer's 4% pancake) */
+        thin?: number;
+        wide?: number;
     },
 ): BuildingCollapseState {
     const spin = opts?.spin;
@@ -192,7 +203,7 @@ export function beginHammerCrush(
     const sx = mesh.scale.x;
     const sy = mesh.scale.y;
     const sz = mesh.scale.z;
-    const endS = crushEndScale(sx, sy, sz, face);
+    const endS = crushEndScale(sx, sy, sz, face, opts?.thin, opts?.wide);
 
     const state: BuildingCollapseState = {
         startAt: opts?.startAt ?? -1,
