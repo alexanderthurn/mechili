@@ -18,7 +18,7 @@ import {
     type ShadowMapType,
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
+import { setAerialHazeBoard, setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
 import { EffectToggles } from './effectToggles';
 import { DISPLAY } from './displayNames';
 import { t, itemDescription, itemName, tacticDescription, tacticName, techName, unitName } from '../i18n';
@@ -1270,6 +1270,7 @@ export class Game {
     /** Re-bake height-mist shader strength and recompile fogged materials (Shift+3). */
     private applyHeightMistStrength(): void {
         const strength = this.effectToggles.isEnabled('heightMist') ? this.heightMistBase : 0;
+        setAerialHazeBoard(this.map.halfW, this.map.halfH);
         setHeightFogStrength(strength);
         this.scene.traverse((o) => {
             const m = (o as import('three').Mesh).material as
