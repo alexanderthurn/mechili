@@ -458,12 +458,11 @@ html .mechili-menu :is(.m-spmode-row, .m-spmode-horde, .m-lobby-role-row, .m-lob
 html .mechili-menu :is(.m-status, .m-rooms-label, .m-scenario-list-label, .m-lobby-settings-toggle, .m-lobby-settings-reset) { color: ${INK_MUTED}; }
 html .mechili-menu .m-field:not(.m-lobby-settings .m-field) { color: ${INK_MUTED}; }
 /* dark wells on the parchment whose text only inherited the menu's colour: light again */
-html .mechili-menu :is(.m-room-list, .m-scenario-row, .m-lobby-settings, .m-mp-count > span) { color: ${u.cream}; }
+html .mechili-menu :is(.m-room-list, .m-scenario-row, .m-lobby-settings) { color: ${u.cream}; }
 html .mechili-menu .m-room-list.empty { color: ${u.textMuted}; }
-html .mechili-menu :is(.m-mp-running, .m-scenario-status, .m-spmode-title, .m-roster-vs, .m-roster-invite) { color: ${INK_RUST}; }
-html .mechili-menu :is(.m-lobby-settings-toggle, .m-roster-invite):hover,
+html .mechili-menu :is(.m-scenario-status, .m-spmode-title, .m-roster-vs) { color: ${INK_RUST}; }
+html .mechili-menu .m-lobby-settings-toggle:hover,
 html .mechili-menu .m-lobby-settings-reset:hover:not(:disabled) { color: ${INK}; }
-html .mechili-menu :is(.m-mp-open, .m-roster-ready) { color: #3d6e2a; }
 html .mechili-menu .m-roster-col-a .m-roster-col-header { color: #1f5c94; }
 html .mechili-menu .m-roster-col-b .m-roster-col-header { color: #9a2a1a; }
 /* settings and the controls help on parchment: their text in ink (tabs, presets,
