@@ -571,6 +571,8 @@ html .mechili-report .r-row .n.player { color: ${shadeCss(teamColors.player.hex,
 html .mechili-report .r-row .n.enemy { color: ${shadeCss(teamColors.enemy.hex, -0.3)}; }
 html .mechili-report .r-row .d { color: ${INK_RUST}; font-weight: 700; }
 html .forge-slot-preview.recipes .forge-recipes-hint { color: ${INK_MUTED}; }
+/* its recipe tiles are dark wells: their names stay light */
+html .forge-slot-preview.recipes .forge-tile { color: ${u.cream}; }
 /* small parchment chips: the player's name in the menu corner, the replay controls,
    the lobby settings' tip */
 html .mechili-username,
