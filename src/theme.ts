@@ -496,6 +496,83 @@ html .mechili-settings .s-advanced { border-top-color: rgba(90, 55, 20, 0.3); }
 html .mechili-settings .s-audio-slider input[type="range"] { accent-color: ${INK_RUST}; }
 html .mechili-settings .s-reset { border-color: rgba(106, 52, 16, 0.6); color: ${INK_RUST}; }
 html .mechili-settings .s-reset:hover { border-color: ${INK_RUST}; background: rgba(140, 40, 24, 0.12); }
+/* the inventory strips at the screen edges: parchment, captions in ink; the tactic
+   tiles are dark wooden slots with an iron rim, like the details pane's */
+html .mechili-sidebar {
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
+    border: none;
+    box-shadow: ${PARCHMENT_EDGE};
+    text-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+html .mechili-sidebar .inv-title { color: ${INK_MUTED}; }
+html .mechili-sidebar .inv-title-meta { color: ${INK_RUST}; }
+html .mechili-sidebar .inv-title .inv-chevron { border-top-color: ${INK_RUST}; }
+html .mechili-sidebar.can-collapse .inv-title:hover { color: ${INK}; background: rgba(90, 55, 20, 0.1); }
+html .mechili-sidebar .inv-item.tactic {
+    background:
+        repeating-linear-gradient(1.5deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 4px),
+        linear-gradient(180deg, #24180f 0%, #1a110a 55%, #22170e 100%);
+    border-color: #2c2723;
+    color: ${u.cream};
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(60, 30, 8, 0.35);
+}
+html .mechili-sidebar .inv-item.tactic:hover { border-color: #6a6058; }
+/* the hover tips (shop tiles, abilities, the details pane's action tiles): small
+   parchment notes in ink; the buy button stays brass */
+html .mechili-card-spell-tip,
+html .mechili-panel .action-info {
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
+    border: none;
+    box-shadow:
+        0 6px 18px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(70, 40, 15, 0.55),
+        inset 0 0 18px rgba(105, 56, 18, 0.55),
+        inset 0 0 3px rgba(60, 28, 6, 0.6);
+    text-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-title,
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-row-cost,
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-cost,
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-forge-fee { color: ${INK_RUST}; }
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-desc { color: ${INK}; }
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-row-desc,
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-note { color: ${INK_MUTED}; }
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-row,
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-cost.refund,
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-cost.owned { color: #3d6e2a; }
+html :is(.mechili-card-spell-tip, .mechili-panel .action-info) .ai-cost.hexed,
+html .mechili-panel .action-info:has(.ai-cost.hexed) .ai-note { color: #1f6f9a; }
+html .mechili-card-spell-tip .ai-desc + .ai-rows { border-top-color: rgba(90, 55, 20, 0.35); }
+html .mechili-card-spell-tip .ai-forge-ing { box-shadow: 0 0 0 1px rgba(60, 30, 8, 0.45); }
+/* the round report, the touch tip and the forge's recipe preview: parchment notes too */
+html .mechili-report,
+html .mechili-touchtip,
+html .forge-slot-preview.recipes {
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
+    border: none;
+    box-shadow:
+        0 6px 18px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(70, 40, 15, 0.55),
+        inset 0 0 18px rgba(105, 56, 18, 0.55),
+        inset 0 0 3px rgba(60, 28, 6, 0.6);
+    text-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+html .mechili-report .r-close { color: ${INK_MUTED}; }
+html .mechili-report .r-close:hover,
+html .mechili-report .r-close:focus-visible { color: ${INK}; }
+html .mechili-report .r-row .n.player { color: ${shadeCss(teamColors.player.hex, -0.3)}; }
+html .mechili-report .r-row .n.enemy { color: ${shadeCss(teamColors.enemy.hex, -0.3)}; }
+html .mechili-report .r-row .d { color: ${INK_RUST}; font-weight: 700; }
+html .forge-slot-preview.recipes .forge-recipes-hint { color: ${INK_MUTED}; }
 /* the dialogs as parchment hung from a pole (::before below), written in ink;
    their buttons are wood, their input fields dark wells */
 html .mechili-name-edit .box,
@@ -569,15 +646,9 @@ html .mechili-resume .resume-box::before {
 }
 /* Slim bronze chrome — compact HUD strips / chips / tips.
    Skip docked corner tabs (phone-menu) — multi-ring shadows look square on asymmetric radii. */
-html .mechili-sidebar,
-html .mechili-report,
 html .mechili-username,
 html .mechili-replay-controls,
 html .mechili-chat.open .c-panel,
-html .mechili-panel .action-info,
-html .forge-slot-preview.recipes,
-html .mechili-card-spell-tip,
-html .mechili-touchtip,
 html .m-lobby-setting-tip {
     color: ${u.cream};
     background: ${leatherFill};
