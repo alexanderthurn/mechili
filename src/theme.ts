@@ -3487,11 +3487,19 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     border-radius: 3px;
     cursor: pointer;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
-    transition: border-color 0.12s ease, color 0.12s ease;
+    transition-property: border-color, color, transform;
+    transition-duration: 0.18s;
+    transition-timing-function: cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 .mechili-settings .s-tab:hover {
     border-color: ${u.bronzeLight};
     color: ${u.cream};
+    transform: translateY(-1px);
+}
+.mechili-settings .s-tab:active {
+    transform: translateY(0) scale(0.97);
+    transition-duration: 0.06s;
+    transition-timing-function: ease-out;
 }
 .mechili-settings .s-tab.active {
     border-color: ${u.bronze};
@@ -3513,6 +3521,10 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    /* room inside the scroll box for a hovered button's lift and the 3px focus ring
+       (they were cut off at its edges); the negative margin keeps the layout where it was */
+    padding: 4px;
+    margin: -4px;
 }
 .mechili-settings .s-panel {
     display: flex;
@@ -3552,12 +3564,20 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
     color: ${u.creamMuted};
     cursor: pointer;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
-    transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
+    /* the match UI's button feel: eased hover lift, quick press, a springy release */
+    transition-property: border-color, color, transform, box-shadow;
+    transition-duration: 0.18s;
+    transition-timing-function: cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 .mechili-settings .s-preset:hover {
     border-color: ${u.bronzeLight};
     color: ${u.cream};
     transform: translateY(-1px);
+}
+.mechili-settings button.s-preset:active {
+    transform: translateY(0) scale(0.97);
+    transition-duration: 0.06s;
+    transition-timing-function: ease-out;
 }
 .mechili-settings .s-preset.active {
     border-color: ${u.bronze};
@@ -4083,6 +4103,14 @@ ${gamepadCursorStyles(u)}
 
 /** CSS block for the HTML HUD — generated from {@link THEME} + the match's
  *  canonical team colors (assign those BEFORE the HUD is built). */
+/** frayed cloth edge for the health banner: a jagged band, tiled along it */
+const FRAY_SVG =
+    "<svg xmlns='http://www.w3.org/2000/svg' width='40' height='100' viewBox='0 0 40 100' preserveAspectRatio='none'><path d='M0 4 L3 1 L5 5 L8 2 L11 6 L13 1 L16 3 L19 0 L22 5 L25 2 L27 6 L30 1 L33 4 L36 2 L40 4 L40 96 L37 99 L35 95 L32 98 L29 94 L26 100 L23 96 L20 99 L17 95 L14 98 L12 94 L9 99 L6 96 L3 100 L0 96 Z' fill='black'/></svg>";
+
+/** canvas grain for the painted portrait (an SVG noise tile) */
+const GRAIN_SVG =
+    "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.28 0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(#n)'/></svg>";
+
 export function hudStyles(bars?: BarAssets): string {
     const u = THEME.ui;
     const pc = teamColors.player.css;
@@ -4828,6 +4856,16 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-shop-col .shop-tile,
 .mechili-cards .unlock-picker .shop-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
+/* the tiles pop in one after another (shop back for a new deployment, a tab switch);
+   'backwards' holds only the from-state during the delay, so hover / press still work */
+.mechili-shop-col .shop-tile.is-popping { animation: mechili-tile-pop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.25) backwards; }
+@keyframes mechili-tile-pop {
+    from { opacity: 0; transform: translateY(8px) scale(0.85); }
+    to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-shop-col .shop-tile.is-popping { animation: none; }
+}
 .mechili-shop-col .shop-tile:hover,
 .mechili-cards .unlock-picker .shop-tile:hover { border-color: ${u.bronzeLight}; }
 .mechili-shop-col .shop-tile:active,
@@ -4925,6 +4963,20 @@ ${chatFloatStyles(u, pc, ec)}
     /* chrome filled by materialStyles docked-panel frame */
     color: ${u.cream};
     user-select: none;
+}
+/* the details pane: up and in when it appears, down and out when it goes */
+.mechili-panel.is-entering { animation: mechili-panel-in 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+.mechili-panel.is-leaving { animation: mechili-panel-out 0.24s ease-in both; pointer-events: none; }
+@keyframes mechili-panel-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes mechili-panel-out {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(10px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mechili-panel.is-entering, .mechili-panel.is-leaving { animation: none; }
 }
 .mechili-panel .title { font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 2px; }
 .mechili-panel .team { font-size: 11px; letter-spacing: 0.5px; margin-bottom: 8px; }
@@ -7229,11 +7281,12 @@ ${chatFloatStyles(u, pc, ec)}
     letter-spacing: 0.6px;
     padding: 8px 18px;
 }
-/* while viewing the battlefield: the way back to the results, or out */
+/* while viewing the battlefield: the way back to the results, or out — top centre,
+   above every match layer, so it can't end up behind anything */
 .mechili-battlefield-bar {
     position: absolute;
     left: 50%;
-    bottom: 22px;
+    top: 14px;
     transform: translateX(-50%);
     display: flex;
     gap: 10px;
@@ -7241,7 +7294,7 @@ ${chatFloatStyles(u, pc, ec)}
     background: rgba(12, 14, 18, 0.78);
     border: 1px solid ${u.border};
     border-radius: 6px;
-    z-index: 40;
+    z-index: 60;
 }
 .mechili-battlefield-bar button {
     padding: 8px 18px;
@@ -7466,7 +7519,7 @@ ${chatFloatStyles(u, pc, ec)}
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
+    border-radius: 6px;
     overflow: hidden;
     background:
         radial-gradient(circle at 35% 28%, rgba(255, 230, 180, 0.2), transparent 55%),
@@ -7525,6 +7578,93 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-fightbar .fighter.player .portrait { color: ${pc}; }
 .mechili-fightbar .fighter.enemy .portrait { color: ${ec}; }
+/* The featured portrait in an old frame that suits the weathered flag: darkened oak,
+   its edges rubbed lighter, grain and a few scratches, forged iron brackets nailed
+   over each corner with spots of rust; the (square) picture sunk into it, bigger than
+   the rest. */
+.mechili-fightbar .portrait-mount {
+    position: relative;
+    z-index: 2;
+    flex-shrink: 0;
+    padding: 3px;
+    border-radius: 3px;
+    background:
+        radial-gradient(circle at 2px 2px, #8a7f74 0 0.5px, #4a423b 0.8px, #15110e 1.2px, transparent 1.4px),
+        radial-gradient(circle at calc(100% - 2px) 2px, #8a7f74 0 0.5px, #4a423b 0.8px, #15110e 1.2px, transparent 1.4px),
+        radial-gradient(circle at 2px calc(100% - 2px), #8a7f74 0 0.5px, #4a423b 0.8px, #15110e 1.2px, transparent 1.4px),
+        radial-gradient(circle at calc(100% - 2px) calc(100% - 2px), #8a7f74 0 0.5px, #4a423b 0.8px, #15110e 1.2px, transparent 1.4px),
+        radial-gradient(circle at 6px 1.5px, rgba(150, 72, 24, 0.7) 0 1px, rgba(120, 60, 20, 0.35) 1.8px, transparent 2.5px),
+        radial-gradient(circle at calc(100% - 1.5px) 7px, rgba(150, 72, 24, 0.7) 0 1px, rgba(120, 60, 20, 0.35) 1.8px, transparent 2.5px),
+        radial-gradient(circle at 1.5px calc(100% - 6px), rgba(150, 72, 24, 0.7) 0 1px, rgba(120, 60, 20, 0.35) 1.8px, transparent 2.5px),
+        radial-gradient(circle at calc(100% - 7px) calc(100% - 1.5px), rgba(150, 72, 24, 0.7) 0 1px, rgba(120, 60, 20, 0.35) 1.8px, transparent 2.5px),
+        linear-gradient(180deg, #4b4540 0%, #2f2a26 55%, #1d1916 100%) 0 0 / 10px 3px no-repeat,
+        linear-gradient(180deg, #4b4540 0%, #2f2a26 55%, #1d1916 100%) 0 0 / 3px 10px no-repeat,
+        linear-gradient(180deg, #4b4540 0%, #2f2a26 55%, #1d1916 100%) 100% 0 / 10px 3px no-repeat,
+        linear-gradient(180deg, #4b4540 0%, #2f2a26 55%, #1d1916 100%) 100% 0 / 3px 10px no-repeat,
+        linear-gradient(180deg, #4b4540 0%, #2f2a26 55%, #1d1916 100%) 0 100% / 10px 3px no-repeat,
+        linear-gradient(180deg, #4b4540 0%, #2f2a26 55%, #1d1916 100%) 0 100% / 3px 10px no-repeat,
+        linear-gradient(180deg, #4b4540 0%, #2f2a26 55%, #1d1916 100%) 100% 100% / 10px 3px no-repeat,
+        linear-gradient(180deg, #4b4540 0%, #2f2a26 55%, #1d1916 100%) 100% 100% / 3px 10px no-repeat,
+        linear-gradient(33deg, transparent 46%, rgba(220, 180, 130, 0.18) 47%, transparent 48.5%) 0 0 / 100% 100% no-repeat,
+        linear-gradient(-58deg, transparent 70%, rgba(220, 180, 130, 0.14) 71%, transparent 72%) 0 0 / 100% 100% no-repeat,
+        repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px, rgba(255, 220, 170, 0.05) 3px 4px, transparent 4px 6px),
+        repeating-linear-gradient(2deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 4px),
+        linear-gradient(150deg, #4a3422 0%, #33231a 45%, #22170f 100%);
+    box-shadow:
+        0 0 0 1px #120d09,
+        /* edges rubbed lighter, the inner side in shadow */
+        inset 1px 1px 0 rgba(214, 170, 120, 0.22),
+        inset -1px -1px 0 rgba(0, 0, 0, 0.5),
+        0 3px 8px rgba(0, 0, 0, 0.6);
+}
+/* the bezel sits right in the screen corner: no gap above or beside it, and its
+   corner there is square so it reads as anchored to the edge */
+.mechili-fightbar .fighter-stack:not(.multi) .fighter.player { padding-top: 0; padding-left: 0; }
+/* the banner hangs from the very top of the screen, beside the frame, name below it */
+.mechili-fightbar .fighter-stack:not(.multi) .fighter { align-items: flex-start; }
+.mechili-fightbar .fighter-stack:not(.multi) .fighter.enemy { padding-top: 0; padding-right: 0; }
+.mechili-fightbar .fighter-stack:not(.multi) .fighter.player .portrait-mount { border-top-left-radius: 0; }
+.mechili-fightbar .fighter-stack:not(.multi) .fighter.enemy .portrait-mount { border-top-right-radius: 0; }
+/* the picture itself: bigger (players like seeing their own), sunk into the frame
+   (a dark lip, shadow inside), no rings of its own */
+.mechili-fightbar .portrait-mount .portrait.main {
+    width: 58px;
+    height: 58px;
+    border-radius: 2px;
+    border: 1px solid ${u.frameEdge};
+    box-shadow:
+        inset 0 3px 6px rgba(0, 0, 0, 0.7),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(255, 230, 180, 0.12);
+}
+/* an old painting, like the portraits hanging in a castle: warm aged varnish, the
+   colours a little faded, canvas grain, and the edges sunk into shadow */
+.mechili-fightbar .portrait-mount .portrait.main .fighter-portrait-img,
+.mechili-fightbar .portrait-mount .portrait.main .m-icon {
+    filter: sepia(0.35) saturate(0.78) contrast(1.08) brightness(0.94);
+}
+.mechili-fightbar .portrait-mount .portrait.main::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse 85% 80% at 50% 40%, transparent 48%, rgba(28, 16, 6, 0.6) 100%),
+        linear-gradient(160deg, rgba(255, 210, 130, 0.2) 0%, rgba(120, 70, 20, 0.12) 55%, rgba(60, 32, 8, 0.3) 100%),
+        url("data:image/svg+xml,${encodeURIComponent(GRAIN_SVG)}");
+    mix-blend-mode: multiply;
+}
+/* a glint of varnish across the top */
+.mechili-fightbar .portrait-mount .portrait.main::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(170deg, rgba(255, 245, 220, 0.16) 0%, transparent 32%);
+}
 /* Meter column = portrait height: HP tube + name footplate */
 .mechili-fightbar .fighter-info {
     flex: 1;
@@ -7652,6 +7792,166 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
 }
 .mechili-fightbar .fighter.enemy .hp-val.outside {
     transform: translateX(-100%); /* just past the tip, in empty track */
+}
+/* ── The health bar as a banner ─────────────────────────────────────────
+   An old, weathered flag hanging out of the portrait frame: faded, yellowed dye,
+   stains and grime, a few set folds, coarse weave, frayed hems and stitching, a
+   swallowtail end. It gets shorter as health goes; the lost
+   length shows as a faded, worn shadow of the banner, and a pale strip of cloth
+   trails the fill down after each hit (.hp-lag). The level comes as --hp on the
+   track — a length, not a scale, so the swallowtail keeps its shape. */
+.mechili-fightbar .hp-track {
+    --notch: 12px;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+}
+/* the banner's shadow */
+.mechili-fightbar .fighter-stack:not(.multi) .fighter-info { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55)); }
+/* a fixed height: it used to take what the name below left over, and a name with
+   capitals (".tall") sits lower — so the two banners came out different heights */
+.mechili-fightbar .fighter-stack:not(.multi) .hp-track { flex: 0 0 26px; height: 26px; }
+.mechili-fightbar .fighter.player .hp-track { transform-origin: left center; }
+.mechili-fightbar .fighter.enemy .hp-track { transform-origin: right center; }
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-track::before,
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-lag,
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: auto;
+    border-radius: 0;
+}
+.mechili-fightbar .fighter-stack .fighter.enemy .hp-track::before,
+.mechili-fightbar .fighter-stack .fighter.enemy .hp-lag,
+.mechili-fightbar .fighter-stack .fighter.enemy .hp-fill {
+    left: auto;
+    right: 0;
+}
+/* frayed hems: a jagged edge top and bottom (the swallowtail clip still cuts the end) */
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-track::before,
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-lag,
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-fill {
+    -webkit-mask: url("data:image/svg+xml,${encodeURIComponent(FRAY_SVG)}") repeat-x 0 0 / 40px 100%;
+    mask: url("data:image/svg+xml,${encodeURIComponent(FRAY_SVG)}") repeat-x 0 0 / 40px 100%;
+}
+/* swallowtail at the free end */
+.mechili-fightbar .fighter.player .hp-track::before,
+.mechili-fightbar .fighter.player .hp-lag,
+.mechili-fightbar .fighter.player .hp-fill {
+    clip-path: polygon(0 0, 100% 0, calc(100% - var(--notch)) 50%, 100% 100%, 0 100%);
+}
+.mechili-fightbar .fighter.enemy .hp-track::before,
+.mechili-fightbar .fighter.enemy .hp-lag,
+.mechili-fightbar .fighter.enemy .hp-fill {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, var(--notch) 50%);
+}
+/* the full banner's ghost: faded, worn cloth where health has been lost */
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-track::before {
+    content: '';
+    width: 100%;
+    z-index: 0;
+    opacity: 0.5;
+    background:
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.12) 0 1px, transparent 1px 4px),
+        linear-gradient(180deg, #2c2620 0%, #1a1612 100%);
+}
+/* pale cloth trailing the fill down after a hit */
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-lag {
+    width: calc(var(--hp, 1) * 100%);
+    z-index: 1;
+    background: linear-gradient(180deg, rgba(226, 206, 166, 0.8), rgba(176, 152, 112, 0.72));
+    transition: width 0.55s ease-in 0.35s;
+}
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-fill {
+    width: calc(var(--hp, 1) * 100%);
+    transform: none !important;
+    transition: width 0.18s ease-out;
+    z-index: 2;
+    box-shadow: none;
+}
+/* stitched hems along the top and bottom */
+.mechili-fightbar .hp-fill::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 3px;
+    bottom: 3px;
+    border-top: 1px dashed rgba(230, 210, 170, 0.32);
+    border-bottom: 1px dashed rgba(230, 210, 170, 0.32);
+    pointer-events: none;
+}
+.mechili-fightbar .fighter.player .hp-fill {
+    background:
+        /* stains and grime: old water marks, smoke, a scorch near the end */
+        radial-gradient(ellipse 34px 10px at 22% 70%, rgba(40, 24, 8, 0.32), transparent 70%),
+        radial-gradient(ellipse 22px 14px at 58% 30%, rgba(40, 24, 8, 0.24), transparent 70%),
+        radial-gradient(ellipse 40px 12px at 86% 78%, rgba(20, 12, 4, 0.38), transparent 72%),
+        radial-gradient(ellipse 16px 8px at 40% 18%, rgba(255, 236, 190, 0.12), transparent 70%),
+        /* a few irregular folds, set in the cloth (not periodic) */
+        linear-gradient(90deg, transparent 0 9%, rgba(0, 0, 0, 0.18) 13%, transparent 17%, transparent 31%, rgba(255, 240, 200, 0.08) 35%, transparent 39%, transparent 52%, rgba(0, 0, 0, 0.2) 57%, transparent 62%, transparent 74%, rgba(255, 240, 200, 0.07) 78%, transparent 82%),
+        /* grime gathered along the hems */
+        linear-gradient(180deg, rgba(30, 18, 6, 0.35) 0%, transparent 22%, transparent 76%, rgba(30, 18, 6, 0.45) 100%),
+        /* coarse weave */
+        repeating-linear-gradient(0deg, rgba(255, 240, 210, 0.07) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.1) 0 1px, transparent 1px 3px),
+        /* the dye, faded and yellowed with age */
+        linear-gradient(180deg, ${shadeCss(teamColors.player.hex, 0.15)} 0%, ${pc} 45%, ${shadeCss(teamColors.player.hex, -0.5)} 100%);
+    filter: saturate(0.72) sepia(0.28) brightness(0.92);
+}
+.mechili-fightbar .fighter.enemy .hp-fill {
+    background:
+        /* stains and grime: old water marks, smoke, a scorch near the end */
+        radial-gradient(ellipse 34px 10px at 22% 70%, rgba(40, 24, 8, 0.32), transparent 70%),
+        radial-gradient(ellipse 22px 14px at 58% 30%, rgba(40, 24, 8, 0.24), transparent 70%),
+        radial-gradient(ellipse 40px 12px at 86% 78%, rgba(20, 12, 4, 0.38), transparent 72%),
+        radial-gradient(ellipse 16px 8px at 40% 18%, rgba(255, 236, 190, 0.12), transparent 70%),
+        /* a few irregular folds, set in the cloth (not periodic) */
+        linear-gradient(90deg, transparent 0 9%, rgba(0, 0, 0, 0.18) 13%, transparent 17%, transparent 31%, rgba(255, 240, 200, 0.08) 35%, transparent 39%, transparent 52%, rgba(0, 0, 0, 0.2) 57%, transparent 62%, transparent 74%, rgba(255, 240, 200, 0.07) 78%, transparent 82%),
+        /* grime gathered along the hems */
+        linear-gradient(180deg, rgba(30, 18, 6, 0.35) 0%, transparent 22%, transparent 76%, rgba(30, 18, 6, 0.45) 100%),
+        /* coarse weave */
+        repeating-linear-gradient(0deg, rgba(255, 240, 210, 0.07) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.1) 0 1px, transparent 1px 3px),
+        /* the dye, faded and yellowed with age */
+        linear-gradient(180deg, ${shadeCss(teamColors.enemy.hex, 0.15)} 0%, ${ec} 45%, ${shadeCss(teamColors.enemy.hex, -0.5)} 100%);
+    filter: saturate(0.72) sepia(0.28) brightness(0.92);
+}
+/* the flag hangs from its top edge (a hit sways it from there) */
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-track { transform-origin: 50% 0; }
+/* a hit: a jolt runs through the banner */
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-track.is-hit { animation: mechili-banner-jolt 0.4s ease-out; }
+@keyframes mechili-banner-jolt {
+    0% { transform: none; }
+    20% { transform: scaleY(1.06) skewX(-4deg); }
+    45% { transform: scaleY(0.97) skewX(2.5deg); }
+    70% { transform: skewX(-1deg); }
+    100% { transform: none; }
+}
+/* the number on the cloth, clear of the swallowtail */
+.mechili-fightbar .hp-val {
+    top: 50%;
+    bottom: auto;
+    height: 17px;
+    margin-top: -8.5px;
+    padding: 0 5px;
+    z-index: 3;
+    font-size: 12px;
+    color: ${u.cream};
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 5px rgba(0, 0, 0, 0.7);
+}
+.mechili-fightbar .fighter.player .hp-val { transform: translateX(calc(-100% - var(--notch) - 2px)); }
+.mechili-fightbar .fighter.player .hp-val.outside { transform: translateX(4px); }
+.mechili-fightbar .fighter.enemy .hp-val { transform: translateX(calc(var(--notch) + 2px)); }
+.mechili-fightbar .fighter.enemy .hp-val.outside { transform: translateX(calc(-100% - 4px)); }
+@media (prefers-reduced-motion: reduce) {
+    .mechili-fightbar .fighter:is(.player, .enemy) .hp-track.is-hit { animation: none; }
 }
 .mechili-topbar .round { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
 .mechili-topbar .timer { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; color: ${u.brassLight}; }
@@ -8073,6 +8373,99 @@ ${gamepadCursorStyles(u)}
     }
     .mechili-report { max-height: 40vh; overflow-y: auto; }
 
+}
+
+/* ── one button feel for the whole match UI ──────────────────────────────
+   hover: up 1px (cards keep their own bigger lift), eased, never abrupt
+   press: small tiles 94%, wide buttons 97% and back down; quick in
+   release: a short spring back to full size
+   Colours and looks stay each button's own; only the motion is shared. */
+:is(
+    .mechili-shop-col .shop-tile,
+    .mechili-shop .shop-rune,
+    .mechili-shop .shop-tab,
+    .mechili-panel .action-tile,
+    .mechili-sidebar .inv-item,
+    .mechili-extras .level-all-global,
+    .shop-toolbar .level-all-global,
+    .mechili-topbar .end-deploy,
+    .mechili-topbar .speed,
+    .mechili-topbar button,
+    .mechili-corner-actions button,
+    .mechili-pause button,
+    .mechili-gameover button,
+    .mechili-battlefield-bar button,
+    .mechili-report button,
+    .mechili-cards .card,
+    .mechili-cards button:not(.card)
+) {
+    transition-property: transform, border-color, background-color, color, box-shadow, filter, opacity;
+    transition-duration: 0.18s;
+    /* the release: springs back past full size for a moment */
+    transition-timing-function: cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+:is(
+    .mechili-shop .shop-tab,
+    .mechili-topbar .speed,
+    .mechili-topbar button,
+    .mechili-corner-actions button,
+    .mechili-gameover button,
+    .mechili-battlefield-bar button,
+    .mechili-report button,
+    .mechili-cards button:not(.card),
+    .mechili-shop-col .shop-tile,
+    .mechili-shop .shop-rune
+):hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+/* small tiles */
+:is(
+    .mechili-shop-col .shop-tile,
+    .mechili-shop .shop-rune,
+    .mechili-panel .action-tile,
+    .mechili-sidebar .inv-item,
+    .mechili-extras .level-all-global,
+    .shop-toolbar .level-all-global
+):active:not(:disabled) {
+    transform: scale(0.94);
+    transition-duration: 0.06s;
+    transition-timing-function: ease-out;
+}
+/* wide buttons */
+:is(
+    .mechili-shop .shop-tab,
+    .mechili-topbar .end-deploy,
+    .mechili-topbar .speed,
+    .mechili-topbar button,
+    .mechili-corner-actions button,
+    .mechili-pause button,
+    .mechili-gameover button,
+    .mechili-battlefield-bar button,
+    .mechili-report button,
+    .mechili-cards button:not(.card)
+):active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+    transition-duration: 0.06s;
+    transition-timing-function: ease-out;
+}
+/* picker cards keep their lift while pressed, just give a little */
+.mechili-cards .card:not(.static):active:not(:disabled) {
+    transform: translateY(-3px) scale(0.98);
+    transition-duration: 0.06s;
+    transition-timing-function: ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+    :is(
+        .mechili-shop-col .shop-tile, .mechili-shop .shop-rune, .mechili-shop .shop-tab,
+        .mechili-panel .action-tile, .mechili-sidebar .inv-item, .mechili-extras .level-all-global,
+        .shop-toolbar .level-all-global, .mechili-topbar .end-deploy, .mechili-topbar .speed,
+        .mechili-topbar button, .mechili-corner-actions button, .mechili-pause button,
+        .mechili-gameover button, .mechili-battlefield-bar button, .mechili-report button,
+        .mechili-cards .card, .mechili-cards button:not(.card)
+    ) {
+        transition-duration: 0s !important;
+        transform: none !important;
+    }
 }
 `;
 }

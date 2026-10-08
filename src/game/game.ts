@@ -197,6 +197,7 @@ import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay } fro
 import { GROUND_UNIT_Y } from './groundQuality';
 import { reachToward } from './terrainCombat';
 import { getUnitVisualHeight, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
+import { BirdFlocks } from './birdFlocks';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import { draftTerrain, packagedTerrain, terrainFileText } from './scenario/scenarioTerrain';
@@ -473,6 +474,23 @@ const DEPLOY_SHADE_FADE_S = 0.4;
  * - riseSeconds / riseFrom / riseOvershoot: a new building growing up out of the ground:
  *   how long, from what share of its height, how far past full height it eases (0 = none)
  */
+/**
+ * The battle's first melee clash between two units: a ring of dust thrown out
+ * low along the ground and a short camera shake. Once per battle. Tweak live:
+ * - dustPuffs / dustRadius / dustSpeed / dustUp / dustLife: the dust ring
+ * - shake: peak camera offset (wu); shakeSeconds; shakeFrequency (rad/s)
+ */
+const CLASH = {
+    dustPuffs: 22,
+    dustRadius: 2.2,
+    dustSpeed: 6,
+    dustUp: 1.4,
+    dustLife: 0.7,
+    shake: 0.35,
+    shakeSeconds: 0.4,
+    shakeFrequency: 42,
+} as const;
+
 const LANDING = {
     squash: 0.16,
     seconds: 0.55,
@@ -519,6 +537,9 @@ export class Game {
     private readonly stuckBolts: StuckBoltRenderer;
     private readonly stoneChips: StoneChipRenderer;
     private readonly particles: Particles;
+    /** birds startled out of the forest by a battle's first noise */
+    private readonly birds: BirdFlocks;
+    private birdsStartled = false;
     private readonly fireFx: FireFx;
     private readonly acidFx: AcidFx;
     private readonly forgeFx = new ForgeFx();
@@ -1195,6 +1216,8 @@ export class Game {
 
         if (e.code !== 'Escape') return;
         if (this.introActive || this.outroActive) return;
+        // looking over the battlefield after the match: back to the results
+        if (this.matchOver && this.hud.closeBattlefieldView()) return;
         if (this.hud.isUiHidden) {
             // Keep cinema under the fullscreen end dialog — Escape must not
             // flash the HUD back on behind VICTORY / DEFEAT.
@@ -1913,6 +1936,7 @@ export class Game {
         this.stuckBolts = new StuckBoltRenderer(this.scene);
         this.stoneChips = new StoneChipRenderer(this.scene);
         this.particles = new Particles(this.scene);
+        this.birds = new BirdFlocks(this.scene);
         this.fireFx = new FireFx(this.particles, this.scene);
         this.acidFx = new AcidFx(this.scene);
         this.acidFx.setQuality(prefs().fireVfx);
@@ -4388,6 +4412,35 @@ export class Game {
 
     /** local player input — refused once this deployment is locked in.
      *  Build actions are buffered until the peer locks in (wire fog). */
+    /** this battle's first melee clash has had its moment (see CLASH) */
+    private clashDone = false;
+
+    /** the first melee hit of a battle between two units: a dust ring and a short shake */
+    private clashFromEvents(events: readonly SimEvent[]): void {
+        const hit = events.find((e) => e.kind === 'impact' && e.melee && !e.masonry);
+        if (!hit || hit.kind !== 'impact') return;
+        this.clashDone = true;
+        // a catch-up after a reload replays the battle in one go — no moment for it then
+        if (this.hydrating) return;
+        const C = CLASH;
+        const y = groundHeightAt(hit.x, hit.z) + 0.2;
+        for (let i = 0; i < C.dustPuffs; i++) {
+            const a = (i / C.dustPuffs) * Math.PI * 2 + Math.random() * 0.3;
+            const r = C.dustRadius * (0.5 + Math.random() * 0.5);
+            const dx = Math.cos(a);
+            const dz = Math.sin(a);
+            this.particles.burst(hit.x + dx * r, y, hit.z + dz * r, {
+                count: 3,
+                color: i % 3 === 0 ? 0xc2b493 : 0x8a7f69,
+                speed: C.dustSpeed * (0.7 + Math.random() * 0.6),
+                life: C.dustLife + Math.random() * 0.3,
+                up: C.dustUp,
+                dir: { x: dx, y: 0.18, z: dz },
+            });
+        }
+        screenShake({ intensity: C.shake, duration: C.shakeSeconds, frequency: C.shakeFrequency });
+    }
+
     /** packs just set down in deployment, squashing back to shape (see LANDING) */
     private readonly landings: { unit: Unit; start: number; rise: boolean }[] = [];
 
@@ -9905,6 +9958,8 @@ export class Game {
         this.towerDebuffFx.clear();
         this.collapseFx.clear();
         this.collapseEndedRound = false;
+        this.clashDone = false;
+        this.birdsStartled = false;
         this.placement.beginBattle();
         this.phase = 'battle';
         clearAllHoverTips(); // a tip from the last phase must not carry over
@@ -11799,6 +11854,15 @@ export class Game {
                     this.collapseEndedRound = true;
                 }
                 this.stampWearFromEvents(battleEvents);
+                if (!this.clashDone) this.clashFromEvents(battleEvents);
+                if (!this.birdsStartled) {
+                    // the battle's first noise — a shot or a swing — startles the forest
+                    const noise = battleEvents.find((e) => e.kind === 'muzzle' || e.kind === 'meleeSwing');
+                    if (noise && (noise.kind === 'muzzle' || noise.kind === 'meleeSwing')) {
+                        this.birdsStartled = true;
+                        if (!this.hydrating) this.birds.startle(noise.x, noise.z, this.scenery.birdPerches);
+                    }
+                }
                 // this frame's craters / flattening, without a frame of lag
                 this.syncTerrainMeshes();
                 const sceneryShields = livingShieldDisks(this.placement.allUnits());
@@ -12012,6 +12076,7 @@ export class Game {
         this.placement.repositioningEnabled = this.playerCanAct;
         this.placement.update(this.time, gameDt);
         this.updateLandings();
+        this.birds.update(gameDt);
         // the grass lies down under the plates placed this frame (read by the next scenery update)
         this.scenery.setGrassClearRects(this.placement.takeGroundPlates());
         if (this.phase === 'build' && !this.hud.isUiHidden) this.syncTacticVisuals();

@@ -454,6 +454,28 @@ export class Hud {
         if (relayout) this.fitShopRows();
     }
 
+    /**
+     * Shop tiles pop in, one after another when there are several (a tab switch, a
+     * newly unlocked pack). The class comes off when the pop ends: the grid re-appends
+     * its tiles on every unlock, and a tile still carrying it would pop again.
+     */
+    private popShopTiles(tiles: readonly HTMLElement[]): void {
+        tiles.forEach((tile, i) => {
+            tile.style.animationDelay = `${Math.min(i * 22, 320)}ms`;
+            this.replayAnimation(tile, 'is-popping');
+            tile.addEventListener('animationend', () => tile.classList.remove('is-popping'), { once: true });
+        });
+    }
+
+    /** every shop tile showing (a tab switch pops them all) */
+    private staggerShopTiles(): void {
+        this.popShopTiles(
+            [...this.extrasRow.querySelectorAll<HTMLElement>('.shop-tile'), ...this.shopUnitTiles.values()].filter(
+                (tile) => tile.style.display !== 'none',
+            ),
+        );
+    }
+
     setShopPool(pool: readonly string[]): void {
         if (this.shopPool === pool) return;
         this.shopPool = pool;
@@ -980,7 +1002,10 @@ export class Hud {
                 tab.className = 'shop-tab';
                 tab.dataset.group = group;
                 tab.textContent = label;
-                tab.addEventListener('click', () => this.setShopGroup(group));
+                tab.addEventListener('click', () => {
+                    this.setShopGroup(group);
+                    this.staggerShopTiles();
+                });
                 this.shopTabsEl.appendChild(tab);
             }
             this.shopPanel.append(shopHeader, this.shopTabsEl, shopGrid);
@@ -1601,7 +1626,7 @@ export class Hud {
      */
     setFormationSelection(): void {
         this.phoneBar.classList.add('has-unit');
-        this.panel.style.display = 'none';
+        this.hidePanelAnimated();
         this.lastPanelKey = '';
         this.unitSheetAutoKey = null;
         if (this.phoneTab === 'unit') this.setPhoneTab(null);
@@ -1861,9 +1886,9 @@ export class Hud {
             }
             // DOM: subs first, main last → main is adjacent to the HP bar
             // (enemy portrait-group is row-reversed, so the same DOM keeps main inward)
-            portraitGroup.append(subStack, mainPortrait);
+            portraitGroup.append(subStack, this.portraitMount(mainPortrait));
         } else {
-            portraitGroup.appendChild(mainPortrait);
+            portraitGroup.appendChild(this.portraitMount(mainPortrait));
         }
 
         const nameEl = document.createElement('span');
@@ -1882,7 +1907,10 @@ export class Hud {
         hpVal.className = 'hp-val';
         const hpTrack = document.createElement('div');
         hpTrack.className = 'hp-track';
-        hpTrack.append(hpFill, hpVal);
+        // the banner's lost cloth: trails the fill down after a hit, so the loss shows
+        const hpLag = document.createElement('div');
+        hpLag.className = 'hp-lag';
+        hpTrack.append(hpLag, hpFill, hpVal);
 
         const info = document.createElement('div');
         info.className = 'fighter-info';
@@ -1890,6 +1918,20 @@ export class Hud {
 
         cardEl.append(portraitGroup, info);
         return { cardEl, hpFill, hpVal, specEl };
+    }
+
+    /** the featured portrait in its old wooden frame (theme: .portrait-mount) */
+    private portraitMount(portrait: HTMLElement): HTMLElement {
+        const mount = document.createElement('div');
+        mount.className = 'portrait-mount';
+        mount.append(portrait);
+        return mount;
+    }
+
+    /** a side lost health: a jolt runs through its banner */
+    private joltBanner(fill: HTMLElement): void {
+        const track = fill.closest('.fighter')?.querySelector<HTMLElement>('.hp-track');
+        if (track) this.replayAnimation(track, 'is-hit');
     }
 
     /** Player avatar wins over specialist atlas icon when both exist. */
@@ -2979,7 +3021,17 @@ export class Hud {
         // frame (setSupply clears the cache) cancels in-flight unlock clicks
         const orderKey = unlocked.join(',');
         if (orderKey !== this.lastShopOrderKey) {
+            // a pack unlocked during the match pops in (not the first fill of the shop)
+            const before = this.lastShopOrderKey ? new Set(this.lastShopOrderKey.split(',')) : null;
             this.lastShopOrderKey = orderKey;
+            if (before) {
+                const fresh = unlocked
+                    .filter((id) => !before.has(id))
+                    .map((id) => this.shopUnitTiles.get(id))
+                    .filter((tile): tile is HTMLButtonElement => !!tile && this.inShopGroup(tile));
+                // after the re-append below, so the move doesn't cut the pop short
+                if (fresh.length > 0) queueMicrotask(() => this.popShopTiles(fresh));
+            }
             for (const id of unlocked) {
                 const tile = this.shopUnitTiles.get(id);
                 if (!tile) continue;
@@ -3129,10 +3181,52 @@ export class Hud {
         }
     }
 
+    /** the details pane is up (or on its way up); see showPanelAnimated */
+    private panelShown = false;
+    private panelHideTimer: number | null = null;
+
+    /** restart a one-shot CSS animation class on an element */
+    private replayAnimation(el: HTMLElement, cls: string): void {
+        el.classList.remove(cls);
+        void el.offsetWidth; // reflow, so the animation runs again
+        el.classList.add(cls);
+    }
+
+    /**
+     * The details pane in: slides up and fades in when it appears (picking another
+     * pack while it is up just swaps the content). Idempotent (called every frame).
+     */
+    private showPanelAnimated(): void {
+        if (this.panelHideTimer !== null) {
+            window.clearTimeout(this.panelHideTimer);
+            this.panelHideTimer = null;
+        }
+        this.panel.classList.remove('is-leaving');
+        if (!this.panelShown) {
+            this.panelShown = true;
+            this.panel.style.display = 'block';
+            this.replayAnimation(this.panel, 'is-entering');
+        }
+    }
+
+    /** the details pane out: a quick fade and slide down, then gone */
+    private hidePanelAnimated(): void {
+        if (!this.panelShown) return;
+        this.panelShown = false;
+        this.panel.classList.remove('is-entering');
+        this.panel.classList.add('is-leaving');
+        this.panelHideTimer = window.setTimeout(() => {
+            this.panelHideTimer = null;
+            if (this.panelShown) return;
+            this.panel.style.display = 'none';
+            this.panel.classList.remove('is-leaving');
+        }, 240);
+    }
+
     setSelection(info: SelectionInfo | null): void {
         this.phoneBar.classList.toggle('has-unit', !!info);
         if (!info) {
-            this.panel.style.display = 'none';
+            this.hidePanelAnimated();
             this.lastPanelKey = '';
             this.unitSheetAutoKey = null;
             this.onTechHover?.(null);
@@ -3144,7 +3238,7 @@ export class Hud {
         }
         // oven/pool come from setForgeRecipeContext each tick — do not clear
         // them when a non-Stronghold unit is selected
-        this.panel.style.display = 'block';
+        this.showPanelAnimated();
         // HP / total-damage / kills tick every frame while a mech is selected in
         // battle. Keep them OUT of the rebuild key so the whole panel DOM isn't
         // torn down each frame — patch those few values in place instead. Without
@@ -3796,12 +3890,18 @@ export class Hud {
         ) {
             return;
         }
+        // a side that lost health jolts its banner (the first fill compares to NaN: no jolt)
+        if (pRound < this.lastHpValP) this.joltBanner(this.playerHpFill);
+        if (eRound < this.lastHpValE) this.joltBanner(this.enemyHpFill);
         this.lastHpFillP = p;
         this.lastHpFillE = e;
         this.lastHpValP = pRound;
         this.lastHpValE = eRound;
         this.playerHpFill.style.transform = `scaleX(${p})`;
         this.enemyHpFill.style.transform = `scaleX(${e})`;
+        // the banner reads the level as a length (its swallowtail must not stretch)
+        this.playerHpFill.parentElement?.style.setProperty('--hp', String(p));
+        this.enemyHpFill.parentElement?.style.setProperty('--hp', String(e));
         this.playerHpVal.style.setProperty('--hp', String(p));
         this.enemyHpVal.style.setProperty('--hp', String(e));
         // Full / nearly-full: keep the label inside the fill. Once there's a
@@ -4979,15 +5079,28 @@ export class Hud {
         bar.innerHTML =
             `<button type="button" class="bf-results">${escapeHtml(t('hud:showResults', { defaultValue: 'Results' }))}</button>` +
             `<button type="button" class="bf-leave">${escapeHtml(backLabel)}</button>`;
-        bar.querySelector('.bf-results')!.addEventListener('click', () => {
+        this.battlefieldBack = () => {
             this.unmount(bar);
+            this.battlefieldBack = null;
             el.style.display = '';
-        });
+        };
+        bar.querySelector('.bf-results')!.addEventListener('click', () => this.battlefieldBack?.());
         bar.querySelector('.bf-leave')!.addEventListener('click', () => {
             this.unmount(bar);
+            this.battlefieldBack = null;
             this.leaveGameOver(el);
         });
         this.mount(bar);
+    }
+
+    /** viewing the battlefield after the match: brings the results back (null: not viewing) */
+    private battlefieldBack: (() => void) | null = null;
+
+    /** Escape while viewing the battlefield: the results come back. True when it did. */
+    closeBattlefieldView(): boolean {
+        if (!this.battlefieldBack) return false;
+        this.battlefieldBack();
+        return true;
     }
 
     private leaveGameOver(el: HTMLElement, after?: () => void): void {

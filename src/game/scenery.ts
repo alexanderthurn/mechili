@@ -4321,6 +4321,14 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
         this.reseatGroundedDecorations();
     }
 
+    /** treetops birds can start from (oaks and pines; see BirdFlocks) */
+    readonly birdPerches: { x: number; y: number; z: number }[] = [];
+
+    private notePerch(kind: VegetationKind, x: number, groundY: number, z: number, sc: number): void {
+        if (kind !== 'oak' && kind !== 'pine') return;
+        this.birdPerches.push({ x, y: groundY + 4 + 4 * sc, z });
+    }
+
     /** Far belt as crossed billboard cards; optional sun-aligned blob shadows. */
     private async placeFarBillboards(
         plants: { kind: VegetationKind; x: number; z: number; sc: number }[],
@@ -4353,6 +4361,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                     rng() * Math.PI * 2,
                     dummy,
                 );
+                this.notePerch(kind, p.x, groundY(p.x, p.z), p.z, p.sc);
                 if (withShadows) {
                     shadows.push({ x: p.x, z: p.z, radius: billboardShadowRadius(kind, sc) });
                 }
@@ -4394,6 +4403,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                     rng() * Math.PI * 2,
                     dummy,
                 );
+                this.notePerch(kind, p.x, groundY(p.x, p.z), p.z, p.sc);
             }
             mesh.instanceMatrix.needsUpdate = true;
             this.group.add(mesh);
@@ -4510,6 +4520,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                             rng() * Math.PI * 2,
                             dummy,
                         );
+                        this.notePerch(kind, p.x, groundY(p.x, p.z), p.z, p.sc);
                     }
                     mesh.instanceMatrix.needsUpdate = true;
                     this.group.add(mesh);
@@ -4536,6 +4547,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                             rng() * Math.PI * 2,
                             dummy,
                         );
+                        this.notePerch(kind, p.x, groundY(p.x, p.z), p.z, p.sc);
                         shadows.push({ x: p.x, z: p.z, radius: billboardShadowRadius(kind, sc) });
                     }
                     mesh.instanceMatrix.needsUpdate = true;
