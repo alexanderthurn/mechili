@@ -364,12 +364,13 @@ function materialStyles(u: (typeof THEME)['ui']): string {
 /* --- fantasy material primitives --- */
 .m-frame {
     position: relative;
-    color: ${u.cream};
-    background: ${leatherFill};
+    /* parchment hung from a pole (::before), written in ink */
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
     border: none;
-    border-radius: 2px;
-    box-shadow: ${bronzeBevel};
-    ${STITCH}
+    border-radius: 0;
+    box-shadow: ${PARCHMENT_EDGE};
+    text-shadow: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
@@ -379,6 +380,11 @@ function materialStyles(u: (typeof THEME)['ui']): string {
     pointer-events: none;
     z-index: 2;
     ${POLE}
+    /* inside the top edge: these boxes clip their content (settings scrolls inside) */
+    top: 0;
+    left: 0;
+    right: 0;
+    border-radius: 0;
 }
 .m-frame--slim {
     box-shadow:
@@ -450,11 +456,7 @@ function materialStyles(u: (typeof THEME)['ui']): string {
 
 /* Auto-apply ornate frames to major dialogs / menus (CSS-only — no HTML churn).
    html prefix beats later single-class chrome rules in this same stylesheet. */
-html .mechili-menu,
-html .mechili-name-edit .box,
-html .mechili-suggest .box,
-html .mechili-pause .pause-box,
-html .mechili-resume .resume-box {
+html .mechili-menu {
     position: relative;
     color: ${u.cream};
     background: ${leatherFill};
@@ -465,6 +467,78 @@ html .mechili-resume .resume-box {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
+/* settings and the controls help on parchment: their text in ink (tabs, presets,
+   selects and key caps stay dark inlaid slots with light lettering) */
+html .mechili-settings .s-title,
+html .mechili-controls-help .ch-title {
+    color: ${INK};
+    text-shadow: none;
+    border-bottom-color: rgba(90, 55, 20, 0.35);
+    box-shadow: none;
+}
+html .mechili-controls-help .ch-head { border-bottom-color: rgba(90, 55, 20, 0.35); }
+html .mechili-settings .s-section-head,
+html .mechili-settings .s-lang-globe,
+html .mechili-settings .s-hint a,
+html .mechili-settings .s-advanced > summary::before,
+html .mechili-controls-help .ch-section h2 { color: ${INK_RUST}; }
+html .mechili-settings .s-hint a { border-bottom-color: rgba(106, 52, 16, 0.4); }
+html .mechili-settings .s-row,
+html .mechili-controls-help .ch-row { color: ${INK}; }
+html .mechili-controls-help .ch-row { border-bottom-color: rgba(90, 55, 20, 0.18); }
+html .mechili-settings .s-hint,
+html .mechili-settings .s-advanced > summary,
+html .mechili-controls-help .ch-note { color: ${INK_MUTED}; }
+html .mechili-settings .s-advanced > summary:hover,
+html .mechili-settings .s-hint a:hover,
+html .mechili-settings .s-lang-row:hover .s-lang-globe { color: ${INK}; }
+html .mechili-settings .s-advanced { border-top-color: rgba(90, 55, 20, 0.3); }
+html .mechili-settings .s-audio-slider input[type="range"] { accent-color: ${INK_RUST}; }
+html .mechili-settings .s-reset { border-color: rgba(106, 52, 16, 0.6); color: ${INK_RUST}; }
+html .mechili-settings .s-reset:hover { border-color: ${INK_RUST}; background: rgba(140, 40, 24, 0.12); }
+/* the dialogs as parchment hung from a pole (::before below), written in ink;
+   their buttons are wood, their input fields dark wells */
+html .mechili-name-edit .box,
+html .mechili-suggest .box,
+html .mechili-pause .pause-box,
+html .mechili-resume .resume-box {
+    position: relative;
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
+    border: none;
+    border-radius: 0;
+    box-shadow: ${PARCHMENT_EDGE};
+    text-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+html .mechili-name-edit .title,
+html .mechili-suggest .s-title { color: ${INK}; }
+html .mechili-pause .pause-title,
+html .mechili-resume .resume-msg,
+html .mechili-suggest .s-field,
+html .mechili-suggest .s-status,
+html .mechili-suggest .s-discord a { color: ${INK_RUST}; }
+html .mechili-pause .pause-subtitle,
+html .mechili-resume .resume-sub,
+html .mechili-name-edit .field,
+html .mechili-name-edit .hint,
+html .mechili-suggest .s-lead,
+html .mechili-suggest .s-discord { color: ${INK_MUTED}; }
+html .mechili-name-edit .error { color: #9a2a1a; }
+html .mechili-name-edit .box button,
+html .mechili-suggest .box button,
+html .mechili-pause .pause-box button,
+html .mechili-resume .resume-box button {
+    ${WOOD_BUTTON}
+}
+html .mechili-name-edit .box button:hover:not(:disabled),
+html .mechili-suggest .box button:hover,
+html .mechili-pause .pause-box button:hover,
+html .mechili-resume .resume-box button:hover { border-color: #6a6058; color: ${u.brassLight}; }
+html .mechili-name-edit .box button.primary,
+html .mechili-suggest .box button.primary { color: ${u.brassLight}; }
+html .mechili-pause .pause-box .pause-quit { color: ${u.undoText}; }
 /* Soft clash plaque — match the pre-match intro roster (no leather card / gems). */
 html .mechili-gameover {
     position: absolute;
