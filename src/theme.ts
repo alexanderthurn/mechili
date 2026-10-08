@@ -621,6 +621,43 @@ html .mechili-replay-controls button {
     ${WOOD_BUTTON}
 }
 html .mechili-replay-controls button:hover { border-color: #6a6058; color: ${u.brassLight}; }
+/* the scenario editor's window and its test-battle strip: parchment in ink, wooden
+   buttons and tools, dark fields */
+html .mechili-scenario-editor,
+html .mechili-test-battle {
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
+    border: none;
+    box-shadow: ${PARCHMENT_EDGE};
+    text-shadow: none;
+}
+html .mechili-scenario-editor :is(.se-head, .se-section) { border-color: rgba(90, 55, 20, 0.3); }
+html .mechili-scenario-editor :is(.se-title, .te-status, .se-status, .se-rules > summary),
+html .mechili-test-battle .tb-title { color: ${INK_RUST}; }
+html .mechili-scenario-editor :is(.se-muted, .se-hint, .se-label, .se-rule > span),
+html .mechili-test-battle :is(.tb-earlier-head, .tb-earlier.other) { color: ${INK_MUTED}; }
+html .mechili-test-battle .tb-earlier { color: ${INK}; }
+html .mechili-scenario-editor .se-issues { color: #8a5a10; }
+html .mechili-scenario-editor .se-issues.error { color: #9a2a1a; }
+html .mechili-scenario-editor :is(button, .te-tool):not(.se-collapse),
+html .mechili-test-battle button {
+    ${WOOD_BUTTON}
+    border-radius: 3px;
+}
+html .mechili-scenario-editor :is(button, .te-tool):not(.se-collapse):hover:not(:disabled),
+html .mechili-test-battle button:hover { border-color: #6a6058; color: ${u.brassLight}; }
+html .mechili-scenario-editor :is(button, .te-tool).active {
+    border-color: #6a6058;
+    color: ${u.brassLight};
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
+}
+html .mechili-scenario-editor .se-collapse { color: ${INK_RUST}; }
+/* the footer: a slightly darker band of the same parchment */
+html .mechili-scenario-editor .se-footer {
+    color: ${INK};
+    background: rgba(110, 62, 20, 0.14);
+    border-top-color: rgba(90, 55, 20, 0.35);
+}
 /* the dialogs as parchment hung from a pole (::before below), written in ink;
    their buttons are wood, their input fields dark wells */
 html .mechili-name-edit .box,
