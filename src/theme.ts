@@ -308,6 +308,25 @@ const PARCHMENT_FILL = `
     `;
 /** the ink on parchment */
 const INK = '#2b1d10';
+/** muted ink (captions, secondary text) and a rust-brown ink (values, numbers) */
+const INK_MUTED = '#5e4630';
+const INK_RUST = '#6a3410';
+/** parchment's drop shadow, outline and browned, burnt edges */
+const PARCHMENT_EDGE = `
+        0 8px 22px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(70, 40, 15, 0.55),
+        inset 0 0 26px rgba(105, 56, 18, 0.6),
+        inset 0 0 8px rgba(70, 34, 8, 0.6),
+        inset 0 0 2px rgba(40, 18, 4, 0.7)`;
+/** wooden buttons / tabs on parchment: grained wood, an iron edge, light text */
+const WOOD_BUTTON = `
+    background:
+        repeating-linear-gradient(1.5deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 4px),
+        linear-gradient(180deg, #4a3422 0%, #33231a 55%, #1f150c 100%);
+    border: 1.5px solid #3a342e;
+    color: #f0e8d8;
+    box-shadow: inset 0 1px 0 rgba(255, 230, 180, 0.14), inset 0 -2px 4px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.35);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);`;
 
 /**
  * Old cloth for the large surfaces (menus, dialogs, the docked panels), like the
@@ -509,19 +528,13 @@ html .mechili-fightbar .fighter {
 }
 
 /* Docked unit panel — ornate but edge-aware (like shop) */
-/* TEST: the details pane as parchment (hung from its pole like a scroll), dark ink */
+/* the details pane as parchment (hung from its pole like a scroll), dark ink */
 html .mechili-panel {
     color: ${INK};
     background: ${PARCHMENT_FILL};
     border: none;
     border-radius: 0;
-    box-shadow:
-        0 8px 22px rgba(0, 0, 0, 0.5),
-        0 0 0 1px rgba(70, 40, 15, 0.55),
-        /* browned, burnt edges, grime from many hands */
-        inset 0 0 26px rgba(105, 56, 18, 0.6),
-        inset 0 0 8px rgba(70, 34, 8, 0.6),
-        inset 0 0 2px rgba(40, 18, 4, 0.7);
+    box-shadow: ${PARCHMENT_EDGE};
     text-shadow: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
@@ -2711,17 +2724,21 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-shop .shop-tab {
     flex: 1;
     padding: 4px 6px;
-    border: 1.5px solid ${u.border};
-    border-radius: 4px;
-    background: ${u.panelBgDark};
-    color: ${u.textMuted};
+    border-radius: 3px;
+    ${WOOD_BUTTON}
+    color: ${u.creamMuted};
     font: inherit;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
 }
-.mechili-shop .shop-tab:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
-.mechili-shop .shop-tab.active { border-color: ${u.brassLight}; background: rgba(212, 184, 120, 0.18); color: ${u.brassLight}; }
+.mechili-shop .shop-tab:hover { border-color: #6a6058; color: ${u.brassLight}; }
+/* the open tab: pressed in, brass lettering */
+.mechili-shop .shop-tab.active {
+    border-color: #6a6058;
+    color: ${u.brassLight};
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
+}
 /* the editor's Erase tool: a delete cursor over the board (red disc, white ✕, hotspot centred) */
 .mechili-erase-cursor {
     cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23c0392b' stroke='white' stroke-width='2'/%3E%3Cpath d='M8 8l8 8M16 8l-8 8' stroke='white' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, not-allowed;
@@ -4415,10 +4432,9 @@ ${chatFloatStyles(u, pc, ec)}
     height: 54px;
     min-height: 54px;
     padding: 8px 14px;
-    background: ${u.undoBg};
-    border: 2px solid ${u.undoBorder};
     border-radius: 3px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    ${WOOD_BUTTON}
+    border-width: 2px;
     color: ${u.undoText};
     font-size: 20px;
     font-weight: bold;
@@ -4433,7 +4449,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-phone-status .undo { transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease; }
 .mechili-extras .undo:hover,
 .shop-toolbar .undo:hover,
-.mechili-phone-status .undo:hover { background: ${u.undoHover}; transform: translateY(-1px); }
+.mechili-phone-status .undo:hover { border-color: #6a6058; filter: brightness(1.12); transform: translateY(-1px); }
 .mechili-extras .undo:focus-visible,
 .shop-toolbar .undo:focus-visible,
 .mechili-phone-status .undo:focus-visible { outline: none; border-color: ${u.undoText}; box-shadow: 0 0 0 3px rgba(168, 120, 64, 0.4); }
@@ -4659,15 +4675,13 @@ ${chatFloatStyles(u, pc, ec)}
     gap: 8px;
     padding: 12px 12px 12px 14px;
     position: relative;
-    color: ${u.cream};
-    background: ${CLOTH_FILL};
+    /* parchment, like the details pane, hung from its pole */
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
     border: none;
     border-radius: 0;
-    box-shadow:
-        0 8px 22px rgba(0, 0, 0, 0.5),
-        0 0 0 1px rgba(12, 8, 5, 0.9),
-        inset 0 0 22px rgba(20, 12, 5, 0.38);
-    ${STITCH}
+    box-shadow: ${PARCHMENT_EDGE};
+    text-shadow: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     pointer-events: auto;
@@ -4686,8 +4700,7 @@ ${chatFloatStyles(u, pc, ec)}
     align-items: center;
     gap: 8px;
     padding-bottom: 6px;
-    border-bottom: 1px solid ${u.frameLo};
-    box-shadow: 0 1px 0 rgba(255, 220, 160, 0.06);
+    border-bottom: 1px solid rgba(90, 55, 20, 0.35);
 }
 .mechili-shop .shop-header .unit-cap {
     font-family: var(--font-ui);
@@ -4695,12 +4708,11 @@ ${chatFloatStyles(u, pc, ec)}
     font-weight: 700;
     letter-spacing: 0.08em;
     font-variant-numeric: tabular-nums;
-    color: ${u.bronzeLight};
+    color: ${INK_RUST};
     display: inline-flex;
     align-items: center;
     gap: 4px;
     flex-shrink: 0;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 .mechili-shop .shop-header .unit-cap .btn-ico.m-icon {
     width: 14px;
@@ -4977,7 +4989,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-panel .team.enemy { color: ${shadeCss(teamColors.enemy.hex, -0.3)}; }
 .mechili-panel .team.horde { color: ${HORDE_COLOR.css}; }
 .mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
-.mechili-panel .row .v { color: #6a3410; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mechili-panel .row .v { color: ${INK_RUST}; font-weight: 700; font-variant-numeric: tabular-nums; }
 .mechili-panel .xpbar { height: 5px; margin: 0 0 5px; background: rgba(60, 35, 12, 0.22); border-radius: 3px; overflow: hidden; }
 .mechili-panel .xpbar.player div { height: 100%; background: ${pc}; }
 .mechili-panel .xpbar.enemy div { height: 100%; background: ${ec}; }
@@ -4985,7 +4997,7 @@ ${chatFloatStyles(u, pc, ec)}
 /* horizontal row of square action tiles (sell, techs, tower actions) */
 .mechili-panel .action-row {
     display: flex; flex-wrap: wrap; gap: 5px;
-    margin-top: 10px; border-top: 1px solid ${u.divider}; padding-top: 10px;
+    margin-top: 10px; border-top: 1px solid rgba(90, 55, 20, 0.35); padding-top: 10px;
 }
 /* header: big level block · name+team · leveling tiles */
 .mechili-panel .panel-head {
@@ -4995,13 +5007,15 @@ ${chatFloatStyles(u, pc, ec)}
     flex-shrink: 0;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     min-width: 42px; padding: 2px 6px 3px;
-    background: ${u.panelBgDark};
-    border: 1.5px solid ${u.brass};
+    /* stamped in ink on the parchment */
+    background: rgba(110, 62, 20, 0.1);
+    border: 1.5px solid rgba(90, 48, 16, 0.6);
     border-radius: 3px;
+    box-shadow: inset 0 0 6px rgba(90, 48, 16, 0.18);
     line-height: 1;
 }
-.mechili-panel .lvl-big .lvl-cap { font-size: 8px; font-weight: bold; letter-spacing: 1.5px; color: #6b5236; }
-.mechili-panel .lvl-big .lvl-num { font-size: 27px; font-weight: 900; color: #5a2c0c; }
+.mechili-panel .lvl-big .lvl-cap { font-size: 8px; font-weight: bold; letter-spacing: 1.5px; color: ${INK_MUTED}; }
+.mechili-panel .lvl-big .lvl-num { font-size: 27px; font-weight: 900; color: ${INK_RUST}; }
 .mechili-panel .head-main { flex: 1; min-width: 0; }
 .mechili-panel .head-names {
     display: flex; align-items: baseline; gap: 8px; min-width: 0;
@@ -5025,16 +5039,19 @@ ${chatFloatStyles(u, pc, ec)}
        when there's no strip (owned / no price), center in the full tile */
     padding: 0; margin: 0;
     appearance: none; -webkit-appearance: none;
-    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
-    border: 1px solid ${u.slotBorder};
+    /* a dark wooden slot with an iron rim, set into the parchment */
+    background:
+        repeating-linear-gradient(1.5deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 4px),
+        linear-gradient(180deg, #24180f 0%, #1a110a 55%, #22170e 100%);
+    border: 1.5px solid #2c2723;
     border-radius: 3px;
     color: ${u.cream};
     cursor: pointer;
     overflow: visible;
     box-shadow:
         inset 0 2px 5px rgba(0, 0, 0, 0.65),
-        inset 0 -1px 0 rgba(255, 220, 160, 0.05),
-        0 1px 0 rgba(180, 140, 80, 0.1);
+        inset 0 -1px 0 rgba(214, 170, 120, 0.06),
+        0 1px 2px rgba(60, 30, 8, 0.35);
 }
 .mechili-panel .action-tile:has(.at-cost) { padding-bottom: 12px; }
 .mechili-panel .action-tile .at-icon { font-size: 27px; line-height: 1; }
@@ -5062,27 +5079,29 @@ ${chatFloatStyles(u, pc, ec)}
     padding: 1px 0 2px;
     font-size: 9px; font-weight: bold; text-align: center;
     font-variant-numeric: tabular-nums;
-    color: #fff;
-    background: rgba(180, 32, 24, 0.92);
-    border-radius: 0 0 6px 6px;
+    color: #f6ecd8;
+    background: linear-gradient(180deg, #8e2418 0%, #6c160e 100%);
+    border-radius: 0 0 2px 2px;
     pointer-events: none;
 }
-.mechili-panel .action-tile .at-cost.refund { background: rgba(40, 140, 60, 0.92); }
+.mechili-panel .action-tile .at-cost.refund { background: linear-gradient(180deg, #3d6e2a 0%, #2b5220 100%); }
 .mechili-panel .action-tile .at-badge {
     position: absolute; top: -5px; right: -5px;
     width: 16px; height: 16px;
     display: flex; align-items: center; justify-content: center;
     font-size: 10px; font-weight: bold;
-    color: #0c1408; background: ${u.techOwned};
+    color: #f4ecd8; background: #5c7a2c;
+    border: 1px solid #2c3a14;
     border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
     pointer-events: none;
 }
 .mechili-panel .action-tile { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
-.mechili-panel .action-tile:hover { border-color: ${u.hover}; transform: translateY(-1px); }
+.mechili-panel .action-tile:hover { border-color: #6a6058; transform: translateY(-1px); }
 .mechili-panel .action-tile:active { transform: scale(0.94); }
-.mechili-panel .action-tile:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
+.mechili-panel .action-tile:focus-visible { outline: none; border-color: #8a7f74; box-shadow: 0 0 0 3px rgba(90, 48, 16, 0.4); }
 .mechili-panel .action-tile.locked { opacity: 0.42; }
-.mechili-panel .action-tile.owned { border-color: ${u.techOwned}; cursor: default; }
+.mechili-panel .action-tile.owned { border-color: #5c7a2c; cursor: default; }
 .mechili-panel .action-tile.owned .at-icon { opacity: 0.7; }
 .mechili-panel .action-tile.owned.hexed,
 .mechili-panel .action-tile.buy.hexed,
@@ -5188,8 +5207,8 @@ ${chatFloatStyles(u, pc, ec)}
     min-width: 0;
 }
 .mechili-panel .action-tile.empty {
-    background: ${u.techBuyBg};
-    border: 1.5px solid ${u.border};
+    background: linear-gradient(180deg, #1c130b 0%, #24190f 100%);
+    border: 1.5px solid #3a342e;
     cursor: default;
     pointer-events: auto;
 }
@@ -5782,8 +5801,8 @@ ${chatFloatStyles(u, pc, ec)}
     margin-left: -8px;
     margin-right: -8px;
     border-radius: 4px;
-    background: rgba(0, 80, 40, 0.22);
-    box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.45);
+    background: rgba(60, 110, 30, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(64, 150, 44, 0.45);
     animation: forge-panel-ready 1.6s ease-in-out infinite;
 }
 .mechili-panel .forge-label {
@@ -5795,7 +5814,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-panel .forge-block.ready .forge-label {
     opacity: 1;
-    color: #7dffb0;
+    color: #2f6b1f;
 }
 .mechili-panel .forge-hint {
     font-size: 12px;
@@ -5811,12 +5830,12 @@ ${chatFloatStyles(u, pc, ec)}
     width: 16px;
     font-size: 14px;
     font-weight: 700;
-    color: #7dffb0;
+    color: #2f6b1f;
     opacity: 0.9;
     flex: 0 0 auto;
 }
 .mechili-panel .item-sq.forge-bake {
-    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.85), 0 0 12px rgba(0, 255, 102, 0.45);
+    box-shadow: 0 0 0 2px rgba(64, 150, 44, 0.85), 0 0 12px rgba(64, 150, 44, 0.45);
     animation: forge-bake-pulse 1.25s ease-in-out infinite;
 }
 .mechili-panel .item-sq.forge-bake.rune-leveled {
@@ -5858,12 +5877,12 @@ ${chatFloatStyles(u, pc, ec)}
     height: 30px;
 }
 @keyframes forge-panel-ready {
-    0%, 100% { box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.4); }
-    50% { box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.85), 0 0 14px rgba(0, 255, 102, 0.2); }
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(64, 150, 44, 0.4); }
+    50% { box-shadow: inset 0 0 0 1px rgba(64, 150, 44, 0.85), 0 0 14px rgba(64, 150, 44, 0.2); }
 }
 @keyframes forge-bake-pulse {
-    0%, 100% { box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.7), 0 0 8px rgba(0, 255, 102, 0.35); }
-    50% { box-shadow: 0 0 0 3px rgba(0, 255, 102, 1), 0 0 16px rgba(0, 255, 102, 0.65); }
+    0%, 100% { box-shadow: 0 0 0 2px rgba(64, 150, 44, 0.7), 0 0 8px rgba(64, 150, 44, 0.35); }
+    50% { box-shadow: 0 0 0 3px rgba(64, 150, 44, 1), 0 0 16px rgba(64, 150, 44, 0.65); }
 }
 @media (prefers-reduced-motion: reduce) {
     .mechili-panel .forge-block.ready,
@@ -5887,18 +5906,19 @@ ${chatFloatStyles(u, pc, ec)}
     cursor: help;
 }
 .mechili-panel .item-sq.empty {
-    background: ${u.techBuyBg};
-    border: 1.5px solid ${u.border};
+    background: radial-gradient(circle at 50% 40%, #2a1d12 0%, #170f08 100%);
+    border: 1.5px solid #3a342e;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
     cursor: default;
 }
 .mechili-panel .item-sq.empty.drop-target {
-    border-color: #00ff66;
-    box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.35), 0 0 10px rgba(0, 255, 102, 0.45);
+    border-color: #3f8f2a;
+    box-shadow: 0 0 0 1px rgba(64, 150, 44, 0.35), 0 0 10px rgba(64, 150, 44, 0.45);
     cursor: pointer;
 }
 .mechili-panel .item-sq.empty.drop-target:hover {
     filter: brightness(1.15);
-    box-shadow: 0 0 0 2px #00ff66, 0 0 14px rgba(0, 255, 102, 0.7);
+    box-shadow: 0 0 0 2px #3f8f2a, 0 0 14px rgba(64, 150, 44, 0.7);
 }
 .mechili-panel .item-sq:not(.empty) { transition: transform 0.12s ease, filter 0.12s ease; }
 .mechili-panel .item-sq:not(.empty):hover { transform: translateY(-1px); filter: brightness(1.12); }
@@ -5909,11 +5929,11 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-panel .item-sq.removable:active { cursor: grabbing; }
 .mechili-panel .item-sq.forge-suggest {
     cursor: pointer;
-    box-shadow: 0 0 0 1.5px rgba(0, 255, 102, 0.55);
+    box-shadow: 0 0 0 1.5px rgba(64, 150, 44, 0.55);
     opacity: 0.95;
 }
 .mechili-panel .item-sq.forge-suggest:hover {
-    box-shadow: 0 0 0 2px rgba(0, 255, 102, 0.9), 0 0 10px rgba(0, 255, 102, 0.35);
+    box-shadow: 0 0 0 2px rgba(64, 150, 44, 0.9), 0 0 10px rgba(64, 150, 44, 0.35);
     filter: brightness(1.12);
 }
 
