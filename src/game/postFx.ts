@@ -35,10 +35,14 @@ function shouldSkipGtaoObject(object: Object3D): boolean {
     return mats.some((m) => (m.alphaTest ?? 0) > 0 || (m.transparent && !m.depthWrite));
 }
 
-/** Eskil vignette: higher offset → stronger corner falloff. */
+/**
+ * Eskil vignette: higher offset → stronger corner falloff. The darkening goes
+ * with offset² (it mixes by dot(uv, uv) of the offset-scaled UV), so high is
+ * ultra's offset × √(2/3): two thirds of its strength.
+ */
 const VIGNETTE: Record<Exclude<VignetteQuality, 'off'>, { offset: number; darkness: number }> = {
-    high: { offset: 1.18, darkness: 1.02 },
-    ultra: { offset: 1.28, darkness: 1.05 },
+    high: { offset: 0.96, darkness: 1.05 },
+    ultra: { offset: 1.18, darkness: 1.05 },
 };
 
 /**
