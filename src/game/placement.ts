@@ -9,6 +9,7 @@ import {
     Group,
     Mesh,
     MeshBasicMaterial,
+    Vector2,
     PlaneGeometry,
     RingGeometry,
     Sprite,
@@ -29,11 +30,11 @@ import {
 } from './targetPreviewVisuals';
 import { drapeDiskGeometry, setDrapedMeshPosition, DRAPE_RENDER_ORDER } from './groundMarkers';
 import { hasAbility, STRONGHOLD_ARCHER_FOV_HALF, Unit, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
-import { classicSeats, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
+import { classicSeats, isSecondarySeat, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { effectiveTargets, effectiveFlying } from './tech';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import { drawIcon } from '../ui/iconAtlas';
-import { levelTintCss } from './colors';
+import { colorForUnit, levelTintCss } from './colors';
 import { elementalLevel } from './runeMix';
 
 /** horde unit ids start here — far above anything the parity counters reach */
@@ -81,6 +82,86 @@ const SELECT_LIFT = 2.8;
 const _blobCenter = new Vector3();
 /** green tint for movable packs that are not currently selected */
 const MOVABLE_PLATE_OPACITY = 0.52;
+
+/**
+ * The selection / hover / carry plate: a soft frame on the ground instead of a flat
+ * tile — a bright rim, a faint fill that brightens toward it, and a wave running out
+ * from the middle to the rim. Tweak live (hard refresh); sizes in world units:
+ * - radius: corner rounding (0 = square corners)
+ * - rim: width of the rim (the owner's colour); rimGlow: how much it whitens
+ * - fill / edgeFill: fill opacity in the middle / just inside the rim
+ * - waveEvery: seconds between waves; wave: its strength (0 = none); waveWidth
+ */
+const SELECT_PLATE = {
+    radius: 0,
+    // 0 = no rim: the plates are plain coloured ground
+    rim: 0,
+    // mixed in linear space, so even a little whitens a team colour a lot (0.45 read as white)
+    rimGlow: 0,
+    fill: 0.55,
+    edgeFill: 0.55,
+    waveEvery: 1.5,
+    wave: 0.5,
+    waveWidth: 0.35,
+} as const;
+
+interface SelectPlateUniforms {
+    time: { value: number };
+    size: { value: Vector2 };
+    /** the rim: the owner's colour (placeFootprintPlate's `owner`) */
+    rim: { value: Color };
+    /** the material's opacity (scales fill, rim and wave) */
+    opacity: number;
+    /** 0..1 the wave (placeFootprintPlate: only under packs that can be moved) */
+    wave: { value: number };
+    /** never waves (the unselected movable plates) */
+    still: boolean;
+}
+
+/**
+ * The frame look for a plate material (see SELECT_PLATE). placeFootprintPlate
+ * drives it (time, footprint size) for every material that has it.
+ */
+function attachSelectPlateShader(material: MeshBasicMaterial, opts: { still?: boolean; opacity?: number } = {}): void {
+    const { still = false, opacity = 1 } = opts;
+    const uniforms: SelectPlateUniforms = { time: { value: 0 }, size: { value: new Vector2(1, 1) }, rim: { value: new Color() }, opacity, wave: { value: 0 }, still };
+    material.userData.selectPlate = uniforms;
+    const p = SELECT_PLATE;
+    const f = (v: number) => v.toFixed(3);
+    material.defines = { ...material.defines, USE_UV: '' };
+    material.onBeforeCompile = (shader) => {
+        shader.uniforms.uPlateTime = uniforms.time;
+        shader.uniforms.uPlateSize = uniforms.size;
+        shader.uniforms.uPlateRim = uniforms.rim;
+        shader.uniforms.uPlateWave = uniforms.wave;
+        shader.fragmentShader =
+            'uniform float uPlateTime;\nuniform vec2 uPlateSize;\nuniform vec3 uPlateRim;\nuniform float uPlateWave;\n' +
+            shader.fragmentShader.replace(
+                '#include <alphamap_fragment>',
+                `#include <alphamap_fragment>
+	// rounded-box distance to the plate's edge, in world units (negative inside)
+	vec2 plHalf = uPlateSize * 0.5;
+	float plR = min( ${f(p.radius)}, min( plHalf.x, plHalf.y ) * 0.9 );
+	vec2 plQ = abs( ( vUv - 0.5 ) * uPlateSize ) - ( plHalf - plR );
+	float plD = length( max( plQ, 0.0 ) ) + min( max( plQ.x, plQ.y ), 0.0 ) - plR;
+	float plAa = fwidth( plD ) + 1e-4;
+	float plInside = 1.0 - smoothstep( -plAa, 0.0, plD );
+	float plDepth = min( plHalf.x, plHalf.y );
+	float plRim = ${p.rim > 0 ? `smoothstep( -${f(p.rim)} - plAa, -${f(p.rim)}, plD ) * plInside` : '0.0'};
+	float plFill = mix( ${f(p.fill)}, ${f(p.edgeFill)}, smoothstep( -plDepth, 0.0, plD ) ) * plInside;
+	// a wave from the middle out to the rim, fading as it goes
+	float plT = fract( uPlateTime / ${f(p.waveEvery)} );
+	float plAt = mix( -plDepth, -${f(p.rim)}, plT );
+	float plWave = exp( -pow( ( plD - plAt ) / ${f(p.waveWidth)}, 2.0 ) ) * ( 1.0 - plT ) * plInside * uPlateWave * ${f(still ? 0 : p.wave)};
+	// the fill keeps its colour (valid / invalid), the rim is the owner's
+	vec3 plRimCol = mix( uPlateRim, vec3( 1.0 ), ${f(p.rimGlow)} );
+	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 1.0 ), plWave * 0.3 );
+	diffuseColor.rgb = mix( diffuseColor.rgb, plRimCol, plRim );
+	diffuseColor.a *= clamp( max( plFill, plRim ) + plWave, 0.0, 1.0 );`,
+            );
+    };
+    material.customProgramCacheKey = () => `select-plate-${still ? 'still-' : ''}${Object.values(p).join('-')}`;
+}
 /** world size of status-strip item/tech sprites (full height; center sits mid-sprite) */
 const STATUS_BADGE_SIZE = 2.2;
 /** gap between mesh top and the bottom of the status badge */
@@ -573,6 +654,7 @@ export class PlacementController {
         this.hoverMesh = makeMarker(VALID_COLOR, 0.72);
         this.hoverMesh.position.y = 0.04;
         this.hoverMaterial = this.hoverMesh.material as MeshBasicMaterial;
+        attachSelectPlateShader(this.hoverMaterial);
         this.selectMesh = makeMarker(SELECT_COLOR, 0.22);
         this.selectMesh.position.y = 0.03;
 
@@ -1608,6 +1690,12 @@ export class PlacementController {
         return out;
     }
 
+    /** a pack owner's colour, as on its health bar and in the details pane (no pack: the local seat's) */
+    private ownerHex(unit: Unit | null): number {
+        if (!unit) return colorForUnit('player', isSecondarySeat(this.roster, this.localSeat)).hex;
+        return colorForUnit(unit.team, unit.team === 'horde' ? false : isSecondarySeat(this.roster, unit.seat)).hex;
+    }
+
     private placeFootprintPlate(
         mesh: Mesh,
         material: MeshBasicMaterial,
@@ -1619,9 +1707,14 @@ export class PlacementController {
         y = 0.04,
         /** pinned posts (a Stronghold archer on its battlements): flat, just above the pad it stands on */
         pinnedY?: number,
+        /** framed plates: whose colour the rim takes (default: the local seat's) */
+        owner?: Unit | null,
     ): void {
         const pulse = this.pulse(timeSeconds);
-        const edge = animated ? 0.96 + 0.04 * pulse : 0.94;
+        // the frame plate fills its cells (the rim marks the edge) and animates in its
+        // shader (a wave), not by breathing in size
+        const framed = material.userData.selectPlate as SelectPlateUniforms | undefined;
+        const edge = framed ? 1 : animated ? 0.96 + 0.04 * pulse : 0.94;
         // tessellated per tile on the same lattice as the ground mesh, then
         // draped over the relief — so it hugs the terrain and units occlude it
         const fpKey = `${fp.cols}x${fp.rows}`;
@@ -1669,7 +1762,17 @@ export class PlacementController {
         mesh.scale.set(1, 1, 1);
         material.depthTest = true;
         material.color.setHex(color);
-        material.opacity = animated ? 0.58 + 0.22 * pulse : MOVABLE_PLATE_OPACITY;
+        if (framed) {
+            material.opacity = framed.opacity;
+            framed.time.value = timeSeconds;
+            framed.size.value.set(fp.cols * CELL * edge, fp.rows * CELL * edge);
+            framed.rim.value.setHex(this.ownerHex(owner ?? null));
+            // the wave says "you can move this": not under enemies, the horde or locked packs
+            // (no owner: a new pack riding the cursor, the editor's plate)
+            framed.wave.value = !framed.still && (!owner || this.isMovable(owner)) ? 1 : 0;
+        } else {
+            material.opacity = animated ? 0.58 + 0.22 * pulse : MOVABLE_PLATE_OPACITY;
+        }
         mesh.visible = true;
     }
 
@@ -2149,13 +2252,18 @@ export class PlacementController {
                 if (this.isHighlighted(unit)) continue;
                 let plate = this.movablePlates[used];
                 if (!plate) {
-                    plate = new Mesh(this.plateGeometry.clone(), this.plateMaterial);
+                    // the selection's frame, without its wave and fainter (one material per
+                    // plate: the frame shader needs each footprint's size)
+                    const material = this.plateMaterial.clone();
+                    attachSelectPlateShader(material, { still: true, opacity: Math.min(1, MOVABLE_PLATE_OPACITY / SELECT_PLATE.fill) });
+                    plate = new Mesh(this.plateGeometry.clone(), material);
+                    plate.renderOrder = 10;
                     this.scene.add(plate);
                     this.movablePlates.push(plate);
                 }
                 const fp = this.footprintOf(unit.type, unit.rotated);
                 const center = this.map.areaCenter(unit.cell, fp.cols, fp.rows);
-                this.placeFootprintPlate(plate, this.plateMaterial, center, fp, VALID_COLOR, 0, false, 0.025);
+                this.placeFootprintPlate(plate, plate.material as MeshBasicMaterial, center, fp, VALID_COLOR, 0, false, 0.025, undefined, unit);
                 used++;
             }
         }
@@ -2817,6 +2925,7 @@ export class PlacementController {
             true,
             0.04,
             over.pinnedY ?? undefined,
+            over,
         );
     }
 
@@ -2947,6 +3056,9 @@ export class PlacementController {
                 this.hoverMaterial.color.getHex(),
                 timeSeconds,
                 true,
+                undefined,
+                undefined,
+                sel,
             );
             markerCenter = center;
         } else {
@@ -2979,6 +3091,7 @@ export class PlacementController {
                 true,
                 0.04,
                 sel.pinnedY ?? undefined,
+                sel,
             );
             markerCenter = center;
         }
@@ -3174,15 +3287,16 @@ export class PlacementController {
             const unit = units[i]!;
             let plate = this.groupPlates[i];
             if (!plate) {
-                plate = new Mesh(
-                    this.plateGeometry.clone(),
-                    new MeshBasicMaterial({
-                        transparent: true,
-                        opacity: 0.68,
-                        side: DoubleSide,
-                        depthWrite: false,
-                    }),
-                );
+                const material = new MeshBasicMaterial({
+                    transparent: true,
+                    side: DoubleSide,
+                    depthWrite: false,
+                    ...GROUND_DECAL_OFFSET,
+                });
+                // the same frame as a single selection
+                attachSelectPlateShader(material);
+                plate = new Mesh(this.plateGeometry.clone(), material);
+                plate.renderOrder = 10;
                 this.scene.add(plate);
                 this.groupPlates.push(plate);
             }
@@ -3211,6 +3325,8 @@ export class PlacementController {
                 timeSeconds,
                 true,
                 0.035,
+                undefined,
+                unit,
             );
         }
         for (let i = units.length; i < this.groupPlates.length; i++) this.groupPlates[i]!.visible = false;
