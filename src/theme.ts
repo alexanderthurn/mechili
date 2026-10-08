@@ -2980,16 +2980,15 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     align-items: center;
     gap: 6px;
     padding: 3px 12px;
-    border: 1.5px solid var(--es-team, ${u.border});
-    border-radius: 4px;
-    background: ${u.panelBgDark};
-    color: ${u.text};
+    ${WOOD_BUTTON}
+    border: 1.5px solid var(--es-team, #3a342e);
+    border-radius: 3px;
     font: inherit;
     font-size: 13px;
     cursor: pointer;
     pointer-events: auto;
 }
-.mechili-topbar .editor-side:hover { border-color: ${u.hover}; }
+.mechili-topbar .editor-side:hover { filter: brightness(1.12); }
 .mechili-topbar .editor-side .es-now { color: var(--es-team, ${u.text}); font-weight: 700; }
 .mechili-topbar .editor-side .es-arrow { color: ${u.textMuted}; }
 .mechili-topbar .editor-side .es-other { color: ${u.textMuted}; }
@@ -7627,10 +7626,9 @@ ${chatFloatStyles(u, pc, ec)}
     align-items: center;
     gap: 4px;
     padding: 2px 8px;
-    background: ${u.panelBgSolid};
-    border: 1px solid ${u.border};
+    ${WOOD_BUTTON}
+    border-width: 1px;
     border-radius: 999px;
-    color: ${u.text};
     font-size: 12px;
     font-weight: bold;
     cursor: pointer;
@@ -7648,11 +7646,17 @@ ${chatFloatStyles(u, pc, ec)}
     min-width: 160px;
     max-height: 220px;
     overflow-y: auto;
-    background: linear-gradient(180deg, ${u.panelBgSolid} 0%, ${u.panelBgDark} 100%);
-    border: 1px solid ${u.border};
-    border-radius: 3px;
+    /* a parchment note, in ink */
+    background: ${PARCHMENT_FILL};
+    color: ${INK};
+    text-shadow: none;
+    border: none;
+    border-radius: 0;
     padding: 6px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(70, 40, 15, 0.55),
+        inset 0 0 14px rgba(105, 56, 18, 0.5);
     pointer-events: auto;
 }
 .mechili-topbar .spectator-row {
@@ -7667,7 +7671,7 @@ ${chatFloatStyles(u, pc, ec)}
     cursor: pointer;
 }
 .mechili-topbar .spectator-row:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(90, 55, 20, 0.12);
     border-radius: 4px;
 }
 .mechili-fightbar {
@@ -8389,8 +8393,11 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
     gap: 6px;
     padding: 4px calc(8px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom))
         calc(8px + env(safe-area-inset-left));
-    background: linear-gradient(180deg, ${u.leatherHi} 0%, ${u.leather} 100%);
-    border-top: 2px solid ${u.frameMid};
+    /* a dark wooden bar with an iron edge */
+    background:
+        repeating-linear-gradient(1.5deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 4px),
+        linear-gradient(180deg, #3d2a1a 0%, #241810 100%);
+    border-top: 2px solid #3a342e;
     box-shadow: inset 0 1px 0 rgba(255, 230, 180, 0.12);
     user-select: none;
     pointer-events: auto;
