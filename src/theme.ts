@@ -7813,14 +7813,17 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
 .mechili-fightbar .fighter-stack:not(.multi) .fighter-info { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55)); }
 /* a fixed height: it used to take what the name below left over, and a name with
    capitals (".tall") sits lower — so the two banners came out different heights */
-.mechili-fightbar .fighter-stack:not(.multi) .hp-track { flex: 0 0 26px; height: 26px; }
+.mechili-fightbar .fighter-stack:not(.multi) .hp-track { flex: 0 0 34px; height: 34px; }
+/* room for the name under the taller banner */
+.mechili-fightbar .fighter-stack:not(.multi) .fighter-info { height: 53px; }
 .mechili-fightbar .fighter.player .hp-track { transform-origin: left center; }
 .mechili-fightbar .fighter.enemy .hp-track { transform-origin: right center; }
 .mechili-fightbar .fighter:is(.player, .enemy) .hp-track::before,
 .mechili-fightbar .fighter:is(.player, .enemy) .hp-lag,
 .mechili-fightbar .fighter:is(.player, .enemy) .hp-fill {
     position: absolute;
-    top: 0;
+    /* hangs from the pole */
+    top: 3px;
     bottom: 0;
     left: 0;
     right: auto;
@@ -7922,6 +7925,40 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
         /* the dye, faded and yellowed with age */
         linear-gradient(180deg, ${shadeCss(teamColors.enemy.hex, 0.15)} 0%, ${ec} 45%, ${shadeCss(teamColors.enemy.hex, -0.5)} 100%);
     filter: saturate(0.72) sepia(0.28) brightness(0.92);
+}
+/* The pole the flag hangs from: dark wood coming out of the portrait frame (the
+   track starts under it), held by an iron band where it leaves the frame, running the
+   flag's full length — it stays when the cloth gets shorter — to an iron knob. */
+.mechili-fightbar .fighter:is(.player, .enemy) .hp-track::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    height: 5px;
+    z-index: 4;
+    pointer-events: none;
+    border-radius: 2px;
+    box-shadow: 0 2px 2px rgba(0, 0, 0, 0.55);
+}
+.mechili-fightbar .fighter.player .hp-track::after {
+    left: 0;
+    right: -6px;
+    background:
+        /* iron band at the frame */
+        linear-gradient(180deg, #5a534c 0%, #2c2723 60%, #17130f 100%) 17px 0 / 4px 100% no-repeat,
+        /* iron knob at the end */
+        radial-gradient(circle at calc(100% - 3.5px) 50%, #7a7068 0 1px, #3a342e 2px, #16120e 3.2px, transparent 3.6px),
+        /* grain along the pole */
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.2) 0 2px, transparent 2px 9px, rgba(220, 180, 130, 0.08) 9px 10px, transparent 10px 17px) 0 0 / calc(100% - 7px) 100% no-repeat,
+        linear-gradient(180deg, #6b4c30 0%, #3d2a1a 55%, #1f150c 100%) 0 0 / calc(100% - 7px) 100% no-repeat;
+}
+.mechili-fightbar .fighter.enemy .hp-track::after {
+    right: 0;
+    left: -6px;
+    background:
+        linear-gradient(180deg, #5a534c 0%, #2c2723 60%, #17130f 100%) calc(100% - 17px) 0 / 4px 100% no-repeat,
+        radial-gradient(circle at 3.5px 50%, #7a7068 0 1px, #3a342e 2px, #16120e 3.2px, transparent 3.6px),
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.2) 0 2px, transparent 2px 9px, rgba(220, 180, 130, 0.08) 9px 10px, transparent 10px 17px) 100% 0 / calc(100% - 7px) 100% no-repeat,
+        linear-gradient(180deg, #6b4c30 0%, #3d2a1a 55%, #1f150c 100%) 100% 0 / calc(100% - 7px) 100% no-repeat;
 }
 /* the flag hangs from its top edge (a hit sways it from there) */
 .mechili-fightbar .fighter:is(.player, .enemy) .hp-track { transform-origin: 50% 0; }
