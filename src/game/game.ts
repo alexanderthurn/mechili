@@ -462,6 +462,26 @@ const TEXTURE_UPLOAD_BUDGET_MS = 6;
 /** seconds for the deployment focus shade outside the board to fade in / out */
 const DEPLOY_SHADE_FADE_S = 0.4;
 
+
+/**
+ * A pack set down in deployment (placed, moved, bought): a dust puff around its
+ * footprint and a short squash-and-stretch. Tweak live:
+ * - squash: 0..1 how much it flattens on touchdown (and widens by half that)
+ * - seconds: how long the bounce runs; damping: how fast it settles; bounce: its speed (rad/s)
+ * - dustSpacing: wu between puffs along the footprint edge; dustPerPuff: particles each
+ * - dustSpeed / dustUp / dustLife: how far out, how high and how long the dust goes
+ */
+const LANDING = {
+    squash: 0.16,
+    seconds: 0.55,
+    damping: 7,
+    bounce: 22,
+    dustSpacing: 1.1,
+    dustPerPuff: 2,
+    dustSpeed: 2.4,
+    dustUp: 1.3,
+    dustLife: 0.45,
+} as const;
 export class Game {
     private readonly map: BattleMap;
     private readonly economy: Economy;
@@ -4360,6 +4380,67 @@ export class Game {
 
     /** local player input — refused once this deployment is locked in.
      *  Build actions are buffered until the peer locks in (wire fog). */
+    /** packs just set down in deployment, squashing back to shape (see LANDING) */
+    private readonly landings: { unit: Unit; start: number }[] = [];
+
+    /** a pack set down in deployment: dust around its footprint and a short squash */
+    private landPacks(units: readonly (Unit | null | undefined)[]): void {
+        const L = LANDING;
+        const now = performance.now();
+        for (const unit of units) {
+            if (!unit) continue;
+            const fp = unit.rotated ? { cols: unit.type.footprint.rows, rows: unit.type.footprint.cols } : unit.type.footprint;
+            const c = this.map.areaCenter(unit.cell, fp.cols, fp.rows);
+            const hx = (fp.cols * CELL) / 2;
+            const hz = (fp.rows * CELL) / 2;
+            // puffs along the footprint's edge, blown outward
+            const perimeter = 4 * (hx + hz);
+            const n = Math.max(6, Math.round(perimeter / L.dustSpacing));
+            for (let i = 0; i < n; i++) {
+                const t = (i + Math.random() * 0.6) / n;
+                let d = t * perimeter;
+                let px: number;
+                let pz: number;
+                if (d < 2 * hx) [px, pz] = [-hx + d, -hz];
+                else if ((d -= 2 * hx) < 2 * hz) [px, pz] = [hx, -hz + d];
+                else if ((d -= 2 * hz) < 2 * hx) [px, pz] = [hx - d, hz];
+                else [px, pz] = [-hx, hz - (d - 2 * hx)];
+                const len = Math.hypot(px / hx, pz / hz) || 1;
+                const x = c.x + px;
+                const z = c.z + pz;
+                this.particles.burst(x, groundHeightAt(x, z) + 0.15, z, {
+                    count: L.dustPerPuff,
+                    color: i % 3 === 0 ? 0xb3a586 : 0x857a64,
+                    speed: L.dustSpeed,
+                    life: L.dustLife + Math.random() * 0.2,
+                    up: L.dustUp,
+                    dir: { x: px / hx / len, y: 0.3, z: pz / hz / len },
+                });
+            }
+            const old = this.landings.findIndex((l) => l.unit === unit);
+            if (old >= 0) this.landings.splice(old, 1);
+            this.landings.push({ unit, start: now });
+        }
+    }
+
+    /** the landing squash: a damped bounce in height (and a little the other way in width) */
+    private updateLandings(): void {
+        const L = LANDING;
+        const now = performance.now();
+        for (let i = this.landings.length - 1; i >= 0; i--) {
+            const { unit, start } = this.landings[i]!;
+            const t = (now - start) / 1000;
+            if (t >= L.seconds || !unit.view.parent) {
+                unit.view.scale.set(1, 1, 1);
+                this.landings.splice(i, 1);
+                continue;
+            }
+            const k = Math.exp(-t * L.damping) * Math.cos(t * L.bounce);
+            const w = 1 + L.squash * 0.5 * k;
+            unit.view.scale.set(w, 1 - L.squash * k, w);
+        }
+    }
+
     private dispatchPlayer(action: Action): boolean {
         // watch mode: nothing here is "my" input — every action comes from
         // the replay log (see the per-frame paced dispatch). The real guard,
@@ -4370,6 +4451,8 @@ export class Game {
         // equals humanSeat when the human is their side's FIRST seat — false
         // for a star guest assigned to seat 1/2/3
         const stamped: Action = action.seat === this.humanSeat ? action : { ...action, seat: this.humanSeat };
+        // a buy adds a pack: remember who was there to find it afterwards (landing effect)
+        const before = stamped.kind === 'buy' ? new Set(this.placement.allUnits().map((u) => u.id)) : null;
         if (!this.dispatcher.dispatch(stamped)) {
             audio.playPlayerAction(stamped.kind, false);
             return false;
@@ -4383,6 +4466,10 @@ export class Game {
             const bought = this.types.byId(stamped.typeId);
             if (bought && !bought.structure) audio.playUnitSelect(stamped.typeId);
         }
+        // own drops only — the enemy's placements stay hidden behind the deploy intel
+        if (stamped.kind === 'move') this.landPacks([this.placement.unitById(stamped.unitId)]);
+        else if (stamped.kind === 'moveGroup') this.landPacks(stamped.unitIds.map((id) => this.placement.unitById(id)));
+        else if (before) this.landPacks(this.placement.allUnits().filter((u) => !before.has(u.id)));
         // the sandbox deployment: whatever the game UI changed goes into the draft
         if (this.editorSession && this.round >= 1) this.editorSession.syncFromBoard();
         if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
@@ -11903,6 +11990,7 @@ export class Game {
         // End Deployment has locked this seat in.
         this.placement.repositioningEnabled = this.playerCanAct;
         this.placement.update(this.time, gameDt);
+        this.updateLandings();
         // the grass lies down under the plates placed this frame (read by the next scenery update)
         this.scenery.setGrassClearRects(this.placement.takeGroundPlates());
         if (this.phase === 'build' && !this.hud.isUiHidden) this.syncTacticVisuals();
