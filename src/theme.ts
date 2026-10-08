@@ -8166,34 +8166,53 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
     }
 }
 .mechili-topbar .end-deploy {
-    padding: 10px 24px;
-    background: ${u.bronze};
-    border: 1.5px solid ${u.frameHi};
-    border-radius: 3px;
-    color: #1a140c;
+    /* a pennant in the player's colour, like the commanders' banners: weathered cloth
+       hanging from a wooden pole along its top, a swallowtail pointing down */
+    position: relative;
+    padding: 12px 26px 18px;
+    background:
+        /* the pole */
+        linear-gradient(180deg, #6b4c30 0%, #3d2a1a 55%, #1f150c 100%) 0 0 / 100% 6px no-repeat,
+        /* stains, grime at the hems, coarse weave */
+        radial-gradient(ellipse 30px 10px at 24% 66%, rgba(40, 24, 8, 0.28), transparent 70%),
+        radial-gradient(ellipse 24px 12px at 78% 40%, rgba(40, 24, 8, 0.22), transparent 70%),
+        linear-gradient(180deg, rgba(30, 18, 6, 0.35) 6px, transparent 30%, transparent 70%, rgba(30, 18, 6, 0.4) 100%),
+        repeating-linear-gradient(0deg, rgba(255, 240, 210, 0.07) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.1) 0 1px, transparent 1px 3px),
+        /* the dye, faded with age */
+        linear-gradient(180deg, ${shadeCss(teamColors.player.hex, -0.05)} 0%, ${shadeCss(teamColors.player.hex, -0.25)} 55%, ${shadeCss(teamColors.player.hex, -0.5)} 100%);
+    border: none;
+    border-radius: 0;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 9px), 0 100%);
+    color: ${u.cream};
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1.5px;
     cursor: pointer;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
-    transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, filter 0.14s ease;
+    filter: saturate(0.8) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.45));
+    transition: transform 0.14s ease, filter 0.14s ease;
 }
 .mechili-topbar .end-deploy:hover {
-    background: ${u.bronzeLight};
     transform: translateY(-1px);
-    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
+    filter: saturate(0.95) brightness(1.12) drop-shadow(0 4px 5px rgba(0, 0, 0, 0.5));
 }
 .mechili-topbar .end-deploy:active { transform: translateY(0) scale(0.97); }
-.mechili-topbar .end-deploy:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.45); }
+.mechili-topbar .end-deploy:focus-visible { outline: none; filter: brightness(1.18) drop-shadow(0 0 4px rgba(240, 220, 170, 0.8)); }
 /* a teammate (2v2/duo) already locked in — left half lights brass so
    both seats on a side can see who's still holding things up */
 .mechili-topbar .end-deploy.ally-ready {
-    background: linear-gradient(90deg, ${u.brassLight} 0%, ${u.brassLight} 48%, ${u.bronze} 52%, ${u.bronze} 100%);
-    border-color: ${u.frameHi};
+    /* the teammate's half lit: a pale wash over the left half of the cloth (::after) */
 }
-.mechili-topbar .end-deploy.ally-ready:hover {
-    background: linear-gradient(90deg, #e8d49a 0%, #e8d49a 48%, ${u.bronzeLight} 52%, ${u.bronzeLight} 100%);
-    border-color: ${u.brassLight};
+.mechili-topbar .end-deploy.ally-ready::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 0;
+    width: 50%;
+    background: rgba(255, 236, 190, 0.28);
+    pointer-events: none;
 }
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.waiting .end-deploy { display: none; }
@@ -8203,17 +8222,16 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
     display: none;
     min-width: 52px;
     padding: 7px 10px;
-    background: ${u.speedBg};
-    border: 1.5px solid ${u.brass};
+    ${WOOD_BUTTON}
     border-radius: 3px;
-    color: ${u.brass};
+    color: ${u.brassLight};
     font-size: 13px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
 }
 .mechili-topbar .speed { transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
-.mechili-topbar .speed:hover { background: ${u.speedHover}; border-color: ${u.brassLight}; }
+.mechili-topbar .speed:hover { border-color: #6a6058; filter: brightness(1.12); }
 .mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 /* sit below End Deployment's deploy-phase hitbox so a phase swap can't
  * land a speed click on "End Deployment" (or the reverse) */
@@ -8562,7 +8580,10 @@ ${gamepadCursorStyles(u)}
     }
     .mechili-topbar.battle .speed { margin-top: 40px; }
     .mechili-topbar .end-deploy {
-        padding: 5px 12px;
+        /* the pole on top, the swallowtail below */
+        padding: 7px 12px 10px;
+        height: 44px;
+        min-height: 44px;
         font-size: 11px;
         letter-spacing: 0.8px;
     }
