@@ -470,6 +470,8 @@ const DEPLOY_SHADE_FADE_S = 0.4;
  * - seconds: how long the bounce runs; damping: how fast it settles; bounce: its speed (rad/s)
  * - dustSpacing: wu between puffs along the footprint edge; dustPerPuff: particles each
  * - dustSpeed / dustUp / dustLife: how far out, how high and how long the dust goes
+ * - riseSeconds / riseFrom / riseOvershoot: a new building growing up out of the ground:
+ *   how long, from what share of its height, how far past full height it eases (0 = none)
  */
 const LANDING = {
     squash: 0.16,
@@ -481,6 +483,12 @@ const LANDING = {
     dustSpeed: 2.4,
     dustUp: 1.3,
     dustLife: 0.45,
+    /** a newly bought building grows up out of the ground instead (easing out past full height) */
+    riseSeconds: 0.5,
+    riseFrom: 0.12,
+    riseOvershoot: 1.8,
+    /** its dust goes higher and lasts longer (× dustUp / dustLife) */
+    riseDust: 1.8,
 } as const;
 export class Game {
     private readonly map: BattleMap;
@@ -4381,14 +4389,19 @@ export class Game {
     /** local player input — refused once this deployment is locked in.
      *  Build actions are buffered until the peer locks in (wire fog). */
     /** packs just set down in deployment, squashing back to shape (see LANDING) */
-    private readonly landings: { unit: Unit; start: number }[] = [];
+    private readonly landings: { unit: Unit; start: number; rise: boolean }[] = [];
 
-    /** a pack set down in deployment: dust around its footprint and a short squash */
-    private landPacks(units: readonly (Unit | null | undefined)[]): void {
+    /**
+     * A pack set down in deployment: dust around its footprint and a short squash.
+     * `bought`: just bought — a building then grows up out of the ground instead.
+     */
+    private landPacks(units: readonly (Unit | null | undefined)[], bought = false): void {
         const L = LANDING;
         const now = performance.now();
         for (const unit of units) {
             if (!unit) continue;
+            const rise = bought && !!unit.type.structure;
+            const dustK = rise ? L.riseDust : 1;
             const fp = unit.rotated ? { cols: unit.type.footprint.rows, rows: unit.type.footprint.cols } : unit.type.footprint;
             const c = this.map.areaCenter(unit.cell, fp.cols, fp.rows);
             const hx = (fp.cols * CELL) / 2;
@@ -4412,14 +4425,14 @@ export class Game {
                     count: L.dustPerPuff,
                     color: i % 3 === 0 ? 0xb3a586 : 0x857a64,
                     speed: L.dustSpeed,
-                    life: L.dustLife + Math.random() * 0.2,
-                    up: L.dustUp,
+                    life: (L.dustLife + Math.random() * 0.2) * dustK,
+                    up: L.dustUp * dustK,
                     dir: { x: px / hx / len, y: 0.3, z: pz / hz / len },
                 });
             }
             const old = this.landings.findIndex((l) => l.unit === unit);
             if (old >= 0) this.landings.splice(old, 1);
-            this.landings.push({ unit, start: now });
+            this.landings.push({ unit, start: now, rise });
         }
     }
 
@@ -4428,11 +4441,19 @@ export class Game {
         const L = LANDING;
         const now = performance.now();
         for (let i = this.landings.length - 1; i >= 0; i--) {
-            const { unit, start } = this.landings[i]!;
+            const { unit, start, rise } = this.landings[i]!;
             const t = (now - start) / 1000;
-            if (t >= L.seconds || !unit.view.parent) {
+            if (t >= (rise ? L.riseSeconds : L.seconds) || !unit.view.parent) {
                 unit.view.scale.set(1, 1, 1);
                 this.landings.splice(i, 1);
+                continue;
+            }
+            if (rise) {
+                // ease-out-back: up fast, a little past full height, settle
+                const u = t / L.riseSeconds - 1;
+                const c = L.riseOvershoot;
+                const e = 1 + (c + 1) * u * u * u + c * u * u;
+                unit.view.scale.set(1, L.riseFrom + (1 - L.riseFrom) * e, 1);
                 continue;
             }
             const k = Math.exp(-t * L.damping) * Math.cos(t * L.bounce);
@@ -4469,7 +4490,7 @@ export class Game {
         // own drops only — the enemy's placements stay hidden behind the deploy intel
         if (stamped.kind === 'move') this.landPacks([this.placement.unitById(stamped.unitId)]);
         else if (stamped.kind === 'moveGroup') this.landPacks(stamped.unitIds.map((id) => this.placement.unitById(id)));
-        else if (before) this.landPacks(this.placement.allUnits().filter((u) => !before.has(u.id)));
+        else if (before) this.landPacks(this.placement.allUnits().filter((u) => !before.has(u.id)), true);
         // the sandbox deployment: whatever the game UI changed goes into the draft
         if (this.editorSession && this.round >= 1) this.editorSession.syncFromBoard();
         if (stamped.kind === 'buyTech' || stamped.kind === 'buy') this.refreshFlightAlts();
