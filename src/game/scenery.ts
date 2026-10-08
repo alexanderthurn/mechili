@@ -1,5 +1,7 @@
+import { updateWindStrength, WIND_CACHE_KEY, WIND_GLSL, windStrengthUniform, windTimeUniform } from './wind';
 import {
     AdditiveBlending,
+    ShaderChunk,
     BackSide,
     Box3,
     BoxGeometry,
@@ -1728,6 +1730,10 @@ export class Scenery {
         this.skyGroup.position.set(cameraPos.x, 0, cameraPos.z);
         this.weather?.update(dtSeconds, cameraPos);
         updateVegetationSeason(dtSeconds);
+        windTimeUniform.value = this.time;
+        if (this.weather) {
+            updateWindStrength(dtSeconds, this.weather.season, this.weather.weatherKind === 'rain' ? this.weather.weatherIntensity : 0);
+        }
         const seasonK = Math.min(1, dtSeconds / TRANSITION_TAU);
         for (const m of this.flowerMaterials) {
             m.opacity += (this.flowerOpacityTarget - m.opacity) * seasonK;
@@ -2447,10 +2453,30 @@ export class Scenery {
             shader.uniforms.uTime = { value: 0 };
             shader.uniforms.uSnowCover = { value: 0 };
             shader.uniforms.uDryGrass = summerDryUniform;
+            shader.uniforms.uWindStrength = windStrengthUniform;
             this.tuftMaterial!.userData.shader = shader;
             shader.vertexShader =
                 'uniform float uTime;\n#ifdef GRASS_CLUMPS\nattribute float aClump;\n#endif\n' +
+                WIND_GLSL +
                 shader.vertexShader
+                    // the wind (see WIND), in world space after the instance transform: the top
+                    // of the clump leans with it, the root stays put
+                    .replace(
+                        '#include <project_vertex>',
+                        ShaderChunk.project_vertex.replace(
+                            'mvPosition = modelViewMatrix * mvPosition;',
+                            `#ifdef USE_INSTANCING
+	float tuftScale = length( instanceMatrix[ 1 ].xyz );
+#else
+	float tuftScale = 1.0;
+#endif
+	float tuftT = clamp( transformed.y / 1.35, 0.0, 1.0 );
+	float tuftLean = windLean( mvPosition.xz, uTime ) * tuftT * tuftT * 1.35 * tuftScale;
+	mvPosition.xz += windDir() * tuftLean;
+	mvPosition.y -= 0.35 * tuftLean * tuftLean / max( 1.35 * tuftScale, 0.05 );
+	mvPosition = modelViewMatrix * mvPosition;`,
+                        ),
+                    )
                     .replace(
                         '#include <uv_vertex>',
                         `#include <uv_vertex>
@@ -2488,7 +2514,7 @@ export class Scenery {
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.98), snowF);`,
                 );
         };
-        this.tuftMaterial.customProgramCacheKey = () => `meadow-tuft-still-upnormal-v4${clumps ? '-clumps' : ''}`;
+        this.tuftMaterial.customProgramCacheKey = () => `meadow-tuft-upnormal-v5-${WIND_CACHE_KEY}${clumps ? '-clumps' : ''}`;
         const tufts = new InstancedMesh(tuftGeo, this.tuftMaterial, TUFTS);
         let tuftI = 0;
         for (let i = 0; i < TUFTS; i++) {

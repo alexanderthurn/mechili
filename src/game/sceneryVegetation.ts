@@ -1,3 +1,4 @@
+import { attachWindSway } from './wind';
 /**
  * Higher-detail Tripo vegetation for ultra scenery + shared billboard cards
  * for far trees (high + ultra).
@@ -593,6 +594,7 @@ function makeCrossCard(
     });
     attachVegetationSnow(material, { snowMap: snowTex, strength: 1 });
     attachBillboardSeasonFade(material);
+    attachWindSway(material, height);
     return { geometry, material };
 }
 
@@ -613,6 +615,7 @@ export async function loadSceneryVegetation(): Promise<void> {
                     const root = normalize(gltf.scene, spec.height);
                     const asset = bake(root);
                     if (id !== 'pine') attachSeasonTint(asset.material); // pines stay green
+                    attachWindSway(asset.material, asset.height);
                     cache.set(id, asset);
                     console.info(`[sceneryVegetation] loaded '${id}'`);
                 } catch (e) {

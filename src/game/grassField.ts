@@ -1,3 +1,4 @@
+import { WIND_CACHE_KEY, WIND_GLSL, windStrengthUniform } from './wind';
 /**
  * Ultra: a lawn of real grass blades around the board.
  *
@@ -136,7 +137,9 @@ export class GrassField {
             shader.uniforms.uSnowCover = this.snowCover;
             shader.uniforms.uDryGrass = this.dryGrass;
             Object.assign(shader.uniforms, this.board);
+            shader.uniforms.uWindStrength = windStrengthUniform;
             shader.vertexShader =
+                WIND_GLSL +
                 `attribute vec4 aBlade;   // root x, y, z, yaw
 attribute vec4 aShape;   // width, height, lean, tint
 uniform float uTime;
@@ -238,6 +241,11 @@ float boardHeight(vec2 p) {
     float c = cos(aBlade.w);
     float s = sin(aBlade.w);
     vec3 transformed = vec3(local.x * c + local.z * s, local.y, -local.x * s + local.z * c) + root;
+    // the wind (see WIND): the tip leans with it, growing with the square of the height,
+    // and dips a little so the blade keeps its length
+    float windK = windLean(root.xz, uTime) * t * t * h;
+    transformed.xz += windDir() * windK;
+    transformed.y -= 0.35 * windK * windK / max(h, 0.05);
     // snow buries the lower half of every blade
     transformed.y -= snowAt * ${SNOW_BURY.toFixed(2)} * h;
     vBladeT = t;
@@ -312,7 +320,7 @@ varying float vSnow;
     nonPerturbedNormal = normal;`,
                     );
         };
-        mat.customProgramCacheKey = () => 'grass-field-v11-plates';
+        mat.customProgramCacheKey = () => `grass-field-v11-plates-${WIND_CACHE_KEY}`;
         return mat;
     }
 
