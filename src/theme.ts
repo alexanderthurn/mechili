@@ -633,6 +633,50 @@ html .mechili-scenario-editor .se-footer {
     background: rgba(110, 62, 20, 0.14);
     border-top-color: rgba(90, 55, 20, 0.35);
 }
+/* the tutorial's instructions: a parchment note in ink, its Next button wood */
+html .mechili-tutorial {
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
+    border: none;
+    border-radius: 0;
+    box-shadow: ${PARCHMENT_EDGE};
+    text-shadow: none;
+}
+html .mechili-tutorial :is(.tut-title, .tut-ctrl-kind) { color: ${INK_RUST}; }
+html .mechili-tutorial .tut-body { color: ${INK_MUTED}; }
+html .mechili-tutorial .tut-ctrl-detail { color: ${INK}; }
+html .mechili-tutorial .tut-ctrl {
+    background: rgba(110, 62, 20, 0.1);
+    border-color: rgba(90, 48, 16, 0.4);
+}
+html .mechili-tutorial .tut-next {
+    ${WOOD_BUTTON}
+    border-radius: 3px;
+}
+html .mechili-tutorial .tut-next:hover { border-color: #6a6058; color: ${u.brassLight}; }
+/* the menu's Cancel has no ground of its own: a dark red on the parchment */
+html .mechili-menu .m-cancel { color: #8a2a14; border-color: rgba(138, 42, 20, 0.55); }
+html .mechili-menu .m-cancel:hover { border-color: #8a2a14; }
+/* the Steam friends list: a parchment note in ink, its invite buttons wood */
+html .mechili-friends {
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
+    border: none;
+    border-radius: 0;
+    box-shadow: ${PARCHMENT_EDGE};
+    text-shadow: none;
+}
+html .mechili-friends .fr-title { color: ${INK_RUST}; }
+html .mechili-friends :is(.fr-close, .fr-state, .fr-empty, .fr-note, .fr-overlay-btn) { color: ${INK_MUTED}; }
+html .mechili-friends .fr-close:hover { color: ${INK}; }
+html .mechili-friends .fr-row.in-game { border-color: #3d6e2a; }
+html .mechili-friends .fr-row.in-game .fr-state { color: #3d6e2a; }
+html .mechili-friends .fr-overlay-btn { border-color: rgba(90, 48, 16, 0.45); }
+html .mechili-friends .fr-invite {
+    ${WOOD_BUTTON}
+    border-radius: 3px;
+}
+html .mechili-friends .fr-invite:hover:not(:disabled) { border-color: #6a6058; color: ${u.brassLight}; }
 /* the dialogs as parchment hung from a pole (::before below), written in ink;
    their buttons are wood, their input fields dark wells */
 html .mechili-name-edit .box,
