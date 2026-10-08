@@ -482,7 +482,8 @@ html .mechili-settings .s-advanced > summary::before,
 html .mechili-controls-help .ch-section h2 { color: ${INK_RUST}; }
 html .mechili-settings .s-hint a { border-bottom-color: rgba(106, 52, 16, 0.4); }
 html .mechili-settings .s-row,
-html .mechili-controls-help .ch-row { color: ${INK}; }
+html .mechili-controls-help .ch-row,
+html .mechili-controls-help .ch-desc { color: ${INK}; }
 html .mechili-controls-help .ch-row { border-bottom-color: rgba(90, 55, 20, 0.18); }
 html .mechili-settings .s-hint,
 html .mechili-settings .s-advanced > summary,
@@ -708,6 +709,11 @@ html .mechili-name-edit .hint,
 html .mechili-suggest .s-lead,
 html .mechili-suggest .s-discord { color: ${INK_MUTED}; }
 html .mechili-name-edit .error { color: #9a2a1a; }
+/* the avatar upload is a label styled as a button: wood like the others */
+html .mechili-name-edit .avatar-pick {
+    ${WOOD_BUTTON}
+}
+html .mechili-name-edit .avatar-pick:hover { border-color: #6a6058; color: ${u.brassLight}; }
 html .mechili-name-edit .box button,
 html .mechili-suggest .box button,
 html .mechili-pause .pause-box button,
