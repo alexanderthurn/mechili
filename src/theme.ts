@@ -284,8 +284,6 @@ const POLE = `
         repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.2) 0 2px, transparent 2px 9px, rgba(220, 180, 130, 0.08) 9px 10px, transparent 10px 17px),
         linear-gradient(180deg, #6b4c30 0%, #3d2a1a 55%, #1f150c 100%);
     `;
-// a stitched hem just inside the edge
-const STITCH = 'outline: 1px dashed rgba(240, 222, 186, 0.28); outline-offset: -6px;';
 
 /** parchment mottling (large soft blotches) and fibre (fine streaks), as SVG noise tiles */
 const PARCHMENT_MOTTLE_SVG = "<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='m'><feTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='3' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.38 0 0 0 0 0.24 0 0 0 0 0.1 0 0 0 0.8 -0.18'/></filter><rect width='100%' height='100%' filter='url(#m)'/></svg>";
@@ -329,37 +327,14 @@ const WOOD_BUTTON = `
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);`;
 
 /**
- * Old cloth for the large surfaces (menus, dialogs, the docked panels), like the
- * commanders' banners: faded dark linen, coarse weave, a few soft folds and stains,
- * grime gathering toward the edges.
- */
-const CLOTH_FILL = `
-        radial-gradient(ellipse 120px 60px at 18% 78%, rgba(30, 18, 8, 0.28), transparent 70%),
-        radial-gradient(ellipse 90px 70px at 72% 24%, rgba(30, 18, 8, 0.22), transparent 70%),
-        radial-gradient(ellipse 70px 40px at 86% 82%, rgba(255, 228, 180, 0.05), transparent 70%),
-        linear-gradient(90deg, transparent 0 14%, rgba(0, 0, 0, 0.16) 19%, transparent 25%, transparent 46%, rgba(255, 232, 190, 0.05) 51%, transparent 56%, transparent 70%, rgba(0, 0, 0, 0.14) 76%, transparent 82%),
-        linear-gradient(180deg, transparent 0 30%, rgba(0, 0, 0, 0.1) 36%, transparent 44%, transparent 68%, rgba(255, 232, 190, 0.04) 73%, transparent 79%),
-        repeating-linear-gradient(0deg, rgba(255, 238, 205, 0.045) 0 1px, transparent 1px 3px),
-        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.12) 0 1px, transparent 1px 3px),
-        linear-gradient(170deg, #6a5541 0%, #57452f 50%, #45362a 100%)
-    `;
-
-/**
- * Shared fantasy material primitives — old plank wood with worn edges and forged
- * iron corner brackets (like the commander portrait), slots recessed into the wood,
- * wooden buttons with an iron edge. Opt-in via `.m-frame` / `.m-slot` / `.m-btn-bronze`,
- * or applied to specific surfaces (settings, shop) in Phase 1.
+ * Shared fantasy material primitives, in the look of the commanders' top bar (a
+ * painted portrait in a worn wooden frame, an old banner on a pole): surfaces are aged
+ * parchment hung from a wooden pole and written in ink (PARCHMENT_FILL, INK…), buttons
+ * and tabs are wood with an iron edge (WOOD_BUTTON), slots are dark wood with an iron
+ * rim. Opt-in via `.m-frame` / `.m-slot` / `.m-btn-bronze`, or applied to specific
+ * surfaces below (menus, dialogs, docked panels, tips).
  */
 function materialStyles(u: (typeof THEME)['ui']): string {
-    // the large surfaces are cloth now (the wood stays for poles, slots and buttons)
-    const leatherFill = CLOTH_FILL;
-    // cloth: a soft drop shadow, a dark outline, grime gathering toward the edges
-    const bronzeBevel = `
-        0 10px 26px rgba(0, 0, 0, 0.55),
-        0 0 0 1px rgba(12, 8, 5, 0.9),
-        inset 0 0 22px rgba(20, 12, 5, 0.38),
-        inset 0 0 0 1px rgba(255, 230, 190, 0.06)
-    `;
     return `
 /* --- fantasy material primitives --- */
 .m-frame {
@@ -729,18 +704,17 @@ html .mechili-resume .resume-box::before {
     z-index: 2;
     ${POLE}
 }
-/* Slim bronze chrome — compact HUD strips / chips / tips.
-   Skip docked corner tabs (phone-menu) — multi-ring shadows look square on asymmetric radii. */
+/* the open chat: a dark wooden board (its lines keep their own light colours) */
 html .mechili-chat.open .c-panel {
     color: ${u.cream};
-    background: ${leatherFill};
-    border-color: ${u.frameMid};
+    background:
+        repeating-linear-gradient(1.5deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 4px, rgba(255, 220, 170, 0.03) 4px 5px, transparent 5px 7px),
+        linear-gradient(160deg, #3a2a1c 0%, #2a1e14 48%, #1b130c 100%);
+    border-color: #3a342e;
     box-shadow:
         0 4px 14px rgba(0, 0, 0, 0.45),
-        0 0 0 1px rgba(12, 8, 5, 0.9),
-        inset 0 0 14px rgba(20, 12, 5, 0.34);
-    outline: 1px dashed rgba(230, 210, 170, 0.16);
-    outline-offset: -4px;
+        0 0 0 1px #120d09,
+        inset 1px 1px 0 rgba(214, 170, 120, 0.14);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
