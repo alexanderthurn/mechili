@@ -597,6 +597,30 @@ html .mechili-report .r-row .n.player { color: ${shadeCss(teamColors.player.hex,
 html .mechili-report .r-row .n.enemy { color: ${shadeCss(teamColors.enemy.hex, -0.3)}; }
 html .mechili-report .r-row .d { color: ${INK_RUST}; font-weight: 700; }
 html .forge-slot-preview.recipes .forge-recipes-hint { color: ${INK_MUTED}; }
+/* small parchment chips: the player's name in the menu corner, the replay controls,
+   the lobby settings' tip */
+html .mechili-username,
+html .mechili-replay-controls,
+html .m-lobby-setting-tip {
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
+    border: none;
+    box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(70, 40, 15, 0.55),
+        inset 0 0 14px rgba(105, 56, 18, 0.5),
+        inset 0 0 3px rgba(60, 28, 6, 0.55);
+    text-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+html .mechili-username:hover { color: ${INK_RUST}; }
+html .mechili-username::before { color: ${INK_RUST}; }
+html .mechili-replay-controls .rc-speed-hint { color: ${INK_MUTED}; }
+html .mechili-replay-controls button {
+    ${WOOD_BUTTON}
+}
+html .mechili-replay-controls button:hover { border-color: #6a6058; color: ${u.brassLight}; }
 /* the dialogs as parchment hung from a pole (::before below), written in ink;
    their buttons are wood, their input fields dark wells */
 html .mechili-name-edit .box,
@@ -670,10 +694,7 @@ html .mechili-resume .resume-box::before {
 }
 /* Slim bronze chrome — compact HUD strips / chips / tips.
    Skip docked corner tabs (phone-menu) — multi-ring shadows look square on asymmetric radii. */
-html .mechili-username,
-html .mechili-replay-controls,
-html .mechili-chat.open .c-panel,
-html .m-lobby-setting-tip {
+html .mechili-chat.open .c-panel {
     color: ${u.cream};
     background: ${leatherFill};
     border-color: ${u.frameMid};
