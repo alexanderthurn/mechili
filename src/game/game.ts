@@ -18,6 +18,7 @@ import {
     type ShadowMapType,
     type Material,
     type Texture,
+    type InstancedMesh,
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { setAerialHazeBoard, setDeployShade, setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
@@ -130,7 +131,7 @@ import { takePrewarmedRenderer } from './gpuWarmup';
 import { audio, playMatchMusic, setUnitTypes as setAudioUnitTypes } from './audio';
 import { saveScreenshot, videoRecorder } from './videoRecorder';
 import { saveReloadCamera, takeReloadCamera } from './reloadCamera';
-import { runBenchmark, type BenchmarkOptions } from './perfBenchmark';
+import { runBenchmark, type BenchmarkKnockout, type BenchmarkOptions } from './perfBenchmark';
 import { CloudFx, type CloudCue } from './cloudFx';
 import { ConversionFx } from './conversionFx';
 import { DragonFx } from './dragonFx';
@@ -140,7 +141,7 @@ import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
 import { itemSlotLimit } from './items';
 import { parseElementalId, RUNE_MAX_LEVEL } from './runeMix';
-import { BASE_ANCHORS, BattleMap, CELL, groundHeightAt, mulberry32, outerHeightAt, registerOuterHeight, simGroundSupportAt, worldHeightAt } from './map';
+import { BASE_ANCHORS, BattleMap, CELL, type GroundBenchFeature, groundHeightAt, mulberry32, outerHeightAt, registerOuterHeight, simGroundSupportAt, worldHeightAt } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
 import {
@@ -1249,6 +1250,111 @@ export class Game {
     }
 
     /**
+     * mechiliBenchmark({ breakdown: true }): parts of the scenery to switch off one
+     * at a time (each returns how to put itself back). Measuring only — nothing
+     * here is a setting.
+     */
+    /** the board ground shader, feature by feature (each row rebuilds it without that one) */
+    private benchGroundKnockouts(): BenchmarkKnockout[] {
+        const rows: [string, GroundBenchFeature[]][] = [
+            ['board: no hex tiling (anywhere)', ['hex']],
+            ['board: no hex on normal maps', ['hexNormals']],
+            ['board: no grass variants', ['variants']],
+            ['board: no close-up tile', ['closeTile']],
+            ['board: no detail layer', ['detail']],
+            ['board: no ground zones', ['zones']],
+            ['board: no slope rock', ['rock']],
+            ['board: no slope rock normals', ['rockNormal']],
+            ['board: no slope earth', ['slopeEarth']],
+            ['board: no wear (footprints, blood)', ['wear']],
+            ['board: no anisotropic filtering', ['aniso']],
+            ['board: no hex + no close-up tile', ['hex', 'closeTile']],
+        ];
+        return [
+            this.benchKnockouts().find((k) => k.label === 'plain board ground shader')!,
+            ...rows.map(([label, features]) => ({ label, apply: () => this.map.benchGroundWithout(this.groundMesh, features) })),
+        ];
+    }
+
+    private benchKnockouts(): BenchmarkKnockout[] {
+        const hide = (objects: Object3D[]) => {
+            const was = objects.map((o) => o.visible);
+            for (const o of objects) o.visible = false;
+            return () => objects.forEach((o, i) => (o.visible = was[i]!));
+        };
+        const swapMaterial = (mesh: Mesh | null, plain: Material) => {
+            if (!mesh) return () => plain.dispose();
+            const was = mesh.material;
+            mesh.material = plain;
+            return () => {
+                mesh.material = was;
+                plain.dispose();
+            };
+        };
+        return [
+            {
+                label: 'scenery casts no shadows',
+                apply: () => {
+                    const casters: Mesh[] = [];
+                    this.scenery.group.traverse((o) => {
+                        const m = o as Mesh;
+                        if (m.isMesh && m.castShadow) casters.push(m);
+                    });
+                    for (const m of casters) m.castShadow = false;
+                    this.shadowMapFrame = 0;
+                    return () => {
+                        for (const m of casters) m.castShadow = true;
+                        this.shadowMapFrame = 0;
+                    };
+                },
+            },
+            {
+                label: 'shadow map 1024',
+                apply: () => {
+                    const was = this.sun.shadow.mapSize.x;
+                    const set = (res: number) => {
+                        this.sun.shadow.mapSize.set(res, res);
+                        this.sun.shadow.map?.dispose();
+                        this.sun.shadow.map = null;
+                        this.shadowMapFrame = 0;
+                    };
+                    set(1024);
+                    return () => set(was);
+                },
+            },
+            {
+                label: 'plain board ground shader',
+                apply: () => swapMaterial(this.groundMesh, new MeshLambertMaterial({ color: 0x5f7a3a })),
+            },
+            {
+                label: 'plain meadow/mountain shader',
+                apply: () => swapMaterial(this.scenery.benchOuterGround(), new MeshLambertMaterial({ color: 0x5f7a3a })),
+            },
+            {
+                label: 'no decoration (trees, flowers, tufts…)',
+                apply: () => {
+                    const instanced: Object3D[] = [];
+                    this.scenery.group.traverse((o) => {
+                        if ((o as InstancedMesh).isInstancedMesh) instanced.push(o);
+                    });
+                    return hide(instanced);
+                },
+            },
+            {
+                label: 'view distance 1400',
+                apply: () => {
+                    this.rig.setWorldFar(1400);
+                    return () => this.rig.setWorldFar(sceneryCameraFar(prefs().scenery));
+                },
+            },
+            {
+                label: 'no water, clouds, fog cards',
+                apply: () => hide(this.scenery.benchWaterAndSky()),
+            },
+        ];
+    }
+
+    /**
      * The editor's side switch swaps the armies' ends (the side being built is
      * always drawn near). Start from the mirrored pose — half a turn round the
      * board centre, which shows exactly the picture before the swap — and orbit
@@ -1553,12 +1659,16 @@ export class Game {
         // console-callable graphics benchmark: mechiliBenchmark() or mechiliBenchmark({ stepMs: 3000 })
         (window as unknown as { mechiliBenchmark?: (opts?: BenchmarkOptions) => Promise<unknown> }).mechiliBenchmark =
             (opts) => {
+                const benchBreakdown = (opts as { breakdown?: boolean | 'ground' } | undefined)?.breakdown;
                 if (this.star) console.warn('mechiliBenchmark: multiplayer match keeps running — numbers drift with the battle');
                 return runBenchmark({
                     ...opts,
                     hold: (on) => {
                         this.benchmarkHold = on;
                     },
+                    // mechiliBenchmark({ breakdown: true }): the Medium scenery, part by part;
+                    // { breakdown: 'ground' }: the board ground shader, feature by feature
+                    breakdown: benchBreakdown === 'ground' ? this.benchGroundKnockouts() : benchBreakdown ? this.benchKnockouts() : undefined,
                 });
             };
         this.settings = normalizeGameSettings(settingsInput);

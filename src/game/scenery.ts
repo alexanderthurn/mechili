@@ -59,7 +59,7 @@ import {
     worldHeightAt,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, texRGB, GRASS_VARIANTS, grassVariantsGlsl, grassVariantsMapFragment, grassVariantsMeadowEdge, LAWN_SNOW_COLOR_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, texRGB, GRASS_VARIANTS, grassVariantsGlsl, grassVariantsMapFragment, grassVariantsMeadowEdge, LAWN_SNOW_COLOR_GLSL, OUTER_LAWN_EDGE, OUTER_LAWN_FADE, OUTER_LAWN_TINT_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -624,6 +624,22 @@ export class Scenery {
     /** how far past the board the outer world reaches (MOUNTAIN_PEAK_END × os) */
     private readonly reach: number;
     /** how far past the board the outer world reaches — the camera's bounds */
+    /** benchmark breakdown only (mechiliBenchmark({ breakdown: true })): the outer ground mesh */
+    benchOuterGround(): Mesh | null {
+        return this.outerGroundMesh;
+    }
+
+    /** benchmark breakdown only: water, sky / summit clouds, forest fog and mist cards */
+    benchWaterAndSky(): Object3D[] {
+        return [
+            ...(this.waterMesh ? [this.waterMesh] : []),
+            ...this.clouds.map((c) => c.mesh),
+            ...this.peakClouds.map((c) => c.mesh),
+            ...this.fogCards.map((c) => c.mesh),
+            ...this.mistBanks.map((c) => c.mesh),
+        ];
+    }
+
     get outerReach(): number {
         return this.reach;
     }
@@ -2907,6 +2923,8 @@ export class Scenery {
             metalness: 0,
             flatShading: false,
         });
+        // the deployment focus shades all of it, also where it pokes up at the board's edge
+        material.defines = { ...material.defines, DEPLOY_SHADE_ALL: '' };
         const mesh = new Mesh(geometry, material);
         mesh.position.y = -0.05;
         mesh.receiveShadow = true;
@@ -3373,6 +3391,8 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
         material.color.set(0xffffff);
         const useDetail = profile.detailStrength > 0;
         const hex = profile.hexTile;
+        const hexDetail = hex && profile.hexDetail;
+        const hexNormals = hex && profile.hexNormals;
         const bomb = useDetail && profile.textureBomb && !hex;
         // Hex grid in the board's lawn UV: the meadow's UV (with the phase offset
         // above) is (x + size/2) / tile + frac(halfW / tile) along x and the same
@@ -3455,18 +3475,20 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 inject += textureBombGlsl((uv) => closeTileSampleGlsl(profile, uv));
             }
             if (useDetail) {
-                if (hex) {
-                    const detailUv = profile.closeRepeat > 1.01 ? 'mix( vMapUv, closeUv, closeW )' : 'vMapUv';
+                // in the board's lawn UV, so the scaled detail runs on across the border
+                const lawnUv = hex ? '( vMapUv + uHexShift )' : 'vMapUv';
+                const detailUv = profile.closeRepeat > 1.01 ? `mix( ${lawnUv}, closeUv, closeW )` : lawnUv;
+                if (hexDetail) {
                     inject += `
-    vec3 detailAlb = hexTileRGB( map, ( ${detailUv} + uHexShift ) * uDetailScale );
+    vec3 detailAlb = hexTileRGB( map, ${detailUv} * uDetailScale );
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
                 } else if (profile.closeRepeat > 1.01) {
                     inject += `
-    vec3 detailAlb = texture2D(map, mix( vMapUv, closeUv, closeW ) * uDetailScale).rgb;
+    vec3 detailAlb = texture2D(map, ${detailUv} * uDetailScale).rgb;
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
                 } else {
                     inject += `
-    vec3 detailAlb = texture2D(map, vMapUv * uDetailScale).rgb;
+    vec3 detailAlb = texture2D(map, ${detailUv} * uDetailScale).rgb;
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);`;
                 }
             }
@@ -3500,10 +3522,15 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
     // Photo accents fade when zoomed in — keep close lawn uniform
 ${pgClose}`;
             }
+            // the board's average lawn tone (OUTER_LAWN_TINT), fading in past the board edge;
+            // after the close-up tile, which would otherwise swap it back out near the camera
+            inject += `
+    float otPast = length( max( abs( vWorldXZ ) - vec2( ${map.halfW.toFixed(1)}, ${map.halfH.toFixed(1)} ), 0.0 ) );
+    diffuseColor.rgb *= mix( vec3( 1.0 ), ${OUTER_LAWN_TINT_GLSL}, mix( ${OUTER_LAWN_EDGE[profile.tier].toFixed(2)}, 1.0, smoothstep( ${OUTER_LAWN_FADE.from.toFixed(1)}, ${OUTER_LAWN_FADE.to.toFixed(1)}, otPast ) ) );`;
             if (shore) {
                 inject += `
     // gravel shore where the geometry says so: lake banks + rare dry patches
-    diffuseColor.rgb = mix(diffuseColor.rgb, ${texRGB('uShore', `vWorldXZ / ${shoreTile.toFixed(1)}`, hex)}, vBeach);`;
+    diffuseColor.rgb = mix(diffuseColor.rgb, ${texRGB('uShore', `vWorldXZ / ${shoreTile.toFixed(1)}`, hexDetail)}, vBeach);`;
                 if (sand) {
                     inject += `
     // lake beds: sand on the bank and in the shallows, gravel through the middle,
@@ -3511,8 +3538,8 @@ ${pgClose}`;
     // lapping foam${lakeCaustics ? ', caustics on the shallow bed' : ''}
     float lbDepth = ${WATER_LEVEL_Y.toFixed(2)} - vTerrainH;
     // sampled outside the branch below: a mip-mapped fetch needs uniform control flow
-    vec3 lbSandTex = ${texRGB('uSand', `vWorldXZ / ${LAKE_SAND_TILE.toFixed(1)}`, hex)};
-    vec3 lbGravelBig = ${texRGB('uShore', `vWorldXZ / ${LAKE_GRAVEL_BIG_TILE.toFixed(1)} + vec2(0.37, 0.61)`, hex)};
+    vec3 lbSandTex = ${texRGB('uSand', `vWorldXZ / ${LAKE_SAND_TILE.toFixed(1)}`, hexDetail)};
+    vec3 lbGravelBig = ${texRGB('uShore', `vWorldXZ / ${LAKE_GRAVEL_BIG_TILE.toFixed(1)} + vec2(0.37, 0.61)`, hexDetail)};
     // how big the lake here is (0 pond .. 1 big lake): small water gets calmer shores
     float lbLakeSize = smoothstep(${LAKE_SIZE_SMALL.toFixed(2)}, ${LAKE_SIZE_BIG.toFixed(2)}, texture2D(uLakeDepthTex, (vWorldXZ + uLakeDepthSpan) / (2.0 * uLakeDepthSpan)).g);
     // only near water (or on a gravel patch) does any of this change the colour
@@ -3618,7 +3645,7 @@ ${ROCK_MACRO_GLSL}
                     inject += `
     // scree pockets: shore gravel (small stones piled in concave gullies)
     float screeShow = clamp( vScree * mountainZone * ( 1.0 - snowF ), 0.0, 1.0 );
-    vec3 gravelCol = ${texRGB('uShore', `vWorldXZ / ${shoreMountainTile.toFixed(1)}`, hex)};
+    vec3 gravelCol = ${texRGB('uShore', `vWorldXZ / ${shoreMountainTile.toFixed(1)}`, hexDetail)};
     diffuseColor.rgb = mix( diffuseColor.rgb, gravelCol, screeShow * max( rockF, 0.3 ) );`;
                 }
                 inject += `
@@ -3678,12 +3705,12 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 );
             }
             if (useDetail && normal) {
-                const detailNRead = hex
+                const detailNRead = hexNormals
                     ? 'hexTileNormal( normalMap, ( vMapUv + uHexShift ) * uDetailScale )'
-                    : 'texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0';
-                const closeNRead = hex
+                    : `texture2D( normalMap, ${hex ? '( vMapUv + uHexShift )' : 'vMapUv'} * uDetailScale ).xyz * 2.0 - 1.0`;
+                const closeNRead = hexNormals
                     ? 'hexTileNormal( normalMap, ( vMapUv + uHexShift ) * uCloseRepeat )'
-                    : 'texture2D( normalMap, vMapUv * uCloseRepeat ).xyz * 2.0 - 1.0';
+                    : `texture2D( normalMap, ${hex ? '( vMapUv + uHexShift )' : 'vMapUv'} * uCloseRepeat ).xyz * 2.0 - 1.0`;
                 let normalInject = `#include <normal_fragment_maps>
 \tvec3 detailN = ${detailNRead};
 \tdetailN.xy *= uDetailStrength;
@@ -3695,7 +3722,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 }
                 frag = frag.replace('#include <normal_fragment_maps>', normalInject);
             }
-            if (hex && normal) frag = frag.replace('#include <normal_fragment_maps>', hexNormalFragmentMapsGlsl());
+            if (hexNormals && normal) frag = frag.replace('#include <normal_fragment_maps>', hexNormalFragmentMapsGlsl());
             // rock bumps where the rock shows (after the grass normal, which they replace there)
             if (rockNormal) {
                 frag = frag.replace(
@@ -3714,7 +3741,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
             shader.fragmentShader = frag;
         };
         material.customProgramCacheKey = () =>
-            `outer-meadow-v57-slope-snowhold${hex ? '-hexx' : ''}${grassVariants ? `-gv${JSON.stringify(GRASS_VARIANTS).replace(/[^0-9.]/g, '')}-${map.halfW}x${map.halfH}` : ''}${rock ? '-rock-tri' : ''}${rockNormal ? `-rn${ROCK_NORMAL_STRENGTH}` : ''}${rock ? `-rs${ROCK_SNOW.from}-${ROCK_SNOW.to}-${ROCK_SNOW.breakup}-${ROCK_SNOW.strength}-${ROCK_SNOW.burialFill}` : ''}${rock ? `-rm${ROCK_MACRO.tile}-${ROCK_MACRO.albedo}-${ROCK_MACRO.contrast}-${ROCK_MACRO.normal}-${ROCK_MACRO.strata}-${ROCK_MACRO.strataHeight}` : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
+            `outer-meadow-v57-ot${OUTER_LAWN_TINT_GLSL.replace(/[^0-9.]/g, '')}-${OUTER_LAWN_FADE.from}-${OUTER_LAWN_FADE.to}-e${OUTER_LAWN_EDGE[profile.tier]}-${map.halfW}x${map.halfH}-slope-snowhold${hex ? '-hexx' : ''}${grassVariants ? `-gv${JSON.stringify(GRASS_VARIANTS).replace(/[^0-9.]/g, '')}-${map.halfW}x${map.halfH}` : ''}${rock ? '-rock-tri' : ''}${rockNormal ? `-rn${ROCK_NORMAL_STRENGTH}` : ''}${rock ? `-rs${ROCK_SNOW.from}-${ROCK_SNOW.to}-${ROCK_SNOW.breakup}-${ROCK_SNOW.strength}-${ROCK_SNOW.burialFill}` : ''}${rock ? `-rm${ROCK_MACRO.tile}-${ROCK_MACRO.albedo}-${ROCK_MACRO.contrast}-${ROCK_MACRO.normal}-${ROCK_MACRO.strata}-${ROCK_MACRO.strataHeight}` : ''}${rockPhoto1 ? '-rp' : ''}${photoGrass ? '-pgmild' : ''}${shore ? '-scree-moss' : ''}${sand ? (lakeCaustics ? '-lakebed3-caus' : '-lakebed3') : lakeLite ? '-lakelite' : ''}-shorepx-matpaint-t${shoreTile}-m${shoreMountainTile}-${groundDetailCacheKey(profile)}`;
         material.needsUpdate = true;
     }
 

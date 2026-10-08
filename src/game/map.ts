@@ -393,6 +393,20 @@ const CELL_GRID_FADE_OUT_S = 0.12;
 /** seconds to fade in on later reveals (after the round's first ripple) */
 const CELL_GRID_FADE_IN_S = 0.12;
 
+/** board ground shader features the benchmark can leave out (BattleMap.benchGroundWithout) */
+export type GroundBenchFeature =
+    | 'hex'
+    | 'hexNormals'
+    | 'variants'
+    | 'closeTile'
+    | 'detail'
+    | 'zones'
+    | 'rock'
+    | 'rockNormal'
+    | 'slopeEarth'
+    | 'wear'
+    | 'aniso';
+
 export class BattleMap {
     readonly cols: number;
     readonly rows: number;
@@ -464,6 +478,8 @@ export class BattleMap {
     private hazardFlushAt = 0;
     /** updated each frame for fire flicker in the ground shader */
     private hazardTimeUniform: { value: number } | null = null;
+    /** what the board ground shader was last built from (benchGroundWithout rebuilds it) */
+    private groundShaderArgs: { macro: CanvasTexture; opts: Parameters<BattleMap['attachGroundShader']>[2] } | null = null;
     /** mirrors {@link fireCharcoalGroundUniform} for CPU-side stamp decisions */
     private fireCharcoalGround = false;
     /** 0..1 weather-driven snow dusting on the board (see `setSnowCover`) */
@@ -1806,7 +1822,10 @@ export class BattleMap {
             /** lush / dry / sparse lawn textures laid in the ground zones (needs hex) */
             grassVariants?: import('./worldTextures').GrassVariantTextures | null;
         },
+        /** benchmark only: shader features left out (see benchGroundWithout) */
+        off: ReadonlySet<GroundBenchFeature> = new Set(),
     ): void {
+        this.groundShaderArgs = { macro, opts };
         const {
             hazardMask,
             sand = null,
@@ -1821,9 +1840,11 @@ export class BattleMap {
             grassVariants = null,
         } = opts;
         const profile = groundMaterialProfile();
-        const useDetail = detail && profile.detailStrength > 0;
+        const useDetail = detail && profile.detailStrength > 0 && !off.has('detail');
         // hex tiling replaces the bombing patches (same job, done properly)
-        const hex = detail && profile.hexTile;
+        const hex = detail && profile.hexTile && !off.has('hex');
+        const hexNormals = hex && profile.hexNormals && !off.has('hexNormals');
+        const hexDetail = hex && profile.hexDetail;
         const bomb = useDetail && profile.textureBomb && !hex;
         const variants = hex ? grassVariants : null;
         // A fragment shader reads at most 16 textures (three adds the env map +
@@ -1834,7 +1855,7 @@ export class BattleMap {
         const sandBound = !!(sand && (baseSandMask || sandMask));
         const earthSampler = slopeEarth && sandBound && slopeEarth === sand ? 'uSand' : 'uSlopeEarth';
         const earthOwn = !!slopeEarth && earthSampler === 'uSlopeEarth';
-        const useCloseTile = detail && profile.closeRepeat > 1.01;
+        const useCloseTile = detail && profile.closeRepeat > 1.01 && !off.has('closeTile');
         const richHazards = profile.tier === 'high' || profile.tier === 'ultra';
         material.onBeforeCompile = (shader) => {
             shader.uniforms.uMacro = { value: macro };
@@ -1922,14 +1943,16 @@ export class BattleMap {
                         useCloseTile ? closeTileSampleGlsl(profile, uv) : `texture2D( map, ${uv} ).rgb`,
                     );
                 }
-                const detailUv = useCloseTile ? 'mix( vMapUv, closeUv, closeW )' : 'vMapUv';
-                if (hex) {
+                // the board's lawn UV: uHexShift is 0 here, but the close UV has it added
+                const lawnUv = hex ? '( vMapUv + uHexShift )' : 'vMapUv';
+                const detailUv = useCloseTile ? `mix( ${lawnUv}, closeUv, closeW )` : lawnUv;
+                if (hexDetail) {
                     inject +=
-                        `\tvec3 detailAlb = hexTileRGB( map, ( ${detailUv} + uHexShift ) * uDetailScale );\n` +
+                        `\tvec3 detailAlb = hexTileRGB( map, ${detailUv} * uDetailScale );\n` +
                         '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
                 } else if (useCloseTile) {
                     inject +=
-                        '\tvec3 detailAlb = texture2D(map, mix( vMapUv, closeUv, closeW ) * uDetailScale).rgb;\n' +
+                        `\tvec3 detailAlb = texture2D(map, ${detailUv} * uDetailScale).rgb;\n` +
                         '\tdiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * detailAlb * 2.0, uDetailStrength);\n';
                 } else {
                     inject +=
@@ -1989,7 +2012,7 @@ export class BattleMap {
                 SLOPE_GROUND_FNS;
             // Ground types — lush / straw zones, stony and mossy patches, dry crests —
             // ahead of the slope layers, which then work on top of them
-            if (detail) {
+            if (detail && !off.has('zones')) {
                 inject += groundZonesGlsl({
                     worldPos: 'vGroundWorld',
                     boardXZ: 'vBoardXZ',
@@ -1997,8 +2020,10 @@ export class BattleMap {
                     // the bare-earth patches cost one more read of the dirt: high and ultra only
                     earth: slopeEarth && profile.tier !== 'medium' ? earthSampler : null,
                     strength: profile.tier === 'medium' ? 0.7 : 1,
-                    hex,
-                    textured: !!variants,
+                    hex: hexDetail,
+                    // Medium has no variant textures, but its zones at full tint made its board
+                    // darker and browner than the meadow: the same mild tint as High
+                    textured: !!variants || profile.tier === 'medium',
                 });
             }
             inject += slopeGroundGlsl({
@@ -2007,7 +2032,7 @@ export class BattleMap {
                 earth: slopeEarth ? { sampler: earthSampler, uv: 'vMapUv * 0.7' } : null,
                 rock: slopeRock ? 'uSlopeRock' : null,
                 rockNormal: slopeRock && slopeRockNormal ? 'uSlopeRockNormal' : null,
-                hex,
+                hex: hexDetail,
             });
             if (sandBound) {
                 shader.uniforms.uSand = { value: sand };
@@ -2022,7 +2047,7 @@ export class BattleMap {
                 inject +=
                     '\tfloat baseWearR = texture2D(uBaseSandMask, vMacroUv).r;\n' +
                     '\tfloat baseSandM = smoothstep(0.06, 0.38, baseWearR - (preSnowLum - 0.25) * 0.35);\n' +
-                    `\tdiffuseColor.rgb = mix(diffuseColor.rgb, ${texRGB('uSand', 'vMapUv', hex)}, baseSandM);\n`;
+                    `\tdiffuseColor.rgb = mix(diffuseColor.rgb, ${texRGB('uSand', 'vMapUv', hexDetail)}, baseSandM);\n`;
             }
             // Soft weather frost. Unit footprints / blood / scorch paint after.
             inject +=
@@ -2067,7 +2092,7 @@ export class BattleMap {
                 inject +=
                     '\tvec3 wear = texture2D(uSandMask, vMacroUv).rgb;\n' +
                     '\tfloat sandLum = preSnowLum;\n' +
-                    `\tvec3 sandTexel = ${texRGB('uSand', 'vMapUv', hex)};\n` +
+                    `\tvec3 sandTexel = ${texRGB('uSand', 'vMapUv', hexDetail)};\n` +
                     '\tfloat scorchM = smoothstep(0.04, 0.34, wear.b);\n' +
                     '\tfloat bloodM = smoothstep(0.08, 0.35, wear.g);\n' +
                     '\tfloat sandM = smoothstep(0.06, 0.38, wear.r - (sandLum - 0.25) * 0.35);\n' +
@@ -2119,10 +2144,10 @@ export class BattleMap {
             if (useDetail && material.normalMap) {
                 // Micro normals in the same space as the already-perturbed map
                 // (cheap UDN-style). Avoids perturbNormalArb — removed/changed in r185.
-                const detailNRead = hex
+                const detailNRead = hexNormals
                     ? 'hexTileNormal( normalMap, ( vMapUv + uHexShift ) * uDetailScale )'
                     : 'texture2D( normalMap, vMapUv * uDetailScale ).xyz * 2.0 - 1.0';
-                const closeNRead = hex
+                const closeNRead = hexNormals
                     ? 'hexTileNormal( normalMap, ( vMapUv + uHexShift ) * uCloseRepeat )'
                     : 'texture2D( normalMap, vMapUv * uCloseRepeat ).xyz * 2.0 - 1.0';
                 let normalInject = `#include <normal_fragment_maps>
@@ -2136,7 +2161,7 @@ export class BattleMap {
                 }
                 frag = frag.replace('#include <normal_fragment_maps>', normalInject);
             }
-            if (hex) frag = frag.replace('#include <normal_fragment_maps>', hexNormalFragmentMapsGlsl());
+            if (hexNormals) frag = frag.replace('#include <normal_fragment_maps>', hexNormalFragmentMapsGlsl());
             if (slopeRock && slopeRockNormal) {
                 frag = frag.replace(
                     '#include <clearcoat_normal_fragment_begin>',
@@ -2163,7 +2188,52 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         material.customProgramCacheKey = () =>
             `ground-hazard-v68${richHazards ? '-dyn' : ''}${sand && sandMask ? '-wear-rgb' : ''}${bloodTintMask ? '-gore' : ''}${baseSandMask ? '-base' : ''}${photo ? '-pginner' : ''}${useCloseTile ? '-closey' : ''}${hex ? '-hex2' : ''}${variants ? `-gv${JSON.stringify(GRASS_VARIANTS).replace(/[^0-9.]/g, '')}` : ''}-gs${
                 WEAR_BLEND.grassStampShow.toFixed(2)
-            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? (earthOwn ? 'e' : 'es') : ''}${slopeRock ? 'r2' : ''}${slopeRock && slopeRockNormal ? `n${SLOPE_ROCK_NORMAL}` : ''}${detail ? '-zones7' : ''}`;
+            }-${useDetail ? groundDetailCacheKey(profile) : 'plain'}-fcg-slope${slopeEarth ? (earthOwn ? 'e' : 'es') : ''}${slopeRock ? 'r2' : ''}${slopeRock && slopeRockNormal ? `n${SLOPE_ROCK_NORMAL}` : ''}${detail ? '-zones7' : ''}${off.size ? `-bench-${[...off].sort().join('.')}` : ''}`;
+    }
+
+    /**
+     * Benchmark only: the board ground rebuilt without some of its shader
+     * features (and their textures), to measure what each costs. Returns how
+     * to put the real material back.
+     */
+    benchGroundWithout(mesh: Mesh, features: readonly GroundBenchFeature[]): () => void {
+        const args = this.groundShaderArgs;
+        const real = mesh.material as MeshStandardMaterial;
+        if (!args || !real?.isMeshStandardMaterial) return () => {};
+        const off = new Set(features);
+        const opts = { ...args.opts };
+        // knocking out the variants (or the hex they need) would bring the photo accents back
+        if (off.has('variants') || off.has('hex')) opts.photoGrass = null;
+        if (off.has('variants')) opts.grassVariants = null;
+        if (off.has('rock')) opts.slopeRock = opts.slopeRockNormal = null;
+        if (off.has('rockNormal')) opts.slopeRockNormal = null;
+        if (off.has('slopeEarth')) opts.slopeEarth = null;
+        if (off.has('wear')) opts.sandMask = opts.baseSandMask = opts.bloodTintMask = null;
+        const anisoTextures = off.has('aniso')
+            ? [real.map, real.normalMap, opts.sand, opts.slopeEarth, opts.slopeRock, opts.slopeRockNormal, opts.grassVariants?.lush, opts.grassVariants?.dry, opts.grassVariants?.sparse].filter(
+                  (t): t is import('three').Texture => !!t,
+              )
+            : [];
+        const anisoWas = anisoTextures.map((t) => t.anisotropy);
+        const setAniso = (values: number[]) =>
+            anisoTextures.forEach((t, i) => {
+                t.anisotropy = values[i]!;
+                t.needsUpdate = true;
+            });
+        setAniso(anisoTextures.map(() => 1));
+        const hazardTime = this.hazardTimeUniform;
+        const snowCover = this.snowCoverUniform;
+        const bench = real.clone();
+        this.attachGroundShader(bench, args.macro, opts, off);
+        this.groundShaderArgs = args;
+        mesh.material = bench;
+        return () => {
+            mesh.material = real;
+            bench.dispose();
+            setAniso(anisoWas);
+            this.hazardTimeUniform = hazardTime;
+            this.snowCoverUniform = snowCover;
+        };
     }
 
     /**
@@ -2258,7 +2328,7 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         const rockPack = profile.tier === 'low' ? null : await loadRockTextures();
         const grassVariants = await loadGrassVariantTextures();
         const slopeRock = rockPack?.albedo ?? null;
-        const slopeRockNormal = slopeRock ? (rockPack?.normal ?? null) : null;
+        const slopeRockNormal = slopeRock && profile.slopeRockNormal ? (rockPack?.normal ?? null) : null;
         if (slopeRockNormal) {
             slopeRockNormal.wrapS = slopeRockNormal.wrapT = RepeatWrapping;
             slopeRockNormal.anisotropy = profile.anisotropy;

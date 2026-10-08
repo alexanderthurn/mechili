@@ -151,7 +151,13 @@ export function setHeightFogStrength(scale: number): void {
 	// no sliver of unshaded ground (or the board's edge faces) shows between this and the
 	// board overlay, which shades the same colour and amount up to the edge
 	float deployEdge = max( abs( vFogWorldXZ.x ) - fogParams.y, abs( vFogWorldXZ.y ) - fogParams.z );
-	float deployK = fogParams.x * smoothstep( -0.05, 0.05, deployEdge );
+	#ifdef DEPLOY_SHADE_ALL
+		// the outer ground is outside the board everywhere: where its coarse triangles
+		// rise through the board's edge (a hill just past it), they would show unshaded
+		float deployK = fogParams.x;
+	#else
+		float deployK = fogParams.x * smoothstep( -0.05, 0.05, deployEdge );
+	#endif
 	vec3 deployCol = linearToOutputTexel( vec4( ${DEPLOY_SHADE_RGB}, 1.0 ) ).rgb;
 	gl_FragColor.rgb = mix( gl_FragColor.rgb, deployCol, deployK * ${DEPLOY_SHADE_ALPHA.toFixed(2)} );
 #endif

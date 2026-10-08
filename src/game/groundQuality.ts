@@ -89,8 +89,22 @@ export interface GroundMaterialProfile {
     macroStrength: number;
     /** world-UV texture bombing to break wallpaper tiling (high/ultra; superseded by hexTile) */
     textureBomb: boolean;
-    /** hex tiling of the lawn ({@link HEX_TILE}) — no visible repeat grid */
+    /**
+     * Hex tiling ({@link HEX_TILE}) — no visible repeat grid. Every hex-tiled
+     * read is three texture reads, so it is the board's biggest cost and the
+     * tiers spend it in steps (the base lawn read shows the repeat most):
+     * - hexTile: the base lawn (and the grass variants)
+     * - hexClose: the close-up tile near the camera
+     * - hexDetail: the detail layer and the dirt / sand / shore reads
+     * - hexNormals: the normal-map reads
+     * The others only apply when hexTile is on.
+     */
     hexTile: boolean;
+    hexClose: boolean;
+    hexDetail: boolean;
+    hexNormals: boolean;
+    /** rock bumps on the board's cliffs (the mountains keep theirs) */
+    slopeRockNormal: boolean;
     /**
      * Ground near the camera blends in a tighter UV repeat so grass blades
      * don't look human-sized up close. Per pixel, by distance to the camera,
@@ -119,13 +133,17 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         macroStrength: 1,
         textureBomb: false,
         hexTile: false,
+        hexClose: false,
+        hexDetail: false,
+        hexNormals: false,
+        slopeRockNormal: false,
         closeRepeat: 1,
         closeNear: 30,
         closeFar: 85,
     },
     medium: {
         tier: 'medium',
-        anisotropy: 8,
+        anisotropy: 4,
         normalScale: 0.48,
         detailScale: 5.2,
         detailStrength: 0.38,
@@ -135,11 +153,15 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         macroStrength: 0.82,
         textureBomb: false,
         hexTile: true,
+        hexClose: false,
+        hexDetail: false,
+        hexNormals: false,
+        slopeRockNormal: false,
         ...CLOSE_TILE,
     },
     high: {
         tier: 'high',
-        anisotropy: 16,
+        anisotropy: 8,
         normalScale: 0.85,
         detailScale: 6.5,
         detailStrength: 0.58,
@@ -150,6 +172,10 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         macroStrength: 0.72,
         textureBomb: true,
         hexTile: true,
+        hexClose: true,
+        hexDetail: false,
+        hexNormals: false,
+        slopeRockNormal: true,
         ...CLOSE_TILE,
     },
     ultra: {
@@ -164,6 +190,10 @@ const PROFILES: Record<GroundTextureTier, GroundMaterialProfile> = {
         macroStrength: 0.65,
         textureBomb: true,
         hexTile: true,
+        hexClose: true,
+        hexDetail: true,
+        hexNormals: true,
+        slopeRockNormal: true,
         ...CLOSE_TILE,
     },
 };
@@ -201,7 +231,9 @@ export function groundDetailCacheKey(profile: GroundMaterialProfile): string {
     return `d${profile.detailScale.toFixed(1)}s${profile.detailStrength.toFixed(2)}r${
         profile.roughnessFromAlbedo ? 1 : 0
     }m${profile.macroStrength.toFixed(2)}b${profile.textureBomb ? 1 : 0}` +
-        (profile.hexTile ? `h${HEX_TILE.cellScale}-${HEX_TILE.rotation}-${HEX_TILE.contrast}-${HEX_TILE.normalSharpness}` : '') +
+        (profile.hexTile
+            ? `h${HEX_TILE.cellScale}-${HEX_TILE.rotation}-${HEX_TILE.contrast}-${HEX_TILE.normalSharpness}-${+profile.hexClose}${+profile.hexDetail}${+profile.hexNormals}`
+            : '') +
         `c${profile.closeRepeat.toFixed(1)}-${profile.closeNear}-${profile.closeFar}` +
         `pg${g.density}-${g.strength}-${g.uvScale}` +
         `rk${r.density}-${r.strength}-${r.worldScale}`;
@@ -221,13 +253,15 @@ export function groundDetailCacheKey(profile: GroundMaterialProfile): string {
 export function closeTileInjectGlsl(profile: GroundMaterialProfile, hex = false, lawn = 'hexTileRGB( map, '): string {
     if (profile.closeRepeat <= 1.01) return '';
     // `lawn` opens the hex read of the lawn ("fn( " + uv + " )"): lawnSample( where grass variants are on
-    const closeSample = hex ? `${lawn}( vMapUv + uHexShift ) * uCloseRepeat )` : 'texture2D( map, closeUv ).rgb';
+    const closeSample = hex && profile.hexClose ? `${lawn}( vMapUv + uHexShift ) * uCloseRepeat )` : 'texture2D( map, closeUv ).rgb';
     const planarSample = hex ? `${lawn}vMapUv + uHexShift )` : 'texture2D( map, vMapUv ).rgb';
     return `
 	float closeW = 1.0 - smoothstep( uCloseNear, uCloseFar, distance( cameraPosition, vCloseWorld ) );
 	vec3 closeWorldN = normalize( transformDirectionByInverseViewMatrix( normalize( vNormal ), viewMatrix ) );
 	float steepT = smoothstep( 0.06, 0.22, 1.0 - abs( closeWorldN.y ) );
-	vec2 closeUv = vMapUv * uCloseRepeat;
+	// in the board's lawn UV (uHexShift: the meadow's UV mapped onto it), so the
+	// finer tile runs on across the border — scaled, the meadow's own UV would jump there
+	vec2 closeUv = ${hex ? '( vMapUv + uHexShift )' : 'vMapUv'} * uCloseRepeat;
 	vec3 closeAlb = ${closeSample};
 	// derivatives and texture reads stay outside any branch: inside one the GPU's
 	// mip level (and dFdx) is undefined and neighbouring pixel blocks disagree
@@ -503,6 +537,26 @@ float slopeNoise( vec2 p ) {
 	return mix( mix( a, b, f.x ), mix( c, d, f.x ), f.y );
 }
 `;
+
+/**
+ * The outer meadow's lawn tint (RGB multiplier: red, green, blue), so it reads
+ * like the board, whose ground zones darken and brown its lawn on average.
+ * Lower = darker, a lower blue (third) value = browner, [1, 1, 1] = off.
+ * The board itself is untouched: the tint fades in past its edge, from
+ * OUTER_LAWN_FADE.from to .to wu out, so the border shows no seam.
+ * Tweak live (hard refresh).
+ */
+export const OUTER_LAWN_TINT = [0.75, 0.77, 0.7] as const;
+export const OUTER_LAWN_FADE = { from: 0, to: 45 } as const;
+/**
+ * 0..1 of OUTER_LAWN_TINT already right at the board edge, per tier. A fixed
+ * tint can't follow the board through the seasons (it changes every round),
+ * so this stays 0 unless a tier's board edge is darker in every season.
+ */
+export const OUTER_LAWN_EDGE: Record<GroundTextureTier, number> = { low: 0, medium: 0, high: 0, ultra: 0 };
+
+/** GLSL vec3 of {@link OUTER_LAWN_TINT} */
+export const OUTER_LAWN_TINT_GLSL = `vec3( ${OUTER_LAWN_TINT.map((v) => v.toFixed(3)).join(', ')} )`;
 
 /** how brown the loose patches on flat grass get at most (0 = none) */
 const FLAT_BROWN_PATCHES = 0.6;

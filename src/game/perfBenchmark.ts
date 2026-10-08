@@ -37,9 +37,21 @@ export interface BenchmarkOptions {
     stepMs?: number;
     /** Warmup window at the start of each step, excluded from stats (default 1 000 ms). */
     warmupMs?: number;
+    /**
+     * Breakdown mode: from the Medium preset, switch off ONE part of the scenery
+     * per step (shadows of the scenery, ground shaders, decoration, …) to find
+     * which part costs the frame. Given by Game (it owns the scene).
+     */
+    breakdown?: BenchmarkKnockout[];
     /** Freezes / resumes the match around the run so every step draws the
      *  same frame (wired by Game; solo only). */
     hold?: (on: boolean) => void;
+}
+
+/** one part switched off for a breakdown step; `apply` returns how to put it back */
+export interface BenchmarkKnockout {
+    label: string;
+    apply(): () => void;
 }
 
 export interface BenchmarkResult {
@@ -251,6 +263,27 @@ export async function runBenchmark(opts: BenchmarkOptions = {}): Promise<Benchma
     }
 
     opts.hold?.(true);
+    if (opts.breakdown) {
+        try {
+            // everything from the Medium preset; each step takes one part away
+            await runStep('MEDIUM preset (reference)', GRAPHICS_PRESETS.medium as Partial<Prefs>, 'preset medium');
+            for (const k of opts.breakdown) {
+                const undo = k.apply();
+                try {
+                    await runStep(`medium − ${k.label}`, {}, k.label);
+                } finally {
+                    undo();
+                }
+            }
+        } finally {
+            updatePrefs(saved);
+            opts.hold?.(false);
+            console.info('  ✓ original settings restored');
+        }
+        console.table(results.map(({ label, avgFps, minFps, p1Fps }) => ({ label, avgFps, minFps, p1Fps, ms: Math.round((1000 / avgFps) * 10) / 10 })));
+        return results;
+    }
+
     try {
         // ── 1. Baseline ────────────────────────────────────────────
         await runStep('BASELINE (all off)', BASELINE, 'everything off');
