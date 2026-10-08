@@ -458,15 +458,39 @@ function materialStyles(u: (typeof THEME)['ui']): string {
    html prefix beats later single-class chrome rules in this same stylesheet. */
 html .mechili-menu {
     position: relative;
-    color: ${u.cream};
-    background: ${leatherFill};
+    /* parchment, written in ink; its buttons are wood, its rows and fields dark wells */
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
     border: none;
-    border-radius: 2px;
-    box-shadow: ${bronzeBevel};
-    ${STITCH}
+    border-radius: 0;
+    box-shadow: ${PARCHMENT_EDGE};
+    text-shadow: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
+/* the menu hangs from a pole along its top, inside its edge (it scrolls; anything
+   outside would be clipped) — in place of the old brass accent line */
+html .mechili-menu::before {
+    ${POLE}
+    top: 0;
+    left: 0;
+    right: 0;
+    border-radius: 0;
+    opacity: 1;
+}
+/* text that sits on the menu's parchment itself (rows, buttons and fields keep theirs) */
+html .mechili-menu :is(.m-spmode-row, .m-spmode-horde, .m-lobby-role-row, .m-lobby-ready-row) { color: ${INK}; }
+html .mechili-menu :is(.m-status, .m-rooms-label, .m-scenario-list-label, .m-lobby-settings-toggle, .m-lobby-settings-reset) { color: ${INK_MUTED}; }
+html .mechili-menu .m-field:not(.m-lobby-settings .m-field) { color: ${INK_MUTED}; }
+/* dark wells on the parchment whose text only inherited the menu's colour: light again */
+html .mechili-menu :is(.m-room-list, .m-scenario-row, .m-lobby-settings, .m-mp-count > span) { color: ${u.cream}; }
+html .mechili-menu .m-room-list.empty { color: ${u.textMuted}; }
+html .mechili-menu :is(.m-mp-running, .m-scenario-status, .m-spmode-title, .m-roster-vs, .m-roster-invite) { color: ${INK_RUST}; }
+html .mechili-menu :is(.m-lobby-settings-toggle, .m-roster-invite):hover,
+html .mechili-menu .m-lobby-settings-reset:hover:not(:disabled) { color: ${INK}; }
+html .mechili-menu :is(.m-mp-open, .m-roster-ready) { color: #3d6e2a; }
+html .mechili-menu .m-roster-col-a .m-roster-col-header { color: #1f5c94; }
+html .mechili-menu .m-roster-col-b .m-roster-col-header { color: #9a2a1a; }
 /* settings and the controls help on parchment: their text in ink (tabs, presets,
    selects and key caps stay dark inlaid slots with light lettering) */
 html .mechili-settings .s-title,
@@ -1353,8 +1377,10 @@ ${chatFloatStyles(u, pc, ec)}
     width: 100%;
     box-sizing: border-box;
     padding: 13px 16px;
-    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
-    border: 1.5px solid ${u.frameMid};
+    background:
+        repeating-linear-gradient(1.5deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 4px),
+        linear-gradient(180deg, #4a3422 0%, #33231a 55%, #1f150c 100%);
+    border: 1.5px solid #3a342e;
     border-radius: 4px;
     color: ${u.cream};
     font-size: 16px;
@@ -2121,8 +2147,10 @@ ${chatFloatStyles(u, pc, ec)}
     gap: 4px;
     box-sizing: border-box;
     padding: 14px 10px;
-    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
-    border: 1.5px solid ${u.frameMid};
+    background:
+        repeating-linear-gradient(1.5deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 4px),
+        linear-gradient(180deg, #4a3422 0%, #33231a 55%, #1f150c 100%);
+    border: 1.5px solid #3a342e;
     border-radius: 4px;
     color: ${u.cream};
     font-size: 14px;
@@ -4678,14 +4706,8 @@ ${chatFloatStyles(u, pc, ec)}
     padding: 6px 12px;
     appearance: none;
     -webkit-appearance: none;
-    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
-    border: 1.5px solid ${u.frameMid};
-    border-radius: 4px;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 230, 180, 0.14),
-        inset 0 -2px 4px rgba(0, 0, 0, 0.45),
-        0 2px 8px rgba(0, 0, 0, 0.4);
-    color: ${u.cream};
+    ${WOOD_BUTTON}
+    border-radius: 3px;
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
@@ -4700,8 +4722,8 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-phone-menu:hover {
     color: ${u.brassLight};
-    border-color: ${u.bronzeLight};
-    background: linear-gradient(180deg, #4a4034 0%, ${u.leatherHi} 55%, #1c1610 100%);
+    border-color: #6a6058;
+    filter: brightness(1.12);
     transform: translateY(-1px);
     box-shadow:
         inset 0 1px 0 rgba(255, 230, 180, 0.16),
@@ -4745,10 +4767,9 @@ ${chatFloatStyles(u, pc, ec)}
     height: 54px;
     min-height: 54px;
     padding: 4px 8px;
-    background: ${u.panelBgSolid};
-    border: 2px solid ${u.border};
+    ${WOOD_BUTTON}
+    border-width: 2px;
     border-radius: 3px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     appearance: none;
     cursor: pointer;
     pointer-events: auto;
@@ -4797,7 +4818,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-phone-status .level-all-global { transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
 .mechili-extras .level-all-global:hover,
 .shop-toolbar .level-all-global:hover,
-.mechili-phone-status .level-all-global:hover { border-color: ${u.hover}; transform: translateY(-1px); }
+.mechili-phone-status .level-all-global:hover { border-color: #6a6058; filter: brightness(1.12); transform: translateY(-1px); }
 .mechili-extras .level-all-global:active,
 .shop-toolbar .level-all-global:active,
 .mechili-phone-status .level-all-global:active { transform: scale(0.96); }
