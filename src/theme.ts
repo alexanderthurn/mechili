@@ -267,71 +267,106 @@ function gamepadCursorStyles(u: (typeof THEME)['ui']): string {
 `;
 }
 
+// the pole a cloth surface hangs from: dark wood along its top edge, iron caps at the ends
+const POLE = `
+    inset: auto;
+    top: -5px;
+    left: -9px;
+    right: -9px;
+    height: 8px;
+    border-radius: 3px;
+    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.6);
+    background:
+        radial-gradient(circle at 4px 50%, #7a7068 0 1.2px, #3a342e 2.4px, #16120e 3.8px, transparent 4.2px),
+        radial-gradient(circle at calc(100% - 4px) 50%, #7a7068 0 1.2px, #3a342e 2.4px, #16120e 3.8px, transparent 4.2px),
+        linear-gradient(180deg, #5a534c 0%, #2c2723 60%, #17130f 100%) 18px 0 / 4px 100% no-repeat,
+        linear-gradient(180deg, #5a534c 0%, #2c2723 60%, #17130f 100%) calc(100% - 18px) 0 / 4px 100% no-repeat,
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.2) 0 2px, transparent 2px 9px, rgba(220, 180, 130, 0.08) 9px 10px, transparent 10px 17px),
+        linear-gradient(180deg, #6b4c30 0%, #3d2a1a 55%, #1f150c 100%);
+    `;
+// a stitched hem just inside the edge
+const STITCH = 'outline: 1px dashed rgba(240, 222, 186, 0.28); outline-offset: -6px;';
+
+/** parchment mottling (large soft blotches) and fibre (fine streaks), as SVG noise tiles */
+const PARCHMENT_MOTTLE_SVG = "<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='m'><feTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='3' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.38 0 0 0 0 0.24 0 0 0 0 0.1 0 0 0 0.8 -0.18'/></filter><rect width='100%' height='100%' filter='url(#m)'/></svg>";
+const PARCHMENT_FIBRE_SVG = "<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.75 0.25' numOctaves='2' seed='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.25 0 0 0 0 0.14 0 0 0 0.22 0'/></filter><rect width='100%' height='100%' filter='url(#f)'/></svg>";
+
 /**
- * Shared fantasy material primitives — carved bronze frames, leather fills,
- * recessed slots, bronze buttons. Opt-in via `.m-frame` / `.m-slot` / `.m-btn-bronze`,
+ * Old parchment: light and warm, smooth, faintly mottled and fibrous, browned toward
+ * the edges (the inset shadow of the surface does the burnt edge). Dark ink on it.
+ */
+const PARCHMENT_FILL = `
+        url("data:image/svg+xml,${encodeURIComponent(PARCHMENT_FIBRE_SVG)}"),
+        url("data:image/svg+xml,${encodeURIComponent(PARCHMENT_MOTTLE_SVG)}"),
+        /* stains: water marks, smudges of soot from handling */
+        radial-gradient(ellipse 60px 34px at 22% 74%, rgba(105, 60, 22, 0.24), transparent 72%),
+        radial-gradient(ellipse 40px 26px at 64% 86%, rgba(70, 42, 18, 0.2), transparent 70%),
+        radial-gradient(ellipse 34px 20px at 12% 20%, rgba(60, 40, 22, 0.16), transparent 70%),
+        radial-gradient(ellipse 26px 18px at 90% 70%, rgba(40, 26, 12, 0.18), transparent 70%),
+        /* yellowed with age, darker toward the edges */
+        radial-gradient(ellipse at 48% 40%, #e2cfa0 0%, #d2b783 50%, #b8955f 100%)
+    `;
+/** the ink on parchment */
+const INK = '#2b1d10';
+
+/**
+ * Old cloth for the large surfaces (menus, dialogs, the docked panels), like the
+ * commanders' banners: faded dark linen, coarse weave, a few soft folds and stains,
+ * grime gathering toward the edges.
+ */
+const CLOTH_FILL = `
+        radial-gradient(ellipse 120px 60px at 18% 78%, rgba(30, 18, 8, 0.28), transparent 70%),
+        radial-gradient(ellipse 90px 70px at 72% 24%, rgba(30, 18, 8, 0.22), transparent 70%),
+        radial-gradient(ellipse 70px 40px at 86% 82%, rgba(255, 228, 180, 0.05), transparent 70%),
+        linear-gradient(90deg, transparent 0 14%, rgba(0, 0, 0, 0.16) 19%, transparent 25%, transparent 46%, rgba(255, 232, 190, 0.05) 51%, transparent 56%, transparent 70%, rgba(0, 0, 0, 0.14) 76%, transparent 82%),
+        linear-gradient(180deg, transparent 0 30%, rgba(0, 0, 0, 0.1) 36%, transparent 44%, transparent 68%, rgba(255, 232, 190, 0.04) 73%, transparent 79%),
+        repeating-linear-gradient(0deg, rgba(255, 238, 205, 0.045) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.12) 0 1px, transparent 1px 3px),
+        linear-gradient(170deg, #6a5541 0%, #57452f 50%, #45362a 100%)
+    `;
+
+/**
+ * Shared fantasy material primitives — old plank wood with worn edges and forged
+ * iron corner brackets (like the commander portrait), slots recessed into the wood,
+ * wooden buttons with an iron edge. Opt-in via `.m-frame` / `.m-slot` / `.m-btn-bronze`,
  * or applied to specific surfaces (settings, shop) in Phase 1.
  */
 function materialStyles(u: (typeof THEME)['ui']): string {
-    const leatherFill = `
-        radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
-        radial-gradient(ellipse at 78% 88%, rgba(0, 0, 0, 0.35), transparent 48%),
-        repeating-linear-gradient(
-            0deg,
-            transparent,
-            transparent 2px,
-            rgba(0, 0, 0, 0.035) 2px,
-            rgba(0, 0, 0, 0.035) 3px
-        ),
-        linear-gradient(165deg, ${u.leatherHi} 0%, ${u.leatherMid} 42%, ${u.leather} 100%)
-    `;
+    // the large surfaces are cloth now (the wood stays for poles, slots and buttons)
+    const leatherFill = CLOTH_FILL;
+    // cloth: a soft drop shadow, a dark outline, grime gathering toward the edges
     const bronzeBevel = `
-        0 10px 28px rgba(0, 0, 0, 0.55),
-        0 0 0 1px ${u.frameEdge},
-        0 0 0 3px ${u.frameMid},
-        0 0 0 4px ${u.frameHi},
-        0 0 0 5px ${u.frameLo},
-        inset 0 1px 0 rgba(255, 230, 180, 0.2),
-        inset 0 -2px 6px rgba(0, 0, 0, 0.5),
-        inset 1px 0 0 rgba(255, 220, 160, 0.06),
-        inset -1px 0 0 rgba(0, 0, 0, 0.28)
+        0 10px 26px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(12, 8, 5, 0.9),
+        inset 0 0 22px rgba(20, 12, 5, 0.38),
+        inset 0 0 0 1px rgba(255, 230, 190, 0.06)
     `;
-    const gem = (pos: string) =>
-        `radial-gradient(circle at ${pos}, ${u.gem} 0 2.5px, ${u.gemDeep} 2.5px 3.5px, ${u.frameHi} 3.5px 6px, ${u.frameLo} 6px 7.5px, transparent 8px)`;
-
     return `
 /* --- fantasy material primitives --- */
 .m-frame {
     position: relative;
     color: ${u.cream};
     background: ${leatherFill};
-    border: 1px solid ${u.frameLo};
-    border-radius: 4px;
+    border: none;
+    border-radius: 2px;
     box-shadow: ${bronzeBevel};
+    ${STITCH}
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
 .m-frame::before {
     content: '';
     position: absolute;
-    inset: 0;
     pointer-events: none;
     z-index: 2;
-    border-radius: inherit;
-    background:
-        ${gem('8px 8px')},
-        ${gem('calc(100% - 8px) 8px')},
-        ${gem('8px calc(100% - 8px)')},
-        ${gem('calc(100% - 8px) calc(100% - 8px)')};
+    ${POLE}
 }
 .m-frame--slim {
     box-shadow:
         0 4px 14px rgba(0, 0, 0, 0.45),
-        0 0 0 1px ${u.frameEdge},
-        0 0 0 2px ${u.frameMid},
-        0 0 0 3px ${u.frameLo},
-        inset 0 1px 0 rgba(255, 230, 180, 0.14),
-        inset 0 -1px 4px rgba(0, 0, 0, 0.4);
+        0 0 0 1px rgba(12, 8, 5, 0.9),
+        inset 0 0 14px rgba(20, 12, 5, 0.34);
+    outline-offset: -4px;
 }
 .m-frame--slim::before { display: none; }
 .m-titleplate {
@@ -348,20 +383,24 @@ function materialStyles(u: (typeof THEME)['ui']): string {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
 }
 .m-slot {
-    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
-    border: 1px solid ${u.slotBorder};
-    border-radius: 3px;
+    background:
+        repeating-linear-gradient(1.5deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 4px),
+        linear-gradient(180deg, #0d0906 0%, #17100a 55%, #1d140c 100%);
+    border: 1px solid #2c2723;
+    border-radius: 2px;
     box-shadow:
-        inset 0 2px 5px rgba(0, 0, 0, 0.7),
-        inset 0 -1px 0 rgba(255, 220, 160, 0.05),
-        0 1px 0 rgba(180, 140, 80, 0.12);
+        inset 0 2px 5px rgba(0, 0, 0, 0.75),
+        inset 0 -1px 0 rgba(214, 170, 120, 0.06),
+        0 1px 0 rgba(214, 170, 120, 0.1);
 }
 .m-btn-bronze {
     appearance: none;
     -webkit-appearance: none;
-    background: linear-gradient(180deg, #3a3028 0%, ${u.leatherMid} 55%, #181410 100%);
-    border: 1.5px solid ${u.frameMid};
-    border-radius: 4px;
+    background:
+        repeating-linear-gradient(1.5deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 4px),
+        linear-gradient(180deg, #4a3422 0%, #33231a 55%, #1f150c 100%);
+    border: 1.5px solid #3a342e;
+    border-radius: 3px;
     color: ${u.cream};
     font-weight: 700;
     letter-spacing: 0.06em;
@@ -373,7 +412,7 @@ function materialStyles(u: (typeof THEME)['ui']): string {
     transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
 }
 .m-btn-bronze:hover {
-    border-color: ${u.bronzeLight};
+    border-color: #6a6058;
     color: ${u.bronzeLight};
     transform: translateY(-1px);
 }
@@ -386,7 +425,7 @@ function materialStyles(u: (typeof THEME)['ui']): string {
         0 0 0 3px rgba(184, 146, 74, 0.35);
 }
 .m-btn-bronze.primary {
-    border-color: ${u.bronze};
+    border-color: #5a524a;
     color: ${u.bronzeLight};
 }
 
@@ -400,9 +439,10 @@ html .mechili-resume .resume-box {
     position: relative;
     color: ${u.cream};
     background: ${leatherFill};
-    border: 1px solid ${u.frameLo};
-    border-radius: 4px;
+    border: none;
+    border-radius: 2px;
     box-shadow: ${bronzeBevel};
+    ${STITCH}
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
@@ -430,15 +470,9 @@ html .mechili-pause .pause-box::before,
 html .mechili-resume .resume-box::before {
     content: '';
     position: absolute;
-    inset: 0;
     pointer-events: none;
     z-index: 2;
-    border-radius: inherit;
-    background:
-        ${gem('8px 8px')},
-        ${gem('calc(100% - 8px) 8px')},
-        ${gem('8px calc(100% - 8px)')},
-        ${gem('calc(100% - 8px) calc(100% - 8px)')};
+    ${POLE}
 }
 /* Slim bronze chrome — compact HUD strips / chips / tips.
    Skip docked corner tabs (phone-menu) — multi-ring shadows look square on asymmetric radii. */
@@ -457,11 +491,10 @@ html .m-lobby-setting-tip {
     border-color: ${u.frameMid};
     box-shadow:
         0 4px 14px rgba(0, 0, 0, 0.45),
-        0 0 0 1px ${u.frameEdge},
-        0 0 0 2px ${u.frameMid},
-        0 0 0 3px ${u.frameLo},
-        inset 0 1px 0 rgba(255, 230, 180, 0.14),
-        inset 0 -1px 4px rgba(0, 0, 0, 0.4);
+        0 0 0 1px rgba(12, 8, 5, 0.9),
+        inset 0 0 14px rgba(20, 12, 5, 0.34);
+    outline: 1px dashed rgba(230, 210, 170, 0.16);
+    outline-offset: -4px;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
@@ -476,44 +509,31 @@ html .mechili-fightbar .fighter {
 }
 
 /* Docked unit panel — ornate but edge-aware (like shop) */
+/* TEST: the details pane as parchment (hung from its pole like a scroll), dark ink */
 html .mechili-panel {
-    color: ${u.cream};
-    background: ${leatherFill};
-    border: 1px solid ${u.frameLo};
-    border-left: none;
-    border-bottom: none;
-    border-radius: 6px 0 0 0;
+    color: ${INK};
+    background: ${PARCHMENT_FILL};
+    border: none;
+    border-radius: 0;
     box-shadow:
         0 8px 22px rgba(0, 0, 0, 0.5),
-        0 0 0 1px ${u.frameEdge},
-        2px 0 0 0 ${u.frameMid},
-        3px 0 0 0 ${u.frameHi},
-        4px 0 0 0 ${u.frameLo},
-        0 -2px 0 0 ${u.frameMid},
-        0 -3px 0 0 ${u.frameHi},
-        0 -4px 0 0 ${u.frameLo},
-        inset 0 1px 0 rgba(255, 230, 180, 0.16),
-        inset 0 -2px 6px rgba(0, 0, 0, 0.45);
+        0 0 0 1px rgba(70, 40, 15, 0.55),
+        /* browned, burnt edges, grime from many hands */
+        inset 0 0 26px rgba(105, 56, 18, 0.6),
+        inset 0 0 8px rgba(70, 34, 8, 0.6),
+        inset 0 0 2px rgba(40, 18, 4, 0.7);
+    text-shadow: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
+/* the panel hangs from a pole along its top edge (run past the screen edge on the left) */
 html .mechili-panel::before {
     content: '';
     position: absolute;
-    top: -7px;
-    right: -7px;
-    width: 16px;
-    height: 16px;
     pointer-events: none;
     z-index: 2;
-    background: radial-gradient(
-        circle at 8px 8px,
-        ${u.gem} 0 2.5px,
-        ${u.gemDeep} 2.5px 3.5px,
-        ${u.frameHi} 3.5px 6px,
-        ${u.frameLo} 6px 7.5px,
-        transparent 8px
-    );
+    ${POLE}
+    left: -12px;
 }
 `;
 }
@@ -4640,53 +4660,26 @@ ${chatFloatStyles(u, pc, ec)}
     padding: 12px 12px 12px 14px;
     position: relative;
     color: ${u.cream};
-    background:
-        radial-gradient(ellipse at 28% 18%, rgba(255, 220, 160, 0.05), transparent 52%),
-        radial-gradient(ellipse at 78% 88%, rgba(0, 0, 0, 0.35), transparent 48%),
-        repeating-linear-gradient(
-            0deg,
-            transparent,
-            transparent 2px,
-            rgba(0, 0, 0, 0.035) 2px,
-            rgba(0, 0, 0, 0.035) 3px
-        ),
-        linear-gradient(165deg, ${u.leatherHi} 0%, ${u.leatherMid} 42%, ${u.leather} 100%);
-    border: 1px solid ${u.frameLo};
-    border-right: none;
-    border-bottom: none;
-    border-radius: 6px 0 0 0;
+    background: ${CLOTH_FILL};
+    border: none;
+    border-radius: 0;
     box-shadow:
         0 8px 22px rgba(0, 0, 0, 0.5),
-        0 0 0 1px ${u.frameEdge},
-        -2px 0 0 0 ${u.frameMid},
-        -3px 0 0 0 ${u.frameHi},
-        -4px 0 0 0 ${u.frameLo},
-        0 -2px 0 0 ${u.frameMid},
-        0 -3px 0 0 ${u.frameHi},
-        0 -4px 0 0 ${u.frameLo},
-        inset 0 1px 0 rgba(255, 230, 180, 0.16),
-        inset 0 -2px 6px rgba(0, 0, 0, 0.45);
+        0 0 0 1px rgba(12, 8, 5, 0.9),
+        inset 0 0 22px rgba(20, 12, 5, 0.38);
+    ${STITCH}
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     pointer-events: auto;
 }
+/* the shop hangs from a pole along its top edge (run past the screen edge on the right) */
 .mechili-shop::before {
     content: '';
     position: absolute;
-    top: -7px;
-    left: -7px;
-    width: 16px;
-    height: 16px;
     pointer-events: none;
     z-index: 2;
-    background: radial-gradient(
-        circle at 8px 8px,
-        ${u.gem} 0 2.5px,
-        ${u.gemDeep} 2.5px 3.5px,
-        ${u.frameHi} 3.5px 6px,
-        ${u.frameLo} 6px 7.5px,
-        transparent 8px
-    );
+    ${POLE}
+    right: -12px;
 }
 .mechili-shop .shop-header {
     display: flex;
@@ -4980,12 +4973,12 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-panel .title { font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 2px; }
 .mechili-panel .team { font-size: 11px; letter-spacing: 0.5px; margin-bottom: 8px; }
-.mechili-panel .team.player { color: ${pc}; }
-.mechili-panel .team.enemy { color: ${ec}; }
+.mechili-panel .team.player { color: ${shadeCss(teamColors.player.hex, -0.3)}; }
+.mechili-panel .team.enemy { color: ${shadeCss(teamColors.enemy.hex, -0.3)}; }
 .mechili-panel .team.horde { color: ${HORDE_COLOR.css}; }
 .mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
-.mechili-panel .row .v { color: ${u.brass}; font-variant-numeric: tabular-nums; }
-.mechili-panel .xpbar { height: 5px; margin: 0 0 5px; background: rgba(255, 255, 255, 0.38); border-radius: 3px; overflow: hidden; }
+.mechili-panel .row .v { color: #6a3410; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mechili-panel .xpbar { height: 5px; margin: 0 0 5px; background: rgba(60, 35, 12, 0.22); border-radius: 3px; overflow: hidden; }
 .mechili-panel .xpbar.player div { height: 100%; background: ${pc}; }
 .mechili-panel .xpbar.enemy div { height: 100%; background: ${ec}; }
 .mechili-panel .xpbar.horde div { height: 100%; background: ${HORDE_COLOR.css}; }
@@ -5007,8 +5000,8 @@ ${chatFloatStyles(u, pc, ec)}
     border-radius: 3px;
     line-height: 1;
 }
-.mechili-panel .lvl-big .lvl-cap { font-size: 8px; font-weight: bold; letter-spacing: 1.5px; color: ${u.textMuted}; }
-.mechili-panel .lvl-big .lvl-num { font-size: 27px; font-weight: 900; color: ${u.brassLight}; }
+.mechili-panel .lvl-big .lvl-cap { font-size: 8px; font-weight: bold; letter-spacing: 1.5px; color: #6b5236; }
+.mechili-panel .lvl-big .lvl-num { font-size: 27px; font-weight: 900; color: #5a2c0c; }
 .mechili-panel .head-main { flex: 1; min-width: 0; }
 .mechili-panel .head-names {
     display: flex; align-items: baseline; gap: 8px; min-width: 0;
