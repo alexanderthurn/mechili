@@ -1,0 +1,4 @@
+// stone wall: two towers and two plain sections (misc/wall-source.glb has one section; the
+// second is a copied node, and the towers moved in onto the end tiles' centres).
+// Turned so its length runs across the battlefield (x).
+{ "file": "models/units/wall.glb", "yawDeg": 90, "scale": 0.87 }

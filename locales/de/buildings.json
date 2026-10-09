@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Verkauf",
-    "description": "Verkaufs-Packs dauerhaft freischalten (bis zu {{maxPerRound}} pro Einsatzphase). Die Rückerstattung beträgt {{refundPct}}% der Basiskosten."
+    "description": "Verkaufs-Packs dauerhaft freischalten (bis zu {{maxPerRound}} pro Einsatzphase). Die Rückerstattung beträgt {{refundPct}}% der Kosten, Stufen und Ausbauten eingeschlossen."
   },
   "attack_boost": {
     "name": "Angriffsverstärkung",

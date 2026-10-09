@@ -22,6 +22,7 @@ import type { BurnAffinity, FireProfile } from './fire';
 import { detAtan2 } from './detMath';
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
+import { drapeWall } from './wallDrape';
 import { GROUND_UNIT_Y } from './groundQuality';
 import {
     attackNodeWorld,
@@ -603,6 +604,18 @@ export interface UnitType {
     horde?: boolean;
     /** shield extra: a dome that absorbs enemy projectiles crossing INTO it */
     shield?: { radius: number; height: number };
+    /**
+     * wall extra: a solid rectangle ground units can't cross — they are pushed
+     * out of it and steer around its nearer end. World units from the centre,
+     * `halfLength` along x (across the battlefield), `halfDepth` along z.
+     * Flyers pass over; no collider, so nothing shoots it (yet).
+     */
+    wall?: {
+        halfLength: number;
+        halfDepth: number;
+        /** supply per level up, the same for every level (base buildings climb a price ladder instead) */
+        upgradeCost?: number;
+    };
     /** rocket extra: waits armed, then homes onto the first enemy in range */
     rocket?: { range: number; speed: number; damage: number; splash: number };
     /** flight altitude in world units — air units collide with nothing on the ground */
@@ -1384,6 +1397,13 @@ export class Unit {
      */
     readonly upgradesBySeat: number[] = [];
     /**
+     * Supply spent on this pack's levels / this building's upgrades after its
+     * price — level-ups, a recruit level's premium, building upgrades. Selling
+     * refunds it along with the price. Kept by the actions (and their undo),
+     * so a replayed log rebuilds it.
+     */
+    upgradePaid = 0;
+    /**
      * Base building growth per level above 1. 10%, but a 2v2 Stronghold (both
      * seats' upgrades summed, up to level 9) grows 5% so it stays on its hill.
      * Feeds the archer pads, so it must be log-derived: set at spawn only.
@@ -1495,7 +1515,7 @@ export class Unit {
         // into every battle-start comparison for the whole match: a desync a
         // resync could not repair, because both peers just rebuilt it. It also
         // drew the far side's castles facing backwards. Yaw 0 looks down −z.
-        this.facing = world.z >= 0 ? 0 : Math.PI;
+        this.facing = (world.z >= 0 ? 0 : Math.PI) + (type.wall && rotated ? Math.PI / 2 : 0);
         for (const m of this.members) m.mesh.rotation.y = this.facing;
         this.view.position.copy(this.world);
         this.seatMembers();
@@ -1545,6 +1565,15 @@ export class Unit {
             // during deployment and need to sit on the outer relief too
             m.mesh.position.y =
                 worldHeightAt(originX + m.home.x, originZ + m.home.z) + this.memberBaseY();
+        }
+        if (this.type.wall) this.drapeWallMembers(originX, originZ);
+    }
+
+    /** a wall's towers onto the ground under each, its sections along it (see wallDrape) */
+    private drapeWallMembers(originX = this.view.position.x, originZ = this.view.position.z): void {
+        for (const m of this.members) {
+            if (m.mesh.userData.dead) continue;
+            drapeWall(m.mesh, originX, originZ, this.rotated, m.mesh.position.y);
         }
     }
 
@@ -1598,6 +1627,12 @@ export class Unit {
                 );
                 m.mesh.position.copy(m.home);
             }
+        }
+        // buildings never turn — but a wall lies along its footprint, so a
+        // turned wall turns its model with it (board-keyed like the default facing)
+        if (this.type.wall) {
+            this.facing = (this.world.z >= 0 ? 0 : Math.PI) + (rotated ? Math.PI / 2 : 0);
+            for (const m of this.members) m.mesh.rotation.y = this.facing;
         }
         this.seatMembers();
     }
@@ -1656,6 +1691,8 @@ export class Unit {
     /** Visual scale: towers grow each level; packs only a little, capped at L3. */
     visualMeshScale(level = this.level): number {
         const base = this.type.meshScale;
+        // a wall keeps its length and depth (it must match its footprint); see visualHeightScale
+        if (this.type.wall) return base;
         if (this.type.structure && !this.type.extra) {
             // +10% per level above 1 → L5 ≈ 1.4× (tower upgrade max)
             return base * (1 + (level - 1) * this.levelGrowth);
@@ -1664,6 +1701,18 @@ export class Unit {
         // packs: +5% per level, only through L3 → max +10%
         const steps = Math.min(2, Math.max(0, level - 1));
         return base * (1 + steps * 0.05);
+    }
+
+    /** Height scale: like {@link visualMeshScale}, but a wall grows only upward with its level. */
+    visualHeightScale(level = this.level): number {
+        if (!this.type.wall) return this.visualMeshScale(level);
+        return this.type.meshScale * (1 + (level - 1) * this.levelGrowth);
+    }
+
+    /** the level's size on one member's mesh — uniform, or upward only for a wall */
+    private setLevelScale(mesh: Group, level = this.level): void {
+        const s = this.visualMeshScale(level);
+        mesh.scale.set(s, this.visualHeightScale(level), s);
     }
 
     /** Mesh tint by level (packs only); base buildings scale up instead. */
@@ -1694,10 +1743,11 @@ export class Unit {
     }
 
     applyLevelLook(level = this.level): void {
-        const scale = this.visualMeshScale(level);
         for (const m of this.members) {
-            if (!m.mesh.userData.dead) m.mesh.scale.setScalar(scale);
+            if (!m.mesh.userData.dead) this.setLevelScale(m.mesh, level);
         }
+        // a taller wall reaches the ground by other amounts — lay it again
+        if (this.type.wall) this.drapeWallMembers();
         // A building says its level by growing, and by the badge over it. The
         // veterancy hue is a pack's alone: dyeing masonry blue or gold buries
         // the model's own material under a flat wash.
@@ -1730,7 +1780,7 @@ export class Unit {
             if (!this.type.rocket) m.mesh.rotation.y = this.facing;
             m.mesh.rotation.z = 0; // stand wrecks back up
             m.mesh.rotation.x = 0;
-            m.mesh.scale.setScalar(this.visualMeshScale()); // un-squash tower rubble (+ level size)
+            this.setLevelScale(m.mesh); // un-squash tower rubble (+ level size)
             m.mesh.userData.dead = false;
             clearDeathFall(m.mesh);
             clearDeathTip(m.mesh);

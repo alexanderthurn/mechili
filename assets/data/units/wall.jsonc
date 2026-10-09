@@ -1,0 +1,25 @@
+{
+    "id": "wall",
+    "name": "Stone Wall",
+    "cost": 100,
+    // experiment: one 4-cell piece, lying across the battlefield
+    "footprint": { "cols": 4, "rows": 1 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 1,
+    "structure": true,
+    "extra": true,
+    "burn": { "takenMult": 0 },
+    "targets": { "ground": false, "air": false },
+    // solid for ground units, world units from the centre: tower to tower (the towers stand on
+    // the centres of the end tiles, ±6), as deep as the towers
+    "wall": { "halfLength": 6.9, "halfDepth": 1.3, "upgradeCost": 10 },
+    "collisionRadius": 1,
+    "soundSize": "large",
+    "colliders": [], // nothing shoots it yet — projectiles fly over
+    "hp": 4000,
+    "damage": 0,
+    "range": 0,
+    "attackInterval": 1,
+    "speed": 0,
+    "proceduralModel": "tower",
+}

@@ -5,7 +5,7 @@
   },
   "selling": {
     "name": "Selling",
-    "description": "Permanently unlock selling packs (up to {{maxPerRound}} per deployment phase). Refund is {{refundPct}}% of base cost."
+    "description": "Permanently unlock selling packs (up to {{maxPerRound}} per deployment phase). Refund is {{refundPct}}% of what it cost, levels and upgrades included."
   },
   "attack_boost": {
     "name": "Attack Boost",

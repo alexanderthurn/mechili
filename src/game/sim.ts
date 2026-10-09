@@ -390,6 +390,15 @@ export interface Actor {
     pathStuck: number;
     /** closest approach to pathDest so far */
     pathBestDist: number;
+    /**
+     * Route round walls (see wallWaypoint): the corner it heads for, the goal
+     * it was planned for, and the sim time it is planned again. Absent until
+     * a wall first stands in its way; null waypoint = no way round.
+     */
+    wallRoute?: { x: number; z: number } | null;
+    wallRouteGoalX?: number;
+    wallRouteGoalZ?: number;
+    wallRouteUntil?: number;
     /** last sim-step displacement — used to lead ballistic shots */
     mvX: number;
     mvZ: number;
@@ -985,6 +994,109 @@ function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean 
 // movement tuning
 const AVOID_LOOKAHEAD = 16; // how far ahead a mech watches for big blockers
 const AVOID_MARGIN = 0.6; // extra clearance kept around obstacles
+/** a wall's rectangle on the board */
+interface WallBox {
+    /** the wall's actor (its side, its HP) */
+    owner: Actor;
+    x0: number;
+    x1: number;
+    z0: number;
+    z1: number;
+}
+
+function insideBox(x: number, z: number, r: WallBox, pad: number): boolean {
+    return x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad;
+}
+
+function insideWallBox(x: number, z: number, boxes: readonly WallBox[], pad: number): boolean {
+    for (const r of boxes) if (insideBox(x, z, r, pad)) return true;
+    return false;
+}
+
+/** whether the segment (x0,z0)→(x1,z1) passes through a wall grown by `pad` (slab test) */
+function segmentHitsWall(
+    x0: number,
+    z0: number,
+    x1: number,
+    z1: number,
+    boxes: readonly WallBox[],
+    pad: number,
+    skip: readonly WallBox[] | null = null,
+): boolean {
+    const dx = x1 - x0;
+    const dz = z1 - z0;
+    for (const r of boxes) {
+        if (skip && skip.includes(r)) continue;
+        let t0 = 0;
+        let t1 = 1;
+        let hit = true;
+        for (let axis = 0; axis < 2; axis++) {
+            const p = axis === 0 ? x0 : z0;
+            const d = axis === 0 ? dx : dz;
+            const lo = (axis === 0 ? r.x0 : r.z0) - pad;
+            const hi = (axis === 0 ? r.x1 : r.z1) + pad;
+            if (Math.abs(d) < 1e-9) {
+                if (p <= lo || p >= hi) {
+                    hit = false;
+                    break;
+                }
+                continue;
+            }
+            let ta = (lo - p) / d;
+            let tb = (hi - p) / d;
+            if (ta > tb) {
+                const t = ta;
+                ta = tb;
+                tb = t;
+            }
+            if (ta > t0) t0 = ta;
+            if (tb < t1) t1 = tb;
+            if (t0 >= t1) {
+                hit = false;
+                break;
+            }
+        }
+        if (hit) return true;
+    }
+    return false;
+}
+
+/** where (0…1) the segment from (x0,z0) along (dx,dz) enters a wall grown by `pad`, or null */
+function segmentEntry(x0: number, z0: number, dx: number, dz: number, r: WallBox, pad: number): number | null {
+    let t0 = 0;
+    let t1 = 1;
+    for (let axis = 0; axis < 2; axis++) {
+        const p = axis === 0 ? x0 : z0;
+        const d = axis === 0 ? dx : dz;
+        const lo = (axis === 0 ? r.x0 : r.z0) - pad;
+        const hi = (axis === 0 ? r.x1 : r.z1) + pad;
+        if (Math.abs(d) < 1e-9) {
+            if (p <= lo || p >= hi) return null;
+            continue;
+        }
+        let ta = (lo - p) / d;
+        let tb = (hi - p) / d;
+        if (ta > tb) {
+            const t = ta;
+            ta = tb;
+            tb = t;
+        }
+        if (ta > t0) t0 = ta;
+        if (tb < t1) t1 = tb;
+        if (t0 >= t1) return null;
+    }
+    return t0;
+}
+
+/** world units past its own size a melee unit reaches a wall it is breaking */
+const WALL_MELEE_REACH = 1.2;
+
+/** seconds a unit keeps its way round walls before planning it again */
+const WALL_ROUTE_REPLAN = 0.5;
+/** world units the goal may drift before the way round walls is planned again */
+const WALL_ROUTE_GOAL_SLACK = 4;
+/** world units from the corner it heads for that count as reached */
+const WALL_ROUTE_REACHED = 1;
 const AVOID_STRENGTH = 2.4;
 const SEPARATION_GAP = 1.0; // soft personal space between mechs
 const SEPARATION_STRENGTH = 1.1;
@@ -1120,6 +1232,12 @@ export class BattleSim {
     private readonly targetHash = new Map<number, Actor[]>();
     /** living immovable structures — rebuilt each step for overlap resolution */
     private readonly structures: Actor[] = [];
+    /** this step's live walls as board rectangles (see rebuildStructureList) */
+    private readonly wallBoxes: WallBox[] = [];
+    /** …and everything the way round walls must also go round: walls plus base
+     *  buildings (a square around each one's circle), so a wall run into a tower
+     *  or the Stronghold is one obstacle */
+    private readonly routeBoxes: WallBox[] = [];
     /** scratch buffers to avoid per-call allocations in hot paths */
     private readonly nearbyScratch: Actor[] = [];
     private readonly segmentScratch: Actor[] = [];
@@ -5047,7 +5165,7 @@ export class BattleSim {
         goalDist: number,
         dt: number,
         stats: ResolvedStats,
-        d: { speedMult: number },
+        d: { speedMult: number; attackMult?: number },
         avoid: Actor | null,
         bigs: Actor[],
         stopMargin = 0,
@@ -5056,6 +5174,25 @@ export class BattleSim {
         // A pinned pack is standing on something. Whatever the stats say, and
         // whatever route or rally or bonus points elsewhere, it does not walk.
         if (a.unit.pinnedY != null) return;
+        // a wall between here and the goal: walk round it, corner by corner —
+        // or, walled in by the foe's walls, break through the one in the way
+        if (a.altitude === 0) {
+            const goalX = a.x + seekX * goalDist;
+            const goalZ = a.z + seekZ * goalDist;
+            const detour = this.wallWaypoint(a, goalX, goalZ);
+            if (detour === 'walled') {
+                if (this.siegeWall(a, goalX, goalZ, stats, d.attackMult ?? 1, dt)) return;
+            } else if (detour) {
+                const ddx = detour.x - a.x;
+                const ddz = detour.z - a.z;
+                const dLen = hypot(ddx, ddz);
+                if (dLen > 1e-4) {
+                    seekX = ddx / dLen;
+                    seekZ = ddz / dLen;
+                    goalDist = Math.max(goalDist, dLen);
+                }
+            }
+        }
         let steerX = seekX;
         let steerZ = seekZ;
 
@@ -6465,7 +6602,8 @@ export class BattleSim {
             // (board extras take no space — everything walks through them)
             for (const s of this.structures) {
                 if (!s.alive) continue;
-                this.pushApart(a, s);
+                if (s.unit.type.wall) this.pushOutOfWall(a, s, s.unit.type.wall);
+                else this.pushApart(a, s);
             }
         }
     }
@@ -6505,6 +6643,205 @@ export class BattleSim {
             mult = bs.radiusMult;
         }
         return a.radius * mult;
+    }
+
+    /** a wall's half extents on the board: along x unless it was turned on its footprint */
+    private wallHalfExtents(w: Actor, wall: { halfLength: number; halfDepth: number }): { hx: number; hz: number } {
+        return w.unit.rotated
+            ? { hx: wall.halfDepth, hz: wall.halfLength }
+            : { hx: wall.halfLength, hz: wall.halfDepth };
+    }
+
+    /** out of a wall's rectangle (grown by the actor's radius), the shortest way */
+    private pushOutOfWall(a: Actor, w: Actor, wall: { halfLength: number; halfDepth: number }): void {
+        const dx = a.x - w.x;
+        const dz = a.z - w.z;
+        const r = a.radius;
+        const { hx, hz } = this.wallHalfExtents(w, wall);
+        const cx = Math.max(-hx, Math.min(hx, dx));
+        const cz = Math.max(-hz, Math.min(hz, dz));
+        const qx = dx - cx;
+        const qz = dz - cz;
+        const dist = hypot(qx, qz);
+        if (dist >= r) return;
+        if (dist > 1e-6) {
+            // touching an edge or corner from outside: straight away from it
+            const push = r - dist;
+            a.x += (qx / dist) * push;
+            a.z += (qz / dist) * push;
+            return;
+        }
+        // centre inside the wall: out through the nearer face
+        const penX = hx - Math.abs(dx) + r;
+        const penZ = hz - Math.abs(dz) + r;
+        if (penZ <= penX) a.z += (dz >= 0 ? 1 : -1) * penZ;
+        else a.x += (dx >= 0 ? 1 : -1) * penX;
+    }
+
+    /**
+     * Walled in, with no way round: the first wall on the way to the goal, if
+     * the foe's and within reach, takes this unit's blows (melee at arm's
+     * length, ranged from its range) in its own attack rhythm. True = it stood
+     * and struck (or wound up) instead of walking. Own walls are never hit —
+     * whoever builds himself in stays in.
+     */
+    private siegeWall(a: Actor, goalX: number, goalZ: number, stats: ResolvedStats, attackMult: number, dt: number): boolean {
+        if (stats.damage <= 0) return false;
+        const pad = a.radius * 0.95;
+        // the wall the way to the goal runs into first
+        let wall: WallBox | null = null;
+        let first = Infinity;
+        const dx = goalX - a.x;
+        const dz = goalZ - a.z;
+        for (const r of this.wallBoxes) {
+            if (insideBox(a.x, a.z, r, pad)) continue;
+            const t = segmentEntry(a.x, a.z, dx, dz, r, pad);
+            if (t !== null && t < first) {
+                first = t;
+                wall = r;
+            }
+        }
+        if (!wall || !wall.owner.alive || actorTeam(wall.owner) === actorTeam(a)) return false;
+        // the nearest point of the wall, and whether this unit reaches it
+        const px = Math.max(wall.x0, Math.min(wall.x1, a.x));
+        const pz = Math.max(wall.z0, Math.min(wall.z1, a.z));
+        const ox = px - a.x;
+        const oz = pz - a.z;
+        const gap = hypot(ox, oz);
+        const ranged = !!a.unit.type.projectileSpeed;
+        const reach = a.radius + (ranged ? stats.range : WALL_MELEE_REACH);
+        if (gap > reach) return false;
+        const len = gap || 1e-6;
+        faceToward(a, detAtan2(-ox / len, -oz / len), dt);
+        a.cooldown -= dt;
+        if (a.cooldown > 0) return true;
+        a.cooldown += stats.attackInterval;
+        const target = wall.owner;
+        const dealt = this.hitDamage(a, target, stats.damage, attackMult) * this.damageTakenMult(target);
+        if (!ranged) {
+            this.events.push({
+                kind: 'meleeSwing',
+                x: a.x,
+                y: a.footY + a.unit.type.meshScale * 0.8,
+                z: a.z,
+                unitTypeId: a.unit.type.id,
+            });
+        }
+        this.events.push({
+            kind: 'impact',
+            x: px,
+            y: target.footY + Math.min(2.5, a.unit.type.meshScale * 0.9 + 0.4),
+            z: pz,
+            blood: bloodColorOf(target.unit.type),
+            flesh: false,
+            masonry: true,
+            cx: target.x,
+            cz: target.z,
+            dx: ox / len,
+            dy: 0,
+            dz: oz / len,
+            melee: !ranged,
+        });
+        this.applyDamage(a.unit, target, dealt, { x: ox / len, z: oz / len }, 'direct');
+        return true;
+    }
+
+    /**
+     * Where to head instead of straight at (goalX, goalZ) when walls stand
+     * between: the first corner of the shortest way round them, or null when
+     * the way is clear (or there is no way round — a unit walled in stays).
+     * The way runs over the walls' corners, grown by the actor's size, and
+     * only along stretches that cross no wall — so a run of joined walls, an
+     * L or a U is one obstacle, and a unit inside a U first walks back out.
+     * Planned again every WALL_ROUTE_REPLAN seconds, when the goal moves, or
+     * once the corner is reached; deterministic (fixed order, plain math).
+     */
+    private wallWaypoint(a: Actor, goalX: number, goalZ: number): { x: number; z: number } | 'walled' | null {
+        // without walls, buildings keep their own simple swerve (see steerToward)
+        if (this.wallBoxes.length === 0) return null;
+        const pad = a.radius * 0.95;
+        // what the unit stands pressed into, or the goal stands in (a building it
+        // attacks, a foe hugging a wall), doesn't block the way to it
+        const ends = this.routeBoxes.filter((r) => insideBox(a.x, a.z, r, pad) || insideBox(goalX, goalZ, r, pad));
+        if (!segmentHitsWall(a.x, a.z, goalX, goalZ, this.routeBoxes, pad, ends)) {
+            a.wallRoute = undefined;
+            return null;
+        }
+        const wp = a.wallRoute;
+        const fresh =
+            a.wallRouteUntil !== undefined &&
+            this.elapsed < a.wallRouteUntil &&
+            hypot((a.wallRouteGoalX ?? 0) - goalX, (a.wallRouteGoalZ ?? 0) - goalZ) < WALL_ROUTE_GOAL_SLACK &&
+            (wp === null || (wp !== undefined && hypot(wp.x - a.x, wp.z - a.z) > WALL_ROUTE_REACHED));
+        if (fresh) return wp ?? 'walled';
+        const planned = this.planWallRoute(a, goalX, goalZ, pad);
+        if (planned === 'direct') {
+            a.wallRoute = undefined;
+            return null;
+        }
+        const next = planned;
+        a.wallRoute = next;
+        a.wallRouteGoalX = goalX;
+        a.wallRouteGoalZ = goalZ;
+        a.wallRouteUntil = this.elapsed + WALL_ROUTE_REPLAN;
+        return next ?? 'walled';
+    }
+
+    /** shortest way over the walls' corners (Dijkstra): its first corner, 'direct' when none is needed, null when walled in */
+    private planWallRoute(
+        a: Actor,
+        goalX: number,
+        goalZ: number,
+        pad: number,
+    ): { x: number; z: number } | 'direct' | null {
+        const boxes = this.routeBoxes;
+        // corners a little outside each wall / building, grown by the actor's size
+        const out = a.radius + AVOID_MARGIN;
+        const nodes: { x: number; z: number }[] = [];
+        for (const r of boxes) {
+            for (const [x, z] of [
+                [r.x0 - out, r.z0 - out],
+                [r.x1 + out, r.z0 - out],
+                [r.x1 + out, r.z1 + out],
+                [r.x0 - out, r.z1 + out],
+            ] as const) {
+                // a corner inside another wall (at a joint) is no place to stand
+                if (!insideWallBox(x, z, boxes, pad)) nodes.push({ x, z });
+            }
+        }
+        // the start or the goal pressed into a wall (a crowd shove, a foe hugging
+        // the far side): that wall doesn't block the stretch leaving / reaching it
+        const startIn = boxes.filter((r) => insideBox(a.x, a.z, r, pad));
+        const goalIn = boxes.filter((r) => insideBox(goalX, goalZ, r, pad));
+        // 0 = start, 1…n = corners, n+1 = goal
+        const pts = [{ x: a.x, z: a.z }, ...nodes, { x: goalX, z: goalZ }];
+        const n = pts.length;
+        const dist = new Array<number>(n).fill(Infinity);
+        const prev = new Array<number>(n).fill(-1);
+        const done = new Array<boolean>(n).fill(false);
+        dist[0] = 0;
+        for (;;) {
+            let u = -1;
+            for (let i = 0; i < n; i++) if (!done[i] && dist[i]! < Infinity && (u < 0 || dist[i]! < dist[u]!)) u = i;
+            if (u < 0 || u === n - 1) break;
+            done[u] = true;
+            const pu = pts[u]!;
+            for (let v = 1; v < n; v++) {
+                if (done[v]) continue;
+                const pv = pts[v]!;
+                const nd = dist[u]! + hypot(pv.x - pu.x, pv.z - pu.z);
+                if (nd >= dist[v]!) continue;
+                const skip = u === 0 ? startIn : v === n - 1 ? goalIn : null;
+                if (segmentHitsWall(pu.x, pu.z, pv.x, pv.z, boxes, pad, skip)) continue;
+                dist[v] = nd;
+                prev[v] = u;
+            }
+        }
+        if (prev[n - 1] === -1) return null; // walled in
+        // walk back to the step right after the start
+        let v = n - 1;
+        while (prev[v] !== 0 && prev[v] !== -1) v = prev[v]!;
+        return v === n - 1 ? 'direct' : { x: pts[v]!.x, z: pts[v]!.z };
     }
 
     private pushApart(a: Actor, b: Actor): void {
@@ -6658,9 +6995,22 @@ export class BattleSim {
 
     private rebuildStructureList(): void {
         this.structures.length = 0;
+        this.wallBoxes.length = 0;
+        this.routeBoxes.length = 0;
         for (const a of this.actors) {
-            if (!a.alive || !a.unit.type.structure || a.unit.type.extra) continue;
+            // board extras take no space — except a wall, which is all about space
+            if (!a.alive || !a.unit.type.structure || (a.unit.type.extra && !a.unit.type.wall)) continue;
             this.structures.push(a);
+            const wall = a.unit.type.wall;
+            if (wall) {
+                const { hx, hz } = this.wallHalfExtents(a, wall);
+                const box = { owner: a, x0: a.x - hx, x1: a.x + hx, z0: a.z - hz, z1: a.z + hz };
+                this.wallBoxes.push(box);
+                this.routeBoxes.push(box);
+            } else if (a.altitude === 0 && a.radius > 0) {
+                const r = a.radius;
+                this.routeBoxes.push({ owner: a, x0: a.x - r, x1: a.x + r, z0: a.z - r, z1: a.z + r });
+            }
         }
     }
 

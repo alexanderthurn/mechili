@@ -198,6 +198,7 @@ import { GROUND_UNIT_Y } from './groundQuality';
 import { reachToward } from './terrainCombat';
 import { getUnitVisualHeight, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
 import { BirdFlocks } from './birdFlocks';
+import { WallJoins } from './wallJoins';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import { draftTerrain, packagedTerrain, terrainFileText } from './scenario/scenarioTerrain';
@@ -539,6 +540,8 @@ export class Game {
     private readonly particles: Particles;
     /** birds startled out of the forest by a battle's first noise */
     private readonly birds: BirdFlocks;
+    /** straight runs of walls drop the towers where they meet */
+    private wallJoins!: WallJoins;
     private birdsStartled = false;
     private readonly fireFx: FireFx;
     private readonly acidFx: AcidFx;
@@ -2016,6 +2019,7 @@ export class Game {
         installScreenShake(this.rig.camera, () => this.rig.target);
         this.hpDrawFx = new HpDrawFx(this.scene);
         this.placement = new PlacementController(this.rig, this.map, this.economy, this.scene, surface, this.types);
+        this.wallJoins = new WallJoins(this.map);
         this.placement.hasTech = (seat, typeId, techId) => this.unitHasTech(seat, typeId, techId);
         // spectator watching a LIVE match (not a replay, which has no
         // "vision" concept — it's a neutral post-hoc view of everything):
@@ -2248,6 +2252,8 @@ export class Game {
         }
         this.placement.localSeat = this.humanSeat;
         this.placement.dispatch = (action) => this.dispatchPlayer(action);
+        // a carried wall snapping onto an open end of another
+        this.placement.onWallSnap = () => audio.playUi('ui_click');
         // gold pulse under packs whose next level is buyable right now.
         // canLevel gates on playerCanAct, which is unconditionally false
         // while watching (this.watching — replay OR spectate) OR once WE'VE
@@ -9123,7 +9129,7 @@ export class Game {
      * Which of my own packs an 'own-unit' tactic accepts. Move Pack is the
      * mirror of the drag rule: only packs the player may NOT currently move
      * (already-movable ones would waste the charge). Everything else follows
-     * sell's rule — any non-structure pack of mine.
+     * sell's rule — any pack of mine, or a building I bought (never a base building).
      */
     private canTargetOwnUnit(tacticId: string, unit: Unit): boolean {
         if (unit.seat !== this.humanSeat) return false;
@@ -9142,6 +9148,7 @@ export class Game {
                 xpThresholdFor(unit.type, unit.level, this.economy, this.settings.leveling)
             );
         }
+        if (tacticId === SELL_UNIT_ID) return !unit.type.structure || !!unit.type.extra;
         return !unit.type.structure;
     }
 
@@ -9547,7 +9554,7 @@ export class Game {
         // how far a pack's own mesh reaches over the ground it stands on —
         // the icon floats just above that (see HordeMarkers' MARKER_CLEARANCE)
         const packTop = (unit: Unit) =>
-            getUnitVisualHeight(unit.type.modelId ?? unit.type.id) * unit.visualMeshScale();
+            getUnitVisualHeight(unit.type.modelId ?? unit.type.id) * unit.visualHeightScale();
         const add = (x: number, z: number, top: number) => {
             const key = x < 0 ? -1 : 1;
             let s = sides.get(key);
@@ -12075,6 +12082,7 @@ export class Game {
         // End Deployment has locked this seat in.
         this.placement.repositioningEnabled = this.playerCanAct;
         this.placement.update(this.time, gameDt);
+        this.wallJoins.update(this.placement.allUnits());
         this.updateLandings();
         this.birds.update(gameDt);
         // the grass lies down under the plates placed this frame (read by the next scenery update)
@@ -12539,7 +12547,10 @@ export class Game {
             // Move enters carry mode explicitly; Rotate only makes sense once
             // the pack actually rides the finger
             move: repositionable && !this.placement.pointerCarries,
-            rotate: repositionable && this.placement.pointerCarries,
+            // …and a bought extra (a wall) still on the finger turns before it lands
+            rotate:
+                (repositionable && this.placement.pointerCarries) ||
+                (build && this.placement.pendingRotatable && !this.armedTactic),
             levelUp: lvl?.ready ? { cost: lvl.cost, affordable: lvl.affordable } : null,
             levelAll: lvl?.ready && lvl.all ? lvl.all : null,
             // Compact bar owns Level / Upgrade; the Unit sheet hides those tiles there
@@ -12737,7 +12748,7 @@ export class Game {
             record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade: (() => {
-                if (!ownInteractive || !u.type.structure || u.type.extra || this.tutorial?.boostLessonOnly) return undefined;
+                if (!ownInteractive || !u.type.structure || (u.type.extra && !u.type.wall) || this.tutorial?.boostLessonOnly) return undefined;
                 if (this.tutorial?.allowedGarrisonOffers()?.upgrade === false) return undefined;
                 const up = buildingUpgradeFor(u, this.humanSeat, this.settings.towers);
                 if (!up) return undefined; // an ally's own tower

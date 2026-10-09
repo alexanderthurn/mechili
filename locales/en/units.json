@@ -76,5 +76,8 @@
   },
   "hordeZombie": {
     "name": "Black Brood"
+  },
+  "wall": {
+    "name": "Stone Wall"
   }
 }

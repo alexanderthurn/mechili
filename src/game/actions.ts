@@ -699,7 +699,8 @@ export function buildingUpgradeFor(
         return { cost: towerUpgradeCost(1 + own, towers), maxed: own >= cap, own, shared: true };
     }
     if (u.seat !== seat) return null;
-    return { cost: towerUpgradeCost(u.level, towers), maxed: u.level >= towers.upgrade.maxLevel, own: u.level - 1, shared: false };
+    const flat = u.type.wall?.upgradeCost;
+    return { cost: flat ?? towerUpgradeCost(u.level, towers), maxed: u.level >= towers.upgrade.maxLevel, own: u.level - 1, shared: false };
 }
 
 /** highest level building `u` can reach: the Stronghold adds every seat's upgrades */
@@ -923,6 +924,7 @@ export class ActionDispatcher {
                 if (level > 1) {
                     economy.spend(seat, premium);
                     unit.level = level;
+                    unit.upgradePaid += premium;
                     unit.refreshLevelBadge();
                 }
                 entry.paid = economy.costOf(type) + premium;
@@ -1013,6 +1015,7 @@ export class ActionDispatcher {
                 entry.xpBefore = unit.xp;
                 unit.xp = Math.max(0, unit.xp - threshold);
                 unit.level++;
+                unit.upgradePaid += cost;
                 unit.refreshLevelBadge();
                 return true;
             }
@@ -1050,6 +1053,7 @@ export class ActionDispatcher {
                     batch.push({ unitId, paid: cost, xpBefore: unit.xp });
                     unit.xp = Math.max(0, unit.xp - threshold);
                     unit.level++;
+                    unit.upgradePaid += cost;
                     unit.refreshLevelBadge();
                 }
                 if (batch.length === 0) return false;
@@ -1070,7 +1074,8 @@ export class ActionDispatcher {
             }
             case 'upgradeTower': {
                 const unit = placement.unitById(action.unitId);
-                if (!unit || unit.team !== action.team || !unit.type.structure || unit.type.extra) {
+                // base buildings, and the wall — the one extra that levels
+                if (!unit || unit.team !== action.team || !unit.type.structure || (unit.type.extra && !unit.type.wall)) {
                     return false;
                 }
                 const up = buildingUpgradeFor(unit, seat, this.ctx.towers);
@@ -1079,6 +1084,7 @@ export class ActionDispatcher {
                 entry.paid = up.cost;
                 if (up.shared) unit.upgradesBySeat[seat] = up.own + 1;
                 unit.level++;
+                unit.upgradePaid += up.cost;
                 unit.refreshLevelBadge();
                 return true;
             }
@@ -1139,8 +1145,15 @@ export class ActionDispatcher {
                 const abilityCharges = sell.owned[seat] ? this.ctx.sellSettings.maxPerRound : 0;
                 const useAbility = sell.used[seat]! < abilityCharges;
                 const unit = placement.unitById(action.unitId);
-                // own units only — same scoping as applyItem/movability
-                if (!unit || unit.team !== action.team || unit.seat !== seat || unit.type.structure) {
+                // own units only — same scoping as applyItem/movability. Buildings
+                // you bought (extras: Ward Stone, Fire Bolt, wall) sell like packs;
+                // the base buildings a side starts with never do
+                if (
+                    !unit ||
+                    unit.team !== action.team ||
+                    unit.seat !== seat ||
+                    (unit.type.structure && !unit.type.extra)
+                ) {
                     return false;
                 }
                 // a fixture is part of its building, not a pack you trade
@@ -1149,8 +1162,9 @@ export class ActionDispatcher {
                 else if (!this.consumeTacticCharge(entry, seat, SELL_UNIT_ID)) {
                     return false;
                 }
+                // the price and every level / upgrade bought on top, at the same factor
                 const refund = Math.round(
-                    economy.costOf(unit.type) * this.ctx.sellSettings.refundFactor,
+                    (economy.costOf(unit.type) + unit.upgradePaid) * this.ctx.sellSettings.refundFactor,
                 );
                 // Runes come back to the bag (fused or not) — selling the pack
                 // does not destroy them.
@@ -1850,6 +1864,7 @@ export class ActionDispatcher {
                 const unit = placement.unitById(action.unitId)!;
                 unit.level--;
                 unit.xp = e.xpBefore!;
+                unit.upgradePaid -= e.paid!;
                 unit.refreshLevelBadge();
                 economy.credit(seat, e.paid!);
                 break;
@@ -1867,6 +1882,7 @@ export class ActionDispatcher {
                     if (!unit) continue;
                     unit.level--;
                     unit.xp = step.xpBefore;
+                    unit.upgradePaid -= step.paid;
                     unit.refreshLevelBadge();
                 }
                 economy.credit(seat, e.paid ?? batch.reduce((sum, b) => sum + b.paid, 0));
@@ -1880,6 +1896,7 @@ export class ActionDispatcher {
                 const unit = placement.unitById(action.unitId)!;
                 if (unit.type.baseAnchor === 'stronghold') unit.upgradesBySeat[seat] = (unit.upgradesBySeat[seat] ?? 1) - 1;
                 unit.level--;
+                unit.upgradePaid -= e.paid!;
                 unit.refreshLevelBadge();
                 economy.credit(seat, e.paid!);
                 break;

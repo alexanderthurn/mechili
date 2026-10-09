@@ -40,6 +40,7 @@ import { elementalLevel } from './runeMix';
 /** horde unit ids start here — far above anything the parity counters reach */
 const HORDE_ID_BASE = 1_000_000;
 import { getUnitInstanceRenderer } from './unitInstances';
+import { snapWallAnchor, openWallEnds, wallEnds, WallSnapMarkers, type PlacedWall } from './wallSnap';
 import type { TypeRegistry } from './content/typeRegistry';
 
 /** frozen enemy intel captured at deployment-phase start */
@@ -559,6 +560,13 @@ export class PlacementController {
     private readonly hoverMaterial: MeshBasicMaterial;
     private readonly selectMesh: Mesh;
     private readonly rangeMesh: Mesh;
+    /** open wall ends / the carried wall's tower tiles while a wall rides the cursor */
+    private readonly wallMarkers: WallSnapMarkers;
+    /** the open end the carried wall snapped onto this frame / last frame (the click plays on a change) */
+    private lastWallSnap: string | null = null;
+    private prevWallSnap: string | null = null;
+    /** a carried wall just snapped onto an open end (game plays the click) */
+    onWallSnap?: () => void;
     private readonly fovMesh: Mesh;
     /** inner ring showing a ranged pack's min range (dead zone) */
     private readonly minRangeMesh: Mesh;
@@ -570,6 +578,8 @@ export class PlacementController {
     private readonly plateMaterial: MeshBasicMaterial;
     /** a board extra being click-placed: rides the cursor, bought on click */
     private pendingType: UnitType | null = null;
+    /** the bought extra riding the cursor is turned 90° (R / middle click / gamepad) */
+    private pendingRotated = false;
     private pendingUnit: Unit | null = null;
     /**
      * First click on a movable pack only SELECTS it (info, range). A second
@@ -660,6 +670,7 @@ export class PlacementController {
 
         // attack / min-range / aura rings for the selected pack (any owner)
         this.rangeMesh = createRangeRing(scene);
+        this.wallMarkers = new WallSnapMarkers(scene, this.map);
         this.fovMesh = createFovWedge(scene);
         // inner dead-zone ring (min range)
         this.minRangeMesh = createRangeRing(scene);
@@ -809,6 +820,11 @@ export class PlacementController {
      * pack/formation, or an armed tactic. Touch camera-pan defers to it so a
      * one-finger drag aims instead of moving the map.
      */
+    /** a bought extra rides the cursor and can still be turned (see rotateSelected) */
+    get pendingRotatable(): boolean {
+        return this.enabled && this.pendingUnit !== null;
+    }
+
     get pointerCarries(): boolean {
         return (
             this.pendingUnit !== null ||
@@ -991,6 +1007,7 @@ export class PlacementController {
     beginPlacing(type: UnitType): void {
         this.deselect();
         this.pendingType = type;
+        this.pendingRotated = false;
         this.pendingUnit = new Unit(type, { col: 0, row: 0 }, 'player', new Vector3(0, -9999, 0));
         // the ghost previews the facing rule (matters for far-side owners)
         this.pendingUnit.faceClosestOf(this.opponentMechPositions('player', this.pendingUnit));
@@ -1152,7 +1169,7 @@ export class PlacementController {
                     const cells = this.coveredCells(fp, anchor);
                     const ok =
                         cells !== null &&
-                        cells.every((c) => this.deployCellOk(team, c, type, seat) && !this.occupied.has(cellKey(c)));
+                        cells.every((c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null));
                     if (ok) return anchor;
                 }
             }
@@ -1181,7 +1198,7 @@ export class PlacementController {
                         row: centerRow + dr,
                     });
                     const cells = this.coveredCells(fp, anchor);
-                    if (cells && cells.every((c) => !this.occupied.has(cellKey(c)))) {
+                    if (cells && cells.every((c) => this.cellFree(type, c, null))) {
                         return anchor;
                     }
                 }
@@ -1212,6 +1229,13 @@ export class PlacementController {
     }
 
     rotateSelected(): void {
+        // a bought extra still on the cursor turns before it is placed
+        if (this.pendingType && this.pendingUnit) {
+            if (!this.enabled) return;
+            this.pendingRotated = !this.pendingRotated;
+            this.pendingUnit.setRotated(this.pendingRotated);
+            return;
+        }
         if (this.formationActive) return; // formations don't rotate
         const unit = this.selectedUnit;
         if (!unit || unit.team === 'horde' || !this.enabled || !this.isMovable(unit)) return;
@@ -1233,8 +1257,7 @@ export class PlacementController {
         const fp = this.footprintOf(unit.type, rotated);
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
-            this.deployCellOk(unit.team, c, unit.type, unit.seat) &&
-            (unit.type.extra || this.freeFor(c, unit));
+            this.deployCellOk(unit.team, c, unit.type, unit.seat) && this.cellFree(unit.type, c, unit);
         if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.setRotated(rotated);
@@ -1291,7 +1314,7 @@ export class PlacementController {
         const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
         return (
             cells !== null &&
-            cells.every((c) => this.deployCellOk(team, c, type, seat) && (type.extra || !this.occupied.has(cellKey(c))))
+            cells.every((c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null))
         );
     }
 
@@ -1305,9 +1328,7 @@ export class PlacementController {
         const valid =
             cells !== null &&
             cells.every(
-                (c) =>
-                    this.deployCellOk(team, c, type, seat) &&
-                    (type.extra || !this.occupied.has(cellKey(c))),
+                (c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null),
             );
         return valid ? this.spawn(type, anchor, team, rotated, false, seat) : null;
     }
@@ -1450,7 +1471,7 @@ export class PlacementController {
             };
             const cells = this.coveredCells(fp, anchor);
             if (!cells) continue;
-            if (!cells.every((c) => this.deployCellOk(team, c, type, seat) && !this.occupied.has(cellKey(c)))) continue;
+            if (!cells.every((c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null))) continue;
             // the AI doesn't understand the flank-spawn tax yet — keep it off
             // the flanks so its units don't arrive at 1 hp unaware
             if (cells.some((c) => this.map.isFlankDeployCell(c, team))) continue;
@@ -2637,13 +2658,13 @@ export class PlacementController {
         if (!cell) return;
         // click-placing an extra: buy it right here (stays pending if invalid)
         if (this.pendingType) {
-            const anchor = this.centeredAnchor(this.pendingType, false, cell);
+            const anchor = this.landingAnchor(this.pendingType, this.pendingRotated, cell, null).anchor;
             const done = this.dispatch?.({
                 kind: 'buy',
                 team: 'player',
                 typeId: this.pendingType.id,
                 anchor,
-                rotated: false,
+                rotated: this.pendingRotated,
             });
             if (done) this.cancelPlacing();
             return;
@@ -2699,7 +2720,7 @@ export class PlacementController {
         }
         // empty ground: drop only while carrying; mere selection clears
         if (this.selectedUnit && this.isMovable(this.selectedUnit) && this.carryingSelected) {
-            const anchor = this.centeredAnchor(this.selectedUnit.type, this.selectedUnit.rotated, cell);
+            const anchor = this.landingAnchor(this.selectedUnit.type, this.selectedUnit.rotated, cell, this.selectedUnit).anchor;
             const done = this.dispatch?.({
                 kind: 'move',
                 team: 'player',
@@ -2786,9 +2807,7 @@ export class PlacementController {
             cells !== null &&
             cells.every((c) => {
                 if (!this.deployCellOk(unit.team, c, unit.type, unit.seat)) return false;
-                if (unit.type.extra) return true; // extras overlap anything (but not flanks)
-                const holder = this.occupied.get(cellKey(c));
-                return holder === undefined || holder === unit || group.includes(holder);
+                return this.cellFree(unit.type, c, unit, group);
             })
         );
     }
@@ -2821,8 +2840,7 @@ export class PlacementController {
         const fp = this.footprintOf(unit.type, unit.rotated);
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
-            this.deployCellOk(unit.team, c, unit.type, unit.seat) &&
-            (unit.type.extra || this.freeFor(c, unit));
+            this.deployCellOk(unit.team, c, unit.type, unit.seat) && this.cellFree(unit.type, c, unit);
         if (!cells || !cells.every(fits)) return false;
         this.release(unit);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
@@ -2843,6 +2861,34 @@ export class PlacementController {
         return holder === undefined || holder === unit;
     }
 
+    /**
+     * Whether `type` may stand on `cell`, given what already stands there
+     * (`self` and any of `group` moving along don't count):
+     * - a wall needs ground no pack stands on, but may cross buildings and walls
+     * - other extras (Ward Stone, Fire Bolt) overlap anything
+     * - a pack needs a free tile that no wall runs over
+     * Zones are the caller's (deployCellOk).
+     */
+    private cellFree(type: UnitType, cell: Cell, self: Unit | null, group: readonly Unit[] = []): boolean {
+        const key = cellKey(cell);
+        const holder = this.occupied.get(key);
+        const mine = holder === undefined || holder === self || group.includes(holder);
+        if (type.wall) return mine || !!holder!.type.structure;
+        if (type.extra) return true;
+        if (!mine) return false;
+        return type.structure || !this.wallCellKeys(self, group).has(key);
+    }
+
+    /** the tiles my-or-their walls cover (not `self` / `group`, which are moving) */
+    private wallCellKeys(self: Unit | null, group: readonly Unit[]): Set<string> {
+        const keys = new Set<string>();
+        for (const u of this.units) {
+            if (!u.type.wall || u.destroyed || u === self || group.includes(u)) continue;
+            for (const c of this.coveredCells(this.footprintOf(u.type, u.rotated), u.cell) ?? []) keys.add(cellKey(c));
+        }
+        return keys;
+    }
+
     private toLocal(e: PointerEvent): { x: number; y: number } {
         const rect = this.surface.getBoundingClientRect();
         return { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -2852,6 +2898,54 @@ export class PlacementController {
         return rotated
             ? { cols: type.footprint.rows, rows: type.footprint.cols }
             : type.footprint;
+    }
+
+    /**
+     * Where a pack carried over `cell` lands: centred on it — or, for a wall,
+     * snapped onto an open end of my side's walls nearby (see wallSnap).
+     * `moving` is the placed wall being carried (it isn't a wall to join).
+     */
+    private landingAnchor(type: UnitType, rotated: boolean, cell: Cell, moving: Unit | null): { anchor: Cell; socket: Cell | null } {
+        const free = this.centeredAnchor(type, rotated, cell);
+        if (!type.wall) return { anchor: free, socket: null };
+        const fp = this.footprintOf(type, rotated);
+        const seat = moving?.seat ?? this.localSeat;
+        return snapWallAnchor(
+            free,
+            fp,
+            this.joinableWalls(moving),
+            (anchor) => {
+                const cells = this.coveredCells(fp, anchor);
+                return cells !== null && cells.every((c) => this.deployCellOk('player', c, type, seat) && this.cellFree(type, c, moving));
+            },
+            (f, a) => this.coveredCells(f, a),
+        );
+    }
+
+    /** my side's placed walls (not the one being carried) */
+    private joinableWalls(moving: Unit | null): PlacedWall[] {
+        return this.units
+            .filter((u) => u.type.wall && u.team === 'player' && !u.destroyed && u !== moving)
+            .map((u) => ({ anchor: u.cell, fp: this.footprintOf(u.type, u.rotated) }));
+    }
+
+    /** the wall rings for a carried wall landing at `anchor`, and the click on a fresh snap */
+    private showWallMarkers(
+        type: UnitType,
+        rotated: boolean,
+        landing: { anchor: Cell; socket: Cell | null },
+        moving: Unit | null,
+        timeSeconds: number,
+    ): void {
+        const snapKey = landing.socket ? cellKey(landing.socket) : null;
+        if (snapKey && snapKey !== this.prevWallSnap) this.onWallSnap?.();
+        this.lastWallSnap = snapKey;
+        this.wallMarkers.show(
+            openWallEnds(this.joinableWalls(moving)),
+            landing.socket,
+            wallEnds(landing.anchor, this.footprintOf(type, rotated)),
+            timeSeconds,
+        );
     }
 
     /** anchor cell so the footprint is centered on the given cell */
@@ -2932,6 +3026,9 @@ export class PlacementController {
     private updateMarkers(timeSeconds: number): void {
         const sel = this.selectedUnit;
         this.hoverMesh.visible = false;
+        this.wallMarkers.hide();
+        this.prevWallSnap = this.lastWallSnap;
+        this.lastWallSnap = null;
         this.selectMesh.visible = false;
         this.rangeMesh.visible = false;
         this.fovMesh.visible = false;
@@ -2959,10 +3056,15 @@ export class PlacementController {
                 return;
             }
             const type = this.pendingType;
-            const fp = this.footprintOf(type, false);
-            const anchor = this.centeredAnchor(type, false, cell);
+            const rotated = this.pendingRotated;
+            const fp = this.footprintOf(type, rotated);
+            const landing = this.landingAnchor(type, rotated, cell, null);
+            const anchor = landing.anchor;
+            if (type.wall) this.showWallMarkers(type, rotated, landing, null, timeSeconds);
             const cells = this.coveredCells(fp, anchor);
-            const valid = cells !== null && cells.every((c) => this.deployCellOk('player', c, type, this.localSeat));
+            const valid =
+                cells !== null &&
+                cells.every((c) => this.deployCellOk('player', c, type, this.localSeat) && this.cellFree(type, c, null));
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
             this.pendingUnit.view.position.set(center.x, 0, center.z);
             this.pendingUnit.seatMembers(center.x, center.z);
@@ -3030,19 +3132,17 @@ export class PlacementController {
         // a PICKED-UP movable pack rides the cursor; mere selection only pulses the plate
         let markerCenter: Vector3;
         if (this.carryingSelected && this.isMovable(sel)) {
-            const center = cell
-                ? this.map.areaCenter(
-                      this.centeredAnchor(sel.type, sel.rotated, cell),
-                      fp.cols,
-                      fp.rows,
-                  )
+            const landing = cell ? this.landingAnchor(sel.type, sel.rotated, cell, sel) : null;
+            if (landing && sel.type.wall) this.showWallMarkers(sel.type, sel.rotated, landing, sel, timeSeconds);
+            const center = landing
+                ? this.map.areaCenter(landing.anchor, fp.cols, fp.rows)
                 : this.map.areaCenter(sel.cell, fp.cols, fp.rows);
-            if (cell) {
-                const anchor = this.centeredAnchor(sel.type, sel.rotated, cell);
+            if (landing) {
+                const anchor = landing.anchor;
                 const cells = this.coveredCells(fp, anchor);
                 const valid =
                     cells !== null &&
-                    cells.every((c) => this.deployCellOk('player', c, sel.type, sel.seat) && this.freeFor(c, sel));
+                    cells.every((c) => this.deployCellOk('player', c, sel.type, sel.seat) && this.cellFree(sel.type, c, sel));
                 this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
             } else {
                 this.hoverMaterial.color.setHex(VALID_COLOR);

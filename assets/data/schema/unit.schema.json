@@ -181,6 +181,27 @@
           "additionalProperties": false,
           "description": "shield extra: a dome that absorbs enemy projectiles crossing INTO it"
         },
+        "wall": {
+          "type": "object",
+          "properties": {
+            "halfLength": {
+              "type": "number"
+            },
+            "halfDepth": {
+              "type": "number"
+            },
+            "upgradeCost": {
+              "type": "number",
+              "description": "supply per level up, the same for every level (base buildings climb a price ladder instead)"
+            }
+          },
+          "required": [
+            "halfLength",
+            "halfDepth"
+          ],
+          "additionalProperties": false,
+          "description": "wall extra: a solid rectangle ground units can't cross — they are pushed out of it and steer around its nearer end. World units from the centre, `halfLength` along x (across the battlefield), `halfDepth` along z. Flyers pass over; no collider, so nothing shoots it (yet)."
+        },
         "rocket": {
           "type": "object",
           "properties": {

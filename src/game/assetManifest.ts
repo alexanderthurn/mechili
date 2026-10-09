@@ -2617,6 +2617,7 @@ const RAW = import.meta.glob(
         '../../assets/models/units/shield.glb',
         '../../assets/models/units/stronghold.glb',
         '../../assets/models/units/tent.glb',
+        '../../assets/models/units/wall.glb',
         '../../assets/models/units/wizard.glb',
         '../../assets/textures/bark.webp',
         '../../assets/textures/dirt-albedo-hq.webp',

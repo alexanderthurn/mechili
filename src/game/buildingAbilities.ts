@@ -42,7 +42,7 @@ export function buildingAbilities(type: UnitType): BuildingAbility[] {
             cost: s.sell.abilityCost,
             description: buildingAbilityDescription(
                 'selling',
-                `Permanently unlock selling packs (up to ${s.sell.maxPerRound} per deployment phase). Refund is ${Math.round(s.sell.refundFactor * 100)}% of base cost.`,
+                `Permanently unlock selling packs (up to ${s.sell.maxPerRound} per deployment phase). Refund is ${Math.round(s.sell.refundFactor * 100)}% of what it cost, levels and upgrades included.`,
                 {
                     maxPerRound: s.sell.maxPerRound,
                     refundPct: Math.round(s.sell.refundFactor * 100),
