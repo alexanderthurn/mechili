@@ -1426,6 +1426,50 @@ ${chatFloatStyles(u, pc, ec)}
     gap: 12px;
     width: 100%;
 }
+/* ── menu motion (see ui/menuMotion.ts) ── */
+/* the menu painting: zooms slowly into one spot and back out (focus = the zoom's centre) */
+.mechili-menu-backdrop {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+.mechili-menu-backdrop .m-backdrop-img {
+    position: absolute;
+    inset: 0;
+    background: center / cover no-repeat;
+    transform-origin: 75% 40%;
+    animation: m-backdrop-zoom 26s ease-in-out infinite alternate;
+    animation-play-state: paused;
+    will-change: transform;
+}
+.mechili-menu-backdrop.is-live .m-backdrop-img { animation-play-state: running; }
+@keyframes m-backdrop-zoom {
+    from { transform: scale(1); }
+    to   { transform: scale(1.18); }
+}
+@keyframes m-arrive {
+    from { opacity: 0; translate: 0 8px; }
+    to { opacity: 1; translate: 0 0; }
+}
+.mechili-menu .m-arrive { animation: m-arrive 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+/* between two screens the parchment grows / shrinks: no scrollbar flashing meanwhile */
+.mechili-menu.is-resizing { overflow-y: hidden; }
+@keyframes m-panel-in {
+    from { opacity: 0; scale: 0.96; }
+    to { opacity: 1; scale: 1; }
+}
+@keyframes m-chrome-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.mechili-menu-chrome.is-arriving .mechili-menu { animation: m-panel-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms backwards; }
+.mechili-menu-chrome.is-arriving > :not(.mechili-menu) { animation: m-chrome-in 600ms ease-out 450ms backwards; }
+@media (prefers-reduced-motion: reduce) {
+    .mechili-menu-backdrop .m-backdrop-img,
+    .mechili-menu .m-arrive,
+    .mechili-menu-chrome.is-arriving > * { animation: none; }
+}
 /* short viewports: keep the button stack readable above bottom chrome */
 @media (max-height: 720px) {
     .mechili-menu {
@@ -7779,7 +7823,6 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-fightbar .fighter-stack.enemy { right: 0; align-items: stretch; }
 .mechili-fightbar .fighter-stack.multi .fighter {
     min-width: 0;
-    padding: 6px 10px;
     gap: 0;
 }
 .mechili-fightbar .fighter-stack.multi .fname {
@@ -7871,14 +7914,12 @@ ${chatFloatStyles(u, pc, ec)}
     position: relative;
     z-index: 1;
     display: flex;
-    align-items: center;
-    /* overlap toward the featured main (DOM: sub then main) */
-    margin-right: -6px;
+    /* top-aligned with the main frame, flush beside it (each in its own wooden frame) */
+    align-items: flex-start;
+    align-self: flex-start;
 }
-.mechili-fightbar .fighter.enemy .portrait-sub-stack {
-    margin-right: 0;
-    margin-left: -6px;
-}
+.mechili-fightbar .fighter.enemy .portrait-sub-stack { flex-direction: row-reverse; }
+.mechili-fightbar .portrait-group { align-items: flex-start; }
 .mechili-fightbar .portrait .m-icon {
     width: 100%;
     height: 100%;
@@ -7933,14 +7974,24 @@ ${chatFloatStyles(u, pc, ec)}
 }
 /* the bezel sits right in the screen corner: no gap above or beside it, and its
    corner there is square so it reads as anchored to the edge */
-.mechili-fightbar .fighter-stack:not(.multi) .fighter.player { padding-top: 0; padding-left: 0; }
+.mechili-fightbar .fighter-stack .fighter.player { padding-top: 0; padding-left: 0; }
 /* the banner hangs from the very top of the screen, beside the frame, name below it */
-.mechili-fightbar .fighter-stack:not(.multi) .fighter { align-items: flex-start; }
-.mechili-fightbar .fighter-stack:not(.multi) .fighter.enemy { padding-top: 0; padding-right: 0; }
-.mechili-fightbar .fighter-stack:not(.multi) .fighter.player .portrait-mount { border-top-left-radius: 0; }
-.mechili-fightbar .fighter-stack:not(.multi) .fighter.enemy .portrait-mount { border-top-right-radius: 0; }
+.mechili-fightbar .fighter-stack .fighter { align-items: flex-start; }
+.mechili-fightbar .fighter-stack .fighter.enemy { padding-top: 0; padding-right: 0; }
+.mechili-fightbar .fighter.player .portrait-group > :first-child:is(.portrait-mount),
+.mechili-fightbar .fighter.player .portrait-sub-stack > .portrait-mount:first-child { border-top-left-radius: 0; }
+.mechili-fightbar .fighter.enemy .portrait-group > :first-child:is(.portrait-mount),
+.mechili-fightbar .fighter.enemy .portrait-sub-stack > .portrait-mount:first-child { border-top-right-radius: 0; }
 /* the picture itself: bigger (players like seeing their own), sunk into the frame
    (a dark lip, shadow inside), no rings of its own */
+.mechili-fightbar .portrait-mount .portrait {
+    border: 1px solid ${u.frameEdge};
+    box-shadow:
+        inset 0 3px 6px rgba(0, 0, 0, 0.7),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(255, 230, 180, 0.12);
+    border-radius: 2px;
+}
 .mechili-fightbar .portrait-mount .portrait.main {
     width: 58px;
     height: 58px;
@@ -7953,11 +8004,11 @@ ${chatFloatStyles(u, pc, ec)}
 }
 /* an old painting, like the portraits hanging in a castle: warm aged varnish, the
    colours a little faded, canvas grain, and the edges sunk into shadow */
-.mechili-fightbar .portrait-mount .portrait.main .fighter-portrait-img,
-.mechili-fightbar .portrait-mount .portrait.main .m-icon {
+.mechili-fightbar .portrait-mount .portrait .fighter-portrait-img,
+.mechili-fightbar .portrait-mount .portrait .m-icon {
     filter: sepia(0.35) saturate(0.78) contrast(1.08) brightness(0.94);
 }
-.mechili-fightbar .portrait-mount .portrait.main::after {
+.mechili-fightbar .portrait-mount .portrait::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -7970,7 +8021,7 @@ ${chatFloatStyles(u, pc, ec)}
     mix-blend-mode: multiply;
 }
 /* a glint of varnish across the top */
-.mechili-fightbar .portrait-mount .portrait.main::before {
+.mechili-fightbar .portrait-mount .portrait::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -8124,12 +8175,12 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
     overflow: visible;
 }
 /* the banner's shadow */
-.mechili-fightbar .fighter-stack:not(.multi) .fighter-info { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55)); }
+.mechili-fightbar .fighter-stack .fighter-info { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55)); }
 /* a fixed height: it used to take what the name below left over, and a name with
    capitals (".tall") sits lower — so the two banners came out different heights */
-.mechili-fightbar .fighter-stack:not(.multi) .hp-track { flex: 0 0 34px; height: 34px; }
+.mechili-fightbar .fighter-stack .hp-track { flex: 0 0 34px; height: 34px; }
 /* room for the name under the taller banner */
-.mechili-fightbar .fighter-stack:not(.multi) .fighter-info { height: 53px; }
+.mechili-fightbar .fighter-stack .fighter-info { height: 53px; }
 .mechili-fightbar .fighter.player .hp-track { transform-origin: left center; }
 .mechili-fightbar .fighter.enemy .hp-track { transform-origin: right center; }
 .mechili-fightbar .fighter:is(.player, .enemy) .hp-track::before,

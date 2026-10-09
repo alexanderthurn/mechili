@@ -23,6 +23,8 @@ import { getLanguage, onLanguageChange } from '../i18n';
  */
 /** UI language → the voice track it plays (Latin-American Spanish and Traditional Chinese share one) */
 const VOICE_LANGUAGES: Readonly<Record<string, string>> = { de: 'de', zh: 'zh', 'zh-Hant': 'zh', ru: 'ru', es: 'es', 'es-419': 'es' };
+/** narration_logo_1…N: the lines clicking the menu logo plays after the welcome */
+export const LOGO_LINE_COUNT = 8;
 function isVoicePath(path: string): boolean {
     return /^audio\/(unit|commander|narration)_[^/]+\.ogg$/.test(path);
 }
@@ -3069,6 +3071,13 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 1,
         gain: 0.95,
     },
+    /** Clicking the menu logo again and again: the narrator, ever more fed up (in order). */
+    ...Object.fromEntries(
+        Array.from({ length: LOGO_LINE_COUNT }, (_, i) => [
+            `narration_logo_${i + 1}`,
+            { paths: [`audio/narration_logo_${i + 1}.ogg`], group: 'ui', maxVoices: 1, gain: 0.95 } satisfies CueDef,
+        ]),
+    ),
     narration_year_begins: {
         paths: ['audio/narration_year_begins.ogg'],
         group: 'ui',
@@ -3641,6 +3650,14 @@ void [
     assetUrl('audio/ui_page_3.ogg'),
     assetUrl('audio/ui_page_4.ogg'),
     assetUrl('audio/narration_welcome.ogg'),
+    assetUrl('audio/narration_logo_1.ogg'),
+    assetUrl('audio/narration_logo_2.ogg'),
+    assetUrl('audio/narration_logo_3.ogg'),
+    assetUrl('audio/narration_logo_4.ogg'),
+    assetUrl('audio/narration_logo_5.ogg'),
+    assetUrl('audio/narration_logo_6.ogg'),
+    assetUrl('audio/narration_logo_7.ogg'),
+    assetUrl('audio/narration_logo_8.ogg'),
     assetUrl('audio/narration_year_begins.ogg'),
     assetUrl('audio/ui_confirm_1.ogg'),
     assetUrl('audio/ui_confirm_2.ogg'),
@@ -4311,12 +4328,31 @@ class AudioBus {
         this.play('ui_hover');
     }
 
+    private logoLineGen = 0;
     /**
-     * Cold-boot main-menu greeting. Gated by voicesEnabled. Call only when
-     * landing on the title screen — not on match resume / reconnect.
+     * The logo's lines, in order: 0 is the welcome, 1…LOGO_LINE_COUNT the
+     * narrator getting fed up. Cuts off the line still talking, so every
+     * click is heard.
      */
-    playNarrationWelcome(): void {
-        this.playNarrationCue('narration_welcome');
+    playLogoLine(index: number): void {
+        const gen = ++this.logoLineGen;
+        for (const v of [...this.voices]) {
+            if (v.cueId !== 'narration_welcome' && !v.cueId.startsWith('narration_logo_')) continue;
+            try {
+                v.source.stop();
+            } catch {
+                /* already ended */
+            }
+            this.releaseVoice(v);
+        }
+        if (!this.voicesOn()) return;
+        const cueId = index === 0 ? 'narration_welcome' : `narration_logo_${index}`;
+        if (!CUES[cueId]) return;
+        if (!this.unlocked) this.unlock();
+        // a click while this one still loads: only the newest plays
+        void this.ensureCue(cueId).then((ok) => {
+            if (ok && gen === this.logoLineGen) this.playUi(cueId);
+        });
     }
 
     /** The Year intro cover when no rounds have been played yet. */

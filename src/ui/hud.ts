@@ -1882,7 +1882,8 @@ export class Hud {
                 this.applyPortrait(subPortrait, secAvatar, null);
                 this.attachPortraitEvents(subPortrait, sec.seat);
 
-                subStack.appendChild(subPortrait);
+                // the teammate's portrait in the same old frame, a size smaller
+                subStack.appendChild(this.portraitMount(subPortrait));
             }
             // DOM: subs first, main last → main is adjacent to the HP bar
             // (enemy portrait-group is row-reversed, so the same DOM keeps main inward)

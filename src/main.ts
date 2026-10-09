@@ -16,7 +16,7 @@ import {
 } from './ui/introRoster';
 import { registerHoverTipClearer } from './ui/hoverTips';
 import { Game } from './game/game';
-import { audio, playMatchMusic, playMenuMusic } from './game/audio';
+import { audio, LOGO_LINE_COUNT, playMatchMusic, playMenuMusic } from './game/audio';
 import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
 import { GamepadCursor } from './engine/gamepadCursor';
@@ -82,6 +82,7 @@ import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersi
 import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, setSteamAvatarDataUrl, wireAvatar } from './game/avatar';
 import { activeLoadout, normalizeLoadout, randomLoadout } from './game/loadouts';
 import { createLoadoutPanel } from './ui/loadoutPanel';
+import { animateMenuSwap, createMenuBackdrop, playMenuArrival, prefersReducedMotion } from './ui/menuMotion';
 import {
     SETTINGS_SAV_EXCLUDE,
     USER_AVATAR_STEAM_KEY,
@@ -640,6 +641,10 @@ function createThreeCanvas(): HTMLCanvasElement {
     return canvas;
 }
 
+/** the menu painting, alive: drifts and tilts behind the menu (ui/menuMotion.ts) */
+const menuBackdrop = createMenuBackdrop(menuBgUrl());
+wrapper.appendChild(menuBackdrop.el);
+
 /** replaced after each match — WebGL contexts cannot be recreated on a lost canvas */
 let threeCanvas = createThreeCanvas();
 wrapper.appendChild(threeCanvas);
@@ -905,6 +910,7 @@ function startIntroCoverDive(): void {
 
 /** menu-zoom cover for reload resume / reconnect — keeps animating through async work */
 function primeIntroCover(): void {
+    logoSettleT = null;
     title.visible = false;
     logo.alpha = 0;
     if (!introCoverEl?.classList.contains('active')) showIntroCover();
@@ -965,6 +971,139 @@ subtitle.anchor.set(0.5);
 title.addChild(logo);
 app.stage.addChild(title);
 
+/** the wordmark settling in when the menu arrives: a touch large and faded, easing to rest */
+const LOGO_SETTLE = { ms: 900, scale: 0.06 } as const;
+let logoBaseScale = 1;
+/** ms since the settle began; null once at rest */
+let logoSettleT: number | null = null;
+function logoSettleK(): number {
+    if (logoSettleT === null) return 1;
+    const t = Math.min(1, logoSettleT / LOGO_SETTLE.ms);
+    return 1 - (1 - t) ** 3;
+}
+/**
+ * Mouse over the wordmark: it grows a touch and glows brighter (a second,
+ * added-on copy fading in). Tweak live: grow (× size), glow (the copy's
+ * alpha), ms (ease in/out time).
+ */
+const LOGO_HOVER = { grow: 0.04, glow: 0.45, ms: 220 } as const;
+/** 0 at rest, 1 fully hovered — eased toward the pointer's state */
+let logoHoverK = 0;
+let logoHovered = false;
+const logoGlow = new Sprite(logoTex);
+logoGlow.anchor.set(0.5);
+logoGlow.blendMode = 'add';
+logoGlow.alpha = 0;
+logo.addChild(logoGlow);
+/** the settle and the hover together, × the laid-out scale */
+function logoAnimScale(): number {
+    const settle = 1 + LOGO_SETTLE.scale * (1 - logoSettleK());
+    const k = logoHoverK * logoHoverK * (3 - 2 * logoHoverK);
+    return settle * (1 + LOGO_HOVER.grow * k);
+}
+function settleLogo(): void {
+    if (prefersReducedMotion() || !title.visible) return;
+    logoSettleT = 0;
+    logo.alpha = 0;
+}
+/** the pointer is on the wordmark with nothing (a dialog, a chip) in front of it */
+function pointerOnLogo(x: number, y: number): boolean {
+    if (!menuChromeVisible || !title.visible || logo.alpha <= 0) return false;
+    // the art sits on black: only the wordmark's middle counts, not the empty margin
+    const b = logo.getBounds();
+    if (Math.abs(x - (b.x + b.width / 2)) >= b.width * 0.42) return false;
+    if (Math.abs(y - (b.y + b.height / 2)) >= b.height * 0.34) return false;
+    const top = document.elementFromPoint(x, y);
+    return !!top && (top === wrapper || menuBackdrop.el.contains(top));
+}
+window.addEventListener(
+    'pointermove',
+    (e) => {
+        const on = e.pointerType !== 'touch' && pointerOnLogo(e.clientX, e.clientY);
+        if (on !== logoHovered) wrapper.style.cursor = on ? 'pointer' : '';
+        logoHovered = on;
+    },
+    { passive: true },
+);
+/**
+ * A click on the wordmark knocks it: it squashes and swings like a struck
+ * sign, then settles (a damped spring). Clicks in quick succession add up,
+ * each kick harder, swinging the other way. Tweak live:
+ * - kick: rad/s of swing the first click gives; build: × more per further click
+ * - maxKicks: clicks after which it stops getting harder
+ * - streakMs: a pause this long starts a fresh streak
+ * - stiffness / damping: the spring (higher stiffness = faster swing)
+ * - squash: how much one click squashes it (× size)
+ */
+const LOGO_KNOCK = {
+    kick: 0.9,
+    build: 0.35,
+    maxKicks: 8,
+    streakMs: 1800,
+    stiffness: 70,
+    damping: 5,
+    squash: 0.07,
+} as const;
+let logoSwing = 0;
+let logoSwingVel = 0;
+let logoSquash = 0;
+let logoKnocks = 0;
+let logoLastKnock = -Infinity;
+/**
+ * Each click on the logo says the next line, always in the same order: the
+ * welcome, then the narrator ever more fed up, then round again. Left alone
+ * for `resetMs` it starts over with the welcome.
+ */
+const LOGO_LINES_RESET_MS = 6000;
+let logoLineNext = 0;
+wrapper.addEventListener('click', (e) => {
+    if (!pointerOnLogo(e.clientX, e.clientY)) return;
+    const now = performance.now();
+    const prevKnock = logoLastKnock;
+    if (now - logoLastKnock > LOGO_KNOCK.streakMs) logoKnocks = 0;
+    logoLastKnock = now;
+    logoKnocks++;
+    // every click its line, cutting off the one before
+    if (now - prevKnock > LOGO_LINES_RESET_MS) logoLineNext = 0;
+    audio.playLogoLine(logoLineNext);
+    logoLineNext = (logoLineNext + 1) % (LOGO_LINE_COUNT + 1);
+    if (prefersReducedMotion()) return;
+    const n = Math.min(logoKnocks, LOGO_KNOCK.maxKicks) - 1;
+    const dir = logoKnocks % 2 === 1 ? 1 : -1;
+    // capped, so a frantic streak swings hard but never spins it round
+    const cap = LOGO_KNOCK.kick * (1 + LOGO_KNOCK.build * (LOGO_KNOCK.maxKicks - 1));
+    logoSwingVel = Math.max(-cap, Math.min(cap, logoSwingVel + dir * LOGO_KNOCK.kick * (1 + LOGO_KNOCK.build * n)));
+    logoSquash = 1;
+});
+app.ticker.add((ticker) => {
+    if (!title.visible) return;
+    // the knock: a damped spring swing about the centre, and a squash easing out
+    const knocking = logoSwing !== 0 || logoSwingVel !== 0 || logoSquash > 0;
+    if (knocking) {
+        const dt = Math.min(0.05, ticker.deltaMS / 1000);
+        logoSwingVel += (-LOGO_KNOCK.stiffness * logoSwing - LOGO_KNOCK.damping * logoSwingVel) * dt;
+        logoSwing += logoSwingVel * dt;
+        logoSquash = Math.max(0, logoSquash - dt * 5);
+        if (Math.abs(logoSwing) < 1e-4 && Math.abs(logoSwingVel) < 1e-3) logoSwing = logoSwingVel = 0;
+        logo.rotation = logoSwing;
+    }
+    const target = logoHovered && menuChromeVisible ? 1 : 0;
+    const step = ticker.deltaMS / LOGO_HOVER.ms;
+    const hoverMoving = logoHoverK !== target;
+    if (hoverMoving) logoHoverK = target > logoHoverK ? Math.min(1, logoHoverK + step) : Math.max(0, logoHoverK - step);
+    if (logoSettleT === null && !hoverMoving && !knocking) return;
+    if (logoSettleT !== null) {
+        logoSettleT += ticker.deltaMS;
+        logo.alpha = logoSettleK();
+        if (logoSettleK() >= 1) logoSettleT = null;
+    }
+    logoGlow.alpha = LOGO_HOVER.glow * logoHoverK * logoHoverK * (3 - 2 * logoHoverK);
+    // squash: wider and flatter at the hit, springing back
+    const sq = LOGO_KNOCK.squash * logoSquash * logoSquash;
+    const base = logoBaseScale * logoAnimScale();
+    logo.scale.set(base * (1 + sq), base * (1 - sq));
+});
+
 const MENU_TOP_CHROME = 52;
 let measuringMenuTop = false;
 
@@ -1010,7 +1149,8 @@ function layoutTitle() {
     let cy = menuTop - gap - logoHalfH;
     cy = Math.max(MENU_TOP_CHROME + logoHalfH, cy);
 
-    logo.scale.set(scale);
+    logoBaseScale = scale;
+    logo.scale.set(scale * logoAnimScale());
     logo.position.set(cx, cy);
     subtitle.position.set(cx, cy + logoHalfH + 2);
     // Same canvas-pixel coordinates the HTML intro logo uses, so it tracks the
@@ -1496,7 +1636,9 @@ let menuGamepad: GamepadCursor | null = null;
 let menuGamepadRig: CameraRig | null = null;
 
 function setMenuChromeVisible(visible: boolean): void {
+    const arriving = visible && !menuChromeVisible;
     menuChromeVisible = visible;
+    menuBackdrop.setLive(visible);
     const display = visible ? '' : 'none';
     // One toggle for the whole set — see menuChromeEl. Only elements that
     // must stay hidden even while the chrome IS up keep their own rule.
@@ -1509,6 +1651,10 @@ function setMenuChromeVisible(visible: boolean): void {
     if (visible) {
         ensureMenuGamepadCursor();
         scheduleLayoutTitle();
+        if (arriving) {
+            playMenuArrival(menuChromeEl, menuViews[currentMenuView]);
+            settleLogo();
+        }
         // the room/game list lives on the main menu view now (not a
         // separate toggled panel) — keep it fresh any time menu chrome is
         // showing at all, including while a sub-panel is open, so it's
@@ -1519,6 +1665,9 @@ function setMenuChromeVisible(visible: boolean): void {
         playMenuMusic();
     } else {
         stopRoomPoll();
+        // the logo's hover hand must not linger over a match
+        logoHovered = false;
+        wrapper.style.cursor = '';
     }
 }
 
@@ -1890,10 +2039,13 @@ function showMenuView(view: MenuViewId, opts?: { quiet?: boolean }): void {
     }
     // a room / lobby / connection returns to the screen it was opened from
     if (view === 'session' && currentMenuView !== 'session') sessionReturnView = currentMenuView;
+    const swapping = view !== prev && menuChromeVisible;
+    const fromHeight = swapping ? menu.getBoundingClientRect().height : 0;
     currentMenuView = view;
     for (const [id, el] of Object.entries(menuViews) as [MenuViewId, HTMLElement][]) {
         el.classList.toggle('is-active', id === view);
     }
+    if (swapping) animateMenuSwap(menu, menuViews[view], fromHeight);
     scheduleLayoutTitle();
     if (!opts?.quiet && view !== prev && menuChromeVisible) {
         audio.unlock();
@@ -6368,9 +6520,6 @@ if (bulkVerify) {
     // a specific match without waiting on a backend redeploy.
     const spectateParam = new URLSearchParams(location.search).get('spectate');
     if (spectateParam) startSpectateGame(spectateParam);
-    // Narrator welcome only on a clean title-screen boot — not resume,
-    // reconnect, replay, editor reopen, or deep-link join/spectate.
-    if (!roomParam && !spectateParam) audio.playNarrationWelcome();
 }
 
 // Keep the main-menu gamepad cursor moving while the menu is visible.
