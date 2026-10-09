@@ -3591,7 +3591,8 @@ export class Hud {
         const combatless = info.structure && info.damage <= 0 && info.range <= 0;
         this.panel.innerHTML =
             `<div class="panel-head">` +
-            `<div class="lvl-big"><span class="lvl-cap">${escapeHtml(t('hud:lvlCap'))}</span><span class="lvl-num">${info.level}</span></div>` +
+            // the stamp takes the level's colour (the unit's veterancy tint in the world)
+            `<div class="lvl-big"${levelTintCss(info.level) ? ` style="--lvl:${levelTintCss(info.level)}"` : ''}><span class="lvl-cap">${escapeHtml(t('hud:lvlCap'))}</span><span class="lvl-num">${info.level}</span></div>` +
             `<div class="head-main">` +
             `<div class="xpbar ${info.team}"><div style="width:${xpBarPct}%"></div></div>` +
             `<div class="head-names"><span class="title">${escapeHtml(info.name)}</span><span class="team ${info.team}">${escapeHtml(info.owner)}</span></div>` +

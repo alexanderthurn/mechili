@@ -2759,9 +2759,24 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
    button is the route. The 60px offset clears the username chip (6px
    padding + 36px avatar + borders, plus a gap); it is deliberately
    generous, so a chip without an avatar just sits a little higher. */
+/* bottom-right corner: the loadout button over the username, one column, same width */
+.mechili-corner-stack {
+    position: absolute;
+    inset-inline-end: calc(16px + env(safe-area-inset-right));
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    pointer-events: none;
+}
+.mechili-corner-stack .mechili-username {
+    position: static;
+    pointer-events: auto;
+}
 .mechili-loadout-btn {
     display: flex;
-    bottom: calc(14px + 60px + env(safe-area-inset-bottom));
+    justify-content: center;
 }
 @media (max-width: 720px) {
     .mechili-loadout-btn { display: none; }
@@ -4711,9 +4726,10 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-phone-status {
     display: flex;
     position: absolute;
-    /* clear portraits + HP tube + name under the enemy strip */
-    top: calc(78px + env(safe-area-inset-top));
-    right: calc(8px + env(safe-area-inset-right));
+    /* right under the enemy's portrait frame in the screen corner (64px: the 58px
+       picture in its 3px frame) — the ☰ hangs from it (compact layouts move it) */
+    top: calc(64px + env(safe-area-inset-top));
+    right: env(safe-area-inset-right);
     flex-direction: column;
     align-items: flex-end;
     gap: 8px;
@@ -4723,6 +4739,12 @@ ${chatFloatStyles(u, pc, ec)}
     background: none;
     border: none;
     box-shadow: none;
+}
+/* the ☰ hangs from the portrait frame: its usual small square size, flush against
+   the frame, the lower corners rounded */
+.mechili-phone-status .mechili-phone-menu {
+    border-top: none;
+    border-radius: 0 0 3px 3px;
 }
 /* the twins hide by default (button.* outranks the shared component rules
    below regardless of order): money returns in compact chrome; undo/level-all
@@ -5261,6 +5283,21 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-panel .lvl-big .lvl-cap { font-size: 8px; font-weight: bold; letter-spacing: 1.5px; color: ${INK_MUTED}; }
 .mechili-panel .lvl-big .lvl-num { font-size: 27px; font-weight: 900; color: ${INK_RUST}; }
+/* level 2+: a solid badge in the level's own colour (exactly the unit's tint in the
+   world — blue, gold), a darker rim, light lettering with a dark shadow so it reads
+   on either */
+.mechili-panel .lvl-big[style*="--lvl"] {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, transparent 45%, rgba(0, 0, 0, 0.12) 100%),
+        var(--lvl);
+    border-color: color-mix(in srgb, var(--lvl) 55%, black);
+    box-shadow: 0 1px 3px rgba(40, 20, 4, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.mechili-panel .lvl-big[style*="--lvl"] .lvl-num,
+.mechili-panel .lvl-big[style*="--lvl"] .lvl-cap {
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 4px rgba(0, 0, 0, 0.45);
+}
 .mechili-panel .head-main { flex: 1; min-width: 0; }
 .mechili-panel .head-names {
     display: flex; align-items: baseline; gap: 8px; min-width: 0;
@@ -8267,39 +8304,24 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
     }
 }
 .mechili-topbar .end-deploy {
-    /* a pennant in the player's colour, like the commanders' banners: weathered cloth
-       hanging from a wooden pole along its top, a swallowtail pointing down */
+    /* a wooden button like the rest, white lettering */
     position: relative;
-    padding: 12px 26px 18px;
-    background:
-        /* the pole */
-        linear-gradient(180deg, #6b4c30 0%, #3d2a1a 55%, #1f150c 100%) 0 0 / 100% 6px no-repeat,
-        /* stains, grime at the hems, coarse weave */
-        radial-gradient(ellipse 30px 10px at 24% 66%, rgba(40, 24, 8, 0.28), transparent 70%),
-        radial-gradient(ellipse 24px 12px at 78% 40%, rgba(40, 24, 8, 0.22), transparent 70%),
-        linear-gradient(180deg, rgba(30, 18, 6, 0.35) 6px, transparent 30%, transparent 70%, rgba(30, 18, 6, 0.4) 100%),
-        repeating-linear-gradient(0deg, rgba(255, 240, 210, 0.07) 0 1px, transparent 1px 3px),
-        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.1) 0 1px, transparent 1px 3px),
-        /* the dye, faded with age */
-        linear-gradient(180deg, ${shadeCss(teamColors.player.hex, -0.05)} 0%, ${shadeCss(teamColors.player.hex, -0.25)} 55%, ${shadeCss(teamColors.player.hex, -0.5)} 100%);
-    border: none;
-    border-radius: 0;
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 9px), 0 100%);
-    color: ${u.cream};
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+    padding: 10px 24px;
+    ${WOOD_BUTTON}
+    border-radius: 3px;
+    color: #fff;
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1.5px;
     cursor: pointer;
-    filter: saturate(0.8) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.45));
-    transition: transform 0.14s ease, filter 0.14s ease;
 }
 .mechili-topbar .end-deploy:hover {
+    border-color: #6a6058;
+    filter: brightness(1.12);
     transform: translateY(-1px);
-    filter: saturate(0.95) brightness(1.12) drop-shadow(0 4px 5px rgba(0, 0, 0, 0.5));
 }
 .mechili-topbar .end-deploy:active { transform: translateY(0) scale(0.97); }
-.mechili-topbar .end-deploy:focus-visible { outline: none; filter: brightness(1.18) drop-shadow(0 0 4px rgba(240, 220, 170, 0.8)); }
+.mechili-topbar .end-deploy:focus-visible { outline: none; border-color: #8a7f74; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.45); }
 /* a teammate (2v2/duo) already locked in — left half lights brass so
    both seats on a side can see who's still holding things up */
 .mechili-topbar .end-deploy.ally-ready {
@@ -8309,10 +8331,10 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
     content: '';
     position: absolute;
     left: 0;
-    top: 6px;
+    top: 0;
     bottom: 0;
     width: 50%;
-    background: rgba(255, 236, 190, 0.28);
+    background: rgba(255, 236, 190, 0.22);
     pointer-events: none;
 }
 .mechili-topbar.battle .end-deploy { display: none; }
@@ -8684,10 +8706,7 @@ ${gamepadCursorStyles(u)}
     }
     .mechili-topbar.battle .speed { margin-top: 40px; }
     .mechili-topbar .end-deploy {
-        /* the pole on top, the swallowtail below */
-        padding: 7px 12px 10px;
-        height: 44px;
-        min-height: 44px;
+        padding: 5px 12px;
         font-size: 11px;
         letter-spacing: 0.8px;
     }

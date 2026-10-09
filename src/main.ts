@@ -1274,7 +1274,6 @@ usernameAvatarEl.hidden = true;
 const usernameTextEl = document.createElement('span');
 usernameTextEl.className = 'u-name';
 usernameEl.append(usernameAvatarEl, usernameTextEl);
-menuChromeEl.appendChild(usernameEl);
 
 // Wide screens only (CSS decides — see .mechili-loadout-btn): a direct route
 // to the loadout screen, sitting above the username chip and wearing the
@@ -1290,7 +1289,13 @@ loadoutCornerEl.addEventListener('click', () => {
     menuChromeEl.style.display = 'none';
     loadoutPanel.open();
 });
-menuChromeEl.appendChild(loadoutCornerEl);
+// the loadout button and the username share one column in the corner, so they come
+// out the same width (the wider one's)
+const cornerStackEl = document.createElement('div');
+cornerStackEl.className = 'mechili-corner-stack';
+cornerStackEl.style.zIndex = '30';
+cornerStackEl.append(loadoutCornerEl, usernameEl);
+menuChromeEl.appendChild(cornerStackEl);
 
 // Top-right menu chrome: door (Electron quit) + settings gear.
 const cornerActionsEl = document.createElement('div');
