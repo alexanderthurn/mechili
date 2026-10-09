@@ -5257,10 +5257,28 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-panel .team.horde { color: ${HORDE_COLOR.css}; }
 .mechili-panel .row { display: flex; justify-content: space-between; gap: 18px; font-size: 12px; padding: 1.5px 0; }
 .mechili-panel .row .v { color: ${INK_RUST}; font-weight: 700; font-variant-numeric: tabular-nums; }
-.mechili-panel .xpbar { height: 5px; margin: 0 0 5px; background: rgba(60, 35, 12, 0.22); border-radius: 3px; overflow: hidden; }
-.mechili-panel .xpbar.player div { height: 100%; background: ${pc}; }
-.mechili-panel .xpbar.enemy div { height: 100%; background: ${ec}; }
-.mechili-panel .xpbar.horde div { height: 100%; background: ${HORDE_COLOR.css}; }
+/* the XP bar as a small banner like the commanders' (a faded shadow of the full
+   length, the cloth with a swallowtail end) */
+.mechili-panel .xpbar {
+    position: relative;
+    height: 7px;
+    margin: 0 0 6px;
+    background: rgba(60, 35, 12, 0.28);
+    clip-path: polygon(0 0, 100% 0, calc(100% - 5px) 50%, 100% 100%, 0 100%);
+    border-radius: 0;
+    overflow: hidden;
+}
+.mechili-panel .xpbar div {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    clip-path: polygon(0 0, 100% 0, calc(100% - 5px) 50%, 100% 100%, 0 100%);
+    filter: saturate(0.78) sepia(0.2);
+}
+.mechili-panel .xpbar.player div { background: ${pc}; }
+.mechili-panel .xpbar.enemy div { background: ${ec}; }
+.mechili-panel .xpbar.horde div { background: ${HORDE_COLOR.css}; }
 /* horizontal row of square action tiles (sell, techs, tower actions) */
 .mechili-panel .action-row {
     display: flex; flex-wrap: wrap; gap: 5px;

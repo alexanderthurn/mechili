@@ -115,23 +115,16 @@ export class HpBars {
         // Thickness follows ZOOM, not unit width — otherwise wide units (towers,
         // ballistae) get chunky bars while small ones stay thin.
         const pxPerWorld = halfW > 1e-4 ? modelW / (halfW * 2) : 0;
-        const h = Math.max(selected ? 5 : 3, Math.min(9, Math.round(pxPerWorld * 0.5)));
+        const h = Math.max(selected ? 5 : 4, Math.min(9, Math.round(pxPerWorld * 0.5)));
         const team = actorTeam(a);
         const seat = actorSeat(a);
         const color = colorForUnit(team, isSecondarySeat(this.roster, seat)).hex;
         const left = sx - w / 2;
         const top = sy - h;
 
-        if (selected) {
-            // the ground shows the 3D attack-range ring instead of a marker here
-            g.rect(left - 1.5, top - 1.5, w + 3, h + 3).stroke({
-                width: 1.5,
-                color: THEME.selection,
-                alpha: 0.8,
-            });
-        }
-        g.rect(left, top, w, h).fill({ color: THEME.barBg, alpha: 0.85 * alpha });
-        if (ratio > 0) g.rect(left, top, w * ratio, h).fill({ color, alpha });
+        // (no outline when selected: the plate on the ground marks the selection, and a
+        // selected unit's banner is a little taller)
+        drawBanner(g, left, top, w, h, ratio, faded(color), alpha);
 
         // Shield (Aegis / Bulwark): same dimensions as the HP bar, stacked just
         // above it. The empty track stays visible once depleted, so a shielded
@@ -139,17 +132,7 @@ export class HpBars {
         if (a.shieldMaxHp > 0) {
             const sRatio = Math.max(0, Math.min(1, a.shieldHp / a.shieldMaxHp));
             const sTop = top - h - 1;
-            if (selected) {
-                g.rect(left - 1.5, sTop - 1.5, w + 3, h + 3).stroke({
-                    width: 1.5,
-                    color: THEME.selection,
-                    alpha: 0.8,
-                });
-            }
-            g.rect(left, sTop, w, h).fill({ color: THEME.barBg, alpha: 0.85 * alpha });
-            if (sRatio > 0) {
-                g.rect(left, sTop, w * sRatio, h).fill({ color: THEME.shieldBar, alpha });
-            }
+            drawBanner(g, left, sTop, w, h, sRatio, faded(THEME.shieldBar), alpha);
         }
 
         // convert progress overlays the HP fill in the caster's color
@@ -163,4 +146,39 @@ export class HpBars {
             g.rect(left, top, w * ratio * fill, h).fill({ color: cColor, alpha: 0.92 * alpha });
         }
     }
+}
+
+/**
+ * A small banner like the commanders' health flags (see hud .hp-track): the faded
+ * shadow of the full banner, and the cloth in front, as long as `ratio`, with a
+ * swallowtail cut into its free end. (No pole: at this size it read as a dark line.)
+ */
+function drawBanner(
+    g: Graphics,
+    left: number,
+    top: number,
+    w: number,
+    h: number,
+    ratio: number,
+    color: number,
+    alpha: number,
+): void {
+    const notch = Math.min(h * 0.7, 5);
+    const flag = (len: number): number[] => {
+        const r = left + len;
+        const n = Math.min(notch, len);
+        return [left, top, r, top, r - n, top + h / 2, r, top + h, left, top + h];
+    };
+    // the full banner's shadow, where health is gone
+    g.poly(flag(w)).fill({ color: BANNER_SHADOW, alpha: 0.75 * alpha });
+    if (ratio > 0) g.poly(flag(w * ratio)).fill({ color, alpha });
+}
+
+const BANNER_SHADOW = 0x2a1f16;
+
+/** the dye faded with age: the team colour pulled a little toward old brown */
+function faded(hex: number): number {
+    const k = 0.22;
+    const mix = (shift: number, toward: number) => Math.round(((hex >> shift) & 0xff) * (1 - k) + toward * k);
+    return (mix(16, 0x6a) << 16) | (mix(8, 0x55) << 8) | mix(0, 0x41);
 }
