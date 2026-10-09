@@ -1061,7 +1061,7 @@ menu.className = 'mechili-menu';
 menu.style.display = 'none';
 menu.innerHTML = `
     <div class="m-view m-main is-active" data-view="main">
-        <button class="m-btn m-primary" data-mode="tutorial">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial"></span></button>
+        <button class="m-btn" data-mode="tutorial">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:tutorial"></span></button>
         <button class="m-btn" data-mode="single">${iconHtml('ui-unit', 'm-ico mask-ico')}<span class="m-label" data-i18n="menu:singlePlayer"></span></button>
         <button class="m-btn" data-mode="multiplayer">${iconHtml('ui-invite', 'm-ico mask-ico')}<span class="m-label" data-i18n="settings:multiplayer"></span><span class="m-mp-count" hidden></span></button>
     </div>
