@@ -7514,10 +7514,10 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-next {
     align-self: center;
     padding: 10px 26px;
-    background: ${u.alliedBtnBg};
-    border: 1.5px solid ${pc};
-    border-radius: 4px;
-    color: ${pc};
+    /* wood with an iron edge, like every other button; the main action in brass */
+    ${WOOD_BUTTON}
+    border-radius: 3px;
+    color: ${u.brassLight};
     font-size: 15px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -7528,7 +7528,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-view:hover,
 .mechili-gameover .go-retry:hover,
 .mechili-gameover .go-rematch:hover:not(:disabled),
-.mechili-gameover .go-next:hover { background: ${u.alliedBtnHover}; transform: translateY(-2px); }
+.mechili-gameover .go-next:hover { border-color: #6a6058; filter: brightness(1.12); transform: translateY(-2px); }
 .mechili-gameover .go-restart:focus-visible,
 .mechili-gameover .go-view:focus-visible,
 .mechili-gameover .go-retry:focus-visible,
@@ -7537,9 +7537,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-gameover .go-rematch:disabled { opacity: 0.6; cursor: default; }
 /* a quieter secondary action: look over the battlefield */
 .mechili-gameover .go-view {
-    background: transparent;
-    border-color: ${u.border};
-    color: ${u.textMuted};
+    color: ${u.creamMuted};
     font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.6px;
@@ -7554,32 +7552,31 @@ ${chatFloatStyles(u, pc, ec)}
     transform: translateX(-50%);
     display: flex;
     gap: 10px;
-    padding: 8px;
-    background: rgba(12, 14, 18, 0.78);
-    border: 1px solid ${u.border};
-    border-radius: 6px;
+    padding: 8px 10px;
+    /* a parchment strip */
+    background: ${PARCHMENT_FILL};
+    border: none;
+    border-radius: 0;
+    box-shadow: ${PARCHMENT_EDGE};
     z-index: 60;
 }
 .mechili-battlefield-bar button {
     padding: 8px 18px;
-    background: ${u.alliedBtnBg};
-    border: 1.5px solid ${pc};
-    border-radius: 4px;
-    color: ${pc};
+    ${WOOD_BUTTON}
+    border-radius: 3px;
+    color: ${u.brassLight};
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 0.6px;
     cursor: pointer;
 }
-.mechili-battlefield-bar button:hover { background: ${u.alliedBtnHover}; }
-.mechili-battlefield-bar .bf-leave { background: transparent; border-color: ${u.border}; color: ${u.textMuted}; }
+.mechili-battlefield-bar button:hover { border-color: #6a6058; filter: brightness(1.12); }
+.mechili-battlefield-bar .bf-leave { color: ${u.creamMuted}; }
 .mechili-gameover .go-rematch.is-asked { border-color: ${u.brassLight}; color: ${u.brassLight}; box-shadow: 0 0 16px rgba(212, 184, 120, 0.45); animation: year-mark-pulse 1.6s ease-in-out infinite; }
 .mechili-gameover .go-actions:has(.go-rematch) .go-restart,
 .mechili-gameover .go-actions:has(.go-retry) .go-restart,
 .mechili-gameover .go-actions:has(.go-next) .go-restart {
-    background: transparent;
-    border-color: ${u.border};
-    color: ${u.textMuted};
+    color: ${u.creamMuted};
     font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.6px;
@@ -7587,8 +7584,7 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-gameover .go-actions:has(.go-retry) .go-restart:hover,
 .mechili-gameover .go-actions:has(.go-next) .go-restart:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: ${u.text};
+    color: ${u.cream};
 }
 
 .mechili-report {
