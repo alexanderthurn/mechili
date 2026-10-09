@@ -1973,11 +1973,12 @@ ${chatFloatStyles(u, pc, ec)}
     overflow-y: auto;
     width: 100%;
     box-sizing: border-box;
-    background: rgba(16, 13, 10, 0.72);
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
-    border: 1.5px solid ${u.frameLo};
-    border-radius: 4px;
+    /* parchment, in ink (like the details pane in the match) */
+    background: ${PARCHMENT_FILL};
+    border: none;
+    border-radius: 0;
+    box-shadow: ${PARCHMENT_EDGE};
+    color: ${INK};
 }
 .mechili-loadout .lo-stat {
     display: flex;
@@ -1985,18 +1986,18 @@ ${chatFloatStyles(u, pc, ec)}
     justify-content: space-between;
     gap: 10px;
     padding: 7px 11px;
-    border-bottom: 1px solid rgba(92, 70, 52, 0.35);
+    border-bottom: 1px solid rgba(90, 55, 20, 0.25);
     font-size: 12px;
 }
 .mechili-loadout .lo-stat:last-child { border-bottom: none; }
 .mechili-loadout .lo-stat .k {
-    color: ${u.textMuted};
+    color: ${INK_MUTED};
     letter-spacing: 1px;
     text-transform: uppercase;
     font-size: 10px;
 }
 .mechili-loadout .lo-stat .v {
-    color: ${u.cream};
+    color: ${INK_RUST};
     font-weight: bold;
     font-variant-numeric: tabular-nums;
 }
@@ -2027,23 +2028,21 @@ ${chatFloatStyles(u, pc, ec)}
     align-items: center;
     gap: 9px;
     padding: 8px 11px 8px 9px;
-    background: rgba(16, 13, 10, 0.72);
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
-    border: 1.5px solid ${u.frameLo};
+    ${WOOD_BUTTON}
     border-radius: 3px;
-    color: ${u.textMuted};
+    color: ${u.creamMuted};
     font-family: inherit;
     font-size: 13px;
     text-align: start;
     cursor: pointer;
     transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
 }
-.mechili-loadout .lo-tech:hover { border-color: ${u.hover}; color: ${u.cream}; }
+.mechili-loadout .lo-tech:hover { border-color: #6a6058; color: ${u.cream}; }
+/* the chosen talent: pressed in, a brass edge, light lettering */
 .mechili-loadout .lo-tech.is-on {
-    background: linear-gradient(180deg, rgba(58, 48, 40, 0.9) 0%, rgba(34, 28, 23, 0.9) 100%);
     border-color: ${u.brass};
     color: ${u.cream};
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(184, 146, 74, 0.35);
 }
 .mechili-loadout .lo-tico {
     width: 22px;
@@ -2080,7 +2079,9 @@ ${chatFloatStyles(u, pc, ec)}
     align-items: center;
     justify-content: center;
     padding: 0;
-    background: linear-gradient(180deg, rgba(58, 48, 40, 0.9) 0%, rgba(34, 28, 23, 0.9) 100%);
+    background:
+        repeating-linear-gradient(1.5deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 4px),
+        linear-gradient(180deg, #4a3422 0%, #33231a 55%, #1f150c 100%);
     border: 1.5px solid ${u.brass};
     border-radius: 3px;
     /* REQUIRED, not cosmetic: mask icons tint with background-color:
@@ -2093,8 +2094,8 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-loadout .lo-slot:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 /* an unfilled slot is a placeholder, not a control */
 .mechili-loadout .lo-slot.is-empty {
-    background: rgba(10, 8, 6, 0.6);
-    border: 1.5px dashed ${u.slotBorder};
+    background: linear-gradient(180deg, #1c130b 0%, #24190f 100%);
+    border: 1.5px dashed #4a423b;
     cursor: default;
 }
 .mechili-loadout .lo-sico { width: 26px; height: 26px; font-size: 0; }
@@ -2102,12 +2103,8 @@ ${chatFloatStyles(u, pc, ec)}
 /* ---- corner buttons ---- */
 .mechili-loadout .lo-cornerbtn {
     padding: 9px 18px;
-    background: rgba(16, 13, 10, 0.8);
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
-    border: 1.5px solid ${u.border};
+    ${WOOD_BUTTON}
     border-radius: 3px;
-    color: ${u.text};
     font-family: inherit;
     font-size: 13px;
     font-weight: bold;
@@ -2116,7 +2113,7 @@ ${chatFloatStyles(u, pc, ec)}
     transition: border-color 0.14s ease, color 0.14s ease, transform 0.14s ease;
 }
 .mechili-loadout .lo-cornerbtn:hover {
-    border-color: ${u.hover};
+    border-color: #6a6058;
     color: ${u.brassLight};
     transform: translateY(-1px);
 }
@@ -2163,12 +2160,9 @@ ${chatFloatStyles(u, pc, ec)}
         display: block;
         width: 100%;
         padding: 6px 10px;
-        background: rgba(16, 13, 10, 0.72);
-        -webkit-backdrop-filter: blur(3px);
-        backdrop-filter: blur(3px);
-        border: 1.5px solid ${u.frameLo};
+        ${WOOD_BUTTON}
         border-radius: 3px;
-        color: ${u.textMuted};
+        color: ${u.creamMuted};
         font-family: inherit;
         font-size: 11px;
         font-weight: bold;
