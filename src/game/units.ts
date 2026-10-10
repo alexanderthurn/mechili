@@ -1321,6 +1321,20 @@ export function strongholdArcherSlotWorld(keep: Unit, slot: number): { x: number
     );
 }
 
+/**
+ * A wall's yaw on top of its board-keyed facing: a quarter turn per step of
+ * (rotated, flipped) — 0, 90°, 180°, 270° for (no, no), (yes, no), (no, yes), (yes, yes).
+ */
+export function wallTurnYaw(rotated: boolean, flipped: boolean): number {
+    return (rotated ? Math.PI / 2 : 0) + (flipped ? Math.PI : 0);
+}
+
+/** a wall's next quarter turn (the rotate button walks all four) */
+export function nextWallTurn(rotated: boolean, flipped: boolean): { rotated: boolean; flipped: boolean } {
+    const step = ((rotated ? 1 : 0) + (flipped ? 2 : 0) + 1) % 4;
+    return { rotated: step % 2 === 1, flipped: step >= 2 };
+}
+
 /** see the wall type's `posts.cover` */
 export interface WallCover {
     splash: number;
@@ -1535,6 +1549,12 @@ export class Unit {
     /** experiment: this wall has the walkway behind it (bought; see wallWalk.ts) */
     wallWalk = false;
     /**
+     * A wall turned the other way round: its back — the walkway, its archer —
+     * on the side it would face otherwise. With `rotated`, its four quarter
+     * turns (see nextWallTurn).
+     */
+    flipped = false;
+    /**
      * Base building growth per level above 1: 5% (a 2v2 Stronghold — both
      * seats' upgrades summed, up to level 9 — is set to the same at spawn, so
      * it stays on its hill). Feeds the archer pads, so it must be log-derived:
@@ -1647,7 +1667,7 @@ export class Unit {
         // into every battle-start comparison for the whole match: a desync a
         // resync could not repair, because both peers just rebuilt it. It also
         // drew the far side's castles facing backwards. Yaw 0 looks down −z.
-        this.facing = (world.z >= 0 ? 0 : Math.PI) + (type.wall && rotated ? Math.PI / 2 : 0);
+        this.facing = (world.z >= 0 ? 0 : Math.PI) + (type.wall ? wallTurnYaw(rotated, this.flipped) : 0);
         for (const m of this.members) m.mesh.rotation.y = this.facing;
         this.view.position.copy(this.world);
         this.seatMembers();
@@ -1809,10 +1829,16 @@ export class Unit {
         // buildings never turn — but a wall lies along its footprint, so a
         // turned wall turns its model with it (board-keyed like the default facing)
         if (this.type.wall) {
-            this.facing = (this.world.z >= 0 ? 0 : Math.PI) + (rotated ? Math.PI / 2 : 0);
+            this.facing = (this.world.z >= 0 ? 0 : Math.PI) + wallTurnYaw(rotated, this.flipped);
             for (const m of this.members) m.mesh.rotation.y = this.facing;
         }
         this.seatMembers();
+    }
+
+    /** a wall's quarter turn: along x or z (`rotated`), and which side its back is on (`flipped`) */
+    setWallTurn(rotated: boolean, flipped: boolean): void {
+        this.flipped = flipped;
+        this.setRotated(rotated);
     }
 
     /**

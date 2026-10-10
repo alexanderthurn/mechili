@@ -35,7 +35,7 @@ export class WallJoins {
     /** call every frame with the placed units; does work only when walls changed */
     update(units: readonly Unit[]): void {
         const walls = units.filter((u) => u.type.wall && !u.destroyed);
-        const key = walls.map((u) => `${u.id}:${u.cell.col},${u.cell.row},${u.rotated ? 1 : 0},${u.level},${u.wallWalk ? 1 : 0}`).join('|');
+        const key = walls.map((u) => `${u.id}:${u.cell.col},${u.cell.row},${u.rotated ? 1 : 0},${u.flipped ? 1 : 0},${u.level},${u.wallWalk ? 1 : 0}`).join('|');
         if (key === this.key) return;
         this.key = key;
 
@@ -56,7 +56,8 @@ export class WallJoins {
             for (let k = i + 1; k < walls.length; k++) {
                 const a = walls[i]!;
                 const b = walls[k]!;
-                if (a.rotated !== b.rotated || a.team !== b.team) continue;
+                // one wall only when they lie the same way and their backs are on the same side
+                if (a.rotated !== b.rotated || a.flipped !== b.flipped || a.team !== b.team) continue;
                 const ea = this.endsOf(a);
                 const eb = this.endsOf(b);
                 // straight on: a's far end on b's near end, or the other way round

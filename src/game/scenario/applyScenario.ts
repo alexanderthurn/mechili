@@ -87,6 +87,7 @@ export function applyScenario(host: ScenarioHost, def: ScenarioDef): AppliedScen
                 );
             }
             if (!unit) continue;
+            if (type.wall && placed.at.flipped) unit.setWallTurn(unit.rotated, true);
             applied.units[index] = unit;
             // authored packs count as deployed before round 1 — placed, not this round's buys
             unit.deployedRound = 0;

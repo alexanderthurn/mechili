@@ -12509,7 +12509,7 @@ export class Game {
         const board = this.placement
             .allUnits()
             .filter((u) => u.type.structure && !u.destroyed)
-            .map((u) => `${u.id}:${u.cell.col},${u.cell.row},${u.rotated ? 1 : 0},${u.level}`)
+            .map((u) => `${u.id}:${u.cell.col},${u.cell.row},${u.rotated ? 1 : 0},${u.flipped ? 1 : 0},${u.level}`)
             .join('|');
         const key = `${battle ? 'b' : 'd'}:${shooter.id}:${shooter.world.x.toFixed(2)},${shooter.world.z.toFixed(2)},${shooter.level}:${board}`;
         const team: BattleTeam = shooter.team === 'horde' ? 'horde' : shooter.team;

@@ -29,7 +29,7 @@ import {
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
 import { drapeDiskGeometry, setDrapedMeshPosition, DRAPE_RENDER_ORDER } from './groundMarkers';
-import { hasAbility, isFixture, STRONGHOLD_ARCHER_FOV_HALF, Unit, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+import { hasAbility, isFixture, nextWallTurn, STRONGHOLD_ARCHER_FOV_HALF, Unit, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, isSecondarySeat, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { effectiveTargets, effectiveFlying } from './tech';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
@@ -52,6 +52,8 @@ interface IntelEntry {
     seat: SeatId;
     cell: Cell;
     rotated: boolean;
+    /** a wall turned the other way round */
+    flipped: boolean;
     facing: number;
     world: Vector3;
     level: number;
@@ -582,6 +584,8 @@ export class PlacementController {
     private pendingType: UnitType | null = null;
     /** the bought extra riding the cursor is turned 90° (R / middle click / gamepad) */
     private pendingRotated = false;
+    /** a wall on the cursor turned the other way round (see Unit.flipped) */
+    private pendingFlipped = false;
     private pendingUnit: Unit | null = null;
     /**
      * First click on a movable pack only SELECTS it (info, range). A second
@@ -884,6 +888,7 @@ export class PlacementController {
             seat: unit.seat,
             cell: { col: unit.cell.col, row: unit.cell.row },
             rotated: unit.rotated,
+            flipped: unit.flipped,
             facing: unit.facing,
             world: unit.world.clone(),
             level: unit.level,
@@ -1010,6 +1015,7 @@ export class PlacementController {
         this.deselect();
         this.pendingType = type;
         this.pendingRotated = false;
+        this.pendingFlipped = false;
         this.pendingUnit = new Unit(type, { col: 0, row: 0 }, 'player', new Vector3(0, -9999, 0));
         // the ghost previews the facing rule (matters for far-side owners)
         this.pendingUnit.faceClosestOf(this.opponentMechPositions('player', this.pendingUnit));
@@ -1241,8 +1247,14 @@ export class PlacementController {
         // a bought extra still on the cursor turns before it is placed
         if (this.pendingType && this.pendingUnit) {
             if (!this.enabled) return;
-            this.pendingRotated = !this.pendingRotated;
-            this.pendingUnit.setRotated(this.pendingRotated);
+            if (this.pendingType.wall) {
+                const next = nextWallTurn(this.pendingRotated, this.pendingFlipped);
+                this.pendingRotated = next.rotated;
+                this.pendingFlipped = next.flipped;
+            } else {
+                this.pendingRotated = !this.pendingRotated;
+            }
+            this.pendingUnit.setWallTurn(this.pendingRotated, this.pendingFlipped);
             return;
         }
         if (this.formationActive) return; // formations don't rotate
@@ -1254,11 +1266,16 @@ export class PlacementController {
 
     /** Rotates a pack in place (dispatcher-only). While carrying, rotation is
      *  visual-only — drop validity is checked separately on move. */
-    rotateUnit(unit: Unit, anchor: Cell = unit.cell): boolean {
-        const rotated = !unit.rotated;
+    rotateUnit(unit: Unit, anchor: Cell = unit.cell, turn?: { rotated: boolean; flipped: boolean }): boolean {
+        // a wall walks its four quarter turns (which side its back is on matters);
+        // `turn` sets one outright (undo)
+        const next =
+            turn ??
+            (unit.type.wall ? nextWallTurn(unit.rotated, unit.flipped) : { rotated: !unit.rotated, flipped: unit.flipped });
+        const rotated = next.rotated;
 
         if (this.carryingSelected && unit === this.selectedUnit) {
-            unit.setRotated(rotated);
+            unit.setWallTurn(rotated, next.flipped);
             unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
             return true;
         }
@@ -1269,7 +1286,7 @@ export class PlacementController {
             this.deployCellOk(unit.team, c, unit.type, unit.seat) && this.cellFree(unit.type, c, unit);
         if (!cells || !cells.every(fits)) return false;
         this.release(unit);
-        unit.setRotated(rotated);
+        unit.setWallTurn(rotated, next.flipped);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
         unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
@@ -2343,6 +2360,7 @@ export class PlacementController {
         if (ghost) return ghost;
         const type = this.types.byId(entry.typeId)!;
         ghost = new Unit(type, entry.cell, entry.team, entry.world.clone(), entry.rotated);
+        if (type.wall && entry.flipped) ghost.setWallTurn(entry.rotated, true);
         ghost.id = entry.unitId;
         ghost.seat = entry.seat;
         ghost.facing = entry.facing;
@@ -2674,6 +2692,7 @@ export class PlacementController {
                 typeId: this.pendingType.id,
                 anchor,
                 rotated: this.pendingRotated,
+                ...(this.pendingFlipped ? { flipped: true } : {}),
             });
             if (!done) return;
             // walls: the next one rides the cursor at once (same turn), while it's affordable

@@ -28,8 +28,11 @@ export interface SceneUnit {
     /** any unit or building type the match has (base game + package) */
     typeId: string;
     team: SceneTeam;
-    /** grid anchor (placement convention: top-left cell of the footprint) */
-    at: { col: number; row: number; rotated?: boolean };
+    /**
+     * grid anchor (placement convention: top-left cell of the footprint);
+     * `flipped`: a wall turned the other way round (its back on the other side)
+     */
+    at: { col: number; row: number; rotated?: boolean; flipped?: boolean };
     /** 1 = recruit level */
     level: number;
     /** runes on this pack */

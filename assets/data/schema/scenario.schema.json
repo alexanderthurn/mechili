@@ -503,6 +503,9 @@
             },
             "rotated": {
               "type": "boolean"
+            },
+            "flipped": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -510,7 +513,7 @@
             "row"
           ],
           "additionalProperties": false,
-          "description": "grid anchor (placement convention: top-left cell of the footprint)"
+          "description": "grid anchor (placement convention: top-left cell of the footprint); `flipped`: a wall turned the other way round (its back on the other side)"
         },
         "level": {
           "type": "number",

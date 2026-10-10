@@ -82,6 +82,8 @@ export interface BuyAction {
     /** resolved spawn spot — the "find a free spot" search runs before the action is made */
     anchor: Cell;
     rotated: boolean;
+    /** a wall turned the other way round (see Unit.flipped) */
+    flipped?: boolean;
 }
 /** buys a base rune into the seat's bag — unlimited; only supply (and escalating price) gates it */
 export interface BuyRuneAction {
@@ -483,6 +485,8 @@ interface LogEntry extends LoggedAction {
     paid?: number;
     /** move: the anchor the pack came from */
     from?: Cell;
+    /** rotate: the turn it had before (a wall's four turns don't undo by turning again) */
+    turnFrom?: { rotated: boolean; flipped: boolean };
     /** buyLevel: banked XP before the purchase */
     xpBefore?: number;
     /** buyLevelBatch: per-unit paid + xp snapshot (successful levels only) */
@@ -939,6 +943,7 @@ export class ActionDispatcher {
                 if (economy.balance(seat) < economy.costOf(type) + premium) return false;
                 const unit = placement.placeUnit(action.team, type, action.anchor, action.rotated, seat);
                 if (!unit) return false;
+                if (action.flipped && type.wall) unit.setWallTurn(unit.rotated, true);
                 if (level > 1) {
                     economy.spend(seat, premium);
                     unit.level = level;
@@ -983,6 +988,7 @@ export class ActionDispatcher {
                 const unit = placement.unitById(action.unitId);
                 if (!unit || unit.team !== action.team || unit.seat !== seat || !placement.canReposition(unit)) return false;
                 entry.from = { ...unit.cell };
+                entry.turnFrom = { rotated: unit.rotated, flipped: unit.flipped };
                 return placement.rotateUnit(unit, action.anchor);
             }
             case 'buyTech': {
@@ -1919,7 +1925,7 @@ export class ActionDispatcher {
                 );
                 break;
             case 'rotate':
-                placement.rotateUnit(placement.unitById(action.unitId)!, e.from);
+                placement.rotateUnit(placement.unitById(action.unitId)!, e.from, e.turnFrom);
                 break;
             case 'buyTech':
                 techTree.remove(seat, action.typeId, action.techId);

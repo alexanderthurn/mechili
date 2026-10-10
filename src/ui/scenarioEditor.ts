@@ -35,7 +35,7 @@ import {
 } from '../game/scenario/editorDraft';
 import type { ScenarioIssue } from '../game/scenario/normalize';
 import type { ScenarioDef, SceneTeam, SceneUnit } from '../game/scenario/scenarioDef';
-import type { Unit, UnitType } from '../game/units';
+import { nextWallTurn, type Unit, type UnitType } from '../game/units';
 import { rulesHtml, wireRules } from './scenarioRulesPanel';
 
 export interface ScenarioEditorHost {
@@ -620,9 +620,14 @@ export class ScenarioEditor {
         if (sel?.kind !== 'unit') return;
         const entry = this.view.scene.units[sel.index];
         const type = entry ? this.host.types.byId(entry.typeId) : null;
-        if (!entry || !type || type.footprint.cols === type.footprint.rows) return;
-        const rotated: SceneUnit = { ...entry, at: { ...entry.at, rotated: !entry.at.rotated } };
+        if (!entry || !type || (type.footprint.cols === type.footprint.rows && !type.wall)) return;
+        // a wall walks its four quarter turns (which side its back is on matters)
+        const turn = type.wall
+            ? nextWallTurn(!!entry.at.rotated, !!entry.at.flipped)
+            : { rotated: !entry.at.rotated, flipped: false };
+        const rotated: SceneUnit = { ...entry, at: { ...entry.at, rotated: turn.rotated, flipped: turn.flipped } };
         if (!rotated.at.rotated) delete rotated.at.rotated;
+        if (!rotated.at.flipped) delete rotated.at.flipped;
         if (!this.fits(type, rotated, this.applied.units[sel.index] ?? null)) {
             this.flash(t('editor:noRoom', { defaultValue: 'No room there' }));
             return;

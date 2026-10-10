@@ -113,7 +113,11 @@ export function captureScene(
         units.push({
             typeId: unit.type.id,
             team,
-            at: unit.rotated ? { ...at, rotated: true } : at,
+            at: {
+                ...at,
+                ...(unit.rotated ? { rotated: true } : {}),
+                ...(unit.type.wall && unit.flipped ? { flipped: true } : {}),
+            },
             level: unit.level,
             ...(unit.items.length > 0 ? { items: [...unit.items] } : {}),
         });
