@@ -27,6 +27,7 @@
   "openGames": "Mở {{scope}} Trò chơi",
   "noOpenGames": "Không có trò chơi {{scope}} nào đang mở",
   "refreshRooms": "Làm mới danh sách phòng",
+  "quickJoin": "Tham gia",
   "roomsLoadError": "Không thể tải phòng",
   "back": "Quay lại",
   "play": "Chơi",

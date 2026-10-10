@@ -27,6 +27,7 @@
   "openGames": "Öppna {{scope}} Spel",
   "noOpenGames": "Inga öppna {{scope}}-spel",
   "refreshRooms": "Uppdatera rumslistan",
+  "quickJoin": "Gå med",
   "roomsLoadError": "Kunde inte ladda rummen",
   "back": "Tillbaka",
   "play": "Spela",

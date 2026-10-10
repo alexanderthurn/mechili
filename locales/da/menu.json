@@ -27,6 +27,7 @@
   "openGames": "Åbne {{scope}} spil",
   "noOpenGames": "Ingen åbne {{scope}} spil",
   "refreshRooms": "Opdater rumlisten",
+  "quickJoin": "Deltag",
   "roomsLoadError": "Kunne ikke indlæse rummene",
   "back": "Tilbage",
   "play": "Spil",

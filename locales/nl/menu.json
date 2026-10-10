@@ -27,6 +27,7 @@
   "openGames": "Open {{scope}} Games",
   "noOpenGames": "Geen open {{scope}}-spellen",
   "refreshRooms": "Kamers vernieuwen",
+  "quickJoin": "Meedoen",
   "roomsLoadError": "Kamers konden niet worden geladen.",
   "back": "Terug",
   "play": "Toneelstuk",

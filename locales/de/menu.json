@@ -27,6 +27,7 @@
   "openGames": "Offene {{scope}}-Spiele",
   "noOpenGames": "Keine offenen {{scope}} Spiele",
   "refreshRooms": "Raumliste aktualisieren",
+  "quickJoin": "Beitreten",
   "roomsLoadError": "Räume konnten nicht geladen werden",
   "back": "Zurück",
   "play": "Spielen",

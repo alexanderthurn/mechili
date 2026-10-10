@@ -1751,6 +1751,24 @@ ${chatFloatStyles(u, pc, ec)}
     text-transform: none;
 }
 .mechili-menu .m-mp-count[hidden] { display: none; }
+/* the "n open" badge is a button: it joins an open game — lit and breathing so it reads as one */
+.mechili-menu .m-mp-open {
+    cursor: pointer;
+    background: rgba(120, 200, 90, 0.18) !important;
+    box-shadow: 0 0 0 1px rgba(150, 220, 110, 0.35), 0 0 10px rgba(150, 220, 110, 0.45);
+    animation: m-mp-open-glow 1.8s ease-in-out infinite;
+    transition: transform 0.12s ease, background 0.12s ease;
+}
+.mechili-menu .m-mp-open:hover {
+    transform: scale(1.08);
+    background: rgba(120, 200, 90, 0.34) !important;
+}
+.mechili-menu .m-mp-open:active { transform: scale(0.97); }
+@keyframes m-mp-open-glow {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(150, 220, 110, 0.35), 0 0 6px rgba(150, 220, 110, 0.3); }
+    50% { box-shadow: 0 0 0 1px rgba(150, 220, 110, 0.6), 0 0 16px rgba(150, 220, 110, 0.7); }
+}
+@media (prefers-reduced-motion: reduce) { .mechili-menu .m-mp-open { animation: none; } }
 .mechili-menu .m-mp-count > span {
     padding: 1px 8px;
     border-radius: 999px;

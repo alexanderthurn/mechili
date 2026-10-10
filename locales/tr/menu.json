@@ -27,6 +27,7 @@
   "openGames": "Open {{scope}} Games",
   "noOpenGames": "Açık {{scope}} Oyunları yok",
   "refreshRooms": "Oda listesini yenile",
+  "quickJoin": "Katıl",
   "roomsLoadError": "Odalar yüklenemedi.",
   "back": "Geri",
   "play": "Oyna",

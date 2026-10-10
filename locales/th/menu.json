@@ -27,6 +27,7 @@
   "openGames": "เกม {{scope}} ที่เปิดอยู่",
   "noOpenGames": "ไม่มีเกม {{scope}} ที่เปิดอยู่",
   "refreshRooms": "รีเฟรชรายการห้อง",
+  "quickJoin": "เข้าร่วม",
   "roomsLoadError": "โหลดห้องไม่สำเร็จ",
   "back": "กลับ",
   "play": "เล่น",

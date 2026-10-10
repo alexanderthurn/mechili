@@ -27,6 +27,7 @@
   "openGames": "Buka {{scope}} Game",
   "noOpenGames": "Tidak ada permainan {{scope}} yang terbuka",
   "refreshRooms": "Perbarui daftar ruang",
+  "quickJoin": "Gabung",
   "roomsLoadError": "Ruangan tidak dapat dimuat.",
   "back": "Kembali",
   "play": "Bermain",

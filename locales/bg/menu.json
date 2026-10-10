@@ -27,6 +27,7 @@
   "openGames": "Отворени {{scope}} Игри",
   "noOpenGames": "Няма отворени {{scope}} игри",
   "refreshRooms": "Обновяване на списъка със стаи",
+  "quickJoin": "Влез",
   "roomsLoadError": "Не можаха да се заредят стаите",
   "back": "Обратно",
   "play": "Играй",

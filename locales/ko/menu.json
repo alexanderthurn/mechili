@@ -27,6 +27,7 @@
   "openGames": "열린 {{scope}} 게임",
   "noOpenGames": "열린 {{scope}} 게임 없음",
   "refreshRooms": "방 목록 새로고침",
+  "quickJoin": "참가",
   "roomsLoadError": "방을 불러올 수 없습니다",
   "back": "뒤로",
   "play": "플레이",

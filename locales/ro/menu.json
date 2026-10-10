@@ -27,6 +27,7 @@
   "openGames": "Jocuri deschise {{scope}}",
   "noOpenGames": "Niciun joc {{scope}} deschis",
   "refreshRooms": "Actualizează lista de camere",
+  "quickJoin": "Intră",
   "roomsLoadError": "Nu s-au putut încărca camerele",
   "back": "Înapoi",
   "play": "Juca",

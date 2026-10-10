@@ -27,6 +27,7 @@
   "openGames": "Otwarte gry {{scope}}",
   "noOpenGames": "Brak otwartych gier {{scope}}",
   "refreshRooms": "Odśwież",
+  "quickJoin": "Dołącz",
   "roomsLoadError": "Nie udało się załadować pokoi",
   "back": "Wstecz",
   "play": "Graj",

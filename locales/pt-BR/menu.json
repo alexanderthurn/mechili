@@ -27,6 +27,7 @@
   "openGames": "Jogos abertos {{scope}}",
   "noOpenGames": "Nenhum jogo aberto {{scope}}",
   "refreshRooms": "Atualizar lista de salas",
+  "quickJoin": "Entrar",
   "roomsLoadError": "Não foi possível carregar as salas.",
   "back": "Voltar",
   "play": "Jogar",

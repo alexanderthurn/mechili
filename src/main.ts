@@ -3317,10 +3317,15 @@ const roomAdsByKey = new Map<string, RoomAd>();
 
 const mpCountEl = menu.querySelector<HTMLSpanElement>('.m-mp-count')!;
 
+/** the open game the "n open" badge joins: the first joinable one the last refresh listed */
+let quickJoinAd: RoomAd | null = null;
+
 /** the main menu's Multiplayer button: how many games are open to join and running to watch */
-function setMultiplayerCount(ads: readonly { spectate?: unknown }[]): void {
+function setMultiplayerCount(ads: readonly RoomAd[]): void {
     const running = ads.filter((ad) => !!ad.spectate).length;
     const open = ads.length - running;
+    // the "n open" badge joins one of them straight away (see the menu's click handler)
+    quickJoinAd = ads.find((ad) => !ad.spectate) ?? null;
     mpCountEl.hidden = ads.length === 0;
     mpCountEl.replaceChildren();
     const pill = (className: string, text: string) => {
@@ -3329,7 +3334,10 @@ function setMultiplayerCount(ads: readonly { spectate?: unknown }[]): void {
         el.textContent = text;
         mpCountEl.appendChild(el);
     };
-    if (open > 0) pill('m-mp-open', t('menu:mpOpenCount', { defaultValue: '{{n}} open', n: open }));
+    if (open > 0) {
+        pill('m-mp-open', t('menu:mpOpenCount', { defaultValue: '{{n}} open', n: open }));
+        (mpCountEl.lastElementChild as HTMLElement).title = t('menu:quickJoin', { defaultValue: 'Join' });
+    }
     if (running > 0) pill('m-mp-running', t('menu:mpRunningCount', { defaultValue: '{{n}} running', n: running }));
 }
 
@@ -6116,6 +6124,21 @@ menu.addEventListener('click', (e) => {
         if (ad?.join.transport === 'steam') void joinSteamAd(ad.join.lobbyId);
         else if (ad?.join.transport === 'lan') beginStarJoin(ad.join.name, ad.join.peerServer);
         else beginStarJoin(roomBtn.dataset.room, null);
+        return;
+    }
+
+    // the Multiplayer button's "n open" badge: straight into the first open game — else matchmaking
+    if ((e.target as HTMLElement).closest('.m-mp-open') && !started) {
+        if (pending) return;
+        if (!bootReady) {
+            setStatus(t('menu:stillLoading'));
+            return;
+        }
+        const ad = quickJoinAd;
+        if (ad?.join.transport === 'steam') void joinSteamAd(ad.join.lobbyId);
+        else if (ad?.join.transport === 'lan') beginStarJoin(ad.join.name, ad.join.peerServer);
+        else if (ad) beginStarJoin(ad.name, null);
+        else menu.querySelector<HTMLButtonElement>('.m-btn[data-mode="matchmaking"]')?.click();
         return;
     }
 

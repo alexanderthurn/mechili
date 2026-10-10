@@ -27,6 +27,7 @@
   "openGames": "Otevřené hry {{scope}}",
   "noOpenGames": "Žádné otevřené hry {{scope}}",
   "refreshRooms": "Obnovit seznam místností",
+  "quickJoin": "Připojit",
   "roomsLoadError": "Nepodařilo se načíst místnosti",
   "back": "Zpět",
   "play": "Hrát",

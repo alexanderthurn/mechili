@@ -27,6 +27,7 @@
   "openGames": "Nyílt {{scope}} játékok",
   "noOpenGames": "Nincsenek nyitott {{scope}} játékok",
   "refreshRooms": "Szobalista frissítése",
+  "quickJoin": "Csatlakozás",
   "roomsLoadError": "Nem sikerült betölteni a szobákat",
   "back": "Vissza",
   "play": "Játék",

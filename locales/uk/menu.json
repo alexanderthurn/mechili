@@ -27,6 +27,7 @@
   "openGames": "Відкриті ігри {{scope}}",
   "noOpenGames": "Немає відкритих ігор {{scope}}",
   "refreshRooms": "Оновити список кімнат",
+  "quickJoin": "Увійти",
   "roomsLoadError": "Не вдалося завантажити кімнати",
   "back": "Назад",
   "play": "Грати",

@@ -27,6 +27,7 @@
   "openGames": "Avoimet {{scope}}-pelit",
   "noOpenGames": "Ei avoimia {{scope}} pelejä",
   "refreshRooms": "Päivitä huoneluettelo",
+  "quickJoin": "Liity",
   "roomsLoadError": "Huoneiden lataaminen epäonnistui",
   "back": "Takaisin",
   "play": "Pelata",

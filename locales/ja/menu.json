@@ -27,6 +27,7 @@
   "openGames": "公開中の {{scope}} ゲーム",
   "noOpenGames": "公開中の {{scope}} ゲームなし",
   "refreshRooms": "ルーム一覧を更新",
+  "quickJoin": "参加",
   "roomsLoadError": "ルームを読み込めませんでした",
   "back": "戻る",
   "play": "プレイ",

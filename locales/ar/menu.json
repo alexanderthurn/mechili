@@ -27,6 +27,7 @@
   "openGames": "ألعاب {{scope}} المفتوحة",
   "noOpenGames": "لا توجد ألعاب {{scope}} مفتوحة",
   "refreshRooms": "تحديث قائمة الغرف",
+  "quickJoin": "انضمام",
   "roomsLoadError": "تعذر تحميل الغرف",
   "back": "رجوع",
   "play": "لعب",

@@ -27,6 +27,7 @@
   "openGames": "Ανοιχτά παιχνίδια {{scope}}",
   "noOpenGames": "Κανένα ανοιχτό παιχνίδι {{scope}}",
   "refreshRooms": "Ανανέωση λίστας δωματίων",
+  "quickJoin": "Είσοδος",
   "roomsLoadError": "Αποτυχία φόρτωσης δωματίων",
   "back": "Πίσω",
   "play": "Παίξε",

@@ -32,6 +32,7 @@
   "openGames": "Open {{scope}} Games",
   "noOpenGames": "No open {{scope}} Games",
   "refreshRooms": "Refresh room list",
+  "quickJoin": "Join",
   "roomsLoadError": "Could not load rooms",
   "back": "Back",
   "play": "Play",

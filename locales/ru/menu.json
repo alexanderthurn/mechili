@@ -27,6 +27,7 @@
   "openGames": "Открытые игры · {{scope}}",
   "noOpenGames": "Нет открытых игр · {{scope}}",
   "refreshRooms": "Обновить список комнат",
+  "quickJoin": "Войти",
   "roomsLoadError": "Не удалось загрузить комнаты",
   "back": "Назад",
   "play": "Играть",

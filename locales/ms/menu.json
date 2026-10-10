@@ -27,6 +27,7 @@
   "openGames": "Buka {{scope}} Permainan",
   "noOpenGames": "Tiada Permainan {{scope}} dibuka",
   "refreshRooms": "Segarkan semula senarai bilik",
+  "quickJoin": "Sertai",
   "roomsLoadError": "Tidak dapat memuatkan bilik",
   "back": "Kembali",
   "play": "Main",

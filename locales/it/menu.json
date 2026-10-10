@@ -27,6 +27,7 @@
   "openGames": "Giochi aperti {{scope}}",
   "noOpenGames": "Nessun gioco aperto {{scope}}",
   "refreshRooms": "Aggiorna elenco stanze",
+  "quickJoin": "Entra",
   "roomsLoadError": "Impossibile caricare le stanze",
   "back": "Indietro",
   "play": "Gioca",

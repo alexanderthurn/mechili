@@ -27,6 +27,7 @@
   "openGames": "Åpne {{scope}}-spill",
   "noOpenGames": "Ingen åpne {{scope}}-spill",
   "refreshRooms": "Oppdater romlisten",
+  "quickJoin": "Bli med",
   "roomsLoadError": "Kunne ikke laste inn rom",
   "back": "Tilbake",
   "play": "Spille",

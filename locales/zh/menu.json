@@ -27,6 +27,7 @@
   "openGames": "开放的{{scope}}对局",
   "noOpenGames": "暂无开放的{{scope}}对局",
   "refreshRooms": "刷新房间列表",
+  "quickJoin": "加入",
   "roomsLoadError": "无法加载房间",
   "back": "返回",
   "play": "开始",
