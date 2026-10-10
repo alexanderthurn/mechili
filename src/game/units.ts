@@ -643,6 +643,12 @@ export interface UnitType {
         /** the walkway comes with the wall, free — it shows at a glance which side is the back */
         autoWalk?: boolean;
         /**
+         * World units the wall stands toward its front (away from its walkway)
+         * from its tiles' centre line, so the wall and the walkway behind it
+         * fill the tile row together. Model, blocking box and posts all move.
+         */
+        shift?: number;
+        /**
          * Archers posted on the walkway (experiment), bought from the wall's
          * panel. Their spots are fixed numbers, not read off the mesh, so every
          * peer puts them in the same place: `spacing` world units either side
@@ -1329,6 +1335,11 @@ export function wallTurnYaw(rotated: boolean, flipped: boolean): number {
     return (rotated ? Math.PI / 2 : 0) + (flipped ? Math.PI : 0);
 }
 
+/** where a wall's middle stands from its tiles' centre line: `shift` toward its front (facing looks down −sin, −cos) */
+export function wallShiftOffset(facing: number, shift: number): { x: number; z: number } {
+    return { x: -detSin(facing) * shift, z: -detCos(facing) * shift };
+}
+
 /** a wall's next quarter turn (the rotate button walks all four) */
 export function nextWallTurn(rotated: boolean, flipped: boolean): { rotated: boolean; flipped: boolean } {
     const step = ((rotated ? 1 : 0) + (flipped ? 2 : 0) + 1) % 4;
@@ -1360,8 +1371,10 @@ export function wallPostWorld(wall: Unit, slot: number): { x: number; y: number;
     if (!posts || !wall.wallWalk || slot < 0 || slot >= posts.count) return null;
     // across the posts evenly: two posts stand at ±spacing
     const along = posts.count === 1 ? 0 : (slot / (posts.count - 1) * 2 - 1) * posts.spacing;
-    const lineX = wall.world.x + (wall.rotated ? 0 : along);
-    const lineZ = wall.world.z + (wall.rotated ? along : 0);
+    // along its (shifted, see wallShiftOffset) centre line
+    const off = wallShiftOffset(wall.facing, wall.type.wall?.shift ?? 0);
+    const lineX = wall.world.x + off.x + (wall.rotated ? 0 : along);
+    const lineZ = wall.world.z + off.z + (wall.rotated ? along : 0);
     // away from the enemy: the facing looks at it down (−sin, −cos)
     const backX = detSin(wall.facing);
     const backZ = detCos(wall.facing);
@@ -1669,6 +1682,7 @@ export class Unit {
         // drew the far side's castles facing backwards. Yaw 0 looks down −z.
         this.facing = (world.z >= 0 ? 0 : Math.PI) + (type.wall ? wallTurnYaw(rotated, this.flipped) : 0);
         for (const m of this.members) m.mesh.rotation.y = this.facing;
+        this.shiftWallMembers();
         this.view.position.copy(this.world);
         this.seatMembers();
         this.applyLevelLook(this.level);
@@ -1831,8 +1845,26 @@ export class Unit {
         if (this.type.wall) {
             this.facing = (this.world.z >= 0 ? 0 : Math.PI) + wallTurnYaw(rotated, this.flipped);
             for (const m of this.members) m.mesh.rotation.y = this.facing;
+            this.shiftWallMembers();
         }
         this.seatMembers();
+    }
+
+    /**
+     * A wall stands `wall.shift` toward its front (see UnitType.wall.shift):
+     * its member's home moves there, so the model and — through the member's
+     * home — the sim's blocking box move together. Deterministic (detSin/detCos
+     * of a board-keyed quarter-turn facing): the box is gameplay.
+     */
+    private shiftWallMembers(): void {
+        const shift = this.type.wall?.shift ?? 0;
+        if (!shift) return;
+        const off = wallShiftOffset(this.facing, shift);
+        for (const m of this.members) {
+            m.home.set(off.x, 0, off.z);
+            m.mesh.position.x = off.x;
+            m.mesh.position.z = off.z;
+        }
     }
 
     /** a wall's quarter turn: along x or z (`rotated`), and which side its back is on (`flipped`) */

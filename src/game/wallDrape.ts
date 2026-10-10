@@ -60,6 +60,9 @@ export function drapeWall(
     // preview seats it before the view has moved there)
     _member.makeTranslation(originX, 0, originZ).multiply(member.matrix);
     _inv.copy(member.matrixWorld).invert();
+    // the wall's own centre line (a wall may stand off its tiles' middle, see UnitType.wall.shift)
+    const lineX = originX + member.position.x;
+    const lineZ = originZ + member.position.z;
     member.traverse((o) => {
         const mesh = o as Mesh;
         if (!mesh.isMesh) return;
@@ -82,7 +85,7 @@ export function drapeWall(
             _box.makeEmpty();
             for (let i = 0; i < base.length; i += 3) _box.expandByPoint(_v.set(base[i]!, base[i + 1]!, base[i + 2]!));
             _box.getCenter(_v).applyMatrix4(_m);
-            half = Math.sign(alongZ ? _v.z - originZ : _v.x - originX);
+            half = Math.sign(alongZ ? _v.z - lineZ : _v.x - lineX);
         }
         if (!section) {
             // a tower: lifted as one piece to the ground under its own centre
@@ -107,13 +110,13 @@ export function drapeWall(
                     clamped = true;
                 }
                 // …and each half stops at the wall's own middle
-                if (half !== 0 && (alongZ ? _v.z - originZ : _v.x - originX) * half < 0) {
-                    if (alongZ) _v.z = originZ;
-                    else _v.x = originX;
+                if (half !== 0 && (alongZ ? _v.z - lineZ : _v.x - lineX) * half < 0) {
+                    if (alongZ) _v.z = lineZ;
+                    else _v.x = lineX;
                     clamped = true;
                 }
                 // the ground on the wall's centre line, level with this vertex
-                dy = alongZ ? worldHeightAt(originX, _v.z) - footY : worldHeightAt(_v.x, originZ) - footY;
+                dy = alongZ ? worldHeightAt(lineX, _v.z) - footY : worldHeightAt(_v.x, lineZ) - footY;
                 // near a joined end: taller or lower toward the height the two walls meet at
                 let k = 1;
                 for (const m of meets) {

@@ -218,6 +218,10 @@
               "type": "boolean",
               "description": "the walkway comes with the wall, free — it shows at a glance which side is the back"
             },
+            "shift": {
+              "type": "number",
+              "description": "World units the wall stands toward its front (away from its walkway) from its tiles' centre line, so the wall and the walkway behind it fill the tile row together. Model, blocking box and posts all move."
+            },
             "posts": {
               "type": "object",
               "properties": {

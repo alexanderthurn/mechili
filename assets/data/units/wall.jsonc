@@ -19,6 +19,8 @@
         "heightPerLevel": 0.25,
         // every wall comes with its walkway (free): it shows which side is the back
         "autoWalk": true,
+        // the wall stands this far toward its front, so wall + walkway fill the tile row
+        "shift": 0.7,
         // solid to shots below the crown (× the model's height): flat shots stop in it, lobs pass over
         "crown": 0.8,
         // experiment: an archer on the walkway — one, in the middle of the wall (a single
