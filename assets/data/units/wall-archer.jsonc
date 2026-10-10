@@ -1,0 +1,42 @@
+/**
+ * An archer posted on a wall's walkway (bought from the wall's panel). The
+ * Stronghold archer again — same bow, same numbers, pinned the same way —
+ * with one difference: enemies DO aim at him. The wall is his cover instead:
+ * it stops shots below its crown (only his upper body shows), splash reaches
+ * him weakened, and melee from the wall's front side hits him weakly.
+ */
+{
+    "id": "wall-archer",
+    "name": "Wall Archer",
+    // reuses the archer GLB — no second model, and no new fingerprint entry
+    "modelId": "archer",
+    "cost": 100,
+    "hpWithdraw": 50,
+    "footprint": { "cols": 1, "rows": 1 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 2.2,
+    "burn": { "takenMult": 1.1 },
+    "targets": { "ground": true, "air": true },
+    "collisionRadius": 1.0,
+    "soundSize": "medium",
+    "fixture": true,
+    "diesWithHost": true,
+    // the wall covers him: blasts × splash, melee from its front side × meleeFront — and only
+    // weapons reaching ≥ frontReach get over the stone from the front (the ogre's 3.4; a knight's 3 not)
+    "wallCover": { "splash": 0.2, "meleeFront": 0.3, "frontReach": 3.2 },
+    "colliders": [{ "y": 1.1, "r": 0.75 }],
+    "projectileSpeed": 100,
+    "projectileStyle": "arrow",
+    "projectileBallistic": true,
+    "projectileLaunchHeightFrac": 0.75,
+    "hp": 130,
+    "damage": 65,
+    "range": 45,
+    "attackInterval": 1.4,
+    "speed": 0,
+    "turnRate": 6,
+    "proceduralModel": "archer",
+    "talents": ["barrel", "ap", "sunward"],
+    "talentSlots": 3,
+    // VO: same as archer (`assets/data/units/archer.jsonc` voice)
+}

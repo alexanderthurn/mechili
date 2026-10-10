@@ -1545,6 +1545,11 @@ export type StuckAttachRef = {
     structure?: boolean;
     /** Animated units: the bone under a world point, so the shaft rides the skeleton (death clips) */
     boneAt?: (world: Vector3) => Object3D | null;
+    /**
+     * Seat the shaft where the sim says it hit, not on the model's box (a wall:
+     * its box spans tower to tower, so a miss fell back to its middle, high up)
+     */
+    exactSeat?: boolean;
 };
 
 const _seatRay = new Raycaster();
@@ -2277,7 +2282,7 @@ export class StuckBoltRenderer {
                 e.y,
                 e.z,
                 this.dir,
-                ref?.mesh ?? null,
+                ref?.exactSeat ? null : (ref?.mesh ?? null),
                 ref?.modelId,
                 dig,
                 !!ref?.structure,

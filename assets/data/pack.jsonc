@@ -29,7 +29,7 @@
     ],
     // Loaded and addressable by id, but never part of the roster
     // (e.g. posted from a building panel instead of bought in the shop).
-    "offRoster": ["stronghold-archer"],
+    "offRoster": ["stronghold-archer", "wall-archer"],
     // In place under data/units with their voices in audio/, but NOT loaded yet (no models).
     // Move an id from here to "roster" (or a commander's shop) once its model exists.
     "drafts": [

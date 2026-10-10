@@ -265,6 +265,10 @@ export interface SelectionInfo {
     structure?: boolean;
     /** a base building's supply-only level upgrade (own, build phase) */
     towerUpgrade?: { cost: number; affordable: boolean; maxed: boolean; maxLevel: number };
+    /** experiment: a wall's walkway — buyable, or already built */
+    wallWalk?: { cost: number; affordable: boolean; built: boolean };
+    /** experiment: archers posted on that walkway */
+    wallPosts?: { cost: number; owned: number; max: number; affordable: boolean };
     /** the once-per-round level-2 recruit switch (Research Center only) */
     recruit?: { cost: number; active: boolean; affordable: boolean };
     /** +1 deployment for the running round (Command Tower only) */
@@ -341,6 +345,8 @@ export class Hud {
     onLevelAllGlobal: (() => void) | null = null;
     onRecruitLevel: (() => void) | null = null;
     onUpgradeTower: (() => void) | null = null;
+    onBuildWallWalk: (() => void) | null = null;
+    onBuyWallPost: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
     onBuyRallyRouteAbility: (() => void) | null = null;
     onBuyForgeSpell: ((tacticId: string) => void) | null = null;
@@ -1105,6 +1111,8 @@ export class Hud {
             else if (button.dataset.levelup) this.onBuyLevel?.();
             else if (button.dataset.recruit) this.onRecruitLevel?.();
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
+            else if (button.dataset.wallwalk) this.onBuildWallWalk?.();
+            else if (button.dataset.wallpost) this.onBuyWallPost?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
             else if (button.dataset.forgespell) this.onBuyForgeSpell?.(button.dataset.forgespell);
@@ -3309,6 +3317,35 @@ export class Hud {
                 desc: t('hud:towerUpgradeDesc'),
                 cost: tu.maxed ? undefined : tu.cost,
                 state: tu.maxed ? 'owned' : tu.affordable ? 'buy' : 'locked',
+            });
+        }
+        if (info.wallWalk) {
+            const ww = info.wallWalk;
+            tiles.push({
+                data: 'data-wallwalk="1"',
+                icon: 'ability-plus-deploy',
+                title: t('hud:wallWalk', { defaultValue: 'Walkway' }),
+                desc: t('hud:wallWalkDesc', {
+                    defaultValue: 'Build a walkway behind this wall, high enough to shoot over it.',
+                }),
+                cost: ww.built ? undefined : ww.cost,
+                state: ww.built ? 'owned' : ww.affordable ? 'buy' : 'locked',
+            });
+        }
+        if (info.wallPosts) {
+            const wp = info.wallPosts;
+            const full = wp.owned >= wp.max;
+            tiles.push({
+                data: 'data-wallpost="1"',
+                icon: 'spec-archer',
+                title: t('hud:wallPosts', { n: wp.owned, m: wp.max, defaultValue: 'Wall archers {{n}}/{{m}}' }),
+                desc: full
+                    ? t('hud:wallPostsFull', { defaultValue: 'Every post on this walkway is manned.' })
+                    : t('hud:wallPostsDesc', {
+                          defaultValue: 'Post an archer on the walkway: he shoots over the wall and falls with it.',
+                      }),
+                cost: full ? 0 : wp.cost,
+                state: full ? 'owned' : wp.affordable ? 'buy' : 'locked',
             });
         }
         for (const b of info.boosts ?? []) {

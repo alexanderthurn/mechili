@@ -19,10 +19,17 @@ import { BASE_PACK } from './content/basePack';
 import { TypeRegistry } from './content/typeRegistry';
 import type { EntityVoice } from './cards';
 import type { BurnAffinity, FireProfile } from './fire';
-import { detAtan2 } from './detMath';
+import { detAtan2, detCos, detSin } from './detMath';
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
 import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
 import { drapeWall } from './wallDrape';
+import { setWallWalkLevel, setWallWalkMeshes, walkTopScale } from './wallWalk';
+
+/** where two joined walls meet: the wall's height scale there, and its walkway's top (see walkTopScale) */
+export interface WallMeetHeight {
+    wall: number;
+    walk: number;
+}
 import { GROUND_UNIT_Y } from './groundQuality';
 import {
     attackNodeWorld,
@@ -528,6 +535,16 @@ export interface UnitType {
      */
     notAcquired?: boolean;
     /**
+     * Posted on a wall (the wall archer). He stands on stone, so he is a
+     * ground target, not a flyer, however high he stands; and the wall covers
+     * him: blasts reach him at `splash` × their damage, melee from the wall's
+     * front side at `meleeFront` ×, and only from a weapon reaching at least
+     * `frontReach` (world units of range) — shorter blades walk round to his
+     * side. Shots are stopped by the wall itself (below its crown), so only
+     * his upper body can be hit.
+     */
+    wallCover?: { splash: number; meleeFront: number; frontReach: number };
+    /**
      * What this type's destruction does to the rest of the board. Each effect
      * is implemented once in the sim; a type only switches it on, so a custom
      * building gets the behaviour by setting the attribute — never by id.
@@ -608,13 +625,40 @@ export interface UnitType {
      * wall extra: a solid rectangle ground units can't cross — they are pushed
      * out of it and steer around its nearer end. World units from the centre,
      * `halfLength` along x (across the battlefield), `halfDepth` along z.
-     * Flyers pass over; no collider, so nothing shoots it (yet).
+     * Flyers pass over. Nothing aims at it, but it is solid to shots: one
+     * that meets it below its `crown` stops in the stone (either side's).
      */
     wall?: {
         halfLength: number;
         halfDepth: number;
+        /** where shots pass over: the crown, × the model's height (its level height included); omit = 0.8 */
+        crown?: number;
         /** supply per level up, the same for every level (base buildings climb a price ladder instead) */
         upgradeCost?: number;
+        /** height added per level above 1, × its level-1 height (omit = the buildings' 10%) */
+        heightPerLevel?: number;
+        /** supply for the walkway behind it (experiment; omit = 20) */
+        walkCost?: number;
+        /**
+         * Archers posted on the walkway (experiment), bought from the wall's
+         * panel. Their spots are fixed numbers, not read off the mesh, so every
+         * peer puts them in the same place: `spacing` world units either side
+         * of the middle along the wall, `back` behind its centre line, standing
+         * at `top` × the wall's height (its level height included).
+         */
+        posts?: {
+            count: number;
+            unitTypeId: string;
+            cost: number;
+            spacing: number;
+            back: number;
+            /** the walkway's top at level 1, × the wall's level-1 height */
+            top: number;
+            /** the wall's crown, × its level-1 height */
+            crown: number;
+            /** how much of the crown's rise per level the walkway follows (as WALL_WALK.rise) */
+            rise: number;
+        };
     };
     /** rocket extra: waits armed, then homes onto the first enemy in range */
     rocket?: { range: number; speed: number; damage: number; splash: number };
@@ -1253,6 +1297,32 @@ export function strongholdArcherSlotWorld(keep: Unit, slot: number): { x: number
 }
 
 /**
+ * Where archer post `slot` (0…count−1) on a wall's walkway stands, or null
+ * without a walkway / posts. Deterministic: board-keyed facing through
+ * detSin/detCos, the ground under the wall's centre line, fixed fractions.
+ */
+export function wallPostWorld(wall: Unit, slot: number): { x: number; y: number; z: number; fovYaw: number } | null {
+    const posts = wall.type.wall?.posts;
+    if (!posts || !wall.wallWalk || slot < 0 || slot >= posts.count) return null;
+    // across the posts evenly: two posts stand at ±spacing
+    const along = posts.count === 1 ? 0 : (slot / (posts.count - 1) * 2 - 1) * posts.spacing;
+    const lineX = wall.world.x + (wall.rotated ? 0 : along);
+    const lineZ = wall.world.z + (wall.rotated ? along : 0);
+    // away from the enemy: the facing looks at it down (−sin, −cos)
+    const backX = detSin(wall.facing);
+    const backZ = detCos(wall.facing);
+    // the walkway keeps its gap below the crown as the wall grows (see setWallWalkLevel)
+    const height = getUnitVisualHeight(wall.type.modelId ?? wall.type.id) * wall.type.meshScale;
+    const top = posts.top + posts.crown * posts.rise * (wall.wallLevelScale() - 1);
+    return {
+        x: lineX + backX * posts.back,
+        y: worldHeightAt(lineX, lineZ) + top * height,
+        z: lineZ + backZ * posts.back,
+        fovYaw: detAtan2(-backX, -backZ),
+    };
+}
+
+/**
  * A Stronghold archer's field of fire, in degrees. He covers this much centred on
  * outward, and the rest — pointing back into his own keep — is dead. Written in
  * degrees because that is how it gets tuned; the half-angle below is what the
@@ -1292,6 +1362,20 @@ export function hpDrawWaveTier(withdraw: number): HpDrawWaveTier {
     if (withdraw < 300) return 'medium';
     return 'high';
 }
+
+/**
+ * The lean of a destroyed building's rubble (render-only). Tweak live:
+ * - angle: the biggest lean (radians)
+ * - minShare: the smallest lean, as a share of `angle` (each building rolls between)
+ * - maxRise: world units an end may rise at most (keeps long walls flat)
+ * - sinkShare: how much of the raised side's lift the pile sinks back
+ */
+export const RUBBLE_TILT = {
+    angle: 0.045,
+    minShare: 0.3,
+    maxRise: 0.15,
+    sinkShare: 0.85,
+} as const;
 
 /**
  * A placed unit: one or more real 3D mech meshes standing in formation
@@ -1403,6 +1487,14 @@ export class Unit {
      * so a replayed log rebuilds it.
      */
     upgradePaid = 0;
+    /**
+     * A wall joined straight on at its first / last end tile: the height scale
+     * the two meet at there (null = a free end). Its sections slope to it
+     * near that end, so walls of different levels grow together. Set by WallJoins.
+     */
+    private wallEndHeights: [WallMeetHeight | null, WallMeetHeight | null] = [null, null];
+    /** experiment: this wall has the walkway behind it (bought; see wallWalk.ts) */
+    wallWalk = false;
     /**
      * Base building growth per level above 1. 10%, but a 2v2 Stronghold (both
      * seats' upgrades summed, up to level 9) grows 5% so it stays on its hill.
@@ -1571,10 +1663,54 @@ export class Unit {
 
     /** a wall's towers onto the ground under each, its sections along it (see wallDrape) */
     private drapeWallMembers(originX = this.view.position.x, originZ = this.view.position.z): void {
+        // the end tiles' centres: the first tile is the lowest column (−x) or,
+        // turned, the lowest row (+z — rows count down the board)
+        const half = ((this.type.footprint.cols - 1) / 2) * CELL;
+        const own = this.visualHeightScale();
+        const ownWalk = walkTopScale(this.wallLevelScale());
+        const ends = [0, 1].flatMap((i) => {
+            const h = this.wallEndHeights[i];
+            if (h == null || own <= 0) return [];
+            const sign = i === 0 ? -1 : 1;
+            const k = h.wall / own;
+            const kWalk = h.walk / ownWalk;
+            return [
+                this.rotated
+                    ? { x: originX, z: originZ - sign * half, k, kWalk }
+                    : { x: originX + sign * half, z: originZ, k, kWalk },
+            ];
+        });
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
-            drapeWall(m.mesh, originX, originZ, this.rotated, m.mesh.position.y);
+            drapeWall(m.mesh, originX, originZ, this.rotated, m.mesh.position.y, ends);
         }
+    }
+
+    /** build / tear down the walkway behind this wall (the buildWallWalk action and its undo) */
+    setWallWalk(on: boolean): void {
+        this.wallWalk = on;
+        // away from the enemy: the facing looks at it down (−sin, −cos)
+        const backX = Math.sin(this.facing);
+        const backZ = Math.cos(this.facing);
+        for (const m of this.members) {
+            setWallWalkMeshes(m.mesh, on, backX, backZ);
+            setWallWalkLevel(m.mesh, this.wallLevelScale());
+        }
+        this.drapeWallMembers();
+    }
+
+    /** a wall's height as a multiple of its level-1 height */
+    wallLevelScale(level = this.level): number {
+        return this.visualHeightScale(level) / this.type.meshScale;
+    }
+
+    /** where this wall meets its straight neighbours, and how high (see wallEndHeights) */
+    setWallEndHeights(heights: [WallMeetHeight | null, WallMeetHeight | null]): void {
+        const same = (a: WallMeetHeight | null, b: WallMeetHeight | null) =>
+            a === b || (!!a && !!b && a.wall === b.wall && a.walk === b.walk);
+        if (same(heights[0], this.wallEndHeights[0]) && same(heights[1], this.wallEndHeights[1])) return;
+        this.wallEndHeights = heights;
+        this.drapeWallMembers();
     }
 
     setDeployment(deploy: boolean): void {
@@ -1639,10 +1775,10 @@ export class Unit {
 
     /**
      * Collapses the meshes into rubble until the next round reset.
-     * `knock` leans the settle along the killing blow (render-only).
+     * The settle leans a little in a random direction (RUBBLE_TILT, render-only).
      * `crush` = Hammer of the Gods pancake (super-flat).
      */
-    markDestroyed(knock?: { x: number; z: number }, opts?: { crush?: boolean }): void {
+    markDestroyed(_knock?: { x: number; z: number }, opts?: { crush?: boolean }): void {
         this.destroyed = true;
         const instances = getUnitInstanceRenderer();
         if (opts?.crush) {
@@ -1664,15 +1800,19 @@ export class Unit {
             }
             return;
         }
-        const klen = knock ? Math.hypot(knock.x, knock.z) : 0;
-        // Wide bases (e.g. the Stronghold, radius 11.4) tip very little — a big
-        // lean lifts one side into the air
-        const wide = this.type.collisionRadius >= 4;
-        const tipAmp = wide ? 0.045 : 0.09;
-        const tipZ = klen > 1e-6 ? Math.sign(knock!.z || 1) * tipAmp : tipAmp * 0.85;
-        const tipX = klen > 1e-6 ? Math.sign(knock!.x || 1) * tipAmp * 0.35 : tipAmp * 0.3;
+        // a lean in a random direction (from the id: every peer sees the same),
+        // small, and never lifting an end more than `maxRise` — a long wall is
+        // a lever, a gentle tilt along it raises one end clear of the rubble
+        const C = RUBBLE_TILT;
         const halfW = Math.max(1.2, this.type.collisionRadius * 0.55);
-        const sink = halfW * Math.sin(Math.hypot(tipX, tipZ)) * (wide ? 1.15 : 0.85);
+        const lever = this.type.wall ? Math.max(halfW, this.type.wall.halfLength) : halfW;
+        const r1 = (Math.imul(this.id ^ 0x9e3779b9, 2654435761) >>> 0) / 4294967296;
+        const r2 = (Math.imul(this.id ^ 0x85ebca6b, 2246822519) >>> 0) / 4294967296;
+        const amp = Math.min(C.angle * (C.minShare + (1 - C.minShare) * r1), C.maxRise / lever);
+        const dir = r2 * Math.PI * 2;
+        const tipX = Math.cos(dir) * amp;
+        const tipZ = Math.sin(dir) * amp;
+        const sink = lever * Math.sin(amp) * C.sinkShare;
         for (const m of this.members) {
             m.mesh.userData.dead = true;
             setCrowWingRateOnProxy(m.mesh, 0);
@@ -1706,7 +1846,8 @@ export class Unit {
     /** Height scale: like {@link visualMeshScale}, but a wall grows only upward with its level. */
     visualHeightScale(level = this.level): number {
         if (!this.type.wall) return this.visualMeshScale(level);
-        return this.type.meshScale * (1 + (level - 1) * this.levelGrowth);
+        const grow = this.type.wall.heightPerLevel ?? this.levelGrowth;
+        return this.type.meshScale * (1 + (level - 1) * grow);
     }
 
     /** the level's size on one member's mesh — uniform, or upward only for a wall */
@@ -1746,8 +1887,12 @@ export class Unit {
         for (const m of this.members) {
             if (!m.mesh.userData.dead) this.setLevelScale(m.mesh, level);
         }
-        // a taller wall reaches the ground by other amounts — lay it again
-        if (this.type.wall) this.drapeWallMembers();
+        // a taller wall: its walkway keeps its distance below the crown, and
+        // the whole reaches the ground by other amounts — lay it again
+        if (this.type.wall) {
+            for (const m of this.members) setWallWalkLevel(m.mesh, this.wallLevelScale(level));
+            this.drapeWallMembers();
+        }
         // A building says its level by growing, and by the badge over it. The
         // veterancy hue is a pack's alone: dyeing masonry blue or gold buries
         // the model's own material under a flat wash.

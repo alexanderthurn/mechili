@@ -244,5 +244,10 @@
   "forgeNoMatchNext": "No matching recipe — all runes return to their owners next deploy",
   "forgeReadyThis": "Ready this deploy",
   "forgeReadyNext": "Ready next deploy",
-  "forgeFireToStart": "Fire the forge to start it — ready next deployment."
+  "forgeFireToStart": "Fire the forge to start it — ready next deployment.",
+  "wallWalk": "Walkway",
+  "wallWalkDesc": "Build a walkway behind this wall, high enough to shoot over it.",
+  "wallPosts": "Wall archers {{n}}/{{m}}",
+  "wallPostsDesc": "Post an archer on the walkway: he shoots over the wall and falls with it.",
+  "wallPostsFull": "Every post on this walkway is manned."
 }

@@ -2252,6 +2252,7 @@ export class Game {
         }
         this.placement.localSeat = this.humanSeat;
         this.placement.dispatch = (action) => this.dispatchPlayer(action);
+        this.placement.canBuyAnother = (type) => this.canStartExtra(type);
         // a carried wall snapping onto an open end of another
         this.placement.onWallSnap = () => audio.playUi('ui_click');
         // gold pulse under packs whose next level is buyable right now.
@@ -2568,6 +2569,16 @@ export class Game {
             if (this.dispatchPlayer({ kind: 'recruitLevel', team: 'player' })) {
                 this.hud.refreshCosts(); // unit buttons now show the level-2 price
             }
+        };
+        this.hud.onBuyWallPost = () => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.wall) return;
+            this.dispatchPlayer({ kind: 'buyWallPost', team: 'player', unitId: unit.id });
+        };
+        this.hud.onBuildWallWalk = () => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.wall) return;
+            this.dispatchPlayer({ kind: 'buildWallWalk', team: 'player', unitId: unit.id });
         };
         this.hud.onUpgradeTower = () => {
             const unit = this.placement.selectedUnit;
@@ -9148,7 +9159,9 @@ export class Game {
                 xpThresholdFor(unit.type, unit.level, this.economy, this.settings.leveling)
             );
         }
-        if (tacticId === SELL_UNIT_ID) return !unit.type.structure || !!unit.type.extra;
+        if (tacticId === SELL_UNIT_ID) {
+            return (!unit.type.structure || !!unit.type.extra) && !this.placement.hasPosts(unit);
+        }
         return !unit.type.structure;
     }
 
@@ -9787,6 +9800,14 @@ export class Game {
         );
     }
 
+    /** whether the player may put this extra on the cursor now: allowed, affordable, within the round's extras budget */
+    private canStartExtra(type: UnitType): boolean {
+        if (!this.playerCanAct || !this.humanMayBuyExtra(type)) return false;
+        if (this.economy.balance(this.humanSeat) < this.effectiveCost(type)) return false;
+        const left = this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!;
+        return this.economy.costOf(type) <= left; // extras budget exhausted otherwise
+    }
+
     private buyUnit(type: UnitType): boolean {
         if (!this.playerCanAct) return false;
         if (type.extra && !this.humanMayBuyExtra(type)) return false;
@@ -9796,9 +9817,7 @@ export class Game {
         if (this.tutorial?.blocksBuyLate()) return false;
         // extras are click-placed: nothing is bought until the placement click
         if (type.extra) {
-            const left =
-                this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!;
-            if (this.economy.costOf(type) > left) return false; // extras budget exhausted
+            if (!this.canStartExtra(type)) return false;
             this.placement.beginPlacing(type);
             return true;
         }
@@ -11848,6 +11867,7 @@ export class Game {
                         mesh: stuckBoltAttachOf(a.mesh),
                         modelId: a.unit.type.modelId ?? a.unit.type.id,
                         structure: !!a.unit.type.structure,
+                        exactSeat: !!a.unit.type.wall,
                         // skinned units: ride the bone under the hit (death clips carry it)
                         boneAt: (world) => stuckBoltBoneAt(stuckBoltAttachOf(a.mesh), world),
                     };
@@ -12757,6 +12777,26 @@ export class Game {
                     affordable: this.economy.balance(this.humanSeat) >= up.cost,
                     maxed: up.maxed,
                     maxLevel: buildingMaxLevel(u, this.seats, this.settings.towers),
+                };
+            })(),
+            // experiment: a wall's walkway
+            wallWalk:
+                ownInteractive && u.type.wall
+                    ? {
+                          cost: u.type.wall.walkCost ?? 20,
+                          affordable: this.economy.balance(this.humanSeat) >= (u.type.wall.walkCost ?? 20),
+                          built: u.wallWalk,
+                      }
+                    : undefined,
+            wallPosts: (() => {
+                const posts = u.type.wall?.posts;
+                if (!ownInteractive || !posts || !u.wallWalk) return undefined;
+                const owned = this.placement.allUnits().filter((p) => p.hostUnitId === u.id).length;
+                return {
+                    cost: posts.cost,
+                    owned,
+                    max: posts.count,
+                    affordable: this.economy.balance(this.humanSeat) >= posts.cost,
                 };
             })(),
             // the next level is a purchase: needs banked XP and supply

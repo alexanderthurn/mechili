@@ -472,6 +472,8 @@ export class PlacementController {
      * the controller itself never mutates the board directly
      */
     dispatch: ((action: Action) => boolean) | null = null;
+    /** whether the player could buy another of this extra right now (a placed wall keeps the next on the cursor) */
+    canBuyAnother: ((type: UnitType) => boolean) | null = null;
     /** set by the game: which packs can buy their next level right now */
     levelReady: ((unit: Unit) => boolean) | null = null;
     /** set by the game: whether a pack should keep a stale upgrade arrow in the intel snapshot */
@@ -1058,6 +1060,11 @@ export class PlacementController {
      * extras and bought buildings alike. The scenario editor's sandbox moves
      * anything, any time.
      */
+    /** units posted on this one (archers on a wall's walkway) */
+    hasPosts(unit: Unit): boolean {
+        return this.units.some((u) => u.hostUnitId === unit.id);
+    }
+
     canReposition(unit: Unit): boolean {
         // a fixture (e.g. a battlement archer) is bolted to its building — not
         // on the grid at all, so there is nowhere for a drag to put it down
@@ -1066,6 +1073,8 @@ export class PlacementController {
         // don't even store its spot, and the Stronghold carries its posted archers
         // (a bought one of the same type moves like any other)
         if (unit.baseAnchored) return false;
+        // a wall carrying posted archers stays put (they stand on it, off the grid)
+        if (this.hasPosts(unit)) return false;
         if (this.editorSandbox) return true;
         if (unit.deployedRound === this.currentRound) return true;
         return this.unitHasFreeRedeploy(unit);
@@ -1993,14 +2002,17 @@ export class PlacementController {
      * Uses terrain + flight base, then the cached real mesh height (local ×
      * meshScale) so ground packs and flyers both clear the model top.
      */
+    /** where the pack's feet are: on the ground, or on the wall / battlement he is posted on */
+    private feetY(unit: Unit, world: Vector3): number {
+        return unit.pinnedY ?? worldHeightAt(world.x, world.z) + unit.memberBaseY();
+    }
+
     private statusStripY(unit: Unit, world: Vector3): number {
-        const ground = worldHeightAt(world.x, world.z);
         const modelKey = unit.type.modelId ?? unit.type.id;
         const meshTop = getUnitVisualHeight(modelKey) * unit.type.meshScale;
         // sprite is centered; lift by half its size so the disc sits above the mesh
         return (
-            ground +
-            unit.memberBaseY() +
+            this.feetY(unit, world) +
             meshTop +
             STATUS_BADGE_SIZE * 0.5 +
             STATUS_BADGE_CLEARANCE
@@ -2226,10 +2238,7 @@ export class PlacementController {
                 const meshTop = getUnitVisualHeight(modelKey) * unit.type.meshScale;
                 const top = hasStrip
                     ? this.statusStripY(unit, world) + 2.4
-                    : worldHeightAt(world.x, world.z) +
-                      unit.memberBaseY() +
-                      meshTop +
-                      0.8;
+                    : this.feetY(unit, world) + meshTop + 0.8;
                 arrow.position.set(world.x, top + bob, world.z);
                 arrow.renderOrder = 0;
                 for (const child of arrow.children) child.renderOrder = 0;
@@ -2666,7 +2675,10 @@ export class PlacementController {
                 anchor,
                 rotated: this.pendingRotated,
             });
-            if (done) this.cancelPlacing();
+            if (!done) return;
+            // walls: the next one rides the cursor at once (same turn), while it's affordable
+            if (this.pendingType.wall && this.canBuyAnother?.(this.pendingType)) return;
+            this.cancelPlacing();
             return;
         }
         // while carrying, a click on another pack/building means "drop here",

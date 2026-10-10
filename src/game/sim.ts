@@ -1002,6 +1002,8 @@ interface WallBox {
     x1: number;
     z0: number;
     z1: number;
+    /** its crown above the ground: a shot below it stops in the stone */
+    top: number;
 }
 
 function insideBox(x: number, z: number, r: WallBox, pad: number): boolean {
@@ -1086,6 +1088,39 @@ function segmentEntry(x0: number, z0: number, dx: number, dz: number, r: WallBox
         if (t0 >= t1) return null;
     }
     return t0;
+}
+
+/** a wall's crown when its type names none, × its model's height (see UnitType.wall.crown) */
+const WALL_CROWN = 0.8;
+
+/**
+ * Where (0…1) the segment from (x0,z0) along (dx,dz) is inside a wall's
+ * rectangle: [enter, leave], or null when it misses it.
+ */
+function segmentSpan(x0: number, z0: number, dx: number, dz: number, r: WallBox): [number, number] | null {
+    let t0 = 0;
+    let t1 = 1;
+    for (let axis = 0; axis < 2; axis++) {
+        const p = axis === 0 ? x0 : z0;
+        const d = axis === 0 ? dx : dz;
+        const lo = axis === 0 ? r.x0 : r.z0;
+        const hi = axis === 0 ? r.x1 : r.z1;
+        if (Math.abs(d) < 1e-9) {
+            if (p <= lo || p >= hi) return null;
+            continue;
+        }
+        let ta = (lo - p) / d;
+        let tb = (hi - p) / d;
+        if (ta > tb) {
+            const t = ta;
+            ta = tb;
+            tb = t;
+        }
+        if (ta > t0) t0 = ta;
+        if (tb < t1) t1 = tb;
+        if (t0 >= t1) return null;
+    }
+    return [t0, t1];
 }
 
 /** world units past its own size a melee unit reaches a wall it is breaking */
@@ -2156,7 +2191,7 @@ export class BattleSim {
             this.cleaveStrike(a, radius, damage, target);
             return;
         }
-        const dealt = damage * this.damageTakenMult(target);
+        const dealt = damage * this.damageTakenMult(target) * this.coverMult(target, 'melee', a.x, a.z);
         this.applyDamage(a.unit, target, dealt, { x: dx, z: dz }, 'direct');
         this.applyEmp(a.unit, target);
         if (!a.unit.type.freeFlight) this.armMeleeRetreat(a, target);
@@ -2265,6 +2300,7 @@ export class BattleSim {
         tDist: number,
     ): boolean {
         if (a.unit.type.projectileSpeed || a.unit.type.convertRay || a.unit.type.rampBeam) return false;
+        if (this.wallBlocksMelee(a, target)) return false;
         const reach = this.weaponRange(a, target, stats.range) + a.radius + target.radius;
         const commit = reach + (a.unit.type.meleeLunge ?? 0);
         if (tDist > commit) return false;
@@ -2324,6 +2360,7 @@ export class BattleSim {
         // same reach the engagement step fires by (elevation included), so a
         // shot started downhill isn't dropped when it lands
         const inReach = (t: Actor): boolean =>
+            !this.wallBlocksMelee(a, t) &&
             hypot(t.x - a.x, t.z - a.z) <=
             effectiveWeaponReach(
                 this.weaponRange(a, t, stats.range),
@@ -2625,7 +2662,7 @@ export class BattleSim {
             if (t.unit.type.extra) continue;
             if (actorTeam(t) === team) continue;
             const reach = radius + a.radius + t.radius;
-            if (hypot(t.x - a.x, t.z - a.z) <= reach) hits.push(t);
+            if (hypot(t.x - a.x, t.z - a.z) <= reach && !this.wallBlocksMelee(a, t)) hits.push(t);
         }
         // Focus can sit outside a small cleave (lunge / ranged spacing) — still smash them.
         if (
@@ -2633,7 +2670,8 @@ export class BattleSim {
             focus !== a &&
             !focus.unit.type.extra &&
             actorTeam(focus) !== team &&
-            !hits.includes(focus)
+            !hits.includes(focus) &&
+            !this.wallBlocksMelee(a, focus)
         ) {
             const stats = this.statsOf(a);
             const connectAt = (stats.range + a.radius + focus.radius) * 1.35;
@@ -2643,7 +2681,8 @@ export class BattleSim {
             const dx = t.x - a.x;
             const dz = t.z - a.z;
             if (!this.groundSwatConnects(a, t)) continue;
-            this.applyDamage(a.unit, t, damage * this.damageTakenMult(t), { x: dx, z: dz }, 'direct');
+            const dealt = damage * this.damageTakenMult(t) * this.coverMult(t, 'melee', a.x, a.z);
+            this.applyDamage(a.unit, t, dealt, { x: dx, z: dz }, 'direct');
             this.applyEmp(a.unit, t);
         }
         const anyGround =
@@ -5600,6 +5639,7 @@ export class BattleSim {
             const y = fy + (ty - fy) * f;
             const z = a.z + dz * f;
             if (buildings.length > 0 && this.insideBuilding(buildings, x, y, z)) open = false;
+            if (this.wallBoxes.length > 0 && this.insideWallStone(x, y, z, a.unit.hostUnitId)) open = false;
             const along = total * f;
             if (along < skipStart || total - along < skipEnd) continue;
             if (y < simGroundHeightAt(x, z) + LOS_CLEARANCE) open = false;
@@ -5657,7 +5697,7 @@ export class BattleSim {
      */
     private elevationCounts(shooter: Actor, target: Actor): ElevationMode {
         if (!shooter.unit.type.projectileSpeed || shooter.altitude > 0) return 'none';
-        return target.altitude > 0 ? 'gainOnly' : 'full';
+        return this.airborne(target) ? 'gainOnly' : 'full';
     }
 
     /** whether this unit's attack (shot or beam) can reach the target over the terrain */
@@ -5680,12 +5720,14 @@ export class BattleSim {
         const skipEnd = target.radius + 0.8;
         const n = Math.min(160, Math.max(2, Math.ceil(total / LOS_SAMPLE_WU)));
         const buildings = this.buildingsNearLine(a, target, p.mx, p.mz, p.mx + p.vx * flight, p.mz + p.vz * flight);
+        const walls = this.wallBoxes.length > 0;
         for (let i = 1; i < n; i++) {
             const t = (flight * i) / n;
             const x = p.mx + p.vx * t;
             const z = p.mz + p.vz * t;
             const y = p.muzzleY + p.vy * t - 0.5 * g * t * (t + dt);
             if (buildings.length > 0 && this.insideBuilding(buildings, x, y, z)) return false;
+            if (walls && this.insideWallStone(x, y, z, a.unit.hostUnitId)) return false;
             const along = flat * t;
             if (along < skipStart || total - along < skipEnd) continue;
             if (y < simGroundHeightAt(x, z) + LOS_CLEARANCE) return false;
@@ -6108,7 +6150,12 @@ export class BattleSim {
             const splash = this.resolved.get(p.source)?.splashRadius ?? p.source.type.splashRadius ?? 0;
             // own buildings are solid too: a shot that reaches one first stops in the stone, harmlessly
             // (homing shots steer to their victim; a garrison shoots over its own walls)
-            const wall = p.target ? null : this.ownBuildingOnSegment(p, sx, sy, sz, segLen2);
+            let wall = p.target ? null : this.ownBuildingOnSegment(p, sx, sy, sz, segLen2);
+            // walls stop every shot below their crown, homing ones too
+            if (this.wallBoxes.length > 0) {
+                const stone = this.wallOnSegment(p, sx, sy, sz);
+                if (stone && (!wall || stone.t < wall.t)) wall = stone;
+            }
             if (wall && (!hit || wall.t < hitT)) {
                 const ix = p.x + sx * wall.t;
                 const iy = p.y + sy * wall.t;
@@ -6542,7 +6589,7 @@ export class BattleSim {
         for (const a of this.actors) {
             if (!a.alive || actorTeam(a) === p.team) continue;
             if (a.unit.type.extra) continue; // extras are immune to blasts too
-            if (a.altitude > 0) {
+            if (this.airborne(a)) {
                 if (!targets.air) {
                     // Ground-only splash can clip diving free-flyers, rarely.
                     if (!a.unit.type.freeFlight || a.altitude > GROUND_SWAT_MAX_ALT) continue;
@@ -6555,7 +6602,7 @@ export class BattleSim {
                 continue;
             }
             if (hypot(a.x - x, a.z - z) > radius + a.radius) continue;
-            const dealt = p.damage * this.damageTakenMult(a);
+            const dealt = p.damage * this.damageTakenMult(a) * this.coverMult(a, 'splash');
             const knock =
                 shotDir && hypot(shotDir.x, shotDir.z) > 1e-6
                     ? shotDir
@@ -6602,8 +6649,10 @@ export class BattleSim {
             // (board extras take no space — everything walks through them)
             for (const s of this.structures) {
                 if (!s.alive) continue;
-                if (s.unit.type.wall) this.pushOutOfWall(a, s, s.unit.type.wall);
-                else this.pushApart(a, s);
+                if (s.unit.type.wall) {
+                    // archers posted on its walkway stand there on purpose
+                    if (a.unit.pinnedY == null) this.pushOutOfWall(a, s, s.unit.type.wall);
+                } else this.pushApart(a, s);
             }
         }
     }
@@ -7004,12 +7053,14 @@ export class BattleSim {
             const wall = a.unit.type.wall;
             if (wall) {
                 const { hx, hz } = this.wallHalfExtents(a, wall);
-                const box = { owner: a, x0: a.x - hx, x1: a.x + hx, z0: a.z - hz, z1: a.z + hz };
+                const modelHeight = getUnitVisualHeight(a.unit.type.modelId ?? a.unit.type.id);
+                const top = (wall.crown ?? WALL_CROWN) * modelHeight * a.unit.visualHeightScale();
+                const box = { owner: a, x0: a.x - hx, x1: a.x + hx, z0: a.z - hz, z1: a.z + hz, top };
                 this.wallBoxes.push(box);
                 this.routeBoxes.push(box);
             } else if (a.altitude === 0 && a.radius > 0) {
                 const r = a.radius;
-                this.routeBoxes.push({ owner: a, x0: a.x - r, x1: a.x + r, z0: a.z - r, z1: a.z + r });
+                this.routeBoxes.push({ owner: a, x0: a.x - r, x1: a.x + r, z0: a.z - r, z1: a.z + r, top: 0 });
             }
         }
     }
@@ -7036,6 +7087,81 @@ export class BattleSim {
      * Sorted by canonical index so hit-ties match a full-array scan.
      */
     /** the first own-side building hit volume this step's flight segment enters (not the shooter's host) */
+    /**
+     * Whether a point is inside a wall, below its crown — where a shot stops.
+     * `skipWallId`: the wall the shooter stands on (he shoots over his own).
+     */
+    private insideWallStone(x: number, y: number, z: number, skipWallId: number | null): boolean {
+        for (const r of this.wallBoxes) {
+            if (r.owner.unit.id === skipWallId) continue;
+            if (!insideBox(x, z, r, 0)) continue;
+            if (y < simGroundHeightAt(x, z) + r.top) return true;
+        }
+        return false;
+    }
+
+    /**
+     * The first wall a flight segment runs into below its crown — either
+     * side's (B: your own walls are in your way too; lobs pass over), except
+     * the wall the shooter is posted on.
+     */
+    private wallOnSegment(p: Projectile, sx: number, sy: number, sz: number): { building: Actor; t: number } | null {
+        let best: { building: Actor; t: number } | null = null;
+        for (const r of this.wallBoxes) {
+            if (r.owner.unit.id === p.source.hostUnitId) continue;
+            const span = segmentSpan(p.x, p.z, sx, sz, r);
+            if (!span) continue;
+            const [t0, t1] = span;
+            // how far below the crown the shot is where it enters and leaves (the crown follows the ground)
+            const under0 = simGroundHeightAt(p.x + sx * t0, p.z + sz * t0) + r.top - (p.y + sy * t0);
+            const under1 = simGroundHeightAt(p.x + sx * t1, p.z + sz * t1) + r.top - (p.y + sy * t1);
+            let t: number;
+            if (under0 > 0) t = t0;
+            else if (under1 > 0) t = t0 + ((t1 - t0) * -under0) / (under1 - under0); // dips in over the top
+            else continue;
+            if (!best || t < best.t) best = { building: r.owner, t };
+        }
+        return best;
+    }
+
+    /** a flyer — not a wall archer, who stands high on stone but is a ground target */
+    private airborne(a: Actor): boolean {
+        return a.altitude > 0 && !a.unit.type.wallCover;
+    }
+
+    /**
+     * How much of a blow reaches a unit the wall covers (1 for everyone else):
+     * blasts are mostly caught by the stone, and so is melee from the wall's
+     * front side — only from behind (his side) does it land in full.
+     */
+    private coverMult(target: Actor, kind: 'splash' | 'melee', fromX = 0, fromZ = 0): number {
+        const cover = target.unit.type.wallCover;
+        if (!cover) return 1;
+        if (kind === 'splash') return cover.splash;
+        return this.onWallFront(target, fromX, fromZ) ? cover.meleeFront : 1;
+    }
+
+    /** whether (x, z) is on the far side of the wall a covered unit stands on (its front, toward the enemy) */
+    private onWallFront(target: Actor, x: number, z: number): boolean {
+        const host = this.wallBoxes.find((r) => r.owner.unit.id === target.unit.hostUnitId);
+        if (!host) return false;
+        // across the wall: z for a wall lying along x, x for a turned one
+        const side = (px: number, pz: number) => (host.owner.unit.rotated ? px - host.owner.x : pz - host.owner.z);
+        return side(x, z) * side(target.x, target.z) <= 0;
+    }
+
+    /**
+     * Melee that can't reach a wall archer: from the wall's front side the
+     * stone is in the way, and only a long weapon (range ≥ `frontReach`, the
+     * ogre's club) gets over it. Everyone else walks round to his side.
+     */
+    private wallBlocksMelee(a: Actor, target: Actor): boolean {
+        const cover = target.unit.type.wallCover;
+        if (!cover || a.unit.type.projectileSpeed) return false;
+        if (!this.onWallFront(target, a.x, a.z)) return false;
+        return this.statsOf(a).range < cover.frontReach;
+    }
+
     private ownBuildingOnSegment(
         p: Projectile,
         sx: number,
@@ -7149,7 +7275,7 @@ export class BattleSim {
                 !target.unit.type.extra &&
                 !target.unit.type.notAcquired &&
                 (target.unit.type.structure ||
-                    (target.altitude > 0 ? targets.air : targets.ground)) &&
+                    (this.airborne(target) ? targets.air : targets.ground)) &&
                 (target.unit.type.structure || target.allegiance === null);
 
             // validate sticky channels; drop invalid / out of range
@@ -7286,7 +7412,7 @@ export class BattleSim {
                 !target.unit.type.extra &&
                 !target.unit.type.notAcquired &&
                 (target.unit.type.structure ||
-                    (target.altitude > 0 ? targets.air : targets.ground));
+                    (this.airborne(target) ? targets.air : targets.ground));
 
             const inReach = (target: Actor): boolean => {
                 const reach =
@@ -7397,9 +7523,9 @@ export class BattleSim {
                     for (const a of this.actors) {
                         if (!a.alive || actorTeam(a) === team) continue;
                         if (a.unit.type.extra) continue;
-                        if (a.altitude > 0 ? !targets.air : !targets.ground) continue;
+                        if (this.airborne(a) ? !targets.air : !targets.ground) continue;
                         if (hypot(a.x - target.x, a.z - target.z) > splash + a.radius) continue;
-                        const frac = a === target ? 1 : splashFrac;
+                        const frac = a === target ? 1 : splashFrac * this.coverMult(a, 'splash');
                         const dealt = intensity * dt * frac * this.damageTakenMult(a);
                         if (dealt <= 0) continue;
                         this.applyDamage(
@@ -7475,9 +7601,10 @@ export class BattleSim {
             // board extras (wards) are hit via beam blocking, not as ray targets
             if (a.unit.type.extra) continue;
             if (a.unit.type.notAcquired) continue; // nobody aims a beam at him either
+            if (a.unit.type.wallCover) continue; // a wall archer can't be turned — he'd stand on the other side's wall
             if (a.unit.type.structure) {
                 // buildings: always ground ray victims (damage, not convert)
-            } else if (a.altitude > 0 ? !targets.air : !targets.ground) {
+            } else if (this.airborne(a) ? !targets.air : !targets.ground) {
                 continue;
             } else if (a.allegiance !== null) {
                 // already converted this battle — leave alone
@@ -7614,7 +7741,7 @@ export class BattleSim {
         wantGround: boolean,
         native: { ground: boolean; air: boolean },
     ): boolean {
-        if (target.altitude > 0) {
+        if (this.airborne(target)) {
             if (native.air && wantAir) return true;
             if (this.isOpportunisticGroundSwat(from, target, native)) return true;
             // anyLayer chase of high air (crows) — never of free-flyers
@@ -7667,7 +7794,7 @@ export class BattleSim {
         };
         const inWeaponRange = (cached: Actor): boolean => {
             // Swat targets use contact reach only — never full weapon kite-in.
-            if (cached.altitude > 0 && !native.air) {
+            if (this.airborne(cached) && !native.air) {
                 return this.isOpportunisticGroundSwat(from, cached, native);
             }
             const reach = effectiveWeaponReach(
@@ -7684,6 +7811,8 @@ export class BattleSim {
             if (d2 > reach * reach) return false;
             if (inDeadZone(cached)) return false;
             if (!this.inFieldOfFire(from, cached)) return false;
+            // a wall archer seen from the front: the stone is between us — walk round
+            if (this.wallBlocksMelee(from, cached)) return false;
             // a hill between us: not a fight we're in — walk, or pick another
             if (!this.attackLineOpen(from, cached)) return false;
             return true;

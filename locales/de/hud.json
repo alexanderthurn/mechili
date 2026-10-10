@@ -244,5 +244,10 @@
   "forgeReadyNext": "Bereit für den nächsten Einsatz",
   "forgeFireToStart": "Zünde die Schmiede an, um sie in Gang zu bringen – bereit für den nächsten Einsatz.",
   "techHexed": "Verhext — dieses Talent ist aus, bis der Fluch endet.",
-  "techHexedShort": "✕ Verhext — inaktiv"
+  "techHexedShort": "✕ Verhext — inaktiv",
+  "wallWalk": "Wehrgang",
+  "wallWalkDesc": "Baut einen Wehrgang hinter diese Mauer, hoch genug, um darüber zu schießen.",
+  "wallPosts": "Mauerschützen {{n}}/{{m}}",
+  "wallPostsDesc": "Einen Bogenschützen auf den Wehrgang stellen: Er schießt über die Mauer und fällt mit ihr.",
+  "wallPostsFull": "Alle Posten auf diesem Wehrgang sind besetzt."
 }

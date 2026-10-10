@@ -67,6 +67,27 @@
           "type": "boolean",
           "description": "Never CHOSEN as a target — an enemy walks past looking for something else. Unlike extra this is only about acquisition: the unit is still in the target hash, so a shot crossing it connects, and splash, blasts and fire all reach it. A Stronghold archer on a keep: you besiege the keep, and he takes what lands near him."
         },
+        "wallCover": {
+          "type": "object",
+          "properties": {
+            "splash": {
+              "type": "number"
+            },
+            "meleeFront": {
+              "type": "number"
+            },
+            "frontReach": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "splash",
+            "meleeFront",
+            "frontReach"
+          ],
+          "additionalProperties": false,
+          "description": "Posted on a wall (the wall archer). He stands on stone, so he is a ground target, not a flyer, however high he stands; and the wall covers him: blasts reach him at `splash` × their damage, melee from the wall's front side at `meleeFront` ×, and only from a weapon reaching at least `frontReach` (world units of range) — shorter blades walk round to his side. Shots are stopped by the wall itself (below its crown), so only his upper body can be hit."
+        },
         "onDestroyed": {
           "type": "object",
           "properties": {
@@ -190,9 +211,65 @@
             "halfDepth": {
               "type": "number"
             },
+            "crown": {
+              "type": "number",
+              "description": "where shots pass over: the crown, × the model's height (its level height included); omit = 0.8"
+            },
             "upgradeCost": {
               "type": "number",
               "description": "supply per level up, the same for every level (base buildings climb a price ladder instead)"
+            },
+            "heightPerLevel": {
+              "type": "number",
+              "description": "height added per level above 1, × its level-1 height (omit = the buildings' 10%)"
+            },
+            "walkCost": {
+              "type": "number",
+              "description": "supply for the walkway behind it (experiment; omit = 20)"
+            },
+            "posts": {
+              "type": "object",
+              "properties": {
+                "count": {
+                  "type": "number"
+                },
+                "unitTypeId": {
+                  "type": "string"
+                },
+                "cost": {
+                  "type": "number"
+                },
+                "spacing": {
+                  "type": "number"
+                },
+                "back": {
+                  "type": "number"
+                },
+                "top": {
+                  "type": "number",
+                  "description": "the walkway's top at level 1, × the wall's level-1 height"
+                },
+                "crown": {
+                  "type": "number",
+                  "description": "the wall's crown, × its level-1 height"
+                },
+                "rise": {
+                  "type": "number",
+                  "description": "how much of the crown's rise per level the walkway follows (as WALL_WALK.rise)"
+                }
+              },
+              "required": [
+                "count",
+                "unitTypeId",
+                "cost",
+                "spacing",
+                "back",
+                "top",
+                "crown",
+                "rise"
+              ],
+              "additionalProperties": false,
+              "description": "Archers posted on the walkway (experiment), bought from the wall's panel. Their spots are fixed numbers, not read off the mesh, so every peer puts them in the same place: `spacing` world units either side of the middle along the wall, `back` behind its centre line, standing at `top` × the wall's height (its level height included)."
             }
           },
           "required": [
@@ -200,7 +277,7 @@
             "halfDepth"
           ],
           "additionalProperties": false,
-          "description": "wall extra: a solid rectangle ground units can't cross — they are pushed out of it and steer around its nearer end. World units from the centre, `halfLength` along x (across the battlefield), `halfDepth` along z. Flyers pass over; no collider, so nothing shoots it (yet)."
+          "description": "wall extra: a solid rectangle ground units can't cross — they are pushed out of it and steer around its nearer end. World units from the centre, `halfLength` along x (across the battlefield), `halfDepth` along z. Flyers pass over. Nothing aims at it, but it is solid to shots: one that meets it below its `crown` stops in the stone (either side's)."
         },
         "rocket": {
           "type": "object",

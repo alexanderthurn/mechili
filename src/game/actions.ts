@@ -57,6 +57,7 @@ import { colorForUnit } from './colors';
 import { detAtan2 } from './detMath';
 import {
     strongholdArcherSlotWorld,
+    wallPostWorld,
     levelBasisOf,
     isPlayerBuyable,
     type Team,
@@ -140,6 +141,18 @@ export interface RecruitLevelAction {
 /** raises a base building one level (no XP needed, rising supply cost) */
 export interface UpgradeTowerAction {
     kind: 'upgradeTower';
+    team: Team;
+    unitId: number;
+}
+/** experiment: an archer onto the next free post of my wall's walkway */
+export interface BuyWallPostAction {
+    kind: 'buyWallPost';
+    team: Team;
+    unitId: number;
+}
+/** experiment: a walkway behind one of my walls (archers' place later) */
+export interface BuildWallWalkAction {
+    kind: 'buildWallWalk';
     team: Team;
     unitId: number;
 }
@@ -386,6 +399,8 @@ type ActionVariant =
     | BuyStrongholdArcherAction
     | RecruitLevelAction
     | UpgradeTowerAction
+    | BuildWallWalkAction
+    | BuyWallPostAction
     | BuySellAbilityAction
     | BuyRallyRouteAbilityAction
     | BuyMovePackAbilityAction
@@ -1085,7 +1100,48 @@ export class ActionDispatcher {
                 if (up.shared) unit.upgradesBySeat[seat] = up.own + 1;
                 unit.level++;
                 unit.upgradePaid += up.cost;
+                liftWallPosts(placement, unit);
                 unit.refreshLevelBadge();
+                return true;
+            }
+            case 'buyWallPost': {
+                const wall = placement.unitById(action.unitId);
+                const posts = wall?.type.wall?.posts;
+                if (!wall || !posts || wall.team !== action.team || wall.seat !== seat || !wall.wallWalk) return false;
+                const taken = new Set<number>();
+                for (const u of placement.allUnits()) {
+                    if (u.hostUnitId === wall.id && u.strongholdArcherSlot !== null) taken.add(u.strongholdArcherSlot);
+                }
+                let slot = -1;
+                for (let i = 0; i < posts.count; i++) {
+                    if (!taken.has(i)) {
+                        slot = i;
+                        break;
+                    }
+                }
+                const spot = slot >= 0 ? wallPostWorld(wall, slot) : null;
+                const postedType = this.ctx.types.byId(posts.unitTypeId);
+                if (!spot || !postedType) return false;
+                if (!economy.spend(seat, posts.cost)) return false;
+                entry.paid = posts.cost;
+                const archer = placement.spawnAtWorld(postedType, spot.x, spot.z, action.team, seat);
+                archer.strongholdArcherSlot = slot;
+                archer.hostUnitId = wall.id;
+                archer.pinnedY = spot.y;
+                archer.fovYaw = spot.fovYaw;
+                archer.seatMembers();
+                entry.strongholdArcherUnit = archer;
+                return true;
+            }
+            case 'buildWallWalk': {
+                const unit = placement.unitById(action.unitId);
+                const wall = unit?.type.wall;
+                if (!unit || !wall || unit.team !== action.team || unit.seat !== seat || unit.wallWalk) return false;
+                const cost = wall.walkCost ?? 20;
+                if (!economy.spend(seat, cost)) return false;
+                entry.paid = cost;
+                unit.upgradePaid += cost;
+                unit.setWallWalk(true);
                 return true;
             }
             case 'buySellAbility': {
@@ -1156,8 +1212,9 @@ export class ActionDispatcher {
                 ) {
                     return false;
                 }
-                // a fixture is part of its building, not a pack you trade
-                if (unit.type.fixture) return false;
+                // a fixture is part of its building, not a pack you trade — and a
+                // wall with archers posted on it stays (they would float)
+                if (unit.type.fixture || placement.hasPosts(unit)) return false;
                 if (useAbility) sell.used[seat]!++;
                 else if (!this.consumeTacticCharge(entry, seat, SELL_UNIT_ID)) {
                     return false;
@@ -1898,6 +1955,19 @@ export class ActionDispatcher {
                 unit.level--;
                 unit.upgradePaid -= e.paid!;
                 unit.refreshLevelBadge();
+                liftWallPosts(placement, unit);
+                economy.credit(seat, e.paid!);
+                break;
+            }
+            case 'buyWallPost': {
+                if (e.strongholdArcherUnit) placement.removeUnit(e.strongholdArcherUnit);
+                economy.credit(seat, e.paid!);
+                break;
+            }
+            case 'buildWallWalk': {
+                const unit = placement.unitById(action.unitId)!;
+                unit.upgradePaid -= e.paid!;
+                unit.setWallWalk(false);
                 economy.credit(seat, e.paid!);
                 break;
             }
@@ -2341,6 +2411,18 @@ export function spawnGarrisonPost(
     archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
     archer.seatMembers();
     return archer;
+}
+
+/** a wall's posted archers onto its walkway again (its level changed their height) */
+function liftWallPosts(placement: PlacementController, wall: Unit): void {
+    if (!wall.type.wall?.posts) return;
+    for (const u of placement.allUnits()) {
+        if (u.hostUnitId !== wall.id || u.strongholdArcherSlot === null) continue;
+        const spot = wallPostWorld(wall, u.strongholdArcherSlot);
+        if (!spot) continue;
+        u.pinnedY = spot.y;
+        u.seatMembers();
+    }
 }
 
 export function quantizeWorld(v: number): number {
