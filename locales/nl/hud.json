@@ -26,6 +26,7 @@
   "climbRound": "Ronde {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Aanvaller",
   "yearDefender": "Verdediger",
+  "yearFinalStand": "Laatste gevecht",
   "yearYou": "jij",
   "yearSideWins": "{{side}} wint",
   "yearRoundWon": "{{side}} heeft gewonnen",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Lenteochtend",
     "springRain": "Lenteregen",
+    "springEvening": "Lenteavond",
     "summerNoon": "Zomermiddag",
     "summerGolden": "Zomerse gouden",
     "summerNight": "Zomernacht",
     "autumnDusk": "Herfstavond",
     "autumnStorm": "Herfststorm",
+    "harvestMorning": "Oogstochtend",
     "firstSnow": "Eerste sneeuw",
-    "deepWinter": "Diepe winter"
+    "deepWinter": "Diepe winter",
+    "frostMorning": "Vorstochtend"
   },
   "towerUpgradeDesc": "Verhoog dit gebouw met één niveau: het krijgt zijn basis-HP erbij. Geen XP nodig, de prijs stijgt per niveau.",
   "boostAttackDesc": "Permanente schadeboost voor het hele leger. Koop de upgrades één voor één.",

@@ -10,8 +10,10 @@ import type { YearRoundWinner } from '../game/settings';
 export interface YearProgress {
     /** who took each finished round, in order */
     rounds: readonly YearRoundWinner[];
-    /** rounds the Year lasts */
+    /** rounds the Year lasts (its final stand included, once it comes to one) */
     total: number;
+    /** its regular rounds — a mark past these is the final stand */
+    regular?: number;
     /** the local side's role; null for a spectator */
     you: YearRoundWinner | null;
 }
@@ -30,11 +32,14 @@ export function yearMarksHtml(p: YearProgress, opts: { current?: boolean; fresh?
     const marks: string[] = [];
     for (let i = 0; i < p.total; i++) {
         const winner = p.rounds[i];
-        const cls = winner
-            ? `year-mark is-${winner}${opts.fresh && i === p.rounds.length - 1 ? ' is-fresh' : ''}`
-            : `year-mark${opts.current && i === p.rounds.length ? ' is-current' : ''}`;
-        const letter = winner === 'attacker' ? 'A' : winner === 'defender' ? 'D' : String(i + 1);
-        const title = winner ? `${i + 1}: ${yearRoleName(winner)}` : String(i + 1);
+        const final = p.regular !== undefined && p.regular > 0 && i >= p.regular;
+        const cls =
+            (winner
+                ? `year-mark is-${winner}${opts.fresh && i === p.rounds.length - 1 ? ' is-fresh' : ''}`
+                : `year-mark${opts.current && i === p.rounds.length ? ' is-current' : ''}`) + (final ? ' is-final' : '');
+        const letter = winner === 'attacker' ? 'A' : winner === 'defender' ? 'D' : final ? '★' : String(i + 1);
+        const name = final ? t('hud:yearFinalStand', { defaultValue: 'Final stand' }) : String(i + 1);
+        const title = winner ? `${name}: ${yearRoleName(winner)}` : name;
         marks.push(`<span class="${cls}" title="${esc(title)}" style="--i:${i}">${letter}</span>`);
     }
     return `<div class="year-marks">${marks.join('')}</div>`;

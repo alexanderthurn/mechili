@@ -26,6 +26,7 @@
   "climbRound": "Kierros {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Hyökkääjä",
   "yearDefender": "Puolustaja",
+  "yearFinalStand": "Viimeinen taisto",
   "yearYou": "sinä",
   "yearSideWins": "{{side}} voittaa",
   "yearRoundWon": "{{side}} voitti",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Kevätaamu",
     "springRain": "Kevätsade",
+    "springEvening": "Kevätilta",
     "summerNoon": "Kesäinen keskipäivä",
     "summerGolden": "Kesän kultainen",
     "summerNight": "Kesäyö",
     "autumnDusk": "Syksyn hämärä",
     "autumnStorm": "Syysmyrsky",
+    "harvestMorning": "Sadonkorjuuaamu",
     "firstSnow": "Ensilumi",
-    "deepWinter": "Syvä talvi"
+    "deepWinter": "Syvä talvi",
+    "frostMorning": "Pakkasaamu"
   },
   "towerUpgradeDesc": "Nosta tätä rakennusta yhdellä tasolla: se saa peruselämänpisteensä. Kokemuspisteitä ei tarvita, hinta nousee jokaisella tasolla.",
   "boostAttackDesc": "Pysyvä armeijanlaajuinen vahinkobonus. Osta taso kerrallaan.",

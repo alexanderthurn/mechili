@@ -26,6 +26,7 @@
   "climbRound": "라운드 {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "공격측",
   "yearDefender": "방어측",
+  "yearFinalStand": "최후의 결전",
   "yearYou": "나",
   "yearSideWins": "{{side}} 승리",
   "yearRoundWon": "{{side}} 승리",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "봄 아침",
     "springRain": "봄비",
+    "springEvening": "봄 저녁",
     "summerNoon": "여름 정오",
     "summerGolden": "여름 황금빛",
     "summerNight": "여름 밤",
     "autumnDusk": "가을 황혼",
     "autumnStorm": "가을 폭풍",
+    "harvestMorning": "수확의 아침",
     "firstSnow": "첫눈",
-    "deepWinter": "한겨울"
+    "deepWinter": "한겨울",
+    "frostMorning": "서리 내린 아침"
   },
   "towerUpgradeDesc": "이 건물을 한 레벨 올립니다: 기본 체력을 얻습니다. XP 불필요, 레벨마다 가격 상승.",
   "boostAttackDesc": "영구적인 전군 공격력 강화. 단계를 순서대로 구매합니다.",

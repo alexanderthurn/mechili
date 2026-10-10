@@ -26,6 +26,7 @@
   "climbRound": "Раунд {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Нападник",
   "yearDefender": "Захисник",
+  "yearFinalStand": "Останній бій",
   "yearYou": "ви",
   "yearSideWins": "Перемога: {{side}}",
   "yearRoundWon": "{{side}} переміг",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Весняний ранок",
     "springRain": "Весняний дощ",
+    "springEvening": "Весняний вечір",
     "summerNoon": "Літній полудень",
     "summerGolden": "Літо золоте",
     "summerNight": "Літня ніч",
     "autumnDusk": "Осінні сутінки",
     "autumnStorm": "Осіння буря",
+    "harvestMorning": "Ранок жнив",
     "firstSnow": "Перший сніг",
-    "deepWinter": "Глибока зима"
+    "deepWinter": "Глибока зима",
+    "frostMorning": "Морозний ранок"
   },
   "towerUpgradeDesc": "Підвищте рівень цієї будівлі: вона отримує базовий рівень здоров'я. Досвід не потрібен, ціна зростає з кожним рівнем.",
   "boostAttackDesc": "Постійне збільшення шкоди для всієї армії. Купуйте один рівень за іншим.",

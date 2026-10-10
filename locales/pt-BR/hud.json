@@ -26,6 +26,7 @@
   "climbRound": "Rodada {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Atacante",
   "yearDefender": "Defensor",
+  "yearFinalStand": "Batalha final",
   "yearYou": "você",
   "yearSideWins": "Vence o {{side}}",
   "yearRoundWon": "{{side}} venceu",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Manhã de primavera",
     "springRain": "Chuva de primavera",
+    "springEvening": "Fim de tarde de primavera",
     "summerNoon": "Meio-dia de verão",
     "summerGolden": "Dourado de verão",
     "summerNight": "Noite de verão",
     "autumnDusk": "Crepúsculo de outono",
     "autumnStorm": "Tempestade de outono",
+    "harvestMorning": "Manhã de colheita",
     "firstSnow": "Primeira neve",
-    "deepWinter": "Inverno profundo"
+    "deepWinter": "Inverno profundo",
+    "frostMorning": "Manhã de geada"
   },
   "towerUpgradeDesc": "Aumente o nível deste edifício em um nível: ele recupera seus pontos de vida base. Não é necessário XP, o preço aumenta a cada nível.",
   "boostAttackDesc": "Aumento permanente de dano para todo o exército. Compre um nível após o outro.",

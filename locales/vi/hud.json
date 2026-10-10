@@ -26,6 +26,7 @@
   "climbRound": "Vòng {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Bên tấn công",
   "yearDefender": "Bên phòng thủ",
+  "yearFinalStand": "Trận quyết chiến",
   "yearYou": "bạn",
   "yearSideWins": "{{side}} thắng",
   "yearRoundWon": "{{side}} đã thắng",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Buổi sáng mùa xuân",
     "springRain": "Mưa xuân",
+    "springEvening": "Chiều xuân",
     "summerNoon": "buổi trưa mùa hè",
     "summerGolden": "mùa hè vàng óng",
     "summerNight": "Đêm hè",
     "autumnDusk": "hoàng hôn mùa thu",
     "autumnStorm": "Bão mùa thu",
+    "harvestMorning": "Sáng mùa gặt",
     "firstSnow": "Tuyết đầu mùa",
-    "deepWinter": "Mùa đông khắc nghiệt"
+    "deepWinter": "Mùa đông khắc nghiệt",
+    "frostMorning": "Sáng sương giá"
   },
   "towerUpgradeDesc": "Nâng cấp công trình này lên một tầng: nó sẽ giữ nguyên lượng HP cơ bản. Không cần điểm kinh nghiệm, giá sẽ tăng theo mỗi tầng.",
   "boostAttackDesc": "Tăng sát thương vĩnh viễn cho toàn bộ quân đội. Mua từng cấp độ một.",

@@ -26,6 +26,7 @@
   "climbRound": "Runda {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Atacator",
   "yearDefender": "Apărător",
+  "yearFinalStand": "Ultima bătălie",
   "yearYou": "tu",
   "yearSideWins": "Câștigă: {{side}}",
   "yearRoundWon": "{{side}} a câștigat",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Dimineață de primăvară",
     "springRain": "Ploaie de primăvară",
+    "springEvening": "Seară de primăvară",
     "summerNoon": "Amiază de vară",
     "summerGolden": "Vară aurie",
     "summerNight": "Noapte de vară",
     "autumnDusk": "Amurg de toamnă",
     "autumnStorm": "Furtună de toamnă",
+    "harvestMorning": "Dimineață de recoltă",
     "firstSnow": "Prima ninsoare",
-    "deepWinter": "Iarnă adâncă"
+    "deepWinter": "Iarnă adâncă",
+    "frostMorning": "Dimineață geroasă"
   },
   "towerUpgradeDesc": "Ridică această clădire cu un nivel: își câștigă HP-ul de bază. Nu este nevoie de XP, prețul crește la fiecare nivel.",
   "boostAttackDesc": "Creștere permanentă a daunelor la nivelul întregii armate. Cumpără nivel după nivel.",

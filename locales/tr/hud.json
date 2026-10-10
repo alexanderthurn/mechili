@@ -26,6 +26,7 @@
   "climbRound": "Tur {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Saldıran",
   "yearDefender": "Savunan",
+  "yearFinalStand": "Son savaş",
   "yearYou": "sen",
   "yearSideWins": "Kazanan: {{side}}",
   "yearRoundWon": "{{side}} kazandı",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Bahar sabahı",
     "springRain": "İlkbahar yağmurları",
+    "springEvening": "Bahar akşamı",
     "summerNoon": "Yaz öğleni",
     "summerGolden": "Yaz altını",
     "summerNight": "Yaz gecesi",
     "autumnDusk": "Sonbahar alacakaranlığı",
     "autumnStorm": "Sonbahar fırtınası",
+    "harvestMorning": "Hasat sabahı",
     "firstSnow": "İlk kar",
-    "deepWinter": "Derin kış"
+    "deepWinter": "Derin kış",
+    "frostMorning": "Ayaz sabahı"
   },
   "towerUpgradeDesc": "Bu binayı bir seviye yükseltin: temel HP değerini kazanır. XP gerekmez, fiyat her seviyede artar.",
   "boostAttackDesc": "Ordu genelinde kalıcı hasar artışı. Kademe kademe satın alın.",

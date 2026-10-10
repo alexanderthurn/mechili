@@ -26,6 +26,7 @@
   "climbRound": "Runda {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Anfallare",
   "yearDefender": "Försvarare",
+  "yearFinalStand": "Sista striden",
   "yearYou": "du",
   "yearSideWins": "{{side}} vinner",
   "yearRoundWon": "{{side}} vann",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Vårmorgon",
     "springRain": "Vårregn",
+    "springEvening": "Vårkväll",
     "summerNoon": "Sommarmiddag",
     "summerGolden": "Sommargyllene",
     "summerNight": "Sommarnatt",
     "autumnDusk": "Höstskymning",
     "autumnStorm": "Höststorm",
+    "harvestMorning": "Skördemorgon",
     "firstSnow": "Första snön",
-    "deepWinter": "Djup vinter"
+    "deepWinter": "Djup vinter",
+    "frostMorning": "Frostmorgon"
   },
   "towerUpgradeDesc": "Höj byggnaden en nivå: den får sina grundläggande HP. Ingen XP behövs, priset stiger för varje nivå.",
   "boostAttackDesc": "Permanent arméomfattande skadeökning. Köp en nivå efter den andra.",

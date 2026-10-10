@@ -26,6 +26,7 @@
   "climbRound": "Runda {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Atakujący",
   "yearDefender": "Obrońca",
+  "yearFinalStand": "Ostatnia bitwa",
   "yearYou": "ty",
   "yearSideWins": "Wygrywa: {{side}}",
   "yearRoundWon": "{{side}} wygrał",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Wiosenny poranek",
     "springRain": "Wiosenny deszcz",
+    "springEvening": "Wiosenny wieczór",
     "summerNoon": "Letnie południe",
     "summerGolden": "Lato złote",
     "summerNight": "Letnia noc",
     "autumnDusk": "Jesienny zmierzch",
     "autumnStorm": "Jesienna burza",
+    "harvestMorning": "Poranek żniw",
     "firstSnow": "Pierwszy śnieg",
-    "deepWinter": "Głęboka zima"
+    "deepWinter": "Głęboka zima",
+    "frostMorning": "Mroźny poranek"
   },
   "towerUpgradeDesc": "Podnieś ten budynek o jeden poziom: zyska on bazowe HP. Nie potrzebujesz XP, cena rośnie z każdym poziomem.",
   "boostAttackDesc": "Stałe zwiększenie obrażeń dla całej armii. Kupuj jeden poziom po drugim.",

@@ -26,6 +26,7 @@
   "climbRound": "Γύρος {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Επιτιθέμενος",
   "yearDefender": "Αμυνόμενος",
+  "yearFinalStand": "Τελική μάχη",
   "yearYou": "εσύ",
   "yearSideWins": "Νίκη: {{side}}",
   "yearRoundWon": "{{side}} νίκησε",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Ανοιξιάτικο πρωινό",
     "springRain": "Ανοιξιάτικη βροχή",
+    "springEvening": "Ανοιξιάτικο σούρουπο",
     "summerNoon": "Καλοκαιρινό μεσημέρι",
     "summerGolden": "Χρυσό καλοκαίρι",
     "summerNight": "Καλοκαιρινή νύχτα",
     "autumnDusk": "Φθινοπωρινό σούρουπο",
     "autumnStorm": "Φθινοπωρινή καταιγίδα",
+    "harvestMorning": "Πρωινό του θερισμού",
     "firstSnow": "Πρώτο χιόνι",
-    "deepWinter": "Βαθύς χειμώνας"
+    "deepWinter": "Βαθύς χειμώνας",
+    "frostMorning": "Παγωμένο πρωινό"
   },
   "towerUpgradeDesc": "Ανέβασε αυτό το κτίριο ένα επίπεδο: κερδίζει τα βασικά του HP. Χωρίς XP, η τιμή ανεβαίνει κάθε επίπεδο.",
   "boostAttackDesc": "Μόνιμη ενίσχυση ζημιάς σε όλο τον στρατό. Αγόρασε βαθμίδες με σειρά.",

@@ -3403,6 +3403,8 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     animation: year-mark-in 0.35s ease-out both, year-mark-pulse 1.6s ease-in-out 0.4s infinite;
 }
 .year-mark.is-fresh { animation: year-mark-pop 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) 0.25s both; }
+/* the final stand: a level Year's deciding round, ringed in brass */
+.year-mark.is-final { outline: 2px solid ${u.brassLight}; outline-offset: 2px; }
 @keyframes year-mark-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
 @keyframes year-mark-pop { 0% { opacity: 0; transform: scale(2.2); } 100% { opacity: 1; transform: scale(1); } }
 @keyframes year-mark-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }

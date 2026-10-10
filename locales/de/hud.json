@@ -26,6 +26,7 @@
   "climbRound": "Runde {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Angreifer",
   "yearDefender": "Verteidiger",
+  "yearFinalStand": "Letztes Gefecht",
   "yearYou": "du",
   "yearSideWins": "{{side}} gewinnt",
   "yearRoundWon": "{{side}} hat gewonnen",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Frühlingsmorgen",
     "springRain": "Frühlingsregen",
+    "springEvening": "Frühlingsabend",
     "summerNoon": "Sommermittag",
     "summerGolden": "Goldener Sommer",
     "summerNight": "Sommernacht",
     "autumnDusk": "Herbstdämmerung",
     "autumnStorm": "Herbststurm",
+    "harvestMorning": "Erntemorgen",
     "firstSnow": "Erster Schnee",
-    "deepWinter": "Tiefwinter"
+    "deepWinter": "Tiefwinter",
+    "frostMorning": "Frostmorgen"
   },
   "towerUpgradeDesc": "Werte dieses Gebäude um eine Stufe auf: es erhält seine Basis-HP dazu.",
   "boostAttackDesc": "Permanenter Schadensbonus für die gesamte Armee. Kaufe eine Stufe nach der anderen.",

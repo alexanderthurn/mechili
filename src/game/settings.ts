@@ -26,15 +26,18 @@ import type { SeatDef, SeatId } from './seats';
  * Campaign (SP climb) playtest knobs — change these while tuning feel.
  * {@link CLIMB_SUPPLY_GROWTH_PER_ROUND}: `null` keeps AI on normal match income growth.
  */
-/** rounds a Year lasts; the side with more round wins takes it */
-export const CLIMB_ROUNDS = 9;
+/**
+ * rounds a Year lasts — three per season; the side with more round wins takes
+ * it, and a level Year (6 : 6) goes to one more round, the final stand
+ */
+export const CLIMB_ROUNDS = 12;
 export const CLIMB_SIDE_HP = 1;
 export const CLIMB_SUPPLY_GROWTH_PER_ROUND: number | null = null;
 /**
- * Campaign: human income growth per round (normal matches use 200).
+ * Campaign: human income growth per round — 200, the same as normal matches.
  * Round grant is still `startingSupply + (round - 1) * growth`.
  */
-export const CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND = 100;
+export const CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND = 200;
 /**
  * Campaign AI rebuild: deploy-slot ceiling so a fresh army can spend income
  * on many packs (normal matches stay at {@link DeploySettings.unitsPerRound}).
@@ -132,6 +135,21 @@ export function yearAttackerFromWishes(a: ClimbRole | undefined, b: ClimbRole | 
     if (a === 'defender' && b !== 'defender') return 1;
     if (b === 'defender' && a !== 'defender') return 0;
     return (seed >>> 0) % 2;
+}
+
+/**
+ * How many rounds this Year runs: its `rounds`, and — once they are played
+ * and the sides stand level — one more, the final stand (which can't end level).
+ */
+export function yearTotal(rounds: number, winners: readonly YearRoundWinner[]): number {
+    const attacker = winners.filter((r) => r === 'attacker').length;
+    const level = winners.length >= rounds && attacker * 2 === winners.length;
+    return level ? winners.length + 1 : Math.max(rounds, winners.length);
+}
+
+/** whether the Year is decided: every round played, final stand included */
+export function yearOver(rounds: number, winners: readonly YearRoundWinner[]): boolean {
+    return winners.length >= yearTotal(rounds, winners);
 }
 
 /** The Year's winner from its round winners: more round wins, a tie to the defender. */

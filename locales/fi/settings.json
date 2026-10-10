@@ -34,7 +34,7 @@
   "strongholdOption": "Linnoitus: {{label}}",
   "hordeOff": "Pois päältä — ei aaltoja",
   "hordeLow": "Matalat aallot viidentenä ja äitiyönä ({{final}})",
-  "hordeMedium": "Keskikokoinen — sikiö 3:lla, kutojat 5:llä, maanviljelijät 7:llä, Äitiyö (9/18+ Hans)",
+  "hordeMedium": "Keskikokoinen — sikiö 2:lla, kutojat 4:llä, maanviljelijät 5:llä, Äitiyö (6/12+ Hans)",
   "hordeHigh": "Korkealla – aalto joka kierroksella",
   "hordeUltra": "Ultra — jokainen kierros, tuplapakkaus lasketaan",
   "cardsOff": "Pois päältä — ei kortteja kierrosten välillä",

@@ -26,6 +26,7 @@
   "climbRound": "Ronde {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Penyerang",
   "yearDefender": "Bertahan",
+  "yearFinalStand": "Pertempuran terakhir",
   "yearYou": "kamu",
   "yearSideWins": "{{side}} menang",
   "yearRoundWon": "{{side}} menang",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Pagi musim semi",
     "springRain": "Hujan musim semi",
+    "springEvening": "Senja musim semi",
     "summerNoon": "Siang hari di musim panas",
     "summerGolden": "Emas musim panas",
     "summerNight": "Malam musim panas",
     "autumnDusk": "Senja musim gugur",
     "autumnStorm": "Badai musim gugur",
+    "harvestMorning": "Pagi panen",
     "firstSnow": "Salju pertama",
-    "deepWinter": "Musim dingin yang pekat"
+    "deepWinter": "Musim dingin yang pekat",
+    "frostMorning": "Pagi beku"
   },
   "towerUpgradeDesc": "Naikkan bangunan ini satu level: ia mendapatkan kembali HP dasarnya. Tidak memerlukan XP, harga naik setiap level.",
   "boostAttackDesc": "Peningkatan damage permanen untuk seluruh pasukan. Beli satu tingkat demi satu tingkat.",

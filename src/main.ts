@@ -129,6 +129,7 @@ import {
     strongholdModeOption,
     CUSTOM_GAME_PACE_PRESETS,
     CLIMB_ROUNDS,
+    yearTotal,
     CLIMB_SIDE_HP,
     CLIMB_SUPPLY_GROWTH_PER_ROUND,
     CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
@@ -3938,7 +3939,10 @@ function startGame(
         const localSeat = star?.mySeat ?? (side === 'a' ? 0 : 1);
         const localSide = settings.seats?.[localSeat]?.side ?? localSeat;
         const you = climbAttackerTeam(climb, localSide) === 'player' ? 'attacker' : 'defender';
-        mountYearIntro(introCoverEl, { rounds: (resume?.yearRounds ?? []).slice(0, climb.rounds), total: climb.rounds, you });
+        // a resumed Year in its final stand shows the extra round too
+        const played = resume?.yearRounds ?? [];
+        const total = yearTotal(climb.rounds, played);
+        mountYearIntro(introCoverEl, { rounds: played.slice(0, total), total, regular: climb.rounds, you });
         void introRosterHold().then(() => {
             if (gen !== introGen || !started) return;
             startIntroCoverDive();

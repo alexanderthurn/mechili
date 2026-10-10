@@ -26,6 +26,7 @@
   "climbRound": "รอบ {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "ฝ่ายบุก",
   "yearDefender": "ฝ่ายรับ",
+  "yearFinalStand": "ศึกตัดสิน",
   "yearYou": "คุณ",
   "yearSideWins": "{{side}}ชนะ",
   "yearRoundWon": "{{side}} ชนะ",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "เช้าฤดูใบไม้ผลิ",
     "springRain": "ฝนฤดูใบไม้ผลิ",
+    "springEvening": "ยามเย็นฤดูใบไม้ผลิ",
     "summerNoon": "เที่ยงฤดูร้อน",
     "summerGolden": "ฤดูร้อนทอง",
     "summerNight": "คืนฤดูร้อน",
     "autumnDusk": "เย็นฤดูใบไม้ร่วง",
     "autumnStorm": "พายุฤดูใบไม้ร่วง",
+    "harvestMorning": "เช้าฤดูเก็บเกี่ยว",
     "firstSnow": "หิมะแรก",
-    "deepWinter": "ฤดูหนาวลึก"
+    "deepWinter": "ฤดูหนาวลึก",
+    "frostMorning": "เช้าน้ำค้างแข็ง"
   },
   "towerUpgradeDesc": "เพิ่มเลเวลอาคารนี้หนึ่งขั้น: ได้ HP พื้นฐาน ไม่ต้องมี XP ราคาขึ้นทุกเลเวล",
   "boostAttackDesc": "เสริมดาเมจทั้งกองทัพถาวร ซื้อทีละขั้น",

@@ -26,6 +26,7 @@
   "climbRound": "Manche {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Attaquant",
   "yearDefender": "Défenseur",
+  "yearFinalStand": "Dernier carré",
   "yearYou": "vous",
   "yearSideWins": "{{side}} l'emporte",
   "yearRoundWon": "{{side}} l’a emporté",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "matinée de printemps",
     "springRain": "Pluie printanière",
+    "springEvening": "soirée de printemps",
     "summerNoon": "midi d'été",
     "summerGolden": "été doré",
     "summerNight": "nuit d'été",
     "autumnDusk": "crépuscule d'automne",
     "autumnStorm": "tempête d'automne",
+    "harvestMorning": "matin des moissons",
     "firstSnow": "Premières neiges",
-    "deepWinter": "hiver profond"
+    "deepWinter": "hiver profond",
+    "frostMorning": "matin de givre"
   },
   "towerUpgradeDesc": "Améliorez ce bâtiment d'un niveau : il récupère ses points de vie de base. Aucune expérience requise, le prix augmente à chaque niveau.",
   "boostAttackDesc": "Bonus de dégâts permanent pour toute l'armée. Achetez les niveaux un par un.",

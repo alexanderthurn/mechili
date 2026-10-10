@@ -26,6 +26,7 @@
   "climbRound": "{{n}}. kör · {{wins}}/{{total}}",
   "yearAttacker": "Támadó",
   "yearDefender": "Védő",
+  "yearFinalStand": "Végső ütközet",
   "yearYou": "te",
   "yearSideWins": "Győztes: {{side}}",
   "yearRoundWon": "{{side}} nyert",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Tavaszi reggel",
     "springRain": "Tavaszi eső",
+    "springEvening": "Tavaszi este",
     "summerNoon": "Nyári dél",
     "summerGolden": "Nyári arany",
     "summerNight": "Nyári éjszaka",
     "autumnDusk": "Őszi alkonyat",
     "autumnStorm": "Őszi vihar",
+    "harvestMorning": "Aratási reggel",
     "firstSnow": "Első hó",
-    "deepWinter": "Mély tél"
+    "deepWinter": "Mély tél",
+    "frostMorning": "Fagyos reggel"
   },
   "towerUpgradeDesc": "Emeld az épületet egy szinttel: megkapod az alap HP-ját. Nincs szükség XP-re, az ára minden szinten emelkedik.",
   "boostAttackDesc": "Állandó, seregszerte érvényes sebzésnövelés. Vásárold meg egymás után a szinteket.",

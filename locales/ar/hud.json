@@ -26,6 +26,7 @@
   "climbRound": "الجولة {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "المهاجم",
   "yearDefender": "المدافع",
+  "yearFinalStand": "المعركة الأخيرة",
   "yearYou": "أنت",
   "yearSideWins": "فوز {{side}}",
   "yearRoundWon": "فاز {{side}}",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "صباح ربيعي",
     "springRain": "مطر ربيعي",
+    "springEvening": "مساء الربيع",
     "summerNoon": "ظهيرة صيفية",
     "summerGolden": "صيف ذهبي",
     "summerNight": "ليلة صيفية",
     "autumnDusk": "غسق خريفي",
     "autumnStorm": "عاصفة خريفية",
+    "harvestMorning": "صباح الحصاد",
     "firstSnow": "أول ثلج",
-    "deepWinter": "شتاء عميق"
+    "deepWinter": "شتاء عميق",
+    "frostMorning": "صباح الصقيع"
   },
   "towerUpgradeDesc": "ارفع هذا المبنى مستوى واحدًا: يكتسب صحته الأساسية. بلا حاجة لخبرة، يرتفع السعر كل مستوى.",
   "boostAttackDesc": "تعزيز ضرر دائم لكل الجيش. اشترِ درجة بعد أخرى.",

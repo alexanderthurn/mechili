@@ -34,7 +34,7 @@
   "strongholdOption": "요새: {{label}}",
   "hordeOff": "끔 — 파도 없음",
   "hordeLow": "낮음 — 5라운드와 어머니 밤 ({{final}})에 파도",
-  "hordeMedium": "중간 — 3에 무리, 5에 그물직이, 7에 농부, 어머니 밤 (9 / 한스 18+)",
+  "hordeMedium": "중간 — 2에 무리, 4에 그물직이, 5에 농부, 어머니 밤 (6 / 한스 12+)",
   "hordeHigh": "높음 — 매 라운드 파도",
   "hordeUltra": "울트라 — 매 라운드 편대 수 두 배",
   "cardsOff": "끔 — 라운드 사이 카드 없음",

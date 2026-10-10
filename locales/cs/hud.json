@@ -26,6 +26,7 @@
   "climbRound": "Kolo {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Útočník",
   "yearDefender": "Obránce",
+  "yearFinalStand": "Poslední bitva",
   "yearYou": "ty",
   "yearSideWins": "Vítězí: {{side}}",
   "yearRoundWon": "{{side}} vyhrál",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Jarní ráno",
     "springRain": "Jarní déšť",
+    "springEvening": "Jarní večer",
     "summerNoon": "Letní poledne",
     "summerGolden": "Léto zlaté",
     "summerNight": "Letní noc",
     "autumnDusk": "Podzimní soumrak",
     "autumnStorm": "Podzimní bouře",
+    "harvestMorning": "Žňové ráno",
     "firstSnow": "První sníh",
-    "deepWinter": "Hluboká zima"
+    "deepWinter": "Hluboká zima",
+    "frostMorning": "Mrazivé ráno"
   },
   "towerUpgradeDesc": "Zvyšte úroveň této budovy: získá základní HP. Nejsou potřeba XP, cena se zvyšuje s každou úrovní.",
   "boostAttackDesc": "Trvalé zvýšení poškození pro celou armádu. Kupujte jednu úroveň za druhou.",

@@ -5710,6 +5710,12 @@ export function resolveMusicBed(opts: {
             battle: 'music_deep_winter_battle',
         },
     };
+    // the scenes the 12-round Year added borrow existing tracks, picked so a repeat lies far
+    // from its first play and still fits the mood: an evening bed for the spring evening
+    // (rounds 3 / 8), a morning one for the harvest morning (1 / 7), snow for the frost (10 / 12)
+    seasonal['Spring evening'] = seasonal['Autumn dusk']!;
+    seasonal['Harvest morning'] = seasonal['Spring morning']!;
+    seasonal['Frost morning'] = seasonal['First snow']!;
     const pair = opts.atmosphereLabel ? seasonal[opts.atmosphereLabel] : undefined;
     if (pair) {
         const cue = opts.phase === 'battle' ? pair.battle : pair.deploy;

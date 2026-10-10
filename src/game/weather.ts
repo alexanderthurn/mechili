@@ -431,6 +431,10 @@ export const ATMOSPHERE_SCENES: readonly AtmosphereScene[] = [
         atmosphere: { season: 'spring', timeOfDay: 'day', weatherKind: 'rain', weatherIntensity: 0.5 },
     },
     {
+        label: 'Spring evening',
+        atmosphere: { season: 'spring', timeOfDay: 'golden', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
         label: 'Summer noon',
         atmosphere: { season: 'summer', timeOfDay: 'day', weatherKind: 'clear', weatherIntensity: 0 },
     },
@@ -441,6 +445,10 @@ export const ATMOSPHERE_SCENES: readonly AtmosphereScene[] = [
     {
         label: 'Summer night',
         atmosphere: { season: 'summer', timeOfDay: 'night', weatherKind: 'clear', weatherIntensity: 0 },
+    },
+    {
+        label: 'Harvest morning',
+        atmosphere: { season: 'autumn', timeOfDay: 'dawn', weatherKind: 'clear', weatherIntensity: 0 },
     },
     {
         label: 'Autumn dusk',
@@ -458,11 +466,19 @@ export const ATMOSPHERE_SCENES: readonly AtmosphereScene[] = [
         label: 'Deep winter',
         atmosphere: { season: 'winter', timeOfDay: 'night', weatherKind: 'snow', weatherIntensity: 1 },
     },
+    {
+        // a light fall keeps the ground white for the Year's last round (clear skies would melt it)
+        label: 'Frost morning',
+        atmosphere: { season: 'winter', timeOfDay: 'dawn', weatherKind: 'snow', weatherIntensity: 0.2 },
+    },
 ];
 
 const ATMOSPHERE_LABEL_KEYS: Record<string, string> = {
     'Spring morning': 'hud:atmosphere.springMorning',
     'Spring rain': 'hud:atmosphere.springRain',
+    'Spring evening': 'hud:atmosphere.springEvening',
+    'Harvest morning': 'hud:atmosphere.harvestMorning',
+    'Frost morning': 'hud:atmosphere.frostMorning',
     'Summer noon': 'hud:atmosphere.summerNoon',
     'Summer golden': 'hud:atmosphere.summerGolden',
     'Summer night': 'hud:atmosphere.summerNight',
@@ -478,17 +494,20 @@ const ATMOSPHERE_LABEL_KEYS: Record<string, string> = {
  */
 export function musicLabelFromAtmosphere(a: Atmosphere): string {
     if (a.season === 'winter') {
-        return a.timeOfDay === 'night' || a.weatherIntensity >= 0.95 ? 'Deep winter' : 'First snow';
+        if (a.timeOfDay === 'night' || a.weatherIntensity >= 0.95) return 'Deep winter';
+        return a.timeOfDay === 'dawn' ? 'Frost morning' : 'First snow';
     }
     if (a.season === 'autumn') {
-        return a.weatherKind === 'rain' ? 'Autumn storm' : 'Autumn dusk';
+        if (a.weatherKind === 'rain') return 'Autumn storm';
+        return a.timeOfDay === 'dawn' ? 'Harvest morning' : 'Autumn dusk';
     }
     if (a.season === 'summer') {
         if (a.timeOfDay === 'night') return 'Summer night';
         if (a.timeOfDay === 'golden' || a.timeOfDay === 'dusk') return 'Summer golden';
         return 'Summer noon';
     }
-    return a.weatherKind === 'rain' ? 'Spring rain' : 'Spring morning';
+    if (a.weatherKind === 'rain') return 'Spring rain';
+    return a.timeOfDay === 'golden' || a.timeOfDay === 'dusk' ? 'Spring evening' : 'Spring morning';
 }
 
 /** seconds for the exponential ease toward a new target (sky + foliage share this) */
@@ -1008,7 +1027,8 @@ export class Weather {
 
     /**
      * Each deployment start: apply the year-tour scene for this round
-     * (round 1 → scene 1, … wraps after the last). Deterministic — no RNG —
+     * (round 1 → scene 1, … wraps after the last; The Year's final stand
+     * passes its last round so it stays in winter). Deterministic — no RNG —
      * so peers stay in sync. Cheat keys (N / X / V / Y) still override live
      * for debugging; the next deploy start snaps back to the round's scene.
      */

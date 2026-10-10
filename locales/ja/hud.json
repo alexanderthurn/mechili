@@ -26,6 +26,7 @@
   "climbRound": "ラウンド {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "攻撃側",
   "yearDefender": "防衛側",
+  "yearFinalStand": "最終決戦",
   "yearYou": "あなた",
   "yearSideWins": "{{side}}の勝利",
   "yearRoundWon": "{{side}}の勝ち",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "春の朝",
     "springRain": "春の雨",
+    "springEvening": "春の夕べ",
     "summerNoon": "夏の正午",
     "summerGolden": "夏の黄金時",
     "summerNight": "夏の夜",
     "autumnDusk": "秋の夕暮れ",
     "autumnStorm": "秋の嵐",
+    "harvestMorning": "収穫の朝",
     "firstSnow": "初雪",
-    "deepWinter": "深冬"
+    "deepWinter": "深冬",
+    "frostMorning": "霜の朝"
   },
   "towerUpgradeDesc": "この建物を 1 レベル上げる：基礎 HP を得る。XP 不要、価格はレベルごとに上昇。",
   "boostAttackDesc": "軍全体の恒久ダメージブースト。段階を順番に購入。",

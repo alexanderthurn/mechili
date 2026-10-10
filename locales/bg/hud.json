@@ -26,6 +26,7 @@
   "climbRound": "Рунд {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Нападател",
   "yearDefender": "Защитник",
+  "yearFinalStand": "Последна битка",
   "yearYou": "вие",
   "yearSideWins": "Победа: {{side}}",
   "yearRoundWon": "{{side}} спечели",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Пролетна сутрин",
     "springRain": "Пролетен дъжд",
+    "springEvening": "Пролетна вечер",
     "summerNoon": "Лятно обяд",
     "summerGolden": "Златно лято",
     "summerNight": "Лятна нощ",
     "autumnDusk": "Есенен здрач",
     "autumnStorm": "Есенна буря",
+    "harvestMorning": "Утро на жътвата",
     "firstSnow": "Първи сняг",
-    "deepWinter": "Дълбока зима"
+    "deepWinter": "Дълбока зима",
+    "frostMorning": "Мразовита сутрин"
   },
   "towerUpgradeDesc": "Повишете нивото на тази сграда: тя получава базовите си HP. Не е необходим XP, цената се увеличава с всяко ниво.",
   "boostAttackDesc": "Постоянно увеличение на щетите за цялата армия. Купувайте ниво след ниво.",

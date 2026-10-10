@@ -26,6 +26,7 @@
   "climbRound": "Runde {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Angriber",
   "yearDefender": "Forsvarer",
+  "yearFinalStand": "Sidste kamp",
   "yearYou": "dig",
   "yearSideWins": "{{side}} vinder",
   "yearRoundWon": "{{side}} vandt",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Forårsmorgen",
     "springRain": "Forårsregn",
+    "springEvening": "Forårsaften",
     "summerNoon": "Sommermiddag",
     "summerGolden": "Sommergylden",
     "summerNight": "Sommeraften",
     "autumnDusk": "Efterårsskumring",
     "autumnStorm": "Efterårsstorm",
+    "harvestMorning": "Høstmorgen",
     "firstSnow": "Første sne",
-    "deepWinter": "Dyb vinter"
+    "deepWinter": "Dyb vinter",
+    "frostMorning": "Frostmorgen"
   },
   "towerUpgradeDesc": "Løft denne bygning et niveau: den får sin grundlæggende HP. Ingen XP nødvendig, prisen stiger for hvert niveau.",
   "boostAttackDesc": "Permanent hærdækkende skadeforøgelse. Køb det ene niveau efter det andet.",

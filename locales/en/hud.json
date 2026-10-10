@@ -26,6 +26,7 @@
   "climbRound": "Round {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Attacker",
   "yearDefender": "Defender",
+  "yearFinalStand": "Final stand",
   "yearYou": "you",
   "yearSideWins": "{{side}} wins",
   "yearRoundWon": "{{side}} won",
@@ -221,13 +222,16 @@
   "atmosphere": {
     "springMorning": "Spring morning",
     "springRain": "Spring rain",
+    "springEvening": "Spring evening",
     "summerNoon": "Summer noon",
     "summerGolden": "Summer golden",
     "summerNight": "Summer night",
     "autumnDusk": "Autumn dusk",
     "autumnStorm": "Autumn storm",
+    "harvestMorning": "Harvest morning",
     "firstSnow": "First snow",
-    "deepWinter": "Deep winter"
+    "deepWinter": "Deep winter",
+    "frostMorning": "Frost morning"
   },
   "towerUpgradeDesc": "Raise this building one level: it gains its base HP. No XP needed, price rises each level.",
   "boostAttackDesc": "Permanent army-wide damage boost. Buy one tier after the other.",

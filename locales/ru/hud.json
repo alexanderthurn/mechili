@@ -26,6 +26,7 @@
   "climbRound": "Раунд {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Атакующий",
   "yearDefender": "Защитник",
+  "yearFinalStand": "Последний бой",
   "yearYou": "вы",
   "yearSideWins": "Победа: {{side}}",
   "yearRoundWon": "{{side}} победил",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Весеннее утро",
     "springRain": "Весенний дождь",
+    "springEvening": "Весенний вечер",
     "summerNoon": "Летний полдень",
     "summerGolden": "Летний закат",
     "summerNight": "Летняя ночь",
     "autumnDusk": "Осенние сумерки",
     "autumnStorm": "Осенняя буря",
+    "harvestMorning": "Утро жатвы",
     "firstSnow": "Первый снег",
-    "deepWinter": "Глубокая зима"
+    "deepWinter": "Глубокая зима",
+    "frostMorning": "Морозное утро"
   },
   "towerUpgradeDesc": "Поднять здание на один уровень: оно получает базовые ОЗ. Опыт не нужен, цена растёт с каждым уровнем.",
   "boostAttackDesc": "Постоянный бонус урона всей армии. Покупайте ярусы по порядку.",

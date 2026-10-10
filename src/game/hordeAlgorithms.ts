@@ -6,10 +6,13 @@
 
 import { t } from '../i18n';
 
-/** Length of one forest circle (Mother on the last slot). */
-export const HORDE_CYCLE_LEN = 9;
+/**
+ * Length of one forest circle (Mother on the last slot): two seasons of the
+ * Year — the Black Spider at its half (6), Hans with her at its end (12).
+ */
+export const HORDE_CYCLE_LEN = 6;
 
-/** Last slot of each circle — Mother night (rounds 9, 18, 27, …). */
+/** Last slot of each circle — Mother night (rounds 6, 12, 18, …). */
 export const HORDE_FINAL_ROUND = HORDE_CYCLE_LEN;
 
 /**
@@ -73,7 +76,7 @@ class LowHorde extends HordeAlgorithm {
     describe(): string {
         return t('settings:hordeLow', {
             final: HORDE_FINAL_ROUND,
-            defaultValue: `Low — waves on 5 and Mother night (${HORDE_FINAL_ROUND})`,
+            defaultValue: `Low — waves on 3 and Mother night (${HORDE_FINAL_ROUND})`,
         });
     }
     enabled(): boolean {
@@ -81,7 +84,7 @@ class LowHorde extends HordeAlgorithm {
     }
     shouldSpawn(round: number): boolean {
         const s = slotOf(round);
-        return s === 5 || s === HORDE_FINAL_ROUND;
+        return s === 3 || s === HORDE_FINAL_ROUND;
     }
 }
 
@@ -91,7 +94,7 @@ class MediumHorde extends HordeAlgorithm {
     describe(): string {
         return t('settings:hordeMedium', {
             defaultValue:
-                'Medium — brood on 3, weavers on 5, farmers on 7, Mother night (9 / 18+ Hans)',
+                'Medium — brood on 2, weavers on 4, farmers on 5, Mother night (6 / 12+ Hans)',
         });
     }
     enabled(): boolean {
@@ -99,7 +102,7 @@ class MediumHorde extends HordeAlgorithm {
     }
     shouldSpawn(round: number): boolean {
         const s = slotOf(round);
-        return s === 3 || s === 5 || s === 7 || s === HORDE_FINAL_ROUND;
+        return s === 2 || s === 4 || s === 5 || s === HORDE_FINAL_ROUND;
     }
 }
 

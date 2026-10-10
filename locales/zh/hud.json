@@ -26,6 +26,7 @@
   "climbRound": "第 {{n}} 回合 · {{wins}}/{{total}}",
   "yearAttacker": "进攻方",
   "yearDefender": "防守方",
+  "yearFinalStand": "最终决战",
   "yearYou": "你",
   "yearSideWins": "{{side}}获胜",
   "yearRoundWon": "{{side}}获胜",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "春日清晨",
     "springRain": "春雨",
+    "springEvening": "春日黄昏",
     "summerNoon": "夏日正午",
     "summerGolden": "夏日金晖",
     "summerNight": "夏夜",
     "autumnDusk": "秋暮",
     "autumnStorm": "秋日风暴",
+    "harvestMorning": "丰收之晨",
     "firstSnow": "初雪",
-    "deepWinter": "深冬"
+    "deepWinter": "深冬",
+    "frostMorning": "霜晨"
   },
   "towerUpgradeDesc": "将此建筑升一级：获得其基础生命。无需经验，费用随等级上升。",
   "boostAttackDesc": "永久全军伤害提升。按阶依次购买。",

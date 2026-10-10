@@ -26,6 +26,7 @@
   "climbRound": "Pusingan {{n}} · {{wins}}/{{total}}",
   "yearAttacker": "Penyerang",
   "yearDefender": "Pertahanan",
+  "yearFinalStand": "Pertempuran terakhir",
   "yearYou": "anda",
   "yearSideWins": "{{side}} menang",
   "yearRoundWon": "{{side}} menang",
@@ -219,13 +220,16 @@
   "atmosphere": {
     "springMorning": "Pagi musim bunga",
     "springRain": "Hujan musim bunga",
+    "springEvening": "Senja musim bunga",
     "summerNoon": "Tengah hari musim panas",
     "summerGolden": "Keemasan musim panas",
     "summerNight": "Malam musim panas",
     "autumnDusk": "Senja musim luruh",
     "autumnStorm": "Ribut musim luruh",
+    "harvestMorning": "Pagi menuai",
     "firstSnow": "Salji pertama",
-    "deepWinter": "Musim sejuk yang mendalam"
+    "deepWinter": "Musim sejuk yang mendalam",
+    "frostMorning": "Pagi fros"
   },
   "towerUpgradeDesc": "Naikkan bangunan ini satu tahap: ia akan mendapat HP asasnya. XP tidak diperlukan, harga akan meningkat setiap tahap.",
   "boostAttackDesc": "Peningkatan kerosakan kekal di seluruh tentera. Beli satu peringkat demi satu.",

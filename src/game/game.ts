@@ -237,6 +237,8 @@ import {
     boardExtrasFor,
     rallyRouteBuyMax,
     yearWinner,
+    yearOver,
+    yearTotal,
     type YearRoundWinner,
     hordeEnabled,
     isHordeRoundActive,
@@ -3958,7 +3960,9 @@ export class Game {
         if (!this.watching) this.resetSpeed();
         this.round++;
         const atmosphere = this.rules.fixedAtmosphere;
-        if (!atmosphere) this.weather?.onRound(this.round, this.hydrating);
+        // The Year's final stand stays in its last round's winter
+        const sceneRound = this.settings.climb ? Math.min(this.round, this.settings.climb.rounds) : this.round;
+        if (!atmosphere) this.weather?.onRound(sceneRound, this.hydrating);
         else if (this.round === 1) {
             this.weather?.setScene(
                 {
@@ -4163,8 +4167,8 @@ export class Game {
     /**
      * Normal matches: escalating income for every seat.
      * Campaign: human uses the same starting supply but
-     * {@link ClimbSettings.playerSupplyGrowthPerRound} (+100) instead of the
-     * normal +200; AI keeps standard growth (then wealth-syncs on rebuild).
+     * {@link ClimbSettings.playerSupplyGrowthPerRound} (+200, like the normal
+     * game); AI keeps standard growth (then wealth-syncs on rebuild).
      */
     private grantClimbAwareRoundIncome(): void {
         const climb = this.settings.climb;
@@ -9763,7 +9767,13 @@ export class Game {
      *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
     /** The Year so far, for the HUD: round winners, length, the local side's role */
     private yearProgress(): YearProgress {
-        return { rounds: [...this.yearRounds], total: this.settings.climb?.rounds ?? 0, you: this.watching ? null : this.yearLocalRole() };
+        const climb = this.settings.climb;
+        return {
+            rounds: [...this.yearRounds],
+            total: climb ? yearTotal(climb.rounds, this.yearRounds) : 0,
+            regular: climb?.rounds ?? 0,
+            you: this.watching ? null : this.yearLocalRole(),
+        };
     }
 
     /** The Year: the attacking side as a local team label (the settings may name it by canonical side) */
@@ -11114,7 +11124,7 @@ export class Game {
             this.yearRounds.push(this.pendingYearRound);
             this.pendingYearRound = null;
             this.restoreClimbHp();
-            if (this.yearRounds.length >= this.settings.climb.rounds) {
+            if (yearOver(this.settings.climb.rounds, this.yearRounds)) {
                 this.presentMatchEnd(yearWinner(this.yearRounds) === this.yearLocalRole() ? 'victory' : 'defeat');
                 return;
             }
@@ -11465,9 +11475,11 @@ export class Game {
                 result === 'victory' &&
                 !this.watching &&
                 (nextTutorialId(tutorialId(this.settings)) !== null || this.nextScenarioId() !== null);
-            const climbProgress = this.settings.climb ? { n: Math.max(1, this.round), total: this.settings.climb.rounds } : undefined;
+            const climbProgress = this.settings.climb
+                ? { n: Math.max(1, this.round), total: yearTotal(this.settings.climb.rounds, this.yearRounds) }
+                : undefined;
             // a Year that ran its course shows the tally (one ended by a forfeit doesn't claim a Year winner)
-            const year = this.settings.climb && this.yearRounds.length >= this.settings.climb.rounds ? this.yearProgress() : undefined;
+            const year = this.settings.climb && yearOver(this.settings.climb.rounds, this.yearRounds) ? this.yearProgress() : undefined;
             // The Year, played to its end: the same pairing again with the roles swapped
             const allowRematch = !!year && !this.watching;
             this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress, allowRematch, ...(year ? { year } : {}) });
