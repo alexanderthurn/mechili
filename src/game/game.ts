@@ -30,7 +30,7 @@ import { CameraRig, type RigState } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, buildingMaxLevel, buildingUpgradeFor, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
+import { ActionDispatcher, buildingMaxLevel, buildingUpgradeFor, garrisonFovYaw, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
 import {
     emptyForgeSlots,
     forgeHintText,
@@ -195,7 +195,8 @@ import {
 } from './buildingCollapse';
 import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay } from './crowWingFlap';
 import { GROUND_UNIT_Y } from './groundQuality';
-import { reachToward } from './terrainCombat';
+import { RANGE_ELEV_MAX_BONUS, reachToward } from './terrainCombat';
+import { FireCoverage } from './fireCoverage';
 import { getUnitVisualHeight, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
 import { BirdFlocks } from './birdFlocks';
 import { WallJoins } from './wallJoins';
@@ -253,6 +254,7 @@ import {
     actorSeat,
     actorTeam,
     type Actor,
+    type SimConfig,
     type SimEvent,
     SOFT_CROWD_LIMIT,
 } from './sim';
@@ -622,6 +624,8 @@ export class Game {
     private postBattleDeathTimeBase = 0;
     /** attack-range ring under the selected battle mech */
     private readonly battleRangeMesh;
+    /** where the selected ranged unit can actually hit (see FireCoverage) */
+    private readonly fireCoverage: FireCoverage;
     private readonly battleFovMesh;
     /** inner dead-zone (min-range) ring under the selected battle mech */
     private readonly battleMinRangeMesh;
@@ -1960,6 +1964,7 @@ export class Game {
         setUnitInstanceRenderer(this.unitInstances);
         this.applyShadowQuality();
         this.battleRangeMesh = createRangeRing(this.scene);
+        this.fireCoverage = new FireCoverage(this.scene);
         this.battleFovMesh = createFovWedge(this.scene);
         this.battleMinRangeMesh = createRangeRing(this.scene);
         (this.battleMinRangeMesh.material as import('three').MeshBasicMaterial).color.setHex(0xff6a44);
@@ -2647,7 +2652,7 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (this.phase !== 'build' || !unit?.type.garrison || unit.team !== 'player') return;
             if (!this.playerCanAct) return;
-            this.dispatchPlayer({ kind: 'buyStrongholdArcher', team: 'player' });
+            this.dispatchPlayer({ kind: 'buyStrongholdArcher', team: 'player', unitId: unit.id });
         };
         this.hud.onBuyForgeSpell = (tacticId) => {
             const unit = this.placement.selectedUnit;
@@ -12480,6 +12485,79 @@ export class Game {
         return bestRay ?? bestScreen;
     }
 
+    /**
+     * Where the selected ranged unit can hit, cell by cell (FireCoverage). In
+     * battle only for a posted shooter (a walking one would need it worked out
+     * again every step), asked of the live sim; in deployment for the selected
+     * ranged pack, asked of a sim holding just it and the board's buildings.
+     */
+    private updateFireCoverage(): void {
+        const battle = this.phase === 'battle' && this.sim !== null;
+        let unit: Unit | null = null;
+        if (battle) {
+            const a = this.selectedActor;
+            if (a?.alive && a.unit.type.projectileSpeed && a.unit.pinnedY != null) unit = a.unit;
+        } else if (this.sim === null && !this.placement.repositioning) {
+            const u = this.placement.selectedUnit;
+            if (u && !u.destroyed && u.type.projectileSpeed) unit = u;
+        }
+        if (!unit) {
+            this.fireCoverage.hide();
+            return;
+        }
+        const shooter = unit;
+        const board = this.placement
+            .allUnits()
+            .filter((u) => u.type.structure && !u.destroyed)
+            .map((u) => `${u.id}:${u.cell.col},${u.cell.row},${u.rotated ? 1 : 0},${u.level}`)
+            .join('|');
+        const key = `${battle ? 'b' : 'd'}:${shooter.id}:${shooter.world.x.toFixed(2)},${shooter.world.z.toFixed(2)},${shooter.level}:${board}`;
+        const team: BattleTeam = shooter.team === 'horde' ? 'horde' : shooter.team;
+        this.fireCoverage.show(key, colorForBattleTeam(team).hex, () => {
+            let sim = this.sim;
+            if (!battle) {
+                // just the shooter and what stands on the board: no battle, no side effects
+                const units = this.placement
+                    .allUnits()
+                    .filter((u) => u === shooter || (u.type.structure && !u.destroyed && !u.productionHeld));
+                sim = new BattleSim(units, this.probeSimConfig());
+                sim.prepareProbe();
+            }
+            const actor = sim?.actorNear(shooter, shooter.world.x, shooter.world.z) ?? null;
+            if (!sim || !actor) return null;
+            const probe = sim;
+            const range = this.resolvedStats(shooter).range * this.levelScaleOf(shooter, 'range');
+            return {
+                x: actor.x,
+                z: actor.z,
+                radius: range + shooter.type.collisionRadius + RANGE_ELEV_MAX_BONUS,
+                covers: (x, z) => probe.shotCovers(actor, x, z),
+            };
+        });
+    }
+
+    /** a sim that never fights: just to ask where a shooter can hit (updateFireCoverage) */
+    private probeSimConfig(): SimConfig {
+        return {
+            terrain: this.map.terrain,
+            towers: this.settings.towers,
+            leveling: this.settings.leveling,
+            battleSeconds: 1,
+            seatRank: (seat) => this.seatRank(seat),
+            costOf: (type) => this.economy.costOf(type),
+            statsOf: (unit) => this.resolvedStats(unit),
+            hasTech: (seat, typeId, techId) => this.unitHasTech(seat, typeId, techId),
+            flankSpawnSeconds: 0,
+            flankSpawnMult: () => 1,
+            needsFlankSpawn: () => false,
+            boardHalfW: this.map.halfW,
+            boardHalfZ: this.map.halfH,
+            loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
+            types: this.types,
+            strongholdLifeline: false,
+        };
+    }
+
     /** the range ring follows the selected battle mech, tinted by its team */
     private updateBattleRangeRing(): void {
         const a = this.phase === 'battle' ? this.selectedActor : null;
@@ -12535,6 +12613,7 @@ export class Game {
     private updateSelectionUi(): void {
         if (this.disposed) return;
         this.updateBattleRangeRing();
+        this.updateFireCoverage();
         if (this.phase === 'battle' && this.sim) {
             if (this.selectedActor && !this.selectedActor.alive) this.selectedActor = null;
             this.hpBars.update(
@@ -12779,9 +12858,9 @@ export class Game {
                     maxLevel: buildingMaxLevel(u, this.seats, this.settings.towers),
                 };
             })(),
-            // experiment: a wall's walkway
+            // experiment: a wall's walkway (no tile when it comes with the wall)
             wallWalk:
-                ownInteractive && u.type.wall
+                ownInteractive && u.type.wall && !u.type.wall.autoWalk
                     ? {
                           cost: u.type.wall.walkCost ?? 20,
                           affordable: this.economy.balance(this.humanSeat) >= (u.type.wall.walkCost ?? 20),
@@ -13232,7 +13311,7 @@ export class Game {
     /**
      * Re-seat every Stronghold archer on his keep's CURRENT geometry.
      *
-     * A keep grows 10% per level, so the slot he was bought against moves — up
+     * A keep grows 5% per level, so the slot he was bought against moves — up
      * and outward — the moment it is upgraded, and an anchor baked at purchase
      * leaves him sunk into the new masonry. Everything read here is log-derived
      * (the keep's level, world and facing), so every peer lands on the same
@@ -13248,16 +13327,25 @@ export class Game {
             u.world.set(spot.x, 0, spot.z);
             u.view.position.copy(u.world);
             u.pinnedY = spot.y;
-            u.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
+            u.fovYaw = garrisonFovYaw(keep, spot);
             u.seatMembers();
         }
     }
 
-    /** units this side has posted on its garrison building — shared per side */
+    /** units this side has posted on its Stronghold — shared per side (not its walls' or Vanguards') */
     private strongholdArcherCount(team: Team): number {
+        const keep = this.placement
+            .allUnits()
+            .find((u) => u.team === team && u.type.baseAnchor === 'stronghold' && u.type.garrison);
+        if (!keep) return 0;
+        return this.postedOn(keep);
+    }
+
+    /** units posted on this building */
+    private postedOn(host: Unit): number {
         let n = 0;
         for (const u of this.placement.allUnits()) {
-            if (u.hostUnitId !== null && u.team === team && !u.consumed) n++;
+            if (u.hostUnitId === host.id && !u.consumed) n++;
         }
         return n;
     }
@@ -13293,14 +13381,17 @@ export class Game {
             const own = u.team === 'player';
             const manned = own
                 ? garrisonSeatManned(this.placement, u, this.humanSeat)
-                : fogged && this.buildingIntelSnapshot
+                : fogged && this.buildingIntelSnapshot && u.type.baseAnchor === 'stronghold'
                   ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
-                  : this.strongholdArcherCount(team);
+                  : this.postedOn(u);
             const nextCost = this.types.garrisonPostCost(u.type, manned);
             const slotMax = own
                 ? garrisonSeatSlots(u, this.seats, this.humanSeat).length
-                : Math.min(garrison.slots.length, garrison.perSeat * teamSeats.length);
+                : garrison.ownerOnly
+                  ? Math.min(garrison.slots.length, garrison.perSeat)
+                  : Math.min(garrison.slots.length, garrison.perSeat * teamSeats.length);
             out.strongholdArchers = {
+                tower: !!garrison.ownerOnly,
                 cost: nextCost,
                 owned: manned,
                 max: slotMax,

@@ -29,6 +29,7 @@ import {
 import { BASE_ANCHORS } from './map';
 import { DRAGON_ID, OIL_SPILL_ID, SPAWN_DWARVES_ID } from './tactics';
 import {
+    isFixture,
     type Team,
     type Unit,
     type UnitType,
@@ -483,14 +484,14 @@ export class TutorialRuntime {
         // Mark field packs as prior-round so drag-reposition is denied
         // (runes / techs still work).
         for (const u of this.host.placement.allUnits()) {
-            if (u.type.structure || u.type.fixture) continue;
+            if (u.type.structure || isFixture(u)) continue;
             u.deployedRound = 0;
         }
     }
 
     private clearFieldUnits(): void {
         for (const u of [...this.host.placement.allUnits()]) {
-            if (u.type.structure || u.type.fixture) continue;
+            if (u.type.structure || isFixture(u)) continue;
             this.host.placement.removeUnit(u);
         }
     }
@@ -498,7 +499,7 @@ export class TutorialRuntime {
     /** Round 3 opens on a bare field — every building comes down first. */
     private clearStructures(): void {
         for (const u of [...this.host.placement.allUnits()]) {
-            if (u.type.structure || u.type.fixture) {
+            if (u.type.structure || isFixture(u)) {
                 this.host.placement.removeUnit(u);
             }
         }

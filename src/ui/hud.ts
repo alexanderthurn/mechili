@@ -294,7 +294,8 @@ export interface SelectionInfo {
         affordable: boolean;
     }[];
     /** Stronghold: archers on the battlements — one at a time, price climbs */
-    strongholdArchers?: { cost: number; owned: number; max: number; affordable: boolean };
+    /** posted archers on a garrisoned building; `tower`: a Vanguard's single top post */
+    strongholdArchers?: { cost: number; owned: number; max: number; affordable: boolean; tower?: boolean };
     movePackAbility?: { cost: number; owned: boolean; affordable: boolean };
     /** permanent army-wide boost tracks (Research Center only); label shows the NEXT tier */
     boosts?: { id: 'attack' | 'hp'; label: string; cost: number; affordable: boolean; maxed: boolean }[];
@@ -3480,10 +3481,10 @@ export class Hud {
             tiles.push({
                 data: 'data-stronghold-archer="1"',
                 icon: 'spec-archer',
-                title: t('hud:strongholdArchers', { n: g.owned, m: g.max }),
+                title: t(g.tower ? 'hud:towerArcher' : 'hud:strongholdArchers', { n: g.owned, m: g.max }),
                 desc: full
-                    ? t('hud:strongholdArchersFull')
-                    : t('hud:strongholdArchersDesc'),
+                    ? t(g.tower ? 'hud:towerArcherFull' : 'hud:strongholdArchersFull')
+                    : t(g.tower ? 'hud:towerArcherDesc' : 'hud:strongholdArchersDesc'),
                 cost: full ? 0 : g.cost,
                 state: full ? 'owned' : g.affordable ? 'buy' : 'locked',
             });

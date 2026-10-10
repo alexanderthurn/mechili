@@ -72,7 +72,6 @@ const UNIT_HURT_COOLDOWN_MS = 450;
 /** Unit types that share another type's VO cue (e.g. stronghold archer → archer). */
 const UNIT_VOICE_ALIAS: Record<string, string> = {
     'stronghold-archer': 'archer',
-    'wall-archer': 'archer',
 };
 
 /**

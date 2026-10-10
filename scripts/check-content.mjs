@@ -229,7 +229,11 @@ try {
     const pack = await server.ssrLoadModule('/src/game/content/basePack.ts');
     const enc = (text) => new TextEncoder().encode(text);
     const readBase = (rel) => readFileSync(`assets/${rel}`, 'utf8');
-    const stronghold = readBase('data/buildings/stronghold.jsonc').replace('"hp": 3000', '"hp": 5000');
+    // the base keep's HP, whatever it is tuned to — the level replaces it with another value
+    const baseStronghold = readBase('data/buildings/stronghold.jsonc');
+    const baseStrongholdHp = Number(/"hp": (\d+)/.exec(baseStronghold)[1]);
+    const levelStrongholdHp = baseStrongholdHp + 2000;
+    const stronghold = baseStronghold.replace(`"hp": ${baseStrongholdHp}`, `"hp": ${levelStrongholdHp}`);
     const iceWall = readBase('data/buildings/command-tower.jsonc')
         .replace('"id": "command-tower"', '"id": "ice-wall"')
         .replace('"name": "Vanguard"', '"name": "Ice Wall"')
@@ -255,7 +259,7 @@ try {
     const level = await resolver.buildAssetOverlay('frost-keep', levelFiles(stronghold));
     const again = await resolver.buildAssetOverlay('frost-keep', levelFiles(stronghold));
     const crlf = await resolver.buildAssetOverlay('frost-keep', levelFiles(stronghold.replace(/\n/g, '\r\n')));
-    const changed = await resolver.buildAssetOverlay('frost-keep', levelFiles(stronghold.replace('5000', '5001')));
+    const changed = await resolver.buildAssetOverlay('frost-keep', levelFiles(stronghold.replace(`"hp": ${levelStrongholdHp}`, `"hp": ${levelStrongholdHp + 1}`)));
     let ok = true;
     ok = expect(JSON.stringify(level.report.replaced) === JSON.stringify(['data/buildings/stronghold.jsonc', 'textures/moon.webp']), `replaced = ${level.report.replaced}`) && ok;
     ok = expect(level.report.unreferenced.join() === 'textures/tpyo.webp', `unreferenced = ${level.report.unreferenced}`) && ok;
@@ -283,7 +287,7 @@ try {
         new Map([...level.dataFiles, ['data/buildings/ice-wall.jsonc', iceWall], ['data/pack.jsonc', packWithWall]]),
         'frost-keep',
     );
-    ok = expect(levelPack.buildings.find((b) => b.id === 'stronghold')?.hp === 5000, "level's stronghold replacement not applied") && ok;
+    ok = expect(levelPack.buildings.find((b) => b.id === 'stronghold')?.hp === levelStrongholdHp, "level's stronghold replacement not applied") && ok;
     ok = expect(levelPack.buildings.some((b) => b.id === 'ice-wall'), 'added building missing') && ok;
     {
         const { TypeRegistry } = await server.ssrLoadModule('/src/game/content/typeRegistry.ts');
@@ -300,7 +304,7 @@ try {
         }
         ok = expect(anchorError.includes('both stand at baseAnchor "command"'), `two buildings at one anchor not reported (${anchorError.split('\n')[0]})`) && ok;
     }
-    ok = expect(BASE_PACK.buildings.find((b) => b.id === 'stronghold')?.hp === 3000, 'overlay validation changed the base game') && ok;
+    ok = expect(BASE_PACK.buildings.find((b) => b.id === 'stronghold')?.hp === baseStrongholdHp, 'overlay validation changed the base game') && ok;
     let talentError = '';
     try {
         pack.loadPackWithOverlay(new Map([['data/units/dwarf.jsonc', readBase('data/units/dwarf.jsonc').replace('"legs"', '"legz"')]]), 'typo');
@@ -650,7 +654,7 @@ try {
             });
             const board = [
                 fake(1, 'stronghold', 'enemy', 40, 60, { level: 2 }),
-                fake(2, 'stronghold-archer', 'enemy', 0, 0, { hostUnitId: 1, gridless: true }),
+                fake(2, 'archer', 'enemy', 0, 0, { hostUnitId: 1, gridless: true }),
                 fake(3, 'archer', 'player', 10, 20, { level: 3, items: ['fire'] }),
                 fake(4, 'ogre', 'enemy', 30, 70, { rotated: true }),
                 fake(5, 'hordeZombie', 'horde', 0, 0, { summoned: true }),

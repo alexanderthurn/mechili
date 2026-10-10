@@ -23,7 +23,7 @@ import { CELL, type BattleMap } from '../map';
 import { SLOPE_BLOCK_GRADE } from '../terrainCombat';
 import { TerrainBrushes, type TerrainHistory } from '../terrainBrushes';
 import type { VegetationKind } from '../sceneryVegetation';
-import type { Unit } from '../units';
+import { isFixture, type Unit } from '../units';
 import { ScenarioEditor, TestBattleBar, type EditorTerrain, type ScenarioEditorHost, type TestBattleSummary } from '../../ui/scenarioEditor';
 import { TerrainPanel } from '../../ui/terrainPanel';
 import { storeDraft } from './editorDraft';
@@ -325,7 +325,7 @@ export class EditorSession {
     private steepIssues(): ScenarioIssue[] {
         const steep: string[] = [];
         for (const unit of this.host.board.placement.allUnits()) {
-            if (unit.team === 'horde' || unit.gridless || unit.pinnedY !== null || unit.type.fixture) continue;
+            if (unit.team === 'horde' || unit.gridless || unit.pinnedY !== null || isFixture(unit)) continue;
             if (this.onSteepGround(unit)) steep.push(unit.type.name);
         }
         if (steep.length === 0) return [];

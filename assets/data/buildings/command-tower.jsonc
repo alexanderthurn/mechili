@@ -21,7 +21,7 @@
         { "y": 1.9, "r": 1.1 },
         { "y": 3.5, "r": 0.8 },
     ],
-    "hp": 800,
+    "hp": 1600,
     "damage": 0,
     "range": 0,
     "attackInterval": 1,
@@ -29,5 +29,7 @@
     "proceduralModel": "tower",
     "sandPadScale": 1.35,
     "onDestroyed": { "seatDebuff": true },
-    "abilities": ["armyBoosts", "selling", "rallyRoute", "movePack", "vanguardSpells"],
+    "abilities": ["armyBoosts", "selling", "rallyRoute", "vanguardSpells"],
+    // one archer on the tower's top (its Unit1 pad), all round — this seat's own tower
+    "garrison": { "slots": [1], "perSeat": 1, "unitTypeId": "archer", "priceStep": 0, "ownerOnly": true },
 }

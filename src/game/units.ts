@@ -535,16 +535,6 @@ export interface UnitType {
      */
     notAcquired?: boolean;
     /**
-     * Posted on a wall (the wall archer). He stands on stone, so he is a
-     * ground target, not a flyer, however high he stands; and the wall covers
-     * him: blasts reach him at `splash` × their damage, melee from the wall's
-     * front side at `meleeFront` ×, and only from a weapon reaching at least
-     * `frontReach` (world units of range) — shorter blades walk round to his
-     * side. Shots are stopped by the wall itself (below its crown), so only
-     * his upper body can be hit.
-     */
-    wallCover?: { splash: number; meleeFront: number; frontReach: number };
-    /**
      * What this type's destruction does to the rest of the board. Each effect
      * is implemented once in the sim; a type only switches it on, so a custom
      * building gets the behaviour by setting the attribute — never by id.
@@ -607,6 +597,17 @@ export interface UnitType {
         /** type posted on each pad (looked up in the match's type registry) */
         unitTypeId: string;
         priceStep: number;
+        /**
+         * The building is one seat's own (a Vanguard): only that seat mans it,
+         * from the first `perSeat` pads. Omit for a side's shared keep.
+         */
+        ownerOnly?: boolean;
+        /**
+         * Posted units cover only the arc outward from the building's middle
+         * (STRONGHOLD_ARCHER_FOV_DEGREES — the keep's own tower fills the
+         * rest). Omit = all round.
+         */
+        outwardOnly?: boolean;
     };
     /**
      * When `false`, players and the AI cannot buy or unlock this type from
@@ -639,6 +640,8 @@ export interface UnitType {
         heightPerLevel?: number;
         /** supply for the walkway behind it (experiment; omit = 20) */
         walkCost?: number;
+        /** the walkway comes with the wall, free — it shows at a glance which side is the back */
+        autoWalk?: boolean;
         /**
          * Archers posted on the walkway (experiment), bought from the wall's
          * panel. Their spots are fixed numbers, not read off the mesh, so every
@@ -658,6 +661,16 @@ export interface UnitType {
             crown: number;
             /** how much of the crown's rise per level the walkway follows (as WALL_WALK.rise) */
             rise: number;
+            /**
+             * What the wall does for whoever stands on its walkway. He stands
+             * on stone, so he is a ground target, not a flyer, however high;
+             * blasts reach him at `splash` × their damage, melee from the
+             * wall's front side at `meleeFront` ×, and only from a weapon
+             * reaching at least `frontReach` (world units of range) — shorter
+             * blades walk round to his side. Shots are stopped by the wall
+             * itself (below its crown), so only his upper body can be hit.
+             */
+            cover: WallCover;
         };
     };
     /** rocket extra: waits armed, then homes onto the first enemy in range */
@@ -757,6 +770,18 @@ export interface UnitType {
      * faster shot, same angle).
      */
     projectileBallistic?: boolean;
+    /**
+     * Ballistic shooters: the steepest arc they may use when a lower one is
+     * blocked — 1 the normal arc only, 2 and 3 steeper lobs (see the sim's
+     * line-of-fire check). Omit = all three (an archer lobs over anything).
+     */
+    projectileMaxLoft?: number;
+    /**
+     * Ballistic shooters: × the pull on their projectiles. Less pull = a
+     * flatter arc for the same flight time (the shot needs less lift to land
+     * on target), so speed, timing and lead stay as they are. Omit = 1.
+     */
+    projectileGravityMult?: number;
     /**
      * Ballistic launch elevation in degrees (e.g. 40). When set, muzzle speed
      * is derived from range so the lob angle stays constant.
@@ -1296,12 +1321,27 @@ export function strongholdArcherSlotWorld(keep: Unit, slot: number): { x: number
     );
 }
 
+/** see the wall type's `posts.cover` */
+export interface WallCover {
+    splash: number;
+    meleeFront: number;
+    frontReach: number;
+}
+
+/**
+ * Posted on a building or a wall ({@link Unit.hostUnitId}) — or a type that
+ * always is: pinned there, not part of the field army, and gone with it.
+ */
+export function isFixture(unit: Unit): boolean {
+    return !!unit.type.fixture || unit.hostUnitId !== null;
+}
+
 /**
  * Where archer post `slot` (0…count−1) on a wall's walkway stands, or null
  * without a walkway / posts. Deterministic: board-keyed facing through
  * detSin/detCos, the ground under the wall's centre line, fixed fractions.
  */
-export function wallPostWorld(wall: Unit, slot: number): { x: number; y: number; z: number; fovYaw: number } | null {
+export function wallPostWorld(wall: Unit, slot: number): { x: number; y: number; z: number } | null {
     const posts = wall.type.wall?.posts;
     if (!posts || !wall.wallWalk || slot < 0 || slot >= posts.count) return null;
     // across the posts evenly: two posts stand at ±spacing
@@ -1318,7 +1358,6 @@ export function wallPostWorld(wall: Unit, slot: number): { x: number; y: number;
         x: lineX + backX * posts.back,
         y: worldHeightAt(lineX, lineZ) + top * height,
         z: lineZ + backZ * posts.back,
-        fovYaw: detAtan2(-backX, -backZ),
     };
 }
 
@@ -1415,7 +1454,7 @@ export class Unit {
     /**
      * Which authored `UnitN` spot on its side's keep this pack occupies. The
      * anchor is re-derived from that keep every frame rather than kept: a keep
-     * GROWS 10% per level, so a position baked when the archer was bought
+     * GROWS 5% per level, so a position baked when the archer was bought
      * leaves him buried in the masonry the moment the keep is upgraded.
      */
     strongholdArcherSlot: number | null = null;
@@ -1496,11 +1535,12 @@ export class Unit {
     /** experiment: this wall has the walkway behind it (bought; see wallWalk.ts) */
     wallWalk = false;
     /**
-     * Base building growth per level above 1. 10%, but a 2v2 Stronghold (both
-     * seats' upgrades summed, up to level 9) grows 5% so it stays on its hill.
-     * Feeds the archer pads, so it must be log-derived: set at spawn only.
+     * Base building growth per level above 1: 5% (a 2v2 Stronghold — both
+     * seats' upgrades summed, up to level 9 — is set to the same at spawn, so
+     * it stays on its hill). Feeds the archer pads, so it must be log-derived:
+     * set at spawn only.
      */
-    levelGrowth = 0.1;
+    levelGrowth = 0.05;
     xp = 0;
     /** last level used for mesh tint (avoids re-applying every fog frame) */
     private lookDisplayLevel = -1;
@@ -1612,6 +1652,8 @@ export class Unit {
         this.view.position.copy(this.world);
         this.seatMembers();
         this.applyLevelLook(this.level);
+        // a wall that comes with its walkway (it shows which side is the back)
+        if (type.wall?.autoWalk) this.setWallWalk(true);
         this.wingLastOx = this.view.position.x;
         this.wingLastOz = this.view.position.z;
     }
@@ -1834,7 +1876,7 @@ export class Unit {
         // a wall keeps its length and depth (it must match its footprint); see visualHeightScale
         if (this.type.wall) return base;
         if (this.type.structure && !this.type.extra) {
-            // +10% per level above 1 → L5 ≈ 1.4× (tower upgrade max)
+            // +5% per level above 1 → L5 ≈ 1.2× (tower upgrade max)
             return base * (1 + (level - 1) * this.levelGrowth);
         }
         if (this.type.structure) return base; // extras (shield / rocket)

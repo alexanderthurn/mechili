@@ -17,11 +17,20 @@
         "halfDepth": 1.3,
         "upgradeCost": 10,
         "heightPerLevel": 0.25,
+        // every wall comes with its walkway (free): it shows which side is the back
+        "autoWalk": true,
         // solid to shots below the crown (× the model's height): flat shots stop in it, lobs pass over
         "crown": 0.8,
-        // experiment: archers on the walkway — two, a quarter of the way in from
-        // each end, on the walkway's top (≈ 0.48 of the wall's height), behind its middle
-        "posts": { "count": 2, "unitTypeId": "wall-archer", "cost": 100, "spacing": 3, "back": 1.5, "top": 0.48, "crown": 0.8, "rise": 0.8 },
+        // experiment: an archer on the walkway — one, in the middle of the wall (a single
+        // post stands there; more spread ±spacing), on the walkway's top (≈ 0.48 of the
+        // wall's height), behind its middle.
+        // The plain archer (same unit, same upgrades); the wall covers him: blasts × splash,
+        // melee from its front side × meleeFront — and only weapons reaching ≥ frontReach
+        // get over the stone from the front (the ogre's 3.4; a knight's 3 not)
+        "posts": {
+            "count": 1, "unitTypeId": "archer", "cost": 100, "spacing": 3, "back": 1.5, "top": 0.48, "crown": 0.8, "rise": 0.8,
+            "cover": { "splash": 0.2, "meleeFront": 0.3, "frontReach": 3.2 },
+        },
     },
     "collisionRadius": 1,
     "soundSize": "large",

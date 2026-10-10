@@ -38,7 +38,7 @@ import {
 } from './tutorial';
 import type { Tutorial3BoardState } from '../ui/tutorialGuide3';
 import type { Tutorial4BoardState } from '../ui/tutorialGuide4';
-import type { Unit, UnitType } from './units';
+import { isFixture, type Unit, type UnitType } from './units';
 
 /** Narrow host slice used by round staging (avoids circular import with runtime). */
 export interface TutorialRoundHost {
@@ -130,20 +130,20 @@ export function spawnPlayerStronghold(
 
 export function clearFieldUnits(host: TutorialRoundHost): void {
     for (const u of [...host.placement.allUnits()]) {
-        if (u.type.structure || u.type.fixture) continue;
+        if (u.type.structure || isFixture(u)) continue;
         host.placement.removeUnit(u);
     }
 }
 
 export function clearStructures(host: TutorialRoundHost): void {
     for (const u of [...host.placement.allUnits()]) {
-        if (u.type.structure || u.type.fixture) host.placement.removeUnit(u);
+        if (u.type.structure || isFixture(u)) host.placement.removeUnit(u);
     }
 }
 
 export function freezeFieldPacks(host: TutorialRoundHost): void {
     for (const u of host.placement.allUnits()) {
-        if (u.type.structure || u.type.fixture) continue;
+        if (u.type.structure || isFixture(u)) continue;
         u.deployedRound = 0;
     }
 }

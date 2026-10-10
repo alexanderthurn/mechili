@@ -56,6 +56,7 @@ import { isSecondarySeat, primarySeatOf, seatIdsOf, type SeatDef, type SeatId } 
 import { colorForUnit } from './colors';
 import { detAtan2 } from './detMath';
 import {
+    isFixture,
     strongholdArcherSlotWorld,
     wallPostWorld,
     levelBasisOf,
@@ -122,10 +123,12 @@ export interface BuyLevelAction {
     team: Team;
     unitId: number;
 }
-/** buys one more archer onto this seat's Stronghold battlements */
+/** buys one more archer onto a garrisoned building (the Stronghold's battlements, a Vanguard's top) */
 export interface BuyStrongholdArcherAction {
     kind: 'buyStrongholdArcher';
     team: Team;
+    /** the building; absent (older logs) = the side's Stronghold */
+    unitId?: number;
 }
 /** raise several packs one level each — one undo peels the whole batch */
 export interface BuyLevelBatchAction {
@@ -1041,7 +1044,13 @@ export class ActionDispatcher {
                 // so the two land the same in either arrival order.
                 const keep = placement
                     .allUnits()
-                    .find((u) => u.type.garrison && u.team === action.team && !u.destroyed);
+                    .find(
+                        (u) =>
+                            u.type.garrison &&
+                            u.team === action.team &&
+                            !u.destroyed &&
+                            (action.unitId !== undefined ? u.id === action.unitId : u.type.baseAnchor === 'stronghold'),
+                    );
                 if (!keep) return false;
                 const garrison = keep.type.garrison!;
                 const postedType = this.ctx.types.byId(garrison.unitTypeId);
@@ -1128,7 +1137,6 @@ export class ActionDispatcher {
                 archer.strongholdArcherSlot = slot;
                 archer.hostUnitId = wall.id;
                 archer.pinnedY = spot.y;
-                archer.fovYaw = spot.fovYaw;
                 archer.seatMembers();
                 entry.strongholdArcherUnit = archer;
                 return true;
@@ -1214,7 +1222,7 @@ export class ActionDispatcher {
                 }
                 // a fixture is part of its building, not a pack you trade — and a
                 // wall with archers posted on it stays (they would float)
-                if (unit.type.fixture || placement.hasPosts(unit)) return false;
+                if (isFixture(unit) || placement.hasPosts(unit)) return false;
                 if (useAbility) sell.used[seat]!++;
                 else if (!this.consumeTacticCharge(entry, seat, SELL_UNIT_ID)) {
                     return false;
@@ -1793,7 +1801,7 @@ export class ActionDispatcher {
                 for (const unit of [...placement.allUnits()]) {
                     if (unit.seat !== seat || unit.team !== action.team) continue;
                     if (unit.type.structure || unit.type.extra) continue;
-                    if (unit.type.fixture) continue;
+                    if (isFixture(unit)) continue;
                     const items = [...unit.items];
                     const itemRounds = [...unit.itemAppliedRound];
                     for (const itemId of items) this.ctx.items[seat]!.push(itemId);
@@ -1854,7 +1862,7 @@ export class ActionDispatcher {
         for (const unit of placement.allUnits()) {
             if (unit.seat !== seat) continue;
             if (unit.type.structure || unit.type.extra) continue;
-            if (unit.type.fixture) continue;
+            if (isFixture(unit)) continue;
             total += Math.round(economy.costOf(unit.type) * sellSettings.refundFactor);
             if (unit.level > 1) {
                 total += levelCost(unit.type, economy, leveling) * (unit.level - 1);
@@ -2349,6 +2357,8 @@ export function garrisonSeatSlots(
 ): readonly number[] {
     const g = keep.type.garrison;
     if (!g) return [];
+    // a seat's own building (a Vanguard): only its seat mans it, from the first pad
+    if (g.ownerOnly) return seat === keep.seat ? g.slots.slice(0, g.perSeat) : [];
     const team = keep.team === 'horde' ? null : keep.team;
     const rank = team ? seatIdsOf(roster, team).indexOf(seat) : -1;
     if (rank < 0) return [];
@@ -2406,11 +2416,19 @@ export function spawnGarrisonPost(
     }
     archer.hostUnitId = keep.id;
     archer.pinnedY = spot.y;
-    // outward from the keep's middle — the wedge behind him is the
-    // keep itself, and he does not shoot through his own walls
-    archer.fovYaw = detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
+    archer.fovYaw = garrisonFovYaw(keep, spot);
     archer.seatMembers();
     return archer;
+}
+
+/**
+ * A posted archer's field of fire: outward from the building's middle — the
+ * wedge behind him is the keep itself — or all round (null) on a building
+ * whose garrison names none (a Vanguard's top: he stands on its middle).
+ */
+export function garrisonFovYaw(keep: Unit, spot: { x: number; z: number }): number | null {
+    if (!keep.type.garrison?.outwardOnly) return null;
+    return detAtan2(spot.x - keep.world.x, spot.z - keep.world.z);
 }
 
 /** a wall's posted archers onto its walkway again (its level changed their height) */

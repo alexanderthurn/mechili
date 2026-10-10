@@ -17,7 +17,8 @@
     // grow in flight: pebble → ~splash disk radius (stone mesh r≈0.84)
     "projectileScale": 0.28,
     "projectileScaleEnd": 4.285714285714286, // (4 / 0.84) × 0.9 — ~90% of splash disk radius
-    "projectileBallistic": true,
+    // a straight blast at the target, no lob (straight shots don't lead a moving target; the splash makes up for it)
+    "projectileBallistic": false,
     "projectileLaunchHeightFrac": 0.7,
     "splashRadius": 4, // Arclight-like blast vs packed chaff
     "hp": 240,

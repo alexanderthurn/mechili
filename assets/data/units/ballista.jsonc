@@ -18,6 +18,10 @@
     // cradle sits high on the siege frame — not at the chassis collider mid
     "projectileLaunchHeight": 5.8,
     "projectileBallistic": true,
+    // a bolt thrower, not a mortar: no steep lobs over cover, only its normal arc
+    "projectileMaxLoft": 1,
+    // its bolts fly flat, like the frame aims them: ≈ 7° at full range instead of ≈ 23°
+    "projectileGravityMult": 0.35,
     "splashRadius": 5, // bolts shatter — everything near the impact takes the hit
     // heavy chassis would stamp hard from cost/bulk — keep a light track
     "sandWeight": 1.1,

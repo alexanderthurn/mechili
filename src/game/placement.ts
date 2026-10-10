@@ -29,7 +29,7 @@ import {
     type TargetPreviewRoute,
 } from './targetPreviewVisuals';
 import { drapeDiskGeometry, setDrapedMeshPosition, DRAPE_RENDER_ORDER } from './groundMarkers';
-import { hasAbility, STRONGHOLD_ARCHER_FOV_HALF, Unit, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
+import { hasAbility, isFixture, STRONGHOLD_ARCHER_FOV_HALF, Unit, type BattleTeam, type GridExtent, type Team, type UnitType } from './units';
 import { classicSeats, isSecondarySeat, primarySeatOf, seatLane, type SeatDef, type SeatId } from './seats';
 import { effectiveTargets, effectiveFlying } from './tech';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
@@ -1068,7 +1068,7 @@ export class PlacementController {
     canReposition(unit: Unit): boolean {
         // a fixture (e.g. a battlement archer) is bolted to its building — not
         // on the grid at all, so there is nowhere for a drag to put it down
-        if (unit.type.fixture) return false;
+        if (isFixture(unit)) return false;
         // the board's own base building stands where the board puts it: scenarios
         // don't even store its spot, and the Stronghold carries its posted archers
         // (a bought one of the same type moves like any other)
