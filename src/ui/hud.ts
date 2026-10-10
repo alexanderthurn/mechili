@@ -5074,11 +5074,11 @@ export class Hud {
         const count = (role: 'attacker' | 'defender') => p.rounds.filter((r) => r === role).length;
         return (
             `<div class="go-year">` +
-            `<div class="go-year-winner is-${winner}">${escapeHtml(t('hud:yearSideWins', { defaultValue: '{{side}} wins', side: yearRoleName(winner) }))}</div>` +
+            `<div class="go-year-winner is-${winner}">${escapeHtml(t('hud:yearSideWins', { defaultValue: '{{side}} wins', side: yearRoleName(winner, p.names) }))}</div>` +
             `<div class="go-year-score">` +
-            `<span class="is-${winner}">${count(winner)} × ${escapeHtml(yearRoleName(winner))}</span>` +
+            `<span class="is-${winner}">${count(winner)} × ${escapeHtml(yearRoleName(winner, p.names))}</span>` +
             `<span class="year-dash">·</span>` +
-            `<span class="is-${loser}">${count(loser)} × ${escapeHtml(yearRoleName(loser))}</span>` +
+            `<span class="is-${loser}">${count(loser)} × ${escapeHtml(yearRoleName(loser, p.names))}</span>` +
             `</div>` +
             yearMarksHtml(p) +
             `</div>`
@@ -5094,7 +5094,7 @@ export class Hud {
         el.classList.add('mechili-climb-splash', 'is-year');
         const last = p.rounds[p.rounds.length - 1];
         const title = last
-            ? t('hud:yearRoundWon', { defaultValue: '{{side}} won', side: yearRoleName(last) })
+            ? t('hud:yearRoundWon', { defaultValue: '{{side}} won', side: yearRoleName(last, p.names) })
             : t('hud:yearBegins', { defaultValue: 'The Year begins' });
         el.innerHTML = yearProgressHtml(p, { title, fresh: true });
         this.mount(el);

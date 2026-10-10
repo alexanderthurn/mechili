@@ -16,11 +16,14 @@ export interface YearProgress {
     regular?: number;
     /** the local side's role; null for a spectator */
     you: YearRoundWinner | null;
+    /** what to call the two sides — a Standard match has no attacker and defender (omit = the roles) */
+    names?: { attacker: string; defender: string };
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
-export function yearRoleName(role: YearRoundWinner): string {
+export function yearRoleName(role: YearRoundWinner, names?: YearProgress['names']): string {
+    if (names) return names[role];
     return role === 'attacker' ? t('hud:yearAttacker', { defaultValue: 'Attacker' }) : t('hud:yearDefender', { defaultValue: 'Defender' });
 }
 
@@ -39,7 +42,7 @@ export function yearMarksHtml(p: YearProgress, opts: { current?: boolean; fresh?
                 : `year-mark${opts.current && i === p.rounds.length ? ' is-current' : ''}`) + (final ? ' is-final' : '');
         const letter = winner === 'attacker' ? 'A' : winner === 'defender' ? 'D' : final ? '★' : String(i + 1);
         const name = final ? t('hud:yearFinalStand', { defaultValue: 'Final stand' }) : String(i + 1);
-        const title = winner ? `${name}: ${yearRoleName(winner)}` : name;
+        const title = winner ? `${name}: ${yearRoleName(winner, p.names)}` : name;
         marks.push(`<span class="${cls}" title="${esc(title)}" style="--i:${i}">${letter}</span>`);
     }
     return `<div class="year-marks">${marks.join('')}</div>`;
@@ -51,8 +54,8 @@ export function yearTallyHtml(p: YearProgress): string {
     const side = (role: YearRoundWinner) =>
         `<span class="year-side is-${role}${p.you === role ? ' is-you' : ''}">` +
         (role === 'attacker'
-            ? `<span class="year-side-name">${esc(yearRoleName(role))}</span><b>${count(role)}</b>`
-            : `<b>${count(role)}</b><span class="year-side-name">${esc(yearRoleName(role))}</span>`) +
+            ? `<span class="year-side-name">${esc(yearRoleName(role, p.names))}</span><b>${count(role)}</b>`
+            : `<b>${count(role)}</b><span class="year-side-name">${esc(yearRoleName(role, p.names))}</span>`) +
         (p.you === role ? `<span class="year-you">${esc(t('hud:yearYou', { defaultValue: 'you' }))}</span>` : '') +
         `</span>`;
     return `<div class="year-tally">${side('attacker')}<span class="year-dash">:</span>${side('defender')}</div>`;

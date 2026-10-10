@@ -237,6 +237,8 @@ import {
     boardExtrasFor,
     rallyRouteBuyMax,
     yearWinner,
+    isSiege,
+    roundsVictory,
     yearOver,
     yearTotal,
     type YearRoundWinner,
@@ -1750,7 +1752,7 @@ export class Game {
         this.threeCanvas = threeCanvas;
         // canonical colors first — units, overlays and HUD CSS all read them
         assignTeamColors(side);
-        this.map = new BattleMap(settings.map, settings.terrainShape, !!settings.climb);
+        this.map = new BattleMap(settings.map, settings.terrainShape, isSiege(settings));
         // a static map replaces the procedural relief before anything reads it
         // (ground mesh, deploy grid, sim): a scenario's own terrain (packaged,
         // or the editor's draft), else a bundled map main loaded beforehand
@@ -2087,9 +2089,9 @@ export class Game {
         this.roundBoosts = { range: this.seats.map(() => false), speed: this.seats.map(() => false) };
         this.unlockedUnits = this.seats.map(() => []);
         this.unlockUsedThisRound = this.seats.map(() => false);
-        // The Year: attacker seats get two free Rally Route charges (same as
+        // Siege: attacker seats get two free Rally Route charges (same as
         // card-granted one-shots — Tent buy slots stay separate, up to 2 more).
-        if (settings.climb) {
+        if (isSiege(settings)) {
             const attacker = this.yearAttackerTeam();
             for (let seat = 0; seat < this.seats.length; seat++) {
                 if (this.seats[seat]!.team === attacker) {
@@ -2163,8 +2165,8 @@ export class Game {
             starterArmy: this.rules.commander.mode !== 'fixed' || this.rules.commander.starterArmy,
             playerUnlocks: this.rules.playerUnlocks,
             playerUnlockable: this.rules.playerUnlockable,
-            climbMode: !!settings.climb,
-            climbAttacker: settings.climb ? this.yearAttackerTeam() : null,
+            climbMode: isSiege(settings),
+            climbAttacker: isSiege(settings) ? this.yearAttackerTeam() : null,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -3758,8 +3760,8 @@ export class Game {
         const placed: Unit[] = [];
         const { rimCells, flankCols, zoneCols, zoneRows } = this.map.size;
         const ownFar = this.map.ownAtFar;
-        // The Year: the attacker skips the full base and gets a Tent instead
-        const skipTeam: Team | null = this.settings.climb ? this.yearAttackerTeam() : null;
+        // Siege: the attacker skips the full base and gets a Tent instead
+        const skipTeam: Team | null = isSiege(this.settings) ? this.yearAttackerTeam() : null;
         const spawnBuilding = (
             xFrac: number,
             rowFrac: number,
@@ -3961,7 +3963,7 @@ export class Game {
         this.round++;
         const atmosphere = this.rules.fixedAtmosphere;
         // The Year's final stand stays in its last round's winter
-        const sceneRound = this.settings.climb ? Math.min(this.round, this.settings.climb.rounds) : this.round;
+        const sceneRound = roundsVictory(this.settings) ? Math.min(this.round, this.settings.climb!.rounds) : this.round;
         if (!atmosphere) this.weather?.onRound(sceneRound, this.hydrating);
         else if (this.round === 1) {
             this.weather?.setScene(
@@ -3982,7 +3984,7 @@ export class Game {
         // Round-win celebrate is armed in {@link announceBattleEnd} (leads this by a short beat).
         // The Year: every round is sudden death from full side HP — whatever
         // the last battle left (a won round restores it already) never carries
-        if (this.settings.climb) this.restoreClimbHp();
+        if (roundsVictory(this.settings)) this.restoreClimbHp();
         // editing has no clock
         this.phaseRemaining = this.editorMode === 'author' ? Infinity : this.deploySeconds();
         this.syncPostFx();
@@ -4039,8 +4041,8 @@ export class Game {
         this.creditUsed.fill(false);
         this.deployState.used.fill(0);
         this.deployState.extrasSpent.fill(0);
-        // The Year's bots rebuild a full army each round — raise their deploy caps.
-        if (this.settings.climb) {
+        // Siege's bots (the Year AI) rebuild a full army each round — raise their deploy caps.
+        if (isSiege(this.settings)) {
             for (let seat = 0; seat < this.seats.length; seat++) {
                 if (this.seatIsBot(seat)) this.deployState.limit[seat] = CLIMB_AI_DEPLOY_LIMIT;
             }
@@ -4145,7 +4147,7 @@ export class Game {
             for (const e of this.extraAis) e.ai.onBuildPhase(this.round);
             // Campaign: AI places oil/spells before the player acts — refresh
             // markers now (per-frame sync also covers this; this avoids a blink).
-            if (this.settings.climb) this.syncTacticVisuals();
+            if (isSiege(this.settings)) this.syncTacticVisuals();
             this.tutorial?.onAiBuildPhaseDone();
         }
 
@@ -4172,7 +4174,8 @@ export class Game {
      */
     private grantClimbAwareRoundIncome(): void {
         const climb = this.settings.climb;
-        if (!climb) {
+        // every mode earns the normal income now; only a save from before keeps its own growth
+        if (!climb || climb.playerSupplyGrowthPerRound === this.settings.economy.supplyGrowthPerRound) {
             this.economy.grantRoundIncome(this.round);
             return;
         }
@@ -4835,12 +4838,12 @@ export class Game {
             deploySettings: this.settings.deploy,
             forgeSpellOwned: this.forgeSpellOwned,
             forgeSpellsOf: (s: SeatId) => this.forgeSpellsOf(s),
-            climb: !!this.settings.climb,
+            climb: isSiege(this.settings),
             opponents: this.rules.opponents,
             rngForRound: (round: number) =>
                 mulberry32(seedFrom(this.seed, `ai-climb-${seat}-${round}`)),
             leveling: this.settings.leveling,
-            ...(this.settings.climb
+            ...(isSiege(this.settings)
                 ? { yearRole: this.yearAttackerTeam() === this.seats[seat]?.team ? ('attacker' as const) : ('defender' as const) }
                 : {}),
             deployCap: () => (this.deployState.limit[seat] ?? 0) + (this.deployState.extra[seat] ?? 0) - (this.deployState.used[seat] ?? 0),
@@ -4871,7 +4874,8 @@ export class Game {
         fromSeat: SeatId,
     ): void {
         if (!this.star || this.star.role !== 'host') return;
-        this.star.hub.relayBuild(msg, fromSeat, (side) => this.starSideLocked(side));
+        // without fog of war nothing is held back: every side counts as revealed at once
+        this.star.hub.relayBuild(msg, fromSeat, (side) => !this.fogOfWar || this.starSideLocked(side));
         // single choke point for every star seat's build traffic, self- or
         // guest-originated alike — mirrors classic 1v1's two separate
         // mirrorBuildToSpectators call sites (own outgoing + peer incoming)
@@ -4884,6 +4888,11 @@ export class Game {
     private starTeamForCanonicalSide(side: 'a' | 'b'): Team {
         if (this.star?.role !== 'host') return 'player';
         return side === this.star.hub.sideOf(0) ? 'player' : 'enemy';
+    }
+
+    /** the other side's deployment stays hidden until the battle (a room may switch it off) */
+    private get fogOfWar(): boolean {
+        return this.rules.enemyIntel === 'fogged';
     }
 
     /** (star host only) has every seat on this canonical side locked in this round? */
@@ -5153,7 +5162,7 @@ export class Game {
     private playRoundVictorBark(completedRound: number): boolean {
         if (this.hydrating || this.editorMode === 'test' || completedRound < 1) return false;
         let winningTeam: Team | null = null;
-        if (this.settings.climb) {
+        if (roundsVictory(this.settings)) {
             const last = this.yearRounds[this.yearRounds.length - 1];
             if (!last) return false;
             winningTeam =
@@ -5402,7 +5411,7 @@ export class Game {
     private starterOfferFor(team: Team, rng: () => number): StartCard[] {
         const climb = this.settings.climb;
         const forced =
-            climb?.attackerCommander && this.yearAttackerTeam() === team
+            climb?.attackerCommander && isSiege(this.settings) && this.yearAttackerTeam() === team
                 ? this.types.commander(climb.attackerCommander)
                 : null;
         if (forced) return [forced];
@@ -6931,7 +6940,7 @@ export class Game {
      */
     private revealableToViewer(policy: VisionPolicy): (e: LoggedAction) => boolean {
         return (e) => {
-            if (e.round !== this.round) return true;
+            if (e.round !== this.round || !this.fogOfWar) return true;
             const fromSide: 'a' | 'b' = e.action.team === 'player' ? 'a' : 'b';
             return isRevealable(policy, fromSide, (side) =>
                 side === 'a' ? this.deployReady.player : this.deployReady.enemy,
@@ -9767,12 +9776,16 @@ export class Game {
      *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
     /** The Year so far, for the HUD: round winners, length, the local side's role */
     private yearProgress(): YearProgress {
-        const climb = this.settings.climb;
+        const climb = roundsVictory(this.settings) ? this.settings.climb : undefined;
         return {
             rounds: [...this.yearRounds],
             total: climb ? yearTotal(climb.rounds, this.yearRounds) : 0,
             regular: climb?.rounds ?? 0,
             you: this.watching ? null : this.yearLocalRole(),
+            // no attacker and defender in a Standard match: its two sides by number
+            ...(isSiege(this.settings)
+                ? {}
+                : { names: { attacker: t('menu:rosterTeam', { n: 1 }), defender: t('menu:rosterTeam', { n: 2 }) } }),
         };
     }
 
@@ -9802,7 +9815,7 @@ export class Game {
     private humanBoardExtraIds(): readonly string[] | null {
         if (this.settings.scenario?.mode === 'author') return null; // the editor places anything
         if (isTutorial(this.settings)) return [];
-        return boardExtrasFor(this.settings.climb ? this.yearAttackerTeam() : null, 'player');
+        return boardExtrasFor(isSiege(this.settings) ? this.yearAttackerTeam() : null, 'player');
     }
 
     private humanMayBuyExtra(type: UnitType): boolean {
@@ -9810,7 +9823,7 @@ export class Game {
         if (this.settings.scenario?.mode === 'author') return true; // the editor places anything
         if (isTutorial(this.settings)) return false;
         return yearBoardExtraAllowed(
-            this.settings.climb ? this.yearAttackerTeam() : null,
+            isSiege(this.settings) ? this.yearAttackerTeam() : null,
             'player',
             type.id,
         );
@@ -10696,7 +10709,7 @@ export class Game {
      */
     private hordeStanding(): { player: number; enemy: number } {
         const played = this.yearRounds.length;
-        if (this.settings.climb && played > 0) {
+        if (roundsVictory(this.settings) && played > 0) {
             const attackerShare = this.yearRounds.filter((r) => r === 'attacker').length / played;
             return this.yearAttackerTeam() === 'player'
                 ? { player: attackerShare, enemy: 1 - attackerShare }
@@ -10950,14 +10963,17 @@ export class Game {
             // announce a verdict of its own.
             this.star.hub.broadcast({ type: 'starNextRound', round: this.round });
         }
-        if (this.settings.climb) {
+        if (roundsVictory(this.settings)) {
             // Higher remaining HP takes the round (even if both went negative
-            // on a timeout). A tie goes to the defender: an attacker must
-            // outscore, a defender only has to hold. Every client (and a
-            // spectator) decides it from the same HP — labels mapped by side.
+            // on a timeout). In a Siege a tie goes to the defender: an attacker
+            // must outscore, a defender only has to hold; two equal sides toss
+            // for it on the match seed. Every client (and a spectator) decides
+            // it from the same HP — labels mapped by side.
             const attackerHp = this.yearAttackerTeam() === 'player' ? this.playerHp : this.enemyHp;
             const defenderHp = this.yearAttackerTeam() === 'player' ? this.enemyHp : this.playerHp;
-            this.pendingYearRound = attackerHp > defenderHp ? 'attacker' : 'defender';
+            const tieToFirst = !isSiege(this.settings) && (seedFrom(this.seed, `round-tie-${this.round}`) & 1) === 0;
+            this.pendingYearRound =
+                attackerHp > defenderHp || (attackerHp === defenderHp && tieToFirst) ? 'attacker' : 'defender';
             this.hpDrawAfterMatchOver = false;
         } else if (
             this.tutorial?.armRoundOutcome(this.playerHp, this.enemyHp, !this.star && !this.watching)
@@ -11119,12 +11135,12 @@ export class Game {
         this.hpDrawSettleRemaining = 0;
         let yearRoundDone = false;
         let tutorialRoundWon = false;
-        if (this.settings.climb && this.pendingYearRound) {
+        if (roundsVictory(this.settings) && this.pendingYearRound) {
             // every round counts for whoever took it; the Year ends after its last round
             this.yearRounds.push(this.pendingYearRound);
             this.pendingYearRound = null;
             this.restoreClimbHp();
-            if (yearOver(this.settings.climb.rounds, this.yearRounds)) {
+            if (yearOver(this.settings.climb!.rounds, this.yearRounds)) {
                 this.presentMatchEnd(yearWinner(this.yearRounds) === this.yearLocalRole() ? 'victory' : 'defeat');
                 return;
             }
@@ -11354,7 +11370,7 @@ export class Game {
 
     /** a side forfeited (its HP is 0 now): the match ends — in The Year too, whatever the round tally */
     private finishAfterForfeit(team: Team): void {
-        if (this.settings.climb) {
+        if (roundsVictory(this.settings)) {
             this.presentMatchEnd(team === 'player' ? 'defeat' : 'victory');
             return;
         }
@@ -11475,11 +11491,12 @@ export class Game {
                 result === 'victory' &&
                 !this.watching &&
                 (nextTutorialId(tutorialId(this.settings)) !== null || this.nextScenarioId() !== null);
-            const climbProgress = this.settings.climb
-                ? { n: Math.max(1, this.round), total: yearTotal(this.settings.climb.rounds, this.yearRounds) }
+            const roundsClimb = roundsVictory(this.settings) ? this.settings.climb : undefined;
+            const climbProgress = roundsClimb
+                ? { n: Math.max(1, this.round), total: yearTotal(roundsClimb.rounds, this.yearRounds) }
                 : undefined;
             // a Year that ran its course shows the tally (one ended by a forfeit doesn't claim a Year winner)
-            const year = this.settings.climb && yearOver(this.settings.climb.rounds, this.yearRounds) ? this.yearProgress() : undefined;
+            const year = roundsClimb && yearOver(roundsClimb.rounds, this.yearRounds) ? this.yearProgress() : undefined;
             // The Year, played to its end: the same pairing again with the roles swapped
             const allowRematch = !!year && !this.watching;
             this.hud.showGameOver(result, { title, details, allowRetry, allowNext, climbProgress, allowRematch, ...(year ? { year } : {}) });
@@ -13072,10 +13089,10 @@ export class Game {
         const has = (a: BuildingAbilityId) => hasAbility(u.type, a);
         const offers = (['recruitLevel', 'deploySlot', 'rangeBoost', 'speedBoost', 'credit'] as const).some(has);
         if (!offers || this.tutorial?.boostLessonOnly) return {};
-        const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-        const seat = u.seat;
+        const seat = this.panelSeatOf(u);
+        const canBuy = seat === this.humanSeat && this.playerCanAct;
         const bal = this.economy.balance(seat);
-        const intel = this.intelBuildingSeat(u);
+        const intel = this.intelBuildingSeat(u, seat);
         const all = {
             recruit: {
                 cost: this.settings.leveling.recruitLevel2Cost,
@@ -13137,10 +13154,10 @@ export class Game {
     > {
         const has = (a: BuildingAbilityId) => hasAbility(u.type, a);
         if (!(['armyBoosts', 'selling', 'rallyRoute', 'movePack', 'vanguardSpells'] as const).some(has)) return {};
-        const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-        const seat = u.seat;
+        const seat = this.panelSeatOf(u);
+        const canBuy = seat === this.humanSeat && this.playerCanAct;
         const bal = this.economy.balance(seat);
-        const intel = this.intelBuildingSeat(u);
+        const intel = this.intelBuildingSeat(u, seat);
         const boosts: SelectionInfo['boosts'] = (['attack', 'hp'] as const).map((id) => {
             const tiers =
                 id === 'attack' ? this.settings.boosts.attackTiers : this.settings.boosts.hpTiers;
@@ -13185,7 +13202,7 @@ export class Game {
                 cost: this.settings.rallyRoute.abilityCost,
                 owned: intel.rallyBought,
                 max: rallyRouteBuyMax(
-                    this.settings.climb ? this.yearAttackerTeam() : null,
+                    isSiege(this.settings) ? this.yearAttackerTeam() : null,
                     u.team === 'horde' ? 'player' : u.team,
                 ),
                 affordable: canBuy && bal >= this.settings.rallyRoute.abilityCost,
@@ -13229,8 +13246,18 @@ export class Game {
     }
 
     /** phase-start building action state, or live once this building isn't fogged */
-    private intelBuildingSeat(u: Unit): BuildingIntelSeat {
-        const seat = u.seat;
+    /**
+     * Whose purchases a building's panel shows and sells: its owner's — or,
+     * on a side's only building of its kind (a Siege's Tent, shared by two
+     * attackers), the local seat's when it has none of its own.
+     */
+    private panelSeatOf(u: Unit): SeatId {
+        if (u.team !== 'player' || u.seat === this.humanSeat) return u.seat;
+        const ownsOne = this.placement.allUnits().some((b) => b.type === u.type && b.seat === this.humanSeat && !b.destroyed);
+        return ownsOne ? u.seat : this.humanSeat;
+    }
+
+    private intelBuildingSeat(u: Unit, seat: SeatId = u.seat): BuildingIntelSeat {
         if (this.placement.isIntelFogged(u) && this.buildingIntelSnapshot) {
             const s = this.buildingIntelSnapshot;
             return {

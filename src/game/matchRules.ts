@@ -7,7 +7,7 @@
  * to the settings instead — see scenario/scenarioSettings.ts.
  */
 import type { LoadoutRule, ScenarioDef, ScenarioRules } from './scenario/scenarioDef';
-import type { GameSettings } from './settings';
+import { roundsVictory, type GameSettings } from './settings';
 import { isTutorial } from './tutorial';
 
 export interface MatchRules {
@@ -51,8 +51,9 @@ export function resolveMatchRules(settings: GameSettings, scenario: ScenarioDef 
         };
     }
     const tutorial = isTutorial(settings);
+    // a Rounds match fights every round from its fixed side HP; HP victory keeps the normal pools
     const sharedHp =
-        settings.climb?.sideHp ?? settings.tutorial?.sideHp ?? settings.fixedSideHp ?? null;
+        (roundsVictory(settings) ? settings.climb?.sideHp : undefined) ?? settings.tutorial?.sideHp ?? settings.fixedSideHp ?? null;
     return {
         // tutorials never open flanks (Tutorial 1 has no flank strips at all)
         flanksOpenFromRound: tutorial ? null : 2,
@@ -61,8 +62,9 @@ export function resolveMatchRules(settings: GameSettings, scenario: ScenarioDef 
         commander: { mode: 'pick' },
         fixedAtmosphere: null,
         opponents: 'build',
-        // single-player Year and lessons show the computer's deployment; a Year room keeps the fog
-        enemyIntel: (settings.climb && !settings.seats) || tutorial ? 'visible' : 'fogged',
+        // lessons, the old single-player Year and a room without fog of war show the other
+        // side's deployment; everything else keeps the fog
+        enemyIntel: (settings.climb && !settings.seats) || tutorial || settings.fogOfWar === false ? 'visible' : 'fogged',
         playerUnlocks: null,
         playerUnlockable: null,
         loadout: { mode: 'player' },

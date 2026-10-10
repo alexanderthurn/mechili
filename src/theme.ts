@@ -2603,6 +2603,13 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-menu .m-session.m-lobby-settings-open .m-lobby-settings { display: grid; }
 .mechili-menu .m-lobby-settings .m-field { min-width: 0; }
+/* a room setting off its default: a brass box, so a changed match reads at a glance */
+.mechili-menu .m-lobby-settings select.is-changed {
+    border-color: ${u.brassLight};
+    box-shadow: 0 0 0 1px rgba(212, 184, 120, 0.45), 0 0 8px rgba(212, 184, 120, 0.25);
+}
+/* a room setting that doesn't apply to this match (the Komtur outside a Siege): kept in place, dimmed */
+.mechili-menu .m-lobby-settings .m-field.is-off { opacity: 0.45; }
 .mechili-menu .m-lobby-settings-reset {
     grid-column: 1 / -1;
     justify-self: start;

@@ -322,7 +322,17 @@ export function suggestUrl(): string {
  *  (main.ts's normalizeCustomGameMode migrates any stored one). */
 export type CustomGameMode = '1v1' | '2v2' | '2v2ai' | 'year';
 export interface CustomGameConfig {
+    /**
+     * The players: '1v1' or '2v2'. ('2v2ai' and 'year' are rooms of before —
+     * 2v2, and 1v1 Siege won on Rounds — and are read as those.)
+     */
     mode: CustomGameMode;
+    /** Siege: an attacker against a defender (see ClimbSettings.siege); omit = Standard, both sides equal */
+    siege?: boolean;
+    /** how the match is won: side HP worn down, or a Year of rounds; omit = 'hp' */
+    victory?: 'hp' | 'rounds';
+    /** false = no fog of war; omit = fog */
+    fog?: boolean;
     /** id into CUSTOM_GAME_PACE_PRESETS */
     pace: string;
     /** id into HORDE_ALGORITHMS */

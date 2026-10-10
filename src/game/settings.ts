@@ -49,8 +49,25 @@ export const CLIMB_AI_DEPLOY_LIMIT = 40;
  */
 export const CLIMB_AI_PACK_BUDGET_FRACTION = 0.55;
 
-/** The Year's rules (see {@link GameSettings.climb}) — single player and multiplayer. */
+/**
+ * A match's Siege and Rounds rules (see {@link GameSettings.climb}) — single
+ * player and multiplayer. The Year is both: {@link siege} and {@link victory}
+ * 'rounds' (the defaults, so older saves stay The Year).
+ */
 export interface ClimbSettings {
+    /**
+     * Siege: an attacker (a Tent, Fire Bolt + Ward Stone, the Year AI) against
+     * a defender (the full base, the Stone Wall). false = both sides equal.
+     * Omit = true.
+     */
+    siege?: boolean;
+    /**
+     * How the match is won: 'rounds' — {@link rounds} rounds (a final stand on
+     * a level score), each one taken by the side ahead after its battle, from
+     * {@link sideHp} restored every round; 'hp' — the normal side HP worn down.
+     * Omit = 'rounds'.
+     */
+    victory?: 'hp' | 'rounds';
     /** rounds played; every round counts for the side that won it, the side with more round wins takes the Year */
     rounds: number;
     /** Fixed side HP after commander pick (both sides) */
@@ -80,8 +97,21 @@ export interface ClimbSettings {
 
 export type ClimbRole = 'attacker' | 'defender';
 
-/** who took a round of The Year */
+/**
+ * who took a round of The Year. A Standard Rounds match has no roles: there
+ * 'attacker' stands for the first side (canonical 0) and 'defender' for the second.
+ */
 export type YearRoundWinner = ClimbRole;
+
+/** an attacker against a defender (Tent, extras by side, the Year AI) */
+export function isSiege(settings: Pick<GameSettings, 'climb'>): boolean {
+    return !!settings.climb && settings.climb.siege !== false;
+}
+
+/** won on rounds (a Year of them), not on side HP */
+export function roundsVictory(settings: Pick<GameSettings, 'climb'>): boolean {
+    return !!settings.climb && settings.climb.victory !== 'hp';
+}
 
 /**
  * The side that attacks in The Year (Tent + Fire Bolt, must outscore to win a
@@ -270,10 +300,12 @@ export interface GameSettings {
      */
     seats?: SeatDef[];
     /**
-     * Single-player Campaign only: sudden-death climb (fixed side HP, win
-     * N battles to finish). Unset in Practice / MP / Custom.
+     * Siege and / or Rounds rules (see {@link ClimbSettings}; The Year is both).
+     * Unset = a Standard match won on HP.
      */
     climb?: ClimbSettings;
+    /** false = no fog of war: each side sees the other's deployment live. Omit = fog. */
+    fogOfWar?: boolean;
     /**
      * Guided single-player tutorial (Practice-like 1v1 + teaching layer).
      * Unset outside Tutorial menu entries.
@@ -848,6 +880,8 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
                   ...(settings.climb.humanRole === 'defender' ? { humanRole: 'defender' as const } : {}),
                   ...(typeof settings.climb.attackerSide === 'number' ? { attackerSide: settings.climb.attackerSide } : {}),
                   ...(typeof settings.climb.attackerCommander === 'string' ? { attackerCommander: settings.climb.attackerCommander } : {}),
+                  ...(settings.climb.siege === false ? { siege: false } : {}),
+                  ...(settings.climb.victory === 'hp' ? { victory: 'hp' as const } : {}),
               }
             : undefined,
         tutorial: settings.tutorial
