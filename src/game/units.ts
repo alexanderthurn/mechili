@@ -789,6 +789,11 @@ export interface UnitType {
      */
     projectileGravityMult?: number;
     /**
+     * × this unit's damage against buildings and walls — a siege weapon.
+     * Omit = 1.
+     */
+    buildingDamageMult?: number;
+    /**
      * Ballistic launch elevation in degrees (e.g. 40). When set, muzzle speed
      * is derived from range so the lob angle stays constant.
      */

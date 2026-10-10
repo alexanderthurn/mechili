@@ -610,8 +610,6 @@ export const HURT_BAR_SECONDS = 1.5;
 
 /** a bullet in flight — hits the first enemy hit-volume it crosses */
 export interface Projectile {
-    /** aimed at this wall (a breach): it hurts the wall it hits — a stray shot only stops in the stone */
-    siege?: Actor;
     x: number;
     y: number;
     z: number;
@@ -1861,6 +1859,8 @@ export class BattleSim {
         knockDir?: { x: number; z: number },
         channel: DamageChannel = 'shielded',
     ): void {
+        // siege weapons: × their damage against buildings and walls (UnitType.buildingDamageMult)
+        if (target.unit.type.structure && source.type.buildingDamageMult) amount *= source.type.buildingDamageMult;
         // Shield soaks the whole hit and breaks — no HP spills over, so the
         // shield always eats exactly one more attack than its pool covers.
         // Hex shuts off talent shields (Aegis); item runes (Bulwark) still soak.
@@ -5210,6 +5210,12 @@ export class BattleSim {
             // let a mech halt up to APPROACH_OFFSET_MAX short of its own
             // firing range (2.2× the whole engagement range for a dwarf) and
             // stand there dealing no damage
+            // every arc to the foe stopped by an enemy wall: shoot the wall in the way
+            // rather than walking closer (into its own dead zone, and back out)
+            if (a.unit.type.projectileSpeed && lineBlocked && this.wallBoxes.length > 0) {
+                const wall = this.blockingWall(a, target.x, target.z, stats.range);
+                if (wall && this.shootWall(a, wall, stats, d.attackMult, dt, true)) continue;
+            }
             // no foe in reach: help break a wall the side is breaking, if one is in range
             // (standing to shoot it) — else close in as usual
             if (a.unit.type.projectileSpeed && this.trySiegeShot(a, stats, d.attackMult, dt, true)) continue;
@@ -5631,7 +5637,6 @@ export class BattleSim {
             })(),
             gravity,
             target: at.homing ? target : undefined,
-            siege: target.unit.type.wall ? target : undefined,
             // a real rock (not the hammerer's swelling blast disc) is a body once it lands
             ...((at.projectileStyle ?? 'bolt') === 'stone' && at.projectileScaleEnd == null && !at.homing
                 ? {
@@ -6234,10 +6239,18 @@ export class BattleSim {
                 const ix = p.x + sx * wall.t;
                 const iy = p.y + sy * wall.t;
                 const iz = p.z + sz * wall.t;
-                // a shot aimed at the wall (a breach) hurts it; a stray one only stops in it
-                if (p.siege === wall.building && wall.building.alive && !p.stone?.landed) {
-                    const dealt = p.damage * this.damageTakenMult(wall.building);
-                    this.applyDamage(p.source, wall.building, dealt, { x: sx, z: sz }, 'direct');
+                // a shot that hits an enemy wall hurts it, whatever it was aimed at (a
+                // splash shot hurts it through its blast below, like a body it hits)
+                const struck = wall.building;
+                if (
+                    struck.unit.type.wall &&
+                    struck.alive &&
+                    actorTeam(struck) !== p.team &&
+                    splash <= 0 &&
+                    !p.stone?.landed
+                ) {
+                    const dealt = p.damage * this.damageTakenMult(struck);
+                    this.applyDamage(p.source, struck, dealt, { x: sx, z: sz }, 'direct');
                 }
                 if (p.stone?.landed) {
                     // its blast went off where it landed — a rolling stone just stops against the wall
@@ -6667,7 +6680,18 @@ export class BattleSim {
         const targets = effectiveTargets(p.source.type, p.source.seat, this.config.hasTech, this.config.types);
         for (const a of this.actors) {
             if (!a.alive || actorTeam(a) === p.team) continue;
-            if (a.unit.type.extra) continue; // extras are immune to blasts too
+            // extras are immune to blasts too — except a wall, which takes them in full
+            if (a.unit.type.extra && !a.unit.type.wall) continue;
+            if (a.unit.type.wall) {
+                // a long rectangle: the blast reaches it where its nearest stone is
+                const box = this.wallBoxes.find((r) => r.owner === a);
+                if (!box) continue;
+                const px = Math.max(box.x0, Math.min(box.x1, x));
+                const pz = Math.max(box.z0, Math.min(box.z1, z));
+                if (hypot(px - x, pz - z) > radius) continue;
+                this.applyDamage(p.source, a, p.damage * this.damageTakenMult(a), { x: a.x - x, z: a.z - z }, 'direct');
+                continue;
+            }
             if (this.airborne(a)) {
                 if (!targets.air) {
                     // Ground-only splash can clip diving free-flyers, rarely.
@@ -6839,6 +6863,8 @@ export class BattleSim {
         const ranged = !!a.unit.type.projectileSpeed;
         const reach = a.radius + (ranged ? stats.range : WALL_MELEE_REACH);
         if (gap > reach) return false;
+        // a shooter breaks it with real shots (the wall is their target), not by touch
+        if (ranged) return this.shootWall(a, wall.owner, stats, attackMult, dt, true);
         const len = gap || 1e-6;
         faceToward(a, detAtan2(-ox / len, -oz / len), dt);
         a.cooldown -= dt;
@@ -7378,7 +7404,26 @@ export class BattleSim {
             best = r;
         }
         if (!best) return false;
-        const wall = best.owner;
+        return this.shootWall(a, best.owner, stats, attackMult, dt, face);
+    }
+
+    /**
+     * A ranged unit shoots a wall: real shots on its cooldown, over a clear
+     * arc (the wall itself is where the flight ends). False when no arc
+     * reaches it. Marks the wall as this unit's siege target this step.
+     */
+    private shootWall(a: Actor, wall: Actor, stats: ResolvedStats, attackMult: number, dt: number, face: boolean): boolean {
+        const speed = a.unit.type.projectileSpeed;
+        if (!speed || stats.damage <= 0) return false;
+        // never inside its own dead zone (a mortar's minimum range)
+        if (stats.minRange > 0) {
+            const box = this.wallBoxes.find((r) => r.owner === wall);
+            if (box) {
+                const px = Math.max(box.x0, Math.min(box.x1, a.x));
+                const pz = Math.max(box.z0, Math.min(box.z1, a.z));
+                if (hypot(px - a.x, pz - a.z) < stats.minRange + a.radius) return false;
+            }
+        }
         if (this.shotLoft(a, wall) === 0) return false;
         a.siegeShotWall = wall;
         if (face) faceToward(a, detAtan2(-(wall.x - a.x), -(wall.z - a.z)), dt);
@@ -7389,6 +7434,30 @@ export class BattleSim {
             this.beginRangedFire(a, wall, damage, speed);
         }
         return true;
+    }
+
+    /**
+     * The first enemy wall on the straight way from `a` to (x, z) that is in
+     * its weapon range — what a ranged unit shoots its way through when every
+     * arc to its target is stopped by stone (or it is walled off from it).
+     */
+    private blockingWall(a: Actor, x: number, z: number, range: number): Actor | null {
+        const dx = x - a.x;
+        const dz = z - a.z;
+        let best: WallBox | null = null;
+        let bestT = Infinity;
+        for (const r of this.wallBoxes) {
+            if (!r.owner.alive || actorTeam(r.owner) === actorTeam(a)) continue;
+            if (insideBox(a.x, a.z, r, 0)) continue;
+            const t = segmentEntry(a.x, a.z, dx, dz, r, 0);
+            if (t === null || t >= bestT) continue;
+            const px = Math.max(r.x0, Math.min(r.x1, a.x));
+            const pz = Math.max(r.z0, Math.min(r.z1, a.z));
+            if (hypot(px - a.x, pz - a.z) - a.radius > range) continue;
+            bestT = t;
+            best = r;
+        }
+        return best ? best.owner : null;
     }
 
     /**

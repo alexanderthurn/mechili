@@ -20,6 +20,8 @@
     "projectileScale": 0.5,
     "projectileBallistic": true,
     "projectileLaunchAngleDeg": 35, // fixed lob; speed scales with range
+    // no steeper lobs (55° / 70°) over cover: 35° is its steepest — a wall in the way gets shot instead
+    "projectileMaxLoft": 1,
     "projectileBallisticTimeScale": 2, // same arc, 2× hang — movers can dodge
     "projectileLaunchHeightFrac": 0.82,
     "projectileCount": 5, // barrage per tube
@@ -35,6 +37,8 @@
     "damage": 12, // per stone; ×5 ≈ 60 / volley / tube
     "range": 92, // longer than ballista — artillery king
     "minRange": 42, // larger dead zone than ballista
+    // a siege weapon: × its damage against buildings and walls
+    "buildingDamageMult": 5,
     "attackInterval": 5.8,
     "speed": 2.3,
     "turnRate": 1.35,

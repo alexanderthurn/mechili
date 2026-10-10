@@ -449,6 +449,10 @@
           "type": "number",
           "description": "Ballistic shooters: × the pull on their projectiles. Less pull = a flatter arc for the same flight time (the shot needs less lift to land on target), so speed, timing and lead stay as they are. Omit = 1."
         },
+        "buildingDamageMult": {
+          "type": "number",
+          "description": "× this unit's damage against buildings and walls — a siege weapon. Omit = 1."
+        },
         "projectileLaunchAngleDeg": {
           "type": "number",
           "description": "Ballistic launch elevation in degrees (e.g. 40). When set, muzzle speed is derived from range so the lob angle stays constant."

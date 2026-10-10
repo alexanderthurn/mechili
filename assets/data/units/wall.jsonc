@@ -30,7 +30,7 @@
         // melee from its front side × meleeFront — and only weapons reaching ≥ frontReach
         // get over the stone from the front (the ogre's 3.4; a knight's 3 not)
         "posts": {
-            "count": 1, "unitTypeId": "archer", "cost": 100, "spacing": 3, "back": 1.5, "top": 0.48, "crown": 0.8, "rise": 0.8,
+            "count": 1, "unitTypeId": "archer", "cost": 100, "spacing": 3, "back": 1.4, "top": 0.48, "crown": 0.8, "rise": 0.8,
             "cover": { "splash": 0.2, "meleeFront": 0.3, "frontReach": 3.2 },
         },
     },

@@ -1184,7 +1184,8 @@ export class PlacementController {
                     const cells = this.coveredCells(fp, anchor);
                     const ok =
                         cells !== null &&
-                        cells.every((c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null));
+                        cells.every((c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null)) &&
+                        this.wallOverlapOk(type, cells, null);
                     if (ok) return anchor;
                 }
             }
@@ -1213,7 +1214,7 @@ export class PlacementController {
                         row: centerRow + dr,
                     });
                     const cells = this.coveredCells(fp, anchor);
-                    if (cells && cells.every((c) => this.cellFree(type, c, null))) {
+                    if (cells && cells.every((c) => this.cellFree(type, c, null)) && this.wallOverlapOk(type, cells, null)) {
                         return anchor;
                     }
                 }
@@ -1284,7 +1285,7 @@ export class PlacementController {
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
             this.deployCellOk(unit.team, c, unit.type, unit.seat) && this.cellFree(unit.type, c, unit);
-        if (!cells || !cells.every(fits)) return false;
+        if (!cells || !cells.every(fits) || !this.wallOverlapOk(unit.type, cells, unit)) return false;
         this.release(unit);
         unit.setWallTurn(rotated, next.flipped);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
@@ -1340,7 +1341,8 @@ export class PlacementController {
         const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
         return (
             cells !== null &&
-            cells.every((c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null))
+            cells.every((c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null)) &&
+            this.wallOverlapOk(type, cells, null)
         );
     }
 
@@ -1355,7 +1357,8 @@ export class PlacementController {
             cells !== null &&
             cells.every(
                 (c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null),
-            );
+            ) &&
+            this.wallOverlapOk(type, cells, null);
         return valid ? this.spawn(type, anchor, team, rotated, false, seat) : null;
     }
 
@@ -1498,6 +1501,7 @@ export class PlacementController {
             const cells = this.coveredCells(fp, anchor);
             if (!cells) continue;
             if (!cells.every((c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null))) continue;
+            if (!this.wallOverlapOk(type, cells, null)) continue;
             // the AI doesn't understand the flank-spawn tax yet — keep it off
             // the flanks so its units don't arrive at 1 hp unaware
             if (cells.some((c) => this.map.isFlankDeployCell(c, team))) continue;
@@ -2522,6 +2526,7 @@ export class PlacementController {
     footprintFree(type: UnitType, anchor: Cell, rotated: boolean, ignore: Unit | null = null): boolean {
         const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
         if (!cells) return false;
+        if (type.wall) return this.wallOverlapOk(type, cells, ignore);
         if (type.extra) return true;
         return cells.every((c) => {
             const holder = this.occupied.get(cellKey(c));
@@ -2839,7 +2844,8 @@ export class PlacementController {
             cells.every((c) => {
                 if (!this.deployCellOk(unit.team, c, unit.type, unit.seat)) return false;
                 return this.cellFree(unit.type, c, unit, group);
-            })
+            }) &&
+            this.wallOverlapOk(unit.type, cells, unit, group)
         );
     }
 
@@ -2872,7 +2878,7 @@ export class PlacementController {
         const cells = this.coveredCells(fp, anchor);
         const fits = (c: Cell) =>
             this.deployCellOk(unit.team, c, unit.type, unit.seat) && this.cellFree(unit.type, c, unit);
-        if (!cells || !cells.every(fits)) return false;
+        if (!cells || !cells.every(fits) || !this.wallOverlapOk(unit.type, cells, unit)) return false;
         this.release(unit);
         unit.moveTo(anchor, this.map.areaCenter(anchor, fp.cols, fp.rows));
         if (!unit.type.extra) for (const c of cells) this.occupied.set(cellKey(c), unit);
@@ -2908,6 +2914,30 @@ export class PlacementController {
         if (type.extra) return true;
         if (!mine) return false;
         return type.structure || !this.wallCellKeys(self, group).has(key);
+    }
+
+    /**
+     * Walls overlap each other only at their ends: a wall standing on `cells`
+     * may share at most one tile with any other wall, and that tile must be an
+     * end tile (a tower's) of both — a straight join or a corner. No crossing
+     * through a wall's middle, no T onto it, no lying along it. `self` / `group`
+     * are moving and don't count.
+     */
+    private wallOverlapOk(type: UnitType, cells: readonly Cell[], self: Unit | null, group: readonly Unit[] = []): boolean {
+        if (!type.wall || cells.length === 0) return true;
+        const mine = new Set(cells.map(cellKey));
+        const myEnds = new Set([cellKey(cells[0]!), cellKey(cells[cells.length - 1]!)]);
+        for (const u of this.units) {
+            if (!u.type.wall || u.destroyed || u === self || group.includes(u)) continue;
+            const theirs = this.coveredCells(this.footprintOf(u.type, u.rotated), u.cell) ?? [];
+            const shared = theirs.filter((c) => mine.has(cellKey(c)));
+            if (shared.length === 0) continue;
+            if (shared.length > 1) return false;
+            const at = cellKey(shared[0]!);
+            const theirEnds = new Set([cellKey(theirs[0]!), cellKey(theirs[theirs.length - 1]!)]);
+            if (!myEnds.has(at) || !theirEnds.has(at)) return false;
+        }
+        return true;
     }
 
     /** the tiles my-or-their walls cover (not `self` / `group`, which are moving) */
@@ -2947,7 +2977,11 @@ export class PlacementController {
             this.joinableWalls(moving),
             (anchor) => {
                 const cells = this.coveredCells(fp, anchor);
-                return cells !== null && cells.every((c) => this.deployCellOk('player', c, type, seat) && this.cellFree(type, c, moving));
+                return (
+                    cells !== null &&
+                    cells.every((c) => this.deployCellOk('player', c, type, seat) && this.cellFree(type, c, moving)) &&
+                    this.wallOverlapOk(type, cells, moving)
+                );
             },
             (f, a) => this.coveredCells(f, a),
         );
@@ -3095,7 +3129,8 @@ export class PlacementController {
             const cells = this.coveredCells(fp, anchor);
             const valid =
                 cells !== null &&
-                cells.every((c) => this.deployCellOk('player', c, type, this.localSeat) && this.cellFree(type, c, null));
+                cells.every((c) => this.deployCellOk('player', c, type, this.localSeat) && this.cellFree(type, c, null)) &&
+                this.wallOverlapOk(type, cells, null);
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
             this.pendingUnit.view.position.set(center.x, 0, center.z);
             this.pendingUnit.seatMembers(center.x, center.z);
@@ -3173,7 +3208,8 @@ export class PlacementController {
                 const cells = this.coveredCells(fp, anchor);
                 const valid =
                     cells !== null &&
-                    cells.every((c) => this.deployCellOk('player', c, sel.type, sel.seat) && this.cellFree(sel.type, c, sel));
+                    cells.every((c) => this.deployCellOk('player', c, sel.type, sel.seat) && this.cellFree(sel.type, c, sel)) &&
+                    this.wallOverlapOk(sel.type, cells, sel);
                 this.hoverMaterial.color.setHex(valid ? VALID_COLOR : INVALID_COLOR);
             } else {
                 this.hoverMaterial.color.setHex(VALID_COLOR);

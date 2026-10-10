@@ -11,7 +11,7 @@ import { BufferAttribute, Box3, Mesh, Vector3, type Group } from 'three';
  */
 export const WALL_WALK = {
     height: 0.6,
-    depth: 2.5,
+    depth: 2,
     /** × the touching distance: below 1 tucks the walkway a little into the wall (no gap shows) */
     flush: 0.9,
     /**
