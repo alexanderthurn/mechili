@@ -91,16 +91,23 @@ export function climbAttackerTeam(climb: ClimbSettings, localSide = 0): 'player'
 }
 
 /**
- * The Year board extras: attacker may buy Fire Bolt (`rocket`) only, defender
- * Ward Stone (`shield`) only. Outside The Year every extra is allowed.
+ * Board extras a side may buy: The Year's attacker (the Tent) gets Fire Bolt
+ * (`rocket`) and Ward Stone (`shield`); everyone else — The Year's defender
+ * and every other mode (practice, multiplayer, …) — the Stone Wall (`wall`).
  */
+export const ATTACKER_BOARD_EXTRAS: readonly string[] = ['rocket', 'shield'];
+export const DEFAULT_BOARD_EXTRAS: readonly string[] = ['wall'];
+
+export function boardExtrasFor(climbAttacker: 'player' | 'enemy' | null, team: 'player' | 'enemy'): readonly string[] {
+    return climbAttacker !== null && team === climbAttacker ? ATTACKER_BOARD_EXTRAS : DEFAULT_BOARD_EXTRAS;
+}
+
 export function yearBoardExtraAllowed(
     climbAttacker: 'player' | 'enemy' | null,
     team: 'player' | 'enemy',
     typeId: string,
 ): boolean {
-    if (climbAttacker === null) return true;
-    return team === climbAttacker ? typeId === 'rocket' : typeId === 'shield';
+    return boardExtrasFor(climbAttacker, team).includes(typeId);
 }
 
 /**

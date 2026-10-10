@@ -234,6 +234,7 @@ import {
     hordeCountMult,
     climbAttackerTeam,
     yearBoardExtraAllowed,
+    boardExtrasFor,
     rallyRouteBuyMax,
     yearWinner,
     type YearRoundWinner,
@@ -9785,18 +9786,18 @@ export class Game {
     }
 
     /**
-     * Board extras the local player may buy. `null` = all buyable extras
-     * (normal matches); empty = none (tutorials); otherwise a whitelist.
-     * The Year: attacker → Fire Bolt, defender → Ward Stone.
+     * Board extras the local player may buy: none in tutorials; The Year's
+     * attacker Fire Bolt + Ward Stone; everyone else the Stone Wall (boardExtrasFor).
      */
     private humanBoardExtraIds(): readonly string[] | null {
+        if (this.settings.scenario?.mode === 'author') return null; // the editor places anything
         if (isTutorial(this.settings)) return [];
-        if (!this.settings.climb) return null;
-        return this.yearAttackerTeam() === 'player' ? ['rocket'] : ['shield'];
+        return boardExtrasFor(this.settings.climb ? this.yearAttackerTeam() : null, 'player');
     }
 
     private humanMayBuyExtra(type: UnitType): boolean {
         if (!type.extra) return true;
+        if (this.settings.scenario?.mode === 'author') return true; // the editor places anything
         if (isTutorial(this.settings)) return false;
         return yearBoardExtraAllowed(
             this.settings.climb ? this.yearAttackerTeam() : null,

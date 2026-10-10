@@ -906,8 +906,9 @@ export class ActionDispatcher {
                 // army units come from the seat's shop (its commander's own, else the normal one)
                 const shop = this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[seat] ?? ''));
                 if (!sandbox && (type.extra ? !isPlayerBuyable(type) : !shop.includes(type.id))) return false;
-                // The Year: attacker Fire Bolt only, defender Ward Stone only
-                if (type.extra && !yearBoardExtraAllowed(this.ctx.climbAttacker, action.team, type.id)) {
+                // board extras by side: The Year's attacker Fire Bolt + Ward Stone, everyone
+                // else the Stone Wall (boardExtrasFor) — the editor's sandbox places anything
+                if (!sandbox && type.extra && !yearBoardExtraAllowed(this.ctx.climbAttacker, action.team, type.id)) {
                     return false;
                 }
                 if (

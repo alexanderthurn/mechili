@@ -15,7 +15,7 @@
     "wall": {
         "halfLength": 6.9,
         "halfDepth": 1.3,
-        "upgradeCost": 10,
+        "upgradeCost": 50,
         "heightPerLevel": 0.25,
         // every wall comes with its walkway (free): it shows which side is the back
         "autoWalk": true,
