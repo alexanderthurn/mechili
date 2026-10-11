@@ -814,12 +814,6 @@ export interface UnitType {
      */
     buildingDamageMult?: number;
     /**
-     * A siege engine: a wall its side's melee are breaking through, in range,
-     * comes before any foe — and the melee count on it when they choose to
-     * break through rather than walk round (see breachDps). Omit = false.
-     */
-    breachFirst?: boolean;
-    /**
      * Ballistic launch elevation in degrees (e.g. 40). When set, muzzle speed
      * is derived from range so the lob angle stays constant.
      */

@@ -32,7 +32,6 @@
     "damage": 500,
     "range": 84,
     "minRange": 30, // siege dead zone — can't hit foes that close in
-    "breachFirst": true, // shoots the wall its melee break through before any foe
     "attackInterval": 3.8,
     "speed": 2.2,
     "turnRate": 1.2,
